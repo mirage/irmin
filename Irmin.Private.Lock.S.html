@@ -3,17 +3,17 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="Up" href="Irmin.Private.Lock.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Private.Lock.S</title>
@@ -37,12 +37,12 @@ The type for key to be locked.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> <a href="Irmin.Private.Lock.S.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type">unit -> <a href="Irmin.Private.Lock.S.html#TYPEt">t</a></code></pre><div class="info ">
 Create a lock manager.<br>
 </div>
 
 <pre><span id="VALwith_lock"><span class="keyword">val</span> with_lock</span> : <code class="type"><a href="Irmin.Private.Lock.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Lock.S.html#TYPEkey">key</a> -> (unit -> 'a Lwt.t) -> 'a Lwt.t</code></pre><div class="info ">
-<code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while holding the exclusive
+<code class="code">with_lock&nbsp;t&nbsp;k&nbsp;f</code> executes <code class="code">f&nbsp;()</code> while holding the exclusive
           lock associated to the key <code class="code">k</code>.<br>
 </div>
 </body></html>

@@ -1,0 +1,47 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="next" href="Irmin_git.S.Git_mem.html">
+<link rel="Up" href="Irmin_git.S.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_git.S.Git</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin_git.S.html" title="Irmin_git.S">Up</a>
+&nbsp;<a class="post" href="Irmin_git.S.Git_mem.html" title="Irmin_git.S.Git_mem">Next</a>
+</div>
+<h1>Module <a href="type_Irmin_git.S.Git.html">Irmin_git.S.Git</a></h1>
+
+<pre><span class="keyword">module</span> Git: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.S.Git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<h1 id="1_AccesstotheGitobjects">Access to the Git objects</h1><br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">include</span> Git.Store.S</pre>
+
+<pre><span id="VALgit_commit"><span class="keyword">val</span> git_commit</span> : <code class="type">Repo.t -> commit -> Git.Commit.t option Lwt.t</code></pre><div class="info ">
+<code class="code">git_commit&nbsp;repo&nbsp;h</code> is the commit corresponding to <code class="code">h</code> in the
+        repository <code class="code">repo</code>.<br>
+</div>
+
+<pre><span id="VALof_repo"><span class="keyword">val</span> of_repo</span> : <code class="type">Repo.t -> t</code></pre><div class="info ">
+<code class="code">of_repo&nbsp;r</code> is the Git store associated to <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALto_repo"><span class="keyword">val</span> to_repo</span> : <code class="type">?head:Git.Reference.t -> ?bare:bool -> t -> Repo.t Lwt.t</code></pre><div class="info ">
+<code class="code">to_repo&nbsp;t</code> is the Irmin repository associated to <code class="code">t</code>.<br>
+</div>
+</body></html>

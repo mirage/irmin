@@ -1,0 +1,416 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="next" href="Irmin.Info.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Type Combinators" rel="Section" href="#1_TypeCombinators">
+<link title="Primitives" rel="Section" href="#primitives">
+<link title="Records" rel="Section" href="#records">
+<link title="Variants" rel="Section" href="#variants">
+<link title="Recursive definitions" rel="Section" href="#recursive">
+<link title="Bijections" rel="Section" href="#proj">
+<link title="Generic Operations" rel="Section" href="#generics">
+<link title="JSON converters" rel="Subsection" href="#2_JSONconverters">
+<title>Irmin.Type</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Info.html" title="Irmin.Info">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Type.html">Irmin.Type</a></h1>
+
+<pre><span class="keyword">module</span> Type: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Type.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Dynamic types for Irmin values.<br>
+</div>
+<hr width="100%">
+<br>
+Yet-an-other type combinator library
+<p>
+
+      <code class="code"><span class="constructor">Type</span></code> provides type combinators to define runtime
+      representation for OCaml types and <a href="Irmin.Type.html#generics">generic
+      operations</a> to manipulate values with a runtime type
+      representation.
+<p>
+
+      The type combinators supports all the usual <a href="Irmin.Type.html#primitives">type
+      primitives</a> but also compact definitions of <a href="Irmin.Type.html#records">records</a>
+      and <a href="Irmin.Type.html#variants">variants</a>. It also allows to define the runtime
+      representation of <a href="Irmin.Type.html#recursive">recursive types</a>.<br>
+<br>
+<h1 id="1_TypeCombinators">Type Combinators</h1><br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+<div class="info ">
+The type for runtime representation of values of type <code class="code"><span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+<br>
+<h1 id="primitives">Primitives</h1><br>
+
+<pre><span id="VALunit"><span class="keyword">val</span> unit</span> : <code class="type">unit <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">unit</code> is a representation of the unit type.<br>
+</div>
+
+<pre><span id="VALbool"><span class="keyword">val</span> bool</span> : <code class="type">bool <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">bool</code> is a representation of the boolean type.<br>
+</div>
+
+<pre><span id="VALchar"><span class="keyword">val</span> char</span> : <code class="type">char <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">char</code> is a representation of the character type.<br>
+</div>
+
+<pre><span id="VALint"><span class="keyword">val</span> int</span> : <code class="type">int <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int</code> is a representation of the integer type.<br>
+</div>
+
+<pre><span id="VALint32"><span class="keyword">val</span> int32</span> : <code class="type">int32 <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int32</code> is a representation of the 32-bit integers type.<br>
+</div>
+
+<pre><span id="VALint64"><span class="keyword">val</span> int64</span> : <code class="type">int64 <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int64</code> is a representation of the 64-bit integer type.<br>
+</div>
+
+<pre><span id="VALfloat"><span class="keyword">val</span> float</span> : <code class="type">float <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">float</code> is a representation of the float type.<br>
+</div>
+
+<pre><span id="VALstring"><span class="keyword">val</span> string</span> : <code class="type">string <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">string</code> is a representation of the string type.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a list <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">list&nbsp;t</code> is a representation of list of values of type <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALarray"><span class="keyword">val</span> array</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a array <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">array&nbsp;t</code> is a representation of array of values of type <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALoption"><span class="keyword">val</span> option</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a option <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">option&nbsp;t</code> is a representation of value of type <code class="code">t&nbsp;option</code>.<br>
+</div>
+
+<pre><span id="VALpair"><span class="keyword">val</span> pair</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'b <a href="Irmin.Type.html#TYPEt">t</a> -> ('a * 'b) <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">pair&nbsp;x&nbsp;y</code> is a representation of values of type <code class="code">x&nbsp;*&nbsp;y</code>.<br>
+</div>
+
+<pre><span id="VALtriple"><span class="keyword">val</span> triple</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -><br>       'b <a href="Irmin.Type.html#TYPEt">t</a> -> 'c <a href="Irmin.Type.html#TYPEt">t</a> -> ('a * 'b * 'c) <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">triple&nbsp;x&nbsp;y&nbsp;z</code> is a representation of values of type <code class="code">x&nbsp;*&nbsp;y&nbsp;*<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;z</code>.<br>
+</div>
+
+<pre><span id="VALresult"><span class="keyword">val</span> result</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'b <a href="Irmin.Type.html#TYPEt">t</a> -> ('a, 'b) Result.result <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">result&nbsp;a&nbsp;b</code> is a representation of values of type <code class="code">(a,&nbsp;b)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result</code>.<br>
+</div>
+<br>
+<h1 id="records">Records</h1><br>
+
+<pre><span id="TYPEfield"><span class="keyword">type</span> <code class="type">('a, 'b)</code> field</span> </pre>
+<div class="info ">
+The type for fields holding values of type <code class="code"><span class="keywordsign">'</span>b</code> and belonging to a
+      record of type <code class="code"><span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+
+<pre><span id="VALfield"><span class="keyword">val</span> field</span> : <code class="type">string -> 'a <a href="Irmin.Type.html#TYPEt">t</a> -> ('b -> 'a) -> ('b, 'a) <a href="Irmin.Type.html#TYPEfield">field</a></code></pre><div class="info ">
+<code class="code">field&nbsp;n&nbsp;t&nbsp;g</code> is the representation of the field <code class="code">n</code> of type <code class="code">t</code>
+      with getter <code class="code">g</code>.
+<p>
+
+      For instance:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = { foo: string option }
+
+        <span class="keyword">let</span> foo = field <span class="string">"foo"</span> (option string) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.x)</code></pre><br>
+</div>
+
+<pre><span id="TYPEopen_record"><span class="keyword">type</span> <code class="type">('a, 'b, 'c)</code> open_record</span> </pre>
+<div class="info ">
+The type for representing open records of type <code class="code"><span class="keywordsign">'</span>a</code> with
+      constructors of type <code class="code"><span class="keywordsign">'</span>b</code>. <code class="code"><span class="keywordsign">'</span>c</code> represents the fields missings to
+      the record, e.g. an open record initially holds <code class="code"><span class="keywordsign">'</span>c&nbsp;=&nbsp;<span class="keywordsign">'</span>b</code> and it
+      can can be <a href="Irmin.Type.html#VALsealr">sealed</a> when <code class="code"><span class="keywordsign">'</span>c&nbsp;=&nbsp;<span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+
+<pre><span id="VALsealr"><span class="keyword">val</span> sealr</span> : <code class="type">('a, 'b, 'a) <a href="Irmin.Type.html#TYPEopen_record">open_record</a> -> 'a <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">sealr&nbsp;r</code> seal the open record <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VAL(|+)"><span class="keyword">val</span> (|+)</span> : <code class="type">('a, 'b, 'c -> 'd) <a href="Irmin.Type.html#TYPEopen_record">open_record</a> -><br>       ('a, 'c) <a href="Irmin.Type.html#TYPEfield">field</a> -> ('a, 'b, 'd) <a href="Irmin.Type.html#TYPEopen_record">open_record</a></code></pre><div class="info ">
+<code class="code">r&nbsp;|+&nbsp;f</code> adds the field <code class="code">f</code> to the open record <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALrecord"><span class="keyword">val</span> record</span> : <code class="type">string -> 'b -> ('a, 'b, 'b) <a href="Irmin.Type.html#TYPEopen_record">open_record</a></code></pre><div class="info ">
+<code class="code">record&nbsp;n&nbsp;f&nbsp;fs</code> is the representation of the record called <code class="code">n</code> of
+      type <code class="code"><span class="keywordsign">'</span>a</code> using <code class="code">f</code> as constructor and with the fields <code class="code">fs</code>.
+<p>
+
+      Putting all together:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = { foo: string; bar = (int * string) list; }
+
+        <span class="keyword">let</span> t =
+          record <span class="string">"t"</span> (<span class="keyword">fun</span> foo <span class="keywordsign">-&gt;</span> { foo })
+          |+ field <span class="string">"foo"</span> string (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.foo)
+          |+ field <span class="string">"bar"</span> (list (pair int string)) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.bar)
+          |&gt; sealr</code></pre><br>
+</div>
+<br>
+<h1 id="variants">Variants</h1><br>
+
+<pre><span id="TYPEcase"><span class="keyword">type</span> <code class="type">('a, 'b)</code> case</span> </pre>
+<div class="info ">
+The type for representing variant cases of type <code class="code"><span class="keywordsign">'</span>a</code> with
+      patterns of type <code class="code"><span class="keywordsign">'</span>b</code>.<br>
+</div>
+
+
+<pre><span id="TYPEcase_p"><span class="keyword">type</span> <code class="type">'a</code> case_p</span> </pre>
+<div class="info ">
+The type for representing patterns for a variant of type <code class="code"><span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+
+<pre><span id="VALcase0"><span class="keyword">val</span> case0</span> : <code class="type">string -> 'a -> ('a, 'a <a href="Irmin.Type.html#TYPEcase_p">case_p</a>) <a href="Irmin.Type.html#TYPEcase">case</a></code></pre><div class="info ">
+<code class="code">case0&nbsp;n&nbsp;v</code> is a representation of a variant case <code class="code">n</code> with no
+      argument and a singleton pattern. e.g.
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = <span class="constructor">Foo</span>
+
+        <span class="keyword">let</span> foo = case0 <span class="string">"Foo"</span> <span class="constructor">Foo</span></code></pre><br>
+</div>
+
+<pre><span id="VALcase1"><span class="keyword">val</span> case1</span> : <code class="type">string -><br>       'b <a href="Irmin.Type.html#TYPEt">t</a> -><br>       ('b -> 'a) -> ('a, 'b -> 'a <a href="Irmin.Type.html#TYPEcase_p">case_p</a>) <a href="Irmin.Type.html#TYPEcase">case</a></code></pre><div class="info ">
+<code class="code">case1&nbsp;n&nbsp;t&nbsp;c</code> is a representation of a variant case <code class="code">n</code> with 1
+      argument of type <code class="code">t</code> and a pattern <code class="code">c</code> an function with one argument
+      of type <code class="code">t</code>. e.g.
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = <span class="constructor">Foo</span> <span class="keyword">of</span> string
+
+        <span class="keyword">let</span> foo = case1 <span class="string">"Foo"</span> string (<span class="keyword">fun</span> s <span class="keywordsign">-&gt;</span> <span class="constructor">Foo</span> s)</code></pre><br>
+</div>
+
+<pre><span id="TYPEopen_variant"><span class="keyword">type</span> <code class="type">('a, 'b, 'c)</code> open_variant</span> </pre>
+<div class="info ">
+The type for representing open variants of type <code class="code"><span class="keywordsign">'</span>a</code> with pattern
+      matching of type <code class="code"><span class="keywordsign">'</span>b</code>. <code class="code"><span class="keywordsign">'</span>c</code> represents the missing cases for the
+      variant, e.g. initially variant hols <code class="code">c'&nbsp;=&nbsp;<span class="keywordsign">'</span>b</code> and it can be
+      <a href="Irmin.Type.html#VALsealv">sealed</a> when <code class="code"><span class="keywordsign">'</span>c&nbsp;=&nbsp;<span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+
+<pre><span id="VALsealv"><span class="keyword">val</span> sealv</span> : <code class="type">('a, 'b, 'a -> 'a <a href="Irmin.Type.html#TYPEcase_p">case_p</a>) <a href="Irmin.Type.html#TYPEopen_variant">open_variant</a> -><br>       'a <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">sealv&nbsp;v</code> seals the open variant <code class="code">v</code>.<br>
+</div>
+
+<pre><span id="VAL(|~)"><span class="keyword">val</span> (|~)</span> : <code class="type">('a, 'b, 'c -> 'd) <a href="Irmin.Type.html#TYPEopen_variant">open_variant</a> -><br>       ('a, 'c) <a href="Irmin.Type.html#TYPEcase">case</a> -> ('a, 'b, 'd) <a href="Irmin.Type.html#TYPEopen_variant">open_variant</a></code></pre><div class="info ">
+<code class="code">v&nbsp;|~&nbsp;c</code> is the map <code class="code">v</code> augmented with the case <code class="code">c</code>.<br>
+</div>
+
+<pre><span id="VALvariant"><span class="keyword">val</span> variant</span> : <code class="type">string -> 'b -> ('a, 'b, 'b) <a href="Irmin.Type.html#TYPEopen_variant">open_variant</a></code></pre><div class="info ">
+<code class="code">variant&nbsp;n&nbsp;c&nbsp;p</code> is a representation of a variant type containing
+      the cases <code class="code">c</code> and using <code class="code">p</code> to deconstruct values.
+<p>
+
+      Putting all together:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = <span class="constructor">Foo</span> <span class="keywordsign">|</span> <span class="constructor">Bar</span> <span class="keyword">of</span> string
+
+        <span class="keyword">let</span> t =
+          variant <span class="string">"t"</span> (<span class="keyword">fun</span> foo bar <span class="keywordsign">-&gt;</span> <span class="keyword">function</span>
+              <span class="keywordsign">|</span> <span class="constructor">Foo</span>   <span class="keywordsign">-&gt;</span> foo
+              <span class="keywordsign">|</span> <span class="constructor">Bar</span> s <span class="keywordsign">-&gt;</span> bar s)
+          |~ case0 <span class="string">"Foo"</span> <span class="constructor">Foo</span>
+          |~ case1 <span class="string">"Bar"</span> string (<span class="keyword">fun</span> x <span class="keywordsign">-&gt;</span> <span class="constructor">Bar</span> x)
+          |&gt; sealr</code></pre><br>
+</div>
+
+<pre><span id="VALenum"><span class="keyword">val</span> enum</span> : <code class="type">string -> (string * 'a) list -> 'a <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">enum&nbsp;n&nbsp;l</code> is a representation of the variant type which has
+      only constant variant case. e.g.
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = <span class="constructor">Foo</span> <span class="keywordsign">|</span> <span class="constructor">Bar</span> <span class="keywordsign">|</span> <span class="constructor">Toto</span>
+
+        <span class="keyword">let</span> t = enum <span class="string">"t"</span> [<span class="string">"Foo"</span>, <span class="constructor">Foo</span>; <span class="string">"Bar"</span>, <span class="constructor">Bar</span>; <span class="string">"Toto"</span>, <span class="constructor">Toto</span>]</code></pre><br>
+</div>
+<br>
+<h1 id="recursive">Recursive definitions</h1>
+<p>
+
+      <code class="code"><span class="constructor">Type</span></code> allows to create a limited form of recursive records and
+      variants.
+<p>
+
+      <b>TODO</b>: describe the limitations, e.g. only regular recursion
+      and no use of the generics inside the <code class="code">mu*</code> functions and the
+      usual caveats with recursive values (such as infinite loops on
+      most of the generics which don't check sharing).<br>
+
+<pre><span id="VALmu"><span class="keyword">val</span> mu</span> : <code class="type">('a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a <a href="Irmin.Type.html#TYPEt">t</a>) -> 'a <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">mu&nbsp;f</code> is the representation <code class="code">r</code> such that <code class="code">r&nbsp;=&nbsp;mu&nbsp;r</code>.
+<p>
+
+      For instance:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> x = { x: x option }
+
+        <span class="keyword">let</span> x = mu (<span class="keyword">fun</span> x <span class="keywordsign">-&gt;</span>
+            record <span class="string">"x"</span> (<span class="keyword">fun</span> x <span class="keywordsign">-&gt;</span> { x })
+            |+ field <span class="string">"x"</span> x (<span class="keyword">fun</span> x <span class="keywordsign">-&gt;</span> x.x)
+            |&gt; sealr)</code></pre><br>
+</div>
+
+<pre><span id="VALmu2"><span class="keyword">val</span> mu2</span> : <code class="type">('a <a href="Irmin.Type.html#TYPEt">t</a> -> 'b <a href="Irmin.Type.html#TYPEt">t</a> -> 'a <a href="Irmin.Type.html#TYPEt">t</a> * 'b <a href="Irmin.Type.html#TYPEt">t</a>) -><br>       'a <a href="Irmin.Type.html#TYPEt">t</a> * 'b <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">mu2&nbsp;f</code> is the representations <code class="code">r</code> and <code class="code">s</code> such that <code class="code">r,&nbsp;s&nbsp;=&nbsp;mu2&nbsp;r<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;s</code>.
+<p>
+
+      For instance:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> r = { foo: int; bar: string list; z: z option }
+        <span class="keyword">and</span> z = { x: int; r: r list }
+
+        <span class="comment">(* Build the representation of [r] knowing [z]'s. *)</span>
+        <span class="keyword">let</span> mkr z =
+          record <span class="string">"r"</span> (<span class="keyword">fun</span> foo bar z <span class="keywordsign">-&gt;</span> { foo; bar; z })
+          |+ field <span class="string">"foo"</span> int (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.foo)
+          |+ field <span class="string">"bar"</span> (list string) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.bar)
+          |+ field <span class="string">"z"</span> (option z) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.z)
+          |&gt; sealr
+
+        <span class="comment">(* And the representation of [z] knowing [r]'s. *)</span>
+        <span class="keyword">let</span> mkz r =
+          record <span class="string">"z"</span> (<span class="keyword">fun</span> x r <span class="keywordsign">-&gt;</span> { x; r })
+          |+ field <span class="string">"x"</span> int (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.x)
+          |+ field <span class="string">"r"</span> (list r) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.r)
+          |&gt; sealr
+
+        <span class="comment">(* Tie the loop. *)</span>
+        <span class="keyword">let</span> r, z = mu2 (<span class="keyword">fun</span> r z <span class="keywordsign">-&gt;</span> mkr z, mkz y)</code></pre><br>
+</div>
+<br>
+<h1 id="proj">Bijections</h1>
+<p>
+
+      Sometimes it is not always possible to describe precisely a type
+      (or it could be too tedious) and it is easier to describe the
+      relation with an other know type. This is what bijections are
+      about.<br>
+
+<pre><span id="VALlike"><span class="keyword">val</span> like</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'b <a href="Irmin.Type.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">like&nbsp;x&nbsp;f&nbsp;g</code> is the description of a type which looks like <code class="code">x</code>
+      using the bijetion <code class="code">(f,&nbsp;g)</code>.<br>
+</div>
+<br>
+<h1 id="generics">Generic Operations</h1>
+<p>
+
+      Given a value <code class="code"><span class="keywordsign">'</span>a&nbsp;t</code>, it is possible to define generic operations
+      on value of type <code class="code"><span class="keywordsign">'</span>a</code> such as pretty-printing, parsing and
+      unparsing.<br>
+
+<pre><span id="VALdump"><span class="keyword">val</span> dump</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a Fmt.t</code></pre><div class="info ">
+<code class="code">dump&nbsp;t</code> dumps the values of type <code class="code">t</code> as a parsable OCaml
+      expression.<br>
+</div>
+
+<pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a -> 'a -> bool</code></pre><div class="info ">
+<code class="code">equal&nbsp;t</code> is the equality function between values of type <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a -> 'a -> int</code></pre><div class="info ">
+<code class="code">compare&nbsp;t</code> compares values of type <code class="code">t</code>.<br>
+</div>
+<br>
+<h2 id="2_JSONconverters">JSON converters</h2><br>
+
+<pre><span id="VALpp_json"><span class="keyword">val</span> pp_json</span> : <code class="type">?minify:bool -> 'a <a href="Irmin.Type.html#TYPEt">t</a> -> 'a Fmt.t</code></pre><div class="info ">
+Similar to <a href="Irmin.Type.html#VALdump"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Type</span>.dump</code></a> but pretty-prints the JSON representation instead
+      of the OCaml one. See <a href="Irmin.Type.html#VALencode_json"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Type</span>.encode_json</code></a> for details about the encoding.
+<p>
+
+      For instance:
+<p>
+
+      <pre class="codepre"><code class="code">        <span class="keyword">type</span> t = { foo: int option; bar: string list };;
+
+        <span class="keyword">let</span> t =
+          record <span class="string">"r"</span> (<span class="keyword">fun</span> foo bar <span class="keywordsign">-&gt;</span> { foo; bar })
+          |+ field <span class="string">"foo"</span> (option int) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.foo)
+          |+ field <span class="string">"bar"</span> (list string) (<span class="keyword">fun</span> t <span class="keywordsign">-&gt;</span> t.bar)
+          |&gt; sealr
+
+        <span class="keyword">let</span> s = <span class="constructor">Fmt</span>.strf <span class="string">"%a\n"</span> (pp t) { foo = <span class="constructor">None</span>; bar = [<span class="string">"foo"</span>] }
+        <span class="comment">(* s is "{ foo = None; bar = [\"foo\"]; }" *)</span>
+
+        <span class="keyword">let</span> j = <span class="constructor">Fmt</span>.strf <span class="string">"%a\n"</span> (pp_json t) { foo = <span class="constructor">None</span>; bar = [<span class="string">"foo"</span>] }
+        <span class="comment">(* j is "{ \"bar\":[\"foo\"] }" *)</span></code></pre>
+<p>
+
+      <b>NOTE:</b> this will automatically convert JSON fragments to valid
+      JSON objects by adding an enclosing array if necessary.<br>
+</div>
+
+<pre><span id="VALencode_json"><span class="keyword">val</span> encode_json</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> Jsonm.encoder -> 'a -> unit</code></pre><div class="info ">
+<code class="code">encode_json&nbsp;t&nbsp;e</code> encodes <code class="code">t</code> into the
+      <a href="http://erratique.ch/software/jsonm">jsonm</a> encoder <code class="code">e</code>. The
+      encoding is a relatively straightforward translation of the OCaml
+      structure into JSON. The main highlights are:
+<p>
+
+      <ul>
+<li>OCaml <code class="code">ints</code> are translated into JSON floats.</li>
+<li>OCaml strings are translated into JSON strings. You must then
+         ensure that the OCaml strings contains only valid UTF-8
+         characters.</li>
+<li>OCaml record fields of type <code class="code"><span class="keywordsign">'</span>a&nbsp;option</code> are automatically
+         unboxed in their JSON representation. If the value if <code class="code"><span class="constructor">None</span></code>,
+         the field is removed from the JSON object.</li>
+<li>variant cases built using <a href="Irmin.Type.html#VALcase0"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Type</span>.case0</code></a> are represented as strings.</li>
+<li>variant cases built using <a href="Irmin.Type.html#VALcase1"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Type</span>.case1</code></a> are represented as a record
+         with one field; the field name is the name of the variant.</li>
+</ul>
+
+<p>
+
+      <b>NOTE:</b> this can be used to encode JSON fragments. That's the
+      responsibility of the caller to ensure that the encoded JSON
+      fragment fits properly into a well-formed JSON object.<br>
+</div>
+
+<pre><span id="VALdecode_json"><span class="keyword">val</span> decode_json</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -> Jsonm.decoder -> ('a, [ `Msg of string ]) Result.result</code></pre><div class="info ">
+<code class="code">decode_json&nbsp;t&nbsp;e</code> decodes values of type <code class="code">t</code> from the
+      <a href="http://erratique.ch/software/jsonm">jsonm</a> decoder <code class="code">e</code>.<br>
+</div>
+
+<pre><span id="VALdecode_json_lexemes"><span class="keyword">val</span> decode_json_lexemes</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">t</a> -><br>       Jsonm.lexeme list -> ('a, [ `Msg of string ]) Result.result</code></pre><div class="info ">
+<code class="code">decode_json_lexemes</code> is similar to <a href="Irmin.Type.html#VALdecode_json"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Type</span>.decode_json</code></a> but use an
+      already decoded list of JSON lexemes instead of a decoder.<br>
+</div>
+</body></html>

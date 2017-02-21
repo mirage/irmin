@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.S.Commit.html">
+<link rel="next" href="Irmin.S.Contents.html">
+<link rel="Up" href="Irmin.S.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Constructors" rel="Section" href="#1_Constructors">
+<link title="Diffs" rel="Section" href="#1_Diffs">
+<link title="Manipulating Contents" rel="Section" href="#1_ManipulatingContents">
+<link title="Manipulating Subtrees" rel="Section" href="#1_ManipulatingSubtrees">
+<link title="Concrete Trees" rel="Section" href="#1_ConcreteTrees">
+<link title="Import/Export" rel="Section" href="#1_ImportExport">
+<title>Irmin.S.Tree</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.S.Commit.html" title="Irmin.S.Commit">Previous</a>
+&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.Contents.html" title="Irmin.S.Contents">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.S.Tree.html">Irmin.S.Tree</a></h1>
+
+<pre><span class="keyword">module</span> Tree: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Tree.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<code class="code"><span class="constructor">Tree</span></code> provides immutable, in-memory partial mirror of the
+        store, with lazy reads and delayed writes.
+<p>
+
+        Trees are like staging area in Git: they are immutable
+        temporary non-persistent areas (they disappear if the host
+        crash), held in memory for efficiency, where reads are done
+        lazily and writes are done only when needed on commit: if you
+        modify a key twice, only the last change will be written to
+        the store when you commit.<br>
+<br>
+<h1 id="1_Constructors">Constructors</h1><br>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
+<code class="code">empty</code> is the empty tree. Empty trees do not have associated
+        backend configuration values, as they can perform in-memory
+        operation, independently of any given backend.
+<p>
+
+        <i>Note</i>: there is another way to obtain an empty tree using
+        <code class="code"><span class="keywordsign">`</span><span class="constructor">Node</span>&nbsp;h</code> where <code class="code">h</code> is the hash of the empty tree for the
+        current repository. Don't use <code class="code">(=)&nbsp;<span class="keywordsign">`</span><span class="constructor">Empty</span></code> to check for tree
+        tree emptiness, unless you really know what you are doing.<br>
+</div>
+
+<pre><span id="VALof_contents"><span class="keyword">val</span> of_contents</span> : <code class="type">?metadata:<a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
+<code class="code">of_contents&nbsp;c</code> is the subtree built from the contents <code class="code">c</code>.<br>
+</div>
+
+<pre><span id="VALof_node"><span class="keyword">val</span> of_node</span> : <code class="type"><a href="Irmin.S.html#TYPEnode">Irmin.S.node</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
+<code class="code">of_node&nbsp;n</code> is the subtree built from the node <code class="code">n</code>.<br>
+</div>
+
+<pre><span id="VALkind"><span class="keyword">val</span> kind</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> [ `Contents | `Empty | `Node ] Lwt.t</code></pre><div class="info ">
+<code class="code">kind&nbsp;t&nbsp;k</code> is the type of <code class="code">s</code> in <code class="code">t</code>. It could either be a
+        tree node or some file contents. It is <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> if <code class="code">k</code> is not
+        present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -><br>       <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> (<a href="Irmin.S.html#TYPEstep">Irmin.S.step</a> * [ `Contents | `Node ]) list Lwt.t</code></pre><div class="info ">
+<code class="code">list&nbsp;t&nbsp;key</code> is the list of files and sub-nodes stored under <code class="code">k</code>
+        in <code class="code">t</code>.<br>
+</div>
+<br>
+<h1 id="1_Diffs">Diffs</h1><br>
+
+<pre><span id="VALdiff"><span class="keyword">val</span> diff</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -><br>       <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -><br>       (<a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> * (<a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a>) <a href="Irmin.html#TYPEdiff">Irmin.diff</a>) list Lwt.t</code></pre><div class="info ">
+<code class="code">diff&nbsp;x&nbsp;y</code> is the difference of contents between <code class="code">x</code> and <code class="code">y</code>.<br>
+</div>
+<br>
+<h1 id="1_ManipulatingContents">Manipulating Contents</h1><br>
+
+<pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">mem&nbsp;t&nbsp;k</code> is true iff <code class="code">k</code> is associated to some contents in
+        <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALfind_all"><span class="keyword">val</span> find_all</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -><br>       <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> (<a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a>) option Lwt.t</code></pre><div class="info ">
+<code class="code">find_all&nbsp;t&nbsp;k</code> is <code class="code"><span class="constructor">Some</span>&nbsp;(b,&nbsp;m)</code> if <code class="code">k</code> is associated to the
+        contents <code class="code">b</code> and metadata <code class="code">m</code> in <code class="code">t</code> and <code class="code"><span class="constructor">None</span></code> if <code class="code">k</code> is not
+        present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">find</code> is similar to <a href="Irmin.S.Tree.html#VALfind_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.find_all</code></a> but it discards metadata.<br>
+</div>
+
+<pre><span id="VALget_all"><span class="keyword">val</span> get_all</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> (<a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a>) Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.S.Tree.html#VALfind_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.find_all</code></a> but raise <code class="code"><span class="constructor">Invalid_arg</span></code> if <code class="code">k</code> is not
+        present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.S.Tree.html#VALget_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.get_all</code></a> but ignore the metadata.<br>
+</div>
+
+<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -><br>       <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -><br>       ?metadata:<a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">add&nbsp;t&nbsp;k&nbsp;c</code> is the tree where the key <code class="code">k</code> is bound to the
+        contents <code class="code">c</code> but is similar to <code class="code">t</code> for other bindings.<br>
+</div>
+
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">remove&nbsp;t&nbsp;k</code> is the tree where <code class="code">k</code> bindings has been removed
+        but is similar to <code class="code">t</code> for other bindings.<br>
+</div>
+<br>
+<h1 id="1_ManipulatingSubtrees">Manipulating Subtrees</h1><br>
+
+<pre><span id="VALmem_tree"><span class="keyword">val</span> mem_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">mem_tree&nbsp;t&nbsp;k</code> is false iff <code class="code">find_tree&nbsp;k&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Empty</span></code>.<br>
+</div>
+
+<pre><span id="VALfind_tree"><span class="keyword">val</span> find_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">find_tree&nbsp;t&nbsp;k</code> is <code class="code">v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code>.  It
+        is <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> if <code class="code">k</code> is not present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALadd_tree"><span class="keyword">val</span> add_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">add_tree&nbsp;t&nbsp;k&nbsp;v</code> is the tree where the key <code class="code">k</code> is bound to the
+        tree <code class="code">v</code> but is similar to <code class="code">t</code> for other bindings<br>
+</div>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<code class="code">merge</code> is the 3-way merge function for trees.<br>
+</div>
+<br>
+<h1 id="1_ConcreteTrees">Concrete Trees</h1><br>
+
+<pre><span id="TYPEconcrete"><span class="keyword">type</span> <code class="type"></code>concrete</span> = <code class="type">[ `Contents of <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a><br>       | `Empty<br>       | `Tree of (<a href="Irmin.S.html#TYPEstep">Irmin.S.step</a> * <a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a>) list ]</code> </pre>
+<div class="info ">
+The type for concrete trees.<br>
+</div>
+
+
+<pre><span id="VALof_concrete"><span class="keyword">val</span> of_concrete</span> : <code class="type"><a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
+<code class="code">of_concrete&nbsp;c</code> is the subtree equivalent to the concrete tree
+        <code class="code">c</code>.<br>
+</div>
+
+<pre><span id="VALto_concrete"><span class="keyword">val</span> to_concrete</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a> Lwt.t</code></pre><div class="info ">
+<code class="code">to_concrete&nbsp;t</code> is the concrete tree equivalent to the subtree
+        <code class="code">t</code>.<br>
+</div>
+<br>
+<h1 id="1_ImportExport">Import/Export</h1><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Tree.Hash.html">Hash</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type"> </code></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions for tree hashes.
+</div>
+
+<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> Hash.t Lwt.t</code></pre><div class="info ">
+<code class="code">hash&nbsp;r&nbsp;c</code> it <code class="code">c</code>'s hash in the repository <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> Hash.t -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">of_hash&nbsp;r&nbsp;h</code> is the the tree object in <code class="code">r</code> having <code class="code">h</code> as
+        hash, or <code class="code"><span class="constructor">None</span></code> is no such tree object exists.<br>
+</div>
+</body></html>

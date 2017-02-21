@@ -3,25 +3,27 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Contents.Raw.html">
 <link rel="next" href="Irmin.Contents.STORE.html">
 <link rel="Up" href="Irmin.Contents.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Signature for store contents" rel="Section" href="#1_Signatureforstorecontents">
 <title>Irmin.Contents.S</title>
 </head>
 <body>
-<div class="navbar">&nbsp;<a class="up" href="Irmin.Contents.html" title="Irmin.Contents">Up</a>
+<div class="navbar"><a class="pre" href="Irmin.Contents.Raw.html" title="Irmin.Contents.Raw">Previous</a>
+&nbsp;<a class="up" href="Irmin.Contents.html" title="Irmin.Contents">Up</a>
 &nbsp;<a class="post" href="Irmin.Contents.STORE.html" title="Irmin.Contents.STORE">Next</a>
 </div>
 <h1>Module type <a href="type_Irmin.Contents.S.html">Irmin.Contents.S</a></h1>
@@ -30,19 +32,29 @@
 <br>
 <h1 id="1_Signatureforstorecontents">Signature for store contents</h1><br>
 
-<pre><span class="keyword">include</span> Tc.S0</pre>
-<br>
-Base functions on contents.<br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.S.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
-The type for store paths.
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for user-defined contents.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Path.t -> t option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-Merge function. Evaluates to <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code> if the values cannot
-        be merged properly. The arguments of the merge function can
-        take <code class="code"><span class="constructor">None</span></code> to mean that the key does not exists for either
-        the least-common ancestor or one of the two merging
+
+<pre><span id="VALt"><span class="keyword">val</span> t</span> : <code class="type"><a href="Irmin.Contents.S.html#TYPEt">t</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">t</code> is the value type for <a href="Irmin.Contents.S.html#VALt"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">S</span>.t</code></a>.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Irmin.Contents.S.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> pretty-prints contents.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> (<a href="Irmin.Contents.S.html#TYPEt">t</a>, [ `Msg of string ]) Result.result</code></pre><div class="info ">
+<code class="code">of_string</code> parses contents.<br>
+</div>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Contents.S.html#TYPEt">t</a> option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+Merge function. Evaluates to <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span>&nbsp;msg</code> if the values
+        cannot be merged properly. The arguments of the merge function
+        can take <code class="code"><span class="constructor">None</span></code> to mean that the key does not exists for
+        either the least-common ancestor or one of the two merging
         points. The merge function returns <code class="code"><span class="constructor">None</span></code> when the key's value
         should be deleted.<br>
 </div>

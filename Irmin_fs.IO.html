@@ -3,59 +3,82 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
-<link rel="next" href="Irmin_fs.LOCK.html">
+<link rel="next" href="Irmin_fs.Config.html">
 <link rel="Up" href="Irmin_fs.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_fs.IO</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="File-system abstractions" rel="Section" href="#1_Filesystemabstractions">
+<link title="Read operations" rel="Subsection" href="#2_Readoperations">
+<link title="Write Operations" rel="Subsection" href="#2_WriteOperations">
+<title>Irmin_fs.IO</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Irmin_fs.html" title="Irmin_fs">Up</a>
-&nbsp;<a class="post" href="Irmin_fs.LOCK.html" title="Irmin_fs.LOCK">Next</a>
+&nbsp;<a class="post" href="Irmin_fs.Config.html" title="Irmin_fs.Config">Next</a>
 </div>
 <h1>Module type <a href="type_Irmin_fs.IO.html">Irmin_fs.IO</a></h1>
 
 <pre><span class="keyword">module type</span> IO = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_fs.IO.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
 <br>
-File-system abstraction.<br>
+<h1 id="1_Filesystemabstractions">File-system abstractions</h1><br>
 
-<pre><span id="VALgetcwd"><span class="keyword">val</span> getcwd</span> : <code class="type">unit -> string Lwt.t</code></pre><div class="info ">
-Return the current directory.<br>
+<pre><span id="TYPEpath"><span class="keyword">type</span> <code class="type"></code>path</span> = <code class="type">string</code> </pre>
+<div class="info ">
+The type for paths.<br>
 </div>
 
-<pre><span id="VALmkdir"><span class="keyword">val</span> mkdir</span> : <code class="type">string -> unit Lwt.t</code></pre><div class="info ">
-Create a directory.<br>
-</div>
+<br>
+<h2 id="2_Readoperations">Read operations</h2><br>
 
-<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">string -> unit Lwt.t</code></pre><div class="info ">
-Remove a file or directory (even if non-empty).<br>
-</div>
-
-<pre><span id="VALrec_files"><span class="keyword">val</span> rec_files</span> : <code class="type">string -> string list Lwt.t</code></pre><div class="info ">
-<code class="code">rec_files dir</code> is the list of files recursively present in
+<pre><span id="VALrec_files"><span class="keyword">val</span> rec_files</span> : <code class="type"><a href="Irmin_fs.IO.html#TYPEpath">path</a> -> string list Lwt.t</code></pre><div class="info ">
+<code class="code">rec_files&nbsp;dir</code> is the list of files recursively present in
       <code class="code">dir</code> and all of its sub-directories. Return filenames prefixed
       by <code class="code">dir</code>.<br>
 </div>
 
-<pre><span id="VALfile_exists"><span class="keyword">val</span> file_exists</span> : <code class="type">string -> bool Lwt.t</code></pre><div class="info ">
-<code class="code">file_exist f</code> is true if <code class="code">f</code> exists.<br>
+<pre><span id="VALfile_exists"><span class="keyword">val</span> file_exists</span> : <code class="type"><a href="Irmin_fs.IO.html#TYPEpath">path</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">file_exist&nbsp;f</code> is true if <code class="code">f</code> exists.<br>
 </div>
 
-<pre><span id="VALread_file"><span class="keyword">val</span> read_file</span> : <code class="type">string -> Cstruct.t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALread_file"><span class="keyword">val</span> read_file</span> : <code class="type"><a href="Irmin_fs.IO.html#TYPEpath">path</a> -> Cstruct.t option Lwt.t</code></pre><div class="info ">
 Read the contents of a file using mmap.<br>
 </div>
+<br>
+<h2 id="2_WriteOperations">Write Operations</h2><br>
 
-<pre><span id="VALwrite_file"><span class="keyword">val</span> write_file</span> : <code class="type">string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t</code></pre><div class="info ">
-Write some contents to a new file.<br>
+<pre><span id="VALmkdir"><span class="keyword">val</span> mkdir</span> : <code class="type"><a href="Irmin_fs.IO.html#TYPEpath">path</a> -> unit Lwt.t</code></pre><div class="info ">
+Create a directory.<br>
+</div>
+
+<pre><span id="TYPElock"><span class="keyword">type</span> <code class="type"></code>lock</span> </pre>
+<div class="info ">
+The type for file locks.<br>
+</div>
+
+
+<pre><span id="VALlock_file"><span class="keyword">val</span> lock_file</span> : <code class="type"><a href="Irmin_fs.IO.html#TYPEpath">path</a> -> <a href="Irmin_fs.IO.html#TYPElock">lock</a></code></pre><div class="info ">
+<code class="code">lock_file&nbsp;f</code> is the lock associated to the file <code class="code">f</code>.<br>
+</div>
+
+<pre><span id="VALwrite_file"><span class="keyword">val</span> write_file</span> : <code class="type">?temp_dir:<a href="Irmin_fs.IO.html#TYPEpath">path</a> -><br>       ?lock:<a href="Irmin_fs.IO.html#TYPElock">lock</a> -> <a href="Irmin_fs.IO.html#TYPEpath">path</a> -> Cstruct.t -> unit Lwt.t</code></pre><div class="info ">
+Atomic writes.<br>
+</div>
+
+<pre><span id="VALtest_and_set_file"><span class="keyword">val</span> test_and_set_file</span> : <code class="type">?temp_dir:string -><br>       lock:<a href="Irmin_fs.IO.html#TYPElock">lock</a> -><br>       <a href="Irmin_fs.IO.html#TYPEpath">path</a> -><br>       test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t</code></pre><div class="info ">
+Test and set.<br>
+</div>
+
+<pre><span id="VALremove_file"><span class="keyword">val</span> remove_file</span> : <code class="type">?lock:<a href="Irmin_fs.IO.html#TYPElock">lock</a> -> <a href="Irmin_fs.IO.html#TYPEpath">path</a> -> unit Lwt.t</code></pre><div class="info ">
+Remove a file or directory (even if non-empty).<br>
 </div>
 </body></html>

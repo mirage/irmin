@@ -3,17 +3,17 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="Up" href="Irmin.Private.Watch.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Watch Helpers" rel="Section" href="#1_WatchHelpers">
@@ -56,7 +56,7 @@ The type for watch state.<br>
 
 
 <pre><span id="VALstats"><span class="keyword">val</span> stats</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -> int * int</code></pre><div class="info ">
-<code class="code">stats t</code> is a tuple <code class="code">(k,a)</code> represeting watch stats. <code class="code">k</code> is
+<code class="code">stats&nbsp;t</code> is a tuple <code class="code">(k,a)</code> represeting watch stats. <code class="code">k</code> is
           the number of single key watchers for the store <code class="code">t</code> and <code class="code">a</code> the
           number of global watchers for <code class="code">t</code>.<br>
 </div>
@@ -67,7 +67,7 @@ Notify all listeners in the given watch state that a key has
           means the key has been removed.<br>
 </div>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> <a href="Irmin.Private.Watch.S.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type">unit -> <a href="Irmin.Private.Watch.S.html#TYPEt">t</a></code></pre><div class="info ">
 Create a watch state.<br>
 </div>
 

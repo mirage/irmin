@@ -1,0 +1,82 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="next" href="Irmin.S.Status.html">
+<link rel="Up" href="Irmin.S.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Repositories" rel="Section" href="#1_Repositories">
+<title>Irmin.S.Repo</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.Status.html" title="Irmin.S.Status">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.S.Repo.html">Irmin.S.Repo</a></h1>
+
+<pre><span class="keyword">module</span> Repo: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Repo.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Repositories.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Repositories">Repositories</h1>
+<p>
+
+        A repository contains a set of branches.<br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type of repository handles.<br>
+</div>
+
+
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> <a href="Irmin.S.Repo.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">v&nbsp;config</code> connects to a repository in a backend-specific
+        manner.<br>
+</div>
+
+<pre><span id="VALheads"><span class="keyword">val</span> heads</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">heads</code> is <a href="Irmin.S.Head.html#VALlist"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Head</span>.list</code></a>.<br>
+</div>
+
+<pre><span id="VALbranches"><span class="keyword">val</span> branches</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">branches</code> is .<br>
+</div>
+
+<pre><span id="VALexport"><span class="keyword">val</span> export</span> : <code class="type">?full:bool -><br>       ?depth:int -><br>       ?min:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> list -><br>       ?max:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> list -> <a href="Irmin.S.Repo.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEslice">Irmin.S.slice</a> Lwt.t</code></pre><div class="info ">
+<code class="code">export&nbsp;t&nbsp;~depth&nbsp;~min&nbsp;~max</code> exports the store slice between
+        <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
+        from the max).
+<p>
+
+        If <code class="code">max</code> is not specified, use the current <code class="code">heads</code>. If <code class="code">min</code> is
+        not specified, use an unbound past (but can still be limited by
+        <code class="code">depth</code>).
+<p>
+
+        <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code"><span class="constructor">None</span></code>
+        here means no limitation.
+<p>
+
+        If <code class="code">full</code> is set (default is true), the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only.<br>
+</div>
+
+<pre><span id="VALimport"><span class="keyword">val</span> import</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEslice">Irmin.S.slice</a> -> (unit, [ `Msg of string ]) Result.result Lwt.t</code></pre><div class="info ">
+<code class="code">import&nbsp;t&nbsp;s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>. Does
+        not modify branches.<br>
+</div>
+</body></html>

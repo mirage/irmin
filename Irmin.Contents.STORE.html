@@ -3,18 +3,18 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Contents.S.html">
 <link rel="Up" href="Irmin.Contents.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Contents.STORE</title>
@@ -32,12 +32,8 @@ Contents store.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
-The type for store paths.
-</div>
-
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Path.t -> t -> key option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-<code class="code">merge t</code> lifts the merge functions defined on contents values
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> key option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<code class="code">merge&nbsp;t</code> lifts the merge functions defined on contents values
         to contents key. The merge function will: <em>(i)</em> read the
         values associated with the given keys, <em>(ii)</em> use the merge
         function defined on values and <em>(iii)</em> write the resulting
@@ -52,7 +48,7 @@ The type for store paths.
 <code class="code"><span class="constructor">Key</span></code> provides base functions for user-defined contents keys.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value and module Path = Path</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides base functions for user-defined contents values.
 </div>
 </body></html>

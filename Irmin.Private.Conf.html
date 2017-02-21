@@ -3,18 +3,18 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin.Private.Watch.html">
 <link rel="Up" href="Irmin.Private.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Configuration converters" rel="Section" href="#1_Configurationconverters">
@@ -45,7 +45,7 @@ Backend configuration.
         value and vice-versa. There are a few
         <a href="Irmin.Private.Conf.html#builtin_converters">built-in converters</a>.<br>
 
-<pre><span id="TYPEparser"><span class="keyword">type</span> <code class="type">'a</code> parser</span> = <code class="type">string -> [ `Error of string | `Ok of 'a ]</code> </pre>
+<pre><span id="TYPEparser"><span class="keyword">type</span> <code class="type">'a</code> parser</span> = <code class="type">string -> ('a, [ `Msg of string ]) Result.result</code> </pre>
 <div class="info ">
 The type for configuration converter parsers.<br>
 </div>
@@ -64,11 +64,11 @@ The type for configuration converters.<br>
 
 
 <pre><span id="VALparser"><span class="keyword">val</span> parser</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEparser">parser</a></code></pre><div class="info ">
-<code class="code"><span class="keyword">parser</span> c</code> is <code class="code">c</code>'s parser.<br>
+<code class="code"><span class="keyword">parser</span>&nbsp;c</code> is <code class="code">c</code>'s parser.<br>
 </div>
 
 <pre><span id="VALprinter"><span class="keyword">val</span> printer</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEprinter">printer</a></code></pre><div class="info ">
-<code class="code">converter c</code> is <code class="code">c</code>'s printer.<br>
+<code class="code">converter&nbsp;c</code> is <code class="code">c</code>'s printer.<br>
 </div>
 <br>
 <h1 id="keys">Keys</h1><br>
@@ -80,7 +80,7 @@ The type for configuration keys whose lookup value is <code class="code"><span c
 
 
 <pre><span id="VALkey"><span class="keyword">val</span> key</span> : <code class="type">?docs:string -><br>       ?docv:string -><br>       ?doc:string -><br>       string -> 'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a></code></pre><div class="info ">
-<code class="code">key ~docs ~docv ~doc name conv default</code> is a configuration key named
+<code class="code">key&nbsp;~docs&nbsp;~docv&nbsp;~doc&nbsp;name&nbsp;conv&nbsp;default</code> is a configuration key named
         <code class="code">name</code> that maps to value <code class="code">default</code> by default. <code class="code">conv</code> is
         used to convert key values provided by end users.
 <p>
@@ -105,23 +105,23 @@ The key name.<br>
 </div>
 
 <pre><span id="VALconv"><span class="keyword">val</span> conv</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a></code></pre><div class="info ">
-<code class="code">tc k</code> is <code class="code">k</code>'s converter.<br>
+<code class="code">tc&nbsp;k</code> is <code class="code">k</code>'s converter.<br>
 </div>
 
 <pre><span id="VALdefault"><span class="keyword">val</span> default</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a</code></pre><div class="info ">
-<code class="code">default k</code> is <code class="code">k</code>'s default value.<br>
+<code class="code">default&nbsp;k</code> is <code class="code">k</code>'s default value.<br>
 </div>
 
 <pre><span id="VALdoc"><span class="keyword">val</span> doc</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> string option</code></pre><div class="info ">
-<code class="code">doc k</code> is <code class="code">k</code>'s documentation string (if any).<br>
+<code class="code">doc&nbsp;k</code> is <code class="code">k</code>'s documentation string (if any).<br>
 </div>
 
 <pre><span id="VALdocv"><span class="keyword">val</span> docv</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> string option</code></pre><div class="info ">
-<code class="code">docv k</code> is <code class="code">k</code>'s value documentation meta-variable (if any).<br>
+<code class="code">docv&nbsp;k</code> is <code class="code">k</code>'s value documentation meta-variable (if any).<br>
 </div>
 
 <pre><span id="VALdocs"><span class="keyword">val</span> docs</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> string option</code></pre><div class="info ">
-<code class="code">docs k</code> is <code class="code">k</code>'s documentation section (if any).<br>
+<code class="code">docs&nbsp;k</code> is <code class="code">k</code>'s documentation section (if any).<br>
 </div>
 
 <pre><span id="VALroot"><span class="keyword">val</span> root</span> : <code class="type">string option <a href="Irmin.Private.Conf.html#TYPEkey">key</a></code></pre><div class="info ">
@@ -141,35 +141,35 @@ The type for configurations.<br>
 </div>
 
 <pre><span id="VALsingleton"><span class="keyword">val</span> singleton</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">singleton k v</code> is the configuration where <code class="code">k</code> maps to <code class="code">v</code>.<br>
+<code class="code">singleton&nbsp;k&nbsp;v</code> is the configuration where <code class="code">k</code> maps to <code class="code">v</code>.<br>
 </div>
 
 <pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
-<code class="code">is_empty c</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">c</code> is empty.<br>
+<code class="code">is_empty&nbsp;c</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">c</code> is empty.<br>
 </div>
 
 <pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> bool</code></pre><div class="info ">
-<code class="code">mem c k</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.<br>
+<code class="code">mem&nbsp;c&nbsp;k</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.<br>
 </div>
 
 <pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -><br>       'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">add c k v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.<br>
+<code class="code">add&nbsp;c&nbsp;k&nbsp;v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.<br>
 </div>
 
 <pre><span id="VALrem"><span class="keyword">val</span> rem</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.<br>
+<code class="code">rem&nbsp;c&nbsp;k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.<br>
 </div>
 
 <pre><span id="VALunion"><span class="keyword">val</span> union</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">union r s</code> is the union of the configurations <code class="code">r</code> and <code class="code">s</code>.<br>
+<code class="code">union&nbsp;r&nbsp;s</code> is the union of the configurations <code class="code">r</code> and <code class="code">s</code>.<br>
 </div>
 
 <pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a option</code></pre><div class="info ">
-<code class="code">find c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>, if any.<br>
+<code class="code">find&nbsp;c&nbsp;k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>, if any.<br>
 </div>
 
 <pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a</code></pre><div class="info ">
-<code class="code">get c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>.
+<code class="code">get&nbsp;c&nbsp;k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>.
 <p>
 
         <b>Raises.</b> <code class="code"><span class="constructor">Not_found</span></code> if <code class="code">k</code> is not bound in <code class="code">d</code>.<br>

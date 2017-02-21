@@ -3,26 +3,27 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Private.Node.STORE.Key.html">
+<link rel="previous" href="Irmin.Private.Node.STORE.Metadata.html">
 <link rel="next" href="Irmin.Private.Node.STORE.Contents.html">
 <link rel="Up" href="Irmin.Private.Node.STORE.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Node values" rel="Section" href="#1_Nodevalues">
+<link title="Value types" rel="Section" href="#1_Valuetypes">
 <title>Irmin.Private.Node.STORE.Val</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Private.Node.STORE.Key.html" title="Irmin.Private.Node.STORE.Key">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Private.Node.STORE.Metadata.html" title="Irmin.Private.Node.STORE.Metadata">Previous</a>
 &nbsp;<a class="up" href="Irmin.Private.Node.STORE.html" title="Irmin.Private.Node.STORE">Up</a>
 &nbsp;<a class="post" href="Irmin.Private.Node.STORE.Contents.html" title="Irmin.Private.Node.STORE.Contents">Next</a>
 </div>
@@ -30,6 +31,7 @@
 
 <pre><span class="keyword">module</span> Val: <code class="type"><a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a></code><code class="type">  with type t = value
                      and type node = key
+                     and type metadata = Metadata.t
                      and type step = Path.step</code></pre><div class="info module top">
 <code class="code"><span class="constructor">Val</span></code> provides base functions for node values.<br>
 </div>
@@ -37,21 +39,21 @@
 <br>
 <h1 id="1_Nodevalues">Node values</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.S.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type"> </code></pre><div class="info">
-The type for metadata attached to content entries.
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for node values.<br>
 </div>
 
-<pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="TYPEraw_contents"><span class="keyword">type</span> <code class="type"></code>raw_contents</span> </pre>
+<pre><span id="TYPEmetadata"><span class="keyword">type</span> <code class="type"></code>metadata</span> </pre>
+<div class="info ">
+The type for node metadata.<br>
+</div>
+
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
 <div class="info ">
 The type for contents keys.<br>
-</div>
-
-
-<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = <code class="type"><a href="Irmin.Private.Node.S.html#TYPEraw_contents">raw_contents</a> * Metadata.t</code> </pre>
-<div class="info ">
-The type for contents keys combined with their metadata.<br>
 </div>
 
 
@@ -67,52 +69,71 @@ The type for steps between nodes.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">(<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a><br>        | `Node of <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> ])<br>       list -> t</code></pre><div class="info ">
-<code class="code">create l</code> is a new node.<br>
+<pre><span id="TYPEvalue"><span class="keyword">type</span> <code class="type"></code>value</span> = <code class="type">[ `Contents of <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> * <a href="Irmin.Private.Node.S.html#TYPEmetadata">metadata</a><br>       | `Node of <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> ]</code> </pre>
+<div class="info ">
+The type for either node keys or contents keys combined with
+          their metadata.<br>
 </div>
 
-<pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">t -><br>       (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a><br>        | `Node of <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> ])<br>       list</code></pre><div class="info ">
-<code class="code">alist t</code> is the contents of <code class="code">t</code>.<br>
+
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type">(<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> * <a href="Irmin.Private.Node.S.html#TYPEvalue">value</a>) list -><br>       <a href="Irmin.Private.Node.S.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">create&nbsp;l</code> is a new node.<br>
 </div>
 
-<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">t</code></pre><div class="info ">
-The empty node.<br>
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> -><br>       (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> * <a href="Irmin.Private.Node.S.html#TYPEvalue">value</a>) list</code></pre><div class="info ">
+<code class="code">list&nbsp;t</code> is the contents of <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type">t -> bool</code></pre><div class="info ">
-Is the node empty?<br>
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">empty</code> is the empty node.<br>
 </div>
 
-<pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> option</code></pre><div class="info ">
-Get the node contents.
+<pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+<code class="code">is_empty&nbsp;t</code> is true iff <code class="code">t</code> is <a href="Irmin.Private.Node.S.html#VALempty"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.empty</code></a>.<br>
+</div>
+
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEvalue">value</a> option</code></pre><div class="info ">
+<code class="code">find&nbsp;t&nbsp;s</code> is the value associated with <code class="code">s</code> in <code class="code">t</code>.
 <p>
 
           A node can point to user-defined
-          <a href="Irmin.Private.Node.S.html#VALcontents">contents</a>. The edge between the node and
+          <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a>. The edge between the node and
           the contents is labeled by a <a href="Irmin.Private.Node.S.html#TYPEstep">step</a>.<br>
 </div>
 
-<pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -><br>       (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> -> unit) -> unit</code></pre><div class="info ">
-<code class="code">iter_contents t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s contents. For better
-          performance, use <a href="Irmin.Private.Node.S.html#VALcontents">contents</a> instead when
-          you know the step in advance.<br>
+<pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -><br>       <a href="Irmin.Private.Node.S.html#TYPEvalue">value</a> -> <a href="Irmin.Private.Node.S.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">update&nbsp;t&nbsp;s&nbsp;v</code> is the node where <code class="code">find&nbsp;t&nbsp;v</code> is <code class="code"><span class="constructor">Some</span>&nbsp;s</code> but
+          is similar to <code class="code">t</code> otherwise.<br>
 </div>
 
-<pre><span id="VALwith_contents"><span class="keyword">val</span> with_contents</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> option -> t</code></pre><div class="info ">
-<code class="code">with_contents t s c</code> replaces <code class="code">t</code>'s contents for the step
-          <code class="code">s</code> by <code class="code">c</code>.<br>
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">remove&nbsp;t&nbsp;s</code> is the node where <code class="code">find&nbsp;t&nbsp;s</code> is <code class="code"><span class="constructor">None</span></code> but is
+          similar to <code class="code">t</code> otherwise.<br>
+</div>
+<br>
+<h1 id="1_Valuetypes">Value types</h1><br>
+
+<pre><span id="VALt"><span class="keyword">val</span> t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEt">t</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">t</code> is the value type for <a href="Irmin.Private.Node.S.html#VALt"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.t</code></a>.<br>
 </div>
 
-<pre><span id="VALsucc"><span class="keyword">val</span> succ</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> option</code></pre><div class="info ">
-<code class="code">succ t s</code> is <code class="code">s</code>'s successor in <code class="code">t</code>.<br>
+<pre><span id="VALmetadata_t"><span class="keyword">val</span> metadata_t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEmetadata">metadata</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">metadata_t</code> is the value type for <a href="Irmin.Private.Node.S.html#TYPEmetadata"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.metadata</code></a>.<br>
 </div>
 
-<pre><span id="VALiter_succ"><span class="keyword">val</span> iter_succ</span> : <code class="type">t -> (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> -> unit) -> unit</code></pre><div class="info ">
-<code class="code">iter_succ t f</code> calls f on <code class="code">t</code>'s successors.<br>
+<pre><span id="VALcontents_t"><span class="keyword">val</span> contents_t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">contents_t</code> is the value type for <a href="Irmin.Private.Node.S.html#TYPEcontents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.contents</code></a>.<br>
 </div>
 
-<pre><span id="VALwith_succ"><span class="keyword">val</span> with_succ</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> option -> t</code></pre><div class="info ">
-<code class="code">replace_succ t s n</code> replaces <code class="code">t</code>'s successor for the step
-          <code class="code">s</code> by <code class="code">n</code>.<br>
+<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEnode">node</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">node_t</code> is the value type for <a href="Irmin.Private.Node.S.html#TYPEnode"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.node</code></a>.<br>
+</div>
+
+<pre><span id="VALstep_t"><span class="keyword">val</span> step_t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEstep">step</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">step_t</code> is the value type for <a href="Irmin.Private.Node.S.html#TYPEstep"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.step</code></a>.<br>
+</div>
+
+<pre><span id="VALvalue_t"><span class="keyword">val</span> value_t</span> : <code class="type"><a href="Irmin.Private.Node.S.html#TYPEvalue">value</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">value_t</code> is the value type for <a href="Irmin.Private.Node.S.html#TYPEvalue"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">S</span>.value</code></a>.<br>
 </div>
 </body></html>

@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin_git.FS.Make.html">
+<link rel="next" href="Irmin_git.FS.Ref.html">
+<link rel="Up" href="Irmin_git.FS.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_git.FS.KV</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin_git.FS.Make.html" title="Irmin_git.FS.Make">Previous</a>
+&nbsp;<a class="up" href="Irmin_git.FS.html" title="Irmin_git.FS">Up</a>
+&nbsp;<a class="post" href="Irmin_git.FS.Ref.html" title="Irmin_git.FS.Ref">Next</a>
+</div>
+<h1>Functor <a href="type_Irmin_git.FS.KV.html">Irmin_git.FS.KV</a></h1>
+
+<pre><span class="keyword">module</span> KV: <div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">IO</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type"><a href="Irmin_git.IO.html">Irmin_git.IO</a></code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">I</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type">Git.Inflate.S</code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">FS</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type">Git.FS.IO</code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><code class="type"><a href="Irmin_git.KV_MAKER.html">Irmin_git.KV_MAKER</a></code><code class="type"> </code></div></div></div></pre><table border="0" cellpadding="3" width="100%">
+<tr>
+<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
+<td>
+<table class="paramstable">
+<tr>
+<td align="center" valign="top" width="15%">
+<code>IO</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin_git.IO.html">Irmin_git.IO</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>I</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Git.Inflate.S</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>FS</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Git.FS.IO</code>
+</table>
+</td>
+</tr>
+</table>
+<hr width="100%">
+<br>
+The Git backed specialized a few types:
+<p>
+
+      <ul>
+<li>the allowed metdata are <code class="code"><span class="constructor">Metadata</span>.t</code>.</li>
+<li>the hash algorithm is SHA1.</li>
+</ul>
+.<br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.S.html">Irmin.S</a></pre>
+
+<pre><span class="keyword">module</span> <a href="Irmin_git.S.Git.html">Git</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.S.Git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Access to the Git objects
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_git.S.Git_mem.html">Git_mem</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.S.Git_mem.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Only valid for in-memory Git stores.
+</div>
+</body></html>

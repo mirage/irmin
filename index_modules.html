@@ -2,16 +2,16 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of modules</title>
@@ -22,51 +22,59 @@
 <h1>Index of modules</h1>
 <table>
 <tr><td align="left"><br>A</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.AO.html">AO</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td><div class="info">
-An HTTP client using a REST API for an append-only store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.AO.html">AO</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<tr><td><a href="Irmin_unix.Git.AO.html">AO</a> [<a href="Irmin_unix.Git.html">Irmin_unix.Git</a>]</td>
 <td><div class="info">
 Embed an append-only store into a Git repository.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.AO.html">AO</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.AO.html">AO</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Append-only store maker.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_http.AO.html">AO</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<tr><td><a href="Irmin_git.AO.html">AO</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_fs.AO.html">AO</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin_git.AO.html">AO</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_mem.AO.html">AO</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
 <td><div class="info">
 An in-memory append-only store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.AO_ext.html">AO_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.AO_ext.html">AO_ext</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Append-only store maker, with control over the filenames shapes.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_fs.AO_ext.html">AO_ext</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.VIEW.Action.html">Action</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
+<tr><td align="left"><br>B</td></tr>
+<tr><td><a href="Irmin.S.Branch.html">Branch</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">Action</span></code> provides information about operations performed on a
-      view.
+Manipulate branches.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.S.Branch.html">Branch</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
+<td><div class="info">
+Private branch store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Branch.html">Branch</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+User-defined branches.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin_git.Irmin_value_store.Commit.html">Commit</a> [<a href="Irmin_git.Irmin_value_store.html">Irmin_git.Irmin_value_store</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.S.Commit.html">Commit</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Commit</span></code> defines immutable objects to describe store updates.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.S.Commit.html">Commit</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
 <td><div class="info">
-Private commits.
+Private commit store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.html">Commit</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
@@ -81,9 +89,14 @@ Backend configuration.
 </td></tr>
 <tr><td><a href="Irmin_git.Irmin_value_store.Contents.html">Contents</a> [<a href="Irmin_git.Irmin_value_store.html">Irmin_git.Irmin_value_store</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.S.Contents.html">Contents</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Contents</span></code> provides base functions for the store's contents.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.S.Contents.html">Contents</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
 <td><div class="info">
-Private contents.
+Private content store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.STORE.Contents.html">Contents</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
@@ -103,6 +116,11 @@ Cstruct values where only the last modified value is kept on
 </div>
 </td></tr>
 <tr><td align="left"><br>D</td></tr>
+<tr><td><a href="Irmin.Diff.html">Diff</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+Differences between values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_git.VALUE_STORE.Digest.html">Digest</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Dot.html">Dot</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -112,14 +130,35 @@ Cstruct values where only the last modified value is kept on
 </div>
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.FS.html">FS</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<tr><td><a href="Irmin_unix.Git.FS.html">FS</a> [<a href="Irmin_unix.Git.html">Irmin_unix.Git</a>]</td>
 <td><div class="info">
 Embed an Irmin store into a local Git repository.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.FS.html">FS</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+File system backends, using
+    <a href="https://github.com/janestreet/bin_prot">bin_prot</a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_git.FS.html">FS</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td align="left"><br>G</td></tr>
+<tr><td><a href="Irmin_unix.Git.html">Git</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+Bidirectional Git backends.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.S.Git.html">Git</a> [<a href="Irmin_git.S.html">Irmin_git.S</a>]</td>
+<td><div class="info">
+Access to the Git objects
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.S.Git_mem.html">Git_mem</a> [<a href="Irmin_git.S.html">Irmin_git.S</a>]</td>
+<td><div class="info">
+Only valid for in-memory Git stores.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Node.Graph.html">Graph</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
 <td></td></tr>
 <tr><td align="left"><br>H</td></tr>
@@ -129,9 +168,19 @@ Embed an Irmin store into a local Git repository.
     hashes.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Hash.html">Hash</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<tr><td><a href="Irmin.S.Contents.Hash.html">Hash</a> [<a href="Irmin.S.Contents.html">Irmin.S.Contents</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">Hash</span></code> provides base functions on commit IDs.
+<code class="code"><span class="constructor">Hash</span></code> provides base functions for contents hashes.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Tree.Hash.html">Hash</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions for tree hashes.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Commit.Hash.html">Hash</a> [<a href="Irmin.S.Commit.html">Irmin.S.Commit</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions for commit hashes.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Hash.html">Hash</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -139,7 +188,12 @@ Embed an Irmin store into a local Git repository.
 Hashing functions.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.History.html">History</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.S.Head.html">Head</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Managing the store's heads.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.History.html">History</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 An history is a DAG of heads.
 </div>
@@ -149,24 +203,28 @@ An history is a DAG of heads.
 Build a commit history.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Hum.html">Hum</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin_unix.Http.html">Http</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td><div class="info">
-Serializable data with reversible human-readable
-    representations.
+REST (over HTTP) backend..
 </div>
 </td></tr>
 <tr><td align="left"><br>I</td></tr>
-<tr><td><a href="Irmin_git.S.Internals.html">Internals</a> [<a href="Irmin_git.S.html">Irmin_git.S</a>]</td>
+<tr><td><a href="Irmin_fs.IO_mem.html">IO_mem</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Merge.Infix.html">Infix</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+Infix operators for manipulating merge results and <a href="Irmin.Merge.html#VALpromise"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.promise</code></a>s.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Info.html">Info</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+Commit info are used to keep track of the origin of write
+    operations in the stores.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.html">Irmin</a> </td>
 <td><div class="info">
 Irmin public API.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-File system backends, using
-    <a href="https://github.com/janestreet/bin_prot">bin_prot</a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_fs.html">Irmin_fs</a> </td>
@@ -174,29 +232,14 @@ File system backends, using
 Disk persistence.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.html">Irmin_git</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-Bidirectional Git backends.
-</div>
-</td></tr>
 <tr><td><a href="Irmin_git.html">Irmin_git</a> </td>
 <td><div class="info">
 Git backend
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.html">Irmin_http</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-REST (over HTTP) backend..
-</div>
-</td></tr>
 <tr><td><a href="Irmin_http.html">Irmin_http</a> </td>
 <td><div class="info">
-JSON CRUD interface.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http_server.html">Irmin_http_server</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-Server-side of the REST API over HTTP.
+JSON REST/CRUD interface.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_http_server.html">Irmin_http_server</a> </td>
@@ -216,20 +259,38 @@ Unix backends
 </td></tr>
 <tr><td><a href="Irmin_git.Irmin_value_store.html">Irmin_value_store</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td><div class="info">
-Privides a subset of Irmin.Private.S (excludes tags and sync).
-</div>
-</td></tr>
-<tr><td align="left"><br>J</td></tr>
-<tr><td><a href="Irmin.Contents.Json.html">Json</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
-<td><div class="info">
-JSON values where only the last modified value is kept on
-      merge.
+Privides a subset of Irmin.Private.S (excludes branches and sync).
 </div>
 </td></tr>
 <tr><td align="left"><br>K</td></tr>
+<tr><td><a href="Irmin_unix.Http.KV.html">KV</a> [<a href="Irmin_unix.Http.html">Irmin_unix.Http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Git.FS.KV.html">KV</a> [<a href="Irmin_unix.Git.FS.html">Irmin_unix.Git.FS</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Git.Mem.KV.html">KV</a> [<a href="Irmin_unix.Git.Mem.html">Irmin_unix.Git.Mem</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.FS.KV.html">KV</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
+<td><div class="info">
+Irmin store make, where only the Contents have to be specified:
+      branches are strings and paths are string lists.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_http.KV.html">KV</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.Mem.KV.html">KV</a> [<a href="Irmin_git.Mem.html">Irmin_git.Mem</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.FS.KV.html">KV</a> [<a href="Irmin_git.FS.html">Irmin_git.FS</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_fs.KV.html">KV</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_mem.KV.html">KV</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
+<td><div class="info">
+An in-memory KV-store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.Key.html">Key</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">Key</span></code> provides base functions on paths.
+<code class="code"><span class="constructor">Key</span></code> provides base functions for the stores's paths.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.STORE.Key.html">Key</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
@@ -242,7 +303,7 @@ JSON values where only the last modified value is kept on
 <code class="code"><span class="constructor">Key</span></code> provides base functions for node keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Ref.STORE.Key.html">Key</a> [<a href="Irmin.Ref.STORE.html">Irmin.Ref.STORE</a>]</td>
+<tr><td><a href="Irmin.Branch.STORE.Key.html">Key</a> [<a href="Irmin.Branch.STORE.html">Irmin.Branch.STORE</a>]</td>
 <td><div class="info">
 Base functions on keys.
 </div>
@@ -253,7 +314,7 @@ Base functions on keys.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.Link.html">Link</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.Link.html">Link</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Immutable store for links.
 </div>
@@ -267,38 +328,19 @@ Immutable links.
 </td></tr>
 <tr><td><a href="Irmin_fs.Link_ext.html">Link_ext</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin_unix.Lock.html">Lock</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-An implementation of filesystem dotlocking.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Lock.html">Lock</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.Low.html">Low</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Low</span></code> provides low-level bindings to the remote HTTP server.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_http.Low.html">Low</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>M</td></tr>
-<tr><td><a href="Irmin.Merge.MSet.html">MSet</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<tr><td><a href="Irmin_unix.Http.Make.html">Make</a> [<a href="Irmin_unix.Http.html">Irmin_unix.Http</a>]</td>
 <td><div class="info">
-Multi-sets.
+<code class="code"><span class="constructor">Make</span></code> provides bindings to the remote HTTP server.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Make</span></code> exposes an Irmin store as a REST API for HTTP
-      <a href="Irmin_unix.Irmin_http.html">clients</a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Make</span></code> provides high-level bindings to the remote HTTP server.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.Make.html">Make</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.Git.FS.Make.html">Make</a> [<a href="Irmin_unix.Git.FS.html">Irmin_unix.Git.FS</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Git.Mem.Make.html">Make</a> [<a href="Irmin_unix.Git.Mem.html">Irmin_unix.Git.Mem</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.FS.Make.html">Make</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Irmin store maker.
 </div>
@@ -309,6 +351,10 @@ Create an HTTP server, serving the contents of an Irmin database.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_http.Make.html">Make</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.Mem.Make.html">Make</a> [<a href="Irmin_git.Mem.html">Irmin_git.Mem</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.FS.Make.html">Make</a> [<a href="Irmin_git.FS.html">Irmin_git.FS</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_fs.Make.html">Make</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
 <td></td></tr>
@@ -349,7 +395,7 @@ Create a lock manager implementation.
 <code class="code"><span class="constructor">Make</span></code> builds an implementation of watch helpers.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.Make_ext.html">Make_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.Make_ext.html">Make_ext</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Irmin store maker, with control over the filename shapes.
 </div>
@@ -361,30 +407,14 @@ Irmin store maker, with control over the filename shapes.
 Advanced store creator.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_mem.Make_with_metadata.html">Make_with_metadata</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
-<td><div class="info">
-An in-memory Irmin store with custom node's metadata.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Make_with_metadata.html">Make_with_metadata</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-Similar to <a href="Irmin.Make.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Make</span></code></a> but allows to specify the kind of metadata
-    stored in the nodes.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.Map.html">Map</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td><div class="info">
-Lift the merge functions to maps.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.Memory.html">Memory</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Git.Mem.html">Mem</a> [<a href="Irmin_unix.Git.html">Irmin_unix.Git</a>]</td>
 <td><div class="info">
 Embed an Irmin store into an in-memory Git repository.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_git.Memory.html">Memory</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin_git.Memory_ext.html">Memory_ext</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<tr><td><a href="Irmin_git.Mem.html">Mem</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Merge.html">Merge</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
@@ -394,9 +424,14 @@ Embed an Irmin store into an in-memory Git repository.
 </td></tr>
 <tr><td><a href="Irmin_git.Metadata.html">Metadata</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.Private.Node.S.Metadata.html">Metadata</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.S.Metadata.html">Metadata</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-The type for metadata attached to content entries.
+<code class="code"><span class="constructor">Metadata</span></code> provides base functions for node metadata.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.STORE.Metadata.html">Metadata</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Metadata</span></code> provides base functions for node metadata.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Metadata.html">Metadata</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -405,12 +440,17 @@ The type for metadata attached to content entries.
     nodes.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Merge.MultiSet.html">MultiSet</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+Multi-sets.
+</div>
+</td></tr>
 <tr><td align="left"><br>N</td></tr>
 <tr><td><a href="Irmin_git.Irmin_value_store.Node.html">Node</a> [<a href="Irmin_git.Irmin_value_store.html">Irmin_git.Irmin_value_store</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Private.S.Node.html">Node</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
 <td><div class="info">
-Private nodes.
+Private nod store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.STORE.Node.html">Node</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
@@ -435,26 +475,10 @@ Private nodes.
 A metadata definition for systems that don't use metadata.
 </div>
 </td></tr>
-<tr><td align="left"><br>O</td></tr>
-<tr><td><a href="Irmin.Merge.OP.html">OP</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td><div class="info">
-Useful merge operators.
-</div>
-</td></tr>
 <tr><td align="left"><br>P</td></tr>
 <tr><td><a href="Irmin.Private.Node.STORE.Path.html">Path</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">Step</span></code> provides base functions on node steps.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Contents.STORE.Path.html">Path</a> [<a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a>]</td>
-<td><div class="info">
-The type for store paths.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Contents.S.Path.html">Path</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
-<td><div class="info">
-The type for store paths.
+<code class="code"><span class="constructor">Path</span></code> provides base functions on node paths.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Path.html">Path</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -474,70 +498,60 @@ Private functions, which might be used by the backends.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.RW.html">RW</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td><div class="info">
-An HTTP client using a REST API for a read-write store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.RW.html">RW</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<tr><td><a href="Irmin_unix.Git.RW.html">RW</a> [<a href="Irmin_unix.Git.html">Irmin_unix.Git</a>]</td>
 <td><div class="info">
 Embed a read-write store into a Git repository.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.RW.html">RW</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.RW.html">RW</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Read-write store maker.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_http.RW.html">RW</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<tr><td><a href="Irmin_git.RW.html">RW</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_fs.RW.html">RW</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin_git.RW.html">RW</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_mem.RW.html">RW</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
 <td><div class="info">
 An in-memory read-write store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_fs.RW_ext.html">RW_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<tr><td><a href="Irmin_unix.FS.RW_ext.html">RW_ext</a> [<a href="Irmin_unix.FS.html">Irmin_unix.FS</a>]</td>
 <td><div class="info">
 Read-write store maker, with control over the filename shapes.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_fs.RW_ext.html">RW_ext</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.S.Ref.html">Ref</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Ref</span></code> provides base functions on user-defined references.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.S.Ref.html">Ref</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
-<td><div class="info">
-Private references.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Ref.html">Ref</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-User-defined references.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.Repo.html">Repo</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin_git.Mem.Ref.html">Ref</a> [<a href="Irmin_git.Mem.html">Irmin_git.Mem</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin_git.FS.Ref.html">Ref</a> [<a href="Irmin_git.FS.html">Irmin_git.FS</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.S.Repo.html">Repo</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Repositories.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.S.Repo.html">Repo</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
 <td><div class="info">
 Private repositories.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Merge.Result.html">Result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td><div class="info">
-Base functions on results.
 </div>
 </td></tr>
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="Irmin.Hash.SHA1.html">SHA1</a> [<a href="Irmin.Hash.html">Irmin.Hash</a>]</td>
 <td><div class="info">
 SHA1 digests
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Http.Server.html">Server</a> [<a href="Irmin_unix.Http.html">Irmin_unix.Http</a>]</td>
+<td><div class="info">
+Server-side of the REST API over HTTP.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Merge.Set.html">Set</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+Lift merge functions to sets.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.S.Slice.html">Slice</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
@@ -550,8 +564,11 @@ Private slices.
 The signature for slices.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Path.S.Step.html">Step</a> [<a href="Irmin.Path.S.html">Irmin.Path.S</a>]</td>
-<td></td></tr>
+<tr><td><a href="Irmin.S.Status.html">Status</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Status</span></code> provides base functions for store statuses.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Commit.Store.html">Store</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Store</span></code> creates a new commit store.
@@ -567,10 +584,10 @@ The signature for slices.
 <code class="code"><span class="constructor">Store</span></code> creates a contents store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Ref.String.html">String</a> [<a href="Irmin.Ref.html">Irmin.Ref</a>]</td>
+<tr><td><a href="Irmin.Branch.String.html">String</a> [<a href="Irmin.Branch.html">Irmin.Branch</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">String</span></code> is an implementation of <a href="Irmin.Ref.S.html">S</a> where branch IDs are
-      strings.
+<code class="code"><span class="constructor">String</span></code> is an implementation of <a href="Irmin.Branch.S.html">S</a> where branches
+      are strings.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Contents.String.html">String</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
@@ -597,19 +614,14 @@ URI-based low-level sync.
 <tr><td><a href="Irmin.Private.Sync.html">Sync</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
 <td></td></tr>
 <tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin.Task.html">Task</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.S.Tree.html">Tree</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Type.html">Type</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-Tasks are used to keep track of the origin of reads and writes in
-    the store.
+Dynamic types for Irmin values.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>
-<tr><td><a href="Irmin.S.Val.html">Val</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Val</span></code> provides base functions on user-defined, mergeable
-      contents.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Commit.STORE.Val.html">Val</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides functions for commit values.
@@ -620,7 +632,7 @@ Tasks are used to keep track of the origin of reads and writes in
 <code class="code"><span class="constructor">Val</span></code> provides base functions for node values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Ref.STORE.Val.html">Val</a> [<a href="Irmin.Ref.STORE.html">Irmin.Ref.STORE</a>]</td>
+<tr><td><a href="Irmin.Branch.STORE.Val.html">Val</a> [<a href="Irmin.Branch.STORE.html">Irmin.Branch.STORE</a>]</td>
 <td><div class="info">
 Base functions on values.
 </div>
@@ -628,11 +640,6 @@ Base functions on values.
 <tr><td><a href="Irmin.Contents.STORE.Val.html">Val</a> [<a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides base functions for user-defined contents values.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.View.html">View</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-Create views.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>

@@ -3,18 +3,18 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin_http_server.html">
 <link rel="Up" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_unix</title>
@@ -35,48 +35,39 @@
 
     <ul>
 <li>An <a href="Irmin_mem.html">in-memory</a> store, internally using hash tables. </li>
-<li>A <a href="Irmin_unix.Irmin_fs.html">file-system</a> backend, using
+<li>A <a href="Irmin_fs.html">file-system</a> backend, using
     <a href="https://github.com/janestreet/bin_prot">bin_prot</a> to serialize
     internal structures.</li>
 <li>A fully compatible, bidirectional encoding of Irmin into
-    <a href="Irmin_unix.Irmin_git.html">Git</a>. You can view and edit your store using both the
+    <a href="Irmin_git.html">Git</a>. You can view and edit your store using both the
     library and your usual Git tools. </li>
-<li>The HTTP <a href="Irmin_unix.Irmin_http.html">clients</a> and
-    <a href="Irmin_unix.Irmin_http_server.html">servers</a> provides a high-level REST API, with
-    1 RTT for the <a href="Irmin.S.Private.html">private</a> and <a href="Irmin.BC.html">public</a>
+<li>The HTTP <a href="Irmin_http.html">clients</a> and
+    <a href="Irmin_unix.Http.Server.html">servers</a> provides a high-level REST API, with
+    1 RTT for the <a href="Irmin.S.Private.html">private</a> and <a href="Irmin.S.html">public</a>
     functions.</li>
 </ul>
 <br>
 </div>
 <hr width="100%">
 
-<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">string -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
-<code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
-    set to <code class="code"><span class="constructor">Unix</span>.gettimeoday ()</code> and a task <a href="Irmin.Task.html#VALowner">owner</a>
-    based on the local Git configuration <b>FIXME:</b> not implemented,
-    use <code class="code"><span class="constructor">Unix</span>.gethostname()</code> and <code class="code"><span class="constructor">Unix</span>.getpid()</code> for now on.<br>
+<pre><span id="VALinfo"><span class="keyword">val</span> info</span> : <code class="type">?author:string -><br>       ('a, Format.formatter, unit, <a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a>) Pervasives.format4 -> 'a</code></pre><div class="info ">
+<code class="code">info&nbsp;fmt&nbsp;()</code> creates a fresh commit info, with the
+    <a href="Irmin.Info.html#VALdate">date</a> set to <code class="code"><span class="constructor">Unix</span>.gettimeoday&nbsp;()</code> and the
+    <a href="Irmin.Info.html#VALauthor">author</a> built using <code class="code"><span class="constructor">Unix</span>.gethostname()</code> and
+    <code class="code"><span class="constructor">Unix</span>.getpid()</code> if <code class="code">author</code> is not provided.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.FS.html">FS</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.FS.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 File system backends, using
     <a href="https://github.com/janestreet/bin_prot">bin_prot</a>.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.html">Irmin_git</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Git.html">Git</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Bidirectional Git backends.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.html">Irmin_http</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Http.html">Http</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Http.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 REST (over HTTP) backend..
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.html">Irmin_http_server</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-Server-side of the REST API over HTTP.
-</div>
-
-<pre><span class="keyword">module type</span> <a href="Irmin_unix.LOCK.html">LOCK</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.LOCK.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Lock.html">Lock</a>: <code class="type"><a href="Irmin_unix.LOCK.html">LOCK</a></code><code class="type"> </code></pre><div class="info">
-An implementation of filesystem dotlocking.
 </div>
 
 <pre><span id="VALset_listen_dir_hook"><span class="keyword">val</span> set_listen_dir_hook</span> : <code class="type">unit -> unit</code></pre><div class="info ">

@@ -1,0 +1,80 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.S.History.html">
+<link rel="next" href="Irmin.S.Key.html">
+<link rel="Up" href="Irmin.S.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Branch Store" rel="Section" href="#1_BranchStore">
+<title>Irmin.S.Branch</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.S.History.html" title="Irmin.S.History">Previous</a>
+&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.Key.html" title="Irmin.S.Key">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.S.Branch.html">Irmin.S.Branch</a></h1>
+
+<pre><span class="keyword">module</span> Branch: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Branch.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Manipulate branches.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_BranchStore">Branch Store</h1>
+<p>
+
+        Manipulate relations between <a href="Irmin.S.html#TYPEbranch">branches</a> and
+        <a href="Irmin.S.html#TYPEcommit">commits</a>.<br>
+
+<pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">mem&nbsp;r&nbsp;b</code> is true iff <code class="code">b</code> is present in <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">find&nbsp;r&nbsp;b</code> is <code class="code"><span class="constructor">Some</span>&nbsp;c</code> iff <code class="code">c</code> is bound to <code class="code">b</code> in <code class="code">t</code>. It is
+        <code class="code"><span class="constructor">None</span></code> if <code class="code">b</code> is not present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> Lwt.t</code></pre><div class="info ">
+<code class="code">get&nbsp;t&nbsp;b</code> is similar to <a href="Irmin.S.Branch.html#VALfind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Branch</span>.find</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code>
+        if <code class="code">b</code> is not present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALset"><span class="keyword">val</span> set</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">set&nbsp;t&nbsp;b&nbsp;c</code> bounds <code class="code">c</code> to <code class="code">b</code> in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">remove&nbsp;t&nbsp;b</code> removes <code class="code">b</code> from <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">list&nbsp;t</code> is the list of branches present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -><br>       ?init:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch&nbsp;t&nbsp;b&nbsp;f</code> calls <code class="code">f</code> on every change in <code class="code">b</code>.<br>
+</div>
+
+<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       ?init:(<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> * <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a>) list -><br>       (<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_all&nbsp;t&nbsp;f</code> calls <code class="code">f</code> on every branch-related change in
+        <code class="code">t</code>, including creation/deletion events.<br>
+</div>
+
+<pre><span class="keyword">include</span> <a href="Irmin.Branch.S.html">Irmin.Branch.S</a></pre>
+<br>
+Base functions for branches.<br>
+</body></html>

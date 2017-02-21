@@ -3,21 +3,22 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Private.Commit.STORE.html">
 <link rel="Up" href="Irmin.Private.Commit.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Commit History" rel="Section" href="#1_CommitHistory">
+<link title="Value Types" rel="Section" href="#1_ValueTypes">
 <title>Irmin.Private.Commit.HISTORY</title>
 </head>
 <body>
@@ -57,16 +58,14 @@ The type for commit values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       node:<a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> Lwt.t</code></pre><div class="info ">
-Create a new commit.<br>
+<pre><span id="TYPEv"><span class="keyword">type</span> <code class="type"></code>v</span> </pre>
+<div class="info ">
+The type for commit objects.<br>
 </div>
 
-<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
-Get the commit node.
-<p>
 
-          A commit might contain a graph
-          <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a>.<br>
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       node:<a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       info:<a href="Irmin.Info.html#TYPEt">Irmin.Info.t</a> -><br>       (<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> * <a href="Irmin.Private.Commit.HISTORY.html#TYPEv">v</a>) Lwt.t</code></pre><div class="info ">
+Create a new commit.<br>
 </div>
 
 <pre><span id="VALparents"><span class="keyword">val</span> parents</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list Lwt.t</code></pre><div class="info ">
@@ -78,28 +77,28 @@ Get the commit parents.
           immediate predecessors.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-<code class="code">merge t</code> is the 3-way merge function for commit.<br>
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       info:<a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a> -> <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<code class="code">merge&nbsp;t</code> is the 3-way merge function for commit.<br>
 </div>
 
-<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       [ `Max_depth_reached<br>       | `Ok of <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list<br>       | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       (<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list,<br>        [ `Max_depth_reached | `Too_many_lcas ])<br>       Result.result Lwt.t</code></pre><div class="info ">
 Find the lowest common ancestors
           <a href="http://en.wikipedia.org/wiki/Lowest_common_ancestor">lca</a>
           between two commits.<br>
 </div>
 
-<pre><span id="VALlca"><span class="keyword">val</span> lca</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> option <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlca"><span class="keyword">val</span> lca</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       info:<a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       (<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> option, <a href="Irmin.Merge.html#TYPEconflict">Irmin.Merge.conflict</a>)<br>       Result.result Lwt.t</code></pre><div class="info ">
 Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> and merging the
           results.
 <p>
 
           If one of the merges results in a conflict, or if a call to
-          <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> returns either <code class="code"><span class="keywordsign">`</span><span class="constructor">Max_depth_reached</span></code> or
-          <code class="code"><span class="keywordsign">`</span><span class="constructor">Too_many_lcas</span></code> then the function returns <code class="code"><span class="constructor">None</span></code>.<br>
+          <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> returns either <code class="code"><span class="constructor">Error</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Max_depth_reached</span></code> or <code class="code"><span class="constructor">Error</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Too_many_lcas</span></code> then the function returns the same error.<br>
 </div>
 
-<pre><span id="VALthree_way_merge"><span class="keyword">val</span> three_way_merge</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALthree_way_merge"><span class="keyword">val</span> three_way_merge</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       info:<a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       (<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a>, <a href="Irmin.Merge.html#TYPEconflict">Irmin.Merge.conflict</a>) Result.result<br>       Lwt.t</code></pre><div class="info ">
 Compute the <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> of the two commit and 3-way merge the
           result.<br>
 </div>
@@ -107,5 +106,11 @@ Compute the <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="cod
 <pre><span id="VALclosure"><span class="keyword">val</span> closure</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       min:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       max:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but for
           the history graph.<br>
+</div>
+<br>
+<h1 id="1_ValueTypes">Value Types</h1><br>
+
+<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">commit_t</code> is the value type for <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit</code></a>.<br>
 </div>
 </body></html>

@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin_unix.Git.AO.html">
+<link rel="next" href="Irmin_unix.Git.Mem.html">
+<link rel="Up" href="Irmin_unix.Git.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Read-write stores" rel="Section" href="#1_Readwritestores">
+<title>Irmin_unix.Git.RW</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin_unix.Git.AO.html" title="Irmin_unix.Git.AO">Previous</a>
+&nbsp;<a class="up" href="Irmin_unix.Git.html" title="Irmin_unix.Git">Up</a>
+&nbsp;<a class="post" href="Irmin_unix.Git.Mem.html" title="Irmin_unix.Git.Mem">Next</a>
+</div>
+<h1>Functor <a href="type_Irmin_unix.Git.RW.html">Irmin_unix.Git.RW</a></h1>
+
+<pre><span class="keyword">module</span> RW: <div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">G</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type">Git.Store.S</code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">K</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type"><a href="Irmin.Branch.S.html">Irmin.Branch.S</a></code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type"> 
+    with type key = K.t and type value = <a href="Irmin.Hash.SHA1.html">Irmin.Hash.SHA1</a>.t</code></div></div></pre><div class="info module top">
+Embed a read-write store into a Git repository. Contents will be
+      written in <i>.git/refs</i>.<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
+<tr>
+<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
+<td>
+<table class="paramstable">
+<tr>
+<td align="center" valign="top" width="15%">
+<code>G</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Git.Store.S</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>K</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Branch.S.html">Irmin.Branch.S</a></code>
+</table>
+</td>
+</tr>
+</table>
+<hr width="100%">
+<br>
+<h1 id="1_Readwritestores">Read-write stores</h1>
+<p>
+
+      Read-write stores read-only stores where it is also possible to
+      update and remove elements, with atomically guarantees.<br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
+
+<pre><span id="VALset"><span class="keyword">val</span> set</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">set&nbsp;t&nbsp;k&nbsp;v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>. If <code class="code">k</code>
+      is not already defined in <code class="code">t</code>, create a fresh binding.  Raise
+      <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">k</code> is the empty path.<br>
+</div>
+
+<pre><span id="VALtest_and_set"><span class="keyword">val</span> test_and_set</span> : <code class="type">t -> key -> test:value option -> set:value option -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">test_and_set&nbsp;t&nbsp;key&nbsp;~test&nbsp;~set</code> sets <code class="code">key</code> to <code class="code">set</code> only if
+      the current value of <code class="code">key</code> is <code class="code">test</code> and in that case returns
+      <code class="code"><span class="keyword">true</span></code>. If the current value of <code class="code">key</code> is different, it returns
+      <code class="code"><span class="keyword">false</span></code>. <code class="code"><span class="constructor">None</span></code> means that the value does not have to exist or
+      is removed.
+<p>
+
+      <b>Note:</b> The operation is guaranteed to be atomic.<br>
+</div>
+
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">remove&nbsp;t&nbsp;k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">t -> key list Lwt.t</code></pre><div class="info ">
+<code class="code">list&nbsp;t</code> it the list of keys in <code class="code">t</code>. <code class="code"><span class="constructor">RW</span></code> stores are typically
+      smaller than <code class="code"><span class="constructor">AO</span></code> stores, so scanning these is usually cheap.<br>
+</div>
+
+<pre><span id="TYPEwatch"><span class="keyword">type</span> <code class="type"></code>watch</span> </pre>
+<div class="info ">
+The type of watch handlers.<br>
+</div>
+
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -><br>       ?init:(key * value) list -><br>       (key -> value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch&nbsp;t&nbsp;?init&nbsp;f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch handlers
+      and returns the watch handler to be used with <a href="Irmin.RW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.unwatch</code></a>. <code class="code">init</code>
+      is the optional initial values. It is more efficient to use
+      <a href="Irmin.RW.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch_key</code></a> to watch only a single given key.<br>
+</div>
+
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:value -> (value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_key&nbsp;t&nbsp;k&nbsp;?init&nbsp;f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch
+      handlers for the key <code class="code">k</code> and returns the watch handler to be
+      used with <a href="Irmin.RW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.unwatch</code></a>. <code class="code">init</code> is the optional initial value of
+      the key.<br>
+</div>
+
+<pre><span id="VALunwatch"><span class="keyword">val</span> unwatch</span> : <code class="type">t -> <a href="Irmin.RW.html#TYPEwatch">watch</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">unwatch&nbsp;t&nbsp;w</code> removes <code class="code">w</code> from <code class="code">t</code>'s watch handlers.<br>
+</div>
+</body></html>

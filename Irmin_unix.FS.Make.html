@@ -1,0 +1,465 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin_unix.FS.RW.html">
+<link rel="next" href="Irmin_unix.FS.KV.html">
+<link rel="Up" href="Irmin_unix.FS.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Irmin stores" rel="Section" href="#1_Irminstores">
+<link title="Reads" rel="Section" href="#1_Reads">
+<link title="Transactions" rel="Section" href="#1_Transactions">
+<link title="Clones" rel="Section" href="#1_Clones">
+<link title="Watches" rel="Section" href="#1_Watches">
+<link title="Merges and Common Ancestors." rel="Section" href="#1_MergesandCommonAncestors">
+<link title="History" rel="Section" href="#1_History">
+<link title="Value Types" rel="Section" href="#1_ValueTypes">
+<title>Irmin_unix.FS.Make</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin_unix.FS.RW.html" title="Irmin_unix.FS.RW">Previous</a>
+&nbsp;<a class="up" href="Irmin_unix.FS.html" title="Irmin_unix.FS">Up</a>
+&nbsp;<a class="post" href="Irmin_unix.FS.KV.html" title="Irmin_unix.FS.KV">Next</a>
+</div>
+<h1>Module <a href="type_Irmin_unix.FS.Make.html">Irmin_unix.FS.Make</a></h1>
+
+<pre><span class="keyword">module</span> Make: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
+Irmin store maker.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Irminstores">Irmin stores</h1>
+<p>
+
+      Irmin stores are tree-like read-write stores with
+      extended capabilities. They allow an application (or a
+      collection of applications) to work with multiple local states,
+      which can be forked and merged programmatically, without having
+      to rely on a global state. In a way very similar to version
+      control systems, Irmin local states are called <i>branches</i>.
+<p>
+
+      There are two kinds of store in Irmin: the ones based on
+      persistent named branches and the ones based
+      temporary detached heads. These exist relative to a
+      local, larger (and shared) store, and have some (shared)
+      contents. This is exactly the same as usual version control
+      systems, that the informed user can see as an implicit purely
+      functional data-structure.<br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for branch-consistent stores.<br>
+</div>
+
+
+<pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
+<div class="info ">
+The type for <a href="Irmin.S.html#TYPEkey"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.key</code></a> steps.<br>
+</div>
+
+
+<pre><span id="TYPEkey"><span class="keyword">type</span> <code class="type"></code>key</span> </pre>
+<div class="info ">
+The type for store keys. A key is a sequence of <a href="Irmin.S.html#TYPEstep"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.step</code></a>s.<br>
+</div>
+
+
+<pre><span id="TYPEmetadata"><span class="keyword">type</span> <code class="type"></code>metadata</span> </pre>
+<div class="info ">
+The type for store metadata.<br>
+</div>
+
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
+<div class="info ">
+The type for store contents.<br>
+</div>
+
+
+<pre><span id="TYPEnode"><span class="keyword">type</span> <code class="type"></code>node</span> </pre>
+<div class="info ">
+The type for store nodes.<br>
+</div>
+
+
+<pre><span id="TYPEtree"><span class="keyword">type</span> <code class="type"></code>tree</span> = <code class="type">[ `Contents of <a href="Irmin.S.html#TYPEcontents">contents</a> * <a href="Irmin.S.html#TYPEmetadata">metadata</a><br>       | `Empty<br>       | `Node of <a href="Irmin.S.html#TYPEnode">node</a> ]</code> </pre>
+<div class="info ">
+The type for store trees.<br>
+</div>
+
+
+<pre><span id="TYPEcommit"><span class="keyword">type</span> <code class="type"></code>commit</span> </pre>
+<div class="info ">
+Type for commit identifiers. Similar to Git's commit SHA1s.<br>
+</div>
+
+
+<pre><span id="TYPEbranch"><span class="keyword">type</span> <code class="type"></code>branch</span> </pre>
+<div class="info ">
+Type for persistent branch names. Branches usually share a
+      common global namespace and it's the user's responsibility to
+      avoid name clashes.<br>
+</div>
+
+
+<pre><span id="TYPEslice"><span class="keyword">type</span> <code class="type"></code>slice</span> </pre>
+<div class="info ">
+Type for store slices.<br>
+</div>
+
+
+<pre><span id="TYPElca_error"><span class="keyword">type</span> <code class="type"></code>lca_error</span> = <code class="type">[ `Max_depth_reached | `Too_many_lcas ]</code> </pre>
+<div class="info ">
+The type for errors associated with functions computing least
+      common ancestors<br>
+</div>
+
+
+<pre><span id="TYPEff_error"><span class="keyword">type</span> <code class="type"></code>ff_error</span> = <code class="type">[ `Max_depth_reached | `No_change | `Rejected | `Too_many_lcas ]</code> </pre>
+<div class="info ">
+The type for errors for <code class="code">fast_forward</code>.<br>
+</div>
+
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Repo.html">Repo</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Repo.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Repositories.
+</div>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Repo.t</a> -> <a href="Irmin.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">empty&nbsp;repo</code> is a temporary, empty store. Becomes a normal
+      temporary store after the first update.<br>
+</div>
+
+<pre><span id="VALmaster"><span class="keyword">val</span> master</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Repo.t</a> -> <a href="Irmin.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">master&nbsp;repo</code> is a persistent store based on <code class="code">r</code>'s master
+      branch. This operation is cheap, can be repeated multiple
+      times.<br>
+</div>
+
+<pre><span id="VALof_branch"><span class="keyword">val</span> of_branch</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">branch</a> -> <a href="Irmin.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">of_branch&nbsp;r&nbsp;name</code> is a persistent store based on the branch
+      <code class="code">name</code>. Similar to <code class="code">master</code>, but use <code class="code">name</code> instead
+      <a href="Irmin.Branch.S.html#VALmaster"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Branch</span>.<span class="constructor">S</span>.master</code></a>.<br>
+</div>
+
+<pre><span id="VALof_commit"><span class="keyword">val</span> of_commit</span> : <code class="type"><a href="Irmin.S.html#TYPEcommit">commit</a> -> <a href="Irmin.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">of_commit&nbsp;c</code> is a temporary store, based on the commit <code class="code">c</code>.
+<p>
+
+      Temporary stores do not have stable names: instead they can be
+      addressed using the hash of the current commit. Temporary stores
+      are similar to Git's detached heads. In a temporary store, all
+      the operations are performed relative to the current head and
+      update operations can modify the current head: the current
+      stores's head will automatically become the new head obtained
+      after performing the update.<br>
+</div>
+
+<pre><span id="VALrepo"><span class="keyword">val</span> repo</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.Repo.html#TYPEt">Repo.t</a></code></pre><div class="info ">
+<code class="code">repo&nbsp;t</code> is the repository containing <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALtree"><span class="keyword">val</span> tree</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEtree">tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">tree&nbsp;t</code> is <code class="code">t</code>'s current tree. Contents is not allowed at the
+      root of the tree.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Status.html">Status</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Status.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">Status</span></code> provides base functions for store statuses.
+</div>
+
+<pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.Status.html#TYPEt">Status.t</a></code></pre><div class="info ">
+<code class="code">status&nbsp;t</code> is <code class="code">t</code>'s status. It can either be a branch, a commit
+      or empty.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Head.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Managing the store's heads.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Commit.html">Commit</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Commit.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">Commit</span></code> defines immutable objects to describe store updates.
+</div>
+<br>
+Managing store's trees.<br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Tree.html">Tree</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Tree.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.S.Contents.html">Contents</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Contents.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">Contents</span></code> provides base functions for the store's contents.
+</div>
+<br>
+<h1 id="1_Reads">Reads</h1><br>
+
+<pre><span id="VALkind"><span class="keyword">val</span> kind</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> [ `Contents | `Empty | `Node ] Lwt.t</code></pre><div class="info ">
+<code class="code">kind</code> is <a href="Irmin.S.Tree.html#VALkind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.kind</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> (<a href="Irmin.S.html#TYPEstep">step</a> * [ `Contents | `Node ]) list Lwt.t</code></pre><div class="info ">
+<code class="code">list&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALlist"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.list</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">mem&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALmem"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.mem</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALmem_tree"><span class="keyword">val</span> mem_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">mem_tree&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALmem_tree"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.mem_tree</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALfind_all"><span class="keyword">val</span> find_all</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEkey">key</a> -> (<a href="Irmin.S.html#TYPEcontents">contents</a> * <a href="Irmin.S.html#TYPEmetadata">metadata</a>) option Lwt.t</code></pre><div class="info ">
+<code class="code">find_all&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALfind_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.find_all</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> <a href="Irmin.S.html#TYPEcontents">contents</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">find&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALfind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.find</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALget_all"><span class="keyword">val</span> get_all</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> (<a href="Irmin.S.html#TYPEcontents">contents</a> * <a href="Irmin.S.html#TYPEmetadata">metadata</a>) Lwt.t</code></pre><div class="info ">
+<code class="code">get_all&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALget_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.get_all</code></a> applied on <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> <a href="Irmin.S.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
+<code class="code">get&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALget"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.get</code></a> applied to <code class="code">t</code>'s root tree.<br>
+</div>
+
+<pre><span id="VALfind_tree"><span class="keyword">val</span> find_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> <a href="Irmin.S.html#TYPEtree">tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">find_tree&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALfind_tree"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.find_tree</code></a> applied to <code class="code">t</code>'s root
+      tree.<br>
+</div>
+<br>
+<h1 id="1_Transactions">Transactions</h1><br>
+
+<pre><span id="TYPEtransaction"><span class="keyword">type</span> <code class="type">'a</code> transaction</span> = <code class="type">?allow_empty:bool -><br>       ?strategy:[ `Merge | `Set | `Test_and_set ] -><br>       ?max_depth:int -> ?n:int -> info:<a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a> -> 'a -> unit Lwt.t</code> </pre>
+<div class="info ">
+The type for transactions.<br>
+</div>
+
+
+<pre><span id="VALwith_tree"><span class="keyword">val</span> with_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEkey">key</a> -> (<a href="Irmin.S.html#TYPEtree">tree</a> -> <a href="Irmin.S.html#TYPEtree">tree</a> Lwt.t) <a href="Irmin.S.html#TYPEtransaction">transaction</a></code></pre><div class="info ">
+<code class="code">with_tree&nbsp;t&nbsp;k&nbsp;~info&nbsp;f</code> replaces <i>atomically</i> the subtree <code class="code">v</code>
+      under <code class="code">k</code> in the store <code class="code">t</code> by the contents of the tree <code class="code">f&nbsp;v</code>,
+      using the commit info <code class="code">info&nbsp;()</code>.
+<p>
+
+      If <code class="code">v&nbsp;=&nbsp;f&nbsp;v</code> and <code class="code">allow_empty</code> is unset (default) then, the
+      operation is a no-op.
+<p>
+
+      If <code class="code">v&nbsp;!=&nbsp;f&nbsp;v</code> and no other changes happen concurrently, <code class="code">f&nbsp;v</code>
+      becomes the new subtree under <code class="code">k</code>. If other changes happen
+      concurrently to that operations, the semantics depend on the
+      value of <code class="code">strategy</code>:
+<p>
+
+      <ul>
+<li>if <code class="code">strategy&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Set</span></code>, the <em>last write wins</em>. </li>
+<li>if <code class="code">strategy&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Test_and_set</span></code> (default), the transaction is
+         restarted.</li>
+<li>if <code class="code">strategy&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Merge</span></code>, concurrent changes are merged with <code class="code">f<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;v</code>. If the merge has a conflict, the transaction is
+         restarted.</li>
+</ul>
+
+<p>
+
+      <b>Note:</b> Irmin transactions provides
+      <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">snapshot
+      isolation</a> guarantees: reads and writes are isolated in every
+      transaction, but only write conflicts are visible on commit.<br>
+</div>
+
+<pre><span id="VALset"><span class="keyword">val</span> set</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEkey">key</a> -><br>       ?metadata:<a href="Irmin.S.html#TYPEmetadata">metadata</a> -> <a href="Irmin.S.html#TYPEcontents">contents</a> <a href="Irmin.S.html#TYPEtransaction">transaction</a></code></pre><div class="info ">
+<code class="code">set&nbsp;t&nbsp;k&nbsp;~info&nbsp;v</code> is <code class="code">with_tree&nbsp;t&nbsp;k&nbsp;~info&nbsp;(<span class="keyword">fun</span>&nbsp;tree&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Tree</span>.add<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tree&nbsp;[]&nbsp;v)</code>.<br>
+</div>
+
+<pre><span id="VALset_tree"><span class="keyword">val</span> set_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> -> <a href="Irmin.S.html#TYPEtree">tree</a> <a href="Irmin.S.html#TYPEtransaction">transaction</a></code></pre><div class="info ">
+<code class="code">set_tree&nbsp;t&nbsp;k&nbsp;~info&nbsp;v</code> is <code class="code">with_tree&nbsp;t&nbsp;k&nbsp;~info&nbsp;(<span class="keyword">fun</span>&nbsp;tree&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Tree</span>.add_tree&nbsp;tree&nbsp;[]&nbsp;v)</code>.<br>
+</div>
+
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEkey">key</a> <a href="Irmin.S.html#TYPEtransaction">transaction</a></code></pre><div class="info ">
+<code class="code">remove&nbsp;t&nbsp;i&nbsp;k</code> is <code class="code">with_tree&nbsp;t&nbsp;i&nbsp;k&nbsp;(<span class="keyword">fun</span>&nbsp;tree&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Tree</span>.remove&nbsp;tree<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[])</code>.<br>
+</div>
+<br>
+<h1 id="1_Clones">Clones</h1><br>
+
+<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">src:<a href="Irmin.S.html#TYPEt">t</a> -> dst:<a href="Irmin.S.html#TYPEbranch">branch</a> -> <a href="Irmin.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">clone&nbsp;~src&nbsp;~dst</code> makes <code class="code">dst</code> points to <code class="code"><span class="constructor">Head</span>.get&nbsp;src</code>. <code class="code">dst</code> is
+      created if needed. Remove the current contents en <code class="code">dst</code> if <code class="code">src</code>
+      is <a href="Irmin.S.html#VALempty"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.empty</code></a>.<br>
+</div>
+<br>
+<h1 id="1_Watches">Watches</h1><br>
+
+<pre><span id="TYPEwatch"><span class="keyword">type</span> <code class="type"></code>watch</span> </pre>
+<div class="info ">
+The type for store watches.<br>
+</div>
+
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       ?init:<a href="Irmin.S.html#TYPEcommit">commit</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.S.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch&nbsp;t&nbsp;f</code> calls <code class="code">f</code> every time the contents of <code class="code">t</code>'s head is
+      updated.
+<p>
+
+      <b>Note:</b> even if <code class="code">f</code> might skip some head updates, it will
+      never be called concurrently: all consecutive calls to <code class="code">f</code> are
+      done in sequence, so we ensure that the previous one ended
+      before calling the next one.<br>
+</div>
+
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEkey">key</a> -><br>       ?init:<a href="Irmin.S.html#TYPEcommit">commit</a> -><br>       ((<a href="Irmin.S.html#TYPEcommit">commit</a> * <a href="Irmin.S.html#TYPEtree">tree</a>) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.S.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_key&nbsp;t&nbsp;key&nbsp;f</code> calls <code class="code">f</code> every time the <code class="code">key</code>'s value is
+      added, removed or updated. If the current branch is deleted,
+      no signal is sent to the watcher.<br>
+</div>
+
+<pre><span id="VALunwatch"><span class="keyword">val</span> unwatch</span> : <code class="type"><a href="Irmin.S.html#TYPEwatch">watch</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">unwatch&nbsp;w</code> disable <code class="code">w</code>. Return once the <code class="code">w</code> is fully
+      disabled.<br>
+</div>
+<br>
+<h1 id="1_MergesandCommonAncestors">Merges and Common Ancestors.</h1><br>
+
+<pre><span id="TYPEmerge"><span class="keyword">type</span> <code class="type">'a</code> merge</span> = <code class="type">info:<a href="Irmin.Info.html#TYPEf">Irmin.Info.f</a> -><br>       ?max_depth:int -><br>       ?n:int -> 'a -> (unit, <a href="Irmin.Merge.html#TYPEconflict">Irmin.Merge.conflict</a>) Result.result Lwt.t</code> </pre>
+<div class="info ">
+The type for merge functions.<br>
+</div>
+
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">into:<a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEt">t</a> <a href="Irmin.S.html#TYPEmerge">merge</a></code></pre><div class="info ">
+<code class="code">merge&nbsp;~into&nbsp;i&nbsp;t</code> merges <code class="code">t</code>'s current branch into <code class="code">x</code>'s current
+      branch using the info <code class="code">i</code>. After that operation, the two stores
+      are still independent. Similar to <code class="code">git&nbsp;merge&nbsp;&lt;branch&gt;</code>.<br>
+</div>
+
+<pre><span id="VALmerge_with_branch"><span class="keyword">val</span> merge_with_branch</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEbranch">branch</a> <a href="Irmin.S.html#TYPEmerge">merge</a></code></pre><div class="info ">
+Same as <a href="Irmin.S.html#VALmerge"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.merge</code></a> but with a branch ID.<br>
+</div>
+
+<pre><span id="VALmerge_with_commit"><span class="keyword">val</span> merge_with_commit</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -> <a href="Irmin.S.html#TYPEcommit">commit</a> <a href="Irmin.S.html#TYPEmerge">merge</a></code></pre><div class="info ">
+Same as <a href="Irmin.S.html#VALmerge"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.merge</code></a> but with a commit ID.<br>
+</div>
+
+<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type">?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.S.html#TYPEt">t</a> -><br>       <a href="Irmin.S.html#TYPEt">t</a> -> (<a href="Irmin.S.html#TYPEcommit">commit</a> list, <a href="Irmin.S.html#TYPElca_error">lca_error</a>) Result.result Lwt.t</code></pre><div class="info ">
+<code class="code">lca&nbsp;?max_depth&nbsp;?n&nbsp;msg&nbsp;t1&nbsp;t2</code> returns the collection of least
+      common ancestors between the heads of <code class="code">t1</code> and <code class="code">t2</code> branches.
+<p>
+
+      <ul>
+<li><code class="code">max_depth</code> is the maximum depth of the exploration (default
+      is <code class="code">max_int</code>). Return <code class="code"><span class="constructor">Error</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Max_depth_reached</span></code> if this depth
+      is exceeded.</li>
+<li><code class="code">n</code> is the maximum expected number of lcas. Stop the
+      exploration as soon as <code class="code">n</code> lcas are found. Return <code class="code"><span class="constructor">Error</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Too_many_lcas</span></code> if more <code class="code">lcas</code> are found. </li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALlcas_with_branch"><span class="keyword">val</span> lcas_with_branch</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.S.html#TYPEbranch">branch</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">commit</a> list, <a href="Irmin.S.html#TYPElca_error">lca_error</a>) Result.result Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.S.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.lcas</code></a> but takes a branch ID as argument.<br>
+</div>
+
+<pre><span id="VALlcas_with_commit"><span class="keyword">val</span> lcas_with_commit</span> : <code class="type"><a href="Irmin.S.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.S.html#TYPEcommit">commit</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">commit</a> list, <a href="Irmin.S.html#TYPElca_error">lca_error</a>) Result.result Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.S.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.lcas</code></a> but takes a commit ID as argument.<br>
+</div>
+<br>
+<h1 id="1_History">History</h1><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.History.html">History</a>: <code class="type">Graph.Sig.P</code><code class="type">  with type V.t = commit</code></pre><div class="info">
+An history is a DAG of heads.
+</div>
+
+<pre><span id="VALhistory"><span class="keyword">val</span> history</span> : <code class="type">?depth:int -><br>       ?min:<a href="Irmin.S.html#TYPEcommit">commit</a> list -><br>       ?max:<a href="Irmin.S.html#TYPEcommit">commit</a> list -> <a href="Irmin.S.html#TYPEt">t</a> -> History.t Lwt.t</code></pre><div class="info ">
+<code class="code">history&nbsp;?depth&nbsp;?min&nbsp;?max&nbsp;t</code> is a view of the history of the
+      store <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
+      (or from the <code class="code">t</code>'s head if the list of heads is empty) and
+      stopping at <code class="code">min</code> if specified.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Branch.html">Branch</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Branch.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Manipulate branches.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type t = key and type step = step</code></pre><div class="info">
+<code class="code"><span class="constructor">Key</span></code> provides base functions for the stores's paths.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type">  with type t = metadata</code></pre><div class="info">
+<code class="code"><span class="constructor">Metadata</span></code> provides base functions for node metadata.
+</div>
+<br>
+<h1 id="1_ValueTypes">Value Types</h1><br>
+
+<pre><span id="VALstep_t"><span class="keyword">val</span> step_t</span> : <code class="type"><a href="Irmin.S.html#TYPEstep">step</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">step_t</code> is the value type for <a href="Irmin.S.html#TYPEstep"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.step</code></a>.<br>
+</div>
+
+<pre><span id="VALkey_t"><span class="keyword">val</span> key_t</span> : <code class="type"><a href="Irmin.S.html#TYPEkey">key</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">key_t</code> is the value type for <a href="Irmin.S.html#TYPEkey"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.key</code></a>.<br>
+</div>
+
+<pre><span id="VALmetadata_t"><span class="keyword">val</span> metadata_t</span> : <code class="type"><a href="Irmin.S.html#TYPEmetadata">metadata</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">metadata_t</code> is the value type for <a href="Irmin.S.html#TYPEmetadata"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.metadata</code></a>.<br>
+</div>
+
+<pre><span id="VALcontents_t"><span class="keyword">val</span> contents_t</span> : <code class="type"><a href="Irmin.S.html#TYPEcontents">contents</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">contents_t</code> is the value type for <a href="Irmin.S.html#TYPEcontents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.contents</code></a>.<br>
+</div>
+
+<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type"><a href="Irmin.S.html#TYPEnode">node</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">node_t</code> is the value type for <a href="Irmin.S.html#TYPEnode"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.node</code></a>.<br>
+</div>
+
+<pre><span id="VALtree_t"><span class="keyword">val</span> tree_t</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">tree</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">tree_t</code> is the value type for <a href="Irmin.S.html#VALtree"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.tree</code></a>.<br>
+</div>
+
+<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Repo.t</a> -> <a href="Irmin.S.html#TYPEcommit">commit</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">commit_t&nbsp;r</code> is the value type for <a href="Irmin.S.html#TYPEcommit"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.commit</code></a>.<br>
+</div>
+
+<pre><span id="VALbranch_t"><span class="keyword">val</span> branch_t</span> : <code class="type"><a href="Irmin.S.html#TYPEbranch">branch</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">branch_t</code> is the value type for <a href="Irmin.S.html#TYPEbranch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.branch</code></a>.<br>
+</div>
+
+<pre><span id="VALslice_t"><span class="keyword">val</span> slice_t</span> : <code class="type"><a href="Irmin.S.html#TYPEslice">slice</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">slice_t</code> is the value type for <a href="Irmin.S.html#TYPEslice"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.slice</code></a>.<br>
+</div>
+
+<pre><span id="VALkind_t"><span class="keyword">val</span> kind_t</span> : <code class="type">[ `Contents | `Node ] <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">kind_t</code> is the value type for values returned by <a href="Irmin.S.html#VALkind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.kind</code></a>.<br>
+</div>
+
+<pre><span id="VALkinde_t"><span class="keyword">val</span> kinde_t</span> : <code class="type">[ `Contents | `Empty | `Node ] <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">kind_t</code> is like <a href="Irmin.S.html#VALkind_t"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.kind_t</code></a> but also allow <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> values.<br>
+</div>
+
+<pre><span id="VALlca_error_t"><span class="keyword">val</span> lca_error_t</span> : <code class="type"><a href="Irmin.S.html#TYPElca_error">lca_error</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">lca_error_t</code> is the value type for <a href="Irmin.S.html#TYPElca_error"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.lca_error</code></a>.<br>
+</div>
+
+<pre><span id="VALff_error_t"><span class="keyword">val</span> ff_error_t</span> : <code class="type"><a href="Irmin.S.html#TYPEff_error">ff_error</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">ff_error_t</code> is the value type for <a href="Irmin.S.html#TYPEff_error"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.ff_error</code></a>.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Private functions, which might be used by the backends.
+</div>
+</body></html>

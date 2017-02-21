@@ -3,20 +3,21 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="Up" href="Irmin.Private.Slice.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Slices" rel="Section" href="#1_Slices">
+<link title="Value Types" rel="Section" href="#1_ValueTypes">
 <title>Irmin.Private.Slice.S</title>
 </head>
 <body>
@@ -28,9 +29,11 @@
 <br>
 <h1 id="1_Slices">Slices</h1><br>
 
-<pre><span class="keyword">include</span> Tc.S0</pre>
-<br>
-Slices are serializable.<br>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for slices.<br>
+</div>
+
 
 <pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
 <div class="info ">
@@ -50,31 +53,43 @@ The type for exported commits.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> t Lwt.t</code></pre><div class="info ">
+<pre><span id="TYPEvalue"><span class="keyword">type</span> <code class="type"></code>value</span> = <code class="type">[ `Commit of <a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a><br>       | `Contents of <a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a><br>       | `Node of <a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> ]</code> </pre>
+<div class="info ">
+The type for exported values.<br>
+</div>
+
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">unit -> <a href="Irmin.Private.Slice.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
 Create a new empty slice.<br>
 </div>
 
-<pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">add_contents t c</code> adds the contents <code class="code">c</code> to the slice <code class="code">t</code>.<br>
+<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEt">t</a> -> <a href="Irmin.Private.Slice.S.html#TYPEvalue">value</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">add&nbsp;t&nbsp;v</code> adds <code class="code">v</code> to <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">add_node t n</code> adds the node <code class="code">n</code> to the slice <code class="code">t</code>.<br>
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEt">t</a> -><br>       (<a href="Irmin.Private.Slice.S.html#TYPEvalue">value</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">iter&nbsp;t&nbsp;f</code> calls <code class="code">f</code> on all values of <code class="code">t</code>.<br>
+</div>
+<br>
+<h1 id="1_ValueTypes">Value Types</h1><br>
+
+<pre><span id="VALt"><span class="keyword">val</span> t</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEt">t</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">t</code> is the value type for <a href="Irmin.Private.Slice.S.html#VALt"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Slice</span>.<span class="constructor">S</span>.t</code></a>.<br>
 </div>
 
-<pre><span id="VALadd_commit"><span class="keyword">val</span> add_commit</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">add_commit t c</code> adds the commit <code class="code">c</code> to the slice <code class="code">t</code>.<br>
+<pre><span id="VALcontents_t"><span class="keyword">val</span> contents_t</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">content_t</code> is the value type for <a href="Irmin.Private.Slice.S.html#TYPEcontents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Slice</span>.<span class="constructor">S</span>.contents</code></a>.<br>
 </div>
 
-<pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter_contents t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s contents.<br>
+<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">node_t</code> is the value type for <a href="Irmin.Private.Slice.S.html#TYPEnode"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Slice</span>.<span class="constructor">S</span>.node</code></a>.<br>
 </div>
 
-<pre><span id="VALiter_nodes"><span class="keyword">val</span> iter_nodes</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter_nodes t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s nodes.<br>
+<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">commit_t</code> is the value type for <a href="Irmin.Private.Slice.S.html#TYPEcommit"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Slice</span>.<span class="constructor">S</span>.commit</code></a>.<br>
 </div>
 
-<pre><span id="VALiter_commits"><span class="keyword">val</span> iter_commits</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter_commits t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s commits.<br>
+<pre><span id="VALvalue_t"><span class="keyword">val</span> value_t</span> : <code class="type"><a href="Irmin.Private.Slice.S.html#TYPEvalue">value</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<code class="code">value_t</code> is the value type for <a href="Irmin.Private.Slice.S.html#TYPEvalue"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Slice</span>.<span class="constructor">S</span>.value</code></a>.<br>
 </div>
 </body></html>

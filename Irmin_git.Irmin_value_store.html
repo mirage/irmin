@@ -3,19 +3,19 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin_git.Hash.html">
 <link rel="next" href="Irmin_git.AO.html">
 <link rel="Up" href="Irmin_git.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_git.Irmin_value_store</title>
@@ -27,8 +27,8 @@
 </div>
 <h1>Functor <a href="type_Irmin_git.Irmin_value_store.html">Irmin_git.Irmin_value_store</a></h1>
 
-<pre><span class="keyword">module</span> Irmin_value_store: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.Irmin_value_store.html">..</a> <code class="code"><span class="keyword">end</span></code></div></div></div></pre><div class="info module top">
-Privides a subset of Irmin.Private.S (excludes tags and sync).
+<pre><span class="keyword">module</span> Irmin_value_store: <div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">G</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type"><a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a></code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">C</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">P</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.Irmin_value_store.html">..</a> <code class="code"><span class="keyword">end</span></code></div></div></div></pre><div class="info module top">
+Privides a subset of Irmin.Private.S (excludes branches and sync).
     This is useful if you want to store data in Git format, but do
     your own locking and sync.<br>
 </div>
@@ -49,9 +49,9 @@ Privides a subset of Irmin.Private.S (excludes tags and sync).
 <td><code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
-<code>H</code></td>
+<code>P</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code>
+<td><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code>
 </table>
 </td>
 </tr>
@@ -59,17 +59,12 @@ Privides a subset of Irmin.Private.S (excludes tags and sync).
 <hr width="100%">
 
 <pre><span class="keyword">module</span> <a href="Irmin_git.Irmin_value_store.Contents.html">Contents</a>: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type"> 
-    with type key = H.t
-     and type value = C.t
-     and module Key = H
-     and module Path = C.Path</code></pre>
+    with type key = <a href="Irmin.Hash.SHA1.html">Irmin.Hash.SHA1</a>.t
+     and type value = C.t</code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_git.Irmin_value_store.Node.html">Node</a>: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type"> 
-    with type key = H.t
-     and type Val.raw_contents = Contents.key
-     and module Key = H
-     and module Path = Contents.Val.Path
-     and module Val.Metadata = Metadata</code></pre>
+    with type key = <a href="Irmin.Hash.SHA1.html">Irmin.Hash.SHA1</a>.t
+     and type Val.contents = Contents.key
+     and module Metadata = Metadata</code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_git.Irmin_value_store.Commit.html">Commit</a>: <code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="type"> 
-    with type key = H.t
-     and module Key = H
+    with type key = <a href="Irmin.Hash.SHA1.html">Irmin.Hash.SHA1</a>.t
      and type Val.node = Node.key</code></pre></body></html>

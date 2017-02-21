@@ -1,0 +1,52 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.S.Tree.html">
+<link rel="next" href="Irmin.S.History.html">
+<link rel="Up" href="Irmin.S.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Import/Export" rel="Section" href="#1_ImportExport">
+<title>Irmin.S.Contents</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.S.Tree.html" title="Irmin.S.Tree">Previous</a>
+&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.History.html" title="Irmin.S.History">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.S.Contents.html">Irmin.S.Contents</a></h1>
+
+<pre><span class="keyword">module</span> Contents: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Contents.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Contents</span></code> provides base functions for the store's contents.<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">include</span> <a href="Irmin.Contents.S.html">Irmin.Contents.S</a></pre>
+<br>
+<h1 id="1_ImportExport">Import/Export</h1><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Contents.Hash.html">Hash</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type"> </code></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions for contents hashes.
+</div>
+
+<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> Hash.t Lwt.t</code></pre><div class="info ">
+<code class="code">hash&nbsp;r&nbsp;c</code> it <code class="code">c</code>'s hash in the repository <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> Hash.t -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">of_hash&nbsp;r&nbsp;h</code> is the the contents object in <code class="code">r</code> having <code class="code">h</code> as
+        hash, or <code class="code"><span class="constructor">None</span></code> is no such contents object exists.<br>
+</div>
+</body></html>

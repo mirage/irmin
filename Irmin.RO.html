@@ -3,18 +3,18 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin.AO.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Read-only stores" rel="Section" href="#1_Readonlystores">
@@ -27,7 +27,7 @@
 <h1>Module type <a href="type_Irmin.RO.html">Irmin.RO</a></h1>
 
 <pre><span class="keyword">module type</span> RO = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RO.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
-Read-only stores.<br>
+Read-only backend stores.<br>
 </div>
 <hr width="100%">
 <br>
@@ -35,37 +35,28 @@ Read-only stores.<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
-Type for stores.<br>
+The type for read-only backend stores.<br>
 </div>
 
 
 <pre><span id="TYPEkey"><span class="keyword">type</span> <code class="type"></code>key</span> </pre>
 <div class="info ">
-Type for keys.<br>
+The type for keys.<br>
 </div>
 
 
 <pre><span id="TYPEvalue"><span class="keyword">type</span> <code class="type"></code>value</span> </pre>
 <div class="info ">
-Type for values.<br>
+The type for raw values.<br>
 </div>
 
-
-<pre><span id="VALread"><span class="keyword">val</span> read</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> option Lwt.t</code></pre><div class="info ">
-Read a value from the store.<br>
-</div>
-
-<pre><span id="VALread_exn"><span class="keyword">val</span> read_exn</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the key does not
-      exist.<br>
-</div>
 
 <pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> bool Lwt.t</code></pre><div class="info ">
-Check if a key exists.<br>
+<code class="code">mem&nbsp;t&nbsp;k</code> is true iff <code class="code">k</code> is present in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -><br>       (<a href="Irmin.RO.html#TYPEkey">key</a> -> (unit -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t) -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys and
-      values.<br>
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">find&nbsp;t&nbsp;k</code> is <code class="code"><span class="constructor">Some</span>&nbsp;v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code> and
+      <code class="code"><span class="constructor">None</span></code> is <code class="code">k</code> is not present in <code class="code">t</code>.<br>
 </div>
 </body></html>

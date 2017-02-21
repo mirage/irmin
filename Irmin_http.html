@@ -3,39 +3,36 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin_fs.html">
+<link rel="previous" href="Irmin_git.html">
 <link rel="next" href="Irmin_http_server.html">
 <link rel="Up" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_http</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin_fs.html" title="Irmin_fs">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin_git.html" title="Irmin_git">Previous</a>
 &nbsp;<a class="up" href="index.html" title="Index">Up</a>
 &nbsp;<a class="post" href="Irmin_http_server.html" title="Irmin_http_server">Next</a>
 </div>
 <h1>Module <a href="type_Irmin_http.html">Irmin_http</a></h1>
 
 <pre><span class="keyword">module</span> Irmin_http: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_http.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
-JSON CRUD interface.<br>
+JSON REST/CRUD interface.<br>
 </div>
 <hr width="100%">
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?config:<a href="Irmin.html#TYPEconfig">Irmin.config</a> -><br>       ?content_type:[ `Json | `Raw ] -> Uri.t -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?config:<a href="Irmin.html#TYPEconfig">Irmin.config</a> -> Uri.t -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
 <pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">Uri.t option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
-<pre><span id="VALcontent_type"><span class="keyword">val</span> content_type</span> : <code class="type">string option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_http.AO.html">AO</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Cohttp_lwt.Client</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></div></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_http.RW.html">RW</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Cohttp_lwt.Client</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></div></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_http.Make.html">Make</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Cohttp_lwt.Client</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></div></div></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_http.Low.html">Low</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Cohttp_lwt.Client</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></div></div></pre></body></html>
+<pre><span class="keyword">module</span> <a href="Irmin_http.Make.html">Make</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">C</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type">Cohttp_lwt.Client</code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_http.KV.html">KV</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span>&nbsp;(</code><code class="code"><span class="constructor">C</span></code><code class="code">&nbsp;:&nbsp;</code><code class="type">Cohttp_lwt.Client</code><code class="code">)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;</code><code class="type"><a href="Irmin.KV_MAKER.html">Irmin.KV_MAKER</a></code><code class="type"> </code></div></pre></body></html>

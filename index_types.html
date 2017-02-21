@@ -2,16 +2,16 @@
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
-<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
 <link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
 <link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of types</title>
@@ -22,17 +22,43 @@
 <h1>Index of types</h1>
 <table>
 <tr><td align="left"><br>B</td></tr>
-<tr><td><a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.S.html#TYPEbranch">branch</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 Type for persistent branch names.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html#TYPEbranch_id">branch_id</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<tr><td><a href="Irmin.Private.Sync.S.html#TYPEbranch">branch</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
 <td><div class="info">
 The type for branch IDs.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Irmin.Type.html#TYPEcase">case</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
+<td><div class="info">
+The type for representing variant cases of type <code class="code"><span class="keywordsign">'</span>a</code> with
+      patterns of type <code class="code"><span class="keywordsign">'</span>b</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Type.html#TYPEcase_p">case_p</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
+<td><div class="info">
+The type for representing patterns for a variant of type <code class="code"><span class="keywordsign">'</span>a</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEcommit">commit</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Type for commit identifiers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.SYNC.html#TYPEcommit">commit</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
+<td><div class="info">
+The type for store heads.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html#TYPEcommit">commit</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<td><div class="info">
+The type for store heads.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
 The type for exported commits.
@@ -48,29 +74,24 @@ The type for commit values.
 Type for commit keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
 <td><div class="info">
-Type for commit identifiers.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
-<td><div class="info">
-The type for commit heads.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.SYNC.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
-<td><div class="info">
-The type for store heads.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
-<td><div class="info">
-The type for store heads.
+The type for concrete trees.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#TYPEconfig">config</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 The type for backend-specific configuration values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Merge.html#TYPEconflict">conflict</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+The type for merge errors.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEcontents">contents</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
@@ -85,7 +106,7 @@ The type of user-defined contents.
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
-The type for contents keys combined with their metadata.
+The type for contents keys.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
@@ -99,11 +120,6 @@ The type for counter values.
 </div>
 </td></tr>
 <tr><td align="left"><br>D</td></tr>
-<tr><td><a href="Irmin.VIEW.html#TYPEdb">db</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
-<td><div class="info">
-The type for store handles.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.SYNC.html#TYPEdb">db</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
 Type type for store handles.
@@ -115,9 +131,30 @@ The type for representing differences betwen values.
 </div>
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
-<tr><td><a href="Irmin.Task.html#TYPEf">f</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<tr><td><a href="Irmin.Merge.html#TYPEf">f</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-The type for user-defined task creators.
+Signature of a merge function.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Info.html#TYPEf">f</a> [<a href="Irmin.Info.html">Irmin.Info</a>]</td>
+<td><div class="info">
+Alias for functions which can build commit info.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.SYNC.html#TYPEfetch_error">fetch_error</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
+<td><div class="info">
+The type for fetch errors.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEff_error">ff_error</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for errors for <code class="code">fast_forward</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Type.html#TYPEfield">field</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
+<td><div class="info">
+The type for fields holding values of type <code class="code"><span class="keywordsign">'</span>b</code> and belonging to a
+      record of type <code class="code"><span class="keywordsign">'</span>a</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
@@ -126,17 +163,15 @@ The type for user-defined task creators.
 The type for watch hooks.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">hooks</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
-<td><div class="info">
-Server hooks.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_http_server.html#TYPEhooks">hooks</a> [<a href="Irmin_http_server.html">Irmin_http_server</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>K</td></tr>
 <tr><td><a href="Irmin.RO.html#TYPEkey">key</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
-Type for keys.
+The type for keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEkey">key</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store keys.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Lock.S.html#TYPEkey">key</a> [<a href="Irmin.Private.Lock.S.html">Irmin.Private.Lock.S</a>]</td>
@@ -154,7 +189,45 @@ The type for store keys.
 The type for configuration keys whose lookup value is <code class="code"><span class="keywordsign">'</span>a</code>.
 </div>
 </td></tr>
+<tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Irmin.S.html#TYPElca_error">lca_error</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for errors associated with functions computing least
+      common ancestors
+</div>
+</td></tr>
+<tr><td><a href="Irmin_fs.IO.html#TYPElock">lock</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+The type for file locks.
+</div>
+</td></tr>
+<tr><td align="left"><br>M</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEmerge">merge</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for merge functions.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEmetadata">metadata</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store metadata.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEmetadata">metadata</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
+<td><div class="info">
+The type for node metadata.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#TYPEmetadata">metadata</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+The type for node metadata.
+</div>
+</td></tr>
 <tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEnode">node</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store nodes.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
 The type for exported nodes.
@@ -180,10 +253,28 @@ The type for node values.
 The type for node keys.
 </div>
 </td></tr>
+<tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Irmin.Type.html#TYPEopen_record">open_record</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
+<td><div class="info">
+The type for representing open records of type <code class="code"><span class="keywordsign">'</span>a</code> with
+      constructors of type <code class="code"><span class="keywordsign">'</span>b</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Type.html#TYPEopen_variant">open_variant</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
+<td><div class="info">
+The type for representing open variants of type <code class="code"><span class="keywordsign">'</span>a</code> with pattern
+      matching of type <code class="code"><span class="keywordsign">'</span>b</code>.
+</div>
+</td></tr>
 <tr><td align="left"><br>P</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#TYPEparser">parser</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 The type for configuration converter parsers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_fs.IO.html#TYPEpath">path</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+The type for paths.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -202,31 +293,33 @@ An <code class="code"><span class="keywordsign">'</span>a</code> promise is a fu
       eventually return a value type of <code class="code"><span class="keywordsign">'</span>a</code>.
 </div>
 </td></tr>
-<tr><td align="left"><br>R</td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#TYPEraw_contents">raw_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#TYPEpush_error">push_error</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
-The type for contents keys.
+The type for push errors.
 </div>
 </td></tr>
+<tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Irmin_git.html#TYPEreference">reference</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.html#TYPEremote">remote</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 The type for remote stores.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Merge.html#TYPEresult">result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<tr><td><a href="Irmin_http_server.S.html#TYPErepo">repo</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
 <td><div class="info">
-Type for merge results.
+The type for Irmin repository.
 </div>
 </td></tr>
 <tr><td align="left"><br>S</td></tr>
-<tr><td><a href="Irmin.BC.html#TYPEslice">slice</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.S.html#TYPEslice">slice</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 Type for store slices.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_http_server.S.html#TYPEspec">spec</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
+<tr><td><a href="Irmin.S.html#TYPEstep">step</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-HTTP configuration.
+The type for <a href="Irmin.S.html#TYPEkey"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.key</code></a> steps.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -247,29 +340,37 @@ Type type for path's steps.
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Irmin_http_server.S.html#TYPEt">t</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
 <td><div class="info">
-Database type.
+The type for HTTP configuration.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_git.CONTEXT.html#TYPEt">t</a> [<a href="Irmin_git.CONTEXT.html">Irmin_git.CONTEXT</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin_git.VALUE_STORE.html#TYPEt">t</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
 <td><div class="info">
 This is the subset of Git.Store.S needed for <code class="code"><span class="constructor">Value_store</span></code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.Repo.html#TYPEt">t</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
+<tr><td><a href="Irmin.RO.html#TYPEt">t</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<td><div class="info">
+The type for read-only backend stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Commit.html#TYPEt">t</a> [<a href="Irmin.S.Commit.html">Irmin.S.Commit</a>]</td>
+<td><div class="info">
+The type for store commits.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Status.html#TYPEt">t</a> [<a href="Irmin.S.Status.html">Irmin.S.Status</a>]</td>
+<td><div class="info">
+The type for store status.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Repo.html#TYPEt">t</a> [<a href="Irmin.S.Repo.html">Irmin.S.Repo</a>]</td>
 <td><div class="info">
 The type of repository handles.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.RO.html#TYPEt">t</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<tr><td><a href="Irmin.S.html#TYPEt">t</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Type for stores.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.VIEW.Action.html#TYPEt">t</a> [<a href="Irmin.VIEW.Action.html">Irmin.VIEW.Action</a>]</td>
-<td><div class="info">
-Operations on views.
+The type for branch-consistent stores.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.S.Repo.html#TYPEt">t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
@@ -279,14 +380,29 @@ Operations on views.
 The type for store handles.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#TYPEt">t</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+The type for slices.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
 <td><div class="info">
 The type for store handles.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Commit.S.html#TYPEt">t</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<td><div class="info">
+The type for commit values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 The type for store handles.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#TYPEt">t</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+The type for node values.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Lock.S.html#TYPEt">t</a> [<a href="Irmin.Private.Lock.S.html">Irmin.Private.Lock.S</a>]</td>
@@ -304,30 +420,91 @@ The type for watch state.
 The type for configurations.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Metadata.S.html#TYPEt">t</a> [<a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a>]</td>
+<td><div class="info">
+The type for metadata.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Branch.S.html#TYPEt">t</a> [<a href="Irmin.Branch.S.html">Irmin.Branch.S</a>]</td>
+<td><div class="info">
+The type for branches.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Contents.S0.html#TYPEt">t</a> [<a href="Irmin.Contents.S0.html">Irmin.Contents.S0</a>]</td>
+<td><div class="info">
+The type for contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Contents.S.html#TYPEt">t</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
+<td><div class="info">
+The type for user-defined contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Hash.S.html#TYPEt">t</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
+<td><div class="info">
+The type for digest hashes.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Path.S.html#TYPEt">t</a> [<a href="Irmin.Path.S.html">Irmin.Path.S</a>]</td>
 <td><div class="info">
 The type for path values.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Diff.html#TYPEt">t</a> [<a href="Irmin.Diff.html">Irmin.Diff</a>]</td>
+<td><div class="info">
+The type for representing differences betwen values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#TYPEt">t</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Signature of a merge function.
+The type for merge combinators.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Hum.html#TYPEt">t</a> [<a href="Irmin.Hum.html">Irmin.Hum</a>]</td>
+<tr><td><a href="Irmin.Info.html#TYPEt">t</a> [<a href="Irmin.Info.html">Irmin.Info</a>]</td>
 <td><div class="info">
-Type for implementation of <code class="code"><span class="constructor">S</span></code> for values of type <code class="code"><span class="keywordsign">'</span>a</code>.
+The type for commit info.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#TYPEtask">task</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.Type.html#TYPEt">t</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
-The type for user-defined tasks.
+The type for runtime representation of values of type <code class="code"><span class="keywordsign">'</span>a</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEtransaction">transaction</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for transactions.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEtree">tree</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store trees.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Irmin.Private.Commit.HISTORY.html#TYPEv">v</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
+<td><div class="info">
+The type for commit objects.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RO.html#TYPEvalue">value</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
-Type for values.
+The type for raw values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#TYPEvalue">value</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+The type for exported values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEvalue">value</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
+<td><div class="info">
+The type for store values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#TYPEvalue">value</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+The type for either node keys or contents keys combined with
+          their metadata.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
@@ -336,9 +513,14 @@ The type for store values.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>
-<tr><td><a href="Irmin.RRW.html#TYPEwatch">watch</a> [<a href="Irmin.RRW.html">Irmin.RRW</a>]</td>
+<tr><td><a href="Irmin.RW.html#TYPEwatch">watch</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
 The type of watch handlers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#TYPEwatch">watch</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+The type for store watches.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#TYPEwatch">watch</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
