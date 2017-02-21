@@ -135,6 +135,20 @@ module type KV_MAKER =
        and type contents = C.t
        and type branch = string
 
+type reference = [
+  | `Branch of string
+  | `Remote of string
+  | `Tag of string
+  | `Other of string
+]
+
+module type REF_MAKER =
+  functor (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = reference
+
 module type IO = sig
   include Git.Sync.IO
   val ctx: unit -> ctx option Lwt.t
@@ -143,9 +157,11 @@ end
 module FS: sig
   module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): S_MAKER
   module KV (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): KV_MAKER
+  module Ref (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): REF_MAKER
 end
 
 module Mem: sig
   module Make (IO: IO) (I: Git.Inflate.S): S_MAKER
   module KV (IO: IO) (I: Git.Inflate.S): KV_MAKER
+  module Ref (IO: IO) (I: Git.Inflate.S): REF_MAKER
 end
