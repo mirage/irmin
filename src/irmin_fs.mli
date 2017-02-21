@@ -94,7 +94,7 @@ module Link_ext (IO: IO) (C: Config): Irmin.LINK_MAKER
 module RW_ext (IO: IO) (C: Config): Irmin.RW_MAKER
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER
 
-(** {1 In-memory IO mock *)
+(** {1 In-memory IO mocks} *)
 
 module IO_mem: sig
   include IO

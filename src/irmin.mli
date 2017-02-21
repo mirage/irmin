@@ -2311,7 +2311,7 @@ module type S = sig
     (** [to_concrete t] is the concrete tree equivalent to the subtree
         [t]. *)
 
-    (** {1 Import/Export. *)
+    (** {1 Import/Export} *)
 
     module Hash: Hash.S
     (** [Hash] provides base functions for tree hashes. *)
@@ -2329,7 +2329,6 @@ module type S = sig
   module Contents: sig
 
     include Contents.S with type t = contents
-    (** {1 Import/Export. *)
 
     (** {1 Import/Export} *)
 
@@ -2395,7 +2394,7 @@ module type S = sig
       concurrently to that operations, the semantics depend on the
       value of [strategy]:
 
-      {u
+      {ul
       {- if [strategy = `Set], the {e last write wins}. }
       {- if [strategy = `Test_and_set] (default), the transaction is
          restarted.}
@@ -2808,7 +2807,7 @@ end ]}
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
 
   (* Set-up the commit info function *)
-  let info fmt = Irmin_unix.info ~author:"logger <irmin@example.com>" fmt
+  let info fmt = Irmin_unix.info ~author:"logger" fmt
 ]}
 
   We can now define a toy example to use our mergeable log files.

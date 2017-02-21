@@ -78,8 +78,9 @@ module type S = sig
   (** The Git backed specialized a few types:
 
       {ul
-      {- the allowed metdata are {Metadata.t}.
-      {- the object hashes is SHA1}. *)
+      {- the allowed metdata are {!Metadata.t}.}
+      {- the hash algorithm is SHA1.}
+      }. *)
 
   include Irmin.S with type metadata = Metadata.t
                    and module Commit.Hash = Irmin.Hash.SHA1
