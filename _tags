@@ -4,7 +4,7 @@ true: short_paths
 
 true: package(cstruct fmt hex logs lwt ocamlgraph re astring uri jsonm)
 
-<src-git/*>: package(git)
+<src-git/*>: package(git irmin)
 
 <test/*>: thread
 <test/*>: package(alcotest git-unix logs.fmt mtime.os)
@@ -14,8 +14,8 @@ true: package(cstruct fmt hex logs lwt ocamlgraph re astring uri jsonm)
 <test/main_git.*>: package(git-unix)
 <test/main_http.*>: package(webmachine)
 
-<src-http/*>: package(cohttp webmachine)
-<src-unix/*>: package(irmin-watcher git-unix), thread
+<src-http/*>: package(irmin cohttp webmachine)
+<src-unix/*>: package(irmin irmin-git irmin-http irmin-watcher git-unix), thread
 <src-mirage/*>: package(ptime mirage-kv-lwt mirage-clock git-mirage result)
 
 <bin/*>: package(irmin-watcher), thread

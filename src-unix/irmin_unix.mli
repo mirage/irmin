@@ -28,8 +28,8 @@
     {{!Irmin_git}Git}. You can view and edit your store using both the
     library and your usual Git tools. }
     {- The HTTP {{!module:Irmin_http}clients} and
-    {{!module:Irmin_http_server}servers} provides a high-level REST API, with
-    1 RTT for the {{!Irmin.S.Private}private} and {{!Irmin.BC}public}
+    {{!module:Http.Server}servers} provides a high-level REST API, with
+    1 RTT for the {{!Irmin.S.Private}private} and {{!Irmin.S}public}
     functions.}
     }
 
