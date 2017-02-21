@@ -22,12 +22,13 @@ module Metadata: Irmin.Metadata.S with type t = [`Normal | `Exec | `Link]
 
 val config:
   ?config:Irmin.config ->
-  ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
-  Irmin.config
+  ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> ?dot_git:string ->
+  string -> Irmin.config
 
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
 val level: int option Irmin.Private.Conf.key
+val dot_git: string option Irmin.Private.Conf.key
 
 module type VALUE_STORE = sig
   (** This is the subset of Git.Store.S needed for [Value_store]. *)
