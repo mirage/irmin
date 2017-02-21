@@ -27,23 +27,17 @@ module IO = struct
 end
 
 module FS = struct
-  let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
   module Link = Irmin_fs.Link(IO)
   module RW = Irmin_fs.RW(IO)
   module Make = Irmin_fs.Make(IO)
   module KV = Irmin_fs.KV(IO)
-  module type Config = Irmin_fs.Config
   module AO_ext = Irmin_fs.AO_ext(IO)
   module RW_ext = Irmin_fs.RW_ext(IO)
   module Make_ext = Irmin_fs.Make_ext(IO)
 end
 
 module Git = struct
-  let config = Irmin_git.config
-  let head = Irmin_git.head
-  let bare = Irmin_git.bare
-  let level = Irmin_git.level
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW
   module IO = struct
@@ -61,9 +55,6 @@ module Git = struct
 end
 
 module Http = struct
-
-  let config = Irmin_http.config
-  let uri = Irmin_http.uri
   module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)
   module KV (C: Irmin.Contents.S) =
     Make
@@ -72,9 +63,7 @@ module Http = struct
       (Irmin.Path.String_list)
       (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
-
   module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
-
 end
 
 let info ?author fmt =
