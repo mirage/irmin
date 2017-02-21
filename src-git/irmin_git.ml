@@ -57,9 +57,14 @@ module Conf = struct
       ~doc:"The Zlib compression level."
       "level" Irmin.Private.Conf.(some int) None
 
+  let dot_git =
+    Irmin.Private.Conf.key
+      ~doc:"The location of the .git directory. By default set to [$root/.git]."
+      "dot-git" Irmin.Private.Conf.(some string) None
+
 end
 
-let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level root =
+let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root =
   let module C = Irmin.Private.Conf in
   let config = C.add config Conf.root (Some root) in
   let config = match bare with
@@ -68,6 +73,7 @@ let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level root =
   in
   let config = C.add config Conf.head head in
   let config = C.add config Conf.level level in
+  let config = C.add config Conf.dot_git dot_git in
   config
 
 module type VALUE_STORE = sig
@@ -504,7 +510,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
 
   type t = {
     bare: bool;
-    git_root: string;
+    dot_git: string;
     git_head: Git.Reference.head_contents;
     t: G.t;
     w: W.t;
@@ -538,7 +544,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
   let listen_dir t =
     let (/) = Filename.concat in
     if G.kind = `Disk then
-      let dir = t.git_root / "refs" in
+      let dir = t.dot_git / "refs" in
       let key file = match Key.of_string file with
         | Ok x           -> Some x
         | Error (`Msg e) ->
@@ -564,7 +570,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
     W.unwatch t.w w
 
   let v t ~head ~bare =
-    let git_root = Filename.concat (G.root t) ".git" in
+    let dot_git = G.dot_git t in
     let write_head head =
       let head = Git.Reference.Ref head in
       begin
@@ -588,7 +594,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
         Hashtbl.add watches (G.root t) w;
         w
     in
-    { git_head; bare; t; w; git_root }
+    { git_head; bare; t; w; dot_git }
 
   let list { t; _ } =
     G.references t >|= fun refs ->
@@ -794,22 +800,24 @@ module Make_ext
       let commit_t t = node_t t, t.g
 
       type config = {
-        root : string option;
-        level: int option;
-        head : Git.Reference.t option;
-        bare : bool;
+        root   : string option;
+        dot_git: string option;
+        level  : int option;
+        head   : Git.Reference.t option;
+        bare   : bool;
       }
 
       let config c =
         let root = Irmin.Private.Conf.get c Conf.root in
+        let dot_git = Irmin.Private.Conf.get c Conf.dot_git in
         let level = Irmin.Private.Conf.get c Conf.level in
         let head = Irmin.Private.Conf.get c Conf.head in
         let bare = Irmin.Private.Conf.get c Conf.bare in
-        { root; level; head; bare }
+        { root; dot_git; level; head; bare }
 
       let v conf =
-        let { root; level; head; bare } = config conf in
-        G.create ?root ?level () >>= fun g ->
+        let { root; dot_git; level; head; bare } = config conf in
+        G.create ?dot_git ?root ?level () >>= fun g ->
         R.v ~head ~bare g >|= fun b ->
         { g; b; config = conf }
 

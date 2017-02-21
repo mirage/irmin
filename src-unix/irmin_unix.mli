@@ -48,10 +48,6 @@ module FS: sig
 
   (** {1 File-system Store} *)
 
-  val config: ?config:Irmin.config -> string -> Irmin.config
-  (** Create a configuration value. [root] is the location of local
-  repository's root.*)
-
   module AO: Irmin.AO_MAKER
   (** Append-only store maker. *)
 
@@ -68,32 +64,13 @@ module FS: sig
   (** Irmin store make, where only the Contents have to be specified:
       branches are strings and paths are string lists. *)
 
-  (** {1 Extended configuration} *)
-
-  (** [Config] provides function to control the filename shapes. *)
-  module type Config = sig
-
-    (** Same as [Config] but gives more control on the file
-        hierarchy. *)
-
-    val dir: string -> string
-    (** [dir root] is the sub-directory to look for the keys. *)
-
-    val file_of_key: string -> string
-    (** Convert a key to a filename. *)
-
-    val key_of_file: string -> string
-    (** Convert a filename to a key. *)
-
-  end
-
-  module AO_ext (C: Config): Irmin.AO_MAKER
+  module AO_ext (C: Irmin_fs.Config): Irmin.AO_MAKER
   (** Append-only store maker, with control over the filenames shapes. *)
 
-  module RW_ext (C: Config): Irmin.RW_MAKER
+  module RW_ext (C: Irmin_fs.Config): Irmin.RW_MAKER
   (** Read-write store maker, with control over the filename shapes. *)
 
-  module Make_ext (Obj: Config) (Ref: Config): Irmin.S_MAKER
+  module Make_ext (Obj: Irmin_fs.Config) (Ref: Irmin_fs.Config): Irmin.S_MAKER
   (** Irmin store maker, with control over the filename shapes. *)
 
 end
@@ -102,38 +79,6 @@ end
 module Git: sig
 
   (** {1 Git Store} *)
-
-  val config: ?config:Irmin.config ->
-    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
-    Irmin.config
-  (** Create a configuration value.
-
-      {ul
-      {- [config] is the optional initial configuration value. If not
-         defined, it is [Irmin.Private.Conf.empty]}
-      {- [root] is the local Git repository's root (the parent of the
-         {e .git/} directory).}
-      {- [head] is the name of the local Git repository's current
-         branch. If set, this will cause the file {i [root]/.git/HEAD}
-         to be modified to contain {i ref: refs/heads/[branch]}.}
-      {- If [bare] is unset (the default), then the local Git repository's
-         contents will be expanded into the filesystem on each update.
-         This might cause some performance issues.}
-      {- [level] is the Zlib compression level. If absent, use the
-         default one.}
-      }  *)
-
-  val head: Git.Reference.t option Irmin.Private.Conf.key
-  (** The configuration key to set the local Git repository's current
-      branch. See {!Irmin_git.config}. *)
-
-  val bare: bool Irmin.Private.Conf.key
-  (** The configuration key to set the local Git repository's bare
-      attribute. See {!Irmin_git.config}.*)
-
-  val level: int option Irmin.Private.Conf.key
-  (** [level] is the Zlib compression level used to compress
-      persisting values. *)
 
   module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
@@ -166,14 +111,6 @@ end
 module Http: sig
 
   (** {1 HTTP client} *)
-
-  val config: ?config:Irmin.config -> Uri.t -> Irmin.config
-  (** Create a configuration value. [uri] it the location of the
-      remote HTTP {{!module:Irmin_http_server}server}. *)
-
-  val uri: Uri.t option Irmin.Private.Conf.key
-  (** The configuration key to set the location of the remote HTTP
-      {{!module:Server}server}. *)
 
   module Make: Irmin.S_MAKER
   (** [Make] provides bindings to the remote HTTP server.
