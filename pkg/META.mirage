@@ -1,6 +1,6 @@
 description = "MirageOS backend for Irmin"
 version = "%%VERSION_NUM%%"
-requires = "irmin irmin-git irmin-http cohttp.lwt git-mirage ptime mirage-kv-lwt mirage-clock"
+requires = "irmin irmin-git git-mirage ptime mirage-kv-lwt mirage-clock"
 archive(byte)   = "irmin-mirage.cma"
 archive(native) = "irmin-mirage.cmxa"
 plugin(byte)    = "irmin-mirage.cma"
