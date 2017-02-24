@@ -203,7 +203,7 @@ let tree = {
       run begin
         store >>= fun t ->
         let all = ref [] in
-        let todo = ref [] in
+        let todo = ref [S.Key.empty] in
         let rec walk () = match !todo with
           | []      -> Lwt.return_unit
           | k::rest ->
