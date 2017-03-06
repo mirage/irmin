@@ -13,7 +13,7 @@ environment:
 
 install:
   - appveyor DownloadFile https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/appveyor-opam.sh
-  - "%CYG_ROOT%\\setup-x86.exe -qnNdO -R %CYG_ROOT% -s http://cygwin.mirror.constant.com -l C:/cygwin/var/cache/setup -P rsync -P patch -P make -P unzip -P git -P perl -P mingw64-x86_64-gcc-core"
+  - "%CYG_ROOT%\\setup-x86.exe -qnNdO -R %CYG_ROOT% -s http://cygwin.mirror.constant.com -l C:/cygwin/var/cache/setup -P rsync -P patch -P make -P git -P perl -P mingw64-x86_64-gcc-core"
   - curl -L -o C:/cygwin/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-win32.exe
 
 build_script:
