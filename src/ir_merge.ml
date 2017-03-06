@@ -84,12 +84,12 @@ let default (type a) (t:a Ir_type.t): a t =
   t, fun ~old t1 t2 ->
     let open Infix in
     Log.debug (fun f -> f "default %a | %a" pp t1 pp t2);
-    if t1 = t2 then ok t1
-    else old () >>=* function
-      | None     -> conflict "default: add/add and no common ancestor"
-      | Some old ->
+    old () >>=* function
+    | None     -> conflict "default: add/add and no common ancestor"
+    | Some old ->
         Log.debug (fun f -> f "default old=%a" pp t1);
-        if old = t1 then ok t2
+        if old = t1 && t1 = t2 then ok t1
+        else if old = t1 then ok t2
         else if old = t2 then ok t1
         else conflict "default"
 
