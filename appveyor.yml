@@ -5,7 +5,6 @@ environment:
   global:
     CYG_ROOT: "C:\\cygwin"
     CYG_BASH: "%CYG_ROOT%\\bin\\bash -lc"
-    EXTRA_REMOTES: "https://github.com/mirage/mirageos-3-beta.git"
     PINS: "irmin.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:."
     ALCOTEST_SHOW_ERRORS: "true"
   matrix:

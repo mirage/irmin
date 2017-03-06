@@ -7,7 +7,6 @@ env:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
   - PINS="irmin.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:."
-  - EXTRA_REMOTES="https://github.com/mirage/mirageos-3-beta.git"
   matrix:
   - OCAML_VERSION=4.03 PACKAGE="irmin-unix.dev" TESTS=true EXTRA_DEPS=inotify
   - OCAML_VERSION=4.03 PACKAGE="irmin-git.dev"
