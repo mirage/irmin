@@ -84,12 +84,12 @@ let default (type a) (t:a Ir_type.t): a t =
   t, fun ~old t1 t2 ->
     let open Infix in
     Log.debug (fun f -> f "default %a | %a" pp t1 pp t2);
-    if t1 = t2 then ok t1
-    else old () >>=* function
-      | None     -> conflict "default: add/add and no common ancestor"
-      | Some old ->
+    old () >>=* function
+    | None     -> conflict "default: add/add and no common ancestor"
+    | Some old ->
         Log.debug (fun f -> f "default old=%a" pp t1);
-        if old = t1 then ok t2
+        if old = t1 && t1 = t2 then ok t1
+        else if old = t1 then ok t2
         else if old = t2 then ok t1
         else conflict "default"
 
@@ -139,26 +139,32 @@ let pair (da, a) (db, b) =
   let pp = Ir_type.dump dt in
   dt, fun ~old x y ->
     Log.debug (fun f -> f "pair %a | %a" pp x pp y);
-    let (a1, b1), (a2, b2) = x, y in
-    let o1 = map_promise fst old in
-    let o2 = map_promise snd old in
-    a ~old:o1 a1 a2 >>=* fun a3 ->
-    b ~old:o2 b1 b2 >|=* fun b3 ->
-    a3, b3
+    (snd (default dt)) ~old x y >>= function
+    | Ok x -> ok x
+    | Error _ ->
+      let (a1, b1), (a2, b2) = x, y in
+      let o1 = map_promise fst old in
+      let o2 = map_promise snd old in
+      a ~old:o1 a1 a2 >>=* fun a3 ->
+      b ~old:o2 b1 b2 >|=* fun b3 ->
+      a3, b3
 
 let triple (da, a) (db, b) (dc, c) =
   let dt = Ir_type.triple  da db dc in
   let pp = Ir_type.dump dt in
   dt, fun ~old x y ->
     Log.debug (fun f -> f "triple %a | %a" pp x pp y);
-    let (a1, b1, c1), (a2, b2, c2) = x, y in
-    let o1 = map_promise (fun (x,_,_) -> x) old in
-    let o2 = map_promise (fun (_,x,_) -> x) old in
-    let o3 = map_promise (fun (_,_,x) -> x) old in
-    a ~old:o1 a1 a2 >>=* fun a3 ->
-    b ~old:o2 b1 b2 >>=* fun b3 ->
-    c ~old:o3 c1 c2 >|=* fun c3 ->
-    a3, b3, c3
+    (snd (default dt)) ~old x y >>= function
+    | Ok x -> ok x
+    | Error _ ->
+      let (a1, b1, c1), (a2, b2, c2) = x, y in
+      let o1 = map_promise (fun (x,_,_) -> x) old in
+      let o2 = map_promise (fun (_,x,_) -> x) old in
+      let o3 = map_promise (fun (_,_,x) -> x) old in
+      a ~old:o1 a1 a2 >>=* fun a3 ->
+      b ~old:o2 b1 b2 >>=* fun b3 ->
+      c ~old:o3 c1 c2 >|=* fun c3 ->
+      a3, b3, c3
 
 exception C of string
 
