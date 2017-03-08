@@ -108,7 +108,7 @@ let option (type a) ((a, t): a t): a option t =
   let pp = Ir_type.(dump dt) in
   dt, fun ~old t1 t2->
     Log.debug (fun f -> f "some %a | %a" pp t1 pp t2);
-    f (default Ir_type.(option a)) ~old t1 t2 >>= function
+    f (default dt) ~old t1 t2 >>= function
     | Ok x    -> ok x
     | Error _ ->
       match t1, t2 with
@@ -117,7 +117,8 @@ let option (type a) ((a, t): a t): a option t =
         let open Infix in
         let old () =
           old () >>=* function
-          | None   -> ok None
+          | None   -> conflict "option: no common ancestor"
+          | Some None -> conflict "option: add/add"
           | Some o ->
             Log.debug (fun f -> f "option old=%a" pp o);
             ok o
@@ -127,12 +128,12 @@ let option (type a) ((a, t): a t): a option t =
       | None   , Some x ->
         let open Infix in
         old () >>=* function
-        | None
+        | None          -> conflict "option: no common ancestor"
         | Some None     -> ok (Some x)
         | Some (Some o) ->
           let pp = Ir_type.dump a and (=) = Ir_type.equal a in
           Log.debug (fun f -> f "option old=%a" pp o);
-          if x = o then ok (Some x) else conflict "option: add/del"
+          if x = o then ok None else conflict "option: add/del"
 
 let pair (da, a) (db, b) =
   let dt = Ir_type.pair da db in
