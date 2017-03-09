@@ -114,8 +114,7 @@ let option (type a) ((a, t): a t): a option t =
       let open Infix in
       let old () =
         old () >>=* function
-        | None   -> conflict "option: no common ancestor"
-        | Some None -> conflict "option: add/add"
+        | None   -> ok None
         | Some o ->
           Log.debug (fun f -> f "option old=%a" pp o);
           ok o
