@@ -76,10 +76,10 @@ let key k default =
   let doc = Irmin.Private.Conf.doc k in
   let docs = Irmin.Private.Conf.docs k in
   let docv = Irmin.Private.Conf.docv k in
-  let conv = pconv (Irmin.Private.Conf.conv k) in
+  let mk = pconv (Irmin.Private.Conf.conv k) in
   let name = Irmin.Private.Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [name] in
-  Arg.(value & opt conv default i)
+  Arg.(value & opt mk default i)
 
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
