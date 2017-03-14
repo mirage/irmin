@@ -1,3 +1,16 @@
+### 1.0.1 (2017-03-14)
+
+*** irmin ****
+
+- Default merge function should not assume idempotence of edits
+  (#420, @kayceesrk)
+- Wrap the merge functions for pair and triple with the default case.
+  (#420, @kayceesrk)
+
+*** irmin-unix ***
+
+- Support all versions of cmdliner, 1.0.0 included (@samoht)
+
 ### 1.0.0 (2017-02-21)
 
 Major API changes:
