@@ -23,7 +23,7 @@ depends: [
   "irmin-git"  {>= "1.0.0"}
   "irmin-http" {>= "1.0.0"}
   "git-unix"   {>= "1.10.0"}
-  "irmin-watcher"
+  "irmin-watcher" {>= "0.2.0"}
   "irmin-mirage" {test & >= "1.0.0"}
   "alcotest"     {test}
 ]
