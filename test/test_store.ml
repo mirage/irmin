@@ -1352,15 +1352,18 @@ module Make (S: Test_S) = struct
     merge_exn "merge unrelated"
 
   let rec write fn = function
-    | 0 -> Lwt.return_unit
-    | i -> (fn i >>= Lwt_unix.yield) <&> write fn (i-1)
+    | 0 -> []
+    | i -> (fun () -> fn i >>= Lwt_unix.yield) :: write fn (i-1)
+
+  let perform l = Lwt_list.iter_p (fun f -> f ()) l
 
   let rec read fn check = function
-    | 0 -> Lwt.return_unit
+    | 0 -> []
     | i ->
-      fn i >>= fun v ->
-      check i v;
-      read fn check (i-1)
+      (fun () ->
+         fn i >|= fun v ->
+         check i v)
+      :: read fn check (i-1)
 
   let test_concurrent_low x () =
     let test_branches repo =
@@ -1372,8 +1375,8 @@ module Make (S: Test_S) = struct
           (fun _i -> S.Branch.find repo k >|= get)
           (fun i  -> check (S.commit_t repo) (Fmt.strf "tag %d" i) v)
       in
-      write 1 >>= fun () ->
-      Lwt.join [ write 10; read 10; write 10; read 10; ]
+      perform (write 1) >>= fun () ->
+      perform (write 10 @ read 10 @  write 10 @ read 10)
     in
     let test_contents repo =
       kv2 ~repo >>= fun k ->
@@ -1387,8 +1390,8 @@ module Make (S: Test_S) = struct
           (fun _i -> P.Contents.find t k >|= get)
           (fun i  -> check S.contents_t (Fmt.strf "contents %d" i) v)
       in
-      write 1 >>= fun () ->
-      Lwt.join [ write 10; read 10; write 10; read 10; ]
+      perform (write 1) >>= fun () ->
+      perform (write 10 @ read 10 @ write 10 @ read 10)
     in
     run x (fun repo -> Lwt.join [test_branches repo; test_contents repo])
 
@@ -1404,8 +1407,8 @@ module Make (S: Test_S) = struct
           (fun _ -> S.get t k)
           (fun i -> check S.contents_t (Fmt.strf "update: one %d" i) v)
       in
-      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
-      Lwt.join [ read t1 10 ]
+      perform (write t1 10 @ write t2 10) >>= fun () ->
+      perform (read t1 10)
     in
     let test_multi repo =
       let k i = ["a";"b";"c"; string_of_int i ] in
@@ -1420,8 +1423,8 @@ module Make (S: Test_S) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
-      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
-      Lwt.join [ read t1 10 ]
+      perform (write t1 10 @ write t2 10) >>= fun () ->
+      perform (read t1 10)
     in
     run x (fun repo ->
         test_one   repo >>= fun () ->
@@ -1451,8 +1454,8 @@ module Make (S: Test_S) = struct
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
       S.set t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
-      Lwt.join [ read t1 10 ]
+      perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
+      perform (read t1 10)
     in
     run x test
 
@@ -1489,8 +1492,8 @@ module Make (S: Test_S) = struct
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
       S.set t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 5; write t2 2 5 ] >>= fun () ->
-      Lwt.join [ read t1 5 ]
+      perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
+      perform (read t1 5)
     in
     run x test
 
