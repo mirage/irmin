@@ -7,23 +7,23 @@ all:
 
 core:
 	ocaml pkg/pkg.ml build -n irmin -q --tests true
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -n irmin
 
 git:
 	ocaml pkg/pkg.ml build -n irmin-git -q --tests true
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -n irmin-git
 
 http:
 	ocaml pkg/pkg.ml build -n irmin-http -q --tests true
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -n irmin-http
 
 mirage:
 	ocaml pkg/pkg.ml build -n irmin-mirage -q --tests true
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -n irmin-mirage
 
 unix:
 	ocaml pkg/pkg.ml build -n irmin-unix -q --tests true
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -n irmin-unix
 
 clean:
 	ocaml pkg/pkg.ml clean -n irmin

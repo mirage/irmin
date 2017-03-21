@@ -11,7 +11,7 @@ build: ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name]
 depends: [
   "ocamlbuild" {build}
   "ocamlfind"  {build}
-  "topkg"      {build & >= "0.7.8"}
+  "topkg"      {build & >= "0.9.0"}
   "irmin"      {>= "1.0.0"}
   "irmin-git"  {>= "1.0.0"}
   "git-mirage" {>= "1.10.0"}
