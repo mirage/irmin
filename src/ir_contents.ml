@@ -16,18 +16,27 @@
 
 open Lwt.Infix
 
+let merge_state dt =
+  let (=) = Ir_type.equal dt in
+  let default = Ir_merge.default dt in
+  let f ~old x y =
+    if x = y then Ir_merge.ok x
+    else Ir_merge.f default ~old x y
+  in
+  Ir_merge.v dt f
+
 module String = struct
   type t = string
   let t = Ir_type.string
-  let merge = Ir_merge.default Ir_type.(option string)
+  let merge = merge_state Ir_type.(option string)
   let pp = Fmt.string
   let of_string s = Ok s
 end
 
 module Cstruct = struct
   type t = Cstruct.t
-  let t = Ir_type.(like string) (fun x -> Cstruct.of_string x) Cstruct.to_string
-  let merge = Ir_merge.default Ir_type.(option t)
+  let t = Ir_type.cstruct
+  let merge = merge_state Ir_type.(option t)
   let pp = Ir_type.dump t
   let of_string s = Ok (Cstruct.of_string s)
 end
