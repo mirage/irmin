@@ -89,6 +89,9 @@ module Type: sig
   val string: string t
   (** [string] is a representation of the string type. *)
 
+  val cstruct: Cstruct.t t
+  (** [cstruct] is a representation of the [Cstruct.t] type. *)
+
   val list: 'a t -> 'a list t
   (** [list t] is a representation of list of values of type [t]. *)
 

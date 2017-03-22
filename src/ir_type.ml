@@ -78,6 +78,7 @@ and 'a prim =
   | Int64  : int64 prim
   | Float  : float prim
   | String : string prim
+  | Cstruct: Cstruct.t prim
 
 and 'a tuple =
   | Pair   : 'a t * 'b t -> ('a * 'b) tuple
@@ -178,6 +179,7 @@ let int32 = Prim Int32
 let int64 = Prim Int64
 let float = Prim Float
 let string = Prim String
+let cstruct = Prim Cstruct
 
 let list l = List l
 let array a = Array a
@@ -300,6 +302,7 @@ module Dump = struct
   let pair = Fmt.Dump.pair
   let triple a b c ppf (x, y, z) = Fmt.pf ppf "(%a, %a, %a)" a x b y c z
   let option = Fmt.Dump.option
+  let cstruct = Cstruct.hexdump_pp
 
   let rec t: type a. a t -> a Fmt.t = function
     | Self s    -> t s.self
@@ -328,6 +331,7 @@ module Dump = struct
     | Int64  -> int64
     | Float  -> float
     | String -> string
+    | Cstruct -> cstruct
 
   and record: type a. a record -> a Fmt.t = fun r ppf x ->
     let fields = fields r in
@@ -362,6 +366,7 @@ module Equal = struct
   let int32 (x:int32) (y:int32) = x = y
   let int64 (x:int64) (y:int64) = x = y
   let string x y = x == y || String.compare x y = 0
+  let cstruct = Cstruct.equal
 
   (* NOTE: equality is ill-defined on float *)
   let float (x:float) (y:float) =  x = y
@@ -417,6 +422,7 @@ module Equal = struct
     | Int64  -> int64
     | Float  -> float
     | String -> string
+    | Cstruct -> cstruct
 
   and record: type a. a record -> a equal = fun r x y ->
     List.for_all (function Field f -> field f x y) (fields r)
@@ -455,6 +461,7 @@ module Compare = struct
   let int64 = Int64.compare
   let float (x:float) (y:float) = Pervasives.compare x y
   let string x y = if x == y then 0 else String.compare x y
+  let cstruct = Cstruct.compare
 
   let list c x y =
     if x == y then 0 else
@@ -529,6 +536,7 @@ module Compare = struct
     | Int64  -> int64
     | Float  -> float
     | String -> string
+    | Cstruct -> cstruct
 
   and record: type a. a record -> a compare = fun r x y ->
     let rec aux = function
@@ -576,6 +584,10 @@ module Encode_json = struct
   let int64 e i = float e (Int64.to_float i)
   let int e i = float e (float_of_int i)
   let bool e = function false -> float e 0. | _ -> float e 1.
+
+  let cstruct e c =
+    let `Hex hex = Hex.of_cstruct c in
+    lexeme e (`String hex)
 
   let list l e x =
     lexeme e `As;
@@ -631,6 +643,7 @@ module Encode_json = struct
     | Int64  -> int64
     | Float  -> float
     | String -> string
+    | Cstruct -> cstruct
 
   and record: type a. a record -> a encode_json = fun r e x ->
     let fields = fields r in
@@ -750,6 +763,11 @@ module Decode_json = struct
     | `String s -> Ok s
     | l         -> error e l "`String"
 
+  let cstruct e =
+    lexeme e >>= function
+    | `String s -> Ok (Hex.to_cstruct (`Hex s))
+    | l         -> error e l "`String"
+
   let float e =
     lexeme e >>= function
     | `Float f -> Ok f
@@ -828,6 +846,7 @@ module Decode_json = struct
     | Int64  -> int64
     | Float  -> float
     | String -> string
+    | Cstruct -> cstruct
 
   and record: type a. a record -> a decode = fun r e ->
     expect_lexeme e `Os >>= fun () ->

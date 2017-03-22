@@ -25,6 +25,7 @@ val int32: int32 t
 val int64: int64 t
 val float: float t
 val string: string t
+val cstruct: Cstruct.t t
 val list: 'a t -> 'a list t
 val array: 'a t -> 'a array t
 val option: 'a t -> 'a option t
