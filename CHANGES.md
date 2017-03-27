@@ -1,3 +1,16 @@
+### 1.0.2 (2017-03-27)
+
+**irmin**
+
+- Add a cstruct type combinator (#429, @samoht)
+- Fix regression introduced in 1.0.1 on merge of base buffers (strings,
+  cstruct). For these types, updates are idempotent, e.g. it is fine
+  if two concurrent branches make the same update. (#429, @samoht)
+
+**irmin-unix**
+
+- Add irminconfig man page (#427, @dudelson)
+
 ### 1.0.1 (2017-03-14)
 
 **irmin**
