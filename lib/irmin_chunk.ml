@@ -18,8 +18,6 @@
 open Lwt.Infix
 open Irmin
 
-module Log = Log.Make(struct let section = "CHUNK" end)
-
 module Conf = struct
 
   let min_size =
@@ -96,7 +94,13 @@ module Chunk (K: Irmin.Hash.S) = struct
 
 end
 
-module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
+module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
+: sig
+    include Irmin.AO
+    val v : Irmin.config -> t Lwt.t
+  end
+    with type key = S(K)(V).key and type value = S(K)(V).value
+= struct
 
   module AO = S(K)(V)
   type key = AO.key
@@ -112,11 +116,18 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
                           chunk. *)
   }
 
+  let v_of_raw raw =
+    match V.of_string @@ Cstruct.to_string raw with
+    |Ok va -> va
+    |Error _ -> invalid_arg "v_of_raw"
+
   module Tree = struct
 
     let get_child t node pos =
       let key = K.of_raw (Chunk.get_sub_key node pos) in
-      AO.read_exn t.db key
+      AO.find t.db key >>= function
+      |Some v -> Lwt.return_some @@ V.raw v
+      |None -> Lwt.return_none
 
     let walk_to_list t root =
       let rec aux_walk t node =
@@ -125,16 +136,20 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
           let dlen = Chunk.get_length node in
           let leaf = Cstruct.create dlen in
           Chunk.extract_data node 0 leaf 0 dlen;
-          Lwt.return [leaf]
+          Lwt.return_some [leaf]
         | Chunk.Indirect ->
           let nbr_child = Chunk.get_length node in
           let rec loop i accu =
             if i < nbr_child then
-              get_child t node i >>= fun x ->
-              aux_walk t x       >>= fun y ->
+              get_child t node i >>= function
+                |None -> Lwt.return_none
+                |Some x ->
+              aux_walk t x       >>= function
+                |None -> Lwt.return_none
+                |Some y ->
               loop (i+1) (List.append accu y)
             else
-              Lwt.return accu
+              Lwt.return_some accu
           in
           loop 0 []
       in
@@ -159,7 +174,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
             loop (i+1) rest
         in
         let calc = loop 0 l in
-        AO.add t.db indir >>= fun x ->
+        AO.add t.db @@ v_of_raw indir >>= fun x ->
         bottom_up t calc (x::r)
 
     let rec create t = function
@@ -169,7 +184,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 
   end
 
-  let create config task =
+  let v config =
     let module C = Irmin.Private.Conf in
     let chunk_size = C.get config Conf.chunk_size in
     let max_length = chunk_size - Chunk.head_length - 1 in
@@ -178,39 +193,26 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
       let min = Chunk.head_length + 1 + K.digest_size * 2 in
       err_too_small ~min chunk_size;
     );
-    AO.create config task >|= fun t ->
-    fun a -> { db = t a; chunk_size; max_children; max_length }
+    AO.v config >|=
+    fun db -> { db; chunk_size; max_children; max_length }
 
-  let task t = AO.task t.db
-  let config t = AO.config t.db
-
-  let read t key =
-    AO.read t.db key >>= function
+  let find t key =
+    AO.find t.db key >>= function
     | None   -> Lwt.return_none
     | Some x ->
+      let x = V.raw x in
       match Chunk.type_of_chunk x with
       | Chunk.Data ->
         let dlen = Chunk.get_length x in
         let result = Cstruct.create dlen in
         Chunk.extract_data x 0 result 0 dlen;
-        Lwt.return (Some result)
+        Lwt.return_some @@ v_of_raw result
       | Chunk.Indirect ->
-        Tree.walk_to_list t x >>= fun y ->
-        let result = Cstruct.concat y in
-        Lwt.return (Some result)
-
-  let read_exn t key =
-    AO.read_exn t.db key >>= fun x ->
-    match Chunk.type_of_chunk x with
-    | Chunk.Data ->
-      let dlen = Chunk.get_length x in
-      let result = Cstruct.create dlen in
-      Chunk.extract_data x 0 result 0 dlen;
-      Lwt.return result
-    | Chunk.Indirect ->
-      Tree.walk_to_list t x >>= fun y ->
-      let result = Cstruct.concat y in
-      Lwt.return result
+        Tree.walk_to_list t x >>= function
+          |None -> Lwt.return_none
+          |Some y ->
+        let result = v_of_raw @@ Cstruct.concat y in
+        Lwt.return_some result
 
   type params = {
     used: int;                (* the total number of blocks which are needed. *)
@@ -234,7 +236,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
         let offset_value = (j + i * t.max_children) * t.max_length in
         Chunk.set_data v offset_value chunk 0 len;
         let add_chunk () =
-          AO.add t.db chunk >>= fun x ->
+          AO.add t.db @@ v_of_raw chunk >>= fun x ->
           let offset_hash = j * K.digest_size in
           Chunk.set_data (K.to_raw x) 0 buf offset_hash K.digest_size;
           Lwt.return_unit
@@ -242,16 +244,17 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
         Lwt.join [add_chunk (); loop (j + 1)]
       ) in
     loop 0 >>= fun () ->
-    AO.add t.db buf >>= fun x ->
+    AO.add t.db @@ v_of_raw buf >>= fun x ->
     Lwt.return x
 
   let add t v =
+    let v = V.raw v in
     let value_length = Cstruct.len v in
     let rest_value_length = value_length mod t.max_length in
     if value_length <= t.max_length then (
       let chunk = Chunk.(create Data) t.chunk_size value_length  in
       Chunk.set_data v 0 chunk 0 value_length;
-      AO.add t.db chunk
+      AO.add t.db @@ v_of_raw chunk
     ) else (
       let data = (* the number of data blocks *)
         let x = value_length / t.max_length in
@@ -282,11 +285,10 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
     )
 
   let mem t key = AO.mem t.db key
-  let iter t fn = AO.iter t.db fn
 
 end
 
-module AO_stable (L: LINK_MAKER) (S: AO_MAKER_RAW) (K: Hash.S) (V: RAW) = struct
+module AO_stable (L: LINK_MAKER) (S: AO_MAKER) (K: Hash.S) (V: Irmin.Contents.Raw) = struct
 
   module AO = AO(S)(K)(V)
   module Link = L(K)
@@ -295,32 +297,24 @@ module AO_stable (L: LINK_MAKER) (S: AO_MAKER_RAW) (K: Hash.S) (V: RAW) = struct
   type value = V.t
   type t = { ao: AO.t; link: Link.t }
 
-  let create config task =
-    AO.create config task >>= fun ao ->
-    Link.create config task >|= fun link ->
-    fun a -> { ao = ao a; link = link a }
+  let v config =
+    AO.v config >>= fun ao ->
+    Link.v config >|= fun link ->
+      { ao; link; }
 
-  let config t = AO.config t.ao
-  let task t = AO.task t.ao
-
-  let read t k =
-    Link.read t.link k >>= function
+  let find t k =
+    Link.find t.link k >>= function
     | None   -> Lwt.return_none
-    | Some k -> AO.read t.ao k
-
-  let read_exn t k =
-    Link.read_exn t.link k >>= fun k ->
-    AO.read_exn t.ao k
+    | Some k -> AO.find t.ao k
 
   let mem t k =
-    Link.read t.link k >>= function
+    Link.find t.link k >>= function
     | None   -> Lwt.return_false
     | Some k -> AO.mem t.ao k
 
-  let iter t fn = Link.iter t.link (fun k k' -> fn k (k' >>= AO.read_exn t.ao))
-
   let add t v =
     AO.add t.ao v >>= fun k' ->
+    let v = V.raw v in
     let k = K.digest v in
     Link.add t.link k k' >>= fun () ->
     Lwt.return k

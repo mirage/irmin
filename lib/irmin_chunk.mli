@@ -65,7 +65,7 @@ val config:
     the smaller [size] is, the bigger the risk of hash collisions, so
     use reasonable values. *)
 
-module AO (S: Irmin.AO_MAKER_RAW): Irmin.AO_MAKER_RAW
+module AO (S: Irmin.AO_MAKER): Irmin.AO_MAKER
 (** [AO(X)] is an append-only store which store values cut into chunks
     into the underlying store [X].
 
@@ -78,8 +78,8 @@ module AO (S: Irmin.AO_MAKER_RAW): Irmin.AO_MAKER_RAW
     {{!AO_stable}AO_stable}, at the cost of adding an indirection on
     reads. *)
 
-module AO_stable (L: Irmin.LINK_MAKER) (S: Irmin.AO_MAKER_RAW):
-  Irmin.AO_MAKER_RAW
+module AO_stable (L: Irmin.LINK_MAKER) (S: Irmin.AO_MAKER):
+  Irmin.AO_MAKER
 (** [AO_stable(L)(X)] is similar to [AO(X)] but is ensures that the
     return keys are similar as if they were stored directly in [X], so
     that the fact that blobs are cut into chunks is an implementation
