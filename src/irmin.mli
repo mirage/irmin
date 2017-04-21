@@ -2287,9 +2287,13 @@ module type S = sig
     val mem_tree: tree -> key -> bool Lwt.t
     (** [mem_tree t k] is false iff [find_tree k = `Empty]. *)
 
-    val find_tree: tree -> key -> tree Lwt.t
-    (** [find_tree t k] is [v] if [k] is associated to [v] in [t].  It
-        is [`Empty] if [k] is not present in [t]. *)
+    val find_tree: tree -> key -> tree option Lwt.t
+    (** [find_tree t k] is [Some v] if [k] is associated to [v] in
+        [t]. It is [None] if [k] is not present in [t]. *)
+
+    val get_tree: tree -> key -> tree Lwt.t
+    (** [get_tree t k] is [v] if [k] is associated to [v] in [t].
+        Raise [Invalid_arg] if [k] is not present in [t].*)
 
     val add_tree: tree -> key -> tree -> tree Lwt.t
     (** [add_tree t k v] is the tree where the key [k] is bound to the
@@ -2373,8 +2377,12 @@ module type S = sig
   val get: t -> key -> contents Lwt.t
   (** [get t] is {!Tree.get} applied to [t]'s root tree. *)
 
-  val find_tree: t -> key -> tree Lwt.t
+  val find_tree: t -> key -> tree option Lwt.t
   (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root
+      tree. *)
+
+  val get_tree: t -> key -> tree Lwt.t
+  (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root
       tree. *)
 
   (** {1 Transactions} *)
@@ -2384,7 +2392,7 @@ module type S = sig
     ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
   (** The type for transactions. *)
 
-  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
   (** [with_tree t k ~info f] replaces {i atomically} the subtree [v]
       under [k] in the store [t] by the contents of the tree [f v],
       using the commit info [info ()].

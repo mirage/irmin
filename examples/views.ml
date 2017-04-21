@@ -49,7 +49,7 @@ let main () =
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
   Store.set_tree t ~info:(info "update a/b") ["a";"b"] v >>= fun () ->
-  Store.find_tree t ["a";"b"] >>= fun v ->
+  Store.get_tree t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
   Store.set_tree t ~info:(info "update a/c") ["a";"c"] v >>= fun () ->

@@ -517,23 +517,24 @@ module Make (P: Ir_s.PRIVATE) = struct
   let find_tree (t:tree) path =
     Log.debug (fun l -> l "Tree.find_tree %a" Path.pp path);
     match t, Path.rdecons path with
-    | (`Contents _ | `Node _ as v), None -> Lwt.return v
-    | `Empty, None -> Lwt.return `Empty
-    | _     , Some (path, file) ->
+    | v, None              -> Lwt.return (Some v)
+    | _, Some (path, file) ->
       sub t path >>= function
-      | None   -> Lwt.return `Empty
-      | Some n ->
-        Node.findv n file >|= function
-        | None   -> `Empty
-        | Some v -> v
+      | None   -> Lwt.return None
+      | Some n -> Node.findv n file
 
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n Path.pp k
 
+  let get_tree (t:tree) path =
+    find_tree t path >|= function
+    | None   -> err_not_found "get_tree" path
+    | Some v -> v
+
   let find_all t k =
     find_tree t k >|= function
-    | `Empty | `Node _ -> None
-    | `Contents c      -> Some c
+    | None | Some (`Empty | `Node _) -> None
+    | Some (`Contents c) -> Some c
 
   let find t k =
     find_all t k >|= function
@@ -554,8 +555,8 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let mem_tree t k =
     find_tree t k >|= function
-    | `Empty -> false
-    | _      -> true
+    | None -> false
+    | _    -> true
 
   let kind t path =
     Log.debug (fun l -> l "Tree.kind %a" Path.pp path);

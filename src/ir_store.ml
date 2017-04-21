@@ -315,17 +315,21 @@ module Make (P: Ir_s.PRIVATE) = struct
   let empty repo = of_ref repo (`Head (ref None))
   let of_commit c = of_ref c.Commit.r (`Head (ref (Some c)))
 
+  let none_to_empty = function
+    | None   -> `Empty
+    | Some v -> v
+
   let lift_tree_diff tree fn = function
     | `Removed x ->
       tree x >>= fun v ->
-      fn @@ `Removed (x, v)
+      fn @@ `Removed (x, none_to_empty v)
     | `Added x ->
       tree x >>= fun v ->
-      fn @@ `Added (x, v)
+      fn @@ `Added (x, none_to_empty v)
     | `Updated (x, y) ->
       assert (not (Commit.equal x y));
-      tree x >>= fun vx ->
-      tree y >>= fun vy ->
+      tree x >>= fun vx -> let vx = none_to_empty vx in
+      tree y >>= fun vy -> let vy = none_to_empty vy in
       match vx, vy with
       | `Empty, `Empty -> Lwt.return_unit
       | `Empty, _      -> fn @@ `Added (y, vy)
@@ -528,34 +532,45 @@ module Make (P: Ir_s.PRIVATE) = struct
   type snapshot = {
     head   : commit option;
     root   : tree;
-    tree   : tree; (* the subtree used by the transaction *)
+    tree   : tree option; (* the subtree used by the transaction *)
     parents: commit list;
   }
 
   let snapshot t key =
     tree_and_head t >>= function
     | None           ->
-      Lwt.return { head = None; root = `Empty; tree = `Empty; parents = [] }
+      Lwt.return { head = None; root = `Empty; tree = None; parents = [] }
     | Some (c, root) ->
       let root = (root :> tree) in
       Tree.find_tree root key >|= fun tree ->
       { head = Some c; root; tree; parents = [c] }
 
+  let none_to_empty = function None -> `Empty | Some v -> v
+
+  let same_tree x y = match x, y with
+    | None  , None   -> Lwt.return true
+    | None  , _
+    | _     , None   -> Lwt.return false
+    | Some x, Some y -> Tree.equal x y
+
   let with_tree t key ?(allow_empty=false) ?(strategy=`Test_and_set)
-      ?max_depth ?n ~info (f:tree -> tree Lwt.t) =
+      ?max_depth ?n ~info (f:tree option -> tree option Lwt.t) =
     let aux () =
       snapshot t key >>= fun s1 ->
       (* this might take a very long time *)
       f s1.tree >>= fun new_tree ->
-      Tree.equal s1.tree new_tree >>= fun same_tree ->
+      same_tree s1.tree new_tree >>= fun same ->
       (* if no change and [allow_empty = true] then, do nothing *)
-      if same_tree && not allow_empty && s1.head <> None then Lwt.return true
+      if same && not allow_empty && s1.head <> None then Lwt.return true
       else
         (* take a new snapshot as the store could have changed while
            [f] was executing. *)
         snapshot t key >>= fun s2 ->
-        let set () =
-          Tree.add_tree s2.root key new_tree >>= fun root ->
+        let update () =
+          (match new_tree with
+           | None      -> Tree.remove s2.root key
+           | Some tree -> Tree.add_tree s2.root key tree
+          ) >>= fun root ->
           let info = info () in
           Commit.v (repo t) ~info ~parents:s2.parents root >>= fun c ->
           add_commit t s2.head (c, root_tree root)
@@ -563,17 +578,17 @@ module Make (P: Ir_s.PRIVATE) = struct
         match strategy with
         | `Set ->
           (* we don't care about tree2, the last writer (us) wins. *)
-          set ()
+          update ()
 
         | `Test_and_set ->
-          Tree.equal s1.tree s2.tree >>= fun same_tree ->
+          same_tree s1.tree s2.tree >>= fun same ->
           (* if the subtree has changed, restart the transaction *)
-          if same_tree then set () else Lwt.return false
+          if same then update () else Lwt.return false
 
         | `Merge ->
           (* if the subtree has changed, merge it *)
-          Tree.equal s1.tree s2.tree >>= fun same_tree ->
-          if same_tree then set () else
+          same_tree s1.tree s2.tree >>= fun same ->
+          if same then update () else
             (* we create an intermediate commit to hold the pre-merge
                state:
 
@@ -582,7 +597,10 @@ module Make (P: Ir_s.PRIVATE) = struct
                                        |
                s2 ------------------- /
             *)
-            Tree.add_tree s1.root key new_tree >>= fun root ->
+            (match new_tree with
+             | None      -> Tree.remove s2.root key
+             | Some tree -> Tree.add_tree s1.root key tree
+            ) >>= fun root ->
             Commit.v (repo t) ~info:(info ()) ~parents:s1.parents root
             >>= fun pre_merge ->
             let parents = pre_merge :: s2.parents in
@@ -599,11 +617,14 @@ module Make (P: Ir_s.PRIVATE) = struct
                   Tree.find_tree tree key >|= fun x ->
                   Ok (Some x)
                 in
-                Ir_merge.f Tree.merge ~old s2.tree new_tree >>= function
+                Ir_merge.(f @@ option Tree.merge) ~old s2.tree new_tree >>= function
                 | Error _ -> Lwt.return false
                 | Ok m    ->
                   let info = Ir_info.with_message (info ()) "Merge" in
-                  Tree.add_tree s2.root key m >>= fun root ->
+                  (match m with
+                   | None      -> Tree.remove s2.root key
+                   | Some tree -> Tree.add_tree s2.root key tree
+                  ) >>= fun root ->
                   Commit.v (repo t) ~info ~parents root >>= fun c ->
                   add_commit t s2.head (c, root_tree root)
     in
@@ -611,13 +632,15 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let set t k ?metadata ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set %a" Key.pp k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k
-      (fun tree -> Tree.add tree Key.empty ?metadata v)
+    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
+        Tree.add (none_to_empty tree) Key.empty ?metadata v >|= fun x ->
+        Some x)
 
   let set_tree t k ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set_tree %a" Key.pp k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k
-      (fun tree -> Tree.add_tree tree Key.empty v)
+    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
+        Tree.add_tree (none_to_empty tree) Key.empty v >|= fun x ->
+        Some x)
 
   type strategy = [ `Test_and_set | `Set | `Merge ]
 
@@ -625,7 +648,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     Log.debug (fun l -> l "remove %a" Key.pp k);
     let strategy = (strategy :> strategy) in
     with_tree t ?allow_empty ~strategy ?max_depth ?n ~info k
-      (fun tree -> Tree.remove tree Key.empty)
+      (fun _ -> Lwt.return None)
 
   let mem t k =
     tree t >>= fun tree ->
@@ -650,6 +673,10 @@ module Make (P: Ir_s.PRIVATE) = struct
   let find_tree t k =
     tree t >>= fun tree ->
     Tree.find_tree tree k
+
+  let get_tree t k =
+    tree t >>= fun tree ->
+    Tree.get_tree tree k
 
   let get_all t k =
     tree t >>= fun tree ->

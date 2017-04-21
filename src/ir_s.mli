@@ -332,7 +332,8 @@ module type TREE = sig
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
   val remove: tree -> key -> tree Lwt.t
   val mem_tree: tree -> key -> bool Lwt.t
-  val find_tree: tree -> key -> tree Lwt.t
+  val find_tree: tree -> key -> tree option Lwt.t
+  val get_tree: tree -> key -> tree Lwt.t
   val add_tree: tree -> key -> tree -> tree Lwt.t
   val merge: tree Ir_merge.t
 
@@ -431,11 +432,12 @@ module type STORE = sig
   val find: t -> key -> contents option Lwt.t
   val get_all: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
-  val find_tree: t -> key -> tree Lwt.t
+  val find_tree: t -> key -> tree option Lwt.t
+  val get_tree: t -> key -> tree Lwt.t
   type 'a transaction =
     ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
     ?max_depth:int -> ?n:int -> info:Ir_info.f -> 'a -> unit Lwt.t
-  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
   val set: t -> key -> ?metadata:metadata -> contents transaction
   val set_tree: t -> key -> tree transaction
   val remove: t -> key transaction
