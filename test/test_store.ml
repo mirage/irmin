@@ -789,7 +789,7 @@ module Make (S: Test_S) = struct
         let i = Int64.of_int date in
         Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let assert_lcas_err msg err l2 =
         let err_str = function
           | `Too_many_lcas    -> "Too_many_lcas"
@@ -1080,7 +1080,7 @@ module Make (S: Test_S) = struct
 
       (* Testing [View.remove] *)
 
-      S.Tree.empty |> fun v1 ->
+      S.Tree.empty () |> fun v1 ->
 
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.add v1 ["foo";"2"] foo2 >>= fun v1 ->
@@ -1105,9 +1105,9 @@ module Make (S: Test_S) = struct
       let normal c = Some (c, S.Metadata.default) in
       let d0 = S.Metadata.default in
 
-      S.Tree.empty |> fun v0 ->
-      S.Tree.empty |> fun v1 ->
-      S.Tree.empty |> fun v2 ->
+      S.Tree.empty () |> fun v0 ->
+      S.Tree.empty () |> fun v1 ->
+      S.Tree.empty () |> fun v2 ->
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
       check_val "view udate" (normal foo1) f;
@@ -1127,7 +1127,7 @@ module Make (S: Test_S) = struct
 
       (* Testing other View operations. *)
 
-      S.Tree.empty |> fun v0 ->
+      S.Tree.empty () |> fun v0 ->
 
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
@@ -1229,7 +1229,7 @@ module Make (S: Test_S) = struct
       S.Tree.find_all view px >>= fun vx' ->
       check_val "updates" (normal vx) vx';
 
-      S.Tree.empty |> fun v ->
+      S.Tree.empty () |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
       S.set_tree t ~info:(infof "update file as view") ["a"] v >>= fun () ->
       S.find_all t ["a"] >>= fun vx' ->

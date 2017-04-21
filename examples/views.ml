@@ -21,7 +21,7 @@ let view_of_t t =
       Tree.add v [si;"x"] t2.x >>= fun v ->
       Tree.add v [si;"y"] (string_of_int t2.y) >|= fun v ->
       (v, i + 1)
-    ) (Tree.empty, 0) t
+    ) (Tree.empty (), 0) t
   >|= fun (v, _) -> v
 
 let t_of_view v =

@@ -202,7 +202,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let of_map map = { v = Map map }
     let of_key repo k = { v = Key (repo, k) }
     let both repo k m = { v = Both (repo, k, m) }
-    let empty = of_map StepMap.empty
+    let empty () = of_map StepMap.empty
 
     let import t n =
       let alist = P.Node.Val.list n in
@@ -282,7 +282,8 @@ module Make (P: Ir_s.PRIVATE) = struct
             | None   -> Lwt.return (StepMap.is_empty x)
             | Some y -> map_equal x y)
 
-    let export t = match t.v with
+    let export t =
+      match t.v with
       | Key (_, k) | Both (_, k, _) -> k
       | Map _ -> Pervasives.failwith "Node.export"
 
@@ -339,7 +340,6 @@ module Make (P: Ir_s.PRIVATE) = struct
         else of_map (StepMap.remove step n)
 
     let add t step = function
-      | `Empty -> remove t step
       | `Node _ | `Contents _ as v ->
         let v = match v with
           | `Node _ as n            -> (fun _ -> n)
@@ -446,16 +446,13 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     type update = [
       | `Contents of [ `Keep of contents | `Set of contents * Metadata.t ]
-      | `Empty
       | `Node of t ]
 
     let update: update Ir_type.t =
       let open Ir_type in
-      variant "Node.update" (fun empty contents node -> function
-          | `Empty -> empty
+      variant "Node.update" (fun contents node -> function
           | `Contents x -> contents x
           | `Node x     -> node x)
-      |~ case0 "Empty" `Empty
       |~ case1 "Contents" contents (fun x -> `Contents x)
       |~ case1 "Node" t (fun x -> `Node x)
       |> sealv
@@ -464,23 +461,20 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   type node = Node.t
   type metadata = Metadata.t
-  type tree = [ `Empty | `Node of node | `Contents of contents * metadata ]
+  type tree = [ `Node of node | `Contents of contents * metadata ]
 
   let node_t = Node.t
 
   let tree_t =
     let open Ir_type in
-    variant "tree" (fun empty node contents -> function
-        | `Empty      -> empty
+    variant "tree" (fun node contents -> function
         | `Node n     -> node n
         | `Contents c -> contents c)
-    |~ case0 "empty" `Empty
     |~ case1 "node" Node.t (fun n -> `Node n)
     |~ case1 "contnets" (pair P.Contents.Val.t Metadata.t) (fun c -> `Contents c)
     |> sealv
 
   let dump ppf = function
-    | `Empty           -> Fmt.string ppf "empty"
     | `Node n          -> Fmt.pf ppf "node: %a" Node.dump n
     | `Contents (c, _) -> Fmt.pf ppf "contents: %a" P.Contents.Val.pp c
 
@@ -491,12 +485,16 @@ module Make (P: Ir_s.PRIVATE) = struct
   let equal (x:tree) (y:tree) =
     if x == y then Lwt.return_true
     else match x, y with
-    | `Empty     , `Empty      -> Lwt.return true
     | `Node x    , `Node y     -> Node.equal x y
     | `Contents x, `Contents y -> Lwt.return (contents_equal x y)
-    | _ -> Lwt.return_false
+    | `Node _    , `Contents _
+    | `Contents _, `Node _     -> Lwt.return_false
 
-  let empty = `Empty
+  let empty () = `Node (Node.empty ())
+  let is_empty = function
+    | `Node n     -> Node.is_empty n
+    | `Contents _ -> Lwt.return false
+
   let of_node n = `Node n
   let of_contents ?(metadata=Metadata.default) c = `Contents (c, metadata)
 
@@ -510,7 +508,6 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some (`Node n) -> aux n p
     in
     match t with
-    | `Empty      -> Lwt.return_none
     | `Node n     -> aux n path
     | `Contents _ -> Lwt.return_none
 
@@ -533,7 +530,8 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let find_all t k =
     find_tree t k >|= function
-    | None | Some (`Empty | `Node _) -> None
+    | None
+    | Some (`Node _)     -> None
     | Some (`Contents c) -> Some c
 
   let find t k =
@@ -561,16 +559,16 @@ module Make (P: Ir_s.PRIVATE) = struct
   let kind t path =
     Log.debug (fun l -> l "Tree.kind %a" Path.pp path);
     match t, Path.rdecons path with
-    | `Contents _, None -> Lwt.return `Contents
-    | _          , None -> err_not_found "kind" path
+    | `Contents _, None -> Lwt.return (Some `Contents)
+    | _          , None -> Lwt.return None
     | _          , Some (dir, file) ->
       sub t dir >>= function
-      | None   -> err_not_found "kind" path
+      | None   -> Lwt.return None
       | Some m ->
         Node.findv m file >>= function
-        | None               -> err_not_found "kind" path
-        | Some (`Contents _) -> Lwt.return `Contents
-        | Some (`Node _)     -> Lwt.return `Node
+        | None               -> Lwt.return None
+        | Some (`Contents _) -> Lwt.return (Some `Contents)
+        | Some (`Node _)     -> Lwt.return (Some `Node)
 
   let list t path =
     Log.debug (fun l -> l "Tree.list %a" Path.pp path);
@@ -581,7 +579,9 @@ module Make (P: Ir_s.PRIVATE) = struct
   let remove t k =
     Log.debug (fun l -> l "Tree.remove %a" Path.pp k);
     match Path.rdecons k with
-    | None -> if t = `Empty then Lwt.return t else Lwt.return `Empty
+    | None ->
+      is_empty t >>= fun is_empty ->
+      if is_empty then Lwt.return t else Lwt.return (empty ())
     | Some (path, file) ->
       let rec aux view path =
         match Path.decons path with
@@ -599,18 +599,15 @@ module Make (P: Ir_s.PRIVATE) = struct
               | true  -> Node.remove view h
               | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty in
+      let n = match t with `Node n -> n | _ -> Node.empty () in
       aux n path >>= fun node ->
-      Node.equal n node >>= function
-      | true  -> Lwt.return t
-      | false ->
-        Node.is_empty node >|= function
-        | true  -> `Empty
-        | false -> `Node node
+      Node.equal n node >|= function
+      | true  -> t
+      | false -> `Node node
 
   let with_setm = function
-    | `Empty | `Node _ as n -> n
-    | `Contents c -> `Contents (`Set c)
+    | `Node _ as n -> n
+    | `Contents c  -> `Contents (`Set c)
 
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" Path.pp k);
@@ -623,7 +620,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some (h, p) ->
           Node.findv view h >>= function
           | None | Some (`Contents _) ->
-            aux Node.empty p >>= fun child ->
+            aux (Node.empty ()) p >>= fun child ->
             Node.add view h (`Node child)
           | Some (`Node child) ->
             aux child p >>= fun child' ->
@@ -631,14 +628,11 @@ module Make (P: Ir_s.PRIVATE) = struct
             | true  -> Lwt.return view
             | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty in
+      let n = match t with `Node n -> n | _ -> Node.empty () in
       aux n path >>= fun node ->
-      Node.equal n node >>= function
-      | true -> Lwt.return t
-      | false ->
-        Node.is_empty node >|= function
-        | true  -> `Empty
-        | false -> `Node node
+      Node.equal n node >|= function
+      | true  -> t
+      | false -> `Node node
 
   let with_optm m c = match m with
     | None   -> `Contents (`Keep c)
@@ -662,7 +656,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some (h, p) ->
           Node.findv view h >>= function
           | None | Some (`Contents _) ->
-            aux Node.empty p >>= fun child ->
+            aux (Node.empty ()) p >>= fun child ->
             Node.add view h (`Node child)
           | Some (`Node child) ->
             aux child p >>= fun child' ->
@@ -670,18 +664,15 @@ module Make (P: Ir_s.PRIVATE) = struct
             | true  -> Lwt.return view
             | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty in
+      let n = match t with `Node n -> n | _ -> Node.empty () in
       aux n path >>= fun node ->
-      Node.equal n node >>= function
-      | true  -> Lwt.return t
-      | false ->
-        Node.is_empty node >|= function
-        | true  -> `Empty
-        | false -> `Node node
+      Node.equal n node >|= function
+      | true  -> t
+      | false -> `Node node
 
   let import repo k =
     P.Node.find (P.Repo.node_t repo) k >|= function
-    | None   -> Node.empty
+    | None   -> Node.empty ()
     | Some n -> Node.both repo k (Node.import repo n)
 
   let export repo n =
@@ -738,7 +729,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     let f ~old (x:tree) y =
       let to_node x =
         match x with
-        | `Empty           -> `Node Node.empty
         | `Node _ as x     -> x
         | `Contents (c, m) -> `Contents (Contents.of_contents c, m)
       in
@@ -864,35 +854,28 @@ module Make (P: Ir_s.PRIVATE) = struct
     aux [] [Path.empty, x, y]
 
   let diff (x:tree) (y:tree) = match x, y with
-    | `Empty     , `Empty      -> Lwt.return []
-    | `Empty     , `Contents y -> Lwt.return [Path.empty, `Removed y]
-    | `Contents x, `Empty      -> Lwt.return [Path.empty, `Added x]
     | `Contents x, `Contents y ->
       if contents_equal x y then Lwt.return []
       else Lwt.return [ Path.empty, `Updated (y, x) ]
-    | `Empty     , `Node y    -> diff_node Node.empty y
-    | `Node x    , `Empty     -> diff_node x Node.empty
     | `Node x    , `Node y    -> diff_node x y
     | `Contents x, `Node y    ->
-      diff_node Node.empty y >|= fun diff -> (Path.empty, `Removed x) :: diff
+      diff_node (Node.empty ()) y >|= fun diff -> (Path.empty, `Removed x) :: diff
     | `Node x    , `Contents y ->
-      diff_node x Node.empty >|= fun diff -> (Path.empty, `Added y) :: diff
+      diff_node x (Node.empty ()) >|= fun diff -> (Path.empty, `Added y) :: diff
 
   type concrete =
-    [ `Empty
-    | `Tree of (step * concrete) list
+    [ `Tree of (step * concrete) list
     | `Contents of contents * metadata ]
 
   let of_concrete c =
     let rec concrete k = function
-      | `Empty | `Contents _ as v -> k v
+      | `Contents _ as v -> k v
       | `Tree childs -> tree StepMap.empty (fun n -> k (`Node n)) childs
     and contents k (c, m) =
       k (`Contents (Contents.of_contents c, m))
     and tree map k = function
       | []        -> k (Node.of_map map)
       | (s, n)::t -> concrete (function
-          | `Empty       -> tree map k t
           | `Contents c  -> contents (fun v -> tree (StepMap.add s v map) k t) c
           | `Node _ as v -> tree (StepMap.add s v map) k t
         ) n
@@ -901,10 +884,10 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let to_concrete t =
     let rec tree k = function
-      | `Empty | `Contents _ as v -> k v
+      | `Contents _ as v -> k v
       | `Node n ->
         Node.to_map n >>= function
-        | None   -> Lwt.return `Empty
+        | None   -> Lwt.return (`Tree [])
         | Some n -> node [] (fun n -> Lwt.return (`Tree n)) (StepMap.bindings n)
     and contents k (c, m) =
       Contents.v c >>= function
