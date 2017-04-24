@@ -202,7 +202,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let of_map map = { v = Map map }
     let of_key repo k = { v = Key (repo, k) }
     let both repo k m = { v = Both (repo, k, m) }
-    let empty () = of_map StepMap.empty
+    let empty = of_map StepMap.empty
 
     let import t n =
       let alist = P.Node.Val.list n in
@@ -490,7 +490,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | `Node _    , `Contents _
     | `Contents _, `Node _     -> Lwt.return_false
 
-  let empty () = `Node (Node.empty ())
+  let empty = `Node Node.empty
   let is_empty = function
     | `Node n     -> Node.is_empty n
     | `Contents _ -> Lwt.return false
@@ -581,7 +581,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     match Path.rdecons k with
     | None ->
       is_empty t >>= fun is_empty ->
-      if is_empty then Lwt.return t else Lwt.return (empty ())
+      if is_empty then Lwt.return t else Lwt.return empty
     | Some (path, file) ->
       let rec aux view path =
         match Path.decons path with
@@ -599,7 +599,7 @@ module Make (P: Ir_s.PRIVATE) = struct
               | true  -> Node.remove view h
               | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty () in
+      let n = match t with `Node n -> n | _ -> Node.empty in
       aux n path >>= fun node ->
       Node.equal n node >|= function
       | true  -> t
@@ -620,7 +620,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some (h, p) ->
           Node.findv view h >>= function
           | None | Some (`Contents _) ->
-            aux (Node.empty ()) p >>= fun child ->
+            aux Node.empty p >>= fun child ->
             Node.add view h (`Node child)
           | Some (`Node child) ->
             aux child p >>= fun child' ->
@@ -628,7 +628,7 @@ module Make (P: Ir_s.PRIVATE) = struct
             | true  -> Lwt.return view
             | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty () in
+      let n = match t with `Node n -> n | _ -> Node.empty in
       aux n path >>= fun node ->
       Node.equal n node >|= function
       | true  -> t
@@ -656,7 +656,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some (h, p) ->
           Node.findv view h >>= function
           | None | Some (`Contents _) ->
-            aux (Node.empty ()) p >>= fun child ->
+            aux Node.empty p >>= fun child ->
             Node.add view h (`Node child)
           | Some (`Node child) ->
             aux child p >>= fun child' ->
@@ -664,7 +664,7 @@ module Make (P: Ir_s.PRIVATE) = struct
             | true  -> Lwt.return view
             | false -> Node.add view h (`Node child')
       in
-      let n = match t with `Node n -> n | _ -> Node.empty () in
+      let n = match t with `Node n -> n | _ -> Node.empty in
       aux n path >>= fun node ->
       Node.equal n node >|= function
       | true  -> t
@@ -672,7 +672,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let import repo k =
     P.Node.find (P.Repo.node_t repo) k >|= function
-    | None   -> Node.empty ()
+    | None   -> Node.empty
     | Some n -> Node.both repo k (Node.import repo n)
 
   let export repo n =
@@ -680,6 +680,15 @@ module Make (P: Ir_s.PRIVATE) = struct
     let todo = Stack.create () in
     let rec add_to_todo n =
       match n.Node.v with
+      | Node.Both (repo, k, x) when StepMap.is_empty x ->
+        Stack.push (fun () ->
+            P.Node.mem  (P.Repo.node_t repo) k >>= function
+            | true  -> Lwt.return_unit
+            | false ->
+              node x >>= fun k ->
+              n.Node.v <- Node.Both (repo, k, x);
+              Lwt.return_unit
+          ) todo
       | (Node.Key _ | Node.Both _ ) -> ()
       | Node.Map x ->
         (* 1. we push the current node job on the stack. *)
@@ -859,9 +868,9 @@ module Make (P: Ir_s.PRIVATE) = struct
       else Lwt.return [ Path.empty, `Updated (y, x) ]
     | `Node x    , `Node y    -> diff_node x y
     | `Contents x, `Node y    ->
-      diff_node (Node.empty ()) y >|= fun diff -> (Path.empty, `Removed x) :: diff
+      diff_node Node.empty y >|= fun diff -> (Path.empty, `Removed x) :: diff
     | `Node x    , `Contents y ->
-      diff_node x (Node.empty ()) >|= fun diff -> (Path.empty, `Added y) :: diff
+      diff_node x Node.empty >|= fun diff -> (Path.empty, `Added y) :: diff
 
   type concrete =
     [ `Tree of (step * concrete) list

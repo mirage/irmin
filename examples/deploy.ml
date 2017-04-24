@@ -18,7 +18,7 @@ let provision repo =
 
   Store.of_branch repo "upstream" >>= fun t ->
 
-  Store.Tree.empty () |> fun v ->
+  Store.Tree.empty |> fun v ->
   Store.Tree.add v ["etc"; "manpath"]
     "/usr/share/man\n\
      /usr/local/share/man"

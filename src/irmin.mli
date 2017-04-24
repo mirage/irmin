@@ -2249,8 +2249,8 @@ module type S = sig
 
     (** {1 Constructors} *)
 
-    val empty: unit -> tree
-    (** [empty ()] is the empty tree. Empty trees do not have
+    val empty: tree
+    (** [empty] is the empty tree. The empty tree does not have
         associated backend configuration values, as they can perform
         in-memory operation, independently of any given backend. *)
 

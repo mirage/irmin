@@ -318,7 +318,7 @@ module type TREE = sig
   type contents
   type node
   type tree = [ `Node of node | `Contents of contents * metadata ]
-  val empty: unit -> tree
+  val empty: tree
   val of_contents: ?metadata:metadata -> contents -> tree
   val of_node: node -> tree
   val kind: tree -> key -> [`Contents | `Node] option Lwt.t
