@@ -93,6 +93,15 @@ let default (type a) (t:a Ir_type.t): a t =
         else if old = t2 then ok t1
         else conflict "default"
 
+let idempotent dt =
+  let (=) = Ir_type.equal dt in
+  let default = default dt in
+  let f ~old x y =
+    if x = y then ok x
+    else f default ~old x y
+  in
+  v dt f
+
 let seq = function
   | []         -> invalid_arg "nothing to merge"
   | (t, _)::_ as ts ->
