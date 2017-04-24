@@ -19,7 +19,7 @@ depends: [
   "ocamlbuild" {build}
   "ocamlfind"  {build}
   "topkg"      {build & >= "0.9.0"}
-  "irmin"      {>= "1.0.0"}
+  "irmin"      {>= "1.1.0"}
   "irmin-git"  {>= "1.0.0"}
   "irmin-http" {>= "1.0.0"}
   "git-unix"   {>= "1.10.0"}
