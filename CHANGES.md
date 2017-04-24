@@ -1,3 +1,19 @@
+### 1.1.0 (2017-04-24)
+
+**irmin**
+
+- Change the type of `S.Tree.find_tree` to return a `tree option` instead of
+  `tree`. This is a breaking API change but it let distinguish between
+  the empty and non-existent cases (#431, @samoht)
+- Allow to specify branches in urls for fetch using the `url#branch` syntax
+  (#432, @samoht)
+- Expose `Irmin.Merge.idempotent` for values with idempotent operations
+  (#433, @samoht)
+
+**irmin-unix**
+
+- Update to irmin.1.1.0 API changes (@samoht)
+
 ### 1.0.2 (2017-03-27)
 
 **irmin**
