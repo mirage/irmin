@@ -526,12 +526,26 @@ module Merge: sig
   *)
 
   val unit: unit t
+  (** [unit] is the default merge function for unit values. *)
+
   val bool: bool t
+  (** [bool] is the default merge function for booleans. *)
+
   val char: char t
+  (** [char] is the default merge function for characters. *)
+
   val int: int t
+  (** [int] is the default merge function for integers. *)
+
   val int32: int32 t
+  (** [int32] is the default merge function for 32-bits integers. *)
+
   val int64: int64 t
+  (** [int64] the default merge function for 64-bit integers. *)
+
   val float: float t
+  (** [float] is the default merge function for floating point
+      numbers. *)
 
   val string: string t
   (** The default string merge function. Do not do anything clever, just
