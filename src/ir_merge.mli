@@ -40,6 +40,7 @@ val bind_promise: 'a promise -> ('a -> 'b promise) -> 'b promise
 
 val seq: 'a t list -> 'a t
 val default: 'a Ir_type.t -> 'a t
+val idempotent: 'a Ir_type.t -> 'a t
 
 val unit: unit t
 val bool: bool t

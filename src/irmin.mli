@@ -504,24 +504,48 @@ module Merge: sig
   (** {1 Basic Merges} *)
 
   val default: 'a Type.t -> 'a t
-  (** Create a default merge function. This is a simple merge
-      function which supports changes in one branch at a time:
+  (** [default t] is the default merge function for values of type
+      [t]. This is a simple merge function which supports changes in
+      one branch at a time:
 
       {ul
-        {- if [t1=t2] then the result of the merge is [OK t1];}
         {- if [t1=old] then the result of the merge is [OK t2];}
         {- if [t2=old] then return [OK t1];}
         {- otherwise the result is [Conflict].}
       }
   *)
 
+  val idempotent: 'a Type.t -> 'a t
+  (** [idempotent t] is the default merge function for values of type
+      [t] using idempotent operations. It follows the same rules as
+      the {!default} merge function but also adds:
+
+      {ul
+        {- if [t1=t2] then the result of the merge is [OK t1].}
+      }
+  *)
+
   val unit: unit t
+  (** [unit] is the default merge function for unit values. *)
+
   val bool: bool t
+  (** [bool] is the default merge function for booleans. *)
+
   val char: char t
+  (** [char] is the default merge function for characters. *)
+
   val int: int t
+  (** [int] is the default merge function for integers. *)
+
   val int32: int32 t
+  (** [int32] is the default merge function for 32-bits integers. *)
+
   val int64: int64 t
+  (** [int64] the default merge function for 64-bit integers. *)
+
   val float: float t
+  (** [float] is the default merge function for floating point
+      numbers. *)
 
   val string: string t
   (** The default string merge function. Do not do anything clever, just
@@ -926,7 +950,7 @@ end
     versions of the same contents.}
     }
 
-    Default contents for {{!Contents.String}string},
+    Default contents for idempotent {{!Contents.String}string},
     {{!Contents.Json}JSON} and {{!Contents.Cstruct}C-buffers like}
     values are provided. *)
 module Contents: sig
@@ -1000,12 +1024,14 @@ module Contents: sig
   module String: S with type t = string
   (** String values where only the last modified value is kept on
       merge. If the value has been modified concurrently, the [merge]
-      function conflicts. *)
+      function conflicts. Assume that update operations are
+      idempotent. *)
 
   module Cstruct: S with type t = Cstruct.t
   (** Cstruct values where only the last modified value is kept on
       merge. If the value has been modified concurrently, the [merge]
-      function conflicts. *)
+      function conflicts. Assume that update operations are
+      idempotent. *)
 
   (** Contents store. *)
   module type STORE = sig
