@@ -263,7 +263,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     head_ref: head_ref;
     mutable tree: (commit * root_tree) option;    (* cache for the store tree *)
     lock: Lwt_mutex.t;
-    empty: tree;           (* cache for empty trees. FIXME: should be in repo *)
   }
 
   type step = Key.step
@@ -306,7 +305,6 @@ module Make (P: Ir_s.PRIVATE) = struct
       lock; head_ref;
       repo  = repo;
       tree  = None;
-      empty = Tree.empty ();
     }
 
   let err_invalid_branch t =
@@ -367,7 +365,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let tree t =
     tree_and_head t >|= function
-    | None           -> t.empty
+    | None           -> Tree.empty
     | Some (_, tree) -> (tree :> tree)
 
   let lift_head_diff repo fn = function
@@ -540,7 +538,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None           ->
       Lwt.return {
         head    = None;
-        root    = t.empty;
+        root    = Tree.empty;
         tree    = None;
         parents = [];
       }
@@ -632,18 +630,18 @@ module Make (P: Ir_s.PRIVATE) = struct
     in
     retry "with_tree" aux
 
-  let none_to_empty t = function None -> t.empty | Some v -> v
+  let none_to_empty = function None -> Tree.empty | Some v -> v
 
   let set t k ?metadata ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set %a" Key.pp k);
     with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
-        Tree.add (none_to_empty t tree) Key.empty ?metadata v >|= fun x ->
+        Tree.add (none_to_empty tree) Key.empty ?metadata v >|= fun x ->
         Some x)
 
   let set_tree t k ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set_tree %a" Key.pp k);
     with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
-        Tree.add_tree (none_to_empty t tree) Key.empty v >|= fun x ->
+        Tree.add_tree (none_to_empty tree) Key.empty v >|= fun x ->
         Some x)
 
   type strategy = [ `Test_and_set | `Set | `Merge ]
