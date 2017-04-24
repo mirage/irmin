@@ -789,7 +789,7 @@ module Make (S: Test_S) = struct
         let i = Int64.of_int date in
         Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let assert_lcas_err msg err l2 =
         let err_str = function
           | `Too_many_lcas    -> "Too_many_lcas"
@@ -947,14 +947,14 @@ module Make (S: Test_S) = struct
       let vy = "VY" in
       S.master repo >>= fun t ->
       S.set t ~info:(infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
-      S.find_tree t ["x"] >>= fun view ->
+      S.get_tree t ["x"] >>= fun view ->
       S.set_tree t ~info:(infof "update") ["u"] view >>= fun () ->
       S.find t ["u";"y";"z"] >>= fun vx' ->
       check_val "vx" (Some vx) vx';
 
-      S.find_tree t ["u"] >>= fun view1 ->
+      S.get_tree t ["u"] >>= fun view1 ->
       S.set t ~info:(infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
-      S.find_tree t ["u"] >>= fun view2 ->
+      S.get_tree t ["u"] >>= fun view2 ->
       S.Tree.add view ["x";"z"] vx >>= fun view3 ->
       Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise view1) view2 view3
       >>= merge_exn "view" >>= fun v' ->
@@ -1080,7 +1080,7 @@ module Make (S: Test_S) = struct
 
       (* Testing [View.remove] *)
 
-      S.Tree.empty |> fun v1 ->
+      S.Tree.empty () |> fun v1 ->
 
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.add v1 ["foo";"2"] foo2 >>= fun v1 ->
@@ -1105,9 +1105,9 @@ module Make (S: Test_S) = struct
       let normal c = Some (c, S.Metadata.default) in
       let d0 = S.Metadata.default in
 
-      S.Tree.empty |> fun v0 ->
-      S.Tree.empty |> fun v1 ->
-      S.Tree.empty |> fun v2 ->
+      S.Tree.empty () |> fun v0 ->
+      S.Tree.empty () |> fun v1 ->
+      S.Tree.empty () |> fun v2 ->
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
       check_val "view udate" (normal foo1) f;
@@ -1127,7 +1127,7 @@ module Make (S: Test_S) = struct
 
       (* Testing other View operations. *)
 
-      S.Tree.empty |> fun v0 ->
+      S.Tree.empty () |> fun v0 ->
 
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
@@ -1166,11 +1166,11 @@ module Make (S: Test_S) = struct
       S.find_all t ["a";"foo";"2"] >>= fun foo2' ->
       check_val "foo2" (normal foo2) foo2';
 
-      S.find_tree t ["b"] >>= fun v0 ->
+      S.get_tree t ["b"] >>= fun v0 ->
       check_view v0 >>= fun () ->
 
       S.set t ~info:(infof "update b/x") ["b";"x"] foo1 >>= fun () ->
-      S.find_tree t ["b"] >>= fun v2 ->
+      S.get_tree t ["b"] >>= fun v2 ->
       S.Tree.add v0 ["y"] foo2 >>= fun v1 ->
 
       Irmin.Merge.(f S.Tree.merge ~old:(promise v0) v1 v2) >>=
@@ -1190,14 +1190,14 @@ module Make (S: Test_S) = struct
           Lwt.return_unit
         ) nodes >>= fun () ->
 
-      S.find_tree t ["b"] >>= fun v2 ->
+      S.get_tree t ["b"] >>= fun v2 ->
       S.Tree.find_all v2 ["foo"; "1"] >>= fun _ ->
       S.Tree.add v2 ["foo"; "1"] foo2 >>= fun v2 ->
       S.set_tree t ~info:(infof"v2") ["b"] v2 >>= fun () ->
       S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "update view" (normal foo2) foo2';
 
-      S.find_tree t ["b"] >>= fun v3 ->
+      S.get_tree t ["b"] >>= fun v3 ->
       S.Tree.find_all v3 ["foo"; "1"] >>= fun _ ->
       S.Tree.remove v3 ["foo"; "1"] >>= fun v3 ->
       S.set_tree t ~info:(infof "v3") ["b"] v3 >>= fun () ->
@@ -1225,11 +1225,11 @@ module Make (S: Test_S) = struct
       let vx = "VX" in
       let px = ["x";"y";"z"] in
       S.set tt ~info:(infof "update") px vx >>= fun () ->
-      S.find_tree tt [] >>= fun view ->
+      S.get_tree tt [] >>= fun view ->
       S.Tree.find_all view px >>= fun vx' ->
       check_val "updates" (normal vx) vx';
 
-      S.Tree.empty |> fun v ->
+      S.Tree.empty () |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
       S.set_tree t ~info:(infof "update file as view") ["a"] v >>= fun () ->
       S.find_all t ["a"] >>= fun vx' ->

@@ -317,11 +317,11 @@ module type TREE = sig
   type metadata
   type contents
   type node
-  type tree = [ `Empty | `Node of node | `Contents of contents * metadata ]
-  val empty: tree
+  type tree = [ `Node of node | `Contents of contents * metadata ]
+  val empty: unit -> tree
   val of_contents: ?metadata:metadata -> contents -> tree
   val of_node: node -> tree
-  val kind: tree -> key -> [`Contents | `Node | `Empty] Lwt.t
+  val kind: tree -> key -> [`Contents | `Node] option Lwt.t
   val list: tree -> key -> (step * [`Contents | `Node]) list Lwt.t
   val diff: tree -> tree -> (key * (contents * metadata) diff) list Lwt.t
   val mem: tree -> key -> bool Lwt.t
@@ -332,13 +332,13 @@ module type TREE = sig
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
   val remove: tree -> key -> tree Lwt.t
   val mem_tree: tree -> key -> bool Lwt.t
-  val find_tree: tree -> key -> tree Lwt.t
+  val find_tree: tree -> key -> tree option Lwt.t
+  val get_tree: tree -> key -> tree Lwt.t
   val add_tree: tree -> key -> tree -> tree Lwt.t
   val merge: tree Ir_merge.t
 
   type concrete =
-    [ `Empty
-    | `Tree of (step * concrete) list
+    [ `Tree of (step * concrete) list
     | `Contents of contents * metadata ]
   val of_concrete: concrete -> tree
   val to_concrete: tree -> concrete Lwt.t
@@ -351,7 +351,7 @@ module type STORE = sig
   type metadata
   type contents
   type node
-  type tree = [ `Empty | `Node of node | `Contents of contents * metadata ]
+  type tree = [`Node of node | `Contents of contents * metadata]
   type commit
   type branch
   type slice
@@ -423,7 +423,7 @@ module type STORE = sig
     val of_hash: Repo.t -> Hash.t -> contents option Lwt.t
   end
 
-  val kind: t -> key -> [`Contents | `Node | `Empty] Lwt.t
+  val kind: t -> key -> [`Contents | `Node] option Lwt.t
   val list: t -> key -> (step * [`Contents | `Node]) list Lwt.t
   val mem: t -> key -> bool Lwt.t
   val mem_tree: t -> key -> bool Lwt.t
@@ -431,11 +431,12 @@ module type STORE = sig
   val find: t -> key -> contents option Lwt.t
   val get_all: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
-  val find_tree: t -> key -> tree Lwt.t
+  val find_tree: t -> key -> tree option Lwt.t
+  val get_tree: t -> key -> tree Lwt.t
   type 'a transaction =
     ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
     ?max_depth:int -> ?n:int -> info:Ir_info.f -> 'a -> unit Lwt.t
-  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
   val set: t -> key -> ?metadata:metadata -> contents transaction
   val set_tree: t -> key -> tree transaction
   val remove: t -> key transaction
@@ -492,7 +493,6 @@ module type STORE = sig
   val branch_t: branch Type.t
   val slice_t: slice Type.t
   val kind_t: [`Contents | `Node] Type.t
-  val kinde_t: [`Empty | `Contents | `Node] Type.t
   val lca_error_t: lca_error Type.t
   val ff_error_t: ff_error Type.t
 

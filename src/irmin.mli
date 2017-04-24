@@ -1979,7 +1979,7 @@ module type S = sig
   type node
   (** The type for store nodes. *)
 
-  type tree = [ `Empty | `Node of node | `Contents of contents * metadata ]
+  type tree = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store trees. *)
 
   type commit
@@ -2223,15 +2223,10 @@ module type S = sig
 
     (** {1 Constructors} *)
 
-    val empty: tree
-    (** [empty] is the empty tree. Empty trees do not have associated
-        backend configuration values, as they can perform in-memory
-        operation, independently of any given backend.
-
-        {i Note}: there is another way to obtain an empty tree using
-        [`Node h] where [h] is the hash of the empty tree for the
-        current repository. Don't use [(=) `Empty] to check for tree
-        tree emptiness, unless you really know what you are doing.  *)
+    val empty: unit -> tree
+    (** [empty ()] is the empty tree. Empty trees do not have
+        associated backend configuration values, as they can perform
+        in-memory operation, independently of any given backend. *)
 
     val of_contents: ?metadata:metadata -> contents -> tree
     (** [of_contents c] is the subtree built from the contents [c]. *)
@@ -2239,9 +2234,9 @@ module type S = sig
     val of_node: node -> tree
     (** [of_node n] is the subtree built from the node [n]. *)
 
-    val kind: tree -> key -> [`Contents | `Node | `Empty] Lwt.t
+    val kind: tree -> key -> [`Contents | `Node] option Lwt.t
     (** [kind t k] is the type of [s] in [t]. It could either be a
-        tree node or some file contents. It is [`Empty] if [k] is not
+        tree node or some file contents. It is [None] if [k] is not
         present in [t]. *)
 
     val list: tree -> key -> (step * [`Contents | `Node]) list Lwt.t
@@ -2285,11 +2280,15 @@ module type S = sig
     (** {1 Manipulating Subtrees} *)
 
     val mem_tree: tree -> key -> bool Lwt.t
-    (** [mem_tree t k] is false iff [find_tree k = `Empty]. *)
+    (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
-    val find_tree: tree -> key -> tree Lwt.t
-    (** [find_tree t k] is [v] if [k] is associated to [v] in [t].  It
-        is [`Empty] if [k] is not present in [t]. *)
+    val find_tree: tree -> key -> tree option Lwt.t
+    (** [find_tree t k] is [Some v] if [k] is associated to [v] in
+        [t]. It is [None] if [k] is not present in [t]. *)
+
+    val get_tree: tree -> key -> tree Lwt.t
+    (** [get_tree t k] is [v] if [k] is associated to [v] in [t].
+        Raise [Invalid_arg] if [k] is not present in [t].*)
 
     val add_tree: tree -> key -> tree -> tree Lwt.t
     (** [add_tree t k v] is the tree where the key [k] is bound to the
@@ -2301,8 +2300,7 @@ module type S = sig
     (** {1 Concrete Trees} *)
 
     type concrete =
-      [ `Empty
-      | `Tree of (step * concrete) list
+      [ `Tree of (step * concrete) list
       | `Contents of contents * metadata ]
     (** The type for concrete trees. *)
 
@@ -2349,7 +2347,7 @@ module type S = sig
 
   (** {1 Reads} *)
 
-  val kind: t -> key -> [`Contents | `Node | `Empty] Lwt.t
+  val kind: t -> key -> [`Contents | `Node] option Lwt.t
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
   val list: t -> key -> (step * [`Contents | `Node]) list Lwt.t
@@ -2373,8 +2371,12 @@ module type S = sig
   val get: t -> key -> contents Lwt.t
   (** [get t] is {!Tree.get} applied to [t]'s root tree. *)
 
-  val find_tree: t -> key -> tree Lwt.t
+  val find_tree: t -> key -> tree option Lwt.t
   (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root
+      tree. *)
+
+  val get_tree: t -> key -> tree Lwt.t
+  (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root
       tree. *)
 
   (** {1 Transactions} *)
@@ -2384,7 +2386,7 @@ module type S = sig
     ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
   (** The type for transactions. *)
 
-  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
   (** [with_tree t k ~info f] replaces {i atomically} the subtree [v]
       under [k] in the store [t] by the contents of the tree [f v],
       using the commit info [info ()].
@@ -2589,9 +2591,6 @@ module type S = sig
 
   val kind_t: [`Node | `Contents] Type.t
   (** [kind_t] is the value type for values returned by {!kind}. *)
-
-  val kinde_t: [`Empty | `Node | `Contents] Type.t
-  (** [kind_t] is like {!kind_t} but also allow [`Empty] values. *)
 
   val lca_error_t: lca_error Type.t
   (** [lca_error_t] is the value type for {!lca_error}. *)
