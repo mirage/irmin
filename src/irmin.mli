@@ -1987,8 +1987,11 @@ module type S = sig
       systems, that the informed user can see as an implicit purely
       functional data-structure. *)
 
+  type repo
+  (** The type for Irmin repositories. *)
+
   type t
-  (** The type for branch-consistent stores. *)
+  (** The type for Irmin stores. *)
 
   type step
   (** The type for {!key} steps. *)
@@ -2033,7 +2036,7 @@ module type S = sig
 
         A repository contains a set of branches. *)
 
-    type t
+    type t = repo
     (** The type of repository handles. *)
 
     val v: config -> t Lwt.t
@@ -2070,16 +2073,16 @@ module type S = sig
 
   end
 
-  val empty: Repo.t -> t Lwt.t
+  val empty: repo -> t Lwt.t
   (** [empty repo] is a temporary, empty store. Becomes a normal
       temporary store after the first update. *)
 
-  val master: Repo.t -> t Lwt.t
+  val master: repo -> t Lwt.t
   (** [master repo] is a persistent store based on [r]'s master
       branch. This operation is cheap, can be repeated multiple
       times. *)
 
-  val of_branch: Repo.t -> branch -> t Lwt.t
+  val of_branch: repo -> branch -> t Lwt.t
   (** [of_branch r name] is a persistent store based on the branch
       [name]. Similar to [master], but use [name] instead
       {!Branch.S.master}. *)
@@ -2095,7 +2098,7 @@ module type S = sig
       stores's head will automatically become the new head obtained
       after performing the update. *)
 
-  val repo: t -> Repo.t
+  val repo: t -> repo
   (** [repo t] is the repository containing [t]. *)
 
   val tree: t -> tree Lwt.t
@@ -2108,13 +2111,13 @@ module type S = sig
     type t = [`Empty | `Branch of branch | `Commit of commit]
     (** The type for store status. *)
 
-    val t: Repo.t -> t Type.t
+    val t: repo -> t Type.t
     (** [t] is the value type for {!t}. *)
 
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for store status. *)
 
-    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
+    val of_string: repo -> string -> (t, [`Msg of string]) result
     (** [of_string r str] parses the store status from the string
         [str], using the base repository [r]. *)
 
@@ -2127,7 +2130,7 @@ module type S = sig
   (** Managing the store's heads. *)
   module Head: sig
 
-    val list: Repo.t -> commit list Lwt.t
+    val list: repo -> commit list Lwt.t
     (** [list t] is the list of all the heads in local store. Similar
         to [git rev-list --all]. *)
 
@@ -2192,18 +2195,18 @@ module type S = sig
     type t = commit
     (** The type for store commits. *)
 
-    val t: Repo.t -> t Type.t
+    val t: repo -> t Type.t
     (** [t] is the value type for {!t}. *)
 
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the
         hash. *)
 
-    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
+    val of_string: repo -> string -> (t, [`Msg of string]) result
     (** [of_string r str] parsing the commit from the string [str],
         using the base repository [r]. *)
 
-    val v: Repo.t -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
+    val v: repo -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
         {ul
         {- [info c = i]}
@@ -2228,7 +2231,7 @@ module type S = sig
     val hash: commit -> Hash.t
     (** [hash c] it [c]'s hash. *)
 
-    val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
+    val of_hash: repo -> Hash.t -> commit option Lwt.t
     (** [of_hash r h] is the the commit object in [r] having [h] as
         hash, or [None] is no such commit object exists. *)
 
@@ -2343,10 +2346,10 @@ module type S = sig
     module Hash: Hash.S
     (** [Hash] provides base functions for tree hashes. *)
 
-    val hash: Repo.t -> tree -> Hash.t Lwt.t
+    val hash: repo -> tree -> Hash.t Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash: Repo.t -> Hash.t -> tree option Lwt.t
+    val of_hash: repo -> Hash.t -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as
         hash, or [None] is no such tree object exists. *)
 
@@ -2362,10 +2365,10 @@ module type S = sig
     module Hash: Hash.S
     (** [Hash] provides base functions for contents hashes. *)
 
-    val hash: Repo.t -> contents -> Hash.t Lwt.t
+    val hash: repo -> contents -> Hash.t Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash: Repo.t -> Hash.t -> contents option Lwt.t
+    val of_hash: repo -> Hash.t -> contents option Lwt.t
     (** [of_hash r h] is the the contents object in [r] having [h] as
         hash, or [None] is no such contents object exists. *)
 
@@ -2543,35 +2546,35 @@ module type S = sig
         Manipulate relations between {{!branch}branches} and
         {{!commit}commits}. *)
 
-    val mem: Repo.t -> branch -> bool Lwt.t
+    val mem: repo -> branch -> bool Lwt.t
     (** [mem r b] is true iff [b] is present in [r]. *)
 
-    val find: Repo.t -> branch -> commit option Lwt.t
+    val find: repo -> branch -> commit option Lwt.t
     (** [find r b] is [Some c] iff [c] is bound to [b] in [t]. It is
         [None] if [b] is not present in [t]. *)
 
-    val get: Repo.t -> branch -> commit Lwt.t
+    val get: repo -> branch -> commit Lwt.t
     (** [get t b] is similar to {!find} but raise [Invalid_argument]
         if [b] is not present in [t]. *)
 
-    val set: Repo.t -> branch -> commit -> unit Lwt.t
+    val set: repo -> branch -> commit -> unit Lwt.t
     (** [set t b c] bounds [c] to [b] in [t]. *)
 
-    val remove: Repo.t -> branch -> unit Lwt.t
+    val remove: repo -> branch -> unit Lwt.t
     (** [remove t b] removes [b] from [t]. *)
 
-    val list: Repo.t -> branch list Lwt.t
+    val list: repo -> branch list Lwt.t
     (** [list t] is the list of branches present in [t]. *)
 
     val watch:
-      Repo.t -> branch -> ?init:commit -> (commit diff -> unit Lwt.t)
+      repo -> branch -> ?init:commit -> (commit diff -> unit Lwt.t)
       -> watch Lwt.t
     (** [watch t b f] calls [f] on every change in [b]. *)
 
     (** [watch_all t f] calls [f] on every branch-related change in
         [t], including creation/deletion events. *)
     val watch_all:
-      Repo.t ->
+      repo ->
       ?init:(branch * commit) list -> (branch -> commit diff -> unit Lwt.t)
       -> watch Lwt.t
 
@@ -2606,7 +2609,7 @@ module type S = sig
   val tree_t: tree Type.t
   (** [tree_t] is the value type for {!tree}. *)
 
-  val commit_t: Repo.t -> commit Type.t
+  val commit_t: repo -> commit Type.t
   (** [commit_t r] is the value type for {!commit}. *)
 
   val branch_t: branch Type.t
@@ -2635,7 +2638,7 @@ module type S = sig
        and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
-       and type Repo.t = Repo.t
+       and type Repo.t = repo
   end
 end
 
@@ -3052,4 +3055,4 @@ module Make_ext (P: Private.S): S
    and type step = P.Node.Path.step
    and type metadata = P.Node.Val.metadata
    and type Key.step = P.Node.Path.step
-   and type Repo.t = P.Repo.t
+   and type repo = P.Repo.t

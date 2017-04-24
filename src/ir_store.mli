@@ -29,4 +29,4 @@ module Make (P: Ir_s.PRIVATE): Ir_s.STORE
    and type metadata = P.Node.Val.metadata
    and module Key = P.Node.Path
    and module Private.Contents = P.Contents
-   and type Repo.t = P.Repo.t
+   and type repo = P.Repo.t

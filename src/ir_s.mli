@@ -345,6 +345,7 @@ module type TREE = sig
 end
 
 module type STORE = sig
+  type repo
   type t
   type step
   type key
@@ -358,7 +359,7 @@ module type STORE = sig
   type lca_error = [`Max_depth_reached | `Too_many_lcas]
   type ff_error = [`No_change | `Rejected | lca_error]
   module Repo: sig
-    type t
+    type t = repo
     val v: config -> t Lwt.t
     val heads: t -> commit list Lwt.t
     val branches: t -> branch list Lwt.t
@@ -506,7 +507,7 @@ module type STORE = sig
        and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
-       and type Repo.t = Repo.t
+       and type Repo.t = repo
   end
 end
 
