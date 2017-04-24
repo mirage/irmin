@@ -777,7 +777,7 @@ module Make_ext
 
   module R = Irmin_branch_store(G)(B)
 
-  type repo = {
+  type r = {
     config: Irmin.config;
     g: G.t;
     b: R.t;
@@ -793,7 +793,7 @@ module Make_ext
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
     module Repo = struct
-      type t = repo
+      type t = r
       let branch_t t = t.b
       let contents_t t = t.g
       let node_t t = contents_t t, t.g
