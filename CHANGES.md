@@ -9,8 +9,13 @@
   (#432, @samoht)
 - Expose `Irmin.Merge.idempotent` for values with idempotent operations
   (#433, @samoht)
+- Add a `S.repo` type as an alias to the `S.Repo.t` (#436, @samoht)
 
 **irmin-unix**
+
+- Update to irmin.1.1.0 API changes (@samoht)
+
+**irmin-git**
 
 - Update to irmin.1.1.0 API changes (@samoht)
 
