@@ -26,6 +26,8 @@ let remote_uri s = Ir_s.URI s
 
 module Make (S: Ir_s.STORE) = struct
 
+  open Astring
+
   module B = S.Private.Sync
   type db = S.t
   type commit = S.commit
@@ -75,17 +77,28 @@ module Make (S: Ir_s.STORE) = struct
     | `Msg of string
   ]
 
+  let uri_and_branch uri =
+    match String.cut ~sep:"#" uri with
+    | None           -> uri, None
+    | Some (uri, br) ->
+      match S.Branch.of_string br with
+      | Error (`Msg e) -> invalid_arg e
+      | Ok br          -> uri, Some br
+
   let fetch t ?depth remote: (commit, fetch_error) result Lwt.t =
     match remote with
     | Ir_s.URI uri ->
       Log.debug (fun f -> f "fetch URI %s" uri);
-      begin match S.status t with
-        | `Empty | `Commit _  -> Lwt.return (Error `No_head)
-        | `Branch b ->
+      let uri, br = uri_and_branch uri in
+      begin match br, S.status t with
+        | None, (`Empty | `Commit _) -> Lwt.return (Error `No_head)
+        | Some br, _ | None, `Branch br ->
+          Log.debug (fun l -> l "Fetching branch %a" S.Branch.pp br);
           B.v (S.repo t) >>= fun g ->
-          B.fetch g ?depth ~uri b >>= function
+          B.fetch g ?depth ~uri br >>= function
           | Error _ as e -> Lwt.return e
           | Ok c         ->
+            Log.debug (fun l -> l "Fetched %a" S.Commit.Hash.pp c);
             S.Commit.of_hash (S.repo t) c >|= function
             | None   -> Error `No_head
             | Some x -> Ok x
