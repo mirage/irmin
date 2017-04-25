@@ -756,7 +756,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     in
     Ir_merge.v tree_t f
 
-  let entries key tree =
+  let entries path tree =
     let rec aux acc = function
       | []              -> Lwt.return acc
       | (path, h)::todo ->
@@ -771,7 +771,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         in
         aux acc todo
     in
-    aux [] [Path.v [key], tree]
+    aux [] [path, tree]
 
   let diff_node (x:node) (y:node) =
     let bindings n =
@@ -808,7 +808,7 @@ module Make (P: Ir_s.PRIVATE) = struct
                 removed !acc (path, x) >|= fun x ->
                 acc := x
               | `Left (`Node x) ->
-                entries key x >>= fun xs ->
+                entries path x >>= fun xs ->
                 Lwt_list.fold_left_s removed !acc xs >|= fun xs ->
                 acc := xs
 
@@ -817,7 +817,7 @@ module Make (P: Ir_s.PRIVATE) = struct
                 added !acc (path, y) >|= fun y ->
                 acc := y
               | `Right (`Node y) ->
-                entries key y >>= fun ys ->
+                entries path y >>= fun ys ->
                 Lwt_list.fold_left_s added !acc ys >|= fun ys ->
                 acc := ys
 
@@ -827,13 +827,13 @@ module Make (P: Ir_s.PRIVATE) = struct
                 Lwt.return_unit
 
               | `Both (`Contents x, `Node y) ->
-                entries key y >>= fun ys ->
+                entries path y >>= fun ys ->
                 removed !acc (path, x) >>= fun x ->
                 Lwt_list.fold_left_s added x ys >|= fun ys ->
                 acc := ys
 
               | `Both (`Node x, `Contents y) ->
-                entries key x >>= fun xs ->
+                entries path x >>= fun xs ->
                 added !acc (path, y) >>= fun y ->
                 Lwt_list.fold_left_s removed y xs >|= fun ys ->
                 acc := ys

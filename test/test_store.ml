@@ -1122,8 +1122,15 @@ module Make (S: Test_S) = struct
       check_diffs "diff 2" [ ["foo";"1"], `Removed (foo1, d0) ] d2;
 
       S.Tree.diff v1 v2 >>= fun d3 ->
-      check_diffs "diff 2" [ ["foo";"1"], `Updated ((foo1, d0), (foo2, d0));
+      check_diffs "diff 3" [ ["foo";"1"], `Updated ((foo1, d0), (foo2, d0));
                              ["foo";"2"], `Added (foo1, d0)] d3;
+
+      S.Tree.add v2 ["foo"; "bar"; "1"] foo1 >>= fun v3 ->
+      S.Tree.diff v2 v3 >>= fun d4 ->
+      check_diffs "diff 4" [ ["foo"; "bar"; "1" ], `Added (foo1, d0) ] d4;
+      S.Tree.diff v3 v2 >>= fun d5 ->
+      check_diffs "diff 4" [ ["foo"; "bar"; "1" ], `Removed (foo1, d0) ] d5;
+
 
       (* Testing other View operations. *)
 
