@@ -39,7 +39,7 @@ The type for store commits.<br>
 </div>
 
 
-<pre><span id="VALt"><span class="keyword">val</span> t</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.Commit.html#TYPEt">t</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
+<pre><span id="VALt"><span class="keyword">val</span> t</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.Commit.html#TYPEt">t</a> <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a></code></pre><div class="info ">
 <code class="code">t</code> is the value type for <a href="Irmin.S.Commit.html#VALt"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Commit</span>.t</code></a>.<br>
 </div>
 
@@ -48,12 +48,12 @@ The type for store commits.<br>
         hash.<br>
 </div>
 
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       string -> (<a href="Irmin.S.Commit.html#TYPEt">t</a>, [ `Msg of string ]) Result.result</code></pre><div class="info ">
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -><br>       string -> (<a href="Irmin.S.Commit.html#TYPEt">t</a>, [ `Msg of string ]) Result.result</code></pre><div class="info ">
 <code class="code">of_string&nbsp;r&nbsp;str</code> parsing the commit from the string <code class="code">str</code>,
         using the base repository <code class="code">r</code>.<br>
 </div>
 
-<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       info:<a href="Irmin.Info.html#TYPEt">Irmin.Info.t</a> -><br>       parents:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> list -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALv"><span class="keyword">val</span> v</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -><br>       info:<a href="Irmin.Info.html#TYPEt">Irmin.Info.t</a> -><br>       parents:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> list -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> Lwt.t</code></pre><div class="info ">
 <code class="code">v&nbsp;r&nbsp;i&nbsp;~parents:p&nbsp;t</code> is the commit <code class="code">c</code> such that:
         <ul>
 <li><code class="code">info&nbsp;c&nbsp;=&nbsp;i</code></li>
@@ -85,7 +85,7 @@ The type for store commits.<br>
 <code class="code">hash&nbsp;c</code> it <code class="code">c</code>'s hash.<br>
 </div>
 
-<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> Hash.t -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> Hash.t -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">of_hash&nbsp;r&nbsp;h</code> is the the commit object in <code class="code">r</code> having <code class="code">h</code> as
         hash, or <code class="code"><span class="constructor">None</span></code> is no such commit object exists.<br>
 </div>

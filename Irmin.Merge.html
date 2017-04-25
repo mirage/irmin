@@ -131,12 +131,12 @@ Same as biject but with blocking domain
 <h1 id="1_BasicMerges">Basic Merges</h1><br>
 
 <pre><span id="VALdefault"><span class="keyword">val</span> default</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a> -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
-Create a default merge function. This is a simple merge
-      function which supports changes in one branch at a time:
+<code class="code">default&nbsp;t</code> is the default merge function for values of type
+      <code class="code">t</code>. This is a simple merge function which supports changes in
+      one branch at a time:
 <p>
 
       <ul>
-<li>if <code class="code">t1=t2</code> then the result of the merge is <code class="code"><span class="constructor">OK</span>&nbsp;t1</code>;</li>
 <li>if <code class="code">t1=old</code> then the result of the merge is <code class="code"><span class="constructor">OK</span>&nbsp;t2</code>;</li>
 <li>if <code class="code">t2=old</code> then return <code class="code"><span class="constructor">OK</span>&nbsp;t1</code>;</li>
 <li>otherwise the result is <code class="code"><span class="constructor">Conflict</span></code>.</li>
@@ -144,13 +144,47 @@ Create a default merge function. This is a simple merge
 <br>
 </div>
 
-<pre><span id="VALunit"><span class="keyword">val</span> unit</span> : <code class="type">unit <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALbool"><span class="keyword">val</span> bool</span> : <code class="type">bool <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALchar"><span class="keyword">val</span> char</span> : <code class="type">char <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALint"><span class="keyword">val</span> int</span> : <code class="type">int <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALint32"><span class="keyword">val</span> int32</span> : <code class="type">int32 <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALint64"><span class="keyword">val</span> int64</span> : <code class="type">int64 <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
-<pre><span id="VALfloat"><span class="keyword">val</span> float</span> : <code class="type">float <a href="Irmin.Merge.html#TYPEt">t</a></code></pre>
+<pre><span id="VALidempotent"><span class="keyword">val</span> idempotent</span> : <code class="type">'a <a href="Irmin.Type.html#TYPEt">Irmin.Type.t</a> -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">idempotent&nbsp;t</code> is the default merge function for values of type
+      <code class="code">t</code> using idempotent operations. It follows the same rules as
+      the <a href="Irmin.Merge.html#VALdefault"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.default</code></a> merge function but also adds:
+<p>
+
+      <ul>
+<li>if <code class="code">t1=t2</code> then the result of the merge is <code class="code"><span class="constructor">OK</span>&nbsp;t1</code>.</li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALunit"><span class="keyword">val</span> unit</span> : <code class="type">unit <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">unit</code> is the default merge function for unit values.<br>
+</div>
+
+<pre><span id="VALbool"><span class="keyword">val</span> bool</span> : <code class="type">bool <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">bool</code> is the default merge function for booleans.<br>
+</div>
+
+<pre><span id="VALchar"><span class="keyword">val</span> char</span> : <code class="type">char <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">char</code> is the default merge function for characters.<br>
+</div>
+
+<pre><span id="VALint"><span class="keyword">val</span> int</span> : <code class="type">int <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int</code> is the default merge function for integers.<br>
+</div>
+
+<pre><span id="VALint32"><span class="keyword">val</span> int32</span> : <code class="type">int32 <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int32</code> is the default merge function for 32-bits integers.<br>
+</div>
+
+<pre><span id="VALint64"><span class="keyword">val</span> int64</span> : <code class="type">int64 <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">int64</code> the default merge function for 64-bit integers.<br>
+</div>
+
+<pre><span id="VALfloat"><span class="keyword">val</span> float</span> : <code class="type">float <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">float</code> is the default merge function for floating point
+      numbers.<br>
+</div>
+
 <pre><span id="VALstring"><span class="keyword">val</span> string</span> : <code class="type">string <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 The default string merge function. Do not do anything clever, just
       compare the strings using the <code class="code">default</code> merge function.<br>

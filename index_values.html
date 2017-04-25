@@ -122,7 +122,10 @@ Lift the merge functions to association lists.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbool">bool</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">bool</code> is the default merge function for booleans.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALbool">bool</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">bool</code> is a representation of the boolean type.
@@ -155,7 +158,10 @@ Lift the merge functions to association lists.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALchar">char</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">char</code> is the default merge function for characters.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALchar">char</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">char</code> is a representation of the character type.
@@ -329,7 +335,8 @@ The default metadata to attach, for APIs that don't
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALdefault">default</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Create a default merge function.
+<code class="code">default&nbsp;t</code> is the default merge function for values of type
+      <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Tree.html#VALdiff">diff</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
@@ -548,7 +555,8 @@ Convert a key to a filename.
 </td></tr>
 <tr><td><a href="Irmin.S.Tree.html#VALfind_tree">find_tree</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
 <td><div class="info">
-<code class="code">find_tree&nbsp;t&nbsp;k</code> is <code class="code">v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code>.
+<code class="code">find_tree&nbsp;t&nbsp;k</code> is <code class="code"><span class="constructor">Some</span>&nbsp;v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in
+        <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.html#VALfind_tree">find_tree</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
@@ -558,7 +566,11 @@ Convert a key to a filename.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALfloat">float</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">float</code> is the default merge function for floating point
+      numbers.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALfloat">float</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">float</code> is a representation of the float type.
@@ -601,6 +613,17 @@ Same as <a href="Irmin.S.Tree.html#VALfind_all"><code class="code"><span class="
 <tr><td><a href="Irmin.S.html#VALget_all">get_all</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 <code class="code">get_all&nbsp;t</code> is <a href="Irmin.S.Tree.html#VALget_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.get_all</code></a> applied on <code class="code">t</code>'s root tree.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Tree.html#VALget_tree">get_tree</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
+<td><div class="info">
+<code class="code">get_tree&nbsp;t&nbsp;k</code> is <code class="code">v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.html#VALget_tree">get_tree</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+<code class="code">get_tree&nbsp;t&nbsp;k</code> is <a href="Irmin.S.Tree.html#VALget_tree"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Tree</span>.get_tree</code></a> applied to <code class="code">t</code>'s root
+      tree.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_git.S.Git.html#VALgit_commit">git_commit</a> [<a href="Irmin_git.S.Git.html">Irmin_git.S.Git</a>]</td>
@@ -646,6 +669,12 @@ The kind of generated hash.
 </div>
 </td></tr>
 <tr><td align="left"><br>I</td></tr>
+<tr><td><a href="Irmin.Merge.html#VALidempotent">idempotent</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+<code class="code">idempotent&nbsp;t</code> is the default merge function for values of type
+      <code class="code">t</code> using idempotent operations.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.Repo.html#VALimport">import</a> [<a href="Irmin.S.Repo.html">Irmin.S.Repo</a>]</td>
 <td><div class="info">
 <code class="code">import&nbsp;t&nbsp;s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>.
@@ -675,21 +704,30 @@ The commit info.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALint">int</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">int</code> is the default merge function for integers.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALint">int</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">int</code> is a representation of the integer type.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALint32">int32</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">int32</code> is the default merge function for 32-bits integers.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALint32">int32</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">int32</code> is a representation of the 32-bit integers type.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALint64">int64</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">int64</code> the default merge function for 64-bit integers.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALint64">int64</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">int64</code> is a representation of the 64-bit integer type.
@@ -750,11 +788,6 @@ Convert a filename to a key.
 <tr><td><a href="Irmin.S.html#VALkind_t">kind_t</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 <code class="code">kind_t</code> is the value type for values returned by <a href="Irmin.S.html#VALkind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.kind</code></a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.html#VALkinde_t">kinde_t</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td><div class="info">
-<code class="code">kind_t</code> is like <a href="Irmin.S.html#VALkind_t"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.kind_t</code></a> but also allow <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> values.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
@@ -928,7 +961,7 @@ The name of the master branch.
 </td></tr>
 <tr><td><a href="Irmin.S.Tree.html#VALmem_tree">mem_tree</a> [<a href="Irmin.S.Tree.html">Irmin.S.Tree</a>]</td>
 <td><div class="info">
-<code class="code">mem_tree&nbsp;t&nbsp;k</code> is false iff <code class="code">find_tree&nbsp;k&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Empty</span></code>.
+<code class="code">mem_tree&nbsp;t&nbsp;k</code> is false iff <code class="code">find_tree&nbsp;k&nbsp;=&nbsp;<span class="constructor">None</span></code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.html#VALmem_tree">mem_tree</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
@@ -1710,7 +1743,10 @@ Lift merge functions to triple of elements.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALunit">unit</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">unit</code> is the default merge function for unit values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Type.html#VALunit">unit</a> [<a href="Irmin.Type.html">Irmin.Type</a>]</td>
 <td><div class="info">
 <code class="code">unit</code> is a representation of the unit type.

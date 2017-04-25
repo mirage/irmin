@@ -39,37 +39,37 @@ Manipulate branches.<br>
         Manipulate relations between <a href="Irmin.S.html#TYPEbranch">branches</a> and
         <a href="Irmin.S.html#TYPEcommit">commits</a>.<br>
 
-<pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> bool Lwt.t</code></pre><div class="info ">
 <code class="code">mem&nbsp;r&nbsp;b</code> is true iff <code class="code">b</code> is present in <code class="code">r</code>.<br>
 </div>
 
-<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">find&nbsp;r&nbsp;b</code> is <code class="code"><span class="constructor">Some</span>&nbsp;c</code> iff <code class="code">c</code> is bound to <code class="code">b</code> in <code class="code">t</code>. It is
         <code class="code"><span class="constructor">None</span></code> if <code class="code">b</code> is not present in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> Lwt.t</code></pre><div class="info ">
 <code class="code">get&nbsp;t&nbsp;b</code> is similar to <a href="Irmin.S.Branch.html#VALfind"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Branch</span>.find</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code>
         if <code class="code">b</code> is not present in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALset"><span class="keyword">val</span> set</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALset"><span class="keyword">val</span> set</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">set&nbsp;t&nbsp;b&nbsp;c</code> bounds <code class="code">c</code> to <code class="code">b</code> in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">remove&nbsp;t&nbsp;b</code> removes <code class="code">b</code> from <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> list Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> list Lwt.t</code></pre><div class="info ">
 <code class="code">list&nbsp;t</code> is the list of branches present in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -><br>       ?init:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -><br>       <a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -><br>       ?init:<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> -><br>       (<a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
 <code class="code">watch&nbsp;t&nbsp;b&nbsp;f</code> calls <code class="code">f</code> on every change in <code class="code">b</code>.<br>
 </div>
 
-<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -><br>       ?init:(<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> * <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a>) list -><br>       (<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -><br>       ?init:(<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> * <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a>) list -><br>       (<a href="Irmin.S.html#TYPEbranch">Irmin.S.branch</a> -> <a href="Irmin.S.html#TYPEcommit">Irmin.S.commit</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.S.html#TYPEwatch">Irmin.S.watch</a> Lwt.t</code></pre><div class="info ">
 <code class="code">watch_all&nbsp;t&nbsp;f</code> calls <code class="code">f</code> on every branch-related change in
         <code class="code">t</code>, including creation/deletion events.<br>
 </div>

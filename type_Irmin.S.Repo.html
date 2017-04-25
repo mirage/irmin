@@ -17,7 +17,7 @@
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.repo<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;v&nbsp;:&nbsp;<span class="constructor">Irmin</span>.config&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Repo</span>.t&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;heads&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Repo</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.commit&nbsp;list&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;branches&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">Repo</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.branch&nbsp;list&nbsp;<span class="constructor">Lwt</span>.t<br>

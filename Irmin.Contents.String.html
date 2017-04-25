@@ -29,7 +29,8 @@
 <pre><span class="keyword">module</span> String: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = string</code></pre><div class="info module top">
 String values where only the last modified value is kept on
       merge. If the value has been modified concurrently, the <code class="code">merge</code>
-      function conflicts.<br>
+      function conflicts. Assume that update operations are
+      idempotent.<br>
 </div>
 <hr width="100%">
 <br>

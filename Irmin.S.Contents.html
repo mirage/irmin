@@ -41,11 +41,11 @@
 <code class="code"><span class="constructor">Hash</span></code> provides base functions for contents hashes.
 </div>
 
-<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> Hash.t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> Hash.t Lwt.t</code></pre><div class="info ">
 <code class="code">hash&nbsp;r&nbsp;c</code> it <code class="code">c</code>'s hash in the repository <code class="code">r</code>.<br>
 </div>
 
-<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> Hash.t -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> Hash.t -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">of_hash&nbsp;r&nbsp;h</code> is the the contents object in <code class="code">r</code> having <code class="code">h</code> as
         hash, or <code class="code"><span class="constructor">None</span></code> is no such contents object exists.<br>
 </div>

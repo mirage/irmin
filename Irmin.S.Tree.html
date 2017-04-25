@@ -49,15 +49,9 @@
 <h1 id="1_Constructors">Constructors</h1><br>
 
 <pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
-<code class="code">empty</code> is the empty tree. Empty trees do not have associated
-        backend configuration values, as they can perform in-memory
-        operation, independently of any given backend.
-<p>
-
-        <i>Note</i>: there is another way to obtain an empty tree using
-        <code class="code"><span class="keywordsign">`</span><span class="constructor">Node</span>&nbsp;h</code> where <code class="code">h</code> is the hash of the empty tree for the
-        current repository. Don't use <code class="code">(=)&nbsp;<span class="keywordsign">`</span><span class="constructor">Empty</span></code> to check for tree
-        tree emptiness, unless you really know what you are doing.<br>
+<code class="code">empty</code> is the empty tree. The empty tree does not have
+        associated backend configuration values, as they can perform
+        in-memory operation, independently of any given backend.<br>
 </div>
 
 <pre><span id="VALof_contents"><span class="keyword">val</span> of_contents</span> : <code class="type">?metadata:<a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a> -> <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a></code></pre><div class="info ">
@@ -68,9 +62,9 @@
 <code class="code">of_node&nbsp;n</code> is the subtree built from the node <code class="code">n</code>.<br>
 </div>
 
-<pre><span id="VALkind"><span class="keyword">val</span> kind</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> [ `Contents | `Empty | `Node ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALkind"><span class="keyword">val</span> kind</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> [ `Contents | `Node ] option Lwt.t</code></pre><div class="info ">
 <code class="code">kind&nbsp;t&nbsp;k</code> is the type of <code class="code">s</code> in <code class="code">t</code>. It could either be a
-        tree node or some file contents. It is <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> if <code class="code">k</code> is not
+        tree node or some file contents. It is <code class="code"><span class="constructor">None</span></code> if <code class="code">k</code> is not
         present in <code class="code">t</code>.<br>
 </div>
 
@@ -124,12 +118,17 @@ Same as <a href="Irmin.S.Tree.html#VALget_all"><code class="code"><span class="c
 <h1 id="1_ManipulatingSubtrees">Manipulating Subtrees</h1><br>
 
 <pre><span id="VALmem_tree"><span class="keyword">val</span> mem_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> bool Lwt.t</code></pre><div class="info ">
-<code class="code">mem_tree&nbsp;t&nbsp;k</code> is false iff <code class="code">find_tree&nbsp;k&nbsp;=&nbsp;<span class="keywordsign">`</span><span class="constructor">Empty</span></code>.<br>
+<code class="code">mem_tree&nbsp;t&nbsp;k</code> is false iff <code class="code">find_tree&nbsp;k&nbsp;=&nbsp;<span class="constructor">None</span></code>.<br>
 </div>
 
-<pre><span id="VALfind_tree"><span class="keyword">val</span> find_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
-<code class="code">find_tree&nbsp;t&nbsp;k</code> is <code class="code">v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code>.  It
-        is <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code> if <code class="code">k</code> is not present in <code class="code">t</code>.<br>
+<pre><span id="VALfind_tree"><span class="keyword">val</span> find_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">find_tree&nbsp;t&nbsp;k</code> is <code class="code"><span class="constructor">Some</span>&nbsp;v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in
+        <code class="code">t</code>. It is <code class="code"><span class="constructor">None</span></code> if <code class="code">k</code> is not present in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALget_tree"><span class="keyword">val</span> get_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
+<code class="code">get_tree&nbsp;t&nbsp;k</code> is <code class="code">v</code> if <code class="code">k</code> is associated to <code class="code">v</code> in <code class="code">t</code>.
+        Raise <code class="code"><span class="constructor">Invalid_arg</span></code> if <code class="code">k</code> is not present in <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALadd_tree"><span class="keyword">val</span> add_tree</span> : <code class="type"><a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEkey">Irmin.S.key</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> Lwt.t</code></pre><div class="info ">
@@ -143,7 +142,7 @@ Same as <a href="Irmin.S.Tree.html#VALget_all"><code class="code"><span class="c
 <br>
 <h1 id="1_ConcreteTrees">Concrete Trees</h1><br>
 
-<pre><span id="TYPEconcrete"><span class="keyword">type</span> <code class="type"></code>concrete</span> = <code class="type">[ `Contents of <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a><br>       | `Empty<br>       | `Tree of (<a href="Irmin.S.html#TYPEstep">Irmin.S.step</a> * <a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a>) list ]</code> </pre>
+<pre><span id="TYPEconcrete"><span class="keyword">type</span> <code class="type"></code>concrete</span> = <code class="type">[ `Contents of <a href="Irmin.S.html#TYPEcontents">Irmin.S.contents</a> * <a href="Irmin.S.html#TYPEmetadata">Irmin.S.metadata</a><br>       | `Tree of (<a href="Irmin.S.html#TYPEstep">Irmin.S.step</a> * <a href="Irmin.S.Tree.html#TYPEconcrete">concrete</a>) list ]</code> </pre>
 <div class="info ">
 The type for concrete trees.<br>
 </div>
@@ -165,11 +164,11 @@ The type for concrete trees.<br>
 <code class="code"><span class="constructor">Hash</span></code> provides base functions for tree hashes.
 </div>
 
-<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> Hash.t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALhash"><span class="keyword">val</span> hash</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> -> Hash.t Lwt.t</code></pre><div class="info ">
 <code class="code">hash&nbsp;r&nbsp;c</code> it <code class="code">c</code>'s hash in the repository <code class="code">r</code>.<br>
 </div>
 
-<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.Repo.html#TYPEt">Irmin.S.Repo.t</a> -> Hash.t -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_hash"><span class="keyword">val</span> of_hash</span> : <code class="type"><a href="Irmin.S.html#TYPErepo">Irmin.S.repo</a> -> Hash.t -> <a href="Irmin.S.html#TYPEtree">Irmin.S.tree</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">of_hash&nbsp;r&nbsp;h</code> is the the tree object in <code class="code">r</code> having <code class="code">h</code> as
         hash, or <code class="code"><span class="constructor">None</span></code> is no such tree object exists.<br>
 </div>
