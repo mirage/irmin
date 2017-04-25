@@ -10,6 +10,8 @@
 - Expose `Irmin.Merge.idempotent` for values with idempotent operations
   (#433, @samoht)
 - Add a `S.repo` type as an alias to the `S.Repo.t` (#436, @samoht)
+- Fix regression in `S.Tree.diff` intoduced in the 1.0 release: nested
+  differences where reported with the wrong path (#438, @samoht)
 
 **irmin-unix**
 
