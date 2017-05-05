@@ -167,3 +167,23 @@ module Mem: sig
   module KV (IO: IO) (I: Git.Inflate.S): KV_MAKER
   module Ref (IO: IO) (I: Git.Inflate.S): REF_MAKER
 end
+
+module type Branch = sig
+  include Irmin.Branch.S
+  val pp_ref: t Fmt.t
+  val of_ref: string -> (t, [`Msg of string]) result
+end
+
+module Branch (B: Irmin.Branch.S): Branch
+
+module Ref: Branch with type t = reference
+
+module Make_ext (IO: IO) (S: Git.Store.S)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Branch):
+  Irmin.S with type key = P.t
+           and type step = P.step
+           and module Key = P
+           and type contents = C.t
+           and type branch = B.t

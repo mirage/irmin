@@ -523,6 +523,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
   type watch = W.watch * (unit -> unit Lwt.t)
 
   let branch_of_git r =
+    Log.debug (fun l -> l "branch_of_git %a" Git.Reference.pp r);
     let str = String.trim @@ Git.Reference.to_raw r in
     match B.of_ref str with
     | Ok r           -> Some r
@@ -899,7 +900,7 @@ module Mem = struct
 
   module Ref (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) = struct
     module Git_mem = Git.Memory.Make(Digest(H))(I)
-    include Make_ext (IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
+    include Make_ext(IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
   end
 
 end
