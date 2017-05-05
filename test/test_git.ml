@@ -118,7 +118,15 @@ let test_list_refs (module S: Test_S) =
   S.Repo.branches repo >>= fun bs ->
   Alcotest.(check (slist string String.compare)) "filtered branches"
     ["master";"foo"] bs;
-  Lwt.return ()
+
+  if S.Git.kind = `Disk then
+    let i = Fmt.kstrf Sys.command "cd %s && git gc" test_db in
+    if i <> 0 then Alcotest.fail "git gc failed";
+    S.Repo.branches repo >|= fun bs ->
+    Alcotest.(check (slist string String.compare)) "filtered branches"
+      ["master";"foo"] bs
+  else
+    Lwt.return_unit
 
 let tests store =
   let run f () = Lwt_main.run (f store) in
