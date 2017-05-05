@@ -523,13 +523,10 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
   type watch = W.watch * (unit -> unit Lwt.t)
 
   let branch_of_git r =
-    Log.debug (fun l -> l "branch_of_git %a" Git.Reference.pp r);
     let str = String.trim @@ Git.Reference.to_raw r in
     match B.of_ref str with
     | Ok r           -> Some r
-    | Error (`Msg e) ->
-      Log.err (fun l -> l "invalid branch name: %s" e);
-      None
+    | Error (`Msg _) -> None
 
   let git_of_branch r = Git.Reference.of_raw (Fmt.to_to_string B.pp_ref r)
   let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
