@@ -69,7 +69,8 @@ let store:
           (Irmin.Hash.SHA1)
 
       module Git = struct
-        let git_commit _t _id = failwith "Only used for testing Git stores"
+        let none () = failwith "Only used for testing Git stores"
+        let git_commit _t _id = none ()
       end
     end
     in (module S)

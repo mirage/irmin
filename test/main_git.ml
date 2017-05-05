@@ -15,9 +15,7 @@
  *)
 
 let misc = [
-  "misc", [
-    "Testing sort order", `Quick, Test_git.test_sort_order Test_git.store
-  ]
+  "GIT.misc", Test_git.tests Test_git.store;
 ]
 
 let () =
