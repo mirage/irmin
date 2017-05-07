@@ -28,7 +28,7 @@ module Cstruct = struct
   type t = Cstruct.t
   let t = Ir_type.cstruct
   let merge = Ir_merge.idempotent Ir_type.(option t)
-  let pp = Ir_type.dump t
+  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
   let of_string s = Ok (Cstruct.of_string s)
 end
 
