@@ -28,13 +28,24 @@ module IO = struct
   let ctx () = Lwt.return_none
 end
 
+module type Test_S = sig
+  include Irmin.S with type step = string
+                   and type key = string list
+                   and type contents = string
+                   and type branch = string
+  module Git: Git.Store.S
+end
+
 module Mem = Irmin_git.Mem.KV (IO) (Git_unix.Zlib) (Irmin.Contents.String)
 
 let store = (module Mem: Test_S)
 let stats = None
 let init () = Mem.Git_mem.clear_all (); Lwt.return_unit
 let clean () = Lwt.return_unit
-let suite = { name = "GIT"; kind = `Git; clean; init; store; stats; config }
+
+let suite =
+  let store = (module Mem: Test_common.Test_S) in
+  { name = "GIT"; kind = `Git; clean; init; store; stats; config }
 
 let get = function
   | Some x -> x
@@ -57,6 +68,7 @@ let test_sort_order (module S: Test_S) =
   in
   let info = Irmin.Info.none in
   S.master repo >>= fun master ->
+  S.remove master ~info [] >>= fun () ->
   S.set master ~info ["foo.c"] "foo.c" >>= fun () ->
   S.set master ~info ["foo1"] "foo1" >>= fun () ->
   S.set master ~info ["foo"; "foo.o"] "foo.o" >>= fun () ->
@@ -71,4 +83,54 @@ let test_sort_order (module S: Test_S) =
   Alcotest.(check (list string)) "Sort order" ["foo"; "foo.c"; "foo1"] items;
   Lwt.return ()
 
-let test_sort_order store () = Lwt_main.run (test_sort_order store)
+module Ref (S: Git.Store.S) =
+  Irmin_git.Make_ext(IO)(S)(Irmin.Contents.String)(Irmin.Path.String_list)
+    (Irmin_git.Ref)
+
+let pp_reference ppf = function
+  | `Branch s -> Fmt.pf ppf "branch: %s" s
+  | `Remote s -> Fmt.pf ppf "remote: %s" s
+  | `Tag s    -> Fmt.pf ppf "tag: %s" s
+  | `Other s  -> Fmt.pf ppf "other: %s" s
+
+let reference = Alcotest.testable pp_reference (=)
+
+let test_list_refs (module S: Test_S) =
+  let module R = Ref(S.Git) in
+  init () >>= fun () ->
+  R.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+  R.master repo >>= fun master ->
+  R.set master ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
+  R.Head.get master >>= fun head ->
+  R.Branch.set repo (`Remote "datakit/master") head >>= fun () ->
+  R.Branch.set repo (`Other "foo/bar/toto") head >>= fun () ->
+  R.Branch.set repo (`Branch "foo") head >>= fun () ->
+
+  R.Repo.branches repo >>= fun bs ->
+  Alcotest.(check (slist reference compare)) "raw branches"
+    [`Branch "foo";
+     `Branch "master";
+     `Other  "foo/bar/toto";
+     `Remote "datakit/master";
+    ] bs;
+
+  S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+  S.Repo.branches repo >>= fun bs ->
+  Alcotest.(check (slist string String.compare)) "filtered branches"
+    ["master";"foo"] bs;
+
+  if S.Git.kind = `Disk then
+    let i = Fmt.kstrf Sys.command "cd %s && git gc" test_db in
+    if i <> 0 then Alcotest.fail "git gc failed";
+    S.Repo.branches repo >|= fun bs ->
+    Alcotest.(check (slist string String.compare)) "filtered branches"
+      ["master";"foo"] bs
+  else
+    Lwt.return_unit
+
+let tests store =
+  let run f () = Lwt_main.run (f store) in
+  [
+    "Testing sort order"  , `Quick, run test_sort_order;
+    "Testing listing refs", `Quick, run test_list_refs;
+  ]

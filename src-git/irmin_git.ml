@@ -526,9 +526,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
     let str = String.trim @@ Git.Reference.to_raw r in
     match B.of_ref str with
     | Ok r           -> Some r
-    | Error (`Msg e) ->
-      Log.err (fun l -> l "invalid branch name: %s" e);
-      None
+    | Error (`Msg _) -> None
 
   let git_of_branch r = Git.Reference.of_raw (Fmt.to_to_string B.pp_ref r)
   let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
@@ -899,7 +897,7 @@ module Mem = struct
 
   module Ref (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) = struct
     module Git_mem = Git.Memory.Make(Digest(H))(I)
-    include Make_ext (IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
+    include Make_ext(IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
   end
 
 end

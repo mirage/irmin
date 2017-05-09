@@ -58,7 +58,8 @@ end
 
 module Git = struct
 
-  let store = (module Irmin_unix.Git.FS.KV(Irmin.Contents.String): Test_S)
+  module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+  let store = (module S: Test_git.Test_S)
   let test_db = Test_git.test_db
 
   let init () =
@@ -80,10 +81,11 @@ module Git = struct
     let head = Git.Reference.of_raw "refs/heads/test" in
     Irmin_git.config ~head ~bare:true test_db
 
-  let suite = { name = "GIT"; kind = `Unix; clean; init; store; stats; config }
+  let suite =
+    let store = (module S: Test_S) in
+    { name = "GIT"; kind = `Unix; clean; init; store; stats; config }
 
   let test_non_bare () =
-    let (module S: Test_S) = store in
     init () >>= fun () ->
     let config = Irmin_git.config ~bare:false test_db in
     let info = Irmin_unix.info in
