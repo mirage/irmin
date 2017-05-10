@@ -7,17 +7,11 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
-build:
-  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "false"]
+build: ["jbuilder" "build" "-p" name "-j" jobs]
+build-test: ["jbuilder" "runtest" "test/irmin-mem"]
 
-build-test: [
-  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "true"]
-  ["ocaml" "pkg/pkg.ml" "test" "-n" name]
-]
 depends: [
-  "ocamlbuild" {build}
-  "ocamlfind"  {build}
-  "topkg"      {build & >= "0.9.0"}
+  "jbuilder" {build}
   "crunch"
   "webmachine" {>= "0.3.2"}
   "irmin"  {>= "1.0.0"}

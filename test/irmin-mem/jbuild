@@ -1,0 +1,17 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_mem)
+  (modules   (test_mem))
+  (libraries (test irmin-mem))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (package   irmin-mem)
+  (libraries (test_mem))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (run ${exe:test.exe} -q --color=always))))

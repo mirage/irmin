@@ -1,0 +1,8 @@
+(jbuild_version 1)
+
+(library
+ ((name        irmin_unix)
+  (public_name irmin-unix)
+  (wrapped     false)
+  (libraries   (irmin irmin-fs git irmin-git irmin-http git-unix
+                irmin-watcher))))

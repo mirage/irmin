@@ -1,36 +1,38 @@
+BUILD=jbuilder build --dev
+RUNTEST=jbuilder runtest -j 1
+
 all:
-	$(MAKE) core
-	$(MAKE) git
-	$(MAKE) http
-	$(MAKE) mirage
-	$(MAKE) unix
+	$(BUILD)
+	$(RUNTEST)
 
 core:
-	ocaml pkg/pkg.ml build -n irmin -q --tests true
-	ocaml pkg/pkg.ml test -n irmin
+	$(BUILD) -p irmin
+
+mem:
+	$(BUILD) -p irmin-mem
+	$(RUNTEST) test/irmin-mem
+
+fs:
+	$(BUILD) -p irmin-fs
+	$(RUNTEST) test/irmin-fs
 
 git:
-	ocaml pkg/pkg.ml build -n irmin-git -q --tests true
-	ocaml pkg/pkg.ml test -n irmin-git
+	$(BUILD) -p irmin-git
+	$(RUNTEST) test/main_git
 
 http:
-	ocaml pkg/pkg.ml build -n irmin-http -q --tests true
-	ocaml pkg/pkg.ml test -n irmin-http
+	$(BUILD) -p irmin-http
+	$(RUNTEST) test/main_http
 
 mirage:
-	ocaml pkg/pkg.ml build -n irmin-mirage -q --tests true
-	ocaml pkg/pkg.ml test -n irmin-mirage
+	$(BUILD) -p irmin-mirage
 
 unix:
-	ocaml pkg/pkg.ml build -n irmin-unix -q --tests true
-	ocaml pkg/pkg.ml test -n irmin-unix
+	$(BUILD) -p irmin-unix
+	$(RUNTEST) test/main_unix
 
 clean:
-	ocaml pkg/pkg.ml clean -n irmin
-	ocaml pkg/pkg.ml clean -n irmin-git
-	ocaml pkg/pkg.ml clean -n irmin-http
-	ocaml pkg/pkg.ml clean -n irmin-mirage
-	ocaml pkg/pkg.ml clean -n irmin-unix
+	rm -rf _build
 
 REPO=../opam-repository
 PACKAGES=$(REPO)/packages

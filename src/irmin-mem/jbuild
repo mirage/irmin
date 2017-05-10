@@ -1,0 +1,6 @@
+(jbuild_version 1)
+
+(library
+ ((name        irmin_mem)
+  (public_name irmin-mem)
+  (libraries   (irmin))))
