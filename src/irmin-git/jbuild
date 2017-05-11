@@ -1,0 +1,6 @@
+(jbuild_version 1)
+
+(library
+ ((name        irmin_git)
+  (public_name irmin-git)
+  (libraries   (irmin git))))

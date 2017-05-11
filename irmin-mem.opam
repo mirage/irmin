@@ -8,14 +8,12 @@ dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: ["jbuilder" "build" "-p" name "-j" jobs]
-build-test: ["jbuilder" "runtest" "test/irmin-git"]
+build-test: ["jbuilder" "runtest" "test/irmin-mem"]
 
 depends: [
   "jbuilder" {build}
-  "irmin"    {>= "1.1.0"}
-  "git"      {>= "1.10.0"}
+  "irmin"    {>= "1.2.0"}
   "alcotest" {test}
-  "git-unix" {test & >= "1.10.0"}
+  "mtime"    {test & < "1.0.0"}
 ]
-
-available: [ocaml-version >= "4.01.0"]
+available: [ocaml-version >= "4.03.0"]

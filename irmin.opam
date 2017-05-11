@@ -7,27 +7,19 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
-build:
-  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "false"]
-
-build-test: [
-  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "true"]
-  ["ocaml" "pkg/pkg.ml" "test" "-n" name]
-]
+build: ["jbuilder" "build" "-p" name "-j" jobs]
 
 depends: [
-  "ocamlbuild" {build}
-  "ocamlfind"  {build}
-  "topkg"      {build & >= "0.9.0"}
+  "jbuilder" {build}
+  "result"
   "fmt"
-  "ocamlgraph"
-  "lwt" {>= "2.4.7"}
-  "logs" {>= "0.5.0"}
+  "uri" {>= "1.3.12"}
   "cstruct" {>= "1.6.0"}
   "jsonm" {>= "1.0.0"}
-  "uri" {>= "1.3.12"}
-  "astring"
+  "lwt" {>= "2.4.7"}
+  "ocamlgraph"
   "hex"
-  "alcotest" {test}
+  "logs" {>= "0.5.0"}
+  "astring"
 ]
 available: [ocaml-version >= "4.03.0"]

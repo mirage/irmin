@@ -1,0 +1,17 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_http)
+  (modules   (test_http))
+  (libraries (test test_mem test_git irmin-http))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (package   irmin-htttp)
+  (libraries (test_http))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (run ${exe:test.exe} -q --color=always))))

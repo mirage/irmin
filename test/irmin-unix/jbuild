@@ -1,0 +1,17 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_unix)
+  (modules   (test_unix))
+  (libraries (test test_fs test_git test_http irmin-unix))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (package   irmin-unix)
+  (libraries (test_unix))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (chdir ${ROOT} (run ${exe:test.exe} -q --color=always)))))

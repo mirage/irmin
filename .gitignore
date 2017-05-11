@@ -2,3 +2,4 @@ lib-http/irmin_http_static.ml
 _build
 *~
 *.install
+*.merlin

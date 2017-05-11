@@ -1,0 +1,17 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_fs)
+  (modules   (test_fs))
+  (libraries (test irmin-fs))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (package   irmin-fs)
+  (libraries (test_fs))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (run ${exe:test.exe} -q --color=always))))

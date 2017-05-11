@@ -1,0 +1,17 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_git)
+  (modules   (test_git))
+  (libraries (test irmin-git git-unix))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (package   irmin-git)
+  (libraries (test_git))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (run ${exe:test.exe} -q --color=always))))

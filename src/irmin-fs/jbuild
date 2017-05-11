@@ -1,0 +1,6 @@
+(jbuild_version 1)
+
+(library
+ ((name        irmin_fs)
+  (public_name irmin-fs)
+  (libraries   (irmin))))
