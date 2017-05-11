@@ -45,9 +45,6 @@ pkg-%:
 	rm -f $(PACKAGES)/$*/$*.opam
 	cd $(PACKAGES) && git add $*
 
+PKGS=$(basename $(wildcard *.opam))
 opam-pkg:
-	$(MAKE) pkg-irmin
-	$(MAKE) pkg-irmin-git
-	$(MAKE) pkg-irmin-http
-	$(MAKE) pkg-irmin-mirage
-	$(MAKE) pkg-irmin-unix
+	$(MAKE) $(PKGS:%=pkg-%)
