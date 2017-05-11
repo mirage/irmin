@@ -4,4 +4,5 @@
  ((name        irmin_mirage)
   (public_name irmin-mirage)
   (wrapped     false)
-  (libraries   (irmin irmin-mem irmin-git git-mirage))))
+  (libraries   (irmin irmin-mem irmin-git git-mirage ptime
+                mirage-kv-lwt mirage-clock))))
