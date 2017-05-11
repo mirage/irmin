@@ -10,8 +10,9 @@ build: ["jbuilder" "build" "-p" name "-j" jobs]
 
 depends: [
   "jbuilder"   {build}
-  "irmin"      {>= "1.0.0"}
-  "irmin-git"  {>= "1.0.0"}
+  "irmin"      {>= "1.1.0"}
+  "irmin-git"  {>= "1.1.0"}
+  "irmin-mem"  {>= "1.2.0"}
   "git-mirage" {>= "1.10.0"}
   "ptime"
   "mirage-kv-lwt"
