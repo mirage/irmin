@@ -1,5 +1,5 @@
 BUILD=jbuilder build --dev
-RUNTEST=jbuilder runtest -j 1
+RUNTEST=jbuilder runtest -j 1 --dev
 
 all:
 	$(BUILD)
