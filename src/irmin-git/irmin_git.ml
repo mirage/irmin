@@ -543,7 +543,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
     let (/) = Filename.concat in
     if G.kind = `Disk then
       let dir = t.dot_git / "refs" in
-      let key file = match Key.of_string file with
+      let key file = match B.of_ref ("refs" / file) with
         | Ok x           -> Some x
         | Error (`Msg e) ->
           Log.err (fun l -> l "listen: file %s: %s" file e);
