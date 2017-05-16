@@ -888,7 +888,7 @@ module Mem = struct
       (P: Irmin.Path.S)
       (B: Irmin.Branch.S) =
   struct
-    module Git_mem = Git.Memory.Make(Digest(H))(I)
+    module Git_mem = Git.Mem.Make(Digest(H))(I)
     include Make_ext (IO) (Git_mem) (C) (P) (Branch(B))
   end
 
@@ -896,7 +896,7 @@ module Mem = struct
     Make(IO)(I)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
 
   module Ref (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) = struct
-    module Git_mem = Git.Memory.Make(Digest(H))(I)
+    module Git_mem = Git.Mem.Make(Digest(H))(I)
     include Make_ext(IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
   end
 
