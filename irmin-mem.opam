@@ -14,6 +14,6 @@ depends: [
   "jbuilder" {build}
   "irmin"    {>= "1.2.0"}
   "alcotest" {test}
-  "mtime"    {test & < "1.0.0"}
+  "mtime"    {test & >= "1.0.0"}
 ]
 available: [ocaml-version >= "4.03.0"]
