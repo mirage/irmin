@@ -20,5 +20,6 @@ depends: [
   "irmin-watcher" {>= "0.2.0"}
   "irmin-mirage" {test & >= "1.0.0"}
   "alcotest"     {test}
+  "mtime"        {test & >= "1.0.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

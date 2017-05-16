@@ -17,6 +17,7 @@ depends: [
   "irmin"  {>= "1.0.0"}
   "cohttp" {>= "0.18.3"}
   "irmin-git" {test & >= "1.0.0"}
-  "alcotest"
+  "alcotest"  {test}
+  "mtime"     {test & >= "1.0.0"}
 ]
 available: [ocaml-version >= "4.01.0"]
