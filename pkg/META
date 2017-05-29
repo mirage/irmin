@@ -1,7 +1,0 @@
-description = "A Distributed Version Control Database"
-version = "%%VERSION_NUM%%"
-requires = "ocamlgraph lwt logs cstruct uri astring hex fmt jsonm"
-archive(byte)   = "irmin.cma"
-archive(native) = "irmin.cmxa"
-plugin(byte)    = "irmin.cma"
-plugin(native)  = "irmin.cmxs"
