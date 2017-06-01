@@ -8,7 +8,6 @@
 (executable
  ((name      test)
   (modules   (test))
-  (package   irmin-unix)
   (libraries (test_unix))))
 
 (alias
