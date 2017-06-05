@@ -8,7 +8,6 @@
 (executable
  ((name      test)
   (modules   (test))
-  (package   irmin-git)
   (libraries (test_git))))
 
 (alias

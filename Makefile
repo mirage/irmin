@@ -1,35 +1,9 @@
 BUILD=jbuilder build --dev
-RUNTEST=jbuilder runtest -j 1 --dev
+RUNTEST=jbuilder runtest -j1 --no-buffer --dev
 
 all:
 	$(BUILD)
 	$(RUNTEST)
-
-core:
-	$(BUILD) -p irmin
-
-mem:
-	$(BUILD) -p irmin-mem
-	$(RUNTEST) test/irmin-mem
-
-fs:
-	$(BUILD) -p irmin-fs
-	$(RUNTEST) test/irmin-fs
-
-git:
-	$(BUILD) -p irmin-git
-	$(RUNTEST) test/main_git
-
-http:
-	$(BUILD) -p irmin-http
-	$(RUNTEST) test/main_http
-
-mirage:
-	$(BUILD) -p irmin-mirage
-
-unix:
-	$(BUILD) -p irmin-unix
-	$(RUNTEST) test/main_unix
 
 clean:
 	rm -rf _build

@@ -8,7 +8,6 @@
 (executable
  ((name      test)
   (modules   (test))
-  (package   irmin-mem)
   (libraries (test_mem))))
 
 (alias

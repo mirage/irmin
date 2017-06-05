@@ -8,7 +8,6 @@
 (executable
  ((name      test)
   (modules   (test))
-  (package   irmin-htttp)
   (libraries (test_http))))
 
 (alias
