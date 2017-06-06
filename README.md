@@ -123,18 +123,20 @@ Irmin comes with a command-line tool called `irmin`. See `irmin
 To get the full capabilites of Irmin, use the [API](https://mirage.github.io/irmin):
 
 ```ocaml
-open Lwt
+open Lwt.Infix
 open Irmin_unix
-module Store =
-  Irmin_git.FS (Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
-let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
-let prog =
-  Store.Repo.create config >>= Store.master task >>= fun t ->
-  Store.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
-  Store.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
+let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
+let info fmt = Irmin_unix.info ~author:"me <me@moi.com>" fmt
+
+let () =
+  Store.Repo.v config >>= Store.master >>= fun t ->
+  Store.set t ~info:(info "Updating foo/bar") ["foo"; "bar"] "hi!" >>= fun () ->
+  Store.get t ["foo"; "bar"] >>= fun x ->
   Printf.printf "Read: %s\n%!" x;
   Lwt.return_unit
+
 let () = Lwt_main.run prog
 ```
 
