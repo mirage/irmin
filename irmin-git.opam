@@ -12,10 +12,10 @@ build-test: ["jbuilder" "runtest" "test/irmin-git"]
 
 depends: [
   "jbuilder" {build}
-  "irmin"    {>= "1.1.0"}
-  "git"      {>= "1.10.0"}
+  "irmin"    {>= "1.2.0"}
+  "git"      {>= "1.11.0"}
   "alcotest" {test}
-  "git-unix" {test & >= "1.10.0"}
+  "git-unix" {test & >= "1.11.0"}
   "mtime"    {test & >= "1.0.0"}
 ]
 

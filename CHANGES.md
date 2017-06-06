@@ -1,3 +1,35 @@
+### 1.2.0 (2017-06-06)
+
+This release changes the build system to use
+[jbuilder](https://github.com/janestreet/jbuilder). By doing so, it introduces
+two new packages: `irmin-mem` and `irmin-fs` -- containing `Irmin_mem` and
+`Irmin_fs` respectively. That release also fixes a bunch of regressions
+introduced in the big 1.0 rewrite.
+
+**all**
+
+- Use `jbuilder` (#444, @samoht)
+- Use mtime 1.0 (#445, @samoht)
+
+**irmin**
+
+- Fix `Irmin.Contents.Cstruct`: pretty-print the raw contents, not the hexdump
+  (#442, @samoht)
+- `Irmin.Hash.X.of_string` should not raise an exception on invalid hash
+  (#443, @samoht)
+
+**irmin-mem**
+
+- New package! Use it if you want to use the `Irmin_mem` module.
+
+**irmin-fs**
+
+- New package! Use it if you want to use the `Irmin_fs` module.
+
+**irmin-git**
+
+- Fix watches (#446, @samoht)
+
 ### 1.1.0 (2017-04-24)
 
 **irmin**
