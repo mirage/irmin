@@ -2703,7 +2703,7 @@ open Lwt.Infix
 
 module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 module Sync = Irmin.Sync(S)
-let config = Irmin_git.config ~root:"/tmp/test" ()
+let config = Irmin_git.config "/tmp/test"
 
 let upstream =
   if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
@@ -2835,7 +2835,7 @@ end ]}
   module S = Irmin_unix.Git.FS.KV(Log)
 
   (* Set-up the local configuration of the Git repository. *)
-  let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
+  let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
 
   (* Set-up the commit info function *)
   let info fmt = Irmin_unix.info ~author:"logger" fmt
