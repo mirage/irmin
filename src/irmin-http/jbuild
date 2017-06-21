@@ -4,4 +4,4 @@
  ((name        irmin_http)
   (public_name irmin-http)
   (wrapped     false)
-  (libraries   (irmin cohttp webmachine))))
+  (libraries   (irmin cohttp-lwt webmachine))))
