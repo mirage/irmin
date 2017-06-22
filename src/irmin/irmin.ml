@@ -22,7 +22,6 @@ module Diff = Diff
 module Contents = struct
   include Contents
   module type S0 = S.S0
-  module type Raw = S.RAW
   module type Conv = S.CONV
   module type S = S.CONTENTS
   module type STORE = S.CONTENTS_STORE
@@ -44,20 +43,11 @@ module Path = struct
   module type S = S.PATH
 end
 
-module Conv2Raw (C: Contents.Conv): Contents.Raw with type t = C.t =
+module S02Conv (C: Contents.S0): Contents.Conv with type t = C.t =
 struct
   include C
-  let raw t = Cstruct.of_string (Fmt.to_to_string C.pp t)
-end
-
-module S02Raw (C: Contents.S0): Contents.Raw with type t = C.t =
-struct
-  module C = struct
-    include C
-    let pp = Type.pp_json C.t
-    let of_string j = Type.decode_json C.t (Jsonm.decoder (`String j))
-  end
-  include Conv2Raw(C)
+  let pp = Type.pp_json C.t
+  let of_string j = Type.decode_json C.t (Jsonm.decoder (`String j))
 end
 
 module Make
@@ -72,7 +62,7 @@ struct
 
   module X = struct
     module XContents = struct
-      include AO(H)(Conv2Raw(C))
+      include AO(H)(C)
       module Key = H
       module Val = C
     end
@@ -81,7 +71,7 @@ struct
       module AO = struct
         module Key = H
         module Val = Node.Make (H)(H)(P)(M)
-        include AO (Key)(S02Raw(Val))
+        include AO (Key)(S02Conv(Val))
       end
       include Node.Store(Contents)(P)(M)(AO)
       let v = AO.v
@@ -90,7 +80,7 @@ struct
       module AO = struct
         module Key = H
         module Val = Commit.Make (H)(H)
-        include AO (Key)(S02Raw(Val))
+        include AO (Key)(S02Conv(Val))
       end
       include Commit.Store(Node)(AO)
       let v = AO.v

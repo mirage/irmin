@@ -43,12 +43,12 @@ module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) = struct
+module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
 
   include RO(K)(V)
 
   let add t value =
-    let key = K.digest (V.raw value) in
+    let key = K.digest V.t value in
     Log.debug (fun f -> f "add -> %a" K.pp key);
     t.t <- KMap.add key value t.t;
     Lwt.return key

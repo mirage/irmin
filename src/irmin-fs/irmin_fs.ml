@@ -81,7 +81,7 @@ struct
     IO.file_exists file
 
   let value v =
-    match V.of_string (Cstruct.to_string v) with
+    match Irmin.Type.decode_cstruct V.t v with
     | Ok v           -> Some v
     | Error (`Msg e) ->
       Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -115,7 +115,7 @@ struct
 end
 
 module AO_ext (IO: IO) (S: Config)
-    (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) =
+    (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) =
 struct
 
   include RO_ext(IO)(S)(K)(V)
@@ -124,8 +124,8 @@ struct
 
   let add t value =
     Log.debug (fun f -> f "add");
-    let value = V.raw value in
-    let key = K.digest value in
+    let value = Irmin.Type.encode_cstruct V.t value in
+    let key = K.digest Irmin.Type.cstruct value in
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     (IO.file_exists file >>= function
@@ -148,13 +148,13 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
  let add t index key =
    Log.debug (fun f -> f "add link");
    let file = file_of_key t index in
-   let value = Fmt.to_to_string K.pp key in
+   let value = Irmin.Type.encode_cstruct K.t key in
    let temp_dir = temp_dir t in
    IO.file_exists file >>= function
    | true  -> Lwt.return_unit
    | false ->
      Lwt.catch
-       (fun () -> IO.write_file ~temp_dir file @@ Cstruct.of_string value)
+       (fun () -> IO.write_file ~temp_dir file value)
        (fun e -> Lwt.fail e)
 
 end
@@ -217,7 +217,7 @@ struct
     stop () >>= fun () ->
     W.unwatch t.w id
 
-  let raw_value v = Cstruct.of_string (Fmt.to_to_string V.pp v)
+  let raw_value v = Irmin.Type.encode_cstruct V.t v
 
   let set t key value =
     Log.debug (fun f -> f "update");

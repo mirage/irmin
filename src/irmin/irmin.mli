@@ -372,6 +372,9 @@ module Type: sig
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
+  val encode_cstruct: 'a t -> 'a -> Cstruct.t
+  val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+
 end
 
 (** Commit info are used to keep track of the origin of write
@@ -908,7 +911,7 @@ module Hash: sig
     val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses paths. *)
 
-    val digest: Cstruct.t -> t
+    val digest: 'a Type.t -> 'a -> t
     (** Compute a deterministic store key from a {!Cstruct.t} value. *)
 
     val has_kind: [> `SHA1] -> bool
@@ -981,17 +984,6 @@ module Contents: sig
 
     val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses contents. *)
-
-  end
-
-  (** [Raw] is the signature for contents. *)
-  module type Raw = sig
-
-    include Conv
-
-    val raw: t -> Cstruct.t
-    (** [raw t] is the raw contents of [t] to be used for computing
-        stable digests. *)
 
   end
 
@@ -3006,7 +2998,7 @@ end
 (** [AO_MAKER] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values. *)
-module type AO_MAKER = functor (K: Hash.S) -> functor (V: Contents.Raw) -> sig
+module type AO_MAKER = functor (K: Hash.S) -> functor (V: Contents.Conv) -> sig
 
   include AO with type key = K.t and type value = V.t
 
