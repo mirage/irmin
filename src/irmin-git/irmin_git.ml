@@ -91,7 +91,7 @@ module Hash (G: VALUE_STORE) = struct
   type t = Git.Hash.t
   let digest_size = 20 (* FIXME: expose Git.Hash.digest_size *)
   let t = Irmin.Type.(like string) SHA_IO.of_hex Git.Hash.to_hex
-  let digest = G.Digest.cstruct
+  let digest t x = G.Digest.cstruct (Irmin.Type.encode_cstruct t x)
   let to_raw t = Cstruct.of_string (Git.Hash.to_raw t)
   let of_raw t = Git.Hash.of_raw (Cstruct.to_string t)
   let has_kind = function `SHA1 -> true | _ -> false
@@ -852,9 +852,9 @@ end
 module Digest (H: Irmin.Hash.S): Git.Hash.DIGEST = struct
   (* FIXME: lots of allocations ... *)
   let cstruct buf =
-    Git.Hash.of_raw (Cstruct.to_string (H.to_raw (H.digest buf)))
+    Git.Hash.of_raw (Cstruct.to_string (H.to_raw (H.digest Irmin.Type.cstruct buf)))
   let string str = cstruct (Cstruct.of_string str)
-  let length = Cstruct.len @@ H.to_raw (H.digest (Cstruct.of_string ""))
+  let length = Cstruct.len @@ H.to_raw (H.digest Irmin.Type.cstruct (Cstruct.of_string ""))
 end
 
 module FS = struct

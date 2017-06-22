@@ -57,7 +57,7 @@ module type HASH = sig
   type t
   val pp: t Fmt.t
   val of_string: string -> (t, [`Msg of string]) result
-  val digest: Cstruct.t -> t
+  val digest: 'a Type.t -> 'a -> t
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
   val of_raw: Cstruct.t -> t

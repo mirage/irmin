@@ -911,7 +911,7 @@ module Hash: sig
     val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses paths. *)
 
-    val digest: Cstruct.t -> t
+    val digest: 'a Type.t -> 'a -> t
     (** Compute a deterministic store key from a {!Cstruct.t} value. *)
 
     val has_kind: [> `SHA1] -> bool

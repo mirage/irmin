@@ -154,7 +154,9 @@ module SHA1 = struct
 
   let t = Type.(like string) of_hex to_hex
 
-  let digest = sha_1
+  let digest t x =
+    sha_1 (Type.encode_cstruct t x)
+
   let pp ppf x = Fmt.string ppf (to_hex x)
 
   let of_string x =
