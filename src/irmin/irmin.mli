@@ -372,6 +372,9 @@ module Type: sig
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
+  val encode_cstruct: 'a t -> 'a -> Cstruct.t
+  val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+
 end
 
 (** Commit info are used to keep track of the origin of write

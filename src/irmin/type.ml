@@ -688,6 +688,313 @@ let pp_json ?minify t ppf x =
   ignore (Jsonm.encode e `End);
   Fmt.string ppf (Buffer.contents buf)
 
+type 'a size_of = 'a -> int
+type 'a encode_cstruct = Cstruct.t -> int -> 'a -> int
+type 'a decode_cstruct = Cstruct.t -> int -> int * 'a
+
+module Size_of = struct
+
+  let unit () = 0
+  let char (_:char) = 1
+  let int32 (_:int32) = 4
+  let int64 (_:int64) = 8
+  let int (_:int) = int64 0L
+  let bool (_:bool) = 1
+  let float (_:float) = 8 (* NOTE: we consider 'double' here *)
+  let string s = (int 0) + String.length s
+  let cstruct s = (int 0) + Cstruct.len s
+  let list l x = List.fold_left (fun acc x -> acc + l x) (int 0) x
+  let array l x = Array.fold_left (fun acc x -> acc + l x) (int 0) x
+  let pair a b (x, y) = a x + b y
+  let triple a b c (x, y, z) = a x + b y + c z
+  let option o = function
+  | None   -> char '\000'
+  | Some x -> (char '\000') + o x
+
+  let rec t: type a. a t -> a size_of = function
+  | Self s    -> t s.self
+  | Like b    -> like b
+  | Prim t    -> prim t
+  | List l    -> list (t l)
+  | Array a   -> array (t a)
+  | Tuple t   -> tuple t
+  | Option x  -> option (t x)
+  | Record r  -> record r
+  | Variant v -> variant v
+
+  and tuple: type a. a tuple -> a size_of = function
+  | Pair (x,y)     -> pair (t x) (t y)
+  | Triple (x,y,z) -> triple (t x) (t y) (t z)
+
+  and like: type a b. (a, b) like -> b size_of =
+    fun { x; g; _ } u -> t x (g u)
+
+  and prim: type a. a prim -> a size_of = function
+  | Unit   -> unit
+  | Bool   -> bool
+  | Char   -> char
+  | Int    -> int
+  | Int32  -> int32
+  | Int64  -> int64
+  | Float  -> float
+  | String -> string
+  | Cstruct -> cstruct
+
+  and record: type a. a record -> a size_of = fun r x ->
+    let fields = fields r in
+    List.fold_left (fun acc (Field f) -> acc + field f x) 0 fields
+
+  and field: type a b. (a, b) field -> a size_of = fun f x ->
+    t f.ftype (f.fget x)
+
+  and variant: type a. a variant -> a size_of = fun v x ->
+    match v.vget x with
+    | CV0 _       -> char '\000'
+    | CV1 (x, vx) -> char '\000' + t x.ctype1 vx
+
+end
+
+module Encode_cstruct = struct
+
+  let unit buf ofs () = ofs
+  let char buf ofs c =
+    Cstruct.set_char buf ofs c ;
+    ofs + 1
+  let int32 buf ofs i =
+    Cstruct.BE.set_uint32 buf ofs i ;
+    ofs + 4
+  let int64 buf ofs i =
+    Cstruct.BE.set_uint64 buf ofs i ;
+    ofs + 8
+  let float buf ofs f = int64 buf ofs (Int64.bits_of_float f)
+  let int buf ofs i = int64 buf ofs (Int64.of_int i)
+  let bool buf ofs b = char buf ofs (if b then '\255' else '\000')
+
+  let string buf ofs s =
+    let len = String.length s in
+    let ofs = int buf ofs len in
+    Cstruct.blit_from_string s 0 buf ofs len ;
+    ofs + len
+
+  let cstruct buf ofs c =
+    let len = Cstruct.len c in
+    let ofs = int buf ofs len in
+    Cstruct.blit c 0 buf ofs len ;
+    ofs + len
+
+  let list l buf ofs x =
+    let len = List.length x in
+    let ofs = int buf ofs len in
+    List.fold_left
+      (fun ofs e -> l buf ofs e)
+      ofs x
+
+  let array l buf ofs x =
+    let len = Array.length x in
+    let ofs = int buf ofs len in
+    Array.fold_left
+      (fun ofs e -> l buf ofs e)
+      ofs x
+
+  let pair a b buf ofs (x, y) =
+    let ofs = a buf ofs x in
+    b buf ofs y
+
+  let triple a b c buf ofs (x, y, z) =
+    let ofs = a buf ofs x in
+    let ofs = b buf ofs y in
+    c buf ofs z
+
+  let option o buf ofs = function
+    | None   ->
+      char buf ofs '\000'
+    | Some x ->
+      let ofs = char buf ofs '\255' in
+      o buf ofs x
+
+  let rec t: type a. a t -> a encode_cstruct = function
+    | Self s    -> t s.self
+    | Like b    -> like b
+    | Prim t    -> prim t
+    | List l    -> list (t l)
+    | Array a   -> array (t a)
+    | Tuple t   -> tuple t
+    | Option x  -> option (t x)
+    | Record r  -> record r
+    | Variant v -> variant v
+
+  and tuple: type a. a tuple -> a encode_cstruct = function
+    | Pair (x,y)     -> pair (t x) (t y)
+    | Triple (x,y,z) -> triple (t x) (t y) (t z)
+
+  and like: type a b. (a, b) like -> b encode_cstruct =
+    fun { x; g; _ } buf ofs u -> t x buf ofs (g u)
+
+  and prim: type a. a prim -> a encode_cstruct = function
+    | Unit   -> unit
+    | Bool   -> bool
+    | Char   -> char
+    | Int    -> int
+    | Int32  -> int32
+    | Int64  -> int64
+    | Float  -> float
+    | String -> string
+    | Cstruct -> cstruct
+
+  and record: type a. a record -> a encode_cstruct = fun r buf ofs x ->
+    let fields = fields r in
+    List.fold_left (fun ofs (Field f) ->
+        t f.ftype buf ofs (f.fget x)
+      ) ofs fields
+
+  and variant: type a. a variant -> a encode_cstruct = fun v buf ofs x ->
+    case_v buf ofs (v.vget x)
+
+  and case_v: type a. a case_v encode_cstruct = fun buf ofs c ->
+    match c with
+    | CV0 c     -> char buf ofs (char_of_int c.ctag0)
+    | CV1 (c,v) ->
+      let ofs = char buf ofs (char_of_int c.ctag1) in
+      t c.ctype1 buf ofs v
+
+end
+
+let encode_cstruct (type a) (t: a t) (x: a) : Cstruct.t =
+  match t with
+  | Prim Cstruct -> x
+  | _ ->
+    let len = Size_of.t t x in
+    let buf = Cstruct.create len in
+    let len' = Encode_cstruct.t t buf 0 x in
+    assert (len = len') ;
+    buf
+
+module Decode_cstruct = struct
+
+  let (>|=) (ofs, x) f = ofs, f x
+  let (>>=) (ofs, x) f = f (ofs, x)
+  let ok ofs x  = (ofs, x)
+
+  type 'a res = int * 'a
+
+  let unit _ ofs = ok ofs ()
+
+  let char buf ofs =
+    ok (ofs+1) (Cstruct.get_char buf ofs)
+
+  let int32 buf ofs =
+    ok (ofs+4) (Cstruct.BE.get_uint32 buf ofs)
+
+  let int64 buf ofs =
+    ok (ofs+8) (Cstruct.BE.get_uint64 buf ofs)
+
+  let bool buf ofs = char buf ofs >|= function '\000' -> false | _ -> true
+  let int buf ofs = int64 buf ofs >|= Int64.to_int
+  let float buf ofs = int64 buf ofs >|= Int64.float_of_bits
+
+  let string buf ofs =
+    int buf ofs >>= fun (ofs, len) ->
+    let str = Bytes.create len in
+    Cstruct.blit_to_string buf ofs str 0 len ;
+    ok (ofs+len) (Bytes.unsafe_to_string str)
+
+  let cstruct buf ofs =
+    int buf ofs >>= fun (ofs, len) ->
+    let str = Cstruct.create len in
+    Cstruct.blit buf ofs str 0 len ;
+    ok (ofs+len) str
+
+  let list l buf ofs =
+    int buf ofs >>= fun (ofs, len) ->
+    let rec aux acc ofs = function
+      | 0 -> ok ofs (List.rev acc)
+      | n ->
+        l buf ofs >>= fun (ofs, x) ->
+        aux (x :: acc) ofs (n - 1)
+    in
+    aux [] ofs len
+
+  let array l buf ofs = list l buf ofs >|= Array.of_list
+
+  let pair a b buf ofs =
+    a buf ofs >>= fun (ofs, a) ->
+    b buf ofs >|= fun b ->
+    (a, b)
+
+  let triple a b c buf ofs =
+    a buf ofs >>= fun (ofs, a) ->
+    b buf ofs >>= fun (ofs, b) ->
+    c buf ofs >|= fun c ->
+    (a, b, c)
+
+  let option: type a. a decode_cstruct -> a option decode_cstruct = fun o buf ofs ->
+    char buf ofs >>= function
+    | ofs, '\000' -> ok ofs None
+    | ofs, _ -> o buf ofs >|= fun x -> Some x
+
+  let rec t: type a. a t -> a decode_cstruct = function
+    | Self s    -> t s.self
+    | Like b    -> like b
+    | Prim t    -> prim t
+    | List l    -> list (t l)
+    | Array a   -> array (t a)
+    | Tuple t   -> tuple t
+    | Option x  -> option (t x)
+    | Record r  -> record r
+    | Variant v -> variant v
+
+  and tuple: type a. a tuple -> a decode_cstruct = function
+    | Pair (x,y)     -> pair (t x) (t y)
+    | Triple (x,y,z) -> triple (t x) (t y) (t z)
+
+  and like: type a b. (a, b) like -> b decode_cstruct =
+    fun { x; f; _ } buf ofs -> t x buf ofs >|= f
+
+  and prim: type a. a prim -> a decode_cstruct = function
+    | Unit   -> unit
+    | Bool   -> bool
+    | Char   -> char
+    | Int    -> int
+    | Int32  -> int32
+    | Int64  -> int64
+    | Float  -> float
+    | String -> string
+    | Cstruct -> cstruct
+
+  and record: type a. a record -> a decode_cstruct = fun r buf ofs ->
+    match r.rfields with
+    | Fields (fs, c) ->
+      let rec aux: type b. int -> b -> (a, b) fields -> a res
+        = fun ofs f -> function
+          | F0         -> ok ofs f
+          | F1 (h, t) ->
+            field h buf ofs >>= fun (ofs, x) ->
+            aux ofs (f x) t
+      in
+      aux ofs c fs
+
+  and field: type a  b. (a, b) field -> b decode_cstruct = fun f -> t f.ftype
+
+  and variant: type a. a variant -> a decode_cstruct = fun v buf ofs ->
+    (* FIXME: we support 'only' 256 variants *)
+    char buf ofs >>= fun (ofs, i) ->
+    case v.vcases.(int_of_char i) buf ofs
+
+  and case: type a. a a_case -> a decode_cstruct = fun c buf ofs ->
+    match c with
+    | C0 c -> ok ofs c.c0
+    | C1 c -> t c.ctype1 buf ofs >|= c.c1
+
+end
+
+let decode_cstruct (type x) (t: x t) (x: Cstruct.t) : (x, [`Msg of string]) result =
+  match t with
+  | Prim Cstruct -> Ok x
+  | _ ->
+    let last, v = Decode_cstruct.t t x 0 in
+    assert (last = Cstruct.len x) ;
+    Ok v
+
 module Decode_json = struct
 
   open Result
@@ -916,3 +1223,4 @@ end
 
 let decode_json x d = Decode_json.(t x @@ decoder d)
 let decode_json_lexemes x ls = Decode_json.(t x @@ of_lexemes ls)
+
