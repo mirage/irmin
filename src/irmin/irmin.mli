@@ -373,7 +373,21 @@ module Type: sig
       already decoded list of JSON lexemes instead of a decoder. *)
 
   val encode_cstruct: 'a t -> 'a -> Cstruct.t
+  (** [encode_cstruct t e] encodes [t] into a `Cstruct.t`. The size of
+      the returned buffer is precomputed and the buffer is allocated
+      at once.
+
+      {b NOTE:} There is a special case when the parameter [t] is a
+      single [cstruct]: the original value is returned as is, without
+      being copied. *)
+
   val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+  (** [decode_cstruct t buf] decodes values of type [t] as produced by
+      [encode_cstruct t v].
+
+      {b NOTE:} When the parameter [t] is a single [cstruct], the
+      original buffer is returned as is, otherwise sub-[cstruct] are
+      copied. *)
 
 end
 
