@@ -90,7 +90,7 @@ module Hash (G: VALUE_STORE) = struct
   module SHA_IO = Git.Hash.IO(G.Digest)
   type t = Git.Hash.t
   let digest_size = 20 (* FIXME: expose Git.Hash.digest_size *)
-  let t = Irmin.Type.(like string) SHA_IO.of_hex Git.Hash.to_hex
+  let t = Irmin.Type.(like string) SHA_IO.of_raw Git.Hash.to_raw
   let digest t x = G.Digest.cstruct (Irmin.Type.encode_cstruct t x)
   let to_raw t = Cstruct.of_string (Git.Hash.to_raw t)
   let of_raw t = Git.Hash.of_raw (Cstruct.to_string t)
@@ -99,6 +99,7 @@ module Hash (G: VALUE_STORE) = struct
   let of_string str =
     try Ok (SHA_IO.of_hex str)
     with Git.Hash.Ambiguous s -> Error (`Msg ("ambiguous " ^ s))
+  let to_raw_int = Hashtbl.hash
 end
 
 module H = Irmin.Hash.SHA1

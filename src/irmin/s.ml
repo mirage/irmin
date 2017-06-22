@@ -56,6 +56,7 @@ module type HASH = sig
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
   val of_raw: Cstruct.t -> t
+  val to_raw_int: t -> int
   val digest_size: int
   val t: t Type.t
 end
