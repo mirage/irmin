@@ -923,6 +923,10 @@ module Hash: sig
     val of_raw: Cstruct.t -> t
     (** Abstract a hash value. *)
 
+    val to_raw_int: t -> int
+    (* A smaller hash, to be used for instance as the `hash` function
+       of an OCaml [Hashtbl]. *)
+
     val digest_size: int
     (** [digest_size] is the size of hash results, in bytes. *)
 

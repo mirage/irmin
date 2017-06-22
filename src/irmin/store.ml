@@ -752,7 +752,7 @@ module Make (P: S.PRIVATE) = struct
   module History =
     OCamlGraph.Persistent.Digraph.ConcreteBidirectional(struct
       type t = commit
-      let hash h = Hashtbl.hash (P.Commit.Key.to_raw h.Commit.h)
+      let hash h = P.Commit.Key.to_raw_int h.Commit.h
       let compare x y = Type.compare P.Commit.Key.t x.Commit.h y.Commit.h
       let equal x y = Type.equal P.Commit.Key.t x.Commit.h y.Commit.h
     end)

@@ -99,6 +99,7 @@ module Hash (G: VALUE_STORE) = struct
   let of_string str =
     try Ok (SHA_IO.of_hex str)
     with Git.Hash.Ambiguous s -> Error (`Msg ("ambiguous " ^ s))
+  let to_raw_int = Hashtbl.hash
 end
 
 module H = Irmin.Hash.SHA1
