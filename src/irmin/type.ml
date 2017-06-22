@@ -138,8 +138,14 @@ module Refl = struct
   let prim: type a b. a prim -> b prim -> (a, b) eq option = fun a b ->
     match a, b with
     | Unit  , Unit   -> Some Refl
+    | Bool  , Bool   -> Some Refl
+    | Char  , Char   -> Some Refl
     | Int   , Int    -> Some Refl
+    | Int32 , Int32  -> Some Refl
+    | Int64 , Int64  -> Some Refl
+    | Float , Float   -> Some Refl
     | String, String -> Some Refl
+    | Cstruct, Cstruct -> Some Refl
     | _ -> None
 
   let rec eq: type a b. a t -> b t -> (a, b) eq option = fun a b ->
