@@ -43,7 +43,7 @@ module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) = struct
+module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
 
   include RO(K)(V)
 

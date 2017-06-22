@@ -29,11 +29,6 @@ module type CONV = sig
   val of_string: string -> (t, [`Msg of string]) result
 end
 
-module type RAW = sig
-  include CONV
-  val raw: t -> Cstruct.t
-end
-
 module type PATH = sig
   type t
   val pp: t Fmt.t
@@ -88,7 +83,7 @@ module type AO = sig
   val add: t -> value -> key Lwt.t
 end
 
-module type AO_MAKER = functor (K: HASH) -> functor (V: RAW) ->
+module type AO_MAKER = functor (K: HASH) -> functor (V: CONV) ->
 sig
   include AO with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t

@@ -987,17 +987,6 @@ module Contents: sig
 
   end
 
-  (** [Raw] is the signature for contents. *)
-  module type Raw = sig
-
-    include Conv
-
-    val raw: t -> Cstruct.t
-    (** [raw t] is the raw contents of [t] to be used for computing
-        stable digests. *)
-
-  end
-
   module type S = sig
 
     (** {1 Signature for store contents} *)
@@ -3009,7 +2998,7 @@ end
 (** [AO_MAKER] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values. *)
-module type AO_MAKER = functor (K: Hash.S) -> functor (V: Contents.Raw) -> sig
+module type AO_MAKER = functor (K: Hash.S) -> functor (V: Contents.Conv) -> sig
 
   include AO with type key = K.t and type value = V.t
 

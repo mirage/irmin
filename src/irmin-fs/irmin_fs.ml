@@ -115,7 +115,7 @@ struct
 end
 
 module AO_ext (IO: IO) (S: Config)
-    (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) =
+    (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) =
 struct
 
   include RO_ext(IO)(S)(K)(V)
