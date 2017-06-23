@@ -18,7 +18,7 @@ depends: [
   "jsonm" {>= "1.0.0"}
   "lwt" {>= "2.4.7"}
   "ocamlgraph"
-  "hex"
+  "hex" {>= "0.2.0"}
   "logs" {>= "0.5.0"}
   "astring"
 ]
