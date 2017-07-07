@@ -47,7 +47,7 @@ let config ?(config=Irmin.Private.Conf.empty) ?size ?min_size () =
     | None   -> C.default Conf.chunk_size
     | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
-  C.add config Conf.chunk_size size
+  C.add (C.add config Conf.min_size min_size) Conf.chunk_size size
 
 module Chunk (K: Irmin.Hash.S) = struct
 
