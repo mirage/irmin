@@ -762,7 +762,7 @@ end
 
 module Encode_cstruct = struct
 
-  let unit buf ofs () = ofs
+  let unit _buf ofs () = ofs
   let char buf ofs c =
     Cstruct.set_char buf ofs c ;
     ofs + 1
@@ -1229,4 +1229,3 @@ end
 
 let decode_json x d = Decode_json.(t x @@ decoder d)
 let decode_json_lexemes x ls = Decode_json.(t x @@ of_lexemes ls)
-
