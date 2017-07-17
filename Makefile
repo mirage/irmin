@@ -1,8 +1,12 @@
+.PHONY: all clean test
+
 BUILD=jbuilder build --dev
 RUNTEST=jbuilder runtest -j1 --no-buffer --dev
 
 all:
 	$(BUILD)
+
+test:
 	$(RUNTEST)
 
 clean:
