@@ -1,7 +1,0 @@
-_build
-*~
-setup.data
-_tests/
-lib_test/_tests/
-setup.log
-test.native

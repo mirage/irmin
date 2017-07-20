@@ -1,3 +1,0 @@
-PKG lwt irmin alcotest
-B _build/**
-S lib/ lib_test/
