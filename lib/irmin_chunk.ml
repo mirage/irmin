@@ -94,7 +94,7 @@ module Chunk (K: Irmin.Hash.S) = struct
 
 end
 
-module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
+module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
 : sig
     include Irmin.AO
     val v : Irmin.config -> t Lwt.t
@@ -117,16 +117,19 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
   }
 
   let v_of_raw raw =
-    match V.of_string @@ Cstruct.to_string raw with
+    match Irmin.Type.decode_cstruct V.t raw with
     |Ok va -> va
     |Error _ -> invalid_arg "v_of_raw"
+
+  let raw_of_v v =
+    Irmin.Type.encode_cstruct V.t v
 
   module Tree = struct
 
     let get_child t node pos =
       let key = K.of_raw (Chunk.get_sub_key node pos) in
       AO.find t.db key >>= function
-      |Some v -> Lwt.return_some @@ V.raw v
+      |Some v -> Lwt.return_some @@ raw_of_v v
       |None -> Lwt.return_none
 
     let walk_to_list t root =
@@ -200,7 +203,7 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
     AO.find t.db key >>= function
     | None   -> Lwt.return_none
     | Some x ->
-      let x = V.raw x in
+      let x = raw_of_v x in
       match Chunk.type_of_chunk x with
       | Chunk.Data ->
         let dlen = Chunk.get_length x in
@@ -248,7 +251,7 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
     Lwt.return x
 
   let add t v =
-    let v = V.raw v in
+    let v = raw_of_v v in
     let value_length = Cstruct.len v in
     let rest_value_length = value_length mod t.max_length in
     if value_length <= t.max_length then (
@@ -288,7 +291,7 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Raw)
 
 end
 
-module AO_stable (L: LINK_MAKER) (S: AO_MAKER) (K: Hash.S) (V: Irmin.Contents.Raw) = struct
+module AO_stable (L: LINK_MAKER) (S: AO_MAKER) (K: Hash.S) (V: Irmin.Contents.Conv) = struct
 
   module AO = AO(S)(K)(V)
   module Link = L(K)
@@ -314,8 +317,7 @@ module AO_stable (L: LINK_MAKER) (S: AO_MAKER) (K: Hash.S) (V: Irmin.Contents.Ra
 
   let add t v =
     AO.add t.ao v >>= fun k' ->
-    let v = V.raw v in
-    let k = K.digest v in
+    let k = K.digest V.t v in
     Link.add t.link k k' >>= fun () ->
     Lwt.return k
 
