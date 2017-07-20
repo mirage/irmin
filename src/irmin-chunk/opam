@@ -1,0 +1,26 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Mounir Nasr Allah" "Thomas Gazagnaire"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin-chunk"
+bug-reports:  "https://github.com/mirage/irmin-chunk/issues"
+dev-repo:     "https://github.com/mirage/irmin-chunk.git"
+
+build: [
+  ["./configure" "--prefix" prefix]
+  [make]
+]
+build-test: [
+  ["./configure" "--enable-tests"]
+  [make "test"]
+]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "irmin-chunk"]
+
+depends: [
+  "ocamlfind" {build}
+  "irmin" {>= "0.9.10"}
+  "lwt"
+  "alcotest"  {test & >="0.4.1"}
+]
+available: [ocaml-version >= "4.01.0"]
