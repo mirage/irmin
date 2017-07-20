@@ -6966,7 +6966,7 @@ let setup_t =
                       bs_build_depends =
                         [
                            FindlibPackage ("irmin", None);
-                           FindlibPackage ("irmin.mem", None);
+                           FindlibPackage ("irmin-mem", None);
                            InternalLibrary "irmin-chunk";
                            FindlibPackage ("alcotest", None);
                            FindlibPackage ("lwt.unix", None)

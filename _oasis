@@ -19,7 +19,7 @@ Executable test
   Build$:         flag(tests)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin-chunk, alcotest, lwt.unix
+  BuildDepends:   irmin, irmin-mem, irmin-chunk, alcotest, lwt.unix
 
 Test test_irmin
   Run$:             flag(tests)

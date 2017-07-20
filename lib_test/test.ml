@@ -18,42 +18,42 @@
 open Lwt.Infix
 
 let () =
-  Log.set_log_level Log.DEBUG;
-  Log.color_on ();
   Printexc.record_backtrace true
 
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct
   include Irmin.Hash.SHA1
-  let pp ppf x = Format.pp_print_string ppf (to_hum x)
+  let equal x y =
+    Cstruct.equal (to_raw x) (to_raw y)
 end
 
 module Value = struct
   include Irmin.Contents.Cstruct
-  let pp ppf x = Format.pp_print_string ppf (Cstruct.to_string x)
+  let equal x y =
+    Cstruct.equal x y
 end
 
 module type S = sig
   include Irmin.AO with type key = Key.t and type value = Value.t
-  val create: unit -> (unit -> t) Lwt.t
+  val create: unit -> t Lwt.t
 end
 
 module Mem = struct
   include Irmin_mem.AO(Key)(Value)
-  let create () = create (Irmin_mem.config ()) Irmin.Task.none
+  let create () = v @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
   include Irmin_chunk.AO(Irmin_mem.AO)(Key)(Value)
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
-  let create () = create small_config Irmin.Task.none
+  let create () = v small_config
 end
 
 module MemChunkStable = struct
   include Irmin_chunk.AO_stable(Irmin_mem.Link)(Irmin_mem.AO)(Key)(Value)
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
-  let create () = create small_config Irmin.Task.none
+  let create () = v small_config
 end
 
 let key_t: Key.t Alcotest.testable = (module Key)
@@ -71,10 +71,10 @@ let test_add_read ?(stable=false) (module AO: S) () =
   let test size =
     let name = Printf.sprintf "size %d" size in
     let v = value (String.make size 'x') in
-    AO.add (t ()) v  >>= fun k ->
+    AO.add t v  >>= fun k ->
     if stable then
-      Alcotest.(check key_t) (name ^ " is stable") k (Key.digest v);
-    AO.read (t ()) k >|= fun v' ->
+      Alcotest.(check key_t) (name ^ " is stable") k (Key.digest Value.t v);
+    AO.find t k >|= fun v' ->
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
   let x = 40 in
