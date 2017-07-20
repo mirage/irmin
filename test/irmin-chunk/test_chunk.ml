@@ -15,11 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
-
-let () =
-  Printexc.record_backtrace true
-
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct
@@ -56,47 +51,3 @@ module MemChunkStable = struct
   let create () = v small_config
 end
 
-let key_t: Key.t Alcotest.testable = (module Key)
-let value_t: Value.t Alcotest.testable = (module Value)
-
-let value s = Cstruct.of_string s
-
-let run f () =
-  Lwt_main.run (f ());
-  flush stderr;
-  flush stdout
-
-let test_add_read ?(stable=false) (module AO: S) () =
-  AO.create () >>= fun t ->
-  let test size =
-    let name = Printf.sprintf "size %d" size in
-    let v = value (String.make size 'x') in
-    AO.add t v  >>= fun k ->
-    if stable then
-      Alcotest.(check key_t) (name ^ " is stable") k (Key.digest Value.t v);
-    AO.find t k >|= fun v' ->
-    Alcotest.(check @@ option value_t) name (Some v) v'
-  in
-  let x = 40 in
-  Lwt_list.iter_s test [
-    x-1  ; x  ; x+1;
-    x*2-1; x*2; x*2+1;
-    x*x-1; x*x; x*x+1;
-    x*x*x;
-  ]
-
-let simple =
-  "simple", [
-    "add/read: in-memory"       , `Quick, run @@ test_add_read (module Mem);
-    "add/read: in-memory+chunks", `Quick, run @@ test_add_read (module MemChunk);
-  ]
-
-let stable =
-  let test stable = test_add_read ~stable (module MemChunkStable) in
-  "stable", [
-    "add/read: simple", `Quick, run @@ test false;
-    "add/read: stable", `Quick, run @@ test true;
-  ]
-
-let () =
-  Alcotest.run "irmin-chunk" [simple; stable]

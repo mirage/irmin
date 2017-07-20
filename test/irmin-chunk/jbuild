@@ -1,0 +1,16 @@
+(jbuild_version 1)
+
+(library
+ ((name      test_chunk)
+  (modules   (test_chunk))
+  (libraries (test irmin-chunk irmin-mem))))
+
+(executable
+ ((name      test)
+  (modules   (test))
+  (libraries (test_chunk))))
+
+(alias
+ ((name runtest)
+  (deps (test.exe))
+  (action (run ${exe:test.exe} -q --color=always))))
