@@ -13,6 +13,7 @@ build-test: ["jbuilder" "runtest" "test/irmin-unix"]
 depends: [
   "jbuilder"   {build}
   "irmin"      {>= "1.2.0"}
+  "irmin-mem"  {>= "1.2.0"}
   "irmin-git"  {>= "1.2.0"}
   "irmin-http" {>= "1.2.0"}
   "irmin-fs"   {>= "1.2.0"}
