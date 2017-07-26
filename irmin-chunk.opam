@@ -1,0 +1,18 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Mounir Nasr Allah" "Thomas Gazagnaire"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "https://github.com/mirage/irmin.git"
+
+build: ["jbuilder" "build" "-p" name "-j" jobs]
+build-test: ["jbuilder" "runtest" "test/irmin-mem"]
+
+depends: [
+  "jbuilder" {build}
+  "irmin" {>= "1.2.0"}
+  "lwt"
+  "alcotest"  {test & >="0.4.1"}
+]
+available: [ocaml-version >= "4.01.0"]
