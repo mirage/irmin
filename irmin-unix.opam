@@ -7,11 +7,14 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
-build: ["jbuilder" "build" "-p" name "-j" jobs]
-build-test: ["jbuilder" "runtest" "test/irmin-unix"]
+build: [
+ ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "build" "-p" name "-j" jobs]
+]
+build-test: ["jbuilder" "runtest" "-p" name]
 
 depends: [
-  "jbuilder"   {build}
+  "jbuilder" {build & >= "1.0+beta10"}
   "irmin"      {>= "1.2.0"}
   "irmin-mem"  {>= "1.2.0"}
   "irmin-git"  {>= "1.2.0"}

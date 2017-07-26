@@ -6,10 +6,13 @@ homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
-build: ["jbuilder" "build" "-p" name "-j" jobs]
+build: [
+ ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "build" "-p" name "-j" jobs]
+]
 
 depends: [
-  "jbuilder"   {build}
+  "jbuilder"   {build & >= "1.0+beta10"}
   "irmin"      {>= "1.2.0"}
   "irmin-git"  {>= "1.2.0"}
   "irmin-mem"  {>= "1.2.0"}
