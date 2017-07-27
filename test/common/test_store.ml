@@ -667,8 +667,8 @@ module Make (S: Test_S) = struct
     (* simple merges *)
     let check_merge () =
       let ok = Irmin.Merge.ok in
-      let dt = T.(option int) in
-      let dx = T.(list (pair string int)) in
+      let dt = T.(option int64) in
+      let dx = T.(list (pair string int64)) in
       let merge_skip ~old:_ _ _ = ok None in
       let merge_left ~old:_ x _ = ok x in
       let merge_right ~old:_ _ y = ok y in
@@ -679,11 +679,11 @@ module Make (S: Test_S) = struct
         | "skip"  -> Irmin.Merge.v dt merge_skip
         | _ -> merge_default
       in
-      let merge_x = Irmin.Merge.alist T.string T.int merge in
-      let old () = ok (Some [ "left", 1; "foo", 2; ]) in
-      let x =   [ "left", 2; "right", 0] in
-      let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
-      let m =   [ "left", 2; "bar"  , 3] in
+      let merge_x = Irmin.Merge.alist T.string T.int64 merge in
+      let old () = ok (Some [ "left", 1L; "foo", 2L; ]) in
+      let x =   [ "left", 2L; "right", 0L] in
+      let y =   [ "left", 1L; "bar"  , 3L; "skip", 0L ] in
+      let m =   [ "left", 2L; "bar"  , 3L] in
       Irmin.Merge.(f merge_x) ~old x y >>= function
       | Error (`Conflict c) -> failf "conflict %s" c
       | Ok m'               ->
