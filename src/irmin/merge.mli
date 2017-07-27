@@ -45,13 +45,12 @@ val idempotent: 'a Type.t -> 'a t
 val unit: unit t
 val bool: bool t
 val char: char t
-val int: int t
 val int32: int32 t
 val int64: int64 t
 val float: float t
 val string: string t
 
-type counter = int
+type counter = int64
 val counter: counter t
 
 val option: 'a t -> 'a option t
