@@ -74,9 +74,6 @@ module Type: sig
   val char: char t
   (** [char] is a representation of the character type. *)
 
-  val int: int t
-  (** [int] is a representation of the integer type. *)
-
   val int32: int32 t
   (** [int32] is a representation of the 32-bit integers type. *)
 
@@ -551,9 +548,6 @@ module Merge: sig
   val char: char t
   (** [char] is the default merge function for characters. *)
 
-  val int: int t
-  (** [int] is the default merge function for integers. *)
-
   val int32: int32 t
   (** [int32] is the default merge function for 32-bits integers. *)
 
@@ -581,14 +575,14 @@ module Merge: sig
 
   (** {1 Counters and Multisets} *)
 
-  type counter = int
+  type counter = int64
   (** The type for counter values. It is expected that the only valid
       operations on counters are {e increment} and {e decrement}. The
       following merge functions ensure that the counter semantics are
       preserved: {e i.e.} it ensures that the number of increments and
       decrements is preserved. *)
 
-  val counter: int t
+  val counter: counter t
   (** The merge function for mergeable counters. *)
 
   (** Multi-sets. *)

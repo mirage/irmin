@@ -264,22 +264,22 @@ module MultiSet (K: sig
 
   module M = Map.Make(K)
   let of_alist l = List.fold_left (fun map (k, v)  -> M.add k v map) M.empty l
-  let t = Type.like Type.(list (pair K.t int)) of_alist M.bindings
+  let t = Type.like Type.(list (pair K.t int64)) of_alist M.bindings
 
   let merge ~old m1 m2 =
-    let get k m = try M.find k m with Not_found -> 0 in
+    let get k m = try M.find k m with Not_found -> 0L in
     let set k v m = match v with
-      | 0 -> M.remove k m
-      | _ -> M.add k v m
+      | 0L -> M.remove k m
+      | _  -> M.add k v m
     in
-    let add k v m = set k (v + get k m) m in
+    let add k v m = set k (Int64.add v @@ get k m) m in
     let keys = ref M.empty in
     old () >|=* fun old ->
     let old = match old with
       | None   -> M.empty (* no parent = parent with empty value *)
       | Some o -> o
     in
-    M.iter (fun k v -> keys := add k (-v) !keys) old;
+    M.iter (fun k v -> keys := add k (Int64.neg v) !keys) old;
     M.iter (fun k v -> keys := add k v !keys) m1;
     M.iter (fun k v -> keys := add k v !keys) m2;
     !keys
@@ -406,19 +406,19 @@ let like_lwt (type a b) da (t: b t) (a_to_b:a -> b Lwt.t) (b_to_a: b -> a Lwt.t)
 let unit = default Type.unit
 let bool = default Type.bool
 let char = default Type.char
-let int = default Type.int
 let int32 = default Type.int32
 let int64 = default Type.int64
 let float = default Type.float
 let string = default Type.string
 
-type counter = int
+type counter = int64
 
 let counter =
-  Type.int,
+  Type.int64,
   fun ~old x y ->
     old () >|=* fun old ->
-    let old = match old with None -> 0 | Some o -> o in
+    let old = match old with None -> 0L | Some o -> o in
+    let (+) = Int64.add and (-) = Int64.sub in
     x + y - old
 
 let with_conflict rewrite (d, f) =

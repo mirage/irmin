@@ -73,7 +73,6 @@ and 'a prim =
   | Unit   : unit prim
   | Bool   : bool prim
   | Char   : char prim
-  | Int    : int prim
   | Int32  : int32 prim
   | Int64  : int64 prim
   | Float  : float prim
@@ -140,7 +139,6 @@ module Refl = struct
     | Unit  , Unit   -> Some Refl
     | Bool  , Bool   -> Some Refl
     | Char  , Char   -> Some Refl
-    | Int   , Int    -> Some Refl
     | Int32 , Int32  -> Some Refl
     | Int64 , Int64  -> Some Refl
     | Float , Float   -> Some Refl
@@ -180,7 +178,6 @@ end
 let unit = Prim Unit
 let bool = Prim Bool
 let char = Prim Char
-let int = Prim Int
 let int32 = Prim Int32
 let int64 = Prim Int64
 let float = Prim Float
@@ -298,7 +295,6 @@ module Dump = struct
   let unit ppf () = Fmt.string ppf "()"
   let bool = Fmt.bool
   let char = Fmt.char
-  let int = Fmt.int
   let int32 = Fmt.int32
   let int64 = Fmt.int64
   let float = Fmt.float
@@ -332,7 +328,6 @@ module Dump = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -423,7 +418,6 @@ module Equal = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -537,7 +531,6 @@ module Compare = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -588,7 +581,6 @@ module Encode_json = struct
   let float e f = lexeme e (`Float f)
   let int32 e i = float e (Int32.to_float i)
   let int64 e i = float e (Int64.to_float i)
-  let int e i = float e (float_of_int i)
   let bool e = function false -> float e 0. | _ -> float e 1.
 
   let cstruct e c =
@@ -644,7 +636,6 @@ module Encode_json = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -739,7 +730,6 @@ module Size_of = struct
   | Unit   -> unit
   | Bool   -> bool
   | Char   -> char
-  | Int    -> int
   | Int32  -> int32
   | Int64  -> int64
   | Float  -> float
@@ -840,7 +830,6 @@ module Encode_cstruct = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -960,7 +949,6 @@ module Decode_cstruct = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
@@ -1154,7 +1142,6 @@ module Decode_json = struct
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
-    | Int    -> int
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
