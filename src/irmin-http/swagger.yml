@@ -1,0 +1,126 @@
+swagger:  "2.0"
+info:
+  title: "Irmin REST API"
+  description: "This is the first draft of a REST API for the
+    [irmin](https://github.com/mirage/irmin/) database"
+  version: "0.0.1"
+  contact:
+    name: "David Udelson"
+    email: "dru5@cornell.edu"
+paths:
+  /branches:
+    get:
+      summary: "list all branches"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "<response description here>" # TODO
+        404:
+          description: "" #TODO
+    post:
+      summary: "create a new branch"
+      responses:
+        200:
+          description: "" # TODO
+        201:
+          description: "" # TODO
+  /branch/{branchName}:
+    get:
+      summary: "get a branch by name"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+    delete:
+      summary: "delete a branch by its ID"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+  /commits:
+    get:
+      summary: "lists all commits"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+  /commits/{commitHash}:
+    get:
+      summary: "get a commit by its hash"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+  /paths:
+    get:
+      summary: "gets all keys and their associated values (like `irmin tree`)"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+    post:
+      summary: "add a new key/value pair to the store"
+      responses:
+        200:
+          description: "" #TODO
+        201:
+          description: "" #TODO
+  /path/{path}:
+    get:
+      summary: "get the value associated with a path"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+    put:
+      summary: "update the value associated with a path"
+      responses:
+        200:
+          description: "" #TODO
+        201:
+          description: "" #TODO
+    delete:
+      summary: "remove a key/value pair from the store"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+  # TODO: the whole point of a watch is you get a notification every time
+  # a branch or path is updated, but aren't REST APIs not supposed to send notifications?
+  # For this reason, does adding watches to the API even make sense?
+  /watches:
+    get:
+      summary: "list all watches"
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+  /watch:
+    post:
+      summary: "add a new watch to a branch or path"
+      # post data includes the branch name or path to watch
+      responses:
+        200:
+          description: "" #TODO
+        201:
+          description: "" #TODO
+    delete:
+      summary: "delete an existing watch"
+      # delete data includes the branch name or path to watch
+      responses:
+        200:
+          description: "" #TODO
+        404:
+          description: "" #TODO
+
