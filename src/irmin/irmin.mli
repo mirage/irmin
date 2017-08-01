@@ -354,7 +354,7 @@ module Type: sig
       {- variant cases built using {!case0} are represented as strings.}
       {- variant cases built using {!case1} are represented as a record
          with one field; the field name is the name of the variant.}
-      ul}
+      }
 
       {b NOTE:} this can be used to encode JSON fragments. That's the
       responsibility of the caller to ensure that the encoded JSON
