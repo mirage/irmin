@@ -16,6 +16,7 @@ depends: [
   "jbuilder" {build & >= "1.0+beta10"}
   "irmin" {>= "1.2.0"}
   "lwt"
+  "irmin-mem" {test & >= "1.2.0"}
   "alcotest"  {test & >="0.4.1"}
 ]
 available: [ocaml-version >= "4.01.0"]
