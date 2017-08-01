@@ -6,13 +6,17 @@ homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
-build: ["jbuilder" "build" "-p" name "-j" jobs]
-build-test: ["jbuilder" "runtest" "test/irmin-mem"]
+build: [
+ ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "build" "-p" name "-j" jobs]
+]
+build-test: ["jbuilder" "runtest" "-p" name]
 
 depends: [
-  "jbuilder" {build}
+  "jbuilder" {build & >= "1.0+beta10"}
   "irmin" {>= "1.2.0"}
   "lwt"
+  "irmin-mem" {test & >= "1.2.0"}
   "alcotest"  {test & >="0.4.1"}
 ]
 available: [ocaml-version >= "4.01.0"]

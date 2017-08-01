@@ -12,5 +12,6 @@
 
 (alias
  ((name runtest)
+  (package irmin-unix)
   (deps (test.exe))
   (action (chdir ${ROOT} (run ${exe:test.exe} -q --color=always)))))

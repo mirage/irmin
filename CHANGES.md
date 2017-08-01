@@ -1,3 +1,42 @@
+### 1.3.0 (2017-07-27)
+
+**irmin-chunk**
+
+Add a new package: `irmin-chunk`, which was initially in a separate repository
+created by @mounirnasrallah and @samoht and ported to the new Irmin API by
+@g2p (#464)
+
+**irmin-unix**
+
+Re-add the `irmin` binary, the example application which used to be
+installed by irmin-unix` before we switched to use `jbuilder`
+(#466, @samoht -- reported by @ouenzzo and @dudelson)
+
+**irmin**
+
+That releases saw a nice series of patches to improve the performance of
+`Irmin.Tree` contributed by the Tezos team:
+
+- Improve complexity of `Irmin.Tree` operations: on trivial benchmarks with
+  a lot of values, this patch introduces a 10-times speed-up
+  (#457, @OCamlPro-Henry)
+
+- Add missing equality for `Irmin.Type` primitives (#458, @OCamlPro-Henry)
+
+- Change the type of `Hash.digest` to also take a type representation
+  (#458, @OCamlPro-Henry)
+
+- add `Irmin.Type.{encode,decode}_cstruct` (#458, @OCamlPro-Henry)
+
+- remove `Irmin.Contents.RAW` (#458, @OCamlPro-Henry)
+
+- avoid unecessary serialization and deserialization when computing hashes
+  of cstructs (#459, @OCamlPro-Henry)
+
+- remove `{Type,Merge}.int` which might cause some issue on 32 bits platforms.
+  Intead use the more explicit (and portable) `{Type,Merge}.int32` or
+  `{Type,Merge}.int64` (#469, @samoht)
+
 ### 1.2.0 (2017-06-06)
 
 This release changes the build system to use

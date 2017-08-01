@@ -12,5 +12,6 @@
 
 (alias
  ((name runtest)
+  (package irmin-chunk)
   (deps (test.exe))
   (action (run ${exe:test.exe} -q --color=always))))

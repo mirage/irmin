@@ -7,10 +7,13 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
-build: ["jbuilder" "build" "-p" name "-j" jobs]
+build: [
+ ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "build" "-p" name "-j" jobs]
+]
 
 depends: [
-  "jbuilder" {build}
+  "jbuilder" {build & >= "1.0+beta10"}
   "result"
   "fmt"
   "uri" {>= "1.3.12"}
