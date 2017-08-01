@@ -20,6 +20,7 @@ depends: [
   "irmin"  {>= "1.2.0"}
   "cohttp" {>= "0.18.3" & < "0.99.0"}
   "irmin-git" {test & >= "1.2.0"}
+  "irmin-mem" {test & >= "1.2.0"}
   "alcotest"  {test}
   "mtime"     {test & >= "1.0.0"}
 ]
