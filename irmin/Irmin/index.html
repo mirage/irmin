@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Irmin (irmin.Irmin)</title><link rel="stylesheet" href="../../odoc.css"/><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><meta name="generator" content="doc-ock-html v1.0.0-1-g1fc9bf0"/></head><body><nav id="top"><a href="../index.html">Up</a> &mdash; <span class="package">package <a href="../index.html">irmin</a></span></nav><header><h1><span class="keyword">Module</span> <span class="module-path">Irmin</span></h1></header><p>Irmin public API.</p><p><code class="code">Irmin</code> is a library to design and use persistent stores with
+built-in snapshot, branching and reverting mechanisms. Irmin uses
+concepts similar to <a href="http://git-scm.com/">Git</a> but it exposes
+them as a high level library instead of a complex command-line
+frontend. It features a <em>bidirectional</em> Git backend, where an
+application can read and persist its state using the Git format,
+fully-compatible with the usual Git tools and workflows.</p><p>Irmin is designed to use a large variety of backends. It is
+written in pure OCaml and does not depend on external C stubs; it
+is thus very portable and aims to run everywhere, from Linux to
+browser and MirageOS unikernels.</p><p>Consult the basics and <a href="index.html#examples">Examples</a> of use for a quick
+start. See also the <span class="xref-unresolved" title="unresolved &quot;Irmin_unix&quot;">documentation</span> for the unix
+backends.</p><p><em>Release 1.3.0 - %%HOMEPAGE%%</em></p><div class="spec val" id="val-version"><a href="#val-version" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>version : string</code></div><div class="doc"><p>The version of the library.</p></div></div><h2>Preliminaries</h2><div class="spec module" id="module-Type"><a href="#module-Type" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Type/index.html">Type</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Dynamic types for Irmin values.</p></div></div><div class="spec module" id="module-Info"><a href="#module-Info" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Info/index.html">Info</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Commit info are used to keep track of the origin of write
+operations in the stores. <code class="code">Info</code> model the metadata associated
+with commit objects in Git.</p></div></div><div class="spec module" id="module-Merge"><a href="#module-Merge" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Merge/index.html">Merge</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">Merge</code> provides functions to build custom 3-way merge operators
+for various user-defined contents.</p></div></div><div class="spec module" id="module-Diff"><a href="#module-Diff" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Diff/index.html">Diff</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Differences between values.</p></div></div><h2>Stores</h2><div class="spec type" id="type-config"><a href="#type-config" class="anchor"></a><div class="def type"><code><span class="keyword">type </span>config</code><code></code><code></code></div><div class="doc"><p>The type for backend-specific configuration values.</p><p>Every backend has different configuration options, which are kept
+abstract to the user.</p></div></div><div class="spec type" id="type-diff"><a href="#type-diff" class="anchor"></a><div class="def type"><code><span class="keyword">type </span>'a diff</code><code><span class="keyword"> = </span><span class="type-var">'a</span> <a href="Diff/index.html#type-t">Diff.t</a></code><code></code></div><div class="doc"><p>The type for representing differences betwen values.</p></div></div><p>An Irmin store is automatically built from a number of lower-level
+stores, implementing fewer operations, such as <a href="module-type-AO/index.html">append-only</a>
+and <a href="module-type-RW/index.html">read-write</a> stores. These low-level stores are provided
+by various backends.</p><div class="spec module-type" id="module-type-RO"><a href="#module-type-RO" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-RO/index.html">RO</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Read-only backend stores.</p></div></div><div class="spec module-type" id="module-type-AO"><a href="#module-type-AO" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-AO/index.html">AO</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Append-only backend store.</p></div></div><div class="spec module-type" id="module-type-LINK"><a href="#module-type-LINK" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-LINK/index.html">LINK</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Immutable Link store.</p></div></div><div class="spec module-type" id="module-type-RW"><a href="#module-type-RW" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-RW/index.html">RW</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Read-write stores.</p></div></div><h2>User-Defined Contents</h2><div class="spec module" id="module-Path"><a href="#module-Path" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Path/index.html">Path</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Store paths.</p></div></div><div class="spec module" id="module-Hash"><a href="#module-Hash" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Hash/index.html">Hash</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Hashing functions.</p></div></div><div class="spec module" id="module-Contents"><a href="#module-Contents" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Contents/index.html">Contents</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">Contents</code> specifies how user-defined contents need to be <em>serializable</em> and <em>mergeable</em>.</p></div></div><div class="spec module" id="module-Branch"><a href="#module-Branch" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Branch/index.html">Branch</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>User-defined branches.</p></div></div><div class="spec module" id="module-Metadata"><a href="#module-Metadata" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Metadata/index.html">Metadata</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">Metadata</code> defines metadata that is attached to contents but stored in
+nodes. The Git backend uses this to indicate the type of file (normal,
+executable or symlink).</p></div></div><div class="spec module" id="module-Private"><a href="#module-Private" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Private/index.html">Private</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">Private</code> defines functions only useful for creating new
+backends. If you are just using the library (and not developing a
+new backend), you should not use this module.</p></div></div><h2>High-level Stores</h2><p>An Irmin store is a branch-consistent store where keys are lists
+of steps.</p><p>An example is a Git repository where keys are filenames, <em>i.e.</em>
+list of <code class="code">'/'</code>-separated strings. More complex examples are
+structured values, where steps might contain first-class field
+accessors and array offsets.</p><p>Irmin provides the following features:</p><ul><li>Support for fast clones, branches and merges, in a fashion very
+similar to Git.</li><li>Efficient taging areas for fast, transient, in-memory operations.</li><li>Fast <a href="Sync/index.html">synchronization</a> primitives between remote
+stores, using native backend protocols (as the Git protocol)
+when available.</li></ul><div class="spec module-type" id="module-type-S"><a href="#module-type-S" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-S/index.html">S</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p>Irmin stores.</p></div></div><div class="spec module-type" id="module-type-S_MAKER"><a href="#module-type-S_MAKER" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-S_MAKER/index.html">S_MAKER</a> : <span class="keyword">functor</span> (<a href="module-type-S_MAKER/argument-1-M/index.html">M</a> : <a href="Metadata/index.html#module-type-S">Metadata.S</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-S_MAKER/argument-2-C/index.html">C</a> : <a href="Contents/index.html#module-type-S">Contents.S</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-S_MAKER/argument-3-P/index.html">P</a> : <a href="Path/index.html#module-type-S">Path.S</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-S_MAKER/argument-4-B/index.html">B</a> : <a href="Branch/index.html#module-type-S">Branch.S</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-S_MAKER/argument-5-H/index.html">H</a> : <a href="Hash/index.html#module-type-S">Hash.S</a>) -&gt; <a href="index.html#module-type-S">S</a><span class="keyword"> with </span><span class="keyword">type </span><a href="module-type-S_MAKER/index.html#type-key">key</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-3-P/index.html#type-t">P.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/index.html#type-step">step</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-3-P/index.html#type-step">P.step</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/index.html#type-metadata">metadata</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-1-M/index.html#type-t">M.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/index.html#type-contents">contents</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-2-C/index.html#type-t">C.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/index.html#type-branch">branch</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-4-B/index.html#type-t">B.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/Commit/Hash/index.html#type-t">Commit.Hash.t</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-5-H/index.html#type-t">H.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/Tree/Hash/index.html#type-t">Tree.Hash.t</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-5-H/index.html#type-t">H.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-S_MAKER/Contents/Hash/index.html#type-t">Contents.Hash.t</a><span class="keyword"> = </span><a href="module-type-S_MAKER/argument-5-H/index.html#type-t">H.t</a></code></div><div class="doc"><p><code class="code">S_MAKER</code> is the signature exposed by any backend providing <a href="module-type-S/index.html">S</a>
+implementations. <code class="code">M</code> is the implementation of user-defined
+metadata, <code class="code">C</code> is the one for user-defined contents, <code class="code">B</code> is the
+implementation for branches and <code class="code">H</code> is the implementation for
+object (blobs, trees, commits) hashes. It does not use any native
+synchronization primitives.</p></div></div><div class="spec module-type" id="module-type-KV"><a href="#module-type-KV" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-KV/index.html">KV</a> : <a href="index.html#module-type-S">S</a><span class="keyword"> with </span><span class="keyword">type </span><a href="module-type-KV/index.html#type-key">key</a><span class="keyword"> = </span>string list<span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-KV/index.html#type-step">step</a><span class="keyword"> = </span>string<span class="keyword"> and </span><span class="keyword">type </span><a href="module-type-KV/index.html#type-branch">branch</a><span class="keyword"> = </span>string</code></div><div class="doc"><p><code class="code">KV</code> is similar to <a href="module-type-S/index.html">S</a> but choose sensible implementations for
+path and branch.</p></div></div><div class="spec module-type" id="module-type-KV_MAKER"><a href="#module-type-KV_MAKER" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-KV_MAKER/index.html">KV_MAKER</a> : <span class="keyword">functor</span> (<a href="module-type-KV_MAKER/argument-1-C/index.html">C</a> : <a href="Contents/index.html#module-type-S">Contents.S</a>) -&gt; <a href="index.html#module-type-KV">KV</a><span class="keyword"> with </span><span class="keyword">type </span><a href="module-type-KV_MAKER/index.html#type-contents">contents</a><span class="keyword"> = </span><a href="module-type-KV_MAKER/argument-1-C/index.html#type-t">C.t</a></code></div><div class="doc"><p><code class="code">KV_MAKER</code> is like <a href="module-type-S_MAKER/index.html">S_MAKER</a> but where everything except the
+contents is replaced by sensible default implementations.</p></div></div><h3>Synchronization</h3><div class="spec type" id="type-remote"><a href="#type-remote" class="anchor"></a><div class="def type"><code><span class="keyword">type </span>remote</code><code></code><code></code></div><div class="doc"><p>The type for remote stores.</p></div></div><div class="spec val" id="val-remote_uri"><a href="#val-remote_uri" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>remote_uri : string <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-remote">remote</a></code></div><div class="doc"><p><code class="code">remote_uri s</code> is the remote store located at <code class="code">uri</code>. Use the
+optimized native synchronization protocol when available for the
+given backend.</p></div></div><h2 id="examples" class="anchored"><a href="#examples" class="anchor"></a>Examples</h2><p>These examples are in the <code class="code">examples</code> directory of the
+distribution.</p><h4>Synchronization</h4><p>A simple synchronization example, using the
+<span class="xref-unresolved" title="unresolved &quot;Irmin_unix.Git&quot;">Git</span> backend and the <a href="Sync/index.html">Sync</a> helpers. The
+code clones a fresh repository if the repository does not exist
+locally, otherwise it performs a fetch: in this case, only
+the missing contents is downloaded.</p><pre><code class="code">
+open Lwt.Infix
+
+module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Sync = Irmin.Sync(S)
+let config = Irmin_git.config &quot;/tmp/test&quot;
+
+let upstream =
+  if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
+  else (Printf.eprintf &quot;Usage: sync [uri]\n%!&quot;; exit 1)
+
+let test () =
+  S.Repo.v config &gt;&gt;= S.master
+  &gt;&gt;= fun t  -&gt; Sync.pull_exn t upstream `Set
+  &gt;&gt;= fun () -&gt; S.get t [&quot;README.md&quot;]
+  &gt;|= fun r  -&gt; Printf.printf &quot;%s\n%!&quot; r
+
+let () = Lwt_main.run (test ())
+</code></pre><h4>Mergeable logs</h4><p>We will demonstrate the use of custom merge operators by
+defining mergeable debug log files. We first define a log entry
+as a pair of a timestamp and a message, using the combinator
+exposed by <a href="https://github.com/mirage/mirage-tc">mirage-tc</a>:</p><pre><code class="code">
+  module Entry = sig
+    include Irmin.Contents.Conv
+    val v: string -&gt; t
+    val compare: t -&gt; t -&gt; int
+    val timestamp: t -&gt; int
+  end = struct
+
+    type t = { timestamp: int; message : string; }
+
+    let compare x y = compare x.timestamp y.timestamp
+
+    let v message =
+      incr time;
+      { timestamp = !time; message }
+
+    let t =
+      let open Irmin.Type in
+      record &quot;entry&quot; (fun timestamp message -&gt; { timestamp; message })
+      |+ field &quot;timestamp&quot; int    (fun t -&gt; t.timestamp)
+      |+ field &quot;message&quot;   string (fun t -&gt; t.message)
+      |&gt; sealr
+
+    let timestamp t = t.timestamp
+
+    let pp ppf { timestamp; message } =
+      Fmt.pf ppf  &quot;%04d: %s\n&quot; timestamp message
+
+    let of_string str =
+      match String.cut ~sep:&quot;: &quot; str with
+      | None -&gt; Error (`Msg (&quot;invalid entry: &quot; ^ str))
+      | Some (x, message) -&gt;
+        try Ok { timestamp = int_of_string x; message }
+        with Failure e -&gt; Error (`Msg e)
+  end
+</code></pre><p>A log file is a list of entries (one per line), ordered by
+decreasing order of timestamps. The 3-way <code class="code">merge</code> operator for log
+files concatenates and sorts the new entries and prepend them
+to the common ancestor's ones.</p><pre><code class="code">
+(* A log file *)
+module Log: sig
+  include Irmin.Contents.S
+  val add: t -&gt; Entry.t -&gt; t
+  val empty: t
+end = struct
+
+  type t = Entry.t list
+  let t = Irmin.Type.(list Entry.t)
+
+  let empty = []
+
+  let pp ppf l = List.iter (Fmt.pf ppf &quot;%a\n&quot; Entry.pp ) (List.rev l)
+
+  let of_string str =
+    let lines = String.cuts ~sep:&quot;\n&quot; str in
+    try
+      List.fold_left (fun acc l -&gt;
+          match Entry.of_string l with
+          | Ok x           -&gt; x :: acc
+          | Error (`Msg e) -&gt; failwith e
+        ) [] lines
+      |&gt; fun l -&gt; Ok l
+    with Failure e -&gt;
+      Error (`Msg e)
+
+  let timestamp = function
+    | [] -&gt; 0
+    | e :: _ -&gt; Entry.timestamp e
+
+  let newer_than timestamp file =
+    let rec aux acc = function
+      | [] -&gt; List.rev acc
+      | h:: _ when Entry.timestamp h &lt;= timestamp -&gt; List.rev acc
+      | h::t -&gt; aux (h::acc) t
+    in
+    aux [] file
+
+  let merge ~old t1 t2 =
+    let open Irmin.Merge.Infix in
+    old () &gt;&gt;=* fun old -&gt;
+    let old = match old with None -&gt; [] | Some o -&gt; o in
+    let ts = timestamp old in
+    let t1 = newer_than ts t1 in
+    let t2 = newer_than ts t2 in
+    let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
+    Irmin.Merge.ok (List.rev_append t3 old)
+
+  let merge = Irmin.Merge.(option (v t merge))
+
+  let add t e = e :: t
+
+end </code></pre><p><b>Note:</b> The serialisation primitives used in that example are
+not very efficient in this case as they parse the file
+every-time. For real usage, you would write buffered versions of
+<code class="code">Log.pp</code> and <code class="code">Log.of_string</code>.</p><p>To persist the log file on disk, we need to choose a backend. We
+show here how to use the on-disk <code class="code">Git</code> backend on Unix.</p><pre><code class="code">
+  (* Build an Irmin store containing log files. *)
+  module S = Irmin_unix.Git.FS.KV(Log)
+
+  (* Set-up the local configuration of the Git repository. *)
+  let config = Irmin_git.config ~bare:true &quot;/tmp/irmin/test&quot;
+
+  (* Set-up the commit info function *)
+  let info fmt = Irmin_unix.info ~author:&quot;logger&quot; fmt
+</code></pre><p>We can now define a toy example to use our mergeable log files.</p><pre><code class="code">
+  open Lwt.Infix
+
+  (* Name of the log file. *)
+  let file = [ &quot;local&quot;; &quot;debug&quot; ]
+
+  (* Read the entire log file. *)
+  let read_file t =
+    S.find t file &gt;|= function
+    | None   -&gt; []
+    | Some l -&gt; l
+
+  (* Persist a new entry in the log. *)
+  let log t fmt =
+    Fmt.kstrf (fun message -&gt;
+        read_file t &gt;&gt;= fun logs -&gt;
+        let logs = Log.add logs (Entry.v message) in
+        S.set t (info &quot;Adding a new entry&quot;) file logs
+      ) fmt
+
+  let () =
+    Lwt_main.run begin
+      S.Repo.v config &gt;&gt;= S.master
+      &gt;&gt;= fun t  -&gt; log t &quot;Adding a new log entry&quot;
+      &gt;&gt;= fun () -&gt; Irmin.clone_force ~src:t ~dst:&quot;x&quot;
+      &gt;&gt;= fun x  -&gt; log x &quot;Adding new stuff to x&quot;
+      &gt;&gt;= fun () -&gt; log x &quot;Adding more stuff to x&quot;
+      &gt;&gt;= fun () -&gt; log x &quot;More. Stuff. To x.&quot;
+      &gt;&gt;= fun () -&gt; log t &quot;I can add stuff on t also&quot;
+      &gt;&gt;= fun () -&gt; log t &quot;Yes. On t!&quot;
+      &gt;&gt;= fun () -&gt; S.merge (info &quot;Merging x into t&quot;) x ~into:t
+      &gt;|= function Ok () -&gt; () | Errror _ -&gt; failwith &quot;merge conflict!&quot;
+    end
+</code></pre><h2>Helpers</h2><div class="spec val" id="val-remote_store"><a href="#val-remote_store" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>remote_store : (<span class="keyword">module </span><a href="module-type-S/index.html">S</a> <span class="keyword">with</span> <span class="keyword">type </span><a href="module-type-S/index.html#type-t">t</a> <span class="keyword">=</span> <span class="type-var">'a</span>) <span class="keyword">&#8209;&gt;</span> <span class="type-var">'a</span> <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-remote">remote</a></code></div><div class="doc"><p><code class="code">remote_store t</code> is the remote corresponding to the local store
+<code class="code">t</code>. Synchronization is done by importing and exporting store
+<span class="xref-unresolved" title="unresolved &quot;BC.slice&quot;">slices</span>, so this is usually much slower than native
+synchronization using <a href="index.html#val-remote_uri">remote_uri</a> but it works for all
+backends.</p></div></div><div class="spec module-type" id="module-type-SYNC"><a href="#module-type-SYNC" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-SYNC/index.html">SYNC</a> : <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">SYNC</code> provides functions to synchronization an Irmin store with
+local and remote Irmin stores.</p></div></div><div class="spec module" id="module-Sync"><a href="#module-Sync" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Sync/index.html">Sync</a> : <span class="keyword">functor</span> (<a href="Sync/argument-1-S/index.html">S</a> : <a href="index.html#module-type-S">S</a>) -&gt; <a href="index.html#module-type-SYNC">SYNC</a><span class="keyword"> with </span><span class="keyword">type </span><a href="Sync/index.html#type-db">db</a><span class="keyword"> = </span><a href="Sync/argument-1-S/index.html#type-t">S.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Sync/index.html#type-commit">commit</a><span class="keyword"> = </span><a href="Sync/argument-1-S/index.html#type-commit">S.commit</a></code></div><div class="doc"><p>The default <code class="code">Sync</code> implementation.</p></div></div><div class="spec module" id="module-Dot"><a href="#module-Dot" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Dot/index.html">Dot</a> : <span class="keyword">functor</span> (<a href="Dot/argument-1-S/index.html">S</a> : <a href="index.html#module-type-S">S</a>) -&gt; <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">Dot</code> provides functions to export a store to the Graphviz `dot`
+format.</p></div></div><h2 id="backend" class="anchored"><a href="#backend" class="anchor"></a>Backends</h2><p>API to create new Irmin backends. A backend is an implementation
+exposing either a concrete implementation of <a href="module-type-S/index.html">S</a> or a functor
+providing <a href="module-type-S/index.html">S</a> once applied.</p><p>There are two ways to create a concrete <a href="module-type-S/index.html">Irmin.S</a> implementation:</p><ul><li><a href="Make/index.html">Make</a> creates a store where all the objects are stored in the
+same store, using the same internal keys format and a custom binary
+format based on <a href="https://github.com/janestreet/bin_prot">bin_prot</a>,
+with no native synchronization primitives: it is usually what is
+needed to quickly create a new backend.</li><li><a href="Make_ext/index.html">Make_ext</a> creates a store with a <em>deep</em> embedding of each
+of the internal stores into separate store, with a total control over
+the binary format and using the native synchronization protocols
+when available.</li></ul><div class="spec module-type" id="module-type-AO_MAKER"><a href="#module-type-AO_MAKER" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-AO_MAKER/index.html">AO_MAKER</a> : <span class="keyword">functor</span> (<a href="module-type-AO_MAKER/argument-1-K/index.html">K</a> : <a href="Hash/index.html#module-type-S">Hash.S</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-AO_MAKER/argument-2-V/index.html">V</a> : <a href="Contents/index.html#module-type-Conv">Contents.Conv</a>) -&gt; <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">AO_MAKER</code> is the signature exposed by append-only store
+backends. <code class="code">K</code> is the implementation of keys and <code class="code">V</code> is the
+implementation of values.</p></div></div><div class="spec module-type" id="module-type-LINK_MAKER"><a href="#module-type-LINK_MAKER" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-LINK_MAKER/index.html">LINK_MAKER</a> : <span class="keyword">functor</span> (<a href="module-type-LINK_MAKER/argument-1-K/index.html">K</a> : <a href="Hash/index.html#module-type-S">Hash.S</a>) -&gt; <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">LINK_MAKER</code> is the signature exposed by store which enable adding
+relation between keys. This is used to decouple the way keys are
+manipulated by the Irmin runtime and the keys used for
+storage. This is useful when trying to optimize storage for
+random-access file operations or for encryption.</p></div></div><div class="spec module-type" id="module-type-RW_MAKER"><a href="#module-type-RW_MAKER" class="anchor"></a><div class="def module-type"><code><span class="keyword">module type </span><a href="module-type-RW_MAKER/index.html">RW_MAKER</a> : <span class="keyword">functor</span> (<a href="module-type-RW_MAKER/argument-1-K/index.html">K</a> : <a href="Contents/index.html#module-type-Conv">Contents.Conv</a>) -&gt; <span class="keyword">functor</span> (<a href="module-type-RW_MAKER/argument-2-V/index.html">V</a> : <a href="Contents/index.html#module-type-Conv">Contents.Conv</a>) -&gt; <span class="keyword">sig</span> ... <span class="keyword">end</span></code></div><div class="doc"><p><code class="code">RW_MAKER</code> is the signature exposed by read-write store
+backends. <code class="code">K</code> is the implementation of keys and <code class="code">V</code> is the
+implementation of values.</p></div></div><div class="spec module" id="module-Make"><a href="#module-Make" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Make/index.html">Make</a> : <span class="keyword">functor</span> (<a href="Make/argument-1-AO/index.html">AO</a> : <a href="index.html#module-type-AO_MAKER">AO_MAKER</a>) -&gt; <span class="keyword">functor</span> (<a href="Make/argument-2-RW/index.html">RW</a> : <a href="index.html#module-type-RW_MAKER">RW_MAKER</a>) -&gt; <a href="index.html#module-type-S_MAKER">S_MAKER</a></code></div><div class="doc"><p>Simple store creator. Use the same type of all of the internal
+keys and store all the values in the same store.</p></div></div><div class="spec module" id="module-Make_ext"><a href="#module-Make_ext" class="anchor"></a><div class="def module"><code><span class="keyword">module </span><a href="Make_ext/index.html">Make_ext</a> : <span class="keyword">functor</span> (<a href="Make_ext/argument-1-P/index.html">P</a> : <a href="Private/index.html#module-type-S">Private.S</a>) -&gt; <a href="index.html#module-type-S">S</a><span class="keyword"> with </span><span class="keyword">type </span><a href="Make_ext/index.html#type-key">key</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Node/Path/index.html#type-t">P.Node.Path.t</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/index.html#type-contents">contents</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Contents/index.html#type-value">P.Contents.value</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/index.html#type-branch">branch</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Branch/index.html#type-key">P.Branch.key</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/Commit/Hash/index.html#type-t">Commit.Hash.t</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Commit/index.html#type-key">P.Commit.key</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/Tree/Hash/index.html#type-t">Tree.Hash.t</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Node/index.html#type-key">P.Node.key</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/Contents/Hash/index.html#type-t">Contents.Hash.t</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Contents/index.html#type-key">P.Contents.key</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/index.html#type-step">step</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Node/Path/index.html#type-step">P.Node.Path.step</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/index.html#type-metadata">metadata</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Node/Val/index.html#type-metadata">P.Node.Val.metadata</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/Key/index.html#type-step">Key.step</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Node/Path/index.html#type-step">P.Node.Path.step</a><span class="keyword"> and </span><span class="keyword">type </span><a href="Make_ext/index.html#type-repo">repo</a><span class="keyword"> = </span><a href="Make_ext/argument-1-P/Repo/index.html#type-t">P.Repo.t</a></code></div><div class="doc"><p>Advanced store creator.</p></div></div></body></html>
