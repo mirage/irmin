@@ -1,3 +1,7 @@
+### 1.3.1 (2017-08-02)
+
+- irmin-http: update to cohttp.0.99 (#467, @samoht)
+
 ### 1.3.0 (2017-07-27)
 
 **irmin-chunk**
