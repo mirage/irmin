@@ -17,90 +17,193 @@ paths:
       - "application/json"
       responses:
         200:
-          description: "<response description here>" # TODO
-        404:
-          description: "" #TODO
+          description: "success"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Branch"
     post:
       summary: "create a new branch"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: body
+        name: body
+        description: "branch to add"
+        required: true
+        schema:
+          type: object
+          properties:
+            name:
+              type: "string"
       responses:
         200:
-          description: "" # TODO
+          description: "branch already exists, no-op"
         201:
-          description: "" # TODO
+          description: "success"
   /branch/{branchName}:
+    parameters:
+    - in: "path"
+      name: "branchName"
+      description: "name of branch to operate on"
+      required: true
+      type: "string"
     get:
       summary: "get a branch by name"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
+          schema:
+            $ref: "#/definitions/Branch"
         404:
-          description: "" #TODO
+          description: "branch not found"
     delete:
       summary: "delete a branch by its ID"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
         404:
-          description: "" #TODO
+          description: "branch not found"
   /commits:
     get:
-      summary: "lists all commits"
+      summary: "lists all commits, newest to oldest (like `git log`)"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
-        404:
-          description: "" #TODO
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Commit"
   /commits/{commitHash}:
+    parameters:
+    - in: "path"
+      name: "commitHash"
+      description: "hash of commit to operate on"
+      required: true
+      type: "string"
     get:
       summary: "get a commit by its hash"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
+          schema:
+            $ref: "#/definitions/Commit"
         404:
-          description: "" #TODO
-  /paths:
+          description: "commit not found"
+  /keys:
     get:
       summary: "gets all keys and their associated values (like `irmin tree`)"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
-        404:
-          description: "" #TODO
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/KV"
     post:
       summary: "add a new key/value pair to the store"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: body
+        name: body
+        description: "key/value pair to add"
+        required: true
+        schema:
+          $ref: "#/definitions/KV"
       responses:
         200:
-          description: "" #TODO
+          description: "key already exists, no-op"
         201:
-          description: "" #TODO
-  /path/{path}:
+          description: "success"
+          schema:
+            $ref: "#/definitions/KV"
+  /keys/{key}:
+    parameters:
+    - in: "path"
+      name: "key"
+      description: "key to operate on"
+      required: true
+      type: "string"
     get:
-      summary: "get the value associated with a path"
+      summary: "get the value associated with a key"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
+          schema:
+            $ref: "#/definitions/KV"
         404:
-          description: "" #TODO
+          description: "key not found"
     put:
       summary: "update the value associated with a path"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: body
+        name: body
+        description: "new value"
+        required: true
+        schema:
+          type: object
+          properties:
+            value:
+              type: "string"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
         201:
-          description: "" #TODO
+          description: "created"
     delete:
       summary: "remove a key/value pair from the store"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
         404:
-          description: "" #TODO
+          description: "key not found"
   # TODO: the whole point of a watch is you get a notification every time
   # a branch or path is updated, but aren't REST APIs not supposed to send notifications?
   # For this reason, does adding watches to the API even make sense?
   /watches:
     get:
       summary: "list all watches"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
           description: "" #TODO
@@ -109,7 +212,17 @@ paths:
   /watch:
     post:
       summary: "add a new watch to a branch or path"
-      # post data includes the branch name or path to watch
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: body
+        name: body
+        description: "key/value pair to add"
+        required: true
+        schema:
+          $ref: "#/definitions/KV"
       responses:
         200:
           description: "" #TODO
@@ -117,10 +230,50 @@ paths:
           description: "" #TODO
     delete:
       summary: "delete an existing watch"
-      # delete data includes the branch name or path to watch
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
       responses:
         200:
-          description: "" #TODO
+          description: "success"
         404:
-          description: "" #TODO
+          description: "watch not found"
 
+definitions:
+  Branch:
+    type: object
+    properties:
+      name:
+        type: "string"
+      head: # hash of head commit
+        type: "string"
+  Commit:
+    type: object
+    properties:
+      info:
+        type: object
+        properties:
+          author:
+            type: "string"
+          date:
+            type: "string"
+            format: "date-time"
+          message:
+            type: "string"
+      hash:
+        type: "string"
+      parents:
+        type: "array"
+        items:
+          type: "string"
+      node:
+        type: "string"
+        description: "hash of tree or blob this commit points to"
+  KV:
+    type: object
+    properties:
+      key:
+        type: "string"
+      value:
+        type: "string"
