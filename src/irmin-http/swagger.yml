@@ -194,9 +194,6 @@ paths:
           description: "success"
         404:
           description: "key not found"
-  # TODO: the whole point of a watch is you get a notification every time
-  # a branch or path is updated, but aren't REST APIs not supposed to send notifications?
-  # For this reason, does adding watches to the API even make sense?
   /watches:
     get:
       summary: "list all watches"
@@ -206,30 +203,20 @@ paths:
       - "application/json"
       responses:
         200:
-          description: "" #TODO
-        404:
-          description: "" #TODO
-  /watch:
-    post:
-      summary: "add a new watch to a branch or path"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - in: body
-        name: body
-        description: "key/value pair to add"
-        required: true
-        schema:
-          $ref: "#/definitions/KV"
-      responses:
-        200:
-          description: "" #TODO
-        201:
-          description: "" #TODO
-    delete:
-      summary: "delete an existing watch"
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Watch"
+  /watch/branch/{branchName}:
+    parameters:
+    - in: "path"
+      name: "branchName"
+      description: "name of branch to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "watch a branch via a long-duration HTTP connection"
       consumes:
       - "application/json"
       produces:
@@ -237,8 +224,28 @@ paths:
       responses:
         200:
           description: "success"
+          schema: # TODO
         404:
-          description: "watch not found"
+          description: "not found"
+  /watch/key/{key}:
+    parameters:
+    - in: "path"
+      name: "key"
+      description: "name of key to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "watch a key via a long-duration HTTP connection"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema: # TODO
+        404:
+          description: "not found"
 
 definitions:
   Branch:
@@ -248,6 +255,9 @@ definitions:
         type: "string"
       head: # hash of head commit
         type: "string"
+    required:
+    - "name"
+    - "head"
   Commit:
     type: object
     properties:
@@ -270,6 +280,11 @@ definitions:
       node:
         type: "string"
         description: "hash of tree or blob this commit points to"
+    required:
+    - "info"
+    - "hash"
+    - "parents"
+    - "node"
   KV:
     type: object
     properties:
@@ -277,3 +292,24 @@ definitions:
         type: "string"
       value:
         type: "string"
+    required:
+    - "key"
+    - "value"
+  Watch:
+    type: object
+    properties:
+      watching:
+        type: "string"
+        enum:
+        - "branch"
+        - "key"
+      branchName: # only if this is a branch
+        type: "string"
+      path: # only if this is a key
+        type: "string"
+      nConn: # number of open connections to this watch
+        type: "number"
+        format: "int64"
+    required:
+    - "watching"
+    - "nConn"
