@@ -22,27 +22,6 @@ paths:
             type: "array"
             items:
               $ref: "#/definitions/Branch"
-    post:
-      summary: "create a new branch"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - in: body
-        name: body
-        description: "branch to add"
-        required: true
-        schema:
-          type: object
-          properties:
-            name:
-              type: "string"
-      responses:
-        200:
-          description: "branch already exists, no-op"
-        201:
-          description: "success"
   /branch/{branchName}:
     parameters:
     - in: "path"
@@ -63,6 +42,17 @@ paths:
             $ref: "#/definitions/Branch"
         404:
           description: "branch not found"
+    post:
+      summary: "update an existing branch, or create a new one if none exists"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        201:
+          description: "create success"
+        204:
+          description: "update success"
     delete:
       summary: "delete a branch by its ID"
       consumes:
@@ -122,26 +112,6 @@ paths:
             type: array
             items:
               $ref: "#/definitions/KV"
-    post:
-      summary: "add a new key/value pair to the store"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - in: body
-        name: body
-        description: "key/value pair to add"
-        required: true
-        schema:
-          $ref: "#/definitions/KV"
-      responses:
-        200:
-          description: "key already exists, no-op"
-        201:
-          description: "success"
-          schema:
-            $ref: "#/definitions/KV"
   /keys/{key}:
     parameters:
     - in: "path"
@@ -162,8 +132,8 @@ paths:
             $ref: "#/definitions/KV"
         404:
           description: "key not found"
-    put:
-      summary: "update the value associated with a path"
+    post:
+      summary: "update the value associated with a path, or create a new kv-pair if none exists"
       consumes:
       - "application/json"
       produces:
@@ -179,10 +149,10 @@ paths:
             value:
               type: "string"
       responses:
-        200:
-          description: "success"
         201:
-          description: "created"
+          description: "creation success"updatecreated
+        204:
+          description: "update success"
     delete:
       summary: "remove a key/value pair from the store"
       consumes:
