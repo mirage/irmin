@@ -31,7 +31,7 @@ module type S = sig
   val v: ?strict:bool -> repo -> t
 end
 
-module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
+module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   module Wm = struct
     module Rd = Webmachine.Rd

@@ -32,7 +32,7 @@ module type S = sig
 
 end
 
-module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S): S with
+module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S): S with
   type repo = S.Repo.t and
   type t = HTTP.t
 (** Create an HTTP server, serving the contents of an Irmin database. *)

@@ -115,7 +115,7 @@ let json_stream (stream: string Lwt_stream.t): Jsonm.lexeme list Lwt_stream.t =
 let of_json_string t str = T.decode_json t (Jsonm.decoder (`String str))
 let to_json_string t = Fmt.to_to_string (T.pp_json t)
 
-module Helper (Client: Cohttp_lwt.Client) = struct
+module Helper (Client: Cohttp_lwt.S.Client) = struct
 
   let err_bad_version v =
     invalid_arg "bad server version: expecting %s, but got %s"
@@ -183,7 +183,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
 end
 
-module RO (Client: Cohttp_lwt.Client)
+module RO (Client: Cohttp_lwt.S.Client)
     (K: Irmin.Contents.Conv)
     (V: Irmin.Contents.Conv)
 = struct
@@ -215,7 +215,7 @@ module RO (Client: Cohttp_lwt.Client)
 
 end
 
-module AO (Client: Cohttp_lwt.Client)
+module AO (Client: Cohttp_lwt.S.Client)
     (K: Irmin.Hash.S)
     (V: Irmin.Contents.Conv) =
 struct
@@ -225,7 +225,7 @@ struct
     HTTP.call `POST t.uri [t.items] ~body K.of_string
 end
 
-module RW (Client: Cohttp_lwt.Client)
+module RW (Client: Cohttp_lwt.S.Client)
     (K: Irmin.Contents.Conv)
     (V: Irmin.Contents.Conv)
 = struct
@@ -362,7 +362,7 @@ module RW (Client: Cohttp_lwt.Client)
 end
 
 module Make
-    (Client: Cohttp_lwt.Client)
+    (Client: Cohttp_lwt.S.Client)
     (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
@@ -439,7 +439,7 @@ struct
   include Irmin.Make_ext(X)
 end
 
-module KV (H: Cohttp_lwt.Client) (C: Irmin.Contents.S) =
+module KV (H: Cohttp_lwt.S.Client) (C: Irmin.Contents.S) =
   Make (H)
     (Irmin.Metadata.None)
     (C)
