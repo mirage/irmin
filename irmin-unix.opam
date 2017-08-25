@@ -14,7 +14,7 @@ build: [
 build-test: ["jbuilder" "runtest" "-p" name]
 
 depends: [
-  "jbuilder" {build & >= "1.0+beta10"}
+  "jbuilder"   {build & >= "1.0+beta10"}
   "irmin"      {>= "1.2.0"}
   "irmin-mem"  {>= "1.2.0"}
   "irmin-git"  {>= "1.2.0"}
@@ -22,8 +22,7 @@ depends: [
   "irmin-fs"   {>= "1.2.0"}
   "git-unix"   {>= "1.11.0"}
   "irmin-watcher" {>= "0.2.0"}
-  "irmin-mirage" {test & >= "1.2.0"}
-  "alcotest"     {test}
-  "mtime"        {test & >= "1.0.0"}
+  "alcotest" {test}
+  "mtime"    {test & >= "1.0.0"}
 ]
 available: [ocaml-version >= "4.01.0"]
