@@ -109,7 +109,7 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
   module Chunk = Chunk(K)
 
   type t = {
-    db          : AO.t;             (* An hanlder to the underlying database. *)
+    db          : AO.t;             (* An handler to the underlying database. *)
     chunk_size  : int;                                 (* the size of chunks. *)
     max_children: int;     (* the maximum number of children a node can have. *)
     max_length  : int; (* the maximum lentgh (in bytes) of data stored in one
