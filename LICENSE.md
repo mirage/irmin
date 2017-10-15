@@ -1,3 +1,5 @@
+## ISC License
+
 Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
 
 Permission to use, copy, modify, and distribute this software for any
