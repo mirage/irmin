@@ -29,7 +29,7 @@ let sha_1 (s:Cstruct.t) =
     Cstruct.blit s 0 m 0 len;
     (* FIXME: use cstruct 1.6.0 *)
     let zeros = Bytes.make (mlen - len) '\x00' in
-    Cstruct.blit_from_string zeros 0 m len (mlen - len);
+    Cstruct.blit_from_bytes zeros 0 m len (mlen - len);
     let set k c = Cstruct.set_char m k c in
     set len '\x80';
     if Sys.word_size > 32 then begin
