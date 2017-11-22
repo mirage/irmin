@@ -13,9 +13,9 @@ build: [
 
 depends: [
   "jbuilder"   {build & >= "1.0+beta10"}
-  "irmin"      {>= "1.2.0"}
-  "irmin-git"  {>= "1.2.0"}
-  "irmin-mem"  {>= "1.2.0"}
+  "irmin"      {>= "1.3.0"}
+  "irmin-git"  {>= "1.3.0"}
+  "irmin-mem"  {>= "1.3.0"}
   "git-mirage" {>= "1.11.0"}
   "ptime"
   "mirage-kv-lwt"
