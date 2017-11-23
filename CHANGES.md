@@ -1,3 +1,7 @@
+### 1.3.2 (2017-11-22)
+
+- support OCaml 4.06 where `-safe-string` is enabled by default (#477, @djs55)
+
 ### 1.3.1 (2017-08-25)
 
 - irmin-http: update to cohttp.0.99 (#467, @samoht)
