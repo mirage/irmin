@@ -134,7 +134,7 @@ module Helper (Client: Cohttp_lwt.S.Client) = struct
 
   let map_string_response parse (r, b) =
     check_version r >>= fun () ->
-    Cohttp_lwt_body.to_string b >>= fun b ->
+    Cohttp_lwt.Body.to_string b >>= fun b ->
     if is_success r then
       match parse b with
       | Ok x           -> Lwt.return x
@@ -146,10 +146,10 @@ module Helper (Client: Cohttp_lwt.S.Client) = struct
   let map_stream_response t (r, b) =
     check_version r >>= fun () ->
     if not (is_success r) then
-      Cohttp_lwt_body.to_string b >>= fun b ->
+      Cohttp_lwt.Body.to_string b >>= fun b ->
       Lwt.fail_with ("Server error: " ^ b)
     else
-      let stream = Cohttp_lwt_body.to_stream b in
+      let stream = Cohttp_lwt.Body.to_stream b in
       let stream = json_stream stream in
       let stream =
         let aux j =
@@ -285,7 +285,7 @@ module RW (Client: Cohttp_lwt.S.Client)
         match Cohttp.Response.status r with
         | `Not_found | `OK -> Lwt.return_unit
         | _ ->
-          Cohttp_lwt_body.to_string b >>= fun b ->
+          Cohttp_lwt.Body.to_string b >>= fun b ->
           Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" K.pp key b
       )
 
