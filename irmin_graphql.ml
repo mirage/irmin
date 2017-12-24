@@ -33,20 +33,15 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
     )
   end
 
-  type tree_kind = [`Contents | `Node]
-  let tree_kind_values = Schema.[
-    enum_value "CONTENTS" ~value:`Contents;
-    enum_value "NODE" ~value:`Node;
-  ]
-
-  let tree_kind : ('ctx, tree_kind option) Schema.typ = Schema.enum "TreeKind" ~values:tree_kind_values
-
   let rec commit : ('ctx, Store.commit option) Schema.typ Lazy.t = lazy Schema.(obj "Commit"
     ~fields:(fun commit -> [
       io_field "tree"
-        ~typ:(non_null Lazy.(force tree))
+        ~typ:(non_null Lazy.(force node))
         ~args:[]
-        ~resolve:(fun _ c -> Store.Commit.tree c)
+        ~resolve:(fun _ c ->
+          Store.Commit.tree c >|= fun tree ->
+          tree, Store.Key.empty
+        )
       ;
       io_field "parents"
         ~typ:(non_null (list (non_null commit)))
@@ -86,6 +81,20 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
 
   and branch : ('ctx, repo_branch option) Schema.typ Lazy.t = lazy Schema.(obj "Branch"
     ~fields:(fun branch -> [
+      field "name"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, b) -> Fmt.to_to_string Store.Branch.pp b)
+      ;
+      io_field "tree"
+        ~typ:(non_null Lazy.(force node))
+        ~args:[]
+        ~resolve:(fun _ (r, b) ->
+            Store.of_branch r b >>= fun store ->
+            Store.tree store >|= fun tree ->
+            tree, Store.Key.empty
+        )
+      ;
       io_field "commit"
         ~typ:(non_null Lazy.(force commit))
         ~args:[]
@@ -102,9 +111,12 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ s -> Store.repo s)
       ;
       io_field "tree"
-        ~typ:(non_null Lazy.(force tree))
+        ~typ:(non_null Lazy.(force node))
         ~args:[]
-        ~resolve:(fun _ s -> Store.tree s)
+        ~resolve:(fun _ s ->
+          Store.tree s >|= fun tree ->
+          tree, Store.Key.empty
+        )
     ])
   )
 
@@ -143,28 +155,53 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
     ])
   )
 
-  and tree : ('ctx, Store.tree option) Schema.typ Lazy.t = lazy Schema.(obj "Tree"
+  and tree : ('ctx, [`tree] option) Schema.abstract_typ = Schema.union "Tree"
+  and node_as_tree = lazy (Schema.add_type tree Lazy.(force node))
+  and contents_as_tree = lazy (Schema.add_type tree Lazy.(force contents))
+
+  and node : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(obj "Node"
+    ~fields:(fun node -> [
+      field "name"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
+      ;
+      io_field "subnodes"
+        ~typ:(non_null (list (non_null tree)))
+        ~args:[]
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.list tree key >|= fun children ->
+          List.map (fun (step, kind) ->
+            let key' = Store.Key.rcons key step in
+            match kind with
+            | `Contents -> Lazy.(force contents_as_tree) (tree, key')
+            | `Node -> Lazy.(force node_as_tree) (tree, key')
+          ) children
+        )
+    ])
+  )
+
+  and contents : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(obj "Contents"
     ~fields:(fun tree -> [
-      io_field "kind"
-        ~typ:tree_kind
-        ~args:Arg.[arg' "key" ~typ:Input.key ~default:Store.Key.empty]
-        ~resolve:(fun _ t key -> Store.Tree.kind t key)
+      field "name"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
       ;
       io_field "contents"
-        ~typ:(non_null (list (non_null Lazy.(force step))))
-        ~args:Arg.[arg' "key" ~typ:Input.key ~default:Store.Key.empty]
-        ~resolve:(fun _ t key -> Store.Tree.list t key)
-    ])
-  )
-  
-  and step : ('ctx, (Store.step * tree_kind) option) Schema.typ Lazy.t = lazy Schema.(obj"Step"
-    ~fields:(fun step -> [
-      field "kind"
-        ~typ:(non_null tree_kind)
+        ~typ:string
         ~args:[]
-        ~resolve:(fun _ (_, kind) -> kind)
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.find tree key >|= function
+          | None -> None
+          | Some contents ->
+              Some (Fmt.to_to_string Store.Contents.pp contents)
+        )
     ])
   )
+
+  let _ = Lazy.force node_as_tree
+  let _ = Lazy.force contents_as_tree
 
   let schema s =
     Schema.(schema [
