@@ -9,8 +9,8 @@ env:
   matrix:
   - OCAML_VERSION=4.03 PACKAGE="irmin-fs.dev" TESTS=true
   - OCAML_VERSION=4.04 PACKAGE="irmin-mem.dev" TESTS=true
-  - OCAML_VERSION=4.03 PACKAGE="irmin-git.dev" TESTS=true
-  - OCAML_VERSION=4.04 PACKAGE="irmin-http.dev" TESTS=true
-  - OCAML_VERSION=4.04 PACKAGE="irmin-chunk.dev" TESTS=true
-  - OCAML_VERSION=4.03 PACKAGE="irmin-mirage.dev"
-  - OCAML_VERSION=4.04 PACKAGE="irmin-unix.dev" TESTS=true EXTRA_DEPS=inotify
+  - OCAML_VERSION=4.05 PACKAGE="irmin-git.dev" TESTS=true
+  - OCAML_VERSION=4.06 PACKAGE="irmin-http.dev" TESTS=true
+  - OCAML_VERSION=4.06 PACKAGE="irmin-chunk.dev" TESTS=true
+  - OCAML_VERSION=4.05 PACKAGE="irmin-mirage.dev"
+  - OCAML_VERSION=4.06 PACKAGE="irmin-unix.dev" TESTS=true EXTRA_DEPS=inotify

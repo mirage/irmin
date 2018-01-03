@@ -41,7 +41,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
   module P = S.Private
 
   class virtual resource = object
-    inherit [Cohttp_lwt_body.t] Wm.resource
+    inherit [Cohttp_lwt.Body.t] Wm.resource
     method! finish_request rd =
       Wm.Rd.with_resp_headers (fun h ->
           Cohttp.Header.add h irmin_version Irmin.version
@@ -75,7 +75,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
       method content_types_accepted rd = Wm.continue [] rd
 
       method! process_post rd =
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
+        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match V.of_string body with
         | Error e -> parse_error rd body e
         | Ok body ->
@@ -146,7 +146,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
       inherit resource
 
       method private of_json rd =
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
+        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json (set_t V.t) body with
         | Error e -> parse_error rd body e
         | Ok v    ->
@@ -222,7 +222,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
         `Stream stream
 
       method! process_post rd =
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
+        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json T.(list (init_t K.t V.t)) body with
         | Error e -> parse_error rd body e
         | Ok init ->
@@ -262,7 +262,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
         `Stream stream
 
       method! process_post rd =
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
+        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json V.t body with
         | Error e -> parse_error rd body e
         | Ok init ->

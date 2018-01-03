@@ -1,3 +1,8 @@
+### 1.3.3 (2018-01-03)
+
+- complete support for OCaml 4.06 (#484, @samoht)
+- support cohttp 1.0 (#484, @samoht)
+
 ### 1.3.2 (2017-11-22)
 
 - support OCaml 4.06 where `-safe-string` is enabled by default (#477, @djs55)
