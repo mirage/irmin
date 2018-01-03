@@ -142,7 +142,7 @@ let read_config_file (): t option =
     let len = in_channel_length oc in
     let buf = Bytes.create len in
     really_input oc buf 0 len;
-    let lines = String.cuts ~sep:"\n" buf in
+    let lines = String.cuts ~sep:"\n" (Bytes.to_string buf) in
     let lines = List.map (fun s -> String.trim s) lines in
     let lines = List.map (fun s -> String.cut ~sep:"=" s) lines in
     let lines =
