@@ -14,15 +14,13 @@ append-only stores as chunks of same size. It exposes the
 addressed by <code class="code">Node</code> blocks. That's the usual rope-like
 representation of strings, but chunk trees are always build as
 perfectly well-balanced and blocks are addressed by their hash (or
-by the stable keys returned by the underlying store).</p><p>A chunk has the following structure:</p><pre>
-     --------------------------
+by the stable keys returned by the underlying store).</p><p>A chunk has the following structure:</p><pre>     --------------------------
      | uint8_t type            |
      ---------------------------
      | uint16_t length         |
      ---------------------------
      | byte data[length]       |
-     ---------------------------
-</pre><p><code class="code">type</code> is either <code class="code">Data</code> (0) or <code class="code">Node</code> (1). If the chunk contains
+     ---------------------------</pre><p><code class="code">type</code> is either <code class="code">Data</code> (0) or <code class="code">Node</code> (1). If the chunk contains
 data, <code class="code">length</code> is the payload length. Otherwise it is the number
 of children that the node has.</p><p>It also exposes <a href="AO_stable/index.html">AO_stable</a> which -- as <a href="AO/index.html">AO</a> does
 -- stores raw contents into chunks of same size. But it also

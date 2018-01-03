@@ -8,8 +8,8 @@ collection of applications) to work with multiple local states,
 which can be forked and merged programmatically, without having
 to rely on a global state. In a way very similar to version
 control systems, Irmin local states are called <i>branches</i>.</p><p>There are two kinds of store in Irmin: the ones based on
-<span class="xref-unresolved" title="unresolved &quot;persistent&quot;">persistent</span> named branches and the ones based
-<span class="xref-unresolved" title="unresolved &quot;temporary&quot;">temporary</span> detached heads. These exist relative to a
+<span class="xref-unresolved" title="unresolved reference to &quot;persistent&quot;">persistent</span> named branches and the ones based
+<span class="xref-unresolved" title="unresolved reference to &quot;temporary&quot;">temporary</span> detached heads. These exist relative to a
 local, larger (and shared) store, and have some (shared)
 contents. This is exactly the same as usual version control
 systems, that the informed user can see as an implicit purely
@@ -21,7 +21,7 @@ temporary store after the first update.</p></div></div><div class="spec val" id=
 branch. This operation is cheap, can be repeated multiple
 times.</p></div></div><div class="spec val" id="val-of_branch"><a href="#val-of_branch" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>of_branch : <a href="index.html#type-repo">repo</a> <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-branch">branch</a> <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-t">t</a> Lwt.t</code></div><div class="doc"><p><code class="code">of_branch r name</code> is a persistent store based on the branch
 <code class="code">name</code>. Similar to <code class="code">master</code>, but use <code class="code">name</code> instead
-<a href="index.html#module-Branch">Branch</a>.S.master.</p></div></div><div class="spec val" id="val-of_commit"><a href="#val-of_commit" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>of_commit : <a href="index.html#type-commit">commit</a> <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-t">t</a> Lwt.t</code></div><div class="doc"><p><code class="code">of_commit c</code> is a temporary store, based on the commit <code class="code">c</code>.</p><p>Temporary stores do not have stable names: instead they can be
+<span class="xref-unresolved" title="unresolved reference to &quot;Branch.S.master&quot;"><span class="xref-unresolved" title="unresolved reference to &quot;Branch.S&quot;"><a href="index.html#module-Branch">Branch</a>.S</span>.master</span>.</p></div></div><div class="spec val" id="val-of_commit"><a href="#val-of_commit" class="anchor"></a><div class="def val"><code><span class="keyword">val </span>of_commit : <a href="index.html#type-commit">commit</a> <span class="keyword">&#8209;&gt;</span> <a href="index.html#type-t">t</a> Lwt.t</code></div><div class="doc"><p><code class="code">of_commit c</code> is a temporary store, based on the commit <code class="code">c</code>.</p><p>Temporary stores do not have stable names: instead they can be
 addressed using the hash of the current commit. Temporary stores
 are similar to Git's detached heads. In a temporary store, all
 the operations are performed relative to the current head and
