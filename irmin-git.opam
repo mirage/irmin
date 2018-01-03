@@ -18,7 +18,7 @@ depends: [
   "irmin"    {>= "1.3.0"}
   "git"      {>= "1.11.0"}
   "alcotest" {test}
-  "git-unix" {test & >= "1.11.0"}
+  "git-unix" {test & >= "1.11.4"}
   "mtime"    {test & >= "1.0.0"}
 ]
 
