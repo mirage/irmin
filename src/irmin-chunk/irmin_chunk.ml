@@ -51,7 +51,8 @@ let config ?(config=Irmin.Private.Conf.empty) ?size ?min_size () =
 
 module Chunk (K: Irmin.Hash.S) = struct
 
-  type t = Data | Indirect
+  type index = Data | Indirect
+  type t = index * Cstruct.t
 
   let l_type = 1
   let get_type x = Cstruct.get_uint8 x 0
@@ -74,23 +75,38 @@ module Chunk (K: Irmin.Hash.S) = struct
   let extract_data src srcoff dst dstoff len =
     Cstruct.blit src (offset_payload + srcoff) dst dstoff len
 
-  let type_of_int = function
-    | Indirect -> 0
-    | Data     -> 1
+  let type_indirect = 0
+  let type_data = 1
 
   let int_of_type = function
-    | 0 -> Indirect
-    | 1 -> Data
-    | _ -> failwith "Unknow type"
+    | Indirect -> type_indirect
+    | Data     -> type_data
 
-  let type_of_chunk x = int_of_type (get_type x)
+  let of_cstruct x =
+    match get_type x with
+    | 0 -> Indirect, x
+    | 1 -> Data, x
+    | _ -> failwith "Unknown type"
 
-  let create typ chunk_size len  =
+  let create typ chunk_size len =
     let c = Cstruct.create chunk_size in
     Cstruct.memset c 0x00;
-    set_type c (type_of_int typ);
+    set_type c (int_of_type typ);
     set_length c len;
+    of_cstruct c
+
+  let to_cstruct (_idx, c) =
     c
+
+  (* The Irmin.Contents.Conv signature *)
+  let t = Irmin.Type.like Irmin.Type.cstruct of_cstruct to_cstruct
+  let pp = Irmin.Type.dump t
+  (* TODO: validate *)
+  let of_string s =
+    let cs = Cstruct.of_string s in
+    match of_cstruct cs with
+    |x -> Result.Ok x
+    |exception _exn -> Result.Error (`Msg "Invalid data")
 
 end
 
@@ -99,14 +115,15 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
     include Irmin.AO
     val v : Irmin.config -> t Lwt.t
   end
-    with type key = S(K)(V).key and type value = S(K)(V).value
+  with type key = S(K)(Chunk(K)).key
+  and type value = V.t
 = struct
 
-  module AO = S(K)(V)
-  type key = AO.key
-  type value = AO.value
-
   module Chunk = Chunk(K)
+
+  module AO = S(K)(Chunk)
+  type key = AO.key
+  type value = V.t
 
   type t = {
     db          : AO.t;             (* An handler to the underlying database. *)
@@ -129,12 +146,12 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
     let get_child t node pos =
       let key = K.of_raw (Chunk.get_sub_key node pos) in
       AO.find t.db key >>= function
-      |Some v -> Lwt.return_some @@ raw_of_v v
+      |Some v -> Lwt.return_some v
       |None -> Lwt.return_none
 
     let walk_to_list t root =
-      let rec aux_walk t node =
-        match Chunk.type_of_chunk node with
+      let rec aux_walk t (idx, node) =
+        match idx with
         | Chunk.Data ->
           let dlen = Chunk.get_length node in
           let leaf = Cstruct.create dlen in
@@ -173,11 +190,11 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
             let x = List.hd l in
             let rest = List.tl l in
             let offset_hash = i * K.digest_size in
-            Chunk.set_data (K.to_raw x) 0 indir offset_hash K.digest_size;
+            Chunk.set_data (K.to_raw x) 0 (Chunk.to_cstruct indir) offset_hash K.digest_size;
             loop (i+1) rest
         in
         let calc = loop 0 l in
-        AO.add t.db @@ v_of_raw indir >>= fun x ->
+        AO.add t.db indir >>= fun x ->
         bottom_up t calc (x::r)
 
     let rec create t = function
@@ -203,12 +220,12 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
     AO.find t.db key >>= function
     | None   -> Lwt.return_none
     | Some x ->
-      let x = raw_of_v x in
-      match Chunk.type_of_chunk x with
+      let (idx, c) = x in
+      match idx with
       | Chunk.Data ->
-        let dlen = Chunk.get_length x in
+        let dlen = Chunk.get_length c in
         let result = Cstruct.create dlen in
-        Chunk.extract_data x 0 result 0 dlen;
+        Chunk.extract_data c 0 result 0 dlen;
         Lwt.return_some @@ v_of_raw result
       | Chunk.Indirect ->
         Tree.walk_to_list t x >>= function
@@ -237,17 +254,17 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
       else (
         let chunk = Chunk.(create Data) t.chunk_size len in
         let offset_value = (j + i * t.max_children) * t.max_length in
-        Chunk.set_data v offset_value chunk 0 len;
+        Chunk.set_data v offset_value (Chunk.to_cstruct chunk) 0 len;
         let add_chunk () =
-          AO.add t.db @@ v_of_raw chunk >>= fun x ->
+          AO.add t.db chunk >>= fun x ->
           let offset_hash = j * K.digest_size in
-          Chunk.set_data (K.to_raw x) 0 buf offset_hash K.digest_size;
+          Chunk.set_data (K.to_raw x) 0 (Chunk.to_cstruct buf) offset_hash K.digest_size;
           Lwt.return_unit
         in
         Lwt.join [add_chunk (); loop (j + 1)]
       ) in
     loop 0 >>= fun () ->
-    AO.add t.db @@ v_of_raw buf >>= fun x ->
+    AO.add t.db buf >>= fun x ->
     Lwt.return x
 
   let add t v =
@@ -256,8 +273,8 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Contents.Conv)
     let rest_value_length = value_length mod t.max_length in
     if value_length <= t.max_length then (
       let chunk = Chunk.(create Data) t.chunk_size value_length  in
-      Chunk.set_data v 0 chunk 0 value_length;
-      AO.add t.db @@ v_of_raw chunk
+      Chunk.set_data v 0 (Chunk.to_cstruct chunk) 0 value_length;
+      AO.add t.db chunk
     ) else (
       let data = (* the number of data blocks *)
         let x = value_length / t.max_length in
