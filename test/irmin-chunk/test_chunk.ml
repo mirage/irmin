@@ -15,6 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
+open Test_common
+
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct
@@ -50,4 +53,22 @@ module MemChunkStable = struct
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
   let create () = v small_config
 end
+
+let init () =
+  Lwt.return_unit
+
+let store = store
+  (module Irmin.Make(Irmin_chunk.AO(Irmin_mem.AO))(Irmin_mem.RW))
+  (module Irmin.Metadata.None)
+
+let config = Irmin_chunk.config ()
+
+let clean () =
+  let (module S: Test_S) = store in
+  S.Repo.v config >>= fun repo ->
+  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+
+let suite = {
+  name = "CHUNK"; kind = `Core; init; store; config; clean; stats=None;
+}
 

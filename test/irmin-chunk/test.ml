@@ -63,4 +63,7 @@ let stable =
   ]
 
 let () =
-  Alcotest.run "irmin-chunk" [simple; stable]
+  Alcotest.run "irmin-chunk" [simple; stable] ~and_exit:false;
+  Test_store.run "irmin-chunk" ~misc:[] [
+    `Quick, Test_chunk.suite
+  ]
