@@ -153,13 +153,13 @@ let value f x = get "value" f x
 let branch f x = get "branch" f x
 let commit f x = get "commit" f x
 
-(* READ *)
-let read = {
-  name = "read";
+(* GET *)
+let get = {
+  name = "get";
   doc  = "Read the contents of a node.";
   man  = [];
   term =
-    let read (S ((module S), store)) path =
+    let get (S ((module S), store)) path =
       run begin
         store >>= fun t ->
         S.find t (key S.Key.of_string path) >>= function
@@ -169,16 +169,16 @@ let read = {
           Lwt.return_unit
       end
     in
-    Term.(mk read $ store $ path);
+    Term.(mk get $ store $ path);
 }
 
-(* LS *)
-let ls = {
-  name = "ls";
+(* LIST *)
+let list = {
+  name = "list";
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let ls (S ((module S), store)) path =
+    let list (S ((module S), store)) path =
       run begin
         store >>= fun t ->
         S.list t (key S.Key.of_string path) >>= fun paths ->
@@ -190,7 +190,7 @@ let ls = {
         Lwt.return_unit
       end
     in
-    Term.(mk ls $ store $ path);
+    Term.(mk list $ store $ path);
 }
 
 (* TREE *)
@@ -243,16 +243,16 @@ let tree = {
     Term.(mk tree $ store);
 }
 
-(* WRITE *)
-let write = {
-  name = "write";
+(* SET *)
+let set = {
+  name = "set";
   doc  = "Write/modify a node.";
   man  = [];
   term =
     let args =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
-    let write (S ((module S), store)) args =
+    let set (S ((module S), store)) args =
       run begin
         store >>= fun t ->
         let mk v = value S.Contents.of_string v in
@@ -261,25 +261,25 @@ let write = {
           | [path; value] -> key S.Key.of_string path, mk value
           | _             -> failwith "Too many arguments"
         in
-        S.set t ~info:(info "write") path value
+        S.set t ~info:(info "set") path value
       end
     in
-    Term.(mk write $ store $ args);
+    Term.(mk set $ store $ args);
 }
 
-(* RM *)
-let rm = {
-  name = "rm";
+(* REMOVE *)
+let remove = {
+  name = "remove";
   doc  = "Remove a node.";
   man  = [];
   term =
-    let rm (S ((module S), store)) path =
+    let remove (S ((module S), store)) path =
       run begin
         store >>= fun t ->
         S.remove t ~info:(info "rm %s." path) (key S.Key.of_string path)
       end
     in
-    Term.(mk rm $ store $ path);
+    Term.(mk remove $ store $ path);
 }
 
 (* CLONE *)
@@ -560,10 +560,10 @@ let default =
        \n\
        The most commonly used subcommands are:\n\
       \    init        %s\n\
-      \    read        %s\n\
-      \    write       %s\n\
-      \    rm          %s\n\
-      \    ls          %s\n\
+      \    get         %s\n\
+      \    set         %s\n\
+      \    remove      %s\n\
+      \    list        %s\n\
       \    tree        %s\n\
       \    clone       %s\n\
       \    fetch       %s\n\
@@ -576,7 +576,7 @@ let default =
        \n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
-      init.doc read.doc write.doc rm.doc ls.doc tree.doc
+      init.doc get.doc set.doc remove.doc list.doc tree.doc
       clone.doc fetch.doc pull.doc push.doc snapshot.doc
       revert.doc watch.doc dot.doc
   in
@@ -590,10 +590,10 @@ let default =
 let commands = List.map create_command [
     help;
     init;
-    read;
-    write;
-    rm;
-    ls;
+    get;
+    set;
+    remove;
+    list;
     tree;
     clone;
     pull;
