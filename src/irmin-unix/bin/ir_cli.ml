@@ -440,7 +440,9 @@ let dot = {
   term =
     let basename =
       let doc =
-        Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
+        Arg.info ~docv:"BASENAME"
+                 ~doc:"Basename for the .dot and .png files, for example: \
+                      ./graph will create ./graph.dot and ./graph.png" [] in
       Arg.(required & pos 0 (some string) None & doc) in
     let no_dot_call =
       let doc =
@@ -593,6 +595,7 @@ let commands = List.map create_command [
     list;
     tree;
     clone;
+    fetch;
     pull;
     push;
     snapshot;
