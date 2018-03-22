@@ -20,7 +20,7 @@ open Ir_resolver
 
 let () = Irmin_unix.set_listen_dir_hook ()
 
-let info fmt = Irmin_unix.info ~author:"irmin" fmt
+let info ?author:(author="irmin") fmt = Irmin_unix.info ~author fmt
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -243,6 +243,10 @@ let tree = {
     Term.(mk tree $ store);
 }
 
+let author =
+  let doc = Arg.info ~docv:"NAME" ~doc:"Commit author name" ["author"] in
+  Arg.(value & opt (some string) None & doc)
+
 (* SET *)
 let set = {
   name = "set";
@@ -252,7 +256,7 @@ let set = {
     let args =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
-    let set (S ((module S), store)) args =
+    let set (S ((module S), store)) author args =
       run begin
         store >>= fun t ->
         let mk v = value S.Contents.of_string v in
@@ -261,10 +265,10 @@ let set = {
           | [path; value] -> key S.Key.of_string path, mk value
           | _             -> failwith "Too many arguments"
         in
-        S.set t ~info:(info "set") path value
+        S.set t ~info:(info ?author "set") path value
       end
     in
-    Term.(mk set $ store $ args);
+    Term.(mk set $ store $ author $ args);
 }
 
 (* REMOVE *)
@@ -273,13 +277,13 @@ let remove = {
   doc  = "Remove a node.";
   man  = [];
   term =
-    let remove (S ((module S), store)) path =
+    let remove (S ((module S), store)) author path =
       run begin
         store >>= fun t ->
-        S.remove t ~info:(info "rm %s." path) (key S.Key.of_string path)
+        S.remove t ~info:(info ?author "rm %s." path) (key S.Key.of_string path)
       end
     in
-    Term.(mk remove $ store $ path);
+    Term.(mk remove $ store $ author $ path);
 }
 
 (* CLONE *)
