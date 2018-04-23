@@ -153,8 +153,8 @@ Read: hi!
 The `examples` directory contains more examples. To build them, run
 
 ```ocaml
-$ ./configure --enable-examples
-$ make
+$ jbuilder build examples/trees.exe
+$ _build/default/examples/trees.exe
 ```
 
 #### Tutorial

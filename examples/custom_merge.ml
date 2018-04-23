@@ -16,7 +16,7 @@ open Astring
 
 let info = Irmin_unix.info
 
-let time = ref 0
+let time = ref 0L
 
 let failure fmt = Fmt.kstrf failwith fmt
 
@@ -25,37 +25,37 @@ module Entry: sig
   include Irmin.Contents.Conv
   val v: string -> t
   val compare: t -> t -> int
-  val timestamp: t -> int
+  val timestamp: t -> int64
 end = struct
 
   type t = {
-    timestamp: int;
+    timestamp: int64;
     message  : string;
   }
 
-  let compare x y = compare x.timestamp y.timestamp
+  let compare x y = Int64.compare x.timestamp y.timestamp
 
   let v message =
-    incr time;
+    time := Int64.add 1L !time;
     { timestamp = !time; message }
 
   let t =
     let open Irmin.Type in
     record "entry" (fun timestamp message -> { timestamp; message })
-    |+ field "timestamp" int    (fun t -> t.timestamp)
+    |+ field "timestamp" int64  (fun t -> t.timestamp)
     |+ field "message"   string (fun t -> t.message)
     |> sealr
 
   let timestamp t = t.timestamp
 
   let pp ppf { timestamp; message } =
-    Fmt.pf ppf  "%04d: %s\n" timestamp message
+    Fmt.pf ppf  "%04Ld: %s\n" timestamp message
 
   let of_string str =
     match String.cut ~sep:": " str with
     | None -> Error (`Msg ("invalid entry: " ^ str))
     | Some (x, message) ->
-      try Ok { timestamp = int_of_string x; message }
+      try Ok { timestamp = Int64.of_string x; message }
       with Failure e -> Error (`Msg e)
 
 end
@@ -87,7 +87,7 @@ end = struct
       Error (`Msg e)
 
   let timestamp = function
-    | [] -> 0
+    | [] -> 0L
     | e :: _ -> Entry.timestamp e
 
   let newer_than timestamp file =

@@ -19,10 +19,10 @@ let test () =
   Store.master repo >>= fun t ->
   Sync.pull_exn t upstream `Set >>= fun () ->
   Store.get t ["README.md"]>>= fun readme ->
-  Store.get_tree t [] >>= fun view ->
-  Store.Tree.add view ["BAR.md"] "Hoho!" >>= fun view ->
-  Store.Tree.add view ["FOO.md"] "Hihi!" >>= fun view ->
-  Store.set_tree t ~info:(info "merge") [] view >|= fun () ->
+  Store.get_tree t [] >>= fun tree ->
+  Store.Tree.add tree ["BAR.md"] "Hoho!" >>= fun tree ->
+  Store.Tree.add tree ["FOO.md"] "Hihi!" >>= fun tree ->
+  Store.set_tree t ~info:(info "merge") [] tree >|= fun () ->
   Printf.printf "%s\n%!" readme
 
 let () =

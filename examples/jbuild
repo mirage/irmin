@@ -1,0 +1,8 @@
+(jbuild_version 1)
+
+(executables
+  ((names (trees sync process deploy irmin_git_store custom_merge))
+   (libraries (
+     irmin
+     irmin-unix
+))))
