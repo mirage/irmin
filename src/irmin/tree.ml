@@ -466,7 +466,7 @@ module Make (P: S.PRIVATE) = struct
         | `Node n     -> node n
         | `Contents c -> contents c)
     |~ case1 "node" Node.t (fun n -> `Node n)
-    |~ case1 "contnets" (pair P.Contents.Val.t Metadata.t) (fun c -> `Contents c)
+    |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c -> `Contents c)
     |> sealv
 
   let dump ppf = function
