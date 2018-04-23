@@ -15,7 +15,7 @@ type t2 = {
 
 type t = t2 list
 
-let view_of_t t =
+let tree_of_t t =
   Lwt_list.fold_left_s (fun (v, i) t2 ->
       let si = string_of_int i in
       Tree.add v [si;"x"] t2.x >>= fun v ->
@@ -24,7 +24,7 @@ let view_of_t t =
     ) (Tree.empty, 0) t
   >|= fun (v, _) -> v
 
-let t_of_view v =
+let t_of_tree v =
   let aux acc i =
     let i = string_of_int i in
     Tree.get v [i;"x"] >>= fun x ->
@@ -44,19 +44,19 @@ let main () =
     { x = "bar"; y = 5 };
     { x = "too"; y = 10 };
   ] in
-  view_of_t t >>= fun v ->
+  tree_of_t t >>= fun v ->
 
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
   Store.set_tree t ~info:(info "update a/b") ["a";"b"] v >>= fun () ->
   Store.get_tree t ["a";"b"] >>= fun v ->
-  t_of_view v >>= fun tt ->
+  t_of_tree v >>= fun tt ->
 
   Store.set_tree t ~info:(info "update a/c") ["a";"c"] v >>= fun () ->
 
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
-  view_of_t tt >>= fun vv ->
-  Store.set_tree t ~info:(info "merge view into a/b") ["a";"b"] vv
+  tree_of_t tt >>= fun vv ->
+  Store.set_tree t ~info:(info "merge tree into a/b") ["a";"b"] vv
 
 let () =
   Lwt_main.run (main ())
