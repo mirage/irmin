@@ -965,9 +965,8 @@ end
     versions of the same contents.}
     }
 
-    Default contents for idempotent {{!Contents.String}string},
-    {{!Contents.Json}JSON} and {{!Contents.Cstruct}C-buffers like}
-    values are provided. *)
+    Default contents for idempotent {{!Contents.String}string}
+    and {{!Contents.Cstruct}C-buffers like} values are provided. *)
 module Contents: sig
 
   module type S0 = sig
