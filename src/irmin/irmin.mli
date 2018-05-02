@@ -2878,7 +2878,7 @@ end ]}
       >>= fun () -> log t "I can add stuff on t also"
       >>= fun () -> log t "Yes. On t!"
       >>= fun () -> S.merge (info "Merging x into t") x ~into:t
-      >|= function Ok () -> () | Errror _ -> failwith "merge conflict!"
+      >|= function Ok () -> () | Error _ -> failwith "merge conflict!"
     end
 ]}
 
