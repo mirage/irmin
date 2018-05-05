@@ -122,9 +122,9 @@ module Type: sig
       For instance:
 
       {[
-        type t = { foo: string option }
+        type manuscript = { title : string option }
 
-        let foo = field "foo" (option string) (fun t -> t.x)]}
+        let manuscript = field "title" (option string) (fun t -> t.title)]}
   *)
 
   type ('a, 'b, 'c) open_record
@@ -147,12 +147,12 @@ module Type: sig
       Putting all together:
 
       {[
-        type t = { foo: string; bar = (int * string) list; }
+        type menu = { restaurant: string; items: (string * int32) list; }
 
         let t =
-          record "t" (fun foo -> { foo })
-          |+ field "foo" string (fun t -> t.foo)
-          |+ field "bar" (list (pair int string)) (fun t -> t.bar)
+          record "t" (fun restaurant items -> {restaurant; items})
+          |+ field "restaurant" string (fun t -> t.restaurant)
+          |+ field "items" (list (pair string int32)) (fun t -> t.items)
           |> sealr]}
   *)
 
