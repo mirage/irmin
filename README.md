@@ -1,171 +1,125 @@
-## Irmin -- A distributed database that follows the same design principles as Git
-
-Irmin is a library for persistent stores with built-in snapshot,
-branching and reverting mechanisms. It is designed to use a large
-variety of backends. Irmin is written in pure OCaml and does not
-depend on external C stubs; it aims to run everywhere, from Linux,
-to browsers and Xen unikernels.
-
+## Irmin - A distributed database built on the same principles as Git
 [![Build Status](https://travis-ci.org/mirage/irmin.svg)](https://travis-ci.org/mirage/irmin)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://mirage.github.io/irmin/)
 
-### Description
+Irmin is an OCaml library for building mergeable, branchable distributed data stores.
 
-Irmin is a library to version-control application data. It has the following
-features:
+### Features
+- **Built-in snapshotting** - simple backup and restore
+- **Storage agnostic** - easy to use your own storage layer when needed
+- **Custom datatypes** - simple (de)serialization for custom data types
+- **Highly portable** - runs anywhere from Linux to web browsers and Xen unikernels
+- **Git compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
+- **Dynamic behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
 
-- **on-disk format** various formats are supported, including the Git format:
-  Irmin on-disk repositories can be inspected and modified using the classic
-  Git command-line tools.
+### Documentation
+Documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
 
-- **wire format** various formats are supported, including the Git protocol
-  (only in client mode) or a simple JSON-based REST API (client and server).
+The [wiki](https://github.com/mirage/irmin/wiki) also contains some tutorials.
 
-- **dynamic behaviour** Irmin allows the users to define custom merge functions,
-  to use in-memory transactions (to keep track of reads as well as writes) and
-  to define event-driven workflows using a notification mechanism.
+### Installation
+To install Irmin, the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
 
-These abstractions allow developers to create applications with concurrent
-behaviors which are both efficient and safe.
+    opam install irmin-unix
 
-### Bindings to other languages
+A minimal installation, with no storage backends can be installed by running:
 
-- **Go** [irmin-go](https://github.com/magnuss/irmin-go)
-- **JavaScript** [irmin-js](https://github.com/talex5/irmin-js)
+    opam install irmin
+    
+To only install the in-memory storage backend:
 
-### Backends
+    opam install irmin-mem
+    
+The following packages have been made available on `opam`:
+- `irmin` - the base package, no storage implementations
+- `irmin-chunk` - chunked storage
+- `irmin-fs` - filesystem-based storage using `bin_prot`
+- `irmin-git` - Git compatible storage
+- `irmin-http` - a simple REST interface
+- `irmin-mem` - in-memory storage implementation
+- `irmin-mirage` - miragle compatibility
+- `irmin-unix` - unix compatibility
 
-Irmin ships with various backends. It provides the following OCamlfind pacakges:
+For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin)
 
-- `irmin.mem` is an in-memory backend.
-- `irmin.git` uses the Git format to persist data on disk.
-- `irmin.fs` uses [bin_prot](https://github.com/janestreet/bin_prot) to persist
-  data on disk.
-- `irmin.http` uses JSON over HTTP to speak with an Irmin server.
-
-Other external backends are available as external OPAM packages
-(use `opam install <pkg>` to install):
-
-- [irmin-chunk](https://github.com/mirage/irmin-chunk) stores raw contents into
-  a well-balanced rope where leafs are chunks of all the same size.
-- [irmin-indexdb](https://github.com/talex5/irmin-indexeddb) is a backend
-  for a web browser's IndexedDB store.
-
-### Datastructures
-
-- [merge-queues](https://github.com/mirage/merge-queues) is an implementation
-  of mergeable queues.
-- [merge-ropes](https://github.com/mirage/merge-ropes) is an implementation
-  of mergeable ropes.
-- [diff-datatypes](https://github.com/gprano/diff-datatypes) is a collection
-  of automatic merge functions based on edit scripts. It is fairly generic but
-  contains specific implementation for mergeable trees, stacks and queues.
-- [irmin-datatypes](https://github.com/kayceesrk/irmin-datatypes) is a
-  collection of mergeable datatypes, including LWW registers, queues and sets.
-
-### Use-Cases
-
-Here a list of Irmin users:
-
-- [Cuekeeper](https://github.com/talex5/cuekeeper) a
-  version-controlled TODO list in the browser.
-- [imaplet](https://github.com/gregtatcam/imaplet-lwt), a version-controlled
-  IMAP server and client.
-- [jitsu](https://github.com/mirage/jitsu), a DNS server that automatically
-  starts unikernels on demand. The database is persisted with Irmin.
-- [Irmin+Xenstore](https://github.com/djs55/ocaml-xenstore/tree/irminsule), the
-  Xenstore deamon rewritten to use Irmin to persist its data.
-- [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
-- [dog](https://github.com/samoht/dog), a synchronisation tool.
-- [irminFS](https://github.com/dsheets/irminfs), a prototype version-controlled
-  file-system using Fuse.
-
-### Further Reading
-
-- [What a Distributed, Version-Controlled ARP Cache Gets
-You](http://www.somerandomidiot.com/blog/2015/04/24/what-a-distributed-version-controlled-ARP-cache-gets-you/).
-Blog post describing how Irmin can be used with Mirage to store the
-network stack's ARP cache, which allows the history to be viewed using
-the git tools.
-
-- [CueKeeper: Gitting Things Done in the
-Browser](http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/).
-A GTD-based todo list running client-side in the browser, using Irmin
-compiled to JavaScript to provide history, revert and synchronisation
-between tabs. The data is stored using an IndexedDB Irmin backend.
-
-- [Using Irmin to add fault-tolerance to the Xenstore
-database.](https://mirage.io/blog/introducing-irmin-in-xenstore)
-Porting the Xen hypervisor toolstack to support Git persistence via
-Irmin.
-
-- [Introducing Irmin: Git-like distributed, branchable
-storage.](https://mirage.io/blog/introducing-irmin) This is the first
-post that describes Irmin, the new Git-like storage layer for Mirage
-OS 2.0.
-
-### Getting Started
-
-#### Install
-
-Irmin is packaged with [opam](https://opam.ocaml.org):
-
-```
-opam install irmin-unix # install all the optional depencies
-```
-
-#### Usage
-
-Irmin comes with a command-line tool called `irmin`. See `irmin
- --help` for further reading. Use either `irmin <command> --help` or
- `irmin help <command>` for more information on a specific command.
-
-To get the full capabilites of Irmin, use the [API](https://mirage.github.io/irmin):
+### Examples
+Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
 
 ```ocaml
 open Lwt.Infix
-open Irmin_unix
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
+(* Irmin store with string contents *)
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+
+(* Database configuration *)
 let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
-let info fmt = Irmin_unix.info ~author:"me <me@moi.com>" fmt
 
-let prog =
-  Store.Repo.v config >>= Store.master >>= fun t ->
-  Store.set t ~info:(info "Updating foo/bar") ["foo"; "bar"] "hi!" >>= fun () ->
-  Store.get t ["foo"; "bar"] >>= fun x ->
-  Printf.printf "Read: %s\n%!" x;
-  Lwt.return_unit
+(* Commit author *)
+let author = "Example <example@example.com>"
 
-let () = Lwt_main.run prog
+(* Commit information *)
+let info fmt = Irmin_unix.info ~author fmt
+
+let main =
+    (* Open the repo *)
+    Store.Repo.v config >>=
+
+    (* Load the master branch *)
+    Store.master >>= fun t ->
+
+    (* Set key "foo/bar" to "testing 123" *)
+    Store.set t ~info:(info "Updating foo/bar") ["foo"; "bar"] "testing 123" >>= fun () ->
+
+    (* Get key "foo/bar" and print it to stdout *)
+    Store.get t ["foo"; "bar"] >|= fun x ->
+    Printf.printf "foo/bar => '%s'\n" x
+
+(* Run the program *)
+let () = Lwt_main.run main
 ```
 
-To compile the example above, save it to a file called
-`example.ml`. Install irmin and git with opam (`opam install irmin-unix`) and
-run
+To compile the example above, save it to a file called `example.ml` and run:
 
-```ocaml
-$ ocamlfind ocamlopt example.ml -o example -package irmin.unix,lwt.unix -linkpkg
+```bash
+$ ocamlfind ocamlopt example.ml -o example -package irmin-unix,lwt.unix -linkpkg
 $ ./example
-Read: hi!
+foo/bar => 'testing 123'
+```
+The `examples` directory contains some more advanced examples.
+
+### Command-line
+The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
+
+```bash
+$ echo "root=." > .irminconfig
+$ irmin init
+$ irmin set foo/bar "testing 123"
+$ irmin get foo/bar
 ```
 
-The `examples` directory contains more examples. To build them, run
+`.irminconfig` allows for `irmin` flags to be set globally on a per-directory basis. Run `irmin help irminconfig` for further details.
 
-```ocaml
-$ ./configure --enable-examples
-$ make
-```
+Also see `irmin --help` for list of all commands and either `irmin <command> --help` or `irmin help <command>` for more help with a specific command.
 
-#### Tutorial
+### Related Projects
 
-Tutorials are available on the
-[wiki](https://github.com/mirage/irmin/wiki/).
+#### Bindings
+- [irmin-go](https://github.com/magnuss/irmin-go) - Go bindings
+- [irmin-js](https://github.com/talex5/irmin-js) - Javascript bindings
+
+#### Storage implementations
+- [irmin-chunk](https://github.com/mirage/irmin-chunk) - Storage using a well-balanced rope where leafs are all chunks of the same size.
+- [irmin-indexdb](https://github.com/talex5/irmin-indexeddb) -  Storage using a web browser's IndexedDB store.
+
+#### Datatypes
+- [merge-queues](https://github.com/mirage/merge-queues) - An implementation of mergeable queues.
+- [merge-ropes](https://github.com/mirage/merge-ropes) - An implementation of mergeable ropes.
+- [diff-datatypes](https://github.com/gprano/diff-datatypes) - A collection of automatic merge functions based on edit scripts. It is fairly generic but contains specific implementations for mergeable trees, stacks and queues.
+- [irmin-datatypes](https://github.com/kayceesrk/irmin-datatypes) - A collection of mergeable datatypes, including LWW registers, queues and sets.
 
 ### Issues
 
-To report any issues please use the [bugtracker on
-Github](https://github.com/mirage/irmin/issues).
+Feel free to to report any issues using the [Github bugtracker](https://github.com/mirage/irmin/issues).
 
 ### Conditions
 
@@ -173,5 +127,4 @@ See the [LICENSE file](./LICENSE.md).
 
 ### Acknowledgements
 
-Development of Irmin was supported in part by the EU FP7 User-Centric Networking
-project, Grant No. 611001.
+Development of Irmin was supported in part by the EU FP7 User-Centric Networking project, Grant No. 611001.
