@@ -18,6 +18,8 @@ open Lwt.Infix
 open Cmdliner
 open Astring
 
+let global_option_section = "COMMON OPTIONS"
+
 type contents = (module Irmin.Contents.S)
 
 let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
@@ -93,7 +95,7 @@ let config_term =
     |> add Irmin_git.level level
     |> add Irmin_http.uri uri
   in
-  Term.(pure create $
+  Term.(const create $
         opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
         opt_key Irmin_git.head $
@@ -113,14 +115,14 @@ let default_contents = `String
 
 let contents =
   let kind =
-    let doc = Arg.info ~doc:"The type of user-defined contents." ["contents";"c"] in
+    let doc = Arg.info ~doc:"The type of user-defined contents." ~docs:global_option_section ["contents";"c"] in
     Arg.(value & opt (enum contents_kinds) default_contents & doc)
   in
   Term.(const mk_contents $ kind)
 
 let store_term =
   let store =
-    let doc = Arg.info ~doc:"The kind of backend stores." ["s";"store"] in
+    let doc = Arg.info ~doc:"The kind of backend stores." ~docs:global_option_section ["s";"store"] in
     Arg.(value & opt (some (enum store_kinds)) None & doc)
   in
   let create store contents = match store with
@@ -193,15 +195,17 @@ let read_config_file (): t option =
     | None   -> Some (S ((module S), mk_master ()))
     | Some b -> Some (S ((module S), mk_branch b))
 
-let store =
   let branch =
     let doc =
       Arg.info
         ~doc:"The current branch name. Default is the store's master branch."
+        ~docs:global_option_section
+        ~docv:"BRANCH"
         ["b"; "branch"]
     in
     Arg.(value & opt (some string) None & doc)
-  in
+
+let store =
   let create store config branch =
     match store with
     | Some s ->
