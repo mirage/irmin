@@ -100,24 +100,7 @@ $ irmin get foo/bar
 
 Also see `irmin --help` for list of all commands and either `irmin <command> --help` or `irmin help <command>` for more help with a specific command.
 
-### Related Projects
-
-#### Bindings
-- [irmin-go](https://github.com/magnuss/irmin-go) - Go bindings
-- [irmin-js](https://github.com/talex5/irmin-js) - Javascript bindings
-
-#### Storage implementations
-- [irmin-chunk](https://github.com/mirage/irmin-chunk) - Storage using a well-balanced rope where leafs are all chunks of the same size.
-- [irmin-indexdb](https://github.com/talex5/irmin-indexeddb) -  Storage using a web browser's IndexedDB store.
-
-#### Datatypes
-- [merge-queues](https://github.com/mirage/merge-queues) - An implementation of mergeable queues.
-- [merge-ropes](https://github.com/mirage/merge-ropes) - An implementation of mergeable ropes.
-- [diff-datatypes](https://github.com/gprano/diff-datatypes) - A collection of automatic merge functions based on edit scripts. It is fairly generic but contains specific implementations for mergeable trees, stacks and queues.
-- [irmin-datatypes](https://github.com/kayceesrk/irmin-datatypes) - A collection of mergeable datatypes, including LWW registers, queues and sets.
-
 ### Issues
-
 Feel free to to report any issues using the [Github bugtracker](https://github.com/mirage/irmin/issues).
 
 ### Conditions
