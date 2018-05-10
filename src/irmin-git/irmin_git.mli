@@ -44,7 +44,7 @@ end
     hashes. *)
 module Hash (G: VALUE_STORE): Irmin.Hash.S with type t = Git.Hash.t
 
-(** Privides a subset of Irmin.Private.S (excludes branches and sync).
+(** Provides a subset of Irmin.Private.S (excludes branches and sync).
     This is useful if you want to store data in Git format, but do
     your own locking and sync. *)
 module Irmin_value_store
@@ -76,10 +76,10 @@ module RW (G: Git.Store.S) (K: Irmin.Branch.S):
 
 module type S = sig
 
-  (** The Git backed specialized a few types:
+  (** The Git backend specializes a few types:
 
       {ul
-      {- the allowed metdata are {!Metadata.t}.}
+      {- the allowed metadata are {!Metadata.t}.}
       {- the hash algorithm is SHA1.}
       }. *)
 
@@ -109,11 +109,11 @@ module type S = sig
   module Git_mem: sig
 
     val clear: ?root:string -> unit -> unit
-    (** [clear ?root ()] clear the store located at [root]. Do nothing
+    (** [clear ?root ()] clears the store located at [root]. Do nothing
         if the store is not an in-memory Git store. *)
 
     val clear_all: unit -> unit
-    (** [clear_all] clears all the known stores. Do nothing is the
+    (** [clear_all] clears all the known stores. Do nothing if the
         store is not an in-memory Git store. *)
 
   end
