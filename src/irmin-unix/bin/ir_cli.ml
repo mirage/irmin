@@ -383,8 +383,11 @@ let revert = {
     let revert (S ((module S), store)) snapshot =
       run begin
         store >>= fun t ->
-        let s = commit (S.Commit.of_string @@ S.repo t) snapshot in
-        S.Head.set t s
+        let hash = commit S.Commit.Hash.of_string snapshot in
+        S.Commit.of_hash (S.repo t) hash >>= fun s ->
+        match s with
+        | Some s -> S.Head.set t s
+        | None -> failwith "invalid commit"
       end
     in
     Term.(mk revert $ store $ snapshot)
