@@ -5,9 +5,9 @@
 Irmin is an OCaml library for building mergeable, branchable distributed data stores.
 
 ### Features
-- **Built-in snapshotting** - simple backup and restore
-- **Storage agnostic** - easy to use your own storage layer when needed
-- **Custom datatypes** - simple (de)serialization for custom data types
+- **Built-in snapshotting** - backup and restore
+- **Storage agnostic** - you can use Irmin on top of your own storage layer
+- **Custom datatypes** - (de)serialization for custom data types
 - **Highly portable** - runs anywhere from Linux to web browsers and Xen unikernels
 - **Git compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
 - **Dynamic behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
