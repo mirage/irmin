@@ -195,6 +195,7 @@ let read_config_file (): t option =
     | None   -> Some (S ((module S), mk_master ()))
     | Some b -> Some (S ((module S), mk_branch b))
 
+let store =
   let branch =
     let doc =
       Arg.info
@@ -204,8 +205,7 @@ let read_config_file (): t option =
         ["b"; "branch"]
     in
     Arg.(value & opt (some string) None & doc)
-
-let store =
+  in
   let create store config branch =
     match store with
     | Some s ->
