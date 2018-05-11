@@ -11,9 +11,6 @@ to browsers and Xen unikernels.
 
 ### Description
 
-Irmin is a library to version-control application data. It has the following
-features:
-
 - **on-disk format** various formats are supported, including the Git format:
   Irmin on-disk repositories can be inspected and modified using the classic
   Git command-line tools.
