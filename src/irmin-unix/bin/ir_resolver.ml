@@ -116,7 +116,7 @@ let contents =
     let doc = Arg.info ~doc:"The type of user-defined contents." ["contents";"c"] in
     Arg.(value & opt (enum contents_kinds) default_contents & doc)
   in
-  Term.(pure mk_contents $ kind)
+  Term.(const mk_contents $ kind)
 
 let store_term =
   let store =
@@ -127,7 +127,7 @@ let store_term =
     | Some s -> Some (mk_store s contents)
     | None   -> None
   in
-  Term.(pure create $ store $ contents)
+  Term.(const create $ store $ contents)
 
 let cfg = ".irminconfig"
 
@@ -229,7 +229,7 @@ let store =
         let t = S.Repo.v config >>= fun repo -> S.master repo in
         S ((module S), t)
   in
-  Term.(pure create $ store_term $ config_term $ branch)
+  Term.(const create $ store_term $ config_term $ branch)
 
 (* FIXME: read the remote configuration in a file *)
 let (/) = Filename.concat
@@ -262,4 +262,4 @@ let remote =
     let doc = Arg.info ~docv:"REMOTE"
         ~doc:"The URI of the remote repository to clone from." [] in
     Arg.(required & pos 0 (some string) None & doc) in
-  Term.(pure infer_remote $ contents $ repo)
+  Term.(const infer_remote $ contents $ repo)
