@@ -84,8 +84,8 @@ let depth =
 let print_exc exc =
   begin
     match exc with
-    | Failure f -> Fmt.epr "%s\n%!" f
-    | e -> Fmt.epr "%a\n%!" Fmt.exn e
+    | Failure f -> Fmt.epr "ERROR: %s\n%!" f
+    | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e
   end;
   exit 1
 
@@ -106,7 +106,7 @@ let init = {
   man  = [];
   term =
     let daemon =
-      let doc = Arg.info ~doc:"Start an Irmin server." ["d";"daemon"] in
+      let doc = Arg.info ~doc:"Start an Irmin HTTP server." ["d";"daemon"] in
       Arg.(value & flag & doc)
     in
     let uri =
@@ -163,7 +163,9 @@ let commit f x = get "commit" f x
 (* GET *)
 let get = {
   name = "get";
-  doc  = "Read the contents of a node.";
+  doc  = "Read the value associated with a key. \
+          If the key has not been set then the program \
+          will terminate with a non-zero exit code";
   man  = [];
   term =
     let get (S ((module S), store)) path =
@@ -251,11 +253,11 @@ let tree = {
 }
 
 let author =
-  let doc = Arg.info ~docv:"NAME" ~doc:"Commit author name" ["author"] in
+  let doc = Arg.info ~docv:"NAME" ~doc:"Commit author name." ["author"] in
   Arg.(value & opt (some string) None & doc)
 
 let message =
-  let doc = Arg.info ~docv:"MESSAGE" ~doc:"Commit message" ["message"] in
+  let doc = Arg.info ~docv:"MESSAGE" ~doc:"Commit message." ["message"] in
   Arg.(value & opt (some string) None & doc)
 
 (* SET *)
@@ -282,12 +284,12 @@ let set = {
 (* REMOVE *)
 let remove = {
   name = "remove";
-  doc  = "Remove a node.";
+  doc  = "Delete a key.";
   man  = [];
   term =
     let remove (S ((module S), store)) author message path =
       run begin
-        let message = match message with Some s -> s | None -> "rm " ^ path in
+        let message = match message with Some s -> s | None -> "remove " ^ path in
         store >>= fun t ->
         S.remove t ~info:(info ?author "%s" message) (key S.Key.of_string path)
       end
@@ -298,7 +300,7 @@ let remove = {
 (* CLONE *)
 let clone = {
   name = "clone";
-  doc  = "Clone a repository into a new store.";
+  doc  = "Copy a remote respository to a local store";
   man  = [];
   term =
     let clone (S ((module S), store)) remote depth =
@@ -308,7 +310,7 @@ let clone = {
         remote >>= fun remote ->
         Sync.fetch t ?depth remote >>= function
         | Ok d    -> S.Head.set t d
-        | Error e -> Format.eprintf "Error: %a!\n" Sync.pp_fetch_error e; exit 1
+        | Error e -> Format.eprintf "ERROR: %a!\n" Sync.pp_fetch_error e; exit 1
       end
     in
     Term.(mk clone $ store $ remote $ depth);
@@ -320,22 +322,19 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch (S ((module S), store)) remote branch_name =
+    let fetch (S ((module S), store)) remote =
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        let branch =
-          match branch_name with
-          | Some name ->
-              let branch = branch S.Branch.of_string name in
-              S.of_branch (S.repo t) branch
-          | None -> S.master (S.repo t) in
-        branch >>= fun t ->
+        let branch = match S.Branch.of_string "import" with
+          | Ok branch -> branch
+          | Error (`Msg e) -> failwith e in
+        S.of_branch (S.repo t) branch >>= fun t ->
         Sync.pull_exn t r `Set
       end
     in
-    Term.(mk fetch $ store $ remote $ Ir_resolver.branch);
+    Term.(mk fetch $ store $ remote);
 }
 
 (* PULL *)
@@ -376,7 +375,7 @@ let push = {
 (* SNAPSHOT *)
 let snapshot = {
   name = "snapshot";
-  doc  = "Snapshot the contents of the store.";
+  doc  = "Return a snapshot for the current state of the database.";
   man  = [];
   term =
     let snapshot (S ((module S), store)) =
@@ -408,7 +407,7 @@ let revert = {
         S.Commit.of_hash (S.repo t) hash >>= fun s ->
         match s with
         | Some s -> S.Head.set t s
-        | None -> failwith "Invalid commit"
+        | None -> failwith "invalid commit"
       end
     in
     Term.(mk revert $ store $ snapshot)
@@ -569,9 +568,9 @@ let default =
   let doc = "Irmin, the database that never forgets." in
   let man = [
     `S "DESCRIPTION";
-    `P "Irmin is a distributed database with built-in snapshot, branch \
-        and revert mechanisms. It is designed to use a large variety of backends, \
-        although it is optimized for append-only ones.";
+    `P "Irmin is a distributed database used primarily for application data. \
+        It is designed to work with a large variety of backends and has built-in \
+        snapshotting, reverting and branching mechanisms.";
     `P "Use either $(mname) <command> --help or $(mname) help <command> \
         for more information on a specific command.";
   ] in
