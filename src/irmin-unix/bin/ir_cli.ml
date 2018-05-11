@@ -327,9 +327,7 @@ let fetch = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        let branch = match S.Branch.of_string "import" with
-          | Ok branch -> branch
-          | Error (`Msg e) -> failwith e in
+        let branch = branch S.Branch.of_string "import" in
         S.of_branch (S.repo t) branch >>= fun t ->
         Sync.pull_exn t r `Set
       end
@@ -401,9 +399,7 @@ let revert = {
     let revert (S ((module S), store)) snapshot =
       run begin
         store >>= fun t ->
-        let hash = match S.Commit.Hash.of_string snapshot with
-          | Ok hash -> hash
-          | Error (`Msg msg) -> failwith msg in
+        let hash = commit S.Commit.Hash.of_string snapshot in
         S.Commit.of_hash (S.repo t) hash >>= fun s ->
         match s with
         | Some s -> S.Head.set t s
