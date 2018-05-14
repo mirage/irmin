@@ -411,7 +411,7 @@ let revert = {
 (* WATCH *)
 let watch = {
   name = "watch";
-  doc  = "Watch the contents of a store and be notified on updates.";
+  doc  = "Get notifications when values change.";
   man  = [];
   term =
     let watch (S ((module S), store)) path =
