@@ -22,6 +22,8 @@ type contents = (module Irmin.Contents.S)
 
 val contents: contents Cmdliner.Term.t
 
+val global_option_section: string
+
 (** {1 Global Configuration} *)
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
