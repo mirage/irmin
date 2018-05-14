@@ -36,7 +36,7 @@ The following packages have been made available on `opam`:
 - `irmin-git` - Git compatible storage
 - `irmin-http` - a simple REST interface
 - `irmin-mem` - in-memory storage implementation
-- `irmin-mirage` - miragle compatibility
+- `irmin-mirage` - mirage compatibility
 - `irmin-unix` - unix compatibility
 
 For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin)
