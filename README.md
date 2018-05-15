@@ -84,7 +84,12 @@ $ ocamlfind ocamlopt example.ml -o example -package irmin-unix,lwt.unix -linkpkg
 $ ./example
 foo/bar => 'testing 123'
 ```
-The `examples` directory contains some more advanced examples.
+The `examples` directory contains some more advanced examples. The build them, run:
+
+```bash
+$ jbuilder build examples/trees.exe
+$ _build/default/examples/trees.exe
+```
 
 ### Command-line
 The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
