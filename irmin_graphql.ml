@@ -2,7 +2,7 @@ open Lwt.Infix
 open Graphql_lwt
 
 module type S = sig
-  type store 
+  type store
 
   val schema : store -> unit Schema.schema
   val start_server : store -> unit Lwt.t
@@ -40,13 +40,15 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:[]
         ~resolve:(fun _ c ->
           Store.Commit.tree c >|= fun tree ->
-          tree, Store.Key.empty
+          Ok (tree, Store.Key.empty)
         )
       ;
       io_field "parents"
         ~typ:(non_null (list (non_null commit)))
         ~args:[]
-        ~resolve:(fun _ c -> Store.Commit.parents c)
+        ~resolve:(fun _ c -> Store.Commit.parents c >|= fun parents ->
+          Ok parents
+        )
       ;
       field "info"
         ~typ:(non_null Lazy.(force info))
@@ -92,13 +94,15 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ (r, b) ->
             Store.of_branch r b >>= fun store ->
             Store.tree store >|= fun tree ->
-            tree, Store.Key.empty
+            Ok (tree, Store.Key.empty)
         )
       ;
       io_field "commit"
         ~typ:(non_null Lazy.(force commit))
         ~args:[]
-        ~resolve:(fun _ (r, b) -> Store.Branch.get r b)
+        ~resolve:(fun _ (r, b) -> Store.Branch.get r b >|= fun branch ->
+          Ok branch
+        )
       ;
     ])
   )
@@ -115,7 +119,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:[]
         ~resolve:(fun _ s ->
           Store.tree s >|= fun tree ->
-          tree, Store.Key.empty
+          Ok (tree, Store.Key.empty)
         )
     ])
   )
@@ -125,21 +129,21 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
       io_field "heads"
         ~typ:(non_null (list (non_null Lazy.(force commit))))
         ~args:[]
-        ~resolve:(fun _ r -> Store.Repo.heads r)
+        ~resolve:(fun _ r -> Store.Repo.heads r >>= Lwt.return_ok)
       ;
       io_field "branches"
         ~typ:(non_null (list (non_null Lazy.(force branch))))
         ~args:[]
         ~resolve:(fun _ r ->
           Store.Repo.branches r >|= fun bs ->
-          List.map (fun b -> r, b) bs
+          Ok (List.map (fun b -> r, b) bs)
         )
       ;
       io_field "of_branch"
         ~typ:(non_null Lazy.(force store))
         ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
         ~resolve:(fun _ r branch ->
-            Store.of_branch r branch
+            Store.of_branch r branch >>= Lwt.return_ok
         )
       ;
       io_field "of_commit"
@@ -149,8 +153,8 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
           match Store.Commit.of_string r name with
           | Ok commit ->
               Store.of_commit commit >|= fun s ->
-              Some s
-          | Error _ -> Lwt.return None
+              Ok (Some s)
+          | Error _ -> Lwt.return (Ok None)
         )
     ])
   )
@@ -177,6 +181,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             | `Contents -> Lazy.(force contents_as_tree) (tree, key')
             | `Node -> Lazy.(force node_as_tree) (tree, key')
           ) children
+          |> fun c -> Ok c
         )
     ])
   )
@@ -193,9 +198,9 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:[]
         ~resolve:(fun _ (tree, key) ->
           Store.Tree.find tree key >|= function
-          | None -> None
+          | None -> Ok None
           | Some contents ->
-              Some (Fmt.to_to_string Store.Contents.pp contents)
+              Ok (Some (Fmt.to_to_string Store.Contents.pp contents))
         )
     ])
   )
