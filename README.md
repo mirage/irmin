@@ -97,8 +97,8 @@ The same thing can also be accomplished using `irmin`, the command-line applicat
 ```bash
 $ echo "root=." > .irminconfig
 $ irmin init
-$ irmin set foo/bar "testing 123"
-$ irmin get foo/bar
+$ irmin write foo/bar "testing 123"
+$ irmin read foo/bar
 ```
 
 `.irminconfig` allows for `irmin` flags to be set globally on a per-directory basis. Run `irmin help irminconfig` for further details.
