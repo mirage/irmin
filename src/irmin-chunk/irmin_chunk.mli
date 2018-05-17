@@ -18,8 +18,8 @@
 (**
     This package provides an Irmin backend to cut raw contents into blocks
     of the same size, while preserving the keys used in the store. It can
-    be used to optimize space usage when dealing with large files or as a
-    an intermediate layer for a raw block device backend.
+    be used to optimize space usage when dealing with large files or as an
+    intermediate layer for a raw block device backend.
 
     # Install
 
