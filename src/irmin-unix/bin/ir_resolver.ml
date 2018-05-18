@@ -148,10 +148,12 @@ let read_config_file (): t option =
     in
     let string_value = function
       | `String s -> s
-      | _ -> ""
+      | _ -> raise Not_found
     in
     let assoc name fn =
-      try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
+      try
+        Some (fn (List.assoc name y |> string_value))
+      with Not_found -> None
     in
     let contents =
       let kind =
