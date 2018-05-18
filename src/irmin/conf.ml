@@ -118,4 +118,5 @@ let root =
   key
     ~docv:"ROOT"
     ~doc:"The location of the Git repository root."
+    ~docs:"COMMON OPTIONS"
     "root" (some string) None

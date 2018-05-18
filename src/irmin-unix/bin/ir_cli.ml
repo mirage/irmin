@@ -20,13 +20,12 @@ open Ir_resolver
 
 let () = Irmin_unix.set_listen_dir_hook ()
 
-let info fmt = Irmin_unix.info ~author:"irmin" fmt
+let info ?author:(author="irmin") fmt = Irmin_unix.info ~author fmt
 
 (* Help sections common to all commands *)
-let global_option_section = "COMMON OPTIONS"
 let help_sections = [
   `S global_option_section;
-  `P "These options are common to all commands.";
+  `P "These options can be passed to any command";
 
   `S "AUTHORS";
   `P "Thomas Gazagnaire   <thomas@gazagnaire.org>";
@@ -46,7 +45,7 @@ let setup_log =
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
-  Term.info ~sdocs:global_option_section ~doc ~man title
+  Term.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man title
 
 type command = unit Term.t * Term.info
 
@@ -74,7 +73,7 @@ let path =
     let print ppf path = pr_str ppf path in
     parse, print
   in
-  let doc = Arg.info ~docv:"PATH" ~doc:"Local path." [] in
+  let doc = Arg.info ~docv:"PATH" ~doc:"Key to lookup or modify." [] in
   Arg.(required & pos 0 (some path_conv) None & doc)
 
 let depth =
@@ -82,15 +81,23 @@ let depth =
     Arg.info ~docv:"DEPTH" ~doc:"Limit the history depth." ["d";"depth"] in
   Arg.(value & opt (some int) None & doc)
 
+let print_exc exc =
+  begin
+    match exc with
+    | Failure f -> Fmt.epr "ERROR: %s\n%!" f
+    | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e
+  end;
+  exit 1
+
 let run t =
   Lwt_main.run (
     Lwt.catch
       (fun () -> t)
-      (function e -> Fmt.epr "%a\n%!" Fmt.exn e; exit 1)
+      print_exc
   )
 
 let mk (fn:'a): 'a Term.t =
-  Term.(pure (fun () -> fn) $ setup_log)
+  Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
 let init = {
@@ -99,7 +106,7 @@ let init = {
   man  = [];
   term =
     let daemon =
-      let doc = Arg.info ~doc:"Start an Irmin server." ["d";"daemon"] in
+      let doc = Arg.info ~doc:"Start an Irmin HTTP server." ["d";"daemon"] in
       Arg.(value & flag & doc)
     in
     let uri =
@@ -153,13 +160,15 @@ let value f x = get "value" f x
 let branch f x = get "branch" f x
 let commit f x = get "commit" f x
 
-(* READ *)
-let read = {
-  name = "read";
-  doc  = "Read the contents of a node.";
+(* GET *)
+let get = {
+  name = "get";
+  doc  = "Read the value associated with a key. \
+          If the key has not been set then the program \
+          will terminate with a non-zero exit code";
   man  = [];
   term =
-    let read (S ((module S), store)) path =
+    let get (S ((module S), store)) path =
       run begin
         store >>= fun t ->
         S.find t (key S.Key.of_string path) >>= function
@@ -169,16 +178,16 @@ let read = {
           Lwt.return_unit
       end
     in
-    Term.(mk read $ store $ path);
+    Term.(mk get $ store $ path);
 }
 
-(* LS *)
-let ls = {
-  name = "ls";
+(* LIST *)
+let list = {
+  name = "list";
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let ls (S ((module S), store)) path =
+    let list (S ((module S), store)) path =
       run begin
         store >>= fun t ->
         S.list t (key S.Key.of_string path) >>= fun paths ->
@@ -190,7 +199,7 @@ let ls = {
         Lwt.return_unit
       end
     in
-    Term.(mk ls $ store $ path);
+    Term.(mk list $ store $ path);
 }
 
 (* TREE *)
@@ -226,10 +235,10 @@ let tree = {
               Fmt.to_to_string S.Key.pp k,
               Fmt.strf "%a" S.Contents.pp v
             ) all in
-        let max_lenght l =
+        let max_length l =
           List.fold_left (fun len s -> max len (String.length s)) 0 l in
-        let k_max = max_lenght (List.map fst all) in
-        let v_max = max_lenght (List.map snd all) in
+        let k_max = max_length (List.map fst all) in
+        let v_max = max_length (List.map snd all) in
         let pad = 79 + k_max + v_max in
         List.iter (fun (k,v) ->
             let dots =
@@ -243,49 +252,55 @@ let tree = {
     Term.(mk tree $ store);
 }
 
-(* WRITE *)
-let write = {
-  name = "write";
-  doc  = "Write/modify a node.";
+let author =
+  let doc = Arg.info ~docv:"NAME" ~doc:"Commit author name." ["author"] in
+  Arg.(value & opt (some string) None & doc)
+
+let message =
+  let doc = Arg.info ~docv:"MESSAGE" ~doc:"Commit message." ["message"] in
+  Arg.(value & opt (some string) None & doc)
+
+(* SET *)
+let set = {
+  name = "set";
+  doc  = "Update the value associated with a key.";
   man  = [];
   term =
-    let args =
+    let v =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
-      Arg.(value & pos_all string [] & doc) in
-    let write (S ((module S), store)) args =
+      Arg.(required & pos 1 (some string) None & doc) in
+    let set (S ((module S), store)) author message path v =
       run begin
+        let message = match message with Some s -> s | None -> "set" in
         store >>= fun t ->
-        let mk v = value S.Contents.of_string v in
-        let path, value = match args with
-          | [] | [_]      -> failwith "Not enough arguments"
-          | [path; value] -> key S.Key.of_string path, mk value
-          | _             -> failwith "Too many arguments"
-        in
-        S.set t ~info:(info "write") path value
+        let path = key S.Key.of_string path in
+        let value = value S.Contents.of_string v in
+        S.set t ~info:(info ?author "%s" message) path value
       end
     in
-    Term.(mk write $ store $ args);
+    Term.(mk set $ store $ author $ message $ path $ v);
 }
 
-(* RM *)
-let rm = {
-  name = "rm";
-  doc  = "Remove a node.";
+(* REMOVE *)
+let remove = {
+  name = "remove";
+  doc  = "Delete a key.";
   man  = [];
   term =
-    let rm (S ((module S), store)) path =
+    let remove (S ((module S), store)) author message path =
       run begin
+        let message = match message with Some s -> s | None -> "remove " ^ path in
         store >>= fun t ->
-        S.remove t ~info:(info "rm %s." path) (key S.Key.of_string path)
+        S.remove t ~info:(info ?author "%s" message) (key S.Key.of_string path)
       end
     in
-    Term.(mk rm $ store $ path);
+    Term.(mk remove $ store $ author $ message $ path);
 }
 
 (* CLONE *)
 let clone = {
   name = "clone";
-  doc  = "Clone a repository into a new store.";
+  doc  = "Copy a remote respository to a local store";
   man  = [];
   term =
     let clone (S ((module S), store)) remote depth =
@@ -295,7 +310,7 @@ let clone = {
         remote >>= fun remote ->
         Sync.fetch t ?depth remote >>= function
         | Ok d    -> S.Head.set t d
-        | Error e -> Format.eprintf "Error: %a!\n" Sync.pp_fetch_error e; exit 1
+        | Error e -> Format.eprintf "ERROR: %a!\n" Sync.pp_fetch_error e; exit 1
       end
     in
     Term.(mk clone $ store $ remote $ depth);
@@ -326,15 +341,16 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (S ((module S), store)) remote =
+    let pull (S ((module S), store)) message remote =
+      let message = match message with Some s -> s | None -> "pull" in
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn t r (`Merge (Irmin_unix.info "Pulling"))
+        Sync.pull_exn t r (`Merge (Irmin_unix.info "%s" message))
       end
     in
-    Term.(mk pull $ store $ remote);
+    Term.(mk pull $ store $ message $ remote);
 }
 
 (* PUSH *)
@@ -357,7 +373,7 @@ let push = {
 (* SNAPSHOT *)
 let snapshot = {
   name = "snapshot";
-  doc  = "Snapshot the contents of the store.";
+  doc  = "Return a snapshot for the current state of the database.";
   man  = [];
   term =
     let snapshot (S ((module S), store)) =
@@ -546,10 +562,10 @@ let default =
   let doc = "Irmin, the database that never forgets." in
   let man = [
     `S "DESCRIPTION";
-    `P "Irmin is a distributed database with built-in snapshot, branch \
-        and revert mechanisms. It is designed to use a large variety of backends, \
-        although it is optimized for append-only ones.";
-    `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
+    `P "Irmin is a distributed database used primarily for application data. \
+        It is designed to work with a large variety of backends and has built-in \
+        snapshotting, reverting and branching mechanisms.";
+    `P "Use either $(mname) <command> --help or $(mname) help <command> \
         for more information on a specific command.";
   ] in
   let usage () =
@@ -560,10 +576,10 @@ let default =
        \n\
        The most commonly used subcommands are:\n\
       \    init        %s\n\
-      \    read        %s\n\
-      \    write       %s\n\
-      \    rm          %s\n\
-      \    ls          %s\n\
+      \    get         %s\n\
+      \    set         %s\n\
+      \    remove      %s\n\
+      \    list        %s\n\
       \    tree        %s\n\
       \    clone       %s\n\
       \    fetch       %s\n\
@@ -576,11 +592,11 @@ let default =
        \n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
-      init.doc read.doc write.doc rm.doc ls.doc tree.doc
+      init.doc get.doc set.doc remove.doc list.doc tree.doc
       clone.doc fetch.doc pull.doc push.doc snapshot.doc
       revert.doc watch.doc dot.doc
   in
-  Term.(mk usage $ pure ()),
+  Term.(mk usage $ const ()),
   Term.info "irmin"
     ~version:Irmin.version
     ~sdocs:global_option_section
@@ -590,10 +606,10 @@ let default =
 let commands = List.map create_command [
     help;
     init;
-    read;
-    write;
-    rm;
-    ls;
+    get;
+    set;
+    remove;
+    list;
     tree;
     clone;
     pull;
