@@ -131,27 +131,27 @@ let store_term =
   in
   Term.(const create $ store $ contents)
 
-let cfg = ".irminconfig"
+let cfg = "irmin.yml"
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-(* FIXME: use a proper configuration format (toml?) and interface
-   properly with cmdliner *)
 let read_config_file (): t option =
   if not (Sys.file_exists cfg) then None
   else
     let oc = open_in cfg in
     let len = in_channel_length oc in
-    let buf = Bytes.create len in
-    really_input oc buf 0 len;
-    let lines = String.cuts ~sep:"\n" (Bytes.to_string buf) in
-    let lines = List.map (fun s -> String.trim s) lines in
-    let lines = List.map (fun s -> String.cut ~sep:"=" s) lines in
-    let lines =
-      List.fold_left (fun l -> function None -> l | Some x -> x::l) [] lines
+    let buf = really_input_string oc len in
+    close_in oc;
+    let y = match Yaml.of_string buf with
+      | Ok (`O y) -> y
+      | _ -> []
+    in
+    let string_value = function
+      | `String s -> s
+      | _ -> ""
     in
     let assoc name fn =
-      try Some (fn (List.assoc name lines)) with Not_found -> None
+      try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
     in
     let contents =
       let kind =
