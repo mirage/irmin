@@ -95,7 +95,7 @@ $ _build/default/examples/trees.exe
 The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
 
 ```bash
-$ echo "root: ." > irmin.yaml
+$ echo "root: ." > irmin.yml
 $ irmin init
 $ irmin set foo/bar "testing 123"
 $ irmin get foo/bar

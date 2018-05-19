@@ -135,6 +135,7 @@ let cfg = "irmin.yml"
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
+(* Read configuration from a YAML file *)
 let read_config_file (): t option =
   if not (Sys.file_exists cfg) then None
   else
@@ -155,6 +156,7 @@ let read_config_file (): t option =
         Some (fn (List.assoc name y |> string_value))
       with Not_found -> None
     in
+
     let contents =
       let kind =
         match assoc "contents" (fun x -> List.assoc x contents_kinds) with
