@@ -152,11 +152,9 @@ let read_config_file (): t option =
       | _ -> raise Not_found
     in
     let assoc name fn =
-      try
-        Some (fn (List.assoc name y |> string_value))
+      try Some (fn (List.assoc name y |> string_value))
       with Not_found -> None
     in
-
     let contents =
       let kind =
         match assoc "contents" (fun x -> List.assoc x contents_kinds) with
