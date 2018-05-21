@@ -18,11 +18,12 @@ open Lwt.Infix
 
 module Metadata = struct
   module X = struct
-    type t = [`Normal | `Exec | `Link]
+    type t = [`Normal | `Exec | `Link | `Everybody]
     let t = Irmin.Type.enum "metadata" [
-        ("normal", `Normal);
-        ("exec"  , `Exec);
-        ("link"  , `Link);
+        ("normal"   , `Normal);
+        ("exec"     , `Exec);
+        ("link"     , `Link);
+        ("everybody", `Everybody);
       ]
   end
   include X
@@ -35,11 +36,17 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
 
+  let temp_dir =
+    Irmin.Private.Conf.key
+      ~doc:"The location where temporary files are created. \
+            Default is [$root/.git/tmp]."
+      "temp-dir" Irmin.Private.Conf.(some string) None
+
   let root = Irmin.Private.Conf.root
 
   let reference =
-    let parse str = Ok (Git.Reference.of_raw str) in
-    let print ppf name = Fmt.string ppf (Git.Reference.to_raw name) in
+    let parse str = Ok (Git.Reference.of_string str) in
+    let print ppf name = Fmt.string ppf (Git.Reference.to_string name) in
     parse, print
 
   let head =
@@ -56,6 +63,11 @@ module Conf = struct
     Irmin.Private.Conf.key
       ~doc:"The Zlib compression level."
       "level" Irmin.Private.Conf.(some int) None
+
+  let buffers =
+    Irmin.Private.Conf.key
+      ~doc:"The number of 4K pre-allocated buffers."
+      "buffers" Irmin.Private.Conf.(some int) None
 
   let dot_git =
     Irmin.Private.Conf.key
@@ -76,50 +88,39 @@ let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root =
   let config = C.add config Conf.dot_git dot_git in
   config
 
-module type VALUE_STORE = sig
-  type t
-  val read: t -> Git.Hash.t -> Git.Value.t option Lwt.t
-  val mem: t -> Git.Hash.t -> bool Lwt.t
-  val write: t -> Git.Value.t -> Git.Hash.t Lwt.t
-  val contents: t -> (Git.Hash.t * Git.Value.t) list Lwt.t
-
-  module Digest : Git.Hash.DIGEST
-end
-
-module Hash (G: VALUE_STORE) = struct
-  module SHA_IO = Git.Hash.IO(G.Digest)
-  type t = Git.Hash.t
-  let digest_size = 20 (* FIXME: expose Git.Hash.digest_size *)
-  let t = Irmin.Type.(like string) SHA_IO.of_raw Git.Hash.to_raw
-  let digest t x = G.Digest.cstruct (Irmin.Type.encode_cstruct t x)
-  let to_raw t = Cstruct.of_string (Git.Hash.to_raw t)
-  let of_raw t = Git.Hash.of_raw (Cstruct.to_string t)
-  let has_kind = function `SHA1 -> true | _ -> false
-  let pp ppf x = Fmt.string ppf (Git.Hash.to_hex x)
-  let of_string str =
-    try Ok (SHA_IO.of_hex str)
-    with Git.Hash.Ambiguous s -> Error (`Msg ("ambiguous " ^ s))
+module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t = struct
+  type t = H.t
+  let digest_size = H.Digest.length
+  let t = Irmin.Type.(like string) H.of_hex H.to_hex
+  let digest t x =
+    let raw = Irmin.Type.encode_cstruct t x in
+    let ctx = H.Digest.init () in
+    H.Digest.feed ctx raw;
+    H.Digest.get ctx
+  let to_raw t = Cstruct.of_string @@ H.to_string t (* FIXME: avoid copy *)
+  let of_raw t = H.of_string @@ Cstruct.to_string t (* FIXME: avoid copy *)
+  let has_kind = function `SHA1 -> true | _ -> false (* FIXME: fixme *)
+  let pp ppf x = Fmt.string ppf (H.to_hex x)
+  let of_string str = Ok (H.of_hex str)
   let to_raw_int = Hashtbl.hash
 end
 
-module H = Irmin.Hash.SHA1
-
-module Irmin_value_store
-    (G: VALUE_STORE)
+module Make_private
+    (G: Git.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
 = struct
 
+  module H = Hash(G.Hash)
+
   module type V = sig
     type t
-    val type_eq: Git.Object_type.t -> bool
-    val to_git: t -> Git.Value.t
-    val of_git: Git.Value.t -> t option
+    (* FIXME: use G.Value.kind *)
+    val pp: t Fmt.t
+    val type_eq: [`Commit | `Blob | `Tree | `Tag] -> bool
+    val to_git: t -> G.Value.t
+    val of_git: G.Value.t -> t option
   end
-
-  module Git_hash = Hash(G)
-  let git_of_key k = Git_hash.of_raw (H.to_raw k)
-  let key_of_git k = H.of_raw (Git_hash.to_raw k)
 
   module AO (V: V) = struct
 
@@ -128,30 +129,35 @@ module Irmin_value_store
     type value = V.t
 
     let mem t key =
-      let key = git_of_key key in
+      Log.debug (fun l -> l "mem %a" H.pp key);
       G.mem t key >>= function
       | false    -> Lwt.return false
       | true     ->
-        G.read t key >|= function
-        | None   -> false
-        | Some v -> V.type_eq (Git.Value.type_of v)
+        G.read t key >>= function
+        | Error `Not_found -> Lwt.return false
+        | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+        | Ok v             -> Lwt.return (V.type_eq (G.Value.kind v))
 
     let find t key =
-      let key = git_of_key key in
-      G.read t key >|= function
-      | None   -> None
-      | Some v -> V.of_git v
+      Log.debug (fun l -> l "find %a" H.pp key);
+      G.read t key >>= function
+      | Error `Not_found -> Lwt.return None
+      | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Ok v             -> Lwt.return (V.of_git v)
 
     let add t v =
-      G.write t (V.to_git v) >|=
-      key_of_git
+      Log.debug (fun l -> l "add %a" V.pp v);
+      G.write t (V.to_git v) >>= function
+      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Ok k    -> Lwt.return (fst k)
 
   end
 
   module GitContents = struct
     type t = C.t
+    let pp = C.pp
     let to_string = Fmt.to_to_string C.pp
-    let type_eq = function Git.Object_type.Blob -> true | _ -> false
+    let type_eq = function `Blob -> true | _ -> false
 
     let of_string str = match C.of_string str with
       | Ok x           -> Some x
@@ -160,10 +166,10 @@ module Irmin_value_store
         None
 
     let of_git = function
-      | Git.Value.Blob b -> of_string (Git.Blob.to_raw b)
-      | _                -> None
+      | G.Value.Blob b -> of_string (G.Value.Blob.to_string b)
+      | _              -> None
 
-    let to_git b = Git.Value.Blob (Git.Blob.of_raw (to_string b))
+    let to_git b = G.Value.Blob (G.Value.Blob.of_string (to_string b))
   end
   module XContents = struct
     include AO (GitContents)
@@ -179,7 +185,8 @@ module Irmin_value_store
     module Val = struct
       module Metadata = Metadata
 
-      type t = Git.Tree.t
+      type t = G.Value.Tree.t
+      let pp = G.Value.Tree.pp
       type metadata = Metadata.t
       type contents = Contents.key
       type node = Key.t
@@ -206,176 +213,63 @@ module Irmin_value_store
         | Ok x           -> x
         | Error (`Msg e) -> failwith e
 
-      let to_git perm (name, node) =
-        { Git.Tree.perm; name = of_step name; node }
-
-      let list t  =
-        List.fold_left (fun acc { Git.Tree.perm; name; node } ->
+      let list t =
+        List.fold_left (fun acc { G.Value.Tree.perm; name; node } ->
             let name = to_step name in
             match perm with
-            | `Dir             -> (name, `Node (key_of_git node)) :: acc
+            | `Dir             -> (name, `Node node) :: acc
             | `Commit          -> acc (* FIXME *)
-            | #Metadata.t as p -> (name, `Contents (key_of_git node, p)) :: acc
-          ) [] t
+            | #Metadata.t as p -> (name, `Contents (node, p)) :: acc
+          ) [] (G.Value.Tree.to_list t)
         |> List.rev
 
       let find t s =
         let s = of_step s in
         let rec aux = function
           | [] -> None
-          | x::xs when x.Git.Tree.name <> s -> aux xs
-          | { Git.Tree.perm; node; _ } :: _ ->
+          | x::xs when x.G.Value.Tree.name <> s -> aux xs
+          | { G.Value.Tree.perm; node; _ } :: _ ->
             match perm with
-            | `Dir             -> Some (`Node (key_of_git node))
+            | `Dir             -> Some (`Node node)
             | `Commit          -> None (* FIXME *)
-            | #Metadata.t as p -> Some (`Contents (key_of_git node, p))
+            | #Metadata.t as p -> Some (`Contents (node, p))
         in
-        aux t
+        aux (G.Value.Tree.to_list t)
 
-      type compare_result = LT | EQ | GT
+      let remove t step = G.Value.Tree.remove ~name:(of_step step) t
+      let is_empty = G.Value.Tree.is_empty
 
-      module Sort_key: sig
-        type t
-        val of_entry: Git.Tree.entry -> t
-        val of_contents: string -> t
-        val of_node: string -> t
-        val order: t -> t -> compare_result
-        val compare: t -> t -> int
-      end = struct
-
-        type t =
-          | Contents: string -> t
-          | Node    : string -> t
-
-        exception Result of int
-
-        let str = function Contents s | Node s -> s
-
-        let compare x y = match x, y with
-          | Contents x, Contents y -> String.compare x y
-          | _  ->
-            let xs = str x and ys = str y in
-            let lenx = String.length xs in
-            let leny = String.length ys in
-            let i = ref 0 in
-            try
-              while !i < lenx && !i < leny do
-                match
-                  Char.compare
-                    (String.unsafe_get xs !i) (String.unsafe_get ys !i)
-                with
-                | 0 -> incr i
-                | i -> raise (Result i)
-              done;
-              let get len s i =
-                if i < len then String.unsafe_get (str s) i
-                else if i = len then match s with
-                  | Node _     -> '/'
-                  | Contents _ -> '\000'
-                else '\000'
-              in
-              match Char.compare (get lenx x !i) (get leny y !i) with
-              | 0 -> Char.compare (get lenx x (!i + 1)) (get leny y (!i + 1))
-              | i -> i
-            with Result i ->
-              i
-
-        let order a b = match compare a b with
-          | 0 -> EQ
-          | x when x > 0 -> GT
-          | _ -> LT
-
-        let of_contents c = Contents c
-        let of_node n = Node n
-
-        let of_entry = function
-          | {Git.Tree.name = n; perm = `Dir; _} -> of_node n
-          | {Git.Tree.name = n; _} -> of_contents n
-      end
-
-      let compare_entries a b =
-        Sort_key.(compare (of_entry a) (of_entry b))
-
-      (* the order is always:
-
-         [ ...; foo (content key); ...; foo/ (node key);  ... ]
-
-         So always scan until the 'node' key.
-      *)
-
-      let remove t step =
-        let step = of_step step in
-        let node_key = Sort_key.of_node step in
-        let contents_key = Sort_key.of_contents step in
-        let return ~acc rest = List.rev_append acc rest in
-        let rec aux acc = function
-          | []     -> t
-          | h :: l ->
-            let entry_key = Sort_key.of_entry h in
-            if Sort_key.order contents_key entry_key = EQ then
-              return ~acc l
-            else match Sort_key.order node_key entry_key with
-              | GT -> aux (h :: acc) l
-              | EQ -> return ~acc l
-              | LT -> t
+      let update t name value =
+        let entry = match value with
+          | `Node node -> G.Value.Tree.entry (of_step name) `Dir node
+          | `Contents (node, perm) ->
+            G.Value.Tree.entry (of_step name) (perm:>G.Value.Tree.perm) node
         in
-        aux [] t
+        G.Value.Tree.add t entry
 
-      let git_of_v = function `Contents (x, _) | `Node x -> git_of_key x
+      let empty = G.Value.Tree.of_list []
 
-      let update t step v =
-        let step = of_step step in
-        let node_key = Sort_key.of_node step in
-        let contents_key = Sort_key.of_contents step in
-        let return ~acc rest =
-          let perm, v = match v with
-          | `Node n          -> `Dir, n
-          | `Contents (c, m) -> (m :> Git.Tree.perm), c
-          in
-          let e = { Git.Tree.perm; name = step; node = git_of_key v} in
-          List.rev_append acc (e :: rest)
-        in
-        let rec aux acc = function
-          | [] -> return ~acc []
-          | { Git.Tree.node; _ } as h :: l ->
-            let entry_key = Sort_key.of_entry h in
-            (* Remove any contents entry with the same name. This will always
-               come before the new succ entry. *)
-            if Sort_key.order contents_key entry_key = EQ then
-              aux acc l
-            else match Sort_key.order node_key entry_key with
-              | GT -> aux (h :: acc) l
-              | LT -> return ~acc (h::l)
-              | EQ when Git.Hash.equal (git_of_v v) node -> t
-              | EQ -> return ~acc l
-        in
-        aux [] t
-
-      let empty = []
-
-      let is_empty = function
-        | [] -> true
-        | _  -> false
+      let to_git perm (name, node) = G.Value.Tree.entry (of_step name) perm node
 
       let v alist =
         let alist = List.map (fun (l, x) ->
-            let v k = l, git_of_key k in
+            let v k = l, k in
             match x with
             | `Node n             -> to_git `Dir (v n)
-            | `Contents (c, perm) -> to_git (perm :> Git.Tree.perm) (v c)
+            | `Contents (c, perm) -> to_git (perm :> G.Value.Tree.perm) (v c)
           ) alist
         in
-        List.fast_sort compare_entries alist
+        G.Value.Tree.of_list alist
 
-       let alist t =
-         let mk_n k = `Node (key_of_git k) in
-         let mk_c k metadata = `Contents (key_of_git k, metadata) in
-         List.map (function
-             | { Git.Tree.perm = `Dir; name; node } -> (to_step name, mk_n node)
-             | { Git.Tree.perm = `Commit; _ } -> assert false
-             | { Git.Tree.perm = #Metadata.t as perm; name; node; _ } ->
-               (to_step name, mk_c node perm)
-          ) t
+      let alist t =
+        let mk_n k = `Node k in
+        let mk_c k metadata = `Contents (k, metadata) in
+        List.map (function
+            | { G.Value.Tree.perm = `Dir; name; node } -> (to_step name, mk_n node)
+            | { G.Value.Tree.perm = `Commit; _ } -> assert false
+            | { G.Value.Tree.perm = #Metadata.t as perm; name; node; _ } ->
+              (to_step name, mk_c node perm)
+          ) (G.Value.Tree.to_list t)
 
        module N = Irmin.Private.Node.Make (H)(H)(P)(Metadata)
        let to_n t = N.v (alist t)
@@ -385,31 +279,24 @@ module Irmin_value_store
 
     include AO (struct
         type t = Val.t
-        let type_eq = function Git.Object_type.Tree -> true | _ -> false
-        let to_git t = Git.Value.Tree t
-        let of_git = function Git.Value.Tree t -> Some t | _ -> None
+        let pp = Val.pp
+        let type_eq = function `Tree -> true | _ -> false
+        let to_git t = G.Value.Tree t
+        let of_git = function G.Value.Tree t -> Some t | _ -> None
       end)
   end
   module Node = Irmin.Private.Node.Store(Contents)(P)(Metadata)(XNode)
 
   module XCommit = struct
     module Val = struct
-      type t = Git.Commit.t
+      type t = G.Value.Commit.t
+      let pp = G.Value.Commit.pp
+
       type commit = H.t
       type node = H.t
 
       let commit_t = H.t
       let node_t = H.t
-
-      let commit_key_of_git k =
-        H.of_raw (Git_hash.to_raw (Git.Hash.of_commit k))
-      let git_of_commit_key k =
-        Git.Hash.to_commit (Git_hash.of_raw (H.to_raw k))
-
-      let node_key_of_git k =
-        H.of_raw (Git_hash.to_raw (Git.Hash.of_tree k))
-      let git_of_node_key k =
-        Git.Hash.to_tree (Git_hash.of_raw (H.to_raw k))
 
       let info_of_git author message =
         let id = author.Git.User.name in
@@ -434,16 +321,16 @@ module Irmin_value_store
           name, "irmin@openmirage.org"
 
       let of_git g =
-        let { Git.Commit.tree; parents; author; message; _ } = g in
-        let parents = List.map commit_key_of_git parents in
-        let node = node_key_of_git tree in
+        let node = G.Value.Commit.tree g in
+        let parents = G.Value.Commit.parents g in
+        let author = G.Value.Commit.author g in
+        let message = G.Value.Commit.message g in
         let info = info_of_git author message in
         (info, node, parents)
 
       let to_git info node parents =
-        let tree = git_of_node_key node in
-        let parents = List.rev_map git_of_commit_key parents in
-        let parents = List.fast_sort Git.Hash.Commit.compare parents in
+        let tree = node in
+        let parents = List.fast_sort G.Hash.compare parents in
         let author =
           let date = Irmin.Info.date info in
           let name, email = name_email (Irmin.Info.author info) in
@@ -451,13 +338,17 @@ module Irmin_value_store
                       date  = date, None;
                     }) in
         let message = Irmin.Info.message info in
-        { Git.Commit.tree; parents; author; committer = author; message }
+        G.Value.Commit.make (* FIXME: should be v *)
+          ~tree ~parents ~author ~committer:author message
 
       let v ~info ~node ~parents = to_git info node parents
-      let xnode { Git.Commit.tree; _ } = node_key_of_git tree
+      let xnode g = G.Value.Commit.tree g
       let node t = xnode t
-      let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
-      let info { Git.Commit.author; message; _ } = info_of_git author message
+      let parents g = G.Value.Commit.parents g
+      let info g =
+        let author = G.Value.Commit.author g in
+        let message = G.Value.Commit.message g in
+        info_of_git author message
 
       module C = Irmin.Private.Commit.Make(H)(H)
 
@@ -474,9 +365,10 @@ module Irmin_value_store
 
     include AO (struct
         type t = Val.t
-        let type_eq = function Git.Object_type.Commit -> true | _ -> false
-        let of_git = function Git.Value.Commit c -> Some c | _ -> None
-        let to_git c = Git.Value.Commit c
+        let pp = Val.pp
+        let type_eq = function `Commit -> true | _ -> false
+        let of_git = function G.Value.Commit c -> Some c | _ -> None
+        let to_git c = G.Value.Commit c
       end)
 
   end
@@ -484,13 +376,13 @@ module Irmin_value_store
 
 end
 
-module type Branch = sig
+module type BRANCH = sig
   include Irmin.Branch.S
   val pp_ref: t Fmt.t
   val of_ref: string -> (t, [`Msg of string]) result
 end
 
-module Branch (B: Irmin.Branch.S): Branch with type t = B.t = struct
+module Branch (B: Irmin.Branch.S): BRANCH with type t = B.t = struct
   open Astring
   include B
   let pp_ref ppf b = Fmt.pf ppf "refs/heads/%a" B.pp b
@@ -501,20 +393,24 @@ module Branch (B: Irmin.Branch.S): Branch with type t = B.t = struct
 end
 
 
-module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
+module Irmin_branch_store
+    (G: Git.S)
+    (B: BRANCH)
+= struct
 
   module Key = B
-  module Val = H
-  module Git_hash = Hash(G)
+  module Val = Hash(G.Hash)
+  module Git_hash = Hash(G.Hash)
 
   module W = Irmin.Private.Watch.Make(Key)(Val)
 
   type t = {
     bare: bool;
-    dot_git: string;
-    git_head: Git.Reference.head_contents;
+    dot_git: Fpath.t;
+    git_head: G.Reference.head_contents;
     t: G.t;
     w: W.t;
+    m: Lwt_mutex.t;
   }
 
   let watches = Hashtbl.create 10
@@ -524,26 +420,31 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
   type watch = W.watch * (unit -> unit Lwt.t)
 
   let branch_of_git r =
-    let str = String.trim @@ Git.Reference.to_raw r in
+    let str = String.trim @@ G.Reference.to_string r in
     match B.of_ref str with
     | Ok r           -> Some r
     | Error (`Msg _) -> None
 
-  let git_of_branch r = Git.Reference.of_raw (Fmt.to_to_string B.pp_ref r)
+  let git_of_branch r = G.Reference.of_string (Fmt.to_to_string B.pp_ref r)
   let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
+
   let git_of_commit k = Git_hash.of_raw (Val.to_raw k)
 
-  let mem { t; _ } r = G.mem_reference t (git_of_branch r)
+  let mem { t; _ } r =
+    Log.debug (fun l -> l "mem %a" Key.pp r);
+    G.Ref.mem t (git_of_branch r)
 
   let find { t; _ } r =
-    G.read_reference t (git_of_branch r) >|= function
-    | None   -> None
-    | Some k -> Some (commit_of_git k)
+    Log.debug (fun l -> l "find %a" Key.pp r);
+    G.Ref.resolve t (git_of_branch r) >>= function
+    | Error `Not_found -> Lwt.return None
+    | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Ok  k            -> Lwt.return (Some (commit_of_git k))
 
   let listen_dir t =
     let (/) = Filename.concat in
-    if G.kind = `Disk then
-      let dir = t.dot_git / "refs" in
+    if G.has_global_watches then
+      let dir = Fpath.(to_string @@ t.dot_git / "refs") in
       let key file = match B.of_ref ("refs" / file) with
         | Ok x           -> Some x
         | Error (`Msg e) ->
@@ -555,11 +456,13 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
       Lwt.return (fun () -> Lwt.return_unit)
 
   let watch_key t key ?init f =
+    Log.debug (fun l -> l "watch_key %a" Key.pp key);
     listen_dir t >>= fun stop ->
     W.watch_key t.w key ?init f >|= fun w ->
     (w, stop)
 
   let watch t ?init f =
+    Log.debug (fun l -> l "watch");
     listen_dir t >>= fun stop ->
     W.watch t.w ?init f >|= fun w ->
     (w, stop)
@@ -568,143 +471,197 @@ module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
     stop () >>= fun () ->
     W.unwatch t.w w
 
-  let v t ~head ~bare =
-    let dot_git = G.dot_git t in
+  let v ?lock ~head ~bare t =
+    let m = match lock with None -> Lwt_mutex.create () | Some l -> l in
+    let dot_git = G.dotgit t in
     let write_head head =
-      let head = Git.Reference.Ref head in
-      begin
-        if G.kind = `Disk then G.write_head t head
-        else Lwt.return_unit
-      end >|= fun () ->
+      let head = G.Reference.Ref head in
+      ((if G.has_global_checkout
+        then Lwt_mutex.with_lock m (fun () -> G.Ref.write t G.Reference.head head)
+        else Lwt.return (Ok ()))
+       >|= function
+       | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
+       | Ok  ()  -> ()) >|= fun () ->
       head
     in
     begin match head with
       | Some h -> write_head h
       | None   ->
-        G.read_head t >>= function
-        | Some head -> Lwt.return head
-        | None      -> write_head (git_of_branch B.master)
+        G.Ref.read t G.Reference.head >>= function
+        | Error `Not_found -> write_head (git_of_branch B.master)
+        | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+        | Ok r             -> Lwt.return r
     end >|= fun git_head ->
     let w =
-      try Hashtbl.find watches (G.root t)
+      try Hashtbl.find watches (G.dotgit t)
       with Not_found ->
         let w = W.v () in
         (* FIXME: we might want to use a weak table *)
-        Hashtbl.add watches (G.root t) w;
+        Hashtbl.add watches (G.dotgit t) w;
         w
     in
-    { git_head; bare; t; w; dot_git }
+    { git_head; bare; t; w; dot_git; m }
 
   let list { t; _ } =
-    G.references t >|= fun refs ->
-    List.fold_left (fun acc r ->
+    Log.debug (fun l -> l "list");
+    G.Ref.list t >|= fun refs ->
+    List.fold_left (fun acc (r, _) ->
         match branch_of_git r with
         | None   -> acc
         | Some r -> r :: acc
       ) [] refs
 
   let write_index t gr gk =
-    if G.kind = `Disk then (
+    Log.debug (fun l -> l "write_xindex");
+    if G.has_global_checkout then
       Log.debug (fun f -> f "write_index");
-      let git_head = Git.Reference.Ref gr in
-      Log.debug (fun f -> f "write_index/if bare=%b head=%a" t.bare Git.Reference.pp gr);
-      if not t.bare && git_head = t.git_head then (
-        Log.debug (fun f -> f "write cache (%a)" Git.Reference.pp gr);
-        G.write_index t.t gk
-      ) else
-        Lwt.return_unit
+    let git_head = G.Reference.Ref gr in
+    Log.debug (fun f -> f "write_index/if bare=%b head=%a" t.bare G.Reference.pp gr);
+    if not t.bare && git_head = t.git_head then (
+      Log.debug (fun f -> f "write cache (%a)" G.Reference.pp gr);
+      (* FIXME G.write_index t.t gk *)
+      let _ = gk in Lwt.return_unit
     ) else
       Lwt.return_unit
 
   let set t r k =
-    Log.debug (fun f -> f "update %a" B.pp r);
+    Log.debug (fun f -> f "set %a" B.pp r);
     let gr = git_of_branch r in
     let gk = git_of_commit k in
-    G.write_reference t.t gr gk >>= fun () ->
-    W.notify t.w r (Some k) >>= fun () ->
-    write_index t gr (Git.Hash.to_commit gk)
+    Lwt_mutex.with_lock t.m (fun () -> G.Ref.write t.t gr (G.Reference.Hash gk))
+    >>= function
+    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Ok ()    ->
+      W.notify t.w r (Some k) >>= fun () ->
+      write_index t gr gk
 
   let remove t r =
     Log.debug (fun f -> f "remove %a" B.pp r);
-    G.remove_reference t.t (git_of_branch r) >>= fun () ->
-    W.notify t.w r None
+    Lwt_mutex.with_lock t.m (fun () -> G.Ref.remove t.t (git_of_branch r))
+    >>= function
+    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Ok ()   -> W.notify t.w r None
+
+  let eq_head_contents_opt x y = match x, y with
+    | None  , None   -> true
+    | Some x, Some y -> G.Reference.equal_head_contents x y
+    | _ -> false
 
   let test_and_set t r ~test ~set =
-    Log.debug (fun f -> f "test_and_set");
+    Log.debug (fun f -> f "test_and_set %a" B.pp r);
     let gr = git_of_branch r in
-    let c = function None -> None | Some h -> Some (git_of_commit h) in
-    G.test_and_set_reference t.t gr ~test:(c test) ~set:(c set) >>= fun b ->
-    (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
-    begin
-      (* We do not protect [write_index] because it can take a log
-         time and we don't want to hold the lock for too long. Would
-         be safer to grab a lock, although the expanded filesystem
-         is not critical for Irmin consistency (it's only a
-         convenience for the user). *)
-      if b then match set with
-        | None   -> Lwt.return_unit
-        | Some v -> write_index t gr (Git.Hash.to_commit (git_of_commit v))
-      else
-        Lwt.return_unit
-    end >|= fun () ->
-    b
+    let c = function
+      | None   -> None
+      | Some h -> Some (G.Reference.Hash (git_of_commit h))
+    in
+    let ok = function
+      | Ok ()   -> Lwt.return true
+      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    in
+    Lwt_mutex.with_lock t.m (fun () ->
+        (G.Ref.read t.t gr >>= function
+          | Error `Not_found -> Lwt.return None
+          | Ok x             -> Lwt.return (Some x)
+          | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+        ) >>= fun x ->
+        (if not (eq_head_contents_opt x (c test)) then Lwt.return false
+         else match c set with
+           | None   -> G.Ref.remove t.t gr  >>= ok
+           | Some h -> G.Ref.write t.t gr h >>= ok
+        ) >>= fun b ->
+        (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
+        begin
+          (* We do not protect [write_index] because it can take a log
+             time and we don't want to hold the lock for too long. Would
+             be safer to grab a lock, although the expanded filesystem
+             is not critical for Irmin consistency (it's only a
+             convenience for the user). *)
+          if b then match set with
+            | None   -> Lwt.return_unit
+            | Some v -> write_index t gr (git_of_commit v)
+          else
+            Lwt.return_unit
+        end >|= fun () ->
+        b
+      )
 
 end
 
-module type IO = sig
-  include Git.Sync.IO
-  val ctx: unit -> ctx option Lwt.t
-end
-
-module Irmin_sync_store (IO: IO) (G: Git.Store.S) (B: Irmin.Branch.S) = struct
+module Irmin_sync_store
+    (Net: Git.Sync.NET)
+    (G  : Git.S)
+    (B  : Irmin.Branch.S) =
+struct
 
   (* FIXME: should not need to pass G.Digest and G.Inflate... *)
-  module Sync = Git.Sync.Make(IO)(G)
-  module Git_hash = Hash(G)
+  module Sync = Git.Sync.Make(Net)(G)
+  module H = Hash(G.Hash)
 
-  type t = Sync.t
+  type t = G.t
   type commit = H.t
   type branch = B.t
 
-  let git_of_branch_str str = Git.Reference.of_raw ("refs/heads/" ^ str)
+  let git_of_branch_str str = G.Reference.of_string ("refs/heads/" ^ str)
   let git_of_branch r = git_of_branch_str (Fmt.to_to_string B.pp r)
-  let commit_of_git key = H.of_raw (Git_hash.to_raw key)
+  let commit_of_git key = H.of_raw (H.to_raw key)
 
   let o_head_of_git = function
-    | None   -> Lwt.return (Error `No_head)
-    | Some k -> Lwt.return (Ok (commit_of_git k))
+    | None   -> Error `No_head
+    | Some k -> Ok (commit_of_git k)
 
   let fetch t ?depth ~uri br =
     Log.debug (fun f -> f "fetch %s" uri);
-    let gri = Git.Gri.of_string uri in
-    let deepen = depth in
-    let result r =
-      Log.debug (fun f -> f "fetch result: %a" Git.Sync.Result.pp_fetch r);
-      let gr = git_of_branch br in
+    let uri = Uri.of_string uri in
+    let _deepen = depth in (* FIXME: need to be exposed in the Git API *)
+    let reference = git_of_branch br in
+    let result refs =
+      (* FIXME: need pp_result *)
+      Log.debug (fun f -> f "fetch result: XXX" (* Git.Sync.Result.pp_fetch r *));
       let key =
-        let refs = Git.Sync.Result.references r in
-        try Some (Git.Reference.Map.find gr refs)
+        try Some (G.Reference.Map.find reference refs)
         with Not_found -> None
       in
       o_head_of_git key
     in
-    IO.ctx () >>= fun ctx ->
-    Sync.fetch t ?ctx ?deepen gri >>=
-    result
+    let references =
+      (* remote *)
+      reference,
+      (* local *)
+      [ G.Reference.of_string ("refs/remotes/origin/" ^ (Fmt.to_to_string B.pp br));
+        reference ]
+    in
+    Sync.fetch_one t uri ~reference:references >|= function
+    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" Sync.pp_error e
+    | Ok (`Sync refs) -> result refs
+    | Ok `AlreadySync ->
+      (* FIXME: we want to get the hash *)
+      Error (`Msg "XXX")
 
   let push t ?depth:_ ~uri br =
     Log.debug (fun f -> f "push %s" uri);
-    let branch = git_of_branch br in
-    let gri = Git.Gri.of_string uri in
-    let result r =
-      Log.debug (fun f -> f "push result: %a" Git.Sync.Result.pp_push r);
-      match r.Git.Sync.Result.result with
-      | `Ok      -> Ok ()
-      | `Error e -> Error (`Msg e)
+    let uri = Uri.of_string uri in
+    let reference = git_of_branch br in
+    let result refs =
+      (* FIXME: needs pp_push *)
+      Log.debug (fun f -> f "push result: XX" (*Git.Sync.Result.pp_push r*));
+      let errors = ref [] in
+      List.iter (function
+          | Ok _         -> ()
+          | Error (r, e) ->
+            errors := Fmt.strf "%a: %s" G.Reference.pp r e :: !errors
+        ) refs;
+      if !errors = [] then Ok ()
+      else Fmt.kstrf (fun e -> Error (`Msg e)) "%a"
+          Fmt.(list ~sep:(unit "@.") string) !errors
     in
-    IO.ctx () >>= fun ctx ->
-    Sync.push t ?ctx ~branch gri >|=
-    result
+    let references = G.Reference.Map.singleton
+        (* local *)  reference
+        (* remote *) [reference ]
+    in
+    Sync.update_and_create t ~references uri >|= function
+    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" Sync.pp_error e
+    | Ok r    -> result r
+
 
 end
 
@@ -715,7 +672,7 @@ type reference = [
   | `Other of string
 ]
 
-module Ref: Branch with type t = reference = struct
+module Reference: BRANCH with type t = reference = struct
 
   open Astring
 
@@ -766,15 +723,39 @@ module Ref: Branch with type t = reference = struct
 
 end
 
+module type S = sig
+  include Irmin.S with type metadata = Metadata.t
+                   and type Commit.Hash.t = Git.Hash.t
+                   and type Contents.Hash.t = Git.Hash.t
+                   and type Tree.Hash.t = Git.Hash.t
+  module Git: Git.S
+  val git_commit: Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
+  val git_of_repo: Repo.t -> Git.t
+  val repo_of_git: ?head:Git.Reference.t -> ?bare:bool -> ?lock:Lwt_mutex.t ->
+    Git.t -> Repo.t Lwt.t
+end
+
+module type G = sig
+  include Git.S
+  val v:
+    ?temp_dir:Fpath.t ->
+    ?root:Fpath.t ->
+    ?dotgit:Fpath.t ->
+    ?compression:int ->
+    ?buffers:buffer Lwt_pool.t ->
+    unit -> (t, error) result Lwt.t
+end
+
 module Make_ext
-    (IO: IO)
-    (G: Git.Store.S)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (B: Branch)
+    (Net: Git.Sync.NET)
+    (G  : G)
+    (C  : Irmin.Contents.S)
+    (P  : Irmin.Path.S)
+    (B  : BRANCH)
 = struct
 
   module R = Irmin_branch_store(G)(B)
+  module Hash = Hash(G.Hash)
 
   type r = {
     config: Irmin.config;
@@ -784,10 +765,10 @@ module Make_ext
 
   module P = struct
     module XSync = struct
-      include Irmin_sync_store(IO)(G)(R.Key)
+      include Irmin_sync_store(Net)(G)(R.Key)
       let v repo = Lwt.return repo.g
     end
-    include Irmin_value_store(G)(C)(P)
+    include Make_private(G)(C)(P)
     module Branch = R
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
@@ -799,121 +780,139 @@ module Make_ext
       let commit_t t = node_t t, t.g
 
       type config = {
+        tempdir: string option;
         root   : string option;
         dot_git: string option;
         level  : int option;
-        head   : Git.Reference.t option;
+        buffers: int option;
+        head   : G.Reference.t option;
         bare   : bool;
       }
 
       let config c =
+        let tempdir = Irmin.Private.Conf.get c Conf.temp_dir in
         let root = Irmin.Private.Conf.get c Conf.root in
         let dot_git = Irmin.Private.Conf.get c Conf.dot_git in
         let level = Irmin.Private.Conf.get c Conf.level in
         let head = Irmin.Private.Conf.get c Conf.head in
         let bare = Irmin.Private.Conf.get c Conf.bare in
-        { root; dot_git; level; head; bare }
+        let buffers = Irmin.Private.Conf.get c Conf.buffers in
+        { tempdir; root; dot_git; level; head; buffers; bare }
+
+      let fopt f = function None -> None | Some x -> Some (f x)
 
       let v conf =
-        let { root; dot_git; level; head; bare } = config conf in
-        G.create ?dot_git ?root ?level () >>= fun g ->
-        R.v ~head ~bare g >|= fun b ->
-        { g; b; config = conf }
+        let { tempdir; root; dot_git; level; head; bare; buffers } = config conf in
+        let temp_dir = fopt Fpath.v tempdir in
+        let dotgit = fopt Fpath.v dot_git in
+        let root = fopt Fpath.v root in
+        let buffers =
+          fopt (fun n -> Lwt_pool.create n (fun () ->
+              Lwt.return (G.buffer ()))
+            ) buffers
+        in
+        G.v ?temp_dir ?dotgit ?root ?compression:level ?buffers () >>= function
+        | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+        | Ok g    ->
+          R.v ~head ~bare g >|= fun b ->
+          { g; b; config = conf }
 
     end
   end
 
   include Irmin.Make_ext(P)
 
-  module Git = struct
+  module Git = G
 
+  let git_commit (repo:Repo.t) (h:commit): Git.Value.Commit.t option Lwt.t =
+    let h =
+      Commit.hash h
+      |> Commit.Hash.to_raw
+      |> Cstruct.to_string
+      |> G.Hash.of_string
+    in
+    Git.read repo.g h >|= function
+    | Ok Git.Value.Commit c -> Some c
+    | _ -> None
+
+  let git_of_repo r = r.g
+
+  let repo_of_git ?head ?(bare=true) ?lock g =
+    R.v ?lock ~head ~bare g >|= fun b ->
+    { config = Irmin.Private.Conf.empty; g; b }
+
+end
+
+module Mem (H: Digestif_sig.S): G = struct
+  include Git.Mem.Store(H)
+
+  let confs = Hashtbl.create 10 (* XXX: should probably be a weak table *)
+
+  let find_conf c = match Hashtbl.find confs c with
+    | exception Not_found -> None
+    | x -> Some x
+
+  let add_conf c t = Hashtbl.replace confs c t; t
+
+  let v' ?temp_dir:_ ?root ?dotgit ?compression ?buffers () =
+    let buffer = match buffers with
+      | None   -> None
+      | Some p -> Some (Lwt_pool.use p)
+    in
+    v ?root ?dotgit ?compression ?buffer ()
+
+  let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
+    let conf = (temp_dir, root, dotgit, compression, buffers) in
+    match find_conf conf with
+    | Some x -> Lwt.return x
+    | None   ->
+      v' ?temp_dir ?root ?dotgit ?compression ?buffers () >|= add_conf conf
+
+end
+
+module Make
+    (Net: Git.Sync.NET)
+    (S  : G)
+    (C  : Irmin.Contents.S)
+    (P  : Irmin.Path.S)
+    (B  : Irmin.Branch.S)
+  =
+  Make_ext (Net)(S)(C)(P)(Branch(B))
+
+module NoNet = struct
+  type socket = unit
+  let read () _ _ = assert false
+  let write () _ _ _ = assert false
+  let socket _ = Lwt.return ()
+  let close _ = Lwt.return ()
+end
+
+module AO (G: Git.S) (V: Irmin.Contents.Conv)
+= struct
+  module G = struct
     include G
-
-    let git_commit repo h =
-      let h =
-        Commit.hash h
-        |> Commit.Hash.to_raw
-        |> Cstruct.to_string
-        |> Git.Hash.of_raw
-      in
-      G.read repo.g h >|= function
-      | Some Git.Value.Commit c -> Some c
-      | _ -> None
-
-    let of_repo r = r.g
-
-    let to_repo ?head ?(bare=true) g =
-      R.v ~head ~bare g >|= fun b ->
-      { config = Irmin.Private.Conf.empty; g; b }
-
+    let v ?temp_dir:_ ?root:_ ?dotgit:_ ?compression:_ ?buffers:_ () =
+      assert false
   end
-
-end
-
-module Digest (H: Irmin.Hash.S): Git.Hash.DIGEST = struct
-  (* FIXME: lots of allocations ... *)
-  let cstruct buf =
-    Git.Hash.of_raw (Cstruct.to_string (H.to_raw (H.digest Irmin.Type.cstruct buf)))
-  let string str = cstruct (Cstruct.of_string str)
-  let length = Cstruct.len @@ H.to_raw (H.digest Irmin.Type.cstruct (Cstruct.of_string ""))
-end
-
-module FS = struct
-
-  module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO)
-      (C: Irmin.Contents.S)
-      (P: Irmin.Path.S)
-      (B: Irmin.Branch.S) =
-  struct
-    module Git_mem = struct let clear ?root:_ _ = () let clear_all () = () end
-    module G = Git.FS.Make(FS)(Digest(H))(I)
-    include Make_ext (IO) (G) (C) (P) (Branch(B))
-  end
-
-  module KV (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
-    Make(IO)(I)(FS)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
-
-  module Ref (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
-  struct
-    module Git_mem = struct let clear ?root:_ _ = () let clear_all () = () end
-    module G = Git.FS.Make(FS)(Digest(H))(I)
-    include Make_ext (IO) (G) (C) (Irmin.Path.String_list) (Ref)
-  end
-end
-
-module Mem = struct
-
-  module Make
-      (IO: IO) (I: Git.Inflate.S)
-      (C: Irmin.Contents.S)
-      (P: Irmin.Path.S)
-      (B: Irmin.Branch.S) =
-  struct
-    module Git_mem = Git.Mem.Make(Digest(H))(I)
-    include Make_ext (IO) (Git_mem) (C) (P) (Branch(B))
-  end
-
-  module KV (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) =
-    Make(IO)(I)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
-
-  module Ref (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) = struct
-    module Git_mem = Git.Mem.Make(Digest(H))(I)
-    include Make_ext(IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
-  end
-
-end
-
-module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) = struct
   module V = struct
     include V
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
   end
-  module P = Irmin.Path.String_list
-  module M = Irmin_value_store (G)(V)(P)
-  include M.Contents
+  module M = Make_ext (NoNet)(G)(V)(Irmin.Path.String_list)(Reference)
+  module X = M.Private.Contents
+  let state t =
+    M.repo_of_git t >|= fun r ->
+    M.Private.Repo.contents_t r
+  type t = G.t
+  type key = X.key
+  type value = X.value
+  let with_state f t x = state t >>= fun t -> f t x
+  let add = with_state X.add
+  let find = with_state X.find
+  let mem = with_state X.mem
 end
 
-module RW (G: Git.Store.S) (K: Irmin.Branch.S) =
+module RW (G: Git.S) (K: Irmin.Branch.S) =
 struct
   module K = struct
     include K
@@ -925,24 +924,20 @@ struct
   include Irmin_branch_store (G)(B)
 end
 
-module type S = sig
-  include Irmin.S with type metadata = Metadata.t
-                   and module Commit.Hash = Irmin.Hash.SHA1
-                   and module Contents.Hash = Irmin.Hash.SHA1
-                   and module Tree.Hash = Irmin.Hash.SHA1
-  module Git: sig
-    include Git.Store.S
-    val git_commit: Repo.t -> commit -> Git.Commit.t option Lwt.t
-    val of_repo: Repo.t -> t
-    val to_repo: ?head:Git.Reference.t -> ?bare:bool -> t -> Repo.t Lwt.t
-  end
-  module Git_mem: sig
-    val clear: ?root:string -> unit -> unit
-    val clear_all: unit -> unit
-  end
-end
+module KV
+    (Net: Git.Sync.NET)
+    (S  : G)
+    (C  : Irmin.Contents.S)
+  = Make (Net)(S)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
+
+module Ref
+    (Net: Git.Sync.NET)
+    (S  : G)
+    (C  : Irmin.Contents.S)
+  = Make_ext (Net)(S)(C)(Irmin.Path.String_list)(Reference)
 
 module type S_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
   functor (P: Irmin.Path.S) ->
   functor (B: Irmin.Branch.S) ->
@@ -951,19 +946,24 @@ module type S_MAKER =
        and module Key = P
        and type contents = C.t
        and type branch = B.t
+       and module Git = G
 
 module type KV_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = string
+       and module Git = G
 
 module type REF_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = reference
+       and module Git = G
 
 include Conf

@@ -17,19 +17,19 @@
 open Astring
 open Result
 
-let context ctx =
-  let module M = struct
-    include Git_mirage.Sync.IO
-    let ctx () = Lwt.return (Some ctx)
-  end in
-  (module M: Irmin_git.IO)
+module Net = Git_mirage.Net
 
-module G = struct
+module NoConduit = struct
+  include Conduit_mirage
+  let context = Conduit_mirage.empty
+  let resolver = Resolver_lwt.init ()
+end
+
+module X = struct
   module AO = Irmin_git.AO
-  module Mem = struct
-    module Make (IO: Irmin_git.IO) = Irmin_git.Mem.Make(IO)
-    module KV   (IO: Irmin_git.IO) = Irmin_git.Mem.KV(IO)
-  end
+  module Make (C: Net.CONDUIT) = Irmin_git.Make(Net.Make(C))
+  module Ref  (C: Net.CONDUIT) = Irmin_git.Ref(Net.Make(C))
+  module KV   (C: Net.CONDUIT) = Irmin_git.KV(Net.Make(C))
 end
 
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
@@ -41,14 +41,19 @@ module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
       ) fmt
 end
 
-module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S) = struct
+module KV_RO (G: Git.S) = struct
+
+  module G = struct
+    include G
+    let v ?temp_dir:_ ?root:_ ?dotgit:_ ?compression:_ ?buffers:_ () =
+      assert false
+  end
 
   open Lwt.Infix
 
-  module S = G.Mem.KV (IO)(I)(Irmin.Contents.Cstruct)
+  module S = X.KV(NoConduit)(G)(Irmin.Contents.Cstruct)
 
   module Sync = Irmin.Sync(S)
-  let config = Irmin_mem.config ()
 
   type 'a io = 'a Lwt.t
   type t = { path: string list; t: S.t; }
@@ -110,17 +115,18 @@ module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S) = struct
     | "HEAD" -> size_head t
     | path    -> size_store t path
 
-  let connect ?(depth = 1) ?(branch = "master") ?path uri =
+  let connect ?(depth = 1) ?(branch = "master") ?path t uri =
     let uri = Irmin.remote_uri (Uri.to_string uri) in
     let path = match path with
       | None -> []
       | Some s -> List.filter ((<>)"") @@ String.cuts s ~sep:"/"
     in
-    S.Repo.v config >>= fun repo ->
+    let head = G.Reference.of_string ("refs/heads/" ^ branch) in
+    S.repo_of_git ~bare:true ~head t >>= fun repo ->
     S.of_branch repo branch >>= fun t ->
     Sync.pull_exn t ~depth uri `Set >|= fun () ->
     { t = t; path }
 
 end
 
-module Git = G
+module Git = X

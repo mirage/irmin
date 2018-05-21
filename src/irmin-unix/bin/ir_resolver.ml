@@ -37,7 +37,7 @@ let irf_store = create (module Irmin_unix.FS.Make)
 let http_store = create (module Irmin_unix.Http.Make)
 
 let git_store (module C: Irmin.Contents.S) =
-  (module Irmin_unix.Git.FS.KV(C) : Irmin.S)
+  (module Irmin_unix.Git.KV(Irmin_unix.Git.G)(C) : Irmin.S)
 
 let mk_store = function
   | `Mem  -> mem_store
@@ -180,7 +180,7 @@ let read_config_file (): t option =
         | None   -> Irmin.Private.Conf.default Irmin_git.bare
         | Some b -> b
       in
-      let head = assoc "head" (fun x -> Git.Reference.of_raw x) in
+      let head = assoc "head" (fun x -> Git.Reference.of_string x) in
       let uri = assoc "uri" Uri.of_string in
       let add k v config = Irmin.Private.Conf.add config k v in
       Irmin.Private.Conf.empty

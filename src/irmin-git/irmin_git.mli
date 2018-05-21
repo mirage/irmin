@@ -18,7 +18,8 @@
 
 (* Discard the hash implementation passed in parameter of the functors. *)
 
-module Metadata: Irmin.Metadata.S with type t = [`Normal | `Exec | `Link]
+module Metadata:
+  Irmin.Metadata.S with type t = [`Normal | `Exec | `Link | `Everybody]
 
 val config:
   ?config:Irmin.config ->
@@ -30,49 +31,32 @@ val head: Git.Reference.t option Irmin.Private.Conf.key
 val level: int option Irmin.Private.Conf.key
 val dot_git: string option Irmin.Private.Conf.key
 
-module type VALUE_STORE = sig
-  (** This is the subset of Git.Store.S needed for [Value_store]. *)
-  type t
-  val read: t -> Git.Hash.t -> Git.Value.t option Lwt.t
-  val mem: t -> Git.Hash.t -> bool Lwt.t
-  val write: t -> Git.Value.t -> Git.Hash.t Lwt.t
-  val contents: t -> (Git.Hash.t * Git.Value.t) list Lwt.t
-  module Digest : Git.Hash.DIGEST
-end
-
 (** [Hash] is an implementation of Irmin hashes based on Git
     hashes. *)
-module Hash (G: VALUE_STORE): Irmin.Hash.S with type t = Git.Hash.t
+module Hash (G: Git.HASH): Irmin.Hash.S with type t = Git.Hash.t
 
-(** Provides a subset of Irmin.Private.S (excludes branches and sync).
-    This is useful if you want to store data in Git format, but do
-    your own locking and sync. *)
-module Irmin_value_store
-    (G: VALUE_STORE)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S) : sig
-
-  module Contents: Irmin.Contents.STORE
-    with type key = Irmin.Hash.SHA1.t
-     and type value = C.t
-
-  module Node: Irmin.Private.Node.STORE
-    with type key = Irmin.Hash.SHA1.t
-     and type Val.contents = Contents.key
-     and module Metadata = Metadata
-
-  module Commit: Irmin.Private.Commit.STORE
-    with type key = Irmin.Hash.SHA1.t
-     and type Val.node = Node.key
-end
-
-module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) : Irmin.AO
+module AO (G: Git.S) (V: Irmin.Contents.Conv) : Irmin.AO
   with type t = G.t
-   and type key = Irmin.Hash.SHA1.t
+   and type key = G.Hash.t
    and type value = V.t
 
-module RW (G: Git.Store.S) (K: Irmin.Branch.S):
-  Irmin.RW with type key = K.t and type value = Irmin.Hash.SHA1.t
+module RW (G: Git.S) (K: Irmin.Branch.S): Irmin.RW
+  with type key = K.t
+   and type value = G.Hash.t
+
+module type G = sig
+  include Git.S
+  val v:
+    ?temp_dir:Fpath.t ->
+    ?root:Fpath.t ->
+    ?dotgit:Fpath.t ->
+    ?compression:int ->
+    ?buffers:buffer Lwt_pool.t ->
+    unit -> (t, error) result Lwt.t
+end
+
+module Mem (H: Digestif_sig.S): G
+(** In-memory Git store. *)
 
 module type S = sig
 
@@ -84,43 +68,28 @@ module type S = sig
       }. *)
 
   include Irmin.S with type metadata = Metadata.t
-                   and module Commit.Hash = Irmin.Hash.SHA1
-                   and module Contents.Hash = Irmin.Hash.SHA1
-                   and module Tree.Hash = Irmin.Hash.SHA1
+                   and type Commit.Hash.t = Git.Hash.t
+                   and type Contents.Hash.t = Git.Hash.t
+                   and type Tree.Hash.t = Git.Hash.t
 
   (** {1 Access to the Git objects} *)
-  module Git: sig
+  module Git: Git.S
 
-    include Git.Store.S
+  val git_commit: Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
+  (** [git_commit repo h] is the commit corresponding to [h] in the
+      repository [repo]. *)
 
-    val git_commit: Repo.t -> commit -> Git.Commit.t option Lwt.t
-    (** [git_commit repo h] is the commit corresponding to [h] in the
-        repository [repo]. *)
+  val git_of_repo: Repo.t -> Git.t
+  (** [of_repo r] is the Git store associated to [r]. *)
 
-    val of_repo: Repo.t -> t
-    (** [of_repo r] is the Git store associated to [r]. *)
-
-    val to_repo: ?head:Git.Reference.t -> ?bare:bool -> t -> Repo.t Lwt.t
-    (** [to_repo t] is the Irmin repository associated to [t]. *)
-
-  end
-
-  (** Only valid for in-memory Git stores. *)
-  module Git_mem: sig
-
-    val clear: ?root:string -> unit -> unit
-    (** [clear ?root ()] clears the store located at [root]. Do nothing
-        if the store is not an in-memory Git store. *)
-
-    val clear_all: unit -> unit
-    (** [clear_all] clears all the known stores. Do nothing if the
-        store is not an in-memory Git store. *)
-
-  end
+  val repo_of_git: ?head:Git.Reference.t -> ?bare:bool -> ?lock:Lwt_mutex.t ->
+    Git.t -> Repo.t Lwt.t
+  (** [to_repo t] is the Irmin repository associated to [t]. *)
 
 end
 
 module type S_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
   functor (P: Irmin.Path.S) ->
   functor (B: Irmin.Branch.S) ->
@@ -129,13 +98,16 @@ module type S_MAKER =
        and module Key = P
        and type contents = C.t
        and type branch = B.t
+       and module Git = G
 
 module type KV_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = string
+       and module Git = G
 
 type reference = [
   | `Branch of string
@@ -145,45 +117,36 @@ type reference = [
 ]
 
 module type REF_MAKER =
+  functor (G: G) ->
   functor (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = reference
+       and module Git = G
 
-module type IO = sig
-  include Git.Sync.IO
-  val ctx: unit -> ctx option Lwt.t
-end
+module Make (Net: Git.Sync.NET) : S_MAKER
+module Ref (Net: Git.Sync.NET): REF_MAKER
+module KV (Net: Git.Sync.NET): KV_MAKER
 
-module FS: sig
-  module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): S_MAKER
-  module KV (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): KV_MAKER
-  module Ref (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): REF_MAKER
-end
-
-module Mem: sig
-  module Make (IO: IO) (I: Git.Inflate.S): S_MAKER
-  module KV (IO: IO) (I: Git.Inflate.S): KV_MAKER
-  module Ref (IO: IO) (I: Git.Inflate.S): REF_MAKER
-end
-
-module type Branch = sig
+module type BRANCH = sig
   include Irmin.Branch.S
   val pp_ref: t Fmt.t
   val of_ref: string -> (t, [`Msg of string]) result
 end
 
-module Branch (B: Irmin.Branch.S): Branch
+module Branch (B: Irmin.Branch.S): BRANCH
 
-module Ref: Branch with type t = reference
+module Reference: BRANCH with type t = reference
 
-module Make_ext (IO: IO) (S: Git.Store.S)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (B: Branch):
-  Irmin.S with type key = P.t
-           and type step = P.step
-           and module Key = P
-           and type contents = C.t
-           and type branch = B.t
+module Make_ext
+    (Net: Git.Sync.NET)
+    (S  : G)
+    (C  : Irmin.Contents.S)
+    (P  : Irmin.Path.S)
+    (B  : BRANCH):
+  S with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t

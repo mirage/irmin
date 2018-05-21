@@ -81,30 +81,25 @@ module Git: sig
   (** {1 Git Store} *)
 
   module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
-    Irmin.AO with type t = G.t
-              and type key = Irmin.Hash.SHA1.t
+    Irmin.AO with type t     = G.t
+              and type key   = Git.Hash.t
               and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
   module RW (G: Git.Store.S) (K: Irmin.Branch.S): Irmin.RW
-    with type key = K.t and type value = Irmin.Hash.SHA1.t
+    with type key   = K.t
+     and type value = Git.Hash.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
 
   (** Embed an Irmin store into an in-memory Git repository. *)
-  module Mem: sig
-    module Make: Irmin_git.S_MAKER
-    module KV: Irmin_git.KV_MAKER
-  end
+  module Make: Irmin_git.S_MAKER
+  module Ref : Irmin_git.REF_MAKER
+  module KV  : Irmin_git.KV_MAKER
 
-  (** Embed an Irmin store into a local Git repository. *)
-  module FS: sig
-    module Make: Irmin_git.S_MAKER
-    module KV: Irmin_git.KV_MAKER
-  end
-
+  module G: Irmin_git.G
 end
 
 (** REST (over HTTP) backend.. *)
