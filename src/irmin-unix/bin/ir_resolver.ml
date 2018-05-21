@@ -85,22 +85,31 @@ let key k default =
 
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
+let config_path_key =
+  Irmin.Private.Conf.key
+    ~docs:global_option_section
+    ~docv:"PATH"
+    ~doc:"Allows configuration file to be specified on the command-line"
+    "config" Irmin.Private.Conf.string "irmin.yml"
+
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
-  let create root bare head level uri =
+  let create root bare head level uri config_path =
     Irmin.Private.Conf.empty
     |> add Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
     |> add Irmin_git.head head
     |> add Irmin_git.level level
     |> add Irmin_http.uri uri
+    |> add config_path_key config_path
   in
   Term.(const create $
         opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
         opt_key Irmin_git.head $
         opt_key Irmin_git.level $
-        opt_key Irmin_http.uri)
+        opt_key Irmin_http.uri $
+        opt_key config_path_key)
 
 let mk_contents k: contents = match k with
   | `String  -> (module Irmin.Contents.String)
@@ -131,27 +140,27 @@ let store_term =
   in
   Term.(const create $ store $ contents)
 
-let cfg = ".irminconfig"
-
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-(* FIXME: use a proper configuration format (toml?) and interface
-   properly with cmdliner *)
-let read_config_file (): t option =
+(* Read configuration from a YAML file *)
+let read_config_file cfg: t option =
   if not (Sys.file_exists cfg) then None
   else
     let oc = open_in cfg in
     let len = in_channel_length oc in
-    let buf = Bytes.create len in
-    really_input oc buf 0 len;
-    let lines = String.cuts ~sep:"\n" (Bytes.to_string buf) in
-    let lines = List.map (fun s -> String.trim s) lines in
-    let lines = List.map (fun s -> String.cut ~sep:"=" s) lines in
-    let lines =
-      List.fold_left (fun l -> function None -> l | Some x -> x::l) [] lines
+    let buf = really_input_string oc len in
+    close_in oc;
+    let y = match Yaml.of_string buf with
+      | Ok (`O y) -> y
+      | _ -> []
+    in
+    let string_value = function
+      | `String s -> s
+      | _ -> raise Not_found
     in
     let assoc name fn =
-      try Some (fn (List.assoc name lines)) with Not_found -> None
+      try Some (fn (List.assoc name y |> string_value))
+      with Not_found -> None
     in
     let contents =
       let kind =
@@ -224,8 +233,9 @@ let store =
       in
       S ((module S), t)
     | None ->
+      let cfg = Irmin.Private.Conf.get config config_path_key in
       (* then look at the config file options *)
-      match read_config_file () with
+      match read_config_file cfg with
       | Some c -> c
       | None   ->
         let s = mk_store `Git (mk_contents `String) in

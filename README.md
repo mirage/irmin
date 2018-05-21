@@ -95,13 +95,13 @@ $ _build/default/examples/trees.exe
 The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
 
 ```bash
-$ echo "root=." > .irminconfig
+$ echo "root: ." > irmin.yml
 $ irmin init
 $ irmin set foo/bar "testing 123"
 $ irmin get foo/bar
 ```
 
-`.irminconfig` allows for `irmin` flags to be set globally on a per-directory basis. Run `irmin help irminconfig` for further details.
+`irmin.yml` allows for `irmin` flags to be set globally on a per-directory basis. Run `irmin help irmin.yml` for further details.
 
 Also see `irmin --help` for list of all commands and either `irmin <command> --help` or `irmin help <command>` for more help with a specific command.
 

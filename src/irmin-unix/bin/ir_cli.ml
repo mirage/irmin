@@ -503,33 +503,30 @@ let dot = {
     Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full);
 }
 
-let irminconfig_man =
+let config_man =
   let version_string = Printf.sprintf "Irmin %s" Irmin.version in
-  ("irminconfig", 5, "", version_string, "Irmin Manual"), [
+  ("irmin.yml", 5, "", version_string, "Irmin Manual"), [
     `S Manpage.s_name;
-    `P "irminconfig - Specify certain command-line options to save on typing";
+    `P "irmin.yml";
 
     `S Manpage.s_synopsis;
-    `P ".irminconfig";
+    `P "Configure certain command-line options to cut down on mistakes and save on typing";
 
     `S Manpage.s_description;
-    `P "An $(b,irminconfig) file lets the user specify repetitve command-line options \
-        in a text file. The $(b,irminconfig) file is only read if it is found in \
-        the current working directory. Every line is of the form $(i,key)=$(i,value), \
-        where $(i,key) is one of the following: $(b,contents), $(b,store), $(b,branch), \
-        $(b,root), $(b,bare), $(b,head), or $(b,uri). These correspond to the irmin \
+    `P "An $(b,irmin.yml) file lets the user specify repetitve command-line options \
+        in a YAML file. The $(b,irmin.yml) is read by default if it is found in \
+        the current working directory. The configuration file path can also be set using the  \
+        $(b,--config) command-line flag. \
+
+        The following keys are allowed: $(b,contents), $(b,store), \
+        $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These correspond to the irmin \
         options of the same names.";
 
-    `S "NOTES";
-    `P "When specifying a value for the $(b,contents) or $(b,store) options, the \
-        shortest unique substring starting from index 0 is sufficient. For example, \
-        \"store=g\" is equivalent to \"store=git\".";
-
     `S Manpage.s_examples;
-    `P "Here is an example $(b,irminconfig) for accessing a local http irmin store. This \
-       $(b,irminconfig) prevents the user from having to specify the $(b,store) and $(b,uri) \
+    `P "Here is an example $(b,irmin.yml) for accessing a local http irmin store. This \
+       $(b,irmin.yml) prevents the user from having to specify the $(b,store) and $(b,uri) \
        options for every command.";
-    `Pre "    \\$ cat .irminconfig\n    store=http\n    uri=http://127.0.0.1:8080";
+    `Pre "    \\$ cat irmin.yml\n    store: http\n    uri: http://127.0.0.1:8080";
   ] @ help_sections
 
 (* HELP *)
@@ -547,13 +544,13 @@ let help = {
     let help man_format cmds topic = match topic with
       | None       -> `Help (`Pager, None)
       | Some topic ->
-        let topics = "irminconfig" :: cmds in
+        let topics = "irmin.yml" :: cmds in
         let conv, _ = Arg.enum (List.rev_map (fun s -> (s, s)) ("topics" :: topics)) in
         match conv topic with
         | `Error e                -> `Error (false, e)
         | `Ok t when t = "topics" -> List.iter print_endline topics; `Ok ()
-        | `Ok t when t = "irminconfig" ->
-          `Ok (Cmdliner.Manpage.print man_format Format.std_formatter irminconfig_man)
+        | `Ok t when t = "irmin.yml" ->
+          `Ok (Cmdliner.Manpage.print man_format Format.std_formatter config_man)
         | `Ok t                   -> `Help (man_format, Some t) in
     Term.(ret (mk help $Term.man_format $Term.choice_names $topic))
 }
