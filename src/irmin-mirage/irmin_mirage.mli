@@ -17,7 +17,6 @@
 (** MirageOS backend, with bi-directional compatibility with Git *)
 
 (** The context to use for synchronisation. *)
-val context: Git_mirage.Sync.IO.ctx -> (module Irmin_git.IO)
 
 module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
@@ -31,36 +30,35 @@ end
 
 (** Functor to create a MirageOS' KV_RO store from a Git
     repository. *)
-module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S): sig
+module KV_RO (G: Irmin_git.G): sig
 
   include Mirage_kv_lwt.RO
 
   val connect: ?depth:int -> ?branch:string -> ?path:string ->
-    Uri.t -> t Lwt.t
-  (** [connect ?depth ?branch ?path uri] clones the given [uri] using
-      the given [branch], [depth] and ['/']-separated sub-[path]. By
-      default, [branch] is master, [depth] is [1] and [path] is empty,
-      ie. reads will be relative to the root of the repository. *)
+    G.t -> Uri.t -> t Lwt.t
+  (** [connect ?depth ?branch ?path g uri] clones the given [uri] into
+     [g] repository, using the given [branch], [depth] and
+     ['/']-separated sub-[path]. By default, [branch] is master,
+     [depth] is [1] and [path] is empty, ie. reads will be relative to
+     the root of the repository. *)
 
 end
 
 module Git: sig
 
-  module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
+  module AO (G: Git.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
-              and type key = Irmin.Hash.SHA1.t
+              and type key = Git.Hash.t
               and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned up if you
       run {i git gc} manually. *)
 
-  module Mem: sig
+  module Make (C: Git_mirage.Net.CONDUIT): Irmin_git.S_MAKER
+  (** Embed an Irmin store into an in-memory Git repository. *)
 
-    module Make (C: Irmin_git.IO) (I: Git.Inflate.S): Irmin_git.S_MAKER
-    (** Embed an Irmin store into an in-memory Git repository. *)
+  module KV (C: Git_mirage.Net.CONDUIT): Irmin_git.KV_MAKER
 
-    module KV (C: Irmin_git.IO) (I: Git.Inflate.S): Irmin_git.KV_MAKER
-
-  end
+  module Ref (C: Git_mirage.Net.CONDUIT): Irmin_git.REF_MAKER
 
 end

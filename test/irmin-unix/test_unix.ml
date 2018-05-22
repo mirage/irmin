@@ -63,19 +63,29 @@ module Git = struct
     (if Sys.file_exists ".git" then
       failwith "The Git test should not be run at the root of a Git repository."
     else if Sys.file_exists test_db then
-      Git_unix.FS.create ~root:test_db () >>= fun t ->
-      Git_unix.FS.reset t
+      Git_unix.Store.v ~root:(Fpath.v test_db) () >>= function
+      | Ok t    -> Git_unix.Store.reset t >|= fun _ -> ()
+      | Error _ -> Lwt.return ()
     else
       Lwt.return_unit)
     >|= fun () ->
     Irmin_unix.set_listen_dir_hook ()
 
   module S = struct
-    module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+    module G = struct
+      include Git_unix.Store
+      let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
+        let buffer = match buffers with
+          | None   -> None
+          | Some p -> Some (Lwt_pool.use p)
+        in
+        v ?temp_dir ?root ?dotgit ?compression ?buffer ()
+    end
+    module S = Irmin_unix.Git.KV(G)(Irmin.Contents.String)
     let author repo c =
-      S.Git.git_commit repo c >|= function
+      S.git_commit repo c >|= function
       | None   -> None
-      | Some c -> Some c.Git.Commit.author.Git.User.name
+      | Some c -> Some (S.Git.Value.Commit.author c).Git.User.name
     include S
     let init = init
   end
@@ -86,7 +96,7 @@ module Git = struct
     Lwt.return_unit
 
   let config =
-    let head = Git.Reference.of_raw "refs/heads/test" in
+    let head = Git.Reference.of_string "refs/heads/test" in
     Irmin_git.config ~head ~bare:true test_db
 
   let suite =

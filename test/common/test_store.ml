@@ -36,7 +36,9 @@ let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
 
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
-let random_ascii () = char_of_int (Random.int 128)
+let random_ascii () =
+  let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in
+  String.get chars (Random.int @@ String.length chars)
 
 let random_string n = String.init n (fun _i -> random_char ())
 let long_random_string = random_string (* 1024_000 *) 10
@@ -930,7 +932,7 @@ module Make (S: Test_S) = struct
       let slice' =
         match T.decode_json P.Slice.t (Jsonm.decoder (`String str)) with
         | Ok t          -> t
-        | Error (`Msg e) -> Alcotest.fail e
+        | Error (`Msg e) -> Alcotest.failf "decoding error: %s" e
       in
       check P.Slice.t "slices" slice slice';
 
