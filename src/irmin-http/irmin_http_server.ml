@@ -35,7 +35,10 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   module Wm = struct
     module Rd = Webmachine.Rd
-    include Webmachine.Make(HTTP.IO)
+    module Clock = struct
+      let now = fun () -> int_of_float (Unix.gettimeofday ())
+    end
+    include Webmachine.Make(HTTP.IO)(Clock)
   end
 
   module P = S.Private
