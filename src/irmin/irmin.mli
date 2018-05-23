@@ -2726,43 +2726,46 @@ let () = Lwt_main.run (test ())
     We will demonstrate the use of custom merge operators by
     defining mergeable debug log files. We first define a log entry
     as a pair of a timestamp and a message, using the combinator
-    exposed by {{:https://github.com/mirage/mirage-tc}mirage-tc}:
+    exposed by {!Irmin.Type}:
 
 {[
-  module Entry = sig
-    include Irmin.Contents.Conv
-    val v: string -> t
-    val compare: t -> t -> int
-    val timestamp: t -> int
-  end = struct
+module Entry : sig
+  include Irmin.Contents.Conv
+  val v: string -> t
+  val compare: t -> t -> int
+  val timestamp: t -> int
+end = struct
 
-    type t = { timestamp: int; message : string; }
+  type t = { timestamp: int; message : string; }
 
-    let compare x y = compare x.timestamp y.timestamp
+  let compare x y = compare x.timestamp y.timestamp
 
-    let v message =
-      incr time;
-      { timestamp = !time; message }
+  let time = ref 0
 
-    let t =
-      let open Irmin.Type in
-      record "entry" (fun timestamp message -> { timestamp; message })
-      |+ field "timestamp" int    (fun t -> t.timestamp)
-      |+ field "message"   string (fun t -> t.message)
-      |> sealr
+  let v message =
+    incr time;
+    { timestamp = !time; message }
 
-    let timestamp t = t.timestamp
+  let t =
+    let open Irmin.Type in
+    record "entry" (fun t32 message -> { timestamp = Int32.to_int t32; message })
+    |+ field "timestamp" int32  (fun t -> Int32.of_int t.timestamp)
+    |+ field "message"   string (fun t -> t.message)
+    |> sealr
 
-    let pp ppf { timestamp; message } =
-      Fmt.pf ppf  "%04d: %s\n" timestamp message
+  let timestamp t = t.timestamp
 
-    let of_string str =
-      match String.cut ~sep:": " str with
-      | None -> Error (`Msg ("invalid entry: " ^ str))
-      | Some (x, message) ->
-        try Ok { timestamp = int_of_string x; message }
-        with Failure e -> Error (`Msg e)
-  end
+  let pp ppf { timestamp; message } =
+    Fmt.pf ppf "%04d: %s\n" timestamp message
+
+  let of_string str =
+    match String.split_on_char '\t' str with
+    | [] -> Error (`Msg ("invalid entry: " ^ str))
+    | ts :: msg_sects ->
+      let message = String.concat "\t" msg_sects in
+      try Ok { timestamp = int_of_string ts; message }
+      with Failure e -> Error (`Msg e)
+end
 ]}
 
     A log file is a list of entries (one per line), ordered by
