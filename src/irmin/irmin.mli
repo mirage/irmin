@@ -102,12 +102,12 @@ module Type: sig
   (** [pair x y] is a representation of values of type [x * y]. *)
 
   val triple: 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
-  (** [triple x y z] is a representation of values of type [x * y *
-      z]. *)
+  (** [triple x y z] is a representation of values of type
+      [x * y * z]. *)
 
   val result: 'a t -> 'b t -> ('a, 'b) result t
-  (** [result a b] is a representation of values of type [(a, b)
-      result]. *)
+  (** [result a b] is a representation of values of type
+      [(a, b) result]. *)
 
   (** {1:records Records} *)
 
@@ -254,8 +254,8 @@ module Type: sig
   *)
 
   val mu2: ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
-  (** [mu2 f] is the representations [r] and [s] such that [r, s = mu2 r
-      s].
+  (** [mu2 f] is the representations [r] and [s] such that
+      [r, s = mu2 r s].
 
       For instance:
 
@@ -461,8 +461,8 @@ module Merge: sig
       [r] fails, [bind r f] also fails, with the same conflict. *)
 
   val map: ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
-  (** [map f m] maps the result of a merge. This is the same as [bind
-      m (fun x -> ok (f x))]. *)
+  (** [map f m] maps the result of a merge. This is the same as
+      [bind m (fun x -> ok (f x))]. *)
 
   (** {1 Merge Combinators} *)
 
@@ -971,7 +971,7 @@ module Contents: sig
 
   module type S0 = sig
 
-    (** {Base Contents}
+    (** {1 Base Contents}
 
         In Irmin, all the base contents should be serializable in a
         consistent way. To do this, we rely on {!Type}. *)
@@ -1604,7 +1604,7 @@ module Private: sig
           [max]. If [max] is empty, that condition is always false.}
           }
 
-          {B Note:} Both [min] and [max] are subsets of [c].*)
+          {b Note:} Both [min] and [max] are subsets of [c].*)
 
       (** {1 Value Types} *)
 
@@ -1778,8 +1778,9 @@ module Private: sig
           results.
 
           If one of the merges results in a conflict, or if a call to
-          {!lcas} returns either [Error `Max_depth_reached] or [Error
-          `Too_many_lcas] then the function returns the same error. *)
+          {!lcas} returns either [Error `Max_depth_reached] or
+          [Error `Too_many_lcas] then the function returns the same
+          error. *)
 
       val three_way_merge:
         t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -2050,7 +2051,7 @@ module type S = sig
     (** [heads] is {!Head.list}. *)
 
     val branches: t -> branch list Lwt.t
-    (** [branches] is {Branch.list}. *)
+    (** [branches] is {!Branch.list}. *)
 
     val export: ?full:bool -> ?depth:int ->
       ?min:commit list -> ?max:commit list ->
@@ -2143,8 +2144,8 @@ module type S = sig
         persistent branch, this involves getting the the head
         associated with the branch, so this may block. In the case of
         a temporary store, it simply returns the current head. Returns
-        [None] if the store has no contents. Similar to [git rev-parse
-        HEAD]. *)
+        [None] if the store has no contents. Similar to
+        [git rev-parse HEAD]. *)
 
     val get: t -> commit Lwt.t
     (** Same as {!find} but raise [Invalid_argument] if the store does
@@ -2435,8 +2436,8 @@ module type S = sig
       {- if [strategy = `Set], the {e last write wins}. }
       {- if [strategy = `Test_and_set] (default), the transaction is
          restarted.}
-      {- if [strategy = `Merge], concurrent changes are merged with [f
-         v]. If the merge has a conflict, the transaction is
+      {- if [strategy = `Merge], concurrent changes are merged with
+         [f v]. If the merge has a conflict, the transaction is
          restarted.}  }
 
       {b Note:} Irmin transactions provides
@@ -2445,16 +2446,17 @@ module type S = sig
       transaction, but only write conflicts are visible on commit. *)
 
   val set: t -> key -> ?metadata:metadata -> contents transaction
-  (** [set t k ~info v] is [with_tree t k ~info (fun tree -> Tree.add
-      tree [] v)]. *)
+  (** [set t k ~info v] is
+      [with_tree t k ~info (fun tree -> Tree.add tree [] v)]. *)
 
   val set_tree: t -> key -> tree transaction
-  (** [set_tree t k ~info v] is [with_tree t k ~info (fun tree ->
-      Tree.add_tree tree [] v)]. *)
+  (** [set_tree t k ~info v] is
+      [with_tree t k ~info (fun tree -> Tree.add_tree tree [] v)].
+  *)
 
   val remove: t -> key transaction
-  (** [remove t i k] is [with_tree t i k (fun tree -> Tree.remove tree
-      [])]. *)
+  (** [remove t i k] is
+      [with_tree t i k (fun tree -> Tree.remove tree [])]. *)
 
   (** {1 Clones} *)
 
@@ -2515,8 +2517,8 @@ module type S = sig
       is [max_int]). Return [Error `Max_depth_reached] if this depth
       is exceeded.}
       {- [n] is the maximum expected number of lcas. Stop the
-      exploration as soon as [n] lcas are found. Return [Error
-      `Too_many_lcas] if more [lcas] are found. }
+      exploration as soon as [n] lcas are found. Return
+      [Error `Too_many_lcas] if more [lcas] are found. }
       }
   *)
 
@@ -2930,8 +2932,8 @@ module type SYNC = sig
       also updates [t]'s current branch. [s] is the update strategy:
 
       {ul
-      {- [`Merge] uses {S.Head.merge}. Can return a conflict.}
-      {- [`Set] uses {S.Head.set.}}
+      {- [`Merge] uses [Head.merge]. Can return a conflict.}
+      {- [`Set] uses [S.Head.set].}
       } *)
 
   val pull_exn: db -> ?depth:int -> remote -> [`Merge of Info.f | `Set] ->
