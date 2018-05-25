@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Irmin_test
 open Test_common
 
 let test_db = "test_db_git"

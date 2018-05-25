@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Irmin_test
 open Test_common
 
 let (/) = Filename.concat
