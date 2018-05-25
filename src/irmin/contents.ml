@@ -32,6 +32,38 @@ module Cstruct = struct
   let of_string s = Ok (Cstruct.of_string s)
 end
 
+type json = [
+  | `Null
+  | `String of string
+  | `Float of float
+  | `O of (string * json) list
+  | `A of json list
+]
+
+module Json = struct
+  type t = json
+
+  let t =
+    let open Type in
+    mu (fun ty ->
+    variant "json" (fun null string float obj arr -> function
+      | `Null -> null
+      | `String s -> string s
+      | `Float f -> float f
+      | `O o -> obj o
+      | `A a -> arr a)
+    |~ case0 "null" `Null
+    |~ case1 "string" string (fun x -> `String x)
+    |~ case1 "float" float (fun x -> `Float x)
+    |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
+    |~ case1 "array" (list ty) (fun arr -> `A arr)
+    |> sealv)
+
+  let merge = Merge.idempotent Type.(option t)
+  let pp = Type.pp_json t
+  let of_string s = Type.decode_json t (Jsonm.decoder (`String s))
+end
+
 module Store
     (S: sig
        include S.AO
