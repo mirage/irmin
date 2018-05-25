@@ -1,0 +1,3 @@
+Irmin test suite
+
+`irmin-test` provides access to the Irmin test suite for testing storage backend implementations

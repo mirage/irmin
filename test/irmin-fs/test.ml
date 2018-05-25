@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Irmin_test
+
 let misc = [
   "link", [
     Test_link.test "mem" Test_fs.link;

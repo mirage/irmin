@@ -17,6 +17,6 @@ depends: [
   "irmin" {>= "1.3.0"}
   "lwt"
   "irmin-mem" {test & >= "1.3.0"}
-  "alcotest"  {test & >="0.4.1"}
+  "irmin-test" {test}
 ]
 available: [ocaml-version >= "4.01.0"]

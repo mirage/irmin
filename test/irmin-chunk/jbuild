@@ -3,7 +3,7 @@
 (library
  ((name      test_chunk)
   (modules   (test_chunk))
-  (libraries (test irmin-chunk irmin-mem))))
+  (libraries (irmin-test irmin-chunk irmin-mem))))
 
 (executable
  ((name      test)

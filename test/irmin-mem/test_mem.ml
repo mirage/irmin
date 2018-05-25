@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Irmin_test
 open Test_common
 
 let store = store (module Irmin_mem.Make) (module Irmin.Metadata.None)
