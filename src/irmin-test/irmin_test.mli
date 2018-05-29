@@ -6,6 +6,7 @@ module type Test_S = sig
   val author: Repo.t -> commit -> string option Lwt.t
 end
 
+(** Used to enable test features specific to the chosen storage type *)
 type kind = [
   | `Core
   | `Git
