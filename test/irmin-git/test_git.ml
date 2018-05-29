@@ -16,7 +16,6 @@
 
 open Lwt.Infix
 open Irmin_test
-open Test_common
 
 let test_db = "test_db_git"
 
@@ -53,7 +52,7 @@ end
 let store = (module Mem: Test_S)
 
 let suite =
-  let store = (module Mem: Test_common.Test_S) in
+  let store = (module Mem: Irmin_test.Test_S) in
   let init () = Mem.init () in
   let clean () = Mem.init () in
   let stats = None in

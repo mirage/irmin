@@ -15,7 +15,6 @@
  *)
 
 open Irmin_test
-open Test_common
 open Lwt.Infix
 
 let stats =

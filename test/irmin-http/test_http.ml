@@ -16,7 +16,6 @@
 
 open Lwt.Infix
 open Irmin_test
-open Test_common
 
 let (/) = Filename.concat
 
@@ -121,7 +120,7 @@ let suites servers =
 let with_server servers f =
   if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
     let n = int_of_string Sys.argv.(2) in
-    Logs.set_reporter (Test_common.reporter ~prefix:"S" ());
+    Logs.set_reporter (reporter ~prefix:"S" ());
     serve servers n
   else
     f ()
