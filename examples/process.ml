@@ -67,7 +67,7 @@ let branch image =
 
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.KV(Irmin_unix.Git.G)(Irmin.Contents.String)
 
 let config = Irmin_git.config
     ~bare:true

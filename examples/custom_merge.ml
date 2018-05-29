@@ -114,7 +114,7 @@ end = struct
 
 end
 
-module Store = Irmin_unix.Git.FS.KV(Log)
+module Store = Irmin_unix.Git.KV(Irmin_unix.Git.G)(Log)
 
 let config = Irmin_git.config ~bare:true Config.root
 

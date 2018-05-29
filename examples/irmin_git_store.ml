@@ -4,7 +4,7 @@ open Printf
 
 let info = Irmin_unix.info
 
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.KV(Irmin_unix.Git.G)(Irmin.Contents.String)
 
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
