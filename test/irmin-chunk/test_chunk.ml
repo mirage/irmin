@@ -69,6 +69,6 @@ let clean () =
   S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
 
 let suite = {
-  name = "CHUNK"; kind = `Core; init; store; config; clean; stats=None;
+  name = "CHUNK"; init; store; config; clean; stats=None;
 }
 

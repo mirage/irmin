@@ -1,24 +1,13 @@
-module type Test_S = sig
-  include Irmin.S with type step = string
-               and type key = string list
-               and type contents = string
-               and type branch = string
-  val author: Repo.t -> commit -> string option Lwt.t
-end
-
-(** Used to enable test features specific to the chosen storage type *)
-type kind = [
-  | `Core
-  | `Git
-  | `Http
-  | `Unix
-]
+module type Test_S =
+  Irmin.S with type step = string
+    and type key = string list
+    and type contents = string
+    and type branch = string
 
 val reporter: ?prefix:string -> unit -> Logs.reporter
 
 type t = {
   name  : string;
-  kind  : kind;
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;

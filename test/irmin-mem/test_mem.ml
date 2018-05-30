@@ -34,4 +34,4 @@ let clean () =
 
 let init () = Lwt.return_unit
 let stats = None
-let suite = { name = "MEM"; kind = `Core; init; clean; config; store; stats }
+let suite = { name = "MEM"; init; clean; config; store; stats }

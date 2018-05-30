@@ -56,7 +56,7 @@ let suite =
   let init () = Mem.init () in
   let clean () = Mem.init () in
   let stats = None in
-  { name = "GIT"; kind = `Git; clean; init; store; stats; config }
+  { name = "GIT"; clean; init; store; stats; config }
 
 let get = function
   | Some x -> x

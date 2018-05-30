@@ -92,7 +92,6 @@ let suite i server =
       server_pid := pid
     end;
 
-    kind  = `Http;
     stats = None;
     clean = begin fun () ->
       try Unix.kill !server_pid Sys.sigkill;
