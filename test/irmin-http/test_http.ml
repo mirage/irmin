@@ -15,7 +15,7 @@
  *)
 
 open Lwt.Infix
-open Test_common
+open Irmin_test
 
 let (/) = Filename.concat
 
@@ -92,7 +92,6 @@ let suite i server =
       server_pid := pid
     end;
 
-    kind  = `Http;
     stats = None;
     clean = begin fun () ->
       try Unix.kill !server_pid Sys.sigkill;
@@ -120,7 +119,7 @@ let suites servers =
 let with_server servers f =
   if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
     let n = int_of_string Sys.argv.(2) in
-    Logs.set_reporter (Test_common.reporter ~prefix:"S" ());
+    Logs.set_reporter (reporter ~prefix:"S" ());
     serve servers n
   else
     f ()

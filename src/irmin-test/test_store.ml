@@ -316,19 +316,10 @@ module Make (S: Test_S) = struct
 
       History.closure h ~min:[] ~max:[kr2] >>= fun kr2s ->
       check_keys "g2" [kr1; kr2] kr2s;
-
-      if x.kind = `Git then (
-        S.Commit.of_hash repo kr1 >>= function
-        | None   -> Alcotest.fail "Cannot read commit hash"
-        | Some c ->
-          S.author repo c >|= function
-          | None      -> Alcotest.fail "cannot read the Git internals"
-          | Some name -> Alcotest.(check string) "author" "test" name
-      ) else (
-        Lwt.return_unit
-      ) >>= fun () ->
-
-        Lwt.return_unit
+      S.Commit.of_hash repo kr1 >|= function
+      | None   -> Alcotest.fail "Cannot read commit hash"
+      | Some c ->
+          Alcotest.(check string) "author" "test" (Irmin.Info.author (S.Commit.info c))
     in
     run x test
 

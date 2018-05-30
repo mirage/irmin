@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Irmin_test
+
 let misc = [
   "LINK"     , [Test_link.test "unix" Test_unix.FS.link];
   "GIT-BARE" , [Test_unix.Git.misc];

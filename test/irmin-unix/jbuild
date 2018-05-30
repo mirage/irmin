@@ -3,7 +3,7 @@
 (library
  ((name      test_unix)
   (modules   (test_unix))
-  (libraries (test test_fs test_git test_http irmin-unix))))
+  (libraries (irmin-test test_fs test_git test_http irmin-unix))))
 
 (executable
  ((name      test)

@@ -23,7 +23,6 @@ depends: [
   "git-unix"   {>= "1.11.4"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"     {>= "0.1.0"}
-  "alcotest" {test}
-  "mtime"    {test & >= "1.0.0"}
+  "irmin-test" {test}
 ]
 available: [ocaml-version >= "4.01.0"]

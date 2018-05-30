@@ -3,7 +3,7 @@
 (library
  ((name      test_mem)
   (modules   (test_mem))
-  (libraries (test irmin-mem))))
+  (libraries (irmin-test irmin-mem))))
 
 (executable
  ((name      test)

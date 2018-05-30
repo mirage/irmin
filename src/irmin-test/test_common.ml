@@ -16,13 +16,11 @@
 
 open Astring
 
-module type Test_S = sig
-  include Irmin.S with type step = string
-                   and type key = string list
-                   and type contents = string
-                   and type branch = string
-  val author: Repo.t -> commit -> string option Lwt.t
-end
+module type Test_S =
+  Irmin.S with type step = string
+    and type key = string list
+    and type contents = string
+    and type branch = string
 
 let reporter ?(prefix="") () =
   let pad n x =
@@ -58,27 +56,16 @@ let line msg =
 let store:
   (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module Test_S) =
   fun (module B) (module M) ->
-    let module S = struct
-      include
+    let module S =
         B (M)
           (Irmin.Contents.String)
           (Irmin.Path.String_list)
           (Irmin.Branch.String)
           (Irmin.Hash.SHA1)
-      let author _t _id = failwith "Only used for testing Git stores"
-    end
     in (module S)
-
-type kind = [
-  | `Core
-  | `Git
-  | `Http
-  | `Unix
-]
 
 type t = {
   name  : string;
-  kind  : kind;
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;

@@ -3,7 +3,7 @@
 (library
  ((name      test_fs)
   (modules   (test_fs))
-  (libraries (test irmin-fs))))
+  (libraries (irmin-fs irmin-test))))
 
 (executable
  ((name      test)

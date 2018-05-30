@@ -3,7 +3,7 @@
 (library
  ((name      test_http)
   (modules   (test_http))
-  (libraries (test test_mem test_git irmin-http))))
+  (libraries (irmin-test test_mem test_git irmin-http))))
 
 (executable
  ((name      test)

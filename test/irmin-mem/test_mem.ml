@@ -15,7 +15,7 @@
  *)
 
 open Lwt.Infix
-open Test_common
+open Irmin_test
 
 let store = store (module Irmin_mem.Make) (module Irmin.Metadata.None)
 
@@ -34,4 +34,4 @@ let clean () =
 
 let init () = Lwt.return_unit
 let stats = None
-let suite = { name = "MEM"; kind = `Core; init; clean; config; store; stats }
+let suite = { name = "MEM"; init; clean; config; store; stats }
