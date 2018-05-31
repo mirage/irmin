@@ -163,9 +163,7 @@ let commit f x = get "commit" f x
 (* GET *)
 let get = {
   name = "get";
-  doc  = "Read the value associated with a key. \
-          If the key has not been set then the program \
-          will terminate with a non-zero exit code";
+  doc  = "Read the value associated with a key.";
   man  = [];
   term =
     let get (S ((module S), store)) path =

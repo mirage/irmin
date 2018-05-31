@@ -143,7 +143,7 @@ let store_term =
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
 (* Read configuration from a YAML file *)
-let read_config_file cfg: t option =
+let read_config_file cfg default_branch: t option =
   if not (Sys.file_exists cfg) then None
   else
     let oc = open_in cfg in
@@ -179,6 +179,13 @@ let read_config_file cfg: t option =
       mk_store kind contents
     in
     let module S = (val store) in
+    let default_branch =
+      match default_branch with
+        | None   -> None
+        | Some t -> (match S.Branch.of_string t with
+            | Ok x           -> Some x
+            | Error (`Msg e) -> failwith e)
+    in
     let branch = assoc "branch" (fun x -> match S.Branch.of_string x with
         | Ok x           -> x
         | Error (`Msg e) -> failwith e)
@@ -201,7 +208,10 @@ let read_config_file cfg: t option =
     let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
     let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
     match branch with
-    | None   -> Some (S ((module S), mk_master ()))
+    | None   ->
+        (match default_branch with
+        | None -> Some (S ((module S), mk_master ()))
+        | Some b -> Some (S ((module S), mk_branch b)))
     | Some b -> Some (S ((module S), mk_branch b))
 
   let branch =
@@ -235,10 +245,10 @@ let store =
     | None ->
       let cfg = Irmin.Private.Conf.get config config_path_key in
       (* then look at the config file options *)
-      match read_config_file cfg with
+      match read_config_file cfg branch with
       | Some c -> c
       | None   ->
-        let s = mk_store `Git (mk_contents `String) in
+        let s = mk_store default_store (mk_contents default_contents) in
         let module S = (val s: Irmin.S) in
         let t = S.Repo.v config >>= fun repo -> S.master repo in
         S ((module S), t)
