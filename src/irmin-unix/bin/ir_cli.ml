@@ -335,6 +335,33 @@ let fetch = {
     Term.(mk fetch $ store $ remote);
 }
 
+(* MERGE *)
+let merge = {
+  name = "merge";
+  doc  = "Merge branches.";
+  man  = [];
+  term =
+    let merge (S ((module S), store)) author message branch =
+      run begin
+        let message = match message with Some s -> s | None -> "merge" in
+        let branch = match S.Branch.of_string branch with
+          | Ok b -> b
+          | Error (`Msg msg) -> failwith msg
+        in
+        store >>= fun t ->
+        S.merge_with_branch t branch ~info:(info ?author "%s" message) >|= function
+          | Ok () -> ()
+          | Error conflict ->
+            Format.eprintf "ERROR: %a!\n" (Irmin.Type.pp_json Irmin.Merge.conflict_t) conflict
+      end
+    in
+    let branch_name =
+      let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
+      Arg.(required & pos 0 (some string) None & doc)
+    in
+    Term.(mk merge $ store $ author $ message $ branch_name);
+}
+
 (* PULL *)
 let pull = {
   name = "pull";
@@ -580,6 +607,7 @@ let default =
       \    tree        %s\n\
       \    clone       %s\n\
       \    fetch       %s\n\
+      \    merge       %s\n\
       \    pull        %s\n\
       \    push        %s\n\
       \    snapshot    %s\n\
@@ -590,7 +618,7 @@ let default =
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc
-      clone.doc fetch.doc pull.doc push.doc snapshot.doc
+      clone.doc fetch.doc merge.doc pull.doc push.doc snapshot.doc
       revert.doc watch.doc dot.doc
   in
   Term.(mk usage $ const ()),
@@ -609,6 +637,8 @@ let commands = List.map create_command [
     list;
     tree;
     clone;
+    fetch;
+    merge;
     pull;
     push;
     snapshot;
