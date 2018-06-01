@@ -142,8 +142,18 @@ let store_term =
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
+
+let merge_config a b =
+  let open Irmin.Private.Conf in
+  let root = match get a root with
+    | Some _ as root -> root
+    | None -> get b root
+  in
+  let cfg = union a b in
+  add cfg Irmin.Private.Conf.root root
+
 (* Read configuration from a YAML file *)
-let read_config_file cfg default_branch: t option =
+let read_config_file cfg default_branch cmd_config: t option =
   if not (Sys.file_exists cfg) then None
   else
     let oc = open_in cfg in
@@ -179,16 +189,14 @@ let read_config_file cfg default_branch: t option =
       mk_store kind contents
     in
     let module S = (val store) in
-    let default_branch =
+    let branch =
       match default_branch with
-        | None   -> None
+        | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
+          | Ok x -> x
+          | Error (`Msg msg) -> failwith msg)
         | Some t -> (match S.Branch.of_string t with
             | Ok x           -> Some x
             | Error (`Msg e) -> failwith e)
-    in
-    let branch = assoc "branch" (fun x -> match S.Branch.of_string x with
-        | Ok x           -> x
-        | Error (`Msg e) -> failwith e)
     in
     let config =
       let root = assoc "root" (fun x -> x) in
@@ -204,25 +212,23 @@ let read_config_file cfg default_branch: t option =
       |> add Irmin_git.bare bare
       |> add Irmin_git.head head
       |> add Irmin_http.uri uri
+      |> merge_config cmd_config
     in
     let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
     let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
     match branch with
-    | None   ->
-        (match default_branch with
-        | None -> Some (S ((module S), mk_master ()))
-        | Some b -> Some (S ((module S), mk_branch b)))
+    | None   -> Some (S ((module S), mk_master ()))
     | Some b -> Some (S ((module S), mk_branch b))
 
-  let branch =
-    let doc =
-      Arg.info
-        ~doc:"The current branch name. Default is the store's master branch."
-        ~docs:global_option_section
-        ~docv:"BRANCH"
-        ["b"; "branch"]
-    in
-    Arg.(value & opt (some string) None & doc)
+let branch =
+  let doc =
+    Arg.info
+      ~doc:"The current branch name. Default is the store's master branch."
+      ~docs:global_option_section
+      ~docv:"BRANCH"
+      ["b"; "branch"]
+  in
+  Arg.(value & opt (some string) None & doc)
 
 let store =
   let create store config branch =
@@ -245,7 +251,7 @@ let store =
     | None ->
       let cfg = Irmin.Private.Conf.get config config_path_key in
       (* then look at the config file options *)
-      match read_config_file cfg branch with
+      match read_config_file cfg branch config with
       | Some c -> c
       | None   ->
         let s = mk_store default_store (mk_contents default_contents) in
