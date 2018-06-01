@@ -142,7 +142,7 @@ let store_term =
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-
+(* Merge configuration with [a] taking precedence over [b] *)
 let merge_config a b =
   let open Irmin.Private.Conf in
   let root = match get a root with
@@ -153,7 +153,7 @@ let merge_config a b =
   add cfg Irmin.Private.Conf.root root
 
 (* Read configuration from a YAML file *)
-let read_config_file cfg default_branch cmd_config: t option =
+let read_config_file cfg cmd_store cmd_branch cmd_config: t option =
   if not (Sys.file_exists cfg) then None
   else
     let oc = open_in cfg in
@@ -172,25 +172,28 @@ let read_config_file cfg default_branch cmd_config: t option =
       try Some (fn (List.assoc name y |> string_value))
       with Not_found -> None
     in
-    let contents =
-      let kind =
-        match assoc "contents" (fun x -> List.assoc x contents_kinds) with
-        | None   -> default_contents
-        | Some c -> c
-      in
-      mk_contents kind
-    in
     let store =
-      let kind =
-        match assoc "store" (fun x -> List.assoc x store_kinds) with
-        | None   -> default_store
-        | Some s -> s
-      in
-      mk_store kind contents
+      match cmd_store with
+      | None ->
+        let contents =
+          let kind =
+            match assoc "contents" (fun x -> List.assoc x contents_kinds) with
+            | None   -> default_contents
+            | Some c -> c
+          in
+          mk_contents kind
+        in
+        let kind =
+          match assoc "store" (fun x -> List.assoc x store_kinds) with
+          | None   -> default_store
+          | Some s -> s
+        in
+        mk_store kind contents
+      | Some store -> store
     in
     let module S = (val store) in
     let branch =
-      match default_branch with
+      match cmd_branch with
         | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
           | Ok x -> x
           | Error (`Msg msg) -> failwith msg)
@@ -251,7 +254,7 @@ let store =
     | None ->
       let cfg = Irmin.Private.Conf.get config config_path_key in
       (* then look at the config file options *)
-      match read_config_file cfg branch config with
+      match read_config_file cfg store branch config with
       | Some c -> c
       | None   ->
         let s = mk_store default_store (mk_contents default_contents) in
