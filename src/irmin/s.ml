@@ -416,6 +416,7 @@ module type STORE = sig
                   and type tree := tree
     module Hash: HASH
     type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+    val hash_t: hash Type.t
     val hash: Repo.t -> tree -> hash Lwt.t
     val of_hash: Repo.t -> hash -> tree option Lwt.t
   end
