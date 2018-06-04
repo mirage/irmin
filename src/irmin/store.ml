@@ -46,7 +46,16 @@ module Make (P: S.PRIVATE) = struct
     include Tree.Make(P)
     module Hash = P.Node.Key
 
-    type hash = [`Node of P.Node.Key.t | `Contents of Contents.Hash.t * metadata]
+    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+
+    let hash_t =
+      let open Type in
+      variant "Tree.hash" (fun node contents -> function
+          | `Node n     -> node n
+          | `Contents c -> contents c)
+      |~ case1 "Node" Hash.t (fun c -> `Node c)
+      |~ case1 "Contents" (pair Contents.Hash.t Metadata.t) (fun c -> `Contents c)
+      |> sealv
 
     let of_hash r = function
       | `Node h          -> import r h >|= fun n -> Some (`Node n)

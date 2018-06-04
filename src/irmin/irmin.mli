@@ -2372,6 +2372,9 @@ module type S = sig
     type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
     (** The type for tree hashes. *)
 
+    val hash_t: hash Type.t
+    (** [hash_t] is the representation of the {!hash} type. *)
+
     val hash: repo -> tree -> hash Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
