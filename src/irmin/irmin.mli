@@ -2241,6 +2241,25 @@ module type S = sig
 
   end
 
+  (** [Contents] provides base functions for the store's contents. *)
+  module Contents: sig
+
+    include Contents.S with type t = contents
+
+    (** {1 Import/Export} *)
+
+    module Hash: Hash.S
+    (** [Hash] provides base functions for contents hashes. *)
+
+    val hash: repo -> contents -> Hash.t Lwt.t
+    (** [hash r c] it [c]'s hash in the repository [r]. *)
+
+    val of_hash: repo -> Hash.t -> contents option Lwt.t
+    (** [of_hash r h] is the the contents object in [r] having [h] as
+        hash, or [None] is no such contents object exists. *)
+
+  end
+
   (** Managing store's trees. *)
 
   module Tree: sig
@@ -2348,33 +2367,17 @@ module type S = sig
     (** {1 Import/Export} *)
 
     module Hash: Hash.S
-    (** [Hash] provides base functions for tree hashes. *)
+    (** [Hash] provides base functions for node hashes. *)
 
-    val hash: repo -> tree -> Hash.t Lwt.t
+    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+    (** The type for tree hashes. *)
+
+    val hash: repo -> tree -> hash Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash: repo -> Hash.t -> tree option Lwt.t
+    val of_hash: repo -> hash -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as
         hash, or [None] is no such tree object exists. *)
-
-  end
-
-  (** [Contents] provides base functions for the store's contents. *)
-  module Contents: sig
-
-    include Contents.S with type t = contents
-
-    (** {1 Import/Export} *)
-
-    module Hash: Hash.S
-    (** [Hash] provides base functions for contents hashes. *)
-
-    val hash: repo -> contents -> Hash.t Lwt.t
-    (** [hash r c] it [c]'s hash in the repository [r]. *)
-
-    val of_hash: repo -> Hash.t -> contents option Lwt.t
-    (** [of_hash r h] is the the contents object in [r] having [h] as
-        hash, or [None] is no such contents object exists. *)
 
   end
 
