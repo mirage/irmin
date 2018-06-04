@@ -45,11 +45,19 @@ module Make (P: S.PRIVATE) = struct
   module Tree = struct
     include Tree.Make(P)
     module Hash = P.Node.Key
-    let of_hash r h = import r h >|= fun n -> Some (`Node n)
+
+    type hash = [`Node of P.Node.Key.t | `Contents of Contents.Hash.t * metadata]
+
+    let of_hash r = function
+      | `Node h          -> import r h >|= fun n -> Some (`Node n)
+      | `Contents (h, m) ->
+        Contents.of_hash r h >|= function
+        | None   -> None
+        | Some c -> Some (`Contents (c, m))
 
     let hash r = function
-      | `Node n     -> export r n
-      | `Contents _ -> Lwt.fail_invalid_arg "Cannot hash tree leafs"
+      | `Node n          -> export r n >|= fun h -> `Node h
+      | `Contents (c, m) -> Contents.hash r c >|= fun h -> `Contents (h, m)
   end
 
   type node = Tree.node
