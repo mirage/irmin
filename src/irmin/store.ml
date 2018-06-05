@@ -38,6 +38,7 @@ module Make (P: S.PRIVATE) = struct
   module Contents = struct
     include P.Contents.Val
     module Hash = P.Contents.Key
+    type hash = Hash.t
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
     let hash r c = P.Contents.add (P.Repo.contents_t r) c
   end
@@ -69,7 +70,7 @@ module Make (P: S.PRIVATE) = struct
   module Commit = struct
 
     module Hash = P.Commit.Key
-
+    type hash = Hash.t
     type t = { r: repo; h: Hash.t; v: P.Commit.value }
 
     let t r =
