@@ -175,7 +175,7 @@ let merge_config a b =
   let cfg = union a b in
   add cfg Irmin.Private.Conf.root root
 
-let from_config_file path store config branch: t option =
+let from_config_file path store config branch: t =
   let y = read_config_file path in
   let string_value = function
     | `String s -> s
@@ -233,8 +233,8 @@ let from_config_file path store config branch: t option =
   let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
   let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
   match branch with
-  | None   -> Some (S ((module S), mk_master ()))
-  | Some b -> Some (S ((module S), mk_branch b))
+  | None   -> S ((module S), mk_master ())
+  | Some b -> S ((module S), mk_branch b)
 
 let branch =
   let doc =
@@ -249,13 +249,7 @@ let branch =
 let store =
   let create store config branch =
     let cfg = Irmin.Private.Conf.get config config_path_key in
-    match from_config_file cfg store config branch with
-    | Some c -> c
-    | None   ->
-      let s = mk_store default_store (mk_contents default_contents) in
-      let module S = (val s: Irmin.S) in
-      let t = S.Repo.v config >>= fun repo -> S.master repo in
-      S ((module S), t)
+    from_config_file cfg store config branch
   in
   Term.(const create $ store_term $ config_term $ branch)
 
