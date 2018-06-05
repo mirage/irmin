@@ -1273,6 +1273,9 @@ module Private: sig
 
         {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
+    val merge: t -> t -> t
+    (** [merge a b] merges configurations [a] and [b] giving [a] precedence over [b] *)
+
     (** {1:builtin_converters Built-in value converters}  *)
 
     val bool: bool converter

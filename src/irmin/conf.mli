@@ -52,3 +52,4 @@ val rem : t -> 'a key -> t
 val union : t -> t -> t
 val find : t -> 'a key -> 'a option
 val get : t -> 'a key -> 'a
+val merge: t -> t -> t

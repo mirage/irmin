@@ -153,10 +153,10 @@ let merge_config a b =
   add cfg Irmin.Private.Conf.root root
 
 (* Read configuration from a YAML file *)
-let read_config_file cfg cmd_store cmd_branch cmd_config: t option =
-  if not (Sys.file_exists cfg) then None
+let read_config_file path store config branch: t option =
+  if not (Sys.file_exists path) then None
   else
-    let oc = open_in cfg in
+    let oc = open_in path in
     let len = in_channel_length oc in
     let buf = really_input_string oc len in
     close_in oc;
@@ -173,7 +173,7 @@ let read_config_file cfg cmd_store cmd_branch cmd_config: t option =
       with Not_found -> None
     in
     let store =
-      match cmd_store with
+      match store with
       | None ->
         let contents =
           let kind =
@@ -193,7 +193,7 @@ let read_config_file cfg cmd_store cmd_branch cmd_config: t option =
     in
     let module S = (val store) in
     let branch =
-      match cmd_branch with
+      match branch with
         | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
           | Ok x -> x
           | Error (`Msg msg) -> failwith msg)
@@ -215,7 +215,7 @@ let read_config_file cfg cmd_store cmd_branch cmd_config: t option =
       |> add Irmin_git.bare bare
       |> add Irmin_git.head head
       |> add Irmin_http.uri uri
-      |> merge_config cmd_config
+      |> merge_config config
     in
     let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
     let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
@@ -235,32 +235,14 @@ let branch =
 
 let store =
   let create store config branch =
-    match store with
-    | Some s ->
+    let cfg = Irmin.Private.Conf.get config config_path_key in
+    match read_config_file cfg store config branch with
+    | Some c -> c
+    | None   ->
+      let s = mk_store default_store (mk_contents default_contents) in
       let module S = (val s: Irmin.S) in
-      let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
-      let mk_branch b =
-        S.Repo.v config >>= fun repo ->
-        S.of_branch repo b
-      in
-      (* first look at the command-line options *)
-      let t = match branch with
-        | None   -> mk_master ()
-        | Some t -> mk_branch (match S.Branch.of_string t with
-            | Ok x           -> x
-            | Error (`Msg e) -> failwith e)
-      in
+      let t = S.Repo.v config >>= fun repo -> S.master repo in
       S ((module S), t)
-    | None ->
-      let cfg = Irmin.Private.Conf.get config config_path_key in
-      (* then look at the config file options *)
-      match read_config_file cfg store branch config with
-      | Some c -> c
-      | None   ->
-        let s = mk_store default_store (mk_contents default_contents) in
-        let module S = (val s: Irmin.S) in
-        let t = S.Repo.v config >>= fun repo -> S.master repo in
-        S ((module S), t)
   in
   Term.(const create $ store_term $ config_term $ branch)
 
