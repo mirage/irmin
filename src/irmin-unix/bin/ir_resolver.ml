@@ -175,7 +175,7 @@ let merge_config a b =
   let cfg = union a b in
   add cfg Irmin.Private.Conf.root root
 
-let from_config_file path store config branch: t =
+let from_config_file_with_defaults path store config branch: t =
   let y = read_config_file path in
   let string_value = function
     | `String s -> s
@@ -249,7 +249,7 @@ let branch =
 let store =
   let create store config branch =
     let cfg = Irmin.Private.Conf.get config config_path_key in
-    from_config_file cfg store config branch
+    from_config_file_with_defaults cfg store config branch
   in
   Term.(const create $ store_term $ config_term $ branch)
 
