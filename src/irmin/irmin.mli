@@ -2232,10 +2232,13 @@ module type S = sig
     module Hash: Hash.S
     (** [Hash] provides base functions for commit hashes. *)
 
-    val hash: commit -> Hash.t
+    type hash = Hash.t
+    (** The type for commit hashes. *)
+
+    val hash: commit -> hash
     (** [hash c] it [c]'s hash. *)
 
-    val of_hash: repo -> Hash.t -> commit option Lwt.t
+    val of_hash: repo -> hash -> commit option Lwt.t
     (** [of_hash r h] is the the commit object in [r] having [h] as
         hash, or [None] is no such commit object exists. *)
 
@@ -2251,10 +2254,13 @@ module type S = sig
     module Hash: Hash.S
     (** [Hash] provides base functions for contents hashes. *)
 
-    val hash: repo -> contents -> Hash.t Lwt.t
+    type hash = Hash.t
+    (** The type for content hashes. *)
+
+    val hash: repo -> contents -> hash Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash: repo -> Hash.t -> contents option Lwt.t
+    val of_hash: repo -> hash -> contents option Lwt.t
     (** [of_hash r h] is the the contents object in [r] having [h] as
         hash, or [None] is no such contents object exists. *)
 
