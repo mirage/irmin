@@ -165,16 +165,6 @@ let store_term =
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-(* Merge configuration with [a] taking precedence over [b] *)
-let merge_config a b =
-  let open Irmin.Private.Conf in
-  let root = match get a root with
-    | Some _ as root -> root
-    | None -> get b root
-  in
-  let cfg = union a b in
-  add cfg Irmin.Private.Conf.root root
-
 let from_config_file_with_defaults path store config branch: t =
   let y = read_config_file path in
   let string_value = function
@@ -228,7 +218,7 @@ let from_config_file_with_defaults path store config branch: t =
     |> add Irmin_git.bare bare
     |> add Irmin_git.head head
     |> add Irmin_http.uri uri
-    |> merge_config config
+    |> Irmin.Private.Conf.merge config
   in
   let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
   let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
