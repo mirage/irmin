@@ -89,14 +89,14 @@ module Make (S: Test_S) = struct
 
   let r1 ~repo =
     n2 ~repo >>= fun kn2 ->
-    S.Tree.of_hash repo kn2 >>= function
+    S.Tree.of_hash repo (`Node kn2) >>= function
     | None      -> Alcotest.fail "r1"
     | Some tree -> S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] tree
 
   let r2 ~repo =
     n3 ~repo >>= fun kn3 ->
     r1 ~repo >>= fun kr1 ->
-    S.Tree.of_hash repo kn3 >>= function
+    S.Tree.of_hash repo (`Node kn3) >>= function
     | None    -> Alcotest.fail "r2"
     | Some t3 -> S.Commit.v repo ~info:Irmin.Info.empty  ~parents:[kr1] t3
 

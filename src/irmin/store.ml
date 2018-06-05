@@ -38,6 +38,7 @@ module Make (P: S.PRIVATE) = struct
   module Contents = struct
     include P.Contents.Val
     module Hash = P.Contents.Key
+    type hash = Hash.t
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
     let hash r c = P.Contents.add (P.Repo.contents_t r) c
   end
@@ -45,11 +46,28 @@ module Make (P: S.PRIVATE) = struct
   module Tree = struct
     include Tree.Make(P)
     module Hash = P.Node.Key
-    let of_hash r h = import r h >|= fun n -> Some (`Node n)
+
+    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+
+    let hash_t =
+      let open Type in
+      variant "Tree.hash" (fun node contents -> function
+          | `Node n     -> node n
+          | `Contents c -> contents c)
+      |~ case1 "Node" Hash.t (fun c -> `Node c)
+      |~ case1 "Contents" (pair Contents.Hash.t Metadata.t) (fun c -> `Contents c)
+      |> sealv
+
+    let of_hash r = function
+      | `Node h          -> import r h >|= fun n -> Some (`Node n)
+      | `Contents (h, m) ->
+        Contents.of_hash r h >|= function
+        | None   -> None
+        | Some c -> Some (`Contents (c, m))
 
     let hash r = function
-      | `Node n     -> export r n
-      | `Contents _ -> Lwt.fail_invalid_arg "Cannot hash tree leafs"
+      | `Node n          -> export r n >|= fun h -> `Node h
+      | `Contents (c, m) -> Contents.hash r c >|= fun h -> `Contents (h, m)
   end
 
   type node = Tree.node
@@ -61,7 +79,7 @@ module Make (P: S.PRIVATE) = struct
   module Commit = struct
 
     module Hash = P.Commit.Key
-
+    type hash = Hash.t
     type t = { r: repo; h: Hash.t; v: P.Commit.value }
 
     let t r =

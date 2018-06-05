@@ -396,8 +396,16 @@ module type STORE = sig
     val parents: commit -> commit list Lwt.t
     val info: commit -> Info.t
     module Hash: HASH
-    val hash: commit -> Hash.t
-    val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
+    type hash = Hash.t
+    val hash: commit -> hash
+    val of_hash: Repo.t -> hash -> commit option Lwt.t
+  end
+  module Contents: sig
+    include CONTENTS with type t = contents
+    module Hash: HASH
+    type hash = Hash.t
+    val hash: Repo.t -> contents -> hash Lwt.t
+    val of_hash: Repo.t -> hash -> contents option Lwt.t
   end
   module Tree: sig
     include TREE with type step := step
@@ -407,14 +415,10 @@ module type STORE = sig
                   and type node := node
                   and type tree := tree
     module Hash: HASH
-    val hash: Repo.t -> tree -> Hash.t Lwt.t
-    val of_hash: Repo.t -> Hash.t -> tree option Lwt.t
-  end
-  module Contents: sig
-    include CONTENTS with type t = contents
-    module Hash: HASH
-    val hash: Repo.t -> contents -> Hash.t Lwt.t
-    val of_hash: Repo.t -> Hash.t -> contents option Lwt.t
+    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+    val hash_t: hash Type.t
+    val hash: Repo.t -> tree -> hash Lwt.t
+    val of_hash: Repo.t -> hash -> tree option Lwt.t
   end
 
   val kind: t -> key -> [`Contents | `Node] option Lwt.t
