@@ -1,3 +1,10 @@
+### 1.4.0 (2018-06-06)
+
+- Add types for `Contents.hash`, `Tree.hash` and `Commit.hash` (#512, @samoht)
+- `Tree.hash` and `Tree.of_hash` now work on leaf nodes. To do this, `Tree.hash`
+  has to return a more complex type (#512, @samoht)
+- support for webmachine 0.6.0 (#505, @ansiwen)
+
 ### 1.3.3 (2018-01-03)
 
 - complete support for OCaml 4.06 (#484, @samoht)
