@@ -97,6 +97,10 @@ let (/) = Filename.concat
 
 let global_config_path = ".irmin" / "config.yml"
 
+let add_opt k v config = match v with
+  | None -> config
+  | Some _ -> Irmin.Private.Conf.add config k v
+
 (* Read configuration from a YAML file *)
 let rec read_config_file path =
   let home = Unix.getenv "HOME" / global_config_path in
@@ -119,11 +123,11 @@ let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
   let create root bare head level uri config_path =
     Irmin.Private.Conf.empty
-    |> add Irmin.Private.Conf.root root
+    |> add_opt Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
-    |> add Irmin_git.head head
-    |> add Irmin_git.level level
-    |> add Irmin_http.uri uri
+    |> add_opt Irmin_git.head head
+    |> add_opt Irmin_git.level level
+    |> add_opt Irmin_http.uri uri
     |> add config_path_key config_path
   in
   Term.(const create $
@@ -214,11 +218,11 @@ let from_config_file_with_defaults path store config branch: t =
     let uri = assoc "uri" Uri.of_string in
     let add k v config = Irmin.Private.Conf.add config k v in
     Irmin.Private.Conf.empty
-    |> add Irmin.Private.Conf.root root
+    |> add_opt Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
-    |> add Irmin_git.head head
-    |> add Irmin_http.uri uri
-    |> Irmin.Private.Conf.merge config
+    |> add_opt Irmin_git.head head
+    |> add_opt Irmin_http.uri uri
+    |> Irmin.Private.Conf.union config
   in
   let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
   let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
@@ -255,10 +259,9 @@ let infer_remote contents str =
     in
     let module R = (val r) in
     let config =
-      let add k v c = Irmin.Private.Conf.add c k v in
       Irmin.Private.Conf.empty
-      |> add Irmin_http.uri (Some (Uri.of_string str))
-      |> add Irmin.Private.Conf.root (Some str)
+      |> add_opt Irmin_http.uri (Some (Uri.of_string str))
+      |> add_opt Irmin.Private.Conf.root (Some str)
     in
     R.Repo.v config >>= fun repo ->
     R.master repo >|= fun r ->

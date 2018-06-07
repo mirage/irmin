@@ -120,11 +120,3 @@ let root =
     ~doc:"The location of the Git repository root."
     ~docs:"COMMON OPTIONS"
     "root" (some string) None
-
-let merge a b =
-  let r = match get a root with
-    | Some _ as root -> root
-    | None -> get b root
-  in
-  let cfg = union a b in
-  add cfg root r
