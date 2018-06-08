@@ -101,7 +101,7 @@ $ irmin set foo/bar "testing 123"
 $ irmin get foo/bar
 ```
 
-`irmin.yml` allows for `irmin` flags to be set globally on a per-directory basis. Run `irmin help irmin.yml` for further details.
+`irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You can also set flags globally using `$HOME/.irmin/config.yml`. Run `irmin help irmin.yml` for further details.
 
 Also see `irmin --help` for list of all commands and either `irmin <command> --help` or `irmin help <command>` for more help with a specific command.
 

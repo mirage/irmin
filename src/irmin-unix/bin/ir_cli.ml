@@ -163,9 +163,7 @@ let commit f x = get "commit" f x
 (* GET *)
 let get = {
   name = "get";
-  doc  = "Read the value associated with a key. \
-          If the key has not been set then the program \
-          will terminate with a non-zero exit code";
+  doc  = "Read the value associated with a key.";
   man  = [];
   term =
     let get (S ((module S), store)) path =
@@ -542,8 +540,8 @@ let config_man =
     `S Manpage.s_description;
     `P "An $(b,irmin.yml) file lets the user specify repetitve command-line options \
         in a YAML file. The $(b,irmin.yml) is read by default if it is found in \
-        the current working directory. The configuration file path can also be set using the  \
-        $(b,--config) command-line flag. \
+        the current working directory or defined globally as \\$HOME/.irmin/config.yml. The \
+        configuration file path can also be set using the $(b,--config) command-line flag. \
 
         The following keys are allowed: $(b,contents), $(b,store), \
         $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These correspond to the irmin \

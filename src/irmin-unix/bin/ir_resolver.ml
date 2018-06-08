@@ -92,15 +92,42 @@ let config_path_key =
     ~doc:"Allows configuration file to be specified on the command-line"
     "config" Irmin.Private.Conf.string "irmin.yml"
 
+
+let (/) = Filename.concat
+
+let global_config_path = ".irmin" / "config.yml"
+
+let add_opt k v config = match v with
+  | None -> config
+  | Some _ -> Irmin.Private.Conf.add config k v
+
+(* Read configuration from a YAML file *)
+let rec read_config_file path =
+  let home = Unix.getenv "HOME" / global_config_path in
+  let global =
+    if String.equal path home
+      then []
+      else read_config_file home
+  in
+  if not (Sys.file_exists path) then global
+  else
+    let oc = open_in path in
+    let len = in_channel_length oc in
+    let buf = really_input_string oc len in
+    close_in oc;
+    match Yaml.of_string buf with
+      | Ok (`O y) -> y @ global
+      | _ -> global
+
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
   let create root bare head level uri config_path =
     Irmin.Private.Conf.empty
-    |> add Irmin.Private.Conf.root root
+    |> add_opt Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
-    |> add Irmin_git.head head
-    |> add Irmin_git.level level
-    |> add Irmin_http.uri uri
+    |> add_opt Irmin_git.head head
+    |> add_opt Irmin_git.level level
+    |> add_opt Irmin_http.uri uri
     |> add config_path_key config_path
   in
   Term.(const create $
@@ -142,111 +169,83 @@ let store_term =
 
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-(* Read configuration from a YAML file *)
-let read_config_file cfg: t option =
-  if not (Sys.file_exists cfg) then None
-  else
-    let oc = open_in cfg in
-    let len = in_channel_length oc in
-    let buf = really_input_string oc len in
-    close_in oc;
-    let y = match Yaml.of_string buf with
-      | Ok (`O y) -> y
-      | _ -> []
-    in
-    let string_value = function
-      | `String s -> s
-      | _ -> raise Not_found
-    in
-    let assoc name fn =
-      try Some (fn (List.assoc name y |> string_value))
-      with Not_found -> None
-    in
-    let contents =
-      let kind =
-        match assoc "contents" (fun x -> List.assoc x contents_kinds) with
-        | None   -> default_contents
-        | Some c -> c
+let from_config_file_with_defaults path store config branch: t =
+  let y = read_config_file path in
+  let string_value = function
+    | `String s -> s
+    | _ -> raise Not_found
+  in
+  let assoc name fn =
+    try Some (fn (List.assoc name y |> string_value))
+    with Not_found -> None
+  in
+  let store =
+    match store with
+    | None ->
+      let contents =
+        let kind =
+          match assoc "contents" (fun x -> List.assoc x contents_kinds) with
+          | None   -> default_contents
+          | Some c -> c
+        in
+        mk_contents kind
       in
-      mk_contents kind
-    in
-    let store =
       let kind =
         match assoc "store" (fun x -> List.assoc x store_kinds) with
         | None   -> default_store
         | Some s -> s
       in
       mk_store kind contents
-    in
-    let module S = (val store) in
-    let branch = assoc "branch" (fun x -> match S.Branch.of_string x with
-        | Ok x           -> x
-        | Error (`Msg e) -> failwith e)
-    in
-    let config =
-      let root = assoc "root" (fun x -> x) in
-      let bare = match assoc "bare" bool_of_string with
-        | None   -> Irmin.Private.Conf.default Irmin_git.bare
-        | Some b -> b
-      in
-      let head = assoc "head" (fun x -> Git.Reference.of_string x) in
-      let uri = assoc "uri" Uri.of_string in
-      let add k v config = Irmin.Private.Conf.add config k v in
-      Irmin.Private.Conf.empty
-      |> add Irmin.Private.Conf.root root
-      |> add Irmin_git.bare bare
-      |> add Irmin_git.head head
-      |> add Irmin_http.uri uri
-    in
-    let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
-    let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
-    match branch with
-    | None   -> Some (S ((module S), mk_master ()))
-    | Some b -> Some (S ((module S), mk_branch b))
-
+    | Some store -> store
+  in
+  let module S = (val store) in
   let branch =
-    let doc =
-      Arg.info
-        ~doc:"The current branch name. Default is the store's master branch."
-        ~docs:global_option_section
-        ~docv:"BRANCH"
-        ["b"; "branch"]
+    match branch with
+      | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
+        | Ok x -> x
+        | Error (`Msg msg) -> failwith msg)
+      | Some t -> (match S.Branch.of_string t with
+          | Ok x           -> Some x
+          | Error (`Msg e) -> failwith e)
+  in
+  let config =
+    let root = assoc "root" (fun x -> x) in
+    let bare = match assoc "bare" bool_of_string with
+      | None   -> Irmin.Private.Conf.default Irmin_git.bare
+      | Some b -> b
     in
-    Arg.(value & opt (some string) None & doc)
+    let head = assoc "head" (fun x -> Git.Reference.of_string x) in
+    let uri = assoc "uri" Uri.of_string in
+    let add k v config = Irmin.Private.Conf.add config k v in
+    Irmin.Private.Conf.empty
+    |> add_opt Irmin.Private.Conf.root root
+    |> add Irmin_git.bare bare
+    |> add_opt Irmin_git.head head
+    |> add_opt Irmin_http.uri uri
+    |> Irmin.Private.Conf.union config
+  in
+  let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+  let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
+  match branch with
+  | None   -> S ((module S), mk_master ())
+  | Some b -> S ((module S), mk_branch b)
+
+let branch =
+  let doc =
+    Arg.info
+      ~doc:"The current branch name. Default is the store's master branch."
+      ~docs:global_option_section
+      ~docv:"BRANCH"
+      ["b"; "branch"]
+  in
+  Arg.(value & opt (some string) None & doc)
 
 let store =
   let create store config branch =
-    match store with
-    | Some s ->
-      let module S = (val s: Irmin.S) in
-      let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
-      let mk_branch b =
-        S.Repo.v config >>= fun repo ->
-        S.of_branch repo b
-      in
-      (* first look at the command-line options *)
-      let t = match branch with
-        | None   -> mk_master ()
-        | Some t -> mk_branch (match S.Branch.of_string t with
-            | Ok x           -> x
-            | Error (`Msg e) -> failwith e)
-      in
-      S ((module S), t)
-    | None ->
-      let cfg = Irmin.Private.Conf.get config config_path_key in
-      (* then look at the config file options *)
-      match read_config_file cfg with
-      | Some c -> c
-      | None   ->
-        let s = mk_store `Git (mk_contents `String) in
-        let module S = (val s: Irmin.S) in
-        let t = S.Repo.v config >>= fun repo -> S.master repo in
-        S ((module S), t)
+    let cfg = Irmin.Private.Conf.get config config_path_key in
+    from_config_file_with_defaults cfg store config branch
   in
   Term.(const create $ store_term $ config_term $ branch)
-
-(* FIXME: read the remote configuration in a file *)
-let (/) = Filename.concat
 
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
@@ -260,10 +259,9 @@ let infer_remote contents str =
     in
     let module R = (val r) in
     let config =
-      let add k v c = Irmin.Private.Conf.add c k v in
       Irmin.Private.Conf.empty
-      |> add Irmin_http.uri (Some (Uri.of_string str))
-      |> add Irmin.Private.Conf.root (Some str)
+      |> add_opt Irmin_http.uri (Some (Uri.of_string str))
+      |> add_opt Irmin.Private.Conf.root (Some str)
     in
     R.Repo.v config >>= fun repo ->
     R.master repo >|= fun r ->
