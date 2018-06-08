@@ -9,6 +9,8 @@ module type S = sig
 end
 
 module Make(Store : Irmin.S) : S with type store = Store.t = struct
+  module Sync = Irmin.Sync (Store)
+
   type store = Store.t
 
   type repo_branch = Store.repo * Store.branch
@@ -214,6 +216,23 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~typ:(non_null Lazy.(force store))
         ~args:[]
         ~resolve:(fun _ src -> s)
+    ]
+    ~mutations:[
+      io_field "clone"
+        ~typ:(non_null Lazy.(force commit))
+        ~args:Arg.[
+          arg "remote" ~typ:(non_null string)
+        ]
+        ~resolve:(fun _ src remote ->
+            let uri = Irmin.remote_uri remote in
+            Sync.fetch s uri >>= function
+            | Ok d ->
+                Store.Head.set s d >|= fun () ->
+                Ok d
+            | Error e ->
+                let err = Fmt.to_to_string Sync.pp_fetch_error e in
+                Lwt_result.fail err
+        )
     ])
 
   let start_server s =
