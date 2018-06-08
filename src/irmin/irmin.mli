@@ -957,10 +957,9 @@ end
     The user need to provide:
 
     {ul
-    {- a pair of [to_json] and [of_json] functions, to be used by the
-    REST interface.}
-    {- a triple of [size_of], [write] and [read] functions, to
-    serialize data on disk or to send it over the network.}
+    {- a [t] value type using the Irmin.Type combinator.}
+    (- a [pp] function, for converting values to strings.}
+    {- an [of_string] function for converting strings to values.}
     {- a 3-way [merge] function, to handle conflicts between multiple
     versions of the same contents.}
     }
