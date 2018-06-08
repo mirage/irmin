@@ -18,6 +18,7 @@
 
 type json = [
   | `Null
+  | `Bool of bool
   | `String of string
   | `Float of float
   | `O of (string * json) list
@@ -26,7 +27,7 @@ type json = [
 
 module String: S.CONTENTS with type t = string
 module Cstruct: S.CONTENTS with type t = Cstruct.t
-module Json: S.CONTENTS with type t = json
+module Json: S.CONTENTS with type t = (string * json) list
 
 module Store
     (C: sig

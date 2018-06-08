@@ -1035,6 +1035,8 @@ module Contents: sig
       function conflicts. Assume that update operations are
       idempotent. *)
 
+  module Json: S with type t = (string * Contents.json) list
+
   (** Contents store. *)
   module type STORE = sig
 
