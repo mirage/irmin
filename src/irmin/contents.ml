@@ -65,33 +65,29 @@ module Json = struct
   let t = Type.(list (pair string json))
 
   let merge_object a b =
-    List.fold_right (fun (k, v) acc ->
-      match acc with
-      | None -> None
-      | Some dst ->
-          (match List.assoc_opt k b with
-          | Some x when v <> x -> None
-          | Some _ -> acc
-          | _ -> Some ((k, v) :: dst))
-    ) a (Some b)
-
-  let merge' a b =
-    match merge_object a b with
-      | Some obj -> Merge.ok obj
-      | None -> Merge.conflict "Unable to merge JSON objects"
+    try
+      List.fold_right (fun (k, v) acc ->
+        match List.assoc_opt k b with
+        | Some x when v <> x -> failwith "Unable to merge JSON objects"
+        | Some _ -> acc
+        | _ -> (k, v) :: acc
+      ) a b
+      |> Merge.ok
+    with
+      Failure msg -> Merge.conflict "%s" msg
 
   let merge ~old t1 t2 =
     let open Merge.Infix in
     old () >>=* function
       | Some j ->
           if j = t1 then
-            merge' t1 t2
+            merge_object t1 t2
           else if j = t2 then
-            merge' t2 t1
+            merge_object t2 t1
           else
-            merge' j t1 >>=* fun t1 ->
-            merge' t1 t2
-      | None -> merge' t1 t2
+            merge_object j t1 >>=* fun t1 ->
+            merge_object t1 t2
+      | None -> merge_object t1 t2
 
   let merge = Merge.(option (v t merge))
 
@@ -121,8 +117,6 @@ module Json = struct
     ignore @@ Jsonm.encode encoder `End;
     let s = Buffer.contents buffer in
     Fmt.pf fmt "%s" s
-
-
 
   let decode_json d =
     let decode d = match Jsonm.decode d with
@@ -154,13 +148,24 @@ module Json = struct
     with
       | Failure msg -> Error (`Msg msg)
 
-
   let of_string s =
     let decoder = Jsonm.decoder (`String s) in
     match decode_json decoder with
     | Ok (`O obj) -> Ok obj
     | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
+
+  module Make(S: sig
+    type t
+    val t: t Type.t
+  end) = struct
+    include S
+    let pp = Type.pp_json t
+    let of_string s =
+      let decoder = Jsonm.decoder (`String s) in
+      Type.decode_json t decoder
+    let merge = Merge.(option (idempotent t))
+  end
 end
 
 module Store

@@ -1035,7 +1035,19 @@ module Contents: sig
       function conflicts. Assume that update operations are
       idempotent. *)
 
-  module Json: S with type t = (string * Contents.json) list
+  type json = [
+    | `Null
+    | `Bool of bool
+    | `String of string
+    | `Float of float
+    | `O of (string * json) list
+    | `A of json list
+  ]
+
+  module Json: sig
+    include S with type t = (string * json) list
+    module Make (C: S0) : S with type t = C.t
+  end
 
   (** Contents store. *)
   module type STORE = sig
