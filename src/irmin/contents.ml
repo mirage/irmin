@@ -155,10 +155,7 @@ module Json = struct
     | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
 
-  module Make(S: sig
-    type t
-    val t: t Type.t
-  end) = struct
+  module Make(S: S.S0) = struct
     include S
     let pp = Type.pp_json t
     let of_string s =

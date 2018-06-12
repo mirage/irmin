@@ -1046,6 +1046,9 @@ module Contents: sig
 
   module Json: sig
     include S with type t = (string * json) list
+
+    (** [Make] creates a new `Content` type with `pp` and `of_string` defined using
+        [encode_json]/[decode_json] and a default merge operation *)
     module Make (C: S0) : S with type t = C.t
   end
 
