@@ -214,7 +214,7 @@ module Type: sig
               | Bar s -> bar s)
           |~ case0 "Foo" Foo
           |~ case1 "Bar" string (fun x -> Bar x)
-          |> sealr]}
+          |> sealv]}
   *)
 
   val enum: string -> (string * 'a) list -> 'a t
