@@ -62,12 +62,7 @@ let json =
 module Json = struct
   type t = (string * json) list
 
-  let t =
-    Type.like json
-    (function
-      | `O obj -> obj
-      | _ -> raise (Invalid_argument "Irmin value must be a JSON object"))
-    (fun x -> `O x)
+  let t = Type.(list (pair string json))
 
   let merge_object a b =
     List.fold_right (fun (k, v) acc ->
@@ -127,6 +122,8 @@ module Json = struct
     let s = Buffer.contents buffer in
     Fmt.pf fmt "%s" s
 
+
+
   let decode_json d =
     let decode d = match Jsonm.decode d with
       | `Lexeme l -> l
@@ -150,18 +147,19 @@ module Json = struct
       | `Name k ->
           let v = unwrap (decode d) d in
           obj ((k, v) :: ms) d
-      | _ -> failwith "invalid json object"
+      | _ -> failwith "invalid JSON object"
     in
     try
       Ok (unwrap (decode d) d)
     with
       | Failure msg -> Error (`Msg msg)
 
+
   let of_string s =
     let decoder = Jsonm.decoder (`String s) in
     match decode_json decoder with
     | Ok (`O obj) -> Ok obj
-    | Ok _ -> Error (`Msg "Irmin value must be a JSON object")
+    | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
 end
 
