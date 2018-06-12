@@ -366,16 +366,16 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (S ((module S), store)) message remote =
+    let pull (S ((module S), store)) author message remote =
       let message = match message with Some s -> s | None -> "pull" in
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn t r (`Merge (Irmin_unix.info "%s" message))
+        Sync.pull_exn t r (`Merge (Irmin_unix.info ?author "%s" message))
       end
     in
-    Term.(mk pull $ store $ message $ remote);
+    Term.(mk pull $ store $ author $ message $ remote);
 }
 
 (* PUSH *)
