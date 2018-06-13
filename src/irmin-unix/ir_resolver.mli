@@ -43,3 +43,5 @@ val mem_store: contents -> (module Irmin.S)
 val irf_store: contents -> (module Irmin.S)
 val http_store: contents -> (module Irmin.S)
 val git_store: contents -> (module Irmin.S)
+
+val add_backend: string -> (contents -> (module Irmin.S)) -> unit

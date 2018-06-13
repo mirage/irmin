@@ -33,26 +33,28 @@ let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
     (module S)
 
 let mem_store = create (module Irmin_mem.Make)
-let irf_store = create (module Irmin_unix.FS.Make)
-let http_store = create (module Irmin_unix.Http.Make)
+let irf_store = create (module Ir_unix.FS.Make)
+let http_store = create (module Ir_unix.Http.Make)
 
 let git_store (module C: Irmin.Contents.S) =
-  (module Irmin_unix.Git.KV(Irmin_unix.Git.G)(C) : Irmin.S)
+  (module Ir_unix.Git.KV(Ir_unix.Git.G)(C) : Irmin.S)
 
-let mk_store = function
+(*let mk_store = function
   | `Mem  -> mem_store
   | `Irf  -> irf_store
   | `Http -> http_store
-  | `Git  -> git_store
+  | `Git  -> git_store*)
 
-let store_kinds = [
-  ("git" , `Git);
-  ("irf" , `Irf);
-  ("http", `Http);
-  ("mem" , `Mem);
+let store_kinds = ref [
+  ("git" , git_store);
+  ("irf" , irf_store);
+  ("http", http_store);
+  ("mem" , mem_store);
 ]
 
-let default_store = `Git
+let add_backend name m = store_kinds := (name, m) :: !store_kinds
+
+let default_store = git_store
 
 let flag_key k =
   let doc = Irmin.Private.Conf.doc k in
@@ -159,10 +161,10 @@ let contents =
 let store_term =
   let store =
     let doc = Arg.info ~doc:"The kind of backend stores." ~docs:global_option_section ["s";"store"] in
-    Arg.(value & opt (some (enum store_kinds)) None & doc)
+    Arg.(value & opt (some string) None & doc)
   in
   let create store contents = match store with
-    | Some s -> Some (mk_store s contents)
+    | Some s -> Some ((List.assoc (String.Ascii.lowercase s) !store_kinds) contents)
     | None   -> None
   in
   Term.(const create $ store $ contents)
@@ -191,11 +193,11 @@ let from_config_file_with_defaults path store config branch: t =
         mk_contents kind
       in
       let kind =
-        match assoc "store" (fun x -> List.assoc x store_kinds) with
+        match assoc "store" (fun x -> List.assoc x !store_kinds) with
         | None   -> default_store
         | Some s -> s
       in
-      mk_store kind contents
+      kind contents
     | Some store -> store
   in
   let module S = (val store) in

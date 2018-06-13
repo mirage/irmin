@@ -126,35 +126,6 @@ module Http: sig
 
 end
 
-module Cli: sig
-  type command = unit Cmdliner.Term.t * Cmdliner.Term.info
-  (** [Cmdliner] commands. *)
-
-  val default: command
-  (** The default command: show a summary of the commands. *)
-
-  val commands: command list
-  (** List of available sub-commands. *)
-
-  val run: default:command -> command list -> unit
-  (** Create a command-line tool with the given subcommands. *)
-
-  (** {2 Command-builder helper} *)
-
-  type sub = {
-    name: string;
-    doc : string;
-    man : Cmdliner.Manpage.block list;
-    term: unit Cmdliner.Term.t;
-  }
-  (** Subcommand. *)
-
-  val create_command: sub -> command
-  (** Build a subcommand. *)
-
-  val add_backend: string -> ((module Irmin.Contents.S) -> (module Irmin.S)) -> unit
-end
-
 val set_listen_dir_hook: unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching
     changes in directories. *)
