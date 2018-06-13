@@ -27,10 +27,7 @@ type json = [
 
 module String: S.CONTENTS with type t = string
 module Cstruct: S.CONTENTS with type t = Cstruct.t
-module Json: sig
-  include S.CONTENTS with type t = (string * json) list
-  module Make (C: S.S0) : S.CONTENTS with type t = C.t
-end
+module Json: S.CONTENTS with type t = (string * json) list
 
 module Store
     (C: sig

@@ -1044,13 +1044,10 @@ module Contents: sig
     | `A of json list
   ]
 
-  module Json: sig
-    include S with type t = (string * json) list
-
-    (** [Make] creates a new `Content` type with `pp` and `of_string` defined using
-        [encode_json]/[decode_json] and a default merge operation *)
-    module Make (C: S0) : S with type t = C.t
-  end
+  module Json: S with type t = (string * json) list
+  (** Json values are associations from string to [json] value. If the same JSON key
+      has been modified concurrently with different values then the [merge] function
+      conflicts. *)
 
   (** Contents store. *)
   module type STORE = sig

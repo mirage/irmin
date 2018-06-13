@@ -64,32 +64,35 @@ module Json = struct
 
   let t = Type.(list (pair string json))
 
-  let merge_object a b =
+  let merge_objects j a b =
+    let equal = Type.equal json in
     try
-      List.fold_right (fun (k, v) acc ->
-        match List.assoc_opt k b with
-        | Some x when v <> x -> failwith "Unable to merge JSON objects"
-        | Some _ -> acc
-        | _ -> (k, v) :: acc
-      ) a b
-      |> Merge.ok
+      let v = List.fold_right (fun (k, v) acc ->
+        match List.assoc_opt k a, List.assoc_opt k b with
+        | Some x, Some y when not (equal x y) -> failwith "Unable to merge JSON objects"
+        | Some x, _ -> (k, x) :: acc
+        | None, Some x -> (k, x) :: acc
+        | None, None -> (k, v) :: acc
+      ) j []
+      in Merge.ok v
     with
       Failure msg -> Merge.conflict "%s" msg
 
-  let merge ~old t1 t2 =
+  let merge' ~old t1 t2 =
     let open Merge.Infix in
+    let equal = Type.equal t in
     old () >>=* function
       | Some j ->
-          if j = t1 then
-            merge_object t1 t2
-          else if j = t2 then
-            merge_object t2 t1
+          if equal j t1 then
+            Merge.ok t2
+          else if equal j t2 then
+            Merge.ok t1
           else
-            merge_object j t1 >>=* fun t1 ->
-            merge_object t1 t2
-      | None -> merge_object t1 t2
+            merge_objects j t1 t2
+      | None -> merge_objects [] t1 t2
 
-  let merge = Merge.(option (v t merge))
+  let merge' t = Merge.(option (v t merge'))
+  let merge = merge' t
 
   let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
@@ -154,15 +157,6 @@ module Json = struct
     | Ok (`O obj) -> Ok obj
     | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
-
-  module Make(S: S.S0) = struct
-    include S
-    let pp = Type.pp_json t
-    let of_string s =
-      let decoder = Jsonm.decoder (`String s) in
-      Type.decode_json t decoder
-    let merge = Merge.(option (idempotent t))
-  end
 end
 
 module Store
