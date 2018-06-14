@@ -18,9 +18,9 @@ open Lwt.Infix
 open Cmdliner
 open Ir_resolver
 
-let () = Irmin_unix.set_listen_dir_hook ()
+let () = Ir_unix.set_listen_dir_hook ()
 
-let info ?author:(author="irmin") fmt = Irmin_unix.info ~author fmt
+let info ?author:(author="irmin") fmt = Ir_unix.info ~author fmt
 
 (* Help sections common to all commands *)
 let help_sections = [
@@ -121,7 +121,7 @@ let init = {
     let init (S ((module S), store)) daemon uri =
       run begin
         store >>= fun t ->
-        let module HTTP = Irmin_unix.Http.Server(S) in
+        let module HTTP = Ir_unix.Http.Server(S) in
         if daemon then
           let uri = Uri.of_string uri in
           let spec = HTTP.v (S.repo t) in
@@ -372,7 +372,7 @@ let pull = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn t r (`Merge (Irmin_unix.info ?author "%s" message))
+        Sync.pull_exn t r (`Merge (Ir_unix.info ?author "%s" message))
       end
     in
     Term.(mk pull $ store $ author $ message $ remote);

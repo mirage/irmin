@@ -14,5 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Irmin_unix
+
 let () =
-  Ir_cli.(run ~default commands)
+  Cli.(run ~default commands)
