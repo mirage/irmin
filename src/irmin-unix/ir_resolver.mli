@@ -20,7 +20,7 @@
 
 type contents = (module Irmin.Contents.S)
 
-val contents: contents option Cmdliner.Term.t
+val contents: string option Cmdliner.Term.t
 val branch: string option Cmdliner.Term.t
 
 val global_option_section: string
@@ -44,5 +44,7 @@ val irf_store: contents -> (module Irmin.S)
 val http_store: contents -> (module Irmin.S)
 val git_store: contents -> (module Irmin.S)
 
+val mk_store: string -> (contents -> (module Irmin.S))
 val add_store: string -> ?default:bool -> (contents -> (module Irmin.S)) -> unit
+val mk_contents: string -> contents
 val add_content_type: string -> ?default:bool -> contents -> unit

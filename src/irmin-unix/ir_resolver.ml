@@ -80,14 +80,21 @@ let add_content_type name ?default:(default=false) m =
   contents_kinds := (name, m) :: !contents_kinds;
   if default then default_contents := m
 
+let mk_contents name =
+  match List.assoc_opt (String.Ascii.lowercase name) !contents_kinds with
+  | Some c -> c
+  | None ->
+    let valid = String.concat ~sep:", " (List.split !contents_kinds |> fst) in
+    let msg = Printf.sprintf "Invalid content type: %s. Expected one of: %s." name valid in
+    failwith msg
+
 let contents =
   let kind =
     let doc = Arg.info ~doc:"The type of user-defined contents." ~docs:global_option_section ["contents";"c"] in
-    Arg.(value & opt (some (enum !contents_kinds)) None & doc)
+    Arg.(value & opt (some string) None & doc)
   in
   let create kind = kind in
   Term.(const create $  kind)
-
 
 (* Store *)
 
@@ -119,14 +126,21 @@ let add_store name ?default:(default=false) m =
   store_kinds := (name, m) :: !store_kinds;
   if default then default_store := m
 
+let mk_store name =
+  match List.assoc_opt (String.Ascii.lowercase name) !store_kinds with
+  | Some s -> s
+  | None ->
+    let valid = String.concat ~sep:", " (List.split !store_kinds|> fst) in
+    let msg = Printf.sprintf "Invalid store type: %s. Expected one of: %s." name valid in
+    failwith msg
+
 let store_term =
   let store =
-    let doc = Arg.info ~doc:"The kind of store stores." ~docs:global_option_section ["s";"store"] in
-    Arg.(value & opt (some (enum !store_kinds)) None & doc)
+    let doc = Arg.info ~doc:"The storage backend." ~docs:global_option_section ["s";"store"] in
+    Arg.(value & opt (some string) None & doc)
   in
   let create store contents = (store, contents) in
   Term.(const create $ store $ contents)
-
 
 (* Config *)
 
@@ -182,18 +196,18 @@ let from_config_file_with_defaults path (store, contents) config branch: t =
     let contents =
       match contents with
       | None ->
-        (match assoc "contents" (fun x -> List.assoc x !contents_kinds) with
+        (match assoc "contents" mk_contents with
         | None   -> !default_contents
         | Some c -> c)
-      | Some c -> c
+      | Some c -> mk_contents c
     in
     let store =
       match store with
       | None ->
-        (match assoc "store" (fun x -> List.assoc x !store_kinds) with
+        (match assoc "store" mk_store with
         | None   -> !default_store
         | Some s -> s)
-      | Some s -> s
+      | Some s -> mk_store s
     in
     store contents
   in
@@ -252,7 +266,7 @@ let store =
 let infer_remote contents str =
   let contents = match contents with
     | None -> !default_contents
-    | Some c -> c
+    | Some c -> mk_contents c
   in
   if Sys.file_exists str then (
     let r =

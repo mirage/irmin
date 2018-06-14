@@ -152,8 +152,19 @@ module Cli: sig
   val create_command: sub -> command
   (** Build a subcommand. *)
 
+  val mk_store: string -> ((module Irmin.Contents.S) -> (module Irmin.S))
+  (** [mk_store name] returns the store associated with [name] or raises Failure if the name is not registered *)
+
   val add_store: string -> ?default:bool -> ((module Irmin.Contents.S) -> (module Irmin.S)) -> unit
+  (** [add_store name ?default store] registers a new [store] with the given [name]. If [default] is set to [true] then
+      this will be used as the default store type. *)
+
+  val mk_contents: string -> (module Irmin.Contents.S)
+  (** [mk_contents name] returns the contents associated with [name] or raises Failure if the name is not registered *)
+
   val add_content_type: string -> ?default:bool -> (module Irmin.Contents.S) -> unit
+  (** [add_content_type name ?default c] registers a new content type with the given [name]. If [default] is set to [true] then
+      this will be used as the default content type *)
 end
 
 val set_listen_dir_hook: unit -> unit
