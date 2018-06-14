@@ -152,7 +152,8 @@ module Cli: sig
   val create_command: sub -> command
   (** Build a subcommand. *)
 
-  val add_backend: string -> ((module Irmin.Contents.S) -> (module Irmin.S)) -> unit
+  val add_store: string -> ?default:bool -> ((module Irmin.Contents.S) -> (module Irmin.S)) -> unit
+  val add_content_type: string -> ?default:bool -> (module Irmin.Contents.S) -> unit
 end
 
 val set_listen_dir_hook: unit -> unit

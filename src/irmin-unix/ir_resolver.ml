@@ -20,42 +20,6 @@ open Astring
 
 let global_option_section = "COMMON OPTIONS"
 
-type contents = (module Irmin.Contents.S)
-
-let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
-  fun (module S) (module C) ->
-    let module S =
-      S(Irmin.Metadata.None)(C)
-        (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (Irmin.Hash.SHA1)
-    in
-    (module S)
-
-let mem_store = create (module Irmin_mem.Make)
-let irf_store = create (module Ir_unix.FS.Make)
-let http_store = create (module Ir_unix.Http.Make)
-
-let git_store (module C: Irmin.Contents.S) =
-  (module Ir_unix.Git.KV(Ir_unix.Git.G)(C) : Irmin.S)
-
-(*let mk_store = function
-  | `Mem  -> mem_store
-  | `Irf  -> irf_store
-  | `Http -> http_store
-  | `Git  -> git_store*)
-
-let store_kinds = ref [
-  ("git" , git_store);
-  ("irf" , irf_store);
-  ("http", http_store);
-  ("mem" , mem_store);
-]
-
-let add_backend name m = store_kinds := (name, m) :: !store_kinds
-
-let default_store = git_store
-
 let flag_key k =
   let doc = Irmin.Private.Conf.doc k in
   let docs = Irmin.Private.Conf.docs k in
@@ -94,7 +58,6 @@ let config_path_key =
     ~doc:"Allows configuration file to be specified on the command-line"
     "config" Irmin.Private.Conf.string "irmin.yml"
 
-
 let (/) = Filename.concat
 
 let global_config_path = ".irmin" / "config.yml"
@@ -103,7 +66,70 @@ let add_opt k v config = match v with
   | None -> config
   | Some _ -> Irmin.Private.Conf.add config k v
 
-(* Read configuration from a YAML file *)
+
+(* Contents *)
+
+type contents = (module Irmin.Contents.S)
+
+let contents_kinds = ref [
+  "string" , (module Irmin.Contents.String: Irmin.Contents.S);
+  "cstruct", (module Irmin.Contents.Cstruct);
+]
+let default_contents = ref (module Irmin.Contents.String: Irmin.Contents.S)
+let add_content_type name ?default:(default=false) m =
+  contents_kinds := (name, m) :: !contents_kinds;
+  if default then default_contents := m
+
+let contents =
+  let kind =
+    let doc = Arg.info ~doc:"The type of user-defined contents." ~docs:global_option_section ["contents";"c"] in
+    Arg.(value & opt (some (enum !contents_kinds)) None & doc)
+  in
+  let create kind = kind in
+  Term.(const create $  kind)
+
+
+(* Store *)
+
+let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
+  fun (module S) (module C) ->
+    let module S =
+      S(Irmin.Metadata.None)(C)
+        (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+    in
+    (module S)
+
+let mem_store = create (module Irmin_mem.Make)
+let irf_store = create (module Ir_unix.FS.Make)
+let http_store = create (module Ir_unix.Http.Make)
+let git_store (module C: Irmin.Contents.S) =
+  (module Ir_unix.Git.KV(Ir_unix.Git.G)(C) : Irmin.S)
+
+let store_kinds = ref [
+  ("git" , git_store);
+  ("irf" , irf_store);
+  ("http", http_store);
+  ("mem" , mem_store);
+]
+
+let default_store = ref git_store
+let add_store name ?default:(default=false) m =
+  store_kinds := (name, m) :: !store_kinds;
+  if default then default_store := m
+
+let store_term =
+  let store =
+    let doc = Arg.info ~doc:"The kind of store stores." ~docs:global_option_section ["s";"store"] in
+    Arg.(value & opt (some (enum !store_kinds)) None & doc)
+  in
+  let create store contents = (store, contents) in
+  Term.(const create $ store $ contents)
+
+
+(* Config *)
+
 let rec read_config_file path =
   let home = Unix.getenv "HOME" / global_config_path in
   let global =
@@ -140,38 +166,9 @@ let config_term =
         opt_key Irmin_http.uri $
         opt_key config_path_key)
 
-let mk_contents k: contents = match k with
-  | `String  -> (module Irmin.Contents.String)
-  | `Cstruct -> (module Irmin.Contents.Cstruct)
-
-let contents_kinds = [
-  "string" , `String;
-  "cstruct", `Cstruct;
-]
-
-let default_contents = `String
-
-let contents =
-  let kind =
-    let doc = Arg.info ~doc:"The type of user-defined contents." ~docs:global_option_section ["contents";"c"] in
-    Arg.(value & opt (enum contents_kinds) default_contents & doc)
-  in
-  Term.(const mk_contents $ kind)
-
-let store_term =
-  let store =
-    let doc = Arg.info ~doc:"The kind of backend stores." ~docs:global_option_section ["s";"store"] in
-    Arg.(value & opt (some string) None & doc)
-  in
-  let create store contents = match store with
-    | Some s -> Some ((List.assoc (String.Ascii.lowercase s) !store_kinds) contents)
-    | None   -> None
-  in
-  Term.(const create $ store $ contents)
-
 type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
-let from_config_file_with_defaults path store config branch: t =
+let from_config_file_with_defaults path (store, contents) config branch: t =
   let y = read_config_file path in
   let string_value = function
     | `String s -> s
@@ -182,23 +179,23 @@ let from_config_file_with_defaults path store config branch: t =
     with Not_found -> None
   in
   let store =
-    match store with
-    | None ->
-      let contents =
-        let kind =
-          match assoc "contents" (fun x -> List.assoc x contents_kinds) with
-          | None   -> default_contents
-          | Some c -> c
-        in
-        mk_contents kind
-      in
-      let kind =
-        match assoc "store" (fun x -> List.assoc x !store_kinds) with
-        | None   -> default_store
-        | Some s -> s
-      in
-      kind contents
-    | Some store -> store
+    let contents =
+      match contents with
+      | None ->
+        (match assoc "contents" (fun x -> List.assoc x !contents_kinds) with
+        | None   -> !default_contents
+        | Some c -> c)
+      | Some c -> c
+    in
+    let store =
+      match store with
+      | None ->
+        (match assoc "store" (fun x -> List.assoc x !store_kinds) with
+        | None   -> !default_store
+        | Some s -> s)
+      | Some s -> s
+    in
+    store contents
   in
   let module S = (val store) in
   let branch =
@@ -253,6 +250,10 @@ let store =
    kind. Would be better to read the config file and look for remote
    alias. *)
 let infer_remote contents str =
+  let contents = match contents with
+    | None -> !default_contents
+    | Some c -> c
+  in
   if Sys.file_exists str then (
     let r =
       if Sys.file_exists (str / ".git")
