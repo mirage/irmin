@@ -8,7 +8,253 @@ module type S = sig
   val start_server : store -> unit Lwt.t
 end
 
+let of_irmin_result = function
+  | Ok _ as ok -> ok
+  | Error (`Msg msg) -> Error msg
+
+type commit_input = {
+  author: string option;
+  message: string option;
+}
+
 module Make(Store : Irmin.S) : S with type store = Store.t = struct
+  module Sync = Irmin.Sync (Store)
+
+  type store = Store.t
+
+  module Input = struct
+    let key = Schema.Arg.(scalar "Key"
+      ~coerce:(function
+        | `String s -> Store.Key.of_string s |> of_irmin_result
+        | _ -> Error "Key only accepts strings"
+      )
+    )
+
+    let value = Schema.Arg.(scalar "Value"
+      ~coerce:(function
+        | `String s -> Store.Contents.of_string s |> of_irmin_result
+        | _ -> Error "Invalid Value type"
+      )
+    )
+
+    let commit_hash = Schema.Arg.(scalar "CommitHash"
+      ~coerce:(function
+        | `String s -> Store.Commit.Hash.of_string s |> of_irmin_result
+        | _ -> Error "Invalid Value type"
+      )
+    )
+
+    let branch = Schema.Arg.(scalar "BranchName"
+      ~coerce:(function
+        | `String s -> Store.Branch.of_string s |> of_irmin_result
+        | _ -> Error "BranchName only accepts strings"
+      )
+    )
+
+    let remote = Schema.Arg.(scalar "Remote"
+      ~coerce:(function
+        | `String s -> Ok (Irmin.remote_uri s)
+        | _ -> Error "Remote only accepts strings"
+      )
+    )
+    let info = Schema.Arg.(obj "InfoInput"
+      ~fields:[
+        arg "author" string;
+        arg "message" string;
+      ]
+      ~coerce:(fun author message -> {author; message}
+      )
+    )
+  end
+
+  let rec commit = lazy Schema.(obj "Commit"
+    ~fields:(fun commit -> [
+      io_field "tree"
+        ~typ:(non_null Lazy.(force node))
+        ~args:[]
+        ~resolve:(fun _ c ->
+          Store.Commit.tree c >|= fun tree ->
+          Ok (tree, Store.Key.empty)
+        )
+      ;
+      io_field "parents"
+        ~typ:(non_null (list (non_null commit)))
+        ~args:[]
+        ~resolve:(fun _ c -> Store.Commit.parents c >|= fun parents ->
+          Ok parents
+        )
+      ;
+      field "info"
+        ~typ:(non_null Lazy.(force info))
+        ~args:[]
+        ~resolve:(fun _ c -> Store.Commit.info c)
+      ;
+      field "hash"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ c -> Fmt.to_to_string Store.Commit.Hash.pp (Store.Commit.hash c))
+      ;
+    ])
+  )
+
+  and info : ('ctx, Irmin.Info.t option) Schema.typ Lazy.t = lazy Schema.(obj "Info"
+    ~fields:(fun info -> [
+      field "date"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ i -> Irmin.Info.date i |> Int64.to_string)
+      ;
+      field "author"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ i -> Irmin.Info.author i)
+      ;
+      field "message"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ i -> Irmin.Info.message i)
+    ])
+  )
+
+  and node : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(obj "Node"
+    ~fields:(fun node -> [
+      field "name"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
+      ;
+      io_field "contents"
+        ~typ:(Lazy.force contents)
+        ~args:[]
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.kind tree key >>= function
+          | Some `Contents -> Lwt.return_ok (Some (tree, key))
+          | Some `Node -> Lwt.return_ok None
+          | None -> Lwt.return_error "Invalid key"
+        )
+      ;
+      io_field "subnodes"
+        ~typ:(list (non_null node))
+        ~args:[]
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.list tree key >>= Lwt_list.filter_map_s (fun (step, kind) ->
+            let key' = Store.Key.rcons key step in
+            match kind with
+            | `Contents -> Lwt.return_some (tree, key')
+            | `Node -> Lwt.return_some (tree, key')) >>= fun l ->
+          Lwt.return_ok (Some l)
+          )
+        ;
+    ])
+  )
+
+  and branch :  ('ctx, (Store.t * Store.Branch.t) option) Schema.typ Lazy.t = lazy Schema.(obj "Branch"
+    ~fields:(fun branch -> [
+      io_field "name"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, b) ->
+          Lwt.return_ok @@ Fmt.to_to_string Store.Branch.pp b
+        )
+      ;
+      io_field "head"
+        ~args:[]
+        ~typ:(Lazy.force (commit))
+        ~resolve:(fun _  (s, _) ->
+          Store.Head.find s >>= Lwt.return_ok
+        )
+      ;
+      io_field "get"
+        ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+        ~typ:(Lazy.force contents)
+        ~resolve:(fun _ (s, _) key ->
+          Store.get_tree s Store.Key.empty >>= fun tree ->
+            Lwt.return_ok (Some (tree, key))
+          )
+       ;
+       io_field "lcas"
+        ~typ:(non_null (list (non_null (Lazy.force commit))))
+        ~args:Arg.[arg "commit" (non_null Input.commit_hash)]
+        ~resolve:(fun _ (s, _) commit ->
+            Store.Commit.of_hash (Store.repo s) commit >>= function
+              | Some commit ->
+                (Store.lcas_with_commit s commit >>= function
+                  | Ok lcas -> Lwt.return_ok lcas
+                  | Error e ->
+                      let msg = Fmt.to_to_string (Irmin.Type.pp_json Store.lca_error_t) e in
+                      Lwt.return_error msg)
+              | None -> Lwt.return_error "Invalid commit"
+        )
+      ;
+    ])
+  )
+
+  and tree : ('ctx, [`tree] option) Schema.abstract_typ = Schema.union "Tree"
+  and node_as_tree = lazy (Schema.add_type tree Lazy.(force node))
+  and contents_as_tree = lazy (Schema.add_type tree Lazy.(force contents))
+
+  and contents : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(obj "Contents"
+    ~fields:(fun tree -> [
+      field "key"
+        ~typ:(non_null string)
+        ~args:[]
+        ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
+      ;
+      io_field "value"
+        ~typ:string
+        ~args:[]
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.find tree key >|= function
+          | None -> Ok None
+          | Some contents ->
+              Ok (Some (Fmt.to_to_string Store.Contents.pp contents))
+        )
+    ])
+  )
+
+  let _ = Lazy.force node_as_tree
+  let _ = Lazy.force contents_as_tree
+
+
+  let schema s =
+    Schema.(schema [
+      io_field "master"
+        ~typ:(Lazy.force (branch))
+        ~args:[]
+        ~resolve:(fun _ _ ->
+          Store.master (Store.repo s) >>= fun s ->
+          Lwt.return_ok (Some (s, Store.Branch.master))
+        );
+      io_field "branch"
+        ~typ:(Lazy.force (branch))
+        ~args:Arg.[arg "name" (non_null Input.branch)]
+        ~resolve:(fun _ _ branch ->
+          Store.of_branch (Store.repo s)  branch >>= fun s ->
+          Lwt.return_ok (Some (s, branch))
+        )
+    ]
+    ~mutations:[
+      io_field "clone"
+        ~typ:(non_null Lazy.(force (commit)))
+        ~args:Arg.[
+          arg "remote" ~typ:(non_null Input.remote)
+        ]
+        ~resolve:(fun _ src remote ->
+            Sync.fetch s remote >>= function
+            | Ok d ->
+                Store.Head.set s d >|= fun () ->
+                Ok d
+            | Error e ->
+                let err = Fmt.to_to_string Sync.pp_fetch_error e in
+                Lwt_result.fail err
+        )
+      ])
+
+  let start_server s =
+    Server.start ~ctx:(fun () -> ()) (schema s)
+end
+
+module Make_old(Store : Irmin.S) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
   type store = Store.t
@@ -238,3 +484,4 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   let start_server s =
     Server.start ~ctx:(fun () -> ()) (schema s)
 end
+
