@@ -30,6 +30,13 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
       )
     )
 
+    let step = Schema.Arg.(scalar "Step"
+      ~coerce:(function
+        | `String s -> Store.Key.step_of_string s |> of_irmin_result
+        | _ -> Error "Step only accepts strings"
+      )
+    )
+
     let value = Schema.Arg.(scalar "Value"
       ~coerce:(function
         | `String s -> Store.Contents.of_string s |> of_irmin_result
@@ -69,8 +76,8 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
 
   let rec commit = lazy Schema.(obj "Commit"
     ~fields:(fun commit -> [
-      io_field "tree"
-        ~typ:(non_null Lazy.(force node))
+      io_field "node"
+        ~typ:(non_null (Lazy.force node))
         ~args:[]
         ~resolve:(fun _ c ->
           Store.Commit.tree c >|= fun tree ->
@@ -133,16 +140,23 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
           | None -> Lwt.return_error "Invalid key"
         )
       ;
-      io_field "subnodes"
-        ~typ:(list (non_null node))
+      io_field "get"
+        ~args:Arg.[arg "key" ~typ:(non_null Input.step)]
+        ~typ:(node)
+        ~resolve:(fun _ (tree, key) step ->
+          let key = Store.Key.(rcons empty step) in
+          Lwt.return_ok (Some (tree, key))
+        )
+       ;
+      io_field "tree"
+        ~typ:(non_null (list (non_null node)))
         ~args:[]
         ~resolve:(fun _ (tree, key) ->
-          Store.Tree.list tree key >>= Lwt_list.filter_map_s (fun (step, kind) ->
-            let key' = Store.Key.rcons key step in
-            match kind with
-            | `Contents -> Lwt.return_some (tree, key')
-            | `Node -> Lwt.return_some (tree, key')) >>= fun l ->
-          Lwt.return_ok (Some l)
+              Store.Tree.list tree key >>= Lwt_list.map_s (fun (step, kind) ->
+                let key' = Store.Key.rcons key step in
+                Lwt.return (tree, key')
+              ) >>= fun l ->
+              Lwt.return_ok l
           )
         ;
     ])
@@ -166,11 +180,12 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
       ;
       io_field "get"
         ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-        ~typ:(Lazy.force contents)
+        ~typ:(string)
         ~resolve:(fun _ (s, _) key ->
-          Store.get_tree s Store.Key.empty >>= fun tree ->
-            Lwt.return_ok (Some (tree, key))
-          )
+          Store.find s key >>= function
+            | Some v -> Lwt.return_ok (Some (Fmt.to_to_string Store.Contents.pp v))
+            | None -> Lwt.return_ok None
+        )
        ;
        io_field "lcas"
         ~typ:(non_null (list (non_null (Lazy.force commit))))
@@ -419,17 +434,33 @@ module Make_old(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
       ;
       io_field "subnodes"
-        ~typ:(non_null (list (non_null tree)))
+        ~typ:(list (non_null tree))
         ~args:[]
         ~resolve:(fun _ (tree, key) ->
-          Store.Tree.list tree key >|= fun children ->
-          List.map (fun (step, kind) ->
-            let key' = Store.Key.rcons key step in
-            match kind with
-            | `Contents -> Lazy.(force contents_as_tree) (tree, key')
-            | `Node -> Lazy.(force node_as_tree) (tree, key')
-          ) children
-          |> fun c -> Ok c
+        Store.Tree.kind tree key >>= fun kind ->
+          match kind with
+          | Some `Node ->
+            Store.Tree.list tree key >|= fun children ->
+            List.map (fun (step, kind) ->
+              let key' = Store.Key.rcons key step in
+              match kind with
+              | `Contents -> Lazy.(force contents_as_tree) (tree, key')
+              | `Node -> Lazy.(force node_as_tree) (tree, key')
+            ) children
+            |> fun c -> Ok (Some c)
+          | _ -> Lwt.return_ok None
+        )
+      ;
+      io_field "contents"
+        ~typ:(Lazy.force contents)
+        ~args:[]
+        ~resolve:(fun _ (tree, key) ->
+          Store.Tree.kind tree key >>= fun kind ->
+          match kind with
+          | Some `Contents ->
+              Lwt.return_ok (Some (tree, key))
+          |_ ->
+              Lwt.return_ok None
         )
     ])
   )
