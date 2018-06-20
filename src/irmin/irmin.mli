@@ -2326,6 +2326,17 @@ module type S = sig
     val get: tree -> key -> contents Lwt.t
     (** Same as {!get_all} but ignore the metadata. *)
 
+    val fold:
+      force:[`True | `False of (key -> 'a -> 'a Lwt.t)] ->
+      contents:(key -> contents -> 'a -> 'a Lwt.t) ->
+      node:(key -> step list -> 'a -> 'a Lwt.t) ->
+      tree -> 'a -> 'a Lwt.t
+    (** [fold ~contents ~node t] folds over [t]. It calls [node] on
+       each node of [t] and [contents] on each leaf. Note: [node] is
+       called before the recursive call to [fold] on every
+       subnodes. If [force] is [`True], this will force the reading of
+       lazy nodes. *)
+
     val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
     (** [add t k c] is the tree where the key [k] is bound to the
         contents [c] but is similar to [t] for other bindings. *)
@@ -2353,6 +2364,19 @@ module type S = sig
 
     val merge: tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
+
+    (** {1 Stats} *)
+
+    type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
+    (** The type for tree stats. *)
+
+    val pp_stats: stats Fmt.t
+    (** [pp_stats] is the pretty printer for tree statistics. *)
+
+    val stats: ?force:bool -> tree -> stats Lwt.t
+    (** [stats ~force t] are [t]'s statistics. If [force] is true,
+       this will force the reading of lazy nodes. By default it is
+       [false]. *)
 
     (** {1 Concrete Trees} *)
 

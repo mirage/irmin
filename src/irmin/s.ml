@@ -322,6 +322,13 @@ module type TREE = sig
   val find: tree -> key -> contents option Lwt.t
   val get_all: tree -> key -> (contents * metadata) Lwt.t
   val get: tree -> key -> contents Lwt.t
+
+  val fold:
+    force:[`True | `False of (key -> 'a -> 'a Lwt.t)]->
+    contents:(key -> contents -> 'a -> 'a Lwt.t) ->
+    node:(key -> step list -> 'a -> 'a Lwt.t) ->
+    tree -> 'a -> 'a Lwt.t
+
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
   val remove: tree -> key -> tree Lwt.t
   val mem_tree: tree -> key -> bool Lwt.t
@@ -329,6 +336,10 @@ module type TREE = sig
   val get_tree: tree -> key -> tree Lwt.t
   val add_tree: tree -> key -> tree -> tree Lwt.t
   val merge: tree Merge.t
+
+  type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
+  val pp_stats: stats Fmt.t
+  val stats: ?force:bool -> tree -> stats Lwt.t
 
   type concrete =
     [ `Tree of (step * concrete) list
