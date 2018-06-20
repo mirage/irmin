@@ -142,6 +142,17 @@ module Make (P: S.PRIVATE) = struct
       in
       Merge.v t f
 
+    let fold ~force ~path f t acc =
+      let aux = function
+        | None   -> Lwt.return acc
+        | Some c -> f path c acc
+      in
+      match force with
+      | `True -> v t >>= aux
+      | `False skip ->
+        match t.v with
+        | Key _ -> skip path acc
+        | Both (_, _, c) | Contents c -> aux (Some c)
   end
 
   module Node = struct
@@ -332,6 +343,28 @@ module Make (P: S.PRIVATE) = struct
           | None   -> None
           | Some c -> Some (`Contents (c, m))
 
+    let rec fold ~force ~contents ~node ~path t acc =
+      let aux = function
+        | None   -> Lwt.return acc
+        | Some m ->
+          let bindings = StepMap.bindings m in
+          let steps = List.map fst bindings in
+          node path steps acc >>= fun acc ->
+          let aux acc (k, v) =
+            let path = Path.rcons path k in
+            match v with
+            | `Contents c -> Contents.fold ~force ~path contents (fst c) acc
+            | `Node n     -> fold ~force ~path ~contents ~node n acc
+          in
+          Lwt_list.fold_left_s aux acc bindings
+      in
+      match force with
+      | `True       -> to_map t >>= aux
+      | `False skip ->
+        match t.v with
+        | Key _ -> skip path acc
+        | Both (_, _, n) | Map n -> aux (Some n)
+
     let remove t step =
       to_map t >|= function
       | None   -> t
@@ -514,6 +547,52 @@ module Make (P: S.PRIVATE) = struct
       sub t path >>= function
       | None   -> Lwt.return None
       | Some n -> Node.findv n file
+
+  let fold ~force ~contents ~node (t:tree) acc =
+    match t with
+    | `Contents v -> contents Path.empty (fst v) acc
+    | `Node n     -> Node.fold ~force ~contents ~node ~path:Path.empty n acc
+
+  type stats = {
+    nodes: int;
+    leafs: int;
+    skips: int;
+    depth: int;
+    width: int;
+  }
+
+  let empty_stats = { nodes=0; leafs=0; skips=0; depth=0; width=0 }
+
+  let pp_stats ppf { nodes; leafs; skips; depth; width } =
+    Fmt.pf ppf "{@[nodes: %d;@ leafs: %d;@ skips: %d@;@ depth: %d;@ width: %d]}"
+      nodes leafs skips depth width
+
+  let incr_nodes s = { s with nodes = s.nodes + 1 }
+  let incr_leafs s = { s with leafs = s.leafs + 1 }
+  let incr_skips s = { s with skips = s.skips + 1 }
+
+  let set_depth p s =
+    let n_depth = List.length (Path.map p (fun _ -> ())) in
+    let depth = max n_depth s.depth in
+    { s with depth }
+
+  let set_width childs s =
+    let width = max s.width (List.length childs) in
+    { s with width }
+
+  let stats ?(force=false) (t:tree) =
+    let force =
+      if force then `True
+      else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
+    in
+    let contents k _ s = set_depth k s |> incr_leafs |> Lwt.return in
+    let node k childs s =
+      set_depth k s |>
+      set_width childs |>
+      incr_nodes |>
+      Lwt.return
+    in
+    fold ~force ~node ~contents t empty_stats
 
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n Path.pp k
