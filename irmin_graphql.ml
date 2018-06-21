@@ -277,10 +277,10 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
           )
       ;
       io_field "set"
-        ~typ:(non_null (Lazy.force commit))
+        ~typ:(Lazy.force commit)
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
-            arg "tree" ~typ:(non_null (list (non_null Input.item)));
+            arg "items" ~typ:(non_null (list (non_null Input.item)));
           ]
         ~resolve:(fun _ _src branch items ->
             mk_branch (Store.repo s) branch >>= fun t ->
@@ -290,12 +290,85 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 | Ok (k, v) ->
                   (tree >>= fun tree -> Store.Tree.add tree k v)
                 | _ -> tree
-              ) items (Lwt.return Store.Tree.empty) >>= fun tree ->
+              ) items (Store.tree t) >>= fun tree ->
             Store.set_tree t Store.Key.empty tree ~info >>= fun _ ->
-            Store.Head.get t >>=
+            Store.Head.find t >>=
             Lwt.return_ok 
           )
       ;
+      io_field "remove"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "keys" ~typ:(non_null (list (non_null Input.key)));
+          ]
+        ~resolve:(fun _ _src branch keys ->
+            mk_branch (Store.repo s) branch >>= fun t ->
+            let info = Irmin_unix.info "remove" in (* TODO: pick a better commit message *)
+            List.fold_right (fun k tree -> 
+                tree >>= fun tree -> Store.Tree.remove tree k
+              ) keys (Store.tree t) >>= fun tree ->
+            Store.set_tree t Store.Key.empty tree ~info >>= fun _ ->
+            Store.Head.find t >>=
+            Lwt.return_ok 
+          )
+      ;
+      io_field "merge"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "from" ~typ:(non_null Input.branch);
+          ]
+        ~resolve:(fun _ _src into from -> 
+            mk_branch (Store.repo s) into >>= fun t ->
+            let info = Irmin_unix.info "merge" in (* TODO: pick a better commit message *)
+            Store.merge_with_branch t from ~info >>= fun _ ->
+            Store.Head.find t >>=
+            Lwt.return_ok 
+          )
+      ;
+      io_field "push"
+        ~typ:(string)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "remote" ~typ:(non_null Input.remote);
+          ]
+        ~resolve:(fun _ _src branch remote -> 
+            mk_branch (Store.repo s) branch >>= fun t ->
+            Sync.push t remote >>= function
+            | Ok _ -> Lwt.return_ok None
+            | Error e -> Lwt.return_ok (Some (Fmt.to_to_string Sync.pp_push_error e))
+          )
+      ;
+      io_field "pull"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "remote" ~typ:(non_null Input.remote);
+          ]
+        ~resolve:(fun _ _src branch remote -> 
+            mk_branch (Store.repo s) branch >>= fun t ->
+            Sync.pull t remote `Set >>= function
+            | Ok _ ->
+              (Store.Head.find t >>=
+               Lwt.return_ok) 
+            | Error e -> Lwt.return_ok None
+          )
+      ;
+      io_field "revert"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "commit" ~typ:(non_null Input.commit_hash);
+          ]
+        ~resolve:(fun _ _src branch commit->
+            mk_branch (Store.repo s) branch >>= fun t ->
+            Store.Commit.of_hash (Store.repo s) commit >>= function
+            | Some commit -> 
+              Store.Head.set t commit >>= fun () ->
+              Lwt.return_ok (Some commit)
+            | None -> Lwt.return_ok None
+          )
     ]
 
   let schema s =
