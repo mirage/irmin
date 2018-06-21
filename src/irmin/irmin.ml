@@ -188,3 +188,5 @@ module Metadata = struct
   module type S = S.METADATA
   module None = Node.No_metadata
 end
+
+module Proj = Contents.Proj

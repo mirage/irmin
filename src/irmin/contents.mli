@@ -28,6 +28,36 @@ type json = [
 module String: S.CONTENTS with type t = string
 module Cstruct: S.CONTENTS with type t = Cstruct.t
 module Json: S.CONTENTS with type t = (string * json) list
+module Proj(P: S.PATH)(M: S.METADATA): sig
+  include S.CONTENTS with type t = json
+    type tree =
+      [ `Tree of (P.step * tree) list
+      | `Contents of json * M.t ]
+
+  val to_concrete_tree: (string * json) list -> tree
+  val of_concrete_tree: tree -> (string * json) list
+
+  module type STORE = S.STORE with type contents = t and type key = P.t and type step = P.step and type metadata = M.t
+
+  val get_tree:
+    (module STORE with type node = 'a) ->
+    [ `Contents of t * M.t | `Node of 'a ] ->
+    P.t -> (string * t) list Lwt.t
+
+  val set_tree :
+   (module STORE with type node = 'a and type t = 'b) ->
+   [ `Contents of t * M.t | `Node of 'a ] ->
+   P.t ->
+   (string * t) list -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
+
+  val get :
+    (module STORE with type t = 'a) ->
+    'a -> P.t -> (string * t) list Lwt.t
+
+  val set :
+    (module STORE with type t = 'a) ->
+    'a -> P.t -> (string * t) list -> info:Info.f -> unit Lwt.t
+end
 
 module Store
     (C: sig

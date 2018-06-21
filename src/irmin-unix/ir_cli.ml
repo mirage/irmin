@@ -308,7 +308,7 @@ let clone = {
         remote >>= fun remote ->
         Sync.fetch t ?depth remote >>= function
         | Ok d    -> S.Head.set t d
-        | Error e -> Format.eprintf "ERROR: %a!\n" Sync.pp_fetch_error e; exit 1
+        | Error e -> failwith (Fmt.to_to_string Sync.pp_fetch_error e)
       end
     in
     Term.(mk clone $ store $ remote $ depth);
@@ -350,7 +350,8 @@ let merge = {
         S.merge_with_branch t branch ~info:(info ?author "%s" message) >|= function
           | Ok () -> ()
           | Error conflict ->
-            Format.eprintf "ERROR: %a!\n" (Irmin.Type.pp_json Irmin.Merge.conflict_t) conflict
+            let fmt = Irmin.Type.pp_json Irmin.Merge.conflict_t in
+            Fmt.epr "CONFLICT: %a\n%!" fmt conflict
       end
     in
     let branch_name =

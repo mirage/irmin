@@ -16,22 +16,6 @@
 
 open Lwt.Infix
 
-module String = struct
-  type t = string
-  let t = Type.string
-  let merge = Merge.idempotent Type.(option string)
-  let pp = Fmt.string
-  let of_string s = Ok s
-end
-
-module Cstruct = struct
-  type t = Cstruct.t
-  let t = Type.cstruct
-  let merge = Merge.idempotent Type.(option t)
-  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
-  let of_string s = Ok (Cstruct.of_string s)
-end
-
 type json = [
   | `Null
   | `Bool of bool
@@ -59,41 +43,76 @@ let json =
   |~ case1 "array" (list ty) (fun arr -> `A arr)
   |> sealv)
 
+let merge_objects j a b =
+  let equal = Type.equal json in
+  try
+    let v = List.fold_right (fun (k, v) acc ->
+      match List.assoc_opt k a, List.assoc_opt k b with
+      | Some x, Some y when not (equal x y) -> failwith "Unable to merge JSON objects"
+      | Some x, _ -> (k, x) :: acc
+      | None, Some x -> (k, x) :: acc
+      | None, None -> (k, v) :: acc
+    ) j []
+    in Merge.ok (`O v)
+  with
+    Failure msg -> Merge.conflict "%s" msg
+
+let merge2 a b =
+  match a, b with
+  | `Null, b -> Merge.ok b
+  | `Float a, `Float b when a <> b -> Merge.conflict "Conflicting float values"
+  | `String a, `String b when not (String.equal a b) -> Merge.conflict "Conflicting string values"
+  | `Bool a, `Bool b when a <> b -> Merge.conflict "Conflicting bool values"
+  | `O a, `O b -> merge_objects [] a b
+  | `A a, `A b ->
+      if List.for_all2 (Type.equal json) a b then
+        Merge.ok (`A a)
+      else
+        Merge.conflict "Unable to merge JSON arrays"
+  | _a, b -> Merge.ok b
+
+let merge3 a b c =
+  let open Merge.Infix in
+  match a, b, c with
+  | `Null, a, b -> merge2 a b
+  | `O a, `O b, `O c -> merge_objects a b c
+  | a, b, c -> (merge2 a b >>=* fun b -> merge2 b c)
+
+let merge_json' ~old a b =
+  let equal = Type.equal json in
+  let open Merge.Infix in
+  old () >>=* function
+    | Some old ->
+        if equal old a then Merge.ok b
+        else if equal old b then Merge.ok a
+        else merge3 old a b
+    | None ->
+        merge2 a b
+
+let merge_json = Merge.(v json merge_json')
+
+module String = struct
+  type t = string
+  let t = Type.string
+  let merge = Merge.idempotent Type.(option string)
+  let pp = Fmt.string
+  let of_string s = Ok s
+end
+
+module Cstruct = struct
+  type t = Cstruct.t
+  let t = Type.cstruct
+  let merge = Merge.idempotent Type.(option t)
+  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
+  let of_string s = Ok (Cstruct.of_string s)
+end
+
 module Json = struct
   type t = (string * json) list
 
   let t = Type.(list (pair string json))
 
-  let merge_objects j a b =
-    let equal = Type.equal json in
-    try
-      let v = List.fold_right (fun (k, v) acc ->
-        match List.assoc_opt k a, List.assoc_opt k b with
-        | Some x, Some y when not (equal x y) -> failwith "Unable to merge JSON objects"
-        | Some x, _ -> (k, x) :: acc
-        | None, Some x -> (k, x) :: acc
-        | None, None -> (k, v) :: acc
-      ) j []
-      in Merge.ok v
-    with
-      Failure msg -> Merge.conflict "%s" msg
-
-  let merge' ~old t1 t2 =
-    let open Merge.Infix in
-    let equal = Type.equal t in
-    old () >>=* function
-      | Some j ->
-          if equal j t1 then
-            Merge.ok t2
-          else if equal j t2 then
-            Merge.ok t1
-          else
-            merge_objects j t1 t2
-      | None -> merge_objects [] t1 t2
-
-  let merge' t = Merge.(option (v t merge'))
-  let merge = merge' t
-
+  let merge = Merge.(option (alist Type.string json (fun _key -> Merge.option merge_json)))
   let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
   let rec encode_json e = function
@@ -157,6 +176,69 @@ module Json = struct
     | Ok (`O obj) -> Ok obj
     | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
+end
+
+module Proj(P: S.PATH)(M: S.METADATA) = struct
+  type t = json
+
+  let t = json
+  let merge = Merge.(option merge_json)
+
+  let pp fmt x =
+    let buffer = Buffer.create 32 in
+    let encoder = Jsonm.encoder (`Buffer buffer) in
+    Json.encode_json encoder x;
+    ignore @@ Jsonm.encode encoder `End;
+    let s = Buffer.contents buffer in
+    Fmt.pf fmt "%s" s
+
+  let of_string s =
+    let decoder = Jsonm.decoder (`String s) in
+    match Json.decode_json decoder with
+    | Ok obj -> Ok obj
+    | Error _ as err -> err
+
+  type tree =
+    [ `Tree of (P.step * tree) list
+    | `Contents of json * M.t ]
+
+  let to_concrete_tree (j: ((string * json) list)): tree =
+    let x =
+      List.fold_right (fun (k, v) acc ->
+        match P.step_of_string k with
+        | Ok key -> (key, `Contents (v, M.default)) :: acc
+        | _ -> acc
+      ) j []
+    in
+    `Tree x
+
+  let of_concrete_tree c : (string * json) list =
+    let step = Fmt.to_to_string P.pp_step in
+    let rec aux k = function
+      | `Contents (c, _) -> [k, c]
+      | `Tree tree -> List.fold_right (fun (k, tree) acc -> List.append (aux (step k) tree) acc) tree []
+    in
+    aux "" c
+
+  module type STORE = S.STORE with type step = P.step and type key = P.t and type contents = json and type metadata = M.t
+
+  let set_tree (type a) (type n) (module S: STORE with type t = a and type node = n) (tree: S.tree) key (j: ((string * json) list)) : S.tree Lwt.t =
+    let t = to_concrete_tree j in
+    let t = S.Tree.of_concrete t in
+    S.Tree.add_tree tree key t
+
+  let get_tree (type n) (module S: STORE with type node = n) (tree: S.tree) key =
+    S.Tree.get_tree tree key >>= S.Tree.to_concrete >|= fun tree ->
+    of_concrete_tree tree
+
+  let set (type a) (module S: STORE with type t = a) (t: a) key j =
+    let tree = to_concrete_tree j in
+    let tree = S.Tree.of_concrete tree in
+    S.set_tree t key tree
+
+  let get (type a) (module S: STORE with type t = a) t key =
+    S.get_tree t key >>= S.Tree.to_concrete >|= fun tree ->
+    of_concrete_tree tree
 end
 
 module Store

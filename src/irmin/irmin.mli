@@ -951,6 +951,33 @@ module Hash: sig
 
 end
 
+(** [Metadata] defines metadata that is attached to contents but stored in
+    nodes. The Git backend uses this to indicate the type of file (normal,
+    executable or symlink). *)
+module Metadata: sig
+
+  module type S = sig
+
+    type t
+    (** The type for metadata. *)
+
+    val t: t Type.t
+    (** [t] is the value type for {!t}. *)
+
+    val merge: t Merge.t
+    (** [merge] is the merge function for metadata. *)
+
+    val default: t
+    (** The default metadata to attach, for APIs that don't
+        care about metadata. *)
+
+  end
+
+  module None: S with type t = unit
+  (** A metadata definition for systems that don't use metadata. *)
+
+end
+
 (** [Contents] specifies how user-defined contents need to be {e
     serializable} and {e mergeable}.
 
@@ -1045,9 +1072,9 @@ module Contents: sig
   ]
 
   module Json: S with type t = (string * json) list
-  (** Json values are associations from string to [json] value. If the same JSON key
-      has been modified concurrently with different values then the [merge] function
-      conflicts. *)
+  (** Json values are associations from string to [json] value stored as JSON encoded strings.
+     If the same JSON key has been modified concurrently with different values then the [merge]
+     function conflicts. *)
 
   (** Contents store. *)
   module type STORE = sig
@@ -1144,33 +1171,6 @@ module Branch: sig
     (** Base functions on values. *)
 
   end
-
-end
-
-(** [Metadata] defines metadata that is attached to contents but stored in
-    nodes. The Git backend uses this to indicate the type of file (normal,
-    executable or symlink). *)
-module Metadata: sig
-
-  module type S = sig
-
-    type t
-    (** The type for metadata. *)
-
-    val t: t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val merge: t Merge.t
-    (** [merge] is the merge function for metadata. *)
-
-    val default: t
-    (** The default metadata to attach, for APIs that don't
-        care about metadata. *)
-
-  end
-
-  module None: S with type t = unit
-  (** A metadata definition for systems that don't use metadata. *)
 
 end
 
@@ -2745,6 +2745,39 @@ module type S = sig
        and type Repo.t = repo
   end
 end
+
+module Proj(P: Path.S)(M: Metadata.S): sig
+  module type STORE = S with type contents = Contents.json and type key = P.t and type step = P.step and type metadata = M.t
+
+  include Contents.S with type t = Contents.json
+
+  type tree =
+    [ `Tree of (P.step * tree) list
+    | `Contents of Contents.json * M.t ]
+
+  val to_concrete_tree: (string * Contents.json) list -> tree
+  val of_concrete_tree: tree -> (string * Contents.json) list
+
+  val get_tree:
+    (module STORE with type node = 'a) ->
+    [ `Contents of t * M.t | `Node of 'a ] ->
+    P.t -> (string * t) list Lwt.t
+
+  val set_tree :
+   (module STORE with type node = 'a and type t = 'b) ->
+   [ `Contents of t * M.t | `Node of 'a ] ->
+   P.t ->
+   (string * t) list -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
+
+  val get :
+    (module STORE with type t = 'a) ->
+    'a -> P.t -> (string * t) list Lwt.t
+
+  val set :
+    (module STORE with type t = 'a) ->
+    'a -> P.t -> (string * t) list -> info:Info.f -> unit Lwt.t
+end
+
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
     implementations. [M] is the implementation of user-defined
