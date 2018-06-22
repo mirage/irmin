@@ -337,6 +337,8 @@ module type TREE = sig
   val add_tree: tree -> key -> tree -> tree Lwt.t
   val merge: tree Merge.t
 
+  val clear_caches: tree -> unit
+
   type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
   val pp_stats: stats Fmt.t
   val stats: ?force:bool -> tree -> stats Lwt.t

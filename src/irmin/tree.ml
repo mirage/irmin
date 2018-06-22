@@ -153,6 +153,11 @@ module Make (P: S.PRIVATE) = struct
         match t.v with
         | Key _ -> skip path acc
         | Both (_, _, c) | Contents c -> aux (Some c)
+
+    let clear_caches t = match t.v with
+      | Key _ | Contents _ -> ()
+      | Both (r, k, _) -> t.v <- Key (r, k)
+
   end
 
   module Node = struct
@@ -462,6 +467,15 @@ module Make (P: S.PRIVATE) = struct
 
     let merge_value = merge_value ()
 
+    let rec clear_caches t = match t.v with
+      | Key _          -> ()
+      | Both (r, k, _) -> t.v <- Key (r, k)
+      | Map m          ->
+        StepMap.iter (fun _ -> function
+            | `Contents (c, _) -> Contents.clear_caches c
+            | `Node n          -> clear_caches n
+          ) m
+
     (*
     let contents  =
       let open Type in
@@ -525,6 +539,10 @@ module Make (P: S.PRIVATE) = struct
 
   let of_node n = `Node n
   let of_contents ?(metadata=Metadata.default) c = `Contents (c, metadata)
+
+  let clear_caches = function
+    | `Node n     -> Node.clear_caches n
+    | `Contents _ -> ()
 
   let sub t path =
     let rec aux node path =
