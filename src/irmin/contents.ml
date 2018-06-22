@@ -43,11 +43,14 @@ let json =
   |~ case1 "array" (list ty) (fun arr -> `A arr)
   |> sealv)
 
+let assoc k l =
+  try Some (List.assoc k l) with Not_found -> None
+
 let merge_objects j a b =
   let equal = Type.equal json in
   try
     let v = List.fold_right (fun (k, v) acc ->
-      match List.assoc_opt k a, List.assoc_opt k b with
+      match assoc k a, assoc k b with
       | Some x, Some y when not (equal x y) -> failwith "Unable to merge JSON objects"
       | Some x, _ -> (k, x) :: acc
       | None, Some x -> (k, x) :: acc
@@ -180,7 +183,6 @@ end
 
 module Proj(P: S.PATH)(M: S.METADATA) = struct
   type t = json
-
   let t = json
   let merge = Merge.(option merge_json)
 
