@@ -315,6 +315,10 @@ module Make (P: S.PRIVATE) = struct
       in
       P.Node.Val.v alist
 
+    let to_key t = match t.v with
+      | Key (_, k) | Both (_, k, _) -> k
+      | Map m -> P.Node.Key.digest P.Node.Val.t (export_map m)
+
     let is_empty t =
       to_map t >|= function
       | None   -> false
@@ -348,18 +352,42 @@ module Make (P: S.PRIVATE) = struct
           | None   -> None
           | Some c -> Some (`Contents (c, m))
 
-    let fold ~force ~contents ~pre ~post ~path t acc =
+    module Keys = Hashtbl.Make(struct
+        type t = P.Node.key
+        let hash = P.Node.Key.to_raw_int
+        let equal = Type.equal P.Node.Key.t
+      end)
+
+    let dummy_marks = Keys.create 0
+    type marks = unit Keys.t
+    let empty_marks () = Keys.create 39
+
+    let fold ~force ~uniq ~pre ~post ~path f t acc =
+      let marks = match uniq with
+        | `False   -> dummy_marks
+        | `True    -> empty_marks ()
+        | `Marks n -> n
+      in
       let rec aux ~path acc t k = match force with
-        | `True       -> to_map t >>= fun m -> map ~path acc m k
+        | `True -> to_map t >>= fun m -> map ~path acc m k
         | `False skip ->
           match t.v with
           | Key _ -> skip path acc
           | Both (_, _, n) | Map n -> map ~path acc (Some n) k
+      and aux_uniq ~path acc t k =
+        if uniq = `False then aux ~path acc t k
+        else
+          let key = to_key t in
+          if Keys.mem marks key then k acc
+          else (
+            Keys.add marks key ();
+            aux ~path acc t k
+          )
       and step ~path acc (s, v) k =
         let path = Path.rcons path s in
         match v with
-        | `Contents c -> Contents.fold ~force ~path contents (fst c) acc >>= k
-        | `Node n     -> aux ~path acc n k
+        | `Contents c -> Contents.fold ~force ~path f (fst c) acc >>= k
+        | `Node n     -> aux_uniq ~path acc n k
       and steps ~path acc s k = match s with
         | []   -> k acc
         | h::t -> step ~path acc h (fun acc -> steps ~path acc t k)
@@ -371,7 +399,7 @@ module Make (P: S.PRIVATE) = struct
           pre path s acc >>= fun acc ->
           steps ~path acc bindings (fun acc -> post path s acc >>= k)
       in
-      aux ~path acc t Lwt.return
+      aux_uniq ~path acc t Lwt.return
 
     let remove t step =
       to_map t >|= function
@@ -569,10 +597,18 @@ module Make (P: S.PRIVATE) = struct
       | None   -> Lwt.return None
       | Some n -> Node.findv n file
 
-  let fold ~force ~contents ~pre ~post (t:tree) acc =
+  type marks = Node.marks
+  let empty_marks = Node.empty_marks
+  type 'a force = [`True | `False of (key -> 'a -> 'a Lwt.t)]
+  type uniq = [`False | `True | `Marks of marks]
+  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+
+  let id _ _ acc = Lwt.return acc
+
+  let fold ?(force=`True) ?(uniq=`False) ?(pre=id) ?(post=id) f (t:tree) acc =
     match t with
-    | `Contents v -> contents Path.empty (fst v) acc
-    | `Node n     -> Node.fold ~force ~contents ~pre ~post ~path:Path.empty n acc
+    | `Contents v -> f Path.empty (fst v) acc
+    | `Node n     -> Node.fold ~force ~uniq ~pre ~post ~path:Path.empty f n acc
 
   type stats = {
     nodes: int;
@@ -606,7 +642,7 @@ module Make (P: S.PRIVATE) = struct
       if force then `True
       else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
     in
-    let contents k _ s = set_depth k s |> incr_leafs |> Lwt.return in
+    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
     let pre k childs s =
       if childs = [] then Lwt.return s
       else
@@ -616,7 +652,7 @@ module Make (P: S.PRIVATE) = struct
         Lwt.return
     in
     let post _ _ acc = Lwt.return acc in
-    fold ~force ~pre ~post ~contents t empty_stats
+    fold ~force ~pre ~post f t empty_stats
 
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n Path.pp k

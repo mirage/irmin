@@ -323,13 +323,6 @@ module type TREE = sig
   val get_all: tree -> key -> (contents * metadata) Lwt.t
   val get: tree -> key -> contents Lwt.t
 
-  val fold:
-    force:[`True | `False of (key -> 'a -> 'a Lwt.t)]->
-    contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-    pre:(key -> step list -> 'a -> 'a Lwt.t) ->
-    post:(key -> step list -> 'a -> 'a Lwt.t) ->
-    tree -> 'a -> 'a Lwt.t
-
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
   val remove: tree -> key -> tree Lwt.t
   val mem_tree: tree -> key -> bool Lwt.t
@@ -340,6 +333,16 @@ module type TREE = sig
 
   val clear_caches: tree -> unit
 
+  type marks
+  val empty_marks: unit -> marks
+  type 'a force = [`True | `False of (key -> 'a -> 'a Lwt.t)]
+  type uniq = [`False | `True | `Marks of marks]
+  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+
+  val fold:
+    ?force:'a force -> ?uniq: uniq -> ?pre:'a node_fn -> ?post:'a node_fn ->
+    (key -> contents -> 'a -> 'a Lwt.t) -> tree -> 'a -> 'a Lwt.t
+
   type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
   val pp_stats: stats Fmt.t
   val stats: ?force:bool -> tree -> stats Lwt.t
@@ -349,6 +352,7 @@ module type TREE = sig
     | `Contents of contents * metadata ]
   val of_concrete: concrete -> tree
   val to_concrete: tree -> concrete Lwt.t
+
 end
 
 module type STORE = sig
