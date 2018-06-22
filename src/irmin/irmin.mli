@@ -2329,13 +2329,20 @@ module type S = sig
     val fold:
       force:[`True | `False of (key -> 'a -> 'a Lwt.t)] ->
       contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-      node:(key -> step list -> 'a -> 'a Lwt.t) ->
+      pre:(key -> step list -> 'a -> 'a Lwt.t) ->
+      post:(key -> step list -> 'a -> 'a Lwt.t) ->
       tree -> 'a -> 'a Lwt.t
-    (** [fold ~contents ~node t] folds over [t]. It calls [node] on
-       each node of [t] and [contents] on each leaf. Note: [node] is
-       called before the recursive call to [fold] on every
-       subnodes. If [force] is [`True], this will force the reading of
-       lazy nodes. *)
+    (** [fold ~contents ~pre ~post t] folds over [t]. For every node [n]:
+
+        {ul
+        {- Call [pre path n];}
+        {- Recursively call [fold] on each children, eventually calling
+        [contents] on leaf nodes;}
+        {- Call [post path n];}
+        }
+
+        If [force] is [`True], this will force the reading of lazy nodes,
+        otherwise they will be skipped. *)
 
     val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
     (** [add t k c] is the tree where the key [k] is bound to the

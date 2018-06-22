@@ -326,7 +326,8 @@ module type TREE = sig
   val fold:
     force:[`True | `False of (key -> 'a -> 'a Lwt.t)]->
     contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-    node:(key -> step list -> 'a -> 'a Lwt.t) ->
+    pre:(key -> step list -> 'a -> 'a Lwt.t) ->
+    post:(key -> step list -> 'a -> 'a Lwt.t) ->
     tree -> 'a -> 'a Lwt.t
 
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t

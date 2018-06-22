@@ -348,27 +348,30 @@ module Make (P: S.PRIVATE) = struct
           | None   -> None
           | Some c -> Some (`Contents (c, m))
 
-    let rec fold ~force ~contents ~node ~path t acc =
-      let aux = function
-        | None   -> Lwt.return acc
+    let fold ~force ~contents ~pre ~post ~path t acc =
+      let rec aux ~path acc t k = match force with
+        | `True       -> to_map t >>= fun m -> map ~path acc m k
+        | `False skip ->
+          match t.v with
+          | Key _ -> skip path acc
+          | Both (_, _, n) | Map n -> map ~path acc (Some n) k
+      and step ~path acc (s, v) k =
+        let path = Path.rcons path s in
+        match v with
+        | `Contents c -> Contents.fold ~force ~path contents (fst c) acc >>= k
+        | `Node n     -> aux ~path acc n k
+      and steps ~path acc s k = match s with
+        | []   -> k acc
+        | h::t -> step ~path acc h (fun acc -> steps ~path acc t k)
+      and map ~path acc m k = match m with
+        | None   -> k acc
         | Some m ->
           let bindings = StepMap.bindings m in
-          let steps = List.map fst bindings in
-          node path steps acc >>= fun acc ->
-          let aux acc (k, v) =
-            let path = Path.rcons path k in
-            match v with
-            | `Contents c -> Contents.fold ~force ~path contents (fst c) acc
-            | `Node n     -> fold ~force ~path ~contents ~node n acc
-          in
-          Lwt_list.fold_left_s aux acc bindings
+          let s = List.map fst bindings in
+          pre path s acc >>= fun acc ->
+          steps ~path acc bindings (fun acc -> post path s acc >>= k)
       in
-      match force with
-      | `True       -> to_map t >>= aux
-      | `False skip ->
-        match t.v with
-        | Key _ -> skip path acc
-        | Both (_, _, n) | Map n -> aux (Some n)
+      aux ~path acc t Lwt.return
 
     let remove t step =
       to_map t >|= function
@@ -566,10 +569,10 @@ module Make (P: S.PRIVATE) = struct
       | None   -> Lwt.return None
       | Some n -> Node.findv n file
 
-  let fold ~force ~contents ~node (t:tree) acc =
+  let fold ~force ~contents ~pre ~post (t:tree) acc =
     match t with
     | `Contents v -> contents Path.empty (fst v) acc
-    | `Node n     -> Node.fold ~force ~contents ~node ~path:Path.empty n acc
+    | `Node n     -> Node.fold ~force ~contents ~pre ~post ~path:Path.empty n acc
 
   type stats = {
     nodes: int;
@@ -604,13 +607,16 @@ module Make (P: S.PRIVATE) = struct
       else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
     in
     let contents k _ s = set_depth k s |> incr_leafs |> Lwt.return in
-    let node k childs s =
-      set_depth k s |>
-      set_width childs |>
-      incr_nodes |>
-      Lwt.return
+    let pre k childs s =
+      if childs = [] then Lwt.return s
+      else
+        set_depth k s |>
+        set_width childs |>
+        incr_nodes |>
+        Lwt.return
     in
-    fold ~force ~node ~contents t empty_stats
+    let post _ _ acc = Lwt.return acc in
+    fold ~force ~pre ~post ~contents t empty_stats
 
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n Path.pp k
