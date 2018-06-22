@@ -17,6 +17,16 @@ type commit_input = {
   message: string option;
 }
 
+let mk_info input = 
+  let default_message = "" in
+  match input with 
+  | Some input -> 
+    let message = match input.message with None -> default_message | Some m -> m in
+    let author = input.author in
+    Irmin_unix.info ?author "%s" message
+  | None -> 
+    Irmin_unix.info "%s" default_message
+
 module Make(Store : Irmin.S) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
@@ -175,7 +185,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
                     Store.Tree.list tree key >>= Lwt_list.map_s (fun (step, kind) ->
-                        let key' = Store.Key.rcons key step in
+                        let key' = Store.Key.rcons key step in 
                         Lwt.return (tree, key')
                       ) >>= fun l ->
                     Lwt.return_ok l
@@ -227,10 +237,6 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             ])
     )
 
-  and tree : ('ctx, [`tree] option) Schema.abstract_typ = Schema.union "Tree"
-  and node_as_tree = lazy (Schema.add_type tree Lazy.(force node))
-  and contents_as_tree = lazy (Schema.add_type tree Lazy.(force contents))
-
   and contents : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Contents"
         ~fields:(fun contents -> [
@@ -252,8 +258,6 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             ])
     )
 
-  let _ = Lazy.force node_as_tree
-  let _ = Lazy.force contents_as_tree
 
   let mk_branch repo = function
     | Some b -> Store.of_branch repo b
@@ -282,14 +286,14 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "items" ~typ:(non_null (list (non_null Input.item)));
+            arg "info" ~typ:Input.info;
           ]
-        ~resolve:(fun _ _src branch items ->
+        ~resolve:(fun _ _src branch items i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = Irmin_unix.info "set" in (* TODO: pick a better commit message *)
+            let info = mk_info i in
             List.fold_right (fun x tree -> 
                 match x with
-                | Ok (k, v) ->
-                  (tree >>= fun tree -> Store.Tree.add tree k v)
+                | Ok (k, v) -> (tree >>= fun tree -> Store.Tree.add tree k v)
                 | _ -> tree
               ) items (Store.tree t) >>= fun tree ->
             Store.set_tree t Store.Key.empty tree ~info >>= fun _ ->
@@ -302,10 +306,11 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "keys" ~typ:(non_null (list (non_null Input.key)));
+            arg "info" ~typ:Input.info
           ]
-        ~resolve:(fun _ _src branch keys ->
+        ~resolve:(fun _ _src branch keys i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = Irmin_unix.info "remove" in (* TODO: pick a better commit message *)
+            let info = mk_info i in
             List.fold_right (fun k tree -> 
                 tree >>= fun tree -> Store.Tree.remove tree k
               ) keys (Store.tree t) >>= fun tree ->
@@ -319,10 +324,11 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "from" ~typ:(non_null Input.branch);
+            arg "info" ~typ:Input.info;
           ]
-        ~resolve:(fun _ _src into from -> 
+        ~resolve:(fun _ _src into from i -> 
             mk_branch (Store.repo s) into >>= fun t ->
-            let info = Irmin_unix.info "merge" in (* TODO: pick a better commit message *)
+            let info = mk_info i in
             Store.merge_with_branch t from ~info >>= fun _ ->
             Store.Head.find t >>=
             Lwt.return_ok 
