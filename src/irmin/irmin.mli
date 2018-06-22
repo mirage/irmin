@@ -2365,6 +2365,11 @@ module type S = sig
     val merge: tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
 
+    (** {1 Caches} *)
+
+    val clear_caches: tree -> unit
+    (** [clear_caches t] clear [t]'s caches. *)
+
     (** {1 Stats} *)
 
     type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
