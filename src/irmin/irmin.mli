@@ -2406,7 +2406,18 @@ module type S = sig
 
     (** {1 Stats} *)
 
-    type stats = { nodes: int; leafs: int; skips: int; depth: int; width: int }
+    type stats = {
+      nodes: int;
+      (** Number of node. *)
+      leafs: int;
+      (** Number of leafs. *)
+      skips: int;
+      (** Number of lazy nodes. *)
+      depth: int;
+      (** Maximal depth. *)
+      width: int;
+      (** Maximal width. *)
+    }
     (** The type for tree stats. *)
 
     val pp_stats: stats Fmt.t
