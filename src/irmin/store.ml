@@ -59,7 +59,7 @@ module Make (P: S.PRIVATE) = struct
       |> sealv
 
     let of_hash r = function
-      | `Node h          -> import r h >|= fun n -> Some (`Node n)
+      | `Node h          -> import r h |> fun n -> Some (`Node n) |> Lwt.return
       | `Contents (h, m) ->
         Contents.of_hash r h >|= function
         | None   -> None
@@ -103,7 +103,7 @@ module Make (P: S.PRIVATE) = struct
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-    let tree t = Tree.import t.r (node t) >|= fun n -> `Node n
+    let tree t = Tree.import t.r (node t) |> fun n -> `Node n |> Lwt.return
     let equal x y = Type.equal Hash.t x.h y.h
     let hash t = t.h
     let info t = P.Commit.Val.info t.v
@@ -368,15 +368,15 @@ module Make (P: S.PRIVATE) = struct
     h
 
   let tree_and_head t =
-    head t >>= function
-    | None   -> Lwt.return None
+    head t >|= function
+    | None   -> None
     | Some h ->
       match t.tree with
-      | Some (o, t) when Commit.equal o h -> Lwt.return @@ Some (o, t)
+      | Some (o, t) when Commit.equal o h -> Some (o, t)
       | _   ->
         t.tree <- None;
         (* the tree cache needs to be invalidated *)
-        Tree.import (repo t) (Commit.node h) >|= fun n ->
+        let n = Tree.import (repo t) (Commit.node h) in
         let tree = `Node n in
         t.tree <- Some (h, tree);
         Some (h, tree)

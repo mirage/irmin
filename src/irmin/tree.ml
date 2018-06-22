@@ -212,7 +212,6 @@ module Make (P: S.PRIVATE) = struct
 
     let of_map map = { v = Map map }
     let of_key repo k = { v = Key (repo, k) }
-    let both repo k m = { v = Both (repo, k, m) }
     let empty = of_map StepMap.empty
 
     let import t n =
@@ -227,6 +226,7 @@ module Make (P: S.PRIVATE) = struct
     let to_map t = match t.v with
       | Map m | Both (_, _, m) -> Lwt.return (Some m)
       | Key (db, k) ->
+        Log.debug (fun l -> l "Node.to_map %a" P.Node.Key.pp k);
         P.Node.find (P.Repo.node_t db) k >|= function
         | None   -> None
         | Some n ->
@@ -784,10 +784,7 @@ module Make (P: S.PRIVATE) = struct
       | None      -> Lwt.return t
       | Some node -> Lwt.return (`Node node)
 
-  let import repo k =
-    P.Node.find (P.Repo.node_t repo) k >|= function
-    | None   -> Node.empty
-    | Some n -> Node.both repo k (Node.import repo n)
+  let import repo k = Node.of_key repo k
 
   let export repo n =
     let node n = P.Node.add (P.Repo.node_t repo) (Node.export_map n) in
