@@ -1072,9 +1072,11 @@ module Contents: sig
   ]
 
   module Json: S with type t = (string * json) list
-  (** Json values are associations from string to [json] value stored as JSON encoded strings.
+  (** Json contents are associations from string to [json] value stored as JSON encoded strings.
      If the same JSON key has been modified concurrently with different values then the [merge]
      function conflicts. *)
+
+  module Json_value: S with type t = json
 
   (** Contents store. *)
   module type STORE = sig
@@ -2746,36 +2748,34 @@ module type S = sig
   end
 end
 
-module Proj(P: Path.S)(M: Metadata.S): sig
-  module type STORE = S with type contents = Contents.json and type key = P.t and type step = P.step and type metadata = M.t
-
+(** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
+    is split across several keys starting at the specified root key.  *)
+module Json_tree(P: Path.S)(M: Metadata.S): sig
   include Contents.S with type t = Contents.json
-
-  type tree =
-    [ `Tree of (P.step * tree) list
-    | `Contents of Contents.json * M.t ]
-
-  val to_concrete_tree: (string * Contents.json) list -> tree
-  val of_concrete_tree: tree -> (string * Contents.json) list
+  module type STORE = S with type contents = t and type key = P.t and type step = P.step and type metadata = M.t
 
   val get_tree:
     (module STORE with type node = 'a) ->
     [ `Contents of t * M.t | `Node of 'a ] ->
-    P.t -> (string * t) list Lwt.t
+    P.t -> t Lwt.t
+  (** Extract a [json] value from tree at the given key. *)
 
   val set_tree :
-   (module STORE with type node = 'a and type t = 'b) ->
-   [ `Contents of t * M.t | `Node of 'a ] ->
-   P.t ->
-   (string * t) list -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
+    (module STORE with type node = 'a and type t = 'b) ->
+    [ `Contents of t * M.t | `Node of 'a ] ->
+    P.t ->
+    t -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
+  (** Project a [json] value onto a tree at the given key. *)
 
   val get :
     (module STORE with type t = 'a) ->
-    'a -> P.t -> (string * t) list Lwt.t
+    'a -> P.t -> t Lwt.t
+  (** Extract a [json] value from a store at the given key. *)
 
   val set :
     (module STORE with type t = 'a) ->
-    'a -> P.t -> (string * t) list -> info:Info.f -> unit Lwt.t
+    'a -> P.t -> t -> info:Info.f -> unit Lwt.t
+    (** Project a [json] value onto a store at the given key. *)
 end
 
 

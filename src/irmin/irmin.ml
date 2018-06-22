@@ -189,4 +189,4 @@ module Metadata = struct
   module None = Node.No_metadata
 end
 
-module Proj = Contents.Proj
+module Json_tree = Contents.Json_tree
