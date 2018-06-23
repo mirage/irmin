@@ -31,7 +31,11 @@ module Json: S.CONTENTS with type t = (string * json) list
 module Json_value: S.CONTENTS with type t = json
 module Json_tree(P: S.PATH)(M: S.METADATA): sig
   include S.CONTENTS with type t = json
-  module type STORE = S.STORE with type contents = t and type key = P.t and type step = P.step and type metadata = M.t
+  module type STORE = S.STORE with
+    type contents = t
+    and type key = P.t
+    and type step = P.step
+    and type metadata = M.t
 
   val get_tree:
     (module STORE with type node = 'a) ->

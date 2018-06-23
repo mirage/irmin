@@ -62,7 +62,7 @@ let merge_objects j a b =
 
 let merge2 a b =
   match a, b with
-  | `Null, b -> Merge.ok b
+  | `Null, a | a, `Null -> Merge.ok a
   | `Float a, `Float b when a <> b -> Merge.conflict "Conflicting float values"
   | `String a, `String b when not (String.equal a b) -> Merge.conflict "Conflicting string values"
   | `Bool a, `Bool b when a <> b -> Merge.conflict "Conflicting bool values"
@@ -72,7 +72,8 @@ let merge2 a b =
         Merge.ok (`A a)
       else
         Merge.conflict "Unable to merge JSON arrays"
-  | _a, b -> Merge.ok b
+  | `Float _, `Float _ | `String _, `String _ | `Bool _, `Bool _ -> Merge.ok a
+  | _, _ -> Merge.conflict "Conflicting JSON values"
 
 let merge3 a b c =
   let open Merge.Infix in
@@ -204,9 +205,14 @@ end
 module Json_tree(P: S.PATH)(M: S.METADATA) = struct
   include Json_value
 
-  module type STORE = S.STORE with type step = P.step and type key = P.t and type contents = json and type metadata = M.t
+  module type STORE = S.STORE with
+    type step = P.step
+    and type key = P.t
+    and type contents = json
+    and type metadata = M.t
 
-  let set_tree (type a) (type n) (module S: STORE with type t = a and type node = n) (tree: S.tree) key (j : json) : S.tree Lwt.t =
+  let set_tree (type a) (type n) (module S: STORE with type t = a and type node = n)
+               (tree: S.tree) key (j : json) : S.tree Lwt.t =
     match j with
     | `O d ->
         Lwt_list.fold_right_s (fun (k, v) tree ->
