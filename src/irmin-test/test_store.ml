@@ -938,17 +938,17 @@ module Make (S: Test_S) = struct
       let vy = "VY" in
       S.master repo >>= fun t ->
       S.set t ~info:(infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
-      S.get_tree t ["x"] >>= fun view ->
-      S.set_tree t ~info:(infof "update") ["u"] view >>= fun () ->
+      S.get_tree t ["x"] >>= fun tree ->
+      S.set_tree t ~info:(infof "update") ["u"] tree >>= fun () ->
       S.find t ["u";"y";"z"] >>= fun vx' ->
       check_val "vx" (Some vx) vx';
 
-      S.get_tree t ["u"] >>= fun view1 ->
+      S.get_tree t ["u"] >>= fun tree1 ->
       S.set t ~info:(infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
-      S.get_tree t ["u"] >>= fun view2 ->
-      S.Tree.add view ["x";"z"] vx >>= fun view3 ->
-      Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise view1) view2 view3
-      >>= merge_exn "view" >>= fun v' ->
+      S.get_tree t ["u"] >>= fun tree2 ->
+      S.Tree.add tree ["x";"z"] vx >>= fun tree3 ->
+      Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise tree1) tree2 tree3
+      >>= merge_exn "tree" >>= fun v' ->
       S.set_tree t ~info:(infof "merge") ["u"] v' >>= fun () ->
       S.find t ["u";"x";"y"] >>= fun vy' ->
       check_val "vy after merge" (Some vy) vy';
@@ -1062,31 +1062,44 @@ module Make (S: Test_S) = struct
     in
     run x test
 
-  let test_views x () =
+  let stats_t = Alcotest.testable S.Tree.pp_stats (=)
+  let empty_stats = { S.Tree.nodes=0; leafs=0; skips=0; depth=0; width=0 }
+
+  let test_trees x () =
     let test repo =
       S.master repo >>= fun t ->
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
 
-      (* Testing [View.remove] *)
+      (* Testing [Tree.remove] *)
 
       S.Tree.empty |> fun v1 ->
+      S.Tree.stats v1 >>= fun s ->
+      Alcotest.(check stats_t) "empty stats" empty_stats s;
 
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.add v1 ["foo";"2"] foo2 >>= fun v1 ->
+
+      S.Tree.stats v1 >>= fun s ->
+      Alcotest.(check stats_t) "stats 1"
+        { S.Tree.nodes=2; leafs=2; skips=0; depth=2; width=2 } s;
+
       S.Tree.remove v1 ["foo";"1"] >>= fun v1 ->
       S.Tree.remove v1 ["foo";"2"] >>= fun v1 ->
 
-      S.set_tree t ~info:(infof "empty view") [] v1 >>= fun () ->
+      S.Tree.stats v1 >>= fun s ->
+      Alcotest.(check stats_t) "empty stats" empty_stats s;
+
+      S.set_tree t ~info:(infof "empty tree") [] v1 >>= fun () ->
       S.Head.get t >>= fun head ->
       S.Commit.hash head |> fun head ->
       P.Commit.find (ct repo) head >>= fun commit ->
       let node = P.Commit.Val.node (get commit) in
       P.Node.find (n repo) node >>= fun node ->
-      check T.(option P.Node.Val.t) "empty view" (Some P.Node.Val.empty) node;
+      check T.(option P.Node.Val.t) "empty tree" (Some P.Node.Val.empty) node;
 
-      (* Testing [View.diff] *)
+      (* Testing [Tree.diff] *)
 
       let contents = T.pair S.contents_t S.metadata_t in
       let diff = T.(pair S.key_t (Irmin.Diff.t contents)) in
@@ -1101,7 +1114,7 @@ module Make (S: Test_S) = struct
       S.Tree.empty |> fun v2 ->
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
-      check_val "view udate" (normal foo1) f;
+      check_val "tree udate" (normal foo1) f;
 
       S.Tree.add v2 ["foo";"1"] foo2 >>= fun v2 ->
       S.Tree.add v2 ["foo";"2"] foo1 >>= fun v2 ->
@@ -1123,7 +1136,7 @@ module Make (S: Test_S) = struct
       check_diffs "diff 4" [ ["foo"; "bar"; "1" ], `Removed (foo1, d0) ] d5;
 
 
-      (* Testing other View operations. *)
+      (* Testing other tree operations. *)
 
       S.Tree.empty |> fun v0 ->
 
@@ -1139,7 +1152,7 @@ module Make (S: Test_S) = struct
       S.Tree.find_all v0 ["foo";"2"] >>= fun foo2' ->
       check_val "read foo/2" (normal foo2) foo2';
 
-      let check_view v =
+      let check_tree v =
         S.Tree.list v ["foo"] >>= fun ls ->
         check_ls "path1" [ ("1", `Contents); ("2", `Contents) ] ls;
         S.Tree.find_all v ["foo";"1"] >>= fun foo1' ->
@@ -1152,7 +1165,7 @@ module Make (S: Test_S) = struct
       Lwt_list.fold_left_s (fun v0 (k,v) ->
           S.Tree.add v0 k v
         ) v0 nodes >>= fun v0 ->
-      check_view v0 >>= fun () ->
+      check_tree v0 >>= fun () ->
 
       S.set_tree t ~info:(infof "update_path b/") ["b"] v0 >>= fun () ->
       S.set_tree t ~info:(infof "update_path a/") ["a"] v0 >>= fun () ->
@@ -1165,14 +1178,14 @@ module Make (S: Test_S) = struct
       check_val "foo2" (normal foo2) foo2';
 
       S.get_tree t ["b"] >>= fun v0 ->
-      check_view v0 >>= fun () ->
+      check_tree v0 >>= fun () ->
 
       S.set t ~info:(infof "update b/x") ["b";"x"] foo1 >>= fun () ->
       S.get_tree t ["b"] >>= fun v2 ->
       S.Tree.add v0 ["y"] foo2 >>= fun v1 ->
 
       Irmin.Merge.(f S.Tree.merge ~old:(promise v0) v1 v2) >>=
-      merge_exn "merge views" >>= fun v' ->
+      merge_exn "merge trees" >>= fun v' ->
 
       S.set_tree t ~info:(infof "merge_path") ["b"] v' >>= fun () ->
       S.find_all t ["b";"x"] >>= fun foo1' ->
@@ -1193,14 +1206,14 @@ module Make (S: Test_S) = struct
       S.Tree.add v2 ["foo"; "1"] foo2 >>= fun v2 ->
       S.set_tree t ~info:(infof"v2") ["b"] v2 >>= fun () ->
       S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
-      check_val "update view" (normal foo2) foo2';
+      check_val "update tree" (normal foo2) foo2';
 
       S.get_tree t ["b"] >>= fun v3 ->
       S.Tree.find_all v3 ["foo"; "1"] >>= fun _ ->
       S.Tree.remove v3 ["foo"; "1"] >>= fun v3 ->
       S.set_tree t ~info:(infof "v3") ["b"] v3 >>= fun () ->
       S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
-      check_val "remove view" None foo2';
+      check_val "remove tree" None foo2';
 
       r1 ~repo >>= fun r1 ->
       r2 ~repo >>= fun r2 ->
@@ -1223,15 +1236,25 @@ module Make (S: Test_S) = struct
       let vx = "VX" in
       let px = ["x";"y";"z"] in
       S.set tt ~info:(infof "update") px vx >>= fun () ->
-      S.get_tree tt [] >>= fun view ->
-      S.Tree.find_all view px >>= fun vx' ->
+      S.get_tree tt [] >>= fun tree ->
+      S.Tree.clear_caches tree;
+
+      S.Tree.stats tree >>= fun s ->
+      Alcotest.(check stats_t) "lazy stats"
+        { S.Tree.nodes=0; leafs=0; skips=1; depth=0; width=0 } s;
+
+      S.Tree.stats ~force:true tree >>= fun s ->
+      Alcotest.(check stats_t) "forced stats"
+        { S.Tree.nodes=404; leafs=103; skips=0; depth=5; width=103 } s;
+
+      S.Tree.find_all tree px >>= fun vx' ->
       check_val "updates" (normal vx) vx';
 
       S.Tree.empty |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
-      S.set_tree t ~info:(infof "update file as view") ["a"] v >>= fun () ->
+      S.set_tree t ~info:(infof "update file as tree") ["a"] v >>= fun () ->
       S.find_all t ["a"] >>= fun vx' ->
-      check_val "update file as view" (normal vx) vx';
+      check_val "update file as tree" (normal vx) vx';
 
       Lwt.return_unit
     in
@@ -1514,7 +1537,7 @@ let suite (speed, x) =
     "Empty stores"                    , speed, T.test_empty x;
     "Private node manipulation"       , speed, T.test_private_nodes x;
     "High-level store operations"     , speed, T.test_stores x;
-    "High-level operations on views"  , speed, T.test_views x;
+    "High-level operations on trees"  , speed, T.test_trees x;
     "High-level store synchronisation", speed, T.test_sync x;
     "High-level store merges"         , speed, T.test_merge x;
     "Unrelated merges"                , speed, T.test_merge_unrelated x;
