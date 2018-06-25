@@ -2326,17 +2326,6 @@ module type S = sig
     val get: tree -> key -> contents Lwt.t
     (** Same as {!get_all} but ignore the metadata. *)
 
-    val fold:
-      force:[`True | `False of (key -> 'a -> 'a Lwt.t)] ->
-      contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-      node:(key -> step list -> 'a -> 'a Lwt.t) ->
-      tree -> 'a -> 'a Lwt.t
-    (** [fold ~contents ~node t] folds over [t]. It calls [node] on
-       each node of [t] and [contents] on each leaf. Note: [node] is
-       called before the recursive call to [fold] on every
-       subnodes. If [force] is [`True], this will force the reading of
-       lazy nodes. *)
-
     val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
     (** [add t k c] is the tree where the key [k] is bound to the
         contents [c] but is similar to [t] for other bindings. *)
@@ -2368,7 +2357,52 @@ module type S = sig
     (** {1 Caches} *)
 
     val clear_caches: tree -> unit
-    (** [clear_caches t] clear [t]'s caches. *)
+
+    (** {1 Folds} *)
+
+    type marks
+    (** The type for fold marks. *)
+
+    val empty_marks: unit -> marks
+    (** [empty_marks ()] is an empty collection of marks. *)
+
+    type 'a force = [`True | `False of (key -> 'a -> 'a Lwt.t)]
+    (** The type for {!fold}'s [force] parameter. [`True] forces the
+       fold to read the objects of the lazy nodes. [`False f] is
+       applying [f] on every lazy node instead. *)
+
+    type uniq = [`False | `True | `Marks of marks]
+    (** The type for {!fold}'s [uniq] parameters. [`False] folds over
+       all the nodes. [`True] does not recurse on nodes already
+       seen. [`Marks m] uses the collection of marks [m] to store the
+       cache of keys: the fold will modify [m]. This can be used for
+       incremental folds.  *)
+
+    type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+    (** The type for {!fold}'s [pre] and [post] parameters. *)
+
+    val fold:
+      ?force:'a force -> ?uniq: uniq -> ?pre:'a node_fn -> ?post:'a node_fn ->
+      (key -> contents -> 'a -> 'a Lwt.t) -> tree -> 'a -> 'a Lwt.t
+    (** [fold f t acc] folds [f] over [t]'s leafs.
+
+        For every node [n]:
+
+        {ul
+        {- If [n] is a leaf node, call [f path n] ;}
+        {- Otherwise:}
+        {ul
+          {- Call [pre path n]. By default [pre] is the identity;}
+          {- Recursively call [fold] on each children, in lexicographic order;}
+          {- Call [post path n]; By default [post] is the identity.}
+        }}
+
+        See {!force} for details about the [force] parameters. By default
+        it is [`True].
+
+        See {!uniq} for details about the [uniq] parameters. By default
+        it is [`False].
+    *)
 
     (** {1 Stats} *)
 
