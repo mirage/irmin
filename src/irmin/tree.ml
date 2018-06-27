@@ -1067,8 +1067,8 @@ module Make (P: S.PRIVATE) = struct
       | `Contents _ as v -> k v
       | `Node n ->
         Node.to_map n >>= function
-        | None   -> Lwt.return (`Tree [])
-        | Some n -> node [] (fun n -> Lwt.return (`Tree n)) (StepMap.bindings n)
+        | None   -> k (`Tree [])
+        | Some n -> node [] (fun n -> k (`Tree n)) (StepMap.bindings n)
     and contents k (c, m) =
       Contents.v c >>= function
       | None   -> k None
