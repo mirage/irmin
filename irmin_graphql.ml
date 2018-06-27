@@ -17,14 +17,14 @@ type commit_input = {
   message: string option;
 }
 
-let mk_info input = 
+let mk_info input =
   let default_message = "" in
-  match input with 
-  | Some input -> 
+  match input with
+  | Some input ->
     let message = match input.message with None -> default_message | Some m -> m in
     let author = input.author in
     Irmin_unix.info ?author "%s" message
-  | None -> 
+  | None ->
     Irmin_unix.info "%s" default_message
 
 module Make(Store : Irmin.S) : S with type store = Store.t = struct
@@ -95,7 +95,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "key" (non_null string);
             arg "value" (non_null value);
           ]
-          ~coerce:(fun key value -> 
+          ~coerce:(fun key value ->
               match Store.Key.of_string key with
               | Ok key -> Ok (key, value)
               | Error _e -> Error "invalid key"
@@ -157,20 +157,10 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   and node : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Node"
         ~fields:(fun node -> [
-              field "name"
+              field "key"
                 ~typ:(non_null string)
                 ~args:[]
                 ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
-              ;
-              io_field "contents"
-                ~typ:(Lazy.force contents)
-                ~args:[]
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.kind tree key >>= function
-                    | Some `Contents -> Lwt.return_ok (Some (tree, key))
-                    | Some `Node -> Lwt.return_ok None
-                    | None -> Lwt.return_error "Invalid key"
-                  )
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.step)]
@@ -181,14 +171,15 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                   )
               ;
               io_field "tree"
-                ~typ:(non_null (list (non_null node)))
+                ~typ:(non_null (list (non_null tree)))
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
                     Store.Tree.list tree key >>= Lwt_list.map_s (fun (step, kind) ->
-                        let key' = Store.Key.rcons key step in 
-                        Lwt.return (tree, key')
-                      ) >>= fun l ->
-                    Lwt.return_ok l
+                        let key' = Store.Key.rcons key step in
+                        match kind with
+                        | `Contents -> Lwt.return (Lazy.(force contents_as_tree) (tree, key'))
+                        | `Node -> Lwt.return (Lazy.(force node_as_tree) (tree, key'))
+                    ) >>= Lwt.return_ok
                   )
               ;
             ])
@@ -258,10 +249,17 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             ])
     )
 
+  and tree = Schema.union "Tree"
+  and node_as_tree = lazy (Schema.add_type tree (Lazy.force node))
+  and contents_as_tree = lazy (Schema.add_type tree (Lazy.force contents))
+
+  let _ = Lazy.force node_as_tree
+  let _ = Lazy.force contents_as_tree
+
 
   let mk_branch repo = function
     | Some b -> Store.of_branch repo b
-    | None -> Store.master repo 
+    | None -> Store.master repo
 
   let mutations s = Schema.[
       io_field "clone"
@@ -291,14 +289,14 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ _src branch items i ->
             mk_branch (Store.repo s) branch >>= fun t ->
             let info = mk_info i in
-            List.fold_right (fun x tree -> 
+            List.fold_right (fun x tree ->
                 match x with
                 | Ok (k, v) -> (tree >>= fun tree -> Store.Tree.add tree k v)
                 | _ -> tree
               ) items (Store.tree t) >>= fun tree ->
             Store.set_tree t Store.Key.empty tree ~info >>= fun _ ->
             Store.Head.find t >>=
-            Lwt.return_ok 
+            Lwt.return_ok
           )
       ;
       io_field "remove"
@@ -311,12 +309,12 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ _src branch keys i ->
             mk_branch (Store.repo s) branch >>= fun t ->
             let info = mk_info i in
-            List.fold_right (fun k tree -> 
+            List.fold_right (fun k tree ->
                 tree >>= fun tree -> Store.Tree.remove tree k
               ) keys (Store.tree t) >>= fun tree ->
             Store.set_tree t Store.Key.empty tree ~info >>= fun _ ->
             Store.Head.find t >>=
-            Lwt.return_ok 
+            Lwt.return_ok
           )
       ;
       io_field "merge"
@@ -326,12 +324,12 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "from" ~typ:(non_null Input.branch);
             arg "info" ~typ:Input.info;
           ]
-        ~resolve:(fun _ _src into from i -> 
+        ~resolve:(fun _ _src into from i ->
             mk_branch (Store.repo s) into >>= fun t ->
             let info = mk_info i in
             Store.merge_with_branch t from ~info >>= fun _ ->
             Store.Head.find t >>=
-            Lwt.return_ok 
+            Lwt.return_ok
           )
       ;
       io_field "push"
@@ -340,7 +338,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "branch" ~typ:Input.branch;
             arg "remote" ~typ:(non_null Input.remote);
           ]
-        ~resolve:(fun _ _src branch remote -> 
+        ~resolve:(fun _ _src branch remote ->
             mk_branch (Store.repo s) branch >>= fun t ->
             Sync.push t remote >>= function
             | Ok _ -> Lwt.return_ok None
@@ -353,12 +351,12 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "branch" ~typ:Input.branch;
             arg "remote" ~typ:(non_null Input.remote);
           ]
-        ~resolve:(fun _ _src branch remote -> 
+        ~resolve:(fun _ _src branch remote ->
             mk_branch (Store.repo s) branch >>= fun t ->
             Sync.pull t remote `Set >>= function
             | Ok _ ->
               (Store.Head.find t >>=
-               Lwt.return_ok) 
+               Lwt.return_ok)
             | Error e -> Lwt.return_ok None
           )
       ;
@@ -371,7 +369,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         ~resolve:(fun _ _src branch commit->
             mk_branch (Store.repo s) branch >>= fun t ->
             Store.Commit.of_hash (Store.repo s) commit >>= function
-            | Some commit -> 
+            | Some commit ->
               Store.Head.set t commit >>= fun () ->
               Lwt.return_ok (Some commit)
             | None -> Lwt.return_ok None
