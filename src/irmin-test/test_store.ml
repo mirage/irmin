@@ -1072,6 +1072,7 @@ module Make (S: Test_S) = struct
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
 
+
       (* Testing [Tree.remove] *)
 
       S.Tree.empty |> fun v1 ->
@@ -1114,7 +1115,7 @@ module Make (S: Test_S) = struct
       S.Tree.empty |> fun v2 ->
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
       S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
-      check_val "tree udate" (normal foo1) f;
+      check_val "tree update" (normal foo1) f;
 
       S.Tree.add v2 ["foo";"1"] foo2 >>= fun v2 ->
       S.Tree.add v2 ["foo";"2"] foo1 >>= fun v2 ->
@@ -1135,11 +1136,34 @@ module Make (S: Test_S) = struct
       S.Tree.diff v3 v2 >>= fun d5 ->
       check_diffs "diff 4" [ ["foo"; "bar"; "1" ], `Removed (foo1, d0) ] d5;
 
+      (* Testing concrete representation *)
+
+      let c0 = S.Tree.empty in
+      S.Tree.add c0 ["foo"; "a"] "1" >>= fun c0 ->
+      S.Tree.add c0 ["foo"; "b"; "c"] "2" >>= fun c0 ->
+      S.Tree.add c0 ["bar"; "d"] "3" >>= fun c0 ->
+      S.Tree.add c0 ["e"] "4" >>= fun c0 ->
+      S.Tree.to_concrete c0 >>= fun t0 ->
+      let t0 = S.Tree.of_concrete t0 in
+      S.Tree.diff c0 t0 >>= fun d0 ->
+      check_diffs "concrete roundtrip" [] d0;
+      S.Tree.list c0 [] >>= fun c0' ->
+      S.Tree.list t0 [] >>= fun t0' ->
+      check_ls "concrete list /" c0' t0';
+      S.Tree.list c0 ["foo"] >>= fun c0' ->
+      S.Tree.list t0 ["foo"] >>= fun t0' ->
+      check_ls "concrete tree list /foo" c0' t0';
+      S.Tree.list c0 ["bar"; "d"] >>= fun c0' ->
+      S.Tree.list t0 ["bar"; "d"] >>= fun t0' ->
+      check_ls "concrete tree list /bar/d" c0' t0';
 
       (* Testing other tree operations. *)
 
       S.Tree.empty |> fun v0 ->
-
+      S.Tree.to_concrete v0 >>= fun c ->
+      (match c with
+        | `Tree [] -> ()
+        | _ -> Alcotest.fail "Excpected empty tree");
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
       check_val "read /" (normal foo1) foo1';
@@ -1255,7 +1279,6 @@ module Make (S: Test_S) = struct
       S.set_tree t ~info:(infof "update file as tree") ["a"] v >>= fun () ->
       S.find_all t ["a"] >>= fun vx' ->
       check_val "update file as tree" (normal vx) vx';
-
       Lwt.return_unit
     in
     run x test
