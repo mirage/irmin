@@ -162,19 +162,19 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~args:[]
                 ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
               ;
-              io_field "get"
+              field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.step)]
                 ~typ:(node)
                 ~resolve:(fun _ (tree, key) step ->
                     let key = Store.Key.(rcons empty step) in
-                    Lwt.return_ok (Some (tree, key))
+                    Some (tree, key)
                   )
               ;
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.list tree key >>= Lwt_list.map_s (fun (step, kind) ->
+                    Store.Tree.list tree key >>= Lwt_list.map_p (fun (step, kind) ->
                         let key' = Store.Key.rcons key step in
                         match kind with
                         | `Contents -> Lwt.return (Lazy.(force contents_as_tree) (tree, key'))
@@ -188,11 +188,11 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   and branch :  ('ctx, (Store.t * Store.Branch.t) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Branch"
         ~fields:(fun branch -> [
-              io_field "name"
+              field "name"
                 ~typ:(non_null string)
                 ~args:[]
                 ~resolve:(fun _ (_, b) ->
-                    Lwt.return_ok @@ Fmt.to_to_string Store.Branch.pp b
+                    Fmt.to_to_string Store.Branch.pp b
                   )
               ;
               io_field "head"
