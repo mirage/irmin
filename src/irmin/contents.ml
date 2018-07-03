@@ -46,54 +46,62 @@ let json =
 let assoc k l =
   try Some (List.assoc k l) with Not_found -> None
 
-let merge_objects j a b =
-  let equal = Type.equal json in
+let rec merge_object j a b =
+  let open Merge.Infix in
   try
-    let v = List.fold_right (fun (k, v) acc ->
-      match assoc k a, assoc k b with
-      | Some x, Some y when not (equal x y) -> failwith "Unable to merge JSON objects"
-      | Some x, _ -> (k, x) :: acc
-      | None, Some x -> (k, x) :: acc
-      | None, None -> (k, v) :: acc
-    ) j []
-    in Merge.ok (`O v)
+    List.fold_right (fun (k, v) acc ->
+      acc >>=* fun l ->
+      let a, b = assoc k a, assoc k b in
+      match a, b with
+      | Some a, Some b ->
+        merge_value ~old:(fun () -> Merge.ok (Some v)) a b >>=* fun m -> Merge.ok ((k, m) :: l)
+      | Some a, None | None, Some a -> Merge.ok ((k, a) :: l)
+      | None, None -> Merge.ok l
+    ) j (Merge.ok []) >>=* fun m ->
+    Merge.ok (`O m)
   with
     Failure msg -> Merge.conflict "%s" msg
 
-let merge2 a b =
-  match a, b with
-  | `Null, a | a, `Null -> Merge.ok a
-  | `Float a, `Float b when a <> b -> Merge.conflict "Conflicting float values"
-  | `String a, `String b when not (String.equal a b) -> Merge.conflict "Conflicting string values"
-  | `Bool a, `Bool b when a <> b -> Merge.conflict "Conflicting bool values"
-  | `O a, `O b -> merge_objects [] a b
-  | `A a, `A b ->
-      if List.for_all2 (Type.equal json) a b then
-        Merge.ok (`A a)
-      else
-        Merge.conflict "Unable to merge JSON arrays"
-  | `Float _, `Float _ | `String _, `String _ | `Bool _, `Bool _ -> Merge.ok a
-  | _, _ -> Merge.conflict "Conflicting JSON values"
-
-let merge3 a b c =
+and merge_float ~old x y =
   let open Merge.Infix in
-  match a, b, c with
-  | `Null, a, b -> merge2 a b
-  | `O a, `O b, `O c -> merge_objects a b c
-  | a, b, c -> (merge2 a b >>=* fun b -> merge2 b c)
+  Merge.(f float ~old x y) >>=* fun f -> Merge.ok (`Float f)
 
-let merge_json' ~old a b =
-  let equal = Type.equal json in
+and merge_string ~old x y =
   let open Merge.Infix in
-  old () >>=* function
-    | Some old ->
-        if equal old a then Merge.ok b
-        else if equal old b then Merge.ok a
-        else merge3 old a b
-    | None ->
-        merge2 a b
+  Merge.(f string ~old x y) >>=* fun f -> Merge.ok (`String f)
 
-let merge_json = Merge.(v json merge_json')
+and merge_bool ~old x y =
+  let open Merge.Infix in
+  Merge.(f bool ~old x y) >>=* fun f -> Merge.ok (`Bool f)
+
+and merge_array ~old x y =
+  let open Merge.Infix in
+  let _ = old in (* TODO: check old too *)
+  List.fold_right2 (fun a b acc ->
+    acc >>=* fun l ->
+    merge_value ~old:(fun () -> Merge.ok None) a b >>=* fun m ->
+    Merge.ok (m :: l)
+  ) x y (Merge.ok []) >>=* fun m ->
+  Merge.ok (`A m)
+
+and merge_value: old:(unit -> (json option, Merge.conflict) result Lwt.t) -> json -> json -> (json, Merge.conflict) result Lwt.t = fun ~old (x: json) (y: json) ->
+  let open Merge.Infix in
+  old () >>=* fun old ->
+  match old, x, y with
+  | (Some `Null | None), `Null, `Null -> Merge.ok `Null
+  | Some (`Float old), `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok (Some old)) a b
+  | None, `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok None) a b
+  | Some (`String old), `String a, `String b-> merge_string ~old:(fun () -> Merge.ok (Some old)) a b
+  | None, `String a, `String b-> merge_string ~old:(fun () -> Merge.ok None) a b
+  | Some (`Bool old), `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok (Some old)) a b
+  | None, `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok None) a b
+  | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok old) a b
+  | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok []) a b
+  | Some (`O old), `O a, `O b -> merge_object old a b
+  | None, `O a, `O b -> merge_object [] a b
+  | _, _, _ -> Merge.conflict "Comflicting JSON datatypes"
+
+let merge_json = Merge.(v json merge_value)
 
 module String = struct
   type t = string
@@ -211,28 +219,44 @@ module Json_tree(P: S.PATH)(M: S.METADATA) = struct
     and type contents = json
     and type metadata = M.t
 
+  type tree = [
+    | `Tree of (P.step * tree) list
+    | `Contents of json * M.t
+  ]
+
+  let to_concrete_tree (j: json): tree =
+    match j with
+    | `O j ->
+      let x =
+        List.fold_right (fun (k, v) acc ->
+          match P.step_of_string k with
+          | Ok key -> (key, `Contents (v, M.default)) :: acc
+          | _ -> acc
+       ) j []
+      in
+     `Tree x
+    | _ -> `Contents (j, M.default)
+
+ let of_concrete_tree c : json =
+   let step = Fmt.to_to_string P.pp_step in
+   let rec aux k = function
+     | `Contents (c, _) -> [k, c]
+     | `Tree tree -> List.fold_right (fun (k, tree) acc -> List.append (aux (step k) tree) acc) tree []
+   in
+   match c with
+   | `Contents (c, _) -> c
+   | `Tree c -> `O (aux "" (`Tree c))
+
   let set_tree (type a) (type n) (module S: STORE with type t = a and type node = n)
                (tree: S.tree) key (j : json) : S.tree Lwt.t =
-    match j with
-    | `O d ->
-        Lwt_list.fold_right_s (fun (k, v) tree ->
-          match S.Key.step_of_string k with
-          | Ok k ->
-            let k = S.Key.rcons key k in
-            S.Tree.add tree k v
-          | Error _ -> Lwt.return tree) d tree
-    | v -> S.Tree.add tree key v
+    let c = to_concrete_tree j in
+    let c = S.Tree.of_concrete c in
+    S.Tree.add_tree tree key c
 
   let get_tree (type n) (module S: STORE with type node = n) (tree: S.tree) key =
-    let mk_key = Fmt.to_to_string S.Key.pp_step in
-    let rec aux key =
-      S.Tree.list tree key >>= Lwt_list.map_s (fun (step, kind) ->
-        match kind with
-        | `Contents ->  S.Tree.get tree (S.Key.rcons key step) >|= fun v -> mk_key step, v
-        | `Node -> aux (S.Key.rcons key step) >|= fun v -> mk_key step, v
-      ) >|= fun x -> `O x
-    in
-    aux key
+    S.Tree.get_tree tree key >>= fun t ->
+    S.Tree.to_concrete t >|= fun c ->
+    of_concrete_tree c
 
   let set (type a) (module S: STORE with type t = a) (t: a) key j =
     S.with_tree t key (fun _ ->
