@@ -2754,6 +2754,14 @@ module Json_tree(P: Path.S)(M: Metadata.S): sig
   include Contents.S with type t = Contents.json
   module type STORE = S with type contents = t and type key = P.t and type step = P.step and type metadata = M.t
 
+  type tree = [
+    | `Tree of (P.step * tree) list
+    | `Contents of t * M.t
+  ]
+
+  val to_concrete_tree: t -> tree
+  val of_concrete_tree: tree -> t
+
   val get_tree:
     (module STORE with type node = 'a) ->
     [ `Contents of t * M.t | `Node of 'a ] ->

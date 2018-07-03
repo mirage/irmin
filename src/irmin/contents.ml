@@ -224,13 +224,13 @@ module Json_tree(P: S.PATH)(M: S.METADATA) = struct
     | `Contents of json * M.t
   ]
 
-  let to_concrete_tree (j: json): tree =
+  let rec to_concrete_tree (j: json): tree =
     match j with
     | `O j ->
       let x =
         List.fold_right (fun (k, v) acc ->
           match P.step_of_string k with
-          | Ok key -> (key, `Contents (v, M.default)) :: acc
+          | Ok key -> (key, to_concrete_tree v) :: acc
           | _ -> acc
        ) j []
       in
@@ -241,7 +241,8 @@ module Json_tree(P: S.PATH)(M: S.METADATA) = struct
    let step = Fmt.to_to_string P.pp_step in
    let rec aux k = function
      | `Contents (c, _) -> [k, c]
-     | `Tree tree -> List.fold_right (fun (k, tree) acc -> List.append (aux (step k) tree) acc) tree []
+     | `Tree ((k', v')::l) -> aux (step k') v' @ aux k (`Tree l)
+     | `Tree [] -> []
    in
    match c with
    | `Contents (c, _) -> c
