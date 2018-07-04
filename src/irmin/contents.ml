@@ -49,15 +49,26 @@ let assoc k l =
 let rec merge_object j a b =
   let open Merge.Infix in
   try
-    List.fold_right (fun (k, v) acc ->
-      acc >>=* fun l ->
-      let a, b = assoc k a, assoc k b in
-      match a, b with
-      | Some a, Some b ->
-        merge_value ~old:(fun () -> Merge.ok (Some v)) a b >>=* fun m -> Merge.ok ((k, m) :: l)
-      | Some a, None | None, Some a -> Merge.ok ((k, a) :: l)
-      | None, None -> Merge.ok l
-    ) j (Merge.ok []) >>=* fun m ->
+    let x =
+      List.fold_right (fun (k, v) acc ->
+        acc >>=* fun l ->
+        match assoc k b with
+        | Some b ->
+          merge_value ~old:(fun () ->
+            Merge.ok (Some v)) v b >>=* fun m ->
+          Merge.ok ((k, m) :: l)
+        | None -> Merge.ok ((k, v) :: l)
+      ) a (Merge.ok [])
+    in
+    let y =
+      List.fold_right (fun (k, v) acc ->
+        acc >>=* fun l ->
+        match assoc k l with
+        | Some _ -> Merge.ok l
+        | None -> Merge.ok ((k, v) :: l)
+      ) (b @ j) x
+    in
+    y >>=* fun m ->
     Merge.ok (`O m)
   with
     Failure msg -> Merge.conflict "%s" msg
@@ -76,15 +87,9 @@ and merge_bool ~old x y =
 
 and merge_array ~old x y =
   let open Merge.Infix in
-  let _ = old in (* TODO: check old too *)
-  List.fold_right2 (fun a b acc ->
-    acc >>=* fun l ->
-    merge_value ~old:(fun () -> Merge.ok None) a b >>=* fun m ->
-    Merge.ok (m :: l)
-  ) x y (Merge.ok []) >>=* fun m ->
-  Merge.ok (`A m)
+  Merge.(f (Merge.idempotent (Type.list json)) ~old x y) >>=* fun x -> Merge.ok (`A x)
 
-and merge_value: old:(unit -> (json option, Merge.conflict) result Lwt.t) -> json -> json -> (json, Merge.conflict) result Lwt.t = fun ~old (x: json) (y: json) ->
+and merge_value = fun ~old (x: json) (y: json) ->
   let open Merge.Infix in
   old () >>=* fun old ->
   match old, x, y with
@@ -95,11 +100,11 @@ and merge_value: old:(unit -> (json option, Merge.conflict) result Lwt.t) -> jso
   | None, `String a, `String b-> merge_string ~old:(fun () -> Merge.ok None) a b
   | Some (`Bool old), `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok (Some old)) a b
   | None, `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok None) a b
-  | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok old) a b
-  | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok []) a b
+  | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok (Some old)) a b
+  | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok None) a b
   | Some (`O old), `O a, `O b -> merge_object old a b
   | None, `O a, `O b -> merge_object [] a b
-  | _, _, _ -> Merge.conflict "Comflicting JSON datatypes"
+  | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
 
 let merge_json = Merge.(v json merge_value)
 
