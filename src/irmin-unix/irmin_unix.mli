@@ -79,10 +79,15 @@ end
 module Git: sig
 
   (** {1 Git Store} *)
-   module G: Irmin_git.G
-   module M: Irmin_git.G
 
-  (** {1 Git Store} *)
+  module G: Irmin_git.G
+  module M: Irmin_git.G
+
+  module Ref: Irmin_git.REF_MAKER
+  module Make: Irmin_git.S_MAKER
+  module KV: Irmin_git.KV_MAKER
+
+  (** Embed an Irmin store into a local Git repository. *)
   module FS: sig
     module AO (V: Irmin.Contents.Conv):
       Irmin.AO with type t     = G.t
@@ -98,24 +103,25 @@ module Git: sig
     (** Embed a read-write store into a Git repository. Contents will be
         written in {i .git/refs}. *)
 
-    (** Embed an Irmin store into an in-memory Git repository. *)
     module Make:
-      functor (C: Irmin.Contents.S) ->
-      functor (P: Irmin.Path.S) ->
-      functor (B: Irmin.Branch.S) ->
+        functor (C: Irmin.Contents.S) ->
+        functor (P: Irmin.Path.S) ->
+        functor (B: Irmin.Branch.S) ->
         Irmin_git.S with type key = P.t
           and type step = P.step
           and module Key = P
           and type contents = C.t
           and type branch = B.t
           and module Git = G
+
     module Ref :
         functor (C: Irmin.Contents.S) ->
         Irmin_git.S with type key = string list
-           and type step = string
-           and type contents = C.t
-           and type branch = Irmin_git.reference
-           and module Git = G
+          and type step = string
+          and type contents = C.t
+          and type branch = Irmin_git.reference
+          and module Git = G
+
     module KV :
         functor (C: Irmin.Contents.S) ->
         Irmin_git.S with type key = Irmin.Path.String_list.t
@@ -126,12 +132,27 @@ module Git: sig
           and module Git = G
   end
 
+  (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem: sig
+    module AO (V: Irmin.Contents.Conv):
+      Irmin.AO with type t     = M.t
+                and type key   = Git.Hash.t
+                and type value = V.t
+    (** Embed an append-only store into an in-memory Git repository. Contents will
+        be written in {i .git/objects/} and might be cleaned-up if you
+        run {i git gc} manually. *)
+
+    module RW (K: Irmin.Branch.S): Irmin.RW
+      with type key   = K.t
+       and type value = Git.Hash.t
+    (** Embed a read-write store into an in-memory Git repository. Contents will be
+        written in {i .git/refs}. *)
+
     module Make:
-      functor (H: Digestif.S) ->
-      functor (C: Irmin.Contents.S) ->
-      functor (P: Irmin.Path.S) ->
-      functor (B: Irmin.Branch.S) ->
+        functor (H: Digestif.S) ->
+        functor (C: Irmin.Contents.S) ->
+        functor (P: Irmin.Path.S) ->
+        functor (B: Irmin.Branch.S) ->
         Irmin_git.S with type key = P.t
           and type step = P.step
           and module Key = P
@@ -141,18 +162,18 @@ module Git: sig
     module Ref :
         functor (C: Irmin.Contents.S) ->
         Irmin_git.S with type key = string list
-           and type step = string
-           and type contents = C.t
-           and type branch = Irmin_git.reference
-           and module Git = M
-    module KV :
-        functor (C: Irmin.Contents.S) ->
-        Irmin_git.S with type key = Irmin.Path.String_list.t
           and type step = string
-          and module Key = Irmin.Path.String_list
           and type contents = C.t
-          and type branch = string
+          and type branch = Irmin_git.reference
           and module Git = M
+    module KV :
+      functor (C: Irmin.Contents.S) ->
+      Irmin_git.S with type key = Irmin.Path.String_list.t
+        and type step = string
+        and module Key = Irmin.Path.String_list
+        and type contents = C.t
+        and type branch = string
+        and module Git = M
   end
 end
 

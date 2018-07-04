@@ -353,8 +353,9 @@ module Git = struct
   end
 
   module Mem = struct
+    module AO   = Irmin_git.AO(M)
+    module RW   = Irmin_git.RW(M)
     module Make (H: Digestif.S) = Make(Irmin_git.Mem(H))
-
     module Ref = Ref(M)
     module KV = KV(M)
   end

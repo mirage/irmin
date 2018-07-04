@@ -134,6 +134,20 @@ module Git: sig
 
   (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem: sig
+    module AO (V: Irmin.Contents.Conv):
+      Irmin.AO with type t     = M.t
+                and type key   = Git.Hash.t
+                and type value = V.t
+    (** Embed an append-only store into an in-memory Git repository. Contents will
+        be written in {i .git/objects/} and might be cleaned-up if you
+        run {i git gc} manually. *)
+
+    module RW (K: Irmin.Branch.S): Irmin.RW
+      with type key   = K.t
+       and type value = Git.Hash.t
+    (** Embed a read-write store into an in-memory Git repository. Contents will be
+        written in {i .git/refs}. *)
+
     module Make:
         functor (H: Digestif.S) ->
         functor (C: Irmin.Contents.S) ->
