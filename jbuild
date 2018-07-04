@@ -4,4 +4,4 @@
  ((name irmin_graphql)
   (public_name irmin-graphql)
   (wrapped false)
-  (libraries (graphql-lwt irmin irmin-unix))))
+  (libraries (graphql-lwt irmin-unix))))

@@ -5,7 +5,7 @@ module type S = sig
   type store
 
   val schema : store -> unit Schema.schema
-  val start_server : store -> unit Lwt.t
+  val start_server : ?port:int -> store -> unit Lwt.t
 end
 
 let of_irmin_result = function
@@ -438,7 +438,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             )
       ])
 
-  let start_server s =
-    Server.start ~ctx:(fun () -> ()) (schema s)
+  let start_server ?port s =
+    Server.start ?port ~ctx:(fun () -> ()) (schema s)
 end
 
