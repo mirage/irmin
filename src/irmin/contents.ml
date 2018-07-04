@@ -16,6 +16,22 @@
 
 open Lwt.Infix
 
+module String = struct
+  type t = string
+  let t = Type.string
+  let merge = Merge.idempotent Type.(option string)
+  let pp = Fmt.string
+  let of_string s = Ok s
+end
+
+module Cstruct = struct
+  type t = Cstruct.t
+  let t = Type.cstruct
+  let merge = Merge.idempotent Type.(option t)
+  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
+  let of_string s = Ok (Cstruct.of_string s)
+end
+
 type json = [
   | `Null
   | `Bool of bool
@@ -43,35 +59,10 @@ let json =
   |~ case1 "array" (list ty) (fun arr -> `A arr)
   |> sealv)
 
-let assoc k l =
-  try Some (List.assoc k l) with Not_found -> None
-
-let rec merge_object j a b =
+let rec merge_object ~old x y =
   let open Merge.Infix in
-  try
-    let x =
-      List.fold_right (fun (k, v) acc ->
-        acc >>=* fun l ->
-        match assoc k b with
-        | Some b ->
-          merge_value ~old:(fun () ->
-            Merge.ok (Some v)) v b >>=* fun m ->
-          Merge.ok ((k, m) :: l)
-        | None -> Merge.ok ((k, v) :: l)
-      ) a (Merge.ok [])
-    in
-    let y =
-      List.fold_right (fun (k, v) acc ->
-        acc >>=* fun l ->
-        match assoc k l with
-        | Some _ -> Merge.ok l
-        | None -> Merge.ok ((k, v) :: l)
-      ) (b @ j) x
-    in
-    y >>=* fun m ->
-    Merge.ok (`O m)
-  with
-    Failure msg -> Merge.conflict "%s" msg
+  let m = Merge.(alist Type.string json (fun _key -> option (v json merge_value))) in
+  Merge.(f m ~old x y) >>=* fun x -> Merge.ok (`O x)
 
 and merge_float ~old x y =
   let open Merge.Infix in
@@ -79,11 +70,11 @@ and merge_float ~old x y =
 
 and merge_string ~old x y =
   let open Merge.Infix in
-  Merge.(f string ~old x y) >>=* fun f -> Merge.ok (`String f)
+  Merge.(f string ~old x y) >>=* fun s -> Merge.ok (`String s)
 
 and merge_bool ~old x y =
   let open Merge.Infix in
-  Merge.(f bool ~old x y) >>=* fun f -> Merge.ok (`Bool f)
+  Merge.(f bool ~old x y) >>=* fun b -> Merge.ok (`Bool b)
 
 and merge_array ~old x y =
   let open Merge.Infix in
@@ -93,7 +84,8 @@ and merge_value = fun ~old (x: json) (y: json) ->
   let open Merge.Infix in
   old () >>=* fun old ->
   match old, x, y with
-  | (Some `Null | None), `Null, `Null -> Merge.ok `Null
+  | Some `Null,  _, _ -> merge_value ~old:(fun () -> Merge.ok None) x y
+  | None, `Null, `Null -> Merge.ok `Null
   | Some (`Float old), `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok (Some old)) a b
   | None, `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok None) a b
   | Some (`String old), `String a, `String b-> merge_string ~old:(fun () -> Merge.ok (Some old)) a b
@@ -102,33 +94,15 @@ and merge_value = fun ~old (x: json) (y: json) ->
   | None, `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok None) a b
   | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok (Some old)) a b
   | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok None) a b
-  | Some (`O old), `O a, `O b -> merge_object old a b
-  | None, `O a, `O b -> merge_object [] a b
+  | Some (`O old), `O a, `O b -> merge_object ~old:(fun () -> Merge.ok (Some old)) a b
+  | None, `O a, `O b -> merge_object ~old:(fun () -> Merge.ok None) a b
   | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
 
 let merge_json = Merge.(v json merge_value)
 
-module String = struct
-  type t = string
-  let t = Type.string
-  let merge = Merge.idempotent Type.(option string)
-  let pp = Fmt.string
-  let of_string s = Ok s
-end
-
-module Cstruct = struct
-  type t = Cstruct.t
-  let t = Type.cstruct
-  let merge = Merge.idempotent Type.(option t)
-  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
-  let of_string s = Ok (Cstruct.of_string s)
-end
-
 module Json = struct
   type t = (string * json) list
-
   let t = Type.(list (pair string json))
-
   let merge = Merge.(option (alist Type.string json (fun _key -> Merge.option merge_json)))
   let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
