@@ -32,74 +32,6 @@ module Cstruct = struct
   let of_string s = Ok (Cstruct.of_string s)
 end
 
-type json = [
-  | `Null
-  | `Bool of bool
-  | `String of string
-  | `Float of float
-  | `O of (string * json) list
-  | `A of json list
-]
-
-let json =
-  let open Type in
-  mu (fun ty ->
-  variant "json" (fun null bool string float obj arr -> function
-    | `Null -> null
-    | `Bool b -> bool b
-    | `String s -> string s
-    | `Float f -> float f
-    | `O o -> obj o
-    | `A a -> arr a)
-  |~ case0 "null" `Null
-  |~ case1 "bool" bool (fun x -> `Bool x)
-  |~ case1 "string" string (fun x -> `String x)
-  |~ case1 "float" float (fun x -> `Float x)
-  |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
-  |~ case1 "array" (list ty) (fun arr -> `A arr)
-  |> sealv)
-
-let rec merge_object ~old x y =
-  let open Merge.Infix in
-  let m = Merge.(alist Type.string json (fun _key -> option (v json merge_value))) in
-  Merge.(f m ~old x y) >>=* fun x -> Merge.ok (`O x)
-
-and merge_float ~old x y =
-  let open Merge.Infix in
-  Merge.(f float ~old x y) >>=* fun f -> Merge.ok (`Float f)
-
-and merge_string ~old x y =
-  let open Merge.Infix in
-  Merge.(f string ~old x y) >>=* fun s -> Merge.ok (`String s)
-
-and merge_bool ~old x y =
-  let open Merge.Infix in
-  Merge.(f bool ~old x y) >>=* fun b -> Merge.ok (`Bool b)
-
-and merge_array ~old x y =
-  let open Merge.Infix in
-  Merge.(f (Merge.idempotent (Type.list json)) ~old x y) >>=* fun x -> Merge.ok (`A x)
-
-and merge_value = fun ~old (x: json) (y: json) ->
-  let open Merge.Infix in
-  old () >>=* fun old ->
-  match old, x, y with
-  | Some `Null,  _, _ -> merge_value ~old:(fun () -> Merge.ok None) x y
-  | None, `Null, `Null -> Merge.ok `Null
-  | Some (`Float old), `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok (Some old)) a b
-  | None, `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok None) a b
-  | Some (`String old), `String a, `String b-> merge_string ~old:(fun () -> Merge.ok (Some old)) a b
-  | None, `String a, `String b-> merge_string ~old:(fun () -> Merge.ok None) a b
-  | Some (`Bool old), `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok (Some old)) a b
-  | None, `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok None) a b
-  | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok (Some old)) a b
-  | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok None) a b
-  | Some (`O old), `O a, `O b -> merge_object ~old:(fun () -> Merge.ok (Some old)) a b
-  | None, `O a, `O b -> merge_object ~old:(fun () -> Merge.ok None) a b
-  | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
-
-let merge_json = Merge.(v json merge_value)
-
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
 let rec encode_json e = function
@@ -149,31 +81,77 @@ let decode_json d =
   with
     | Failure msg -> Error (`Msg msg)
 
-module Json = struct
-  type t = (string * json) list
-  let t = Type.(list (pair string json))
-  let merge = Merge.(option (alist Type.string json (fun _key -> Merge.option merge_json)))
-
-
-  let pp fmt x =
-    let buffer = Buffer.create 32 in
-    let encoder = Jsonm.encoder (`Buffer buffer) in
-    encode_json encoder (`O x);
-    ignore @@ Jsonm.encode encoder `End;
-    let s = Buffer.contents buffer in
-    Fmt.pf fmt "%s" s
-
-  let of_string s =
-    let decoder = Jsonm.decoder (`String s) in
-    match decode_json decoder with
-    | Ok (`O obj) -> Ok obj
-    | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
-    | Error _ as err -> err
-end
+type json = [
+  | `Null
+  | `Bool of bool
+  | `String of string
+  | `Float of float
+  | `O of (string * json) list
+  | `A of json list
+]
 
 module Json_value = struct
   type t = json
-  let t = json
+
+  let t =
+    let open Type in
+    mu (fun ty ->
+    variant "json" (fun null bool string float obj arr -> function
+      | `Null -> null
+      | `Bool b -> bool b
+      | `String s -> string s
+      | `Float f -> float f
+      | `O o -> obj o
+      | `A a -> arr a)
+    |~ case0 "null" `Null
+    |~ case1 "bool" bool (fun x -> `Bool x)
+    |~ case1 "string" string (fun x -> `String x)
+    |~ case1 "float" float (fun x -> `Float x)
+    |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
+    |~ case1 "array" (list ty) (fun arr -> `A arr)
+    |> sealv)
+
+  let rec merge_object ~old x y =
+    let open Merge.Infix in
+    let m = Merge.(alist Type.string t (fun _key -> option (v t merge_value))) in
+    Merge.(f m ~old x y) >>=* fun x -> Merge.ok (`O x)
+
+  and merge_float ~old x y =
+    let open Merge.Infix in
+    Merge.(f float ~old x y) >>=* fun f -> Merge.ok (`Float f)
+
+  and merge_string ~old x y =
+    let open Merge.Infix in
+    Merge.(f string ~old x y) >>=* fun s -> Merge.ok (`String s)
+
+  and merge_bool ~old x y =
+    let open Merge.Infix in
+    Merge.(f bool ~old x y) >>=* fun b -> Merge.ok (`Bool b)
+
+  and merge_array ~old x y =
+    let open Merge.Infix in
+    Merge.(f (Merge.idempotent (Type.list t)) ~old x y) >>=* fun x -> Merge.ok (`A x)
+
+  and merge_value = fun ~old x y ->
+    let open Merge.Infix in
+    old () >>=* fun old ->
+    match old, x, y with
+    | Some `Null,  _, _ -> merge_value ~old:(fun () -> Merge.ok None) x y
+    | None, `Null, `Null -> Merge.ok `Null
+    | Some (`Float old), `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok (Some old)) a b
+    | None, `Float a, `Float b -> merge_float ~old:(fun () -> Merge.ok None) a b
+    | Some (`String old), `String a, `String b-> merge_string ~old:(fun () -> Merge.ok (Some old)) a b
+    | None, `String a, `String b-> merge_string ~old:(fun () -> Merge.ok None) a b
+    | Some (`Bool old), `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok (Some old)) a b
+    | None, `Bool a, `Bool b -> merge_bool ~old:(fun () -> Merge.ok None) a b
+    | Some (`A old), `A a, `A b -> merge_array ~old:(fun () -> Merge.ok (Some old)) a b
+    | None, `A a, `A b -> merge_array ~old:(fun () -> Merge.ok None) a b
+    | Some (`O old), `O a, `O b -> merge_object ~old:(fun () -> Merge.ok (Some old)) a b
+    | None, `O a, `O b -> merge_object ~old:(fun () -> Merge.ok None) a b
+    | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
+
+  let merge_json = Merge.(v t merge_value)
+
   let merge = Merge.(option merge_json)
 
   let pp fmt x =
@@ -191,10 +169,32 @@ module Json_value = struct
     | Error _ as err -> err
 end
 
+
+module Json = struct
+  type t = (string * json) list
+  let t = Type.(list (pair string Json_value.t))
+  let merge = Merge.(option (alist Type.string Json_value.t (fun _key -> Json_value.merge)))
+
+  let pp fmt x =
+    let buffer = Buffer.create 32 in
+    let encoder = Jsonm.encoder (`Buffer buffer) in
+    encode_json encoder (`O x);
+    ignore @@ Jsonm.encode encoder `End;
+    let s = Buffer.contents buffer in
+    Fmt.pf fmt "%s" s
+
+  let of_string s =
+    let decoder = Jsonm.decoder (`String s) in
+    match decode_json decoder with
+    | Ok (`O obj) -> Ok obj
+    | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
+    | Error _ as err -> err
+end
+
 module Json_tree(Store: S.STORE with type contents = json) = struct
   include Json_value
 
-  let to_concrete_tree (j: json): Store.Tree.concrete =
+  let to_concrete_tree j : Store.Tree.concrete =
     let rec obj j acc =
       match j with
       | [] -> `Tree acc
@@ -219,7 +219,7 @@ module Json_tree(Store: S.STORE with type contents = json) = struct
       | `Tree c -> tree c acc
     in contents c []
 
-  let set_tree (tree: Store.tree) key (j : json) : Store.tree Lwt.t =
+  let set_tree (tree: Store.tree) key j : Store.tree Lwt.t =
     let c = to_concrete_tree j in
     let c = Store.Tree.of_concrete c in
     Store.Tree.add_tree tree key c
