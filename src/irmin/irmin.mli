@@ -2750,42 +2750,23 @@ end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
     is split across several keys starting at the specified root key.  *)
-module Json_tree(P: Path.S)(M: Metadata.S): sig
-  include Contents.S with type t = Contents.json
-  module type STORE = S with type contents = t and type key = P.t and type step = P.step and type metadata = M.t
+module Json_tree(Store: S.STORE with type contents = Contents.json): sig
+  include S.CONTENTS with type t = Contents.json
+  val to_concrete_tree: t -> Store.Tree.concrete
+  val of_concrete_tree: Store.Tree.concrete -> t
 
-  type tree = [
-    | `Tree of (P.step * tree) list
-    | `Contents of t * M.t
-  ]
-
-  val to_concrete_tree: t -> tree
-  val of_concrete_tree: tree -> t
-
-  val get_tree:
-    (module STORE with type node = 'a) ->
-    [ `Contents of t * M.t | `Node of 'a ] ->
-    P.t -> t Lwt.t
+  val get_tree: Store.tree -> Store.key -> t Lwt.t
   (** Extract a [json] value from tree at the given key. *)
 
-  val set_tree :
-    (module STORE with type node = 'a and type t = 'b) ->
-    [ `Contents of t * M.t | `Node of 'a ] ->
-    P.t ->
-    t -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
+  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
   (** Project a [json] value onto a tree at the given key. *)
 
-  val get :
-    (module STORE with type t = 'a) ->
-    'a -> P.t -> t Lwt.t
+  val get : Store.t -> Store.key -> t Lwt.t
   (** Extract a [json] value from a store at the given key. *)
 
-  val set :
-    (module STORE with type t = 'a) ->
-    'a -> P.t -> t -> info:Info.f -> unit Lwt.t
-    (** Project a [json] value onto a store at the given key. *)
+  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
+  (** Project a [json] value onto a store at the given key. *)
 end
-
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
     implementations. [M] is the implementation of user-defined

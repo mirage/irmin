@@ -189,35 +189,24 @@ module Json_value = struct
     | Error _ as err -> err
 end
 
-module Json_tree(P: S.PATH)(M: S.METADATA) = struct
+module Json_tree(Store: S.STORE with type contents = json) = struct
   include Json_value
 
-  module type STORE = S.STORE with
-    type step = P.step
-    and type key = P.t
-    and type contents = json
-    and type metadata = M.t
-
-  type tree = [
-    | `Tree of (P.step * tree) list
-    | `Contents of json * M.t
-  ]
-
-  let rec to_concrete_tree (j: json): tree =
+  let rec to_concrete_tree (j: json): Store.Tree.concrete =
     match j with
     | `O j ->
       let x =
         List.fold_right (fun (k, v) acc ->
-          match P.step_of_string k with
+          match Store.Key.step_of_string k with
           | Ok key -> (key, to_concrete_tree v) :: acc
           | _ -> acc
        ) j []
       in
      `Tree x
-    | _ -> `Contents (j, M.default)
+    | _ -> `Contents (j, Store.Metadata.default)
 
  let rec of_concrete_tree c : json =
-   let step = Fmt.to_to_string P.pp_step in
+   let step = Fmt.to_to_string Store.Key.pp_step in
    let rec aux k = function
      | `Contents (c, _) -> [k, c]
      | `Tree ((k', v')::l) -> (step k', of_concrete_tree v') :: aux k (`Tree l)
@@ -227,25 +216,24 @@ module Json_tree(P: S.PATH)(M: S.METADATA) = struct
    | `Contents (c, _) -> c
    | `Tree c -> `O (aux "" (`Tree c))
 
-  let set_tree (type a) (type n) (module S: STORE with type t = a and type node = n)
-               (tree: S.tree) key (j : json) : S.tree Lwt.t =
+  let set_tree (tree: Store.tree) key (j : json) : Store.tree Lwt.t =
     let c = to_concrete_tree j in
-    let c = S.Tree.of_concrete c in
-    S.Tree.add_tree tree key c
+    let c = Store.Tree.of_concrete c in
+    Store.Tree.add_tree tree key c
 
-  let get_tree (type n) (module S: STORE with type node = n) (tree: S.tree) key =
-    S.Tree.get_tree tree key >>= fun t ->
-    S.Tree.to_concrete t >|= fun c ->
+  let get_tree (tree: Store.tree) key =
+    Store.Tree.get_tree tree key >>= fun t ->
+    Store.Tree.to_concrete t >|= fun c ->
     of_concrete_tree c
 
-  let set (type a) (module S: STORE with type t = a) (t: a) key j =
-    S.with_tree t key (fun _ ->
-      let tree = S.Tree.empty in
-      set_tree (module S) tree S.Key.empty j >>= Lwt.return_some)
+  let set t key j =
+    Store.with_tree t key (fun _ ->
+      let tree = Store.Tree.empty in
+      set_tree tree Store.Key.empty j >>= Lwt.return_some)
 
-  let get (type a) (module S: STORE with type t = a) t key =
-    S.get_tree t key >>= fun tree ->
-    get_tree (module S) tree S.Key.empty
+  let get t key =
+    Store.get_tree t key >>= fun tree ->
+    get_tree tree Store.Key.empty
 end
 
 module Store

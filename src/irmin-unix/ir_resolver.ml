@@ -74,8 +74,7 @@ type contents = (module Irmin.Contents.S)
 let contents_kinds = ref [
   "string" , (module Irmin.Contents.String: Irmin.Contents.S);
   "cstruct", (module Irmin.Contents.Cstruct);
-  "json-string", (module Irmin.Contents.Json);
-  "json-tree", (module Irmin.Json_tree(Irmin.Path.String_list)(Irmin.Metadata.None));
+  "json", (module Irmin.Contents.Json);
 ]
 let default_contents = ref (module Irmin.Contents.String: Irmin.Contents.S)
 let add_content_type name ?default:(default=false) m =

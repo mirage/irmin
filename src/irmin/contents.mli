@@ -29,40 +29,14 @@ module String: S.CONTENTS with type t = string
 module Cstruct: S.CONTENTS with type t = Cstruct.t
 module Json: S.CONTENTS with type t = (string * json) list
 module Json_value: S.CONTENTS with type t = json
-module Json_tree(P: S.PATH)(M: S.METADATA): sig
+module Json_tree(Store: S.STORE with type contents = json): sig
   include S.CONTENTS with type t = json
-  module type STORE = S.STORE with
-    type contents = t
-    and type key = P.t
-    and type step = P.step
-    and type metadata = M.t
-
-  type tree = [
-    | `Tree of (P.step * tree) list
-    | `Contents of json * M.t
-  ]
-
-  val to_concrete_tree: t -> tree
-  val of_concrete_tree: tree -> t
-
-  val get_tree:
-    (module STORE with type node = 'a) ->
-    [ `Contents of t * M.t | `Node of 'a ] ->
-    P.t -> json Lwt.t
-
-  val set_tree :
-    (module STORE with type node = 'a and type t = 'b) ->
-    [ `Contents of t * M.t | `Node of 'a ] ->
-    P.t ->
-    json -> [ `Contents of t * M.t | `Node of 'a ] Lwt.t
-
-  val get :
-    (module STORE with type t = 'a) ->
-    'a -> P.t -> json Lwt.t
-
-  val set :
-    (module STORE with type t = 'a) ->
-    'a -> P.t -> json -> info:Info.f -> unit Lwt.t
+  val to_concrete_tree: t -> Store.Tree.concrete
+  val of_concrete_tree: Store.Tree.concrete -> t
+  val get_tree: Store.tree -> Store.key -> json Lwt.t
+  val set_tree : Store.tree -> Store.key -> json -> Store.tree Lwt.t
+  val get : Store.t -> Store.key -> json Lwt.t
+  val set : Store.t -> Store.key -> json -> info:Info.f -> unit Lwt.t
 end
 
 module Store
