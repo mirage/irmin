@@ -100,28 +100,60 @@ and merge_value = fun ~old (x: json) (y: json) ->
 
 let merge_json = Merge.(v json merge_value)
 
+let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
+
+let rec encode_json e = function
+  | `Null -> lexeme e `Null
+  | `Bool b -> lexeme e (`Bool b)
+  | `String s -> lexeme e (`String s)
+  | `Float f -> lexeme e (`Float f)
+  | `A a ->
+      lexeme e `As;
+      List.iter (encode_json e) a;
+      lexeme e `Ae;
+  | `O o ->
+      lexeme e `Os;
+      List.iter (fun (k, v) ->
+        lexeme e (`Name k);
+        encode_json e v
+      ) o;
+      lexeme e `Oe
+
+let decode_json d =
+  let decode d = match Jsonm.decode d with
+    | `Lexeme l -> l
+    | `Error e -> failwith (Fmt.strf "%a" Jsonm.pp_error e)
+    | _ -> failwith "invalid JSON encoding"
+  in
+  let rec unwrap v d = match v with
+    | `Os -> obj [] d
+    | `As -> arr [] d
+    | `Null | `Bool _ | `String _ | `Float _ as v -> v
+    | _ -> failwith "invalid JSON value"
+  and arr vs d =
+    match decode d with
+    | `Ae -> `A (List.rev vs)
+    | v ->
+        let v = unwrap v d in
+        arr (v::vs) d
+  and obj ms d =
+    match decode d with
+    | `Oe -> `O (List.rev ms)
+    | `Name k ->
+        let v = unwrap (decode d) d in
+        obj ((k, v) :: ms) d
+    | _ -> failwith "invalid JSON object"
+  in
+  try
+    Ok (unwrap (decode d) d)
+  with
+    | Failure msg -> Error (`Msg msg)
+
 module Json = struct
   type t = (string * json) list
   let t = Type.(list (pair string json))
   let merge = Merge.(option (alist Type.string json (fun _key -> Merge.option merge_json)))
-  let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
-  let rec encode_json e = function
-    | `Null -> lexeme e `Null
-    | `Bool b -> lexeme e (`Bool b)
-    | `String s -> lexeme e (`String s)
-    | `Float f -> lexeme e (`Float f)
-    | `A a ->
-        lexeme e `As;
-        List.iter (encode_json e) a;
-        lexeme e `Ae;
-    | `O o ->
-        lexeme e `Os;
-        List.iter (fun (k, v) ->
-          lexeme e (`Name k);
-          encode_json e v
-        ) o;
-        lexeme e `Oe
 
   let pp fmt x =
     let buffer = Buffer.create 32 in
@@ -130,36 +162,6 @@ module Json = struct
     ignore @@ Jsonm.encode encoder `End;
     let s = Buffer.contents buffer in
     Fmt.pf fmt "%s" s
-
-  let decode_json d =
-    let decode d = match Jsonm.decode d with
-      | `Lexeme l -> l
-      | `Error e -> failwith (Fmt.strf "%a" Jsonm.pp_error e)
-      | _ -> failwith "invalid JSON encoding"
-    in
-    let rec unwrap v d = match v with
-      | `Os -> obj [] d
-      | `As -> arr [] d
-      | `Null | `Bool _ | `String _ | `Float _ as v -> v
-      | _ -> failwith "invalid JSON value"
-    and arr vs d =
-      match decode d with
-      | `Ae -> `A (List.rev vs)
-      | v ->
-          let v = unwrap v d in
-          arr (v::vs) d
-    and obj ms d =
-      match decode d with
-      | `Oe -> `O (List.rev ms)
-      | `Name k ->
-          let v = unwrap (decode d) d in
-          obj ((k, v) :: ms) d
-      | _ -> failwith "invalid JSON object"
-    in
-    try
-      Ok (unwrap (decode d) d)
-    with
-      | Failure msg -> Error (`Msg msg)
 
   let of_string s =
     let decoder = Jsonm.decoder (`String s) in
@@ -177,14 +179,14 @@ module Json_value = struct
   let pp fmt x =
     let buffer = Buffer.create 32 in
     let encoder = Jsonm.encoder (`Buffer buffer) in
-    Json.encode_json encoder x;
+    encode_json encoder x;
     ignore @@ Jsonm.encode encoder `End;
     let s = Buffer.contents buffer in
     Fmt.pf fmt "%s" s
 
   let of_string s =
     let decoder = Jsonm.decoder (`String s) in
-    match Json.decode_json decoder with
+    match decode_json decoder with
     | Ok obj -> Ok obj
     | Error _ as err -> err
 end
@@ -192,29 +194,30 @@ end
 module Json_tree(Store: S.STORE with type contents = json) = struct
   include Json_value
 
-  let rec to_concrete_tree (j: json): Store.Tree.concrete =
-    match j with
-    | `O j ->
-      let x =
-        List.fold_right (fun (k, v) acc ->
-          match Store.Key.step_of_string k with
-          | Ok key -> (key, to_concrete_tree v) :: acc
-          | _ -> acc
-       ) j []
-      in
-     `Tree x
-    | _ -> `Contents (j, Store.Metadata.default)
+  let to_concrete_tree (j: json): Store.Tree.concrete =
+    let rec obj j acc =
+      match j with
+      | [] -> `Tree acc
+      | (k, v)::l ->
+        (match Store.Key.step_of_string k with
+        | Ok key -> obj l ((key, node v [])::acc)
+        | _ -> obj l acc)
+    and node j acc = match j with
+      | `O j -> obj j acc
+      | _ -> `Contents (j, Store.Metadata.default)
+    in node j []
 
- let rec of_concrete_tree c : json =
-   let step = Fmt.to_to_string Store.Key.pp_step in
-   let rec aux k = function
-     | `Contents (c, _) -> [k, c]
-     | `Tree ((k', v')::l) -> (step k', of_concrete_tree v') :: aux k (`Tree l)
-     | `Tree [] -> []
-   in
-   match c with
-   | `Contents (c, _) -> c
-   | `Tree c -> `O (aux "" (`Tree c))
+  let of_concrete_tree c : json =
+    let step = Fmt.to_to_string Store.Key.pp_step in
+    let rec tree t acc =
+      match t with
+      | [] -> `O acc
+      | ((k, v)::l) ->
+        tree l ((step k, contents v []) :: acc)
+    and contents t acc = match t with
+      | `Contents (c, _) -> c
+      | `Tree c -> tree c acc
+    in contents c []
 
   let set_tree (tree: Store.tree) key (j : json) : Store.tree Lwt.t =
     let c = to_concrete_tree j in

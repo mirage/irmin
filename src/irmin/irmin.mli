@@ -1072,11 +1072,12 @@ module Contents: sig
   ]
 
   module Json: S with type t = (string * json) list
-  (** Json contents are associations from string to [json] value stored as JSON encoded strings.
+  (** [Json] contents are associations from string to [json] value stored as JSON encoded strings.
      If the same JSON key has been modified concurrently with different values then the [merge]
      function conflicts. *)
 
   module Json_value: S with type t = json
+  (** [Json_value] allows any kind of json value to be stored, not only objects. *)
 
   (** Contents store. *)
   module type STORE = sig
@@ -2750,8 +2751,9 @@ end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
     is split across several keys starting at the specified root key.  *)
-module Json_tree(Store: S.STORE with type contents = Contents.json): sig
-  include S.CONTENTS with type t = Contents.json
+module Json_tree(Store: S with type contents = Contents.json): sig
+  include Contents.S with type t = Contents.json
+
   val to_concrete_tree: t -> Store.Tree.concrete
   val of_concrete_tree: Store.Tree.concrete -> t
 
