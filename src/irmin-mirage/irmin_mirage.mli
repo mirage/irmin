@@ -48,7 +48,7 @@ module Git: sig
 
   module AO (G: Git.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
-              and type key = Git.Hash.t
+              and type key = G.Hash.t
               and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned up if you

@@ -95,7 +95,7 @@ module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t = struct
   let digest t x =
     let raw = Irmin.Type.encode_cstruct t x in
     let ctx = H.Digest.init () in
-    H.Digest.feed ctx raw;
+    let ctx = H.Digest.feed ctx raw in
     H.Digest.get ctx
   let to_raw t = Cstruct.of_string @@ H.to_string t (* FIXME: avoid copy *)
   let of_raw t = H.of_string @@ Cstruct.to_string t (* FIXME: avoid copy *)
@@ -724,11 +724,11 @@ module Reference: BRANCH with type t = reference = struct
 end
 
 module type S = sig
+  module Git: Git.S
   include Irmin.S with type metadata = Metadata.t
                    and type Commit.Hash.t = Git.Hash.t
                    and type Contents.Hash.t = Git.Hash.t
                    and type Tree.Hash.t = Git.Hash.t
-  module Git: Git.S
   val git_commit: Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   val git_of_repo: Repo.t -> Git.t
   val repo_of_git: ?head:Git.Reference.t -> ?bare:bool -> ?lock:Lwt_mutex.t ->
@@ -843,7 +843,8 @@ module Make_ext
 
 end
 
-module Mem (H: Digestif_sig.S): G = struct
+module Mem (H: Digestif_sig.S) = struct
+
   include Git.Mem.Store(H)
 
   let confs = Hashtbl.create 10 (* XXX: should probably be a weak table *)

@@ -328,23 +328,23 @@ module FS = struct
 end
 
 module Git = struct
-  module G = struct
-    include Git_unix.Store
-    let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
-      let buffer = match buffers with
-        | None   -> None
-        | Some p -> Some (Lwt_pool.use p)
-      in
-      v ?temp_dir ?root ?dotgit ?compression ?buffer ()
-  end
-
-  module M = Irmin_git.Mem(Digestif.SHA1)
 
   module Ref = Irmin_git.Ref(Net)
   module Make = Irmin_git.Make(Net)
   module KV = Irmin_git.KV(Net)
 
   module FS = struct
+
+    module G = struct
+      include Git_unix.Store
+      let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
+        let buffer = match buffers with
+          | None   -> None
+          | Some p -> Some (Lwt_pool.use p)
+        in
+        v ?temp_dir ?root ?dotgit ?compression ?buffer ()
+    end
+
     module AO   = Irmin_git.AO(G)
     module RW   = Irmin_git.RW(G)
     module Make = Make(G)
@@ -353,11 +353,12 @@ module Git = struct
   end
 
   module Mem = struct
-    module AO   = Irmin_git.AO(M)
-    module RW   = Irmin_git.RW(M)
+    module G = Irmin_git.Mem(Digestif.SHA1)
+    module AO   = Irmin_git.AO(G)
+    module RW   = Irmin_git.RW(G)
     module Make (H: Digestif.S) = Make(Irmin_git.Mem(H))
-    module Ref = Ref(M)
-    module KV = KV(M)
+    module Ref = Ref(G)
+    module KV = KV(G)
   end
 end
 

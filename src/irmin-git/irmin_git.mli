@@ -33,7 +33,7 @@ val dot_git: string option Irmin.Private.Conf.key
 
 (** [Hash] is an implementation of Irmin hashes based on Git
     hashes. *)
-module Hash (G: Git.HASH): Irmin.Hash.S with type t = Git.Hash.t
+module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t
 
 module AO (G: Git.S) (V: Irmin.Contents.Conv) : Irmin.AO
   with type t = G.t
@@ -67,13 +67,13 @@ module type S = sig
       {- the hash algorithm is SHA1.}
       }. *)
 
+  (** Access to the underlying Git store. *)
+  module Git: Git.S
+
   include Irmin.S with type metadata = Metadata.t
                    and type Commit.Hash.t = Git.Hash.t
                    and type Contents.Hash.t = Git.Hash.t
                    and type Tree.Hash.t = Git.Hash.t
-
-  (** {1 Access to the Git objects} *)
-  module Git: Git.S
 
   val git_commit: Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the
