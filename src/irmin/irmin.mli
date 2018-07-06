@@ -951,6 +951,33 @@ module Hash: sig
 
 end
 
+(** [Metadata] defines metadata that is attached to contents but stored in
+    nodes. The Git backend uses this to indicate the type of file (normal,
+    executable or symlink). *)
+module Metadata: sig
+
+  module type S = sig
+
+    type t
+    (** The type for metadata. *)
+
+    val t: t Type.t
+    (** [t] is the value type for {!t}. *)
+
+    val merge: t Merge.t
+    (** [merge] is the merge function for metadata. *)
+
+    val default: t
+    (** The default metadata to attach, for APIs that don't
+        care about metadata. *)
+
+  end
+
+  module None: S with type t = unit
+  (** A metadata definition for systems that don't use metadata. *)
+
+end
+
 (** [Contents] specifies how user-defined contents need to be {e
     serializable} and {e mergeable}.
 
@@ -1034,6 +1061,23 @@ module Contents: sig
       merge. If the value has been modified concurrently, the [merge]
       function conflicts. Assume that update operations are
       idempotent. *)
+
+  type json = [
+    | `Null
+    | `Bool of bool
+    | `String of string
+    | `Float of float
+    | `O of (string * json) list
+    | `A of json list
+  ]
+
+  module Json: S with type t = (string * json) list
+  (** [Json] contents are associations from string to [json] value stored as JSON encoded strings.
+     If the same JSON key has been modified concurrently with different values then the [merge]
+     function conflicts. *)
+
+  module Json_value: S with type t = json
+  (** [Json_value] allows any kind of json value to be stored, not only objects. *)
 
   (** Contents store. *)
   module type STORE = sig
@@ -1130,33 +1174,6 @@ module Branch: sig
     (** Base functions on values. *)
 
   end
-
-end
-
-(** [Metadata] defines metadata that is attached to contents but stored in
-    nodes. The Git backend uses this to indicate the type of file (normal,
-    executable or symlink). *)
-module Metadata: sig
-
-  module type S = sig
-
-    type t
-    (** The type for metadata. *)
-
-    val t: t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val merge: t Merge.t
-    (** [merge] is the merge function for metadata. *)
-
-    val default: t
-    (** The default metadata to attach, for APIs that don't
-        care about metadata. *)
-
-  end
-
-  module None: S with type t = unit
-  (** A metadata definition for systems that don't use metadata. *)
 
 end
 
@@ -2730,6 +2747,27 @@ module type S = sig
        and type Slice.t = slice
        and type Repo.t = repo
   end
+end
+
+(** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
+    is split across several keys starting at the specified root key.  *)
+module Json_tree(Store: S with type contents = Contents.json): sig
+  include Contents.S with type t = Contents.json
+
+  val to_concrete_tree: t -> Store.Tree.concrete
+  val of_concrete_tree: Store.Tree.concrete -> t
+
+  val get_tree: Store.tree -> Store.key -> t Lwt.t
+  (** Extract a [json] value from tree at the given key. *)
+
+  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
+  (** Project a [json] value onto a tree at the given key. *)
+
+  val get : Store.t -> Store.key -> t Lwt.t
+  (** Extract a [json] value from a store at the given key. *)
+
+  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
+  (** Project a [json] value onto a store at the given key. *)
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
