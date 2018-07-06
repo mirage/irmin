@@ -3,7 +3,7 @@ open Lwt.Infix
 module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let config =
-  let head = Git.Reference.of_raw "refs/heads/upstream" in
+  let head = Store.Git.Reference.of_string "refs/heads/upstream" in
   Irmin_git.config ~head ~bare:false Config.root
 
 let info ~user msg () =

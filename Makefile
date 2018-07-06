@@ -9,6 +9,9 @@ all:
 test:
 	$(RUNTEST)
 
+examples:
+	jbuilder build @examples
+
 clean:
 	rm -rf _build
 
