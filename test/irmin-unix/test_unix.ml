@@ -81,7 +81,7 @@ module Git = struct
         in
         v ?temp_dir ?root ?dotgit ?compression ?buffer ()
     end
-    module S = Irmin_unix.Git.KV(G)(Irmin.Contents.String)
+    module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
     let author repo c =
       S.git_commit repo c >|= function
       | None   -> None

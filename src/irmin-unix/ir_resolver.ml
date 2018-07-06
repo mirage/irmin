@@ -113,10 +113,12 @@ let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Ir_unix.FS.Make)
 let http_store = create (module Ir_unix.Http.Make)
 let git_store (module C: Irmin.Contents.S) =
-  (module Ir_unix.Git.KV(Ir_unix.Git.G)(C) : Irmin.S)
+  (module Ir_unix.Git.FS.KV(C) : Irmin.S)
+let git_mem_store (module C: Irmin.Contents.S) = (module Ir_unix.Git.Mem.KV(C) : Irmin.S)
 
 let store_kinds = ref [
   ("git" , git_store);
+  ("git-mem", git_mem_store);
   ("irf" , irf_store);
   ("http", http_store);
   ("mem" , mem_store);
