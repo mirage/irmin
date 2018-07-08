@@ -2,7 +2,7 @@ open Lwt.Infix
 
 let info = Irmin_unix.info
 
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.KV(Irmin_unix.Git.G)(Irmin.Contents.String)
 
 module Tree = Store.Tree
 

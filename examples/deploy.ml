@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.KV(Irmin_unix.Git.G)(Irmin.Contents.String)
 
 let config =
   let head = Store.Git.Reference.of_string "refs/heads/upstream" in
