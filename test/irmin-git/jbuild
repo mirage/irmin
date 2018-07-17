@@ -3,7 +3,7 @@
 (library
  ((name      test_git)
   (modules   (test_git))
-  (libraries (irmin-test irmin-git git-unix))))
+  (libraries (irmin-test checkseum.c irmin-git git-unix))))
 
 (executable
  ((name      test)
