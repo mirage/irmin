@@ -8,7 +8,7 @@
 (executable
  ((name      test)
   (modules   (test))
-  (libraries (test_git))))
+  (libraries (checkseum.c test_git))))
 
 (alias
  ((name runtest)
