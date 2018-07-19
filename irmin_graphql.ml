@@ -31,7 +31,6 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
   type store = Store.t
-  type tree = Store.tree
 
   let from_string f = function
     | `String s -> Ok (f s)
@@ -52,10 +51,6 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
         scalar "Step" ~coerce
       )
 
-    let value = Schema.Arg.(
-        scalar "Value" ~coerce
-      )
-
     let commit_hash = Schema.Arg.(
         scalar "CommitHash" ~coerce
       )
@@ -71,19 +66,10 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
     let info = Schema.Arg.(
         obj "InfoInput"
           ~fields:[
-            arg "author" string;
-            arg "message" string;
+            arg "author" ~typ:string;
+            arg "message" ~typ:string;
           ]
           ~coerce:(fun author message -> {author; message})
-      )
-
-    let item = Schema.Arg.(
-        obj "ItemInput"
-          ~fields:[
-            arg "key" (non_null string);
-            arg "value" (non_null string);
-          ]
-          ~coerce:(fun key value -> (key, value))
       )
   end
 
@@ -120,7 +106,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
 
   and info : ('ctx, Irmin.Info.t option) Schema.typ Lazy.t = lazy Schema.(
       obj "Info"
-        ~fields:(fun info -> [
+        ~fields:(fun _info -> [
               field "date"
                 ~typ:(non_null string)
                 ~args:[]
@@ -174,7 +160,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
 
   and branch :  ('ctx, (Store.t * Store.Branch.t) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Branch"
-        ~fields:(fun branch -> [
+        ~fields:(fun _branch -> [
               field "name"
                 ~typ:(non_null string)
                 ~args:[]
@@ -203,7 +189,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               ;
               io_field "lca"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
-                ~args:Arg.[arg "commit" (non_null Input.commit_hash)]
+                ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, _) commit ->
                     match from_string_err Store.Commit.Hash.of_string commit with
                     | Ok commit ->
@@ -223,7 +209,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
 
   and contents : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Contents"
-        ~fields:(fun contents -> [
+        ~fields:(fun _contents -> [
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
@@ -302,7 +288,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               match key, value with
               | Ok key, Ok value ->
                 Store.set t key value ~info >>= fun () ->
-                Store.Head.find s >>= Lwt.return_ok
+                Store.Head.find t >>= Lwt.return_ok
               | Error (`Msg msg), _ | _, Error (`Msg msg) -> Lwt.return_error msg)
             | Error msg -> Lwt.return_error msg
           )
@@ -322,8 +308,8 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               let key = Store.Key.of_string key in
               match key with
               | Ok key ->
-                  Store.remove s key ~info >>= fun () ->
-                  Store.Head.find s >>= Lwt.return_ok
+                  Store.remove t key ~info >>= fun () ->
+                  Store.Head.find t >>= Lwt.return_ok
               | Error (`Msg msg) -> Lwt.return_error msg)
             | Error msg -> Lwt.return_error msg
           )
@@ -377,7 +363,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               | Ok _ ->
                 (Store.Head.find t >>=
                  Lwt.return_ok)
-              | Error e -> Lwt.return_ok None)
+              | Error _ -> Lwt.return_ok None)
             | Error msg, _ | _, Error msg -> Lwt.return_error msg
           )
       ;
@@ -404,8 +390,18 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   let schema s =
     let mutations = mutations s in
     Schema.(schema ~mutations [
+        io_field "commit"
+          ~typ:(Lazy.force commit)
+          ~args:Arg.[
+            arg "hash" ~typ:(non_null Input.commit_hash)
+          ]
+          ~resolve:(fun _ _src hash ->
+            match from_string_err Store.Commit.Hash.of_string hash with
+            | Ok commit -> Store.Commit.of_hash (Store.repo s) commit >>= Lwt.return_ok
+            | Error msg -> Lwt.return_error msg
+        );
         io_field "master"
-          ~typ:(Lazy.force (branch))
+          ~typ:(Lazy.force branch)
           ~args:[]
           ~resolve:(fun _ _ ->
               Store.master (Store.repo s) >>= fun s ->
@@ -413,7 +409,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             );
         io_field "branch"
           ~typ:(Lazy.force (branch))
-          ~args:Arg.[arg "name" (non_null Input.branch)]
+          ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
           ~resolve:(fun _ _ branch ->
               let branch = from_string_err Store.Branch.of_string branch in
               match branch with
