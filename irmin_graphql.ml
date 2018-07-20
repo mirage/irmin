@@ -134,7 +134,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.step)]
-                ~typ:(node)
+                ~typ:node
                 ~resolve:(fun _ (tree, key) step ->
                     match from_string_err Store.Key.step_of_string step with
                     | Ok step ->
@@ -143,6 +143,14 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                     | Error msg -> Lwt.return_error msg
                   )
               ;
+              io_field "value"
+                ~args:[]
+                ~typ:string
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find tree key >>= function
+                      | Some contents -> Lwt.return_ok (Some (Fmt.to_to_string Store.Contents.pp contents))
+                      | _ -> Lwt.return_ok None
+                );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
