@@ -36,9 +36,8 @@ module Make (P: S.PRIVATE) = struct
         ]
 
       let mem =
-        let data () = Data.v [uint "mem" ~graph:g 1] in
-        Src.fn "AO.mem" ~tags ~data ~duration:true ~status:true
-
+        let data _ = Data.v [uint "mem" ~graph:g 1] in
+        Src.v "AO.mem" ~tags ~data ~duration:true ~status:true
 
       let len f = function
         | Error _ -> 0
@@ -52,11 +51,11 @@ module Make (P: S.PRIVATE) = struct
 
       let find =
         let data v = Data.v [uint "find" (leno v) ~graph:g ~unit:"Bytes"] in
-        Src.fn "AO.find" ~tags ~data ~duration:true ~status:true
+        Src.v "AO.find" ~tags ~data ~duration:true ~status:true
 
       let add =
         let data v = Data.v [uint "add" (lenp v) ~graph:g ~unit:"Bytes"] in
-        Src.fn "AO.add" ~tags ~data ~duration:true ~status:true
+        Src.v "AO.add" ~tags ~data ~duration:true ~status:true
 
     end
 
@@ -68,21 +67,14 @@ module Make (P: S.PRIVATE) = struct
     let v ~id v = { v; id }
 
     let mem t k =
-      Metrics.run X.mem (tag t)
-        (fun d _ -> d ())
-        (fun () -> M.mem t.v k)
+      Metrics.run X.mem (tag t) (fun () -> M.mem t.v k)
 
     let find t k =
-      Metrics_lwt.run X.find (tag t)
-        (fun d v -> Lwt.return (d v))
-        (fun () -> M.find t.v k)
+      Metrics_lwt.run X.find (tag t) (fun () -> M.find t.v k)
 
     let add t v =
-      Metrics_lwt.run X.add (tag t)
-        (fun d v -> Lwt.return (d v))
-        (fun () -> M.add t.v v >|= fun k -> (k, v))
-      >|= fun (k, _) ->
-      k
+      Metrics_lwt.run X.add (tag t) (fun () -> M.add t.v v >|= fun k -> (k, v))
+      >|= fun (k, _) -> k
 
   end
 
@@ -121,31 +113,31 @@ module Make (P: S.PRIVATE) = struct
 
       let mem =
         let data _ = Data.v [uint "mem" ~graph:g 1] in
-        Src.fn "RW.mem" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.mem" ~tags ~data ~duration:true ~status:true
 
       let find =
         let data v = Data.v [uint "find" (leno v) ~graph:g ~unit:"Bytes"] in
-        Src.fn "RW.find" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.find" ~tags ~data ~duration:true ~status:true
 
       let set =
         let data v = Data.v [uint "set" (len v) ~graph:g ~unit:"Bytes"] in
-        Src.fn "RW.test" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.test" ~tags ~data ~duration:true ~status:true
 
       let test_and_set =
         let data v =
           Data.v [uint "test-and-set" (lenop v) ~graph:g  ~unit:"Bytes"]
         in
-        Src.fn "RW.test_and_set" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.test_and_set" ~tags ~data ~duration:true ~status:true
 
       let remove =
         let data _ = Data.v [uint "remove" ~graph:g 1] in
-        Src.fn "RW.remove_set" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.remove_set" ~tags ~data ~duration:true ~status:true
 
       let list =
         let data v =
           Data.v [uint "children" (lenl v) ~graph:g ~unit:"Number of children"]
         in
-        Src.fn "RW.list" ~tags ~data ~duration:true ~status:true
+        Src.v "RW.list" ~tags ~data ~duration:true ~status:true
 
       let watch =
         let data n =
@@ -164,38 +156,25 @@ module Make (P: S.PRIVATE) = struct
     let v ~id v = { v; id; watches = 0 }
 
     let mem t k =
-      Metrics_lwt.run X.mem (tag t)
-        (fun f v -> Lwt.return (f v))
-        (fun () -> M.mem t.v k)
+      Metrics_lwt.run X.mem (tag t) (fun () -> M.mem t.v k)
 
     let find t k =
-      Metrics_lwt.run X.find (tag t)
-        (fun f v -> Lwt.return (f v))
-        (fun () -> M.find t.v k)
+      Metrics_lwt.run X.find (tag t) (fun () -> M.find t.v k)
 
     let set t k v =
-      Metrics_lwt.run X.set (tag t)
-        (fun f v -> Lwt.return (f v))
-        (fun () -> M.set t.v k v >|= fun () -> v)
-      >|= fun _ ->
-      ()
+      Metrics_lwt.run X.set (tag t) (fun () -> M.set t.v k v >|= fun () -> v)
+      >|= fun _ -> ()
 
     let test_and_set t k ~test ~set =
       Metrics_lwt.run X.test_and_set (tag t)
-        (fun f v -> Lwt.return (f v))
         (fun () -> M.test_and_set t.v k ~test ~set >|= fun b -> (b, set))
-      >|= fun (b, _) ->
-      b
+      >|= fun (b, _) -> b
 
     let remove t k =
-      Metrics_lwt.run X.remove (tag t)
-        (fun f v -> Lwt.return (f v))
-        (fun () -> M.remove t.v k)
+      Metrics_lwt.run X.remove (tag t) (fun () -> M.remove t.v k)
 
     let list t =
-      Metrics_lwt.run X.list (tag t)
-        (fun f v -> Lwt.return (f v))
-        (fun () -> M.list t.v)
+      Metrics_lwt.run X.list (tag t) (fun () -> M.list t.v)
 
     let watch t ?init f =
       t.watches <- t.watches + 1;
