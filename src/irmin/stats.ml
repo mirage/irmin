@@ -24,6 +24,8 @@ module Make (P: S.PRIVATE) = struct
       module Val: S.S0 with type t = value
     end) = struct
 
+    let graph = Metrics.Graph.v ~title:"Irmin operations" "Bytes"
+
     module X = struct
 
       open Metrics
@@ -35,15 +37,15 @@ module Make (P: S.PRIVATE) = struct
 
       let mem =
         let data () = Data.v [int "mem" 1] in
-        Src.v "AO.mem" ~tags ~data
+        Src.fn "AO.mem" ~tags ~data ~duration:true ~status:true
 
       let find =
         let data () = Data.v [int "find" 1] in
-        Src.v "AO.find" ~tags ~data
+        Src.fn "AO.find" ~tags ~data ~duration:true ~status:true
 
       let add =
         let data n = Data.v [uint "add" n ~unit:"Bytes"] in
-        Src.v "AO.add" ~tags ~data
+        Src.fn "AO.add" ~tags ~data ~duration:true ~status:true
 
     end
 
@@ -55,18 +57,20 @@ module Make (P: S.PRIVATE) = struct
     let v ~id v = { v; id }
 
     let mem t k =
-      Metrics.with_timer X.mem (tag t) (fun l -> l ()) @@ fun () ->
+      Metrics.run X.mem (tag t) (fun l -> l ()) @@ fun () ->
       M.mem t.v k
 
     let find t k =
-      Metrics.add X.find (tag t) (fun l -> l ());
-      M.find t.v k
+      Metrics.run X.find (tag t) @@ fun l ->
+      M.find t.v k >|= function
+      | None   -> l None
+      | Some v -> l (Some v)
 
     let add t v =
-      Metrics.add X.add (tag t) (fun l ->
+      Metrics.run X.add (tag t) (fun l ->
           let buf = Type.encode_cstruct M.Val.t v in
           l (Cstruct.len buf)
-        );
+        ) @@ fun () ->
       M.add t.v v
   end
 
