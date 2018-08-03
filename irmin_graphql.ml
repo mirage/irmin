@@ -133,12 +133,19 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
               ;
               io_field "get"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.step)]
+                ~args:Arg.[arg "key" ~typ:Input.step]
                 ~typ:node
                 ~resolve:(fun _ (tree, key) step ->
-                    match from_string_err Store.Key.step_of_string step with
-                    | Ok step ->
-                      let key = Store.Key.(rcons key step) in
+                    let key =
+                      match step with
+                      | Some s ->
+                          (match from_string_err Store.Key.step_of_string s with
+                          | Ok step -> Ok (Store.Key.rcons key step)
+                          | Error e -> Error e)
+                      | None -> Ok Store.Key.empty
+                    in
+                    match key with
+                    | Ok key ->
                       Lwt.return_ok (Some (tree, key))
                     | Error msg -> Lwt.return_error msg
                   )
