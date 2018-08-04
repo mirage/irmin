@@ -8,7 +8,7 @@
 (executable
  ((name      test)
   (modules   (test))
-  (libraries (checkseum.c test_http))))
+  (libraries (checkseum.c digestif.c test_http))))
 
 (alias
  ((name runtest)
