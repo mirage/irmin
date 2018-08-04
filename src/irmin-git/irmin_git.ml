@@ -843,7 +843,7 @@ module Make_ext
 
 end
 
-module Mem (H: Digestif_sig.S) = struct
+module Mem (H: Digestif.S) = struct
 
   include Git.Mem.Store(H)
 

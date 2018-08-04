@@ -55,7 +55,7 @@ module type G = sig
     unit -> (t, error) result Lwt.t
 end
 
-module Mem (H: Digestif_sig.S): G
+module Mem (H: Digestif.S): G
 (** In-memory Git store. *)
 
 module type S = sig
