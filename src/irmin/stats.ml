@@ -24,7 +24,9 @@ module Make (P: S.PRIVATE) = struct
       module Val: S.S0 with type t = value
     end) = struct
 
-    let g = Metrics.Graph.v ~title:"Irmin AO operations" "Bytes"
+    let g =
+      let title = Fmt.strf "Irmin: %s store (AO)" M.store in
+      Metrics.Graph.v ~title ~ylabel:"I/O" ~yunit:"Bytes" ()
 
     module X = struct
 
@@ -86,7 +88,9 @@ module Make (P: S.PRIVATE) = struct
     val v: id:string -> M.t -> t
   end = struct
 
-    let g = Metrics.Graph.v ~title:"Irmin RW operations" "Bytes"
+    let g =
+      let title = "Irmin: reference store (RW)" in
+      Metrics.Graph.v ~title ~ylabel:"I/O" ~yunit:"Bytes" ()
 
     module X = struct
 
