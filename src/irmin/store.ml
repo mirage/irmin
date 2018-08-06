@@ -76,15 +76,17 @@ module Make (P: S.PRIVATE) = struct
     let m =
       let open Metrics in
       let tags = Tags.[string "id"] in
+      let graph  =Graph.v ~title:"Tree stats" ~ylabel:"items" () in
+      let graph_n = Graph.v ~title:"Tree nodes" () in
       let data { nodes; leafs; skips; depth; width } =
         Data.v [
-          int "nodes" nodes;
-          int "leafs" leafs;
-          int "skips" skips;
-          int "width" width;
-          int "depth" depth;
+          int "nodes" ~graph:graph_n nodes;
+          int "leafs" ~graph:graph_n leafs;
+          int "skips" ~graph skips;
+          int "width" ~graph width;
+          int "depth" ~graph depth;
         ] in
-      Src.v "irmin" ~tags ~data
+      Src.v "tree" ~tags ~data
 
   end
 
