@@ -45,7 +45,7 @@ module KV_RO (G: Git.S) = struct
 
   module G = struct
     include G
-    let v ?temp_dir:_ ?root:_ ?dotgit:_ ?compression:_ ?buffers:_ () =
+    let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
       assert false
   end
 

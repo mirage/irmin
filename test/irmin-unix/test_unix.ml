@@ -63,7 +63,7 @@ module Git = struct
     (if Sys.file_exists ".git" then
       failwith "The Git test should not be run at the root of a Git repository."
     else if Sys.file_exists test_db then
-      Git_unix.Store.v ~root:(Fpath.v test_db) () >>= function
+      Git_unix.Store.v (Fpath.v test_db) >>= function
       | Ok t    -> Git_unix.Store.reset t >|= fun _ -> ()
       | Error _ -> Lwt.return ()
     else
@@ -74,12 +74,12 @@ module Git = struct
   module S = struct
     module G = struct
       include Git_unix.Store
-      let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
+      let v ?dotgit ?compression ?buffers root =
         let buffer = match buffers with
           | None   -> None
           | Some p -> Some (Lwt_pool.use p)
         in
-        v ?temp_dir ?root ?dotgit ?compression ?buffer ()
+        v ?dotgit ?compression ?buffer root
     end
     module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
     let author repo c =
