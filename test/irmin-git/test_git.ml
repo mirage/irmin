@@ -44,7 +44,7 @@ module Mem = struct
     | Some c -> Some (S.Git.Value.Commit.author c).Git.User.name
   include S
   let init () =
-    Git.v ~root:(Fpath.v test_db) () >>= function
+    Git.v (Fpath.v test_db) >>= function
       | Ok t -> S.Git.reset t >|= fun _ -> ()
       | _    -> Lwt.return ()
 end

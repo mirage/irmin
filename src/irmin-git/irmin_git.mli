@@ -47,15 +47,13 @@ module RW (G: Git.S) (K: Irmin.Branch.S): Irmin.RW
 module type G = sig
   include Git.S
   val v:
-    ?temp_dir:Fpath.t ->
-    ?root:Fpath.t ->
     ?dotgit:Fpath.t ->
     ?compression:int ->
     ?buffers:buffer Lwt_pool.t ->
-    unit -> (t, error) result Lwt.t
+    Fpath.t -> (t, error) result Lwt.t
 end
 
-module Mem (H: Digestif_sig.S): G
+module Mem (H: Digestif.S): G
 (** In-memory Git store. *)
 
 module type S = sig

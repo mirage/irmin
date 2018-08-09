@@ -337,12 +337,12 @@ module Git = struct
 
     module G = struct
       include Git_unix.Store
-      let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
+      let v ?dotgit ?compression ?buffers root =
         let buffer = match buffers with
           | None   -> None
           | Some p -> Some (Lwt_pool.use p)
         in
-        v ?temp_dir ?root ?dotgit ?compression ?buffer ()
+        v ?dotgit ?compression ?buffer root
     end
 
     module AO   = Irmin_git.AO(G)

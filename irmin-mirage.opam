@@ -7,7 +7,7 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
 build: [
- ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "subst" "-p" name] {pinned}
  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 

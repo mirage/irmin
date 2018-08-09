@@ -36,12 +36,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
 
-  let temp_dir =
-    Irmin.Private.Conf.key
-      ~doc:"The location where temporary files are created. \
-            Default is [$root/.git/tmp]."
-      "temp-dir" Irmin.Private.Conf.(some string) None
-
   let root = Irmin.Private.Conf.root
 
   let reference =
@@ -738,12 +732,10 @@ end
 module type G = sig
   include Git.S
   val v:
-    ?temp_dir:Fpath.t ->
-    ?root:Fpath.t ->
     ?dotgit:Fpath.t ->
     ?compression:int ->
     ?buffers:buffer Lwt_pool.t ->
-    unit -> (t, error) result Lwt.t
+    Fpath.t -> (t, error) result Lwt.t
 end
 
 module Make_ext
@@ -780,8 +772,7 @@ module Make_ext
       let commit_t t = node_t t, t.g
 
       type config = {
-        tempdir: string option;
-        root   : string option;
+        root   : string;
         dot_git: string option;
         level  : int option;
         buffers: int option;
@@ -790,28 +781,29 @@ module Make_ext
       }
 
       let config c =
-        let tempdir = Irmin.Private.Conf.get c Conf.temp_dir in
-        let root = Irmin.Private.Conf.get c Conf.root in
+        let root = match Irmin.Private.Conf.get c Conf.root with
+          | None   -> Sys.getcwd ()
+          | Some d -> d
+        in
         let dot_git = Irmin.Private.Conf.get c Conf.dot_git in
         let level = Irmin.Private.Conf.get c Conf.level in
         let head = Irmin.Private.Conf.get c Conf.head in
         let bare = Irmin.Private.Conf.get c Conf.bare in
         let buffers = Irmin.Private.Conf.get c Conf.buffers in
-        { tempdir; root; dot_git; level; head; buffers; bare }
+        { root; dot_git; level; head; buffers; bare }
 
       let fopt f = function None -> None | Some x -> Some (f x)
 
       let v conf =
-        let { tempdir; root; dot_git; level; head; bare; buffers } = config conf in
-        let temp_dir = fopt Fpath.v tempdir in
+        let { root; dot_git; level; head; bare; buffers } = config conf in
         let dotgit = fopt Fpath.v dot_git in
-        let root = fopt Fpath.v root in
+        let root = Fpath.v root in
         let buffers =
           fopt (fun n -> Lwt_pool.create n (fun () ->
               Lwt.return (G.buffer ()))
             ) buffers
         in
-        G.v ?temp_dir ?dotgit ?root ?compression:level ?buffers () >>= function
+        G.v ?dotgit ?compression:level ?buffers root >>= function
         | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
         | Ok g    ->
           R.v ~head ~bare g >|= fun b ->
@@ -843,7 +835,7 @@ module Make_ext
 
 end
 
-module Mem (H: Digestif_sig.S) = struct
+module Mem (H: Digestif.S) = struct
 
   include Git.Mem.Store(H)
 
@@ -855,19 +847,19 @@ module Mem (H: Digestif_sig.S) = struct
 
   let add_conf c t = Hashtbl.replace confs c t; t
 
-  let v' ?temp_dir:_ ?root ?dotgit ?compression ?buffers () =
+  let v' ?dotgit ?compression ?buffers root =
     let buffer = match buffers with
       | None   -> None
       | Some p -> Some (Lwt_pool.use p)
     in
-    v ?root ?dotgit ?compression ?buffer ()
+    v ?dotgit ?compression ?buffer root
 
-  let v ?temp_dir ?root ?dotgit ?compression ?buffers () =
-    let conf = (temp_dir, root, dotgit, compression, buffers) in
+  let v ?dotgit ?compression ?buffers root =
+    let conf = (root, dotgit, compression, buffers) in
     match find_conf conf with
     | Some x -> Lwt.return x
     | None   ->
-      v' ?temp_dir ?root ?dotgit ?compression ?buffers () >|= add_conf conf
+      v' ?dotgit ?compression ?buffers root >|= add_conf conf
 
 end
 
@@ -892,7 +884,7 @@ module AO (G: Git.S) (V: Irmin.Contents.Conv)
 = struct
   module G = struct
     include G
-    let v ?temp_dir:_ ?root:_ ?dotgit:_ ?compression:_ ?buffers:_ () =
+    let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
       assert false
   end
   module V = struct

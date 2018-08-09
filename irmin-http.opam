@@ -8,7 +8,7 @@ dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
- ["jbuilder" "subst"] {pinned}
+ ["jbuilder" "subst" "-p" name] {pinned}
  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 build-test: ["jbuilder" "runtest" "-p" name]
@@ -19,8 +19,10 @@ depends: [
   "webmachine" {>= "0.6.0"}
   "irmin"  {>= "1.3.0"}
   "cohttp-lwt" {>= "1.0.0"}
-  "irmin-git" {test & >= "1.3.0"}
-  "irmin-mem" {test & >= "1.3.0"}
-  "irmin-test"  {test}
+  "irmin-git"  {test & >= "1.3.0"}
+  "irmin-mem"  {test & >= "1.3.0"}
+  "git-unix"   {test}
+  "irmin-test" {test}
+  "digestif"   {test & >= "0.6.1"}
 ]
 available: [ocaml-version >= "4.01.0"]

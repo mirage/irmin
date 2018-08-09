@@ -2,7 +2,7 @@
 
 (executables
   ((names (trees sync process deploy irmin_git_store custom_merge))
-   (libraries (checkseum.c irmin irmin-unix))))
+   (libraries (checkseum.c digestif.c irmin irmin-unix))))
 
 (alias
  ((name examples)
