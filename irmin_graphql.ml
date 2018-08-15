@@ -436,6 +436,6 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
       ])
 
   let start_server ?port s =
-    Server.start ?port ~ctx:(fun () -> ()) (schema s)
+    Server.start ?port ~ctx:(fun _req -> ()) (schema s)
 end
 
