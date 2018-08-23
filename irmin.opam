@@ -8,21 +8,21 @@ dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
- ["jbuilder" "subst" "-p" name] {pinned}
- ["jbuilder" "build" "-p" name "-j" jobs]
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
 ]
 
 depends: [
-  "jbuilder" {build & >= "1.0+beta10"}
+  "dune"    {build & >= "1.1.0"}
   "result"
-  "fmt" {>= "0.8.0"}
-  "uri" {>= "1.3.12"}
+  "fmt"     {>= "0.8.0"}
+  "uri"     {>= "1.3.12"}
   "cstruct" {>= "1.6.0"}
-  "jsonm" {>= "1.0.0"}
-  "lwt" {>= "2.4.7"}
+  "jsonm"   {>= "1.0.0"}
+  "lwt"     {>= "2.4.7"}
   "ocamlgraph"
-  "hex" {>= "0.2.0"}
-  "logs" {>= "0.5.0"}
+  "hex"     {>= "0.2.0"}
+  "logs"    {>= "0.5.0"}
   "astring"
 ]
 available: [ocaml-version >= "4.03.0"]

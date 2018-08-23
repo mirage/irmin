@@ -1,13 +1,13 @@
 .PHONY: all clean test
 
 all:
-	jbuilder build --dev
+	dune build
 
 test:
-	jbuilder runtest -j1 --no-buffer --dev
+	dune runtest -j1 --no-buffer
 
 examples:
-	jbuilder build @examples
+	dune build @examples
 
 clean:
-	rm -rf _build
+	dune clean

@@ -1,0 +1,14 @@
+(library
+ (name      test_mem)
+ (modules   test_mem)
+ (libraries irmin-test irmin-mem))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries test_mem))
+
+(alias
+ (name    runtest)
+ (package irmin-mem)
+ (action  (run ./test.exe -q --color=always)))

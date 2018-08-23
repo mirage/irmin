@@ -1,0 +1,8 @@
+(executables
+  (names trees sync process deploy irmin_git_store custom_merge)
+  (libraries checkseum.c digestif.c irmin irmin-unix))
+
+(alias
+ (name examples)
+ (deps trees.exe sync.exe process.exe deploy.exe
+       irmin_git_store.exe custom_merge.exe))

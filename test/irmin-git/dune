@@ -1,0 +1,14 @@
+(library
+ (name      test_git)
+ (modules   test_git)
+ (libraries irmin-test irmin-git git-unix))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries checkseum.c digestif.c test_git))
+
+(alias
+ (name runtest)
+ (package irmin-git)
+ (action (run ./test.exe -q --color=always)))

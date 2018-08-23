@@ -19,7 +19,7 @@ open Irmin_test
 let misc = [
   "LINK"     , [Test_link.test "unix" Test_unix.FS.link];
   "GIT-BARE" , [Test_unix.Git.misc];
-  "GIT"      , Test_git.tests Test_unix.Git.store;
+  "GIT.misc" , Test_git.tests Test_unix.Git.store;
 ]
 
 let () =

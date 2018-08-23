@@ -1,0 +1,14 @@
+(library
+ (name      test_chunk)
+ (modules   test_chunk)
+ (libraries irmin-test irmin-chunk irmin-mem))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries test_chunk))
+
+(alias
+ (name    runtest)
+ (package irmin-chunk)
+ (action  (run ./test.exe -q --color=always)))
