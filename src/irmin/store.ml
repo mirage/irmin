@@ -68,6 +68,20 @@ module Make (P: S.PRIVATE) = struct
     let hash r = function
       | `Node n          -> export r n >|= fun h -> `Node h
       | `Contents (c, m) -> Contents.hash r c >|= fun h -> `Contents (h, m)
+
+    let m =
+      let open Metrics in
+      let tags = Tags.[] in
+      let data { nodes; leafs; skips; depth; width } =
+        Data.v [
+          int "nodes" nodes;
+          int "leafs" leafs;
+          int "skips" skips;
+          int "width" width;
+          int "depth" depth;
+        ] in
+      Metrics.(v @@ Src.v "irmin" ~tags ~data)
+
   end
 
   type node = Tree.node
@@ -575,6 +589,8 @@ module Make (P: S.PRIVATE) = struct
       ?max_depth ?n ~info (f:tree option -> tree option Lwt.t) =
     let aux () =
       snapshot t key >>= fun s1 ->
+      Metrics_lwt.add Tree.m (fun l -> Tree.stats s1.root >|= l) >>= fun () ->
+
       (* this might take a very long time *)
       f s1.tree >>= fun new_tree ->
       same_tree s1.tree new_tree >>= fun same ->
