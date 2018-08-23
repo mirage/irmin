@@ -42,7 +42,7 @@ module Make (P: S.PRIVATE) = struct
         Src.v "AO.find" ~tags ~data
 
       let add =
-        let data n = Data.v [uint "add" n] in
+        let data n = Data.v [uint "add" n ~unit:"Bytes"] in
         Src.v "AO.add" ~tags ~data
 
     end
@@ -55,7 +55,7 @@ module Make (P: S.PRIVATE) = struct
     let v ~id v = { v; id }
 
     let mem t k =
-      Metrics.add X.mem (tag t) (fun l -> l ());
+      Metrics.with_timer X.mem (tag t) (fun l -> l ()) @@ fun () ->
       M.mem t.v k
 
     let find t k =

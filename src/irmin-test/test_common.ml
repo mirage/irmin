@@ -45,7 +45,9 @@ let reporter ?(prefix="") () =
 
 let () =
   Logs.set_level (Some Logs.Debug);
-  Logs.set_reporter (reporter ())
+  Logs.set_reporter (reporter ());
+  Metrics.enable_all ();
+  Metrics_gnuplot.set_reporter ()
 
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in
