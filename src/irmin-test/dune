@@ -1,0 +1,4 @@
+(library
+  (name        irmin_test)
+  (public_name irmin-test)
+  (libraries   irmin mtime mtime.clock.os alcotest lwt.unix logs.fmt))

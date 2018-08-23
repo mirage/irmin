@@ -1,0 +1,5 @@
+(library
+ (name        irmin_mirage)
+ (public_name irmin-mirage)
+ (libraries   irmin irmin-mem irmin-git git-mirage ptime
+              mirage-kv-lwt mirage-clock))

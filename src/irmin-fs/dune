@@ -1,0 +1,4 @@
+(library
+ (name        irmin_fs)
+ (public_name irmin-fs)
+ (libraries   irmin))

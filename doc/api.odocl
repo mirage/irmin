@@ -1,8 +1,0 @@
-src/Irmin
-src/Irmin_mem
-src/Irmin_fs
-
-src-git/Irmin_git
-src-http/Irmin_http
-src-http/Irmin_http_server
-src-unix/Irmin_unix

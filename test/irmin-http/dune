@@ -1,0 +1,14 @@
+(library
+ (name      test_http)
+ (modules   test_http)
+ (libraries irmin-test test_mem test_git irmin-http))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries checkseum.c digestif.c test_http))
+
+(alias
+ (name    runtest)
+ (package irmin-http)
+ (action  (chdir %{workspace_root} (run %{exe:test.exe} -q --color=always))))

@@ -1,7 +1,0 @@
-(jbuild_version 1)
-
-(library
- ((name        irmin_http)
-  (public_name irmin-http)
-  (wrapped     false)
-  (libraries   (irmin cohttp-lwt webmachine))))

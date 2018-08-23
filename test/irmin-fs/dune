@@ -1,0 +1,14 @@
+(library
+ (name      test_fs)
+ (modules   test_fs)
+ (libraries irmin-fs irmin-test))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries test_fs))
+
+(alias
+ (name    runtest)
+ (package irmin-fs)
+ (action (run ./test.exe -q --color=always)))
