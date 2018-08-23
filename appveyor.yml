@@ -6,7 +6,7 @@ environment:
     FORK_USER: ocaml
     FORK_BRANCH: master
     CYG_ROOT: C:\cygwin64
-    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev"
+    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev metrics.dev:https://github.com/samoht/metrics.git metrics-lwt.dev:https://github.com/samoht/metrics.git"
   matrix:
   - PACKAGE: "irmin-mirage.dev"
 
