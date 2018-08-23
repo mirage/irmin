@@ -108,7 +108,7 @@ module Make (P: S.PRIVATE) = struct
       | Both (_, _, c)
       | Contents c -> Lwt.return (Some c)
       | Key (db, k) ->
-        P.Contents.find (P.Repo.contents_t db) k >|= function
+        P.Contents.find (P.Repo.contents_t "Tree.Node.v" db) k >|= function
         | None   -> None
         | Some c -> t.v <- Both (db, k, c); Some c
 
@@ -232,7 +232,7 @@ module Make (P: S.PRIVATE) = struct
       | Map m | Both (_, _, m) -> Lwt.return (Some m)
       | Key (db, k) ->
         Log.debug (fun l -> l "Node.to_map %a" P.Node.Key.pp k);
-        P.Node.find (P.Repo.node_t db) k >|= function
+        P.Node.find (P.Repo.node_t "Tree.Node.to_map" db) k >|= function
         | None   -> None
         | Some n ->
           let n = import db n in
@@ -846,14 +846,16 @@ module Make (P: S.PRIVATE) = struct
 
   let import repo k = Node.of_key repo k
 
-  let export repo n =
-    let node n = P.Node.add (P.Repo.node_t repo) (Node.export_map n) in
+  let export id repo n =
+    let node n =
+      P.Node.add (P.Repo.node_t id repo) (Node.export_map n)
+    in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match n.Node.v with
       | Node.Both (repo, k, x) when StepMap.is_empty x ->
         Stack.push (fun () ->
-            P.Node.mem  (P.Repo.node_t repo) k >>= function
+            P.Node.mem  (P.Repo.node_t id repo) k >>= function
             | true  -> Lwt.return_unit
             | false ->
               node x >>= fun k ->
@@ -881,7 +883,8 @@ module Make (P: S.PRIVATE) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  P.Contents.add (P.Repo.contents_t repo) x >|= fun k ->
+                  P.Contents.add (P.Repo.contents_t id repo) x
+                  >|= fun k ->
                   c.Contents.v <- Contents.Both (repo, k, x);
                 ) todo
           ) !contents;

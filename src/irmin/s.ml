@@ -291,11 +291,12 @@ module type PRIVATE = sig
      and type commit = Commit.key * Commit.value
   module Repo: sig
     type t
+    type id = string
     val v: Conf.t -> t Lwt.t
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val branch_t: t -> Branch.t
+    val contents_t: id -> t -> Contents.t
+    val node_t: id -> t -> Node.t
+    val commit_t: id -> t -> Commit.t
+    val branch_t: id -> t -> Branch.t
   end
   module Sync: sig
     include SYNC

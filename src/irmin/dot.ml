@@ -166,7 +166,7 @@ module Make (S: S.STORE) = struct
           ) (Commit.Val.parents r);
         add_edge (`Commit k) [`Style `Dashed] (`Node (Commit.Val.node r));
       ) !commits;
-    let branch_t = S.Private.Repo.branch_t (S.repo t) in
+    let branch_t = S.Private.Repo.branch_t "Dot.fprintf" (S.repo t) in
     Branch.list branch_t >>= fun bs ->
     Lwt_list.iter_s (fun r ->
         Branch.find branch_t r >|= function

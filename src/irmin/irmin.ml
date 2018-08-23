@@ -93,6 +93,7 @@ struct
     module Slice = Slice.Make(Contents)(Node)(Commit)
     module Sync = Sync.None(H)(B)
     module Repo = struct
+
       type t = {
         config: Conf.t;
         contents: Contents.t;
@@ -100,10 +101,13 @@ struct
         commit: Commit.t;
         branch: Branch.t;
       }
-      let branch_t t = t.branch
-      let commit_t t = t.commit
-      let node_t t = t.node
-      let contents_t t = t.contents
+
+      type id = string
+
+      let branch_t _ t = t.branch
+      let commit_t _ t = t.commit
+      let node_t _ t = t.node
+      let contents_t _ t = t.contents
 
       let v config =
         XContents.v config >>= fun contents ->

@@ -766,10 +766,11 @@ module Make_ext
     module Sync = XSync
     module Repo = struct
       type t = r
-      let branch_t t = t.b
-      let contents_t t = t.g
-      let node_t t = contents_t t, t.g
-      let commit_t t = node_t t, t.g
+      type id = string
+      let branch_t _ t = t.b
+      let contents_t _ t = t.g
+      let node_t id t = contents_t id t, t.g
+      let commit_t id t = node_t id t, t.g
 
       type config = {
         root   : string;
@@ -893,16 +894,16 @@ module AO (G: Git.S) (V: Irmin.Contents.Conv)
   end
   module M = Make_ext (NoNet)(G)(V)(Irmin.Path.String_list)(Reference)
   module X = M.Private.Contents
-  let state t =
+  let state id t =
     M.repo_of_git t >|= fun r ->
-    M.Private.Repo.contents_t r
+    M.Private.Repo.contents_t id r
   type t = G.t
   type key = X.key
   type value = X.value
-  let with_state f t x = state t >>= fun t -> f t x
-  let add = with_state X.add
-  let find = with_state X.find
-  let mem = with_state X.mem
+  let with_state id f t x = state id t >>= fun t -> f t x
+  let add = with_state "AO.add" X.add
+  let find = with_state "AO.find" X.find
+  let mem = with_state "AO.mem" X.mem
 end
 
 module RW (G: Git.S) (K: Irmin.Branch.S) =

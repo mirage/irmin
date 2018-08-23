@@ -52,17 +52,17 @@ module Make (S: Test_S) = struct
   module Graph = Irmin.Private.Node.Graph(P.Node)
   module History = Irmin.Private.Commit.History(P.Commit)
 
-  let v repo = P.Repo.contents_t repo
-  let n repo = P.Repo.node_t repo
-  let ct repo = P.Repo.commit_t repo
-  let g repo = P.Repo.node_t repo
-  let h repo = P.Repo.commit_t repo
+  let v repo = P.Repo.contents_t "test" repo
+  let n repo = P.Repo.node_t "test" repo
+  let ct repo = P.Repo.commit_t "test" repo
+  let g repo = P.Repo.node_t "test" repo
+  let h repo = P.Repo.commit_t "test" repo
 
   let v1 = long_random_string
   let v2 = ""
 
-  let kv1 ~repo = P.Contents.add (P.Repo.contents_t repo) v1
-  let kv2 ~repo = P.Contents.add (P.Repo.contents_t repo) v2
+  let kv1 ~repo = P.Contents.add (P.Repo.contents_t "test" repo) v1
+  let kv2 ~repo = P.Contents.add (P.Repo.contents_t "test" repo) v2
   let normal x = `Contents (x, S.Metadata.default)
 
   let b1 = "foo"
@@ -156,7 +156,7 @@ module Make (S: Test_S) = struct
 
   let test_contents x () =
     let test repo =
-      let t = P.Repo.contents_t repo in
+      let t = P.Repo.contents_t "test" repo in
       let check_key = check P.Contents.Key.t in
       let check_val = check (T.option S.contents_t) in
       kv2 ~repo >>= fun kv2 ->
@@ -286,7 +286,7 @@ module Make (S: Test_S) = struct
       in
 
       kv1 ~repo >>= fun kv1 ->
-      let g = g repo and h = h repo and c = P.Repo.commit_t repo in
+      let g = g repo and h = h repo and c = P.Repo.commit_t "test" repo in
 
       let check_val = check (T.option P.Commit.Val.t) in
       let check_key = check P.Commit.Key.t in
@@ -694,7 +694,7 @@ module Make (S: Test_S) = struct
 
       (* merge contents *)
 
-      let v = P.Repo.contents_t repo in
+      let v = P.Repo.contents_t "test" repo in
       Irmin.Merge.f (P.Contents.merge v)
         ~old:(old (Some kv1)) (Some kv1) (Some kv1)
       >>= fun kv1' ->
@@ -741,7 +741,7 @@ module Make (S: Test_S) = struct
         Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
 
-      let h = h repo and c = P.Repo.commit_t repo in
+      let h = h repo and c = P.Repo.commit_t "test" repo in
       let with_info n fn = fn h ~info:(info n) in
 
       with_info 0 @@ History.v ~node:k0 ~parents:[] >>= fun (kr0, _) ->
@@ -1425,7 +1425,7 @@ module Make (S: Test_S) = struct
     let test_contents repo =
       kv2 ~repo >>= fun k ->
       let v = v2 in
-      let t = P.Repo.contents_t repo in
+      let t = P.Repo.contents_t "test" repo in
       let write =
         write (fun _i -> P.Contents.add t v >>= fun _ -> Lwt.return_unit)
       in

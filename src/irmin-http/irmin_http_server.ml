@@ -306,10 +306,11 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
   type t = HTTP.t
 
   let v ?strict:_ db =
-    let blob = P.Repo.contents_t db in
-    let tree = P.Repo.node_t db in
-    let commit = P.Repo.commit_t db in
-    let branch = P.Repo.branch_t db in
+    let id = "Http.server" in
+    let blob = P.Repo.contents_t id db in
+    let tree = P.Repo.node_t id db in
+    let commit = P.Repo.commit_t id db in
+    let branch = P.Repo.branch_t id db in
     let routes = [
       ("/blobs"     , fun () -> new Blob.items     blob);
       ("/blob/:id"  , fun () -> new Blob.item      blob);

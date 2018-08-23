@@ -1,6 +1,5 @@
 (*
  * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
- * Copyright (c) 2017 Grégoire Henry <gregoire.henry@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,16 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (P: S.PRIVATE): sig
-  include S.TREE with type key = P.Node.Path.t
-                  and type step = P.Node.Path.step
-                  and type metadata = P.Node.Val.metadata
-                  and type contents = P.Contents.value
-
-  val import: P.Repo.t -> P.Node.key -> node
-  val export: string -> P.Repo.t -> node -> P.Node.key Lwt.t
-  val dump: tree Fmt.t
-  val equal: tree -> tree -> bool Lwt.t
-  val node_t: node Type.t
-  val tree_t: tree Type.t
-end
+module Make (M: S.PRIVATE): S.PRIVATE
+  with type Contents.key = M.Contents.key
+   and type Contents.value = M.Contents.value
+   and type Branch.key = M.Branch.key
+   and type Node.key = M.Node.key
+   and type Node.value = M.Node.value
+   and type Node.Metadata.t = M.Node.Metadata.t
+   and type Node.Path.step = M.Node.Path.step
+   and type Node.Path.t = M.Node.Path.t
+   and type Commit.key = M.Commit.key
+   and type Commit.value = M.Commit.value
+   and type Sync.branch = M.Sync.branch
+   and type Slice.t = M.Slice.t
+   and type Repo.t = M.Repo.t
