@@ -162,7 +162,13 @@ module Make
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Fmt.strf "%a" Type.(dump X.t) k
+      let vertex_name k =
+        let str t v = Fmt.strf "%a" (Type.dump t) v in
+        match k with
+          | `Node n          -> str Node.t n
+          | `Commit c        -> str Commit.t c
+          | `Branch b        -> str Branch.t b
+          | `Contents (c, _) -> str Contents.t c
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
