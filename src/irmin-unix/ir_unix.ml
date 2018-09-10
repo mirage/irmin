@@ -329,9 +329,9 @@ end
 
 module Git = struct
 
-  module Ref = Irmin_git.Ref(Net)
-  module Make = Irmin_git.Make(Net)
-  module KV = Irmin_git.KV(Net)
+  module Ref = Irmin_git.Ref(Git_unix.Net)
+  module Make = Irmin_git.Make(Git_unix.Net)
+  module KV = Irmin_git.KV(Git_unix.Net)
 
   module FS = struct
 

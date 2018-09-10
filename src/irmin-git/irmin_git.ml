@@ -84,15 +84,15 @@ let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root =
 
 module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t = struct
   type t = H.t
-  let digest_size = H.Digest.length
+  let digest_size = H.digest_size
   let t = Irmin.Type.(like string) H.of_hex H.to_hex
   let digest t x =
     let raw = Irmin.Type.encode_cstruct t x in
-    let ctx = H.Digest.init () in
-    let ctx = H.Digest.feed ctx raw in
-    H.Digest.get ctx
-  let to_raw t = Cstruct.of_string @@ H.to_string t (* FIXME: avoid copy *)
-  let of_raw t = H.of_string @@ Cstruct.to_string t (* FIXME: avoid copy *)
+    let ctx = H.init () in
+    let ctx = H.feed_cstruct ctx raw in
+    H.get ctx
+  let to_raw t = Cstruct.of_string @@ H.to_raw_string t (* FIXME: avoid copy *)
+  let of_raw t = H.of_raw_string @@ Cstruct.to_string t (* FIXME: avoid copy *)
   let has_kind = function `SHA1 -> true | _ -> false (* FIXME: fixme *)
   let pp ppf x = Fmt.string ppf (H.to_hex x)
   let of_string str = Ok (H.of_hex str)
@@ -821,7 +821,7 @@ module Make_ext
       Commit.hash h
       |> Commit.Hash.to_raw
       |> Cstruct.to_string
-      |> G.Hash.of_string
+      |> G.Hash.of_raw_string
     in
     Git.read repo.g h >|= function
     | Ok Git.Value.Commit c -> Some c
@@ -837,7 +837,7 @@ end
 
 module Mem (H: Digestif.S) = struct
 
-  include Git.Mem.Store(H)
+  include Git.Mem.Make(H)(Git.Inflate)(Git.Deflate)
 
   let confs = Hashtbl.create 10 (* XXX: should probably be a weak table *)
 
