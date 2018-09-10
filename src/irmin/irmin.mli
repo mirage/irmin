@@ -81,10 +81,13 @@ module Type: sig
   (** [int64] is a representation of the 64-bit integer type. *)
 
   val float: float t
-  (** [float] is a representation of the float type. *)
+  (** [float] is a representation of the [float] type. *)
 
   val string: string t
-  (** [string] is a representation of the string type. *)
+  (** [string] is a representation of the [string] type. *)
+
+  val bytes: bytes t
+  (** [bytes] is a representation of the [bytes] type. *)
 
   val cstruct: Cstruct.t t
   (** [cstruct] is a representation of the [Cstruct.t] type. *)
@@ -371,20 +374,32 @@ module Type: sig
 
   val encode_cstruct: 'a t -> 'a -> Cstruct.t
   (** [encode_cstruct t e] encodes [t] into a `Cstruct.t`. The size of
-      the returned buffer is precomputed and the buffer is allocated
-      at once.
+     the returned buffer is precomputed and the buffer is allocated at
+     once.
 
       {b NOTE:} There is a special case when the parameter [t] is a
-      single [cstruct]: the original value is returned as is, without
-      being copied. *)
+     single buffer (of type [cstruct], [bytes] or [string]): the
+     original value is returned as is, without being copied. *)
 
   val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
   (** [decode_cstruct t buf] decodes values of type [t] as produced by
-      [encode_cstruct t v].
+     [encode_cstruct t v].
 
-      {b NOTE:} When the parameter [t] is a single [cstruct], the
-      original buffer is returned as is, otherwise sub-[cstruct] are
-      copied. *)
+      {b NOTE:} When the parameter [t] is a single buffer (of type
+     [cstruct], [bytes] or [string]) the original buffer is returned
+     as is, otherwise sub-[cstruct] are copied. *)
+
+  val encode_bytes: 'a t -> 'a -> bytes
+  (** Same as {!encode_bytes} but using a string. *)
+
+  val decode_bytes: 'a t -> bytes -> ('a, [`Msg of string]) result
+  (** Same as {!decode_bytes} but using a string. *)
+
+  val encode_string: 'a t -> 'a -> string
+  (** Same as {!encode_cstruct} but using a string. *)
+
+  val decode_string: 'a t -> string -> ('a, [`Msg of string]) result
+  (** Same as {!decode_cstruct} but using a string. *)
 
 end
 

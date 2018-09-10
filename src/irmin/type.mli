@@ -24,6 +24,7 @@ val int32: int32 t
 val int64: int64 t
 val float: float t
 val string: string t
+val bytes: bytes t
 val cstruct: Cstruct.t t
 val list: 'a t -> 'a list t
 val array: 'a t -> 'a array t
@@ -74,3 +75,9 @@ val decode_json_lexemes:
 
 val encode_cstruct: 'a t -> 'a -> Cstruct.t
 val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+
+val encode_bytes: 'a t -> 'a -> bytes
+val decode_bytes: 'a t -> bytes -> ('a, [`Msg of string]) result
+
+val encode_string: 'a t -> 'a -> string
+val decode_string: 'a t -> string -> ('a, [`Msg of string]) result
