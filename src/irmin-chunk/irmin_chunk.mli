@@ -20,22 +20,6 @@
     of the same size, while preserving the keys used in the store. It can
     be used to optimize space usage when dealing with large files or as an
     intermediate layer for a raw block device backend.
-
-    # Install
-
-    Use opam:
-
-    ```shell
-    opam install irmin-chunk
-    ```
-
-    # Use
-
-    ```ocaml
-    (* Build an Irmin store, where blobs are cut into chunks of same size *)
-    module AO = Irmin_chunk.AO_stable(Irmin_mem.Link)(Irmin_mem.AO)
-    module Store = Irmin.Make(AO)(Irmin_mem.RW)
-    ```
 *)
 
 (** Managing Chunks.
@@ -51,16 +35,16 @@
     A chunk has the following structure:
 
     {v
-     --------------------------
-     | uint8_t type            |
-     ---------------------------
-     | uint16_t length         |
-     ---------------------------
-     | byte data[length]       |
-     ---------------------------
+     --------------------------      --------------------------
+     | uint8_t type            |     | uint8_t type            |
+     ---------------------------     ---------------------------
+     | uint16_t                |     | uint64_t                |
+     ---------------------------     ---------------------------
+     | key children[length]    |     | byte data[length]       |
+     ---------------------------     ---------------------------
 v}
 
-    [type] is either [Data] (0) or [Node] (1). If the chunk contains
+    [type] is either [Data] (0) or [Index] (1). If the chunk contains
     data, [length] is the payload length. Otherwise it is the number
     of children that the node has.
 
