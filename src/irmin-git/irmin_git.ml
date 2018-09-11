@@ -874,6 +874,8 @@ module Make
 
 module NoNet = struct
   type socket = unit
+  type error = unit
+  let pp_error _ _ = assert false
   let read () _ _ = assert false
   let write () _ _ _ = assert false
   let socket _ = Lwt.return ()
