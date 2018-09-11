@@ -304,7 +304,7 @@ module Dump = struct
   let pair = Fmt.Dump.pair
   let triple a b c ppf (x, y, z) = Fmt.pf ppf "(%a, %a, %a)" a x b y c z
   let option = Fmt.Dump.option
-  let cstruct = Cstruct.hexdump_pp
+  let cstruct ppf x = Fmt.pf ppf "%S" (Cstruct.to_string x)
 
   let rec t: type a. a t -> a Fmt.t = function
     | Self s    -> t s.self

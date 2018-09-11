@@ -152,8 +152,6 @@ module SHA1 = struct
     else
       raise (Invalid hex)
 
-  let t = Type.cstruct
-
   let digest t x =
     sha_1 (Type.encode_cstruct t x)
 
@@ -168,5 +166,7 @@ module SHA1 = struct
     | _ -> false
 
   let to_raw_int c = Int64.to_int @@ Cstruct.BE.get_uint64 c 0
+
+  let t = Type.like Type.string of_hex to_hex
 
 end
