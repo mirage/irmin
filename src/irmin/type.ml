@@ -47,16 +47,23 @@ end = struct
 
 end
 
+type len = [`Int8 | `Int16 | `Int32 | `Int64]
+
 type _ t =
   | Self   : 'a self -> 'a t
   | Like   : ('a, 'b) like -> 'b t
   | Prim   : 'a prim -> 'a t
-  | List   : 'a t -> 'a list t
-  | Array  : 'a t -> 'a array t
+  | List   : 'a len_v -> 'a list t
+  | Array  : 'a len_v -> 'a array t
   | Tuple  : 'a tuple -> 'a t
   | Option : 'a t -> 'a option t
   | Record : 'a record -> 'a t
   | Variant: 'a variant -> 'a t
+
+and 'a len_v = {
+  len: len;
+  v  : 'a t;
+}
 
 and ('a, 'b) like = {
   x: 'a t;
@@ -153,8 +160,10 @@ module Refl = struct
     | a, Self b -> eq a b.self
     | Like a, Like b -> Witness.eq a.lwit b.lwit
     | Prim a, Prim b -> prim a b
+    | Array a, Array b ->
+      (match eq a.v b.v with Some Refl -> Some Refl | None -> None)
     | List a, List b ->
-      (match eq a b with Some Refl -> Some Refl | None -> None)
+      (match eq a.v b.v with Some Refl -> Some Refl | None -> None)
     | Tuple a, Tuple b -> tuple a b
     | Option a, Option b ->
       (match eq a b with Some Refl -> Some Refl | None -> None)
@@ -186,8 +195,8 @@ let string = Prim String
 let bytes = Prim Bytes
 let cstruct = Prim Cstruct
 
-let list l = List l
-let array a = Array a
+let list ?(len=`Int64) v = List { v; len }
+let array ?(len=`Int64) v = Array { v; len }
 let pair a b = Tuple (Pair (a, b))
 let triple a b c = Tuple (Triple (a, b, c))
 let option a = Option a
@@ -313,8 +322,8 @@ module Dump = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim t    -> prim t
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v)
+    | Array a   -> array (t a.v)
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -405,8 +414,8 @@ module Equal = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim p    -> prim p
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v)
+    | Array a   -> array (t a.v)
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -520,8 +529,8 @@ module Compare = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim p    -> prim p
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v)
+    | Array a   -> array (t a.v)
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -627,8 +636,8 @@ module Encode_json = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim t    -> prim t
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v)
+    | Array a   -> array (t a.v)
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -699,6 +708,12 @@ type 'a size_of = 'a -> int
 
 module Size_of = struct
 
+  let len = function
+    | `Int8  -> 1
+    | `Int16 -> 2
+    | `Int32 -> 4
+    | `Int64 -> 8
+
   let unit () = 0
   let char (_:char) = 1
   let int32 (_:int32) = 4
@@ -709,8 +724,8 @@ module Size_of = struct
   let string s = (int 0) + String.length s
   let bytes s = (int 0) + Bytes.length s
   let cstruct s = (int 0) + Cstruct.len s
-  let list l x = List.fold_left (fun acc x -> acc + l x) (int 0) x
-  let array l x = Array.fold_left (fun acc x -> acc + l x) (int 0) x
+  let list l n x = List.fold_left (fun acc x -> acc + l x) (len n) x
+  let array l n x = Array.fold_left (fun acc x -> acc + l x) (len n) x
   let pair a b (x, y) = a x + b y
   let triple a b c (x, y, z) = a x + b y + c z
   let option o = function
@@ -721,8 +736,8 @@ module Size_of = struct
   | Self s    -> t s.self
   | Like b    -> like b
   | Prim t    -> prim t
-  | List l    -> list (t l)
-  | Array a   -> array (t a)
+  | List l    -> list (t l.v) l.len
+  | Array a   -> array (t a.v) a.len
   | Tuple t   -> tuple t
   | Option x  -> option (t x)
   | Record r  -> record r
@@ -763,6 +778,7 @@ end
 module type E = sig
   type t
   val set_char: t -> int -> char -> unit
+  val set_uint16: t -> int -> int -> unit
   val set_uint32: t -> int -> int32 -> unit
   val set_uint64: t -> int -> int64 -> unit
   val blit_from_string: string -> int -> t -> int -> int -> unit
@@ -776,11 +792,19 @@ module Encode (E: E) = struct
 
   let unit _buf ofs () = ofs
   let char buf ofs c = E.set_char buf ofs c ; ofs + 1
+  let int8 buf ofs i = char buf ofs (Char.chr i)
+  let int16 buf ofs i = E.set_uint16 buf ofs i ; ofs + 2
   let int32 buf ofs i = E.set_uint32 buf ofs i ; ofs + 4
   let int64 buf ofs i = E.set_uint64 buf ofs i ; ofs + 8
   let float buf ofs f = int64 buf ofs (Int64.bits_of_float f)
   let int buf ofs i = int64 buf ofs (Int64.of_int i)
   let bool buf ofs b = char buf ofs (if b then '\255' else '\000')
+
+  let len buf ofs len i = match len with
+    | `Int8  -> int8 buf ofs i
+    | `Int16 -> int16 buf ofs i
+    | `Int32 -> int32 buf ofs (Int32.of_int i)
+    | `Int64 -> int64 buf ofs (Int64.of_int i)
 
   let string buf ofs s =
     let len = String.length s in
@@ -800,16 +824,14 @@ module Encode (E: E) = struct
     E.blit_from_cstruct c 0 buf ofs len ;
     ofs + len
 
-  let list l buf ofs x =
-    let len = List.length x in
-    let ofs = int buf ofs len in
+  let list l n buf ofs x =
+    let ofs = len buf ofs n (List.length x) in
     List.fold_left
       (fun ofs e -> l buf ofs e)
       ofs x
 
-  let array l buf ofs x =
-    let len = Array.length x in
-    let ofs = int buf ofs len in
+  let array l n buf ofs x =
+    let ofs = len buf ofs n (Array.length x) in
     Array.fold_left
       (fun ofs e -> l buf ofs e)
       ofs x
@@ -834,8 +856,8 @@ module Encode (E: E) = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim t    -> prim t
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v) l.len
+    | Array a   -> array (t a.v) a.len
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -880,6 +902,7 @@ end
 module Encode_cstruct = Encode (struct
     type t = Cstruct.t
     let set_char = Cstruct.set_char
+    let set_uint16 = Cstruct.BE.set_uint16
     let set_uint32 = Cstruct.BE.set_uint32
     let set_uint64 = Cstruct.BE.set_uint64
     let blit_from_string = Cstruct.blit_from_string
@@ -903,6 +926,7 @@ let encode_cstruct (type a) (t: a t) (x: a) : Cstruct.t =
 module type D = sig
   type t
   val get_char: t -> int -> char
+  val get_uint16: t -> int -> int
   val get_uint32: t -> int -> int32
   val get_uint64: t -> int -> int64
   val blit_to_bytes: t -> int -> bytes -> int -> int -> unit
@@ -921,11 +945,19 @@ module Decode (D: D) = struct
 
   let unit _ ofs = ok ofs ()
   let char buf ofs = ok (ofs+1) (D.get_char buf ofs)
+  let int8 buf ofs = char buf ofs >|= Char.code
+  let int16 buf ofs = ok (ofs+2) (D.get_uint16 buf ofs)
   let int32 buf ofs = ok (ofs+4) (D.get_uint32 buf ofs)
   let int64 buf ofs = ok (ofs+8) (D.get_uint64 buf ofs)
   let bool buf ofs = char buf ofs >|= function '\000' -> false | _ -> true
   let int buf ofs = int64 buf ofs >|= Int64.to_int
   let float buf ofs = int64 buf ofs >|= Int64.float_of_bits
+
+  let size buf ofs = function
+    | `Int8  -> int8 buf ofs
+    | `Int16 -> int16 buf ofs
+    | `Int32 -> int32 buf ofs >|= Int32.to_int
+    | `Int64 -> int64 buf ofs >|= Int64.to_int
 
   let string buf ofs =
     int buf ofs >>= fun (ofs, len) ->
@@ -945,8 +977,8 @@ module Decode (D: D) = struct
     D.blit_to_cstruct buf ofs str 0 len ;
     ok (ofs+len) str
 
-  let list l buf ofs =
-    int buf ofs >>= fun (ofs, len) ->
+  let list l len buf ofs =
+    size buf ofs len >>= fun (ofs, len) ->
     let rec aux acc ofs = function
       | 0 -> ok ofs (List.rev acc)
       | n ->
@@ -955,7 +987,7 @@ module Decode (D: D) = struct
     in
     aux [] ofs len
 
-  let array l buf ofs = list l buf ofs >|= Array.of_list
+  let array l len buf ofs = list l len buf ofs >|= Array.of_list
 
   let pair a b buf ofs =
     a buf ofs >>= fun (ofs, a) ->
@@ -977,8 +1009,8 @@ module Decode (D: D) = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim t    -> prim t
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v) l.len
+    | Array a   -> array (t a.v) a.len
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r
@@ -1031,6 +1063,7 @@ end
 module Decode_cstruct = Decode (struct
     type t = Cstruct.t
     let get_char = Cstruct.get_char
+    let get_uint16 = Cstruct.BE.get_uint16
     let get_uint32 = Cstruct.BE.get_uint32
     let get_uint64 = Cstruct.BE.get_uint64
     let blit_to_bytes = Cstruct.blit_to_bytes
@@ -1051,18 +1084,27 @@ module B = struct
 
   type t = bytes
 
+  external get_16 : Bytes.t -> int -> int = "%caml_string_get16"
   external get_32 : Bytes.t -> int -> int32 = "%caml_string_get32"
   external get_64 : Bytes.t -> int -> int64 = "%caml_string_get64"
+  external set_16 : Bytes.t -> int -> int -> unit = "%caml_string_set16"
   external set_32 : Bytes.t -> int -> int32 -> unit = "%caml_string_set32"
   external set_64 : Bytes.t -> int -> int64 -> unit = "%caml_string_set64"
+  external swap16 : int -> int = "%bswap16"
   external swap32 : int32 -> int32 = "%bswap_int32"
   external swap64 : int64 -> int64 = "%bswap_int64"
+
+  let get_uint16 s off =
+    if not Sys.big_endian then swap16 (get_16 s off) else get_16 s off
 
   let get_uint32 s off =
     if not Sys.big_endian then swap32 (get_32 s off) else get_32 s off
 
   let get_uint64 s off =
     if not Sys.big_endian then swap64 (get_64 s off) else get_64 s off
+
+  let set_uint16 s off v =
+    if not Sys.big_endian then set_16 s off (swap16 v) else set_16 s off v
 
   let set_uint32 s off v =
     if not Sys.big_endian then set_32 s off (swap32 v) else set_32 s off v
@@ -1260,8 +1302,8 @@ module Decode_json = struct
     | Self s    -> t s.self
     | Like b    -> like b
     | Prim t    -> prim t
-    | List l    -> list (t l)
-    | Array a   -> array (t a)
+    | List l    -> list (t l.v)
+    | Array a   -> array (t a.v)
     | Tuple t   -> tuple t
     | Option x  -> option (t x)
     | Record r  -> record r

@@ -16,6 +16,8 @@
 
 open Result
 
+type len = [ `Int8 | `Int16 | `Int32 | `Int64 ]
+
 type 'a t
 val unit: unit t
 val bool: bool t
@@ -26,8 +28,8 @@ val float: float t
 val string: string t
 val bytes: bytes t
 val cstruct: Cstruct.t t
-val list: 'a t -> 'a list t
-val array: 'a t -> 'a array t
+val list: ?len:len -> 'a t -> 'a list t
+val array: ?len:len -> 'a t -> 'a array t
 val option: 'a t -> 'a option t
 val pair: 'a t -> 'b t -> ('a * 'b) t
 val triple: 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t

@@ -92,10 +92,13 @@ module Type: sig
   val cstruct: Cstruct.t t
   (** [cstruct] is a representation of the [Cstruct.t] type. *)
 
-  val list: 'a t -> 'a list t
+  type len = [ `Int8 | `Int16 | `Int32 | `Int64 ]
+  (** The type of integer used to store list or array lengths. *)
+
+  val list: ?len:len -> 'a t -> 'a list t
   (** [list t] is a representation of list of values of type [t]. *)
 
-  val array: 'a t -> 'a array t
+  val array: ?len:len -> 'a t -> 'a array t
   (** [array t] is a representation of array of values of type [t]. *)
 
   val option: 'a t -> 'a option t
