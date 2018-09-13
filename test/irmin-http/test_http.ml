@@ -19,12 +19,26 @@ open Irmin_test
 
 let (/) = Filename.concat
 
-let uri = Uri.of_string "http://127.0.0.1:8080"
+let socket = Filename.get_temp_dir_name () / "irmin.sock"
+let uri = Uri.of_string "http://irmin"
 
 let pid_file = Filename.get_temp_dir_name () / "irmin-test.pid"
 
+let rewrite _ _ = Lwt.return (`Unix_domain_socket socket)
+
+module Client = struct
+  include Cohttp_lwt_unix.Client
+  let ctx () =
+    let resolver =
+      let h = Hashtbl.create 1 in
+      Hashtbl.add h "irmin" (`Unix_domain_socket socket);
+      Resolver_lwt_unix.static h
+    in
+    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+end
+
 let http_store (module S: Test_S) =
-  store (module Irmin_http.Make(Cohttp_lwt_unix.Client)) (module S.Metadata)
+  store (module Irmin_http.Make(Client)) (module S.Metadata)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
 let () = Lwt.async_exception_hook := (fun e ->
@@ -76,7 +90,11 @@ let serve servers n =
     Server.Repo.v server.config >>= fun repo ->
     signal (Unix.getpid ()) >>= fun () ->
     let spec = HTTP.v repo ~strict:false in
-    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) spec
+    Lwt.catch
+      (fun () -> Lwt_unix.unlink socket)
+      (function Unix.Unix_error _ -> Lwt.return () | e -> Lwt.fail e)
+    >>= fun () ->
+    Cohttp_lwt_unix.Server.create ~mode:(`Unix_domain_socket (`File socket)) spec
   in
   Lwt_main.run (server ())
 
@@ -87,7 +105,7 @@ let suite i server =
     init = begin fun () ->
       remove pid_file;
       Lwt_io.flush_all () >>= fun () ->
-      let _ = Sys.command @@ Fmt.strf "%s serve %d &" Sys.argv.(0) i in
+      let _ = Sys.command @@ Fmt.strf "dune exec -- %s serve %d &" Sys.argv.(0) i in
       wait_for_the_server_to_start () >|= fun pid ->
       server_pid := pid
     end;
