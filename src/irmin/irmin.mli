@@ -63,6 +63,10 @@ module Type: sig
   type 'a t
   (** The type for runtime representation of values of type ['a]. *)
 
+  type len = [ `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int]
+  (** The type of integer used to store buffers, list or array
+     lengths. *)
+
   (** {1:primitives Primitives} *)
 
   val unit: unit t
@@ -73,6 +77,10 @@ module Type: sig
 
   val char: char t
   (** [char] is a representation of the character type. *)
+
+  val int: int t
+  (** [int] is a representation of integers. They will always be
+     serialised to 64 bits. *)
 
   val int32: int32 t
   (** [int32] is a representation of the 32-bit integers type. *)
@@ -92,8 +100,14 @@ module Type: sig
   val cstruct: Cstruct.t t
   (** [cstruct] is a representation of the [Cstruct.t] type. *)
 
-  type len = [ `Int8 | `Int16 | `Int32 | `Int64 ]
-  (** The type of integer used to store list or array lengths. *)
+  val string_of: len -> string t
+  (** Like {!string} but add control to the size. *)
+
+  val bytes_of: len -> bytes t
+  (** Like {!bytes} but add control to the size. *)
+
+  val cstruct_of: len -> Cstruct.t t
+  (** Like {!cstruct} but add control to the size. *)
 
   val list: ?len:len -> 'a t -> 'a list t
   (** [list t] is a representation of list of values of type [t]. *)
@@ -375,7 +389,7 @@ module Type: sig
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
-  val encode_cstruct: 'a t -> 'a -> Cstruct.t
+  val encode_cstruct: ?buf:Cstruct.t -> 'a t -> 'a -> Cstruct.t
   (** [encode_cstruct t e] encodes [t] into a `Cstruct.t`. The size of
      the returned buffer is precomputed and the buffer is allocated at
      once.
@@ -384,7 +398,8 @@ module Type: sig
      single buffer (of type [cstruct], [bytes] or [string]): the
      original value is returned as is, without being copied. *)
 
-  val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+  val decode_cstruct: ?exact:bool -> 'a t ->
+    Cstruct.t -> ('a, [`Msg of string]) result
   (** [decode_cstruct t buf] decodes values of type [t] as produced by
      [encode_cstruct t v].
 
@@ -392,18 +407,19 @@ module Type: sig
      [cstruct], [bytes] or [string]) the original buffer is returned
      as is, otherwise sub-[cstruct] are copied. *)
 
-  val encode_bytes: 'a t -> 'a -> bytes
+  val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
   (** Same as {!encode_bytes} but using a string. *)
 
-  val decode_bytes: 'a t -> bytes -> ('a, [`Msg of string]) result
+  val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
   (** Same as {!decode_bytes} but using a string. *)
 
-  val encode_string: 'a t -> 'a -> string
+  val encode_string: ?buf:bytes -> 'a t -> 'a -> string
   (** Same as {!encode_cstruct} but using a string. *)
 
-  val decode_string: 'a t -> string -> ('a, [`Msg of string]) result
+  val decode_string: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
   (** Same as {!decode_cstruct} but using a string. *)
 
+  val size_of: 'a t -> 'a -> int
 end
 
 (** Commit info are used to keep track of the origin of write

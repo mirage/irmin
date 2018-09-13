@@ -16,12 +16,13 @@
 
 open Result
 
-type len = [ `Int8 | `Int16 | `Int32 | `Int64 ]
+type len = [ `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 
 type 'a t
 val unit: unit t
 val bool: bool t
 val char: char t
+val int: int t
 val int32: int32 t
 val int64: int64 t
 val float: float t
@@ -34,6 +35,10 @@ val option: 'a t -> 'a option t
 val pair: 'a t -> 'b t -> ('a * 'b) t
 val triple: 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
 val result: 'a t -> 'b t -> ('a, 'b) result t
+
+val string_of: len -> string t
+val bytes_of: len -> bytes t
+val cstruct_of: len -> Cstruct.t t
 
 type ('a, 'b) field
 type ('a, 'b, 'c) open_record
@@ -75,11 +80,13 @@ val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
 val decode_json_lexemes:
   'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result
 
-val encode_cstruct: 'a t -> 'a -> Cstruct.t
-val decode_cstruct: 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
+val encode_cstruct: ?buf:Cstruct.t -> 'a t -> 'a -> Cstruct.t
+val decode_cstruct: ?exact:bool -> 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
 
-val encode_bytes: 'a t -> 'a -> bytes
-val decode_bytes: 'a t -> bytes -> ('a, [`Msg of string]) result
+val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
+val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
 
-val encode_string: 'a t -> 'a -> string
-val decode_string: 'a t -> string -> ('a, [`Msg of string]) result
+val encode_string: ?buf:bytes -> 'a t -> 'a -> string
+val decode_string: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
+
+val size_of: 'a t -> 'a -> int
