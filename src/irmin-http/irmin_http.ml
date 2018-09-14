@@ -167,19 +167,19 @@ module Helper (Client: Cohttp_lwt.S.Client) = struct
       "Content-type", "application/json";
     ]
 
-  let map_call meth t ?body path fn =
+  let map_call meth t ctx ?body path fn =
     let uri = uri_append t path in
     let body = match body with None -> None | Some b -> Some (`String b) in
     Log.debug  (fun f ->
         f "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri)
       );
-    Client.call meth ~headers ?body uri >>= fn
+    Client.call ?ctx meth ~headers ?body uri >>= fn
 
-  let call meth t ?body  path parse =
-    map_call meth t ?body path (map_string_response parse)
+  let call meth t ctx ?body  path parse =
+    map_call meth t ctx ?body path (map_string_response parse)
 
-  let call_stream meth t ?body path parse =
-    map_call meth t ?body path (map_stream_response parse)
+  let call_stream meth t ctx ?body path parse =
+    map_call meth t ctx ?body path (map_stream_response parse)
 
 end
 
@@ -190,7 +190,7 @@ module RO (Client: Cohttp_lwt.S.Client)
 
   module HTTP = Helper (Client)
 
-  type t = { uri: Uri.t; item: string; items: string }
+  type t = { uri: Uri.t; item: string; items: string; ctx: Client.ctx option }
   let uri t = t.uri
   let item t = t.item
   let items t = t.items
@@ -201,17 +201,17 @@ module RO (Client: Cohttp_lwt.S.Client)
   let key_str = Fmt.to_to_string K.pp
 
   let find t key =
-    HTTP.map_call `GET t.uri [t.item; key_str key] (fun (r, _ as x) ->
+    HTTP.map_call `GET t.uri t.ctx [t.item; key_str key] (fun (r, _ as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
         else HTTP.map_string_response V.of_string x >|= fun x -> Some x)
 
   let mem t key =
-    HTTP.map_call `GET t.uri [t.item; key_str key] (fun (r, _ ) ->
+    HTTP.map_call `GET t.uri t.ctx [t.item; key_str key] (fun (r, _ ) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
 
-  let v uri item items =
-    Lwt.return { uri; item; items }
+  let v ?ctx uri item items =
+    Lwt.return { uri; item; items; ctx }
 
 end
 
@@ -222,7 +222,7 @@ struct
   include RO (Client)(K)(V)
   let add t value =
     let body = Fmt.to_to_string V.pp value in
-    HTTP.call `POST t.uri [t.items] ~body K.of_string
+    HTTP.call `POST t.uri t.ctx [t.items] ~body K.of_string
 end
 
 module RW (Client: Cohttp_lwt.S.Client)
@@ -246,13 +246,13 @@ module RW (Client: Cohttp_lwt.S.Client)
 
   type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
 
-  let get t = HTTP.call `GET (RO.uri t.t)
-  let put t = HTTP.call `PUT (RO.uri t.t)
-  let get_stream t = HTTP.call_stream `GET (RO.uri t.t)
-  let post_stream t = HTTP.call_stream `POST (RO.uri t.t)
+  let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
+  let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
+  let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
+  let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
 
-  let v uri item items =
-    RO.v uri item items >>= fun t ->
+  let v ?ctx uri item items =
+    RO.v ?ctx uri item items >>= fun t ->
     let w = W.v () in
     let keys = empty_cache () in
     let glob = empty_cache () in
@@ -281,12 +281,13 @@ module RW (Client: Cohttp_lwt.S.Client)
     | e       -> Lwt.fail_with e
 
   let remove t key =
-    HTTP.map_call `DELETE (RO.uri t.t) [RO.item t.t; key_str key] (fun (r, b) ->
-        match Cohttp.Response.status r with
-        | `Not_found | `OK -> Lwt.return_unit
-        | _ ->
-          Cohttp_lwt.Body.to_string b >>= fun b ->
-          Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" K.pp key b
+    HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx [RO.item t.t; key_str key]
+      (fun (r, b) ->
+         match Cohttp.Response.status r with
+         | `Not_found | `OK -> Lwt.return_unit
+         | _ ->
+           Cohttp_lwt.Body.to_string b >>= fun b ->
+           Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" K.pp key b
       )
 
   let nb_keys t = fst (W.stats t.w)
@@ -361,8 +362,13 @@ module RW (Client: Cohttp_lwt.S.Client)
 
 end
 
+module type CLIENT = sig
+  include Cohttp_lwt.S.Client
+  val ctx: unit -> ctx option
+end
+
 module Make
-    (Client: Cohttp_lwt.S.Client)
+    (Client: CLIENT)
     (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
@@ -374,7 +380,7 @@ struct
       module Key = H
       module Val = C
       include AO(Client)(H)(C)
-      let v config = v config "blob" "blobs"
+      let v ?ctx config = v ?ctx config "blob" "blobs"
     end
     module Contents = Irmin.Contents.Store(XContents)
     module Node = struct
@@ -388,7 +394,7 @@ struct
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Node.Store(Contents)(P)(M)(X)
-      let v config = X.v config "tree" "trees"
+      let v ?ctx config = X.v ?ctx config "tree" "trees"
     end
     module Commit = struct
       module X = struct
@@ -401,13 +407,13 @@ struct
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Commit.Store(Node)(X)
-      let v config = X.v config "commit" "commits"
+      let v ?ctx config = X.v ?ctx config "commit" "commits"
     end
     module Branch = struct
       module Key = B
       module Val = H
       include RW(Client)(Key)(Val)
-      let v config = v config "branch" "branches"
+      let v ?ctx config = v ?ctx config "branch" "branches"
     end
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(B)
@@ -426,10 +432,11 @@ struct
 
       let v config =
         let uri = get_uri config in
-        XContents.v uri >>= fun contents ->
-        Node.v uri      >>= fun node ->
-        Commit.v uri    >>= fun commit ->
-        Branch.v uri    >|= fun branch ->
+        let ctx = Client.ctx () in
+        XContents.v ?ctx uri >>= fun contents ->
+        Node.v ?ctx uri      >>= fun node ->
+        Commit.v ?ctx uri    >>= fun commit ->
+        Branch.v ?ctx uri    >|= fun branch ->
         let node = contents, node in
         let commit = node, commit in
         { contents; node; commit; branch; config }
@@ -439,7 +446,7 @@ struct
   include Irmin.Make_ext(X)
 end
 
-module KV (H: Cohttp_lwt.S.Client) (C: Irmin.Contents.S) =
+module KV (H: CLIENT) (C: Irmin.Contents.S) =
   Make (H)
     (Irmin.Metadata.None)
     (C)

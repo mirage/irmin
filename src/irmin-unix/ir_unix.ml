@@ -363,7 +363,17 @@ module Git = struct
 end
 
 module Http = struct
-  module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)
+  module Client = struct
+    include Cohttp_lwt_unix.Client
+    let ctx () =
+      let resolver =
+        let h = Hashtbl.create 1 in
+        Hashtbl.add h "irmin" (`Unix_domain_socket "/var/run/irmin.sock");
+        Resolver_lwt_unix.static h
+      in
+      Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+  end
+  module Make = Irmin_http.Make(Client)
   module KV (C: Irmin.Contents.S) =
     Make
       (Irmin.Metadata.None)

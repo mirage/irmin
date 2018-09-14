@@ -20,5 +20,10 @@ val config: ?config:Irmin.config -> Uri.t -> Irmin.config
 
 val uri: Uri.t option Irmin.Private.Conf.key
 
-module Make (C: Cohttp_lwt.S.Client): Irmin.S_MAKER
-module KV (C: Cohttp_lwt.S.Client): Irmin.KV_MAKER
+module type CLIENT = sig
+  include Cohttp_lwt.S.Client
+  val ctx: unit -> ctx option
+end
+
+module Make (C: CLIENT): Irmin.S_MAKER
+module KV (C: CLIENT): Irmin.KV_MAKER
