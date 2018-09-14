@@ -6,7 +6,7 @@
 (executable
  (name      test)
  (modules   test)
- (libraries test_mem))
+ (libraries digestif.ocaml test_mem))
 
 (alias
  (name    runtest)

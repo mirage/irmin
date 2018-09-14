@@ -354,7 +354,7 @@ module Make (P: S.PRIVATE) = struct
 
     module Keys = Hashtbl.Make(struct
         type t = P.Node.key
-        let hash = P.Node.Key.to_raw_int
+        let hash = P.Node.Key.hash
         let equal = Type.equal P.Node.Key.t
       end)
 

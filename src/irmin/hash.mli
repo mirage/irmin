@@ -16,6 +16,13 @@
 
 (** Implementation of keys *)
 
-exception Invalid of string
+module Make (H: Digestif.S): S.HASH with type t = H.t
 
 module SHA1: S.HASH
+module RMD160: S.HASH
+module SHA224: S.HASH
+module SHA256: S.HASH
+module SHA384: S.HASH
+module SHA512: S.HASH
+module BLAKE2B: S.HASH
+module BLAKE2S: S.HASH

@@ -6,7 +6,7 @@
 (executable
  (name      test)
  (modules   test)
- (libraries test_fs))
+ (libraries digestif.c test_fs))
 
 (alias
  (name    runtest)

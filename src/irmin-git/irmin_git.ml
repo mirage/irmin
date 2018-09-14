@@ -82,30 +82,13 @@ let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root =
   let config = C.add config Conf.dot_git dot_git in
   config
 
-module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t = struct
-  type t = H.t
-  let digest_size = H.digest_size
-  let t = Irmin.Type.(like string) H.of_hex H.to_hex
-  let digest t x =
-    let raw = Irmin.Type.encode_cstruct t x in
-    let ctx = H.init () in
-    let ctx = H.feed_cstruct ctx raw in
-    H.get ctx
-  let to_raw t = Cstruct.of_string @@ H.to_raw_string t (* FIXME: avoid copy *)
-  let of_raw t = H.of_raw_string @@ Cstruct.to_string t (* FIXME: avoid copy *)
-  let has_kind = function `SHA1 -> true | _ -> false (* FIXME: fixme *)
-  let pp ppf x = Fmt.string ppf (H.to_hex x)
-  let of_string str = Ok (H.of_hex str)
-  let to_raw_int = Hashtbl.hash
-end
-
 module Make_private
     (G: Git.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
 = struct
 
-  module H = Hash(G.Hash)
+  module H = Irmin.Hash.Make(G.Hash)
 
   module type V = sig
     type t
@@ -393,8 +376,7 @@ module Irmin_branch_store
 = struct
 
   module Key = B
-  module Val = Hash(G.Hash)
-  module Git_hash = Hash(G.Hash)
+  module Val = Irmin.Hash.Make(G.Hash)
 
   module W = Irmin.Private.Watch.Make(Key)(Val)
 
@@ -420,9 +402,6 @@ module Irmin_branch_store
     | Error (`Msg _) -> None
 
   let git_of_branch r = G.Reference.of_string (Fmt.to_to_string B.pp_ref r)
-  let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
-
-  let git_of_commit k = Git_hash.of_raw (Val.to_raw k)
 
   let mem { t; _ } r =
     Log.debug (fun l -> l "mem %a" Key.pp r);
@@ -433,7 +412,7 @@ module Irmin_branch_store
     G.Ref.resolve t (git_of_branch r) >>= function
     | Error `Not_found -> Lwt.return None
     | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    | Ok  k            -> Lwt.return (Some (commit_of_git k))
+    | Ok  k            -> Lwt.return (Some k)
 
   let listen_dir t =
     let (/) = Filename.concat in
@@ -521,13 +500,12 @@ module Irmin_branch_store
   let set t r k =
     Log.debug (fun f -> f "set %a" B.pp r);
     let gr = git_of_branch r in
-    let gk = git_of_commit k in
-    Lwt_mutex.with_lock t.m (fun () -> G.Ref.write t.t gr (G.Reference.Hash gk))
+    Lwt_mutex.with_lock t.m (fun () -> G.Ref.write t.t gr (G.Reference.Hash k))
     >>= function
     | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
     | Ok ()    ->
       W.notify t.w r (Some k) >>= fun () ->
-      write_index t gr gk
+      write_index t gr k
 
   let remove t r =
     Log.debug (fun f -> f "remove %a" B.pp r);
@@ -546,7 +524,7 @@ module Irmin_branch_store
     let gr = git_of_branch r in
     let c = function
       | None   -> None
-      | Some h -> Some (G.Reference.Hash (git_of_commit h))
+      | Some h -> Some (G.Reference.Hash h)
     in
     let ok = function
       | Ok ()   -> Lwt.return true
@@ -572,7 +550,7 @@ module Irmin_branch_store
              convenience for the user). *)
           if b then match set with
             | None   -> Lwt.return_unit
-            | Some v -> write_index t gr (git_of_commit v)
+            | Some v -> write_index t gr v
           else
             Lwt.return_unit
         end >|= fun () ->
@@ -589,7 +567,7 @@ struct
 
   (* FIXME: should not need to pass G.Digest and G.Inflate... *)
   module Sync = Git.Sync.Make(Net)(G)
-  module H = Hash(G.Hash)
+  module H = Irmin.Hash.Make(G.Hash)
 
   type t = G.t
   type commit = H.t
@@ -597,11 +575,10 @@ struct
 
   let git_of_branch_str str = G.Reference.of_string ("refs/heads/" ^ str)
   let git_of_branch r = git_of_branch_str (Fmt.to_to_string B.pp r)
-  let commit_of_git key = H.of_raw (H.to_raw key)
 
   let o_head_of_git = function
     | None   -> Error `No_head
-    | Some k -> Ok (commit_of_git k)
+    | Some k -> Ok k
 
   let fetch t ?depth ~uri br =
     Log.debug (fun f -> f "fetch %s" uri);
@@ -747,7 +724,7 @@ module Make_ext
 = struct
 
   module R = Irmin_branch_store(G)(B)
-  module Hash = Hash(G.Hash)
+  module Hash = Irmin.Hash.Make(G.Hash)
 
   type r = {
     config: Irmin.config;
@@ -817,12 +794,7 @@ module Make_ext
   module Git = G
 
   let git_commit (repo:Repo.t) (h:commit): Git.Value.Commit.t option Lwt.t =
-    let h =
-      Commit.hash h
-      |> Commit.Hash.to_raw
-      |> Cstruct.to_string
-      |> G.Hash.of_raw_string
-    in
+    let h = Commit.hash h in
     Git.read repo.g h >|= function
     | Ok Git.Value.Commit c -> Some c
     | _ -> None

@@ -6,7 +6,7 @@
 (executable
  (name      test)
  (modules   test)
- (libraries checkseum.c digestif.c test_git))
+ (libraries checkseum.c digestif.c irmin test_git))
 
 (alias
  (name runtest)

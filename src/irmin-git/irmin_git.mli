@@ -31,10 +31,6 @@ val head: Git.Reference.t option Irmin.Private.Conf.key
 val level: int option Irmin.Private.Conf.key
 val dot_git: string option Irmin.Private.Conf.key
 
-(** [Hash] is an implementation of Irmin hashes based on Git
-    hashes. *)
-module Hash (H: Git.HASH): Irmin.Hash.S with type t = H.t
-
 module AO (G: Git.S) (V: Irmin.Contents.Conv) : Irmin.AO
   with type t = G.t
    and type key = G.Hash.t
