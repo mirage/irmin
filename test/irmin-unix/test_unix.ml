@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
 open Lwt.Infix
 
 let stats =
@@ -29,7 +28,8 @@ module FS = struct
 
   let test_db = Test_fs.test_db
   let config = Test_fs.config
-  let store = store (module Irmin_unix.FS.Make) (module Irmin.Metadata.None)
+  let store =
+    Irmin_test.store (module Irmin_unix.FS.Make) (module Irmin.Metadata.None)
 
   let init () =
     if Sys.file_exists test_db then begin
@@ -43,14 +43,15 @@ module FS = struct
     Irmin.Private.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
-  let suite = { name = "FS"; clean; init; store; stats; config }
+  let suite =
+    { Irmin_test.name = "FS"; clean; init; store; stats; config }
 
   module Link = struct
     include Irmin_unix.FS.Link(Irmin.Hash.SHA1)
     let v () = v (Irmin_fs.config test_db)
   end
 
-  let link = (module Link: Test_link.S)
+  let link = (module Link: Irmin_test.Link.S)
 
 end
 
@@ -100,8 +101,8 @@ module Git = struct
     Irmin_git.config ~head ~bare:true test_db
 
   let suite =
-    let store = (module S: Test_S) in
-    { name = "GIT"; clean; init; store; stats; config }
+    let store = (module S: Irmin_test.S) in
+    { Irmin_test.name = "GIT"; clean; init; store; stats; config }
 
   let test_non_bare () =
     init () >>= fun () ->

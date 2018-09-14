@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
 open Lwt.Infix
 
 module IO = Irmin_fs.IO_mem
@@ -31,8 +30,12 @@ let init () =
   IO.set_listen_hook ()
 
 let config = Irmin_fs.config test_db
-let link = (module Link: Test_link.S)
+let link = (module Link: Irmin_test.Link.S)
 let clean () = Lwt.return_unit
 let stats = None
-let store = store (module Irmin_fs.Make(IO)) (module Irmin.Metadata.None)
-let suite = { name = "FS"; init; clean; config; store; stats }
+
+let store =
+  Irmin_test.store (module Irmin_fs.Make(IO)) (module Irmin.Metadata.None)
+
+let suite =
+  { Irmin_test.name = "FS"; init; clean; config; store; stats }

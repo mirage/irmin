@@ -14,15 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
-
 let misc = [
   "link", [
-    Test_link.test "mem" Test_fs.link;
+    Irmin_test.Link.test "mem" Test_fs.link;
   ]
 ]
 
 let () =
-  Test_store.run "irmin" ~misc [
+  Irmin_test.Store.run "irmin" ~misc [
     `Quick , Test_fs.suite;
   ]

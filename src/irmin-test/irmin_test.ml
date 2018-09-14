@@ -1,4 +1,4 @@
-include Test_common
+include Common
 
-module Test_link = Test_link
-module Test_store = Test_store
+module Link = Link
+module Store = Store
