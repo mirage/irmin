@@ -38,7 +38,8 @@ let test_add_read ?(stable=false) (module AO: Test_chunk.S) () =
     let v = value (String.make size 'x') in
     AO.add t v  >>= fun k ->
     if stable then
-      Alcotest.(check key_t) (name ^ " is stable") k (Test_chunk.Key.digest Test_chunk.Value.t v);
+      Alcotest.(check key_t)
+        (name ^ " is stable") k (Test_chunk.Key.digest Test_chunk.Value.t v);
     AO.find t k >|= fun v' ->
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
@@ -64,7 +65,6 @@ let stable =
   ]
 
 let () =
-  Alcotest.run "irmin-chunk" [simple; stable] ~and_exit:false;
-  Test_store.run "irmin-chunk" ~misc:[] [
+  Test_store.run "irmin-chunk" ~misc:[simple; stable] [
     `Quick, Test_chunk.suite
   ]
