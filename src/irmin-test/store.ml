@@ -16,7 +16,7 @@
 
 open Result
 open Lwt.Infix
-open Test_common
+open Common
 
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -25,7 +25,7 @@ module T = Irmin.Type
 
 let merge_exn msg x = match x with
   | Ok x                -> Lwt.return x
-  | Error (`Conflict m) -> failf "%s: %s" msg m
+  | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
 
 let info msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
@@ -46,7 +46,7 @@ let long_random_string = random_string (* 1024_000 *) 10
 let random_ascii_string n = String.init n (fun _i -> random_ascii ())
 let long_random_ascii_string = random_ascii_string 1024_000
 
-module Make (S: Test_S) = struct
+module Make (S: S) = struct
 
   module P = S.Private
   module Graph = Irmin.Private.Node.Graph(P.Node)
@@ -247,7 +247,7 @@ module Make (S: Test_S) = struct
         let names = ref [] in
         Graph.list g node >|= fun all ->
         List.iter (fun (s, _) ->
-            if List.mem s !names then failf "%s: duplicate!" n
+            if List.mem s !names then Alcotest.failf "%s: duplicate!" n
             else names := s :: !names
           ) all
       in
@@ -433,7 +433,7 @@ module Make (S: Test_S) = struct
             else (
               Log.debug (fun f ->
                   f "check-worker: expected %a, got %a" pp_w exp pp_w got);
-              failf "%s: %a / %a" msg pp_w got pp_w exp
+              Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp
             ))
     in
 
@@ -462,7 +462,7 @@ module Make (S: Test_S) = struct
             let b = b.adds, b.updates, b.removes in
             let msg = Fmt.strf "state: %s (%s)" msg s in
             if a = b then line msg
-            else failf "%s: %a / %a" msg pp a pp b
+            else Alcotest.failf "%s: %a / %a" msg pp a pp b
           )
 
       let process ?sleep_t t =
@@ -678,7 +678,7 @@ module Make (S: Test_S) = struct
       let y =   [ "left", 1L; "bar"  , 3L; "skip", 0L ] in
       let m =   [ "left", 2L; "bar"  , 3L] in
       Irmin.Merge.(f merge_x) ~old x y >>= function
-      | Error (`Conflict c) -> failf "conflict %s" c
+      | Error (`Conflict c) -> Alcotest.failf "conflict %s" c
       | Ok m'               ->
         check dx "compound merge" m m';
         Lwt.return_unit
@@ -787,7 +787,7 @@ module Make (S: Test_S) = struct
           | `Max_depth_reached -> "Max_depth_reached"
         in
         let l2 = match l2 with
-          | Ok x    -> failf "%s: %a" msg Fmt.Dump.(list S.Commit.pp) x
+          | Ok x    -> Alcotest.failf "%s: %a" msg Fmt.Dump.(list S.Commit.pp) x
           | Error e -> err_str e
         in
         Alcotest.(check string) msg (err_str err) l2
@@ -795,8 +795,8 @@ module Make (S: Test_S) = struct
       let assert_lcas msg l1 l2 =
         let l2 = match l2 with
           | Ok x -> x
-          | Error `Too_many_lcas     -> failf "%s: Too many LCAs" msg
-          | Error `Max_depth_reached -> failf "%s: max depth reached" msg
+          | Error `Too_many_lcas     -> Alcotest.failf "%s: Too many LCAs" msg
+          | Error `Max_depth_reached -> Alcotest.failf "%s: max depth reached" msg
         in
         checks (S.commit_t repo) msg l1 l2
       in

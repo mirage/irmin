@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
-
 let () =
   Test_http.(with_server servers) (fun () ->
-    Test_store.run "irmin-http" ~misc:[] Test_http.(suites servers)
+    Irmin_test.Store.run "irmin-http" ~misc:[] Test_http.(suites servers)
     )

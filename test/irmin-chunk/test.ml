@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
 open Lwt.Infix
 
 let () =
@@ -65,6 +64,6 @@ let stable =
   ]
 
 let () =
-  Test_store.run "irmin-chunk" ~misc:[simple; stable] [
+  Irmin_test.Store.run "irmin-chunk" ~misc:[simple; stable] [
     `Quick, Test_chunk.suite
   ]

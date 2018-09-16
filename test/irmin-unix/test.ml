@@ -14,17 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
-
 let misc = [
-  "LINK"     , [Test_link.test "unix" Test_unix.FS.link];
+  "LINK"     , [Irmin_test.Link.test "unix" Test_unix.FS.link];
   "GIT-BARE" , [Test_unix.Git.misc];
   "GIT.misc" , Test_git.tests Test_unix.Git.store;
 ]
 
 let () =
   Test_http.with_server Test_unix.Http.servers (fun () ->
-      Test_store.run "irmin-unix" ~misc ([
+      Irmin_test.Store.run "irmin-unix" ~misc ([
           `Quick , Test_unix.FS.suite;
           `Quick , Test_unix.Git.suite;
         ] @ Test_http.suites Test_unix.Http.servers)

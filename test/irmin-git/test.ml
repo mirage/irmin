@@ -14,13 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_test
-
 let misc = [
   "GIT.misc", Test_git.tests Test_git.store;
 ]
 
 let () =
-  Test_store.run "irmin-git" ~misc [
+  Irmin_test.Store.run "irmin-git" ~misc [
     `Quick , Test_git.suite;
   ]

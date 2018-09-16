@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Irmin_test
 
 let (/) = Filename.concat
 
@@ -37,8 +36,8 @@ module Client = struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-let http_store (module S: Test_S) =
-  store (module Irmin_http.Make(Client)) (module S.Metadata)
+let http_store (module S: Irmin_test.S) =
+  Irmin_test.store (module Irmin_http.Make(Client)) (module S.Metadata)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
 let () = Lwt.async_exception_hook := (fun e ->
@@ -80,10 +79,10 @@ let root c = Irmin.Private.Conf.(get c root)
 let serve servers n =
   Logs.set_level ~all:true (Some Logs.Debug);
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
-  let (_, server) = List.nth servers n in
+  let (_, (server : Irmin_test.t)) = List.nth servers n in
   Logs.debug (fun l -> l "Got server: %s, root=%a"
                  server.name Fmt.(option string) (root server.config));
-  let (module Server: Test_S) = server.store in
+  let (module Server: Irmin_test.S) = server.store in
   let module HTTP = Irmin_http_server.Make(Cohttp_lwt_unix.Server)(Server) in
   let server () =
     server.init () >>= fun () ->
@@ -99,6 +98,7 @@ let serve servers n =
   Lwt_main.run (server ())
 
 let suite i server =
+  let open Irmin_test in
   let server_pid = ref 0 in
   { name = Printf.sprintf "HTTP.%s" server.name;
 
@@ -137,7 +137,7 @@ let suites servers =
 let with_server servers f =
   if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
     let n = int_of_string Sys.argv.(2) in
-    Logs.set_reporter (reporter ~prefix:"S" ());
+    Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
     serve servers n
   else
     f ()

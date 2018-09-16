@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Irmin_test
 
 let test_db = "test_db_git"
 
@@ -52,11 +51,11 @@ end
 let store = (module Mem: Test_S)
 
 let suite =
-  let store = (module Mem: Irmin_test.Test_S) in
+  let store = (module Mem: Irmin_test.S) in
   let init () = Mem.init () in
   let clean () = Mem.init () in
   let stats = None in
-  { name = "GIT"; clean; init; store; stats; config }
+  { Irmin_test.name = "GIT"; clean; init; store; stats; config }
 
 let get = function
   | Some x -> x

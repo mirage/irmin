@@ -15,7 +15,7 @@
  *)
 
 open Lwt.Infix
-open Test_common
+open Common
 
 module Hash = Irmin.Hash.SHA1
 
