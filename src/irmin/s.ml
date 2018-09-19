@@ -269,13 +269,17 @@ module type BRANCH_STORE = sig
   module Val: HASH with type t = value
 end
 
+type remote = ..
+
 module type SYNC = sig
   type t
   type commit
   type branch
-  val fetch: t -> ?depth:int -> uri:string -> branch ->
+  type endpoint
+  val remote: endpoint -> remote
+  val fetch: t -> ?depth:int -> endpoint -> branch ->
     (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
-  val push: t -> ?depth:int -> uri:string -> branch ->
+  val push: t -> ?depth:int -> endpoint -> branch ->
     (unit, [`No_head | `Not_available | `Msg of string | `Detached_head])
       result Lwt.t
 end
@@ -499,6 +503,9 @@ module type STORE = sig
   module Key: PATH with type t = key and type step = step
   module Metadata: METADATA with type t = metadata
 
+  type endpoint
+  val remote: endpoint -> remote
+
   val step_t: step Type.t
   val key_t: key Type.t
   val metadata_t: metadata Type.t
@@ -523,6 +530,7 @@ module type STORE = sig
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
+       and type Sync.endpoint = endpoint
   end
 end
 
@@ -543,9 +551,7 @@ module type MAKER =
    and type Tree.Hash.t = H.t
    and type Contents.Hash.t = H.t
 
-type remote =
-  | Store: (module STORE with type t = 'a) * 'a -> remote
-  | URI of string
+type remote += Store: (module STORE with type t = 'a) * 'a -> remote
 
 module type SYNC_STORE = sig
   type db

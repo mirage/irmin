@@ -80,102 +80,114 @@ module Git: sig
 
   (** {1 Git Store} *)
 
-  module Ref: Irmin_git.REF_MAKER
-  module Make: Irmin_git.S_MAKER
-  module KV: Irmin_git.KV_MAKER
+  module Make
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S):
+    Irmin_git.S with type key = P.t
+                 and type step = P.step
+                 and module Key = P
+                 and type contents = C.t
+                 and type branch = B.t
+                 and module Git = G
+                 and type endpoint = Git_unix.endpoint
+
+  module KV
+      (G: Irmin_git.G)
+      (C: Irmin.Contents.S):
+    Irmin_git.S with type key = string list
+                 and type step = string
+                 and type contents = C.t
+                 and type branch = string
+                 and module Git = G
+                 and type endpoint = Git_unix.endpoint
+
+  module Ref
+      (G: Irmin_git.G)
+      (C: Irmin.Contents.S):
+    Irmin_git.S with type key = string list
+                 and type step = string
+                 and type contents = C.t
+                 and type branch = Irmin_git.reference
+                 and module Git = G
+                 and type endpoint = Git_unix.endpoint
 
   (** Embed an Irmin store into a local Git repository. *)
   module FS: sig
+
     module G: Irmin_git.G
 
-    module AO (V: Irmin.Contents.Conv):
-      Irmin.AO with type t     = G.t
-                and type key   = G.Hash.t
-                and type value = V.t
-    (** Embed an append-only store into a Git repository. Contents will
-        be written in {i .git/objects/} and might be cleaned-up if you
-        run {i git gc} manually. *)
+    module Make
+        (C: Irmin.Contents.S)
+        (P: Irmin.Path.S)
+        (B: Irmin.Branch.S):
+      Irmin_git.S with type key = P.t
+                   and type step = P.step
+                   and module Key = P
+                   and type contents = C.t
+                   and type branch = B.t
+                   and module Git = G
+                   and type endpoint = Git_unix.endpoint
 
-    module RW (K: Irmin.Branch.S): Irmin.RW
-      with type key   = K.t
-       and type value = G.Hash.t
-    (** Embed a read-write store into a Git repository. Contents will be
-        written in {i .git/refs}. *)
+    module Ref
+        (C: Irmin.Contents.S):
+      Irmin_git.S with type key = string list
+                   and type step = string
+                   and type contents = C.t
+                   and type branch = Irmin_git.reference
+                   and module Git = G
+                   and type endpoint = Git_unix.endpoint
 
-    module Make:
-        functor (C: Irmin.Contents.S) ->
-        functor (P: Irmin.Path.S) ->
-        functor (B: Irmin.Branch.S) ->
-        Irmin_git.S with type key = P.t
-          and type step = P.step
-          and module Key = P
-          and type contents = C.t
-          and type branch = B.t
-          and module Git = G
-
-    module Ref :
-        functor (C: Irmin.Contents.S) ->
-        Irmin_git.S with type key = string list
-          and type step = string
-          and type contents = C.t
-          and type branch = Irmin_git.reference
-          and module Git = G
-
-    module KV :
-        functor (C: Irmin.Contents.S) ->
-        Irmin_git.S with type key = Irmin.Path.String_list.t
+    module KV
+        (C: Irmin.Contents.S):
+      Irmin_git.S with type key = Irmin.Path.String_list.t
           and type step = string
           and module Key = Irmin.Path.String_list
           and type contents = C.t
           and type branch = string
           and module Git = G
+          and type endpoint = Git_unix.endpoint
+
   end
 
   (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem: sig
+
     module G: Irmin_git.G
 
-    module AO (V: Irmin.Contents.Conv):
-      Irmin.AO with type t     = G.t
-                and type key   = G.Hash.t
-                and type value = V.t
-    (** Embed an append-only store into an in-memory Git repository. Contents will
-        be written in {i .git/objects/} and might be cleaned-up if you
-        run {i git gc} manually. *)
+    module Make
+        (C: Irmin.Contents.S)
+        (P: Irmin.Path.S)
+        (B: Irmin.Branch.S):
+      Irmin_git.S with type key = P.t
+                   and type step = P.step
+                   and module Key = P
+                   and type contents = C.t
+                   and type branch = B.t
+                   and module Git = G
+                   and type endpoint = Git_unix.endpoint
 
-    module RW (K: Irmin.Branch.S): Irmin.RW
-      with type key   = K.t
-       and type value = G.Hash.t
-    (** Embed a read-write store into an in-memory Git repository. Contents will be
-        written in {i .git/refs}. *)
+    module Ref
+        (C: Irmin.Contents.S):
+      Irmin_git.S with type key = string list
+                   and type step = string
+                   and type contents = C.t
+                   and type branch = Irmin_git.reference
+                   and module Git = G
+                   and type endpoint = Git_unix.endpoint
 
-    module Make:
-        functor (H: Digestif.S) ->
-        functor (C: Irmin.Contents.S) ->
-        functor (P: Irmin.Path.S) ->
-        functor (B: Irmin.Branch.S) ->
-        Irmin_git.S with type key = P.t
-          and type step = P.step
-          and module Key = P
-          and type contents = C.t
-          and type branch = B.t
-          and module Git = Irmin_git.Mem(H)
-    module Ref :
-        functor (C: Irmin.Contents.S) ->
-        Irmin_git.S with type key = string list
-          and type step = string
-          and type contents = C.t
-          and type branch = Irmin_git.reference
-          and module Git = G
-    module KV :
-      functor (C: Irmin.Contents.S) ->
+    module KV (C: Irmin.Contents.S):
       Irmin_git.S with type key = Irmin.Path.String_list.t
         and type step = string
         and module Key = Irmin.Path.String_list
         and type contents = C.t
         and type branch = string
         and module Git = G
+        and type endpoint = Git_unix.endpoint
+
   end
+
 end
 
 (** REST (over HTTP) backend.. *)
@@ -202,47 +214,8 @@ module Http: sig
 
 end
 
-module Cli: sig
-  type command = unit Cmdliner.Term.t * Cmdliner.Term.info
-  (** [Cmdliner] commands. *)
-
-  val default: command
-  (** The default command: show a summary of the commands. *)
-
-  val commands: command list
-  (** List of available sub-commands. *)
-
-  val run: default:command -> command list -> unit
-  (** Create a command-line tool with the given subcommands. *)
-
-  (** {2 Command-builder helper} *)
-
-  type sub = {
-    name: string;
-    doc : string;
-    man : Cmdliner.Manpage.block list;
-    term: unit Cmdliner.Term.t;
-  }
-  (** Subcommand. *)
-
-  val create_command: sub -> command
-  (** Build a subcommand. *)
-
-  val mk_store: string -> ((module Irmin.Contents.S) -> (module Irmin.S))
-  (** [mk_store name] returns the store associated with [name] or raises Failure if the name is not registered *)
-
-  val add_store: string -> ?default:bool -> ((module Irmin.Contents.S) -> (module Irmin.S)) -> unit
-  (** [add_store name ?default store] registers a new [store] with the given [name]. If [default] is set to [true] then
-      this will be used as the default store type. *)
-
-  val mk_contents: string -> (module Irmin.Contents.S)
-  (** [mk_contents name] returns the contents associated with [name] or raises Failure if the name is not registered *)
-
-  val add_content_type: string -> ?default:bool -> (module Irmin.Contents.S) -> unit
-  (** [add_content_type name ?default c] registers a new content type with the given [name]. If [default] is set to [true] then
-      this will be used as the default content type *)
-end
-
 val set_listen_dir_hook: unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching
     changes in directories. *)
+
+module Cli = Cli

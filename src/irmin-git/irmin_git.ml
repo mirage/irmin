@@ -560,18 +560,21 @@ module Irmin_branch_store
 end
 
 module Irmin_sync_store
-    (Net: Git.Sync.NET)
-    (G  : Git.S)
-    (B  : Irmin.Branch.S) =
+    (G: Git.S)
+    (S: Git.Sync.S with module Store := G)
+    (B: Irmin.Branch.S) =
 struct
 
-  (* FIXME: should not need to pass G.Digest and G.Inflate... *)
-  module Sync = Git.Sync.Make(Net)(G)
   module H = Irmin.Hash.Make(G.Hash)
 
   type t = G.t
   type commit = H.t
   type branch = B.t
+
+  type endpoint = S.Endpoint.t
+
+  type Irmin.remote += E of endpoint
+  let remote e = E e
 
   let git_of_branch_str str = G.Reference.of_string ("refs/heads/" ^ str)
   let git_of_branch r = git_of_branch_str (Fmt.to_to_string B.pp r)
@@ -580,9 +583,9 @@ struct
     | None   -> Error `No_head
     | Some k -> Ok k
 
-  let fetch t ?depth ~uri br =
-    Log.debug (fun f -> f "fetch %s" uri);
-    let uri = Uri.of_string uri in
+  let fetch t ?depth e br =
+    let uri = S.Endpoint.uri e in
+    Log.debug (fun f -> f "fetch %a" Uri.pp_hum uri);
     let _deepen = depth in (* FIXME: need to be exposed in the Git API *)
     let reference = git_of_branch br in
     let result refs =
@@ -601,16 +604,16 @@ struct
       [ G.Reference.of_string ("refs/remotes/origin/" ^ (Fmt.to_to_string B.pp br));
         reference ]
     in
-    Sync.fetch_one t uri ~reference:references >|= function
-    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" Sync.pp_error e
+    S.fetch_one t e ~reference:references >|= function
+    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
     | Ok (`Sync refs) -> result refs
     | Ok `AlreadySync ->
       (* FIXME: we want to get the hash *)
       Error (`Msg "XXX")
 
-  let push t ?depth:_ ~uri br =
-    Log.debug (fun f -> f "push %s" uri);
-    let uri = Uri.of_string uri in
+  let push t ?depth:_ e br =
+    let uri = S.Endpoint.uri e in
+    Log.debug (fun f -> f "push %a" Uri.pp_hum uri);
     let reference = git_of_branch br in
     let result refs =
       (* FIXME: needs pp_push *)
@@ -629,10 +632,9 @@ struct
         (* local *)  reference
         (* remote *) [reference ]
     in
-    Sync.update_and_create t ~references uri >|= function
-    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" Sync.pp_error e
+    S.update_and_create t ~references e >|= function
+    | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
     | Ok r    -> result r
-
 
 end
 
@@ -716,11 +718,11 @@ module type G = sig
 end
 
 module Make_ext
-    (Net: Git.Sync.NET)
-    (G  : G)
-    (C  : Irmin.Contents.S)
-    (P  : Irmin.Path.S)
-    (B  : BRANCH)
+    (G: G)
+    (S: Git.Sync.S with module Store := G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: BRANCH)
 = struct
 
   module R = Irmin_branch_store(G)(B)
@@ -734,7 +736,7 @@ module Make_ext
 
   module P = struct
     module XSync = struct
-      include Irmin_sync_store(Net)(G)(R.Key)
+      include Irmin_sync_store(G)(S)(R.Key)
       let v repo = Lwt.return repo.g
     end
     include Make_private(G)(C)(P)
@@ -807,9 +809,9 @@ module Make_ext
 
 end
 
-module Mem (H: Digestif.S) = struct
+module Mem = struct
 
-  include Git.Mem.Make(H)(Git.Inflate)(Git.Deflate)
+  include Git.Mem.Store
 
   let confs = Hashtbl.create 10 (* XXX: should probably be a weak table *)
 
@@ -836,26 +838,15 @@ module Mem (H: Digestif.S) = struct
 end
 
 module Make
-    (Net: Git.Sync.NET)
-    (S  : G)
+    (G  : G)
+    (S  : Git.Sync.S with module Store := G)
     (C  : Irmin.Contents.S)
     (P  : Irmin.Path.S)
     (B  : Irmin.Branch.S)
   =
-  Make_ext (Net)(S)(C)(P)(Branch(B))
+  Make_ext (G)(S)(C)(P)(Branch(B))
 
-module NoNet = struct
-  type socket = unit
-  type error = unit
-  let pp_error _ _ = assert false
-  let read () _ _ = assert false
-  let write () _ _ _ = assert false
-  let socket _ = Lwt.return ()
-  let close _ = Lwt.return ()
-end
-
-module AO (G: Git.S) (V: Irmin.Contents.Conv)
-= struct
+module AO (G: Git.S) (V: Irmin.Contents.Conv) = struct
   module G = struct
     include G
     let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
@@ -865,7 +856,32 @@ module AO (G: Git.S) (V: Irmin.Contents.Conv)
     include V
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
   end
-  module M = Make_ext (NoNet)(G)(V)(Irmin.Path.String_list)(Reference)
+  module NoSync = struct
+    (* XXX(samoht): so much boilerplate... *)
+    module Store = G
+    module Endpoint = struct
+      type t = unit
+      let uri _ = assert false
+    end
+    type error = unit
+    let pp_error _ _ = assert false
+
+    type command =
+        [ `Create of Store.Hash.t * Store.Reference.t
+        | `Delete of Store.Hash.t * Store.Reference.t
+        | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t ]
+
+    let pp_command _ _ = assert false
+    let push _ = assert false
+    let ls _ = assert false
+    let fetch _ = assert false
+    let fetch_one _ = assert false
+    let fetch_some _ = assert false
+    let fetch_all _ = assert false
+    let clone _ = assert false
+    let update_and_create _ = assert false
+  end
+  module M = Make_ext (G)(NoSync)(V)(Irmin.Path.String_list)(Reference)
   module X = M.Private.Contents
   let state t =
     M.repo_of_git t >|= fun r ->
@@ -892,45 +908,51 @@ struct
 end
 
 module KV
-    (Net: Git.Sync.NET)
-    (S  : G)
-    (C  : Irmin.Contents.S)
-  = Make (Net)(S)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
+    (G: G)
+    (S: Git.Sync.S with module Store := G)
+    (C: Irmin.Contents.S)
+  = Make (G)(S)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
 
 module Ref
-    (Net: Git.Sync.NET)
-    (S  : G)
-    (C  : Irmin.Contents.S)
-  = Make_ext (Net)(S)(C)(Irmin.Path.String_list)(Reference)
+    (G: G)
+    (S: Git.Sync.S with module Store := G)
+    (C: Irmin.Contents.S)
+  = Make_ext (G)(S)(C)(Irmin.Path.String_list)(Reference)
 
-module type S_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
-  functor (P: Irmin.Path.S) ->
-  functor (B: Irmin.Branch.S) ->
+module type S_MAKER = functor
+    (G: G)
+    (S: Git.Sync.S with module Store := G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S) ->
     S with type key = P.t
        and type step = P.step
        and module Key = P
        and type contents = C.t
        and type branch = B.t
        and module Git = G
+       and type endpoint = S.Endpoint.t
 
-module type KV_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
+module type KV_MAKER = functor
+  (G: G)
+  (S: Git.Sync.S with module Store := G)
+  (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = string
        and module Git = G
+       and type endpoint = S.Endpoint.t
 
-module type REF_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
+module type REF_MAKER = functor
+  (G: G)
+  (S: Git.Sync.S with module Store := G)
+  (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = reference
        and module Git = G
+       and type endpoint = S.Endpoint.t
 
 include Conf

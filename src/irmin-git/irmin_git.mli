@@ -49,7 +49,7 @@ module type G = sig
     Fpath.t -> (t, error) result Lwt.t
 end
 
-module Mem (H: Digestif.S): G
+module Mem: G
 (** In-memory Git store. *)
 
 module type S = sig
@@ -82,26 +82,30 @@ module type S = sig
 
 end
 
-module type S_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
-  functor (P: Irmin.Path.S) ->
-  functor (B: Irmin.Branch.S) ->
-    S with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and module Git = G
+module type S_MAKER = functor
+  (G: G)
+  (S: Git.Sync.S with module Store := G)
+  (C: Irmin.Contents.S)
+  (P: Irmin.Path.S)
+  (B: Irmin.Branch.S) ->
+  S with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
+     and type endpoint = S.Endpoint.t
 
-module type KV_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
-    S with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
+module type KV_MAKER = functor
+  (G: G)
+  (S: Git.Sync.S with module Store := G)
+  (C: Irmin.Contents.S) ->
+  S with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
+     and type endpoint = S.Endpoint.t
 
 type reference = [
   | `Branch of string
@@ -110,18 +114,20 @@ type reference = [
   | `Other of string
 ]
 
-module type REF_MAKER =
-  functor (G: G) ->
-  functor (C: Irmin.Contents.S) ->
-    S with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = reference
-       and module Git = G
+module type REF_MAKER = functor
+  (G: G)
+  (S: Git.Sync.S with module Store := G)
+  (C: Irmin.Contents.S) ->
+  S with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = reference
+     and module Git = G
+     and type endpoint = S.Endpoint.t
 
-module Make (Net: Git.Sync.NET) : S_MAKER
-module Ref (Net: Git.Sync.NET): REF_MAKER
-module KV (Net: Git.Sync.NET): KV_MAKER
+module Make: S_MAKER
+module Ref : REF_MAKER
+module KV  : KV_MAKER
 
 module type BRANCH = sig
   include Irmin.Branch.S
@@ -134,11 +140,11 @@ module Branch (B: Irmin.Branch.S): BRANCH
 module Reference: BRANCH with type t = reference
 
 module Make_ext
-    (Net: Git.Sync.NET)
-    (S  : G)
-    (C  : Irmin.Contents.S)
-    (P  : Irmin.Path.S)
-    (B  : BRANCH):
+    (G: G)
+    (S: Git.Sync.S with module Store := G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: BRANCH):
   S with type key = P.t
      and type step = P.step
      and module Key = P

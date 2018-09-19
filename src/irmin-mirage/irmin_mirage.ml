@@ -17,21 +17,6 @@
 open Astring
 open Result
 
-module Net = Git_mirage.Net
-
-module NoConduit = struct
-  include Conduit_mirage
-  let context = Conduit_mirage.empty
-  let resolver = Resolver_lwt.init ()
-end
-
-module X = struct
-  module AO = Irmin_git.AO
-  module Make (C: Net.CONDUIT) = Irmin_git.Make(Net.Make(C))
-  module Ref  (C: Net.CONDUIT) = Irmin_git.Ref(Net.Make(C))
-  module KV   (C: Net.CONDUIT) = Irmin_git.KV(Net.Make(C))
-end
-
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
   let f c fmt =
     Fmt.kstrf (fun msg () ->
@@ -41,92 +26,146 @@ module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
       ) fmt
 end
 
-module KV_RO (G: Git.S) = struct
+module Git = struct
 
-  module G = struct
-    include G
-    let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
-      assert false
+  module Make (G: Irmin_git.G) = Irmin_git.Make(G)(Git_mirage.Sync(G))
+  module Ref  (G: Irmin_git.G) = Irmin_git.Ref(G)(Git_mirage.Sync(G))
+  module KV   (G: Irmin_git.G) = Irmin_git.KV(G)(Git_mirage.Sync(G))
+
+  module type KV_RO = sig
+    type git
+    include Mirage_kv_lwt.RO
+    val connect:
+      ?depth:int ->
+      ?branch:string ->
+      ?path:string ->
+      ?conduit:Conduit_mirage.t ->
+      ?resolver:Resolver_lwt.t ->
+      ?headers:Cohttp.Header.t ->
+      git -> Uri.t -> t Lwt.t
   end
 
-  open Lwt.Infix
+  module KV_RO (G: Git.S) = struct
 
-  module S = X.KV(NoConduit)(G)(Irmin.Contents.Cstruct)
+    module G = struct
+      include G
+      let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
+        assert false
+    end
 
-  module Sync = Irmin.Sync(S)
+    open Lwt.Infix
 
-  type 'a io = 'a Lwt.t
-  type t = { path: string list; t: S.t; }
-  let disconnect _ = Lwt.return_unit
-  type page_aligned_buffer = Cstruct.t
-  let unknown_key k = Lwt.return (Error (`Unknown_key k))
-  let ok x = Lwt.return (Ok x)
-  type error = Mirage_kv.error
-  let pp_error = Mirage_kv.pp_error
+    module S = KV(G)(Irmin.Contents.Cstruct)
 
-  let read_head t =
-    S.Head.find t.t >|= function
-    | None   -> "empty HEAD"
-    | Some h ->
-      let info = S.Commit.info h in
-      Fmt.strf
-        "commit: %a\n\
-         Author: %s\n\
-         Date: %Ld\n\
-         \n\
-         %s\n"
-        S.Commit.pp h
-        (Irmin.Info.author info)
-        (Irmin.Info.date info)
-        (Irmin.Info.message info)
+    module Sync = Irmin.Sync(S)
 
-  let mk_path t path =
-    String.cuts path ~sep:"/"
-    |> List.filter ((<>) "")
-    |> List.append t.path
+    type 'a io = 'a Lwt.t
+    type t = { path: string list; t: S.t; }
+    let disconnect _ = Lwt.return_unit
+    type page_aligned_buffer = Cstruct.t
+    let unknown_key k = Lwt.return (Error (`Unknown_key k))
+    let ok x = Lwt.return (Ok x)
+    type error = Mirage_kv.error
+    let pp_error = Mirage_kv.pp_error
 
-  let mem t path = S.mem t.t (mk_path t path) >|= fun res -> Ok res
+    let read_head t =
+      S.Head.find t.t >|= function
+      | None   -> "empty HEAD"
+      | Some h ->
+        let info = S.Commit.info h in
+        Fmt.strf
+          "commit: %a\n\
+           Author: %s\n\
+           Date: %Ld\n\
+           \n\
+           %s\n"
+          S.Commit.pp h
+          (Irmin.Info.author info)
+          (Irmin.Info.date info)
+          (Irmin.Info.message info)
 
-  let read_store t path off len =
-    S.find t.t (mk_path t path) >>= function
-    | None   -> unknown_key path
-    | Some v -> ok [Cstruct.sub v off len]
+    let mk_path t path =
+      String.cuts path ~sep:"/"
+      |> List.filter ((<>) "")
+      |> List.append t.path
 
-  let read t path off len =
-    let off = Int64.to_int off
-    and len = Int64.to_int len
-    in
-    match path with
-    | "HEAD" ->
-      read_head t >>= fun buf ->
-      let buf = Cstruct.sub (Cstruct.of_string buf) off len in
-      ok [buf]
-    | _ -> read_store t path off len
+    let mem t path = S.mem t.t (mk_path t path) >|= fun res -> Ok res
 
-  let size_head t =
-    read_head t >>= fun buf -> ok (Int64.of_int @@ String.length buf)
+    let read_store t path off len =
+      S.find t.t (mk_path t path) >>= function
+      | None   -> unknown_key path
+      | Some v -> ok [Cstruct.sub v off len]
 
-  let size_store t path =
-    S.find t.t (mk_path t path) >>= function
-    | None   -> unknown_key path
-    | Some v -> ok (Int64.of_int @@ Cstruct.len v)
+    let read t path off len =
+      let off = Int64.to_int off
+      and len = Int64.to_int len
+      in
+      match path with
+      | "HEAD" ->
+        read_head t >>= fun buf ->
+        let buf = Cstruct.sub (Cstruct.of_string buf) off len in
+        ok [buf]
+      | _ -> read_store t path off len
 
-  let size t = function
-    | "HEAD" -> size_head t
-    | path    -> size_store t path
+    let size_head t =
+      read_head t >>= fun buf -> ok (Int64.of_int @@ String.length buf)
 
-  let connect ?(depth = 1) ?(branch = "master") ?path t uri =
-    let uri = Irmin.remote_uri (Uri.to_string uri) in
-    let path = match path with
-      | None -> []
-      | Some s -> List.filter ((<>)"") @@ String.cuts s ~sep:"/"
-    in
-    let head = G.Reference.of_string ("refs/heads/" ^ branch) in
-    S.repo_of_git ~bare:true ~head t >>= fun repo ->
-    S.of_branch repo branch >>= fun t ->
-    Sync.pull_exn t ~depth uri `Set >|= fun () ->
-    { t = t; path }
+    let size_store t path =
+      S.find t.t (mk_path t path) >>= function
+      | None   -> unknown_key path
+      | Some v -> ok (Int64.of_int @@ Cstruct.len v)
 
+    let size t = function
+      | "HEAD" -> size_head t
+      | path    -> size_store t path
+
+    let connect ?(depth = 1) ?(branch = "master") ?path ?conduit ?resolver ?headers
+        t uri =
+      let endpoint = Git_mirage.endpoint ?conduit ?resolver ?headers uri in
+      let remote = S.Private.Sync.remote endpoint in
+      let path = match path with
+        | None -> []
+        | Some s -> List.filter ((<>)"") @@ String.cuts s ~sep:"/"
+      in
+      let head = G.Reference.of_string ("refs/heads/" ^ branch) in
+      S.repo_of_git ~bare:true ~head t >>= fun repo ->
+      S.of_branch repo branch >>= fun t ->
+      Sync.pull_exn t ~depth remote `Set >|= fun () ->
+      { t = t; path }
+
+  end
+
+  module Mem = struct
+    module G     = Irmin_git.Mem
+    module Make  = Make(G)
+    module Ref   = Ref(G)
+    module KV    = KV(G)
+    module KV_RO = KV_RO(G)
+  end
+
+  module FS (X: Mirage_fs_lwt.S) = struct
+
+    module G = struct
+      include Git_mirage.Store(X)
+
+      let x = ref None
+
+      let v ?dotgit ?compression ?buffers root =
+        let buffer = match buffers with
+          | None   -> None
+          | Some p -> Some (Lwt_pool.use p)
+        in
+        (* XXX(samoht): ugly *)
+        match !x with
+        | None   -> Fmt.failwith "store not connected"
+        | Some x -> v ?dotgit ?compression ?buffer x root
+    end
+
+    let set y = G.x := Some y
+
+    module Make  = Make(G)
+    module Ref   = Ref(G)
+    module KV    = KV(G)
+    module KV_RO = KV_RO(G)
+  end
 end
-
-module Git = X

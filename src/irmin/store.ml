@@ -23,7 +23,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Make (P: S.PRIVATE) = struct
 
   module Branch_store = P.Branch
-
   type branch = Branch_store.key
 
   type lca_error = [`Max_depth_reached | `Too_many_lcas]
@@ -31,6 +30,9 @@ module Make (P: S.PRIVATE) = struct
 
   module Key = P.Node.Path
   type key = Key.t
+
+  type endpoint = P.Sync.endpoint
+  let remote = P.Sync.remote
 
   module Metadata = P.Node.Metadata
   module H = Commit.History(P.Commit)

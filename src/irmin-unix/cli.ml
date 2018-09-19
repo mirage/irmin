@@ -16,11 +16,11 @@
 
 open Lwt.Infix
 open Cmdliner
-open Ir_resolver
+open Resolver
 
-let () = Ir_unix.set_listen_dir_hook ()
+let () = Hook.init ()
 
-let info ?author:(author="irmin") fmt = Ir_unix.info ~author fmt
+let info ?author:(author="irmin") fmt = Info.v ~author fmt
 
 (* Help sections common to all commands *)
 let help_sections = [
@@ -118,10 +118,10 @@ let init = {
                 launchd://Listener." in
       Arg.(value & opt string "http://localhost:8080" & doc)
     in
-    let init (S ((module S), store)) daemon uri =
+    let init (S ((module S), store, _)) daemon uri =
       run begin
         store >>= fun t ->
-        let module HTTP = Ir_unix.Http.Server(S) in
+        let module HTTP = Http.Server(S) in
         if daemon then
           let uri = Uri.of_string uri in
           let spec = HTTP.v (S.repo t) in
@@ -166,7 +166,7 @@ let get = {
   doc  = "Read the value associated with a key.";
   man  = [];
   term =
-    let get (S ((module S), store)) path =
+    let get (S ((module S), store, _)) path =
       run begin
         store >>= fun t ->
         S.find t (key S.Key.of_string path) >>= function
@@ -185,7 +185,7 @@ let list = {
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let list (S ((module S), store)) path =
+    let list (S ((module S), store, _)) path =
       run begin
         store >>= fun t ->
         S.list t (key S.Key.of_string path) >>= fun paths ->
@@ -206,7 +206,7 @@ let tree = {
   doc  = "List the store contents.";
   man  = [];
   term =
-    let tree (S ((module S), store)) =
+    let tree (S ((module S), store, _)) =
       run begin
         store >>= fun t ->
         let all = ref [] in
@@ -267,7 +267,7 @@ let set = {
     let v =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(required & pos 1 (some string) None & doc) in
-    let set (S ((module S), store)) author message path v =
+    let set (S ((module S), store, _)) author message path v =
       run begin
         let message = match message with Some s -> s | None -> "set" in
         store >>= fun t ->
@@ -285,7 +285,7 @@ let remove = {
   doc  = "Delete a key.";
   man  = [];
   term =
-    let remove (S ((module S), store)) author message path =
+    let remove (S ((module S), store, _)) author message path =
       run begin
         let message = match message with Some s -> s | None -> "remove " ^ path in
         store >>= fun t ->
@@ -295,18 +295,23 @@ let remove = {
     Term.(mk remove $ store $ author $ message $ path);
 }
 
+let apply e f = match e, f with
+  | E e, Some f -> f e
+  | E _, None   -> Fmt.failwith "invalid remote for that kind of store"
+  | r  , _      -> r
+
 (* CLONE *)
 let clone = {
   name = "clone";
   doc  = "Copy a remote respository to a local store";
   man  = [];
   term =
-    let clone (S ((module S), store)) remote depth =
+    let clone (S ((module S), store, f)) remote depth =
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
-        remote >>= fun remote ->
-        Sync.fetch t ?depth remote >>= function
+        remote >>= fun r ->
+        Sync.fetch t ?depth (apply r f) >>= function
         | Ok d    -> S.Head.set t d
         | Error e -> failwith (Fmt.to_to_string Sync.pp_fetch_error e)
       end
@@ -320,14 +325,14 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch (S ((module S), store)) remote =
+    let fetch (S ((module S), store, f)) remote =
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
         let branch = branch S.Branch.of_string "import" in
         S.of_branch (S.repo t) branch >>= fun t ->
-        Sync.pull_exn t r `Set
+        Sync.pull_exn t (apply r f) `Set
       end
     in
     Term.(mk fetch $ store $ remote);
@@ -339,7 +344,7 @@ let merge = {
   doc  = "Merge branches.";
   man  = [];
   term =
-    let merge (S ((module S), store)) author message branch =
+    let merge (S ((module S), store, _)) author message branch =
       run begin
         let message = match message with Some s -> s | None -> "merge" in
         let branch = match S.Branch.of_string branch with
@@ -367,13 +372,13 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (S ((module S), store)) author message remote =
+    let pull (S ((module S), store, f)) author message remote =
       let message = match message with Some s -> s | None -> "pull" in
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn t r (`Merge (Ir_unix.info ?author "%s" message))
+        Sync.pull_exn t (apply r f) (`Merge (Info.v ?author "%s" message))
       end
     in
     Term.(mk pull $ store $ author $ message $ remote);
@@ -385,12 +390,12 @@ let push = {
   doc  = "Update remote references along with associated objects.";
   man  = [];
   term =
-    let push (S ((module S), store)) remote =
+    let push (S ((module S), store, f)) remote =
       let module Sync = Irmin.Sync (S) in
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.push_exn t r
+        Sync.push_exn t (apply r f)
       end
     in
     Term.(mk push $ store $ remote);
@@ -402,7 +407,7 @@ let snapshot = {
   doc  = "Return a snapshot for the current state of the database.";
   man  = [];
   term =
-    let snapshot (S ((module S), store)) =
+    let snapshot (S ((module S), store, _)) =
       run begin
         store >>= fun t ->
         S.Head.get t >>= fun k ->
@@ -422,7 +427,7 @@ let revert = {
     let snapshot =
       let doc = Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." [] in
       Arg.(required & pos 0 (some string) None & doc) in
-    let revert (S ((module S), store)) snapshot =
+    let revert (S ((module S), store, _)) snapshot =
       run begin
         store >>= fun t ->
         let hash = commit S.Commit.Hash.of_string snapshot in
@@ -440,7 +445,7 @@ let watch = {
   doc  = "Get notifications when values change.";
   man  = [];
   term =
-    let watch (S ((module S), store)) path =
+    let watch (S ((module S), store, _)) path =
       let path = key S.Key.of_string path in
       run begin
         store >>= fun t ->
@@ -498,7 +503,7 @@ let dot = {
                        nodes and the content blobs."
           ["full"] in
       Arg.(value & flag & doc) in
-    let dot (S ((module S), store)) basename depth no_dot_call full =
+    let dot (S ((module S), store, _)) basename depth no_dot_call full =
       let module Dot = Irmin.Dot(S) in
       let date d =
         let tm = Unix.localtime (Int64.to_float d) in
