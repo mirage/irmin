@@ -20,6 +20,7 @@ depends: [
   "cstruct" {>= "1.6.0"}
   "jsonm"   {>= "1.0.0"}
   "lwt"     {>= "2.4.7"}
+  "digestif"
   "ocamlgraph"
   "hex"     {>= "0.2.0"}
   "logs"    {>= "0.5.0"}

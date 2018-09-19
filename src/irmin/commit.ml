@@ -178,7 +178,7 @@ module History (S: S.COMMIT_STORE) = struct
   module K = struct
     type t = S.Key.t
     let compare = Type.compare S.Key.t
-    let hash = S.Key.to_raw_int
+    let hash = S.Key.hash
     let equal = Type.equal S.Key.t
   end
   module KSet = Set.Make(K)

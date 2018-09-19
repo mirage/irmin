@@ -6,7 +6,7 @@
 (executable
  (name      test)
  (modules   test)
- (libraries test_chunk))
+ (libraries digestif.c test_chunk))
 
 (alias
  (name    runtest)

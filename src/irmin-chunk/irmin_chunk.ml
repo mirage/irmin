@@ -57,8 +57,8 @@ module Chunk (K: Irmin.Hash.S) = struct
   module K = struct
     type t = K.t
     let t =
-      Irmin.Type.(like @@ cstruct_of (`Fixed K.digest_size))
-        K.of_raw K.to_raw
+      Irmin.Type.(like @@ string_of (`Fixed K.digest_size))
+        K.of_raw_string K.to_raw_string
   end
 
   type v =
