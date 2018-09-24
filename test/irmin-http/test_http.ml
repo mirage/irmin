@@ -93,7 +93,9 @@ let serve servers n =
       (fun () -> Lwt_unix.unlink socket)
       (function Unix.Unix_error _ -> Lwt.return () | e -> Lwt.fail e)
     >>= fun () ->
-    Cohttp_lwt_unix.Server.create ~mode:(`Unix_domain_socket (`File socket)) spec
+    let mode = `Unix_domain_socket (`File socket) in
+    Conduit_lwt_unix.set_max_active 100;
+    Cohttp_lwt_unix.Server.create ~mode spec
   in
   Lwt_main.run (server ())
 
