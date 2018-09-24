@@ -16,12 +16,10 @@
 
 open Lwt.Infix
 
-module IO = struct
+let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
+module Log =(val Logs.src_log src : Logs.LOG)
 
-  module Log = struct
-    let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
-    include (val Logs.src_log src : Logs.LOG)
-  end
+module IO = struct
 
   let mkdir_pool = Lwt_pool.create 1 (fun () -> Lwt.return_unit)
 
@@ -316,85 +314,11 @@ module IO = struct
 
 end
 
-module FS = struct
-  module AO = Irmin_fs.AO(IO)
-  module Link = Irmin_fs.Link(IO)
-  module RW = Irmin_fs.RW(IO)
-  module Make = Irmin_fs.Make(IO)
-  module KV = Irmin_fs.KV(IO)
-  module AO_ext = Irmin_fs.AO_ext(IO)
-  module RW_ext = Irmin_fs.RW_ext(IO)
-  module Make_ext = Irmin_fs.Make_ext(IO)
-end
-
-module Git = struct
-
-  module Ref = Irmin_git.Ref(Git_unix.Net)
-  module Make = Irmin_git.Make(Git_unix.Net)
-  module KV = Irmin_git.KV(Git_unix.Net)
-
-  module FS = struct
-
-    module G = struct
-      include Git_unix.Store
-      let v ?dotgit ?compression ?buffers root =
-        let buffer = match buffers with
-          | None   -> None
-          | Some p -> Some (Lwt_pool.use p)
-        in
-        v ?dotgit ?compression ?buffer root
-    end
-
-    module AO   = Irmin_git.AO(G)
-    module RW   = Irmin_git.RW(G)
-    module Make = Make(G)
-    module Ref  = Ref(G)
-    module KV   = KV(G)
-  end
-
-  module Mem = struct
-    module G = Irmin_git.Mem(Digestif.SHA1)
-    module AO   = Irmin_git.AO(G)
-    module RW   = Irmin_git.RW(G)
-    module Make (H: Digestif.S) = Make(Irmin_git.Mem(H))
-    module Ref = Ref(G)
-    module KV = KV(G)
-  end
-end
-
-module Http = struct
-  module Client = struct
-    include Cohttp_lwt_unix.Client
-    let ctx () =
-      let resolver =
-        let h = Hashtbl.create 1 in
-        Hashtbl.add h "irmin" (`Unix_domain_socket "/var/run/irmin.sock");
-        Resolver_lwt_unix.static h
-      in
-      Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
-  end
-  module Make = Irmin_http.Make(Client)
-  module KV (C: Irmin.Contents.S) =
-    Make
-      (Irmin.Metadata.None)
-      (C)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
-end
-
-let info ?author fmt =
-  Fmt.kstrf (fun msg () ->
-      let date = Int64.of_float (Unix.gettimeofday ()) in
-      let author = match author with
-        | Some a -> a
-        | None   ->
-          (* XXX: get "git config user.name" *)
-          Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname()) (Unix.getpid())
-      in
-      Irmin.Info.v ~date ~author msg
-    ) fmt
-
-let set_listen_dir_hook () =
-  Irmin.Private.Watch.set_listen_dir_hook Irmin_watcher.hook
+module AO = Irmin_fs.AO(IO)
+module Link = Irmin_fs.Link(IO)
+module RW = Irmin_fs.RW(IO)
+module Make = Irmin_fs.Make(IO)
+module KV = Irmin_fs.KV(IO)
+module AO_ext = Irmin_fs.AO_ext(IO)
+module RW_ext = Irmin_fs.RW_ext(IO)
+module Make_ext = Irmin_fs.Make_ext(IO)

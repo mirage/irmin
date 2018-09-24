@@ -14,20 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Branch-consistent stores: read-write store with support fork/merge
-    operations. *)
+module Client = struct
+  include Cohttp_lwt_unix.Client
+  let ctx () =
+    let resolver =
+      let h = Hashtbl.create 1 in
+      Hashtbl.add h "irmin" (`Unix_domain_socket "/var/run/irmin.sock");
+      Resolver_lwt_unix.static h
+    in
+    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+end
 
-module Make (P: S.PRIVATE): S.STORE
-  with type key = P.Node.Path.t
-   and type contents = P.Contents.value
-   and type branch = P.Branch.key
-   and type Commit.Hash.t = P.Commit.key
-   and type Tree.Hash.t = P.Node.key
-   and type Contents.Hash.t = P.Contents.key
-   and type slice = P.Slice.t
-   and type step = P.Node.Path.step
-   and type metadata = P.Node.Val.metadata
-   and module Key = P.Node.Path
-   and module Private.Contents = P.Contents
-   and type repo = P.Repo.t
-   and type endpoint = P.Sync.endpoint
+module Make = Irmin_http.Make(Client)
+
+module KV (C: Irmin.Contents.S) =
+  Make
+    (Irmin.Metadata.None)
+    (C)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
+
+module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)

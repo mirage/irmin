@@ -176,13 +176,11 @@ let version = Version.current
 module type SYNC = S.SYNC_STORE
 module Sync = Sync_ext.Make
 
-type remote = S.remote
+type remote = S.remote = ..
 
 let remote_store (type t) (module M: S with type t = t) (t:t) =
   let module X = (M: S.STORE with type t = t) in
   Sync_ext.remote_store (module X) t
-
-let remote_uri = Sync_ext.remote_uri
 
 module Metadata = struct
   module type S = S.METADATA

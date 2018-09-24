@@ -1,9 +1,23 @@
-include Ir_unix
+(*
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-module Cli = struct
-  include Ir_cli
-  let mk_store = Ir_resolver.mk_store
-  let add_store = Ir_resolver.add_store
-  let mk_contents = Ir_resolver.mk_contents
-  let add_content_type = Ir_resolver.add_content_type
-end
+let info = Info.v
+let set_listen_dir_hook = Hook.init
+
+module Git = Xgit
+module Http = Http
+module FS = Fs
+module Cli = Cli

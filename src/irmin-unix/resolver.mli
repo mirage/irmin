@@ -1,0 +1,70 @@
+(*
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+(** Irmin store resolver. *)
+
+val global_option_section: string
+
+val branch: string option Cmdliner.Term.t
+
+(** {1 Contents} *)
+module Contents: sig
+
+  type t = (module Irmin.Contents.S)
+
+  val add: string -> ?default:bool -> (module Irmin.Contents.S) -> unit
+  val find: string -> t
+  val term: string option Cmdliner.Term.t
+end
+
+type contents = Contents.t
+
+(** {1 Global Configuration} *)
+
+module Store: sig
+
+  type t
+  (** The type for store configurations. A configuration value
+     contains: the store implementation a creator of store's state and
+     endpoint. *)
+
+  val v: ?endpoint:(Git_unix.endpoint -> Irmin.remote) -> (module Irmin.S) -> t
+
+  val mem: contents -> t
+  val irf: contents -> t
+  val http: contents -> t
+  val git: contents -> t
+
+  val find: string -> contents -> t
+  val add: string -> ?default:bool -> (contents -> t) -> unit
+
+end
+
+type Irmin.remote += E of Git_unix.endpoint
+
+val remote: Irmin.remote Lwt.t Cmdliner.Term.t
+(** Parse a remote store location. *)
+
+(** {1 Stores} *)
+
+type store =
+  | S: (module Irmin.S with type t = 'a)
+       * 'a Lwt.t
+       * (Git_unix.endpoint -> Irmin.remote) option
+    -> store
+
+val store: store Cmdliner.Term.t
+(** Parse the command-line arguments and then the config file. *)

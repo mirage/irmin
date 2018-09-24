@@ -69,81 +69,114 @@ let add_opt k v config = match v with
 
 (* Contents *)
 
-type contents = (module Irmin.Contents.S)
+module Contents = struct
 
-let contents_kinds = ref [
-  "string" , (module Irmin.Contents.String: Irmin.Contents.S);
-  "cstruct", (module Irmin.Contents.Cstruct);
-  "json", (module Irmin.Contents.Json);
-]
-let default_contents = ref (module Irmin.Contents.String: Irmin.Contents.S)
-let add_content_type name ?default:(default=false) m =
-  contents_kinds := (name, m) :: !contents_kinds;
-  if default then default_contents := m
+  type t = (module Irmin.Contents.S)
 
-let mk_contents name =
-  match List.assoc_opt (String.Ascii.lowercase name) !contents_kinds with
-  | Some c -> c
-  | None ->
-    let valid = String.concat ~sep:", " (List.split !contents_kinds |> fst) in
-    let msg = Printf.sprintf "Invalid content type: %s. Expected one of: %s." name valid in
-    failwith msg
+  let all = ref [
+      "string" , (module Irmin.Contents.String: Irmin.Contents.S);
+      "cstruct", (module Irmin.Contents.Cstruct);
+      "json", (module Irmin.Contents.Json);
+    ]
+  let default = ref (module Irmin.Contents.String: Irmin.Contents.S)
 
-let contents =
-  let kind =
-    let doc = Arg.info ~doc:"The type of user-defined contents." ~docs:global_option_section ["contents";"c"] in
-    Arg.(value & opt (some string) None & doc)
-  in
-  let create kind = kind in
-  Term.(const create $  kind)
+  let add name ?default:(x=false) m =
+    all := (name, m) :: !all;
+    if x then default := m
+
+  let find name =
+    match List.assoc_opt (String.Ascii.lowercase name) !all with
+    | Some c -> c
+    | None ->
+      let valid = String.concat ~sep:", " (List.split !all |> fst) in
+      let msg =
+        Printf.sprintf "Invalid content type: %s. Expected one of: %s."
+          name valid
+      in
+      failwith msg
+
+  let term =
+    let kind =
+      let doc =
+        Arg.info ~doc:"The type of user-defined contents."
+          ~docs:global_option_section ["contents";"c"]
+      in
+      Arg.(value & opt (some string) None & doc)
+    in
+    let create kind = kind in
+    Term.(const create $  kind)
+
+end
+
+type contents = Contents.t
 
 (* Store *)
 
-let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
-  fun (module S) (module C) ->
-    let module S =
-      S(Irmin.Metadata.None)(C)
-        (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (Irmin.Hash.SHA1)
+module Store = struct
+
+  type t =
+    | T: (module Irmin.S) * (Git_unix.endpoint -> Irmin.remote) option -> t
+
+  let v ?endpoint s = T (s, endpoint)
+
+  let v_git (module S: Irmin.S with type endpoint = Git_unix.endpoint) =
+    v (module S) ~endpoint:(fun e -> S.Private.Sync.remote e)
+
+  let create: (module Irmin.S_MAKER) -> contents -> t =
+    fun (module S) (module C) ->
+      let module S =
+        S(Irmin.Metadata.None)(C)
+          (Irmin.Path.String_list)
+          (Irmin.Branch.String)
+          (Irmin.Hash.SHA1)
+      in
+      T ((module S), None)
+
+  let mem = create (module Irmin_mem.Make)
+  let irf = create (module Fs.Make)
+  let http = create (module Http.Make)
+
+  let git (module C: Irmin.Contents.S) =
+    v_git (module Xgit.FS.KV(C))
+
+  let git_mem (module C: Irmin.Contents.S) =
+    v_git (module Xgit.Mem.KV(C))
+
+  let all = ref [
+      ("git"    , git);
+      ("git-mem", git_mem);
+      ("irf"    , irf);
+      ("http"   , http);
+      ("mem"    , mem);
+    ]
+
+  let default = ref git
+
+  let add name ?default:(x=false) m =
+    all := (name, m) :: !all;
+    if x then default := m
+
+  let find name =
+    match List.assoc_opt (String.Ascii.lowercase name) !all with
+    | Some s -> s
+    | None ->
+      let valid = String.concat ~sep:", " (List.split !all|> fst) in
+      let msg =
+        Printf.sprintf "Invalid store type: %s. Expected one of: %s." name valid
+      in
+      failwith msg
+
+  let term =
+    let store =
+      let doc =
+        Arg.info ~doc:"The storage backend." ~docs:global_option_section
+          ["s";"store"] in
+      Arg.(value & opt (some string) None & doc)
     in
-    (module S)
+    let create store contents = (store, contents) in
+  Term.(const create $ store $ Contents.term)
 
-let mem_store = create (module Irmin_mem.Make)
-let irf_store = create (module Ir_unix.FS.Make)
-let http_store = create (module Ir_unix.Http.Make)
-let git_store (module C: Irmin.Contents.S) =
-  (module Ir_unix.Git.FS.KV(C) : Irmin.S)
-let git_mem_store (module C: Irmin.Contents.S) = (module Ir_unix.Git.Mem.KV(C) : Irmin.S)
-
-let store_kinds = ref [
-  ("git" , git_store);
-  ("git-mem", git_mem_store);
-  ("irf" , irf_store);
-  ("http", http_store);
-  ("mem" , mem_store);
-]
-
-let default_store = ref git_store
-let add_store name ?default:(default=false) m =
-  store_kinds := (name, m) :: !store_kinds;
-  if default then default_store := m
-
-let mk_store name =
-  match List.assoc_opt (String.Ascii.lowercase name) !store_kinds with
-  | Some s -> s
-  | None ->
-    let valid = String.concat ~sep:", " (List.split !store_kinds|> fst) in
-    let msg = Printf.sprintf "Invalid store type: %s. Expected one of: %s." name valid in
-    failwith msg
-
-let store_term =
-  let store =
-    let doc = Arg.info ~doc:"The storage backend." ~docs:global_option_section ["s";"store"] in
-    Arg.(value & opt (some string) None & doc)
-  in
-  let create store contents = (store, contents) in
-  Term.(const create $ store $ contents)
+end
 
 (* Config *)
 
@@ -183,9 +216,13 @@ let config_term =
         opt_key Irmin_http.uri $
         opt_key config_path_key)
 
-type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
+type store =
+  | S: (module Irmin.S with type t = 'a)
+       * 'a Lwt.t
+       * (Git_unix.endpoint -> Irmin.remote) option
+    -> store
 
-let from_config_file_with_defaults path (store, contents) config branch: t =
+let from_config_file_with_defaults path (store, contents) config branch: store =
   let y = read_config_file path in
   let string_value = function
     | `String s -> s
@@ -199,30 +236,20 @@ let from_config_file_with_defaults path (store, contents) config branch: t =
     let contents =
       match contents with
       | None ->
-        (match assoc "contents" mk_contents with
-        | None   -> !default_contents
+        (match assoc "contents" Contents.find with
+        | None   -> !Contents.default
         | Some c -> c)
-      | Some c -> mk_contents c
+      | Some c -> Contents.find c
     in
     let store =
       match store with
       | None ->
-        (match assoc "store" mk_store with
-        | None   -> !default_store
+        (match assoc "store" Store.find with
+        | None   -> !Store.default
         | Some s -> s)
-      | Some s -> mk_store s
+      | Some s -> Store.find s
     in
     store contents
-  in
-  let module S = (val store) in
-  let branch =
-    match branch with
-      | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
-        | Ok x -> x
-        | Error (`Msg msg) -> failwith msg)
-      | Some t -> (match S.Branch.of_string t with
-          | Ok x           -> Some x
-          | Error (`Msg e) -> failwith e)
   in
   let config =
     let root = assoc "root" (fun x -> x) in
@@ -240,11 +267,22 @@ let from_config_file_with_defaults path (store, contents) config branch: t =
     |> add_opt Irmin_http.uri uri
     |> Irmin.Private.Conf.union config
   in
-  let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
-  let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
-  match branch with
-  | None   -> S ((module S), mk_master ())
-  | Some b -> S ((module S), mk_branch b)
+  match store with
+  | Store.T ((module S), remote) ->
+    let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+    let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
+    let branch =
+      match branch with
+      | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
+          | Ok x -> x
+          | Error (`Msg msg) -> failwith msg)
+      | Some t -> (match S.Branch.of_string t with
+          | Ok x           -> Some x
+          | Error (`Msg e) -> failwith e)
+    in
+    match branch with
+    | None   -> S ((module S), mk_master (), remote)
+    | Some b -> S ((module S), mk_branch b , remote)
 
 let branch =
   let doc =
@@ -261,37 +299,57 @@ let store =
     let cfg = Irmin.Private.Conf.get config config_path_key in
     from_config_file_with_defaults cfg store config branch
   in
-  Term.(const create $ store_term $ config_term $ branch)
+  Term.(const create $ Store.term $ config_term $ branch)
+
+
+let header_conv =
+  let parse str = match String.cut ~sep:":" str with
+    | Some (k, v) -> Ok (String.trim k, String.trim v)
+    | None        -> Error (`Msg "invalid header")
+  in
+  let print ppf (k, v) = Fmt.pf ppf "%s: %s" k v in
+  Cmdliner.Arg.conv (parse, print)
+
+let headers =
+  let doc =
+    Arg.info ~docv:"HEADER" ~doc:"Extra HTTP headers to use when sync." ["H"]
+  in
+  Arg.(value & opt_all header_conv [] & doc)
+
+type Irmin.remote += E of Git_unix.endpoint
 
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote contents str =
+let infer_remote contents headers str =
   let contents = match contents with
-    | None -> !default_contents
-    | Some c -> mk_contents c
+    | None   -> !Contents.default
+    | Some c -> Contents.find c
   in
   if Sys.file_exists str then (
     let r =
       if Sys.file_exists (str / ".git")
-      then git_store contents
-      else irf_store contents
+      then Store.git contents
+      else Store.irf contents
     in
-    let module R = (val r) in
-    let config =
-      Irmin.Private.Conf.empty
-      |> add_opt Irmin_http.uri (Some (Uri.of_string str))
-      |> add_opt Irmin.Private.Conf.root (Some str)
-    in
-    R.Repo.v config >>= fun repo ->
-    R.master repo >|= fun r ->
-    Irmin.remote_store (module R) r
-    ) else
-      Lwt.return (Irmin.remote_uri str)
+    match r with
+    | Store.T ((module R), _) ->
+      let config =
+        Irmin.Private.Conf.empty
+        |> add_opt Irmin_http.uri (Some (Uri.of_string str))
+        |> add_opt Irmin.Private.Conf.root (Some str)
+      in
+      R.Repo.v config >>= fun repo ->
+      R.master repo >|= fun r ->
+      Irmin.remote_store (module R) r
+  ) else
+    let headers = Cohttp.Header.of_list headers in
+    let endpoint = Git_unix.endpoint ~headers (Uri.of_string str) in
+    Lwt.return (E endpoint)
 
 let remote =
   let repo =
     let doc = Arg.info ~docv:"REMOTE"
         ~doc:"The URI of the remote repository to clone from." [] in
     Arg.(required & pos 0 (some string) None & doc) in
-  Term.(const infer_remote $ contents $ repo)
+  Term.(const infer_remote $ Contents.term $ headers $ repo)

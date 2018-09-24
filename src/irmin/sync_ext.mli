@@ -16,8 +16,9 @@
 
 (** Store Synchronisation. *)
 
-val remote_uri: string -> S.remote
 val remote_store: (module S.STORE with type t = 'a) -> 'a -> S.remote
 
-module Make (X: S.STORE): S.SYNC_STORE
-  with type db = X.t and type commit = X.commit
+module Make (X: S.STORE): sig
+  include S.SYNC_STORE with type db = X.t and type commit = X.commit
+  val remote: X.endpoint -> S.remote
+end

@@ -35,8 +35,8 @@ module type Test_S = sig
 end
 
 module Mem = struct
-  module G = Irmin_git.Mem(Digestif.SHA1)
-  module S = Irmin_git.KV(Net)(G)(Irmin.Contents.String)
+  module G = Irmin_git.Mem
+  module S = Irmin_git.KV(G)(Git_unix.Sync(G))(Irmin.Contents.String)
   let author repo c =
     S.git_commit repo c >|= function
     | None   -> None
@@ -93,7 +93,8 @@ let test_sort_order (module S: Test_S) =
   Alcotest.(check (list string)) "Sort order" ["foo"; "foo.c"; "foo1"] items;
   Lwt.return ()
 
-module Ref (S: Irmin_git.G) = Irmin_git.Ref(Git_unix.Net)(S)(Irmin.Contents.String)
+module Ref (S: Irmin_git.G) =
+  Irmin_git.Ref(S)(Git_unix.Sync(S))(Irmin.Contents.String)
 
 let pp_reference ppf = function
   | `Branch s -> Fmt.pf ppf "branch: %s" s

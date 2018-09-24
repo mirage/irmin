@@ -23,11 +23,8 @@ let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let remote_store m x = S.Store (m, x)
-let remote_uri s = S.URI s
 
 module Make (S: S.STORE) = struct
-
-  open Astring
 
   module B = S.Private.Sync
   type db = S.t
@@ -78,25 +75,38 @@ module Make (S: S.STORE) = struct
     | `Msg of string
   ]
 
-  let uri_and_branch uri =
-    match String.cut ~sep:"#" uri with
-    | None           -> uri, None
-    | Some (uri, br) ->
-      match S.Branch.of_string br with
-      | Error (`Msg e) -> invalid_arg e
-      | Ok br          -> uri, Some br
+  type remote += E of B.endpoint
+  let remote e = E e
 
   let fetch t ?depth remote: (commit, fetch_error) result Lwt.t =
     match remote with
-    | URI uri ->
-      Log.debug (fun f -> f "fetch URI %s" uri);
-      let uri, br = uri_and_branch uri in
-      begin match br, S.status t with
-        | None, (`Empty | `Commit _) -> Lwt.return (Error `No_head)
-        | Some br, _ | None, `Branch br ->
+    | Store ((module R), r) ->
+      Log.debug (fun f -> f "fetch store");
+      let s_repo = S.repo t in
+      let r_repo = R.repo r in
+      S.Repo.heads s_repo >>= fun min ->
+      let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
+      begin
+        R.Head.find r >>= function
+        | None   -> Lwt.return (Error `No_head)
+        | Some h ->
+          R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
+          convert_slice (module R.Private) (module S.Private) r_slice
+          >>= fun s_slice ->
+          S.Repo.import s_repo s_slice >|= function
+          | Error e -> Error (e :> fetch_error)
+          | Ok ()   ->
+            match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
+            | Ok h    -> Ok h
+            | Error e -> Error (e :> fetch_error)
+      end
+    | E e ->
+      begin match S.status t with
+        | `Empty | `Commit _ -> Lwt.return (Error `No_head)
+        | `Branch br ->
           Log.debug (fun l -> l "Fetching branch %a" S.Branch.pp br);
           B.v (S.repo t) >>= fun g ->
-          B.fetch g ?depth ~uri br >>= function
+          B.fetch g ?depth e br >>= function
           | Error _ as e -> Lwt.return e
           | Ok c         ->
             Log.debug (fun l -> l "Fetched %a" S.Commit.Hash.pp c);
@@ -104,24 +114,7 @@ module Make (S: S.STORE) = struct
             | None   -> Error `No_head
             | Some x -> Ok x
       end
-    | Store ((module R), r) ->
-      Log.debug (fun f -> f "fetch store");
-      let s_repo = S.repo t in
-      let r_repo = R.repo r in
-      S.Repo.heads s_repo >>= fun min ->
-      let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
-      R.Head.find r >>= function
-      | None   -> Lwt.return (Error `No_head)
-      | Some h ->
-        R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
-        convert_slice (module R.Private) (module S.Private) r_slice
-        >>= fun s_slice ->
-        S.Repo.import s_repo s_slice >|= function
-        | Error e -> Error (e :> fetch_error)
-        | Ok ()   ->
-          match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
-          | Ok h    -> Ok h
-          | Error e -> Error (e :> fetch_error)
+    | _ -> Lwt.return (Error `Not_available)
 
   let pp_fetch_error ppf = function
     | `No_head       -> Fmt.string ppf "empty head!"
@@ -163,31 +156,34 @@ module Make (S: S.STORE) = struct
   let push t ?depth remote =
     Log.debug (fun f -> f "push");
     match remote with
-    | URI uri ->
+    | Store ((module R), r) ->
+      begin
+        S.Head.find t >>= function
+        | None   -> Lwt.return (Error (`No_head))
+        | Some h ->
+          Log.debug (fun f -> f "push store");
+          R.Repo.heads (R.repo r) >>= fun min ->
+          let r_repo = R.repo r in
+          let s_repo = S.repo t in
+          let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
+          S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
+          convert_slice (module S.Private) (module R.Private) s_slice
+          >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
+          | Error e -> Lwt.return (Error (e :> push_error))
+          | Ok ()   ->
+            match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
+            | Error e -> Lwt.return (Error (e :> push_error))
+            | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
+      end
+    | E e ->
       begin match S.status t with
         | `Empty    -> Lwt.return (Error `No_head)
         | `Commit _ -> Lwt.return (Error `Detached_head)
         | `Branch br ->
           B.v (S.repo t) >>= fun g ->
-          (B.push g ?depth ~uri br :> (unit, push_error) result Lwt.t)
+          (B.push g ?depth e br :> (unit, push_error) result Lwt.t)
       end
-    | Store ((module R), r) ->
-      S.Head.find t >>= function
-      | None   -> Lwt.return (Error (`No_head))
-      | Some h ->
-        Log.debug (fun f -> f "push store");
-        R.Repo.heads (R.repo r) >>= fun min ->
-        let r_repo = R.repo r in
-        let s_repo = S.repo t in
-        let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
-        S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
-        convert_slice (module S.Private) (module R.Private) s_slice
-        >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
-        | Error e -> Lwt.return (Error (e :> push_error))
-        | Ok ()   ->
-          match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
-          | Error e -> Lwt.return (Error (e :> push_error))
-          | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
+    | _ -> Lwt.return (Error `Not_available)
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function

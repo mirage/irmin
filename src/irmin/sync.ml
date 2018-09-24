@@ -16,9 +16,11 @@
 
 module None (H: S.S0) (R: S.S0) = struct
   type t = unit
+  let v _ = Lwt.return ()
+  type endpoint = unit
+  let remote () = assert false
   type commit = H.t
   type branch = R.t
-  let v _ = Lwt.return_unit
-  let fetch () ?depth:_ ~uri:_ _tag = Lwt.return (Error `Not_available)
-  let push () ?depth:_ ~uri:_ _tag = Lwt.return (Error `Not_available)
+  let fetch () ?depth:_ _ _br = Lwt.return (Error `Not_available)
+  let push () ?depth:_ _ _br = Lwt.return (Error `Not_available)
 end

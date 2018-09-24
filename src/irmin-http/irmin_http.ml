@@ -161,25 +161,30 @@ module Helper (Client: Cohttp_lwt.S.Client) = struct
       in
       Lwt.return stream
 
-  let headers = Cohttp.Header.of_list [
-      "Connection"  , "Keep-Alive";
+  let headers ~keep_alive () =
+    let keep_alive = if keep_alive then ["Connection", "Keep-Alive"] else [] in
+    Cohttp.Header.of_list ([
       irmin_version , Irmin.version;
       "Content-type", "application/json";
-    ]
+    ] @ keep_alive)
 
-  let map_call meth t ctx ?body path fn =
+  let map_call meth t ctx ~keep_alive ?body path fn =
     let uri = uri_append t path in
     let body = match body with None -> None | Some b -> Some (`String b) in
+    let headers = headers ~keep_alive () in
     Log.debug  (fun f ->
         f "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri)
       );
-    Client.call ?ctx meth ~headers ?body uri >>= fn
+    Lwt.catch
+      (fun () -> Client.call ?ctx meth ~headers ?body uri >>= fn)
+      (fun e  ->
+         Log.debug (fun l -> l "request to %a failed: %a" Uri.pp_hum uri Fmt.exn e);
+         Lwt.fail e)
 
-  let call meth t ctx ?body  path parse =
-    map_call meth t ctx ?body path (map_string_response parse)
-
+  let call meth t ctx ?body path parse =
+    map_call meth t ctx ~keep_alive:false ?body path (map_string_response parse)
   let call_stream meth t ctx ?body path parse =
-    map_call meth t ctx ?body path (map_stream_response parse)
+    map_call meth t ctx ~keep_alive:true ?body path (map_stream_response parse)
 
 end
 
@@ -201,12 +206,14 @@ module RO (Client: Cohttp_lwt.S.Client)
   let key_str = Fmt.to_to_string K.pp
 
   let find t key =
-    HTTP.map_call `GET t.uri t.ctx [t.item; key_str key] (fun (r, _ as x) ->
+    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
+      [t.item; key_str key] (fun (r, _ as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
         else HTTP.map_string_response V.of_string x >|= fun x -> Some x)
 
   let mem t key =
-    HTTP.map_call `GET t.uri t.ctx [t.item; key_str key] (fun (r, _ ) ->
+    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
+      [t.item; key_str key] (fun (r, _ ) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
 
@@ -281,7 +288,8 @@ module RW (Client: Cohttp_lwt.S.Client)
     | e       -> Lwt.fail_with e
 
   let remove t key =
-    HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx [RO.item t.t; key_str key]
+    HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
+      [RO.item t.t; key_str key]
       (fun (r, b) ->
          match Cohttp.Response.status r with
          | `Not_found | `OK -> Lwt.return_unit

@@ -14,20 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Branch-consistent stores: read-write store with support fork/merge
-    operations. *)
+module AO: Irmin.AO_MAKER
+module Link: Irmin.LINK_MAKER
+module RW: Irmin.RW_MAKER
+module Make: Irmin.S_MAKER
+module KV: Irmin.KV_MAKER
 
-module Make (P: S.PRIVATE): S.STORE
-  with type key = P.Node.Path.t
-   and type contents = P.Contents.value
-   and type branch = P.Branch.key
-   and type Commit.Hash.t = P.Commit.key
-   and type Tree.Hash.t = P.Node.key
-   and type Contents.Hash.t = P.Contents.key
-   and type slice = P.Slice.t
-   and type step = P.Node.Path.step
-   and type metadata = P.Node.Val.metadata
-   and module Key = P.Node.Path
-   and module Private.Contents = P.Contents
-   and type repo = P.Repo.t
-   and type endpoint = P.Sync.endpoint
+module AO_ext (C: Irmin_fs.Config): Irmin.AO_MAKER
+module RW_ext (C: Irmin_fs.Config): Irmin.RW_MAKER
+module Make_ext (Obj: Irmin_fs.Config) (Ref: Irmin_fs.Config): Irmin.S_MAKER

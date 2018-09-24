@@ -1222,6 +1222,9 @@ module Branch: sig
 
 end
 
+type remote = ..
+(** The type for remote stores. *)
+
 (** [Private] defines functions only useful for creating new
     backends. If you are just using the library (and not developing a
     new backend), you should not use this module. *)
@@ -1941,14 +1944,20 @@ module Private: sig
       type branch
       (** The type for branch IDs. *)
 
-      val fetch: t -> ?depth:int -> uri:string -> branch ->
+      type endpoint
+      (** The type for sync endpoints. *)
+
+      val remote: endpoint -> remote
+      (** [remote e] is [e] seens a an Irmin remote. *)
+
+      val fetch: t -> ?depth:int -> endpoint -> branch ->
         (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
           local store. [No_head] means no such branch exists. *)
 
-      val push: t -> ?depth:int -> uri:string -> branch ->
+      val push: t -> ?depth:int -> endpoint -> branch ->
         (unit, [`No_head | `Not_available | `Msg of string | `Detached_head])
           result Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
@@ -2741,6 +2750,14 @@ module type S = sig
   module Metadata: Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
 
+  (** {1 Endpoints} *)
+
+  type endpoint
+  (** The type for synchronisation endpoints. *)
+
+  val remote: endpoint -> remote
+  (** [remote e] is e seen as an remote. *)
+
   (** {1 Value Types} *)
 
   val step_t: step Type.t
@@ -2791,6 +2808,7 @@ module type S = sig
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
+       and type Sync.endpoint = endpoint
   end
 end
 
@@ -2848,15 +2866,6 @@ module type KV =
 module type KV_MAKER = functor (C: Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
-
-type remote
-(** The type for remote stores. *)
-
-val remote_uri: string -> remote
-(** [remote_uri s] is the remote store located at [uri]. Use the
-    optimized native synchronization protocol when available for the
-    given backend. *)
-
 
 (** {1:examples Examples}
 
@@ -3087,7 +3096,7 @@ module type SYNC = sig
   val pp_fetch_error: fetch_error Fmt.t
   (** [pp_fetch_error] pretty prints fetch errors. *)
 
-  val fetch: db -> ?depth:int -> remote ->  (commit, fetch_error) result Lwt.t
+  val fetch: db -> ?depth:int -> remote -> (commit, fetch_error) result Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
@@ -3133,7 +3142,10 @@ module type SYNC = sig
 end
 
 (** The default [Sync] implementation. *)
-module Sync (S: S): SYNC with type db = S.t and type commit = S.commit
+module Sync (S: S): sig
+  include SYNC with type db = S.t and type commit = S.commit
+  val remote: S.endpoint -> remote
+end
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
@@ -3232,3 +3244,4 @@ module Make_ext (P: Private.S): S
    and type metadata = P.Node.Val.metadata
    and type Key.step = P.Node.Path.step
    and type repo = P.Repo.t
+   and type endpoint = P.Sync.endpoint
