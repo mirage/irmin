@@ -16,8 +16,6 @@
 
 (** Merge operators. *)
 
-open Result
-
 type conflict = [ `Conflict of string ]
 
 type 'a promise = unit -> ('a option, conflict) result Lwt.t

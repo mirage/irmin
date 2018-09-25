@@ -36,8 +36,6 @@
     {e Release %%VERSION%% - %%HOMEPAGE%% }
 *)
 
-open Result
-
 val version: string
 (** The version of the library. *)
 

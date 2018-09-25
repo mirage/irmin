@@ -16,7 +16,6 @@
 
 open Lwt.Infix
 open Printf
-open Result
 
 let src = Logs.Src.create "irmin.merge" ~doc:"Irmin merging"
 module Log = (val Logs.src_log src : Logs.LOG)

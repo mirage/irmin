@@ -1131,8 +1131,6 @@ let decode_string ?exact t x =
 
 module Decode_json = struct
 
-  open Result
-
   type decoder = {
     mutable lexemes: Jsonm.lexeme list;
     d: Jsonm.decoder;

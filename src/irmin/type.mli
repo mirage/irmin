@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Result
-
 type len = [ `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 
 type 'a t
