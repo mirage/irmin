@@ -114,13 +114,19 @@ type contents = Contents.t
 
 module Store = struct
 
+  type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
+
   type t =
-    | T: (module Irmin.S) * (Git_unix.endpoint -> Irmin.remote) option -> t
+    | T: (module Irmin.S) * remote_fn option -> t
 
-  let v ?endpoint s = T (s, endpoint)
+  module type G = sig
+    include Irmin.S
+    val remote: remote_fn
+  end
 
-  let v_git (module S: Irmin.S with type endpoint = Git_unix.endpoint) =
-    v (module S) ~endpoint:(fun e -> S.Private.Sync.remote e)
+  let v ?remote s = T (s, remote)
+
+  let v_git (module S: G) = v (module S) ~remote:S.remote
 
   let create: (module Irmin.S_MAKER) -> contents -> t =
     fun (module S) (module C) ->
@@ -219,7 +225,7 @@ let config_term =
 type store =
   | S: (module Irmin.S with type t = 'a)
        * 'a Lwt.t
-       * (Git_unix.endpoint -> Irmin.remote) option
+       * Store.remote_fn option
     -> store
 
 let from_config_file_with_defaults path (store, contents) config branch: store =
@@ -317,7 +323,7 @@ let headers =
   in
   Arg.(value & opt_all header_conv [] & doc)
 
-type Irmin.remote += E of Git_unix.endpoint
+type Irmin.remote += R of Cohttp.Header.t option * string
 
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
@@ -344,9 +350,11 @@ let infer_remote contents headers str =
       R.master repo >|= fun r ->
       Irmin.remote_store (module R) r
   ) else
-    let headers = Cohttp.Header.of_list headers in
-    let endpoint = Git_unix.endpoint ~headers (Uri.of_string str) in
-    Lwt.return (E endpoint)
+    let headers = match headers with
+      | [] -> None
+      | h  -> Some (Cohttp.Header.of_list h)
+    in
+    Lwt.return (R (headers, str))
 
 let remote =
   let repo =

@@ -25,11 +25,49 @@ module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
       ) fmt
 end
 
+module type S = sig
+  include Irmin_git.S with type Private.Sync.endpoint = Git_mirage.endpoint
+  val remote:
+    ?conduit:Conduit_mirage.conduit ->
+    ?resolver:Resolver_lwt.t ->
+    ?headers:Cohttp.Header.t ->
+    string -> Irmin.remote
+end
+
 module Git = struct
 
-  module Make (G: Irmin_git.G) = Irmin_git.Make(G)(Git_mirage.Sync(G))
-  module Ref  (G: Irmin_git.G) = Irmin_git.Ref(G)(Git_mirage.Sync(G))
-  module KV   (G: Irmin_git.G) = Irmin_git.KV(G)(Git_mirage.Sync(G))
+  module Make
+      (G: Irmin_git.G)
+      (C: Irmin.Contents.S)
+      (P: Irmin.Path.S)
+      (B: Irmin.Branch.S)
+  = struct
+    include Irmin_git.Make(G)(Git_mirage.Sync(G))(C)(P)(B)
+    let remote ?conduit ?resolver ?headers uri =
+      let e =
+        Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
+      in
+      E e
+  end
+
+  module Ref (G: Irmin_git.G) (C: Irmin.Contents.S) = struct
+    include Irmin_git.Ref(G)(Git_mirage.Sync(G))(C)
+    let remote ?conduit ?resolver ?headers uri =
+      let e =
+        Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
+      in
+      E e
+  end
+
+  module KV (G: Irmin_git.G) (C: Irmin.Contents.S) = struct
+    include Irmin_git.KV(G)(Git_mirage.Sync(G))(C)
+    let remote ?conduit ?resolver ?headers uri =
+      let e =
+        Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
+      in
+      E e
+
+  end
 
   module type KV_RO = sig
     type git
@@ -41,7 +79,7 @@ module Git = struct
       ?conduit:Conduit_mirage.t ->
       ?resolver:Resolver_lwt.t ->
       ?headers:Cohttp.Header.t ->
-      git -> Uri.t -> t Lwt.t
+      git -> string -> t Lwt.t
   end
 
   module KV_RO (G: Git.S) = struct
@@ -122,8 +160,7 @@ module Git = struct
 
     let connect ?(depth = 1) ?(branch = "master") ?path ?conduit ?resolver ?headers
         t uri =
-      let endpoint = Git_mirage.endpoint ?conduit ?resolver ?headers uri in
-      let remote = S.Private.Sync.remote endpoint in
+      let remote = S.remote ?conduit ?resolver ?headers uri in
       let path = match path with
         | None -> []
         | Some s -> List.filter ((<>)"") @@ String.cuts s ~sep:"/"

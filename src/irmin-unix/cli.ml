@@ -297,9 +297,9 @@ let remove = {
 }
 
 let apply e f = match e, f with
-  | E e, Some f -> f e
-  | E _, None   -> Fmt.failwith "invalid remote for that kind of store"
-  | r  , _      -> r
+  | R (h, e), Some f -> f ?headers:h e
+  | R _     , None   -> Fmt.failwith "invalid remote for that kind of store"
+  | r       , _      -> r
 
 (* CLONE *)
 let clone = {

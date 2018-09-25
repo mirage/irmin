@@ -254,7 +254,6 @@ module type SYNC = sig
   type commit
   type branch
   type endpoint
-  val remote: endpoint -> remote
   val fetch: t -> ?depth:int -> endpoint -> branch ->
     (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
   val push: t -> ?depth:int -> endpoint -> branch ->
@@ -479,9 +478,6 @@ module type STORE = sig
   module Key: PATH with type t = key and type step = step
   module Metadata: METADATA with type t = metadata
 
-  type endpoint
-  val remote: endpoint -> remote
-
   val step_t: step Type.t
   val key_t: key Type.t
   val metadata_t: metadata Type.t
@@ -506,8 +502,9 @@ module type STORE = sig
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
-       and type Sync.endpoint = endpoint
   end
+
+  type remote += E of Private.Sync.endpoint
 end
 
 module type MAKER =

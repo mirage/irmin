@@ -41,7 +41,9 @@ module Store: sig
      contains: the store implementation a creator of store's state and
      endpoint. *)
 
-  val v: ?endpoint:(Git_unix.endpoint -> Irmin.remote) -> (module Irmin.S) -> t
+  type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
+
+  val v: ?remote:remote_fn -> (module Irmin.S) -> t
 
   val mem: contents -> t
   val irf: contents -> t
@@ -53,7 +55,7 @@ module Store: sig
 
 end
 
-type Irmin.remote += E of Git_unix.endpoint
+type Irmin.remote += R of Cohttp.Header.t option * string
 
 val remote: Irmin.remote Lwt.t Cmdliner.Term.t
 (** Parse a remote store location. *)
@@ -63,7 +65,7 @@ val remote: Irmin.remote Lwt.t Cmdliner.Term.t
 type store =
   | S: (module Irmin.S with type t = 'a)
        * 'a Lwt.t
-       * (Git_unix.endpoint -> Irmin.remote) option
+       * Store.remote_fn option
     -> store
 
 val store: store Cmdliner.Term.t
