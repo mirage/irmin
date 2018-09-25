@@ -219,3 +219,4 @@ val set_listen_dir_hook: unit -> unit
     changes in directories. *)
 
 module Cli = Cli
+module Resolver = Resolver
