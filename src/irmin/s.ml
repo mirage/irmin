@@ -16,8 +16,6 @@
 
 (** Irmin signatures *)
 
-open Result
-
 module type S0 = sig
   type t
   val t: t Type.t

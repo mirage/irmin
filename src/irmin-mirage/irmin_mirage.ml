@@ -15,7 +15,6 @@
  *)
 
 open Astring
-open Result
 
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
   let f c fmt =

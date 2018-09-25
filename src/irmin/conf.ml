@@ -15,8 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Result
-
 type 'a parser = string -> ('a, [`Msg of string]) result
 type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer

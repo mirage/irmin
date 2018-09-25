@@ -20,5 +20,4 @@ depends: [
   "ptime"
   "mirage-kv-lwt"
   "mirage-clock"
-  "result"
 ]
