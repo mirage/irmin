@@ -28,7 +28,6 @@ val int64: int64 t
 val float: float t
 val string: string t
 val bytes: bytes t
-val cstruct: Cstruct.t t
 val list: ?len:len -> 'a t -> 'a list t
 val array: ?len:len -> 'a t -> 'a array t
 val option: 'a t -> 'a option t
@@ -38,7 +37,6 @@ val result: 'a t -> 'b t -> ('a, 'b) result t
 
 val string_of: len -> string t
 val bytes_of: len -> bytes t
-val cstruct_of: len -> Cstruct.t t
 
 type ('a, 'b) field
 type ('a, 'b, 'c) open_record
@@ -79,9 +77,6 @@ val encode_json: 'a t -> Jsonm.encoder -> 'a -> unit
 val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
 val decode_json_lexemes:
   'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result
-
-val encode_cstruct: ?buf:Cstruct.t -> 'a t -> 'a -> Cstruct.t
-val decode_cstruct: ?exact:bool -> 'a t -> Cstruct.t -> ('a, [`Msg of string]) result
 
 val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
 val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result

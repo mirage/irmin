@@ -97,17 +97,11 @@ module Type: sig
   val bytes: bytes t
   (** [bytes] is a representation of the [bytes] type. *)
 
-  val cstruct: Cstruct.t t
-  (** [cstruct] is a representation of the [Cstruct.t] type. *)
-
   val string_of: len -> string t
   (** Like {!string} but add control to the size. *)
 
   val bytes_of: len -> bytes t
   (** Like {!bytes} but add control to the size. *)
-
-  val cstruct_of: len -> Cstruct.t t
-  (** Like {!cstruct} but add control to the size. *)
 
   val list: ?len:len -> 'a t -> 'a list t
   (** [list t] is a representation of list of values of type [t]. *)
@@ -389,35 +383,28 @@ module Type: sig
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
-  val encode_cstruct: ?buf:Cstruct.t -> 'a t -> 'a -> Cstruct.t
-  (** [encode_cstruct t e] encodes [t] into a `Cstruct.t`. The size of
-     the returned buffer is precomputed and the buffer is allocated at
-     once.
+  val encode_string: ?buf:bytes -> 'a t -> 'a -> string
+  (** [encode_string t e] encodes [t] into a [string] buffer. The size
+     of the returned buffer is precomputed and the buffer is allocated
+     at once or it can be passed using the optional argument [buf].
 
       {b NOTE:} There is a special case when the parameter [t] is a
-     single buffer (of type [cstruct], [bytes] or [string]): the
-     original value is returned as is, without being copied. *)
-
-  val decode_cstruct: ?exact:bool -> 'a t ->
-    Cstruct.t -> ('a, [`Msg of string]) result
-  (** [decode_cstruct t buf] decodes values of type [t] as produced by
-     [encode_cstruct t v].
-
-      {b NOTE:} When the parameter [t] is a single buffer (of type
-     [cstruct], [bytes] or [string]) the original buffer is returned
-     as is, otherwise sub-[cstruct] are copied. *)
-
-  val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
-  (** Same as {!encode_bytes} but using a string. *)
-
-  val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
-  (** Same as {!decode_bytes} but using a string. *)
-
-  val encode_string: ?buf:bytes -> 'a t -> 'a -> string
-  (** Same as {!encode_cstruct} but using a string. *)
+     single buffer (of type [bytes] or [string]): the original value
+     is returned as is, without being copied. *)
 
   val decode_string: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
-  (** Same as {!decode_cstruct} but using a string. *)
+  (** [decode_string t buf] decodes values of type [t] as produced by
+      [encode_string t v].
+
+      {b NOTE:} When the parameter [t] is a single buffer (of type
+      [bytes] or [string]) the original buffer is returned without
+      being copied. *)
+
+  val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
+  (** Same as {!encode_string} but using a [bytes] buffer. *)
+
+  val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
+  (** Same as {!decode_string} but using a [bytes] buffer. *)
 
   val size_of: 'a t -> 'a -> int
 end
@@ -1036,7 +1023,7 @@ end
     }
 
     Default contents for idempotent {{!Contents.String}string}
-    and {{!Contents.Cstruct}C-buffers like} values are provided. *)
+    and {{!Contents.Bytes}bytes} buffers are provided. *)
 module Contents: sig
 
   module type S0 = sig
@@ -1095,16 +1082,12 @@ module Contents: sig
   end
 
   module String: S with type t = string
-  (** String values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function conflicts. Assume that update operations are
-      idempotent. *)
+  (** Contents of type [string], with the default 3-way merge
+     strategy: assume that update operations are idempotent and
+     conflict iff values are modified concurrently. *)
 
-  module Cstruct: S with type t = Cstruct.t
-  (** Cstruct values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function conflicts. Assume that update operations are
-      idempotent. *)
+  module Bytes: S with type t = bytes
+  (** Same as {!String} but for values of type [bytes]. *)
 
   type json = [
     | `Null

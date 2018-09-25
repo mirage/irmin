@@ -1,5 +1,4 @@
 (library
  (name        irmin)
  (public_name irmin)
- (libraries   result fmt uri cstruct jsonm lwt ocamlgraph hex logs astring
-              digestif))
+ (libraries   result fmt uri jsonm lwt ocamlgraph logs astring digestif))

@@ -86,7 +86,6 @@ and 'a prim =
   | Float  : float prim
   | String : len -> string prim
   | Bytes  : len -> bytes prim
-  | Cstruct: len -> Cstruct.t prim
 
 and 'a tuple =
   | Pair   : 'a t * 'b t -> ('a * 'b) tuple
@@ -153,7 +152,6 @@ module Refl = struct
     | Int64 , Int64  -> Some Refl
     | Float , Float   -> Some Refl
     | String _  , String _  -> Some Refl
-    | Cstruct _ , Cstruct _ -> Some Refl
     | Bytes _   , Bytes _   -> Some Refl
     | _ -> None
 
@@ -197,10 +195,8 @@ let int64 = Prim Int64
 let float = Prim Float
 let string = Prim (String `Int64)
 let bytes = Prim (Bytes `Int64)
-let cstruct = Prim (Cstruct `Int64)
 let string_of n = Prim (String n)
 let bytes_of n = Prim (Bytes n)
-let cstruct_of n = Prim (Cstruct n)
 
 let list ?(len=`Int64) v = List { v; len }
 let array ?(len=`Int64) v = Array { v; len }
@@ -324,7 +320,6 @@ module Dump = struct
   let pair = Fmt.Dump.pair
   let triple a b c ppf (x, y, z) = Fmt.pf ppf "(%a, %a, %a)" a x b y c z
   let option = Fmt.Dump.option
-  let cstruct ppf x = Fmt.pf ppf "%S" (Cstruct.to_string x)
 
   let rec t: type a. a t -> a Fmt.t = function
     | Self s    -> t s.self
@@ -354,7 +349,6 @@ module Dump = struct
     | Float  -> float
     | String _ -> string
     | Bytes  _ -> bytes
-    | Cstruct _ -> cstruct
 
   and record: type a. a record -> a Fmt.t = fun r ppf x ->
     let fields = fields r in
@@ -390,7 +384,6 @@ module Equal = struct
   let int64 (x:int64) (y:int64) = x = y
   let string x y = x == y || String.equal x y
   let bytes x y = x == y || Bytes.equal x y
-  let cstruct = Cstruct.equal
 
   (* NOTE: equality is ill-defined on float *)
   let float (x:float) (y:float) =  x = y
@@ -447,7 +440,6 @@ module Equal = struct
     | Float  -> float
     | String _  -> string
     | Bytes _   -> bytes
-    | Cstruct _ -> cstruct
 
   and record: type a. a record -> a equal = fun r x y ->
     List.for_all (function Field f -> field f x y) (fields r)
@@ -487,7 +479,6 @@ module Compare = struct
   let float (x:float) (y:float) = Pervasives.compare x y
   let string x y = if x == y then 0 else String.compare x y
   let bytes x y = if x == y then 0 else Bytes.compare x y
-  let cstruct = Cstruct.compare
 
   let list c x y =
     if x == y then 0 else
@@ -563,7 +554,6 @@ module Compare = struct
     | Float  -> float
     | String _  -> string
     | Bytes _   -> bytes
-    | Cstruct _ -> cstruct
 
   and record: type a. a record -> a compare = fun r x y ->
     let rec aux = function
@@ -608,8 +598,6 @@ module Encode_json = struct
   (* what about escaping? *)
   let string e s = lexeme e (`String s)
   let bytes e s = lexeme e (`String (Bytes.unsafe_to_string s))
-  let cstruct e s = lexeme e (`String (Cstruct.to_string s))
-
   let char e c = string e (String.make 1 c)
   let float e f = lexeme e (`Float f)
   let int e i = float e (float_of_int i)
@@ -672,7 +660,6 @@ module Encode_json = struct
     | Float  -> float
     | String _  -> string
     | Bytes _   -> bytes
-    | Cstruct _ -> cstruct
 
   and record: type a. a record -> a encode_json = fun r e x ->
     let fields = fields r in
@@ -737,7 +724,6 @@ module Size_of = struct
   let float (_:float) = 8 (* NOTE: we consider 'double' here *)
   let string n s = len n + String.length s
   let bytes n s = len n + Bytes.length s
-  let cstruct n s = len n + Cstruct.len s
   let list l n x = List.fold_left (fun acc x -> acc + l x) (len n) x
   let array l n x = Array.fold_left (fun acc x -> acc + l x) (len n) x
   let pair a b (x, y) = a x + b y
@@ -774,7 +760,6 @@ module Size_of = struct
   | Float  -> float
   | String n  -> string n
   | Bytes  n  -> bytes n
-  | Cstruct n -> cstruct n
 
   and record: type a. a record -> a size_of = fun r x ->
     let fields = fields r in
@@ -798,7 +783,6 @@ module type E = sig
   val set_uint64: t -> int -> int64 -> unit
   val blit_from_string: string -> int -> t -> int -> int -> unit
   val blit_from_bytes: bytes -> int -> t -> int -> int -> unit
-  val blit_from_cstruct: Cstruct.t -> int -> t -> int -> int -> unit
 end
 
 module Encode (E: E) = struct
@@ -832,12 +816,6 @@ module Encode (E: E) = struct
     let k = Bytes.length s in
     let ofs = len n buf ofs k in
     E.blit_from_bytes s 0 buf ofs k ;
-    ofs + k
-
-  let cstruct n buf ofs c =
-    let k = Cstruct.len c in
-    let ofs = len n buf ofs k in
-    E.blit_from_cstruct c 0 buf ofs k ;
     ofs + k
 
   let list l n buf ofs x =
@@ -892,7 +870,6 @@ module Encode (E: E) = struct
     | Float  -> float
     | String n  -> string n
     | Bytes n   -> bytes n
-    | Cstruct n -> cstruct n
 
   and record: type a. a record -> a encode = fun r buf ofs x ->
     let fields = fields r in
@@ -912,42 +889,8 @@ module Encode (E: E) = struct
 
 end
 
-module Encode_cstruct = Encode (struct
-    type t = Cstruct.t
-    let set_char = Cstruct.set_char
-    let set_uint16 = Cstruct.BE.set_uint16
-    let set_uint32 = Cstruct.BE.set_uint32
-    let set_uint64 = Cstruct.BE.set_uint64
-    let blit_from_string = Cstruct.blit_from_string
-    let blit_from_bytes = Cstruct.blit_from_bytes
-    let blit_from_cstruct = Cstruct.blit
-end)
-
 let err_invalid_bounds =
   Fmt.invalid_arg "Irmin.Type.%s: invalid bounds; expecting %d, got %d"
-
-let encode_cstruct ?buf t x =
-  let rec aux: type a. a t -> a -> Cstruct.t = fun t x -> match t with
-    | Self s           -> aux s.self x
-    | Like l           -> aux l.x (l.g x)
-    | Prim (Cstruct _) -> x
-    | Prim (String _)  -> Cstruct.of_string x
-    | Prim (Bytes _)   -> Cstruct.of_bytes x
-    | _ ->
-      let len = Size_of.t t x in
-      let exact, buf = match buf with
-        | None     -> true, Cstruct.create len
-        | Some buf ->
-          if Cstruct.len buf > len then
-            err_invalid_bounds "encode_cstruct" len (Cstruct.len buf)
-          else
-            false, buf
-      in
-      let len' = Encode_cstruct.t t buf 0 x in
-      if exact then assert (len = len') ;
-      buf
-  in
-  aux t x
 
 module type D = sig
   type t
@@ -956,7 +899,6 @@ module type D = sig
   val get_uint32: t -> int -> int32
   val get_uint64: t -> int -> int64
   val blit_to_bytes: t -> int -> bytes -> int -> int -> unit
-  val blit_to_cstruct: t -> int -> Cstruct.t -> int -> int -> unit
 end
 
 module Decode (D: D) = struct
@@ -996,12 +938,6 @@ module Decode (D: D) = struct
     len buf ofs n >>= fun (ofs, len) ->
     let str = Bytes.create len in
     D.blit_to_bytes buf ofs str 0 len ;
-    ok (ofs+len) str
-
-  let cstruct n buf ofs =
-    len buf ofs n >>= fun (ofs, len) ->
-    let str = Cstruct.create len in
-    D.blit_to_cstruct buf ofs str 0 len ;
     ok (ofs+len) str
 
   let list l n buf ofs =
@@ -1060,7 +996,6 @@ module Decode (D: D) = struct
     | Float  -> float
     | String n  -> string n
     | Bytes n   -> bytes n
-    | Cstruct n -> cstruct n
 
   and record: type a. a record -> a decode = fun r buf ofs ->
     match r.rfields with
@@ -1088,35 +1023,9 @@ module Decode (D: D) = struct
 
 end
 
-module Decode_cstruct = Decode (struct
-    type t = Cstruct.t
-    let get_char = Cstruct.get_char
-    let get_uint16 = Cstruct.BE.get_uint16
-    let get_uint32 = Cstruct.BE.get_uint32
-    let get_uint64 = Cstruct.BE.get_uint64
-    let blit_to_bytes = Cstruct.blit_to_bytes
-    let blit_to_cstruct = Cstruct.blit
-  end)
-
 let map_result f = function
   | Ok x -> Ok (f x)
   | Error _ as e -> e
-
-let decode_cstruct ?(exact=true) t x =
-  let rec aux
-    : type a. a t -> Cstruct.t -> (a, [`Msg of string]) result
-    = fun t x -> match t with
-      | Self s           -> aux s.self x
-      | Like l           -> aux l.x x |> map_result l.f
-      | Prim (String _)  -> Ok (Cstruct.to_string x)
-      | Prim (Bytes _)   -> Ok (Cstruct.to_bytes x)
-      | Prim (Cstruct _) -> Ok x
-      | _ ->
-        let last, v = Decode_cstruct.t t x 0 in
-        if exact then assert (last = Cstruct.len x) ;
-        Ok v
-  in
-  aux t x
 
 module B = struct
 
@@ -1152,11 +1061,9 @@ module B = struct
 
   let set_char = Bytes.set
   let get_char = Bytes.get
-  let blit_from_cstruct = Cstruct.blit_to_bytes
   let blit_from_bytes = Bytes.blit
   let blit_from_string = Bytes.blit_string
   let blit_to_bytes = Bytes.blit
-  let blit_to_cstruct = Cstruct.blit_from_bytes
 end
 
 module Encode_bytes = Encode (B)
@@ -1167,7 +1074,6 @@ let encode_bytes ?buf t x =
     | Like l           -> aux l.x (l.g x)
     | Prim (String _)  -> Bytes.of_string x
     | Prim (Bytes _)   -> x
-    | Prim (Cstruct _) -> Cstruct.to_bytes x
     | _ ->
       let len = Size_of.t t x in
       let exact, buf = match buf with
@@ -1190,7 +1096,6 @@ let encode_string ?buf t x =
     | Like l           -> aux l.x (l.g x)
     | Prim (String _)  -> x
     | Prim (Bytes _)   -> Bytes.to_string x
-    | Prim (Cstruct _) -> Cstruct.to_string x
     | _ -> Bytes.unsafe_to_string (encode_bytes ?buf t x)
   in
   aux t x
@@ -1205,7 +1110,6 @@ let decode_bytes ?(exact=true) t x =
       | Like l           -> aux l.x x |> map_result l.f
       | Prim (String _)  -> Ok (Bytes.to_string x)
       | Prim (Bytes _)   -> Ok x
-      | Prim (Cstruct _) -> Ok (Cstruct.of_bytes x)
       | _ ->
         let last, v = Decode_bytes.t t x 0 in
         if exact then assert (last = Bytes.length x) ;
@@ -1221,7 +1125,6 @@ let decode_string ?exact t x =
       | Like l     -> aux l.x x |> map_result l.f
       | Prim (String _)  -> Ok x
       | Prim (Bytes _)   -> Ok (Bytes.of_string x)
-      | Prim (Cstruct _) -> Ok (Cstruct.of_string x)
       | _ -> decode_bytes ?exact t (Bytes.unsafe_of_string x)
   in
   aux t x
@@ -1306,11 +1209,6 @@ module Decode_json = struct
     | `String s -> Ok (Bytes.unsafe_of_string s)
     | l         -> error e l "`String"
 
-  let cstruct e =
-    lexeme e >>= function
-    | `String s -> Ok (Hex.to_cstruct (`Hex s))
-    | l         -> error e l "`String"
-
   let float e =
     lexeme e >>= function
     | `Float f -> Ok f
@@ -1390,7 +1288,6 @@ module Decode_json = struct
     | Float  -> float
     | String _  -> string
     | Bytes _   -> bytes
-    | Cstruct _ -> cstruct
 
   and record: type a. a record -> a decode = fun r e ->
     expect_lexeme e `Os >>= fun () ->

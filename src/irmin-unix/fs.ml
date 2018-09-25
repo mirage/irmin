@@ -153,15 +153,15 @@ module IO = struct
         try not (Sys.is_directory f) with Sys_error _ -> false
       ) dir
 
-  let write_cstruct fd b =
+  let write_string fd b =
     let rec rwrite fd buf ofs len =
-      Lwt_bytes.write fd buf ofs len >>= fun n ->
+      Lwt_unix.write_string fd buf ofs len >>= fun n ->
       if len = 0 then Lwt.fail End_of_file
       else if n < len then rwrite fd buf (ofs + n) (len - n)
       else Lwt.return_unit in
-    match Cstruct.len b with
+    match String.length b with
     | 0   -> Lwt.return_unit
-    | len -> rwrite fd (Cstruct.to_bigarray b) 0 len
+    | len -> rwrite fd b 0 len
 
   let delays = Array.init 20 (fun i -> 0.1 *. (float i) ** 2.)
 
@@ -238,19 +238,19 @@ module IO = struct
 
   let read_file_with_read file size =
     let chunk_size = max 4096 (min size 0x100000) in
-    let buf = Cstruct.create size in
+    let buf = Bytes.create size in
     let flags = [Unix.O_RDONLY] in
     let perm = 0o0 in
     Lwt_unix.openfile file flags perm >>= fun fd ->
     let rec aux off =
       let read_size = min chunk_size (size - off) in
-      Lwt_bytes.read fd buf.Cstruct.buffer off read_size >>= fun read ->
+      Lwt_unix.read fd buf off read_size >>= fun read ->
       (* It should test for read = 0 in case size is larger than the
          real size of the file. This may happen for instance if the
          file was truncated while reading. *)
       let off = off + read in
       if off >= size then
-        Lwt.return buf
+        Lwt.return (Bytes.unsafe_to_string buf)
       else
         aux off
     in
@@ -261,7 +261,8 @@ module IO = struct
     let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
     let ba = Lwt_bytes.map_file ~fd ~shared:false () in
     Unix.close fd;
-    Lwt.return (Cstruct.of_bigarray ba)
+    (* XXX(samoht): ideally we should not do a copy here. *)
+    Lwt.return (Lwt_bytes.to_string ba)
 
   let read_file file =
     Lwt.catch (fun () ->
@@ -280,7 +281,7 @@ module IO = struct
 
   let write_file ?temp_dir ?lock file b =
     let write () =
-      with_write_file file ?temp_dir (fun fd -> write_cstruct fd b)
+      with_write_file file ?temp_dir (fun fd -> write_string fd b)
     in
     Lock.with_lock lock (fun () ->
         Lwt.catch write (function
@@ -294,7 +295,7 @@ module IO = struct
         read_file file >>= fun v ->
         let equal = match test, v with
           | None  , None   -> true
-          | Some x, Some y -> Cstruct.equal x y
+          | Some x, Some y -> String.equal x y
           | _ -> false
         in
         if not equal then Lwt.return false

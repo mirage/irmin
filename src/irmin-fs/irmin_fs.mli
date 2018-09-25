@@ -38,7 +38,7 @@ module type IO = sig
   val file_exists: path -> bool Lwt.t
   (** [file_exist f] is true if [f] exists. *)
 
-  val read_file: path -> Cstruct.t option Lwt.t
+  val read_file: path -> string option Lwt.t
   (** Read the contents of a file using mmap. *)
 
   (** {2 Write Operations} *)
@@ -53,11 +53,11 @@ module type IO = sig
   (** [lock_file f] is the lock associated to the file [f]. *)
 
   val write_file: ?temp_dir:path -> ?lock:lock ->
-    path -> Cstruct.t -> unit Lwt.t
+    path -> string -> unit Lwt.t
   (** Atomic writes. *)
 
   val test_and_set_file: ?temp_dir:string -> lock:lock ->
-    path ->test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t
+    path ->test:string option -> set:string option -> bool Lwt.t
   (** Test and set. *)
 
   val remove_file: ?lock:lock -> path -> unit Lwt.t

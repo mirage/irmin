@@ -24,12 +24,12 @@ module String = struct
   let of_string s = Ok s
 end
 
-module Cstruct = struct
-  type t = Cstruct.t
-  let t = Type.cstruct
+module Bytes = struct
+  type t = bytes
+  let t = Type.bytes
   let merge = Merge.idempotent Type.(option t)
-  let pp ppf b = Fmt.string ppf (Cstruct.to_string b)
-  let of_string s = Ok (Cstruct.of_string s)
+  let pp ppf b = Fmt.string ppf (Bytes.unsafe_to_string b)
+  let of_string s = Ok (Bytes.unsafe_of_string s)
 end
 
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
