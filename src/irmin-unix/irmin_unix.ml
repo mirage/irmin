@@ -21,3 +21,4 @@ module Git = Xgit
 module Http = Http
 module FS = Fs
 module Cli = Cli
+module Resolver = Resolver
