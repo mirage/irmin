@@ -272,11 +272,12 @@ let from_config_file_with_defaults path (store, contents) config branch: store =
     let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
     let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
     let branch =
+      let of_string = Irmin.Type.of_string S.Branch.t in
       match branch with
-      | None   -> assoc "branch" (fun x -> match S.Branch.of_string x with
+      | None   -> assoc "branch" (fun x -> match of_string x with
           | Ok x -> x
           | Error (`Msg msg) -> failwith msg)
-      | Some t -> (match S.Branch.of_string t with
+      | Some t -> (match of_string t with
           | Ok x           -> Some x
           | Error (`Msg e) -> failwith e)
     in

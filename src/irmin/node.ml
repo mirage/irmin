@@ -46,7 +46,7 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make (K_c: S.S0) (K_n: S.S0) (P: S.PATH) (M: S.METADATA) =
+module Make (K_c: Type.S) (K_n: Type.S) (P: S.PATH) (M: S.METADATA) =
 struct
 
   type contents = K_c.t
@@ -249,10 +249,12 @@ module Graph (S: S.NODE_STORE) = struct
       | _, `Contents c -> `Contents c
     ) (S.Val.list t)
 
-  let pps = Fmt.(Dump.list S.Key.pp)
+  let pp_key = Type.pp S.Key.t
+  let pp_keys = Fmt.(Dump.list pp_key)
+  let pp_path = Type.pp S.Path.t
 
   let closure t ~min ~max =
-    Log.debug (fun f -> f "closure min=%a max=%a" pps min pps max);
+    Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
     let pred = function
       | `Node k -> (S.find t k >|= function None -> [] | Some v -> edges v)
       | _       -> Lwt.return_nil
@@ -271,13 +273,13 @@ module Graph (S: S.NODE_STORE) = struct
   let v t xs = S.add t (S.Val.v xs)
 
   let find_step t node step =
-    Log.debug (fun f -> f "contents %a" S.Key.pp node);
+    Log.debug (fun f -> f "contents %a" pp_key node);
     S.find t node >|= function
     | None   -> None
     | Some n -> S.Val.find n step
 
   let find t node path =
-    Log.debug (fun f -> f "read_node_exn %a %a" S.Key.pp node S.Path.pp path);
+    Log.debug (fun f -> f "read_node_exn %a %a" pp_key node pp_path path);
     let rec aux node path =
       match Path.decons path with
       | None         -> Lwt.return (Some (`Node node))
@@ -291,7 +293,7 @@ module Graph (S: S.NODE_STORE) = struct
   let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
   let map_one t node f label =
-    Log.debug (fun f -> f "map_one %a" Type.(dump Path.step_t) label);
+    Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
     let old_key = S.Val.find node label in
     begin match old_key with
       | None | Some (`Contents _) -> Lwt.return S.Val.empty
@@ -314,7 +316,7 @@ module Graph (S: S.NODE_STORE) = struct
     )
 
   let map t node path f =
-    Log.debug (fun f -> f "map %a %a" S.Key.pp node S.Path.pp path);
+    Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
     let rec aux node path =
       match Path.decons path with
       | None         -> Lwt.return (f node)
@@ -328,7 +330,7 @@ module Graph (S: S.NODE_STORE) = struct
     S.add t
 
   let update t node path n =
-    Log.debug (fun f -> f "update %a %a" S.Key.pp node S.Path.pp path);
+    Log.debug (fun f -> f "update %a %a" pp_key node pp_path path);
     match Path.rdecons path with
     | Some (path, file) ->
       map t node path (fun node -> S.Val.update node file n)

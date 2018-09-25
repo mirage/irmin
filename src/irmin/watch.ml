@@ -99,7 +99,7 @@ struct
   type key_handler = value Diff.t -> unit Lwt.t
   type all_handler = key -> value Diff.t -> unit Lwt.t
 
-  let pp_value = Type.dump V.t
+  let pp_value = Type.pp V.t
   let equal_opt_values = Type.(equal (option V.t))
   let equal_keys = Type.equal K.t
 

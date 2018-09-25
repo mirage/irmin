@@ -68,18 +68,18 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: S.S0 with type t = dump
+  module Dump: Type.S with type t = dump
   (** The base functions over graph internals. *)
 
 end
 
 (** Build a graph. *)
 module Make
-    (Contents: S.S0)
-    (Metadata: S.S0)
-    (Node    : S.S0)
-    (Commit  : S.S0)
-    (Branch  : S.S0):
+    (Contents: Type.S)
+    (Metadata: Type.S)
+    (Node    : Type.S)
+    (Commit  : Type.S)
+    (Branch  : Type.S):
   S with type V.t =
   [ `Contents of Contents.t * Metadata.t
   | `Node of Node.t

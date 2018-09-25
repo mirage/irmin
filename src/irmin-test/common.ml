@@ -75,7 +75,7 @@ type t = {
 
 let (/) = Filename.concat
 
-let testable t = Alcotest.testable (Irmin.Type.dump t) (Irmin.Type.equal t)
+let testable t = Alcotest.testable (Irmin.Type.pp t) (Irmin.Type.equal t)
 
 let check t = Alcotest.check (testable t)
 

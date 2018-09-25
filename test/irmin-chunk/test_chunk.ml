@@ -21,12 +21,14 @@ module Hash = Irmin.Hash.SHA1
 
 module Key = struct
   include Irmin.Hash.SHA1
-  let equal x y = String.equal (to_raw_string x) (to_raw_string y)
+  let pp = Irmin.Type.pp t
+  let equal = Irmin.Type.equal t
 end
 
 module Value = struct
   include Irmin.Contents.String
-  let equal x y = String.equal x y
+  let pp = Fmt.string
+  let equal = String.equal
 end
 
 module type S = sig

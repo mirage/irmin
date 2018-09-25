@@ -38,8 +38,6 @@ let is_valid_utf8 str =
     true
   with Utf8_failure -> false
 
-module type PP = sig type t val pp: t Fmt.t end
-
 module Make (S: S.STORE) = struct
 
   type db = S.t
@@ -65,8 +63,8 @@ module Make (S: S.STORE) = struct
     let add_edge v1 l v2 =
       if mem_vertex v1 && mem_vertex v2 then edges := (v1, l, v2) :: !edges
     in
-    let string_of_key (type t) (module M: PP with type t = t) (k:t) =
-      let s = Fmt.to_to_string M.pp k in
+    let string_of_key t k =
+      let s = Type.to_string t k in
       if String.length s <= 8 then s else String.with_range s ~len:8 in
     let string_of_contents s =
       let s =
@@ -80,10 +78,10 @@ module Make (S: S.STORE) = struct
            sprintf "<div class='node'><div class='sha1'>%s</div></div>"
          else
            fun x -> x)
-          (string_of_key (module Node.Key) k) in
+          (string_of_key Node.Key.t k) in
       `Label s in
     let label_of_step l =
-      let l = Fmt.to_to_string S.Key.pp_step l in
+      let l = Type.to_string S.Key.step_t l in
       let s =
         (if html then
           sprintf "<div class='path'>%s</div>"
@@ -92,7 +90,7 @@ module Make (S: S.STORE) = struct
           (string_of_contents l) in
       `Label s in
     let label_of_commit k c =
-      let k = string_of_key (module Commit.Key) k in
+      let k = string_of_key Commit.Key.t k in
       let o = Commit.Val.info c in
       let s =
         if html then
@@ -113,7 +111,7 @@ module Make (S: S.STORE) = struct
       in
       `Label s in
     let label_of_contents k v =
-      let k = string_of_key (module Contents.Key) k in
+      let k = string_of_key Contents.Key.t k in
       let s =
         if html then
           sprintf "<div class='contents'>\n\
@@ -121,15 +119,15 @@ module Make (S: S.STORE) = struct
                   \  <div>&nbsp</div>\n\
                    </div>" k
         else
-           let v = string_of_contents (Fmt.to_to_string Contents.Val.pp v) in
+           let v = string_of_contents (Type.to_string Contents.Val.t v) in
            sprintf "%s (%s)" k (String.Ascii.escape_string v) in
       `Label s in
     let label_of_tag t =
       let s =
         if html then
-          sprintf "<div class='tag'>%s</div>" (Fmt.to_to_string Branch.Key.pp t)
+          sprintf "<div class='tag'>%s</div>" (Type.to_string Branch.Key.t t)
         else
-          Fmt.to_to_string Branch.Key.pp t
+          Type.to_string Branch.Key.t t
       in
       `Label s
     in

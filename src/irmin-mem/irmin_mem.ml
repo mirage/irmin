@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
+module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module KMap = Map.Make(struct
       type t = K.t
@@ -32,24 +32,27 @@ module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
   let map = { t = KMap.empty }
   let v _config = Lwt.return map
 
+  let pp_key = Irmin.Type.pp K.t
+
   let find { t; _ } key =
-    Log.debug (fun f -> f "find %a" K.pp key);
+    Log.debug (fun f -> f "find %a" pp_key key);
     try Lwt.return (Some (KMap.find key t))
     with Not_found -> Lwt.return_none
 
   let mem { t; _ } key =
-    Log.debug (fun f -> f "mem %a" K.pp key);
+    Log.debug (fun f -> f "mem %a" pp_key key);
     Lwt.return (KMap.mem key t)
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
+module AO (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
 
   include RO(K)(V)
 
   let add t value =
-    let key = K.digest V.t value in
-    Log.debug (fun f -> f "add -> %a" K.pp key);
+    let str = Irmin.Type.encode_bin V.t value in
+    let key = K.digest str in
+    Log.debug (fun f -> f "add -> %a" pp_key key);
     t.t <- KMap.add key value t.t;
     Lwt.return key
 
@@ -66,7 +69,7 @@ module Link (K: Irmin.Hash.S) = struct
 
 end
 
-module RW (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
+module RW (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module RO = RO(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)

@@ -20,7 +20,7 @@ open Merge.Infix
 let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (C: S.S0) (N: S.S0) = struct
+module Make (C: Type.S) (N: Type.S) = struct
 
   type node = N.t
   type commit = C.t
@@ -69,8 +69,10 @@ module Store
   let find (_, t) = S.find t
   let merge_node (n, _) = Merge.f (N.merge n)
 
+  let pp_key = Type.pp S.Key.t
+
   let err_not_found k =
-    Fmt.kstrf invalid_arg "Commit.get: %a not found" S.Key.pp k
+    Fmt.kstrf invalid_arg "Commit.get: %a not found" pp_key k
 
   let get (_, t) k =
     S.find t k >>= function
@@ -147,8 +149,10 @@ module History (S: S.COMMIT_STORE) = struct
     S.add t commit >|= fun hash ->
     (hash, commit)
 
+  let pp_key = Type.pp S.Key.t
+
   let parents t c =
-    Log.debug (fun f -> f "parents %a" S.Key.pp c);
+    Log.debug (fun f -> f "parents %a" pp_key c);
     S.find t c >|= function
     | None   -> []
     | Some c -> S.Val.parents c
@@ -190,8 +194,7 @@ module History (S: S.COMMIT_STORE) = struct
     | Some c -> KSet.of_list (S.Val.parents c)
 
   let equal_keys = Type.equal S.Key.t
-
-  let str_key k = String.sub (Fmt.to_to_string S.Key.pp k) 0 4
+  let str_key k = String.sub (Type.to_string S.Key.t k) 0 4
   let pp_key = Fmt.of_to_string str_key
 
   let pp_keys ppf keys =

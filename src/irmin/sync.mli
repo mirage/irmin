@@ -16,7 +16,7 @@
 
 (** Store Synchronisation signatures. *)
 
-module None (H: S.S0) (R: S.S0): sig
+module None (H: Type.S) (R: Type.S): sig
   include S.SYNC with type commit = H.t and type branch = R.t
   val v: 'a -> t Lwt.t
 end

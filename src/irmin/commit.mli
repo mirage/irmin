@@ -16,7 +16,7 @@
 
 (** Manage the database history. *)
 
-module Make (C: S.S0) (N: S.S0):
+module Make (C: Type.S) (N: Type.S):
   S.COMMIT with type commit = C.t and type node = N.t
 
 module Store

@@ -64,22 +64,75 @@ val enum: string -> (string * 'a) list -> 'a t
 
 val mu: ('a t -> 'a t) -> 'a t
 val mu2: ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
-val like: 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
 
-val dump: 'a t -> 'a Fmt.t
+(* generics *)
+
 val equal: 'a t -> 'a -> 'a -> bool
 val compare: 'a t -> 'a -> 'a -> int
 
+
+(* CLI *)
+
+type 'a pp = 'a Fmt.t
+type 'a to_string = 'a -> string
+type 'a of_string = string -> ('a, [`Msg of string]) result
+
+val pp: 'a t -> 'a Fmt.t
+val of_string: 'a t -> 'a of_string
+
+(* JSON (wire) *)
+
+module Json: sig
+  type decoder
+  val decoder: ?encoding:[< Jsonm.encoding ] -> [< Jsonm.src ] -> decoder
+  val decode: decoder ->
+    [> `Await | `End | `Error of Jsonm.error | `Lexeme of Jsonm.lexeme ]
+  val rewind: decoder -> Jsonm.lexeme -> unit
+end
+
+type 'a encode_json = Jsonm.encoder -> 'a -> unit
+type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
+
+(* Raw (disk) *)
+
+type 'a encode_bin =  bytes -> int -> 'a -> int
+type 'a decode_bin = string -> int -> int * 'a
+type 'a size_of = 'a -> int
+
+val size_of: 'a t -> 'a size_of
+(* like *)
+
+val like: 'a t ->
+  ?cli:('b pp * 'b of_string) ->
+  ?json:('b encode_json * 'b decode_json) ->
+  ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
+  ('a -> 'b) -> ('b -> 'a) -> 'b t
+
+val like':
+  ?cli:('a pp * 'a of_string) ->
+  ?json:('a encode_json * 'a decode_json) ->
+  ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+  'a t -> 'a t
+
+(* convenient functions. *)
+
+val to_string: 'a t -> 'a -> string
+
 val pp_json: ?minify:bool -> 'a t -> 'a Fmt.t
+
 val encode_json: 'a t -> Jsonm.encoder -> 'a -> unit
 val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
-val decode_json_lexemes:
-  'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result
+val decode_json_lexemes: 'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result
 
-val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
-val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
+val to_json_string: ?minify:bool -> 'a t -> 'a to_string
+val of_json_string: 'a t -> 'a of_string
 
-val encode_string: ?buf:bytes -> 'a t -> 'a -> string
-val decode_string: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
+val encode_bin: ?buf:bytes -> 'a t -> 'a to_string
+val decode_bin: ?exact:bool -> 'a t -> 'a of_string
 
-val size_of: 'a t -> 'a -> int
+type 'a ty = 'a t
+
+module type S = sig
+  type t
+  val t: t ty
+end

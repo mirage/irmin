@@ -61,14 +61,17 @@ module Git = struct
 
   let test_db = Test_git.test_db
   let init () =
-    (if Sys.file_exists ".git" then
-      failwith "The Git test should not be run at the root of a Git repository."
-    else if Sys.file_exists test_db then
-      Git_unix.Store.v (Fpath.v test_db) >>= function
-      | Ok t    -> Git_unix.Store.reset t >|= fun _ -> ()
-      | Error _ -> Lwt.return ()
-    else
-      Lwt.return_unit)
+    if Sys.file_exists ".git" then (
+      Fmt.epr "The Git test should not be run at the root of a Git repository, \
+               changing to a subdir...\n%!";
+      Unix.chdir Fpath.(to_string @@ v "test" / "irmin-unix")
+    );
+    (if Sys.file_exists test_db then
+       Git_unix.Store.v (Fpath.v test_db) >>= function
+       | Ok t    -> Git_unix.Store.reset t >|= fun _ -> ()
+       | Error _ -> Lwt.return ()
+     else
+       Lwt.return_unit)
     >|= fun () ->
     Irmin_unix.set_listen_dir_hook ()
 

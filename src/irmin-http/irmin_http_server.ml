@@ -19,8 +19,8 @@ open Irmin_http_common
 
 module T = Irmin.Type
 
-let to_json t = Fmt.to_to_string (T.pp_json t)
-let of_json t str = T.decode_json t (Jsonm.decoder (`String str))
+let to_json = Irmin.Type.to_json_string
+let of_json = Irmin.Type.of_json_string
 
 let src = Logs.Src.create "irmin.http-server" ~doc:"Irmin REST API server"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -57,12 +57,12 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     Wm.respond ~body:(`String err) 400 rd
 
   module AO (S: Irmin.AO)
-      (K: Irmin.Contents.Conv with type t = S.key)
-      (V: Irmin.Contents.Conv with type t = S.value) =
+      (K: Irmin.Type.S with type t = S.key)
+      (V: Irmin.Type.S with type t = S.value) =
   struct
 
     let with_key rd f =
-      match K.of_string (Wm.Rd.lookup_path_info_exn "id" rd) with
+      match Irmin.Type.of_string K.t (Wm.Rd.lookup_path_info_exn "id" rd) with
       | Ok key  -> f key
       | Error _ -> Wm.respond 404 rd
 
@@ -79,11 +79,11 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
       method! process_post rd =
         Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
-        match V.of_string body with
+        match Irmin.Type.of_string V.t body with
         | Error e -> parse_error rd body e
         | Ok body ->
           S.add db body >>= fun new_id ->
-          let resp_body = `String (Fmt.to_to_string K.pp new_id) in
+          let resp_body = `String (Irmin.Type.to_string K.t new_id) in
           Wm.continue true { rd with Wm.Rd.resp_body }
 
     end
@@ -93,7 +93,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
       method private to_json rd =
         with_key rd (fun key ->
-            let str = Fmt.to_to_string V.pp in
+            let str = Irmin.Type.to_string V.t in
             S.find db key >>= function
             | Some value -> Wm.continue (`String (str value)) rd
             | None       -> assert false
@@ -118,8 +118,8 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
   end
 
   module RW (S: Irmin.RW)
-      (K: Irmin.Contents.Conv with type t = S.key)
-      (V: Irmin.Contents.Conv with type t = S.value) =
+      (K: Irmin.Type.S with type t = S.key)
+      (V: Irmin.Type.S with type t = S.value) =
   struct
 
     class items db = object(self)
@@ -141,7 +141,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     end
 
     let with_key rd f =
-      match K.of_string rd.Wm.Rd.dispatch_path with
+      match Irmin.Type.of_string K.t rd.Wm.Rd.dispatch_path with
       | Ok x    -> f x
       | Error _ -> Wm.respond 404 rd
 
@@ -169,7 +169,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
       method private to_json rd =
         with_key rd (fun key ->
-            let str = Fmt.to_to_string V.pp in
+            let str = Irmin.Type.to_string V.t in
             S.find db key >>= function
             | Some value -> Wm.continue (`String (str value)) rd
             | None       -> assert false
@@ -290,16 +290,8 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
   end
 
   module Blob = AO(P.Contents)(P.Contents.Key)(P.Contents.Val)
-  module Tree = AO(P.Node)(P.Node.Key)(struct
-      include P.Node.Val
-      let pp = T.pp_json t
-      let of_string = of_json t
-    end)
-  module Commit = AO(P.Commit)(P.Commit.Key)(struct
-      include P.Commit.Val
-      let pp = T.pp_json t
-      let of_string = of_json t
-    end)
+  module Tree = AO(P.Node)(P.Node.Key)(P.Node.Val)
+  module Commit = AO(P.Commit)(P.Commit.Key)(P.Commit.Val)
   module Branch = RW(P.Branch)(P.Branch.Key)(P.Branch.Val)
 
   type repo = S.Repo.t

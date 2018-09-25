@@ -86,7 +86,7 @@ let test_sort_order (module S: Test_S) =
   Alcotest.(check (list string)) "Sort order" ["foo.c"; "foo"; "foo1"] items;
   head_tree_id master >>= fun tree_id ->
   Alcotest.(check string) "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
-    (Fmt.to_to_string S.Private.Node.Key.pp tree_id);
+    (Irmin.Type.to_string S.Private.Node.Key.t tree_id);
   (* Convert dir to file; changes order in listing *)
   S.set master ~info ["foo"] "foo" >>= fun () ->
   ls master >>= fun items ->

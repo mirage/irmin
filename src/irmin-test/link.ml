@@ -24,7 +24,7 @@ module type S = sig
   val v: unit -> t Lwt.t
 end
 
-let key x = Hash.digest Irmin.Type.string x
+let key x = Hash.digest x
 let key_t = testable Hash.t
 
 let test (module M: S) () =
