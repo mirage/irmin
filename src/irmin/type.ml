@@ -76,6 +76,8 @@ type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
 type 'a encode_bin =  bytes -> int -> 'a -> int
 type 'a decode_bin = string -> int -> int * 'a
 type 'a size_of = 'a -> int
+type 'a compare = 'a -> 'a -> int
+type 'a equal = 'a -> 'a -> bool
 
 type 'a t =
   | Self   : 'a self -> 'a t
@@ -102,6 +104,8 @@ and ('a, 'b) like = {
   encode_bin  : 'b encode_bin option;
   decode_bin  : 'b decode_bin option;
   size_of     : 'b size_of option;
+  compare     : 'b compare option;
+  equal       : 'b equal option;
   f           : ('a -> 'b);
   g           : ('b -> 'a);
   lwit        : 'b Witness.t;
@@ -247,16 +251,19 @@ let split3 = function
   | Some (x, y, z) -> Some x, Some y, Some z
   | None           -> None  , None  , None
 
-let like (type a b) (x: a t) ?cli ?json ?bin (f: a -> b) (g: b -> a) =
+let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare
+    (f: a -> b) (g: b -> a) =
   let pp, of_string = split2 cli in
   let encode_json, decode_json = split2 json in
   let encode_bin, decode_bin, size_of = split3 bin in
   Like { x = x; f; g; lwit = Witness.make ();
          pp; of_string;
          encode_json; decode_json;
-         encode_bin; decode_bin; size_of }
+         encode_bin; decode_bin; size_of;
+         compare; equal }
 
-let like' ?cli ?json ?bin t = like ?cli ?json ?bin t (fun x -> x) (fun x -> x)
+let like' ?cli ?json ?bin ?equal ?compare t =
+  like ?cli ?json ?bin ?equal ?compare t (fun x -> x) (fun x -> x)
 
 (* fix points *)
 
@@ -355,8 +362,6 @@ let result a b =
   |~ case1 "error" b (fun b -> Error b)
   |> sealv
 
-type 'a equal = 'a -> 'a -> bool
-
 module Equal = struct
 
   let unit _ _ = true
@@ -411,7 +416,12 @@ module Equal = struct
     | Triple (a, b, c) -> triple (t a) (t b) (t c)
 
   and like: type a b. (a, b) like -> b equal =
-    fun { x; g; _ } u v -> t x (g u) (g v)
+    fun { x; g; equal; compare; _ } u v ->
+      match equal with
+      | Some f -> f u v
+      | None   -> match compare with
+        | Some f -> f u v = 0
+        | None   -> t x (g u) (g v)
 
   and prim: type a. a prim -> a equal = function
     | Unit   -> unit
@@ -448,8 +458,6 @@ module Equal = struct
 end
 
 let equal = Equal.t
-
-type 'a compare = 'a -> 'a -> int
 
 module Compare = struct
 
@@ -525,7 +533,10 @@ module Compare = struct
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
   and like: type a b. (a, b) like -> b compare =
-    fun { x; g; _ } u v -> t x (g u) (g v)
+    fun { x; g; compare; _ } u v ->
+      match compare with
+      | Some f -> f u v
+      | None   -> t x (g u) (g v)
 
   and prim: type a. a prim -> a compare = function
     | Unit   -> unit

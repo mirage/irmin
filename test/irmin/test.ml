@@ -94,11 +94,30 @@ let test_bin () =
   let s = T.decode_bin l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s
 
+let x = T.like' ~compare:(fun x y -> y - x - 1) T.int
+
+let test_compare () =
+  Alcotest.(check int) "rev compare" (T.compare x 1 2) 0;
+  Alcotest.(check int) "rev compare" (T.compare x 2 1) (-2);
+  Alcotest.(check int) "rev compare" (T.compare x 1 1) (-1);
+  Alcotest.(check bool) "rev equal" (T.equal x 1 2) true;
+  Alcotest.(check bool) "rev equal" (T.equal x 1 1) false
+
+let x = T.like' ~equal:(fun x y -> x - y = 2) T.int
+
+let test_equal () =
+  Alcotest.(check int) "eq" (T.compare x 1 2) (compare 1 2);
+  Alcotest.(check int) "eq" (T.compare x 3 1) (compare 3 1);
+  Alcotest.(check bool) "eq" (T.equal x 3 1) true;
+  Alcotest.(check bool) "eq" (T.equal x 0 0) false
+
 let suite = [
   "type", [
-    "base", `Quick, test_base;
-    "json", `Quick, test_json;
-    "bin" , `Quick, test_bin;
+    "base"   , `Quick, test_base;
+    "json"   , `Quick, test_json;
+    "bin"    , `Quick, test_bin;
+    "compare", `Quick, test_compare;
+    "equal"  , `Quick, test_equal;
   ]
 ]
 

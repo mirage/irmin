@@ -96,7 +96,7 @@ module Make_private
     val pp: t Fmt.t
     val type_eq: [`Commit | `Blob | `Tree | `Tag] -> bool
     val to_git: t -> G.Value.t
-    val of_git: G.Value.t -> t option
+    val of_git: G.Value.t -> (t option, [`Msg of string]) result
   end
 
   module AO (V: V) = struct
@@ -122,7 +122,9 @@ module Make_private
       G.read t key >>= function
       | Error `Not_found -> Lwt.return None
       | Error e          -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-      | Ok v             -> Lwt.return (V.of_git v)
+      | Ok v             -> match V.of_git v with
+        | Ok v           -> Lwt.return v
+        | Error (`Msg e) -> Lwt.fail_with e
 
     let add t v =
       Log.debug (fun l -> l "add %a" V.pp v);
@@ -132,6 +134,8 @@ module Make_private
 
   end
 
+  let err fmt = Fmt.kstrf (fun e -> Error (`Msg e)) fmt
+
   module GitContents = struct
     type t = C.t
     let pp = Irmin.Type.pp C.t
@@ -139,14 +143,12 @@ module Make_private
     let type_eq = function `Blob -> true | _ -> false
 
     let of_string str = match Irmin.Type.of_string C.t str with
-      | Ok x           -> Some x
-      | Error (`Msg e) ->
-        Log.err (fun l -> l "Git.Contents: cannot parse %S: %s" str e);
-        None
+      | Ok x           -> Ok (Some x)
+      | Error (`Msg e) -> err "Git.Contents: cannot parse %S: %s" str e
 
     let of_git = function
       | G.Value.Blob b -> of_string (G.Value.Blob.to_string b)
-      | _              -> None
+      | _              -> Ok None
 
     let to_git b = G.Value.Blob (G.Value.Blob.of_string (to_string b))
   end
@@ -261,7 +263,7 @@ module Make_private
         let pp = Val.pp
         let type_eq = function `Tree -> true | _ -> false
         let to_git t = G.Value.Tree t
-        let of_git = function G.Value.Tree t -> Some t | _ -> None
+        let of_git = function G.Value.Tree t -> Ok (Some t) | _ -> Ok None
       end)
   end
   module Node = Irmin.Private.Node.Store(Contents)(P)(Metadata)(XNode)
@@ -346,7 +348,7 @@ module Make_private
         type t = Val.t
         let pp = Val.pp
         let type_eq = function `Commit -> true | _ -> false
-        let of_git = function G.Value.Commit c -> Some c | _ -> None
+        let of_git = function G.Value.Commit c -> Ok (Some c) | _ -> Ok None
         let to_git c = G.Value.Commit c
       end)
 
