@@ -25,8 +25,8 @@ module Key = struct
 end
 
 module Value = struct
-  include Irmin.Contents.Cstruct
-  let equal x y = Cstruct.equal x y
+  include Irmin.Contents.String
+  let equal x y = String.equal x y
 end
 
 module type S = sig

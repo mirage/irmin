@@ -72,9 +72,7 @@ module Make (S: S.STORE) = struct
       let s =
         if String.length s <= 10 then s
         else String.with_range s ~len:10 in
-      let s =
-        if is_valid_utf8 s then s
-        else (let `Hex s = Hex.of_string s in s) in
+      let s = if is_valid_utf8 s then s else "<blob>" in
       s in
     let label_of_node k _ =
       let s =

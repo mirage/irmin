@@ -74,9 +74,9 @@ module Contents = struct
   type t = (module Irmin.Contents.S)
 
   let all = ref [
-      "string" , (module Irmin.Contents.String: Irmin.Contents.S);
-      "cstruct", (module Irmin.Contents.Cstruct);
-      "json", (module Irmin.Contents.Json);
+      "string", (module Irmin.Contents.String: Irmin.Contents.S);
+      "bytes" , (module Irmin.Contents.Bytes);
+      "json"  , (module Irmin.Contents.Json);
     ]
   let default = ref (module Irmin.Contents.String: Irmin.Contents.S)
 

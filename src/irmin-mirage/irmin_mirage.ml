@@ -55,7 +55,7 @@ module Git = struct
 
     open Lwt.Infix
 
-    module S = KV(G)(Irmin.Contents.Cstruct)
+    module S = KV(G)(Irmin.Contents.String)
 
     module Sync = Irmin.Sync(S)
 
@@ -94,7 +94,9 @@ module Git = struct
     let read_store t path off len =
       S.find t.t (mk_path t path) >>= function
       | None   -> unknown_key path
-      | Some v -> ok [Cstruct.sub v off len]
+      | Some v ->
+        (* XXX(samoht): this clearly could be improved *)
+        ok [Cstruct.of_string (String.with_range v ~first:off ~len)]
 
     let read t path off len =
       let off = Int64.to_int off
@@ -113,7 +115,7 @@ module Git = struct
     let size_store t path =
       S.find t.t (mk_path t path) >>= function
       | None   -> unknown_key path
-      | Some v -> ok (Int64.of_int @@ Cstruct.len v)
+      | Some v -> ok (Int64.of_int @@ String.length v)
 
     let size t = function
       | "HEAD" -> size_head t

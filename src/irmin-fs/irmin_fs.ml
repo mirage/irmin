@@ -32,14 +32,14 @@ module type IO = sig
   type path = string
   val rec_files: path -> string list Lwt.t
   val file_exists: path -> bool Lwt.t
-  val read_file: path -> Cstruct.t option Lwt.t
+  val read_file: path -> string option Lwt.t
   val mkdir: path -> unit Lwt.t
   type lock
   val lock_file: string -> lock
   val write_file: ?temp_dir:path -> ?lock:lock ->
-    path -> Cstruct.t -> unit Lwt.t
+    path -> string -> unit Lwt.t
   val test_and_set_file: ?temp_dir:path -> lock:lock ->
-    string -> test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t
+    string -> test:string option -> set:string option -> bool Lwt.t
   val remove_file: ?lock:lock -> path -> unit Lwt.t
 end
 
@@ -81,7 +81,7 @@ struct
     IO.file_exists file
 
   let value v =
-    match Irmin.Type.decode_cstruct V.t v with
+    match Irmin.Type.decode_string V.t v with
     | Ok v           -> Some v
     | Error (`Msg e) ->
       Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -124,8 +124,8 @@ struct
 
   let add t value =
     Log.debug (fun f -> f "add");
-    let value = Irmin.Type.encode_cstruct V.t value in
-    let key = K.digest Irmin.Type.cstruct value in
+    let value = Irmin.Type.encode_string V.t value in
+    let key = K.digest Irmin.Type.string value in
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     (IO.file_exists file >>= function
@@ -148,7 +148,7 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
  let add t index key =
    Log.debug (fun f -> f "add link");
    let file = file_of_key t index in
-   let value = Irmin.Type.encode_cstruct K.t key in
+   let value = Irmin.Type.encode_string K.t key in
    let temp_dir = temp_dir t in
    IO.file_exists file >>= function
    | true  -> Lwt.return_unit
@@ -217,7 +217,7 @@ struct
     stop () >>= fun () ->
     W.unwatch t.w id
 
-  let raw_value v = Irmin.Type.encode_cstruct V.t v
+  let raw_value v = Irmin.Type.encode_string V.t v
 
   let set t key value =
     Log.debug (fun f -> f "update");
@@ -337,7 +337,7 @@ module IO_mem = struct
 
   type t = {
     watches: (string, string -> unit Lwt.t) Hashtbl.t;
-    files  : (string, Cstruct.t) Hashtbl.t;
+    files  : (string, string) Hashtbl.t;
   }
 
   let t = {
@@ -404,7 +404,7 @@ module IO_mem = struct
 
   let equal x y = match x, y with
     | None  , None   -> true
-    | Some x, Some y -> Cstruct.equal x y
+    | Some x, Some y -> String.equal x y
     | _ -> false
 
   let test_and_set_file ?temp_dir:_ ~lock file ~test ~set =

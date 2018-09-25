@@ -23,8 +23,6 @@ let () =
 let key_t: Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t: Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
-let value s = Cstruct.of_string s
-
 let run f () =
   Lwt_main.run (f ());
   flush stderr;
@@ -34,7 +32,7 @@ let test_add_read ?(stable=false) (module AO: Test_chunk.S) () =
   AO.create () >>= fun t ->
   let test size =
     let name = Printf.sprintf "size %d" size in
-    let v = value (String.make size 'x') in
+    let v = String.make size 'x' in
     AO.add t v  >>= fun k ->
     if stable then
       Alcotest.(check key_t)
