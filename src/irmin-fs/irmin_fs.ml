@@ -49,9 +49,7 @@ let root_key = Irmin.Private.Conf.root
 let config ?(config=Irmin.Private.Conf.empty) root =
   Irmin.Private.Conf.add config root_key (Some root)
 
-module RO_ext (IO: IO) (S: Config)
-    (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) =
-struct
+module RO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   type key = K.t
 
@@ -71,17 +69,17 @@ struct
     { path }
 
   let file_of_key { path; _ } key =
-    path / S.file_of_key (Fmt.to_to_string K.pp key)
+    path / S.file_of_key (Irmin.Type.to_string K.t key)
 
   let lock_of_key { path; _ } key =
-    IO.lock_file (path / "lock" / S.file_of_key (Fmt.to_to_string K.pp key))
+    IO.lock_file (path / "lock" / S.file_of_key (Irmin.Type.to_string K.t key))
 
   let mem t key =
     let file = file_of_key t key in
     IO.file_exists file
 
   let value v =
-    match Irmin.Type.decode_string V.t v with
+    match Irmin.Type.decode_bin V.t v with
     | Ok v           -> Some v
     | Error (`Msg e) ->
       Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -105,7 +103,8 @@ struct
             file :: acc
         ) [] files
     in
-    List.fold_left (fun acc file -> match K.of_string (S.key_of_file file) with
+    List.fold_left (fun acc file ->
+        match Irmin.Type.of_string K.t (S.key_of_file file) with
         | Ok k           -> k :: acc
         | Error (`Msg e) ->
           Log.err (fun l -> l "Irmin_fs.list: %s" e);
@@ -114,9 +113,7 @@ struct
 
 end
 
-module AO_ext (IO: IO) (S: Config)
-    (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) =
-struct
+module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
 
   include RO_ext(IO)(S)(K)(V)
 
@@ -124,8 +121,8 @@ struct
 
   let add t value =
     Log.debug (fun f -> f "add");
-    let value = Irmin.Type.encode_string V.t value in
-    let key = K.digest Irmin.Type.string value in
+    let value = Irmin.Type.encode_bin V.t value in
+    let key = K.digest value in
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     (IO.file_exists file >>= function
@@ -148,7 +145,7 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
  let add t index key =
    Log.debug (fun f -> f "add link");
    let file = file_of_key t index in
-   let value = Irmin.Type.encode_string K.t key in
+   let value = Irmin.Type.encode_bin K.t key in
    let temp_dir = temp_dir t in
    IO.file_exists file >>= function
    | true  -> Lwt.return_unit
@@ -159,9 +156,7 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
 
 end
 
-module RW_ext (IO: IO) (S: Config)
-    (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) =
-struct
+module RW_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module RO = RO_ext(IO)(S)(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
@@ -195,7 +190,7 @@ struct
 
   let listen_dir t =
     let dir = S.dir t.t.RO.path in
-    let key file = match K.of_string file with
+    let key file = match Irmin.Type.of_string K.t file with
       | Ok t           -> Some t
       | Error (`Msg e) ->
         Log.err (fun l -> l "listen_dir: %s" e);
@@ -217,7 +212,7 @@ struct
     stop () >>= fun () ->
     W.unwatch t.w id
 
-  let raw_value v = Irmin.Type.encode_string V.t v
+  let raw_value v = Irmin.Type.encode_bin V.t v
 
   let set t key value =
     Log.debug (fun f -> f "update");

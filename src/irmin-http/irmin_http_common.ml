@@ -36,16 +36,16 @@ let set_t a =
   |+ field "v"    (option a) (fun x -> x.v)
   |> sealr
 
-let event_t k v =
+let event_t k x =
   let open Irmin.Type in
   record "event" (fun k d -> k, d)
   |+ field "branch" k fst
-  |+ field "diff"   (Irmin.Diff.t v) snd
+  |+ field "diff"   (Irmin.Diff.t x) snd
   |> sealr
 
-let init_t k v =
+let init_t k x =
   let open Irmin.Type in
   record "init" (fun k v -> k, v)
   |+ field "branch" k fst
-  |+ field "commit" v snd
+  |+ field "commit" x snd
   |> sealr

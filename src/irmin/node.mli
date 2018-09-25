@@ -20,7 +20,7 @@
 
 module No_metadata: S.METADATA with type t = unit
 
-module Make (C: S.S0) (N: S.S0) (P: S.PATH) (M: S.METADATA):
+module Make (C: Type.S) (N: Type.S) (P: S.PATH) (M: S.METADATA):
   S.NODE with type contents = C.t
           and type node = N.t
           and type step = P.step

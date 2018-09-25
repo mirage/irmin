@@ -11,6 +11,7 @@ build: [
  ["dune" "subst"] {pinned}
  ["dune" "build" "-p" name "-j" jobs]
 ]
+build-test: ["dune" "runtest" "-p" name]
 
 depends: [
   "dune"    {build & >= "1.1.0"}
@@ -22,5 +23,7 @@ depends: [
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
   "astring"
+  "alcotest" {test}
+  "hex"      {test}
 ]
 available: [ocaml-version >= "4.03.0"]

@@ -34,7 +34,4 @@ module String = struct
       incr i;
     done;
     !ok
-
-  let pp = Fmt.string
-  let of_string x = Ok x
 end

@@ -302,10 +302,6 @@ module Type: sig
       about.
   *)
 
-  val like: 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
-  (** [like x f g] is the description of a type which looks like [x]
-      using the bijetion [(f, g)]. *)
-
   (** {1:generics Generic Operations}
 
       Given a value ['a t], it is possible to define generic operations
@@ -313,17 +309,54 @@ module Type: sig
       unparsing.
   *)
 
-  val dump: 'a t -> 'a Fmt.t
-  (** [dump t] dumps the values of type [t] as a parsable OCaml
-      expression. *)
-
   val equal: 'a t -> 'a -> 'a -> bool
   (** [equal t] is the equality function between values of type [t]. *)
 
   val compare: 'a t -> 'a -> 'a -> int
   (** [compare t] compares values of type [t]. *)
 
+  type 'a pp = 'a Fmt.t
+  (** The type for pretty-printers for CLI arguments. *)
+
+  type 'a of_string = string -> ('a, [`Msg of string]) result
+                                (** The type for parsers of CLI arguments. *)
+
+  val pp: 'a t -> 'a pp
+  (** [pp t] is the pretty-printer for command-line arguments of type
+     [t]. *)
+
+  val to_string: 'a t -> 'a -> string
+  (** [to_string t] is [Fmt.to_to_string (pp t)]. *)
+
+  val of_string: 'a t -> 'a of_string
+  (** [of_string t] parses command-line arguments of type [t]. *)
+
   (** {2 JSON converters} *)
+
+  module Json: sig
+    (** Overlay on top of Jsonm to work with rewindable streams. *)
+
+    type decoder
+    (** The type for JSON decoder. *)
+
+    val decoder: ?encoding:[< Jsonm.encoding ] -> [< Jsonm.src ] -> decoder
+    (** Same as {!Jsonm.decoder}. *)
+
+    val decode: decoder ->
+      [> `Await | `End | `Error of Jsonm.error | `Lexeme of Jsonm.lexeme ]
+    (** Same as {!Jsonm.decode]. *)
+
+    val rewind: decoder -> Jsonm.lexeme -> unit
+    (** [rewind d l] rewinds [l] on top of the current state of
+        [d]. This allows to put back lexemes already seen. *)
+
+  end
+
+  type 'a encode_json = Jsonm.encoder -> 'a -> unit
+  (** The type for JSON encoders. *)
+
+  type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
+  (** The type for JSON decoders. *)
 
   val pp_json: ?minify:bool -> 'a t -> 'a Fmt.t
   (** Similar to {!dump} but pretty-prints the JSON representation instead
@@ -381,8 +414,25 @@ module Type: sig
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
-  val encode_string: ?buf:bytes -> 'a t -> 'a -> string
-  (** [encode_string t e] encodes [t] into a [string] buffer. The size
+  val to_json_string: ?minify:bool -> 'a t -> 'a -> string
+  (** [to_json_string] is {!encode_json} with a string encoder. *)
+
+  val of_json_string: 'a t -> string -> ('a, [`Msg of string]) result
+  (** [of_json_string] is {!decode_json} with a string decoder .*)
+
+  (** {2 Binary Converters} *)
+
+  type 'a encode_bin =  bytes -> int -> 'a -> int
+  (** The type for binary encoders. *)
+
+  type 'a decode_bin = string -> int -> int * 'a
+  (** The type for binary decoders. *)
+
+  type 'a size_of = 'a -> int
+    (** The type for size function related to binary encoder/decoders. *)
+
+  val encode_bin: ?buf:bytes -> 'a t -> 'a -> string
+  (** [encode_bin t e] encodes [t] into a [string] buffer. The size
      of the returned buffer is precomputed and the buffer is allocated
      at once or it can be passed using the optional argument [buf].
 
@@ -390,21 +440,34 @@ module Type: sig
      single buffer (of type [bytes] or [string]): the original value
      is returned as is, without being copied. *)
 
-  val decode_string: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
-  (** [decode_string t buf] decodes values of type [t] as produced by
+  val decode_bin: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
+  (** [decode_bin t buf] decodes values of type [t] as produced by
       [encode_string t v].
 
       {b NOTE:} When the parameter [t] is a single buffer (of type
       [bytes] or [string]) the original buffer is returned without
       being copied. *)
 
-  val encode_bytes: ?buf:bytes -> 'a t -> 'a -> bytes
-  (** Same as {!encode_string} but using a [bytes] buffer. *)
-
-  val decode_bytes: ?exact:bool -> 'a t -> bytes -> ('a, [`Msg of string]) result
-  (** Same as {!decode_string} but using a [bytes] buffer. *)
-
   val size_of: 'a t -> 'a -> int
+  (** [size_of t x] is the size of [encode_bin t x]. *)
+
+  (** {1 Customs converters} *)
+
+  val like: 'a t ->
+    ?cli:('b pp * 'b of_string) ->
+    ?json:('b encode_json * 'b decode_json) ->
+    ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
+     ('a -> 'b) -> ('b -> 'a) -> 'b t
+
+  val like':
+    ?cli:('a pp * 'a of_string) ->
+    ?json:('a encode_json * 'a decode_json) ->
+    ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+    'a t -> 'a t
+
+  type 'a ty = 'a t
+  module type S = sig type t val t: t ty end
+
 end
 
 (** Commit info are used to keep track of the origin of write
@@ -856,12 +919,6 @@ module Path: sig
     type t
     (** The type for path values. *)
 
-    val pp: t Fmt.t
-    (** [pp] is the pretty-printer for paths. *)
-
-    val of_string: string -> (t, [`Msg of string]) result
-    (** [of_string] parses paths. *)
-
     type step
     (** Type type for path's steps. *)
 
@@ -890,12 +947,6 @@ module Path: sig
 
     val map: t -> (step -> 'a) -> 'a list
     (** [map t f] maps [f] over all steps of [t]. *)
-
-    val pp_step: step Fmt.t
-    (** [pp_step] is pretty-printer for path steps. *)
-
-    val step_of_string: string -> (step, [`Msg of string]) result
-    (** [step_of_string] parses path steps. *)
 
     (** {1 Value Types} *)
 
@@ -932,23 +983,7 @@ module Hash: sig
     type t
     (** The type for digest hashes. *)
 
-    val pp: t Fmt.t
-    (** [pp] is the hex pretty-printer for hashes. *)
-
-    val of_string: string -> (t, [`Msg of string]) result
-    (** [of_string] parses the hex representation of hashes. *)
-
-    val of_raw_string: string -> t
-    (** [of_raw_string s] cast [s] to a hash. Raise [Invalid_argument]
-       is [s] is not a valid raw string. *)
-
-    val to_raw_string: t -> string
-    (** [to_raw_string h] cast [h] to a string. *)
-
-    val digest: 'a Type.t -> 'a -> t
-    (** Compute a deterministic store key from a typed value. *)
-
-    val digest_string: string -> t
+    val digest: string -> t
     (** Compute a deterministic store key from a string. *)
 
     val hash: t -> int
@@ -1024,35 +1059,6 @@ end
     and {{!Contents.Bytes}bytes} buffers are provided. *)
 module Contents: sig
 
-  module type S0 = sig
-
-    (** {1 Base Contents}
-
-        In Irmin, all the base contents should be serializable in a
-        consistent way. To do this, we rely on {!Type}. *)
-
-    type t
-    (** The type for contents. *)
-
-    val t: t Type.t
-    (** [t] is the value type for {!t}. *)
-
-  end
-
-  (** [Conv] is the signature for contents which can be converted back
-      and forth from the command-line.  *)
-  module type Conv = sig
-
-    include S0
-
-    val pp: t Fmt.t
-    (** [pp] pretty-prints contents. *)
-
-    val of_string: string -> (t, [`Msg of string]) result
-    (** [of_string] parses contents. *)
-
-  end
-
   module type S = sig
 
     (** {1 Signature for store contents} *)
@@ -1062,12 +1068,6 @@ module Contents: sig
 
     val t: t Type.t
     (** [t] is the value type for {!t}. *)
-
-    val pp: t Fmt.t
-    (** [pp] pretty-prints contents. *)
-
-    val of_string: string -> (t, [`Msg of string]) result
-    (** [of_string] parses contents. *)
 
     val merge: t option Merge.t
     (** Merge function. Evaluates to [`Conflict msg] if the values
@@ -1158,12 +1158,6 @@ module Branch: sig
 
     val t: t Type.t
     (** [t] is the value type for {!t}. *)
-
-    val pp: t Fmt.t
-    (** [pp] pretty-prints branches. *)
-
-    val of_string: string -> (t, [`Msg of string]) result
-    (** [of_string] parses branch names. *)
 
     val master: t
     (** The name of the master branch. *)
@@ -1415,7 +1409,7 @@ module Private: sig
         it uses {!none}. *)
 
     (** [Make] builds an implementation of watch helpers. *)
-    module Make(K: Contents.S0) (V: Contents.S0):
+    module Make(K: Type.S) (V: Type.S):
       S with type key = K.t and type value = V.t
 
   end
@@ -1440,7 +1434,7 @@ module Private: sig
 
     end
 
-    module Make (K: Contents.S0): S with type key = K.t
+    module Make (K: Type.S): S with type key = K.t
     (** Create a lock manager implementation. *)
 
   end
@@ -1530,7 +1524,7 @@ module Private: sig
 
     (** [Node] provides a simple node implementation, parameterized by
         the contents [C], node [N], paths [P] and metadata [M]. *)
-    module Make (C: Contents.S0) (N: Contents.S0) (P: Path.S) (M: Metadata.S):
+    module Make (C: Type.S) (N: Type.S) (P: Path.S) (M: Metadata.S):
       S with type contents = C.t
          and type node = N.t
          and type step = P.step
@@ -1734,7 +1728,7 @@ module Private: sig
 
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit [C] and node [N]. *)
-    module Make (C: Contents.S0) (N: Contents.S0):
+    module Make (C: Type.S) (N: Type.S):
       S with type commit = C.t and type node = N.t
 
     (** [STORE] specifies the signature for commit stores. *)
@@ -1948,7 +1942,7 @@ module Private: sig
 
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
-    module None (H: Contents.S0) (B: Contents.S0): sig
+    module None (H: Type.S) (B: Type.S): sig
       include S with type commit = H.t and type branch = B.t
 
       val v: 'a -> t Lwt.t
@@ -2172,10 +2166,6 @@ module type S = sig
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for store status. *)
 
-    val of_string: repo -> string -> (t, [`Msg of string]) result
-    (** [of_string r str] parses the store status from the string
-        [str], using the base repository [r]. *)
-
   end
 
   val status: t -> Status.t
@@ -2253,13 +2243,9 @@ module type S = sig
     val t: repo -> t Type.t
     (** [t] is the value type for {!t}. *)
 
-    val pp: t Fmt.t
+    val pp_hash: t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the
         hash. *)
-
-    val of_string: repo -> string -> (t, [`Msg of string]) result
-    (** [of_string r str] parsing the commit from the string [str],
-        using the base repository [r]. *)
 
     val v: repo -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
@@ -2820,20 +2806,20 @@ end
     implementation for branches and [H] is the implementation for
     object (blobs, trees, commits) hashes. It does not use any native
     synchronization primitives. *)
-module type S_MAKER =
-  functor (M: Metadata.S) ->
-  functor (C: Contents.S) ->
-  functor (P: Path.S) ->
-  functor (B: Branch.S) ->
-  functor (H: Hash.S) ->
-    S with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type Commit.Hash.t = H.t
-       and type Tree.Hash.t = H.t
-       and type Contents.Hash.t = H.t
+module type S_MAKER = functor
+  (M: Metadata.S)
+  (C: Contents.S)
+  (P: Path.S)
+  (B: Branch.S)
+  (H: Hash.S) ->
+  S with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type Commit.Hash.t = H.t
+     and type Tree.Hash.t = H.t
+     and type Contents.Hash.t = H.t
 
 (** [KV] is similar to {!S} but choose sensible implementations for
     path and branch. *)
@@ -3175,7 +3161,7 @@ end
 (** [AO_MAKER] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values. *)
-module type AO_MAKER = functor (K: Hash.S) -> functor (V: Contents.Conv) -> sig
+module type AO_MAKER = functor (K: Hash.S) (V: Type.S) -> sig
 
   include AO with type key = K.t and type value = V.t
 
@@ -3197,9 +3183,7 @@ end
 (** [RW_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values.*)
-module type RW_MAKER =
-  functor (K: Contents.Conv) -> functor (V: Contents.Conv) ->
-sig
+module type RW_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
   include RW with type key = K.t and type value = V.t
 

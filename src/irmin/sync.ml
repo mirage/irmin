@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module None (H: S.S0) (R: S.S0) = struct
+module None (H: Type.S) (R: Type.S) = struct
   type t = unit
   let v _ = Lwt.return ()
   type endpoint = unit

@@ -78,7 +78,7 @@ module Git = struct
            Date: %Ld\n\
            \n\
            %s\n"
-          S.Commit.pp h
+          S.Commit.pp_hash h
           (Irmin.Info.author info)
           (Irmin.Info.date info)
           (Irmin.Info.message info)

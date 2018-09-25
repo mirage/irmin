@@ -21,4 +21,4 @@ module type S = sig
   val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (K: S.S0): S with type key = K.t
+module Make (K: Type.S): S with type key = K.t

@@ -785,8 +785,9 @@ module Make (S: S) = struct
           | `Too_many_lcas    -> "Too_many_lcas"
           | `Max_depth_reached -> "Max_depth_reached"
         in
+        let pp_commits = Fmt.Dump.(list S.Commit.pp_hash) in
         let l2 = match l2 with
-          | Ok x    -> Alcotest.failf "%s: %a" msg Fmt.Dump.(list S.Commit.pp) x
+          | Ok x    -> Alcotest.failf "%s: %a" msg pp_commits x
           | Error e -> err_str e
         in
         Alcotest.(check string) msg (err_str err) l2
@@ -918,7 +919,7 @@ module Make (S: S) = struct
       S.set t ~info:(infof "slice") ["x";"a"] a >>= fun () ->
       S.set t ~info:(infof "slice") ["x";"b"] b >>= fun () ->
       S.Repo.export repo >>= fun slice ->
-      let str = Fmt.(to_to_string @@ T.pp_json P.Slice.t) slice in
+      let str = T.to_json_string P.Slice.t slice in
       let slice' =
         match T.decode_json P.Slice.t (Jsonm.decoder (`String str)) with
         | Ok t          -> t

@@ -112,8 +112,8 @@ let json_stream (stream: string Lwt_stream.t): Jsonm.lexeme list Lwt_stream.t =
   in
   Lwt_stream.from open_and_get
 
-let of_json_string t str = T.decode_json t (Jsonm.decoder (`String str))
-let to_json_string t = Fmt.to_to_string (T.pp_json t)
+let of_json = Irmin.Type.of_json_string
+let to_json = Irmin.Type.to_json_string
 
 module Helper (Client: Cohttp_lwt.S.Client) = struct
 
@@ -188,10 +188,8 @@ module Helper (Client: Cohttp_lwt.S.Client) = struct
 
 end
 
-module RO (Client: Cohttp_lwt.S.Client)
-    (K: Irmin.Contents.Conv)
-    (V: Irmin.Contents.Conv)
-= struct
+module RO (Client: Cohttp_lwt.S.Client) (K: Irmin.Type.S) (V: Irmin.Type.S) =
+struct
 
   module HTTP = Helper (Client)
 
@@ -203,13 +201,14 @@ module RO (Client: Cohttp_lwt.S.Client)
   type key = K.t
   type value = V.t
 
-  let key_str = Fmt.to_to_string K.pp
+  let key_str = Irmin.Type.to_string K.t
+  let val_of_str = Irmin.Type.of_string V.t
 
   let find t key =
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
       [t.item; key_str key] (fun (r, _ as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
-        else HTTP.map_string_response V.of_string x >|= fun x -> Some x)
+        else HTTP.map_string_response val_of_str x >|= fun x -> Some x)
 
   let mem t key =
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
@@ -224,17 +223,17 @@ end
 
 module AO (Client: Cohttp_lwt.S.Client)
     (K: Irmin.Hash.S)
-    (V: Irmin.Contents.Conv) =
+    (V: Irmin.Type.S) =
 struct
   include RO (Client)(K)(V)
   let add t value =
-    let body = Fmt.to_to_string V.pp value in
-    HTTP.call `POST t.uri t.ctx [t.items] ~body K.of_string
+    let body = Irmin.Type.to_string V.t value in
+    HTTP.call `POST t.uri t.ctx [t.items] ~body (Irmin.Type.of_string K.t)
 end
 
 module RW (Client: Cohttp_lwt.S.Client)
-    (K: Irmin.Contents.Conv)
-    (V: Irmin.Contents.Conv)
+    (K: Irmin.Type.S)
+    (V: Irmin.Type.S)
 = struct
 
   module RO = RO (Client)(K)(V)
@@ -267,21 +266,21 @@ module RW (Client: Cohttp_lwt.S.Client)
 
   let find t = RO.find t.t
   let mem t = RO.mem t.t
-  let key_str = Fmt.to_to_string K.pp
-  let list t = get t [RO.items t.t] (of_json_string T.(list K.t))
+  let key_str = Irmin.Type.to_string K.t
+  let list t = get t [RO.items t.t] (of_json T.(list K.t))
 
   let set t key value =
     let value = { v = Some value; set = None; test = None } in
-    let body = to_json_string (set_t V.t) value in
-    put t [RO.item t.t; key_str key] ~body (of_json_string status_t)
+    let body = to_json (set_t V.t) value in
+    put t [RO.item t.t; key_str key] ~body (of_json status_t)
     >>= function
     | "ok" -> Lwt.return_unit
     | e    -> Lwt.fail_with e
 
   let test_and_set t key ~test ~set =
     let value = { v = None; set; test } in
-    let body = to_json_string (set_t V.t) value in
-    put t [RO.item t.t; key_str key] ~body (of_json_string status_t)
+    let body = to_json (set_t V.t) value in
+    put t [RO.item t.t; key_str key] ~body (of_json status_t)
     >>= function
     | "true"  -> Lwt.return true
     | "false" -> Lwt.return false
@@ -295,7 +294,8 @@ module RW (Client: Cohttp_lwt.S.Client)
          | `Not_found | `OK -> Lwt.return_unit
          | _ ->
            Cohttp_lwt.Body.to_string b >>= fun b ->
-           Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" K.pp key b
+           Fmt.kstrf Lwt.fail_with "cannot remove %a: %s"
+             (Irmin.Type.pp K.t) key b
       )
 
   let nb_keys t = fst (W.stats t.w)
@@ -308,14 +308,14 @@ module RW (Client: Cohttp_lwt.S.Client)
     function () -> Lwt.wakeup u ()
 
   let watch_key t key ?init f =
-    let key_str = Fmt.to_to_string K.pp key in
+    let key_str = Irmin.Type.to_string K.t key in
     let init_stream () =
       if nb_keys t <> 0 then Lwt.return_unit
       else
         (match init with
          | None      -> get_stream t ["watch"; key_str] (event_t K.t V.t)
          | Some init ->
-           let body = to_json_string V.t init in
+           let body = to_json V.t init in
            post_stream t ["watch"; key_str] ~body (event_t K.t V.t))
         >>= fun s ->
         let stop () =
@@ -340,7 +340,7 @@ module RW (Client: Cohttp_lwt.S.Client)
         (match init with
          | None      -> get_stream t ["watches"] (event_t K.t V.t)
          | Some init ->
-           let body = to_json_string T.(list (init_t K.t V.t)) init in
+           let body = to_json T.(list (init_t K.t V.t)) init in
            post_stream t ["watches"] ~body (event_t K.t V.t))
         >>= fun s ->
         let stop () =
@@ -394,11 +394,7 @@ struct
     module Node = struct
       module X = struct
         module Key = H
-        module Val = struct
-          include Irmin.Private.Node.Make(H)(H)(P)(M)
-          let pp = T.pp_json t
-          let of_string = of_json_string t
-        end
+        module Val = Irmin.Private.Node.Make(H)(H)(P)(M)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Node.Store(Contents)(P)(M)(X)
@@ -407,11 +403,7 @@ struct
     module Commit = struct
       module X = struct
         module Key = H
-        module Val = struct
-          include Irmin.Private.Commit.Make(H)(H)
-          let pp = T.pp_json t
-          let of_string = of_json_string t
-        end
+        module Val = Irmin.Private.Commit.Make(H)(H)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Commit.Store(Node)(X)

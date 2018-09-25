@@ -16,21 +16,8 @@
 
 (** Irmin signatures *)
 
-module type S0 = sig
-  type t
-  val t: t Type.t
-end
-
-module type CONV = sig
-  include S0
-  val pp: t Fmt.t
-  val of_string: string -> (t, [`Msg of string]) result
-end
-
 module type PATH = sig
   type t
-  val pp: t Fmt.t
-  val of_string: string -> (t, [`Msg of string]) result
   type step
   val empty: t
   val v: step list -> t
@@ -40,27 +27,20 @@ module type PATH = sig
   val decons: t -> (step * t) option
   val rdecons: t -> (t * step) option
   val map: t -> (step -> 'a) -> 'a list
-  val pp_step: step Fmt.t
-  val step_of_string: string -> (step, [`Msg of string]) result
   val t: t Type.t
   val step_t: step Type.t
 end
 
 module type HASH = sig
   type t
-  val pp: t Fmt.t
-  val of_string: string -> (t, [`Msg of string]) result
-  val of_raw_string: string -> t
-  val to_raw_string: t -> string
-  val digest: 'a Type.t -> 'a -> t
-  val digest_string: string -> t
+  val digest: string -> t
   val hash: t -> int
   val digest_size: int
   val t: t Type.t
 end
 
 module type CONTENTS = sig
-  include CONV
+  include Type.S
   val merge: t option Merge.t
 end
 
@@ -73,8 +53,8 @@ module type RO = sig
 end
 
 module type RO_MAKER =
-  functor (K: S0) ->
-  functor (V: S0) ->
+  functor (K: Type.S) ->
+  functor (V: Type.S) ->
     RO with type key = K.t and type value = V.t
 
 module type AO = sig
@@ -82,14 +62,14 @@ module type AO = sig
   val add: t -> value -> key Lwt.t
 end
 
-module type AO_MAKER = functor (K: HASH) -> functor (V: CONV) ->
+module type AO_MAKER = functor (K: HASH) -> functor (V: Type.S) ->
 sig
   include AO with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t
 end
 
 module type METADATA = sig
-  include S0
+  include Type.S
   val merge: t Merge.t
   val default: t
 end
@@ -232,7 +212,7 @@ module type SLICE = sig
 end
 
 module type BRANCH = sig
-  include CONV
+  include Type.S
   val master: t
   val is_valid: t -> bool
 end
@@ -254,7 +234,7 @@ module type RW = sig
   val unwatch: t -> watch -> unit Lwt.t
 end
 
-module type RW_MAKER = functor (K: CONV) -> functor (V: CONV) ->
+module type RW_MAKER = functor (K: Type.S) -> functor (V: Type.S) ->
 sig
   include RW with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t
@@ -391,7 +371,6 @@ module type STORE = sig
     type t = [ `Empty | `Branch of branch | `Commit of commit ]
     val t: Repo.t -> t Type.t
     val pp: t Fmt.t
-    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
   end
   val status: t -> Status.t
   module Head: sig
@@ -409,8 +388,7 @@ module type STORE = sig
   module Commit: sig
     type t = commit
     val t: Repo.t -> t Type.t
-    val pp: t Fmt.t
-    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
+    val pp_hash: t Fmt.t
     val v: Repo.t -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
     val tree: commit -> tree Lwt.t
     val parents: commit -> commit list Lwt.t

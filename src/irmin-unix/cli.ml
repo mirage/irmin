@@ -151,7 +151,7 @@ let init = {
 
 let print fmt = Fmt.kstrf print_endline fmt
 
-let get name f x = match f x with
+let get name f x = match Irmin.Type.of_string f x with
   | Ok x           -> x
   | Error (`Msg e) -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
 
@@ -169,10 +169,10 @@ let get = {
     let get (S ((module S), store, _)) path =
       run begin
         store >>= fun t ->
-        S.find t (key S.Key.of_string path) >>= function
+        S.find t (key S.Key.t path) >>= function
         | None   -> print "<none>"; exit 1
         | Some v ->
-          print "%a" S.Contents.pp v;
+          print "%a" (Irmin.Type.pp S.Contents.t) v;
           Lwt.return_unit
       end
     in
@@ -188,10 +188,11 @@ let list = {
     let list (S ((module S), store, _)) path =
       run begin
         store >>= fun t ->
-        S.list t (key S.Key.of_string path) >>= fun paths ->
+        S.list t (key S.Key.t path) >>= fun paths ->
+        let pp_step = Irmin.Type.pp S.Key.step_t in
         let pp ppf (s, k) = match k with
-          | `Contents -> Fmt.pf ppf "FILE %a" S.Key.pp_step s
-          | `Node     -> Fmt.pf ppf "DIR  %a" S.Key.pp_step s
+          | `Contents -> Fmt.pf ppf "FILE %a" pp_step s
+          | `Node     -> Fmt.pf ppf "DIR  %a" pp_step s
         in
         List.iter (print "%a" pp) paths;
         Lwt.return_unit
@@ -230,8 +231,8 @@ let tree = {
         let all = !all in
         let all =
           List.map (fun (k,v) ->
-              Fmt.to_to_string S.Key.pp k,
-              Fmt.strf "%a" S.Contents.pp v
+              Irmin.Type.to_string S.Key.t k,
+              Irmin.Type.to_string S.Contents.t v
             ) all in
         let max_length l =
           List.fold_left (fun len s -> max len (String.length s)) 0 l in
@@ -271,8 +272,8 @@ let set = {
       run begin
         let message = match message with Some s -> s | None -> "set" in
         store >>= fun t ->
-        let path = key S.Key.of_string path in
-        let value = value S.Contents.of_string v in
+        let path = key S.Key.t path in
+        let value = value S.Contents.t v in
         S.set t ~info:(info ?author "%s" message) path value
       end
     in
@@ -289,7 +290,7 @@ let remove = {
       run begin
         let message = match message with Some s -> s | None -> "remove " ^ path in
         store >>= fun t ->
-        S.remove t ~info:(info ?author "%s" message) (key S.Key.of_string path)
+        S.remove t ~info:(info ?author "%s" message) (key S.Key.t path)
       end
     in
     Term.(mk remove $ store $ author $ message $ path);
@@ -330,7 +331,7 @@ let fetch = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        let branch = branch S.Branch.of_string "import" in
+        let branch = branch S.Branch.t "import" in
         S.of_branch (S.repo t) branch >>= fun t ->
         Sync.pull_exn t (apply r f) `Set
       end
@@ -347,7 +348,7 @@ let merge = {
     let merge (S ((module S), store, _)) author message branch =
       run begin
         let message = match message with Some s -> s | None -> "merge" in
-        let branch = match S.Branch.of_string branch with
+        let branch = match Irmin.Type.of_string S.Branch.t branch with
           | Ok b -> b
           | Error (`Msg msg) -> failwith msg
         in
@@ -411,7 +412,7 @@ let snapshot = {
       run begin
         store >>= fun t ->
         S.Head.get t >>= fun k ->
-        print "%a" S.Commit.pp k;
+        print "%a" S.Commit.pp_hash k;
         Lwt.return_unit
       end
     in
@@ -430,7 +431,7 @@ let revert = {
     let revert (S ((module S), store, _)) snapshot =
       run begin
         store >>= fun t ->
-        let hash = commit S.Commit.Hash.of_string snapshot in
+        let hash = commit S.Commit.Hash.t snapshot in
         S.Commit.of_hash (S.repo t) hash >>= fun s ->
         match s with
         | Some s -> S.Head.set t s
@@ -446,7 +447,7 @@ let watch = {
   man  = [];
   term =
     let watch (S ((module S), store, _)) path =
-      let path = key S.Key.of_string path in
+      let path = key S.Key.t path in
       run begin
         store >>= fun t ->
         S.watch_key t path (fun d ->
@@ -456,7 +457,7 @@ let watch = {
                 | `Added _   -> "+"
                 | `Removed _ -> "-"
               in
-              print "%s%a" v S.Key.pp k
+              print "%s%a" v (Irmin.Type.pp S.Key.t) k
             in
             let view (c, _) =
               S.of_commit c >>= fun t ->
