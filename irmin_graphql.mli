@@ -7,7 +7,8 @@ end
 
 module type STORE = sig
   include Irmin.S
-  val remote: Irmin_unix.Resolver.Store.remote_fn
+  val remote: ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 
 module Make(Store : STORE) : S with type store = Store.t

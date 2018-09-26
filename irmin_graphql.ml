@@ -17,23 +17,24 @@ type commit_input = {
   message: string option;
 }
 
+module type STORE = sig
+  include Irmin.S
+  val remote: ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+end
+
+module Make(Store : STORE) : S with type store = Store.t = struct
+  module Sync = Irmin.Sync (Store)
+
 let mk_info input =
   let default_message = "" in
   match input with
   | Some input ->
     let message = match input.message with None -> default_message | Some m -> m in
     let author = input.author in
-    Irmin_unix.info ?author "%s" message
+    Store.info ?author "%s" message
   | None ->
-    Irmin_unix.info "%s" default_message
-
-module type STORE = sig
-  include Irmin.S
-  val remote: Irmin_unix.Resolver.Store.remote_fn
-end
-
-module Make(Store : STORE) : S with type store = Store.t = struct
-  module Sync = Irmin.Sync (Store)
+    Store.info "%s" default_message
 
   type store = Store.t
 
