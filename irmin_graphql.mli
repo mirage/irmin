@@ -5,4 +5,9 @@ module type S = sig
   val start_server : ?port:int -> store -> unit Lwt.t
 end
 
-module Make(Store : Irmin.S) : S with type store = Store.t
+module type STORE = sig
+  include Irmin.S
+  val remote: Irmin_unix.Resolver.Store.remote_fn
+end
+
+module Make(Store : STORE) : S with type store = Store.t

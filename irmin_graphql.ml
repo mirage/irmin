@@ -27,7 +27,12 @@ let mk_info input =
   | None ->
     Irmin_unix.info "%s" default_message
 
-module Make(Store : Irmin_unix.Git.S) : S with type store = Store.t = struct
+module type STORE = sig
+  include Irmin.S
+  val remote: Irmin_unix.Resolver.Store.remote_fn
+end
+
+module Make(Store : STORE) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
   type store = Store.t
