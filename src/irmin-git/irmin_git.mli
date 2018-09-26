@@ -94,7 +94,7 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and module Git = G
-     and type endpoint = S.Endpoint.t
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 module type KV_MAKER = functor
   (G: G)
@@ -105,7 +105,7 @@ module type KV_MAKER = functor
      and type contents = C.t
      and type branch = string
      and module Git = G
-     and type endpoint = S.Endpoint.t
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 type reference = [
   | `Branch of string
@@ -123,7 +123,7 @@ module type REF_MAKER = functor
      and type contents = C.t
      and type branch = reference
      and module Git = G
-     and type endpoint = S.Endpoint.t
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 module Make: S_MAKER
 module Ref : REF_MAKER

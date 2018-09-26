@@ -17,42 +17,66 @@
 let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
 module Log =(val Logs.src_log src : Logs.LOG)
 
+module type S = sig
+  include Irmin_git.S with type Private.Sync.endpoint = Git_unix.endpoint
+  val remote: ?headers:Cohttp.Header.t -> string -> Irmin.remote
+end
+
 module type S_MAKER = functor
   (G: Irmin_git.G)
   (C: Irmin.Contents.S)
   (P: Irmin.Path.S)
   (B: Irmin.Branch.S) ->
-  Irmin_git.S with type key = P.t
-               and type step = P.step
-               and module Key = P
-               and type contents = C.t
-               and type branch = B.t
-               and module Git = G
-               and type endpoint = Git_unix.endpoint
+  S with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
 
 module type KV_MAKER = functor
   (G: Irmin_git.G)
   (C: Irmin.Contents.S) ->
-  Irmin_git.S with type key = string list
-               and type step = string
-               and type contents = C.t
-               and type branch = string
-               and module Git = G
-               and type endpoint = Git_unix.endpoint
+  S with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
 
 module type REF_MAKER = functor
   (G: Irmin_git.G)
   (C: Irmin.Contents.S) ->
-  Irmin_git.S with type key = string list
-               and type step = string
-               and type contents = C.t
-               and type branch = Irmin_git.reference
-               and module Git = G
-               and type endpoint = Git_unix.endpoint
+  S with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = Irmin_git.reference
+     and module Git = G
 
-module Ref (G: Irmin_git.G) = Irmin_git.Ref(G)(Git_unix.Sync(G))
-module Make (G: Irmin_git.G) = Irmin_git.Make(G)(Git_unix.Sync(G))
-module KV (G: Irmin_git.G) = Irmin_git.KV(G)(Git_unix.Sync(G))
+module Make
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S)
+= struct
+  include Irmin_git.Make(G)(Git_unix.Sync(G))(C)(P)(B)
+  let remote ?headers uri =
+    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
+    E e
+end
+
+module KV (G: Irmin_git.G) (C: Irmin.Contents.S) = struct
+  include Irmin_git.KV(G)(Git_unix.Sync(G))(C)
+  let remote ?headers uri =
+    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
+    E e
+end
+
+module Ref (G: Irmin_git.G) (C: Irmin.Contents.S) = struct
+  include Irmin_git.Ref(G)(Git_unix.Sync(G))(C)
+  let remote ?headers uri =
+    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
+    E e
+end
 
 module FS = struct
 

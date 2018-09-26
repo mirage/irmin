@@ -10,8 +10,7 @@ let path =
 module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 module Sync = Irmin.Sync(Store)
 
-let endpoint = Git_unix.endpoint @@ Uri.of_string path
-let upstream = Sync.remote endpoint
+let upstream = Store.remote path
 
 let test () =
   Config.init ();

@@ -31,11 +31,10 @@ module Make (P: S.PRIVATE) = struct
   module Key = P.Node.Path
   type key = Key.t
 
-  type endpoint = P.Sync.endpoint
-  let remote = P.Sync.remote
-
   module Metadata = P.Node.Metadata
   module H = Commit.History(P.Commit)
+
+  type S.remote += E of P.Sync.endpoint
 
   module Contents = struct
     include P.Contents.Val

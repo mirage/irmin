@@ -28,6 +28,15 @@ module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
 end
 
+module type S = sig
+  include Irmin_git.S with type Private.Sync.endpoint = Git_mirage.endpoint
+  val remote:
+    ?conduit:Conduit_mirage.conduit ->
+    ?resolver:Resolver_lwt.t ->
+    ?headers:Cohttp.Header.t ->
+    string -> Irmin.remote
+end
+
 module Git: sig
 
   module Make
@@ -35,33 +44,30 @@ module Git: sig
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S):
-    Irmin_git.S with type key = P.t
-                 and type step = P.step
-                 and module Key = P
-                 and type contents = C.t
-                 and type branch = B.t
-                 and module Git = G
-                 and type endpoint = Git_mirage.endpoint
+    S with type key = P.t
+       and type step = P.step
+       and module Key = P
+       and type contents = C.t
+       and type branch = B.t
+       and module Git = G
 
   module KV
       (G: Irmin_git.G)
       (C: Irmin.Contents.S):
-    Irmin_git.S with type key = string list
-                 and type step = string
-                 and type contents = C.t
-                 and type branch = string
-                 and module Git = G
-                 and type endpoint = Git_mirage.endpoint
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
 
   module Ref
       (G: Irmin_git.G)
       (C: Irmin.Contents.S):
-    Irmin_git.S with type key = string list
-                 and type step = string
-                 and type contents = C.t
-                 and type branch = Irmin_git.reference
-                 and module Git = G
-                 and type endpoint = Git_mirage.endpoint
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = Irmin_git.reference
+       and module Git = G
 
   module type KV_RO = sig
 
@@ -76,7 +82,7 @@ module Git: sig
       ?conduit:Conduit_mirage.t ->
       ?resolver:Resolver_lwt.t ->
       ?headers:Cohttp.Header.t ->
-      git -> Uri.t -> t Lwt.t
+      git -> string -> t Lwt.t
     (** [connect ?depth ?branch ?path g uri] clones the given [uri] into
         [g] repository, using the given [branch], [depth] and
         ['/']-separated sub-[path]. By default, [branch] is master,
@@ -99,32 +105,29 @@ module Git: sig
         (C: Irmin.Contents.S)
         (P: Irmin.Path.S)
         (B: Irmin.Branch.S):
-      Irmin_git.S with type key = P.t
-                   and type step = P.step
-                   and module Key = P
-                   and type contents = C.t
-                   and type branch = B.t
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = P.t
+         and type step = P.step
+         and module Key = P
+         and type contents = C.t
+         and type branch = B.t
+         and module Git = G
 
     module Ref
         (C: Irmin.Contents.S):
-      Irmin_git.S with type key = string list
-                   and type step = string
-                   and type contents = C.t
-                   and type branch = Irmin_git.reference
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = string list
+         and type step = string
+         and type contents = C.t
+         and type branch = Irmin_git.reference
+         and module Git = G
 
     module KV
         (C: Irmin.Contents.S):
-      Irmin_git.S with type key = Irmin.Path.String_list.t
-                   and type step = string
-                   and module Key = Irmin.Path.String_list
-                   and type contents = C.t
-                   and type branch = string
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = Irmin.Path.String_list.t
+         and type step = string
+         and module Key = Irmin.Path.String_list
+         and type contents = C.t
+         and type branch = string
+         and module Git = G
 
     module KV_RO: KV_RO with type git := G.t
   end
@@ -138,30 +141,27 @@ module Git: sig
         (C: Irmin.Contents.S)
         (P: Irmin.Path.S)
         (B: Irmin.Branch.S):
-      Irmin_git.S with type key = P.t
-                   and type step = P.step
-                   and module Key = P
-                   and type contents = C.t
-                   and type branch = B.t
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = P.t
+         and type step = P.step
+         and module Key = P
+         and type contents = C.t
+         and type branch = B.t
+         and module Git = G
 
     module Ref (C: Irmin.Contents.S):
-      Irmin_git.S with type key = string list
-                   and type step = string
-                   and type contents = C.t
-                   and type branch = Irmin_git.reference
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = string list
+         and type step = string
+         and type contents = C.t
+         and type branch = Irmin_git.reference
+         and module Git = G
 
     module KV (C: Irmin.Contents.S):
-      Irmin_git.S with type key = Irmin.Path.String_list.t
-                   and type step = string
-                   and module Key = Irmin.Path.String_list
-                   and type contents = C.t
-                   and type branch = string
-                   and module Git = G
-                   and type endpoint = Git_mirage.endpoint
+      S with type key = Irmin.Path.String_list.t
+         and type step = string
+         and module Key = Irmin.Path.String_list
+         and type contents = C.t
+         and type branch = string
+         and module Git = G
 
     module KV_RO: KV_RO with type git := G.t
   end

@@ -75,9 +75,6 @@ module Make (S: S.STORE) = struct
     | `Msg of string
   ]
 
-  type remote += E of B.endpoint
-  let remote e = E e
-
   let pp_branch = Type.pp S.Branch.t
   let pp_hash = Type.pp S.Commit.Hash.t
 
@@ -103,7 +100,7 @@ module Make (S: S.STORE) = struct
             | Ok h    -> Ok h
             | Error e -> Error (e :> fetch_error)
       end
-    | E e ->
+    | S.E e ->
       begin match S.status t with
         | `Empty | `Commit _ -> Lwt.return (Error `No_head)
         | `Branch br ->
@@ -178,7 +175,7 @@ module Make (S: S.STORE) = struct
             | Error e -> Lwt.return (Error (e :> push_error))
             | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
       end
-    | E e ->
+    | S.E e ->
       begin match S.status t with
         | `Empty    -> Lwt.return (Error `No_head)
         | `Commit _ -> Lwt.return (Error `Detached_head)

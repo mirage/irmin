@@ -1922,9 +1922,6 @@ module Private: sig
       type endpoint
       (** The type for sync endpoints. *)
 
-      val remote: endpoint -> remote
-      (** [remote e] is [e] seens a an Irmin remote. *)
-
       val fetch: t -> ?depth:int -> endpoint -> branch ->
         (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
@@ -2717,14 +2714,6 @@ module type S = sig
   module Metadata: Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
 
-  (** {1 Endpoints} *)
-
-  type endpoint
-  (** The type for synchronisation endpoints. *)
-
-  val remote: endpoint -> remote
-  (** [remote e] is e seen as an remote. *)
-
   (** {1 Value Types} *)
 
   val step_t: step Type.t
@@ -2775,8 +2764,11 @@ module type S = sig
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
-       and type Sync.endpoint = endpoint
   end
+
+  type remote += E of Private.Sync.endpoint
+  (** Extend the [remote] type with [endpoint]. *)
+
 end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
@@ -2855,7 +2847,7 @@ module Sync = Irmin.Sync(S)
 let config = Irmin_git.config "/tmp/test"
 
 let upstream =
-  if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
+  if Array.length Sys.argv = 2 then (Uri.of_string (Store.remote Sys.argv.(1)))
   else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
 
 let test () =
@@ -2876,9 +2868,8 @@ let () = Lwt_main.run (test ())
 
 {[
 module Entry : sig
-  include Irmin.Contents.Conv
+  include Irmin.Type.S
   val v: string -> t
-  val compare: t -> t -> int
   val timestamp: t -> int
 end = struct
 
@@ -2892,17 +2883,10 @@ end = struct
     incr time;
     { timestamp = !time; message }
 
-  let t =
-    let open Irmin.Type in
-    record "entry" (fun t32 message -> { timestamp = Int32.to_int t32; message })
-    |+ field "timestamp" int32  (fun t -> Int32.of_int t.timestamp)
-    |+ field "message"   string (fun t -> t.message)
-    |> sealr
-
   let timestamp t = t.timestamp
 
   let pp ppf { timestamp; message } =
-    Fmt.pf ppf "%04d: %s\n" timestamp message
+    Fmt.pf ppf "%04d: %s" timestamp message
 
   let of_string str =
     match String.split_on_char '\t' str with
@@ -2911,6 +2895,16 @@ end = struct
       let message = String.concat "\t" msg_sects in
       try Ok { timestamp = int_of_string ts; message }
       with Failure e -> Error (`Msg e)
+
+  let t =
+    let open Irmin.Type in
+    record "entry" (fun t32 message -> { timestamp = Int32.to_int t32; message })
+    |+ field "timestamp" int32  (fun t -> Int32.of_int t.timestamp)
+    |+ field "message"   string (fun t -> t.message)
+    |> sealr
+
+  let t = Irmin.type.like' ~cli:(pp, of_string) ~compare t
+
 end
 ]}
 
@@ -2928,14 +2922,13 @@ module Log: sig
 end = struct
 
   type t = Entry.t list
-  let t = Irmin.Type.(list Entry.t)
 
   let empty = []
 
   let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp ) (List.rev l)
 
   let of_string str =
-    let lines = String.cuts ~sep:"\n" str in
+    let lines = String.cuts ~empty:false ~sep:"\n" str in
     try
       List.fold_left (fun acc l ->
           match Entry.of_string l with
@@ -2945,6 +2938,9 @@ end = struct
       |> fun l -> Ok l
     with Failure e ->
       Error (`Msg e)
+
+  let t = Irmin.Type.(list Entry.t)
+  let t = Irmin.Type.like' ~cli:(pp, of_string) t
 
   let timestamp = function
     | [] -> 0
@@ -3109,10 +3105,7 @@ module type SYNC = sig
 end
 
 (** The default [Sync] implementation. *)
-module Sync (S: S): sig
-  include SYNC with type db = S.t and type commit = S.commit
-  val remote: S.endpoint -> remote
-end
+module Sync (S: S): SYNC with type db = S.t and type commit = S.commit
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
@@ -3209,4 +3202,5 @@ module Make_ext (P: Private.S): S
    and type metadata = P.Node.Val.metadata
    and type Key.step = P.Node.Path.step
    and type repo = P.Repo.t
-   and type endpoint = P.Sync.endpoint
+   and type slice = P.Slice.t
+   and module Private = P

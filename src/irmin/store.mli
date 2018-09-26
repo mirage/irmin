@@ -28,6 +28,5 @@ module Make (P: S.PRIVATE): S.STORE
    and type step = P.Node.Path.step
    and type metadata = P.Node.Val.metadata
    and module Key = P.Node.Path
-   and module Private.Contents = P.Contents
    and type repo = P.Repo.t
-   and type endpoint = P.Sync.endpoint
+   and module Private = P
