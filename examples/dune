@@ -6,3 +6,9 @@
  (name examples)
  (deps trees.exe sync.exe process.exe deploy.exe push.exe
        irmin_git_store.exe custom_merge.exe))
+
+(alias
+ (name    runtest)
+ (package irmin-unix)
+ (deps    trees.exe sync.exe process.exe deploy.exe
+          irmin_git_store.exe custom_merge.exe))

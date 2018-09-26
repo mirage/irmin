@@ -22,9 +22,8 @@ let failure fmt = Fmt.kstrf failwith fmt
 
 (* A log entry *)
 module Entry: sig
-  include Irmin.Contents.Conv
+  include Irmin.Type.S
   val v: string -> t
-  val compare: t -> t -> int
   val timestamp: t -> int64
 end = struct
 
@@ -39,17 +38,10 @@ end = struct
     time := Int64.add 1L !time;
     { timestamp = !time; message }
 
-  let t =
-    let open Irmin.Type in
-    record "entry" (fun timestamp message -> { timestamp; message })
-    |+ field "timestamp" int64  (fun t -> t.timestamp)
-    |+ field "message"   string (fun t -> t.message)
-    |> sealr
-
   let timestamp t = t.timestamp
 
   let pp ppf { timestamp; message } =
-    Fmt.pf ppf  "%04Ld: %s\n" timestamp message
+    Fmt.pf ppf  "%04Ld: %s" timestamp message
 
   let of_string str =
     match String.cut ~sep:": " str with
@@ -57,6 +49,15 @@ end = struct
     | Some (x, message) ->
       try Ok { timestamp = Int64.of_string x; message }
       with Failure e -> Error (`Msg e)
+
+  let t =
+    let open Irmin.Type in
+    record "entry" (fun timestamp message -> { timestamp; message })
+    |+ field "timestamp" int64  (fun t -> t.timestamp)
+    |+ field "message"   string (fun t -> t.message)
+    |> sealr
+
+  let t =  Irmin.Type.like' ~cli:(pp, of_string) ~compare t
 
 end
 
@@ -68,23 +69,27 @@ module Log: sig
 end = struct
 
   type t = Entry.t list
-  let t = Irmin.Type.(list Entry.t)
 
   let empty = []
 
-  let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp ) (List.rev l)
+  let pp_entry = Irmin.Type.pp Entry.t
+  let lines ppf l = List.iter (Fmt.pf ppf "%a\n" pp_entry ) (List.rev l)
 
   let of_string str =
-    let lines = String.cuts ~sep:"\n" str in
+    let lines = String.cuts ~empty:false ~sep:"\n" str in
     try
       List.fold_left (fun acc l ->
-          match Entry.of_string l with
+          match Irmin.Type.of_string Entry.t l with
           | Ok x           -> x :: acc
           | Error (`Msg e) -> failwith e
         ) [] lines
       |> fun l -> Ok l
     with Failure e ->
       Error (`Msg e)
+
+  let cli = lines, of_string
+
+  let t = Irmin.Type.(like' ~cli (list Entry.t))
 
   let timestamp = function
     | [] -> 0L
@@ -105,7 +110,7 @@ end = struct
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in
-    let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
+    let t3 = List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2) in
     Irmin.Merge.ok (List.rev_append t3 old)
 
   let merge = Irmin.Merge.(option (v t merge))
@@ -121,9 +126,9 @@ let config = Irmin_git.config ~bare:true Config.root
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  Store.find t log_file >>= function
-  | None   -> Lwt.return Log.empty
-  | Some l -> Lwt.return l
+  Store.find t log_file >|= function
+  | None   -> Log.empty
+  | Some l -> l
 
 (* Persist a new entry in the log. Pretty inefficient as it
    reads/writes the whole file every time. *)
@@ -136,7 +141,7 @@ let log t fmt =
 
 let print_logs name t =
   all_logs t >|= fun logs ->
-  Fmt.pr "-----------\n%s:\n-----------\n%a%!" name Log.pp logs
+  Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
 
 let main () =
   Config.init ();

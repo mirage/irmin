@@ -106,12 +106,16 @@ val like: 'a t ->
   ?cli:('b pp * 'b of_string) ->
   ?json:('b encode_json * 'b decode_json) ->
   ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
+  ?equal:('b -> 'b -> bool) ->
+  ?compare:('b -> 'b -> int) ->
   ('a -> 'b) -> ('b -> 'a) -> 'b t
 
 val like':
   ?cli:('a pp * 'a of_string) ->
   ?json:('a encode_json * 'a decode_json) ->
   ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+  ?equal:('a -> 'a -> bool) ->
+  ?compare:('a -> 'a -> int) ->
   'a t -> 'a t
 
 (* convenient functions. *)
