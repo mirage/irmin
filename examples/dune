@@ -10,5 +10,5 @@
 (alias
  (name    runtest)
  (package irmin-unix)
- (deps    trees.exe sync.exe process.exe deploy.exe
+ (deps    trees.exe sync.exe process.exe deploy.exe push.exe
           irmin_git_store.exe custom_merge.exe))
