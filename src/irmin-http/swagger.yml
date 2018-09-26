@@ -1,0 +1,285 @@
+swagger:  "2.0"
+info:
+  title: "Irmin REST API"
+  description: "This is the first draft of a REST API for the
+    [irmin](https://github.com/mirage/irmin/) database"
+  version: "0.0.1"
+  contact:
+    name: "David Udelson"
+    email: "dru5@cornell.edu"
+paths:
+  /branches:
+    get:
+      summary: "list all branches"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Branch"
+  /branch/{branchName}:
+    parameters:
+    - in: "path"
+      name: "branchName"
+      description: "name of branch to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "get a branch by name"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            $ref: "#/definitions/Branch"
+        404:
+          description: "branch not found"
+    post:
+      summary: "update an existing branch, or create a new one if none exists"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        201:
+          description: "create success"
+        204:
+          description: "update success"
+    delete:
+      summary: "delete a branch by its ID"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+        404:
+          description: "branch not found"
+  /commits:
+    get:
+      summary: "lists all commits, newest to oldest (like `git log`)"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Commit"
+  /commits/{commitHash}:
+    parameters:
+    - in: "path"
+      name: "commitHash"
+      description: "hash of commit to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "get a commit by its hash"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            $ref: "#/definitions/Commit"
+        404:
+          description: "commit not found"
+  /keys:
+    get:
+      summary: "gets all keys and their associated values (like `irmin tree`)"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/KV"
+  /keys/{key}:
+    parameters:
+    - in: "path"
+      name: "key"
+      description: "key to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "get the value associated with a key"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            $ref: "#/definitions/KV"
+        404:
+          description: "key not found"
+    post:
+      summary: "update the value associated with a path, or create a new kv-pair if none exists"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: body
+        name: body
+        description: "new value"
+        required: true
+        schema:
+          type: object
+          properties:
+            value:
+              type: "string"
+      responses:
+        201:
+          description: "creation success"updatecreated
+        204:
+          description: "update success"
+    delete:
+      summary: "remove a key/value pair from the store"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+        404:
+          description: "key not found"
+  /watches:
+    get:
+      summary: "list all watches"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Watch"
+  /watch/branch/{branchName}:
+    parameters:
+    - in: "path"
+      name: "branchName"
+      description: "name of branch to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "watch a branch via a long-duration HTTP connection"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema: # TODO
+        404:
+          description: "not found"
+  /watch/key/{key}:
+    parameters:
+    - in: "path"
+      name: "key"
+      description: "name of key to operate on"
+      required: true
+      type: "string"
+    get:
+      summary: "watch a key via a long-duration HTTP connection"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "success"
+          schema: # TODO
+        404:
+          description: "not found"
+
+definitions:
+  Branch:
+    type: object
+    properties:
+      name:
+        type: "string"
+      head: # hash of head commit
+        type: "string"
+    required:
+    - "name"
+    - "head"
+  Commit:
+    type: object
+    properties:
+      info:
+        type: object
+        properties:
+          author:
+            type: "string"
+          date:
+            type: "string"
+            format: "date-time"
+          message:
+            type: "string"
+      hash:
+        type: "string"
+      parents:
+        type: "array"
+        items:
+          type: "string"
+      node:
+        type: "string"
+        description: "hash of tree or blob this commit points to"
+    required:
+    - "info"
+    - "hash"
+    - "parents"
+    - "node"
+  KV:
+    type: object
+    properties:
+      key:
+        type: "string"
+      value:
+        type: "string"
+    required:
+    - "key"
+    - "value"
+  Watch:
+    type: object
+    properties:
+      watching:
+        type: "string"
+        enum:
+        - "branch"
+        - "key"
+      branchName: # only if this is a branch
+        type: "string"
+      path: # only if this is a key
+        type: "string"
+      nConn: # number of open connections to this watch
+        type: "number"
+        format: "int64"
+    required:
+    - "watching"
+    - "nConn"
