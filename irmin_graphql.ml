@@ -27,7 +27,7 @@ let mk_info input =
   | None ->
     Irmin_unix.info "%s" default_message
 
-module Make(Store : Irmin.S) : S with type store = Store.t = struct
+module Make(Store : Irmin_unix.Git.S) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
   type store = Store.t
@@ -99,7 +99,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ c -> Fmt.to_to_string Store.Commit.Hash.pp (Store.Commit.hash c))
+                ~resolve:(fun _ c -> Irmin.Type.to_string Store.Commit.Hash.t (Store.Commit.hash c))
               ;
             ])
     )
@@ -130,7 +130,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
+                ~resolve:(fun _ (_, key) -> Fmt.to_to_string (Irmin.Type.pp Store.key_t) key)
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:Input.step]
@@ -139,7 +139,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                     let key =
                       match step with
                       | Some s ->
-                          (match from_string_err Store.Key.step_of_string s with
+                          (match from_string_err (Irmin.Type.of_string Store.step_t) s with
                           | Ok step -> Ok (Store.Key.rcons key step)
                           | Error e -> Error e)
                       | None -> Ok Store.Key.empty
@@ -155,7 +155,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~typ:string
                 ~resolve:(fun _ (tree, key) ->
                     Store.Tree.find tree key >>= function
-                      | Some contents -> Lwt.return_ok (Some (Fmt.to_to_string Store.Contents.pp contents))
+                      | Some contents -> Lwt.return_ok (Some (Fmt.to_to_string (Irmin.Type.pp Store.contents_t) contents))
                       | _ -> Lwt.return_ok None
                 );
               io_field "tree"
@@ -180,7 +180,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~typ:(non_null string)
                 ~args:[]
                 ~resolve:(fun _ (_, b) ->
-                    Fmt.to_to_string Store.Branch.pp b
+                    Irmin.Type.to_string Store.branch_t b
                   )
               ;
               io_field "head"
@@ -194,10 +194,10 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(string)
                 ~resolve:(fun _ (s, _) key ->
-                    match from_string_err Store.Key.of_string key with
+                    match from_string_err (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
                       (Store.find s key >>= function
-                      | Some v -> Lwt.return_ok (Some (Fmt.to_to_string Store.Contents.pp v))
+                      | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
                       | None -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
                   )
@@ -206,7 +206,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, _) commit ->
-                    match from_string_err Store.Commit.Hash.of_string commit with
+                    match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) commit with
                     | Ok commit ->
                       (Store.Commit.of_hash (Store.repo s) commit >>= function
                       | Some commit ->
@@ -228,7 +228,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (_, key) -> Fmt.to_to_string Store.Key.pp key)
+                ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
               ;
               io_field "value"
                 ~typ:string
@@ -237,7 +237,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
                     Store.Tree.find tree key >|= function
                     | None -> Ok None
                     | Some contents ->
-                      Ok (Some (Fmt.to_to_string Store.Contents.pp contents))
+                      Ok (Some (Irmin.Type.to_string Store.contents_t contents))
                   )
               ;
             ])
@@ -258,7 +258,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
   let unwrap_branch branch =
     match branch with
     | Some branch ->
-        (match from_string_err Store.Branch.of_string branch with
+        (match from_string_err (Irmin.Type.of_string Store.branch_t) branch with
         | Ok b -> Ok (Some b)
         | Error msg -> Error msg)
     | None -> Ok None
@@ -272,7 +272,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
           ]
         ~resolve:(fun _ _src branch remote ->
             let branch = unwrap_branch branch in
-            match from_string Irmin.remote_uri remote, branch with
+            match from_string Store.remote remote, branch with
             | Ok remote, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Sync.fetch t remote >>= function
@@ -298,8 +298,8 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             | Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               let info = mk_info i in
-              let key = Store.Key.of_string k in
-              let value = Store.Contents.of_string v in
+              let key = Irmin.Type.of_string Store.key_t k in
+              let value = Irmin.Type.of_string Store.contents_t v in
               match key, value with
               | Ok key, Ok value ->
                 Store.set t key value ~info >>= fun () ->
@@ -320,7 +320,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             | Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               let info = mk_info i in
-              let key = Store.Key.of_string key in
+              let key = Irmin.Type.of_string Store.key_t key in
               match key with
               | Ok key ->
                   Store.remove t key ~info >>= fun () ->
@@ -355,7 +355,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "remote" ~typ:(non_null Input.remote);
           ]
         ~resolve:(fun _ _src branch remote ->
-            match from_string Irmin.remote_uri remote, unwrap_branch branch with
+            match from_string Store.remote remote, unwrap_branch branch with
             | Ok remote, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Sync.push t remote >>= function
@@ -371,7 +371,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "remote" ~typ:(non_null Input.remote);
           ]
         ~resolve:(fun _ _src branch remote ->
-            match from_string Irmin.remote_uri remote, unwrap_branch branch with
+            match from_string Store.remote remote, unwrap_branch branch with
             | Ok remote, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Sync.pull t remote `Set >>= function
@@ -389,7 +389,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "commit" ~typ:(non_null Input.commit_hash);
           ]
         ~resolve:(fun _ _src branch commit ->
-            match from_string_err Store.Commit.Hash.of_string commit, unwrap_branch branch with
+            match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) commit, unwrap_branch branch with
             | Ok commit, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Store.Commit.of_hash (Store.repo s) commit >>= function
@@ -411,7 +411,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
             arg "hash" ~typ:(non_null Input.commit_hash)
           ]
           ~resolve:(fun _ _src hash ->
-            match from_string_err Store.Commit.Hash.of_string hash with
+            match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) hash with
             | Ok commit -> Store.Commit.of_hash (Store.repo s) commit >>= Lwt.return_ok
             | Error msg -> Lwt.return_error msg
         );
@@ -426,7 +426,7 @@ module Make(Store : Irmin.S) : S with type store = Store.t = struct
           ~typ:(Lazy.force (branch))
           ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
           ~resolve:(fun _ _ branch ->
-              let branch = from_string_err Store.Branch.of_string branch in
+              let branch = from_string_err(Irmin.Type.of_string Store.Branch.t) branch in
               match branch with
               | Ok branch ->
                 Store.of_branch (Store.repo s) branch >>= fun t ->
