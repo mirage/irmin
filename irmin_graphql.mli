@@ -7,7 +7,7 @@ end
 
 module type STORE = sig
   include Irmin.S
-  val remote: ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
   val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 

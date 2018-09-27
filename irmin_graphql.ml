@@ -19,7 +19,7 @@ type commit_input = {
 
 module type STORE = sig
   include Irmin.S
-  val remote: ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
   val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 
@@ -269,28 +269,68 @@ let mk_info input =
         | Error msg -> Error msg)
     | None -> Ok None
 
+  let remote s = match Store.remote with
+  | Some remote_fn ->
+      Schema.[
+          io_field "clone"
+            ~typ:(non_null Lazy.(force (commit)))
+            ~args:Arg.[
+                arg "branch" ~typ:Input.branch;
+                arg "remote" ~typ:(non_null Input.remote)
+              ]
+            ~resolve:(fun _ _src branch remote ->
+                let branch = unwrap_branch branch in
+                match from_string remote_fn remote, branch with
+                | Ok remote, Ok branch ->
+                  (mk_branch (Store.repo s) branch >>= fun t ->
+                  Sync.fetch t remote >>= function
+                  | Ok d ->
+                    Store.Head.set s d >|= fun () ->
+                    Ok d
+                  | Error e ->
+                    let err = Fmt.to_to_string Sync.pp_fetch_error e in
+                    Lwt_result.fail err)
+                | Error msg, _ | _, Error msg -> Lwt.return_error msg
+              )
+          ;
+          io_field "push"
+            ~typ:(string)
+            ~args:Arg.[
+                arg "branch" ~typ:Input.branch;
+                arg "remote" ~typ:(non_null Input.remote);
+              ]
+            ~resolve:(fun _ _src branch remote ->
+                match from_string remote_fn remote, unwrap_branch branch with
+                | Ok remote, Ok branch ->
+                  (mk_branch (Store.repo s) branch >>= fun t ->
+                  Sync.push t remote >>= function
+                  | Ok _ -> Lwt.return_ok None
+                  | Error e -> Lwt.return_ok (Some (Fmt.to_to_string Sync.pp_push_error e)))
+                | Error msg, _ | _, Error msg -> Lwt.return_error msg
+              )
+          ;
+          io_field "pull"
+            ~typ:(Lazy.force commit)
+            ~args:Arg.[
+                arg "branch" ~typ:Input.branch;
+                arg "remote" ~typ:(non_null Input.remote);
+              ]
+            ~resolve:(fun _ _src branch remote ->
+                match from_string remote_fn remote, unwrap_branch branch with
+                | Ok remote, Ok branch ->
+                  (mk_branch (Store.repo s) branch >>= fun t ->
+                  Sync.pull t remote `Set >>= function
+                  | Ok _ ->
+                    (Store.Head.find t >>=
+                     Lwt.return_ok)
+                  | Error _ -> Lwt.return_ok None)
+                | Error msg, _ | _, Error msg -> Lwt.return_error msg
+              )
+          ;
+      ]
+    | None -> []
+
   let mutations s = Schema.[
-      io_field "clone"
-        ~typ:(non_null Lazy.(force (commit)))
-        ~args:Arg.[
-            arg "branch" ~typ:Input.branch;
-            arg "remote" ~typ:(non_null Input.remote)
-          ]
-        ~resolve:(fun _ _src branch remote ->
-            let branch = unwrap_branch branch in
-            match from_string Store.remote remote, branch with
-            | Ok remote, Ok branch ->
-              (mk_branch (Store.repo s) branch >>= fun t ->
-              Sync.fetch t remote >>= function
-              | Ok d ->
-                Store.Head.set s d >|= fun () ->
-                Ok d
-              | Error e ->
-                let err = Fmt.to_to_string Sync.pp_fetch_error e in
-                Lwt_result.fail err)
-            | Error msg, _ | _, Error msg -> Lwt.return_error msg
-          )
-      ;
       io_field "set"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -354,40 +394,6 @@ let mk_info input =
             | Error msg, _ | _, Error msg -> Lwt.return_error msg
           )
       ;
-      io_field "push"
-        ~typ:(string)
-        ~args:Arg.[
-            arg "branch" ~typ:Input.branch;
-            arg "remote" ~typ:(non_null Input.remote);
-          ]
-        ~resolve:(fun _ _src branch remote ->
-            match from_string Store.remote remote, unwrap_branch branch with
-            | Ok remote, Ok branch ->
-              (mk_branch (Store.repo s) branch >>= fun t ->
-              Sync.push t remote >>= function
-              | Ok _ -> Lwt.return_ok None
-              | Error e -> Lwt.return_ok (Some (Fmt.to_to_string Sync.pp_push_error e)))
-            | Error msg, _ | _, Error msg -> Lwt.return_error msg
-          )
-      ;
-      io_field "pull"
-        ~typ:(Lazy.force commit)
-        ~args:Arg.[
-            arg "branch" ~typ:Input.branch;
-            arg "remote" ~typ:(non_null Input.remote);
-          ]
-        ~resolve:(fun _ _src branch remote ->
-            match from_string Store.remote remote, unwrap_branch branch with
-            | Ok remote, Ok branch ->
-              (mk_branch (Store.repo s) branch >>= fun t ->
-              Sync.pull t remote `Set >>= function
-              | Ok _ ->
-                (Store.Head.find t >>=
-                 Lwt.return_ok)
-              | Error _ -> Lwt.return_ok None)
-            | Error msg, _ | _, Error msg -> Lwt.return_error msg
-          )
-      ;
       io_field "revert"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -409,7 +415,7 @@ let mk_info input =
     ]
 
   let schema s =
-    let mutations = mutations s in
+    let mutations = mutations s @ remote s in
     Schema.(schema ~mutations [
         io_field "commit"
           ~typ:(Lazy.force commit)
