@@ -344,7 +344,7 @@ module Type: sig
 
     val decode: decoder ->
       [> `Await | `End | `Error of Jsonm.error | `Lexeme of Jsonm.lexeme ]
-    (** Same as {!Jsonm.decode]. *)
+    (** Same as {!Jsonm.decode}. *)
 
     val rewind: decoder -> Jsonm.lexeme -> unit
     (** [rewind d l] rewinds [l] on top of the current state of
@@ -1053,7 +1053,7 @@ end
 
     {ul
     {- a [t] value type using the Irmin.Type combinator.}
-    (- a [pp] function, for converting values to strings.}
+    {- a [pp] function, for converting values to strings.}
     {- an [of_string] function for converting strings to values.}
     {- a 3-way [merge] function, to handle conflicts between multiple
     versions of the same contents.}
@@ -2425,16 +2425,12 @@ module type S = sig
       (key -> contents -> 'a -> 'a Lwt.t) -> tree -> 'a -> 'a Lwt.t
     (** [fold f t acc] folds [f] over [t]'s leafs.
 
-        For every node [n]:
+        For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
 
-        {ul
-        {- If [n] is a leaf node, call [f path n] ;}
-        {- Otherwise:}
         {ul
           {- Call [pre path n]. By default [pre] is the identity;}
           {- Recursively call [fold] on each children, in lexicographic order;}
-          {- Call [post path n]; By default [post] is the identity.}
-        }}
+          {- Call [post path n]; By default [post] is the identity.}}
 
         See {!force} for details about the [force] parameters. By default
         it is [`True].
