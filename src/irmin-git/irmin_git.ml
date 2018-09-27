@@ -150,7 +150,7 @@ module Make_private
       | G.Value.Blob b -> of_string (G.Value.Blob.to_string b)
       | _              -> Ok None
 
-    let to_git b = G.Value.Blob (G.Value.Blob.of_string (to_string b))
+    let to_git b = G.Value.blob (G.Value.Blob.of_string (to_string b))
   end
   module XContents = struct
     include AO (GitContents)
@@ -262,7 +262,7 @@ module Make_private
         type t = Val.t
         let pp = Val.pp
         let type_eq = function `Tree -> true | _ -> false
-        let to_git t = G.Value.Tree t
+        let to_git t = G.Value.tree t
         let of_git = function G.Value.Tree t -> Ok (Some t) | _ -> Ok None
       end)
   end
@@ -306,6 +306,12 @@ module Make_private
         let parents = G.Value.Commit.parents g in
         let author = G.Value.Commit.author g in
         let message = G.Value.Commit.message g in
+        let message =
+          if String.length message > 0 && String.get message 0 = '\n' then
+            String.sub message 1 (String.length message - 1)
+          else
+            message
+        in
         let info = info_of_git author message in
         (info, node, parents)
 
@@ -319,6 +325,7 @@ module Make_private
                       date  = date, None;
                     }) in
         let message = Irmin.Info.message info in
+        let message = if message = "" then "" else  "\n" ^ message in
         G.Value.Commit.make (* FIXME: should be v *)
           ~tree ~parents ~author ~committer:author message
 
@@ -349,7 +356,7 @@ module Make_private
         let pp = Val.pp
         let type_eq = function `Commit -> true | _ -> false
         let of_git = function G.Value.Commit c -> Ok (Some c) | _ -> Ok None
-        let to_git c = G.Value.Commit c
+        let to_git c = G.Value.commit c
       end)
 
   end
