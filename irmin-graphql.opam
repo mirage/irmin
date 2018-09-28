@@ -1,0 +1,19 @@
+opam-version: "1.2"
+maintainer: "Andreas Garnaes <andreas.garnaes@gmail.com>"
+authors: "Andreas Garnaes <andreas.garnaes@gmail.com>"
+homepage: "https://github.com/mirage/irmin"
+doc: "https://mirage.github.io/irmin/"
+bug-reports: "https://github.com/mirage/irmin/issues"
+dev-repo: "https://github.com/mirage/irmin.git"
+build: [["dune" "build" "-p" name "-j" jobs]]
+build-test: [["dune" "runtest" "-p" name "-j" jobs]]
+
+depends: [
+  "dune" {build}
+  "irmin-unix"
+  "graphql" {>= "0.7"}
+  "graphql-lwt"
+]
+available: [
+  ocaml-version >= "4.03.0"
+]
