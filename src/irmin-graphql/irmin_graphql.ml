@@ -38,37 +38,21 @@ let mk_info input =
 
   type store = Store.t
 
-  let from_string f = function
+  let from_string key f = function
     | `String s -> Ok (f s)
-    | _ -> Error "Invalid string value"
+    | _ -> Error ("Invalid string input: " ^ key)
 
-  let from_string_err f = function
+  let from_string_err key f = function
     | `String s -> f s |> of_irmin_result
-    | _ -> Error "Invalid string value"
+    | _ -> Error ("Invalid string input: " ^ key)
 
   module Input = struct
     let coerce x = Ok x
-
-    let key = Schema.Arg.(
-        scalar "Key" ~coerce
-      )
-
-    let step = Schema.Arg.(
-        scalar "Step" ~coerce
-      )
-
-    let commit_hash = Schema.Arg.(
-        scalar "CommitHash" ~coerce
-      )
-
-    let branch = Schema.Arg.(
-        scalar "BranchName" ~coerce
-      )
-
-    let remote = Schema.Arg.(
-        scalar "Remote" ~coerce
-      )
-
+    let key = Schema.Arg.(scalar "Key" ~coerce)
+    let step = Schema.Arg.(scalar "Step" ~coerce)
+    let commit_hash = Schema.Arg.(scalar "CommitHash" ~coerce)
+    let branch = Schema.Arg.(scalar "BranchName" ~coerce)
+    let remote = Schema.Arg.(scalar "Remote" ~coerce)
     let info = Schema.Arg.(
         obj "InfoInput"
           ~fields:[
@@ -145,7 +129,7 @@ let mk_info input =
                     let key =
                       match step with
                       | Some s ->
-                          (match from_string_err (Irmin.Type.of_string Store.step_t) s with
+                          (match from_string_err "key" (Irmin.Type.of_string Store.step_t) s with
                           | Ok step -> Ok (Store.Key.rcons key step)
                           | Error e -> Error e)
                       | None -> Ok Store.Key.empty
@@ -200,7 +184,7 @@ let mk_info input =
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(string)
                 ~resolve:(fun _ (s, _) key ->
-                    match from_string_err (Irmin.Type.of_string Store.key_t) key with
+                    match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
                       (Store.find s key >>= function
                       | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
@@ -212,7 +196,7 @@ let mk_info input =
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, _) commit ->
-                    match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) commit with
+                    match from_string_err "commit" (Irmin.Type.of_string Store.Commit.Hash.t) commit with
                     | Ok commit ->
                       (Store.Commit.of_hash (Store.repo s) commit >>= function
                       | Some commit ->
@@ -260,9 +244,9 @@ let mk_info input =
     | Some b -> Store.of_branch repo b
     | None -> Store.master repo
 
-  let to_branch = function
+  let to_branch ?(key = "branch") = function
     | Some branch ->
-        (match from_string_err (Irmin.Type.of_string Store.branch_t) branch with
+        (match from_string_err key (Irmin.Type.of_string Store.branch_t) branch with
         | Ok b -> Ok (Some b)
         | Error msg -> Error msg)
     | None -> Ok None
@@ -278,7 +262,7 @@ let mk_info input =
                 ]
               ~resolve:(fun _ _src branch remote ->
                   let branch = to_branch branch in
-                  match from_string remote_fn remote, branch with
+                  match from_string "remote" remote_fn remote, branch with
                   | Ok remote, Ok branch ->
                     (mk_branch (Store.repo s) branch >>= fun t ->
                     Sync.fetch t remote >>= function
@@ -298,7 +282,7 @@ let mk_info input =
                   arg "remote" ~typ:(non_null Input.remote);
                 ]
               ~resolve:(fun _ _src branch remote ->
-                  match from_string remote_fn remote, to_branch branch with
+                  match from_string "remote" remote_fn remote, to_branch branch with
                   | Ok remote, Ok branch ->
                     (mk_branch (Store.repo s) branch >>= fun t ->
                     Sync.push t remote >>= function
@@ -314,7 +298,7 @@ let mk_info input =
                   arg "remote" ~typ:(non_null Input.remote);
                 ]
               ~resolve:(fun _ _src branch remote ->
-                  match from_string remote_fn remote, to_branch branch with
+                  match from_string "remote" remote_fn remote, to_branch branch with
                   | Ok remote, Ok branch ->
                     (mk_branch (Store.repo s) branch >>= fun t ->
                     Sync.pull t remote `Set >>= function
@@ -384,7 +368,7 @@ let mk_info input =
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src into from i ->
-            match to_branch (Some from), to_branch into with
+            match to_branch ~key:"from" (Some from), to_branch into with
             | Ok from, Ok into ->
               let from = match from with Some x -> x | None -> Store.Branch.master in
               mk_branch (Store.repo s) into >>= fun t ->
@@ -403,7 +387,7 @@ let mk_info input =
           ]
         ~resolve:(fun _ _src branch commit ->
             let branch = to_branch branch in
-            match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) commit, branch with
+            match from_string_err "commit" (Irmin.Type.of_string Store.Commit.Hash.t) commit, branch with
             | Ok commit, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Store.Commit.of_hash (Store.repo s) commit >>= function
@@ -425,7 +409,7 @@ let mk_info input =
             arg "hash" ~typ:(non_null Input.commit_hash)
           ]
           ~resolve:(fun _ _src hash ->
-            match from_string_err (Irmin.Type.of_string Store.Commit.Hash.t) hash with
+            match from_string_err "hash" (Irmin.Type.of_string Store.Commit.Hash.t) hash with
             | Ok commit -> Store.Commit.of_hash (Store.repo s) commit >>= Lwt.return_ok
             | Error msg -> Lwt.return_error msg
         );
@@ -440,12 +424,13 @@ let mk_info input =
           ~typ:(Lazy.force (branch))
           ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
           ~resolve:(fun _ _ branch ->
-              let branch = from_string_err(Irmin.Type.of_string Store.Branch.t) branch in
+              let branch = from_string_err "name" (Irmin.Type.of_string Store.Branch.t) branch in
               match branch with
               | Ok branch ->
                 Store.of_branch (Store.repo s) branch >>= fun t ->
                 Lwt.return_ok (Some (t, branch))
               | Error msg -> Lwt.return_error msg
+
             )
       ])
 
