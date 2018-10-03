@@ -599,12 +599,8 @@ let graphql = {
     in
     let graphql (S ((module S), store, remote_fn)) port =
       run begin
+        let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
-        let module Server = Irmin_graphql.Make (struct
-          include S
-          let info = info
-          let remote = remote_fn
-        end) in
         Server.start_server ~port t
       end
     in

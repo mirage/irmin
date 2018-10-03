@@ -19,6 +19,7 @@ let set_listen_dir_hook = Hook.init
 
 module Git = Xgit
 module Http = Http
+module Graphql = Graphql
 module FS = Fs
 module Cli = Cli
 module Resolver = Resolver
