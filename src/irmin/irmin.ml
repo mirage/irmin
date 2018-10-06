@@ -16,6 +16,8 @@
 
 open Lwt.Infix
 
+include Store.Exn
+
 module Type = Type
 module Diff = Diff
 

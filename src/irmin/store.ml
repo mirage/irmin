@@ -20,6 +20,11 @@ open Merge.Infix
 let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Exn = struct
+  exception Conflict of string
+  exception Too_many_retries of int
+end
+
 module Make (P: S.PRIVATE) = struct
 
   module Branch_store = P.Branch
@@ -503,13 +508,15 @@ module Make (P: S.PRIVATE) = struct
   end
 
   (* Retry an operation until the optimistic lock is happy. *)
-  let retry name fn =
+  let retry ~retries name fn =
     let rec aux i =
-      fn () >>= function
-      | true  -> Lwt.return_unit
-      | false ->
-        Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
-        aux (i+1)
+      if i >= retries then Lwt.fail (Exn.Too_many_retries i)
+      else
+        fn () >>= function
+        | true  -> Lwt.return ()
+        | false ->
+          Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
+          aux (i+1)
     in
     aux 1
 
@@ -542,9 +549,14 @@ module Make (P: S.PRIVATE) = struct
       if r then t.tree <- Some tree;
       r
 
+  type strategy = [ `Test_and_set | `Set | `Merge_with_parent of commit ]
+
   type 'a transaction =
-    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?strategy:strategy ->
+    info:Info.f ->
+    'a -> unit Lwt.t
 
   type snapshot = {
     head   : commit option;
@@ -573,8 +585,11 @@ module Make (P: S.PRIVATE) = struct
     | _     , None   -> Lwt.return false
     | Some x, Some y -> Tree.equal x y
 
-  let with_tree t key ?(allow_empty=false) ?(strategy=`Test_and_set)
-      ?max_depth ?n ~info (f:tree option -> tree option Lwt.t) =
+  let with_tree t key
+      ?(retries=13)
+      ?(allow_empty=false)
+      ?(strategy=`Test_and_set)
+      ~info (f:tree option -> tree option Lwt.t) =
     let aux () =
       snapshot t key >>= fun s1 ->
       (* this might take a very long time *)
@@ -605,7 +620,7 @@ module Make (P: S.PRIVATE) = struct
           (* if the subtree has changed, restart the transaction *)
           if same then update () else Lwt.return false
 
-        | `Merge ->
+        | `Merge_with_parent parent ->
           (* if the subtree has changed, merge it *)
           same_tree s1.tree s2.tree >>= fun same ->
           if same then update () else
@@ -623,53 +638,43 @@ module Make (P: S.PRIVATE) = struct
             ) >>= fun root ->
             Commit.v (repo t) ~info:(info ()) ~parents:s1.parents root
             >>= fun pre_merge ->
-            let parents = pre_merge :: s2.parents in
-            let parents_h = List.map Commit.hash parents in
-            H.lca (history_t t) ~info ?max_depth ?n parents_h >>= function
-            | Error _     -> Lwt.return false
-            | Ok None     -> Lwt.return true
-            | Ok (Some h) ->
-              Commit.of_hash t.repo h >>= function
-              | None   -> Lwt.return false
-              | Some h ->
-                let old () =
-                  of_commit h >>= tree >>= fun tree ->
-                  Tree.find_tree tree key >|= fun x ->
-                  Ok (Some x)
-                in
-                Merge.(f @@ option Tree.merge) ~old s2.tree new_tree >>= function
-                | Error _ -> Lwt.return false
-                | Ok m    ->
-                  let info = Info.with_message (info ()) "Merge" in
-                  (match m with
-                   | None      -> Tree.remove s2.root key
-                   | Some tree -> Tree.add_tree s2.root key tree
-                  ) >>= fun root ->
-                  Commit.v (repo t) ~info ~parents root >>= fun c ->
-                  add_commit t s2.head (c, root_tree root)
+            let old () =
+              of_commit parent >>= tree >>= fun tree ->
+              Tree.find_tree tree key >|= fun x ->
+              Ok (Some x)
+            in
+            Merge.(f @@ option Tree.merge) ~old s2.tree new_tree >>= function
+            | Error (`Conflict e) -> Lwt.fail (Exn.Conflict e)
+            | Ok m ->
+              let info = Info.with_message (info ()) "Merge" in
+              (match m with
+               | None      -> Tree.remove s2.root key
+               | Some tree -> Tree.add_tree s2.root key tree
+              ) >>= fun root ->
+              let parents = [pre_merge; parent] in
+              Commit.v (repo t) ~info ~parents root >>= fun c ->
+              add_commit t s2.head (c, root_tree root)
     in
-    retry "with_tree" aux
+    retry ~retries "with_tree" aux
 
   let none_to_empty = function None -> Tree.empty | Some v -> v
 
-  let set t k ?metadata ?allow_empty ?strategy ?max_depth ?n ~info v =
+  let set t k ?metadata ?retries ?allow_empty ?strategy ~info v =
     Log.debug (fun l -> l "set %a" pp_key k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
+    with_tree t ?retries ?allow_empty ?strategy ~info k (fun tree ->
         Tree.add (none_to_empty tree) Key.empty ?metadata v >|= fun x ->
         Some x)
 
-  let set_tree t k ?allow_empty ?strategy ?max_depth ?n ~info v =
+  let set_tree t k ?retries ?allow_empty ?strategy ~info v =
     Log.debug (fun l -> l "set_tree %a" pp_key k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k (fun tree ->
+    with_tree t ?retries ?allow_empty ?strategy ~info k (fun tree ->
         Tree.add_tree (none_to_empty tree) Key.empty v >|= fun x ->
         Some x)
 
-  type strategy = [ `Test_and_set | `Set | `Merge ]
-
-  let remove t ?allow_empty ?(strategy=`Test_and_set) ?max_depth ?n ~info k =
+  let remove t  ?retries ?allow_empty ?(strategy=`Test_and_set) ~info k =
     Log.debug (fun l -> l "remove %a" pp_key k);
     let strategy = (strategy :> strategy) in
-    with_tree t ?allow_empty ~strategy ?max_depth ?n ~info k
+    with_tree t ?retries ?allow_empty ~strategy ~info k
       (fun _ -> Lwt.return None)
 
   let mem t k =

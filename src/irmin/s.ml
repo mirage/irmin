@@ -429,8 +429,11 @@ module type STORE = sig
   val find_tree: t -> key -> tree option Lwt.t
   val get_tree: t -> key -> tree Lwt.t
   type 'a transaction =
-    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?strategy:[`Set | `Test_and_set | `Merge_with_parent of commit] ->
+    info:Info.f ->
+    'a -> unit Lwt.t
   val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
   val set: t -> key -> ?metadata:metadata -> contents transaction
   val set_tree: t -> key -> tree transaction
