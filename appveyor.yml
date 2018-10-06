@@ -7,7 +7,7 @@ environment:
     FORK_BRANCH: master
     CYG_ROOT: C:\cygwin64
     OPAM_SWITCH: 4.06.1+mingw64c
-    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev decompress.dev:--dev mirage-types.3.2.0:--dev mirage-types-lwt.3.2.0:--dev"
+    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev decompress.dev:--dev mirage-types.3.2.0:--dev mirage-types-lwt.3.2.0:--dev"
   matrix:
   - PACKAGE: "irmin-mirage.dev"
 
