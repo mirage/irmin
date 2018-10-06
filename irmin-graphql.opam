@@ -10,7 +10,7 @@ build-test: [["dune" "runtest" "-p" name "-j" jobs]]
 
 depends: [
   "dune" {build}
-  "irmin-unix"
+  "irmin"
   "graphql" {>= "0.7"}
   "graphql-lwt"
 ]
