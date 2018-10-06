@@ -182,3 +182,43 @@ module Git = struct
   end
 
 end
+
+module Graphql = struct
+  module type S = sig
+    module Pclock: Mirage_clock_lwt.PCLOCK
+    module Flow: Mirage_flow_lwt.S
+
+    val init: Pclock.t -> (module Irmin_graphql.S)
+  end
+
+  module Make
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Flow: Mirage_flow_lwt.S)
+  = struct
+    module Pclock = Pclock
+    module Flow = Flow
+    let init p =
+      let module Server = struct
+        include Cohttp_mirage.Server(Flow)
+        type server = Flow.flow
+        let run flow callback =
+          let server = make ~callback () in
+          listen server flow
+      end in
+      let module Store = struct
+        include Store
+
+        let info ?(author = "irmin-graphql") fmt =
+          let module I = Info(struct let name = author end)(Pclock) in
+          I.f p fmt
+
+        let remote = Some (fun ?headers uri ->
+          let e =
+            Git_mirage.endpoint ?headers (Uri.of_string uri)
+          in
+          E e)
+      end in
+      (module Irmin_graphql.Make(Store)(Server): Irmin_graphql.S)
+  end
+end

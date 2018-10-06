@@ -129,3 +129,19 @@ module Git: sig
     module KV_RO: KV_RO with type git := G.t
   end
 end
+
+module Graphql: sig
+  module type S = sig
+    module Pclock: Mirage_clock_lwt.PCLOCK
+    module Flow: Mirage_flow_lwt.S
+
+    val init: Pclock.t -> (module Irmin_graphql.S)
+  end
+
+  module Make
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Flow: Mirage_flow_lwt.S):
+    S with module Pclock = Pclock
+       and module Flow = Flow
+end

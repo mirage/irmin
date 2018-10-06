@@ -4,10 +4,11 @@ module Schema = Graphql_schema.Make(Lwt)
 
 module type S = sig
   type store
+  type server
 
   val schema : store -> unit Schema.schema
   val execute_request : unit Schema.schema -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-  val start_server: ?hostname:string -> ?port:int -> store -> unit Lwt.t
+  val run_server: server -> store -> unit Lwt.t
 end
 
 let of_irmin_result = function
@@ -27,6 +28,7 @@ end
 
 module type SERVER = sig
   type conn
+  type server
 
   val respond_string :
     ?flush:bool ->
@@ -34,10 +36,10 @@ module type SERVER = sig
     status:Cohttp.Code.status_code ->
     body:string -> unit -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
 
-  val create : ?hostname:string -> ?port:int -> (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
+  val run : server -> (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
 end
 
-module Make(Store : STORE)(Server : SERVER) : S with type store = Store.t = struct
+module Make(Store : STORE)(Server : SERVER) = struct
   module Sync = Irmin.Sync (Store)
 
   type tree_item = {
@@ -56,6 +58,7 @@ module Make(Store : STORE)(Server : SERVER) : S with type store = Store.t = stru
       Store.info ""
 
   type store = Store.t
+  type server = Server.server
 
   module Input = struct
     let coerce_key = function
@@ -619,9 +622,9 @@ module Make(Store : STORE)(Server : SERVER) : S with type store = Store.t = stru
       | `POST, ["graphql"]       -> execute_request schema body
       | _ -> Server.respond_string ~status:`Not_found ~body:"" ()
 
-  let start_server ?(hostname="127.0.0.1") ?(port=8080) store =
+  let run_server server store =
     let schema = schema store in
     let callback = mk_callback schema in
-    Server.create ~hostname ~port callback
+    Server.run server callback
 end
 

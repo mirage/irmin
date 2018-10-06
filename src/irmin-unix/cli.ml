@@ -601,7 +601,7 @@ let graphql = {
       run begin
         let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
-        Server.start_server ~port t
+        Server.run_server (None, (`TCP (`Port port))) t
       end
     in
     Term.(mk graphql $ store $ port)
