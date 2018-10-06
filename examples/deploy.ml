@@ -26,7 +26,7 @@ let provision repo =
   Store.Tree.add v ["bin"; "sh"]
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   >>= fun v ->
-  Store.set_tree t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
+  Store.set_tree_exn t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
 let sysadmin = info ~user:"Bob the sysadmin"
@@ -37,7 +37,7 @@ let configure repo =
   Store.clone ~src:t ~dst:"dev" >>= fun t ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
-  Store.set t ~info:(sysadmin "DNS configuration") ["etc";"resolv.conf"]
+  Store.set_exn t ~info:(sysadmin "DNS configuration") ["etc";"resolv.conf"]
     "domain mydomain.com\nnameserver 128.221.130.23" >>= fun () ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
@@ -51,14 +51,14 @@ let attack repo =
   Store.of_branch repo "prod" >>= fun t ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.set t ~info:(info "$ vim /etc/resolv.conf")
+  Store.set_exn t ~info:(info "$ vim /etc/resolv.conf")
     ["etc";"resolv.conf"]
     "domain mydomain.com\n\
      nameserver 12.221.130.23"
   >>= fun () ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.set t ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
+  Store.set_exn t ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
     ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 

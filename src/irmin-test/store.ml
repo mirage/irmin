@@ -377,13 +377,13 @@ module Make (S: S) = struct
       S.watch ?init:h t (fun v -> check v)
       >>= fun w ->
 
-      S.set t ~info:(infof "update") key v1 >>= fun () ->
+      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
 
       S.Head.find t >>= fun h ->
       old_head := h;
 
-      S.set t ~info:(infof "update") key v2 >>= fun () ->
+      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r) >>= fun () ->
 
       S.unwatch u >>= fun () ->
@@ -399,9 +399,9 @@ module Make (S: S) = struct
       >>= fun v ->
       S.watch_key ~init:h t key (fun _ -> incr r; Lwt.return_unit)
       >>= fun w ->
-      S.set t ~info:(infof "update") key v1 >>= fun () ->
+      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
-      S.set t ~info:(infof "update") key v2 >>= fun () ->
+      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r) >>= fun () ->
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
@@ -535,7 +535,7 @@ module Make (S: S) = struct
       let v1 = "X1" in
       let v2 = "X2" in
 
-      S.set t1 ~info:(infof "update") ["a";"b"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") ["a";"b"] v1 >>= fun () ->
       S.Branch.remove repo S.Branch.master >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
@@ -543,21 +543,21 @@ module Make (S: S) = struct
 
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
-      S.set t1 ~info:(infof "update") ["a";"b"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") ["a";"b"] v1 >>= fun () ->
       State.check "watches adds" (1, 1) (100, 0, 0) state >>= fun () ->
 
-      S.set t2 ~info:(infof "update") ["a";"c"] v1 >>= fun () ->
+      S.set_exn t2 ~info:(infof "update") ["a";"c"] v1 >>= fun () ->
       State.check "watches updates" (1, 1) (100, 100, 0) state >>= fun () ->
 
       S.Branch.remove repo S.Branch.master >>= fun () ->
       State.check "watches removes" (1, 1) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_0 >>= fun () ->
-      S.set t2 ~info:(infof "update") ["a"] v1 >>= fun () ->
+      S.set_exn t2 ~info:(infof "update") ["a"] v1 >>= fun () ->
       State.check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
 
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_1 >>= fun () ->
-      S.set t1 ~info:(infof "update") ["a"] v2 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") ["a"] v2 >>= fun () ->
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
       Log.debug (fun f -> f "WATCH-ALL");
@@ -591,26 +591,26 @@ module Make (S: S) = struct
       let path3 = ["a"; "b"; "d"] in
       let add = State.apply "branch-key" state `Add (fun _ ->
           let v = "" in
-          S.set t1 ~info:(infof "set1") path1 v >>= fun () ->
-          S.set t1 ~info:(infof "set2") path2 v >>= fun () ->
-          S.set t1 ~info:(infof "set3") path3 v >>= fun () ->
+          S.set_exn t1 ~info:(infof "set1") path1 v >>= fun () ->
+          S.set_exn t1 ~info:(infof "set2") path2 v >>= fun () ->
+          S.set_exn t1 ~info:(infof "set3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
       let update = State.apply "branch-key" state `Update (fun n ->
           let v = string_of_int n in
-          S.set t2 ~info:(infof "update1") path1 v >>= fun () ->
-          S.set t2 ~info:(infof "update2") path2 v >>= fun () ->
-          S.set t2 ~info:(infof "update3") path3 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
       let remove = State.apply "branch-key" state `Remove (fun _ ->
-          S.remove t1 ~info:(infof "remove1") path1 >>= fun () ->
-          S.remove t1 ~info:(infof "remove2") path2 >>= fun () ->
-          S.remove t1 ~info:(infof "remove3") path3 >>= fun () ->
+          S.remove_exn t1 ~info:(infof "remove1") path1 >>= fun () ->
+          S.remove_exn t1 ~info:(infof "remove2") path2 >>= fun () ->
+          S.remove_exn t1 ~info:(infof "remove3") path3 >>= fun () ->
           Lwt.return_unit
         ) in
 
-      S.remove t1 ~info:(infof "clean") [] >>= fun () ->
+      S.remove_exn t1 ~info:(infof "clean") [] >>= fun () ->
       S.Head.get t1 >>= fun init ->
 
       S.watch_key t1 ~init path1 (State.process state) >>= fun u ->
@@ -634,14 +634,14 @@ module Make (S: S) = struct
           let path1 = ["a"; "b"; "c"; string_of_int n; "1"] in
           let path2 = ["a"; "x"; "c"; string_of_int n; "1"] in
           let path3 = ["a"; "y"; "c"; string_of_int n; "1"] in
-          S.set t2 ~info:(infof "update1") path1 v >>= fun () ->
-          S.set t2 ~info:(infof "update2") path2 v >>= fun () ->
-          S.set t2 ~info:(infof "update3") path3 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
+          S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
 
-      S.remove t1 ~info:(infof "remove") ["a"] >>= fun () ->
-      S.set t1 ~info:(infof "prepare") ["a";"b";"c"] "" >>= fun () ->
+      S.remove_exn t1 ~info:(infof "remove") ["a"] >>= fun () ->
+      S.set_exn t1 ~info:(infof "prepare") ["a";"b";"c"] "" >>= fun () ->
 
       S.Head.get t1 >>= fun h ->
       S.watch_key t2 ~init:h ["a";"b"] (State.process state) >>= fun u ->
@@ -904,7 +904,7 @@ module Make (S: S) = struct
       S.Head.find t >>= fun h ->
       check T.(option @@ S.commit_t repo) "empty" None h;
       r1 ~repo >>= fun r1 ->
-      S.set t ~info:Irmin.Info.none ["b"; "x"] v1 >>= fun () ->
+      S.set_exn t ~info:Irmin.Info.none ["b"; "x"] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
       Lwt.return_unit
@@ -916,8 +916,8 @@ module Make (S: S) = struct
       S.master repo >>= fun t ->
       let a = "" in
       let b = "haha" in
-      S.set t ~info:(infof "slice") ["x";"a"] a >>= fun () ->
-      S.set t ~info:(infof "slice") ["x";"b"] b >>= fun () ->
+      S.set_exn t ~info:(infof "slice") ["x";"a"] a >>= fun () ->
+      S.set_exn t ~info:(infof "slice") ["x";"b"] b >>= fun () ->
       S.Repo.export repo >>= fun slice ->
       let str = T.to_json_string P.Slice.t slice in
       let slice' =
@@ -937,19 +937,19 @@ module Make (S: S) = struct
       let vx = "VX" in
       let vy = "VY" in
       S.master repo >>= fun t ->
-      S.set t ~info:(infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
+      S.set_exn t ~info:(infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
       S.get_tree t ["x"] >>= fun tree ->
-      S.set_tree t ~info:(infof "update") ["u"] tree >>= fun () ->
+      S.set_tree_exn t ~info:(infof "update") ["u"] tree >>= fun () ->
       S.find t ["u";"y";"z"] >>= fun vx' ->
       check_val "vx" (Some vx) vx';
 
       S.get_tree t ["u"] >>= fun tree1 ->
-      S.set t ~info:(infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
+      S.set_exn t ~info:(infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
       S.get_tree t ["u"] >>= fun tree2 ->
       S.Tree.add tree ["x";"z"] vx >>= fun tree3 ->
       Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise tree1) tree2 tree3
       >>= merge_exn "tree" >>= fun v' ->
-      S.set_tree t ~info:(infof "merge") ["u"] v' >>= fun () ->
+      S.set_tree_exn t ~info:(infof "merge") ["u"] v' >>= fun () ->
       S.find t ["u";"x";"y"] >>= fun vy' ->
       check_val "vy after merge" (Some vy) vy';
 
@@ -964,7 +964,7 @@ module Make (S: S) = struct
       let check_val = check T.(option S.contents_t) in
       let check_list = checks T.(pair S.Key.step_t S.kind_t) in
       S.master repo >>= fun t ->
-      S.set t ~info:(infof "init") ["a";"b"] v1 >>= fun () ->
+      S.set_exn t ~info:(infof "init") ["a";"b"] v1 >>= fun () ->
       S.mem t ["a";"b"] >>= fun b0 ->
       Alcotest.(check bool) "mem0" true b0;
       S.clone ~src:t ~dst:"test" >>= fun t ->
@@ -978,7 +978,7 @@ module Make (S: S) = struct
       S.Head.get t >>= fun r1 ->
       S.clone ~src:t ~dst:"test" >>= fun t ->
 
-      S.set t ~info:(infof "update") ["a";"c"] v2 >>= fun () ->
+      S.set_exn t ~info:(infof "update") ["a";"c"] v2 >>= fun () ->
       S.mem t ["a";"b"] >>= fun b1 ->
       Alcotest.(check bool) "mem3" true b1;
       S.mem t ["a"] >>= fun b2 ->
@@ -990,7 +990,7 @@ module Make (S: S) = struct
       S.find t ["a";"c"] >>= fun v2' ->
       check_val "v1.1" (Some v2) v2';
 
-      S.remove t ~info:(infof "remove") ["a";"b"] >>= fun () ->
+      S.remove_exn t ~info:(infof "remove") ["a";"b"] >>= fun () ->
       S.find t ["a";"b"] >>= fun v1''->
       check_val "v1.2" None v1'';
       S.Head.set t r1 >>= fun () ->
@@ -999,16 +999,16 @@ module Make (S: S) = struct
       S.list t ["a"] >>= fun ks ->
       check_list "path" ["b", `Contents] ks;
 
-      S.set t ~info:(infof "update2") ["a"; long_random_ascii_string] v1
+      S.set_exn t ~info:(infof "update2") ["a"; long_random_ascii_string] v1
       >>= fun () ->
 
-      S.remove t ~info:(infof "remove rec") ["a"] >>= fun () ->
+      S.remove_exn t ~info:(infof "remove rec") ["a"] >>= fun () ->
       S.list t [] >>= fun dirs ->
       check_list "remove rec" [] dirs;
 
       Lwt.catch
         (fun () ->
-           S.set t ~info:(infof "update root") [] v1 >>= fun () ->
+           S.set_exn t ~info:(infof "update root") [] v1 >>= fun () ->
            Alcotest.fail "update root")
         (function
           | Invalid_argument _ -> Lwt.return_unit
@@ -1017,23 +1017,23 @@ module Make (S: S) = struct
       S.find t [] >>= fun none ->
       check_val "read root" none None;
 
-      S.set t ~info:(infof "update") ["a"] v1 >>= fun () ->
-      S.remove t ~info:(infof "remove rec --all") [] >>= fun () ->
+      S.set_exn t ~info:(infof "update") ["a"] v1 >>= fun () ->
+      S.remove_exn t ~info:(infof "remove rec --all") [] >>= fun () ->
       S.list t [] >>= fun dirs ->
       check_list "remove rec root" [] dirs;
 
       let a = "ok" in
       let b = "maybe?" in
 
-      S.set t ~info:(infof "fst one") ["fst"] a        >>= fun () ->
-      S.set t ~info:(infof "snd one") ["fst"; "snd"] b >>= fun () ->
+      S.set_exn t ~info:(infof "fst one") ["fst"] a        >>= fun () ->
+      S.set_exn t ~info:(infof "snd one") ["fst"; "snd"] b >>= fun () ->
 
       S.find t ["fst"] >>= fun fst ->
       check_val "data model 1" None fst;
       S.find t ["fst"; "snd"] >>= fun snd ->
       check_val "data model 2" (Some b) snd;
 
-      S.set t ~info:(infof "fst one") ["fst"] a >>= fun () ->
+      S.set_exn t ~info:(infof "fst one") ["fst"] a >>= fun () ->
 
       S.find t ["fst"] >>= fun fst ->
       check_val "data model 3" (Some a) fst;
@@ -1048,7 +1048,7 @@ module Make (S: S) = struct
       S.Branch.remove repo tagx >>= fun () ->
       S.Branch.remove repo tagy >>= fun () ->
 
-      S.set tx ~info:(infof "update") xy vx >>= fun () ->
+      S.set_exn tx ~info:(infof "update") xy vx >>= fun () ->
       S.clone ~src:tx ~dst:tagy >>= fun ty ->
       S.find ty xy >>= fun vx' ->
       check_val "update tag" (Some vx) vx';
@@ -1092,7 +1092,7 @@ module Make (S: S) = struct
       S.Tree.stats v1 >>= fun s ->
       Alcotest.(check stats_t) "empty stats" empty_stats s;
 
-      S.set_tree t ~info:(infof "empty tree") [] v1 >>= fun () ->
+      S.set_tree_exn t ~info:(infof "empty tree") [] v1 >>= fun () ->
       S.Head.get t >>= fun head ->
       S.Commit.hash head |> fun head ->
       P.Commit.find (ct repo) head >>= fun commit ->
@@ -1191,8 +1191,8 @@ module Make (S: S) = struct
         ) v0 nodes >>= fun v0 ->
       check_tree v0 >>= fun () ->
 
-      S.set_tree t ~info:(infof "update_path b/") ["b"] v0 >>= fun () ->
-      S.set_tree t ~info:(infof "update_path a/") ["a"] v0 >>= fun () ->
+      S.set_tree_exn t ~info:(infof "update_path b/") ["b"] v0 >>= fun () ->
+      S.set_tree_exn t ~info:(infof "update_path a/") ["a"] v0 >>= fun () ->
 
       S.list t ["b";"foo"] >>= fun ls ->
       check_ls "path2" [ "1", `Contents; "2", `Contents] ls;
@@ -1204,14 +1204,14 @@ module Make (S: S) = struct
       S.get_tree t ["b"] >>= fun v0 ->
       check_tree v0 >>= fun () ->
 
-      S.set t ~info:(infof "update b/x") ["b";"x"] foo1 >>= fun () ->
+      S.set_exn t ~info:(infof "update b/x") ["b";"x"] foo1 >>= fun () ->
       S.get_tree t ["b"] >>= fun v2 ->
       S.Tree.add v0 ["y"] foo2 >>= fun v1 ->
 
       Irmin.Merge.(f S.Tree.merge ~old:(promise v0) v1 v2) >>=
       merge_exn "merge trees" >>= fun v' ->
 
-      S.set_tree t ~info:(infof "merge_path") ["b"] v' >>= fun () ->
+      S.set_tree_exn t ~info:(infof "merge_path") ["b"] v' >>= fun () ->
       S.find_all t ["b";"x"] >>= fun foo1' ->
       S.find_all t ["b";"y"] >>= fun foo2' ->
       check_val "merge: b/x" (normal foo1) foo1';
@@ -1228,14 +1228,14 @@ module Make (S: S) = struct
       S.get_tree t ["b"] >>= fun v2 ->
       S.Tree.find_all v2 ["foo"; "1"] >>= fun _ ->
       S.Tree.add v2 ["foo"; "1"] foo2 >>= fun v2 ->
-      S.set_tree t ~info:(infof"v2") ["b"] v2 >>= fun () ->
+      S.set_tree_exn t ~info:(infof"v2") ["b"] v2 >>= fun () ->
       S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "update tree" (normal foo2) foo2';
 
       S.get_tree t ["b"] >>= fun v3 ->
       S.Tree.find_all v3 ["foo"; "1"] >>= fun _ ->
       S.Tree.remove v3 ["foo"; "1"] >>= fun v3 ->
-      S.set_tree t ~info:(infof "v3") ["b"] v3 >>= fun () ->
+      S.set_tree_exn t ~info:(infof "v3") ["b"] v3 >>= fun () ->
       S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "remove tree" None foo2';
 
@@ -1259,7 +1259,7 @@ module Make (S: S) = struct
 
       let vx = "VX" in
       let px = ["x";"y";"z"] in
-      S.set tt ~info:(infof "update") px vx >>= fun () ->
+      S.set_exn tt ~info:(infof "update") px vx >>= fun () ->
       S.get_tree tt [] >>= fun tree ->
       S.Tree.clear_caches tree;
 
@@ -1276,7 +1276,7 @@ module Make (S: S) = struct
 
       S.Tree.empty |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
-      S.set_tree t ~info:(infof "update file as tree") ["a"] v >>= fun () ->
+      S.set_tree_exn t ~info:(infof "update file as tree") ["a"] v >>= fun () ->
       S.find_all t ["a"] >>= fun vx' ->
       check_val "update file as tree" (normal vx) vx';
       Lwt.return_unit
@@ -1289,12 +1289,12 @@ module Make (S: S) = struct
     let test repo =
       S.master repo >>= fun t1 ->
 
-      S.set t1 ~info:(infof "update a/b") ["a";"b"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/b") ["a";"b"] v1 >>= fun () ->
       S.Head.get t1 >>= fun h ->
       S.Head.get t1 >>= fun _r1 ->
-      S.set t1 ~info:(infof "update a/c") ["a";"c"] v2 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/c") ["a";"c"] v2 >>= fun () ->
       S.Head.get t1 >>= fun r2 ->
-      S.set t1 ~info:(infof "update a/d") ["a";"d"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/d") ["a";"d"] v1 >>= fun () ->
       S.Head.get t1 >>= fun _r3 ->
 
       S.history t1 ~min:[h] >>= fun h ->
@@ -1356,20 +1356,20 @@ module Make (S: S) = struct
 
       S.master repo >>= fun t1 ->
 
-      S.set t1 ~info:(infof "update a/b/a") ["a";"b";"a"] v1 >>= fun () ->
-      S.set t1 ~info:(infof "update a/b/b") ["a";"b";"b"] v2 >>= fun () ->
-      S.set t1 ~info:(infof "update a/b/c") ["a";"b";"c"] v3 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/b/a") ["a";"b";"a"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/b/b") ["a";"b";"b"] v2 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update a/b/c") ["a";"b";"c"] v3 >>= fun () ->
 
       let test = "test" in
 
       S.clone ~src:t1 ~dst:test >>= fun t2 ->
 
-      S.set t1 ~info:(infof "update master:a/b/b") ["a";"b";"b"] v1 >>= fun () ->
-      S.set t1 ~info:(infof "update master:a/b/b") ["a";"b";"b"] v3 >>= fun () ->
-      S.set t2 ~info:(infof "update test:a/b/c")   ["a";"b";"c"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update master:a/b/b") ["a";"b";"b"] v1 >>= fun () ->
+      S.set_exn t1 ~info:(infof "update master:a/b/b") ["a";"b";"b"] v3 >>= fun () ->
+      S.set_exn t2 ~info:(infof "update test:a/b/c")   ["a";"b";"c"] v1 >>= fun () ->
 
       output_file t1 "before" >>= fun () ->
-      S.merge ~info:(infof "merge test into master") t2 ~into:t1 >>= fun m ->
+      S.merge_into ~info:(infof "merge test into master") t2 ~into:t1 >>= fun m ->
       merge_exn "m" m >>= fun () ->
       output_file t1 "after" >>= fun () ->
 
@@ -1390,9 +1390,9 @@ module Make (S: S) = struct
     let v1 = "X1" in
     S.of_branch repo "foo" >>= fun foo ->
     S.of_branch repo "bar" >>= fun bar ->
-    S.set foo ~info:(infof "update foo:a") ["a"] v1 >>= fun () ->
-    S.set bar ~info:(infof "update bar:b") ["b"] v1 >>= fun () ->
-    S.merge ~info:(infof "merge bar into foo") bar ~into:foo >>=
+    S.set_exn foo ~info:(infof "update foo:a") ["a"] v1 >>= fun () ->
+    S.set_exn bar ~info:(infof "update bar:b") ["b"] v1 >>= fun () ->
+    S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo >>=
     merge_exn "merge unrelated"
 
   let rec write fn = function
@@ -1445,7 +1445,7 @@ module Make (S: S) = struct
       let v = "X1" in
       S.master repo >>= fun t1 ->
       S.master repo >>= fun t2 ->
-      let write t = write (fun i -> S.set t ~info:(infof "update: one %d" i) k v) in
+      let write t = write (fun i -> S.set_exn t ~info:(infof "update: one %d" i) k v) in
       let read t =
         read
           (fun _ -> S.get t k)
@@ -1460,7 +1460,7 @@ module Make (S: S) = struct
       S.master repo >>= fun t1 ->
       S.master repo >>= fun t2 ->
       let write t =
-        write (fun i -> S.set t ~info:(infof "update: multi %d" i) (k i) (v i))
+        write (fun i -> S.set_exn t ~info:(infof "update: multi %d" i) (k i) (v i))
       in
       let read t =
         read
@@ -1486,9 +1486,9 @@ module Make (S: S) = struct
         write (fun i ->
             let tag = Fmt.strf "tmp-%d-%d" n i in
             S.clone ~src:t ~dst:tag >>= fun m ->
-            S.set m ~info:(infof "update") (k i) (v i) >>= fun () ->
+            S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
-            S.merge ~info:(infof "update: multi %d" i) m ~into:t >>=
+            S.merge_into ~info:(infof "update: multi %d" i) m ~into:t >>=
             merge_exn "update: multi"
           )
       in
@@ -1497,7 +1497,7 @@ module Make (S: S) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
-      S.set t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
       perform (read t1 10)
     in
@@ -1524,7 +1524,7 @@ module Make (S: S) = struct
             S.Head.find t >>= fun test ->
             let tag = Fmt.strf "tmp-%d-%d" n i in
             S.clone ~src:t ~dst:tag >>= fun m ->
-            S.set m ~info:(infof "update") (k i) (v i) >>= fun () ->
+            S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
             S.Head.find m >>= fun set ->
             Lwt_unix.yield () >>= fun () ->
             S.Head.test_and_set t ~test ~set
@@ -1535,7 +1535,7 @@ module Make (S: S) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
-      S.set t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
       perform (read t1 5)
     in

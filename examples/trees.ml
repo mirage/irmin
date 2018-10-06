@@ -48,15 +48,15 @@ let main () =
 
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
-  Store.set_tree t ~info:(info "update a/b") ["a";"b"] v >>= fun () ->
+  Store.set_tree_exn t ~info:(info "update a/b") ["a";"b"] v >>= fun () ->
   Store.get_tree t ["a";"b"] >>= fun v ->
   t_of_tree v >>= fun tt ->
 
-  Store.set_tree t ~info:(info "update a/c") ["a";"c"] v >>= fun () ->
+  Store.set_tree_exn t ~info:(info "update a/c") ["a";"c"] v >>= fun () ->
 
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
   tree_of_t tt >>= fun vv ->
-  Store.set_tree t ~info:(info "merge tree into a/b") ["a";"b"] vv
+  Store.set_tree_exn t ~info:(info "merge tree into a/b") ["a";"b"] vv
 
 let () =
   Lwt_main.run (main ())

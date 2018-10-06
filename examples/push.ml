@@ -26,7 +26,7 @@ let test () =
   Store.get_tree t [] >>= fun tree ->
   Store.Tree.add tree ["BAR.md"] "Hoho!" >>= fun tree ->
   Store.Tree.add tree ["FOO.md"] "Hihi!" >>= fun tree ->
-  Store.set_tree t ~info:(info "merge") [] tree >>= fun () ->
+  Store.set_tree_exn t ~info:(info "merge") [] tree >>= fun () ->
   Printf.printf "%s\n%!" readme;
   Store.get t ["BAR.md"] >>= fun bar ->
   Printf.printf "%s\n%!" bar;

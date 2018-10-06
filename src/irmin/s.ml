@@ -428,16 +428,131 @@ module type STORE = sig
   val get: t -> key -> contents Lwt.t
   val find_tree: t -> key -> tree option Lwt.t
   val get_tree: t -> key -> tree Lwt.t
-  type 'a transaction =
+
+  type write_error = [
+    | Merge.conflict
+    | `Too_many_retries of int
+    | `Expecting of tree option
+  ]
+
+  val set:
     ?retries:int ->
     ?allow_empty:bool ->
-    ?strategy:[`Set | `Test_and_set | `Merge_with_parent of commit] ->
+    ?parents:commit list ->
     info:Info.f ->
-    'a -> unit Lwt.t
-  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
-  val set: t -> key -> ?metadata:metadata -> contents transaction
-  val set_tree: t -> key -> tree transaction
-  val remove: t -> key transaction
+    t -> key -> contents -> (unit, write_error) result Lwt.t
+
+  val set_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> contents -> unit Lwt.t
+
+  val set_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> tree -> (unit, write_error) result Lwt.t
+
+  val set_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> tree -> unit Lwt.t
+
+  val remove:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> (unit, write_error) result Lwt.t
+
+  val remove_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> unit Lwt.t
+
+  val test_and_set:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:contents option -> set:contents option ->
+    (unit, write_error) result Lwt.t
+
+  val test_and_set_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:contents option -> set:contents option -> unit Lwt.t
+
+  val test_and_set_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:tree option -> set:tree option ->
+    (unit, write_error) result Lwt.t
+
+  val test_and_set_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:tree option -> set:tree option -> unit Lwt.t
+
+  val merge:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:contents -> t -> key -> contents -> (unit, write_error) result Lwt.t
+
+  val merge_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:contents -> t -> key -> contents -> unit Lwt.t
+
+  val merge_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:tree -> t -> key -> tree -> (unit, write_error) result Lwt.t
+
+  val merge_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:tree -> t -> key -> tree -> unit Lwt.t
+
+  val with_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[`Set | `Test_and_set | `Merge] ->
+    info:Info.f ->
+    t -> key -> (tree option -> tree option Lwt.t) ->
+    (unit, write_error) result Lwt.t
+
+  val with_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[`Set | `Test_and_set | `Merge] ->
+    info:Info.f ->
+    t -> key -> (tree option -> tree option Lwt.t) ->
+    unit Lwt.t
+
   val clone: src:t -> dst:branch -> t Lwt.t
   type watch
   val watch:
@@ -448,7 +563,7 @@ module type STORE = sig
 
   type 'a merge = info:Info.f -> ?max_depth:int -> ?n:int -> 'a ->
     (unit, Merge.conflict) result Lwt.t
-  val merge: into:t -> t merge
+  val merge_into: into:t -> t merge
   val merge_with_branch: t -> branch merge
   val merge_with_commit: t -> commit merge
 
@@ -493,6 +608,7 @@ module type STORE = sig
   val kind_t: [`Contents | `Node] Type.t
   val lca_error_t: lca_error Type.t
   val ff_error_t: ff_error Type.t
+  val write_error_t: write_error Type.t
 
   module Private: sig
     include PRIVATE

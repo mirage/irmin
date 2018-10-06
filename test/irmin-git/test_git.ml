@@ -98,17 +98,17 @@ let test_sort_order (module S: Test_S) =
   in
   let info = Irmin.Info.none in
   S.master repo >>= fun master ->
-  S.remove master ~info [] >>= fun () ->
-  S.set master ~info ["foo.c"] "foo.c" >>= fun () ->
-  S.set master ~info ["foo1"] "foo1" >>= fun () ->
-  S.set master ~info ["foo"; "foo.o"] "foo.o" >>= fun () ->
+  S.remove_exn master ~info [] >>= fun () ->
+  S.set_exn master ~info ["foo.c"] "foo.c" >>= fun () ->
+  S.set_exn master ~info ["foo1"] "foo1" >>= fun () ->
+  S.set_exn master ~info ["foo"; "foo.o"] "foo.o" >>= fun () ->
   ls master >>= fun items ->
   Alcotest.(check (list string)) "Sort order" ["foo.c"; "foo"; "foo1"] items;
   head_tree_id master >>= fun tree_id ->
   Alcotest.(check string) "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
     (Irmin.Type.to_string S.Private.Node.Key.t tree_id);
   (* Convert dir to file; changes order in listing *)
-  S.set master ~info ["foo"] "foo" >>= fun () ->
+  S.set_exn master ~info ["foo"] "foo" >>= fun () ->
   ls master >>= fun items ->
   Alcotest.(check (list string)) "Sort order" ["foo"; "foo.c"; "foo1"] items;
   Lwt.return ()
@@ -129,7 +129,7 @@ let test_list_refs (module S: Test_S) =
   S.init () >>= fun () ->
   R.Repo.v (Irmin_git.config test_db) >>= fun repo ->
   R.master repo >>= fun master ->
-  R.set master ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
+  R.set_exn master ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
   R.Head.get master >>= fun head ->
   R.Branch.set repo (`Remote "datakit/master") head >>= fun () ->
   R.Branch.set repo (`Other "foo/bar/toto") head >>= fun () ->
@@ -166,7 +166,7 @@ let test_import_export () =
     Generic.init () >>= fun () ->
     Mem.Repo.v (Irmin_git.config test_db) >>= fun repo ->
     Mem.master repo >>= fun t ->
-    Mem.set t ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
+    Mem.set_exn t ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
     let remote = Irmin.remote_store (module Mem) t in
     Generic.Repo.v (Irmin_mem.config ()) >>= fun repo ->
     Generic.master repo >>= fun t ->
