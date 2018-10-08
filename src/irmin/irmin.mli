@@ -428,7 +428,7 @@ module Type: sig
   type 'a decode_bin = string -> int -> int * 'a
   (** The type for binary decoders. *)
 
-  type 'a size_of = 'a -> int
+  type 'a size_of = 'a -> [`Size of int | `Buffer of string]
     (** The type for size function related to binary encoder/decoders. *)
 
   val encode_bin: ?buf:bytes -> 'a t -> 'a -> string
@@ -448,8 +448,10 @@ module Type: sig
       [bytes] or [string]) the original buffer is returned without
       being copied. *)
 
-  val size_of: 'a t -> 'a -> int
-  (** [size_of t x] is the size of [encode_bin t x]. *)
+  val size_of: 'a t -> 'a -> [`Size of int | `Buffer of string]
+  (** [size_of t x] is either the size of [encode_bin t x] or the
+     binary encoding of [x], if the backend is not able to pre-compute
+     serialisation lenghts. *)
 
   (** {1 Customs converters} *)
 

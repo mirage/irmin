@@ -1,5 +1,9 @@
 module T = Irmin.Type
 
+let size = function
+  | `Size s -> s
+  | _ -> Alcotest.fail "size"
+
 let test_base () =
 
   let s = T.to_json_string T.string "foo" in
@@ -8,7 +12,7 @@ let test_base () =
   let s = T.encode_bin T.string "foo" in
   Alcotest.(check string) "binary string" "foo" s;
   Alcotest.(check int) "binary size"
-    (String.length "foo") (T.size_of T.string "foo");
+    (String.length "foo") (size (T.size_of T.string "foo"));
 
   let s = T.to_string T.string "foo" in
   Alcotest.(check string) "CLI string" "foo" s;
@@ -89,7 +93,7 @@ let test_bin () =
 
   let s = T.encode_bin l ["foo"; "bar"] in
   Alcotest.(check string) "encode list" "foobar" s;
-  Alcotest.(check int) "size of list" 6 (T.size_of l ["foo"; "bar"]);
+  Alcotest.(check int) "size of list" 6 (size (T.size_of l ["foo"; "bar"]));
 
   let s = T.decode_bin l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s
