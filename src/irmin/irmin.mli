@@ -2019,6 +2019,9 @@ end
     }
 *)
 
+exception Conflict of string
+exception Too_many_retries of int
+
 (** Irmin stores. *)
 module type S = sig
 
@@ -2537,8 +2540,11 @@ module type S = sig
   (** {1 Transactions} *)
 
   type 'a transaction =
-    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?strategy:[`Set | `Test_and_set | `Merge_with_parent of commit] ->
+    info:Info.f ->
+    'a -> unit Lwt.t
   (** The type for transactions. *)
 
   val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
@@ -2557,10 +2563,11 @@ module type S = sig
       {ul
       {- if [strategy = `Set], the {e last write wins}. }
       {- if [strategy = `Test_and_set] (default), the transaction is
-         restarted.}
-      {- if [strategy = `Merge], concurrent changes are merged with
-         [f v]. If the merge has a conflict, the transaction is
-         restarted.}  }
+         restarted. Can raise with [Too_many_retries n] if the operation cannot
+         be completed after [n] attempts.}
+      {- if [strategy = `Merge parent], concurrent changes are merged with
+         [f v] using [parent] as common ancestor. In case of conflict, abort
+         without retyring by raising [Conflit msg].}  }
 
       {b Note:} Irmin transactions provides
       {{:https://en.wikipedia.org/wiki/Snapshot_isolation}snapshot
