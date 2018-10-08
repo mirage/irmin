@@ -443,7 +443,7 @@ struct
 
     end
   end
-  include Irmin.Make_ext(X)
+  include Irmin.Of_private(X)
 end
 
 module KV (H: CLIENT) (C: Irmin.Contents.S) =

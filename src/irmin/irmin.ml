@@ -43,14 +43,20 @@ module Path = struct
   module type S = S.PATH
 end
 
-module Make
+module Make_ext
     (AO: S.AO_MAKER)
     (RW: S.RW_MAKER)
     (M: S.METADATA)
-    (C: S.CONTENTS)
-    (P: S.PATH)
-    (B: S.BRANCH)
-    (H: S.HASH) =
+    (C: Contents.S)
+    (P: Path.S)
+    (B: Branch.S)
+    (H: Hash.S)
+    (N: S.NODE with type metadata = M.t
+                and type contents = H.t
+                and type node = H.t
+                and type step = P.step)
+    (CT: S.COMMIT with type node = H.t and type commit = H.t)
+=
 struct
 
   module X = struct
@@ -63,7 +69,7 @@ struct
     module Node = struct
       module AO = struct
         module Key = H
-        module Val = Node.Make (H)(H)(P)(M)
+        module Val = N
         include AO (Key)(Val)
       end
       include Node.Store(Contents)(P)(M)(AO)
@@ -72,7 +78,7 @@ struct
     module Commit = struct
       module AO = struct
         module Key = H
-        module Val = Commit.Make (H)(H)
+        module Val = CT
         include AO (Key)(Val)
       end
       include Commit.Store(Node)(AO)
@@ -111,7 +117,22 @@ struct
   include Store.Make(X)
 end
 
-module Make_ext = Store.Make
+
+module Make
+    (AO: S.AO_MAKER)
+    (RW: S.RW_MAKER)
+    (M: S.METADATA)
+    (C: S.CONTENTS)
+    (P: S.PATH)
+    (B: S.BRANCH)
+    (H: S.HASH) =
+struct
+  module N = Node.Make(H)(H)(P)(M)
+  module CT = Commit.Make(H)(H)
+  include Make_ext(AO)(RW)(M)(C)(P)(B)(H)(N)(CT)
+end
+
+module Of_private = Store.Make
 
 module type RO = S.RO
 module type AO = S.AO
