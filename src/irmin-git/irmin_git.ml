@@ -159,15 +159,18 @@ module Make_private
     module Val = struct
       include C
 
-      let encode_bin buf off (t:t) =
-        Log.debug (fun l -> l "Content.encode_bin");
+      let to_bin t =
         let blob = G.Value.Blob.of_string (Irmin.Type.encode_bin C.t t) in
         match Raw.to_raw (G.Value.blob blob) with
         | Error _ -> assert false
-        | Ok s    ->
-          let len = String.length s in
-          Bytes.blit_string s 0 buf off len;
-          off + len
+        | Ok s    -> s
+
+      let encode_bin buf off (t:t) =
+        Log.debug (fun l -> l "Content.encode_bin");
+        let s = to_bin t in
+        let len = String.length s in
+        Bytes.blit_string s 0 buf off len;
+        off + len
 
       let decode_bin buf off =
         Log.debug (fun l -> l "Content.decode_bin");
@@ -183,13 +186,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t =
-        Log.debug (fun l -> l "Content.size_of");
-        (* XXX(samoht): this could be improved... *)
-        let blob = G.Value.Blob.of_string (Irmin.Type.encode_bin C.t t) in
-        match Raw.to_raw (G.Value.blob blob) with
-        | Error _ -> assert false
-        | Ok s    -> String.length s
+      let size_of t = `Buffer (to_bin t)
 
     let t = Irmin.Type.like' ~bin:(encode_bin, decode_bin, size_of) t
   end
@@ -294,13 +291,16 @@ module Make_private
        let to_n t = N.v (alist t)
        let of_n n = v (N.list n)
 
-       let encode_bin buf off (t:t) =
-         Log.debug (fun l -> l "Tree.encode_bin");
+       let to_bin t =
          match Raw.to_raw (G.Value.tree t) with
          | Error _ -> assert false
-         | Ok s    ->
-           let len = String.length s in
-           Bytes.blit_string s 0 buf off len;
+         | Ok s    -> s
+
+       let encode_bin buf off (t:t) =
+         Log.debug (fun l -> l "Tree.encode_bin");
+         let s = to_bin t in
+         let len = String.length s in
+         Bytes.blit_string s 0 buf off len;
            off + len
 
        let decode_bin buf off =
@@ -312,12 +312,7 @@ module Make_private
          | Ok _    -> failwith "wrong object kind"
          | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-       let size_of t =
-         Log.debug (fun l -> l "Tree.size_of");
-         (* XXX(samoht): this could be improved... *)
-         match Raw.to_raw (G.Value.tree t) with
-         | Error _ -> assert false
-         | Ok s    -> String.length s
+       let size_of t = `Buffer (to_bin t)
 
        let t =
          Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
@@ -411,14 +406,17 @@ module Make_private
         let info, node, parents = of_git t in
         C.v ~info ~node ~parents
 
-      let encode_bin buf off (t:t) =
-        Log.debug (fun l -> l "Commit.encode_bin");
+      let to_bin t =
         match Raw.to_raw (G.Value.commit t) with
         | Error _ -> assert false
-        | Ok s    ->
-          let len = String.length s in
-          Bytes.blit_string s 0 buf off len;
-          off + len
+        | Ok s    -> s
+
+      let encode_bin buf off (t:t) =
+        Log.debug (fun l -> l "Commit.encode_bin");
+        let s = to_bin t in
+        let len = String.length s in
+        Bytes.blit_string s 0 buf off len;
+        off + len
 
       let decode_bin buf off =
         Log.debug (fun l -> l "Commit.decode_bin");
@@ -429,12 +427,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t =
-        Log.debug (fun l -> l "Commit.size_of");
-        (* XXX(samoht): this could be improved... *)
-        match Raw.to_raw (G.Value.commit t) with
-        | Error _ -> assert false
-        | Ok s    -> String.length s
+      let size_of t = `Buffer (to_bin t)
 
       let t =
         Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c

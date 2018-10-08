@@ -75,7 +75,7 @@ type 'a encode_json = Jsonm.encoder -> 'a -> unit
 type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
 type 'a encode_bin =  bytes -> int -> 'a -> int
 type 'a decode_bin = string -> int -> int * 'a
-type 'a size_of = 'a -> int
+type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
 type 'a compare = 'a -> 'a -> int
 type 'a equal = 'a -> 'a -> bool
 
@@ -929,22 +929,31 @@ module Size_of = struct
     | `Int64   -> 8
     | `Fixed _ -> 0
 
-  let unit () = 0
-  let char (_:char) = 1
-  let int32 (_:int32) = 4
-  let int64 (_:int64) = 8
-  let int (_:int) = 8 (* always use 64 bits for storing ints *)
-  let bool (_:bool) = 1
-  let float (_:float) = 8 (* NOTE: we consider 'double' here *)
-  let string n s = len n + String.length s
-  let bytes n s = len n + Bytes.length s
-  let list l n x = List.fold_left (fun acc x -> acc + l x) (len n) x
-  let array l n x = Array.fold_left (fun acc x -> acc + l x) (len n) x
-  let pair a b (x, y) = a x + b y
-  let triple a b c (x, y, z) = a x + b y + c z
+  let size = function
+    | `Size s   -> s
+    | `Buffer b -> String.length b
+
+  let unit () = `Size 0
+  let char (_:char) = `Size 1
+  let int32 (_:int32) = `Size 4
+  let int64 (_:int64) = `Size 8
+  let int (_:int) = `Size 8 (* always use 64 bits for storing ints *)
+  let bool (_:bool) = `Size 1
+  let float (_:float) = `Size 8 (* NOTE: we consider 'double' here *)
+  let string n s = `Size (len n + String.length s)
+  let bytes n s = `Size (len n + Bytes.length s)
+
+  let list l n x =
+    `Size (List.fold_left (fun acc x -> acc + size (l x)) (len n) x)
+
+  let array l n x =
+    `Size (Array.fold_left (fun acc x -> acc + size (l x)) (len n) x)
+
+  let pair a b (x, y) = `Size (size (a x) + size (b y))
+  let triple a b c (x, y, z) = `Size (size (a x) + size (b y) + size (c z))
   let option o = function
   | None   -> char '\000'
-  | Some x -> (char '\000') + o x
+  | Some x -> `Size (size (char '\000') + size (o x))
 
   let rec t: type a. a t -> a size_of = function
   | Self s    -> t s.self
@@ -980,7 +989,10 @@ module Size_of = struct
 
   and record: type a. a record -> a size_of = fun r x ->
     let fields = fields r in
-    List.fold_left (fun acc (Field f) -> acc + field f x) 0 fields
+    let s =
+      List.fold_left (fun acc (Field f) -> acc + size (field f x)) 0 fields
+    in
+    `Size s
 
   and field: type a b. (a, b) field -> a size_of = fun f x ->
     t f.ftype (f.fget x)
@@ -988,16 +1000,16 @@ module Size_of = struct
   and variant: type a. a variant -> a size_of = fun v x ->
     match v.vget x with
     | CV0 _       -> char '\000'
-    | CV1 (x, vx) -> char '\000' + t x.ctype1 vx
+    | CV1 (x, vx) -> `Size (size (char '\000') + size (t x.ctype1 vx))
 
 end
 
 let size_of t x =
-  let rec aux: type a. a t -> a -> int = fun t x -> match t with
+  let rec aux: type a. a t -> a size_of = fun t x -> match t with
     | Self s           -> aux s.self x
     | Like l           -> aux l.x (l.g x)
-    | Prim (String _)  -> String.length x
-    | Prim (Bytes _)   -> Bytes.length x
+    | Prim (String _)  -> `Size (String.length x)
+    | Prim (Bytes _)   -> `Size (Bytes.length x)
     | _ -> Size_of.t t x
   in
   aux t x
@@ -1156,18 +1168,20 @@ let encode_bin_bytes ?buf t x =
     | Prim (String _)  -> Bytes.of_string x
     | Prim (Bytes _)   -> x
     | _ ->
-      let len = Size_of.t t x in
-      let exact, buf = match buf with
-        | None     -> true, Bytes.create len
-        | Some buf ->
-          if len > Bytes.length buf then
-            err_invalid_bounds "Type.encode_bytes" len (Bytes.length buf)
-          else
-            false, buf
-      in
-      let len' = Encode_bin.t t buf 0 x in
-      if exact then assert (len = len');
-      buf
+      match size_of t x with
+      | `Buffer b -> Bytes.unsafe_of_string b
+      | `Size len ->
+        let exact, buf = match buf with
+          | None     -> true, Bytes.create len
+          | Some buf ->
+            if len > Bytes.length buf then
+              err_invalid_bounds "Type.encode_bytes" len (Bytes.length buf)
+            else
+              false, buf
+        in
+        let len' = Encode_bin.t t buf 0 x in
+        if exact then assert (len = len');
+        buf
   in
   aux t x
 
