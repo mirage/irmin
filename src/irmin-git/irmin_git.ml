@@ -136,6 +136,8 @@ module Make_private
 
   let err fmt = Fmt.kstrf (fun e -> Error (`Msg e)) fmt
 
+  module Raw = Git.Value.Raw(G.Hash)(G.Inflate)(G.Deflate)
+
   module GitContents = struct
     type t = C.t
     let pp = Irmin.Type.pp C.t
@@ -154,7 +156,43 @@ module Make_private
   end
   module XContents = struct
     include AO (GitContents)
-    module Val = C
+    module Val = struct
+      include C
+
+      let encode_bin buf off (t:t) =
+        Log.debug (fun l -> l "Content.encode_bin");
+        let blob = G.Value.Blob.of_string (Irmin.Type.encode_bin C.t t) in
+        match Raw.to_raw (G.Value.blob blob) with
+        | Error _ -> assert false
+        | Ok s    ->
+          let len = String.length s in
+          Bytes.blit_string s 0 buf off len;
+          off + len
+
+      let decode_bin buf off =
+        Log.debug (fun l -> l "Content.decode_bin");
+        let buf = Cstruct.of_string buf in
+        let buf = Cstruct.shift buf off in
+        let blob t =
+          match Irmin.Type.decode_bin C.t (G.Value.Blob.to_string t) with
+          | Ok t -> t
+          | Error (`Msg e) -> Fmt.failwith "cannot read blob: %s" e
+        in
+        match Raw.of_raw_with_header buf with
+        | Ok (G.Value.Blob t) -> off + Cstruct.len buf, blob t
+        | Ok _    -> failwith "wrong object kind"
+        | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
+
+      let size_of t =
+        Log.debug (fun l -> l "Content.size_of");
+        (* XXX(samoht): this could be improved... *)
+        let blob = G.Value.Blob.of_string (Irmin.Type.encode_bin C.t t) in
+        match Raw.to_raw (G.Value.blob blob) with
+        | Error _ -> assert false
+        | Ok s    -> String.length s
+
+    let t = Irmin.Type.like' ~bin:(encode_bin, decode_bin, size_of) t
+  end
     module Key = H
   end
   module Contents = Irmin.Contents.Store(XContents)
@@ -255,7 +293,34 @@ module Make_private
        module N = Irmin.Private.Node.Make (H)(H)(P)(Metadata)
        let to_n t = N.v (alist t)
        let of_n n = v (N.list n)
-       let t = Irmin.Type.like N.t of_n to_n
+
+       let encode_bin buf off (t:t) =
+         Log.debug (fun l -> l "Tree.encode_bin");
+         match Raw.to_raw (G.Value.tree t) with
+         | Error _ -> assert false
+         | Ok s    ->
+           let len = String.length s in
+           Bytes.blit_string s 0 buf off len;
+           off + len
+
+       let decode_bin buf off =
+         Log.debug (fun l -> l "Tree.decode_bin");
+         let buf = Cstruct.of_string buf in
+         let buf = Cstruct.shift buf off in
+         match Raw.of_raw_with_header buf with
+         | Ok (G.Value.Tree t) -> off + Cstruct.len buf, t
+         | Ok _    -> failwith "wrong object kind"
+         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
+
+       let size_of t =
+         Log.debug (fun l -> l "Tree.size_of");
+         (* XXX(samoht): this could be improved... *)
+         match Raw.to_raw (G.Value.tree t) with
+         | Error _ -> assert false
+         | Ok s    -> String.length s
+
+       let t =
+         Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
     end
 
     include AO (struct
@@ -346,7 +411,33 @@ module Make_private
         let info, node, parents = of_git t in
         C.v ~info ~node ~parents
 
-      let t = Irmin.Type.like C.t of_c to_c
+      let encode_bin buf off (t:t) =
+        Log.debug (fun l -> l "Commit.encode_bin");
+        match Raw.to_raw (G.Value.commit t) with
+        | Error _ -> assert false
+        | Ok s    ->
+          let len = String.length s in
+          Bytes.blit_string s 0 buf off len;
+          off + len
+
+      let decode_bin buf off =
+        Log.debug (fun l -> l "Commit.decode_bin");
+        let buf = Cstruct.of_string buf in
+        let buf = Cstruct.shift buf off in
+        match Raw.of_raw_with_header buf with
+        | Ok (G.Value.Commit t) -> off + Cstruct.len buf, t
+        | Ok _    -> failwith "wrong object kind"
+        | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
+
+      let size_of t =
+        Log.debug (fun l -> l "Commit.size_of");
+        (* XXX(samoht): this could be improved... *)
+        match Raw.to_raw (G.Value.commit t) with
+        | Error _ -> assert false
+        | Ok s    -> String.length s
+
+      let t =
+        Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
     end
 
     module Key = H
