@@ -69,7 +69,7 @@ val mu2: ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
 
 val equal: 'a t -> 'a -> 'a -> bool
 val compare: 'a t -> 'a -> 'a -> int
-
+val hash: 'a t -> 'a -> int
 
 (* CLI *)
 
@@ -108,6 +108,7 @@ val like: 'a t ->
   ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
   ?equal:('b -> 'b -> bool) ->
   ?compare:('b -> 'b -> int) ->
+  ?hash:('b -> int) ->
   ('a -> 'b) -> ('b -> 'a) -> 'b t
 
 val like':
@@ -116,6 +117,7 @@ val like':
   ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
   ?equal:('a -> 'a -> bool) ->
   ?compare:('a -> 'a -> int) ->
+  ?hash:('a -> int) ->
   'a t -> 'a t
 
 (* convenient functions. *)
