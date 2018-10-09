@@ -1,13 +1,23 @@
 open Lwt.Infix
 
-module Schema = Graphql_schema.Make(Lwt)
+module HttpBody = struct
+  include Cohttp_lwt.Body
+
+  type +'a io = 'a Lwt.t
+  type 'a stream = 'a Lwt_stream.t * (unit -> unit)
+
+  let of_stream (stream, _) = Cohttp_lwt.Body.of_stream stream
+end
+
+module Schema = Graphql_lwt.Schema
+module Gql = Graphql_cohttp.Make(Schema)(HttpBody)
 
 module type S = sig
   type store
   type server
 
   val schema : store -> unit Schema.schema
-  val execute_request : unit Schema.schema -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+  val execute_request : unit Schema.schema -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
   val run_server: server -> store -> unit Lwt.t
 end
 
@@ -588,43 +598,11 @@ module Make(Store : STORE)(Server : SERVER) = struct
             )
       ])
 
-  let execute_query schema ?variables ?operation_name query =
-    Schema.execute schema () ?variables ?operation_name query >>= function
-    | Ok data ->
-        let body = Yojson.Basic.to_string data in
-        Server.respond_string ~status:`OK ~body ()
-    | Error err ->
-        let body = Yojson.Basic.to_string err in
-        Server.respond_string ~status:`Internal_server_error ~body ()
-
-  let execute_request schema body =
-    Cohttp_lwt.Body.to_string body >>= fun body' ->
-    let json = Yojson.Basic.from_string body' in
-    let query = Yojson.Basic.(Util.member "query" json |> Util.to_string) in
-    let variables = try Yojson.Basic.Util.(member "variables" json |> to_assoc) with _ -> [] in
-    let variables = (variables :> (string * Graphql_parser.const_value) list) in
-    let operation_name =
-      try Some Yojson.Basic.Util.(member "operationName" json |> to_string)
-      with _ -> None
-    in
-    match Graphql_parser.parse query with
-    | Ok query ->
-        execute_query schema ~variables ?operation_name query
-    | Error err ->
-        Server.respond_string ~status:`Bad_request ~body:err ()
-
-  let mk_callback schema _ (req : Cohttp.Request.t) body =
-    let req_path = Cohttp.Request.uri req |> Uri.path in
-    let path_parts = Astring.String.cuts ~sep:"/" req_path in
-      match req.meth, path_parts with
-      (*| `GET,  ["graphql"]       -> static_file_response "index.html"
-      | `GET,  ["graphql"; path] -> static_file_response path*)
-      | `POST, ["graphql"]       -> execute_request schema body
-      | _ -> Server.respond_string ~status:`Not_found ~body:"" ()
+  let execute_request ctx req = Gql.execute_request ctx () req
 
   let run_server server store =
     let schema = schema store in
-    let callback = mk_callback schema in
+    let callback = Gql.make_callback (fun _ctx -> ()) schema in
     Server.run server callback
 end
 

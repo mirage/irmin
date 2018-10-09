@@ -1,5 +1,5 @@
 module Schema : sig
-  include Graphql_intf.Schema with type 'a io = 'a Lwt.t
+  include Graphql_intf.Schema with type 'a Io.t = 'a Lwt.t
 end
 
 module type S = sig
@@ -7,7 +7,7 @@ module type S = sig
   type server
 
   val schema : store -> unit Schema.schema
-  val execute_request : unit Schema.schema -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+  val execute_request : unit Schema.schema -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
   val run_server: server -> store -> unit Lwt.t
 end
 
