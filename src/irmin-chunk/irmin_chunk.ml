@@ -31,6 +31,21 @@ module Conf = struct
     Irmin.Private.Conf.key ~doc:"Size of chunk" "size"
       Irmin.Private.Conf.int 4096
 
+  let chunking =
+    let pp ppf = function
+      | `Max -> Fmt.pf ppf "max"
+      | `Best_fit -> Fmt.pf ppf "best-fit"
+    in
+    let of_string = function
+      | "max" -> Ok `Max
+      | "best-fit" -> Ok `Best_fit
+      | e ->
+        Error (`Msg (e ^ " is not a valid chunking algorithm. Use 'max' or \
+                          'best-fit'"))
+    in
+    Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking"
+      (of_string, pp) `Best_fit
+
 end
 
 let chunk_size = Conf.chunk_size
@@ -40,7 +55,9 @@ let err_too_small ~min size =
     "Chunks of %d bytes are too small. Size should at least be %d bytes."
     size min
 
-let config ?(config=Irmin.Private.Conf.empty) ?size ?min_size () =
+let config ?(config=Irmin.Private.Conf.empty)
+    ?size ?min_size ?(chunking=`Best_fit) ()
+  =
   let module C = Irmin.Private.Conf in
   let min_size = match min_size with
     | None   -> C.default Conf.min_size
@@ -50,7 +67,11 @@ let config ?(config=Irmin.Private.Conf.empty) ?size ?min_size () =
     | None   -> C.default Conf.chunk_size
     | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
-  C.add (C.add config Conf.min_size min_size) Conf.chunk_size size
+  let add x y c = C.add c x y in
+  config
+  |> add Conf.min_size min_size
+  |> add Conf.chunk_size size
+  |> add Conf.chunking chunking
 
 module Chunk (K: Irmin.Hash.S) = struct
 
@@ -68,6 +89,13 @@ module Chunk (K: Irmin.Hash.S) = struct
     |> sealv
 
   type t = { len: int; v: v }
+
+  let size_of_v t = match Irmin.Type.size_of v t with
+    | `Size i   -> i
+    | `Buffer b -> String.length b
+
+  let size_of_data_header = size_of_v (Data "")
+  let size_of_index_header = size_of_v (Index [])
 
   let of_string b =
     let len = String.length b in
@@ -92,6 +120,7 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Type.S) = struct
   type value = V.t
 
   type t = {
+    chunking    : [`Max | `Best_fit];
     db          : AO.t;             (* An handler to the underlying database. *)
     chunk_size  : int;                                 (* the size of chunks. *)
     max_children: int;     (* the maximum number of children a node can have. *)
@@ -99,8 +128,17 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Type.S) = struct
                           chunk. *)
   }
 
-  let data t v = { Chunk.v = Data v; len = t.chunk_size }
-  let index t i = { Chunk.v = Index i; len = t.chunk_size }
+  let index t i =
+    let v = Chunk.Index i in
+    match t.chunking with
+    | `Max      -> { Chunk.v; len = t.chunk_size }
+    | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
+
+  let data t v =
+    let v = Chunk.Data v in
+    match t.chunking with
+    | `Max      -> { Chunk.v; len = t.chunk_size }
+    | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
 
   module Tree = struct
 
@@ -152,17 +190,19 @@ module AO (S:AO_MAKER) (K:Irmin.Hash.S) (V: Irmin.Type.S) = struct
   let v config =
     let module C = Irmin.Private.Conf in
     let chunk_size = C.get config Conf.chunk_size in
-    let max_data = chunk_size - 1 - 8 in
-    let max_children = chunk_size / K.digest_size in
+    let max_data = chunk_size - Chunk.size_of_data_header in
+    let max_children = (chunk_size - Chunk.size_of_index_header) / K.digest_size in
+    let chunking = C.get config Conf.chunking in
     if max_children <= 1 then (
-      let min = 1 + K.digest_size * 2 in
+      let min = Chunk.size_of_index_header + K.digest_size * 2 in
       err_too_small ~min chunk_size;
     );
     Log.debug
       (fun l ->
          l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
            chunk_size K.digest_size max_data max_children);
-    AO.v config >|= fun db -> { db; chunk_size; max_children; max_data }
+    AO.v config >|= fun db ->
+    { chunking; db; chunk_size; max_children; max_data }
 
   let find_leaves t key =
     AO.find t.db key >>= function
