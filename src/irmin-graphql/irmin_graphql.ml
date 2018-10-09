@@ -26,15 +26,14 @@ end
 module Make(Store : STORE) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
 
-let mk_info input =
-  let default_message = "" in
-  match input with
-  | Some input ->
-    let message = match input.message with None -> default_message | Some m -> m in
-    let author = input.author in
-    Store.info ?author "%s" message
-  | None ->
-    Store.info "%s" default_message
+  let mk_info input =
+    match input with
+    | Some input ->
+      let message = match input.message with None -> "" | Some m -> m in
+      let author = input.author in
+      Store.info ?author "%s" message
+    | None ->
+      Store.info ""
 
   type store = Store.t
 
