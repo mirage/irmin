@@ -1006,8 +1006,8 @@ end
 
 let size_of t x =
   let rec aux: type a. a t -> a size_of = fun t x -> match t with
+    | Like l when l.size_of = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
-    | Like l           -> aux l.x (l.g x)
     | Prim (String _)  -> `Size (String.length x)
     | Prim (Bytes _)   -> `Size (Bytes.length x)
     | _ -> Size_of.t t x
@@ -1163,8 +1163,8 @@ let err_invalid_bounds =
 
 let encode_bin_bytes ?buf t x =
   let rec aux: type a. a t -> a -> bytes = fun t x -> match t with
+    | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
-    | Like l           -> aux l.x (l.g x)
     | Prim (String _)  -> Bytes.of_string x
     | Prim (Bytes _)   -> x
     | _ ->
@@ -1187,8 +1187,8 @@ let encode_bin_bytes ?buf t x =
 
 let encode_bin ?buf t x =
   let rec aux: type a. a t -> a -> string = fun t x -> match t with
+    | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
-    | Like l           -> aux l.x (l.g x)
     | Prim (String _)  -> x
     | Prim (Bytes _)   -> Bytes.to_string x
     | _ -> Bytes.unsafe_to_string (encode_bin_bytes ?buf t x)
@@ -1326,8 +1326,8 @@ let decode_bin ?(exact=true) t x =
   let rec aux
     : type a. a t -> string -> (a, [`Msg of string]) result
     = fun t x -> match t with
+      | Like l when l.decode_bin = None -> aux l.x x |> map_result l.f
       | Self s          -> aux s.self x
-      | Like l          -> aux l.x x |> map_result l.f
       | Prim (String _) -> Ok x
       | Prim (Bytes _)  -> Ok (Bytes.of_string x)
       | _ ->

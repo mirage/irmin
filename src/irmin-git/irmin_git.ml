@@ -887,7 +887,7 @@ module Make_ext
     end
   end
 
-  include Irmin.Make_ext(P)
+  include Irmin.Of_private(P)
 
   module Git = G
 
@@ -942,6 +942,32 @@ module Make
   =
   Make_ext (G)(S)(C)(P)(Branch(B))
 
+module No_sync (G: Git.S) = struct
+  (* XXX(samoht): so much boilerplate... *)
+  module Store = G
+  module Endpoint = struct
+    type t = unit
+    let uri _ = assert false
+  end
+  type error = unit
+  let pp_error _ _ = assert false
+
+  type command =
+    [ `Create of Store.Hash.t * Store.Reference.t
+    | `Delete of Store.Hash.t * Store.Reference.t
+    | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t ]
+
+  let pp_command _ _ = assert false
+  let push _ = assert false
+  let ls _ = assert false
+  let fetch _ = assert false
+  let fetch_one _ = assert false
+  let fetch_some _ = assert false
+  let fetch_all _ = assert false
+  let clone _ = assert false
+  let update_and_create _ = assert false
+end
+
 module AO (G: Git.S) (V: Irmin.Type.S) = struct
   module G = struct
     include G
@@ -952,32 +978,7 @@ module AO (G: Git.S) (V: Irmin.Type.S) = struct
     include V
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
   end
-  module NoSync = struct
-    (* XXX(samoht): so much boilerplate... *)
-    module Store = G
-    module Endpoint = struct
-      type t = unit
-      let uri _ = assert false
-    end
-    type error = unit
-    let pp_error _ _ = assert false
-
-    type command =
-        [ `Create of Store.Hash.t * Store.Reference.t
-        | `Delete of Store.Hash.t * Store.Reference.t
-        | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t ]
-
-    let pp_command _ _ = assert false
-    let push _ = assert false
-    let ls _ = assert false
-    let fetch _ = assert false
-    let fetch_one _ = assert false
-    let fetch_some _ = assert false
-    let fetch_all _ = assert false
-    let clone _ = assert false
-    let update_and_create _ = assert false
-  end
-  module M = Make_ext (G)(NoSync)(V)(Irmin.Path.String_list)(Reference)
+  module M = Make_ext (G)(No_sync(G))(V)(Irmin.Path.String_list)(Reference)
   module X = M.Private.Contents
   let state t =
     M.repo_of_git t >|= fun r ->
@@ -1052,3 +1053,33 @@ module type REF_MAKER = functor
        and type Private.Sync.endpoint = S.Endpoint.t
 
 include Conf
+
+module Generic
+    (AO: Irmin.AO_MAKER)
+    (RW: Irmin.RW_MAKER)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+= struct
+
+  (* We use a dummy store to get the serialisation functions. This is
+     probably not necessary and we could use Git.Value.Raw instead. *)
+  module G = Mem
+  module S = Make(G)(No_sync(G))(C)(P)(B)
+
+  include
+    Irmin.Make_ext(AO)(RW)
+      (S.Private.Node.Metadata)
+      (S.Private.Contents.Val)
+      (S.Private.Node.Path)
+      (S.Branch)
+      (S.Private.Contents.Key)
+      (S.Private.Node.Val)
+      (S.Private.Commit.Val)
+end
+
+module Generic_KV
+    (AO: Irmin.AO_MAKER)
+    (RW: Irmin.RW_MAKER)
+    (C : Irmin.Contents.S)
+  = Generic (AO)(RW)(C)(Irmin.Path.String_list)(Irmin.Branch.String)

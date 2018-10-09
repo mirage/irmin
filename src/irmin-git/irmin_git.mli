@@ -150,3 +150,13 @@ module Make_ext
      and module Key = P
      and type contents = C.t
      and type branch = B.t
+
+module Generic (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S):
+  Irmin.S
+
+module Generic_KV (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
+    (C: Irmin.Contents.S):
+  Irmin.KV

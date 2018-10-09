@@ -3199,8 +3199,30 @@ module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
 
+module Make_ext (AO: AO_MAKER) (RW: RW_MAKER)
+    (Metadata: Metadata.S)
+    (Contents: Contents.S)
+    (Path    : Path.S)
+    (Branch  : Branch.S)
+    (Hash    : Hash.S)
+    (N: Private.Node.S with type metadata = Metadata.t
+                        and type contents = Hash.t
+                        and type node = Hash.t
+                        and type step = Path.step)
+    (CT: Private.Commit.S with type node = Hash.t
+                           and type commit = Hash.t):
+  S with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type Commit.Hash.t = Hash.t
+     and type Tree.Hash.t = Hash.t
+     and type Contents.Hash.t = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
+
 (** Advanced store creator. *)
-module Make_ext (P: Private.S): S
+module Of_private (P: Private.S): S
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
    and type branch = P.Branch.key
