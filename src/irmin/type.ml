@@ -78,6 +78,7 @@ type 'a decode_bin = string -> int -> int * 'a
 type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
 type 'a compare = 'a -> 'a -> int
 type 'a equal = 'a -> 'a -> bool
+type 'a hash = 'a -> int
 
 type 'a t =
   | Self   : 'a self -> 'a t
@@ -103,6 +104,7 @@ and ('a, 'b) like = {
   decode_json : 'b decode_json option;
   encode_bin  : 'b encode_bin option;
   decode_bin  : 'b decode_bin option;
+  hash        : 'b hash option;
   size_of     : 'b size_of option;
   compare     : 'b compare option;
   equal       : 'b equal option;
@@ -251,7 +253,7 @@ let split3 = function
   | Some (x, y, z) -> Some x, Some y, Some z
   | None           -> None  , None  , None
 
-let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare
+let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare ?hash
     (f: a -> b) (g: b -> a) =
   let pp, of_string = split2 cli in
   let encode_json, decode_json = split2 json in
@@ -260,10 +262,10 @@ let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare
          pp; of_string;
          encode_json; decode_json;
          encode_bin; decode_bin; size_of;
-         compare; equal }
+         compare; equal; hash }
 
-let like' ?cli ?json ?bin ?equal ?compare t =
-  like ?cli ?json ?bin ?equal ?compare t (fun x -> x) (fun x -> x)
+let like' ?cli ?json ?bin ?equal ?compare ?hash t =
+  like ?cli ?json ?bin ?equal ?compare ?hash t (fun x -> x) (fun x -> x)
 
 (* fix points *)
 
@@ -1392,6 +1394,10 @@ let of_string t =
   aux t
 
 type 'a ty = 'a t
+
+let hash t x = match t with
+  | Like { hash = Some h; _ } -> h x
+  | _ -> Hashtbl.hash (encode_bin t x)
 
 module type S = sig
   type t

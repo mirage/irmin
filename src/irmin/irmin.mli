@@ -315,6 +315,9 @@ module Type: sig
   val compare: 'a t -> 'a -> 'a -> int
   (** [compare t] compares values of type [t]. *)
 
+  val hash: 'a t -> 'a -> int
+  (** [hash t x] is a short hash of [x] of type [t]. *)
+
   type 'a pp = 'a Fmt.t
   (** The type for pretty-printers for CLI arguments. *)
 
@@ -461,6 +464,7 @@ module Type: sig
     ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
     ?equal:('b -> 'b -> bool) ->
     ?compare:('b -> 'b -> int) ->
+    ?hash:('b -> int) ->
      ('a -> 'b) -> ('b -> 'a) -> 'b t
 
   val like':
@@ -469,6 +473,7 @@ module Type: sig
     ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
+    ?hash:('a -> int) ->
     'a t -> 'a t
 
   type 'a ty = 'a t
