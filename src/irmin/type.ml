@@ -1000,9 +1000,20 @@ module Size_of = struct
     t f.ftype (f.fget x)
 
   and variant: type a. a variant -> a size_of = fun v x ->
+    let len = Array.length v.vcases in
+    let tag =
+      if len <= 2 then
+        bool true
+      else if len <= 256 then
+        char '\000'
+      else if len <= 512 then
+        int32 0l
+      else
+        assert false
+    in
     match v.vget x with
-    | CV0 _       -> char '\000'
-    | CV1 (x, vx) -> `Size (size (char '\000') + size (t x.ctype1 vx))
+    | CV0 _       -> tag
+    | CV1 (x, vx) -> `Size (size tag + size (t x.ctype1 vx))
 
 end
 
@@ -1149,13 +1160,26 @@ module Encode_bin = struct
       ) ofs fields
 
   and variant: type a. a variant -> a encode_bin = fun v buf ofs x ->
-    case_v buf ofs (v.vget x)
+    let len = Array.length v.vcases in
+    case_v ~len buf ofs (v.vget x)
 
-  and case_v: type a. a case_v encode_bin = fun buf ofs c ->
+  and case_v: type a. len:int -> a case_v encode_bin = fun ~len buf ofs c ->
+    let tag c =
+      if len <= 2 then
+        match c with
+        | 0 -> bool buf ofs false
+        | _ -> bool buf ofs true
+      else if len <= 256 then
+        char buf ofs (char_of_int c)
+      else if len <= 512 then
+        int32 buf ofs (Int32.of_int c)
+      else
+        assert false
+    in
     match c with
-    | CV0 c     -> char buf ofs (char_of_int c.ctag0)
+    | CV0 c     -> tag c.ctag0
     | CV1 (c, v) ->
-      let ofs = char buf ofs (char_of_int c.ctag1) in
+      let ofs = tag c.ctag1 in
       t c.ctype1 buf ofs v
 
 end
@@ -1309,9 +1333,19 @@ module Decode_bin = struct
   and field: type a  b. (a, b) field -> b decode_bin = fun f -> t f.ftype
 
   and variant: type a. a variant -> a decode_bin = fun v buf ofs ->
-    (* FIXME: we support 'only' 256 variants *)
-    char buf ofs >>= fun (ofs, i) ->
-    case v.vcases.(int_of_char i) buf ofs
+    let len = Array.length v.vcases in
+    let tag buf ofs =
+      if len <= 2 then
+        bool buf ofs >|= function false -> 0 | true -> 1
+      else if len <= 256 then
+        char buf ofs >|= int_of_char
+      else if len <= 512 then
+        int32 buf ofs >|= Int32.to_int
+      else
+        assert false
+    in
+    tag buf ofs >>= fun (ofs, i) ->
+    case v.vcases.(i) buf ofs
 
   and case: type a. a a_case -> a decode_bin = fun c buf ofs ->
     match c with
