@@ -61,10 +61,16 @@ val chunk_size: int Irmin.Private.Conf.key
     can be stored in a 4K block. *)
 
 val config:
-  ?config:Irmin.config -> ?size:int -> ?min_size:int -> unit -> Irmin.config
+  ?config:Irmin.config -> ?size:int -> ?min_size:int ->
+  ?chunking:[`Max | `Best_fit] -> unit -> Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value
     extending the optional [config] with bindings associating
     {{!chunk_size}chunk_size} to [size].
+
+    If [chunking] is [Best_fit] (the default), the size of new chunks
+    will be of maximum [max_size] but could be smaller if they don't
+    need to be chunked. If [chunking] is [Max], all the new chunks will
+    be of size [max_size].
 
     Fail with [Invalid_argument] if [size] is smaller than [min_size].
     [min_size] is, by default, set to 4000 (to avoid hash colision on
