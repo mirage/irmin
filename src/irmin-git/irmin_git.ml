@@ -268,7 +268,7 @@ module Make_private
       let to_git perm (name, node) = G.Value.Tree.entry (of_step name) perm node
 
       let v alist =
-        let alist = List.map (fun (l, x) ->
+        let alist = List.rev_map (fun (l, x) ->
             let v k = l, k in
             match x with
             | `Node n             -> to_git `Dir (v n)
@@ -280,12 +280,17 @@ module Make_private
       let alist t =
         let mk_n k = `Node k in
         let mk_c k metadata = `Contents (k, metadata) in
-        List.map (function
-            | { G.Value.Tree.perm = `Dir; name; node } -> (to_step name, mk_n node)
-            | { G.Value.Tree.perm = `Commit; _ } -> assert false
+        List.fold_left (fun acc -> function
+            | { G.Value.Tree.perm = `Dir; name; node } ->
+              (to_step name, mk_n node) :: acc
+            | { G.Value.Tree.perm = `Commit; name; _ } ->
+              (* Irmin does not support Git submodules; do not follow them,
+                 just consider *)
+              Log.warn (fun l -> l "skipping Git submodule: %s" name);
+              acc
             | { G.Value.Tree.perm = #Metadata.t as perm; name; node; _ } ->
-              (to_step name, mk_c node perm)
-          ) (G.Value.Tree.to_list t)
+              (to_step name, mk_c node perm) :: acc
+          ) [] (G.Value.Tree.to_list t)
 
        module N = Irmin.Private.Node.Make (H)(H)(P)(Metadata)
        let to_n t = N.v (alist t)
