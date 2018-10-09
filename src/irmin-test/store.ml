@@ -134,7 +134,7 @@ module Make (S: S) = struct
     Lwt_unix.yield () >>= fun () ->
     Lwt_unix.sleep sleep_t
 
-  let retry ?(timeout=5. *. 60.) ?(sleep_t=0.) fn =
+  let retry ?(timeout=15.) ?(sleep_t=0.) fn =
     let sleep_t = max sleep_t 0.001 in
     let time = Unix.gettimeofday in
     let t = time () in
