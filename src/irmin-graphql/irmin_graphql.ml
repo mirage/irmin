@@ -10,7 +10,7 @@ module HttpBody = struct
 end
 
 module Schema = Graphql_lwt.Schema
-module Gql = Graphql_cohttp.Make(Schema)(HttpBody)
+module Graphql_server = Graphql_cohttp.Make(Schema)(HttpBody)
 
 module type S = sig
   type store
@@ -598,11 +598,11 @@ module Make(Store : STORE)(Server : SERVER) = struct
             )
       ])
 
-  let execute_request ctx req = Gql.execute_request ctx () req
+  let execute_request ctx req = Graphql_server.execute_request ctx () req
 
   let run_server server store =
     let schema = schema store in
-    let callback = Gql.make_callback (fun _ctx -> ()) schema in
+    let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
     Server.run server callback
 end
 
