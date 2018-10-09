@@ -125,8 +125,9 @@ module Make
     let todo = Queue.create () in
     List.iter (fun k -> Queue.push (k,0) todo) max;
     let rec add () =
-      try
-        let (key, level) = Queue.pop todo in
+      match Queue.pop todo with
+      | exception Queue.Empty -> return_unit
+      | (key, level) ->
         if level >= depth then add ()
         else if has_mark key then add ()
         else (
@@ -138,7 +139,6 @@ module Make
           List.iter (fun k -> Queue.push (k, level+1) todo) keys;
           add ()
         )
-      with Queue.Empty -> return_unit
     in
     add () >>= fun () ->
     Lwt.return g
