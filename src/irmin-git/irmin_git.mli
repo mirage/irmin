@@ -155,8 +155,10 @@ module Generic (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S):
-  Irmin.S
+  Irmin.S with type contents = C.t
+           and type key = P.t
+           and type branch = B.t
 
 module Generic_KV (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
     (C: Irmin.Contents.S):
-  Irmin.KV
+  Irmin.KV with type contents = C.t
