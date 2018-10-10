@@ -48,7 +48,20 @@ module Mem = struct
       | _    -> Lwt.return ()
 end
 
-let store = (module Mem: Test_S)
+
+module Generic = struct
+
+  include Irmin_git.Generic_KV
+      (Irmin_mem.AO)(Irmin_mem.RW)(Irmin.Contents.String)
+
+  let init () =
+    Repo.v config >>= fun repo ->
+    Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo)
+
+end
+
+let store  = (module Mem: Test_S)
+let store2 = (module Generic: Irmin_test.S)
 
 let suite =
   let store = (module Mem: Irmin_test.S) in
@@ -56,6 +69,13 @@ let suite =
   let clean () = Mem.init () in
   let stats = None in
   { Irmin_test.name = "GIT"; clean; init; store; stats; config }
+
+let suite2 =
+  let store = store2 in
+  let clean () = Generic.init () in
+  let init () = Generic.init () in
+  let stats = None in
+  { Irmin_test.name = "GIT.generic"; clean; init; store; stats; config }
 
 let get = function
   | Some x -> x
@@ -137,6 +157,24 @@ let test_list_refs (module S: Test_S) =
       ["master";"foo"] bs
    else *)
     Lwt.return_unit
+
+module Sync = Irmin.Sync(Generic)
+
+let test_import_export () =
+  let test () =
+    Mem.init () >>= fun () ->
+    Generic.init () >>= fun () ->
+    Mem.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+    Mem.master repo >>= fun t ->
+    Mem.set t ~info:Irmin.Info.none ["test"] "toto" >>= fun () ->
+    let remote = Irmin.remote_store (module Mem) t in
+    Generic.Repo.v (Irmin_mem.config ()) >>= fun repo ->
+    Generic.master repo >>= fun t ->
+    Sync.pull_exn t remote `Set >>= fun () ->
+    Generic.get t ["test"] >|= fun toto ->
+    Alcotest.(check string) "import" toto "toto"
+  in
+  Lwt_main.run (test ())
 
 let tests store =
   let run f () = Lwt_main.run (f store) in
