@@ -15,10 +15,12 @@
  *)
 
 let misc = [
-  "GIT.misc", Test_git.tests Test_git.store;
+  "GIT.misc"  , Test_git.tests Test_git.store;
+  "GIT.import", ["git -> mem", `Quick, Test_git.test_import_export];
 ]
 
 let () =
   Irmin_test.Store.run "irmin-git" ~misc [
     `Quick , Test_git.suite;
+    `Quick , Test_git.suite2;
   ]

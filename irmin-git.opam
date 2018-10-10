@@ -19,6 +19,7 @@ depends: [
   "git"        {>= "1.11.0"}
   "digestif"   {>= "0.6.1"}
   "irmin-test" {test}
+  "irmin-mem"  {test}
   "git-unix"   {test & >= "1.11.4"}
   "mtime"      {test & >= "1.0.0"}
 ]

@@ -588,7 +588,7 @@ module Irmin_branch_store
       ) [] refs
 
   let write_index t gr gk =
-    Log.debug (fun l -> l "write_xindex");
+    Log.debug (fun l -> l "write_index");
     if G.has_global_checkout then
       Log.debug (fun f -> f "write_index");
     let git_head = G.Reference.Ref gr in
