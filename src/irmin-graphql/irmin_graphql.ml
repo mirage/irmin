@@ -147,6 +147,14 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                       | Some contents -> Lwt.return_ok @@ Some (Irmin.Type.to_string Store.contents_t contents)
                       | _ -> Lwt.return_ok None
                 );
+              io_field "metadata"
+                ~args:[]
+                ~typ:string
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find_all tree key >>= function
+                      | Some (_contents, metadata) -> Lwt.return_ok (Some (Irmin.Type.to_string Store.metadata_t metadata))
+                      | None -> Lwt.return_ok None
+                );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
