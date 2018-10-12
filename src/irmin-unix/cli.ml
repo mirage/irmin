@@ -587,6 +587,30 @@ let help = {
     Term.(ret (mk help $Term.man_format $Term.choice_names $topic))
 }
 
+(* GRAPHQL *)
+let graphql = {
+  name = "graphql";
+  doc  = "Run a graphql server.";
+  man  = [];
+  term =
+    let port =
+      let doc = Arg.info ~doc:"Port for graphql server." ["p"; "port"] in
+      Arg.(value & opt int 8080 & doc)
+    in
+    let graphql (S ((module S), store, remote_fn)) port =
+      run begin
+        store >>= fun t ->
+        let module Server = Irmin_graphql.Make (struct
+          include S
+          let info = info
+          let remote = remote_fn
+        end) in
+        Server.start_server ~port t
+      end
+    in
+    Term.(mk graphql $ store $ port)
+}
+
 let default =
   let doc = "Irmin, the database that never forgets." in
   let man = [
@@ -619,12 +643,13 @@ let default =
       \    revert      %s\n\
       \    watch       %s\n\
       \    dot         %s\n\
+      \    graphql     %s\n\
        \n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc
       clone.doc fetch.doc merge.doc pull.doc push.doc snapshot.doc
-      revert.doc watch.doc dot.doc
+      revert.doc watch.doc dot.doc graphql.doc
   in
   Term.(mk usage $ const ()),
   Term.info "irmin"
@@ -632,31 +657,6 @@ let default =
     ~sdocs:global_option_section
     ~doc
     ~man
-
-
-(* GRAPHQL *)
-let graphql = {
-  name = "graphql";
-  doc  = "Run a graphql server.";
-  man  = [];
-  term =
-    let port =
-      let doc = Arg.info ~doc:"Port for graphql server." ["p"; "port"] in
-      Arg.(value & opt int 8080 & doc)
-    in
-    let graphql (S ((module S), store, remote_fn)) port =
-      run begin
-        store >>= fun t ->
-        let module Server = Irmin_graphql.Make (struct
-          include S
-          let info = info
-          let remote = remote_fn
-        end) in
-        Server.start_server ~port t
-      end
-    in
-    Term.(mk graphql $ store $ port)
-}
 
 let commands = List.map create_command [
     help;
