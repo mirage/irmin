@@ -4,7 +4,7 @@ script: bash -ex .travis-opam.sh
 env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
-  - PINS="irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev decompress.dev:--dev"
+  - PINS="irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:. git.dev:--dev git git-unix.dev:--dev git-mirage.dev:--dev git-http.dev:--dev digestif.dev:--dev decompress.dev:--dev"
   matrix:
   - OCAML_VERSION=4.03 PACKAGE="irmin-fs.dev" TESTS=true
   - OCAML_VERSION=4.04 PACKAGE="irmin-mem.dev" TESTS=true

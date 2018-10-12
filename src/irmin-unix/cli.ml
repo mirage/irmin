@@ -633,6 +633,31 @@ let default =
     ~doc
     ~man
 
+
+(* GRAPHQL *)
+let graphql = {
+  name = "graphql";
+  doc  = "Run a graphql server.";
+  man  = [];
+  term =
+    let port =
+      let doc = Arg.info ~doc:"Port for graphql server." ["p"; "port"] in
+      Arg.(value & opt int 8080 & doc)
+    in
+    let graphql (S ((module S), store, remote_fn)) port =
+      run begin
+        store >>= fun t ->
+        let module Server = Irmin_graphql.Make (struct
+          include S
+          let info = info
+          let remote = remote_fn
+        end) in
+        Server.start_server ~port t
+      end
+    in
+    Term.(mk graphql $ store $ port)
+}
+
 let commands = List.map create_command [
     help;
     init;
@@ -650,6 +675,7 @@ let commands = List.map create_command [
     revert;
     watch;
     dot;
+    graphql;
   ]
 
 let run ~default:x y =
