@@ -776,7 +776,7 @@ module Make (P: S.PRIVATE) = struct
           | Error e -> write_error e
     in
     find_tree t key >>= fun old_tree ->
-    aux retries old_tree
+    aux 0 old_tree
 
   let with_tree_exn ?retries ?allow_empty ?parents ?strategy ~info f t key =
     with_tree ?retries ?allow_empty ?strategy ?parents ~info f t key
