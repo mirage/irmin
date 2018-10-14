@@ -2554,7 +2554,7 @@ module type S = sig
   type write_error = [
     | Merge.conflict
     | `Too_many_retries of int
-    | `Expecting of tree option
+    | `Test_was of tree option
   ]
 
   val set:
@@ -2566,6 +2566,9 @@ module type S = sig
   (** [set t k ~info v] sets [k] to the value [v] in [t]. Discard any
      previous results but ensure that no operation is lost in the
      history.
+
+      This function always use {Metadata.default} as metada,
+      use {!set_tree} with `[Contents (c, m)] for different ones.
 
       The result is [Error `Too_many_retries] if the concurrent
      operations do not allow the operation to commit to the underlying
@@ -2627,8 +2630,8 @@ module type S = sig
   (** [test_and_set ~test ~set] is like {!set} but it atomically
      checks that the tree is [test] before modifying it to [set].
 
-     This function ignores metadata, use {!test_and_set_tree] with
-      [`Contents (c, m)] values to check them.
+      This function always use {Metadata.default} as metada,
+      use {!test_and_set_tree} with `[Contents (c, m)] for different ones.
 
       The result is [Error (`Test t)] if the current tree is [t]
      instead of [test].
@@ -2669,12 +2672,13 @@ module type S = sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:contents -> t -> key -> contents -> (unit, write_error) result Lwt.t
+    old:contents option -> t -> key -> contents option ->
+    (unit, write_error) result Lwt.t
   (** [merge ~old] is like {!set} but merge the current tree
      and the new tree using [old] as ancestor in case of conflicts.
 
-      This function ignores metada, use {!merge_tree_with_parent} with
-      `[Contents (c, m)] to merge them.
+      This function always use {Metadata.default} as metada,
+      use {!merge_tree} with `[Contents (c, m)] for different ones.
 
       The result is [Error (`Conflict c)] if the merge failed with the
       conflict [c].
@@ -2688,7 +2692,7 @@ module type S = sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:contents -> t -> key -> contents -> unit Lwt.t
+    old:contents option -> t -> key -> contents option -> unit Lwt.t
   (** [merge_exn] is like {!merge} but raise [Failure _] instead of
      using a result type. *)
 
@@ -2697,7 +2701,7 @@ module type S = sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:tree -> t -> key -> tree -> (unit, write_error) result Lwt.t
+    old:tree option -> t -> key -> tree option -> (unit, write_error) result Lwt.t
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val merge_tree_exn:
@@ -2705,7 +2709,7 @@ module type S = sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:tree -> t -> key -> tree -> unit Lwt.t
+    old:tree option -> t -> key -> tree option -> unit Lwt.t
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val with_tree:
@@ -2733,7 +2737,7 @@ module type S = sig
          updates to [k]. }
       {- if [strategy = `Test_and_set] (default), use {!test_and_set}
          and ensure that no concurrent operations are updating [k].
-      {- if [strategy = `Merge], use {!merge_with_parent} and ensure
+      {- if [strategy = `Merge], use {!merge} and ensure
          that concurrent updates and merged with the values present
          at the beginning of the transaction. }}
 

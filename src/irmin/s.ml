@@ -432,7 +432,7 @@ module type STORE = sig
   type write_error = [
     | Merge.conflict
     | `Too_many_retries of int
-    | `Expecting of tree option
+    | `Test_was of tree option
   ]
 
   val set:
@@ -512,28 +512,29 @@ module type STORE = sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:contents -> t -> key -> contents -> (unit, write_error) result Lwt.t
+    old:contents option ->
+    t -> key -> contents option -> (unit, write_error) result Lwt.t
 
   val merge_exn:
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:contents -> t -> key -> contents -> unit Lwt.t
+    old:contents option -> t -> key -> contents option -> unit Lwt.t
 
   val merge_tree:
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:tree -> t -> key -> tree -> (unit, write_error) result Lwt.t
+    old:tree option -> t -> key -> tree option -> (unit, write_error) result Lwt.t
 
   val merge_tree_exn:
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
     info:Info.f ->
-    old:tree -> t -> key -> tree -> unit Lwt.t
+    old:tree option -> t -> key -> tree option -> unit Lwt.t
 
   val with_tree:
     ?retries:int ->

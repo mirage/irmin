@@ -1503,6 +1503,122 @@ module Make (S: S) = struct
     in
     run x test
 
+  let pp_write_error = Irmin.Type.pp S.write_error_t
+  let tree_t = testable S.tree_t
+
+  let test_with_tree x () =
+    let test repo =
+      S.master repo >>= fun t ->
+      let update ?retries key strategy r w =
+        S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key
+          (fun _ ->
+             Lwt_mvar.take r >|= fun v ->
+             Some (`Contents (v, S.Metadata.default))
+          ) >>= Lwt_mvar.put w
+      in
+      let check_ok = function
+        | Ok ()   -> ()
+        | Error e -> Alcotest.failf "%a" pp_write_error e
+      in
+      let check_test e = function
+        | Error (`Test_was e') ->
+          Alcotest.(check (option tree_t)) "test-was" e e'
+        | Ok ()   -> Alcotest.fail "error expected"
+        | Error e ->
+          Alcotest.failf "an other error was expected: %a" pp_write_error e
+      in
+      let check_conflict = function
+        | Error (`Conflict _) -> ()
+        | Ok () -> Alcotest.fail "error expected"
+        | Error e ->
+          Alcotest.failf "an other error was expected: %a" pp_write_error e
+      in
+      let set () =
+        let rx = Lwt_mvar.create_empty () in
+        let wx = Lwt_mvar.create_empty () in
+        let ry = Lwt_mvar.create_empty () in
+        let wy = Lwt_mvar.create_empty () in
+        S.set_exn t ~info:(infof "init") ["a"] "0" >>= fun () ->
+        Lwt.join [
+          update ["a"] ~retries:0 `Set rx wx;
+          update ["a"] ~retries:0 `Set ry wy;
+          (Lwt_mvar.put rx "1" >>= fun () ->
+           Lwt_mvar.take wx >|= check_ok >>= fun () ->
+           S.get t ["a"] >>= fun a ->
+           Alcotest.(check string) "set x" "1" a;
+
+           Lwt_mvar.put ry "2" >>= fun () ->
+           Lwt_mvar.take wy >|= check_ok >>= fun () ->
+           S.get t ["a"] >|= fun a ->
+           Alcotest.(check string) "set y" "2" a;)
+        ]
+      in
+      let test_and_set () =
+        let rx = Lwt_mvar.create_empty () in
+        let wx = Lwt_mvar.create_empty () in
+        let ry = Lwt_mvar.create_empty () in
+        let wy = Lwt_mvar.create_empty () in
+        let rz = Lwt_mvar.create_empty () in
+        let wz = Lwt_mvar.create_empty () in
+        S.set_exn t ~info:(infof "init") ["a"] "0" >>= fun () ->
+        Lwt.join [
+          update ["a"] ~retries:0 `Test_and_set rx wx;
+          update ["a"] ~retries:1 `Test_and_set ry wy;
+          update ["a"] ~retries:2 `Test_and_set rz wz;
+          (Lwt_mvar.put rx "1" >>= fun () ->
+           Lwt_mvar.take wx >|= check_ok >>= fun () ->
+           S.get t ["a"] >>= fun a ->
+           Alcotest.(check string) "test-and-set x" "1" a;
+
+           Lwt_mvar.put ry "2" >>= fun () ->
+           Lwt_mvar.take wy >>= fun e ->
+           check_test (Some (`Contents ("1", S.Metadata.default))) e;
+           S.get t ["a"] >>= fun a ->
+           Alcotest.(check string) "test-and-set y" "1" a;
+
+           Lwt_mvar.put rz "3" >>= fun () ->
+           (* there's a conflict, the transaction is restarted so need to feed a
+              new value *)
+           Lwt_mvar.put rz "4" >>= fun () ->
+           Lwt_mvar.take wz >|= check_ok >>= fun () ->
+           S.get t ["a"] >|= fun a ->
+           Alcotest.(check string) "test-and-set z" "4" a;
+          )]
+      in
+      let merge () =
+        let rx = Lwt_mvar.create_empty () in
+        let wx = Lwt_mvar.create_empty () in
+        let ry = Lwt_mvar.create_empty () in
+        let wy = Lwt_mvar.create_empty () in
+        let rz = Lwt_mvar.create_empty () in
+        let wz = Lwt_mvar.create_empty () in
+        S.set_exn t ~info:(infof "init") ["a"] "0" >>= fun () ->
+        Lwt.join [
+          update ["a"] ~retries:0 `Merge rx wx;
+          update ["a"] ~retries:1 `Merge ry wy;
+          update ["a"] ~retries:2 `Merge rz wz;
+          (Lwt_mvar.put rx "1" >>= fun () ->
+           Lwt_mvar.take wx >|= check_ok >>= fun () ->
+           S.get t ["a"] >>= fun a ->
+           Alcotest.(check string) "merge x" "1" a;
+           Lwt_mvar.put ry "2" >>= fun () ->
+           Lwt_mvar.take wy >|= check_conflict >>= fun () ->
+           S.get t ["a"] >>= fun a ->
+           Alcotest.(check string) "merge y" a "1";
+
+           Lwt_mvar.put rz "3" >>= fun () ->
+           (* there's a conflict, the transaction is restarted so need to feed a
+              new value *)
+           Lwt_mvar.put rz "4" >>= fun () ->
+           Lwt_mvar.take wz >|= check_ok >>= fun () ->
+           S.get t ["a"] >|= fun a ->
+           Alcotest.(check string) "merge z" a "4";
+          )]
+      in
+      set () >>= test_and_set >>= merge
+    in
+    run x test
+
   let test_concurrent_head_updates x () =
     let test repo =
       let k i = ["a";"b";"c"; string_of_int i ] in
@@ -1566,6 +1682,7 @@ let suite (speed, x) =
     "Unrelated merges"                , speed, T.test_merge_unrelated x;
     "Low-level concurrency"           , speed, T.test_concurrent_low x;
     "Concurrent updates"              , speed, T.test_concurrent_updates x;
+    "with_tree strategies"            , speed, T.test_with_tree x;
     "Concurrent head updates"         , speed, T.test_concurrent_head_updates x;
     "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]

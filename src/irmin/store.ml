@@ -502,19 +502,20 @@ module Make (P: S.PRIVATE) = struct
 
   end
 
-  (* Retry an operation until the optimistic lock is happy. *)
-  let retry ~retries name fn =
+  (* Retry an operation until the optimistic lock is happy. Ensure
+     that the operation is done at least once. *)
+  let retry ~retries fn =
+    let done_once = ref false in
     let rec aux i =
-      if i >= retries then Lwt.return (Error (`Too_many_retries i))
+      if !done_once && i >= retries then
+        Lwt.return (Error (`Too_many_retries i))
       else
         fn () >>= function
         | Ok true  -> Lwt.return (Ok ())
         | Error e  -> Lwt.return (Error e)
-        | Ok false ->
-          Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
-          aux (i+1)
+        | Ok false -> done_once := true; aux (i+1)
     in
-    aux 1
+    aux 0
 
   let root_tree = function
     | `Node _ as n -> n
@@ -548,7 +549,7 @@ module Make (P: S.PRIVATE) = struct
   type write_error = [
     | Merge.conflict
     | `Too_many_retries of int
-    | `Expecting of tree option
+    | `Test_was of tree option
   ]
 
   let pp_write_error ppf = function
@@ -556,12 +557,12 @@ module Make (P: S.PRIVATE) = struct
     | `Too_many_retries i ->
       Fmt.pf ppf "Failure after %d attempts to retry the operation: Too many \
                   attempts." i
-    | `Expecting t ->
-      Fmt.pf ppf "Test-and-set failed: expecting %a"
+    | `Test_was t ->
+      Fmt.pf ppf "Test-and-set failed: got %a when reading the store"
         Type.(pp (option Tree.tree_t)) t
 
   let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
-  let err_test v = write_error (`Expecting v)
+  let err_test v = write_error (`Test_was v)
 
   type snapshot = {
     head   : commit option;
@@ -621,7 +622,7 @@ module Make (P: S.PRIVATE) = struct
 
   let set_tree ?(retries=13) ?allow_empty ?parents ~info t k v =
     Log.debug (fun l -> l "set %a" pp_key k);
-    retry ~retries "set" @@ fun () ->
+    retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return (Some v)
 
@@ -630,7 +631,7 @@ module Make (P: S.PRIVATE) = struct
 
   let remove ?(retries=13) ?allow_empty ?parents ~info t k =
     Log.debug (fun l -> l "debug %a" pp_key k);
-    retry ~retries "remove" @@ fun () ->
+    retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return None
 
@@ -657,7 +658,7 @@ module Make (P: S.PRIVATE) = struct
       ?(retries=13) ?allow_empty ?parents ~info t k ~test ~set
     =
     Log.debug (fun l -> l "test-and-set %a" pp_key k);
-    retry ~retries "test-and-set" @@ fun () ->
+    retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> Lwt.return set
 
@@ -681,24 +682,30 @@ module Make (P: S.PRIVATE) = struct
     >>= fail "test_and_set_exn"
 
   let merge_once ~old root key ~current_tree ~new_tree =
-    let old = Merge.promise (Some old) in
+    let old = Merge.promise old in
     Merge.f (Merge.option Tree.merge) ~old current_tree new_tree >>= function
     | Ok tr   -> set_tree_once root key ~new_tree:tr ~current_tree
     | Error e -> write_error (e :> write_error)
 
   let merge_tree ?(retries=13) ?allow_empty ?parents ~info ~old t k tree =
     Log.debug (fun l -> l "merge %a" pp_key k);
-    retry ~retries "merge" @@ fun () ->
+    retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
-    Lwt.return (Some tree)
+    Lwt.return tree
 
   let merge_tree_exn ?retries ?allow_empty ?parents ~info ~old t k tree =
     merge_tree ?retries ?allow_empty ?parents ~info ~old t k tree
     >>= fail "merge_tree_exn"
 
   let merge ?retries ?allow_empty ?parents ~info ~old t k v =
-    let old = `Contents (old, Metadata.default) in
-    let v = `Contents (v, Metadata.default) in
+    let old = match old with
+      | None   -> None
+      | Some v -> Some (`Contents (v, Metadata.default))
+    in
+    let v = match v with
+      | None   -> None
+      | Some v -> Some (`Contents (v, Metadata.default))
+    in
     merge_tree ?retries ?allow_empty ?parents ~info ~old t k v
 
   let merge_exn ?retries ?allow_empty ?parents ~info ~old t k v =
@@ -747,9 +754,10 @@ module Make (P: S.PRIVATE) = struct
   let with_tree
       ?(retries=13) ?allow_empty ?parents ?(strategy=`Test_and_set) ~info
       t key f =
-    Log.debug (fun l -> l "with-tree %a" pp_key key);
+    let done_once = ref false in
     let rec aux n old_tree =
-      if n >= retries then write_error (`Too_many_retries n)
+      Log.debug (fun l -> l "with_tree %a (%d/%d)" pp_key key n retries);
+      if !done_once && n >= retries then write_error (`Too_many_retries n)
       else
         f old_tree >>= fun new_tree ->
         match strategy, new_tree with
@@ -761,18 +769,23 @@ module Make (P: S.PRIVATE) = struct
           (test_and_set_tree t key ~retries ?allow_empty ?parents ~info
              ~test:old_tree ~set:new_tree
            >>= function
-           | Error (`Expecting tr) -> aux (n+1) tr
+           | Error (`Test_was tr) when n < retries - 1 ->
+             done_once := true;
+             aux (n+1) tr
            | e -> Lwt.return e)
-        | `Merge, None ->
-          test_and_set_tree t key ~retries ?allow_empty ?parents ~info
-            ~test:old_tree ~set:new_tree
-        | `Merge, Some old ->
-          let new_tree = match new_tree with None -> Tree.empty | Some t -> t in
-          merge_tree ~old ~retries ?allow_empty ?parents ~info
+        | `Merge, _ ->
+          merge_tree ~old:old_tree ~retries ?allow_empty ?parents ~info
             t key new_tree
           >>= function
           | Ok _ as x -> Lwt.return x
-          | Error (`Conflict _) -> aux (n+1) (Some old)
+          | Error (`Conflict _) when n < retries - 1 ->
+            done_once := true;
+            (* use the store's current tree as the new 'old store' *)
+            (tree_and_head t >>= function
+              | None         -> Lwt.return None
+              | Some (_, tr) -> Tree.find_tree (tr :> tree) key)
+            >>= fun old_tree ->
+            aux (n+1) old_tree
           | Error e -> write_error e
     in
     find_tree t key >>= fun old_tree ->
@@ -984,9 +997,14 @@ module Make (P: S.PRIVATE) = struct
     variant "write-error" (fun c m e -> function
         | `Conflict x -> c x
         | `Too_many_retries x -> m x
-        | `Expecting x -> e x)
+        | `Test_was x -> e x)
     |~ case1 "conflict" string (fun x -> `Conflict x)
     |~ case1 "too-many-retries" int (fun x -> `Too_many_retries x)
-    |~ case1 "expecting" (option tree_t) (fun x -> `Expecting x)
+    |~ case1 "test-got" (option tree_t) (fun x -> `Test_was x)
     |> sealv
+
+  let write_error_t =
+    let of_string _ = assert false in
+    Type.like' ~cli:(pp_write_error, of_string) write_error_t
+
 end
