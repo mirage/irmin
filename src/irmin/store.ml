@@ -507,8 +507,8 @@ module Make (P: S.PRIVATE) = struct
   let retry ~retries fn =
     let done_once = ref false in
     let rec aux i =
-      if !done_once && i >= retries then
-        Lwt.return (Error (`Too_many_retries i))
+      if !done_once && i > retries then
+        Lwt.return (Error (`Too_many_retries retries))
       else
         fn () >>= function
         | Ok true  -> Lwt.return (Ok ())
@@ -757,7 +757,7 @@ module Make (P: S.PRIVATE) = struct
     let done_once = ref false in
     let rec aux n old_tree =
       Log.debug (fun l -> l "with_tree %a (%d/%d)" pp_key key n retries);
-      if !done_once && n >= retries then write_error (`Too_many_retries n)
+      if !done_once && n > retries then write_error (`Too_many_retries retries)
       else
         f old_tree >>= fun new_tree ->
         match strategy, new_tree with
@@ -769,7 +769,7 @@ module Make (P: S.PRIVATE) = struct
           (test_and_set_tree t key ~retries ?allow_empty ?parents ~info
              ~test:old_tree ~set:new_tree
            >>= function
-           | Error (`Test_was tr) when n < retries - 1 ->
+           | Error (`Test_was tr) when retries > 0 && n <= retries ->
              done_once := true;
              aux (n+1) tr
            | e -> Lwt.return e)
@@ -778,7 +778,7 @@ module Make (P: S.PRIVATE) = struct
             t key new_tree
           >>= function
           | Ok _ as x -> Lwt.return x
-          | Error (`Conflict _) when n < retries - 1 ->
+          | Error (`Conflict _) when retries > 0 && n <= retries ->
             done_once := true;
             (* use the store's current tree as the new 'old store' *)
             (tree_and_head t >>= function

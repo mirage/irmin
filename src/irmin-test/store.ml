@@ -1563,8 +1563,8 @@ module Make (S: S) = struct
         S.set_exn t ~info:(infof "init") ["a"] "0" >>= fun () ->
         Lwt.join [
           update ["a"] ~retries:0 `Test_and_set rx wx;
-          update ["a"] ~retries:1 `Test_and_set ry wy;
-          update ["a"] ~retries:2 `Test_and_set rz wz;
+          update ["a"] ~retries:0 `Test_and_set ry wy;
+          update ["a"] ~retries:1 `Test_and_set rz wz;
           (Lwt_mvar.put rx "1" >>= fun () ->
            Lwt_mvar.take wx >|= check_ok >>= fun () ->
            S.get t ["a"] >>= fun a ->
@@ -1595,8 +1595,8 @@ module Make (S: S) = struct
         S.set_exn t ~info:(infof "init") ["a"] "0" >>= fun () ->
         Lwt.join [
           update ["a"] ~retries:0 `Merge rx wx;
-          update ["a"] ~retries:1 `Merge ry wy;
-          update ["a"] ~retries:2 `Merge rz wz;
+          update ["a"] ~retries:0 `Merge ry wy;
+          update ["a"] ~retries:1 `Merge rz wz;
           (Lwt_mvar.put rx "1" >>= fun () ->
            Lwt_mvar.take wx >|= check_ok >>= fun () ->
            S.get t ["a"] >>= fun a ->
