@@ -274,7 +274,7 @@ let set = {
         store >>= fun t ->
         let path = key S.Key.t path in
         let value = value S.Contents.t v in
-        S.set t ~info:(info ?author "%s" message) path value
+        S.set_exn t ~info:(info ?author "%s" message) path value
       end
     in
     Term.(mk set $ store $ author $ message $ path $ v);
@@ -290,7 +290,7 @@ let remove = {
       run begin
         let message = match message with Some s -> s | None -> "remove " ^ path in
         store >>= fun t ->
-        S.remove t ~info:(info ?author "%s" message) (key S.Key.t path)
+        S.remove_exn t ~info:(info ?author "%s" message) (key S.Key.t path)
       end
     in
     Term.(mk remove $ store $ author $ message $ path);

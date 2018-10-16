@@ -2024,9 +2024,6 @@ end
     }
 *)
 
-exception Conflict of string
-exception Too_many_retries of int
-
 (** Irmin stores. *)
 module type S = sig
 
@@ -2542,17 +2539,187 @@ module type S = sig
   (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root
       tree. *)
 
-  (** {1 Transactions} *)
+  (** {1 Udpates} *)
 
-  type 'a transaction =
+  (** The type for write errors.
+
+      {ul
+      {- Merge conflict. }
+      {- Concurrent transactions are competing to get the current
+         operation committed and too many attemps have been tried
+         (livelock). }
+      {- A "test and set" operation has failed and the current value
+         is [v] instead of the one we were waiting for. }}
+  *)
+  type write_error = [
+    | Merge.conflict
+    | `Too_many_retries of int
+    | `Test_was of tree option
+  ]
+
+  val set:
     ?retries:int ->
     ?allow_empty:bool ->
-    ?strategy:[`Set | `Test_and_set | `Merge_with_parent of commit] ->
+    ?parents:commit list ->
     info:Info.f ->
-    'a -> unit Lwt.t
-  (** The type for transactions. *)
+    t -> key -> contents -> (unit, write_error) result Lwt.t
+  (** [set t k ~info v] sets [k] to the value [v] in [t]. Discard any
+     previous results but ensure that no operation is lost in the
+     history.
 
-  val with_tree: t -> key -> (tree option -> tree option Lwt.t) transaction
+      This function always use {Metadata.default} as metada,
+      use {!set_tree} with `[Contents (c, m)] for different ones.
+
+      The result is [Error `Too_many_retries] if the concurrent
+     operations do not allow the operation to commit to the underlying
+     storage layer (livelock).  *)
+
+  val set_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> contents -> unit Lwt.t
+  (** [set_exn] is like {!set} but raise [Failure _] instead
+      of using a result type. *)
+
+  val set_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> tree -> (unit, write_error) result Lwt.t
+  (** [set_tree] is like {!set} but for trees. *)
+
+  val set_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> tree -> unit Lwt.t
+  (** [set_tree] is like {!set_exn} but for trees. *)
+
+  val remove:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> (unit, write_error) result Lwt.t
+  (** [remove t ~info k] remove any bindings to [k] in [t].
+
+      The result is [Error `Too_many_retries] if the concurrent
+     operations do not allow the operation to commit to the underlying
+     storage layer (livelock). *)
+
+  val remove_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> unit Lwt.t
+  (** [remove_exn] is like {!remove} but raise [Failure _] instead of
+     a using result type. *)
+
+  val test_and_set:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:contents option -> set:contents option ->
+    (unit, write_error) result Lwt.t
+  (** [test_and_set ~test ~set] is like {!set} but it atomically
+     checks that the tree is [test] before modifying it to [set].
+
+      This function always use {Metadata.default} as metada,
+      use {!test_and_set_tree} with `[Contents (c, m)] for different ones.
+
+      The result is [Error (`Test t)] if the current tree is [t]
+     instead of [test].
+
+      The result is [Error `Too_many_retries] if the concurrent
+     operations do not allow the operation to commit to the underlying
+     storage layer (livelock). *)
+
+  val test_and_set_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:contents option -> set:contents option -> unit Lwt.t
+  (** [test_and_set_exn] is like {!test_and_set} but raise [Failure _]
+     instead of using a result type. *)
+
+  val test_and_set_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:tree option -> set:tree option ->
+    (unit, write_error) result Lwt.t
+  (** [test_and_set_tree] is like {!test_and_set} but for trees. *)
+
+  val test_and_set_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    t -> key -> test:tree option -> set:tree option -> unit Lwt.t
+  (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for
+     trees. *)
+
+  val merge:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:contents option -> t -> key -> contents option ->
+    (unit, write_error) result Lwt.t
+  (** [merge ~old] is like {!set} but merge the current tree
+     and the new tree using [old] as ancestor in case of conflicts.
+
+      This function always use {Metadata.default} as metada,
+      use {!merge_tree} with `[Contents (c, m)] for different ones.
+
+      The result is [Error (`Conflict c)] if the merge failed with the
+      conflict [c].
+
+      The result is [Error `Too_many_retries] if the concurrent
+     operations do not allow the operation to commit to the underlying
+     storage layer (livelock). *)
+
+  val merge_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:contents option -> t -> key -> contents option -> unit Lwt.t
+  (** [merge_exn] is like {!merge} but raise [Failure _] instead of
+     using a result type. *)
+
+  val merge_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:tree option -> t -> key -> tree option -> (unit, write_error) result Lwt.t
+  (** [merge_tree] is like {!merge_tree} but for trees. *)
+
+  val merge_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:Info.f ->
+    old:tree option -> t -> key -> tree option -> unit Lwt.t
+  (** [merge_tree] is like {!merge_tree} but for trees. *)
+
+  val with_tree:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[`Set | `Test_and_set | `Merge] ->
+    info:Info.f ->
+    t -> key -> (tree option -> tree option Lwt.t) ->
+    (unit, write_error) result Lwt.t
   (** [with_tree t k ~info f] replaces {i atomically} the subtree [v]
       under [k] in the store [t] by the contents of the tree [f v],
       using the commit info [info ()].
@@ -2566,31 +2733,28 @@ module type S = sig
       value of [strategy]:
 
       {ul
-      {- if [strategy = `Set], the {e last write wins}. }
-      {- if [strategy = `Test_and_set] (default), the transaction is
-         restarted. Can raise with [Too_many_retries n] if the operation cannot
-         be completed after [n] attempts.}
-      {- if [strategy = `Merge parent], concurrent changes are merged with
-         [f v] using [parent] as common ancestor. In case of conflict, abort
-         without retyring by raising [Conflit msg].}  }
+      {- if [strategy = `Set], use {!set} and discard any concurrent
+         updates to [k]. }
+      {- if [strategy = `Test_and_set] (default), use {!test_and_set}
+         and ensure that no concurrent operations are updating [k].
+      {- if [strategy = `Merge], use {!merge} and ensure
+         that concurrent updates and merged with the values present
+         at the beginning of the transaction. }}
 
       {b Note:} Irmin transactions provides
       {{:https://en.wikipedia.org/wiki/Snapshot_isolation}snapshot
       isolation} guarantees: reads and writes are isolated in every
       transaction, but only write conflicts are visible on commit. *)
 
-  val set: t -> key -> ?metadata:metadata -> contents transaction
-  (** [set t k ~info v] is
-      [with_tree t k ~info (fun tree -> Tree.add tree [] v)]. *)
-
-  val set_tree: t -> key -> tree transaction
-  (** [set_tree t k ~info v] is
-      [with_tree t k ~info (fun tree -> Tree.add_tree tree [] v)].
-  *)
-
-  val remove: t -> key transaction
-  (** [remove t i k] is
-      [with_tree t i k (fun tree -> Tree.remove tree [])]. *)
+  val with_tree_exn:
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[`Set | `Test_and_set | `Merge] ->
+    info:Info.f ->
+    t -> key -> (tree option -> tree option Lwt.t) -> unit Lwt.t
+  (** [with_tree_exn] is like {!with_tree} but raise [Failure _]
+     instead of using a return type. *)
 
   (** {1 Clones} *)
 
@@ -2630,10 +2794,10 @@ module type S = sig
     (unit, Merge.conflict) result Lwt.t
   (** The type for merge functions. *)
 
-  val merge: into:t -> t merge
-  (** [merge ~into i t] merges [t]'s current branch into [x]'s current
-      branch using the info [i]. After that operation, the two stores
-      are still independent. Similar to [git merge <branch>]. *)
+  val merge_into: into:t -> t merge
+  (** [merge_into ~into i t] merges [t]'s current branch into [x]'s
+      current branch using the info [i]. After that operation, the two
+      stores are still independent. Similar to [git merge <branch>]. *)
 
   val merge_with_branch: t -> branch merge
   (** Same as {!merge} but with a branch ID. *)
@@ -2765,6 +2929,9 @@ module type S = sig
 
   val ff_error_t: ff_error Type.t
   (** [ff_error_t] is the value type for {!ff_error}. *)
+
+  val write_error_t: write_error Type.t
+  (** [write_error_t] is the value type for {!write_error}. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig

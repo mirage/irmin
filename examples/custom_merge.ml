@@ -136,7 +136,7 @@ let log t fmt =
   Printf.ksprintf (fun message ->
       all_logs t >>= fun logs ->
       let logs = Log.add logs (Entry.v message) in
-      Store.set t ~info:(info "Adding a new entry") log_file logs
+      Store.set_exn t ~info:(info "Adding a new entry") log_file logs
     ) fmt
 
 let print_logs name t =
@@ -171,7 +171,7 @@ let main () =
 
   print_logs "branch 2" t >>= fun () ->
 
-  Store.merge ~info:(info "Merging x into t") x ~into:t  >>= function
+  Store.merge_into ~info:(info "Merging x into t") x ~into:t  >>= function
   | Ok ()   -> print_logs "merge" t
   | Error _ -> failwith "conflict!"
 

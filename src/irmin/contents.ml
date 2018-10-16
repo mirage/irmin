@@ -232,10 +232,9 @@ module Json_tree(Store: S.STORE with type contents = json) = struct
     Store.Tree.to_concrete t >|= fun c ->
     of_concrete_tree c
 
-  let set t key j =
-    Store.with_tree t key (fun _ ->
-      let tree = Store.Tree.empty in
-      set_tree tree Store.Key.empty j >>= Lwt.return_some)
+  let set t key j ~info =
+    set_tree Store.Tree.empty Store.Key.empty j >>= function tree ->
+    Store.set_tree_exn ~info t key tree
 
   let get t key =
     Store.get_tree t key >>= fun tree ->

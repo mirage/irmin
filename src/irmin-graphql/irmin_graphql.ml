@@ -250,6 +250,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         | Error msg -> Error msg)
     | None -> Ok None
 
+  let err_write e =
+    Lwt.return_error (Irmin.Type.to_string Store.write_error_t e)
+
   let remote s = match Store.remote with
     | Some remote_fn ->
         Schema.[
@@ -332,8 +335,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
               let value = Irmin.Type.of_string Store.contents_t v in
               match key, value with
               | Ok key, Ok value ->
-                Store.set t key value ~info >>= fun () ->
-                Store.Head.find t >>= Lwt.return_ok
+                (Store.set t key value ~info >>= function
+                | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
+                | Error e -> err_write e)
               | Error (`Msg msg), _ | _, Error (`Msg msg) -> Lwt.return_error msg)
             | Error msg -> Lwt.return_error msg
           )
@@ -353,8 +357,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
               let key = Irmin.Type.of_string Store.key_t key in
               match key with
               | Ok key ->
-                  Store.remove t key ~info >>= fun () ->
-                  Store.Head.find t >>= Lwt.return_ok
+                (Store.remove t key ~info >>= function
+                  | Ok () -> Store.Head.find t >>= Lwt.return_ok
+                  | Error e -> err_write e)
               | Error (`Msg msg) -> Lwt.return_error msg)
             | Error msg -> Lwt.return_error msg
           )
@@ -436,4 +441,3 @@ module Make(Store : STORE) : S with type store = Store.t = struct
   let start_server ?port s =
     Server.start ?port ~ctx:(fun _req -> ()) (schema s)
 end
-

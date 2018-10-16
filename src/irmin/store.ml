@@ -20,11 +20,6 @@ open Merge.Infix
 let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Exn = struct
-  exception Conflict of string
-  exception Too_many_retries of int
-end
-
 module Make (P: S.PRIVATE) = struct
 
   module Branch_store = P.Branch
@@ -507,18 +502,20 @@ module Make (P: S.PRIVATE) = struct
 
   end
 
-  (* Retry an operation until the optimistic lock is happy. *)
-  let retry ~retries name fn =
+  (* Retry an operation until the optimistic lock is happy. Ensure
+     that the operation is done at least once. *)
+  let retry ~retries fn =
+    let done_once = ref false in
     let rec aux i =
-      if i >= retries then Lwt.fail (Exn.Too_many_retries i)
+      if !done_once && i > retries then
+        Lwt.return (Error (`Too_many_retries retries))
       else
         fn () >>= function
-        | true  -> Lwt.return ()
-        | false ->
-          Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
-          aux (i+1)
+        | Ok true  -> Lwt.return (Ok ())
+        | Error e  -> Lwt.return (Error e)
+        | Ok false -> done_once := true; aux (i+1)
     in
-    aux 1
+    aux 0
 
   let root_tree = function
     | `Node _ as n -> n
@@ -549,14 +546,23 @@ module Make (P: S.PRIVATE) = struct
       if r then t.tree <- Some tree;
       r
 
-  type strategy = [ `Test_and_set | `Set | `Merge_with_parent of commit ]
+  type write_error = [
+    | Merge.conflict
+    | `Too_many_retries of int
+    | `Test_was of tree option
+  ]
 
-  type 'a transaction =
-    ?retries:int ->
-    ?allow_empty:bool ->
-    ?strategy:strategy ->
-    info:Info.f ->
-    'a -> unit Lwt.t
+  let pp_write_error ppf = function
+    | `Conflict e  -> Fmt.pf ppf "Got a conflict: %s" e
+    | `Too_many_retries i ->
+      Fmt.pf ppf "Failure after %d attempts to retry the operation: Too many \
+                  attempts." i
+    | `Test_was t ->
+      Fmt.pf ppf "Test-and-set failed: got %a when reading the store"
+        Type.(pp (option Tree.tree_t)) t
+
+  let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
+  let err_test v = write_error (`Test_was v)
 
   type snapshot = {
     head   : commit option;
@@ -585,97 +591,125 @@ module Make (P: S.PRIVATE) = struct
     | _     , None   -> Lwt.return false
     | Some x, Some y -> Tree.equal x y
 
-  let with_tree t key
-      ?(retries=13)
-      ?(allow_empty=false)
-      ?(strategy=`Test_and_set)
-      ~info (f:tree option -> tree option Lwt.t) =
-    let aux () =
-      snapshot t key >>= fun s1 ->
-      (* this might take a very long time *)
-      f s1.tree >>= fun new_tree ->
-      same_tree s1.tree new_tree >>= fun same ->
-      (* if no change and [allow_empty = true] then, do nothing *)
-      if same && not allow_empty && s1.head <> None then Lwt.return true
-      else
-        (* take a new snapshot as the store could have changed while
-           [f] was executing. *)
-        snapshot t key >>= fun s2 ->
-        let update () =
-          (match new_tree with
-           | None      -> Tree.remove s2.root key
-           | Some tree -> Tree.add_tree s2.root key tree
-          ) >>= fun root ->
-          let info = info () in
-          Commit.v (repo t) ~info ~parents:s2.parents root >>= fun c ->
-          add_commit t s2.head (c, root_tree root)
-        in
-        match strategy with
-        | `Set ->
-          (* we don't care about tree2, the last writer (us) wins. *)
-          update ()
+  (* Update the store with a new commit. Ensure the no commit becomes orphan
+     in the process.  *)
+  let update ?(allow_empty=false) ~info ?parents t key merge_tree f =
+    snapshot t key >>= fun s ->
+    (* this might take a very long time *)
+    f s.tree >>= fun new_tree ->
+    same_tree s.tree new_tree >>= fun same ->
+    (* if no change and [allow_empty = true] then, do nothing *)
+    if same && not allow_empty && s.head <> None then Lwt.return (Ok true)
+    else
+      merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
+      | Error _ as e -> Lwt.return e
+      | Ok root      ->
+        let info = info () in
+        let parents = match parents with None -> s.parents | Some p -> p in
+        Commit.v (repo t) ~info ~parents root >>= fun c ->
+        add_commit t s.head (c, root_tree root) >|= fun r ->
+        Ok r
 
-        | `Test_and_set ->
-          same_tree s1.tree s2.tree >>= fun same ->
-          (* if the subtree has changed, restart the transaction *)
-          if same then update () else Lwt.return false
+  let ok x = Ok x
 
-        | `Merge_with_parent parent ->
-          (* if the subtree has changed, merge it *)
-          same_tree s1.tree s2.tree >>= fun same ->
-          if same then update () else
-            (* we create an intermediate commit to hold the pre-merge
-               state:
+  let fail name = function
+    | Ok x    -> Lwt.return x
+    | Error e -> Fmt.kstrf Lwt.fail_with "%s: %a" name pp_write_error e
 
-               s1 --> pre_merge ---> merge
-                                       ^
-                                       |
-               s2 ------------------- /
-            *)
-            (match new_tree with
-             | None      -> Tree.remove s2.root key
-             | Some tree -> Tree.add_tree s1.root key tree
-            ) >>= fun root ->
-            Commit.v (repo t) ~info:(info ()) ~parents:s1.parents root
-            >>= fun pre_merge ->
-            let old () =
-              of_commit parent >>= tree >>= fun tree ->
-              Tree.find_tree tree key >|= fun x ->
-              Ok (Some x)
-            in
-            Merge.(f @@ option Tree.merge) ~old s2.tree new_tree >>= function
-            | Error (`Conflict e) -> Lwt.fail (Exn.Conflict e)
-            | Ok m ->
-              let info = Info.with_message (info ()) "Merge" in
-              (match m with
-               | None      -> Tree.remove s2.root key
-               | Some tree -> Tree.add_tree s2.root key tree
-              ) >>= fun root ->
-              let parents = [pre_merge; parent] in
-              Commit.v (repo t) ~info ~parents root >>= fun c ->
-              add_commit t s2.head (c, root_tree root)
-    in
-    retry ~retries "with_tree" aux
+  let set_tree_once root key ~current_tree:_ ~new_tree = match new_tree with
+    | None      -> Tree.remove root key >|= ok
+    | Some tree -> Tree.add_tree root key tree >|= ok
 
-  let none_to_empty = function None -> Tree.empty | Some v -> v
-
-  let set t k ?metadata ?retries ?allow_empty ?strategy ~info v =
+  let set_tree ?(retries=13) ?allow_empty ?parents ~info t k v =
     Log.debug (fun l -> l "set %a" pp_key k);
-    with_tree t ?retries ?allow_empty ?strategy ~info k (fun tree ->
-        Tree.add (none_to_empty tree) Key.empty ?metadata v >|= fun x ->
-        Some x)
+    retry ~retries @@ fun () ->
+    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
+    Lwt.return (Some v)
 
-  let set_tree t k ?retries ?allow_empty ?strategy ~info v =
-    Log.debug (fun l -> l "set_tree %a" pp_key k);
-    with_tree t ?retries ?allow_empty ?strategy ~info k (fun tree ->
-        Tree.add_tree (none_to_empty tree) Key.empty v >|= fun x ->
-        Some x)
+  let set_tree_exn ?retries ?allow_empty ?parents ~info t k v =
+    set_tree ?retries ?allow_empty ?parents ~info t k v >>= fail "set_exn"
 
-  let remove t  ?retries ?allow_empty ?(strategy=`Test_and_set) ~info k =
-    Log.debug (fun l -> l "remove %a" pp_key k);
-    let strategy = (strategy :> strategy) in
-    with_tree t ?retries ?allow_empty ~strategy ~info k
-      (fun _ -> Lwt.return None)
+  let remove ?(retries=13) ?allow_empty ?parents ~info t k =
+    Log.debug (fun l -> l "debug %a" pp_key k);
+    retry ~retries @@ fun () ->
+    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
+    Lwt.return None
+
+  let remove_exn ?retries ?allow_empty ?parents ~info t k =
+    remove ?retries ?allow_empty ?parents ~info t k >>= fail "remove_exn"
+
+  let set ?retries ?allow_empty ?parents ~info t k v =
+    let v = `Contents (v, Metadata.default) in
+    set_tree t k ?retries ?allow_empty ?parents ~info v
+
+  let set_exn ?retries ?allow_empty ?parents ~info t k v =
+    set t k ?retries ?allow_empty ?parents ~info v >>= fail "set_exn"
+
+  let test_and_set_tree_once ~test root key ~current_tree ~new_tree =
+    match test, current_tree with
+    | None      , None  -> set_tree_once root key ~new_tree ~current_tree
+    | None, _| _, None  -> err_test current_tree
+    | Some test, Some v ->
+      Tree.equal test v >>= function
+      | true  -> set_tree_once root key ~new_tree ~current_tree
+      | false -> err_test current_tree
+
+  let test_and_set_tree
+      ?(retries=13) ?allow_empty ?parents ~info t k ~test ~set
+    =
+    Log.debug (fun l -> l "test-and-set %a" pp_key k);
+    retry ~retries @@ fun () ->
+    update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
+    @@ fun _tree -> Lwt.return set
+
+  let test_and_set_tree_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
+    test_and_set_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+    >>= fail "test_and_set_tree_exn"
+
+  let test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set =
+    let test = match test with
+      | None -> None
+      | Some t -> Some (`Contents (t, Metadata.default))
+    in
+    let set = match set with
+      | None -> None
+      | Some s -> Some (`Contents (s, Metadata.default))
+    in
+    test_and_set_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+
+  let test_and_set_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
+    test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set
+    >>= fail "test_and_set_exn"
+
+  let merge_once ~old root key ~current_tree ~new_tree =
+    let old = Merge.promise old in
+    Merge.f (Merge.option Tree.merge) ~old current_tree new_tree >>= function
+    | Ok tr   -> set_tree_once root key ~new_tree:tr ~current_tree
+    | Error e -> write_error (e :> write_error)
+
+  let merge_tree ?(retries=13) ?allow_empty ?parents ~info ~old t k tree =
+    Log.debug (fun l -> l "merge %a" pp_key k);
+    retry ~retries @@ fun () ->
+    update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
+    Lwt.return tree
+
+  let merge_tree_exn ?retries ?allow_empty ?parents ~info ~old t k tree =
+    merge_tree ?retries ?allow_empty ?parents ~info ~old t k tree
+    >>= fail "merge_tree_exn"
+
+  let merge ?retries ?allow_empty ?parents ~info ~old t k v =
+    let old = match old with
+      | None   -> None
+      | Some v -> Some (`Contents (v, Metadata.default))
+    in
+    let v = match v with
+      | None   -> None
+      | Some v -> Some (`Contents (v, Metadata.default))
+    in
+    merge_tree ?retries ?allow_empty ?parents ~info ~old t k v
+
+  let merge_exn ?retries ?allow_empty ?parents ~info ~old t k v =
+    merge ?retries ?allow_empty ?parents ~info ~old t k v >>= fail "merge_exn"
 
   let mem t k =
     tree t >>= fun tree ->
@@ -716,6 +750,50 @@ module Make (P: S.PRIVATE) = struct
   let kind t k =
     tree t >>= fun tree ->
     Tree.kind tree k
+
+  let with_tree
+      ?(retries=13) ?allow_empty ?parents ?(strategy=`Test_and_set) ~info
+      t key f =
+    let done_once = ref false in
+    let rec aux n old_tree =
+      Log.debug (fun l -> l "with_tree %a (%d/%d)" pp_key key n retries);
+      if !done_once && n > retries then write_error (`Too_many_retries retries)
+      else
+        f old_tree >>= fun new_tree ->
+        match strategy, new_tree with
+        | `Set, Some tree  ->
+          set_tree t key ~retries ?allow_empty ?parents tree ~info
+        | `Set, None       ->
+          remove t key ~retries ?allow_empty ~info ?parents
+        | `Test_and_set, _ ->
+          (test_and_set_tree t key ~retries ?allow_empty ?parents ~info
+             ~test:old_tree ~set:new_tree
+           >>= function
+           | Error (`Test_was tr) when retries > 0 && n <= retries ->
+             done_once := true;
+             aux (n+1) tr
+           | e -> Lwt.return e)
+        | `Merge, _ ->
+          merge_tree ~old:old_tree ~retries ?allow_empty ?parents ~info
+            t key new_tree
+          >>= function
+          | Ok _ as x -> Lwt.return x
+          | Error (`Conflict _) when retries > 0 && n <= retries ->
+            done_once := true;
+            (* use the store's current tree as the new 'old store' *)
+            (tree_and_head t >>= function
+              | None         -> Lwt.return None
+              | Some (_, tr) -> Tree.find_tree (tr :> tree) key)
+            >>= fun old_tree ->
+            aux (n+1) old_tree
+          | Error e -> write_error e
+    in
+    find_tree t key >>= fun old_tree ->
+    aux 0 old_tree
+
+  let with_tree_exn ?retries ?allow_empty ?parents ?strategy ~info f t key =
+    with_tree ?retries ?allow_empty ?strategy ?parents ~info f t key
+    >>= fail "with_tree_exn"
 
   let clone ~src ~dst =
     (Head.find src >>= function
@@ -767,7 +845,7 @@ module Make (P: S.PRIVATE) = struct
   let merge_with_commit t ~info ?max_depth ?n other =
     Head.merge ~into:t ~info ?max_depth ?n other
 
-  let merge ~into ~info ?max_depth ?n t =
+  let merge_into ~into ~info ?max_depth ?n t =
     Log.debug (fun l -> l "merge");
     match head_ref t with
     | `Branch name -> merge_with_branch into ~info ?max_depth ?n name
@@ -913,5 +991,20 @@ module Make (P: S.PRIVATE) = struct
       "no-change"        , `No_change;
       "rejected"         , `Rejected;
     ]
+
+  let write_error_t =
+    let open Type in
+    variant "write-error" (fun c m e -> function
+        | `Conflict x -> c x
+        | `Too_many_retries x -> m x
+        | `Test_was x -> e x)
+    |~ case1 "conflict" string (fun x -> `Conflict x)
+    |~ case1 "too-many-retries" int (fun x -> `Too_many_retries x)
+    |~ case1 "test-got" (option tree_t) (fun x -> `Test_was x)
+    |> sealv
+
+  let write_error_t =
+    let of_string _ = assert false in
+    Type.like' ~cli:(pp_write_error, of_string) write_error_t
 
 end

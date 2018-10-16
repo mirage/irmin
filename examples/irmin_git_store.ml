@@ -9,7 +9,7 @@ module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
   print_endline msg;
-  Store.set t ~info:(info "%s" msg) k v
+  Store.set_exn t ~info:(info "%s" msg) k v
 
 let read_exn t k =
   let msg = sprintf "Reading /%s" (String.concat "/" k) in
@@ -33,7 +33,7 @@ let main () =
   update t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   update x ["root";"misc";"2.txt"] "Cool!"  >>= fun () ->
 
-  Store.merge ~info:(info "t: Merge with 'x'") x ~into:t >>= function
+  Store.merge_into ~info:(info "t: Merge with 'x'") x ~into:t >>= function
   | Error _ -> failwith "conflict!"
   | Ok () ->
     print_endline "merging ...";

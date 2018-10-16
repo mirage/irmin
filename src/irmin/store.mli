@@ -17,11 +17,6 @@
 (** Branch-consistent stores: read-write store with support fork/merge
     operations. *)
 
-module Exn: sig
-  exception Conflict of string
-  exception Too_many_retries of int
-end
-
 module Make (P: S.PRIVATE): S.STORE
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
