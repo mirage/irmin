@@ -181,29 +181,4 @@ module Git = struct
     module KV_RO = KV_RO(G)
   end
 
-  module FS (X: Mirage_fs_lwt.S) = struct
-
-    module G = struct
-      include Git_mirage.Store(X)
-
-      let x = ref None
-
-      let v ?dotgit ?compression ?buffers root =
-        let buffer = match buffers with
-          | None   -> None
-          | Some p -> Some (Lwt_pool.use p)
-        in
-        (* XXX(samoht): ugly *)
-        match !x with
-        | None   -> Fmt.failwith "store not connected"
-        | Some x -> v ?dotgit ?compression ?buffer x root
-    end
-
-    let set y = G.x := Some y
-
-    module Make  = Make(G)
-    module Ref   = Ref(G)
-    module KV    = KV(G)
-    module KV_RO = KV_RO(G)
-  end
 end
