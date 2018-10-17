@@ -194,8 +194,20 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
                       (Store.find s key >>= function
-                      | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
-                      | None -> Lwt.return_ok None)
+                        | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
+                        | None -> Lwt.return_ok None)
+                    | Error msg -> Lwt.return_error msg
+                  )
+              ;
+              io_field "get_all"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:(Lazy.force contents)
+                ~resolve:(fun _ (s, _) key ->
+                    match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
+                    | Ok key ->
+                      (Store.find_tree s Store.Key.empty >>= function
+                        | Some tree -> Lwt.return_ok (Some (tree, key))
+                        | None -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
                   )
               ;
@@ -226,6 +238,16 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~typ:(non_null string)
                 ~args:[]
                 ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
+              ;
+              io_field "metadata"
+                ~typ:string
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find_all tree key >|= function
+                    | None -> Ok None
+                    | Some (_, metadata) ->
+                      Ok (Some (Irmin.Type.to_string Store.metadata_t metadata))
+                  )
               ;
               io_field "value"
                 ~typ:string
