@@ -95,43 +95,6 @@ module Git: sig
       repository. *)
   module KV_RO (G: Irmin_git.G): KV_RO with type git := G.t
 
-  (** Embed an Irmin store into a local Git repository. *)
-  module FS (S: Mirage_fs_lwt.S): sig
-
-    module G: Irmin_git.G
-    val set: S.t -> unit (* XXX(samoht): particularly ugly and wrong ... *)
-
-    module Make
-        (C: Irmin.Contents.S)
-        (P: Irmin.Path.S)
-        (B: Irmin.Branch.S):
-      S with type key = P.t
-         and type step = P.step
-         and module Key = P
-         and type contents = C.t
-         and type branch = B.t
-         and module Git = G
-
-    module Ref
-        (C: Irmin.Contents.S):
-      S with type key = string list
-         and type step = string
-         and type contents = C.t
-         and type branch = Irmin_git.reference
-         and module Git = G
-
-    module KV
-        (C: Irmin.Contents.S):
-      S with type key = Irmin.Path.String_list.t
-         and type step = string
-         and module Key = Irmin.Path.String_list
-         and type contents = C.t
-         and type branch = string
-         and module Git = G
-
-    module KV_RO: KV_RO with type git := G.t
-  end
-
   (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem: sig
 
