@@ -21,9 +21,7 @@ module Make (P: S.PRIVATE): S.STORE
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
    and type branch = P.Branch.key
-   and type Commit.Hash.t = P.Commit.key
-   and type Tree.Hash.t = P.Node.key
-   and type Contents.Hash.t = P.Contents.key
+   and type hash = P.Hash.t
    and type slice = P.Slice.t
    and type step = P.Node.Path.step
    and type metadata = P.Node.Val.metadata

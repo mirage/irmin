@@ -59,7 +59,6 @@ module Make (P: S.PRIVATE) = struct
       let compare = Type.compare Path.step_t
     end
     include Map.Make(X)
-    let iter2 f t1 t2 = alist_iter2 X.compare f (bindings t1) (bindings t2)
     include Merge.Map(X)
   end
 
@@ -100,9 +99,9 @@ module Make (P: S.PRIVATE) = struct
     let of_contents c = { v = Contents c }
     let of_key db k = { v = Key (db, k) }
 
-    let export c = match c.v with
+    let key c = match c.v with
       | Both (_, k, _) | Key (_, k) -> k
-      | Contents _ -> failwith "Contents.export"
+      | Contents v -> P.Hash.digest (Type.encode_bin P.Contents.Val.t v)
 
     let v t = match t.v with
       | Both (_, _, c)
@@ -113,17 +112,8 @@ module Make (P: S.PRIVATE) = struct
         | Some c -> t.v <- Both (db, k, c); Some c
 
     let equal (x:t) (y:t) =
-      let eq_key = Type.equal P.Contents.Key.t in
-      let eq_val = Type.equal P.Contents.Val.t in
-      let eq_valo = Type.(equal @@ option P.Contents.Val.t) in
-      if x == y then Lwt.return_true
-      else match x.v, y.v with
-      | (Key (_,x) | Both (_,x,_)), (Key (_,y) | Both (_,y,_)) ->
-        Lwt.return (eq_key x y)
-      | (Contents x | Both (_, _,x)), (Contents y | Both (_,_,y)) ->
-        Lwt.return (eq_val x y)
-      | Key _     , Contents y -> v x >|= fun x -> eq_valo x (Some y)
-      | Contents x, Key _      -> v y >|= fun y -> eq_valo (Some x) y
+      x == y ||
+      Type.equal P.Contents.Key.t (key x) (key y)
 
     let merge: t Merge.t =
       let f ~old x y =
@@ -228,6 +218,27 @@ module Make (P: S.PRIVATE) = struct
         ) alist in
       List.fold_left (fun acc (l, x) -> StepMap.add l x acc) StepMap.empty alist
 
+    let rec key t =
+      match t.v with
+      | Key (_, k) | Both (_, k, _) -> k
+      | Map m -> key_of_map m
+
+    and export_map map =
+      let alist =
+        StepMap.fold (fun step v acc ->
+            let v = match v with
+              | `Contents (c, m) -> `Contents (Contents.key c, m)
+              | `Node n          -> `Node (key n)
+            in
+            (step, v) :: acc
+          ) map []
+      in
+      P.Node.Val.v alist
+
+    and key_of_map map =
+      let v = export_map map in
+      P.Hash.digest (Type.encode_bin P.Node.Val.t v)
+
     let to_map t = match t.v with
       | Map m | Both (_, _, m) -> Lwt.return (Some m)
       | Key (db, k) ->
@@ -244,82 +255,12 @@ module Make (P: S.PRIVATE) = struct
       Type.equal P.Node.Key.t x y
 
     let contents_equal (c1, m1 as x1) (c2, m2 as x2) =
-      if x1 == x2 then Lwt.return_true
-      else
-        Contents.equal c1 c2 >|= fun same_contents ->
-        same_contents && Type.equal Metadata.t m1 m2
+      x1 == x2 ||
+      (Contents.equal c1 c2 && Type.equal Metadata.t m1 m2)
 
-    exception Different
-
-    let rec value_equal x y =
-      if x == y then Lwt.return_true
-      else match x, y with
-        | `Node x     , `Node y      -> equal x y
-        | `Contents c1, `Contents c2 -> contents_equal c1 c2
-        | _ -> Lwt.return_false
-
-    and map_equal x y =
-      if x == y then Lwt.return_true
-      else if StepMap.cardinal x <> StepMap.cardinal y then Lwt.return_false
-      else
-        let threads = ref [] in
-        let r = ref true in
-        let eq x y =
-          if !r then (
-            let th = value_equal x y >|= fun b -> r := !r && b in
-            threads := th :: !threads
-          )
-        in
-        try
-          StepMap.iter2 (fun _key v ->
-              if not !r then raise Different;
-              match v with
-              | `Both (v1, v2) -> eq v1 v2
-              | _              -> raise Different
-            ) x y;
-          Lwt.join !threads >|= fun () ->
-          !r
-        with Different ->
-          Lwt.return false
-
-    and equal (x:t) (y:t) =
-      if x == y then Lwt.return_true
-      else match x.v, y.v with
-        | (Key (_, x) | Both (_, x, _)), (Key (_, y) | Both (_, y, _)) ->
-          Lwt.return (key_equal x y)
-        | (Map x | Both (_, _, x)), (Map y | Both (_, _, y)) ->
-          map_equal x y
-        | Key _, Map y ->
-          (to_map x >>= function
-            | None   -> Lwt.return (StepMap.is_empty y)
-            | Some x -> map_equal x y)
-        | Map x, Key _ ->
-          (to_map y >>= function
-            | None   -> Lwt.return (StepMap.is_empty x)
-            | Some y -> map_equal x y)
-
-    let export t =
-      match t.v with
-      | Key (_, k) | Both (_, k, _) -> k
-      | Map _ -> Pervasives.failwith "Node.export"
-
-    let export_map map =
-      let alist =
-        StepMap.fold (fun step v acc ->
-            let v = match v with
-              | `Contents (c, m) -> `Contents (Contents.export c, m)
-              | `Node n          -> `Node (export n)
-            in
-            (step, v) :: acc
-          ) map []
-      in
-      P.Node.Val.v alist
-
-    let to_key t = match t.v with
-      | Key (_, k) | Both (_, k, _) -> k
-      | Map m ->
-        let str = Type.encode_bin P.Node.Val.t (export_map m) in
-        P.Node.Key.digest str
+    let equal (x:t) (y:t) =
+      x == y ||
+      key_equal (key x) (key y)
 
     let is_empty t =
       to_map t >|= function
@@ -379,7 +320,7 @@ module Make (P: S.PRIVATE) = struct
       and aux_uniq ~path acc t k =
         if uniq = `False then aux ~path acc t k
         else
-          let key = to_key t in
+          let key = key t in
           if Keys.mem marks key then k acc
           else (
             Keys.add marks key ();
@@ -558,12 +499,12 @@ module Make (P: S.PRIVATE) = struct
     (Type.equal P.Contents.Val.t c1 c2 && Type.equal Metadata.t m1 m2)
 
   let equal (x:tree) (y:tree) =
-    if x == y then Lwt.return_true
-    else match x, y with
+    x == y ||
+    match x, y with
     | `Node x    , `Node y     -> Node.equal x y
-    | `Contents x, `Contents y -> Lwt.return (contents_equal x y)
+    | `Contents x, `Contents y -> contents_equal x y
     | `Node _    , `Contents _
-    | `Contents _, `Node _     -> Lwt.return_false
+    | `Contents _, `Node _     -> false
 
   let empty = `Node Node.empty
   let is_empty = function
@@ -762,37 +703,35 @@ module Make (P: S.PRIVATE) = struct
         | None        -> begin
             Node.findv view file >>= function old ->
             match old with
-            | Some old -> begin
-                equal old v >>= function
-                | true -> Lwt.return_none
-                | false ->
-                  Node.add view file (with_setm v) >>= fun t ->
-                  Lwt.return (Some t)
-              end
+            | Some old ->
+              if equal old v then Lwt.return_none
+              else
+                Node.add view file (with_setm v) >|= fun t ->
+                Some t
             | None ->
-              Node.add view file (with_setm v) >>= fun t ->
-              Lwt.return (Some t)
+              Node.add view file (with_setm v) >|= fun t ->
+              Some t
           end
         | Some (h, p) ->
           Node.findv view h >>= function
           | None | Some (`Contents _) -> begin
-            aux Node.empty p >>= function
-            | None -> Lwt.return_none
-            | Some child' ->
-              Node.add view h (`Node child') >>= fun t ->
-              Lwt.return (Some t)
+              aux Node.empty p >>= function
+              | None -> Lwt.return_none
+              | Some child' ->
+                Node.add view h (`Node child') >|= fun t ->
+                Some t
             end
           | Some (`Node child) ->
             aux child p >>= function
             | None -> Lwt.return_none
             | Some child' ->
-              Node.add view h (`Node child') >>= fun t ->
-              Lwt.return (Some t)
+              Node.add view h (`Node child') >|= fun t ->
+              Some t
       in
       let n = match t with `Node n -> n | _ -> Node.empty in
-      aux n path >>= function
-      | None -> Lwt.return t
-      | Some node -> Lwt.return (`Node node)
+      aux n path >|= function
+      | None -> t
+      | Some node -> `Node node
 
   let with_optm m c = match m with
     | None   -> `Contents (`Keep c)
@@ -818,14 +757,12 @@ module Make (P: S.PRIVATE) = struct
             | Some (`Node _) | None ->
               Node.add view file (with_optm metadata c) >>= fun t ->
               Lwt.return (Some t)
-            | Some (`Contents (_, oldm) as old) -> begin
-                let m = match metadata with None -> oldm | Some m -> m in
-                equal old (`Contents (c,  m)) >>= function
-                | true -> Lwt.return_none
-                | false ->
-                  Node.add view file (`Contents (`Set (c,  m))) >>= fun t ->
-                  Lwt.return (Some t)
-              end
+            | Some (`Contents (_, oldm) as old) ->
+              let m = match metadata with None -> oldm | Some m -> m in
+              if equal old (`Contents (c,  m)) then Lwt.return_none
+              else
+                Node.add view file (`Contents (`Set (c,  m))) >|= fun t ->
+                Some t
           end
         | Some (h, p) ->
           Node.findv view h >>= function
@@ -833,15 +770,15 @@ module Make (P: S.PRIVATE) = struct
               aux Node.empty p >>= function
               | None -> assert false
               | Some child ->
-                Node.add view h (`Node child) >>= fun t ->
-                Lwt.return (Some t)
+                Node.add view h (`Node child) >|= fun t ->
+                Some t
             end
           | Some (`Node child) ->
             aux child p >>= function
             | None -> Lwt.return_none
             | Some child' ->
-              Node.add view h (`Node child') >>= fun t ->
-              Lwt.return (Some t)
+              Node.add view h (`Node child') >|= fun t ->
+              Some t
       in
       let n = match t with `Node n -> n | _ -> Node.empty in
       aux n path >>= function
@@ -905,7 +842,7 @@ module Make (P: S.PRIVATE) = struct
     in
     add_to_todo n;
     loop () >|= fun () ->
-    let x = Node.export n in
+    let x = Node.key n in
     Log.debug (fun l -> l "Tree.export -> %a" (Type.pp P.Node.Key.t) x);
     x
 
@@ -967,9 +904,8 @@ module Make (P: S.PRIVATE) = struct
     let rec aux acc = function
       | [] -> Lwt.return acc
       | (path, x, y) :: todo ->
-        Node.equal x y >>= function
-        | true  -> aux acc todo
-        | false ->
+        if Node.equal x y then aux acc todo
+        else
           bindings x >>= fun x ->
           bindings y >>= fun y ->
           let acc = ref acc in
@@ -1014,9 +950,8 @@ module Make (P: S.PRIVATE) = struct
                 acc := ys
 
               | `Both (`Contents x, `Contents y) ->
-                Node.contents_equal x y >>= function
-                | true  -> Lwt.return_unit
-                | false ->
+                if Node.contents_equal x y then Lwt.return_unit
+                else
                   Contents.v (fst x) >>= fun cx ->
                   Contents.v (fst y) >|= fun cy ->
                   match cx, cy with
@@ -1088,4 +1023,9 @@ module Make (P: S.PRIVATE) = struct
     in
     tree (fun x -> Lwt.return x) t
 
+  let hash (t:tree) = match t with
+    | `Node n -> `Node (Node.key n)
+    | `Contents (c, m) ->
+      let str = Type.encode_bin P.Contents.Val.t c in
+      `Contents (P.Hash.digest str, m)
 end

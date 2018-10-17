@@ -1964,17 +1964,24 @@ module Private: sig
 
     (** {1 Private Implementations} *)
 
+    (** Internal hashes. *)
+    module Hash: Hash.S
+
     (** Private content store. *)
     module Contents: Contents.STORE
+      with type key = Hash.t
 
     (** Private nod store. *)
-    module Node: Node.STORE with type Val.contents = Contents.key
+    module Node: Node.STORE
+      with type key = Hash.t and type Val.contents = Contents.key
 
     (** Private commit store. *)
-    module Commit: Commit.STORE with type Val.node = Node.key
+    module Commit: Commit.STORE
+      with type key = Hash.t and type Val.node = Node.key
 
     (** Private branch store. *)
-    module Branch: Branch.STORE with type value = Commit.key
+    module Branch: Branch.STORE
+      with type value = Commit.key
 
     (** Private slices. *)
     module Slice: Slice.S
@@ -2067,6 +2074,9 @@ module type S = sig
 
   type tree = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store trees. *)
+
+  type hash
+  (** The type for object hashes. *)
 
   type commit
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
@@ -2242,6 +2252,9 @@ module type S = sig
 
   end
 
+  (** Object hashes. *)
+  module Hash: Hash.S with type t = hash
+
   (** [Commit] defines immutable objects to describe store updates. *)
   module Commit: sig
 
@@ -2274,12 +2287,6 @@ module type S = sig
 
     (** {1 Import/Export} *)
 
-    module Hash: Hash.S
-    (** [Hash] provides base functions for commit hashes. *)
-
-    type hash = Hash.t
-    (** The type for commit hashes. *)
-
     val hash: commit -> hash
     (** [hash c] it [c]'s hash. *)
 
@@ -2296,14 +2303,8 @@ module type S = sig
 
     (** {1 Import/Export} *)
 
-    module Hash: Hash.S
-    (** [Hash] provides base functions for contents hashes. *)
-
-    type hash = Hash.t
-    (** The type for content hashes. *)
-
-    val hash: repo -> contents -> hash Lwt.t
-    (** [hash r c] it [c]'s hash in the repository [r]. *)
+    val hash: contents -> hash
+    (** [hash c] it [c]'s hash in the repository [r]. *)
 
     val of_hash: repo -> hash -> contents option Lwt.t
     (** [of_hash r h] is the the contents object in [r] having [h] as
@@ -2487,19 +2488,10 @@ module type S = sig
 
     (** {1 Import/Export} *)
 
-    module Hash: Hash.S
-    (** [Hash] provides base functions for node hashes. *)
-
-    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
-    (** The type for tree hashes. *)
-
-    val hash_t: hash Type.t
-    (** [hash_t] is the representation of the {!hash} type. *)
-
-    val hash: repo -> tree -> hash Lwt.t
+    val hash: tree -> hash
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash: repo -> hash -> tree option Lwt.t
+    val of_hash: repo -> hash -> [`Node of node] option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as
         hash, or [None] is no such tree object exists. *)
 
@@ -2538,6 +2530,9 @@ module type S = sig
   val get_tree: t -> key -> tree Lwt.t
   (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root
       tree. *)
+
+  val hash: t -> key -> hash option Lwt.t
+  (** [hash t k] *)
 
   (** {1 Udpates} *)
 
@@ -2938,10 +2933,8 @@ module type S = sig
     include Private.S
       with type Contents.value = contents
        and module Node.Path = Key
-       and type Commit.key = Commit.Hash.t
+       and type Hash.t = Hash.t
        and type Node.Metadata.t = metadata
-       and type Node.key = Tree.Hash.t
-       and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
@@ -2990,9 +2983,7 @@ module type S_MAKER = functor
      and type metadata = M.t
      and type contents = C.t
      and type branch = B.t
-     and type Commit.Hash.t = H.t
-     and type Tree.Hash.t = H.t
-     and type Contents.Hash.t = H.t
+     and type hash = H.t
 
 (** [KV] is similar to {!S} but choose sensible implementations for
     path and branch. *)
@@ -3386,9 +3377,7 @@ module Make_ext (AO: AO_MAKER) (RW: RW_MAKER)
   S with type key = Path.t
      and type contents = Contents.t
      and type branch = Branch.t
-     and type Commit.Hash.t = Hash.t
-     and type Tree.Hash.t = Hash.t
-     and type Contents.Hash.t = Hash.t
+     and type hash = Hash.t
      and type step = Path.step
      and type metadata = Metadata.t
      and type Key.step = Path.step
@@ -3398,9 +3387,7 @@ module Of_private (P: Private.S): S
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
    and type branch = P.Branch.key
-   and type Commit.Hash.t = P.Commit.key
-   and type Tree.Hash.t = P.Node.key
-   and type Contents.Hash.t = P.Contents.key
+   and type hash = P.Hash.t
    and type step = P.Node.Path.step
    and type metadata = P.Node.Val.metadata
    and type Key.step = P.Node.Path.step

@@ -88,16 +88,18 @@ module Make (S: S) = struct
 
   let r1 ~repo =
     n2 ~repo >>= fun kn2 ->
-    S.Tree.of_hash repo (`Node kn2) >>= function
+    S.Tree.of_hash repo kn2 >>= function
     | None      -> Alcotest.fail "r1"
-    | Some tree -> S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] tree
+    | Some tree ->
+      S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
 
   let r2 ~repo =
     n3 ~repo >>= fun kn3 ->
     r1 ~repo >>= fun kr1 ->
-    S.Tree.of_hash repo (`Node kn3) >>= function
+    S.Tree.of_hash repo kn3 >>= function
     | None    -> Alcotest.fail "r2"
-    | Some t3 -> S.Commit.v repo ~info:Irmin.Info.empty  ~parents:[kr1] t3
+    | Some t3 ->
+      S.Commit.v repo ~info:Irmin.Info.empty  ~parents:[kr1] (t3 :> S.tree)
 
   let run x test =
     try
@@ -755,20 +757,20 @@ module Make (S: S) = struct
           Irmin.Merge.f @@ History.merge h ~info:(fun () -> info)
         ) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
       merge_exn "kr3_id'" kr3_id' >>= fun kr3_id' ->
-      check S.Commit.Hash.t "kr3 id with immediate parent'" kr3 kr3_id';
+      check S.Hash.t "kr3 id with immediate parent'" kr3 kr3_id';
 
       with_info 5 (fun h ~info ->
           Irmin.Merge.f @@ History.merge h ~info:(fun () -> info)
         ) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
       merge_exn "kr3_id" kr3_id >>= fun kr3_id ->
-      check S.Commit.Hash.t "kr3 id with old parent" kr3 kr3_id;
+      check S.Hash.t "kr3 id with old parent" kr3 kr3_id;
 
       with_info 3 @@ History.v ~node:k4 ~parents:[kr1; kr2] >>= fun (kr3', _) ->
 
       P.Commit.find c kr3 >>= fun r3 ->
       P.Commit.find c kr3' >>= fun r3' ->
       check T.(option P.Commit.Val.t) "r3" r3 r3';
-      check S.Commit.Hash.t "kr3" kr3 kr3';
+      check S.Hash.t "kr3" kr3 kr3';
       Lwt.return_unit
     in
     run x test

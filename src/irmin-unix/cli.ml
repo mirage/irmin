@@ -431,7 +431,7 @@ let revert = {
     let revert (S ((module S), store, _)) snapshot =
       run begin
         store >>= fun t ->
-        let hash = commit S.Commit.Hash.t snapshot in
+        let hash = commit S.Hash.t snapshot in
         S.Commit.of_hash (S.repo t) hash >>= fun s ->
         match s with
         | Some s -> S.Head.set t s
