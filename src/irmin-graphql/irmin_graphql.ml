@@ -372,6 +372,42 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             | Error msg -> Lwt.return_error msg
           )
       ;
+      io_field "set_all"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null string);
+            arg "value" ~typ:(non_null string);
+            arg "metadata" ~typ:(string);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k v m i ->
+            match to_branch branch with
+            | Ok branch ->
+              (mk_branch (Store.repo s) branch >>= fun t ->
+              let info = mk_info i in
+              let key = Irmin.Type.of_string Store.key_t k in
+              let value = Irmin.Type.of_string Store.contents_t v in
+              let metadata = match m with
+                | Some m ->
+                    (match Irmin.Type.of_string Store.metadata_t m with
+                    | Ok x -> Ok (Some x)
+                    | Error msg -> Error msg)
+                | None -> Ok None
+              in
+              match key, value, metadata with
+              | Ok key, Ok value, Ok metadata ->
+                (Store.find_tree t key >>= (function
+                  | Some tree -> Lwt.return tree
+                  | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
+                Store.Tree.add tree key ?metadata value >>= fun tree ->
+                Store.set_tree t key tree ~info >>= function
+                | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
+                | Error e -> err_write e)
+              | Error (`Msg msg), _, _ | _, Error (`Msg msg), _ | _, _, Error (`Msg msg) -> Lwt.return_error msg)
+            | Error msg -> Lwt.return_error msg
+          )
+      ;
       io_field "remove"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
