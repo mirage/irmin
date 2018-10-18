@@ -85,8 +85,10 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
       Log.err (fun l -> l "Irmin_fs.value %s" e);
       None
 
+  let pp_key = Irmin.Type.pp K.t
+
   let find t key =
-    Log.debug (fun f -> f "read");
+    Log.debug (fun f -> f "find %a" pp_key key);
     IO.read_file (file_of_key t key) >|= function
     | None   -> None
     | Some x -> value x
@@ -120,16 +122,16 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
   let temp_dir t = t.path / "tmp"
 
   let add t value =
-    Log.debug (fun f -> f "add");
-    let value = Irmin.Type.encode_bin V.t value in
-    let key = K.digest value in
+    let str = Irmin.Type.encode_bin V.t value in
+    let key = K.digest str in
+    Log.debug (fun f -> f "add %a" pp_key key);
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     (IO.file_exists file >>= function
       | true  -> Lwt.return_unit
       | false ->
         Lwt.catch
-          (fun () -> IO.write_file ~temp_dir file value)
+          (fun () -> IO.write_file ~temp_dir file str)
           (fun e -> Lwt.fail e))
     >|= fun () ->
     key
@@ -215,7 +217,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
   let raw_value v = Irmin.Type.encode_bin V.t v
 
   let set t key value =
-    Log.debug (fun f -> f "update");
+    Log.debug (fun f -> f "update %a" RO.pp_key key);
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
@@ -223,14 +225,14 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
     W.notify t.w key (Some value)
 
   let remove t key =
-    Log.debug (fun f -> f "remove");
+    Log.debug (fun f -> f "remove %a" RO.pp_key key);
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
     IO.remove_file ~lock file >>= fun () ->
     W.notify t.w key None
 
   let test_and_set t key ~test ~set =
-    Log.debug (fun f -> f "test_and_set");
+    Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in

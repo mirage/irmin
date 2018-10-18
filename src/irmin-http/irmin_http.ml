@@ -384,6 +384,7 @@ module Make
     (H: Irmin.Hash.S) =
 struct
   module X = struct
+    module Hash = H
     module XContents = struct
       module Key = H
       module Val = C

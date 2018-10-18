@@ -24,7 +24,8 @@ module Make (P: S.PRIVATE): sig
   val import: P.Repo.t -> P.Node.key -> node
   val export: P.Repo.t -> node -> P.Node.key Lwt.t
   val dump: tree Fmt.t
-  val equal: tree -> tree -> bool Lwt.t
+  val equal: tree -> tree -> bool
   val node_t: node Type.t
   val tree_t: tree Type.t
+  val hash: tree -> [`Contents of (P.Hash.t * metadata) | `Node of P.Hash.t]
 end

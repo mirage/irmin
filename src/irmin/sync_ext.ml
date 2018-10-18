@@ -76,7 +76,7 @@ module Make (S: S.STORE) = struct
   ]
 
   let pp_branch = Type.pp S.Branch.t
-  let pp_hash = Type.pp S.Commit.Hash.t
+  let pp_hash = Type.pp S.Hash.t
 
   let fetch t ?depth remote: (commit, fetch_error) result Lwt.t =
     match remote with

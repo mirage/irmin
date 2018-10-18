@@ -262,10 +262,15 @@ module type SYNC = sig
 end
 
 module type PRIVATE = sig
+  module Hash: HASH
   module Contents: CONTENTS_STORE
-  module Node: NODE_STORE with type Val.contents = Contents.key
-  module Commit: COMMIT_STORE with type Val.node = Node.key
-  module Branch: BRANCH_STORE with type value = Commit.key
+    with type key = Hash.t
+  module Node: NODE_STORE
+    with type key = Hash.t and type Val.contents = Contents.key
+  module Commit: COMMIT_STORE
+    with type key = Hash.t and type Val.node = Node.key
+  module Branch: BRANCH_STORE
+    with type value = Commit.key
   module Slice: SLICE
      with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
@@ -345,6 +350,7 @@ module type STORE = sig
   type contents
   type node
   type tree = [`Node of node | `Contents of contents * metadata]
+  type hash
   type commit
   type branch
   type slice
@@ -384,6 +390,7 @@ module type STORE = sig
     val merge: into:t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit ->
       (unit, Merge.conflict) result Lwt.t
   end
+  module Hash: HASH with type t = hash
   module Commit: sig
     type t = commit
     val t: Repo.t -> t Type.t
@@ -392,16 +399,12 @@ module type STORE = sig
     val tree: commit -> tree Lwt.t
     val parents: commit -> commit list Lwt.t
     val info: commit -> Info.t
-    module Hash: HASH
-    type hash = Hash.t
     val hash: commit -> hash
     val of_hash: Repo.t -> hash -> commit option Lwt.t
   end
   module Contents: sig
     include CONTENTS with type t = contents
-    module Hash: HASH
-    type hash = Hash.t
-    val hash: Repo.t -> contents -> hash Lwt.t
+    val hash: contents -> hash
     val of_hash: Repo.t -> hash -> contents option Lwt.t
   end
   module Tree: sig
@@ -411,11 +414,8 @@ module type STORE = sig
                   and type contents := contents
                   and type node := node
                   and type tree := tree
-    module Hash: HASH
-    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
-    val hash_t: hash Type.t
-    val hash: Repo.t -> tree -> hash Lwt.t
-    val of_hash: Repo.t -> hash -> tree option Lwt.t
+    val hash: tree -> hash
+    val of_hash: Repo.t -> hash -> [`Node of node] option Lwt.t
   end
 
   val kind: t -> key -> [`Contents | `Node] option Lwt.t
@@ -428,6 +428,7 @@ module type STORE = sig
   val get: t -> key -> contents Lwt.t
   val find_tree: t -> key -> tree option Lwt.t
   val get_tree: t -> key -> tree Lwt.t
+  val hash: t -> key -> hash option Lwt.t
 
   type write_error = [
     | Merge.conflict
@@ -614,11 +615,9 @@ module type STORE = sig
   module Private: sig
     include PRIVATE
       with type Contents.value = contents
+       and module Hash = Hash
        and module Node.Path = Key
-       and type Commit.key = Commit.Hash.t
        and type Node.Metadata.t = metadata
-       and type Node.key = Tree.Hash.t
-       and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = repo
@@ -640,9 +639,7 @@ module type MAKER =
    and type metadata = M.t
    and type contents = C.t
    and type branch = B.t
-   and type Commit.Hash.t = H.t
-   and type Tree.Hash.t = H.t
-   and type Contents.Hash.t = H.t
+   and type hash = H.t
 
 type remote += Store: (module STORE with type t = 'a) * 'a -> remote
 

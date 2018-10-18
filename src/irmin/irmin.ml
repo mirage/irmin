@@ -58,6 +58,7 @@ module Make_ext
 struct
 
   module X = struct
+    module Hash = H
     module XContents = struct
       include AO(H)(C)
       module Key = H

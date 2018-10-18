@@ -800,9 +800,7 @@ end
 module type S = sig
   module Git: Git.S
   include Irmin.S with type metadata = Metadata.t
-                   and type Commit.Hash.t = Git.Hash.t
-                   and type Contents.Hash.t = Git.Hash.t
-                   and type Tree.Hash.t = Git.Hash.t
+                   and type hash = Git.Hash.t
   val git_commit: Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   val git_of_repo: Repo.t -> Git.t
   val repo_of_git: ?head:Git.Reference.t -> ?bare:bool -> ?lock:Lwt_mutex.t ->
@@ -827,7 +825,6 @@ module Make_ext
 = struct
 
   module R = Irmin_branch_store(G)(B)
-  module Hash = Irmin.Hash.Make(G.Hash)
 
   type r = {
     config: Irmin.config;
@@ -836,6 +833,7 @@ module Make_ext
   }
 
   module P = struct
+    module Hash = Irmin.Hash.Make(G.Hash)
     module XSync = struct
       include Irmin_sync_store(G)(S)(R.Key)
       let v repo = Lwt.return repo.g

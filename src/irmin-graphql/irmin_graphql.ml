@@ -88,7 +88,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ c -> Irmin.Type.to_string Store.Commit.Hash.t (Store.Commit.hash c))
+                ~resolve:(fun _ c -> Irmin.Type.to_string Store.Hash.t (Store.Commit.hash c))
               ;
             ])
     )
@@ -195,7 +195,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, _) commit ->
-                    match from_string_err "commit" (Irmin.Type.of_string Store.Commit.Hash.t) commit with
+                    match from_string_err "commit" (Irmin.Type.of_string Store.Hash.t) commit with
                     | Ok commit ->
                       (Store.Commit.of_hash (Store.repo s) commit >>= function
                       | Some commit ->
@@ -391,7 +391,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ]
         ~resolve:(fun _ _src branch commit ->
             let branch = to_branch branch in
-            match from_string_err "commit" (Irmin.Type.of_string Store.Commit.Hash.t) commit, branch with
+            match from_string_err "commit" (Irmin.Type.of_string Store.Hash.t) commit, branch with
             | Ok commit, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Store.Commit.of_hash (Store.repo s) commit >>= function
@@ -413,7 +413,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             arg "hash" ~typ:(non_null Input.commit_hash)
           ]
           ~resolve:(fun _ _src hash ->
-            match from_string_err "hash" (Irmin.Type.of_string Store.Commit.Hash.t) hash with
+            match from_string_err "hash" (Irmin.Type.of_string Store.Hash.t) hash with
             | Ok commit -> Store.Commit.of_hash (Store.repo s) commit >>= Lwt.return_ok
             | Error msg -> Lwt.return_error msg
         );

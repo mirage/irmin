@@ -25,6 +25,9 @@ module Make (P: S.PRIVATE) = struct
   module Branch_store = P.Branch
   type branch = Branch_store.key
 
+  module Hash = P.Hash
+  type hash = Hash.t
+
   type lca_error = [`Max_depth_reached | `Too_many_lcas]
   type ff_error = [`No_change | `Rejected | lca_error]
 
@@ -38,37 +41,20 @@ module Make (P: S.PRIVATE) = struct
 
   module Contents = struct
     include P.Contents.Val
-    module Hash = P.Contents.Key
-    type hash = Hash.t
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
-    let hash r c = P.Contents.add (P.Repo.contents_t r) c
+    let hash c =
+      let s = Type.encode_bin P.Contents.Val.t c in
+      P.Hash.digest s
   end
 
   module Tree = struct
     include Tree.Make(P)
-    module Hash = P.Node.Key
 
-    type hash = [`Node of Hash.t | `Contents of Contents.Hash.t * metadata]
+    let of_hash r h = Lwt.return (Some (`Node (import r h)))
 
-    let hash_t =
-      let open Type in
-      variant "Tree.hash" (fun node contents -> function
-          | `Node n     -> node n
-          | `Contents c -> contents c)
-      |~ case1 "Node" Hash.t (fun c -> `Node c)
-      |~ case1 "Contents" (pair Contents.Hash.t Metadata.t) (fun c -> `Contents c)
-      |> sealv
-
-    let of_hash r = function
-      | `Node h          -> import r h |> fun n -> Some (`Node n) |> Lwt.return
-      | `Contents (h, m) ->
-        Contents.of_hash r h >|= function
-        | None   -> None
-        | Some c -> Some (`Contents (c, m))
-
-    let hash r = function
-      | `Node n          -> export r n >|= fun h -> `Node h
-      | `Contents (c, m) -> Contents.hash r c >|= fun h -> `Contents (h, m)
+    let hash: tree -> hash = fun tr -> match hash tr with
+      | `Node h -> h
+      | `Contents (h, _) -> h
   end
 
   type node = Tree.node
@@ -79,8 +65,6 @@ module Make (P: S.PRIVATE) = struct
 
   module Commit = struct
 
-    module Hash = P.Commit.Key
-    type hash = Hash.t
     type t = { r: repo; h: Hash.t; v: P.Commit.value }
 
     let t r =
@@ -350,9 +334,8 @@ module Make (P: S.PRIVATE) = struct
       | None    , Some vy -> fn @@ `Added (y, vy)
       | Some vx, None     -> fn @@ `Removed (x, vx)
       | Some vx, Some vy  ->
-        Tree.equal vx vy >>= function
-        | true  -> Lwt.return_unit
-        | false -> fn @@ `Updated ( (x, vx), (y, vy) )
+        if Tree.equal vx vy then Lwt.return_unit
+        else fn @@ `Updated ( (x, vx), (y, vy) )
 
   let head t =
     let h = match head_ref t with
@@ -470,7 +453,7 @@ module Make (P: S.PRIVATE) = struct
         else
           H.lcas (history_t t) ?max_depth ?n new_head.Commit.h old_head.Commit.h
           >>= function
-          | Ok [x] when Type.equal Commit.Hash.t x old_head.Commit.h ->
+          | Ok [x] when Type.equal Hash.t x old_head.Commit.h ->
             (* we only update if new_head > old_head *)
             test_and_set t ~test:(Some old_head) ~set:(Some new_head) >|= return
           | Ok _    -> Lwt.return (Error `Rejected)
@@ -586,9 +569,9 @@ module Make (P: S.PRIVATE) = struct
       { head = Some c; root; tree; parents = [c] }
 
   let same_tree x y = match x, y with
-    | None  , None   -> Lwt.return true
+    | None  , None   -> true
     | None  , _
-    | _     , None   -> Lwt.return false
+    | _     , None   -> false
     | Some x, Some y -> Tree.equal x y
 
   (* Update the store with a new commit. Ensure the no commit becomes orphan
@@ -597,9 +580,9 @@ module Make (P: S.PRIVATE) = struct
     snapshot t key >>= fun s ->
     (* this might take a very long time *)
     f s.tree >>= fun new_tree ->
-    same_tree s.tree new_tree >>= fun same ->
     (* if no change and [allow_empty = true] then, do nothing *)
-    if same && not allow_empty && s.head <> None then Lwt.return (Ok true)
+    if same_tree s.tree new_tree && not allow_empty && s.head <> None then
+      Lwt.return (Ok true)
     else
       merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
       | Error _ as e -> Lwt.return e
@@ -650,9 +633,9 @@ module Make (P: S.PRIVATE) = struct
     | None      , None  -> set_tree_once root key ~new_tree ~current_tree
     | None, _| _, None  -> err_test current_tree
     | Some test, Some v ->
-      Tree.equal test v >>= function
-      | true  -> set_tree_once root key ~new_tree ~current_tree
-      | false -> err_test current_tree
+      if Tree.equal test v
+      then set_tree_once root key ~new_tree ~current_tree
+      else err_test current_tree
 
   let test_and_set_tree
       ?(retries=13) ?allow_empty ?parents ~info t k ~test ~set
@@ -738,6 +721,11 @@ module Make (P: S.PRIVATE) = struct
   let get_tree t k =
     tree t >>= fun tree ->
     Tree.get_tree tree k
+
+  let hash t k =
+    find_tree t k >|= function
+    | None      -> None
+    | Some tree -> Some (Tree.hash tree)
 
   let get_all t k =
     tree t >>= fun tree ->
@@ -963,7 +951,7 @@ module Make (P: S.PRIVATE) = struct
     let pp ppf = function
       | `Empty    -> Fmt.string ppf "empty"
       | `Branch b -> Type.pp Branch.t ppf b
-      | `Commit c -> Type.pp Commit.Hash.t ppf (Commit.hash c)
+      | `Commit c -> Type.pp Hash.t ppf (Commit.hash c)
 
   end
 
