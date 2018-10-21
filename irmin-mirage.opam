@@ -1,10 +1,11 @@
-opam-version: "1.2"
+opam-version: "2.0"
 maintainer:   "thomas@gazagnaire.org"
 authors:      "Thomas Gazagnaire"
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
-dev-repo:     "https://github.com/mirage/irmin.git"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
 
 build: [
  ["dune" "subst"] {pinned}
@@ -21,3 +22,5 @@ depends: [
   "mirage-kv-lwt"
   "mirage-clock"
 ]
+
+synopsis: "MirageOS-compatible Irmin stores"

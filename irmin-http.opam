@@ -1,28 +1,30 @@
-opam-version: "1.2"
+opam-version: "2.0"
 maintainer:   "thomas@gazagnaire.org"
 authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
-dev-repo:     "https://github.com/mirage/irmin.git"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
  ["dune" "subst"] {pinned}
  ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
 ]
-build-test: ["dune" "runtest" "-p" name]
 
 depends: [
+  "ocaml"      {>= "4.01.0"}
   "dune"       {build & >= "1.1.0"}
   "crunch"
   "webmachine" {>= "0.6.0"}
   "irmin"      {>= "1.3.0"}
   "cohttp-lwt" {>= "1.0.0"}
-  "irmin-git"  {test & >= "1.3.0"}
-  "irmin-mem"  {test & >= "1.3.0"}
-  "git-unix"   {test}
-  "irmin-test" {test}
-  "digestif"   {test & >= "0.6.1"}
+  "irmin-git"  {with-test & >= "1.3.0"}
+  "irmin-mem"  {with-test & >= "1.3.0"}
+  "git-unix"   {with-test}
+  "irmin-test" {with-test}
+  "digestif"   {with-test & >= "0.6.1"}
 ]
-available: [ocaml-version >= "4.01.0"]
+
+synopsis: "HTTP client and server for Irmin"

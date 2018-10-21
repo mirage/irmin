@@ -1,4 +1,0 @@
-Git backend for Irmin
-
-`Irmin_git` expose a bi-directional bridge between Git repositories and
-Irmin stores.
