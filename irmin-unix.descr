@@ -1,5 +1,0 @@
-Unix backends for Irmin
-
-`Irmin_unix` defines Unix backends (including Git and HTTP) for Irmin, as well
-as a very simple CLI tool (called `irmin`) to manipulate and inspect Irmin
-stores.

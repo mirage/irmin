@@ -1,19 +1,20 @@
-opam-version: "1.2"
+opam-version: "2.0"
 maintainer:   "thomas@gazagnaire.org"
 authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
-dev-repo:     "https://github.com/mirage/irmin.git"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
  ["dune" "subst"] {pinned}
  ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
 ]
-build-test: ["dune" "runtest" "-p" name]
 
 depends: [
+  "ocaml"         {>= "4.01.0"}
   "dune"          {build & >= "1.1.0"}
   "irmin"         {>= "1.3.0"}
   "irmin-mem"     {>= "1.3.0"}
@@ -25,6 +26,12 @@ depends: [
   "digestif"      {>= "0.6.1"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
-  "irmin-test"    {test}
+  "irmin-test"    {with-test}
 ]
-available: [ocaml-version >= "4.01.0"]
+
+synopsis: "Unix backends for Irmin"
+description: """
+`Irmin_unix` defines Unix backends (including Git and HTTP) for Irmin, as well
+as a very simple CLI tool (called `irmin`) to manipulate and inspect Irmin
+stores.
+"""
