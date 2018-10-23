@@ -22,7 +22,8 @@ module Make (H: Digestif.S) = struct
 
   let hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
   let digest_size = H.digest_size
-  let digest x = H.digest_string x
+  let digest_string x = H.digest_string x
+  let digest t x = digest_string (Type.encode_bin t x)
 
   let of_hex s = match H.consistent_of_hex s with
     | x -> Ok x

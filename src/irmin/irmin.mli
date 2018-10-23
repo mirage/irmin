@@ -827,11 +827,17 @@ module type AO = sig
 
   include RO
 
-  val add: t -> value -> key Lwt.t
-  (** Write the contents of a value to the store. It's the
-      responsibility of the append-only store to generate a
-      consistent key. *)
+  type batch
+  (** The type for update batches. *)
 
+  val add: batch -> value -> key Lwt.t
+  (** [add t v] adds [v] to [t]. The result is a determistic key
+      derived from [v]. *)
+
+  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] runs [f] in a batch. Batch boundaries
+      ensure consistency: In [batch t f >>= fun () -> batch t g], all
+      the writes done in [f] are done before any of the writes in [g]. *)
 end
 
 (** Immutable Link store. *)
@@ -994,8 +1000,11 @@ module Hash: sig
     type t
     (** The type for digest hashes. *)
 
-    val digest: string -> t
+    val digest_string: string -> t
     (** Compute a deterministic store key from a string. *)
+
+    val digest: 'a Type.t -> 'a -> t
+    (** Compute a deterministic store key from a value. *)
 
     val hash: t -> int
     (** [hash h] is a small hash of [h], to be used for instance as
@@ -1996,6 +2005,7 @@ module Private: sig
       val contents_t: t -> Contents.t
       val node_t: t -> Node.t
       val commit_t: t -> Commit.t
+      val batch: t -> (Contents.t -> Node.t -> Commit.t -> 'a Lwt.t) -> 'a Lwt.t
       val branch_t: t -> Branch.t
     end
 
@@ -3326,13 +3336,33 @@ end
 (** [AO_MAKER] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values. *)
-module type AO_MAKER = functor (K: Hash.S) (V: Type.S) -> sig
+module type AO_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
-  include AO with type key = K.t and type value = V.t
+  include RO with type key = K.t and type value = V.t
 
-  val v: config -> t Lwt.t
+  val v: Conf.t -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+
+  val add: t -> key -> value -> unit Lwt.t
+  (** [add t k v] add the bindings [k -> v] in [t]. *)
+
+  type batch
+  (** The type for the state of the underling storage layer. *)
+
+  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] batches the sequence of operations [f] in the
+     underlying storage layer. The only guarantee that Irmin requires
+     is consistency, when two batches are done in sequence, all the
+     writes of the first batch are guaranteed to complete before the
+     writes of the second batch.
+
+      {[ S.batch t f >>= fun () -> S.batch t g ]}
+
+      The underlying storage layer is allowed to provide more
+     guarantees, like durability or isolation. *)
+
+
 end
 
 (** [LINK_MAKER] is the signature exposed by store which enable adding

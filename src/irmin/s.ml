@@ -33,7 +33,8 @@ end
 
 module type HASH = sig
   type t
-  val digest: string -> t
+  val digest_string: string -> t
+  val digest: 'a Type.t -> 'a -> t
   val hash: t -> int
   val digest_size: int
   val t: t Type.t
@@ -59,13 +60,18 @@ module type RO_MAKER =
 
 module type AO = sig
   include RO
-  val add: t -> value -> key Lwt.t
+  type batch
+  val add: batch -> value -> key Lwt.t
+  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module type AO_MAKER = functor (K: HASH) -> functor (V: Type.S) ->
-sig
-  include AO with type key = K.t and type value = V.t
+module type AO_MAKER = functor (K: Type.S) (V: Type.S) -> sig
+  include RO with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t
+
+  type batch
+  val add: batch -> key -> value -> unit Lwt.t
+  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
 end
 
 module type METADATA = sig
@@ -281,6 +287,8 @@ module type PRIVATE = sig
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
+    val batch: t ->
+      (Contents.batch -> Node.batch -> Commit.batch -> 'a Lwt.t) -> 'a Lwt.t
     val branch_t: t -> Branch.t
   end
   module Sync: sig

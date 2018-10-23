@@ -133,12 +133,14 @@ struct
   module Metadata = M
 
   type t = C.t * S.t
+  type batch = S.batch
   type key = S.key
   type value = S.value
 
   let mem (_, t) = S.mem t
   let find (_, t) = S.find t
-  let add (_, t) = S.add t
+  let add t = S.add t
+  let batch (_, t) = S.batch t
 
   let all_contents t =
     let kvs = S.Val.list t in
@@ -208,7 +210,9 @@ struct
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return (Some k)
+      else
+        S.batch (snd t) (fun t -> S.add t v) >|= fun k ->
+        Some k
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -310,9 +314,8 @@ module Graph (S: S.NODE_STORE) = struct
         if S.Val.is_empty node then Lwt.return S.Val.empty
         else Lwt.return node
       ) else
-        S.add t new_node >>= fun k ->
-        let node = S.Val.update node label (`Node k) in
-        Lwt.return node
+        S.batch t (fun t -> S.add t new_node) >|= fun k ->
+        S.Val.update node label (`Node k)
     )
 
   let map t node path f =
@@ -326,8 +329,8 @@ module Graph (S: S.NODE_STORE) = struct
       | None   -> S.Val.empty
       | Some n -> n
     end >>= fun node ->
-    aux node path >>=
-    S.add t
+    aux node path >>= fun k ->
+    S.batch t (fun t -> S.add t k)
 
   let update t node path n =
     Log.debug (fun f -> f "update %a %a" pp_key node pp_path path);

@@ -79,8 +79,8 @@ module Store
     | None   -> err_not_found k
     | Some v -> Lwt.return v
 
-  let empty_if_none (n, _) = function
-    | None -> N.add n N.Val.empty
+  let empty_if_none n = function
+    | None -> N.batch n (fun n -> N.add n N.Val.empty)
     | Some node -> Lwt.return node
 
   let equal_opt_keys = Type.(equal (option S.Key.t))
@@ -112,13 +112,15 @@ module Store
         in
         merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
-        empty_if_none t node >>= fun node ->
+        empty_if_none (fst t) node >>= fun node ->
         let parents = [k1; k2] in
         let commit = S.Val.v ~node ~parents ~info:(info ()) in
-        add t commit >>= fun key ->
+        S.batch (snd t) (fun t -> S.add t commit) >>= fun key ->
         Merge.ok key
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
+
+  let batch = S.batch
 
   module Key = S.Key
   module Val = S.Val

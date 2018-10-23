@@ -29,7 +29,7 @@ module Store
                              and type node = N.key
      end):
   S.COMMIT_STORE
-  with  type t = N.t * C.t
+  with type t = N.t * C.t
    and type key = C.key
    and type value = C.value
    and module Key = C.Key

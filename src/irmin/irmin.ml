@@ -59,29 +59,88 @@ struct
 
   module X = struct
     module Hash = H
-    module XContents = struct
-      include AO(H)(C)
-      module Key = H
-      module Val = C
+    module Value = struct
+      type t =
+        | Contents of C.t
+        | Node of N.t
+        | Commit of CT.t
+      let t =
+        let open Type in
+        variant "value" (fun c n ct -> function
+            | Contents x -> c x
+            | Node x -> n x
+            | Commit x -> ct x)
+        |~ case1 "contents" C.t (fun x -> Contents x)
+        |~ case1 "node" N.t (fun x -> Node x)
+        |~ case1 "commit" CT.t (fun x -> Commit x)
+        |> sealv
     end
-    module Contents = Contents.Store(XContents)
+    module Values = Store.AO(AO)(Hash)(Value)
+    module Contents = struct
+      module AO = struct
+        module Key = H
+        module Val = C
+        type t = Values.t
+        type key = Key.t
+        type value = Val.t
+        type batch = Values.batch
+        let batch = Values.batch
+        let add t v = Values.add t (Contents v)
+        let find t k = Values.find t k >|= function
+          | Some (Contents c) -> Some c
+          | _ -> None
+        let mem t k =
+          Values.mem t k >>= function
+          | false -> Lwt.return false
+          | true  -> find t k >|= function
+            | Some _ -> true
+            | None -> false
+      end
+      include Contents.Store(AO)
+    end
     module Node = struct
       module AO = struct
         module Key = H
         module Val = N
-        include AO (Key)(Val)
+        type t = Values.t
+        type key = Key.t
+        type value = Val.t
+        type batch = Values.batch
+        let batch = Values.batch
+        let add t v = Values.add t (Node v)
+        let find t k = Values.find t k >|= function
+          | Some (Node c) -> Some c
+          | _ -> None
+        let mem t k =
+          Values.mem t k >>= function
+          | false -> Lwt.return false
+          | true  -> find t k >|= function
+            | Some _ -> true
+            | None -> false
       end
       include Node.Store(Contents)(P)(M)(AO)
-      let v = AO.v
     end
     module Commit = struct
       module AO = struct
         module Key = H
         module Val = CT
-        include AO (Key)(Val)
+        type t = Values.t
+        type key = Key.t
+        type value = Val.t
+        type batch = Values.batch
+        let batch = Values.batch
+        let add t v = Values.add t (Commit v)
+        let find t k = Values.find t k >|= function
+          | Some (Commit c) -> Some c
+          | _ -> None
+        let mem t k =
+          Values.mem t k >>= function
+          | false -> Lwt.return false
+          | true  -> find t k >|= function
+            | Some _ -> true
+            | None -> false
       end
       include Commit.Store(Node)(AO)
-      let v = AO.v
     end
     module Branch = struct
       module Key = B
@@ -92,25 +151,29 @@ struct
     module Sync = Sync.None(H)(B)
     module Repo = struct
       type t = {
-        config: Conf.t;
-        contents: Contents.t;
-        node: Node.t;
-        commit: Commit.t;
-        branch: Branch.t;
+        config : Conf.t;
+        values : Values.t;
+        branch : Branch.t;
       }
+
+      let contents_t t = t.values
+      let node_t t = t.values, t.values
+      let commit_t t = (t.values, t.values), t.values
       let branch_t t = t.branch
-      let commit_t t = t.commit
-      let node_t t = t.node
-      let contents_t t = t.contents
 
       let v config =
-        XContents.v config >>= fun contents ->
-        Node.v config      >>= fun node ->
-        Commit.v config    >>= fun commit ->
-        Branch.v config    >|= fun branch ->
-        let node = contents, node in
-        let commit = node, commit in
-        { contents; node; commit; branch; config }
+        Values.v config >>= fun values ->
+        Branch.v config >|= fun branch ->
+        { values; branch; config }
+
+      let batch t f =
+        Values.batch t.values (fun t ->
+            let contents_t = t in
+            let node_t = t, t in
+            let commit_t = node_t, t in
+            f contents_t node_t commit_t
+          )
+
     end
   end
   include Store.Make(X)

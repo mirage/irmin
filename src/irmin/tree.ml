@@ -67,16 +67,16 @@ module Make (P: S.PRIVATE) = struct
   type key = Path.t
   type step = Path.step
   type contents = P.Contents.value
-  type repo = P.Repo.t
 
   module Contents = struct
 
     type key = P.Contents.key
+    type db = P.Contents.t
 
     type value =
-      | Key     : repo * key -> value
+      | Key     : db * key -> value
       | Contents: contents -> value
-      | Both    : repo * key * contents -> value
+      | Both    : db * key * contents -> value
 
     type t = { mutable v: value }
     (* Same as [Contents.t] but can either be a raw contents or a key
@@ -101,13 +101,13 @@ module Make (P: S.PRIVATE) = struct
 
     let key c = match c.v with
       | Both (_, k, _) | Key (_, k) -> k
-      | Contents v -> P.Hash.digest (Type.encode_bin P.Contents.Val.t v)
+      | Contents v -> P.Hash.digest P.Contents.Val.t v
 
     let v t = match t.v with
       | Both (_, _, c)
       | Contents c -> Lwt.return (Some c)
       | Key (db, k) ->
-        P.Contents.find (P.Repo.contents_t db) k >|= function
+        P.Contents.find db k >|= function
         | None   -> None
         | Some c -> t.v <- Both (db, k, c); Some c
 
@@ -153,6 +153,7 @@ module Make (P: S.PRIVATE) = struct
   module Node = struct
 
     type key = P.Node.key
+    type db = P.Contents.t * P.Node.t
 
     type value = [ `Node of t | `Contents of Contents.t * Metadata.t ]
 
@@ -160,8 +161,8 @@ module Make (P: S.PRIVATE) = struct
 
     and node =
       | Map : map -> node
-      | Key : repo * key -> node
-      | Both: repo * key * map -> node
+      | Key : db * key -> node
+      | Both: db * key * map -> node
 
     and t = { mutable v: node }
 
@@ -206,17 +207,19 @@ module Make (P: S.PRIVATE) = struct
     let dump = Type.pp_json ~minify:false t
 
     let of_map map = { v = Map map }
-    let of_key repo k = { v = Key (repo, k) }
+    let of_key db k = { v = Key (db, k) }
     let empty = of_map StepMap.empty
 
-    let import t n =
+    let import db n =
       let alist = P.Node.Val.list n in
       let alist = List.map (fun (l, x) ->
           l, match x with
-          | `Contents (c, m) -> `Contents (Contents.of_key t c, m)
-          | `Node n          -> `Node (of_key t n)
+          | `Contents (c, m) -> `Contents (Contents.of_key (fst db) c, m)
+          | `Node n          -> `Node (of_key db n)
         ) alist in
-      List.fold_left (fun acc (l, x) -> StepMap.add l x acc) StepMap.empty alist
+      List.fold_left (fun acc (l, x) ->
+          StepMap.add l x acc
+        ) StepMap.empty alist
 
     let rec key t =
       match t.v with
@@ -237,13 +240,13 @@ module Make (P: S.PRIVATE) = struct
 
     and key_of_map map =
       let v = export_map map in
-      P.Hash.digest (Type.encode_bin P.Node.Val.t v)
+      P.Hash.digest P.Node.Val.t v
 
     let to_map t = match t.v with
       | Map m | Both (_, _, m) -> Lwt.return (Some m)
       | Key (db, k) ->
         Log.debug (fun l -> l "Node.to_map %a" (Type.pp P.Node.Key.t) k);
-        P.Node.find (P.Repo.node_t db) k >|= function
+        P.Node.find (snd db) k >|= function
         | None   -> None
         | Some n ->
           let n = import db n in
@@ -785,16 +788,16 @@ module Make (P: S.PRIVATE) = struct
       | None      -> Lwt.return t
       | Some node -> Lwt.return (`Node node)
 
-  let import repo k = Node.of_key repo k
+  let import contents_t node_t k = Node.of_key (contents_t, node_t) k
 
-  let export repo n =
-    let node n = P.Node.add (P.Repo.node_t repo) (Node.export_map n) in
+  let export contents_t node_t n =
+    let node n = P.Node.add node_t (Node.export_map n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match n.Node.v with
       | Node.Both (repo, k, x) when StepMap.is_empty x ->
         Stack.push (fun () ->
-            P.Node.mem  (P.Repo.node_t repo) k >>= function
+            P.Node.mem node_t k >>= function
             | true  -> Lwt.return_unit
             | false ->
               node x >>= fun k ->
@@ -806,7 +809,7 @@ module Make (P: S.PRIVATE) = struct
         (* 1. we push the current node job on the stack. *)
         Stack.push (fun () ->
             node x >>= fun k ->
-            n.Node.v <- Node.Both (repo, k, x);
+            n.Node.v <- Node.Both ((contents_t, node_t), k, x);
             Lwt.return_unit
           ) todo;
         let contents = ref [] in
@@ -822,8 +825,8 @@ module Make (P: S.PRIVATE) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  P.Contents.add (P.Repo.contents_t repo) x >|= fun k ->
-                  c.Contents.v <- Contents.Both (repo, k, x);
+                  P.Contents.add contents_t x >|= fun k ->
+                  c.Contents.v <- Contents.Both (contents_t, k, x);
                 ) todo
           ) !contents;
         (* 3. we push the children jobs on the stack. *)
@@ -1025,7 +1028,5 @@ module Make (P: S.PRIVATE) = struct
 
   let hash (t:tree) = match t with
     | `Node n -> `Node (Node.key n)
-    | `Contents (c, m) ->
-      let str = Type.encode_bin P.Contents.Val.t c in
-      `Contents (P.Hash.digest str, m)
+    | `Contents (c, m) -> `Contents (P.Hash.digest P.Contents.Val.t c, m)
 end

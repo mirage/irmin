@@ -17,6 +17,14 @@
 (** Branch-consistent stores: read-write store with support fork/merge
     operations. *)
 
+module AO (AO: S.AO_MAKER) (K: S.HASH) (V: Type.S) : sig
+
+  include S.AO with type key = K.t and type value = V.t
+
+  val v: Conf.t -> t Lwt.t
+
+end
+
 module Make (P: S.PRIVATE): S.STORE
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
