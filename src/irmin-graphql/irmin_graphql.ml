@@ -88,7 +88,8 @@ module Make(Store : STORE) : S with type store = Store.t = struct
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ c -> Irmin.Type.to_string Store.Hash.t (Store.Commit.hash c))
+                ~resolve:(fun _ c ->
+                    Irmin.Type.to_string Store.Hash.t (Store.Commit.hash c))
               ;
             ])
     )
@@ -128,7 +129,8 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     let key =
                       match step with
                       | Some s ->
-                          (match from_string_err "key" (Irmin.Type.of_string Store.step_t) s with
+                          let conv = (Irmin.Type.of_string Store.step_t) in
+                          (match from_string_err "key" conv  s with
                           | Ok step -> Ok (Store.Key.rcons key step)
                           | Error e -> Error e)
                       | None -> Ok Store.Key.empty
@@ -144,8 +146,20 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~typ:string
                 ~resolve:(fun _ (tree, key) ->
                     Store.Tree.find tree key >>= function
-                      | Some contents -> Lwt.return_ok @@ Some (Irmin.Type.to_string Store.contents_t contents)
+                      | Some contents ->
+                          let s = Irmin.Type.to_string Store.contents_t contents in
+                          Lwt.return_ok (Some s)
                       | _ -> Lwt.return_ok None
+                );
+              io_field "metadata"
+                ~args:[]
+                ~typ:string
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find_all tree key >>= function
+                      | Some (_contents, metadata) ->
+                          let s = Irmin.Type.to_string Store.metadata_t metadata in
+                          Lwt.return_ok (Some s)
+                      | None -> Lwt.return_ok None
                 );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
@@ -186,8 +200,20 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
                       (Store.find s key >>= function
-                      | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
-                      | None -> Lwt.return_ok None)
+                        | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
+                        | None -> Lwt.return_ok None)
+                    | Error msg -> Lwt.return_error msg
+                  )
+              ;
+              io_field "get_all"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:(Lazy.force contents)
+                ~resolve:(fun _ (s, _) key ->
+                    match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
+                    | Ok key ->
+                      (Store.find_tree s Store.Key.empty >>= function
+                        | Some tree -> Lwt.return_ok (Some (tree, key))
+                        | None -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
                   )
               ;
@@ -218,6 +244,16 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~typ:(non_null string)
                 ~args:[]
                 ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
+              ;
+              io_field "metadata"
+                ~typ:string
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find_all tree key >|= function
+                    | None -> Ok None
+                    | Some (_, metadata) ->
+                      Ok (Some (Irmin.Type.to_string Store.metadata_t metadata))
+                  )
               ;
               io_field "value"
                 ~typ:string
@@ -289,7 +325,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     (mk_branch (Store.repo s) branch >>= fun t ->
                     Sync.push t remote >>= function
                     | Ok _ -> Lwt.return_ok None
-                    | Error e -> Lwt.return_ok @@ Some (Fmt.to_to_string Sync.pp_push_error e))
+                    | Error e ->
+                        let s = Fmt.to_to_string Sync.pp_push_error e in
+                        Lwt.return_ok @@ Some s)
                   | Error msg, _ | _, Error msg -> Lwt.return_error msg
                 )
             ;
@@ -342,6 +380,44 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             | Error msg -> Lwt.return_error msg
           )
       ;
+      io_field "set_all"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null string);
+            arg "value" ~typ:(non_null string);
+            arg "metadata" ~typ:(string);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k v m i ->
+            match to_branch branch with
+            | Ok branch ->
+              (mk_branch (Store.repo s) branch >>= fun t ->
+              let info = mk_info i in
+              let key = Irmin.Type.of_string Store.key_t k in
+              let value = Irmin.Type.of_string Store.contents_t v in
+              let metadata = match m with
+                | Some m ->
+                    (match Irmin.Type.of_string Store.metadata_t m with
+                    | Ok x -> Ok (Some x)
+                    | Error msg -> Error msg)
+                | None -> Ok None
+              in
+              match key, value, metadata with
+              | Ok key, Ok value, Ok metadata ->
+                (Store.find_tree t key >>= (function
+                  | Some tree -> Lwt.return tree
+                  | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
+                Store.Tree.add tree key ?metadata value >>= fun tree ->
+                Store.set_tree t key tree ~info >>= function
+                | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
+                | Error e -> err_write e)
+              | Error (`Msg msg), _, _
+              | _, Error (`Msg msg), _
+              | _, _, Error (`Msg msg) -> Lwt.return_error msg)
+            | Error msg -> Lwt.return_error msg
+          )
+      ;
       io_field "remove"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -374,7 +450,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         ~resolve:(fun _ _src into from i ->
             match to_branch ~key:"from" (Some from), to_branch into with
             | Ok from, Ok into ->
-              let from = match from with Some x -> x | None -> Store.Branch.master in
+              let from =
+                match from with Some x -> x | None -> Store.Branch.master
+              in
               mk_branch (Store.repo s) into >>= fun t ->
               let info = mk_info i in
               Store.merge_with_branch t from ~info >>= fun _ ->
@@ -391,7 +469,8 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ]
         ~resolve:(fun _ _src branch commit ->
             let branch = to_branch branch in
-            match from_string_err "commit" (Irmin.Type.of_string Store.Hash.t) commit, branch with
+            let conv = Irmin.Type.of_string Store.Hash.t in
+            match from_string_err "commit" conv commit, branch with
             | Ok commit, Ok branch ->
               (mk_branch (Store.repo s) branch >>= fun t ->
               Store.Commit.of_hash (Store.repo s) commit >>= function
@@ -428,7 +507,8 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ~typ:(Lazy.force (branch))
           ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
           ~resolve:(fun _ _ branch ->
-              let branch = from_string_err "name" (Irmin.Type.of_string Store.Branch.t) branch in
+              let conv = Irmin.Type.of_string Store.Branch.t in
+              let branch = from_string_err "name" conv branch in
               match branch with
               | Ok branch ->
                 Store.of_branch (Store.repo s) branch >>= fun t ->
