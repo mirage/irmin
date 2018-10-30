@@ -186,25 +186,32 @@ end
 module Graphql = struct
   module type S = sig
     module Pclock: Mirage_clock_lwt.PCLOCK
-    module Flow: Mirage_flow_lwt.S
+    module Http: Cohttp_lwt.S.Server
+    module Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
-    val init: Pclock.t -> (module Irmin_graphql.S)
+    val start:
+      pclock:Pclock.t
+      -> http:(Conduit_mirage.server -> Http.t -> unit Lwt.t)
+      -> Conduit_mirage.server
+      -> Store.t -> unit Lwt.t
   end
 
   module Make
       (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
       (Pclock: Mirage_clock_lwt.PCLOCK)
-      (Flow: Mirage_flow_lwt.S)
+      (Http: Cohttp_lwt.S.Server)
   = struct
+    module Store = Store
     module Pclock = Pclock
-    module Flow = Flow
+    module Http = Http
+
     let init p =
       let module Server = struct
-        include Cohttp_mirage.Server(Flow)
-        type server = Flow.flow
-        let run flow callback =
-          let server = make ~callback () in
-          listen server flow
+        type conn = Http.conn
+        type server = Http.t -> unit Lwt.t
+        let respond_string = Http.respond_string
+        let run http callback =
+          http @@ Http.make ~callback ()
       end in
       let module Store = struct
         include Store
@@ -214,11 +221,15 @@ module Graphql = struct
           I.f p fmt
 
         let remote = Some (fun ?headers uri ->
-          let e =
-            Git_mirage.endpoint ?headers (Uri.of_string uri)
-          in
-          E e)
+            let e =
+              Git_mirage.endpoint ?headers (Uri.of_string uri)
+            in
+            E e)
       end in
-      (module Irmin_graphql.Make(Store)(Server): Irmin_graphql.S)
+      (module Irmin_graphql.Make(Store)(Server): Irmin_graphql.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
+
+    let start ~pclock ~http server store =
+      let (module G) = init pclock in
+      G.run_server (http server) store
   end
 end
