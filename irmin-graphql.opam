@@ -18,6 +18,7 @@ depends: [
   "dune"    {build}
   "irmin"
   "graphql" {>= "0.7"}
+  "graphql-lwt"
 ]
 
 
