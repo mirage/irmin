@@ -119,10 +119,12 @@ module Json_value = struct
           List.for_all2 (fun a' b' ->
             equal a' b') a b
       | `O a, `O b ->
-          (try
-            List.for_all (fun (k, v) ->
-              equal (List.assoc k b) v) a
-          with Not_found -> false)
+          if List.length a <> List.length b then false
+          else
+            (try
+              List.for_all (fun (k, v) ->
+                equal (List.assoc k b) v) a
+            with Not_found -> false)
       | _, _ -> false
 
 
