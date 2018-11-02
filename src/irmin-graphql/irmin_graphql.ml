@@ -496,6 +496,14 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             | Ok commit -> Store.Commit.of_hash (Store.repo s) commit >>= Lwt.return_ok
             | Error msg -> Lwt.return_error msg
         );
+        io_field "branches"
+          ~typ:(non_null (list (non_null string)))
+          ~args:[]
+          ~resolve:(fun _ _ ->
+            Store.Branch.list (Store.repo s) >>= Lwt_list.map_p (fun b ->
+              Lwt.return (Irmin.Type.to_string Store.branch_t b))
+            >>= Lwt.return_ok
+        );
         io_field "master"
           ~typ:(Lazy.force branch)
           ~args:[]
