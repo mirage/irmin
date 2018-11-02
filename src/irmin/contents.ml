@@ -116,15 +116,15 @@ module Json_value = struct
       | `String a, `String b -> String.equal a b
       | `Float a, `Float b -> a = b
       | `A a, `A b ->
-          List.for_all2 (fun a' b' ->
-            equal a' b') a b
+          (try
+            List.for_all2 (fun a' b' ->
+              equal a' b') a b
+          with Invalid_argument _ -> false)
       | `O a, `O b ->
-          if List.length a <> List.length b then false
-          else
-            (try
-              List.for_all (fun (k, v) ->
-                equal (List.assoc k b) v) a
-            with Not_found -> false)
+          (try
+            List.for_all2 (fun (k, v) (k', v') ->
+              equal (List.assoc k b) v && equal (List.assoc k' a) v') a b
+          with Not_found | Invalid_argument _ -> false)
       | _, _ -> false
 
 
