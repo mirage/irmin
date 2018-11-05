@@ -1,16 +1,7 @@
 open Lwt.Infix
 
-module HttpBody = struct
-  include Cohttp_lwt.Body
-
-  type +'a io = 'a Lwt.t
-  type 'a stream = 'a Lwt_stream.t * (unit -> unit)
-
-  let of_stream (stream, _) = Cohttp_lwt.Body.of_stream stream
-end
-
 module Schema = Graphql_lwt.Schema
-module Graphql_server = Graphql_cohttp.Make(Schema)(HttpBody)
+module Graphql_server = Graphql_cohttp.Make(Schema)(Cohttp_lwt.Body)
 
 module type S = sig
   type store
