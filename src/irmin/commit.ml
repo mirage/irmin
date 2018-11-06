@@ -61,13 +61,14 @@ module Store
 
   module Node = N
   type t = N.t * S.t
+  type batch = N.batch * S.batch
   type key = S.key
   type value = S.value
 
   let add (_, t) = S.add t
   let mem (_, t) = S.mem t
   let find (_, t) = S.find t
-  let merge_node (n, _) = Merge.f (N.merge n)
+  let merge_node (n, _) (b, _) = Merge.f (N.merge n b)
 
   let pp_key = Type.pp S.Key.t
 
@@ -80,12 +81,12 @@ module Store
     | Some v -> Lwt.return v
 
   let empty_if_none n = function
-    | None -> N.batch n (fun n -> N.add n N.Val.empty)
+    | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
   let equal_opt_keys = Type.(equal (option S.Key.t))
 
-  let merge_commit info t ~old k1 k2 =
+  let merge_commit t b info ~old k1 k2 =
     get t k1 >>= fun v1   ->
     get t k2 >>= fun v2   ->
     if List.mem k1 (S.Val.parents v2) then Merge.ok k2
@@ -110,17 +111,15 @@ module Store
             get t old >>= fun vold ->
             Merge.ok (Some (Some (S.Val.node vold)))
         in
-        merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
+        merge_node t b ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
-        empty_if_none (fst t) node >>= fun node ->
+        empty_if_none (fst b) node >>= fun node ->
         let parents = [k1; k2] in
         let commit = S.Val.v ~node ~parents ~info:(info ()) in
-        S.batch (snd t) (fun t -> S.add t commit) >>= fun key ->
+        S.add (snd b) commit >>= fun key ->
         Merge.ok key
 
-  let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
-
-  let batch = S.batch
+  let merge t b ~info = Merge.(option (v S.Key.t (merge_commit t b info)))
 
   module Key = S.Key
   module Val = S.Val
@@ -132,14 +131,15 @@ module History (S: S.COMMIT_STORE) = struct
   type node = S.Node.key
 
   type t = S.t
+  type batch = S.batch
   type v = S.Val.t
 
   let commit_t = S.Key.t
 
-  let merge t ~info =
+  let merge t b ~info =
     let f ~old c1 c2 =
       let somify = Merge.map_promise (fun x -> Some x) in
-      let merge = S.merge t ~info in
+      let merge = S.merge t b ~info in
       Merge.f merge ~old:(somify old) (Some c1) (Some c2) >>=* function
       | None   -> Merge.conflict "History.merge"
       | Some x -> Merge.ok x
@@ -392,7 +392,7 @@ module History (S: S.COMMIT_STORE) = struct
            Lwt.return_unit)
     )
 
-  let rec three_way_merge t ~info ?max_depth ?n c1 c2 =
+  let rec three_way_merge t b ~info ?max_depth ?n c1 c2 =
     Log.debug (fun f -> f "3-way merge between %a and %a" pp_key c1 pp_key c2);
     if equal_keys c1 c2 then Merge.ok c1
     else (
@@ -405,45 +405,18 @@ module History (S: S.COMMIT_STORE) = struct
         let rec aux acc = function
           | []        -> Merge.ok (Some acc)
           | old::olds ->
-            three_way_merge t ~info acc old >>=* fun acc ->
+            three_way_merge t b ~info acc old >>=* fun acc ->
             aux acc olds
         in
         aux old olds
       in
       let merge =
-        merge t ~info
+        merge t b ~info
         |> Merge.with_conflict
           (fun msg -> Fmt.strf "Recursive merging of common ancestors: %s" msg)
         |> Merge.f
       in
       merge ~old:old c1 c2
     )
-
-  let lca_aux t ~info ?max_depth ?n c1 c2 =
-    if equal_keys c1 c2 then Merge.ok (Some c1)
-    else (
-      lcas t ?max_depth ?n c1 c2 >>= function
-      | Error `Too_many_lcas     -> Merge.conflict "Too many lcas"
-      | Error `Max_depth_reached -> Merge.conflict "Max depth reached"
-      | Ok []                    -> Merge.ok None (* no common ancestor *)
-      | Ok [x]                   -> Merge.ok (Some x)
-      | Ok (c :: cs)             ->
-        let rec aux acc = function
-          | []    -> Merge.ok (Some acc)
-          | c::cs ->
-            three_way_merge t ~info ?max_depth ?n acc c >>= function
-            | Error (`Conflict _) -> Merge.ok None
-            | Ok acc              -> aux acc cs
-        in
-        aux c cs
-    )
-
-  let rec lca t ~info ?max_depth ?n = function
-    | []  -> Merge.conflict "History.lca: empty"
-    | [c] -> Merge.ok (Some c)
-    | c1::c2::cs ->
-      lca_aux t ~info ?max_depth ?n c1 c2 >>=* function
-      | None   -> Merge.ok None
-      | Some c -> lca t ~info ?max_depth ?n (c::cs)
 
 end

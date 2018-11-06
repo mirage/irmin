@@ -47,5 +47,6 @@ module Store
      end):
   S.CONTENTS_STORE
   with type t = C.t
+   and type batch = C.batch
    and type key = C.key
    and type value = C.value

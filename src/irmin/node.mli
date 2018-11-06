@@ -40,7 +40,7 @@ module Store
                            and type step = P.step
      end):
   S.NODE_STORE with type t = C.t * N.t
-                and type batch = N.batch
+                and type batch = C.batch * N.batch
                 and type key = N.key
                 and type value = N.value
                 and module Path = P
@@ -50,6 +50,7 @@ module Store
 
 module Graph (N: S.NODE_STORE):
   S.NODE_GRAPH with type t = N.t
+                and type batch = N.batch
                 and type contents = N.Contents.key
                 and type metadata = N.Val.metadata
                 and type node = N.key

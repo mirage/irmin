@@ -834,10 +834,6 @@ module type AO = sig
   (** [add t v] adds [v] to [t]. The result is a determistic key
       derived from [v]. *)
 
-  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] runs [f] in a batch. Batch boundaries
-      ensure consistency: In [batch t f >>= fun () -> batch t g], all
-      the writes done in [f] are done before any of the writes in [g]. *)
 end
 
 (** Immutable Link store. *)
@@ -1130,13 +1126,14 @@ module Contents: sig
 
     include AO
 
-    val merge: t -> key option Merge.t
-    (** [merge t] lifts the merge functions defined on contents values
-        to contents key. The merge function will: {e (i)} read the
-        values associated with the given keys, {e (ii)} use the merge
-        function defined on values and {e (iii)} write the resulting
-        values into the store to get the resulting key. See
-        {!Contents.S.merge}.
+    val merge: t -> batch -> key option Merge.t
+    (** [merge t b] lifts the merge functions defined on contents
+       values to contents key. The merge function will: {e (i)} read
+       the values associated with the given keys using the store [t]
+       handle, {e (ii)} use the merge function defined on values and
+       {e (iii)} write the resulting values into the store to get the
+       resulting key using the batch handle [b]. See
+       {!Contents.S.merge}.
 
         If any of these operations fail, return [`Conflict]. *)
 
@@ -1558,7 +1555,7 @@ module Private: sig
       module Path: Path.S
       (** [Path] provides base functions on node paths. *)
 
-      val merge: t -> key option Merge.t
+      val merge: t -> batch -> key option Merge.t
       (** [merge] is the 3-way merge function for nodes keys. *)
 
       module Key: Hash.S with type t = key
@@ -1592,6 +1589,7 @@ module Private: sig
                           and type step = P.step
          end):
       STORE with type t = C.t * S.t
+             and type batch = C.batch * S.batch
              and type key = S.key
              and type value = S.value
              and module Path = P
@@ -1608,6 +1606,9 @@ module Private: sig
 
       type t
       (** The type for store handles. *)
+
+      type batch
+      (** The type for batch handles. *)
 
       type metadata
       (** The type for node metadata. *)
@@ -1629,10 +1630,10 @@ module Private: sig
       type value = [ `Node of node | `Contents of contents * metadata ]
       (** The type for store values. *)
 
-      val empty: t -> node Lwt.t
+      val empty: batch -> node Lwt.t
       (** The empty node. *)
 
-      val v: t -> (step * value) list -> node Lwt.t
+      val v: batch -> (step * value) list -> node Lwt.t
       (** [v t n] is a new node containing [n]. *)
 
       val list: t -> node -> (step * value) list Lwt.t
@@ -1642,15 +1643,14 @@ module Private: sig
       (** [find t n p] is the contents of the path [p] starting form
           [n]. *)
 
-      val update: t -> node -> path -> value -> node Lwt.t
-      (** [update t n p v] is the node [x] such that [find t x p] is
-          [Some v] and it behaves the same [n] for other
-          operations. *)
+      val update: t -> batch -> node -> path -> value -> node Lwt.t
+      (** [update t b n p v] is the node [x] such that [find t x p] is
+         [Some v] and it behaves the same [n] for other operations. *)
 
-      val remove: t -> node -> path -> node Lwt.t
-      (** [remove t n path] is the node [x] such that [find t x] is
-          [None] and it behhaves then same as [n] for other
-          operations. *)
+      val remove: t -> batch -> node -> path -> node Lwt.t
+      (** [remove t b n path] is the node [x] such that [find t x] is
+         [None] and it behaves then same as [n] for other
+         operations. *)
 
       val closure: t -> min:node list -> max:node list -> node list Lwt.t
       (** [closure t ~min ~max] is the transitive closure [c] of [t]'s
@@ -1689,6 +1689,7 @@ module Private: sig
 
     module Graph (S: STORE): GRAPH
       with type t = S.t
+       and type batch = S.batch
        and type contents = S.Contents.key
        and type metadata = S.Val.metadata
        and type node = S.key
@@ -1758,7 +1759,7 @@ module Private: sig
 
       include AO
 
-      val merge: t -> info:Info.f -> key option Merge.t
+      val merge: t -> batch -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
       module Key: Hash.S with type t = key
@@ -1783,6 +1784,7 @@ module Private: sig
                           and type node = N.key
          end):
       STORE with type t = N.t * S.t
+             and type batch = N.batch * S.batch
              and type key = S.key
              and type value = S.value
              and module Key = S.Key
@@ -1801,6 +1803,9 @@ module Private: sig
       type t
       (** The type for store handles. *)
 
+      type batch
+      (** The type for batch handles. *)
+
       type node
       (** The type for node values. *)
 
@@ -1810,7 +1815,7 @@ module Private: sig
       type v
       (** The type for commit objects. *)
 
-      val v: t -> node:node -> parents:commit list -> info:Info.t ->
+      val v: batch -> node:node -> parents:commit list -> info:Info.t ->
         (commit * v) Lwt.t
       (** Create a new commit. *)
 
@@ -1821,7 +1826,7 @@ module Private: sig
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> info:Info.f -> commit Merge.t
+      val merge: t -> batch -> info:Info.f -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
       val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -1830,19 +1835,8 @@ module Private: sig
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit list ->
-        (commit option, Merge.conflict) result Lwt.t
-      (** Compute the lowest common ancestors ancestor of a list of
-          commits by recursively calling {!lcas} and merging the
-          results.
-
-          If one of the merges results in a conflict, or if a call to
-          {!lcas} returns either [Error `Max_depth_reached] or
-          [Error `Too_many_lcas] then the function returns the same
-          error. *)
-
       val three_way_merge:
-        t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        t -> batch -> info:Info.f -> ?max_depth:int -> ?n:int -> commit -> commit ->
         (commit, Merge.conflict) result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
@@ -1861,6 +1855,7 @@ module Private: sig
     (** Build a commit history. *)
     module History (S: STORE): HISTORY
       with type t = S.t
+       and type batch = S.batch
        and type node = S.Node.key
        and type commit = S.key
 
@@ -2005,7 +2000,8 @@ module Private: sig
       val contents_t: t -> Contents.t
       val node_t: t -> Node.t
       val commit_t: t -> Commit.t
-      val batch: t -> (Contents.t -> Node.t -> Commit.t -> 'a Lwt.t) -> 'a Lwt.t
+      val batch: t ->
+        (Contents.batch -> Node.batch -> Commit.batch -> 'a Lwt.t) -> 'a Lwt.t
       val branch_t: t -> Branch.t
     end
 
@@ -3344,11 +3340,11 @@ module type AO_MAKER = functor (K: Type.S) (V: Type.S) -> sig
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 
-  val add: t -> key -> value -> unit Lwt.t
-  (** [add t k v] add the bindings [k -> v] in [t]. *)
-
   type batch
   (** The type for the state of the underling storage layer. *)
+
+  val add: batch -> key -> value -> unit Lwt.t
+  (** [add t k v] add the bindings [k -> v] in [t]. *)
 
   val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] batches the sequence of operations [f] in the

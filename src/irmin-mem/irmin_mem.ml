@@ -45,16 +45,22 @@ module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
+module AO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   include RO(K)(V)
 
-  let add t value =
-    let str = Irmin.Type.encode_bin V.t value in
-    let key = K.digest str in
+  type batch = t
+
+  let add t key value =
     Log.debug (fun f -> f "add -> %a" pp_key key);
     t.t <- KMap.add key value t.t;
-    Lwt.return key
+    Lwt.return ()
+
+  let batch t f =
+    Log.debug (fun l -> l "batch starts");
+    f t >|= fun r ->
+    Log.debug (fun l -> l "batch ended");
+    r
 
 end
 

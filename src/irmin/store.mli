@@ -22,6 +22,7 @@ module AO (AO: S.AO_MAKER) (K: S.HASH) (V: Type.S) : sig
   include S.AO with type key = K.t and type value = V.t
 
   val v: Conf.t -> t Lwt.t
+  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
 
 end
 

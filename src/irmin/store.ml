@@ -60,7 +60,7 @@ module Make (P: S.PRIVATE) = struct
   module Tree = struct
     include Tree.Make(P)
 
-    let of_hash r h = Lwt.return @@ Some (`Node (import (r h)))
+    let of_hash r h = Lwt.return @@ Some (`Node (import r h))
 
     let hash: tree -> hash = fun tr -> match hash tr with
       | `Node h -> h
@@ -91,7 +91,7 @@ module Make (P: S.PRIVATE) = struct
       let parents = List.sort compare_hash parents in
       P.Repo.batch r @@ fun contents_t node_t commit_t ->
       (match tree with
-       | `Node n     -> Tree.export contents_t node_t n
+       | `Node n     -> Tree.export r contents_t node_t n
        | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
@@ -99,10 +99,7 @@ module Make (P: S.PRIVATE) = struct
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-
-    let tree t =
-      Tree.import t.r (node t) |> fun n -> `Node n |> Lwt.return
-
+    let tree t = Tree.import t.r (node t) |> fun n -> `Node n |> Lwt.return
     let equal x y = Type.equal Hash.t x.h y.h
     let hash t = t.h
     let info t = P.Commit.Val.info t.v
@@ -478,8 +475,10 @@ module Make (P: S.PRIVATE) = struct
        - Perform recursive 3-way merges *)
     let three_way_merge t ?max_depth ?n ~info c1 c2 =
       let commit_t = P.Repo.commit_t (repo t) in
-      H.three_way_merge ~info commit_t ?max_depth ?n c1.Commit.h c2.Commit.h
-
+      P.Repo.batch (repo t) (fun _ _ b ->
+          H.three_way_merge ~info commit_t b ?max_depth ?n c1.Commit.h c2.Commit.h
+        )
+        
     (* FIXME: we might want to keep the new commit in case of conflict,
          and use it as a base for the next merge. *)
     let merge ~into:t ~info ?max_depth ?n c1 =

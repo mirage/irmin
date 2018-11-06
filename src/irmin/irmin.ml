@@ -80,11 +80,12 @@ struct
       module AO = struct
         module Key = H
         module Val = C
+
         type t = Values.t
         type key = Key.t
         type value = Val.t
         type batch = Values.batch
-        let batch = Values.batch
+
         let add t v = Values.add t (Contents v)
         let find t k = Values.find t k >|= function
           | Some (Contents c) -> Some c
@@ -102,11 +103,12 @@ struct
       module AO = struct
         module Key = H
         module Val = N
+
         type t = Values.t
         type key = Key.t
         type value = Val.t
         type batch = Values.batch
-        let batch = Values.batch
+
         let add t v = Values.add t (Node v)
         let find t k = Values.find t k >|= function
           | Some (Node c) -> Some c
@@ -124,11 +126,12 @@ struct
       module AO = struct
         module Key = H
         module Val = CT
+
         type t = Values.t
         type key = Key.t
         type value = Val.t
         type batch = Values.batch
-        let batch = Values.batch
+
         let add t v = Values.add t (Commit v)
         let find t k = Values.find t k >|= function
           | Some (Commit c) -> Some c
@@ -166,13 +169,11 @@ struct
         Branch.v config >|= fun branch ->
         { values; branch; config }
 
-      let batch t f =
-        Values.batch t.values (fun t ->
-            let contents_t = t in
-            let node_t = t, t in
-            let commit_t = node_t, t in
-            f contents_t node_t commit_t
-          )
+      let batch t f = Values.batch t.values (fun t ->
+          let contents_t = t in
+          let node_t = contents_t, t in
+          let commit_t = node_t, t in
+          f contents_t node_t commit_t)
 
     end
   end

@@ -30,6 +30,7 @@ module Store
      end):
   S.COMMIT_STORE
   with type t = N.t * C.t
+   and type batch = N.batch * C.batch
    and type key = C.key
    and type value = C.value
    and module Key = C.Key
@@ -37,6 +38,7 @@ module Store
 
 module History (C: S.COMMIT_STORE):
   S.COMMIT_HISTORY with type t = C.t
+                    and type batch = C.batch
                     and type v = C.Val.t
                     and type node = C.Node.key
                     and type commit = C.key

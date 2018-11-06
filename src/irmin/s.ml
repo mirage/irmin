@@ -62,7 +62,6 @@ module type AO = sig
   include RO
   type batch
   val add: batch -> value -> key Lwt.t
-  val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
 end
 
 module type AO_MAKER = functor (K: Type.S) (V: Type.S) -> sig
@@ -82,7 +81,7 @@ end
 
 module type CONTENTS_STORE = sig
   include AO
-  val merge: t -> key option Merge.t
+  val merge: t -> batch -> key option Merge.t
   module Key: HASH with type t = key
   module Val: CONTENTS with type t = value
 end
@@ -111,18 +110,19 @@ end
 
 module type NODE_GRAPH = sig
   type t
+  type batch
   type metadata
   type contents
   type node
   type step
   type path
   type value = [ `Node of node | `Contents of contents * metadata ]
-  val empty: t -> node Lwt.t
-  val v: t -> (step * value) list -> node Lwt.t
+  val empty: batch -> node Lwt.t
+  val v: batch -> (step * value) list -> node Lwt.t
   val list: t -> node -> (step * value) list Lwt.t
   val find: t -> node -> path -> value option Lwt.t
-  val update: t -> node -> path -> value -> node Lwt.t
-  val remove: t -> node -> path -> node Lwt.t
+  val update: t -> batch -> node -> path -> value -> node Lwt.t
+  val remove: t -> batch -> node -> path -> node Lwt.t
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
   val metadata_t: metadata Type.t
   val contents_t: contents Type.t
@@ -135,7 +135,7 @@ end
 module type NODE_STORE = sig
   include AO
   module Path: PATH
-  val merge: t -> key option Merge.t
+  val merge: t -> batch -> key option Merge.t
   module Key: HASH with type t = key
   module Metadata: METADATA
   module Val: NODE
@@ -164,7 +164,7 @@ end
 
 module type COMMIT_STORE = sig
   include AO
-  val merge: t -> info:Info.f -> key option Merge.t
+  val merge: t -> batch -> info:Info.f -> key option Merge.t
   module Key: HASH with type t = key
   module Val: COMMIT
     with type t = value
@@ -174,24 +174,23 @@ end
 
 module type COMMIT_HISTORY = sig
   type t
+  type batch
   type node
   type commit
   type v
-  val v: t -> node:node -> parents:commit list -> info:Info.t -> (commit * v) Lwt.t
+  val v: batch -> node:node -> parents:commit list -> info:Info.t -> (commit * v) Lwt.t
   val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> info:Info.f -> commit Merge.t
+  val merge: t -> batch -> info:Info.f -> commit Merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
-  val lca: t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit list ->
-    (commit option, Merge.conflict) result Lwt.t
-  val three_way_merge: t -> info:Info.f -> ?max_depth:int -> ?n:int ->
+  val three_way_merge: t -> batch -> info:Info.f -> ?max_depth:int -> ?n:int ->
     commit -> commit -> (commit, Merge.conflict) result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   val commit_t: commit Type.t
 end
 
 module type LINK = sig
-  include AO
+  include RO
   val add: t -> key -> value -> unit Lwt.t
 end
 

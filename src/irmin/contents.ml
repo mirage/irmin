@@ -258,9 +258,7 @@ struct
     | None -> Lwt.return_none
     | Some v -> add t v >>= fun k -> Lwt.return (Some k)
 
-  let merge t =
-    Merge.like_lwt Type.(option Key.t) Val.merge
-      (read_opt t)
-      (fun v -> batch t (fun t -> add_opt t v))
+  let merge t b =
+    Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt b)
 
 end

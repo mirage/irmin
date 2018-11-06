@@ -133,14 +133,13 @@ struct
   module Metadata = M
 
   type t = C.t * S.t
-  type batch = S.batch
+  type batch = C.batch * S.batch
   type key = S.key
   type value = S.value
 
   let mem (_, t) = S.mem t
   let find (_, t) = S.find t
-  let add t = S.add t
-  let batch (_, t) = S.batch t
+  let add (_, t) = S.add t
 
   let all_contents t =
     let kvs = S.Val.list t in
@@ -162,7 +161,7 @@ struct
 
   (* [Merge.alist] expects us to return an option. [C.merge] does
      that, but we need to consider the metadata too... *)
-  let merge_contents_meta c =
+  let merge_contents_meta c b =
     (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
        S.Val.Metadata.t) option]. *)
     let explode = function
@@ -174,18 +173,18 @@ struct
       | Some c, m -> Some (c, m)
     in
     Merge.like Type.(option (pair contents_t metadata_t))
-      (Merge.pair (C.merge c) M.merge)
+      (Merge.pair (C.merge c b) M.merge)
       explode implode
 
-  let merge_contents_meta c =
+  let merge_contents_meta c b =
     Merge.alist step_t
       Type.(pair contents_t metadata_t)
-      (fun _step -> merge_contents_meta c)
+      (fun _step -> merge_contents_meta c b)
 
   let merge_parents merge_key =
     Merge.alist step_t S.Key.t (fun _step -> merge_key)
 
-  let merge_value (c, _) merge_key =
+  let merge_value (c, _) (b, _) merge_key =
     let explode t = all_contents t, all_succ t in
     let implode (contents, succ) =
       let xs = List.map (fun (s, c) -> s, `Contents c) contents in
@@ -193,26 +192,24 @@ struct
       S.Val.v (xs @ ys)
     in
     let merge =
-      Merge.pair (merge_contents_meta c) (merge_parents merge_key)
+      Merge.pair (merge_contents_meta c b) (merge_parents merge_key)
     in
     Merge.like S.Val.t merge explode implode
 
-  let rec merge t =
+  let rec merge t b =
     let merge_key =
       Merge.v
         (Type.option S.Key.t)
-        (fun ~old x y -> Merge.(f (merge t)) ~old x y)
+        (fun ~old x y -> Merge.(f (merge t b)) ~old x y)
     in
-    let merge = merge_value t merge_key in
+    let merge = merge_value t b merge_key in
     let read = function
       | None   -> Lwt.return S.Val.empty
       | Some k -> find t k >|= function None -> S.Val.empty | Some v -> v
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else
-        S.batch (snd t) (fun t -> S.add t v) >|= fun k ->
-        Some k
+      else S.add (snd b) v >|= fun k -> Some k
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -232,6 +229,7 @@ module Graph (S: S.NODE_STORE) = struct
   type node = S.key
   type path = Path.t
   type t = S.t
+  type batch = S.batch
 
   type value = [ `Contents of contents * metadata | `Node of node ]
 
@@ -296,7 +294,7 @@ module Graph (S: S.NODE_STORE) = struct
 
   let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
-  let map_one t node f label =
+  let map_one t b node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
     let old_key = S.Val.find node label in
     begin match old_key with
@@ -314,29 +312,29 @@ module Graph (S: S.NODE_STORE) = struct
         if S.Val.is_empty node then Lwt.return S.Val.empty
         else Lwt.return node
       ) else
-        S.batch t (fun t -> S.add t new_node) >|= fun k ->
+        S.add b new_node >|= fun k ->
         S.Val.update node label (`Node k)
     )
 
-  let map t node path f =
+  let map t b node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
     let rec aux node path =
       match Path.decons path with
       | None         -> Lwt.return (f node)
-      | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
+      | Some (h, tl) -> map_one t b node (fun node -> aux node tl) h
     in
     begin S.find t node >|= function
       | None   -> S.Val.empty
       | Some n -> n
     end >>= fun node ->
     aux node path >>= fun k ->
-    S.batch t (fun t -> S.add t k)
+    S.add b k
 
-  let update t node path n =
+  let update t b node path n =
     Log.debug (fun f -> f "update %a %a" pp_key node pp_path path);
     match Path.rdecons path with
     | Some (path, file) ->
-      map t node path (fun node -> S.Val.update node file n)
+      map t b node path (fun node -> S.Val.update node file n)
     | None ->
       match n with
       | `Node n     -> Lwt.return n
@@ -347,9 +345,9 @@ module Graph (S: S.NODE_STORE) = struct
     | Some (l,t) -> l, t
     | None       -> err_empty_path ()
 
-  let remove t node path =
+  let remove t b node path =
     let path, file = rdecons_exn path in
-    map t node path (fun node -> S.Val.remove node file)
+    map t b node path (fun node -> S.Val.remove node file)
 
   let path_t = Path.t
   let node_t = S.Key.t
