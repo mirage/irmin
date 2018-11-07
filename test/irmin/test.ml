@@ -113,7 +113,10 @@ let test_equal () =
   Alcotest.(check int) "eq" (T.compare x 1 2) (compare 1 2);
   Alcotest.(check int) "eq" (T.compare x 3 1) (compare 3 1);
   Alcotest.(check bool) "eq" (T.equal x 3 1) true;
-  Alcotest.(check bool) "eq" (T.equal x 0 0) false
+  Alcotest.(check bool) "eq" (T.equal x 0 0) false;
+  let a = `O  ["b", `Float 2.; "c", `A [`String "test"]; "a", `Bool true] in
+  let b = `O ["a", `Bool true; "b", `Float 2.; "c", `A [`String "test"]] in
+  Alcotest.(check bool) "json eq" (T.equal Irmin.Contents.Json_value.t a b) true
 
 let suite = [
   "type", [

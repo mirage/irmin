@@ -112,9 +112,9 @@ module Json_value = struct
   let rec equal a b =
       match a, b with
       | `Null, `Null -> true
-      | `Bool a, `Bool b -> a = b
+      | `Bool a, `Bool b -> Type.(equal bool) a b
       | `String a, `String b -> String.equal a b
-      | `Float a, `Float b -> a = b
+      | `Float a, `Float b -> Type.(equal float) a b
       | `A a, `A b ->
           (try
             List.for_all2 (fun a' b' ->
@@ -125,10 +125,11 @@ module Json_value = struct
             List.for_all2 (fun (k, v) (k', v') ->
               equal (List.assoc k b) v && equal (List.assoc k' a) v') a b
           with Not_found | Invalid_argument _ -> false)
-      | _, _ -> false
+      | _, _ ->
+          false
 
 
-  let t = Type.like' ~cli:(pp, of_string) t
+  let t = Type.like' ~equal ~cli:(pp, of_string) t
 
   let rec merge_object ~old x y =
     let open Merge.Infix in
