@@ -121,10 +121,11 @@ module Json_value = struct
               equal a' b') a b
           with Invalid_argument _ -> false)
       | `O a, `O b ->
+          let compare_fst (a, _) (b, _) = compare a b in
           (try
             List.for_all2 (fun (k, v) (k', v') ->
-              equal (List.assoc k b) v && equal (List.assoc k' a) v') a b
-          with Not_found | Invalid_argument _ -> false)
+              k = k' && equal v v') (List.sort compare_fst a) (List.sort compare_fst b)
+          with Invalid_argument _ -> false)
       | _, _ ->
           false
 
