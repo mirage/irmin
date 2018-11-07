@@ -500,9 +500,10 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ~typ:(non_null (list (non_null string)))
           ~args:[]
           ~resolve:(fun _ _ ->
-            Store.Branch.list (Store.repo s) >>= Lwt_list.map_p (fun b ->
-              Lwt.return (Irmin.Type.to_string Store.branch_t b))
-            >>= Lwt.return_ok
+            Store.Branch.list (Store.repo s) >|= fun l ->
+            let branches = List.map (fun b ->
+              Irmin.Type.to_string Store.branch_t b) l
+            in Ok branches
         );
         io_field "master"
           ~typ:(Lazy.force branch)
