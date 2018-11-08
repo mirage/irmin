@@ -16,18 +16,6 @@
 
 open Lwt.Infix
 
-module String = struct
-  type t = string
-  let t = Type.string
-  let merge = Merge.idempotent Type.(option string)
-end
-
-module Bytes = struct
-  type t = bytes
-  let t = Type.bytes
-  let merge = Merge.idempotent Type.(option t)
-end
-
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
 let rec encode_json e = function
@@ -121,7 +109,28 @@ module Json_value = struct
     |~ case1 "array" (list ty) (fun arr -> `A arr)
     |> sealv)
 
-  let t = Type.like' ~cli:(pp, of_string) t
+  let rec equal a b =
+      match a, b with
+      | `Null, `Null -> true
+      | `Bool a, `Bool b -> Type.(equal bool) a b
+      | `String a, `String b -> String.equal a b
+      | `Float a, `Float b -> Type.(equal float) a b
+      | `A a, `A b ->
+          (try
+            List.for_all2 (fun a' b' ->
+              equal a' b') a b
+          with Invalid_argument _ -> false)
+      | `O a, `O b ->
+          let compare_fst (a, _) (b, _) = compare a b in
+          (try
+            List.for_all2 (fun (k, v) (k', v') ->
+              k = k' && equal v v') (List.sort compare_fst a) (List.sort compare_fst b)
+          with Invalid_argument _ -> false)
+      | _, _ ->
+          false
+
+
+  let t = Type.like' ~equal ~cli:(pp, of_string) t
 
   let rec merge_object ~old x y =
     let open Merge.Infix in
@@ -186,8 +195,11 @@ module Json = struct
     | Ok _ -> Error (`Msg "Irmin JSON values must be objects")
     | Error _ as err -> err
 
+  let equal a b =
+    Json_value.equal (`O a) (`O b)
+
   let t = Type.(list (pair string Json_value.t))
-  let t = Type.like' ~cli:(pp, of_string) t
+  let t = Type.like' ~equal ~cli:(pp, of_string) t
 
   let merge =
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
@@ -239,6 +251,18 @@ module Json_tree(Store: S.STORE with type contents = json) = struct
   let get t key =
     Store.get_tree t key >>= fun tree ->
     get_tree tree Store.Key.empty
+end
+
+module String = struct
+  type t = string
+  let t = Type.string
+  let merge = Merge.idempotent Type.(option string)
+end
+
+module Bytes = struct
+  type t = bytes
+  let t = Type.bytes
+  let merge = Merge.idempotent Type.(option t)
 end
 
 module Store
