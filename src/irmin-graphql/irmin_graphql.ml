@@ -17,6 +17,12 @@ type commit_input = {
   message: string option;
 }
 
+type tree_item = {
+  key: string;
+  value: string option;
+  node: tree_item list option;
+}
+
 module type STORE = sig
   include Irmin.S
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
@@ -60,6 +66,15 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ]
           ~coerce:(fun author message -> {author; message})
       )
+
+    let tree = Schema.Arg.(
+      obj "TreeItem"
+        ~fields:[
+          arg "key" ~typ:(non_null string);
+          arg "value" ~typ:string;
+        ]
+        ~coerce:(fun key value node -> {key; value; node})
+    )
   end
 
   let rec commit = lazy Schema.(
@@ -380,6 +395,41 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             | Error msg -> Lwt.return_error msg
           )
       ;
+      io_field "set_tree"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null string);
+            arg "tree" ~typ:(non_null (list (non_null Input.tree)));
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k items i ->
+          match to_branch branch with
+          | Ok branch ->
+              let unwrap = function
+                | Ok x -> x
+                | Error (`Msg msg) -> failwith msg
+              in
+              mk_branch (Store.repo s) branch >>= fun t ->
+              let info = mk_info i in
+              let key = Irmin.Type.of_string Store.key_t k in
+              (match key with
+              | Ok key ->
+                  Store.with_tree t key ~info (fun tree ->
+                    let tree = match tree with
+                      | Some t -> t
+                      | None -> Store.Tree.empty
+                    in
+                  Lwt_list.fold_right_s (fun item tree ->
+                    let key = Irmin.Type.of_string Store.key_t item.key |> unwrap in
+                    let value = Irmin.Type.of_string Store.contents_t item.value |> unwrap in
+                    Store.Tree.add tree key value) items tree >>= Lwt.return_some) >>= (function
+                    | Ok () -> Store.Head.find t >>= Lwt.return_ok
+                    | Error w -> Lwt.return_error (Irmin.Type.to_string Store.write_error_t w))
+              | Error (`Msg msg) -> Lwt.return_error msg)
+          | Error msg -> Lwt.return_error msg
+        )
+      ;
       io_field "set_all"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -530,3 +580,4 @@ module Make(Store : STORE) : S with type store = Store.t = struct
   let start_server ?port s =
     Server.start ?port ~ctx:(fun _req -> ()) (schema s)
 end
+
