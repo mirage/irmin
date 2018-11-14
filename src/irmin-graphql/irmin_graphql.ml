@@ -20,6 +20,7 @@ type commit_input = {
 type tree_item = {
   key: string;
   value: string option;
+  metadata: string option;
 }
 
 module type STORE = sig
@@ -71,8 +72,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         ~fields:[
           arg "key" ~typ:(non_null string);
           arg "value" ~typ:string;
+          arg "metadata" ~typ:string;
         ]
-        ~coerce:(fun key value -> {key; value})
+        ~coerce:(fun key value metadata -> {key; value; metadata})
       )
 
     let tree = Schema.Arg.(
@@ -226,19 +228,19 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(list (non_null @@ Lazy.force contents))
                 ~resolve:(fun _ (s, _) key ->
-                    let rec tree_list tree key acc =
+                    let rec tree_list base tree key acc =
                       match tree with
                       | `Contents (_, _) ->
-                          (Store.Tree.of_concrete tree, key) :: acc
+                          (Store.Tree.of_concrete base, key) :: acc
                       | `Tree l ->
-                          List.fold_right (fun (step, t) acc -> tree_list t (Store.Key.rcons key step) acc) l acc
+                          List.fold_right (fun (step, t) acc -> tree_list base t (Store.Key.rcons key step) [] @ acc) l acc
                     in
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
                         (Store.find_tree s key >>= function
                           | Some t ->
                               Store.Tree.to_concrete t >>= fun t ->
-                              let l = tree_list t Store.Key.empty [] in
+                              let l = tree_list t t Store.Key.empty [] in
                               Lwt.return_ok (Some l)
                           | None -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
@@ -428,15 +430,24 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
+          let unwrap_metadata m =
+            match m with
+            | Some m ->
+              (match Irmin.Type.of_string Store.metadata_t m with
+              | Ok m -> Some m
+              | Error (`Msg e) -> failwith e)
+            | None -> None
+          in
           let to_tree tree l = Lwt_list.fold_left_s (fun tree -> function
-            | {key; value = Some x} ->
+            | {key; value = Some x; metadata} ->
                 let k = Irmin.Type.of_string Store.key_t key in
                 let v = Irmin.Type.of_string Store.contents_t x in
+                let metadata = unwrap_metadata metadata in
                 (match k, v with
                 | Ok k, Ok v ->
-                  Store.Tree.add tree k v
+                  Store.Tree.add tree ?metadata k v
                 | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
-            | {key; value = None} ->
+              | {key; value = None; _} ->
                 let k = Irmin.Type.of_string Store.key_t key in
                 (match k with
                 | Ok k ->
