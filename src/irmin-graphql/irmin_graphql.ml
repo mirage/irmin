@@ -20,7 +20,6 @@ type commit_input = {
 type tree_item = {
   key: string;
   value: string option;
-  node: tree_item list option;
 }
 
 module type STORE = sig
@@ -67,14 +66,17 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ~coerce:(fun author message -> {author; message})
       )
 
-    let tree = Schema.Arg.(
+    let item = Schema.Arg.(
       obj "TreeItem"
         ~fields:[
           arg "key" ~typ:(non_null string);
           arg "value" ~typ:string;
         ]
-        ~coerce:(fun key value node -> {key; value; node})
-    )
+        ~coerce:(fun key value -> {key; value})
+      )
+
+    let tree = Schema.Arg.(
+      non_null (list (non_null item)))
   end
 
   let rec commit = lazy Schema.(
@@ -220,13 +222,35 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     | Error msg -> Lwt.return_error msg
                   )
               ;
+              io_field "get_tree"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:(list (non_null @@ Lazy.force contents))
+                ~resolve:(fun _ (s, _) key ->
+                    let rec tree_list tree key acc =
+                      match tree with
+                      | `Contents (_, _) ->
+                          (Store.Tree.of_concrete tree, key) :: acc
+                      | `Tree l ->
+                          List.fold_right (fun (step, t) acc -> tree_list t (Store.Key.rcons key step) acc) l acc
+                    in
+                    match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
+                    | Ok key ->
+                        (Store.find_tree s key >>= function
+                          | Some t ->
+                              Store.Tree.to_concrete t >>= fun t ->
+                              let l = tree_list t Store.Key.empty [] in
+                              Lwt.return_ok (Some l)
+                          | None -> Lwt.return_ok None)
+                    | Error msg -> Lwt.return_error msg
+                  )
+              ;
               io_field "get_all"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(Lazy.force contents)
                 ~resolve:(fun _ (s, _) key ->
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
-                      (Store.find_tree s Store.Key.empty >>= function
+                      (Store.find_tree s key >>= function
                         | Some tree -> Lwt.return_ok (Some (tree, key))
                         | None -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
@@ -400,32 +424,40 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "key" ~typ:(non_null string);
-            arg "tree" ~typ:(non_null (list (non_null Input.tree)));
+            arg "tree" ~typ:(Input.tree);
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
+          let to_tree tree l = Lwt_list.fold_left_s (fun tree -> function
+            | {key; value = Some x} ->
+                let k = Irmin.Type.of_string Store.key_t key in
+                let v = Irmin.Type.of_string Store.contents_t x in
+                (match k, v with
+                | Ok k, Ok v ->
+                  Store.Tree.add tree k v
+                | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
+            | {key; value = None} ->
+                let k = Irmin.Type.of_string Store.key_t key in
+                (match k with
+                | Ok k ->
+                  Store.Tree.remove tree k
+                | Error (`Msg e) -> failwith e)) tree l
+          in
           match to_branch branch with
           | Ok branch ->
-              let unwrap = function
-                | Ok x -> x
-                | Error (`Msg msg) -> failwith msg
-              in
               mk_branch (Store.repo s) branch >>= fun t ->
               let info = mk_info i in
               let key = Irmin.Type.of_string Store.key_t k in
               (match key with
               | Ok key ->
-                  Store.with_tree t key ~info (fun tree ->
+                  Store.with_tree_exn t key ~info (fun tree ->
                     let tree = match tree with
                       | Some t -> t
                       | None -> Store.Tree.empty
                     in
-                  Lwt_list.fold_right_s (fun item tree ->
-                    let key = Irmin.Type.of_string Store.key_t item.key |> unwrap in
-                    let value = Irmin.Type.of_string Store.contents_t item.value |> unwrap in
-                    Store.Tree.add tree key value) items tree >>= Lwt.return_some) >>= (function
-                    | Ok () -> Store.Head.find t >>= Lwt.return_ok
-                    | Error w -> Lwt.return_error (Irmin.Type.to_string Store.write_error_t w))
+                    to_tree tree items >>= Lwt.return_some
+                  ) >>= fun () ->
+                  Store.Head.find t >>= Lwt.return_ok
               | Error (`Msg msg) -> Lwt.return_error msg)
           | Error msg -> Lwt.return_error msg
         )
