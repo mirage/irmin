@@ -253,9 +253,11 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~resolve:(fun _ (s, _) key ->
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
-                      (Store.find_tree s key >>= function
-                        | Some tree -> Lwt.return_ok (Some (tree, key))
-                        | None -> Lwt.return_ok None)
+                      (Store.mem_tree s key >>= function
+                        | true ->
+                            Store.get_tree s Store.Key.empty >>= fun tree ->
+                            Lwt.return_ok (Some (tree, key))
+                        | false -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
                   )
               ;
