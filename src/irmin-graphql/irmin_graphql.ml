@@ -464,14 +464,18 @@ module Make(Store : STORE) : S with type store = Store.t = struct
               let key = Irmin.Type.of_string Store.key_t k in
               (match key with
               | Ok key ->
+                Lwt.catch (fun () ->
                   Store.with_tree_exn t key ~info (fun tree ->
                     let tree = match tree with
                       | Some t -> t
                       | None -> Store.Tree.empty
                     in
-                    to_tree tree items >>= Lwt.return_some
-                  ) >>= fun () ->
-                  Store.Head.find t >>= Lwt.return_ok
+                    to_tree tree items >>= Lwt.return_some)
+                    >>= fun () ->
+                    Store.Head.find t >>= Lwt.return_ok)
+                  (function
+                    | Failure e -> Lwt.return_error e
+                    | e -> raise e)
               | Error (`Msg msg) -> Lwt.return_error msg)
           | Error msg -> Lwt.return_error msg
         )
