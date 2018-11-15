@@ -145,12 +145,13 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~args:Arg.[arg "key" ~typ:Input.step]
                 ~typ:node
                 ~resolve:(fun _ (tree, key) step ->
+                  Store.Tree.get_tree tree key >>= fun tree ->
                     let key =
                       match step with
                       | Some s ->
-                          let conv = (Irmin.Type.of_string Store.step_t) in
+                          let conv = (Irmin.Type.of_string Store.key_t) in
                           (match from_string_err "key" conv  s with
-                          | Ok step -> Ok (Store.Key.rcons key step)
+                          | Ok k -> Ok k
                           | Error e -> Error e)
                       | None -> Ok Store.Key.empty
                     in
