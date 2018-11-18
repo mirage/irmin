@@ -298,7 +298,7 @@ module Type: sig
 
       Sometimes it is not always possible to describe precisely a type
       (or it could be too tedious) and it is easier to describe the
-      relation with an other know type. This is what bijections are
+      relation with an other known type. This is what bijections are
       about.
   *)
 
@@ -2028,7 +2028,7 @@ module Private: sig
     module Contents: Contents.STORE
       with type key = Hash.t
 
-    (** Private nod store. *)
+    (** Private node store. *)
     module Node: Node.STORE
       with type key = Hash.t and type Val.hash = Contents.key
 
@@ -3411,7 +3411,7 @@ end
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.}
     {- {!Make_ext} creates a store with a {e deep} embedding of each
-    of the internal stores into separate store, with a total control over
+    of the internal stores into separate store, with total control over
     the binary format and using the native synchronization protocols
     when available.}
     }
