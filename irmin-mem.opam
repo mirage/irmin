@@ -19,3 +19,6 @@ depends: [
   "irmin"      {>= "1.3.0"}
   "irmin-test" {with-test}
 ]
+
+
+synopsis: "Generic in-memory Irmin stores"

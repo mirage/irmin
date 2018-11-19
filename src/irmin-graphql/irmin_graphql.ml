@@ -17,6 +17,12 @@ type commit_input = {
   message: string option;
 }
 
+type tree_item = {
+  key: string;
+  value: string option;
+  metadata: string option;
+}
+
 module type STORE = sig
   include Irmin.S
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
@@ -60,6 +66,19 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ]
           ~coerce:(fun author message -> {author; message})
       )
+
+    let item = Schema.Arg.(
+      obj "TreeItem"
+        ~fields:[
+          arg "key" ~typ:(non_null string);
+          arg "value" ~typ:string;
+          arg "metadata" ~typ:string;
+        ]
+        ~coerce:(fun key value metadata -> {key; value; metadata})
+      )
+
+    let tree = Schema.Arg.(
+      non_null (list (non_null item)))
   end
 
   let rec commit = lazy Schema.(
@@ -126,12 +145,13 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~args:Arg.[arg "key" ~typ:Input.step]
                 ~typ:node
                 ~resolve:(fun _ (tree, key) step ->
+                  Store.Tree.get_tree tree key >>= fun tree ->
                     let key =
                       match step with
                       | Some s ->
-                          let conv = (Irmin.Type.of_string Store.step_t) in
+                          let conv = (Irmin.Type.of_string Store.key_t) in
                           (match from_string_err "key" conv  s with
-                          | Ok step -> Ok (Store.Key.rcons key step)
+                          | Ok k -> Ok k
                           | Error e -> Error e)
                       | None -> Ok Store.Key.empty
                     in
@@ -205,15 +225,39 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                     | Error msg -> Lwt.return_error msg
                   )
               ;
+              io_field "get_tree"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:(list (non_null @@ Lazy.force contents))
+                ~resolve:(fun _ (s, _) key ->
+                    let rec tree_list base tree key acc =
+                      match tree with
+                      | `Contents (_, _) ->
+                          (Store.Tree.of_concrete base, key) :: acc
+                      | `Tree l ->
+                          List.fold_right (fun (step, t) acc -> tree_list base t (Store.Key.rcons key step) [] @ acc) l acc
+                    in
+                    match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
+                    | Ok key ->
+                        (Store.find_tree s key >>= function
+                          | Some t ->
+                              Store.Tree.to_concrete t >>= fun t ->
+                              let l = tree_list t t Store.Key.empty [] in
+                              Lwt.return_ok (Some l)
+                          | None -> Lwt.return_ok None)
+                    | Error msg -> Lwt.return_error msg
+                  )
+              ;
               io_field "get_all"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(Lazy.force contents)
                 ~resolve:(fun _ (s, _) key ->
                     match from_string_err "key" (Irmin.Type.of_string Store.key_t) key with
                     | Ok key ->
-                      (Store.find_tree s Store.Key.empty >>= function
-                        | Some tree -> Lwt.return_ok (Some (tree, key))
-                        | None -> Lwt.return_ok None)
+                      (Store.mem_tree s key >>= function
+                        | true ->
+                            Store.get_tree s Store.Key.empty >>= fun tree ->
+                            Lwt.return_ok (Some (tree, key))
+                        | false -> Lwt.return_ok None)
                     | Error msg -> Lwt.return_error msg
                   )
               ;
@@ -380,6 +424,62 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             | Error msg -> Lwt.return_error msg
           )
       ;
+      io_field "set_tree"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null string);
+            arg "tree" ~typ:(Input.tree);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k items i ->
+          let unwrap_metadata m =
+            match m with
+            | Some m ->
+              (match Irmin.Type.of_string Store.metadata_t m with
+              | Ok m -> Some m
+              | Error (`Msg e) -> failwith e)
+            | None -> None
+          in
+          let to_tree tree l = Lwt_list.fold_left_s (fun tree -> function
+            | {key; value = Some x; metadata} ->
+                let k = Irmin.Type.of_string Store.key_t key in
+                let v = Irmin.Type.of_string Store.contents_t x in
+                let metadata = unwrap_metadata metadata in
+                (match k, v with
+                | Ok k, Ok v ->
+                  Store.Tree.add tree ?metadata k v
+                | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
+              | {key; value = None; _} ->
+                let k = Irmin.Type.of_string Store.key_t key in
+                (match k with
+                | Ok k ->
+                  Store.Tree.remove tree k
+                | Error (`Msg e) -> failwith e)) tree l
+          in
+          match to_branch branch with
+          | Ok branch ->
+              mk_branch (Store.repo s) branch >>= fun t ->
+              let info = mk_info i in
+              let key = Irmin.Type.of_string Store.key_t k in
+              (match key with
+              | Ok key ->
+                Lwt.catch (fun () ->
+                  Store.with_tree_exn t key ~info (fun tree ->
+                    let tree = match tree with
+                      | Some t -> t
+                      | None -> Store.Tree.empty
+                    in
+                    to_tree tree items >>= Lwt.return_some)
+                    >>= fun () ->
+                    Store.Head.find t >>= Lwt.return_ok)
+                  (function
+                    | Failure e -> Lwt.return_error e
+                    | e -> raise e)
+              | Error (`Msg msg) -> Lwt.return_error msg)
+          | Error msg -> Lwt.return_error msg
+        )
+      ;
       io_field "set_all"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -530,3 +630,4 @@ module Make(Store : STORE) : S with type store = Store.t = struct
   let start_server ?port s =
     Server.start ?port ~ctx:(fun _req -> ()) (schema s)
 end
+

@@ -20,3 +20,6 @@ depends: [
   "graphql" {>= "0.7"}
   "graphql-lwt"
 ]
+
+
+synopsis: "GraphQL server for Irmin"
