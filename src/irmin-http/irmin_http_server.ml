@@ -56,7 +56,17 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     let err = Fmt.strf "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
-  module AO (S: Irmin.AO)
+  module type BACKEND = sig
+    type t
+    type key
+    type value
+    val mem: t -> key -> bool Lwt.t
+    val find: t -> key -> value option Lwt.t
+    val add: t -> key -> value -> unit Lwt.t
+  end
+
+  module AO
+      (S: BACKEND)
       (K: Irmin.Type.S with type t = S.key)
       (V: Irmin.Type.S with type t = S.value) =
   struct
@@ -65,28 +75,6 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
       match Irmin.Type.of_string K.t (Wm.Rd.lookup_path_info_exn "id" rd) with
       | Ok key  -> f key
       | Error _ -> Wm.respond 404 rd
-
-    class items db = object
-      inherit resource
-      method! allowed_methods rd = Wm.continue [`POST] rd
-
-      method content_types_provided rd =
-        Wm.continue [
-          "application/json", (fun _ -> assert false)
-        ] rd
-
-      method content_types_accepted rd = Wm.continue [] rd
-
-      method! process_post rd =
-        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
-        match Irmin.Type.of_string V.t body with
-        | Error e -> parse_error rd body e
-        | Ok body ->
-          S.add db body >>= fun new_id ->
-          let resp_body = `String (Irmin.Type.to_string K.t new_id) in
-          Wm.continue true { rd with Wm.Rd.resp_body }
-
-    end
 
     class item db = object(self)
       inherit resource
@@ -99,13 +87,25 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
             | None       -> assert false
           )
 
-      method! allowed_methods rd = Wm.continue [`GET; `HEAD] rd
+      method! allowed_methods rd = Wm.continue [`GET; `HEAD; `POST] rd
       method content_types_accepted rd = Wm.continue [] rd
 
       method! resource_exists rd =
         with_key rd (fun key ->
             S.mem db key >>= fun mem ->
             Wm.continue mem rd
+          )
+
+      method! process_post rd =
+        with_key rd (fun key ->
+            Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+            match Irmin.Type.of_string V.t body with
+            | Error e -> parse_error rd body e
+            | Ok body ->
+              (* XXX(samoht): probably not very optimal/efficient... *)
+              S.add db key body >>= fun () ->
+              let resp_body = `Empty in
+              Wm.continue true { rd with Wm.Rd.resp_body }
           )
 
       method content_types_provided rd =
@@ -289,6 +289,15 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   end
 
+  module Contents: BACKEND = struct
+    type t = P.Repo.t
+    type key = P.Contents.key
+    type value = P.Contents.value
+    let mem t k = P.Contents.mem (P.Repo.contents_t t) k
+    let find t k = P.Content.find (P.Repo.contents_t t) k
+    let add t k v = P.Repo.batch t (fun t _ _ -> P.Contents.add t k v)
+  end
+
   module Blob = AO(P.Contents)(P.Contents.Key)(P.Contents.Val)
   module Tree = AO(P.Node)(P.Node.Key)(P.Node.Val)
   module Commit = AO(P.Commit)(P.Commit.Key)(P.Commit.Val)
@@ -303,11 +312,8 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     let commit = P.Repo.commit_t db in
     let branch = P.Repo.branch_t db in
     let routes = [
-      ("/blobs"     , fun () -> new Blob.items     blob);
       ("/blob/:id"  , fun () -> new Blob.item      blob);
-      ("/trees"     , fun () -> new Tree.items     tree);
       ("/tree/:id"  , fun () -> new Tree.item      tree);
-      ("/commits"   , fun () -> new Commit.items   commit);
       ("/commit/:id", fun () -> new Commit.item    commit);
       ("/branches"  , fun () -> new Branch.items   branch);
       ("/branch/*"  , fun () -> new Branch.item    branch);

@@ -117,7 +117,7 @@ module Store
     (P: S.PATH)
     (M: S.METADATA)
     (S: sig
-       include S.AO
+       include S.CONTENT_ADDRESSABLE
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
                            and type node = key
@@ -209,7 +209,10 @@ struct
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else S.add (snd b) v >|= fun k -> Some k
+      else
+        let k = S.Key.digest S.Val.t v in
+        S.add (snd b) k v >|= fun () ->
+        Some k
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -233,7 +236,8 @@ module Graph (S: S.NODE_STORE) = struct
 
   type value = [ `Contents of contents * metadata | `Node of node ]
 
-  let empty t = S.add t S.Val.empty
+  let key0 = S.Key.digest S.Val.t S.Val.empty
+  let empty t = S.add t key0 S.Val.empty >|= fun () -> key0
 
   let list t n =
     Log.debug (fun f -> f "steps");
@@ -272,7 +276,11 @@ module Graph (S: S.NODE_STORE) = struct
     in
     Lwt.return keys
 
-  let v t xs = S.add t (S.Val.v xs)
+  let v t xs =
+    let v = S.Val.v xs in
+    let k = S.Key.digest S.Val.t v in
+    S.add t k v >|= fun () ->
+    k
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
@@ -312,7 +320,8 @@ module Graph (S: S.NODE_STORE) = struct
         if S.Val.is_empty node then Lwt.return S.Val.empty
         else Lwt.return node
       ) else
-        S.add b new_node >|= fun k ->
+        let k = S.Key.digest S.Val.t new_node in
+        S.add b k new_node >|= fun () ->
         S.Val.update node label (`Node k)
     )
 
@@ -327,8 +336,10 @@ module Graph (S: S.NODE_STORE) = struct
       | None   -> S.Val.empty
       | Some n -> n
     end >>= fun node ->
-    aux node path >>= fun k ->
-    S.add b k
+    aux node path >>= fun n ->
+    let k = S.Key.digest S.Val.t n in
+    S.add b k n >|= fun () ->
+    k
 
   let update t b node path n =
     Log.debug (fun f -> f "update %a %a" pp_key node pp_path path);

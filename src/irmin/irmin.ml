@@ -42,8 +42,8 @@ module Path = struct
 end
 
 module Make_ext
-    (AO: S.AO_MAKER)
-    (RW: S.RW_MAKER)
+    (CA: S.CONTENT_ADDRESSABLE_MAKER)
+    (RW: S.READ_WRITE_MAKER)
     (M: S.METADATA)
     (C: Contents.S)
     (P: Path.S)
@@ -75,7 +75,7 @@ struct
         |~ case1 "commit" CT.t (fun x -> Commit x)
         |> sealv
     end
-    module Values = Store.AO(AO)(Hash)(Value)
+    module Values = CA(Hash)(Value)
     module Contents = struct
       module AO = struct
         module Key = H
@@ -86,7 +86,7 @@ struct
         type value = Val.t
         type batch = Values.batch
 
-        let add t v = Values.add t (Contents v)
+        let add t k v = Values.add t k (Contents v)
         let find t k = Values.find t k >|= function
           | Some (Contents c) -> Some c
           | _ -> None
@@ -109,7 +109,7 @@ struct
         type value = Val.t
         type batch = Values.batch
 
-        let add t v = Values.add t (Node v)
+        let add t k v = Values.add t k (Node v)
         let find t k = Values.find t k >|= function
           | Some (Node c) -> Some c
           | _ -> None
@@ -132,7 +132,7 @@ struct
         type value = Val.t
         type batch = Values.batch
 
-        let add t v = Values.add t (Commit v)
+        let add t k v = Values.add t k (Commit v)
         let find t k = Values.find t k >|= function
           | Some (Commit c) -> Some c
           | _ -> None
@@ -182,8 +182,8 @@ end
 
 
 module Make
-    (AO: S.AO_MAKER)
-    (RW: S.RW_MAKER)
+    (CA: S.CONTENT_ADDRESSABLE_MAKER)
+    (RW: S.READ_WRITE_MAKER)
     (M: S.METADATA)
     (C: S.CONTENTS)
     (P: S.PATH)
@@ -192,26 +192,22 @@ module Make
 struct
   module N = Node.Make(H)(H)(P)(M)
   module CT = Commit.Make(H)(H)
-  include Make_ext(AO)(RW)(M)(C)(P)(B)(H)(N)(CT)
+  include Make_ext(CA)(RW)(M)(C)(P)(B)(H)(N)(CT)
 end
 
 module Of_private = Store.Make
 
-module type RO = S.RO
-module type AO = S.AO
-module type LINK = S.LINK
-module type RW = S.RW
+module type READ_ONLY = S.READ_ONLY
+module type CONTENT_ADDRESSABLE = S.CONTENT_ADDRESSABLE
+module type READ_WRITE = S.READ_WRITE
 module type TREE = S.TREE
 module type S = S.STORE
 
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type AO_MAKER = S.AO_MAKER
-
-module type LINK_MAKER = S.LINK_MAKER
-
-module type RW_MAKER = S.RW_MAKER
+module type CONTENT_ADDRESSABLE_MAKER = S.CONTENT_ADDRESSABLE_MAKER
+module type READ_WRITE_MAKER = S.READ_WRITE_MAKER
 module type S_MAKER = S.MAKER
 
 module type KV =

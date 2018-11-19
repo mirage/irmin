@@ -51,7 +51,7 @@ end
 module Store
     (N: S.NODE_STORE)
     (S: sig
-       include S.AO
+       include S.CONTENT_ADDRESSABLE
        module Key: S.HASH with type t = key
        module Val: S.COMMIT with type t = value
                                 and type commit = key
@@ -80,9 +80,11 @@ module Store
     | None   -> err_not_found k
     | Some v -> Lwt.return v
 
+  let key0 = N.Key.digest N.Val.t N.Val.empty
+
   let empty_if_none n = function
-    | None -> N.add n N.Val.empty
-    | Some node -> Lwt.return node
+    | None   -> N.add n key0 N.Val.empty >|= fun () -> key0
+    | Some n -> Lwt.return n
 
   let equal_opt_keys = Type.(equal (option S.Key.t))
 
@@ -116,7 +118,8 @@ module Store
         empty_if_none (fst b) node >>= fun node ->
         let parents = [k1; k2] in
         let commit = S.Val.v ~node ~parents ~info:(info ()) in
-        S.add (snd b) commit >>= fun key ->
+        let key = S.Key.digest S.Val.t commit in
+        S.add (snd b) key commit >>= fun () ->
         Merge.ok key
 
   let merge t b ~info = Merge.(option (v S.Key.t (merge_commit t b info)))
@@ -148,8 +151,9 @@ module History (S: S.COMMIT_STORE) = struct
 
   let v t ~node ~parents ~info =
     let commit = S.Val.v ~node ~parents ~info in
-    S.add t commit >|= fun hash ->
-    (hash, commit)
+    let k = S.Key.digest S.Val.t commit in
+    S.add t k commit >|= fun () ->
+    (k, commit)
 
   let pp_key = Type.pp S.Key.t
 

@@ -243,7 +243,7 @@ end
 
 module Store
     (S: sig
-       include S.AO
+       include S.CONTENT_ADDRESSABLE
        module Key: S.HASH with type t = key
        module Val: S.CONTENTS with type t = value
      end) =
@@ -256,7 +256,10 @@ struct
 
   let add_opt t = function
     | None -> Lwt.return_none
-    | Some v -> add t v >>= fun k -> Lwt.return (Some k)
+    | Some v ->
+      let k = S.Key.digest S.Val.t v in
+      add t k v >|= fun () ->
+      Some k
 
   let merge t b =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt b)

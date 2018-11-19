@@ -45,7 +45,7 @@ module type CONTENTS = sig
   val merge: t option Merge.t
 end
 
-module type RO = sig
+module type READ_ONLY = sig
   type t
   type key
   type value
@@ -53,19 +53,20 @@ module type RO = sig
   val find: t -> key -> value option Lwt.t
 end
 
-module type RO_MAKER =
+module type READ_ONLY_MAKER =
   functor (K: Type.S) ->
   functor (V: Type.S) ->
-    RO with type key = K.t and type value = V.t
+    READ_ONLY with type key = K.t and type value = V.t
 
-module type AO = sig
-  include RO
+module type CONTENT_ADDRESSABLE = sig
+  include READ_ONLY
   type batch
-  val add: batch -> value -> key Lwt.t
+  val add: batch -> key -> value -> unit Lwt.t
 end
 
-module type AO_MAKER = functor (K: Type.S) (V: Type.S) -> sig
-  include RO with type key = K.t and type value = V.t
+module type CONTENT_ADDRESSABLE_MAKER = functor (K: Type.S) (V: Type.S) ->
+sig
+  include READ_ONLY with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t
 
   type batch
@@ -80,7 +81,7 @@ module type METADATA = sig
 end
 
 module type CONTENTS_STORE = sig
-  include AO
+  include CONTENT_ADDRESSABLE
   val merge: t -> batch -> key option Merge.t
   module Key: HASH with type t = key
   module Val: CONTENTS with type t = value
@@ -133,7 +134,7 @@ module type NODE_GRAPH = sig
 end
 
 module type NODE_STORE = sig
-  include AO
+  include CONTENT_ADDRESSABLE
   module Path: PATH
   val merge: t -> batch -> key option Merge.t
   module Key: HASH with type t = key
@@ -163,7 +164,7 @@ module type COMMIT = sig
 end
 
 module type COMMIT_STORE = sig
-  include AO
+  include CONTENT_ADDRESSABLE
   val merge: t -> batch -> info:Info.f -> key option Merge.t
   module Key: HASH with type t = key
   module Val: COMMIT
@@ -189,17 +190,6 @@ module type COMMIT_HISTORY = sig
   val commit_t: commit Type.t
 end
 
-module type LINK = sig
-  include RO
-  val add: t -> key -> value -> unit Lwt.t
-end
-
-module type LINK_MAKER =
-  functor (K: HASH) -> sig
-    include LINK with type key = K.t and type value = K.t
-    val v: Conf.t -> t Lwt.t
-  end
-
 module type SLICE = sig
   type t
   type contents
@@ -223,8 +213,8 @@ module type BRANCH = sig
 end
 
 (** Read-write stores. *)
-module type RW = sig
-  include RO
+module type READ_WRITE = sig
+  include READ_ONLY
   val set: t -> key -> value -> unit Lwt.t
   val test_and_set:
     t -> key -> test:value option -> set:value option -> bool Lwt.t
@@ -239,14 +229,14 @@ module type RW = sig
   val unwatch: t -> watch -> unit Lwt.t
 end
 
-module type RW_MAKER = functor (K: Type.S) -> functor (V: Type.S) ->
+module type READ_WRITE_MAKER = functor (K: Type.S) -> functor (V: Type.S) ->
 sig
-  include RW with type key = K.t and type value = V.t
+  include READ_WRITE with type key = K.t and type value = V.t
   val v: Conf.t -> t Lwt.t
 end
 
 module type BRANCH_STORE = sig
-  include RW
+  include READ_WRITE
   val list: t -> key list Lwt.t
   module Key: BRANCH with type t = key
   module Val: HASH with type t = value

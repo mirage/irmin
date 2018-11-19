@@ -115,26 +115,31 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
+module AO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   include RO_ext(IO)(S)(K)(V)
 
   let temp_dir t = t.path / "tmp"
 
-  let add t value =
+  type batch = t
+
+  let add t key value =
     let str = Irmin.Type.encode_bin V.t value in
-    let key = K.digest str in
     Log.debug (fun f -> f "add %a" pp_key key);
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
-    (IO.file_exists file >>= function
-      | true  -> Lwt.return_unit
-      | false ->
-        Lwt.catch
-          (fun () -> IO.write_file ~temp_dir file str)
-          (fun e -> Lwt.fail e))
-    >|= fun () ->
-    key
+    IO.file_exists file >>= function
+    | true  -> Lwt.return_unit
+    | false ->
+      Lwt.catch
+        (fun () -> IO.write_file ~temp_dir file str)
+        (fun e -> Lwt.fail e)
+
+    let batch t f =
+    Log.debug (fun l -> l "batch starts");
+    f t >|= fun r ->
+    Log.debug (fun l -> l "batch ended");
+    r
 
 end
 

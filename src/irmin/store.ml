@@ -20,16 +20,6 @@ open Merge.Infix
 let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module AO (AO: S.AO_MAKER) (K: S.HASH) (V: Type.S) = struct
-
-  include AO(K)(V)
-
-  let add t (v:V.t) =
-    let k = K.digest V.t v in
-    add t k v >|= fun () ->
-    k
-end
-
 module Make (P: S.PRIVATE) = struct
 
   module Branch_store = P.Branch
@@ -95,7 +85,8 @@ module Make (P: S.PRIVATE) = struct
        | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
-      P.Commit.add commit_t v >|= fun h ->
+      let h = P.Commit.Key.digest P.Commit.Val.t v in
+      P.Commit.add commit_t h v >|= fun () ->
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
@@ -219,28 +210,16 @@ module Make (P: S.PRIVATE) = struct
           ) (KSet.elements !contents) >|= fun () ->
         slice
 
-    exception Import_error of string
-    let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
-
     let import r s =
       let aux (type k) (type v)
-          name
           (type s)
-          (module S: S.AO with type batch = s
-                           and type key = k
-                           and type value = v)
-          (dk: k Type.t)
+          (module S: S.CONTENT_ADDRESSABLE with type batch = s
+                                            and type key = k
+                                            and type value = v)
           fn
           (s: s)
         =
-        fn (fun (k, v) ->
-            S.add s v >>= fun k' ->
-            if not (Type.equal dk k k') then (
-              import_error "%s import error: expected %a, got %a"
-              name Type.(pp dk) k Type.(pp dk) k'
-            )
-            else Lwt.return_unit
-          )
+        fn (fun (k, v) -> S.add s k v)
       in
       let contents = ref [] in
       let nodes = ref [] in
@@ -252,19 +231,17 @@ module Make (P: S.PRIVATE) = struct
         ) >>= fun () ->
       P.Repo.batch r @@ fun contents_t node_t commit_t ->
       Lwt.catch (fun () ->
-          aux "Contents" (module P.Contents) P.Contents.Key.t
-            (fun f -> Lwt_list.iter_s f !contents) contents_t
+          aux (module P.Contents)
+            (fun f -> Lwt_list.iter_p f !contents) contents_t
           >>= fun () ->
-          aux "Node" (module P.Node) P.Node.Key.t
-            (fun f -> Lwt_list.iter_s f !nodes) node_t
+          aux (module P.Node)
+            (fun f -> Lwt_list.iter_p f !nodes) node_t
           >>= fun () ->
-          aux "Commit" (module P.Commit) P.Commit.Key.t
-            (fun f -> Lwt_list.iter_s f !commits) commit_t
+          aux (module P.Commit)
+            (fun f -> Lwt_list.iter_p f !commits) commit_t
           >|= fun () ->
           Ok ())
-        (function
-          | Import_error e -> Lwt.return (Error (`Msg e))
-          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+        (fun e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
 
   end
 
@@ -478,7 +455,7 @@ module Make (P: S.PRIVATE) = struct
       P.Repo.batch (repo t) (fun _ _ b ->
           H.three_way_merge ~info commit_t b ?max_depth ?n c1.Commit.h c2.Commit.h
         )
-        
+
     (* FIXME: we might want to keep the new commit in case of conflict,
          and use it as a base for the next merge. *)
     let merge ~into:t ~info ?max_depth ?n c1 =

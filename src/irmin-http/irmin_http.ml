@@ -226,9 +226,22 @@ module AO (Client: Cohttp_lwt.S.Client)
     (V: Irmin.Type.S) =
 struct
   include RO (Client)(K)(V)
-  let add t value =
+
+  let add t key value =
+    let key = Irmin.Type.to_string K.t key in
     let body = Irmin.Type.to_string V.t value in
-    HTTP.call `POST t.uri t.ctx [t.items] ~body (Irmin.Type.of_string K.t)
+    HTTP.call `POST t.uri t.ctx [t.items; key] ~body (Irmin.Type.of_string K.t)
+
+  (* XXX(samoht) add an endpoint for batch updates *)
+
+  type batch = t
+
+    let batch t f =
+    Log.debug (fun l -> l "batch starts");
+    f t >|= fun r ->
+    Log.debug (fun l -> l "batch ended");
+    r
+
 end
 
 module RW (Client: Cohttp_lwt.S.Client)

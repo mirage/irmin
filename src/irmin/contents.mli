@@ -41,7 +41,7 @@ end
 
 module Store
     (C: sig
-       include S.AO
+       include S.CONTENT_ADDRESSABLE
        module Key: S.HASH with type t = key
        module Val: S.CONTENTS with type t = value
      end):

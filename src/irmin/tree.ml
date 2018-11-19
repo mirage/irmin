@@ -790,7 +790,12 @@ module Make (P: S.PRIVATE) = struct
   let import repo k = Node.of_key repo k
 
   let export repo contents_b node_b n =
-    let node n = P.Node.add node_b (Node.export_map n) in
+    let node n =
+      let v = Node.export_map n in
+      let k = P.Node.Key.digest P.Node.Val.t v in
+      P.Node.add node_b k v >|= fun () ->
+      k
+    in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match n.Node.v with
@@ -824,7 +829,8 @@ module Make (P: S.PRIVATE) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  P.Contents.add contents_b x >|= fun k ->
+                  let k = P.Contents.Key.digest P.Contents.Val.t x in
+                  P.Contents.add contents_b k x >|= fun () ->
                   c.Contents.v <- Contents.Both (repo, k, x);
                 ) todo
           ) !contents;
