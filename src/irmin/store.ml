@@ -213,9 +213,9 @@ module Make (P: S.PRIVATE) = struct
     let import r s =
       let aux (type k) (type v)
           (type s)
-          (module S: S.CONTENT_ADDRESSABLE with type batch = s
-                                            and type key = k
-                                            and type value = v)
+          (module S: S.OBJECT_STORE with type batch = s
+                                     and type key = k
+                                     and type value = v)
           fn
           (s: s)
         =

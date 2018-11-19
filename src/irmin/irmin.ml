@@ -42,8 +42,8 @@ module Path = struct
 end
 
 module Make_ext
-    (CA: S.CONTENT_ADDRESSABLE_MAKER)
-    (RW: S.READ_WRITE_MAKER)
+    (OS: S.OBJECT_STORE_MAKER)
+    (NS: S.NAME_STORE_MAKER)
     (M: S.METADATA)
     (C: Contents.S)
     (P: Path.S)
@@ -75,7 +75,7 @@ struct
         |~ case1 "commit" CT.t (fun x -> Commit x)
         |> sealv
     end
-    module Values = CA(Hash)(Value)
+    module Values = OS (Hash)(Value)
     module Contents = struct
       module AO = struct
         module Key = H
@@ -148,7 +148,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include RW (Key)(Val)
+      include NS (Key)(Val)
     end
     module Slice = Slice.Make(Contents)(Node)(Commit)
     module Sync = Sync.None(H)(B)
@@ -182,8 +182,8 @@ end
 
 
 module Make
-    (CA: S.CONTENT_ADDRESSABLE_MAKER)
-    (RW: S.READ_WRITE_MAKER)
+    (OS: S.OBJECT_STORE_MAKER)
+    (NS: S.NAME_STORE_MAKER)
     (M: S.METADATA)
     (C: S.CONTENTS)
     (P: S.PATH)
@@ -192,22 +192,22 @@ module Make
 struct
   module N = Node.Make(H)(H)(P)(M)
   module CT = Commit.Make(H)(H)
-  include Make_ext(CA)(RW)(M)(C)(P)(B)(H)(N)(CT)
+  include Make_ext(OS)(NS)(M)(C)(P)(B)(H)(N)(CT)
 end
 
 module Of_private = Store.Make
 
-module type READ_ONLY = S.READ_ONLY
-module type CONTENT_ADDRESSABLE = S.CONTENT_ADDRESSABLE
-module type READ_WRITE = S.READ_WRITE
+module type READ_ONLY_STORE = S.READ_ONLY_STORE
+module type OBJECT_STORE = S.OBJECT_STORE
+module type NAME_STORE = S.NAME_STORE
 module type TREE = S.TREE
 module type S = S.STORE
 
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type CONTENT_ADDRESSABLE_MAKER = S.CONTENT_ADDRESSABLE_MAKER
-module type READ_WRITE_MAKER = S.READ_WRITE_MAKER
+module type OBJECT_STORE_MAKER = S.OBJECT_STORE_MAKER
+module type NAME_STORE_MAKER = S.NAME_STORE_MAKER
 module type S_MAKER = S.MAKER
 
 module type KV =

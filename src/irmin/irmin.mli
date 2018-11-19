@@ -789,12 +789,12 @@ type 'a diff = 'a Diff.t
 
 (** An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as
-    {{!CONTENT_ADDRESSABLE}content-addressable} and
-    {{!READ_WRITE}read-write} stores. These low-level stores are
-    provided by various backends. *)
+    {{!OBJECT_STORE}object stores} and {{!NAME_STORE}name
+    stores}. These low-level stores are provided by various
+    backends. *)
 
-(** Low-level read-only backend stores. *)
-module type READ_ONLY = sig
+(** Low-level read-only stores. *)
+module type READ_ONLY_STORE = sig
 
   (** {1 Read-only stores} *)
 
@@ -816,16 +816,19 @@ module type READ_ONLY = sig
 
 end
 
-(** Low-level content-addressable store. *)
-module type CONTENT_ADDRESSABLE = sig
+(** Low-level object store. *)
+module type OBJECT_STORE = sig
 
-  (** {1 Low-level content-addressable stores}
+  (** {1 Low-level object stores}
 
-      Content-addressable stores are stores where it is possible to read
-      and write values. Keys are derived from the values raw contents
-      and hence are deterministic. Updates are done in batch. *)
+      Object stores are a kind of content-addressable stores are
+      stores where it is possible to read and write values. Keys are
+      derived from the values raw contents and hence are
+      deterministic, however the keys are provided and checked by the
+      higher-level Irmin layer, so backends have to delegate this trust
+      to Irmin. Updates can be done in batch. *)
 
-  include READ_ONLY
+  include READ_ONLY_STORE
 
   type batch
   (** The type for update batches. *)
@@ -836,15 +839,16 @@ module type CONTENT_ADDRESSABLE = sig
 
 end
 
-(** Low-level read-write stores. *)
-module type READ_WRITE = sig
+(** Low-level name stores. *)
+module type NAME_STORE = sig
 
-  (** {1 Read-write stores}
+  (** {1 Read-write name stores}
 
-      Read-write stores read-only stores where it is also possible to
-      update and remove elements, with atomically guarantees. *)
+      Name stores are read-write stores where it is possible to
+      read, update and remove elements, with atomically guarantees.
+      Moreover, it is possible to watch for updates. *)
 
-  include READ_ONLY
+  include READ_ONLY_STORE
 
   val set: t -> key -> value -> unit Lwt.t
   (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k]
@@ -1104,7 +1108,7 @@ module Contents: sig
   (** Contents store. *)
   module type STORE = sig
 
-    include CONTENT_ADDRESSABLE
+    include OBJECT_STORE
 
     val merge: t -> batch -> key option Merge.t
     (** [merge t b] lifts the merge functions defined on contents
@@ -1127,7 +1131,7 @@ module Contents: sig
 
   (** [Store] creates a contents store. *)
   module Store (S: sig
-      include CONTENT_ADDRESSABLE
+      include OBJECT_STORE
       module Key: Hash.S with type t = key
       module Val: S with type t = value
     end):
@@ -1179,10 +1183,7 @@ module Branch: sig
 
     (** {1 Branch Store} *)
 
-    include READ_WRITE
-
-    val list: t -> key list Lwt.t
-    (** [list t] list all the branches present in [t]. *)
+    include NAME_STORE
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1530,7 +1531,7 @@ module Private: sig
     (** [STORE] specifies the signature for node stores. *)
     module type STORE = sig
 
-      include CONTENT_ADDRESSABLE
+      include OBJECT_STORE
 
       module Path: Path.S
       (** [Path] provides base functions on node paths. *)
@@ -1560,7 +1561,7 @@ module Private: sig
         (P: Path.S)
         (M: Metadata.S)
         (S: sig
-           include CONTENT_ADDRESSABLE
+           include OBJECT_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type node = key
@@ -1737,7 +1738,7 @@ module Private: sig
 
       (** {1 Commit Store} *)
 
-      include CONTENT_ADDRESSABLE
+      include OBJECT_STORE
 
       val merge: t -> batch -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
@@ -1757,7 +1758,7 @@ module Private: sig
     module Store
         (N: Node.STORE)
         (S: sig
-           include CONTENT_ADDRESSABLE
+           include OBJECT_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type commit = key
@@ -3309,23 +3310,17 @@ end
     }
 *)
 
-(** [CONTENT_ADDRESSABLE_MAKER] is the signature exposed by
-    append-only store backends. [K] is the implementation of keys and
-    [V] is the implementation of values. *)
-module type CONTENT_ADDRESSABLE_MAKER = functor (K: Type.S) (V: Type.S) ->
+(** [OBJECT_STORE_MAKER] is the signature exposed by object store
+    backends. [K] is the implementation of keys and [V] is the
+    implementation of values. *)
+module type OBJECT_STORE_MAKER = functor (K: Type.S) (V: Type.S) ->
 sig
 
-  include READ_ONLY with type key = K.t and type value = V.t
+  include OBJECT_STORE with type key = K.t and type value = V.t
 
   val v: config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
-
-  type batch
-  (** The type for the state of the underling storage layer. *)
-
-  val add: batch -> key -> value -> unit Lwt.t
-  (** [add t k v] add the bindings [k -> v] in [t]. *)
 
   val batch: t -> (batch -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] batches the sequence of operations [f] in the
@@ -3345,9 +3340,9 @@ end
 (** [READ_WRITE_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values.*)
-module type READ_WRITE_MAKER = functor (K: Type.S) (V: Type.S) -> sig
+module type NAME_STORE_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
-  include READ_WRITE with type key = K.t and type value = V.t
+  include NAME_STORE with type key = K.t and type value = V.t
 
   val v: config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
@@ -3355,11 +3350,11 @@ module type READ_WRITE_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
 end
 
-module Make (CA: CONTENT_ADDRESSABLE_MAKER) (RW: READ_WRITE_MAKER): S_MAKER
+module Make (OS: OBJECT_STORE_MAKER) (NS: NAME_STORE_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
 
-module Make_ext (CA: CONTENT_ADDRESSABLE_MAKER) (RW: READ_WRITE_MAKER)
+module Make_ext (OS: OBJECT_STORE_MAKER) (NS: NAME_STORE_MAKER)
     (Metadata: Metadata.S)
     (Contents: Contents.S)
     (Path    : Path.S)

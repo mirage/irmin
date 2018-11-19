@@ -31,7 +31,7 @@ module Store
     (P: S.PATH)
     (M: S.METADATA)
     (N: sig
-       include S.CONTENT_ADDRESSABLE
+       include S.OBJECT_STORE
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
                            and type node = key

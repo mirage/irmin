@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Read_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module KMap = Map.Make(struct
       type t = K.t
@@ -45,9 +45,9 @@ module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module AO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Object (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
-  include RO(K)(V)
+  include Read_only(K)(V)
 
   type batch = t
 
@@ -64,20 +64,9 @@ module AO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module Link (K: Irmin.Hash.S) = struct
+module Name (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
-  include RO(K)(K)
-
-  let add t index key =
-    Log.debug (fun f -> f "add link");
-    t.t <- KMap.add index key t.t;
-    Lwt.return_unit
-
-end
-
-module RW (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
-
-  module RO = RO(K)(V)
+  module RO = Read_only(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
   module L = Irmin.Private.Lock.Make(K)
 
@@ -140,7 +129,7 @@ end
 
 let config () = Irmin.Private.Conf.empty
 
-module Make = Irmin.Make(AO)(RW)
+module Make = Irmin.Make(Object)(Name)
 
 module KV (C: Irmin.Contents.S) =
   Make

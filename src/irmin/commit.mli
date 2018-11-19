@@ -22,7 +22,7 @@ module Make (C: Type.S) (N: Type.S):
 module Store
     (N: S.NODE_STORE)
     (C: sig
-       include S.CONTENT_ADDRESSABLE
+       include S.OBJECT_STORE
        module Key: S.HASH with type t = key
        module Val: S.COMMIT with type t = value
                              and type commit = key

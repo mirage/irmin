@@ -243,7 +243,7 @@ end
 
 module Store
     (S: sig
-       include S.CONTENT_ADDRESSABLE
+       include S.OBJECT_STORE
        module Key: S.HASH with type t = key
        module Val: S.CONTENTS with type t = value
      end) =
