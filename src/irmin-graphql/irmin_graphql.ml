@@ -170,7 +170,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
                 ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
               ;
               io_field "get"
-                ~args:Arg.[arg "key" ~typ:Input.step]
+                ~args:Arg.[arg "step" ~typ:Input.step]
                 ~typ:node
                 ~resolve:(fun _ (tree, key) step ->
                     Store.Tree.get_tree tree key >>= fun tree ->
