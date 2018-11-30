@@ -17,12 +17,6 @@ type commit_input = {
   message: string option;
 }
 
-type tree_item = {
-  key: string;
-  value: string option;
-  metadata: string option;
-}
-
 module type STORE = sig
   include Irmin.S
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
@@ -31,6 +25,12 @@ end
 
 module Make(Store : STORE) : S with type store = Store.t = struct
   module Sync = Irmin.Sync (Store)
+
+  type tree_item = {
+    key: Store.key;
+    value: Store.contents option;
+    metadata: Store.metadata option;
+  }
 
   let mk_info input =
     match input with
@@ -49,9 +49,19 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         of_irmin_result (Irmin.Type.of_string Store.key_t s )
       | _ -> Error "invalid key encoding"
 
+    let coerce_value = function
+      | `String s ->
+        of_irmin_result (Irmin.Type.of_string Store.contents_t s)
+      | _ -> Error "invalid value encoding"
+
+    let coerce_metadata = function
+      | `String s ->
+        of_irmin_result (Irmin.Type.of_string Store.metadata_t s)
+      | _ -> Error "invalid metadata encoding"
+
     let coerce_step = function
       | `String s -> of_irmin_result (Irmin.Type.of_string Store.step_t s)
-      | _ -> Error "invalid step"
+      | _ -> Error "invalid step encoding"
 
     let coerce_branch = function
       | `String s -> of_irmin_result @@ Irmin.Type.of_string Store.branch_t s
@@ -74,6 +84,8 @@ module Make(Store : STORE) : S with type store = Store.t = struct
     let commit_hash = Schema.Arg.(scalar "CommitHash" ~coerce:coerce_hash)
     let branch = Schema.Arg.(scalar "BranchName" ~coerce:coerce_branch)
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
+    let value = Schema.Arg.(scalar "Value" ~coerce:coerce_value)
+    let metadata = Schema.Arg.(scalar "Metadata" ~coerce:coerce_metadata)
     let info = Schema.Arg.(
         obj "InfoInput"
           ~fields:[
@@ -86,9 +98,9 @@ module Make(Store : STORE) : S with type store = Store.t = struct
     let item = Schema.Arg.(
         obj "TreeItem"
           ~fields:[
-            arg "key" ~typ:(non_null string);
-            arg "value" ~typ:string;
-            arg "metadata" ~typ:string;
+            arg "key" ~typ:(non_null key);
+            arg "value" ~typ:value;
+            arg "metadata" ~typ:metadata;
           ]
           ~coerce:(fun key value metadata -> {key; value; metadata})
       )
@@ -384,161 +396,111 @@ module Make(Store : STORE) : S with type store = Store.t = struct
       ]
     | None -> []
 
-  let unwrap_metadata m =
-    match m with
-    | Some m ->
-      (match Irmin.Type.of_string Store.metadata_t m with
-       | Ok m -> Some m
-       | Error (`Msg e) -> failwith e)
-    | None -> None
-
   let to_tree tree l = Lwt_list.fold_left_s (fun tree ->
     function
-      | {key; value = Some x; metadata} ->
-        let k = Irmin.Type.of_string Store.key_t key in
-        let v = Irmin.Type.of_string Store.contents_t x in
-        let metadata = unwrap_metadata metadata in
-        (match k, v with
-         | Ok k, Ok v ->
-           Store.Tree.add tree ?metadata k v
-         | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
+      | {key; value = Some v; metadata} ->
+          Store.Tree.add tree ?metadata key v
       | {key; value = None; _} ->
-        let k = Irmin.Type.of_string Store.key_t key in
-        (match k with
-         | Ok k ->
-           Store.Tree.remove tree k
-         | Error (`Msg e) -> failwith e)) tree l
-
+          Store.Tree.remove tree key) tree l
 
   let mutations s = Schema.[
     io_field "set"
       ~typ:(Lazy.force commit)
       ~args:Arg.[
           arg "branch" ~typ:Input.branch;
-          arg "key" ~typ:(non_null string);
-          arg "value" ~typ:(non_null string);
+          arg "key" ~typ:(non_null Input.key);
+          arg "value" ~typ:(non_null Input.value);
           arg "info" ~typ:Input.info;
         ]
       ~resolve:(fun _ _src branch k v i ->
           mk_branch (Store.repo s) branch >>= fun t ->
           let info = mk_info i in
-          let key = Irmin.Type.of_string Store.key_t k in
-          let value = Irmin.Type.of_string Store.contents_t v in
-          match key, value with
-          | Ok key, Ok value ->
-            (Store.set t key value ~info >>= function
-              | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
-              | Error e -> err_write e)
-          | Error (`Msg msg), _ | _, Error (`Msg msg) -> Lwt.return_error msg
+          (Store.set t k v ~info >>= function
+            | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
+            | Error e -> err_write e)
         )
     ;
     io_field "set_tree"
       ~typ:(Lazy.force commit)
       ~args:Arg.[
           arg "branch" ~typ:Input.branch;
-          arg "key" ~typ:(non_null string);
+          arg "key" ~typ:(non_null Input.key);
           arg "tree" ~typ:(Input.tree);
           arg "info" ~typ:Input.info;
         ]
       ~resolve:(fun _ _src branch k items i ->
           mk_branch (Store.repo s) branch >>= fun t ->
           let info = mk_info i in
-          let key = Irmin.Type.of_string Store.key_t k in
-          (match key with
-           | Ok key ->
-             Lwt.catch (fun () ->
-                 let tree = Store.Tree.empty in
-                 to_tree tree items
-                 >>= fun tree ->
-                 Store.set_tree_exn t ~info key tree >>= fun () ->
-                 Store.Head.find t >>= Lwt.return_ok)
-               (function
-                 | Failure e -> Lwt.return_error e
-                 | e -> raise e)
-           | Error (`Msg msg) -> Lwt.return_error msg)
+           Lwt.catch (fun () ->
+               let tree = Store.Tree.empty in
+               to_tree tree items
+               >>= fun tree ->
+               Store.set_tree_exn t ~info k tree >>= fun () ->
+               Store.Head.find t >>= Lwt.return_ok)
+           (function
+             | Failure e -> Lwt.return_error e
+             | e -> raise e)
         )
     ;
     io_field "update_tree"
       ~typ:(Lazy.force commit)
       ~args:Arg.[
           arg "branch" ~typ:Input.branch;
-          arg "key" ~typ:(non_null string);
+          arg "key" ~typ:(non_null Input.key);
           arg "tree" ~typ:(Input.tree);
           arg "info" ~typ:Input.info;
         ]
       ~resolve:(fun _ _src branch k items i ->
           mk_branch (Store.repo s) branch >>= fun t ->
           let info = mk_info i in
-          let key = Irmin.Type.of_string Store.key_t k in
-          (match key with
-           | Ok key ->
-             Lwt.catch (fun () ->
-                 Store.with_tree_exn t key ~info (fun tree ->
-                     let tree = match tree with
-                       | Some t -> t
-                       | None -> Store.Tree.empty
-                     in
-                     to_tree tree items >>= Lwt.return_some)
-                 >>= fun () ->
-                 Store.Head.find t >>= Lwt.return_ok)
-               (function
-                 | Failure e -> Lwt.return_error e
-                 | e -> raise e)
-           | Error (`Msg msg) -> Lwt.return_error msg)
+           Lwt.catch (fun () ->
+               Store.with_tree_exn t k ~info (fun tree ->
+                   let tree = match tree with
+                     | Some t -> t
+                     | None -> Store.Tree.empty
+                   in
+                   to_tree tree items >>= Lwt.return_some)
+               >>= fun () ->
+               Store.Head.find t >>= Lwt.return_ok)
+           (function
+             | Failure e -> Lwt.return_error e
+             | e -> raise e)
         )
     ;
     io_field "set_all"
       ~typ:(Lazy.force commit)
       ~args:Arg.[
           arg "branch" ~typ:Input.branch;
-          arg "key" ~typ:(non_null string);
-          arg "value" ~typ:(non_null string);
-          arg "metadata" ~typ:(string);
+          arg "key" ~typ:(non_null Input.key);
+          arg "value" ~typ:(non_null Input.value);
+          arg "metadata" ~typ:(Input.metadata);
           arg "info" ~typ:Input.info;
         ]
       ~resolve:(fun _ _src branch k v m i ->
           mk_branch (Store.repo s) branch >>= fun t ->
           let info = mk_info i in
-          let key = Irmin.Type.of_string Store.key_t k in
-          let value = Irmin.Type.of_string Store.contents_t v in
-          let metadata = match m with
-            | Some m ->
-              (match Irmin.Type.of_string Store.metadata_t m with
-               | Ok x -> Ok (Some x)
-               | Error msg -> Error msg)
-            | None -> Ok None
-          in
-          match key, value, metadata with
-          | Ok key, Ok value, Ok metadata ->
-            (Store.find_tree t key >>= (function
-                 | Some tree -> Lwt.return tree
-                 | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
-             Store.Tree.add tree key ?metadata value >>= fun tree ->
-             Store.set_tree t key tree ~info >>= function
-             | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
-             | Error e -> err_write e)
-          | Error (`Msg msg), _, _
-          | _, Error (`Msg msg), _
-          | _, _, Error (`Msg msg) -> Lwt.return_error msg
+          (Store.find_tree t k >>= (function
+             | Some tree -> Lwt.return tree
+             | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
+           Store.Tree.add tree k ?metadata:m v >>= fun tree ->
+           Store.set_tree t k tree ~info >>= function
+           | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
+           | Error e -> err_write e)
         )
     ;
     io_field "remove"
       ~typ:(Lazy.force commit)
       ~args:Arg.[
           arg "branch" ~typ:Input.branch;
-          arg "key" ~typ:(non_null string);
+          arg "key" ~typ:(non_null Input.key);
           arg "info" ~typ:Input.info
         ]
       ~resolve:(fun _ _src branch key i ->
           mk_branch (Store.repo s) branch >>= fun t ->
           let info = mk_info i in
-          let key = Irmin.Type.of_string Store.key_t key in
-          match key with
-          | Ok key ->
-            (Store.remove t key ~info >>= function
-              | Ok () -> Store.Head.find t >>= Lwt.return_ok
-              | Error e -> err_write e)
-          | Error (`Msg msg) -> Lwt.return_error msg
+          Store.remove t key ~info >>= function
+            | Ok () -> Store.Head.find t >>= Lwt.return_ok
+            | Error e -> err_write e
         )
     ;
     io_field "merge"
