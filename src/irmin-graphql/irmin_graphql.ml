@@ -359,7 +359,7 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             )
         ;
         io_field "push"
-          ~typ:(string)
+          ~typ:(non_null bool)
           ~args:Arg.[
               arg "branch" ~typ:Input.branch;
               arg "remote" ~typ:(non_null Input.remote);
@@ -367,10 +367,10 @@ module Make(Store : STORE) : S with type store = Store.t = struct
           ~resolve:(fun _ _src branch remote ->
               mk_branch (Store.repo s) branch >>= fun t ->
               Sync.push t remote >>= function
-              | Ok _ -> Lwt.return_ok None
+              | Ok _ -> Lwt.return_ok true
               | Error e ->
                 let s = Fmt.to_to_string Sync.pp_push_error e in
-                Lwt.return_ok @@ Some s
+                Lwt.return_error s
             )
         ;
         io_field "pull"
