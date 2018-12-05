@@ -1,3 +1,44 @@
+### 2.0.0
+
+**irmin-unix**
+
+- Added `Cli` module to expose some methods to simplify building command-line interfaces using Irmin (517, @zshipko)
+- Switched from custom configuration format to YAML (#504, @zshipko)
+- Added global config file (`~/.irmin/config.yml`)
+- Fixed parsing of commit hashes in `revert` command (#496, @zshipko)
+
+**irmin-git**
+
+- Support `ocaml-git` 2.0 (#545, @samoht)
+- Cleanup handling of remote stores (#552, @samoht)
+- Allow import/export of Git repositories using Irmin slices (#561, @samoht)
+
+**irmin-graphql**
+
+Added a new package: `irmin-graphql`, which provides a GraphQL server implementation that can be used to support both MirageOS
+and Unix backends. Additionally, a `graphql` command has been added to the command-line interface for starting `irmin-graphql`
+servers. (#558, @andreas, @zshipko)
+
+**irmin-test**
+
+Added a new package: `irmin-test`, which allows for packages to access the Irmin test-suite. This package can now
+be used for new packages that implement custom backends to test their implementations against the same tests that
+the core backends are tested against. (#508, @zshipko)
+
+**irmin**
+
+- Added `Json_value` and `Json` content types (#516, @zshipko)
+- Removed `Cstruct` dependency and content type (#544, @samoht)
+- Improvements to `Irmin.Type` combinators (#550 and #538, @samoht)
+- Update to use dune (#534, @samoht) and opam 2.0 (#583, @samoht)
+
+### 1.4.0 (2018-06-06)
+
+- Add types for `Contents.hash`, `Tree.hash` and `Commit.hash` (#512, @samoht)
+- `Tree.hash` and `Tree.of_hash` now work on leaf nodes. To do this, `Tree.hash`
+  has to return a more complex type (#512, @samoht)
+- support for webmachine 0.6.0 (#505, @ansiwen)
+
 ### 1.3.3 (2018-01-03)
 
 - complete support for OCaml 4.06 (#484, @samoht)
