@@ -683,7 +683,7 @@ struct
 
   let o_head_of_git = function
     | None   -> Error `No_head
-    | Some k -> Ok k
+    | Some k -> Ok (Some k)
 
   let fetch t ?depth e br =
     let uri = S.Endpoint.uri e in
@@ -710,9 +710,7 @@ struct
     S.fetch_one t e ~reference:references >|= function
     | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
     | Ok (`Sync refs) -> result refs
-    | Ok `AlreadySync ->
-      (* FIXME: we want to get the hash *)
-      Error (`Msg "XXX")
+    | Ok `AlreadySync -> Ok None
 
   let push t ?depth:_ e br =
     let uri = S.Endpoint.uri e in
