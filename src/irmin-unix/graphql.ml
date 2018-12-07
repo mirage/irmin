@@ -30,11 +30,14 @@ module Server = struct
 end
 
 module Client = struct
+  type client = {
+    ctx : Cohttp_lwt_unix.Client.ctx option;
+    addr : Uri.t;
+    headers : Cohttp.Header.t option
+  }
+
   module Client = struct
-    type t =
-      { ctx : Cohttp_lwt_unix.Client.ctx option
-      ; addr : Uri.t
-      ; headers : Cohttp.Header.t option }
+    type t = client
 
     let post t s =
       let body = Cohttp_lwt.Body.of_string s in
@@ -42,9 +45,7 @@ module Client = struct
       >>= fun (_, body) -> Cohttp_lwt.Body.to_string body
   end
 
-  type client = Client.t
-
-  let init ?ctx ?headers addr = Client.{ctx; addr; headers}
+  let init ?ctx ?headers addr = {ctx; addr; headers}
 
   module Make(Store: Irmin.S) = Irmin_graphql_client.Make (Client)(Store)
 end

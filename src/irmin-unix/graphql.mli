@@ -13,5 +13,5 @@ end
 module Client: sig
   type client
   val init: ?ctx:Cohttp_lwt_unix.Net.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client
-  module Make(S: Irmin.S) : Irmin_graphql_client.S with module Store = S
+  module Make(S: Irmin.S) : Irmin_graphql_client.S with module Store = S with type t = client
 end
