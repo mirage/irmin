@@ -23,6 +23,10 @@ module Server = struct
         let remote = Remote.remote
       end)(S)
   end
+
+  type server = Server.server
+
+  let init ?ctx mode = (ctx, mode)
 end
 
 module Client = struct

@@ -1,10 +1,13 @@
 module Server: sig
+  type server = Cohttp_lwt_unix.Net.ctx option * Conduit_lwt_unix.server
+  val init: ?ctx:Cohttp_lwt_unix.Net.ctx -> Conduit_lwt_unix.server -> server
+
   module Make(S: Irmin.S)(Remote: sig
       val remote: Resolver.Store.remote_fn option
     end):
     Irmin_graphql.S
     with type store = S.t
-     and type server = (Cohttp_lwt_unix.Net.ctx option * Conduit_lwt_unix.server)
+     and type server = server
 end
 
 module Client: sig

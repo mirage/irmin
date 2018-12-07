@@ -1,22 +1,6 @@
 type error = [`Msg of string]
 
 module Query: sig
-  val get: string
-  val get_tree: string
-  val set: string
-  val set_tree: string
-  val update_tree: string
-  val remove: string
-  val merge: string
-  val push: string
-  val pull: string
-  val clone: string
-  val revert: string
-  val lca: string
-  val branch_info: string
-  val commit_info: string
-  val branches: string
-
   val generate_json: unit -> string
 end
 
