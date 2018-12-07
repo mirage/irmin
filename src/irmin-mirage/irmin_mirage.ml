@@ -36,6 +36,36 @@ end
 
 module Git = struct
 
+  module type S_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S) ->
+    S with type key = P.t
+       and type step = P.step
+       and module Key = P
+       and type contents = C.t
+       and type branch = B.t
+       and module Git = G
+
+  module type KV_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
+
+  module type REF_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = Irmin_git.reference
+       and module Git = G
+
   module Make
       (G: Irmin_git.G)
       (C: Irmin.Contents.S)
