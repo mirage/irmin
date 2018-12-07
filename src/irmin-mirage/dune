@@ -2,4 +2,4 @@
  (name        irmin_mirage)
  (public_name irmin-mirage)
  (libraries   irmin irmin-mem irmin-git irmin-graphql git-mirage ptime
-              mirage-kv-lwt mirage-clock))
+              irmin-graphql-client mirage-kv-lwt mirage-clock))

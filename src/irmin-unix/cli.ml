@@ -599,12 +599,23 @@ let graphql = {
     in
     let graphql (S ((module S), store, remote_fn)) port =
       run begin
-        let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
+        let module Server = Graphql.Server.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
         Server.run_server (None, (`TCP (`Port port))) t
       end
     in
     Term.(mk graphql $ store $ port)
+}
+
+let graphql_queries = {
+  name = "graphql-queries";
+  doc = "Print default GraphQL queries used by irmin-graphql-client.";
+  man = [];
+  term =
+    let graphql_queries () =
+      print_endline @@ Irmin_graphql_client.Query.generate_json ()
+    in
+    Term.(mk graphql_queries $ pure ())
 }
 
 let default =
@@ -672,6 +683,7 @@ let commands = List.map create_command [
     watch;
     dot;
     graphql;
+    graphql_queries;
   ]
 
 let run ~default:x y =

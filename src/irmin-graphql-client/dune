@@ -1,0 +1,4 @@
+(library
+    (name irmin_graphql_client)
+    (public_name irmin-graphql-client)
+    (libraries irmin cohttp))

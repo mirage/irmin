@@ -1,0 +1,21 @@
+opam-version: "2.0"
+maintainer:   "Andreas Garnaes <andreas.garnaes@gmail.com>"
+authors:      "Andreas Garnaes <andreas.garnaes@gmail.com>"
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"   {>= "4.03.0"}
+  "dune"    {build}
+  "cohttp"
+  "irmin"
+]

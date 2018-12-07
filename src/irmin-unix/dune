@@ -1,5 +1,5 @@
 (library
  (name        irmin_unix)
  (public_name irmin-unix)
- (libraries   irmin irmin-fs irmin-git irmin-http git-unix irmin-mem irmin-graphql
+ (libraries   irmin irmin-fs irmin-git irmin-http git-unix irmin-mem irmin-graphql irmin-graphql-client
               irmin-watcher yaml cmdliner logs.fmt logs.cli fmt.cli fmt.tty))
