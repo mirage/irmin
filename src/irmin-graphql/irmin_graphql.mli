@@ -11,8 +11,7 @@ module type S = sig
   val run_server: server -> store -> unit Lwt.t
 end
 
-module type STORE = sig
-  include Irmin.S
+module type CONFIG = sig
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
   val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
@@ -30,6 +29,6 @@ module type SERVER = sig
   val run : server -> (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
 end
 
-module Make(Store : STORE)(Server : SERVER) : S
+module Make(Server : SERVER)(Config: CONFIG)(Store : Irmin.S): S
   with type store = Store.t
    and type server = Server.server

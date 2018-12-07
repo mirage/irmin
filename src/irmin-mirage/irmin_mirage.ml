@@ -215,9 +215,7 @@ module Graphql = struct
           let run http callback =
             http @@ Http.make ~callback ()
         end in
-        let module Store = struct
-          include Store
-
+        let module Config = struct
           let info ?(author = "irmin-graphql") fmt =
             let module I = Info(struct let name = author end)(Pclock) in
             I.f p fmt
@@ -226,9 +224,9 @@ module Graphql = struct
               let e =
                 Git_mirage.endpoint ?headers (Uri.of_string uri)
               in
-              E e)
+              Store.E e)
         end in
-        (module Irmin_graphql.Make(Store)(Server): Irmin_graphql.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
+        (module Irmin_graphql.Make(Server)(Config)(Store): Irmin_graphql.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
 
       let start ~pclock ~http server store =
         let (module G) = init pclock in
