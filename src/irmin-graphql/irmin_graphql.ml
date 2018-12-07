@@ -399,6 +399,31 @@ module Make(Store : STORE) : S with type store = Store.t = struct
         ]
       | None -> []
 
+  let unwrap_metadata m =
+    match m with
+    | Some m ->
+        (match Irmin.Type.of_string Store.metadata_t m with
+        | Ok m -> Some m
+        | Error (`Msg e) -> failwith e)
+    | None -> None
+
+  let to_tree tree l = Lwt_list.fold_left_s (fun tree -> function
+    | {key; value = Some x; metadata} ->
+        let k = Irmin.Type.of_string Store.key_t key in
+        let v = Irmin.Type.of_string Store.contents_t x in
+        let metadata = unwrap_metadata metadata in
+        (match k, v with
+        | Ok k, Ok v ->
+          Store.Tree.add tree ?metadata k v
+        | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
+    | {key; value = None; _} ->
+        let k = Irmin.Type.of_string Store.key_t key in
+        (match k with
+        | Ok k ->
+          Store.Tree.remove tree k
+        | Error (`Msg e) -> failwith e)) tree l
+
+
   let mutations s = Schema.[
       io_field "set"
         ~typ:(Lazy.force commit)
@@ -433,30 +458,35 @@ module Make(Store : STORE) : S with type store = Store.t = struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
-          let unwrap_metadata m =
-            match m with
-            | Some m ->
-              (match Irmin.Type.of_string Store.metadata_t m with
-              | Ok m -> Some m
-              | Error (`Msg e) -> failwith e)
-            | None -> None
-          in
-          let to_tree tree l = Lwt_list.fold_left_s (fun tree -> function
-            | {key; value = Some x; metadata} ->
-                let k = Irmin.Type.of_string Store.key_t key in
-                let v = Irmin.Type.of_string Store.contents_t x in
-                let metadata = unwrap_metadata metadata in
-                (match k, v with
-                | Ok k, Ok v ->
-                  Store.Tree.add tree ?metadata k v
-                | Error (`Msg e), _ | _, Error (`Msg e) -> failwith e)
-              | {key; value = None; _} ->
-                let k = Irmin.Type.of_string Store.key_t key in
-                (match k with
-                | Ok k ->
-                  Store.Tree.remove tree k
-                | Error (`Msg e) -> failwith e)) tree l
-          in
+          match to_branch branch with
+          | Ok branch ->
+              mk_branch (Store.repo s) branch >>= fun t ->
+              let info = mk_info i in
+              let key = Irmin.Type.of_string Store.key_t k in
+              (match key with
+              | Ok key ->
+                Lwt.catch (fun () ->
+                  let tree = Store.Tree.empty in
+                  to_tree tree items
+                  >>= fun tree ->
+                  Store.set_tree_exn t ~info key tree >>= fun () ->
+                  Store.Head.find t >>= Lwt.return_ok)
+                  (function
+                    | Failure e -> Lwt.return_error e
+                    | e -> raise e)
+              | Error (`Msg msg) -> Lwt.return_error msg)
+          | Error msg -> Lwt.return_error msg
+        )
+      ;
+      io_field "update_tree"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null string);
+            arg "tree" ~typ:(Input.tree);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k items i ->
           match to_branch branch with
           | Ok branch ->
               mk_branch (Store.repo s) branch >>= fun t ->
