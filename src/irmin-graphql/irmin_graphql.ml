@@ -21,8 +21,7 @@ type commit_input = {
   message: string option;
 }
 
-module type STORE = sig
-  include Irmin.S
+module type CONFIG = sig
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
   val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
@@ -40,7 +39,7 @@ module type SERVER = sig
   val run : server -> (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
 end
 
-module Make(Store : STORE)(Server : SERVER) = struct
+module Make(Server : SERVER)(Config: CONFIG)(Store : Irmin.S) = struct
   module Sync = Irmin.Sync (Store)
 
   type tree_item = {
@@ -54,9 +53,9 @@ module Make(Store : STORE)(Server : SERVER) = struct
     | Some input ->
       let message = match input.message with None -> "" | Some m -> m in
       let author = input.author in
-      Store.info ?author "%s" message
+      Config.info ?author "%s" message
     | None ->
-      Store.info ""
+      Config.info ""
 
   type store = Store.t
   type server = Server.server
@@ -87,7 +86,7 @@ module Make(Store : STORE)(Server : SERVER) = struct
 
     let coerce_remote = function
       | `String s ->
-        (match Store.remote with
+        (match Config.remote with
          | Some remote -> Ok (remote s)
          | None -> Error "sync is not available")
       | _ -> Error "invalid remote encoding"
@@ -356,7 +355,7 @@ module Make(Store : STORE)(Server : SERVER) = struct
   let err_write e =
     Lwt.return_error (Irmin.Type.to_string Store.write_error_t e)
 
-  let remote s = match Store.remote with
+  let remote s = match Config.remote with
     | Some _ ->
       Schema.[
         io_field "clone"

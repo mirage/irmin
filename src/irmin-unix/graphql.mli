@@ -3,4 +3,4 @@ module Make(S: Irmin.S)(Remote: sig
 end):
   Irmin_graphql.S
     with type store = S.t
-     and type server = (Conduit_lwt_unix.ctx option * Conduit_lwt_unix.server)
+     and type server = (Cohttp_lwt_unix.Net.ctx option * Conduit_lwt_unix.server)
