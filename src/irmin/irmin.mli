@@ -1934,7 +1934,7 @@ module Private: sig
       (** The type for sync endpoints. *)
 
       val fetch: t -> ?depth:int -> endpoint -> branch ->
-        (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
+        (commit option, [`No_head | `Not_available | `Msg of string]) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
