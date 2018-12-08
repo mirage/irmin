@@ -204,8 +204,13 @@ struct
     let branch = opt_branch branch in
     let s = Irmin.Type.to_string Store.key_t key in
     let vars = [("branch", branch); ("key", `String s)] in
-    execute client ~vars Query.get >|= fun res ->
-    Irmin.Type.of_string Store.contents_t res
+    execute_json client ~vars Query.get >|= function
+    | Ok j ->
+      (match Json.find j ["data"; "branch"; "get"] with
+       | Some (`String s) -> Irmin.Type.of_string Store.contents_t s
+       | _ -> invalid_response)
+    | Error msg -> error_msg msg
+
 
   let get_all client ?branch key =
     let branch = opt_branch branch in
@@ -213,22 +218,22 @@ struct
     let vars = [("branch", branch); ("key", `String s)] in
     execute_json client ~vars Query.get_all >|= function
     | Ok j ->
-        (try
-          let j = Json.find_exn j ["data"; "branch"; "get_all"] in
-          let value =
-            Json.find_exn j ["value"]
-            |> Json.get_string_exn
-            |> Irmin.Type.of_string Store.contents_t
-            |> unwrap
-          in
-          let metadata =
-            Json.find_exn j ["metadata"]
-            |> Json.get_string_exn
-            |> Irmin.Type.of_string Store.metadata_t
-            |> unwrap
-          in
-          Ok (value, metadata)
-        with Failure msg -> error msg)
+      (try
+         let j = Json.find_exn j ["data"; "branch"; "get_all"] in
+         let value =
+           Json.find_exn j ["value"]
+           |> Json.get_string_exn
+           |> Irmin.Type.of_string Store.contents_t
+           |> unwrap
+         in
+         let metadata =
+           Json.find_exn j ["metadata"]
+           |> Json.get_string_exn
+           |> Irmin.Type.of_string Store.metadata_t
+           |> unwrap
+         in
+         Ok (value, metadata)
+       with Failure msg -> error msg)
     | Error msg -> error_msg msg
 
   let get_tree client ?branch key =
@@ -420,11 +425,11 @@ struct
     in
     execute_json client ~vars Query.lca >|= function
     | Ok j ->
-        (match Json.find j ["data"; "branch"; "lca"] with
-        | Some commit ->
-            (try make_commit_info commit
-            with Failure msg -> error msg)
-        | None -> invalid_response)
+      (match Json.find j ["data"; "branch"; "lca"] with
+       | Some commit ->
+         (try make_commit_info commit
+          with Failure msg -> error msg)
+       | None -> invalid_response)
     | Error msg -> error_msg msg
 
   let branch_info client branch =
