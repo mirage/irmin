@@ -613,7 +613,7 @@ let graphql_queries = {
   man = [];
   term =
     let graphql_queries () =
-      print_endline @@ Irmin_graphql_client.Query.generate_json ()
+      print_endline @@ Irmin_graphql.Client.Query.generate_json ()
     in
     Term.(mk graphql_queries $ pure ())
 }

@@ -157,7 +157,7 @@ module Graphql: sig
     module type S = sig
       module Store: Irmin.S
       module Http: Cohttp_lwt.S.Client
-      include Irmin_graphql_client.S with module Store := Store
+      include Irmin_graphql.Client.S with module Store := Store
 
       type client
       val init: ?ctx:Http.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client

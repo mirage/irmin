@@ -226,7 +226,8 @@ module Graphql = struct
               in
               Store.E e)
         end in
-        (module Irmin_graphql.Make(Server)(Config)(Store): Irmin_graphql.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
+        (module Irmin_graphql.Server.Make(Server)(Config)(Store):
+          Irmin_graphql.Server.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
 
       let start ~pclock ~http server store =
         let (module G) = init pclock in
@@ -238,7 +239,7 @@ module Graphql = struct
     module type S = sig
       module Store: Irmin.S
       module Http: Cohttp_lwt.S.Client
-      include Irmin_graphql_client.S with module Store := Store
+      include Irmin_graphql.Client.S with module Store := Store
 
       type client
       val init: ?ctx:Http.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client
@@ -262,7 +263,7 @@ module Graphql = struct
       let init ?ctx ?headers addr = Backend.{ctx; addr; headers}
 
       module Http = Http
-      include Irmin_graphql_client.Make (Backend)(Store)
+      include Irmin_graphql.Client.Make (Backend)(Store)
     end
   end
 end

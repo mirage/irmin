@@ -18,7 +18,7 @@ module Server = struct
   module Make(S: Irmin.S)(Remote: sig
       val remote: Resolver.Store.remote_fn option
     end) = struct
-    include Irmin_graphql.Make(Server)(struct
+    include Irmin_graphql.Server.Make(Server)(struct
         let info = Info.v
         let remote = Remote.remote
       end)(S)
@@ -47,5 +47,5 @@ module Client = struct
 
   let init ?ctx ?headers addr = {ctx; addr; headers}
 
-  module Make(Store: Irmin.S) = Irmin_graphql_client.Make (Client)(Store)
+  module Make(Store: Irmin.S) = Irmin_graphql.Client.Make (Client)(Store)
 end
