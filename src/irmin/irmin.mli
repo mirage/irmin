@@ -3300,7 +3300,7 @@ val remote_store: (module S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store
     [t]. Synchronization is done by importing and exporting store
     {{!BC.slice}slices}, so this is usually much slower than native
-    synchronization using {!remote_uri} but it works for all
+    synchronization using {!Store.remote} but it works for all
     backends. *)
 
 (** [SYNC] provides functions to synchronization an Irmin store with
