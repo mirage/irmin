@@ -20,6 +20,7 @@ depends: [
   "graphql" {>= "0.8"}
   "graphql-lwt" {>= "0.8"}
   "graphql-cohttp" {>= "0.8"}
+  "cohttp-lwt"
 ]
 
 
