@@ -1,3 +1,9 @@
+module Remote: sig
+  module None: sig
+    val remote: Resolver.Store.remote_fn option
+  end
+end
+
 module Make(S: Irmin.S)(Remote: sig
   val remote: Resolver.Store.remote_fn option
 end):

@@ -12,6 +12,12 @@ module Server = struct
     Cohttp_lwt_unix.Server.create ~ctx ~mode server
 end
 
+module Remote = struct
+  module None = struct
+    let remote = None
+  end
+end
+
 module Make(S: Irmin.S)(Remote: sig
   val remote: Resolver.Store.remote_fn option
 end) = struct
