@@ -8,7 +8,10 @@ module type S = sig
   type server
 
   val schema : store -> unit Schema.schema
-  val execute_request : unit Schema.schema -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
+  val execute_request :
+      unit Schema.schema ->
+      Cohttp_lwt.Request.t ->
+      Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
   val run_server: server -> store -> unit Lwt.t
 end
 
@@ -36,7 +39,10 @@ module type SERVER = sig
     status:Cohttp.Code.status_code ->
     body:string -> unit -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
 
-  val run : server -> (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t -> (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
+  val run :
+    server ->
+    (conn -> Cohttp_lwt.Request.t -> Cohttp_lwt.Body.t ->
+      (Cohttp_lwt.Response.t * Cohttp_lwt.Body.t) Lwt.t) -> unit Lwt.t
 end
 
 module Make(Server : SERVER)(Config: CONFIG)(Store : Irmin.S) = struct
@@ -595,4 +601,3 @@ module Make(Server : SERVER)(Config: CONFIG)(Store : Irmin.S) = struct
     let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
     Server.run server callback
 end
-
