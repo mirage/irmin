@@ -290,7 +290,7 @@ struct
       ; ("info", mk_info ?author ?message ()) ]
     in
     execute_json client ~vars Query.set
-    >|= decode_hash ["set"]
+    >|= decode_hash ["set_all"]
 
   let rec tree_list key = function
     | `Contents (c, m) ->
@@ -409,8 +409,10 @@ struct
       |> Json.get_string_exn
     in
     let parents =
-      match Json.find_exn commit ["info"; "parents"] with
-      | `A a -> List.map (fun x -> Irmin.Type.of_string Store.Hash.t (Json.get_string_exn x) |> unwrap) a
+      match Json.find_exn commit ["parents"] with
+      | `A a -> List.map (fun x ->
+          let x = Json.get_string_exn (Json.find_exn x ["hash"]) in
+          Irmin.Type.of_string Store.Hash.t x |> unwrap) a
       | _ -> failwith "Invalid parents field"
     in
     let info = Irmin.Info.v ~date ~author message in
@@ -450,7 +452,7 @@ struct
   let commit_info client hash =
     let commit = Irmin.Type.to_string Store.Hash.t hash in
     let vars =
-      [ "commit", `String commit ]
+      [ "hash", `String commit ]
     in
     execute_json client ~vars Query.commit_info >|= function
     | Ok j ->
@@ -460,5 +462,4 @@ struct
           with Failure msg -> error msg)
        | None -> invalid_response)
     | Error msg -> error_msg msg
-
 end

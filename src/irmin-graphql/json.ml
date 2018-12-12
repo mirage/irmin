@@ -17,10 +17,10 @@ let rec find (j: t) keys: t option =
 let find_exn (j: t) keys: t =
   match find j keys with
   | Some x -> x
-  | None -> raise Not_found
+  | None -> raise (Invalid_argument ("find_exn: " ^ String.concat ", " keys))
 
 let get_string_exn: t -> string = function
   | `String s -> s
   | `Float f -> string_of_float f
   | `Bool b -> string_of_bool b
-  | _ -> failwith "JSON value is not a string"
+  | _ -> raise (Invalid_argument "get_string_exn")

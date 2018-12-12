@@ -138,6 +138,7 @@ let commit_info = {|
           hash
       }
     }
+  }
 |}
 
 let branches = "query { branches }"
@@ -206,6 +207,4 @@ let generate_json () =
   let obj = List.map (fun (k, v) ->
       k, `String v) all
   in Json.to_string (`O obj)
-
-
 
