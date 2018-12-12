@@ -9,7 +9,9 @@ module Server = struct
       | None -> Cohttp_lwt_unix.Net.default_ctx
     in
     let server = Cohttp_lwt_unix.Server.make ~callback () in
-    Cohttp_lwt_unix.Server.create ~ctx ~mode server
+    let on_exn = fun e ->
+      Logs.debug (fun l -> l "Server exception: %s" (Printexc.to_string e)) in
+    Cohttp_lwt_unix.Server.create ~on_exn ~ctx ~mode server
 end
 
 module Remote = struct
