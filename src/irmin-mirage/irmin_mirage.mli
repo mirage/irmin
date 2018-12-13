@@ -133,3 +133,25 @@ module Git: sig
     module KV_RO: KV_RO with type git := G.t
   end
 end
+
+module Graphql: sig
+  module type S = sig
+    module Pclock: Mirage_clock_lwt.PCLOCK
+    module Http: Cohttp_lwt.S.Server
+    module Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
+
+    val start:
+      pclock:Pclock.t
+      -> http:(Conduit_mirage.server -> Http.t -> unit Lwt.t)
+      -> Conduit_mirage.server
+      -> Store.t -> unit Lwt.t
+  end
+
+  module Make
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Http: Cohttp_lwt.S.Server):
+    S with module Pclock = Pclock
+      and module Store = Store
+      and module Http = Http
+end
