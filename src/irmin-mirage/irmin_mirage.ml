@@ -221,28 +221,20 @@ module Graphql = struct
 
     val start:
       pclock:Pclock.t
-      -> http:(Conduit_mirage.server -> Http.t -> unit Lwt.t)
-      -> Conduit_mirage.server
+      -> http:(Http.t -> unit Lwt.t)
       -> Store.t -> unit Lwt.t
   end
 
   module Make
+      (Http: Cohttp_lwt.S.Server)
       (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
       (Pclock: Mirage_clock_lwt.PCLOCK)
-      (Http: Cohttp_lwt.S.Server)
   = struct
     module Store = Store
     module Pclock = Pclock
     module Http = Http
 
     let init p =
-      let module Server = struct
-        type conn = Http.conn
-        type server = Http.t -> unit Lwt.t
-        let respond_string = Http.respond_string
-        let run http callback =
-          http @@ Http.make ~callback ()
-      end in
       let module Config = struct
         let info ?(author = "irmin-graphql") fmt =
           let module I = Info(struct let name = author end)(Pclock) in
@@ -254,10 +246,11 @@ module Graphql = struct
             in
             Store.E e)
       end in
-      (module Irmin_graphql.Make(Server)(Config)(Store): Irmin_graphql.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
+      (module Irmin_graphql.Make(Http)(Config)(Store): Irmin_graphql.S with type server = Http.t and type store = Store.t)
 
-    let start ~pclock ~http server store =
+    let start ~pclock ~http store =
       let (module G) = init pclock in
-      G.run_server (http server) store
+      let server = G.make_server store in
+      http server
   end
 end
