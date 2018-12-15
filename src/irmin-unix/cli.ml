@@ -608,7 +608,10 @@ let graphql = {
         let server = Server.server t in
         Conduit_lwt_unix.init ~src:addr () >>= fun ctx ->
         let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
-        Cohttp_lwt_unix.Server.create ~ctx ~mode:(`TCP (`Port port)) server
+        let on_exn exn =
+          Logs.debug (fun l -> l "on_exn: %s" (Printexc.to_string exn))
+        in
+        Cohttp_lwt_unix.Server.create ~on_exn ~ctx ~mode:(`TCP (`Port port)) server
       end
     in
     Term.(mk graphql $ store $ port $ addr)
