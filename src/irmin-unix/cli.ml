@@ -605,7 +605,7 @@ let graphql = {
       run begin
         let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
-        let server = Server.make_server t in
+        let server = Server.server t in
         Conduit_lwt_unix.init ~src:addr () >>= fun ctx ->
         let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
         Cohttp_lwt_unix.Server.create ~ctx ~mode:(`TCP (`Port port)) server

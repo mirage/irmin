@@ -12,7 +12,7 @@ module type S = sig
     unit Schema.schema ->
     Cohttp_lwt.Request.t ->
     Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-  val make_server : store -> server
+  val server : store -> server
 end
 
 let of_irmin_result = function
@@ -580,7 +580,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
 
   let execute_request ctx req = Graphql_server.execute_request ctx () req
 
-  let make_server store =
+  let server store =
     let schema = schema store in
     let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
     Server.make ~callback ()

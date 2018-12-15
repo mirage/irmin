@@ -9,7 +9,7 @@ module type S = sig
       unit Schema.schema ->
       Cohttp_lwt.Request.t ->
       Cohttp_lwt.Body.t -> (Cohttp.Response.t * Cohttp_lwt.Body.t) Lwt.t
-  val make_server : store -> server
+  val server : store -> server
 end
 
 module type CONFIG = sig
