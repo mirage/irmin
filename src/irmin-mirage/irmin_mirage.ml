@@ -15,7 +15,6 @@
  *)
 
 open Astring
-open Lwt.Infix
 
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
   let f c fmt =
@@ -36,6 +35,36 @@ module type S = sig
 end
 
 module Git = struct
+
+  module type S_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S) ->
+    S with type key = P.t
+       and type step = P.step
+       and module Key = P
+       and type contents = C.t
+       and type branch = B.t
+       and module Git = G
+
+  module type KV_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
+
+  module type REF_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = Irmin_git.reference
+       and module Git = G
 
   module Make
       (G: Irmin_git.G)
@@ -193,28 +222,20 @@ module Graphql = struct
 
       val start:
         pclock:Pclock.t
-        -> http:(Conduit_mirage.server -> Http.t -> unit Lwt.t)
-        -> Conduit_mirage.server
+        -> http:(Http.t -> unit Lwt.t)
         -> Store.t -> unit Lwt.t
     end
 
     module Make
+        (Http: Cohttp_lwt.S.Server)
         (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
         (Pclock: Mirage_clock_lwt.PCLOCK)
-        (Http: Cohttp_lwt.S.Server)
     = struct
       module Store = Store
       module Pclock = Pclock
       module Http = Http
 
       let init p =
-        let module Server = struct
-          type conn = Http.conn
-          type server = Http.t -> unit Lwt.t
-          let respond_string = Http.respond_string
-          let run http callback =
-            http @@ Http.make ~callback ()
-        end in
         let module Config = struct
           let info ?(author = "irmin-graphql") fmt =
             let module I = Info(struct let name = author end)(Pclock) in
@@ -226,44 +247,12 @@ module Graphql = struct
               in
               Store.E e)
         end in
-        (module Irmin_graphql.Server.Make(Server)(Config)(Store):
-          Irmin_graphql.Server.S with type server = Http.t -> unit Lwt.t and type store = Store.t)
+        (module Irmin_graphql.Server.Make(Http)(Config)(Store): Irmin_graphql.Server.S with type server = Http.t and type store = Store.t)
 
-      let start ~pclock ~http server store =
+      let start ~pclock ~http store =
         let (module G) = init pclock in
-        G.run_server (http server) store
-    end
-  end
-
-  module Client = struct
-    module type S = sig
-      module Store: Irmin.S
-      module Http: Cohttp_lwt.S.Client
-      include Irmin_graphql.Client.S with module Store := Store
-
-      type client
-      val init: ?ctx:Http.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client
-    end
-
-    module Make(Store: Irmin.S)(Http: Cohttp_lwt.S.Client) = struct
-      module Backend = struct
-        type t =
-          { ctx : Http.ctx option
-          ; addr : Uri.t
-          ; headers : Cohttp.Header.t option }
-
-        let post t s =
-          let body = Cohttp_lwt.Body.of_string s in
-          Http.post ?ctx:t.ctx ~body ?headers:t.headers t.addr
-          >>= fun (_, body) -> Cohttp_lwt.Body.to_string body
-      end
-
-      type client = Backend.t
-
-      let init ?ctx ?headers addr = Backend.{ctx; addr; headers}
-
-      module Http = Http
-      include Irmin_graphql.Client.Make (Backend)(Store)
+        let server = G.server store in
+        http server
     end
   end
 end

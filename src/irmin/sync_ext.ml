@@ -108,11 +108,15 @@ module Make (S: S.STORE) = struct
           B.v (S.repo t) >>= fun g ->
           B.fetch g ?depth e br >>= function
           | Error _ as e -> Lwt.return e
-          | Ok c         ->
-            Log.debug (fun l -> l "Fetched %a" pp_hash c);
+          | Ok (Some c)         ->
+            (Log.debug (fun l -> l "Fetched %a" pp_hash c);
             S.Commit.of_hash (S.repo t) c >|= function
             | None   -> Error `No_head
-            | Some x -> Ok x
+            | Some x -> Ok x)
+          | Ok None ->
+            S.Head.find t >>= function
+            | Some h -> Lwt.return_ok h
+            | None -> Lwt.return_error `No_head
       end
     | _ -> Lwt.return (Error `Not_available)
 

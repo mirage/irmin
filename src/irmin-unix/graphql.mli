@@ -1,17 +1,18 @@
 module Server: sig
-  type server = Cohttp_lwt_unix.Net.ctx option * Conduit_lwt_unix.server
-  val init: ?ctx:Cohttp_lwt_unix.Net.ctx -> Conduit_lwt_unix.server -> server
+  module Remote: sig
+    module None: sig
+      val remote: Resolver.Store.remote_fn option
+    end
+  end
 
   module Make(S: Irmin.S)(Remote: sig
-      val remote: Resolver.Store.remote_fn option
-    end):
+    val remote: Resolver.Store.remote_fn option
+  end):
     Irmin_graphql.Server.S
-    with type store = S.t
-     and type server = server
+      with type store = S.t
+       and type server = Cohttp_lwt_unix.Server.t
 end
 
 module Client: sig
-  type client
-  val init: ?ctx:Cohttp_lwt_unix.Net.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client
-  module Make(S: Irmin.S) : Irmin_graphql.Client.S with module Store = S with type t = client
+  module Make(S: Irmin.S) : Irmin_graphql.Client.S with module Store = S and module Client := Cohttp_lwt_unix.Client
 end

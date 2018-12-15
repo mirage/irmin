@@ -39,11 +39,11 @@ end
 
 module Git: sig
 
-  module Make
-      (G: Irmin_git.G)
-      (C: Irmin.Contents.S)
-      (P: Irmin.Path.S)
-      (B: Irmin.Branch.S):
+  module type S_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S)
+    (P: Irmin.Path.S)
+    (B: Irmin.Branch.S) ->
     S with type key = P.t
        and type step = P.step
        and module Key = P
@@ -51,23 +51,27 @@ module Git: sig
        and type branch = B.t
        and module Git = G
 
-  module KV
-      (G: Irmin_git.G)
-      (C: Irmin.Contents.S):
+  module type KV_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = string
        and module Git = G
 
-  module Ref
-      (G: Irmin_git.G)
-      (C: Irmin.Contents.S):
+  module type REF_MAKER = functor
+    (G: Irmin_git.G)
+    (C: Irmin.Contents.S) ->
     S with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = Irmin_git.reference
        and module Git = G
+
+  module Make: S_MAKER
+  module KV  : KV_MAKER
+  module Ref : REF_MAKER
 
   module type KV_RO = sig
 
@@ -139,33 +143,16 @@ module Graphql: sig
 
       val start:
         pclock:Pclock.t
-        -> http:(Conduit_mirage.server -> Http.t -> unit Lwt.t)
-        -> Conduit_mirage.server
+        -> http:(Http.t -> unit Lwt.t)
         -> Store.t -> unit Lwt.t
     end
 
     module Make
+        (Http: Cohttp_lwt.S.Server)
         (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
-        (Pclock: Mirage_clock_lwt.PCLOCK)
-        (Http: Cohttp_lwt.S.Server):
+        (Pclock: Mirage_clock_lwt.PCLOCK):
       S with module Pclock = Pclock
          and module Store = Store
          and module Http = Http
-  end
-
-  module Client: sig
-    module type S = sig
-      module Store: Irmin.S
-      module Http: Cohttp_lwt.S.Client
-      include Irmin_graphql.Client.S with module Store := Store
-
-      type client
-      val init: ?ctx:Http.ctx -> ?headers:Cohttp.Header.t -> Uri.t -> client
-    end
-
-    module Make
-        (Store: Irmin.S)
-        (Http: Cohttp_lwt.S.Client):
-      S with module Store = Store
   end
 end

@@ -255,7 +255,7 @@ module type SYNC = sig
   type branch
   type endpoint
   val fetch: t -> ?depth:int -> endpoint -> branch ->
-    (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
+    (commit option, [`No_head | `Not_available | `Msg of string]) result Lwt.t
   val push: t -> ?depth:int -> endpoint -> branch ->
     (unit, [`No_head | `Not_available | `Msg of string | `Detached_head])
       result Lwt.t

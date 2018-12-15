@@ -2,18 +2,15 @@ open Lwt.Infix
 
 module Query = Query
 
-module type CLIENT = sig
-  type t
-
-  val post : t -> string -> string Lwt.t
-end
-
 type error = [`Msg of string]
 
 module type S = sig
   type t
 
   module Store : Irmin.S
+  module Client : Cohttp_lwt.S.Client
+
+  val init: ?headers:Cohttp.Header.t -> ?ctx:Client.ctx -> Uri.t -> t
 
   type commit = {
     hash: Store.Hash.t;
@@ -130,12 +127,19 @@ let opt f = function
 let opt_string x = opt (fun s -> `String s) x
 
 module Make
-    (Client : CLIENT)
+    (Client : Cohttp_lwt.S.Client)
     (Store: Irmin.S) =
 struct
   module Store = Store
+  module Client = Client
 
-  type t = Client.t
+  type t = {
+    uri: Uri.t;
+    headers: Cohttp.Header.t option;
+    ctx: Client.ctx option;
+  }
+
+  let init ?headers ?ctx uri = {uri; headers; ctx}
 
   type commit = {
     hash: Store.Hash.t;
@@ -173,7 +177,9 @@ struct
       | None ->
         query
     in
-    Client.post client (Json.to_string (`O query))
+    let body = Cohttp_lwt.Body.of_string @@ Json.to_string (`O query) in
+    Client.post ?ctx:client.ctx ?headers:client.headers ~body client.uri >>= fun (_, body) ->
+    Cohttp_lwt.Body.to_string body
 
   let execute_json client ?vars ?operation body =
     execute client ?vars ?operation body >|= fun res ->

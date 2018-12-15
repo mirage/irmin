@@ -4,16 +4,13 @@ module Query: sig
   val generate_json: unit -> string
 end
 
-module type CLIENT = sig
-  type t
-
-  val post : t -> string -> string Lwt.t
-end
-
 module type S = sig
   type t
 
   module Store : Irmin.S
+  module Client : Cohttp_lwt.S.Client
+
+  val init: ?headers:Cohttp.Header.t -> ?ctx:Client.ctx -> Uri.t -> t
 
   type commit = {
     hash: Store.Hash.t;
@@ -123,8 +120,8 @@ module type S = sig
 end
 
 module Make
-    (Client : CLIENT)
+    (Client : Cohttp_lwt.S.Client)
     (Store : Irmin.S) :
   S
-  with type t = Client.t
-   and module Store = Store
+  with module Store = Store
+   and module Client = Client
