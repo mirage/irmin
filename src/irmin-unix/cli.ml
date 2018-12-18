@@ -597,14 +597,24 @@ let graphql = {
       let doc = Arg.info ~doc:"Port for graphql server." ["p"; "port"] in
       Arg.(value & opt int 8080 & doc)
     in
-    let graphql (S ((module S), store, remote_fn)) port =
+    let addr =
+      let doc = Arg.info ~doc:"Address for graphql server." ["a"; "address"] in
+      Arg.(value & opt string "localhost" & doc)
+    in
+    let graphql (S ((module S), store, remote_fn)) port addr =
       run begin
         let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
-        Server.run_server (None, (`TCP (`Port port))) t
+        let server = Server.server t in
+        Conduit_lwt_unix.init ~src:addr () >>= fun ctx ->
+        let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
+        let on_exn exn =
+          Logs.debug (fun l -> l "on_exn: %s" (Printexc.to_string exn))
+        in
+        Cohttp_lwt_unix.Server.create ~on_exn ~ctx ~mode:(`TCP (`Port port)) server
       end
     in
-    Term.(mk graphql $ store $ port)
+    Term.(mk graphql $ store $ port $ addr)
 }
 
 let default =
