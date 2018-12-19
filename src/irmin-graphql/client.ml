@@ -87,6 +87,9 @@ module type S = sig
     -> from:Store.branch
     -> (Store.Hash.t, error) result Lwt.t
 
+  val find :
+    t -> ?branch:Store.branch -> Store.Key.t -> (Store.Contents.t option, error) result Lwt.t
+
   val get :
     t -> ?branch:Store.branch -> Store.Key.t -> (Store.Contents.t, error) result Lwt.t
 
@@ -206,17 +209,26 @@ struct
        | _ -> invalid_response)
     | Error msg -> error_msg msg
 
-  let get client ?branch key =
+  let find client ?branch key =
     let branch = opt_branch branch in
     let s = Irmin.Type.to_string Store.key_t key in
     let vars = [("branch", branch); ("key", `String s)] in
     execute_json client ~vars Query.get >|= function
     | Ok j ->
       (match Json.find j ["data"; "branch"; "get"] with
-       | Some (`String s) -> Irmin.Type.of_string Store.contents_t s
+       | Some (`String s) ->
+         (match Irmin.Type.of_string Store.contents_t s with
+          | Ok x -> Ok (Some x)
+          | Error e -> Error e)
+       | Some `Null -> Ok None
        | _ -> invalid_response)
     | Error msg -> error_msg msg
 
+  let get client ?branch key =
+    find client ?branch key >|= function
+    | Ok (Some x) -> Ok x
+    | Ok None -> Error (`Msg "null value")
+    | Error e -> Error e
 
   let get_all client ?branch key =
     let branch = opt_branch branch in
@@ -298,17 +310,19 @@ struct
     execute_json client ~vars Query.set
     >|= decode_hash ["set_all"]
 
-  let rec tree_list key = function
-    | `Contents (c, m) ->
-      let k = Irmin.Type.to_string Store.key_t key in
-      let c = Irmin.Type.to_string Store.contents_t c in
-      let m = Irmin.Type.to_string Store.metadata_t m in
-      `O ["key", `String k; "value", `String c; "metadata", `String m]
-    | `Tree l ->
-      let l = List.fold_left (fun acc (step, i) ->
-          let key = Store.Key.rcons key step in
-          tree_list key i :: acc) [] l
-      in `A l
+  let tree_list key x =
+    let rec aux key x acc = match x with
+      | `Contents (c, m) ->
+        let k = Irmin.Type.to_string Store.key_t key in
+        let c = Irmin.Type.to_string Store.contents_t c in
+        let m = Irmin.Type.to_string Store.metadata_t m in
+        `O ["key", `String k; "value", `String c; "metadata", `String m] :: acc
+      | `Tree l ->
+        let l = List.fold_left (fun acc (step, i) ->
+            let key = Store.Key.rcons key step in
+            aux key i acc) [] l
+        in l
+    in `A (aux key x [])
 
   let set_or_update_tree client ?author ?message ?branch key tree query =
     let branch = opt_branch branch in

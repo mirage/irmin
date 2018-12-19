@@ -53,43 +53,65 @@ let check_type_eq name t a b =
 let check_type_not_eq name t a b =
   Alcotest.(check bool) name false (Irmin.Type.equal t a b)
 
-let test_set_and_get client =
-  Client.set client ["a"; "b"; "c"] "123" >>= unwrap >>= fun _ ->
-  Client.get client ["a"; "b"; "c"] >>= unwrap >|= fun s ->
-  Alcotest.(check string) "get a/b/c" "123" s
+let test_set_and_get branch client =
+  Client.set ~branch client ["a"; "b"; "c"] "123" >>= unwrap >>= fun _ ->
+  Client.get ~branch client ["a"; "b"; "c"] >>= unwrap >>= fun s ->
+  Client.set ~branch client ["foo"] "bar" >>= unwrap >>= fun _ ->
+  Client.get ~branch client ["foo"] >>= unwrap >|= fun s' ->
+  Alcotest.(check string) "get a/b/c" "123" s;
+  Alcotest.(check string) "get foo" "bar" s'
 
-let test_head client =
-  Client.branch_info client Store.Branch.master >>= unwrap >>= fun info ->
+let test_head branch client =
+  Client.branch_info client branch >>= unwrap >>= fun info ->
   let hash = info.Client.hash in
   Client.commit_info client hash >>= unwrap >>= fun info' ->
   check_type_eq "Commit info" Irmin.Info.t info.info info'.info;
-  Client.set client ["foo"] "bar" >>= unwrap >|= fun hash' ->
-  check_type_not_eq "Same hash after set" Store.Hash.t hash hash'
+  Client.set ~branch client ["foo"] "baz" >>= unwrap >|= fun hash' ->
+  check_type_not_eq "hash after set" Store.Hash.t hash hash'
 
-let test_remove client =
-  Client.branch_info client Store.Branch.master >>= unwrap >>= fun info ->
+let test_remove branch client =
+  Client.branch_info client branch >>= unwrap >>= fun info ->
   let hash = info.Client.hash in
-  Client.remove client ["foo"] >>= unwrap >|= fun hash' ->
-  check_type_not_eq "Different hash after remove" Store.Hash.t hash hash'
+  Client.remove client ["foo"] >>= unwrap >>= fun hash' ->
+  check_type_not_eq "hash after remove" Store.Hash.t hash hash';
+  Client.find client ["foo"] >>= unwrap >|= function
+  | Some _ -> Alcotest.fail "foo should be empty"
+  | None -> ()
+
+let test_tree branch client =
+  Client.branch_info client branch >>= unwrap >>= fun info ->
+  let hash = info.Client.hash in
+  let tree = Store.Tree.empty in
+  Store.Tree.add tree ["test"; "a"] "1" >>= fun tree ->
+  Store.Tree.add tree ["test"; "b"] "2" >>= fun tree ->
+  Store.Tree.add tree ["test"; "c"] "3" >>= fun tree ->
+  Client.update_tree ~branch client [] tree >>= unwrap >|= fun _hash' ->
+    let _ = hash in
+  (*check_type_not_eq "hash after update tree" Store.Hash.t hash hash'*) ()
 
 let tests = [
-  "Set and get", `Quick, test_set_and_get;
-  "Head", `Quick, test_head;
-  "Remove", `Quick, test_remove;
+  "set/get", `Quick, test_set_and_get;
+  "branch_info/commit_info", `Quick, test_head;
+  "remove", `Quick, test_remove;
+  "tree", `Quick, test_tree;
 ]
 
 let uri = Uri.of_string "http://localhost:80808/graphql"
 
 let run_tests name tests =
-  let client = Irmin_unix.Graphql.Client.init uri in
-  let tests = List.map (fun (name, speed, f) ->
-      name, speed, (fun () -> Lwt_main.run (Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore; f client))) tests
+  let client = Client.init uri in
+  let tests branch =
+    List.map (fun (name, speed, f) ->
+        branch ^ ":" ^ name, speed, (fun () -> Lwt_main.run (Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore; f branch client))) tests
   in
-  Alcotest.run name [name, tests]
+  let a = tests "master" in
+  let b = tests "testing" in
+  Alcotest.run name [name, a @ b]
 
 let server_pid = ref 0
 
 let clean () =
+  Unix.sleep 1;
   Unix.kill !server_pid Sys.sigint
 
 let run_server () =
@@ -99,7 +121,8 @@ let run_server () =
     Store.Repo.v (Irmin_mem.config ()) >>= Store.master >>= fun t ->
     server_pid := Unix.getpid ();
     Conduit_lwt_unix.set_max_active 100;
-    Server.run_server (None, `TCP (`Port 80808)) t
+    let server = Server.server t in
+    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 80808)) server
   in
   Lwt_main.run server
 

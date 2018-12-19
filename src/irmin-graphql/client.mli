@@ -87,6 +87,9 @@ module type S = sig
     -> from:Store.branch
     -> (Store.Hash.t, error) result Lwt.t
 
+  val find :
+    t -> ?branch:Store.branch -> Store.Key.t -> (Store.Contents.t option, error) result Lwt.t
+
   val get :
     t -> ?branch:Store.branch -> Store.Key.t -> (Store.Contents.t, error) result Lwt.t
 

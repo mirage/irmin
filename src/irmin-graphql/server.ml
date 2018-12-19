@@ -52,6 +52,8 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
 
   module Input = struct
     let coerce_key = function
+      | `Null | `String "" ->
+        Ok Store.Key.empty
       | `String s ->
         of_irmin_result (Irmin.Type.of_string Store.key_t s )
       | _ -> Error "invalid key encoding"
@@ -62,6 +64,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
       | _ -> Error "invalid value encoding"
 
     let coerce_metadata = function
+      | `Null | `String "" -> Ok Store.Metadata.default
       | `String s ->
         of_irmin_result (Irmin.Type.of_string Store.metadata_t s)
       | _ -> Error "invalid metadata encoding"
@@ -72,6 +75,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
 
     let coerce_branch = function
       | `String s -> of_irmin_result @@ Irmin.Type.of_string Store.branch_t s
+      | `Null -> Ok Store.Branch.master
       | _ -> Error "invalid branch encoding"
 
     let coerce_remote = function

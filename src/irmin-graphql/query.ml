@@ -27,7 +27,7 @@ let set = {|
 |}
 
 let update_tree = {|
-  mutation UpdateTree($branch: BranchName!, $key: Key!, $tree: [TreeItem!]!, $info: InfoInput) {
+  mutation UpdateTree($branch: BranchName!, $key: Key!, $tree: [TreeItem]!, $info: InfoInput) {
     update_tree(branch: $branch, key: $key, tree: $tree, info: $info) {
       hash
     }
