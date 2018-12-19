@@ -260,7 +260,7 @@ struct
     let vars = [("branch", branch); ("key", `String s)] in
     execute_json client ~vars Query.get_tree >>= function
     | Ok j ->
-      (match Json.find j ["branch"; "get_tree"] with
+      (match Json.find j ["data"; "branch"; "get_tree"] with
        | Some (`A arr) ->
          let tree = Store.Tree.empty in
          Lwt_list.fold_left_s (fun tree obj ->
@@ -318,9 +318,9 @@ struct
         let m = Irmin.Type.to_string Store.metadata_t m in
         `O ["key", `String k; "value", `String c; "metadata", `String m] :: acc
       | `Tree l ->
-        let l = List.fold_left (fun acc (step, i) ->
+        let l = List.fold_right (fun (step, i) acc ->
             let key = Store.Key.rcons key step in
-            aux key i acc) [] l
+            aux key i acc) l []
         in l
     in `A (aux key x [])
 

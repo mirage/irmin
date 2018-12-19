@@ -85,9 +85,17 @@ let test_tree branch client =
   Store.Tree.add tree ["test"; "a"] "1" >>= fun tree ->
   Store.Tree.add tree ["test"; "b"] "2" >>= fun tree ->
   Store.Tree.add tree ["test"; "c"] "3" >>= fun tree ->
-  Client.update_tree ~branch client [] tree >>= unwrap >|= fun _hash' ->
-    let _ = hash in
-  (*check_type_not_eq "hash after update tree" Store.Hash.t hash hash'*) ()
+  Client.update_tree ~branch client [] tree >>= unwrap >>= fun hash' ->
+  Store.Tree.get_tree tree  ["test"] >>= fun tree ->
+  check_type_not_eq "hash after update tree" Store.Hash.t hash hash';
+  Client.get_tree ~branch client ["test"] >>= unwrap >>= fun tree' ->
+  check_type_eq "tree after update tree" Store.tree_t tree tree';
+  Store.Tree.remove tree ["a"] >>= fun tree ->
+  Client.set_tree ~branch client ["test"] tree >>= unwrap >>= fun _ ->
+  Client.get_tree ~branch client ["test"] >>= unwrap >>= fun tree' ->
+  Store.Tree.mem tree' ["a"] >|= fun exists ->
+  Alcotest.(check bool) "test/a removed" false exists
+
 
 let tests = [
   "set/get", `Quick, test_set_and_get;
