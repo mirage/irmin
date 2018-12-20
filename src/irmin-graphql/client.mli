@@ -84,7 +84,7 @@ module type S = sig
     -> ?author:string
     -> ?message:string
     -> ?into:Store.branch
-    -> from:Store.branch
+    -> Store.branch
     -> (Store.Hash.t, error) result Lwt.t
 
   val find :

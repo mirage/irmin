@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-module Store = Irmin_mem.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.Mem.KV(Irmin.Contents.String)
 module Client = Irmin_unix.Graphql.Client.Make(Store)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
@@ -96,12 +96,26 @@ let test_tree branch client =
   Store.Tree.mem tree' ["a"] >|= fun exists ->
   Alcotest.(check bool) "test/a removed" false exists
 
+let test_merge branch client =
+  Client.set ~branch:"aaa" client ["test-merge"] "abc" >>= fun _ ->
+  Client.merge client ~into:branch "aaa"  >>= fun _ ->
+  Client.get client ~branch ["test-merge"] >|= function
+  | Ok x ->
+      Alcotest.(check string) "merge" "abc" x
+  | Error (`Msg msg) -> Alcotest.fail msg
+
+let test_pull branch client =
+  Client.pull ~branch client "git://github.com/zshipko/irmin-tutorial" >|= function
+  | Ok _ -> ()
+  | Error (`Msg msg) -> Alcotest.failf "PULL: %s" msg
 
 let tests = [
   "set/get", `Quick, test_set_and_get;
   "branch_info/commit_info", `Quick, test_head;
   "remove", `Quick, test_remove;
   "tree", `Quick, test_tree;
+  (*FIXME "pull", `Quick, test_pull; *)
+  "merge", `Quick, test_merge;
 ]
 
 let uri = Uri.of_string "http://localhost:80808/graphql"
@@ -113,7 +127,7 @@ let run_tests name tests =
         branch ^ ":" ^ name, speed, (fun () -> Lwt_main.run (Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore; f branch client))) tests
   in
   let a = tests "master" in
-  let b = tests "testing" in
+  let b = tests "gh-pages" in
   Alcotest.run name [name, a @ b]
 
 let server_pid = ref 0
@@ -123,7 +137,7 @@ let clean () =
   Unix.kill !server_pid Sys.sigint
 
 let run_server () =
-  let module Server = Irmin_unix.Graphql.Server.Make(Store)(struct let remote = None end) in
+  let module Server = Irmin_unix.Graphql.Server.Make(Store)(struct let remote = Some Store.remote end) in
   let server =
     Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore;
     Store.Repo.v (Irmin_mem.config ()) >>= Store.master >>= fun t ->

@@ -84,7 +84,7 @@ module type S = sig
     -> ?author:string
     -> ?message:string
     -> ?into:Store.branch
-    -> from:Store.branch
+    -> Store.branch
     -> (Store.Hash.t, error) result Lwt.t
 
   val find :
@@ -355,7 +355,7 @@ struct
     in
     execute_json client ~vars Query.remove >|= decode_hash ["remove"]
 
-  let merge client ?author ?message ?into ~from =
+  let merge client ?author ?message ?into from =
     let into = opt_branch into in
     let from = opt_branch (Some from) in
     let vars =
