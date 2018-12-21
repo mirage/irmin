@@ -2,7 +2,8 @@
 
 **irmin-unix**
 
-- Added `Cli` module to expose some methods to simplify building command-line interfaces using Irmin (517, @zshipko)
+- Added `Cli` module to expose some methods to simplify building command-line
+  interfaces using Irmin (517, @zshipko)
 - Switched from custom configuration format to YAML (#504, @zshipko)
 - Added global config file (`~/.irmin/config.yml`)
 - Fixed parsing of commit hashes in `revert` command (#496, @zshipko)
@@ -15,15 +16,16 @@
 
 **irmin-graphql**
 
-Added a new package: `irmin-graphql`, which provides a GraphQL server implementation that can be used to support both MirageOS
-and Unix backends. Additionally, a `graphql` command has been added to the command-line interface for starting `irmin-graphql`
+Added a new package: `irmin-graphql`, which provides a GraphQL server implementation
+that can be used to support both MirageOS and Unix backends. Additionally, a `graphql`
+command has been added to the command-line interface for starting `irmin-graphql`
 servers. (#558, @andreas, @zshipko)
 
 **irmin-test**
 
-Added a new package: `irmin-test`, which allows for packages to access the Irmin test-suite. This package can now
-be used for new packages that implement custom backends to test their implementations against the same tests that
-the core backends are tested against. (#508, @zshipko)
+Added a new package: `irmin-test`, which allows for packages to access the Irmin test-suite.
+This package can now be used for new packages that implement custom backends to test their
+implementations against the same tests that the core backends are tested against. (#508, @zshipko)
 
 **irmin**
 
@@ -31,6 +33,9 @@ the core backends are tested against. (#508, @zshipko)
 - Removed `Cstruct` dependency and content type (#544, @samoht)
 - Improvements to `Irmin.Type` combinators (#550 and #538, @samoht)
 - Update to use dune (#534, @samoht) and opam 2.0 (#583, @samoht)
+- Replaced `Irmin.Contents.S0` with `Irmin.Type.S`
+- Removed `pp` and `of_string` functions from `Irmin.Contents.S` in favor of `Irmin.Type.to_string`
+  and `Irmin.Type.of_string`
 
 ### 1.4.0 (2018-06-06)
 
