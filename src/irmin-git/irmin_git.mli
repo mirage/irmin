@@ -31,14 +31,16 @@ val head: Git.Reference.t option Irmin.Private.Conf.key
 val level: int option Irmin.Private.Conf.key
 val dot_git: string option Irmin.Private.Conf.key
 
-module AO (G: Git.S) (V: Irmin.Type.S) : Irmin.AO
-  with type t = G.t
-   and type key = G.Hash.t
-   and type value = V.t
+module Content_addressable (G: Git.S) (V: Irmin.Type.S)
+  : Irmin.CONTENT_ADDRESSABLE_STORE
+    with type t = G.t
+     and type key = G.Hash.t
+     and type value = V.t
 
-module RW (G: Git.S) (K: Irmin.Branch.S): Irmin.RW
-  with type key = K.t
-   and type value = G.Hash.t
+module Atomic_write (G: Git.S) (K: Irmin.Branch.S)
+  : Irmin.ATOMIC_WRITE_STORE
+    with type key = K.t
+     and type value = G.Hash.t
 
 module type G = sig
   include Git.S
@@ -149,7 +151,9 @@ module Make_ext
      and type contents = C.t
      and type branch = B.t
 
-module Generic (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
+module Generic
+    (CA: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: Irmin.ATOMIC_WRITE_STORE_MAKER)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S):
@@ -157,6 +161,8 @@ module Generic (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
            and type key = P.t
            and type branch = B.t
 
-module Generic_KV (AO: Irmin.AO_MAKER) (RW: Irmin.RW_MAKER)
+module Generic_KV
+    (CA: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: Irmin.ATOMIC_WRITE_STORE_MAKER)
     (C: Irmin.Contents.S):
   Irmin.KV with type contents = C.t

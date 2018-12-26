@@ -20,7 +20,7 @@ open Common
 module Hash = Irmin.Hash.SHA1
 
 module type S = sig
-  include Irmin.LINK with type key = Hash.t and type value = Hash.t
+  include Irmin.LINK_STORE with type key = Hash.t and type value = Hash.t
   val v: unit -> t Lwt.t
 end
 

@@ -49,7 +49,8 @@ let root_key = Irmin.Private.Conf.root
 let config ?(config=Irmin.Private.Conf.empty) root =
   Irmin.Private.Conf.add config root_key (Some root)
 
-module RO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Read_only_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) =
+struct
 
   type key = K.t
 
@@ -115,9 +116,14 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
+module Content_addressable_ext
+    (IO: IO)
+    (S: Config)
+    (K: Irmin.Hash.S)
+    (V: Irmin.Type.S) =
+struct
 
-  include RO_ext(IO)(S)(K)(V)
+  include Read_only_ext(IO)(S)(K)(V)
 
   let temp_dir t = t.path / "tmp"
 
@@ -140,7 +146,7 @@ end
 
 module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
 
- include RO_ext(IO)(S)(K)(K)
+ include Read_only_ext(IO)(S)(K)(K)
 
  let temp_dir t = t.path / "tmp"
 
@@ -158,9 +164,14 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
 
 end
 
-module RW_ext (IO: IO) (S: Config) (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Atomic_write_ext
+    (IO: IO)
+    (S: Config)
+    (K: Irmin.Type.S)
+    (V: Irmin.Type.S) =
+struct
 
-  module RO = RO_ext(IO)(S)(K)(V)
+  module RO = Read_only_ext(IO)(S)(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
 
   type t = { t: RO.t; w: W.t }
@@ -252,9 +263,9 @@ module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
     (B: Irmin.Branch.S)
     (H: Irmin.Hash.S)
 = struct
-  module AO = AO_ext(IO)(Obj)
-  module RW = RW_ext(IO)(Ref)
-  include Irmin.Make(AO)(RW)(M)(C)(P)(B)(H)
+  module CA = Content_addressable_ext(IO)(Obj)
+  module AW = Atomic_write_ext(IO)(Ref)
+  include Irmin.Make(CA)(AW)(M)(C)(P)(B)(H)
 end
 
 let string_chop_prefix ~prefix str =
@@ -317,9 +328,9 @@ module Links = struct
 
 end
 
-module AO (IO: IO) = AO_ext (IO)(Obj)
+module Content_addressable (IO: IO) = Content_addressable_ext (IO)(Obj)
 module Link (IO: IO) = Link_ext (IO)(Links)
-module RW (IO: IO) = RW_ext (IO)(Ref)
+module Atomic_write (IO: IO) = Atomic_write_ext (IO)(Ref)
 module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)
 
 module KV (IO: IO) (C: Irmin.Contents.S) =
