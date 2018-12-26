@@ -58,9 +58,22 @@ module Content_addressable (AO: APPEND_ONLY_STORE_MAKER)
 struct
   include AO(K)(V)
 
+  let pp_key = Type.pp K.t
+
+  let digest v = K.digest (Type.encode_bin V.t v)
+
+  let find t k =
+    find t k >>= function
+    | None        -> Lwt.return None
+    | Some v as r ->
+      let k' = digest v in
+      if Type.equal K.t k k' then Lwt.return r
+      else
+        Fmt.kstrf Lwt.fail_invalid_arg
+          "corrupted value: got %a, expecting %a" pp_key k' pp_key k
+
   let add t v =
-    let s = Type.encode_bin V.t v in
-    let k = K.digest s in
+    let k = digest v in
     add t k v >|= fun () ->
     k
 
