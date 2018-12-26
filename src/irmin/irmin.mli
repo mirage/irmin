@@ -789,12 +789,14 @@ type 'a diff = 'a Diff.t
 (** The type for representing differences betwen values. *)
 
 (** An Irmin store is automatically built from a number of lower-level
-    stores, implementing fewer operations, such as {{!AO}append-only}
-    and {{!RW}read-write} stores. These low-level stores are provided
+    stores, implementing fewer operations, such as
+    {{!CONTENT_ADDRESSABLE_STORE}content-addressable}
+    and {{!ATOMIC_WRITE_STORE}atomic-write} stores. These low-level stores
+    are provided
     by various backends. *)
 
 (** Read-only backend stores. *)
-module type RO = sig
+module type READ_ONLY_STORE = sig
 
   (** {1 Read-only stores} *)
 
@@ -816,26 +818,26 @@ module type RO = sig
 
 end
 
-(** Append-only backend store. *)
-module type AO = sig
+(** Content-addressable backend store. *)
+module type CONTENT_ADDRESSABLE_STORE = sig
 
-  (** {1 Append-only stores}
+  (** {1 Content-addressable stores}
 
-      Append-only stores are read-only store where it is also possible
-      to add values. Keys are derived from the values raw contents and
-      hence are deterministic. *)
+      Content-addressable stores are store where it is possible to read
+      and add new values. Keys are derived from the values raw contents
+      and hence are deterministic. *)
 
-  include RO
+  include READ_ONLY_STORE
 
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
-      responsibility of the append-only store to generate a
+      responsibility of the content-addressable store to generate a
       consistent key. *)
 
 end
 
 (** Immutable Link store. *)
-module type LINK = sig
+module type LINK_STORE = sig
 
   (** {1 Immutable Link stores}
 
@@ -847,7 +849,7 @@ module type LINK = sig
       representation (for instance a set might be represented as
       various equivalent trees). *)
 
-  include RO
+  include READ_ONLY_STORE
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -855,15 +857,15 @@ module type LINK = sig
 
 end
 
-(** Read-write stores. *)
-module type RW = sig
+(** Atomic-write stores. *)
+module type ATOMIC_WRITE_STORE = sig
 
-  (** {1 Read-write stores}
+  (** {1 Atomic write stores}
 
-      Read-write stores read-only stores where it is also possible to
+      Atomic-write stores are stores where it is possible to read,
       update and remove elements, with atomically guarantees. *)
 
-  include RO
+  include READ_ONLY_STORE
 
   val set: t -> key -> value -> unit Lwt.t
   (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k]
@@ -884,8 +886,7 @@ module type RW = sig
   (** [remove t k] remove the key [k] in [t]. *)
 
   val list: t -> key list Lwt.t
-  (** [list t] it the list of keys in [t]. [RW] stores are typically
-      smaller than [AO] stores, so scanning these is usually cheap. *)
+  (** [list t] it the list of keys in [t]. *)
 
   type watch
   (** The type of watch handlers. *)
@@ -1119,7 +1120,7 @@ module Contents: sig
   (** Contents store. *)
   module type STORE = sig
 
-    include AO
+    include CONTENT_ADDRESSABLE_STORE
 
     val merge: t -> key option Merge.t
     (** [merge t] lifts the merge functions defined on contents values
@@ -1141,7 +1142,7 @@ module Contents: sig
 
   (** [Store] creates a contents store. *)
   module Store (S: sig
-      include AO
+      include CONTENT_ADDRESSABLE_STORE
       module Key: Hash.S with type t = key
       module Val: S with type t = value
     end):
@@ -1193,10 +1194,7 @@ module Branch: sig
 
     (** {1 Branch Store} *)
 
-    include RW
-
-    val list: t -> key list Lwt.t
-    (** [list t] list all the branches present in [t]. *)
+    include ATOMIC_WRITE_STORE
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1544,7 +1542,7 @@ module Private: sig
     (** [STORE] specifies the signature for node stores. *)
     module type STORE = sig
 
-      include AO
+      include CONTENT_ADDRESSABLE_STORE
 
       module Path: Path.S
       (** [Path] provides base functions on node paths. *)
@@ -1574,7 +1572,7 @@ module Private: sig
         (P: Path.S)
         (M: Metadata.S)
         (S: sig
-           include AO
+           include CONTENT_ADDRESSABLE_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type node = key
@@ -1747,7 +1745,7 @@ module Private: sig
 
       (** {1 Commit Store} *)
 
-      include AO
+      include CONTENT_ADDRESSABLE_STORE
 
       val merge: t -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
@@ -1767,7 +1765,7 @@ module Private: sig
     module Store
         (N: Node.STORE)
         (S: sig
-           include AO
+           include CONTENT_ADDRESSABLE_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type commit = key
@@ -3323,12 +3321,13 @@ end
     }
 *)
 
-(** [AO_MAKER] is the signature exposed by append-only store
-    backends. [K] is the implementation of keys and [V] is the
-    implementation of values. *)
-module type AO_MAKER = functor (K: Hash.S) (V: Type.S) -> sig
+(** [CONTENT_ADDRESSABLE_STORE_MAKER] is the signature exposed by
+    content-addressable store backends. [K] is the implementation of keys
+    and [V] is the implementation of values. *)
+module type CONTENT_ADDRESSABLE_STORE_MAKER = functor (K: Hash.S) (V: Type.S) ->
+sig
 
-  include AO with type key = K.t and type value = V.t
+  include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
   val v: config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
@@ -3340,17 +3339,17 @@ end
     manipulated by the Irmin runtime and the keys used for
     storage. This is useful when trying to optimize storage for
     random-access file operations or for encryption. *)
-module type LINK_MAKER = functor (K: Hash.S) -> sig
-  include LINK with type key = K.t and type value = K.t
+module type LINK_STORE_MAKER = functor (K: Hash.S) -> sig
+  include LINK_STORE with type key = K.t and type value = K.t
   val v: config -> t Lwt.t
 end
 
-(** [RW_MAKER] is the signature exposed by read-write store
-    backends. [K] is the implementation of keys and [V] is the
+(** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write
+    store backends. [K] is the implementation of keys and [V] is the
     implementation of values.*)
-module type RW_MAKER = functor (K: Type.S) (V: Type.S) -> sig
+module type ATOMIC_WRITE_STORE_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
-  include RW with type key = K.t and type value = V.t
+  include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v: config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
@@ -3358,11 +3357,16 @@ module type RW_MAKER = functor (K: Type.S) (V: Type.S) -> sig
 
 end
 
-module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+module Make
+    (CA: CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: ATOMIC_WRITE_STORE_MAKER)
+  : S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
 
-module Make_ext (AO: AO_MAKER) (RW: RW_MAKER)
+module Make_ext
+    (CA: CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: ATOMIC_WRITE_STORE_MAKER)
     (Metadata: Metadata.S)
     (Contents: Contents.S)
     (Path    : Path.S)

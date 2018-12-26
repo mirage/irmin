@@ -14,12 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module AO: Irmin.AO_MAKER
-module Link: Irmin.LINK_MAKER
-module RW: Irmin.RW_MAKER
+module Content_addressable: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+module Link: Irmin.LINK_STORE_MAKER
+module Atomic_write: Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make: Irmin.S_MAKER
 module KV: Irmin.KV_MAKER
 
-module AO_ext (C: Irmin_fs.Config): Irmin.AO_MAKER
-module RW_ext (C: Irmin_fs.Config): Irmin.RW_MAKER
+module Content_addressable_ext (C: Irmin_fs.Config)
+  : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+
+module Atomic_write_ext (C: Irmin_fs.Config): Irmin.ATOMIC_WRITE_STORE_MAKER
+
 module Make_ext (Obj: Irmin_fs.Config) (Ref: Irmin_fs.Config): Irmin.S_MAKER

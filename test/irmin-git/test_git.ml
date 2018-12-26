@@ -52,7 +52,9 @@ end
 module Generic = struct
 
   include Irmin_git.Generic_KV
-      (Irmin_mem.AO)(Irmin_mem.RW)(Irmin.Contents.String)
+      (Irmin_mem.Content_addressable)
+      (Irmin_mem.Atomic_write)
+      (Irmin.Contents.String)
 
   let init () =
     Repo.v config >>= fun repo ->

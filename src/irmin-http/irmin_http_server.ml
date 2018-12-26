@@ -56,7 +56,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     let err = Fmt.strf "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
-  module AO (S: Irmin.AO)
+  module Content_addressable (S: Irmin.CONTENT_ADDRESSABLE_STORE)
       (K: Irmin.Type.S with type t = S.key)
       (V: Irmin.Type.S with type t = S.value) =
   struct
@@ -117,7 +117,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   end
 
-  module RW (S: Irmin.RW)
+  module Atomic_write (S: Irmin.ATOMIC_WRITE_STORE)
       (K: Irmin.Type.S with type t = S.key)
       (V: Irmin.Type.S with type t = S.value) =
   struct
@@ -289,10 +289,10 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   end
 
-  module Blob = AO(P.Contents)(P.Contents.Key)(P.Contents.Val)
-  module Tree = AO(P.Node)(P.Node.Key)(P.Node.Val)
-  module Commit = AO(P.Commit)(P.Commit.Key)(P.Commit.Val)
-  module Branch = RW(P.Branch)(P.Branch.Key)(P.Branch.Val)
+  module Blob = Content_addressable(P.Contents)(P.Contents.Key)(P.Contents.Val)
+  module Tree = Content_addressable(P.Node)(P.Node.Key)(P.Node.Val)
+  module Commit = Content_addressable(P.Commit)(P.Commit.Key)(P.Commit.Val)
+  module Branch = Atomic_write(P.Branch)(P.Branch.Key)(P.Branch.Val)
 
   type repo = S.Repo.t
   type t = HTTP.t

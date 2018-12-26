@@ -65,9 +65,9 @@ module type IO = sig
 
 end
 
-module AO (IO: IO): Irmin.AO_MAKER
-module Link (IO: IO): Irmin.LINK_MAKER
-module RW (IO: IO): Irmin.RW_MAKER
+module Content_addressable (IO: IO): Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+module Link (IO: IO): Irmin.LINK_STORE_MAKER
+module Atomic_write (IO: IO): Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make (IO: IO): Irmin.S_MAKER
 module KV (IO: IO): Irmin.KV_MAKER
 
@@ -89,9 +89,10 @@ module type Config = sig
 
 end
 
-module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
-module Link_ext (IO: IO) (C: Config): Irmin.LINK_MAKER
-module RW_ext (IO: IO) (C: Config): Irmin.RW_MAKER
+module Content_addressable_ext (IO: IO) (C: Config):
+  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+module Link_ext (IO: IO) (C: Config): Irmin.LINK_STORE_MAKER
+module Atomic_write_ext (IO: IO) (C: Config): Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER
 
 (** {1 In-memory IO mocks} *)

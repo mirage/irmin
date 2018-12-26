@@ -99,7 +99,7 @@ module Make_private
     val of_git: G.Value.t -> (t option, [`Msg of string]) result
   end
 
-  module AO (V: V) = struct
+  module Content_addressable (V: V) = struct
 
     type t = G.t
     type key = H.t
@@ -155,7 +155,7 @@ module Make_private
     let to_git b = G.Value.blob (G.Value.Blob.of_string (to_string b))
   end
   module XContents = struct
-    include AO (GitContents)
+    include Content_addressable (GitContents)
     module Val = struct
       include C
 
@@ -323,7 +323,7 @@ module Make_private
          Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
     end
 
-    include AO (struct
+    include Content_addressable (struct
         type t = Val.t
         let pp = Val.pp
         let type_eq = function `Tree -> true | _ -> false
@@ -440,7 +440,7 @@ module Make_private
 
     module Key = H
 
-    include AO (struct
+    include Content_addressable (struct
         type t = Val.t
         let pp = Val.pp
         let type_eq = function `Commit -> true | _ -> false
@@ -969,7 +969,7 @@ module No_sync (G: Git.S) = struct
   let update_and_create _ = assert false
 end
 
-module AO (G: Git.S) (V: Irmin.Type.S) = struct
+module Content_addressable (G: Git.S) (V: Irmin.Type.S) = struct
   module G = struct
     include G
     let v ?dotgit:_ ?compression:_ ?buffers:_ _root =
@@ -993,7 +993,7 @@ module AO (G: Git.S) (V: Irmin.Type.S) = struct
   let mem = with_state X.mem
 end
 
-module RW (G: Git.S) (K: Irmin.Branch.S) =
+module Atomic_write (G: Git.S) (K: Irmin.Branch.S) =
 struct
   module K = struct
     include K
@@ -1056,8 +1056,8 @@ module type REF_MAKER = functor
 include Conf
 
 module Generic
-    (AO: Irmin.AO_MAKER)
-    (RW: Irmin.RW_MAKER)
+    (CA: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: Irmin.ATOMIC_WRITE_STORE_MAKER)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
@@ -1069,7 +1069,7 @@ module Generic
   module S = Make(G)(No_sync(G))(C)(P)(B)
 
   include
-    Irmin.Make_ext(AO)(RW)
+    Irmin.Make_ext(CA)(AW)
       (S.Private.Node.Metadata)
       (S.Private.Contents.Val)
       (S.Private.Node.Path)
@@ -1080,7 +1080,7 @@ module Generic
 end
 
 module Generic_KV
-    (AO: Irmin.AO_MAKER)
-    (RW: Irmin.RW_MAKER)
+    (CA: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: Irmin.ATOMIC_WRITE_STORE_MAKER)
     (C : Irmin.Contents.S)
-  = Generic (AO)(RW)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
+  = Generic (CA)(AW)(C)(Irmin.Path.String_list)(Irmin.Branch.String)

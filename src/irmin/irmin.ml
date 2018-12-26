@@ -42,8 +42,8 @@ module Path = struct
 end
 
 module Make_ext
-    (AO: S.AO_MAKER)
-    (RW: S.RW_MAKER)
+    (CA: S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: S.ATOMIC_WRITE_STORE_MAKER)
     (M: S.METADATA)
     (C: Contents.S)
     (P: Path.S)
@@ -60,33 +60,33 @@ struct
   module X = struct
     module Hash = H
     module XContents = struct
-      include AO(H)(C)
+      include CA(H)(C)
       module Key = H
       module Val = C
     end
     module Contents = Contents.Store(XContents)
     module Node = struct
-      module AO = struct
+      module CA = struct
         module Key = H
         module Val = N
-        include AO (Key)(Val)
+        include CA (Key)(Val)
       end
-      include Node.Store(Contents)(P)(M)(AO)
-      let v = AO.v
+      include Node.Store(Contents)(P)(M)(CA)
+      let v = CA.v
     end
     module Commit = struct
-      module AO = struct
+      module CA = struct
         module Key = H
         module Val = CT
-        include AO (Key)(Val)
+        include CA (Key)(Val)
       end
-      include Commit.Store(Node)(AO)
-      let v = AO.v
+      include Commit.Store(Node)(CA)
+      let v = CA.v
     end
     module Branch = struct
       module Key = B
       module Val = H
-      include RW (Key)(Val)
+      include AW (Key)(Val)
     end
     module Slice = Slice.Make(Contents)(Node)(Commit)
     module Sync = Sync.None(H)(B)
@@ -116,10 +116,9 @@ struct
   include Store.Make(X)
 end
 
-
 module Make
-    (AO: S.AO_MAKER)
-    (RW: S.RW_MAKER)
+    (CA: S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW: S.ATOMIC_WRITE_STORE_MAKER)
     (M: S.METADATA)
     (C: S.CONTENTS)
     (P: S.PATH)
@@ -128,26 +127,26 @@ module Make
 struct
   module N = Node.Make(H)(H)(P)(M)
   module CT = Commit.Make(H)(H)
-  include Make_ext(AO)(RW)(M)(C)(P)(B)(H)(N)(CT)
+  include Make_ext(CA)(AW)(M)(C)(P)(B)(H)(N)(CT)
 end
 
 module Of_private = Store.Make
 
-module type RO = S.RO
-module type AO = S.AO
-module type LINK = S.LINK
-module type RW = S.RW
+module type READ_ONLY_STORE = S.READ_ONLY_STORE
+module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
+module type LINK_STORE = S.LINK_STORE
+module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module type TREE = S.TREE
 module type S = S.STORE
 
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type AO_MAKER = S.AO_MAKER
+module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
 
-module type LINK_MAKER = S.LINK_MAKER
+module type LINK_STORE_MAKER = S.LINK_STORE_MAKER
 
-module type RW_MAKER = S.RW_MAKER
+module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
 module type S_MAKER = S.MAKER
 
 module type KV =

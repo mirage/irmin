@@ -97,8 +97,8 @@ end
 
 module Mem = struct
   module G    = Irmin_git.Mem
-  module AO   = Irmin_git.AO(G)
-  module RW   = Irmin_git.RW(G)
+  module Content_addressable = Irmin_git.Content_addressable(G)
+  module Atomic_write = Irmin_git.Atomic_write(G)
   module Make = Make(G)
   module Ref  = Ref(G)
   module KV   = KV(G)

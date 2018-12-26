@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Read_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module KMap = Map.Make(struct
       type t = K.t
@@ -45,9 +45,9 @@ module RO (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
+module Content_addressable (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
 
-  include RO(K)(V)
+  include Read_only(K)(V)
 
   let add t value =
     let str = Irmin.Type.encode_bin V.t value in
@@ -60,7 +60,7 @@ end
 
 module Link (K: Irmin.Hash.S) = struct
 
-  include RO(K)(K)
+  include Read_only(K)(K)
 
   let add t index key =
     Log.debug (fun f -> f "add link");
@@ -69,9 +69,9 @@ module Link (K: Irmin.Hash.S) = struct
 
 end
 
-module RW (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
+module Atomic_write (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
-  module RO = RO(K)(V)
+  module RO = Read_only(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
   module L = Irmin.Private.Lock.Make(K)
 
@@ -134,7 +134,7 @@ end
 
 let config () = Irmin.Private.Conf.empty
 
-module Make = Irmin.Make(AO)(RW)
+module Make = Irmin.Make(Content_addressable)(Atomic_write)
 
 module KV (C: Irmin.Contents.S) =
   Make

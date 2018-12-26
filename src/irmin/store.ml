@@ -217,7 +217,8 @@ module Make (P: S.PRIVATE) = struct
       let aux (type k) (type v)
           name
           (type s)
-          (module S: S.AO with type t = s and type key = k and type value = v)
+          (module S: S.CONTENT_ADDRESSABLE_STORE
+            with type t = s and type key = k and type value = v)
           (dk: k Type.t)
           fn
           (s:t -> s)
