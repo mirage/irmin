@@ -836,6 +836,21 @@ module type CONTENT_ADDRESSABLE_STORE = sig
 
 end
 
+(** Append-onlye backend store. *)
+module type APPEND_ONLY_STORE = sig
+
+  (** {1 Append-only stores}
+
+      Append-onlye stores are store where it is possible to read
+      and add new values. *)
+
+  include READ_ONLY_STORE
+
+  val add: t -> key -> value -> unit Lwt.t
+  (** Write the contents of a value to the store. *)
+
+end
+
 (** Immutable Link store. *)
 module type LINK_STORE = sig
 
@@ -3321,7 +3336,20 @@ end
     }
 *)
 
-(** [CONTENT_ADDRESSABLE_STORE_MAKER] is the signature exposed by
+(** [APPEND_ONLY_STORE_MAKER] is the signature exposed by
+    append-only store backends. [K] is the implementation of keys
+    and [V] is the implementation of values. *)
+module type APPEND_ONLY_STORE_MAKER = functor (K: Type.S) (V: Type.S) ->
+sig
+
+  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+
+  val v: config -> t Lwt.t
+  (** [v config] is a function returning fresh store handles, with the
+      configuration [config], which is provided by the backend. *)
+end
+
+(** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
     content-addressable store backends. [K] is the implementation of keys
     and [V] is the implementation of values. *)
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor (K: Hash.S) (V: Type.S) ->
@@ -3333,6 +3361,9 @@ sig
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end
+
+module Content_addressable (S: APPEND_ONLY_STORE_MAKER):
+  CONTENT_ADDRESSABLE_STORE_MAKER
 
 (** [LINK_MAKER] is the signature exposed by store which enable adding
     relation between keys. This is used to decouple the way keys are

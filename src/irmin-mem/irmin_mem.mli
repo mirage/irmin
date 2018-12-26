@@ -24,8 +24,8 @@
 val config: unit -> Irmin.config
 (** Configuration values. *)
 
-module Content_addressable: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
-(** An in-memory store for content-adressable values. *)
+module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
+(** An in-memory store for append-only values. *)
 
 module Link: Irmin.LINK_STORE_MAKER
 (** An in-memory store for immutable links. *)

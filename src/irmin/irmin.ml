@@ -41,6 +41,31 @@ module Path = struct
   module type S = S.PATH
 end
 
+
+module type APPEND_ONLY_STORE = sig
+  include S.READ_ONLY_STORE
+  val add: t -> key -> value -> unit Lwt.t
+end
+
+module type APPEND_ONLY_STORE_MAKER = functor (K: Type.S) (V: Type.S) ->
+sig
+  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+  val v: Conf.t -> t Lwt.t
+end
+
+module Content_addressable (AO: APPEND_ONLY_STORE_MAKER)
+    (K: S.HASH) (V: Type.S) =
+struct
+  include AO(K)(V)
+
+  let add t v =
+    let s = Type.encode_bin V.t v in
+    let k = K.digest s in
+    add t k v >|= fun () ->
+    k
+
+end
+
 module Make_ext
     (CA: S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW: S.ATOMIC_WRITE_STORE_MAKER)
