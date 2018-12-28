@@ -45,16 +45,14 @@ module Read_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module Content_addressable (K: Irmin.Hash.S) (V: Irmin.Type.S) = struct
+module Append_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   include Read_only(K)(V)
 
-  let add t value =
-    let str = Irmin.Type.encode_bin V.t value in
-    let key = K.digest str in
+  let add t key value =
     Log.debug (fun f -> f "add -> %a" pp_key key);
     t.t <- KMap.add key value t.t;
-    Lwt.return key
+    Lwt.return ()
 
 end
 
@@ -134,7 +132,7 @@ end
 
 let config () = Irmin.Private.Conf.empty
 
-module Make = Irmin.Make(Content_addressable)(Atomic_write)
+module Make = Irmin.Make(Irmin.Content_addressable(Append_only))(Atomic_write)
 
 module KV (C: Irmin.Contents.S) =
   Make

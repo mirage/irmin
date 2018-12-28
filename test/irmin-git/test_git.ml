@@ -52,7 +52,7 @@ end
 module Generic = struct
 
   include Irmin_git.Generic_KV
-      (Irmin_mem.Content_addressable)
+      (Irmin.Content_addressable(Irmin_mem.Append_only))
       (Irmin_mem.Atomic_write)
       (Irmin.Contents.String)
 

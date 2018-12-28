@@ -116,10 +116,10 @@ struct
 
 end
 
-module Content_addressable_ext
+module Append_only_ext
     (IO: IO)
     (S: Config)
-    (K: Irmin.Hash.S)
+    (K: Irmin.Type.S)
     (V: Irmin.Type.S) =
 struct
 
@@ -127,20 +127,15 @@ struct
 
   let temp_dir t = t.path / "tmp"
 
-  let add t value =
-    let str = Irmin.Type.encode_bin V.t value in
-    let key = K.digest str in
+  let add t key value =
     Log.debug (fun f -> f "add %a" pp_key key);
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
-    (IO.file_exists file >>= function
-      | true  -> Lwt.return_unit
-      | false ->
-        Lwt.catch
-          (fun () -> IO.write_file ~temp_dir file str)
-          (fun e -> Lwt.fail e))
-    >|= fun () ->
-    key
+    IO.file_exists file >>= function
+    | true  -> Lwt.return_unit
+    | false ->
+      let str = Irmin.Type.encode_bin V.t value in
+      IO.write_file ~temp_dir file str
 
 end
 
@@ -263,9 +258,9 @@ module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
     (B: Irmin.Branch.S)
     (H: Irmin.Hash.S)
 = struct
-  module CA = Content_addressable_ext(IO)(Obj)
+  module AO = Append_only_ext(IO)(Obj)
   module AW = Atomic_write_ext(IO)(Ref)
-  include Irmin.Make(CA)(AW)(M)(C)(P)(B)(H)
+  include Irmin.Make(Irmin.Content_addressable(AO))(AW)(M)(C)(P)(B)(H)
 end
 
 let string_chop_prefix ~prefix str =
@@ -328,7 +323,7 @@ module Links = struct
 
 end
 
-module Content_addressable (IO: IO) = Content_addressable_ext (IO)(Obj)
+module Append_only (IO: IO) = Append_only_ext (IO)(Obj)
 module Link (IO: IO) = Link_ext (IO)(Links)
 module Atomic_write (IO: IO) = Atomic_write_ext (IO)(Ref)
 module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)

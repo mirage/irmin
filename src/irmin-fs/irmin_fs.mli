@@ -65,7 +65,7 @@ module type IO = sig
 
 end
 
-module Content_addressable (IO: IO): Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+module Append_only (IO: IO): Irmin.APPEND_ONLY_STORE_MAKER
 module Link (IO: IO): Irmin.LINK_STORE_MAKER
 module Atomic_write (IO: IO): Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make (IO: IO): Irmin.S_MAKER
@@ -89,8 +89,7 @@ module type Config = sig
 
 end
 
-module Content_addressable_ext (IO: IO) (C: Config):
-  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+module Append_only_ext (IO: IO) (C: Config): Irmin.APPEND_ONLY_STORE_MAKER
 module Link_ext (IO: IO) (C: Config): Irmin.LINK_STORE_MAKER
 module Atomic_write_ext (IO: IO) (C: Config): Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER

@@ -48,8 +48,8 @@ module FS: sig
 
   (** {1 File-system Store} *)
 
-  module Content_addressable: Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
-  (** Content-addressable store maker. *)
+  module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
+  (** Append-only store maker. *)
 
   module Link: Irmin.LINK_STORE_MAKER
   (** Immutable store for links. *)
@@ -64,9 +64,8 @@ module FS: sig
   (** Irmin store make, where only the Contents have to be specified:
       branches are strings and paths are string lists. *)
 
-  module Content_addressable_ext (C: Irmin_fs.Config)
-    : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
-  (** Content-addressable store maker, with control over the filenames shapes. *)
+  module Append_only_ext (C: Irmin_fs.Config): Irmin.APPEND_ONLY_STORE_MAKER
+  (** Append-only store maker, with control over the filenames shapes. *)
 
   module Atomic_write_ext (C: Irmin_fs.Config): Irmin.ATOMIC_WRITE_STORE_MAKER
   (** Read-write store maker, with control over the filename shapes. *)

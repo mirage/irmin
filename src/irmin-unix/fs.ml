@@ -311,11 +311,11 @@ module IO = struct
 
 end
 
-module Content_addressable = Irmin_fs.Content_addressable(IO)
+module Append_only = Irmin_fs.Append_only(IO)
 module Link = Irmin_fs.Link(IO)
 module Atomic_write = Irmin_fs.Atomic_write(IO)
 module Make = Irmin_fs.Make(IO)
 module KV = Irmin_fs.KV(IO)
-module Content_addressable_ext = Irmin_fs.Content_addressable_ext(IO)
+module Append_only_ext = Irmin_fs.Append_only_ext(IO)
 module Atomic_write_ext = Irmin_fs.Atomic_write_ext(IO)
 module Make_ext = Irmin_fs.Make_ext(IO)

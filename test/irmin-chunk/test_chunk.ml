@@ -37,21 +37,22 @@ module type S = sig
   val create: unit -> t Lwt.t
 end
 
+module Content_addressable = Irmin.Content_addressable(Irmin_mem.Append_only)
+
 module Mem = struct
-  include Irmin_mem.Content_addressable(Key)(Value)
+  include Content_addressable(Key)(Value)
   let create () = v @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
-  include Irmin_chunk.Content_addressable
-      (Irmin_mem.Content_addressable)(Key)(Value)
+  include Content_addressable(Key)(Value)
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
   let create () = v small_config
 end
 
 module MemChunkStable = struct
   include Irmin_chunk.Stable_content_addressable
-      (Irmin_mem.Link)(Irmin_mem.Content_addressable)(Key)(Value)
+      (Irmin_mem.Link)(Content_addressable)(Key)(Value)
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
   let create () = v small_config
 end
@@ -61,7 +62,7 @@ let init () =
 
 let store = Irmin_test.store
     (module Irmin.Make
-         (Irmin_chunk.Content_addressable(Irmin_mem.Content_addressable))
+         (Irmin_chunk.Content_addressable(Content_addressable))
          (Irmin_mem.Atomic_write))
   (module Irmin.Metadata.None)
 
