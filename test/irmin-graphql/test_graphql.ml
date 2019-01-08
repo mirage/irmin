@@ -105,7 +105,7 @@ let test_merge branch client =
   | Error (`Msg msg) -> Alcotest.fail msg
 
 let _test_pull branch client =
-  Client.pull ~branch client "git://github.com/zshipko/irmin-tutorial" >|= function
+  Client.pull ~branch client "https://github.com/mirage/irmin" >|= function
   | Ok _ -> ()
   | Error (`Msg msg) -> Alcotest.failf "pull: %s" msg
 
@@ -126,7 +126,8 @@ let tests = [
   "branch_info/commit_info", `Quick, test_head;
   "remove", `Quick, test_remove;
   "tree", `Quick, test_tree;
-  (*FIXME "pull", `Quick, test_pull; *)
+  (* See https://github.com/mirage/irmin/issues/600 *)
+  (*"pull", `Quick, test_pull; *)
   "merge", `Quick, test_merge;
   "set_all/get_all", `Quick, test_set_get_all;
 ]
@@ -140,7 +141,7 @@ let run_tests name tests =
         branch ^ ":" ^ name, speed, (fun () -> Lwt_main.run (Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore; f branch client))) tests
   in
   let a = tests "master" in
-  let b = tests "gh-pages" in
+  let b = tests "mirage-dev" in
   Alcotest.run name [name, a @ b]
 
 let server_pid = ref 0
