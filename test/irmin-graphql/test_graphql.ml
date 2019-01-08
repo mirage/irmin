@@ -53,7 +53,7 @@ let check_type_eq name t a b =
 let check_type_not_eq name t a b =
   Alcotest.(check bool) name false (Irmin.Type.equal t a b)
 
-let test_set_and_get branch client =
+let test_set_get branch client =
   Client.set ~branch client ["a"; "b"; "c"] "123" >>= unwrap >>= fun _ ->
   Client.get ~branch client ["a"; "b"; "c"] >>= unwrap >>= fun s ->
   Client.set ~branch client ["foo"] "bar" >>= unwrap >>= fun _ ->
@@ -104,18 +104,31 @@ let test_merge branch client =
       Alcotest.(check string) "merge" "abc" x
   | Error (`Msg msg) -> Alcotest.fail msg
 
-let test_pull branch client =
+let _test_pull branch client =
   Client.pull ~branch client "git://github.com/zshipko/irmin-tutorial" >|= function
   | Ok _ -> ()
-  | Error (`Msg msg) -> Alcotest.failf "PULL: %s" msg
+  | Error (`Msg msg) -> Alcotest.failf "pull: %s" msg
+
+let test_set_get_all branch client =
+  let key = ["x"] in
+  let value = "testing" in
+  Client.set_all client ~branch key value `Everybody >>= function
+  | Ok _ ->
+      (Client.get_all client ~branch key >|= function
+      | Ok (v, m) ->
+          Alcotest.(check bool) "values equal" true (String.equal v value);
+          Alcotest.(check bool) "metadata equal" true (m = `Everybody)
+      | Error (`Msg msg) -> Alcotest.failf "get_all: %s" msg)
+  | Error (`Msg msg) -> Alcotest.failf "set_all: %s" msg
 
 let tests = [
-  "set/get", `Quick, test_set_and_get;
+  "set/get", `Quick, test_set_get;
   "branch_info/commit_info", `Quick, test_head;
   "remove", `Quick, test_remove;
   "tree", `Quick, test_tree;
   (*FIXME "pull", `Quick, test_pull; *)
   "merge", `Quick, test_merge;
+  "set_all/get_all", `Quick, test_set_get_all;
 ]
 
 let uri = Uri.of_string "http://localhost:80808/graphql"
@@ -133,7 +146,7 @@ let run_tests name tests =
 let server_pid = ref 0
 
 let clean () =
-  Unix.sleep 1;
+  Printf.printf "SERVER PID: %d\n" !server_pid;
   Unix.kill !server_pid Sys.sigint
 
 let run_server () =
