@@ -282,8 +282,8 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
                 ~resolve:(fun _ (s, _) key ->
                     Store.mem_tree s key >>= function
                     | true ->
-                      Store.get_tree s Store.Key.empty >>= fun tree ->
-                      Lwt.return_ok (Some (tree, key))
+                      Store.get_tree s key >>= fun tree ->
+                      Lwt.return_ok (Some (tree, Store.Key.empty))
                     | false -> Lwt.return_ok None
                   )
               ;
@@ -493,7 +493,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
             (Store.find_tree t k >>= (function
                  | Some tree -> Lwt.return tree
                  | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
-             Store.Tree.add tree k ?metadata:m v >>= fun tree ->
+             Store.Tree.add tree Store.Key.empty ?metadata:m v >>= fun tree ->
              Store.set_tree t k tree ~info >>= function
              | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
              | Error e -> err_write e)

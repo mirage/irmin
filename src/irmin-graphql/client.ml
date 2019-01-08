@@ -186,6 +186,7 @@ struct
 
   let execute_json client ?vars ?operation body =
     execute client ?vars ?operation body >|= fun res ->
+    print_endline res;
     match Json.of_string res with
     | Ok j ->
       (match Json.find j ["errors"] with
@@ -307,7 +308,7 @@ struct
       ; ("branch", branch)
       ; ("info", mk_info ?author ?message ()) ]
     in
-    execute_json client ~vars Query.set
+    execute_json client ~vars Query.set_all
     >|= decode_hash ["set_all"]
 
   let tree_list key x =
