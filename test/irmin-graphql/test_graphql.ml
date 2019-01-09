@@ -121,6 +121,29 @@ let test_set_get_all branch client =
       | Error (`Msg msg) -> Alcotest.failf "get_all: %s" msg)
   | Error (`Msg msg) -> Alcotest.failf "set_all: %s" msg
 
+let test_branches branch client =
+  let l = ["aaa"; "master"]  in
+  let l = if not (List.mem branch l) then branch :: l else l in
+  let l = List.sort String.compare l in
+  Client.branches client >|= function
+  | Ok branches ->
+      let l' =
+        List.sort String.compare branches
+      in
+      Alcotest.(check (list string)) "Branches" l l'
+  | Error (`Msg msg) -> Alcotest.failf "branches: %s" msg
+
+let test_snapshot_revert branch client =
+  Client.set client ~author:"AAA"  ~message:"BBB" ~branch ["something"] "abc" >>= function
+  | Ok hash ->
+      (Client.set client ~branch ["something"] "xyz" >>= fun _ ->
+      Client.revert client ~branch hash >>= fun _ ->
+      Client.get client ~branch ["something"] >|= function
+      | Ok x -> Alcotest.(check string) "Get after revert" "abc" x
+      | Error (`Msg msg) -> Alcotest.failf "revert: %s" msg)
+  | Error (`Msg msg) ->
+      Alcotest.failf "set: %s" msg
+
 let tests = [
   "set/get", `Quick, test_set_get;
   "branch_info/commit_info", `Quick, test_head;
@@ -130,6 +153,8 @@ let tests = [
   (*"pull", `Quick, test_pull; *)
   "merge", `Quick, test_merge;
   "set_all/get_all", `Quick, test_set_get_all;
+  "branches", `Quick, test_branches;
+  "snapshot/revert", `Quick, test_snapshot_revert;
 ]
 
 let uri = Uri.of_string "http://localhost:80808/graphql"
@@ -141,7 +166,7 @@ let run_tests name tests =
         branch ^ ":" ^ name, speed, (fun () -> Lwt_main.run (Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore; f branch client))) tests
   in
   let a = tests "master" in
-  let b = tests "mirage-dev" in
+  let b = tests "gh-pages" in
   Alcotest.run name [name, a @ b]
 
 let server_pid = ref 0
