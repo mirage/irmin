@@ -112,7 +112,7 @@ module type S = sig
     t -> ?branch:Store.branch -> Store.Hash.t -> (bool, error) result Lwt.t
 
   val lca:
-    t -> ?branch:Store.branch -> Store.Hash.t -> (commit, error) result Lwt.t
+    t -> ?branch:Store.branch -> Store.Hash.t -> (commit list, error) result Lwt.t
 
   val commit_info :
     t -> Store.Hash.t -> (commit, error) result Lwt.t

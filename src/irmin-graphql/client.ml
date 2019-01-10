@@ -112,7 +112,7 @@ module type S = sig
     t -> ?branch:Store.branch -> Store.Hash.t -> (bool, error) result Lwt.t
 
   val lca:
-    t -> ?branch:Store.branch -> Store.Hash.t -> (commit, error) result Lwt.t
+    t -> ?branch:Store.branch -> Store.Hash.t -> (commit list, error) result Lwt.t
 
   val commit_info :
     t -> Store.Hash.t -> (commit, error) result Lwt.t
@@ -186,7 +186,6 @@ struct
 
   let execute_json client ?vars ?operation body =
     execute client ?vars ?operation body >|= fun res ->
-    print_endline res;
     match Json.of_string res with
     | Ok j ->
       (match Json.find j ["errors"] with
@@ -437,22 +436,24 @@ struct
       | _ -> failwith "Invalid parents field"
     in
     let info = Irmin.Info.v ~date ~author message in
-    Ok {hash; info; parents}
+    {hash; info; parents}
 
   let lca client ?branch commit =
     let branch = opt_branch branch in
     let commit = Irmin.Type.to_string Store.Hash.t commit in
     let vars =
       [ "branch", branch
-      ; "commit", `String commit ]
+      ; "hash", `String commit ]
     in
     execute_json client ~vars Query.lca >|= function
     | Ok j ->
+      print_endline (Irmin.Type.to_string Irmin.Contents.Json_value.t j);
       (match Json.find j ["data"; "branch"; "lca"] with
-       | Some commit ->
-         (try make_commit_info commit
+       | Some (`A commits) ->
+         (try
+            Ok (List.map make_commit_info commits)
           with Failure msg -> error msg)
-       | None -> invalid_response)
+       | _ -> invalid_response)
     | Error msg -> error_msg msg
 
   let branch_info client branch =
@@ -464,7 +465,7 @@ struct
     | Ok j ->
       (match Json.find j ["data"; "branch"; "head"] with
        | Some commit ->
-         (try make_commit_info commit
+         (try Ok (make_commit_info commit)
           with Failure msg -> error msg)
        | None -> invalid_response)
     | Error msg -> error_msg msg
@@ -479,7 +480,7 @@ struct
     | Ok j ->
       (match Json.find j ["data"; "commit"] with
        | Some commit ->
-         (try make_commit_info commit
+         (try Ok (make_commit_info commit)
           with Failure msg -> error msg)
        | None -> invalid_response)
     | Error msg -> error_msg msg
