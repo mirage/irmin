@@ -32,7 +32,7 @@ module type S = sig
     -> string
     -> (Irmin.Contents.json, error) result Lwt.t
 
-  val branches : t -> (string list, error) result Lwt.t
+  val branches : t -> (Store.branch list, error) result Lwt.t
 
   val set :
     t
@@ -203,7 +203,10 @@ struct
        | Some (`A branches) ->
          (try
             Ok (List.map (function
-                | `String s -> s
+                | `String s ->
+                    (match Irmin.Type.of_string Store.branch_t s with
+                     | Error _ -> failwith "invalid branch name"
+                     | Ok x -> x)
                 | _ -> failwith "invalid branch value") branches)
           with Failure msg -> Error (`Msg msg))
        | _ -> invalid_response)
@@ -227,7 +230,7 @@ struct
   let get client ?branch key =
     find client ?branch key >|= function
     | Ok (Some x) -> Ok x
-    | Ok None -> Error (`Msg "null value")
+    | Ok None -> Error (`Msg ("not found: " ^ Irmin.Type.to_string Store.key_t key))
     | Error e -> Error e
 
   let get_all client ?branch key =
