@@ -163,6 +163,13 @@ let test_lca branch client =
       | Error (`Msg msg) -> Alcotest.failf "branch_info: %s" msg)
   | Error (`Msg msg) -> Alcotest.failf "branch_info: %s" msg
 
+(* test_push exists to check the syntax of the `push` query since actually testing this
+ * would be too difficult *)
+let test_push branch client =
+  Client.push client ~branch "https://github.com/fake/repo" >|= function
+  | Ok _ -> Alcotest.fail "push is expected to fail"
+  | Error (`Msg _) ->  ()
+
 let tests = [
  "set/get", `Quick, test_set_get;
  "branch_info/commit_info", `Quick, test_head;
@@ -175,6 +182,7 @@ let tests = [
  "branches", `Quick, test_branches;
  "snapshot/revert", `Quick, test_snapshot_revert;
  "lca", `Quick, test_lca;
+ "push", `Quick, test_push;
 ]
 
 let uri = Uri.of_string "http://localhost:80808/graphql"

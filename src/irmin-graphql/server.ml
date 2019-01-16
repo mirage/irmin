@@ -379,6 +379,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
               mk_branch (Store.repo s) branch >>= fun t ->
               Sync.push t remote >>= function
               | Ok _ -> Lwt.return_ok true
+              | Error `No_head -> Lwt.return_ok false
               | Error e ->
                 let s = Fmt.to_to_string Sync.pp_push_error e in
                 Lwt.return_error s
