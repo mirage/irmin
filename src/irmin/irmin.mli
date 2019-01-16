@@ -1752,8 +1752,8 @@ module Private: sig
 
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit [C] and node [N]. *)
-    module Make (C: Type.S) (N: Type.S):
-      S with type commit = C.t and type node = N.t
+    module Make (K: Type.S):
+      S with type commit = K.t and type node = K.t
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig

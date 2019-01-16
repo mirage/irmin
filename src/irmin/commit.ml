@@ -20,14 +20,14 @@ open Merge.Infix
 let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (C: Type.S) (N: Type.S) = struct
+module Make (K: Type.S) = struct
 
-  type node = N.t
-  type commit = C.t
+  type node = K.t
+  type commit = K.t
 
   type t = {
-    node   : N.t;
-    parents: C.t list;
+    node   : K.t;
+    parents: K.t list;
     info   : Info.t;
   }
 
@@ -39,13 +39,13 @@ module Make (C: Type.S) (N: Type.S) = struct
   let t =
     let open Type in
     record "commit" (fun node parents info -> { node; parents; info })
-    |+ field "node"    N.t        (fun t -> t.node)
-    |+ field "parents" (list C.t) (fun t -> t.parents)
+    |+ field "node"    K.t        (fun t -> t.node)
+    |+ field "parents" (list K.t) (fun t -> t.parents)
     |+ field "info"    Info.t  (fun t -> t.info)
     |> sealr
 
-  let node_t = N.t
-  let commit_t = C.t
+  let node_t = K.t
+  let commit_t = K.t
 end
 
 module Store

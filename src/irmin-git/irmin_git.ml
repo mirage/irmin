@@ -403,7 +403,7 @@ module Make_private
         let message = G.Value.Commit.message g in
         info_of_git author message
 
-      module C = Irmin.Private.Commit.Make(H)(H)
+      module C = Irmin.Private.Commit.Make(H)
 
       let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 
