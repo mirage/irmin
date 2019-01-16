@@ -46,11 +46,11 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make (K_c: Type.S) (K_n: Type.S) (P: S.PATH) (M: S.METADATA) =
+module Make (K: Type.S) (P: S.PATH) (M: S.METADATA) =
 struct
 
-  type contents = K_c.t
-  type node = K_n.t
+  type contents = K.t
+  type node = K.t
   type step = P.step
   type metadata = M.t
 
@@ -103,10 +103,10 @@ struct
     let map' = StepMap.remove k map in
     if map == map' then t else of_map map'
 
-  let value_t = node ~default:M.default K_c.t M.t K_n.t
+  let value_t = node ~default:M.default K.t M.t K.t
   let step_t = P.step_t
-  let node_t = K_n.t
-  let contents_t = K_c.t
+  let node_t = K.t
+  let contents_t = K.t
   let metadata_t = M.t
   let t = Type.like Type.(list (pair P.step_t value_t)) of_list list
 

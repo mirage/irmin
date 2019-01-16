@@ -1548,9 +1548,9 @@ module Private: sig
 
     (** [Node] provides a simple node implementation, parameterized by
         the contents [C], node [N], paths [P] and metadata [M]. *)
-    module Make (C: Type.S) (N: Type.S) (P: Path.S) (M: Metadata.S):
-      S with type contents = C.t
-         and type node = N.t
+    module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
+      S with type contents = K.t
+         and type node = K.t
          and type step = P.step
          and type metadata = M.t
 

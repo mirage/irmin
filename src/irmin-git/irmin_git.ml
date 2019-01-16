@@ -292,7 +292,7 @@ module Make_private
               (to_step name, mk_c node perm) :: acc
           ) [] (G.Value.Tree.to_list t)
 
-       module N = Irmin.Private.Node.Make (H)(H)(P)(Metadata)
+       module N = Irmin.Private.Node.Make(H)(P)(Metadata)
        let to_n t = N.v (alist t)
        let of_n n = v (N.list n)
 

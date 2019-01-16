@@ -163,7 +163,7 @@ module Make
     (B: S.BRANCH)
     (H: S.HASH) =
 struct
-  module N = Node.Make(H)(H)(P)(M)
+  module N = Node.Make(H)(P)(M)
   module CT = Commit.Make(H)(H)
   include Make_ext(CA)(AW)(M)(C)(P)(B)(H)(N)(CT)
 end

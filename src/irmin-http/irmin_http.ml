@@ -395,7 +395,7 @@ struct
     module Node = struct
       module X = struct
         module Key = H
-        module Val = Irmin.Private.Node.Make(H)(H)(P)(M)
+        module Val = Irmin.Private.Node.Make(H)(P)(M)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Node.Store(Contents)(P)(M)(X)
