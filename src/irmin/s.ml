@@ -79,10 +79,9 @@ end
 module type NODE = sig
   type t
   type metadata
-  type contents
-  type node
+  type hash
   type step
-  type value = [ `Node of node | `Contents of contents * metadata ]
+  type value = [ `Node of hash | `Contents of hash * metadata ]
   val v: (step * value) list -> t
   val list: t -> (step * value) list
   val empty: t
@@ -92,8 +91,7 @@ module type NODE = sig
   val remove: t -> step -> t
   val t: t Type.t
   val metadata_t: metadata Type.t
-  val contents_t: contents Type.t
-  val node_t: node Type.t
+  val hash_t: hash Type.t
   val step_t: step Type.t
   val value_t: value Type.t
 end
@@ -129,10 +127,10 @@ module type NODE_STORE = sig
   module Metadata: METADATA
   module Val: NODE
     with type t = value
-     and type node = key
+     and type hash = key
      and type metadata = Metadata.t
      and type step = Path.step
-  module Contents: CONTENTS_STORE with type key = Val.contents
+  module Contents: CONTENTS_STORE with type key = Val.hash
 end
 
 type config = Conf.t
@@ -259,7 +257,7 @@ module type PRIVATE = sig
   module Contents: CONTENTS_STORE
     with type key = Hash.t
   module Node: NODE_STORE
-    with type key = Hash.t and type Val.contents = Contents.key
+    with type key = Hash.t and type Val.hash = Contents.key
   module Commit: COMMIT_STORE
     with type key = Hash.t and type Val.node = Node.key
   module Branch: BRANCH_STORE

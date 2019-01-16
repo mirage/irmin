@@ -21,24 +21,22 @@
 module No_metadata: S.METADATA with type t = unit
 
 module Make (K: Type.S) (P: S.PATH) (M: S.METADATA):
-  S.NODE with type contents = K.t
-          and type node = K.t
+  S.NODE with type hash = K.t
           and type step = P.step
           and type metadata = M.t
 
 module Store
-    (C: S.CONTENTS_STORE)
     (P: S.PATH)
     (M: S.METADATA)
     (N: sig
        include S.CONTENT_ADDRESSABLE_STORE
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
-                           and type node = key
+                           and type hash = key
                            and type metadata = M.t
-                           and type contents = C.key
                            and type step = P.step
-     end):
+     end)
+     (C: S.CONTENTS_STORE with type key = N.key):
   S.NODE_STORE with type t = C.t * N.t
                 and type key = N.key
                 and type value = N.value

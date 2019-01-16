@@ -204,23 +204,20 @@ module Make_private
       type t = G.Value.Tree.t
       let pp = G.Value.Tree.pp
       type metadata = Metadata.t
-      type contents = Contents.key
-      type node = Key.t
+      type hash = Key.t
       type step = Path.step
-      type value = [`Node of node | `Contents of contents * metadata ]
+      type value = [`Node of hash | `Contents of hash * metadata ]
       let metadata_t = Metadata.t
-      let contents_t = Contents.Key.t
-      let node_t = Key.t
+      let hash_t = Key.t
       let step_t = Path.step_t
 
       let value_t =
         let open Irmin.Type in
-        let contents_t = pair contents_t metadata_t in
         variant "Tree.value" (fun node contents -> function
             | `Node n     -> node n
             | `Contents c -> contents c)
-        |~ case1 "node"     node_t     (fun n -> `Node n)
-        |~ case1 "contents" contents_t (fun c -> `Contents c)
+        |~ case1 "node"     hash_t     (fun n -> `Node n)
+        |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
         |> sealv
 
       let of_step = Irmin.Type.to_string P.step_t
@@ -331,7 +328,7 @@ module Make_private
         let of_git = function G.Value.Tree t -> Ok (Some t) | _ -> Ok None
       end)
   end
-  module Node = Irmin.Private.Node.Store(Contents)(P)(Metadata)(XNode)
+  module Node = Irmin.Private.Node.Store(P)(Metadata)(XNode)(Contents)
 
   module XCommit = struct
     module Val = struct

@@ -1484,17 +1484,14 @@ module Private: sig
       type metadata
       (** The type for node metadata. *)
 
-      type contents
-      (** The type for contents keys. *)
-
-      type node
-      (** The type for node keys. *)
+      type hash
+      (** The type for keys. *)
 
       type step
       (** The type for steps between nodes. *)
 
-      type value = [`Node of node | `Contents of contents * metadata ]
-      (** The type for either node keys or contents keys combined with
+      type value = [`Node of hash | `Contents of hash * metadata ]
+      (** The type for either (node) keys or (contents) keys combined with
           their metadata. *)
 
       val v: (step * value) list -> t
@@ -1532,11 +1529,8 @@ module Private: sig
       val metadata_t: metadata Type.t
       (** [metadata_t] is the value type for {!metadata}. *)
 
-      val contents_t: contents Type.t
-      (** [contents_t] is the value type for {!contents}. *)
-
-      val node_t: node Type.t
-      (** [node_t] is the value type for {!node}. *)
+      val hash_t: hash Type.t
+      (** [hash_t] is the value type for {!hash}. *)
 
       val step_t: step Type.t
       (** [step_t] is the value type for {!step}. *)
@@ -1549,8 +1543,7 @@ module Private: sig
     (** [Node] provides a simple node implementation, parameterized by
         the contents [C], node [N], paths [P] and metadata [M]. *)
     module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
-      S with type contents = K.t
-         and type node = K.t
+      S with type hash = K.t
          and type step = P.step
          and type metadata = M.t
 
@@ -1573,28 +1566,27 @@ module Private: sig
 
       (** [Val] provides base functions for node values. *)
       module Val: S with type t = value
-                     and type node = key
+                     and type hash = key
                      and type metadata = Metadata.t
                      and type step = Path.step
 
       (** [Contents] is the underlying contents store. *)
-      module Contents: Contents.STORE with type key = Val.contents
+      module Contents: Contents.STORE with type key = Val.hash
     end
 
     (** [Store] creates node stores. *)
     module Store
-        (C: Contents.STORE)
         (P: Path.S)
         (M: Metadata.S)
         (S: sig
            include CONTENT_ADDRESSABLE_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
-                          and type node = key
+                          and type hash = key
                           and type metadata = M.t
-                          and type contents = C.key
                           and type step = P.step
-         end):
+         end)
+         (C: Contents.STORE with type key = S.key):
       STORE with type t = C.t * S.t
              and type key = S.key
              and type value = S.value
@@ -1986,7 +1978,7 @@ module Private: sig
 
     (** Private nod store. *)
     module Node: Node.STORE
-      with type key = Hash.t and type Val.contents = Contents.key
+      with type key = Hash.t and type Val.hash = Contents.key
 
     (** Private commit store. *)
     module Commit: Commit.STORE
@@ -3404,8 +3396,7 @@ module Make_ext
     (Branch  : Branch.S)
     (Hash    : Hash.S)
     (N: Private.Node.S with type metadata = Metadata.t
-                        and type contents = Hash.t
-                        and type node = Hash.t
+                        and type hash = Hash.t
                         and type step = Path.step)
     (CT: Private.Commit.S with type node = Hash.t
                            and type commit = Hash.t):

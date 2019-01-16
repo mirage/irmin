@@ -398,7 +398,7 @@ struct
         module Val = Irmin.Private.Node.Make(H)(P)(M)
         include AO(Client)(Key)(Val)
       end
-      include Irmin.Private.Node.Store(Contents)(P)(M)(X)
+      include Irmin.Private.Node.Store(P)(M)(X)(Contents)
       let v ?ctx config = X.v ?ctx config "tree" "trees"
     end
     module Commit = struct

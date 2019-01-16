@@ -88,8 +88,7 @@ module Make_ext
     (B: Branch.S)
     (H: Hash.S)
     (N: S.NODE with type metadata = M.t
-                and type contents = H.t
-                and type node = H.t
+                and type hash = H.t
                 and type step = P.step)
     (CT: S.COMMIT with type node = H.t and type commit = H.t)
 =
@@ -109,7 +108,7 @@ struct
         module Val = N
         include CA (Key)(Val)
       end
-      include Node.Store(Contents)(P)(M)(CA)
+      include Node.Store(P)(M)(CA)(Contents)
       let v = CA.v
     end
     module Commit = struct
