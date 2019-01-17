@@ -17,17 +17,16 @@
 (** Manage the database history. *)
 
 module Make (K: Type.S):
-  S.COMMIT with type commit = K.t and type node = K.t
+  S.COMMIT with type hash = K.t
 
 module Store
-    (N: S.NODE_STORE)
     (C: sig
        include S.CONTENT_ADDRESSABLE_STORE
        module Key: S.HASH with type t = key
        module Val: S.COMMIT with type t = value
-                             and type commit = key
-                             and type node = N.key
-     end):
+                             and type hash = key
+     end)
+     (N: S.NODE_STORE with type key = C.key):
   S.COMMIT_STORE
   with  type t = N.t * C.t
    and type key = C.key

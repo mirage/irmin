@@ -335,11 +335,9 @@ module Make_private
       type t = G.Value.Commit.t
       let pp = G.Value.Commit.pp
 
-      type commit = H.t
-      type node = H.t
+      type hash = H.t
 
-      let commit_t = H.t
-      let node_t = H.t
+      let hash_t = H.t
 
       let info_of_git author message =
         let id = author.Git.User.name in
@@ -446,7 +444,7 @@ module Make_private
       end)
 
   end
-  module Commit = Irmin.Private.Commit.Store(Node)(XCommit)
+  module Commit = Irmin.Private.Commit.Store(XCommit)(Node)
 
 end
 

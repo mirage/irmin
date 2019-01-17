@@ -1711,19 +1711,16 @@ module Private: sig
       type t
       (** The type for commit values. *)
 
-      type commit
-      (** Type for commit keys. *)
+      type hash
+      (** Type for keys. *)
 
-      type node
-      (** Type for node keys. *)
-
-      val v: info:Info.t -> node:node -> parents:commit list -> t
+      val v: info:Info.t -> node:hash -> parents:hash list -> t
       (** Create a commit. *)
 
-      val node: t -> node
+      val node: t -> hash
       (** The underlying node. *)
 
-      val parents: t -> commit list
+      val parents: t -> hash list
       (** The commit parents. *)
 
       val info: t -> Info.t
@@ -1734,18 +1731,15 @@ module Private: sig
       val t: t Type.t
       (** [t] is the value type for {!t}. *)
 
-      val commit_t: commit Type.t
-      (** [commit_t] is the value type for {!commit}. *)
-
-      val node_t: node Type.t
-      (** [node_t] is the value type for {!node}. *)
+      val hash_t: hash Type.t
+      (** [hash_t] is the value type for {!hash}. *)
 
     end
 
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit [C] and node [N]. *)
     module Make (K: Type.S):
-      S with type commit = K.t and type node = K.t
+      S with type hash = K.t
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig
@@ -1761,23 +1755,22 @@ module Private: sig
       (** [Key] provides base functions for commit keys. *)
 
       (** [Val] provides functions for commit values. *)
-      module Val: S with type t = value and type commit = key
+      module Val: S with type t = value and type hash = key
 
       (** [Node] is the underlying node store. *)
-      module Node: Node.STORE with type key = Val.node
+      module Node: Node.STORE with type key = Val.hash
 
     end
 
     (** [Store] creates a new commit store. *)
     module Store
-        (N: Node.STORE)
         (S: sig
            include CONTENT_ADDRESSABLE_STORE
            module Key: Hash.S with type t = key
            module Val: S with type t = value
-                          and type commit = key
-                          and type node = N.key
-         end):
+                          and type hash = key
+         end)
+         (N: Node.STORE with type key = S.key):
       STORE with type t = N.t * S.t
              and type key = S.key
              and type value = S.value
@@ -1982,7 +1975,7 @@ module Private: sig
 
     (** Private commit store. *)
     module Commit: Commit.STORE
-      with type key = Hash.t and type Val.node = Node.key
+      with type key = Hash.t and type Val.hash = Node.key
 
     (** Private branch store. *)
     module Branch: Branch.STORE
@@ -3398,8 +3391,7 @@ module Make_ext
     (N: Private.Node.S with type metadata = Metadata.t
                         and type hash = Hash.t
                         and type step = Path.step)
-    (CT: Private.Commit.S with type node = Hash.t
-                           and type commit = Hash.t):
+    (CT: Private.Commit.S with type hash = Hash.t):
   S with type key = Path.t
      and type contents = Contents.t
      and type branch = Branch.t

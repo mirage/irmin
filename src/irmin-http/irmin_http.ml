@@ -407,7 +407,7 @@ struct
         module Val = Irmin.Private.Commit.Make(H)
         include AO(Client)(Key)(Val)
       end
-      include Irmin.Private.Commit.Store(Node)(X)
+      include Irmin.Private.Commit.Store(X)(Node)
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end
     module Branch = struct

@@ -138,15 +138,13 @@ type 'a diff = 'a Diff.t
 
 module type COMMIT = sig
   type t
-  type commit
-  type node
-  val v: info:Info.t -> node:node -> parents:commit list -> t
-  val node: t -> node
-  val parents: t -> commit list
+  type hash
+  val v: info:Info.t -> node:hash -> parents:hash list -> t
+  val node: t -> hash
+  val parents: t -> hash list
   val info: t -> Info.t
   val t: t Type.t
-  val commit_t: commit Type.t
-  val node_t: node Type.t
+  val hash_t: hash Type.t
 end
 
 module type COMMIT_STORE = sig
@@ -155,8 +153,8 @@ module type COMMIT_STORE = sig
   module Key: HASH with type t = key
   module Val: COMMIT
     with type t = value
-     and type commit = key
-  module Node: NODE_STORE with type key = Val.node
+     and type hash = key
+  module Node: NODE_STORE with type key = Val.hash
 end
 
 module type COMMIT_HISTORY = sig
@@ -259,7 +257,7 @@ module type PRIVATE = sig
   module Node: NODE_STORE
     with type key = Hash.t and type Val.hash = Contents.key
   module Commit: COMMIT_STORE
-    with type key = Hash.t and type Val.node = Node.key
+    with type key = Hash.t and type Val.hash = Node.key
   module Branch: BRANCH_STORE
     with type value = Commit.key
   module Slice: SLICE

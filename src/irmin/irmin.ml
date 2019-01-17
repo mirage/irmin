@@ -90,7 +90,7 @@ module Make_ext
     (N: S.NODE with type metadata = M.t
                 and type hash = H.t
                 and type step = P.step)
-    (CT: S.COMMIT with type node = H.t and type commit = H.t)
+    (CT: S.COMMIT with type hash = H.t)
 =
 struct
 
@@ -117,7 +117,7 @@ struct
         module Val = CT
         include CA (Key)(Val)
       end
-      include Commit.Store(Node)(CA)
+      include Commit.Store(CA)(Node)
       let v = CA.v
     end
     module Branch = struct
