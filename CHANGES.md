@@ -16,10 +16,10 @@
 
 **irmin-graphql**
 
-Added a new package: `irmin-graphql`, which provides a GraphQL server implementation
+Added a new package: `irmin-graphql`, which provides a GraphQL client/server implementation
 that can be used to support both MirageOS and Unix backends. Additionally, a `graphql`
-command has been added to the command-line interface for starting `irmin-graphql`
-servers. (#558, @andreas, @zshipko)
+command has been added to the command-line interface for starting `irmin-graphql` servers.
+(#558, @andreas, @zshipko)
 
 **irmin-test**
 
