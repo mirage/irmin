@@ -1276,7 +1276,6 @@ module Private: sig
 
         @raise Invalid_argument if the key name is not made of a
         sequence of ASCII lowercase letter, digit, dash or underscore.
-        FIXME not implemented.
 
         {b Warning.} No two keys should share the same [name] as this
         may lead to difficulties in the UI. *)

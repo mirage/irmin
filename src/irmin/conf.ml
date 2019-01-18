@@ -83,9 +83,13 @@ let conv t = t.conv
 let default t = t.default
 
 let key ?docs ?docv ?doc name conv default =
-  let to_univ, of_univ = Univ.create () in
-  let id = Oo.id (object end) in
-  { id; to_univ; of_univ; name; docs; docv; doc; conv; default }
+  let re = Str.regexp ".*[^0-9a-z_-].*" in
+  let illegal = Str.string_match re name 0 in
+  if illegal then raise @@ Invalid_argument name
+  else
+    let to_univ, of_univ = Univ.create () in
+    let id = Oo.id (object end) in
+    {id; to_univ; of_univ; name; docs; docv; doc; conv; default}
 
 module Id = struct
   type t = int
