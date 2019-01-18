@@ -1541,7 +1541,7 @@ module Private: sig
     end
 
     (** [Node] provides a simple node implementation, parameterized by
-        the contents [C], node [N], paths [P] and metadata [M]. *)
+        the contents and notes keys [K], paths [P] and metadata [M]. *)
     module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
       S with type hash = K.t
          and type step = P.step
@@ -1737,7 +1737,7 @@ module Private: sig
     end
 
     (** [Make] provides a simple implementation of commit values,
-        parameterized by the commit [C] and node [N]. *)
+        parameterized by the commit and node keys [K]. *)
     module Make (K: Type.S):
       S with type hash = K.t
 
