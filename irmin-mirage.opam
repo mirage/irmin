@@ -22,6 +22,7 @@ depends: [
   "ptime"
   "mirage-kv-lwt"
   "mirage-clock"
+  "mirage-clock-lwt"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
