@@ -2575,10 +2575,10 @@ module type S = sig
      previous results but ensure that no operation is lost in the
      history.
 
-      This function always use {Metadata.default} as metada,
-      use {!set_tree} with `[Contents (c, m)] for different ones.
+     This function always uses {!Metadata.default} as metadata.
+     Use {!set_tree} with `[Contents (c, m)] for different ones.
 
-      The result is [Error `Too_many_retries] if the concurrent
+     The result is [Error `Too_many_retries] if the concurrent
      operations do not allow the operation to commit to the underlying
      storage layer (livelock).  *)
 
@@ -2638,13 +2638,13 @@ module type S = sig
   (** [test_and_set ~test ~set] is like {!set} but it atomically
      checks that the tree is [test] before modifying it to [set].
 
-      This function always use {Metadata.default} as metada,
-      use {!test_and_set_tree} with `[Contents (c, m)] for different ones.
+     This function always uses {!Metadata.default} as metadata.
+     Use {!test_and_set_tree} with `[Contents (c, m)] for different ones.
 
-      The result is [Error (`Test t)] if the current tree is [t]
+     The result is [Error (`Test t)] if the current tree is [t]
      instead of [test].
 
-      The result is [Error `Too_many_retries] if the concurrent
+     The result is [Error `Too_many_retries] if the concurrent
      operations do not allow the operation to commit to the underlying
      storage layer (livelock). *)
 
@@ -2685,8 +2685,8 @@ module type S = sig
   (** [merge ~old] is like {!set} but merge the current tree
      and the new tree using [old] as ancestor in case of conflicts.
 
-      This function always use {Metadata.default} as metada,
-      use {!merge_tree} with `[Contents (c, m)] for different ones.
+      This function always uses {!Metadata.default} as metadata.
+      Use {!merge_tree} with `[Contents (c, m)] for different ones.
 
       The result is [Error (`Conflict c)] if the merge failed with the
       conflict [c].
@@ -2744,7 +2744,7 @@ module type S = sig
       {- if [strategy = `Set], use {!set} and discard any concurrent
          updates to [k]. }
       {- if [strategy = `Test_and_set] (default), use {!test_and_set}
-         and ensure that no concurrent operations are updating [k].
+         and ensure that no concurrent operations are updating [k]. }
       {- if [strategy = `Merge], use {!merge} and ensure
          that concurrent updates and merged with the values present
          at the beginning of the transaction. }}

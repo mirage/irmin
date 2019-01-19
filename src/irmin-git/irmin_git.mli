@@ -60,8 +60,7 @@ module type S = sig
 
       {ul
       {- the allowed metadata are {!Metadata.t}.}
-      {- the hash algorithm is SHA1.}
-      }. *)
+      {- the hash algorithm is SHA1.}} *)
 
   (** Access to the underlying Git store. *)
   module Git: Git.S
