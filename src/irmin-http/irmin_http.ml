@@ -193,7 +193,7 @@ struct
 
   module HTTP = Helper (Client)
 
-  type t = { uri: Uri.t; item: string; items: string; ctx: Client.ctx option }
+  type 'a t = { uri: Uri.t; item: string; items: string; ctx: Client.ctx option }
   let uri t = t.uri
   let item t = t.item
   let items t = t.items
@@ -215,6 +215,12 @@ struct
       [t.item; key_str key] (fun (r, _ ) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
+
+  let cast t = (t :> [`Read|`Write] t)
+
+  let batch t f =
+    (* TODO:cache the writes locally and send everything in one batch *)
+    f (cast t)
 
   let v ?ctx uri item items =
     Lwt.return { uri; item; items; ctx }
@@ -250,7 +256,7 @@ module RW (Client: Cohttp_lwt.S.Client)
 
   let empty_cache () = { stop = fun () -> (); }
 
-  type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
+  type t = { t: unit RO.t; w: W.t; keys: cache; glob: cache }
 
   let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
   let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
@@ -385,13 +391,15 @@ module Make
 struct
   module X = struct
     module Hash = H
-    module XContents = struct
-      module Key = H
-      module Val = C
-      include AO(Client)(H)(C)
-      let v ?ctx config = v ?ctx config "blob" "blobs"
+    module Contents = struct
+      module X = struct
+        module Key = H
+        module Val = C
+        include AO(Client)(H)(C)
+      end
+      include Irmin.Contents.Store(X)
+      let v ?ctx config = X.v ?ctx config "blob" "blobs"
     end
-    module Contents = Irmin.Contents.Store(XContents)
     module Node = struct
       module X = struct
         module Key = H
@@ -421,9 +429,9 @@ struct
     module Repo = struct
       type t = {
         config: Irmin.config;
-        contents: Contents.t;
-        node: Node.t;
-        commit: Commit.t;
+        contents: [`Read] Contents.t;
+        node: [`Read] Node.t;
+        commit: [`Read] Commit.t;
         branch: Branch.t;
       }
       let branch_t t = t.branch
@@ -431,10 +439,18 @@ struct
       let node_t t = t.node
       let contents_t t = t.contents
 
+      let batch t f =
+        Contents.X.batch t.contents @@ fun contents_t ->
+        Node.X.batch (snd t.node) @@ fun node_t ->
+        Commit.X.batch (snd t.commit) @@ fun commit_t ->
+        let node_t = contents_t, node_t in
+        let commit_t = node_t, commit_t in
+        f contents_t node_t commit_t
+
       let v config =
         let uri = get_uri config in
         let ctx = Client.ctx () in
-        XContents.v ?ctx uri >>= fun contents ->
+        Contents.v ?ctx uri >>= fun contents ->
         Node.v ?ctx uri      >>= fun node ->
         Commit.v ?ctx uri    >>= fun commit ->
         Branch.v ?ctx uri    >|= fun branch ->

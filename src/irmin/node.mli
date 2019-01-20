@@ -39,7 +39,7 @@ module Store
                            and type contents = C.key
                            and type step = P.step
      end):
-  S.NODE_STORE with type t = C.t * N.t
+  S.NODE_STORE with type 'a t = 'a C.t * 'a N.t
                 and type key = N.key
                 and type value = N.value
                 and module Path = P
@@ -48,7 +48,7 @@ module Store
                 and module Val = N.Val
 
 module Graph (N: S.NODE_STORE):
-  S.NODE_GRAPH with type t = N.t
+  S.NODE_GRAPH with type 'a t = 'a N.t
                 and type contents = N.Contents.key
                 and type metadata = N.Val.metadata
                 and type node = N.key

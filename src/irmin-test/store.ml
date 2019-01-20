@@ -60,8 +60,12 @@ module Make (S: S) = struct
   let v1 = long_random_string
   let v2 = ""
 
-  let kv1 ~repo = P.Contents.add (P.Repo.contents_t repo) v1
-  let kv2 ~repo = P.Contents.add (P.Repo.contents_t repo) v2
+  let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
+  let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
+  let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+
+  let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
+  let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
   let normal x = `Contents (x, S.Metadata.default)
 
   let b1 = "foo"
@@ -69,22 +73,24 @@ module Make (S: S) = struct
 
   let n1 ~repo =
     kv1 ~repo >>= fun kv1 ->
-    Graph.v (g repo) ["x", normal kv1]
+    with_node repo (fun t -> Graph.v t ["x", normal kv1])
 
   let n2 ~repo =
     n1 ~repo >>= fun kn1 ->
-    Graph.v (g repo) ["b", `Node kn1]
+    with_node repo (fun t -> Graph.v t ["b", `Node kn1])
 
   let n3 ~repo =
     n2 ~repo >>= fun kn2 ->
-    Graph.v (g repo) ["a", `Node kn2]
+    with_node repo (fun t -> Graph.v t ["a", `Node kn2])
 
   let n4 ~repo =
     n1 ~repo >>= fun kn1 ->
     kv2 ~repo >>= fun kv2 ->
-    Graph.v (g repo) ["x", normal kv2] >>= fun kn4 ->
-    Graph.v (g repo) ["b", `Node kn1; "c", `Node kn4] >>= fun kn5 ->
-    Graph.v (g repo) ["a", `Node kn5]
+    with_node repo (fun t -> Graph.v t ["x", normal kv2])
+    >>= fun kn4 ->
+    with_node repo (fun t -> Graph.v t ["b", `Node kn1; "c", `Node kn4])
+    >>= fun kn5 ->
+    with_node repo (fun t -> Graph.v t ["a", `Node kn5])
 
   let r1 ~repo =
     n2 ~repo >>= fun kn2 ->
@@ -161,18 +167,18 @@ module Make (S: S) = struct
       let check_key = check P.Contents.Key.t in
       let check_val = check (T.option S.contents_t) in
       kv2 ~repo >>= fun kv2 ->
-      P.Contents.add t v2 >>= fun k2' ->
+      with_contents repo (fun t -> P.Contents.add t v2) >>= fun k2' ->
       check_key "kv2" kv2 k2';
       P.Contents.find t k2' >>= fun v2' ->
       check_val "v2" (Some v2) v2';
 
-      P.Contents.add t v2 >>= fun k2'' ->
+      with_contents repo (fun t -> P.Contents.add t v2) >>= fun k2'' ->
       check_key "kv2" kv2 k2'';
 
       kv1 ~repo >>= fun kv1 ->
-      P.Contents.add t v1 >>= fun k1' ->
+      with_contents repo (fun t -> P.Contents.add t v1) >>= fun k1' ->
       check_key "kv1" kv1 k1';
-      P.Contents.add t v1 >>= fun k1'' ->
+      with_contents repo (fun t -> P.Contents.add t v1) >>= fun k1'' ->
       check_key "kv1" kv1 k1'';
       P.Contents.find t kv1 >>= fun v1' ->
       check_val "v1" (Some v1) v1';
@@ -193,29 +199,29 @@ module Make (S: S) = struct
       let check_val = check (T.option Graph.value_t) in
 
       (* Create a node containing t1 -x-> (v1) *)
-      Graph.v g ["x", normal kv1] >>= fun k1 ->
-      Graph.v g ["x", normal kv1] >>= fun k1' ->
+      with_node repo (fun g -> Graph.v g ["x", normal kv1]) >>= fun k1 ->
+      with_node repo (fun g -> Graph.v g ["x", normal kv1]) >>= fun k1' ->
       check_key "k1.1" k1 k1';
       P.Node.find n k1 >>= fun t1 ->
-      P.Node.add n (get t1) >>= fun k1''->
+      with_node repo (fun n -> P.Node.add n (get t1)) >>= fun k1''->
       check_key "k1.2" k1 k1'';
 
       (* Create the node  t2 -b-> t1 -x-> (v1) *)
-      Graph.v g ["b", `Node k1] >>= fun k2 ->
-      Graph.v g ["b", `Node k1] >>= fun k2' ->
+      with_node repo (fun g -> Graph.v g ["b", `Node k1]) >>= fun k2 ->
+      with_node repo (fun g -> Graph.v g ["b", `Node k1]) >>= fun k2' ->
       check_key "k2.1" k2 k2';
       P.Node.find n k2 >>= fun t2 ->
-      P.Node.add n (get t2) >>= fun k2''->
+      with_node repo (fun n -> P.Node.add n (get t2)) >>= fun k2''->
       check_key "k2.2" k2 k2'';
       Graph.find g k2 ["b"] >>= fun k1''' ->
       check_val "k1.3" (Some (`Node k1)) k1''';
 
       (* Create the node t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.v g ["a", `Node k2] >>= fun k3 ->
-      Graph.v g ["a", `Node k2] >>= fun k3' ->
+      with_node repo (fun g -> Graph.v g ["a", `Node k2]) >>= fun k3 ->
+      with_node repo (fun g -> Graph.v g ["a", `Node k2]) >>= fun k3' ->
       check_key "k3.1" k3 k3';
       P.Node.find n k3 >>= fun t3 ->
-      P.Node.add n (get t3) >>= fun k3''->
+      with_node repo (fun n -> P.Node.add n (get t3)) >>= fun k3''->
       check_key "k3.2" k3 k3'';
       Graph.find g k3 ["a"] >>= fun k2'' ->
       check_val "k2.3" (Some (`Node k2)) k2'';
@@ -235,10 +241,12 @@ module Make (S: S) = struct
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
                                    \-c-> t4 -x-> (v2) *)
       kv2 ~repo >>= fun kv2 ->
-      Graph.v g ["x", normal kv2] >>= fun k4 ->
-      Graph.v g ["b", `Node k1; "c", `Node k4] >>= fun k5 ->
-      Graph.v g ["a", `Node k5] >>= fun k6 ->
-      Graph.update g k3 ["a";"c";"x"] (normal kv2) >>= fun k6' ->
+      with_node repo (fun g -> Graph.v g ["x", normal kv2]) >>= fun k4 ->
+      with_node repo (fun g -> Graph.v g ["b", `Node k1; "c", `Node k4])
+      >>= fun k5 ->
+      with_node repo (fun g -> Graph.v g ["a", `Node k5]) >>= fun k6 ->
+      with_node repo (fun g -> Graph.update g k3 ["a";"c";"x"] (normal kv2))
+      >>= fun k6' ->
       P.Node.find n k6' >>= fun n6' ->
       P.Node.find n k6  >>= fun n6 ->
       check T.(option P.Node.Val.t) "node n6" n6 n6';
@@ -252,26 +260,26 @@ module Make (S: S) = struct
             else names := s :: !names
           ) all
       in
-      Graph.v g []                >>= fun n0 ->
+      with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
 
-      Graph.update g n0 ["b"] (`Node n0) >>= fun n1 ->
-      Graph.update g n1 ["a"] (`Node n0) >>= fun n2 ->
-      Graph.update g n2 ["a"] (`Node n0) >>= fun n3 ->
+      with_node repo (fun g -> Graph.update g n0 ["b"] (`Node n0)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.update g n1 ["a"] (`Node n0)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.update g n2 ["a"] (`Node n0)) >>= fun n3 ->
       assert_no_duplicates "1" n3 >>= fun () ->
 
-      Graph.update g n0 ["a"] (`Node n0) >>= fun n1 ->
-      Graph.update g n1 ["b"] (`Node n0) >>= fun n2 ->
-      Graph.update g n2 ["a"] (`Node n0) >>= fun n3 ->
+      with_node repo (fun g -> Graph.update g n0 ["a"] (`Node n0)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.update g n1 ["b"] (`Node n0)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.update g n2 ["a"] (`Node n0)) >>= fun n3 ->
       assert_no_duplicates "2" n3 >>= fun () ->
 
-      Graph.update g n0 ["b"] (normal kv1) >>= fun n1 ->
-      Graph.update g n1 ["a"] (normal kv1) >>= fun n2 ->
-      Graph.update g n2 ["a"] (normal kv1) >>= fun n3 ->
+      with_node repo (fun g -> Graph.update g n0 ["b"] (normal kv1)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.update g n1 ["a"] (normal kv1)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.update g n2 ["a"] (normal kv1)) >>= fun n3 ->
       assert_no_duplicates "3" n3 >>= fun () ->
 
-      Graph.update g n0 ["a"] (normal kv1) >>= fun n1 ->
-      Graph.update g n1 ["b"] (normal kv1) >>= fun n2 ->
-      Graph.update g n2 ["b"] (normal kv1) >>= fun n3 ->
+      with_node repo (fun g -> Graph.update g n0 ["a"] (normal kv1)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.update g n1 ["b"] (normal kv1)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.update g n2 ["b"] (normal kv1)) >>= fun n3 ->
       assert_no_duplicates "4" n3 >>= fun () ->
 
       Lwt.return_unit
@@ -287,29 +295,29 @@ module Make (S: S) = struct
       in
 
       kv1 ~repo >>= fun kv1 ->
-      let g = g repo and h = h repo and c = P.Repo.commit_t repo in
+      let h = h repo and c = P.Repo.commit_t repo in
 
       let check_val = check (T.option P.Commit.Val.t) in
       let check_key = check P.Commit.Key.t in
       let check_keys = checks P.Commit.Key.t in
 
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.v g ["x", normal kv1] >>= fun kt1 ->
-      Graph.v g ["a", `Node kt1] >>= fun kt2 ->
-      Graph.v g ["b", `Node kt2] >>= fun kt3 ->
+      with_node repo (fun g -> Graph.v g ["x", normal kv1]) >>= fun kt1 ->
+      with_node repo (fun g -> Graph.v g ["a", `Node kt1]) >>= fun kt2 ->
+      with_node repo (fun g -> Graph.v g ["b", `Node kt2]) >>= fun kt3 ->
 
       (* r1 : t2 *)
-      let with_info n fn = fn h ~info:(info n) in
-      with_info 3 @@ History.v ~node:kt2 ~parents:[] >>= fun (kr1, _) ->
-      with_info 3 @@ History.v ~node:kt2 ~parents:[] >>= fun (kr1',_) ->
+      let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
+      with_info 3 (History.v ~node:kt2 ~parents:[]) >>= fun (kr1, _) ->
+      with_info 3 (History.v ~node:kt2 ~parents:[]) >>= fun (kr1',_) ->
       P.Commit.find c kr1  >>= fun t1 ->
       P.Commit.find c kr1' >>= fun t1' ->
       check_val "t1" t1 t1';
       check_key "kr1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      with_info 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun (kr2, _) ->
-      with_info 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun (kr2',_) ->
+      with_info 4 (History.v ~node:kt3 ~parents:[kr1]) >>= fun (kr2, _) ->
+      with_info 4 (History.v ~node:kt3 ~parents:[kr1]) >>= fun (kr2',_) ->
       check_key "kr2" kr2 kr2';
 
       History.closure h ~min:[] ~max:[kr1] >>= fun kr1s ->
@@ -695,14 +703,15 @@ module Make (S: S) = struct
 
       (* merge contents *)
 
-      let v = P.Repo.contents_t repo in
-      Irmin.Merge.f (P.Contents.merge v)
-        ~old:(old (Some kv1)) (Some kv1) (Some kv1)
+      with_contents repo (fun v ->
+          Irmin.Merge.f (P.Contents.merge v)
+            ~old:(old (Some kv1)) (Some kv1) (Some kv1))
       >>= fun kv1' ->
       check_result "merge kv1" (Ok (Some kv1)) kv1';
 
-      Irmin.Merge.f (P.Contents.merge v)
-        ~old:(old (Some kv1)) (Some kv1) (Some kv2)
+      with_contents repo (fun v ->
+          Irmin.Merge.f (P.Contents.merge v)
+            ~old:(old (Some kv1)) (Some kv1) (Some kv2))
       >>= fun kv2' ->
       check_result "merge kv2" (Ok (Some kv2)) kv2';
 
@@ -711,22 +720,24 @@ module Make (S: S) = struct
       let g = g repo in
 
       (* The empty node *)
-      Graph.v g [] >>= fun k0 ->
+      with_node repo (fun g -> Graph.v g []) >>= fun k0 ->
 
       (* Create the node t1 -x-> (v1) *)
-      Graph.v g ["x", normal kv1] >>= fun k1 ->
+      with_node repo (fun g -> Graph.v g ["x", normal kv1]) >>= fun k1 ->
 
       (* Create the node t2 -b-> t1 -x-> (v1) *)
-      Graph.v g ["b", `Node k1] >>= fun k2 ->
+      with_node repo (fun g -> Graph.v g ["b", `Node k1]) >>= fun k2 ->
 
       (* Create the node t3 -c-> t1 -x-> (v1) *)
-      Graph.v g ["c", `Node k1] >>= fun k3 ->
+      with_node repo (fun g -> Graph.v g ["c", `Node k1]) >>= fun k3 ->
 
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Irmin.Merge.(f @@ P.Node.merge g)
-        ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
+      with_node repo (fun g ->
+          Irmin.Merge.(f @@ P.Node.merge g)
+            ~old:(old (Some k0)) (Some k2) (Some k3))
+      >>= fun k4 ->
       merge_exn "k4" k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
 
@@ -742,26 +753,29 @@ module Make (S: S) = struct
         Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
 
-      let h = h repo and c = P.Repo.commit_t repo in
-      let with_info n fn = fn h ~info:(info n) in
+      let c = P.Repo.commit_t repo in
+      let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
 
-      with_info 0 @@ History.v ~node:k0 ~parents:[] >>= fun (kr0, _) ->
-      with_info 1 @@ History.v ~node:k2 ~parents:[kr0] >>= fun (kr1, _) ->
-      with_info 2 @@ History.v ~node:k3 ~parents:[kr0] >>= fun (kr2, _) ->
+      with_info 0 (History.v ~node:k0 ~parents:[]) >>= fun (kr0, _) ->
+      with_info 1 (History.v ~node:k2 ~parents:[kr0]) >>= fun (kr1, _) ->
+      with_info 2 (History.v ~node:k3 ~parents:[kr0]) >>= fun (kr2, _) ->
       with_info 3 (fun h ~info ->
-          Irmin.Merge.f @@ History.merge h ~info:(fun () -> info)
-        ) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
+          Irmin.Merge.f (History.merge h ~info:(fun () -> info))
+            ~old:(old kr0) kr1 kr2)
+      >>= fun kr3 ->
       merge_exn "kr3" kr3 >>= fun kr3 ->
 
       with_info 4 (fun h ~info ->
-          Irmin.Merge.f @@ History.merge h ~info:(fun () -> info)
-        ) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
+          Irmin.Merge.f (History.merge h ~info:(fun () -> info))
+            ~old:(old kr2) kr2 kr3)
+      >>= fun kr3_id' ->
       merge_exn "kr3_id'" kr3_id' >>= fun kr3_id' ->
       check S.Hash.t "kr3 id with immediate parent'" kr3 kr3_id';
 
       with_info 5 (fun h ~info ->
-          Irmin.Merge.f @@ History.merge h ~info:(fun () -> info)
-        ) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
+          Irmin.Merge.f (History.merge h ~info:(fun () -> info))
+            ~old:(old kr0) kr0 kr3)
+      >>= fun kr3_id ->
       merge_exn "kr3_id" kr3_id >>= fun kr3_id ->
       check S.Hash.t "kr3 id with old parent" kr3 kr3_id;
 
@@ -1429,7 +1443,9 @@ module Make (S: S) = struct
       let v = v2 in
       let t = P.Repo.contents_t repo in
       let write =
-        write (fun _i -> P.Contents.add t v >>= fun _ -> Lwt.return_unit)
+        write (fun _i ->
+            with_contents repo (fun t -> P.Contents.add t v) >>= fun _ ->
+            Lwt.return_unit)
       in
       let read =
         read

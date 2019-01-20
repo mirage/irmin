@@ -56,7 +56,7 @@ struct
 
   type value = V.t
 
-  type t = {
+  type 'a t = {
     path: string;
   }
 
@@ -68,6 +68,9 @@ struct
     let path = get_path config in
     IO.mkdir path >|= fun () ->
     { path }
+
+  let cast t = (t :> [`Read | `Write] t)
+  let batch t f = f (cast t)
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (Irmin.Type.to_string K.t key)
@@ -149,7 +152,7 @@ struct
   module RO = Read_only_ext(IO)(S)(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
 
-  type t = { t: RO.t; w: W.t }
+  type t = { t: unit RO.t; w: W.t }
   type key = RO.key
   type value = RO.value
   type watch = W.watch * (unit -> unit Lwt.t)

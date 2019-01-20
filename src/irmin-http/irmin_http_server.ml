@@ -56,7 +56,11 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     let err = Fmt.strf "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
-  module Content_addressable (S: Irmin.CONTENT_ADDRESSABLE_STORE)
+  module Content_addressable
+      (S: sig
+         include Irmin.CONTENT_ADDRESSABLE_STORE
+         val batch: P.Repo.t -> ([`Read|`Write] t -> 'a Lwt.t) -> 'a Lwt.t
+       end)
       (K: Irmin.Type.S with type t = S.key)
       (V: Irmin.Type.S with type t = S.value) =
   struct
@@ -66,7 +70,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
       | Ok key  -> f key
       | Error _ -> Wm.respond 404 rd
 
-    class items db = object
+    class items repo = object
       inherit resource
       method! allowed_methods rd = Wm.continue [`POST] rd
 
@@ -82,6 +86,7 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
         match Irmin.Type.of_string V.t body with
         | Error e -> parse_error rd body e
         | Ok body ->
+          S.batch repo @@ fun db ->
           S.add db body >>= fun new_id ->
           let resp_body = `String (Irmin.Type.to_string K.t new_id) in
           Wm.continue true { rd with Wm.Rd.resp_body }
@@ -289,9 +294,21 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
 
   end
 
-  module Blob = Content_addressable(P.Contents)(P.Contents.Key)(P.Contents.Val)
-  module Tree = Content_addressable(P.Node)(P.Node.Key)(P.Node.Val)
-  module Commit = Content_addressable(P.Commit)(P.Commit.Key)(P.Commit.Val)
+  module Blob = Content_addressable(struct
+      include P.Contents
+      let batch t f = P.Repo.batch t @@ fun x _ _ -> f x
+    end)(P.Contents.Key)(P.Contents.Val)
+
+  module Tree = Content_addressable(struct
+      include P.Node
+      let batch t f = P.Repo.batch t @@ fun _ x _ -> f x
+    end)(P.Node.Key)(P.Node.Val)
+
+  module Commit = Content_addressable(struct
+      include P.Commit
+      let batch t f = P.Repo.batch t @@ fun _ _ x -> f x
+    end)(P.Commit.Key)(P.Commit.Val)
+
   module Branch = Atomic_write(P.Branch)(P.Branch.Key)(P.Branch.Val)
 
   type repo = S.Repo.t
@@ -303,11 +320,11 @@ module Make (HTTP: Cohttp_lwt.S.Server) (S: Irmin.S) = struct
     let commit = P.Repo.commit_t db in
     let branch = P.Repo.branch_t db in
     let routes = [
-      ("/blobs"     , fun () -> new Blob.items     blob);
+      ("/blobs"     , fun () -> new Blob.items     db);
       ("/blob/:id"  , fun () -> new Blob.item      blob);
-      ("/trees"     , fun () -> new Tree.items     tree);
+      ("/trees"     , fun () -> new Tree.items     db);
       ("/tree/:id"  , fun () -> new Tree.item      tree);
-      ("/commits"   , fun () -> new Commit.items   commit);
+      ("/commits"   , fun () -> new Commit.items   db);
       ("/commit/:id", fun () -> new Commit.item    commit);
       ("/branches"  , fun () -> new Branch.items   branch);
       ("/branch/*"  , fun () -> new Branch.item    branch);

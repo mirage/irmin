@@ -60,14 +60,15 @@ module Store
 = struct
 
   module Node = N
-  type t = N.t * S.t
+
+  type 'a t = 'a N.t * 'a S.t
   type key = S.key
   type value = S.value
 
   let add (_, t) = S.add t
   let mem (_, t) = S.mem t
   let find (_, t) = S.find t
-  let merge_node (n, _) = Merge.f (N.merge n)
+  let merge_node (t, _) = Merge.f (N.merge t)
 
   let pp_key = Type.pp S.Key.t
 
@@ -128,8 +129,7 @@ module History (S: S.COMMIT_STORE) = struct
 
   type commit = S.key
   type node = S.Node.key
-
-  type t = S.t
+  type 'a t = 'a S.t
   type v = S.Val.t
 
   let commit_t = S.Key.t

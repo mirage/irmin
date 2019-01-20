@@ -22,7 +22,8 @@ module Make (P: S.PRIVATE): sig
                   and type contents = P.Contents.value
 
   val import: P.Repo.t -> P.Node.key -> node
-  val export: P.Repo.t -> node -> P.Node.key Lwt.t
+  val export: P.Repo.t -> [> `Write] P.Contents.t -> [> `Write] P.Node.t ->
+    node -> P.Node.key Lwt.t
   val dump: tree Fmt.t
   val equal: tree -> tree -> bool
   val node_t: node Type.t

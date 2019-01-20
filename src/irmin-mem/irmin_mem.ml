@@ -28,9 +28,12 @@ module Read_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   type key = K.t
   type value = V.t
-  type t = { mutable t: value KMap.t }
+  type 'a t = { mutable t: value KMap.t }
   let map = { t = KMap.empty }
   let v _config = Lwt.return map
+
+  let cast t = (t :> [`Read | `Write] t)
+  let batch t f = f (cast t)
 
   let pp_key = Irmin.Type.pp K.t
 
@@ -62,7 +65,7 @@ module Atomic_write (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
   module W = Irmin.Private.Watch.Make(K)(V)
   module L = Irmin.Private.Lock.Make(K)
 
-  type t = { t: RO.t; w: W.t; lock: L.t }
+  type t = { t: unit RO.t; w: W.t; lock: L.t }
   type key = RO.key
   type value = RO.value
   type watch = W.watch

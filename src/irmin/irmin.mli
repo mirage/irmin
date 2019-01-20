@@ -795,29 +795,6 @@ type 'a diff = 'a Diff.t
     are provided
     by various backends. *)
 
-(** Read-only backend stores. *)
-module type READ_ONLY_STORE = sig
-
-  (** {1 Read-only stores} *)
-
-  type t
-  (** The type for read-only backend stores. *)
-
-  type key
-  (** The type for keys. *)
-
-  type value
-  (** The type for raw values. *)
-
-  val mem: t -> key -> bool Lwt.t
-  (** [mem t k] is true iff [k] is present in [t]. *)
-
-  val find: t -> key -> value option Lwt.t
-  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
-      [None] is [k] is not present in [t]. *)
-
-end
-
 (** Content-addressable backend store. *)
 module type CONTENT_ADDRESSABLE_STORE = sig
 
@@ -827,9 +804,24 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       and add new values. Keys are derived from the values raw contents
       and hence are deterministic. *)
 
-  include READ_ONLY_STORE
+  type 'a t
+  (** The type for content-addressable backend stores. The ['a]
+     phantom type carries information about the store mutability. *)
 
-  val add: t -> value -> key Lwt.t
+  type key
+  (** The type for keys. *)
+
+  type value
+  (** The type for raw values. *)
+
+  val mem: [> `Read] t -> key -> bool Lwt.t
+  (** [mem t k] is true iff [k] is present in [t]. *)
+
+  val find: [> `Read] t -> key -> value option Lwt.t
+  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
+      [None] is [k] is not present in [t]. *)
+
+  val add: [> `Write] t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the content-addressable store to generate a
       consistent key. *)
@@ -844,9 +836,24 @@ module type APPEND_ONLY_STORE = sig
       Append-onlye stores are store where it is possible to read
       and add new values. *)
 
-  include READ_ONLY_STORE
+  type 'a t
+  (** The type for append-only backend stores. The ['a]
+     phantom type carries information about the store mutability. *)
 
-  val add: t -> key -> value -> unit Lwt.t
+  type key
+  (** The type for keys. *)
+
+  type value
+  (** The type for raw values. *)
+
+  val mem: [> `Read] t -> key -> bool Lwt.t
+  (** [mem t k] is true iff [k] is present in [t]. *)
+
+  val find: [> `Read] t -> key -> value option Lwt.t
+  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
+      [None] is [k] is not present in [t]. *)
+
+  val add: [> `Write] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
 end
@@ -859,7 +866,21 @@ module type ATOMIC_WRITE_STORE = sig
       Atomic-write stores are stores where it is possible to read,
       update and remove elements, with atomically guarantees. *)
 
-  include READ_ONLY_STORE
+  type t
+  (** The type for atomic-write backend stores.  *)
+
+  type key
+  (** The type for keys. *)
+
+  type value
+  (** The type for raw values. *)
+
+  val mem: t -> key -> bool Lwt.t
+  (** [mem t k] is true iff [k] is present in [t]. *)
+
+  val find: t -> key -> value option Lwt.t
+  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
+      [None] is [k] is not present in [t]. *)
 
   val set: t -> key -> value -> unit Lwt.t
   (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k]
@@ -1116,7 +1137,7 @@ module Contents: sig
 
     include CONTENT_ADDRESSABLE_STORE
 
-    val merge: t -> key option Merge.t
+    val merge: [`Read | `Write] t -> key option Merge.t
     (** [merge t] lifts the merge functions defined on contents values
         to contents key. The merge function will: {e (i)} read the
         values associated with the given keys, {e (ii)} use the merge
@@ -1140,7 +1161,7 @@ module Contents: sig
       module Key: Hash.S with type t = key
       module Val: S with type t = value
     end):
-    STORE with type t = S.t
+    STORE with type 'a t = 'a S.t
            and type key = S.key
            and type value = S.value
 
@@ -1541,7 +1562,7 @@ module Private: sig
       module Path: Path.S
       (** [Path] provides base functions on node paths. *)
 
-      val merge: t -> key option Merge.t
+      val merge: [`Read | `Write] t -> key option Merge.t
       (** [merge] is the 3-way merge function for nodes keys. *)
 
       module Key: Hash.S with type t = key
@@ -1574,7 +1595,7 @@ module Private: sig
                           and type contents = C.key
                           and type step = P.step
          end):
-      STORE with type t = C.t * S.t
+      STORE with type 'a t = 'a C.t * 'a S.t
              and type key = S.key
              and type value = S.value
              and module Path = P
@@ -1589,7 +1610,7 @@ module Private: sig
 
       (** {1 Node Graphs} *)
 
-      type t
+      type 'a t
       (** The type for store handles. *)
 
       type metadata
@@ -1612,30 +1633,30 @@ module Private: sig
       type value = [ `Node of node | `Contents of contents * metadata ]
       (** The type for store values. *)
 
-      val empty: t -> node Lwt.t
+      val empty: [> `Write] t -> node Lwt.t
       (** The empty node. *)
 
-      val v: t -> (step * value) list -> node Lwt.t
+      val v: [> `Write] t -> (step * value) list -> node Lwt.t
       (** [v t n] is a new node containing [n]. *)
 
-      val list: t -> node -> (step * value) list Lwt.t
+      val list: [> `Read] t -> node -> (step * value) list Lwt.t
       (** [list t n] is the contents of the node [n]. *)
 
-      val find: t -> node -> path -> value option Lwt.t
+      val find: [> `Read] t -> node -> path -> value option Lwt.t
       (** [find t n p] is the contents of the path [p] starting form
           [n]. *)
 
-      val update: t -> node -> path -> value -> node Lwt.t
+      val update: [`Read | `Write] t -> node -> path -> value -> node Lwt.t
       (** [update t n p v] is the node [x] such that [find t x p] is
           [Some v] and it behaves the same [n] for other
           operations. *)
 
-      val remove: t -> node -> path -> node Lwt.t
+      val remove: [`Read | `Write] t -> node -> path -> node Lwt.t
       (** [remove t n path] is the node [x] such that [find t x] is
           [None] and it behhaves then same as [n] for other
           operations. *)
 
-      val closure: t -> min:node list -> max:node list -> node list Lwt.t
+      val closure: [> `Read] t -> min:node list -> max:node list -> node list Lwt.t
       (** [closure t ~min ~max] is the transitive closure [c] of [t]'s
           nodes such that:
 
@@ -1671,7 +1692,7 @@ module Private: sig
     end
 
     module Graph (S: STORE): GRAPH
-      with type t = S.t
+      with type 'a t = 'a S.t
        and type contents = S.Contents.key
        and type metadata = S.Val.metadata
        and type node = S.key
@@ -1741,7 +1762,7 @@ module Private: sig
 
       include CONTENT_ADDRESSABLE_STORE
 
-      val merge: t -> info:Info.f -> key option Merge.t
+      val merge: [`Read | `Write] t -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
       module Key: Hash.S with type t = key
@@ -1765,7 +1786,7 @@ module Private: sig
                           and type commit = key
                           and type node = N.key
          end):
-      STORE with type t = N.t * S.t
+      STORE with type 'a t = 'a N.t * 'a S.t
              and type key = S.key
              and type value = S.value
              and module Key = S.Key
@@ -1781,7 +1802,7 @@ module Private: sig
 
       (** {1 Commit History} *)
 
-      type t
+      type 'a t
       (** The type for store handles. *)
 
       type node
@@ -1793,28 +1814,28 @@ module Private: sig
       type v
       (** The type for commit objects. *)
 
-      val v: t -> node:node -> parents:commit list -> info:Info.t ->
+      val v: [> `Write] t -> node:node -> parents:commit list -> info:Info.t ->
         (commit * v) Lwt.t
       (** Create a new commit. *)
 
-      val parents: t -> commit -> commit list Lwt.t
+      val parents: [> `Read] t -> commit -> commit list Lwt.t
       (** Get the commit parents.
 
           Commits form a append-only, fully functional, partial-order
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> info:Info.f -> commit Merge.t
+      val merge: [`Read | `Write] t -> info:Info.f -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
-      val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+      val lcas: [> `Read] t -> ?max_depth:int -> ?n:int -> commit -> commit ->
         (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
       (** Find the lowest common ancestors
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit list ->
-        (commit option, Merge.conflict) result Lwt.t
+      val lca: [`Read | `Write] t -> info:Info.f -> ?max_depth:int -> ?n:int ->
+        commit list -> (commit option, Merge.conflict) result Lwt.t
       (** Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling {!lcas} and merging the
           results.
@@ -1825,12 +1846,14 @@ module Private: sig
           error. *)
 
       val three_way_merge:
-        t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        [`Read | `Write] t -> info:Info.f -> ?max_depth:int -> ?n:int ->
+        commit -> commit ->
         (commit, Merge.conflict) result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
 
-      val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
+      val closure: [> `Read] t -> min:commit list -> max:commit list ->
+        commit list Lwt.t
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
           the history graph. *)
 
@@ -1843,7 +1866,7 @@ module Private: sig
 
     (** Build a commit history. *)
     module History (S: STORE): HISTORY
-      with type t = S.t
+      with type 'a t = 'a S.t
        and type node = S.Node.key
        and type commit = S.key
 
@@ -1985,10 +2008,15 @@ module Private: sig
     module Repo: sig
       type t
       val v: config -> t Lwt.t
-      val contents_t: t -> Contents.t
-      val node_t: t -> Node.t
-      val commit_t: t -> Commit.t
+      val contents_t: t -> [`Read] Contents.t
+      val node_t: t -> [`Read] Node.t
+      val commit_t: t -> [`Read] Commit.t
       val branch_t: t -> Branch.t
+      val batch: t ->
+        ([`Read | `Write] Contents.t ->
+         [`Read | `Write] Node.t ->
+         [`Read | `Write] Commit.t
+         -> 'a Lwt.t) -> 'a Lwt.t
     end
 
     (** URI-based low-level sync. *)
@@ -3323,7 +3351,11 @@ sig
 
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
-  val v: config -> t Lwt.t
+  val batch: [`Read] t -> ([`Read | `Write] t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] applies the writes in [f] in a separate batch. The
+     exact guarantees depends on the backends. *)
+
+  val v: config -> [`Read] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end
@@ -3336,7 +3368,11 @@ sig
 
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
-  val v: config -> t Lwt.t
+  val batch: [`Read] t -> ([`Read | `Write] t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] applies the writes in [f] in a separate batch. The
+     exact guarantees depends on the backends. *)
+
+  val v: config -> [`Read] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end
@@ -3344,11 +3380,15 @@ end
 module Content_addressable (S: APPEND_ONLY_STORE_MAKER) (K: Hash.S) (V: Type.S):
 sig
   include CONTENT_ADDRESSABLE_STORE
-    with type t = S(K)(V).t
+    with type 'a t = 'a S(K)(V).t
      and type key = K.t
      and type value = V.t
 
-  val v: config -> t Lwt.t
+  val batch: [`Read] t -> ([`Read | `Write] t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] applies the writes in [f] in a separate batch. The
+     exact guarantees depends on the backends. *)
+
+  val v: config -> [`Read] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end
