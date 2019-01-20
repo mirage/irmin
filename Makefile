@@ -1,4 +1,4 @@
-.PHONY: all clean test
+.PHONY: all clean test doc examples
 
 all:
 	dune build
@@ -11,3 +11,6 @@ examples:
 
 clean:
 	dune clean
+
+doc:
+	dune build @doc
