@@ -51,9 +51,6 @@ module FS: sig
   module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
   (** Append-only store maker. *)
 
-  module Link: Irmin.LINK_STORE_MAKER
-  (** Immutable store for links. *)
-
   module Atomic_write: Irmin.ATOMIC_WRITE_STORE_MAKER
   (** Atomic-write store maker. *)
 

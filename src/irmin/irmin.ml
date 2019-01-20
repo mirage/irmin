@@ -172,7 +172,6 @@ module Of_private = Store.Make
 
 module type READ_ONLY_STORE = S.READ_ONLY_STORE
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
-module type LINK_STORE = S.LINK_STORE
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module type TREE = S.TREE
 module type S = S.STORE
@@ -181,9 +180,6 @@ type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
-
-module type LINK_STORE_MAKER = S.LINK_STORE_MAKER
-
 module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
 module type S_MAKER = S.MAKER
 

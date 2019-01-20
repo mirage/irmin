@@ -56,7 +56,7 @@ let simple =
   ]
 
 let stable =
-  let test stable = test_add_read ~stable (module Test_chunk.MemChunkStable) in
+  let test stable = test_add_read ~stable (module Test_chunk.MemChunk) in
   "stable", [
     "add/read: simple", `Quick, run @@ test false;
     "add/read: stable", `Quick, run @@ test true;

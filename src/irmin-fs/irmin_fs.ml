@@ -139,26 +139,6 @@ struct
 
 end
 
-module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
-
- include Read_only_ext(IO)(S)(K)(K)
-
- let temp_dir t = t.path / "tmp"
-
- let add t index key =
-   Log.debug (fun f -> f "add link");
-   let file = file_of_key t index in
-   let value = Irmin.Type.encode_bin K.t key in
-   let temp_dir = temp_dir t in
-   IO.file_exists file >>= function
-   | true  -> Lwt.return_unit
-   | false ->
-     Lwt.catch
-       (fun () -> IO.write_file ~temp_dir file value)
-       (fun e -> Lwt.fail e)
-
-end
-
 module Atomic_write_ext
     (IO: IO)
     (S: Config)
@@ -306,25 +286,7 @@ module Obj = struct
 
 end
 
-module Links = struct
-
-  let dir t = t / "links"
-
-  let file_of_key k =
-    let pre = String.with_range k ~len:2 in
-    let suf = String.with_range k ~first:2 in
-    "links" / pre / suf
-
-  let key_of_file path =
-    let path = string_chop_prefix ~prefix:("links" / "") path in
-    let path = String.cuts ~sep:Filename.dir_sep path in
-    let path = String.concat ~sep:"" path in
-    path
-
-end
-
 module Append_only (IO: IO) = Append_only_ext (IO)(Obj)
-module Link (IO: IO) = Link_ext (IO)(Links)
 module Atomic_write (IO: IO) = Atomic_write_ext (IO)(Ref)
 module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)
 

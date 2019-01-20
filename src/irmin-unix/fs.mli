@@ -15,7 +15,6 @@
  *)
 
 module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
-module Link: Irmin.LINK_STORE_MAKER
 module Atomic_write: Irmin.ATOMIC_WRITE_STORE_MAKER
 module Make: Irmin.S_MAKER
 module KV: Irmin.KV_MAKER

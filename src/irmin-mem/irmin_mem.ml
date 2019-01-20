@@ -56,17 +56,6 @@ module Append_only (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
 end
 
-module Link (K: Irmin.Hash.S) = struct
-
-  include Read_only(K)(K)
-
-  let add t index key =
-    Log.debug (fun f -> f "add link");
-    t.t <- KMap.add index key t.t;
-    Lwt.return_unit
-
-end
-
 module Atomic_write (K: Irmin.Type.S) (V: Irmin.Type.S) = struct
 
   module RO = Read_only(K)(V)

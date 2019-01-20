@@ -179,16 +179,6 @@ module type COMMIT_HISTORY = sig
   val commit_t: commit Type.t
 end
 
-module type LINK_STORE = sig
-  include READ_ONLY_STORE
-  val add: t -> key -> value -> unit Lwt.t
-end
-
-module type LINK_STORE_MAKER = functor (K: HASH) -> sig
-  include LINK_STORE with type key = K.t and type value = K.t
-  val v: Conf.t -> t Lwt.t
-end
-
 module type SLICE = sig
   type t
   type contents

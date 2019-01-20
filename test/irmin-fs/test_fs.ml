@@ -20,17 +20,11 @@ module IO = Irmin_fs.IO_mem
 
 let test_db = "test-db"
 
-module Link = struct
-  include Irmin_fs.Link(IO)(Irmin.Hash.SHA1)
-  let v () = v (Irmin_fs.config test_db)
-end
-
 let init () =
   IO.clear () >|= fun () ->
   IO.set_listen_hook ()
 
 let config = Irmin_fs.config test_db
-let link = (module Link: Irmin_test.Link.S)
 let clean () = Lwt.return_unit
 let stats = None
 
