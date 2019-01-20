@@ -43,14 +43,19 @@ end
 
 
 module type APPEND_ONLY_STORE = sig
-  include S.READ_ONLY_STORE
-  val add: t -> key -> value -> unit Lwt.t
+  type 'a t
+  type key
+  type value
+  val mem : [> `Read] t -> key -> bool Lwt.t
+  val find: [> `Read] t -> key -> value option Lwt.t
+  val add: [> `Write] t -> key -> value -> unit Lwt.t
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K: Type.S) (V: Type.S) ->
 sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-  val v: Conf.t -> t Lwt.t
+  val batch: [`Read] t -> ([`Read | `Write] t -> 'a Lwt.t) -> 'a Lwt.t
+  val v: Conf.t -> [`Read] t Lwt.t
 end
 
 module Content_addressable (AO: APPEND_ONLY_STORE_MAKER)
@@ -97,58 +102,82 @@ struct
 
   module X = struct
     module Hash = H
-    module XContents = struct
-      include CA(H)(C)
+    module Val = Contents.String
+    module Values = CA (Hash)(Val)
+    module Make (V: Type.S) = struct
       module Key = H
-      module Val = C
+      type 'a t = 'a Values.t
+      type key = Key.t
+      type value = V.t
+      let add t v = Values.add t (Type.encode_bin V.t v)
+      let find t k = Values.find t k >|= function
+        | None -> None
+        | Some v -> match Type.decode_bin V.t v with
+          | Ok v -> Some v
+          | _ -> None
+      let mem t k =
+        (* normally we should also check that [find] returns a value
+           of the right type, but type mismatch here is not supposed to
+           happen. *)
+        Values.mem t k
     end
-    module Contents = Contents.Store(XContents)
+    module Contents = struct
+      module CA = struct
+        module Val = C
+        include Make(Val)
+      end
+      include Contents.Store(CA)
+    end
+
     module Node = struct
       module CA = struct
-        module Key = H
         module Val = N
-        include CA (Key)(Val)
+        include Make(Val)
       end
       include Node.Store(Contents)(P)(M)(CA)
-      let v = CA.v
     end
+
     module Commit = struct
       module CA = struct
-        module Key = H
         module Val = CT
-        include CA (Key)(Val)
+        include Make(Val)
       end
       include Commit.Store(Node)(CA)
-      let v = CA.v
     end
+
     module Branch = struct
       module Key = B
       module Val = H
       include AW (Key)(Val)
     end
+
     module Slice = Slice.Make(Contents)(Node)(Commit)
     module Sync = Sync.None(H)(B)
     module Repo = struct
+
       type t = {
         config: Conf.t;
-        contents: Contents.t;
-        node: Node.t;
-        commit: Commit.t;
+        values: [`Read] Values.t;
         branch: Branch.t;
       }
+
+      let contents_t t = t.values
+      let node_t t = t.values, t.values
+      let commit_t t = (t.values, t.values), t.values
       let branch_t t = t.branch
-      let commit_t t = t.commit
-      let node_t t = t.node
-      let contents_t t = t.contents
+
+      let batch t f =
+        Values.batch t.values @@ fun t ->
+        let contents_t = t in
+        let node_t = contents_t, t in
+        let commit_t = node_t, t in
+        f contents_t node_t commit_t
 
       let v config =
-        XContents.v config >>= fun contents ->
-        Node.v config      >>= fun node ->
-        Commit.v config    >>= fun commit ->
-        Branch.v config    >|= fun branch ->
-        let node = contents, node in
-        let commit = node, commit in
-        { contents; node; commit; branch; config }
+        Values.v config >>= fun values ->
+        Branch.v config >|= fun branch ->
+        { values; branch; config }
+
     end
   end
   include Store.Make(X)
@@ -170,7 +199,6 @@ end
 
 module Of_private = Store.Make
 
-module type READ_ONLY_STORE = S.READ_ONLY_STORE
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module type TREE = S.TREE

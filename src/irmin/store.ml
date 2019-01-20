@@ -77,14 +77,15 @@ module Make (P: S.PRIVATE) = struct
     let compare_hash = Type.compare Hash.t
 
     let v r ~info ~parents tree =
+      P.Repo.batch r @@ fun contents_t node_t commit_t ->
       let parents = List.rev_map (fun c -> c.h) parents in
       let parents = List.sort compare_hash parents in
       (match tree with
-       | `Node n     -> Tree.export r n
+       | `Node n     -> Tree.export r contents_t node_t n
        | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
-      P.Commit.add (P.Repo.commit_t r) v >|= fun h ->
+      P.Commit.add commit_t v >|= fun h ->
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
@@ -214,23 +215,13 @@ module Make (P: S.PRIVATE) = struct
     let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
 
     let import t s =
-      let aux (type k) (type v)
-          name
-          (type s)
-          (module S: S.CONTENT_ADDRESSABLE_STORE
-            with type t = s and type key = k and type value = v)
-          (dk: k Type.t)
-          fn
-          (s:t -> s)
-        =
-        fn (fun (k, v) ->
-            S.add (s t) v >>= fun k' ->
-            if not (Type.equal dk k k') then (
-              import_error "%s import error: expected %a, got %a"
-                name Type.(pp dk) k Type.(pp dk) k'
-            )
-            else Lwt.return_unit
-          )
+      let aux name add dk (k, v) =
+        add v >>= fun k' ->
+        if not (Type.equal dk k k') then (
+          import_error "%s import error: expected %a, got %a"
+            name Type.(pp dk) k Type.(pp dk) k'
+        )
+        else Lwt.return_unit
       in
       let contents = ref [] in
       let nodes = ref [] in
@@ -240,15 +231,19 @@ module Make (P: S.PRIVATE) = struct
           | `Node n     -> nodes := n :: !nodes; Lwt.return_unit
           | `Commit c   -> commits := c :: !commits; Lwt.return_unit
         ) >>= fun () ->
+      P.Repo.batch t @@ fun contents_t node_t commit_t ->
       Lwt.catch (fun () ->
-          aux "Contents" (module P.Contents) P.Contents.Key.t
-            (fun f -> Lwt_list.iter_s f !contents) contents_t
+          Lwt_list.iter_p
+            (aux "Contents" (P.Contents.add contents_t) P.Contents.Key.t)
+            !contents
           >>= fun () ->
-          aux "Node" (module P.Node) P.Node.Key.t
-            (fun f -> Lwt_list.iter_s f !nodes) node_t
+          Lwt_list.iter_p
+            (aux "Node" (P.Node.add node_t) P.Node.Key.t)
+            !nodes
           >>= fun () ->
-          aux "Commit" (module P.Commit) P.Commit.Key.t
-            (fun f -> Lwt_list.iter_s f !commits) commit_t
+          Lwt_list.iter_p
+            (aux "Commit" (P.Commit.add commit_t) P.Commit.Key.t)
+            !commits
           >|= fun () ->
           Ok ())
         (function
@@ -463,8 +458,9 @@ module Make (P: S.PRIVATE) = struct
     (* Merge two commits:
        - Search for common ancestors
        - Perform recursive 3-way merges *)
-    let three_way_merge t ?max_depth ?n c1 c2 =
-      H.three_way_merge (history_t t) ?max_depth ?n c1.Commit.h c2.Commit.h
+    let three_way_merge t ?max_depth ?n ~info c1 c2 =
+      P.Repo.batch (repo t) @@ fun _ _ commit_t ->
+      H.three_way_merge commit_t ?max_depth ?n ~info c1.Commit.h c2.Commit.h
 
     (* FIXME: we might want to keep the new commit in case of conflict,
          and use it as a base for the next merge. *)

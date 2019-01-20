@@ -787,8 +787,8 @@ module Make (P: S.PRIVATE) = struct
 
   let import repo k = Node.of_key repo k
 
-  let export repo n =
-    let node n = P.Node.add (P.Repo.node_t repo) (Node.export_map n) in
+  let export repo contents_t node_t n =
+    let node n = P.Node.add node_t (Node.export_map n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match n.Node.v with
@@ -822,7 +822,7 @@ module Make (P: S.PRIVATE) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  P.Contents.add (P.Repo.contents_t repo) x >|= fun k ->
+                  P.Contents.add contents_t x >|= fun k ->
                   c.Contents.v <- Contents.Both (repo, k, x);
                 ) todo
           ) !contents;

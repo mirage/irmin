@@ -132,7 +132,7 @@ struct
   module Path = P
   module Metadata = M
 
-  type t = C.t * S.t
+  type 'a t = 'a C.t * 'a S.t
   type key = S.key
   type value = S.value
 
@@ -227,7 +227,7 @@ module Graph (S: S.NODE_STORE) = struct
   type contents = Contents.t
   type node = S.key
   type path = Path.t
-  type t = S.t
+  type 'a t = 'a S.t
 
   type value = [ `Contents of contents * metadata | `Node of node ]
 

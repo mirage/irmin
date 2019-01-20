@@ -34,7 +34,8 @@ end
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
     with type key = Key.t and type value = Value.t
-  val create: unit -> t Lwt.t
+  val v: unit -> [`Read] t Lwt.t
+  val batch: [`Read] t -> ([`Read|`Write] t -> 'a Lwt.t) -> 'a Lwt.t
 end
 
 module Append_only = Irmin_mem.Append_only
@@ -42,13 +43,13 @@ module Content_addressable = Irmin.Content_addressable(Append_only)
 
 module Mem = struct
   include Content_addressable(Key)(Value)
-  let create () = v @@ Irmin_mem.config ()
+  let v () = v @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
   include Content_addressable(Key)(Value)
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
-  let create () = v small_config
+  let v () = v small_config
 end
 
 let init () =

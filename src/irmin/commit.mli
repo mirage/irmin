@@ -29,14 +29,14 @@ module Store
                              and type node = N.key
      end):
   S.COMMIT_STORE
-  with  type t = N.t * C.t
+  with type 'a t = 'a N.t * 'a C.t
    and type key = C.key
    and type value = C.value
    and module Key = C.Key
    and module Val = C.Val
 
 module History (C: S.COMMIT_STORE):
-  S.COMMIT_HISTORY with type t = C.t
+  S.COMMIT_HISTORY with type 'a t = 'a C.t
                     and type v = C.Val.t
                     and type node = C.Node.key
                     and type commit = C.key

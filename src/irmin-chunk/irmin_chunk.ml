@@ -122,9 +122,9 @@ struct
   type key = CA.key
   type value = V.t
 
-  type t = {
+  type 'a t = {
     chunking    : [`Max | `Best_fit];
-    db          : CA.t;             (* An handler to the underlying database. *)
+    db          : 'a CA.t;          (* An handler to the underlying database. *)
     chunk_size  : int;                                 (* the size of chunks. *)
     max_children: int;     (* the maximum number of children a node can have. *)
     max_data    : int; (* the maximum length (in bytes) of data stored in one
@@ -204,6 +204,8 @@ struct
            chunk_size K.digest_size max_data max_children);
     CA.v config >|= fun db ->
     { chunking; db; chunk_size; max_children; max_data }
+
+  let batch t f = CA.batch t.db (fun db -> f { t with db })
 
   let find_leaves t key =
     AO.find t.db key >>= function

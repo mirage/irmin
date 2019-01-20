@@ -101,7 +101,7 @@ module Make_private
 
   module Content_addressable (V: V) = struct
 
-    type t = G.t
+    type 'a t = G.t
     type key = H.t
     type value = V.t
 
@@ -847,6 +847,8 @@ module Make_ext
       let node_t t = contents_t t, t.g
       let commit_t t = node_t t, t.g
 
+      let batch t f = f (contents_t t) (node_t t) (commit_t t)
+
       type config = {
         root   : string;
         dot_git: string option;
@@ -984,7 +986,7 @@ module Content_addressable (G: Git.S) (V: Irmin.Type.S) = struct
   let state t =
     M.repo_of_git t >|= fun r ->
     M.Private.Repo.contents_t r
-  type t = G.t
+  type 'a t = G.t
   type key = X.key
   type value = X.value
   let with_state f t x = state t >>= fun t -> f t x
