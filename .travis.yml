@@ -4,6 +4,7 @@ script: bash -ex .travis-opam.sh
 env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
+  - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git#kv-ng"
   - PINS="irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
   matrix:
   - OCAML_VERSION=4.03 PACKAGE="irmin-fs.dev"
