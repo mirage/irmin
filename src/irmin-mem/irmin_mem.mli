@@ -27,9 +27,6 @@ val config: unit -> Irmin.config
 module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
 (** An in-memory store for append-only values. *)
 
-module Link: Irmin.LINK_STORE_MAKER
-(** An in-memory store for immutable links. *)
-
 module Atomic_write: Irmin.ATOMIC_WRITE_STORE_MAKER
 (** An in-memory store with atomic-write guarantees. *)
 

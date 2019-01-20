@@ -312,7 +312,6 @@ module IO = struct
 end
 
 module Append_only = Irmin_fs.Append_only(IO)
-module Link = Irmin_fs.Link(IO)
 module Atomic_write = Irmin_fs.Atomic_write(IO)
 module Make = Irmin_fs.Make(IO)
 module KV = Irmin_fs.KV(IO)

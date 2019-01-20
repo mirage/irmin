@@ -19,12 +19,6 @@ open Lwt.Infix
 let store =
   Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)
 
-module Link = struct
-  include Irmin_mem.Link(Irmin.Hash.SHA1)
-  let v () = v (Irmin_mem.config ())
-end
-
-let link = (module Link: Irmin_test.Link.S)
 let config = Irmin_mem.config ()
 
 let clean () =

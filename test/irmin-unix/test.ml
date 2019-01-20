@@ -15,7 +15,6 @@
  *)
 
 let misc = [
-  "LINK"     , [Irmin_test.Link.test "unix" Test_unix.FS.link];
   "GIT-BARE" , [Test_unix.Git.misc];
   "GIT.misc" , Test_git.tests Test_unix.Git.store;
 ]

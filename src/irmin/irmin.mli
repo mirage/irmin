@@ -851,27 +851,6 @@ module type APPEND_ONLY_STORE = sig
 
 end
 
-(** Immutable Link store. *)
-module type LINK_STORE = sig
-
-  (** {1 Immutable Link stores}
-
-      The link store contains {i verified} links between low-level
-      keys. This is used to certify that a value can be accessed via
-      different keys: because they have been obtained using different
-      hash functions (SHA1 and SHA256 for instance) or because the
-      value might have different but equivalent concrete
-      representation (for instance a set might be represented as
-      various equivalent trees). *)
-
-  include READ_ONLY_STORE
-
-  val add: t -> key -> value -> unit Lwt.t
-  (** [add t src dst] add a link between the key [src] and the value
-      [dst]. *)
-
-end
-
 (** Atomic-write stores. *)
 module type ATOMIC_WRITE_STORE = sig
 
@@ -3362,17 +3341,16 @@ sig
       configuration [config], which is provided by the backend. *)
 end
 
-module Content_addressable (S: APPEND_ONLY_STORE_MAKER):
-  CONTENT_ADDRESSABLE_STORE_MAKER
+module Content_addressable (S: APPEND_ONLY_STORE_MAKER) (K: Hash.S) (V: Type.S):
+sig
+  include CONTENT_ADDRESSABLE_STORE
+    with type t = S(K)(V).t
+     and type key = K.t
+     and type value = V.t
 
-(** [LINK_MAKER] is the signature exposed by store which enable adding
-    relation between keys. This is used to decouple the way keys are
-    manipulated by the Irmin runtime and the keys used for
-    storage. This is useful when trying to optimize storage for
-    random-access file operations or for encryption. *)
-module type LINK_STORE_MAKER = functor (K: Hash.S) -> sig
-  include LINK_STORE with type key = K.t and type value = K.t
   val v: config -> t Lwt.t
+  (** [v config] is a function returning fresh store handles, with the
+      configuration [config], which is provided by the backend. *)
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write

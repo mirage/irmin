@@ -14,13 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [
-  "link", [
-    Irmin_test.Link.test "mem" Test_fs.link;
-  ]
-]
-
 let () =
-  Irmin_test.Store.run "irmin" ~misc [
+  Irmin_test.Store.run "irmin" ~misc:[] [
     `Quick , Test_fs.suite;
   ]

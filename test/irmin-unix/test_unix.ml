@@ -46,13 +46,6 @@ module FS = struct
   let suite =
     { Irmin_test.name = "FS"; clean; init; store; stats; config }
 
-  module Link = struct
-    include Irmin_unix.FS.Link(Irmin.Hash.SHA1)
-    let v () = v (Irmin_fs.config test_db)
-  end
-
-  let link = (module Link: Irmin_test.Link.S)
-
 end
 
 (* GIT *)
