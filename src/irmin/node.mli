@@ -26,17 +26,17 @@ module Make (K: Type.S) (P: S.PATH) (M: S.METADATA):
           and type metadata = M.t
 
 module Store
+    (C: S.CONTENTS_STORE)
     (P: S.PATH)
     (M: S.METADATA)
     (N: sig
-       include S.CONTENT_ADDRESSABLE_STORE
+       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
                            and type hash = key
                            and type metadata = M.t
                            and type step = P.step
-     end)
-     (C: S.CONTENTS_STORE with type key = N.key):
+     end):
   S.NODE_STORE with type t = C.t * N.t
                 and type key = N.key
                 and type value = N.value

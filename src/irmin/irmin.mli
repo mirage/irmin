@@ -1576,17 +1576,17 @@ module Private: sig
 
     (** [Store] creates node stores. *)
     module Store
+        (C: Contents.STORE)
         (P: Path.S)
         (M: Metadata.S)
         (S: sig
-           include CONTENT_ADDRESSABLE_STORE
+           include CONTENT_ADDRESSABLE_STORE with type key = C.key
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type hash = key
                           and type metadata = M.t
                           and type step = P.step
-         end)
-         (C: Contents.STORE with type key = S.key):
+         end):
       STORE with type t = C.t * S.t
              and type key = S.key
              and type value = S.value
@@ -1764,13 +1764,13 @@ module Private: sig
 
     (** [Store] creates a new commit store. *)
     module Store
+        (N: Node.STORE)
         (S: sig
-           include CONTENT_ADDRESSABLE_STORE
+           include CONTENT_ADDRESSABLE_STORE with type key = N.key
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type hash = key
-         end)
-         (N: Node.STORE with type key = S.key):
+         end):
       STORE with type t = N.t * S.t
              and type key = S.key
              and type value = S.value

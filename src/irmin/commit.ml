@@ -47,32 +47,32 @@ module Make (K: Type.S) = struct
 end
 
 module Store
-    (CS: sig
-       include S.CONTENT_ADDRESSABLE_STORE
+    (N: S.NODE_STORE)
+    (S: sig
+       include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
        module Key: S.HASH with type t = key
        module Val: S.COMMIT with type t = value
                             and type hash = key
      end)
-     (N: S.NODE_STORE with type key = CS.key)
 = struct
 
   module Node = N
-  type t = N.t * CS.t
-  type key = CS.key
-  type value = CS.value
+  type t = N.t * S.t
+  type key = S.key
+  type value = S.value
 
-  let add (_, t) = CS.add t
-  let mem (_, t) = CS.mem t
-  let find (_, t) = CS.find t
+  let add (_, t) = S.add t
+  let mem (_, t) = S.mem t
+  let find (_, t) = S.find t
   let merge_node (n, _) = Merge.f (N.merge n)
 
-  let pp_key = Type.pp CS.Key.t
+  let pp_key = Type.pp S.Key.t
 
   let err_not_found k =
     Fmt.kstrf invalid_arg "Commit.get: %a not found" pp_key k
 
   let get (_, t) k =
-    CS.find t k >>= function
+    S.find t k >>= function
     | None   -> err_not_found k
     | Some v -> Lwt.return v
 
@@ -80,13 +80,13 @@ module Store
     | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
-  let equal_opt_keys = Type.(equal (option CS.Key.t))
+  let equal_opt_keys = Type.(equal (option S.Key.t))
 
   let merge_commit info t ~old k1 k2 =
     get t k1 >>= fun v1   ->
     get t k2 >>= fun v2   ->
-    if List.mem k1 (CS.Val.parents v2) then Merge.ok k2
-    else if List.mem k2 (CS.Val.parents v1) then Merge.ok k1
+    if List.mem k1 (S.Val.parents v2) then Merge.ok k2
+    else if List.mem k2 (S.Val.parents v1) then Merge.ok k1
     else
       (* If we get an error while looking the the lca, then we
          assume that there is no common ancestor. Maybe we want to
@@ -105,20 +105,20 @@ module Store
           | None     -> Merge.ok None
           | Some old ->
             get t old >>= fun vold ->
-            Merge.ok (Some (Some (CS.Val.node vold)))
+            Merge.ok (Some (Some (S.Val.node vold)))
         in
-        merge_node t ~old (Some (CS.Val.node v1)) (Some (CS.Val.node v2))
+        merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
         empty_if_none t node >>= fun node ->
         let parents = [k1; k2] in
-        let commit = CS.Val.v ~node ~parents ~info:(info ()) in
+        let commit = S.Val.v ~node ~parents ~info:(info ()) in
         add t commit >>= fun key ->
         Merge.ok key
 
-  let merge t ~info = Merge.(option (v CS.Key.t (merge_commit info t)))
+  let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
-  module Key = CS.Key
-  module Val = CS.Val
+  module Key = S.Key
+  module Val = S.Val
 end
 
 module History (S: S.COMMIT_STORE) = struct

@@ -111,41 +111,41 @@ struct
 end
 
 module Store
+    (C: S.CONTENTS_STORE)
     (P: S.PATH)
     (M: S.METADATA)
-    (CS: sig
-       include S.CONTENT_ADDRESSABLE_STORE
+    (S: sig
+       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
                            and type hash = key
                            and type metadata = M.t
                            and type step = P.step
-     end)
-    (C: S.CONTENTS_STORE with type key = CS.key) =
+     end) =
 struct
 
   module Contents = C
-  module Key = CS.Key
+  module Key = S.Key
   module Path = P
   module Metadata = M
 
-  type t = C.t * CS.t
-  type key = CS.key
-  type value = CS.value
+  type t = C.t * S.t
+  type key = S.key
+  type value = S.value
 
-  let mem (_, t) = CS.mem t
-  let find (_, t) = CS.find t
-  let add (_, t) = CS.add t
+  let mem (_, t) = S.mem t
+  let find (_, t) = S.find t
+  let add (_, t) = S.add t
 
   let all_contents t =
-    let kvs = CS.Val.list t in
+    let kvs = S.Val.list t in
     List.fold_left (fun acc -> function
         | k, `Contents c -> (k, c) :: acc
         | _ -> acc
       ) [] kvs
 
   let all_succ t =
-    let kvs = CS.Val.list t in
+    let kvs = S.Val.list t in
     List.fold_left (fun acc -> function
         | k, `Node n -> (k, n) :: acc
         | _ -> acc
@@ -178,38 +178,38 @@ struct
       (fun _step -> merge_contents_meta c)
 
   let merge_parents merge_key =
-    Merge.alist step_t CS.Key.t (fun _step -> merge_key)
+    Merge.alist step_t S.Key.t (fun _step -> merge_key)
 
   let merge_value (c, _) merge_key =
     let explode t = all_contents t, all_succ t in
     let implode (contents, succ) =
       let xs = List.map (fun (s, c) -> s, `Contents c) contents in
       let ys = List.map (fun (s, n) -> s, `Node n) succ in
-      CS.Val.v (xs @ ys)
+      S.Val.v (xs @ ys)
     in
     let merge =
       Merge.pair (merge_contents_meta c) (merge_parents merge_key)
     in
-    Merge.like CS.Val.t merge explode implode
+    Merge.like S.Val.t merge explode implode
 
   let rec merge t =
     let merge_key =
       Merge.v
-        (Type.option CS.Key.t)
+        (Type.option S.Key.t)
         (fun ~old x y -> Merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
     let read = function
-      | None   -> Lwt.return CS.Val.empty
-      | Some k -> find t k >|= function None -> CS.Val.empty | Some v -> v
+      | None   -> Lwt.return S.Val.empty
+      | Some k -> find t k >|= function None -> S.Val.empty | Some v -> v
     in
     let add v =
-      if CS.Val.is_empty v then Lwt.return_none
+      if S.Val.is_empty v then Lwt.return_none
       else add t v >>= fun k -> Lwt.return (Some k)
     in
-    Merge.like_lwt Type.(option CS.Key.t) merge read add
+    Merge.like_lwt Type.(option S.Key.t) merge read add
 
-  module Val = CS.Val
+  module Val = S.Val
 
 end
 

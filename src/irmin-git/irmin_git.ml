@@ -328,7 +328,7 @@ module Make_private
         let of_git = function G.Value.Tree t -> Ok (Some t) | _ -> Ok None
       end)
   end
-  module Node = Irmin.Private.Node.Store(P)(Metadata)(XNode)(Contents)
+  module Node = Irmin.Private.Node.Store(Contents)(P)(Metadata)(XNode)
 
   module XCommit = struct
     module Val = struct
@@ -444,7 +444,7 @@ module Make_private
       end)
 
   end
-  module Commit = Irmin.Private.Commit.Store(XCommit)(Node)
+  module Commit = Irmin.Private.Commit.Store(Node)(XCommit)
 
 end
 

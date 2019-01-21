@@ -108,7 +108,7 @@ struct
         module Val = N
         include CA (Key)(Val)
       end
-      include Node.Store(P)(M)(CA)(Contents)
+      include Node.Store(Contents)(P)(M)(CA)
       let v = CA.v
     end
     module Commit = struct
@@ -117,7 +117,7 @@ struct
         module Val = CT
         include CA (Key)(Val)
       end
-      include Commit.Store(CA)(Node)
+      include Commit.Store(Node)(CA)
       let v = CA.v
     end
     module Branch = struct
