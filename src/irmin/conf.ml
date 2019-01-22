@@ -83,9 +83,16 @@ let conv t = t.conv
 let default t = t.default
 
 let key ?docs ?docv ?doc name conv default =
+  let () =
+    String.iter
+      (function
+        | '-' | '_' | 'a' .. 'z' | '0' .. '9' -> ()
+        | _ -> raise @@ Invalid_argument name)
+      name
+  in
   let to_univ, of_univ = Univ.create () in
   let id = Oo.id (object end) in
-  { id; to_univ; of_univ; name; docs; docv; doc; conv; default }
+  {id; to_univ; of_univ; name; docs; docv; doc; conv; default}
 
 module Id = struct
   type t = int
