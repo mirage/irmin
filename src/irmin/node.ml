@@ -46,18 +46,17 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make (K_c: Type.S) (K_n: Type.S) (P: S.PATH) (M: S.METADATA) =
+module Make (K: Type.S) (P: S.PATH) (M: S.METADATA) =
 struct
 
-  type contents = K_c.t
-  type node = K_n.t
+  type hash = K.t
   type step = P.step
   type metadata = M.t
 
   module StepMap =
     Map.Make(struct type t = P.step let compare = Type.compare P.step_t end)
 
-  type value = [ `Contents of contents * metadata | `Node of node ]
+  type value = [ `Contents of hash * metadata | `Node of hash ]
 
   type k =
     | Map  : value StepMap.t -> k
@@ -103,10 +102,9 @@ struct
     let map' = StepMap.remove k map in
     if map == map' then t else of_map map'
 
-  let value_t = node ~default:M.default K_c.t M.t K_n.t
+  let value_t = node ~default:M.default K.t M.t K.t
   let step_t = P.step_t
-  let node_t = K_n.t
-  let contents_t = K_c.t
+  let hash_t = K.t
   let metadata_t = M.t
   let t = Type.like Type.(list (pair P.step_t value_t)) of_list list
 
@@ -117,12 +115,11 @@ module Store
     (P: S.PATH)
     (M: S.METADATA)
     (S: sig
-       include S.CONTENT_ADDRESSABLE_STORE
+       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
        module Key: S.HASH with type t = key
        module Val: S.NODE with type t = value
-                           and type node = key
+                           and type hash = key
                            and type metadata = M.t
-                           and type contents = C.key
                            and type step = P.step
      end) =
 struct

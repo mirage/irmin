@@ -93,10 +93,9 @@ module Make_ext
     (B: Branch.S)
     (H: Hash.S)
     (N: S.NODE with type metadata = M.t
-                and type contents = H.t
-                and type node = H.t
+                and type hash = H.t
                 and type step = P.step)
-    (CT: S.COMMIT with type node = H.t and type commit = H.t)
+    (CT: S.COMMIT with type hash = H.t)
 =
 struct
 
@@ -192,8 +191,8 @@ module Make
     (B: S.BRANCH)
     (H: S.HASH) =
 struct
-  module N = Node.Make(H)(H)(P)(M)
-  module CT = Commit.Make(H)(H)
+  module N = Node.Make(H)(P)(M)
+  module CT = Commit.Make(H)
   include Make_ext(CA)(AW)(M)(C)(P)(B)(H)(N)(CT)
 end
 

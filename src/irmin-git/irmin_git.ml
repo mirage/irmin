@@ -204,23 +204,20 @@ module Make_private
       type t = G.Value.Tree.t
       let pp = G.Value.Tree.pp
       type metadata = Metadata.t
-      type contents = Contents.key
-      type node = Key.t
+      type hash = Key.t
       type step = Path.step
-      type value = [`Node of node | `Contents of contents * metadata ]
+      type value = [`Node of hash | `Contents of hash * metadata ]
       let metadata_t = Metadata.t
-      let contents_t = Contents.Key.t
-      let node_t = Key.t
+      let hash_t = Key.t
       let step_t = Path.step_t
 
       let value_t =
         let open Irmin.Type in
-        let contents_t = pair contents_t metadata_t in
         variant "Tree.value" (fun node contents -> function
             | `Node n     -> node n
             | `Contents c -> contents c)
-        |~ case1 "node"     node_t     (fun n -> `Node n)
-        |~ case1 "contents" contents_t (fun c -> `Contents c)
+        |~ case1 "node"     hash_t     (fun n -> `Node n)
+        |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
         |> sealv
 
       let of_step = Irmin.Type.to_string P.step_t
@@ -292,7 +289,7 @@ module Make_private
               (to_step name, mk_c node perm) :: acc
           ) [] (G.Value.Tree.to_list t)
 
-       module N = Irmin.Private.Node.Make (H)(H)(P)(Metadata)
+       module N = Irmin.Private.Node.Make(H)(P)(Metadata)
        let to_n t = N.v (alist t)
        let of_n n = v (N.list n)
 
@@ -338,11 +335,9 @@ module Make_private
       type t = G.Value.Commit.t
       let pp = G.Value.Commit.pp
 
-      type commit = H.t
-      type node = H.t
+      type hash = H.t
 
-      let commit_t = H.t
-      let node_t = H.t
+      let hash_t = H.t
 
       let info_of_git author message =
         let id = author.Git.User.name in
@@ -403,7 +398,7 @@ module Make_private
         let message = G.Value.Commit.message g in
         info_of_git author message
 
-      module C = Irmin.Private.Commit.Make(H)(H)
+      module C = Irmin.Private.Commit.Make(H)
 
       let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 

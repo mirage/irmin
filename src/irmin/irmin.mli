@@ -1483,17 +1483,14 @@ module Private: sig
       type metadata
       (** The type for node metadata. *)
 
-      type contents
-      (** The type for contents keys. *)
-
-      type node
-      (** The type for node keys. *)
+      type hash
+      (** The type for keys. *)
 
       type step
       (** The type for steps between nodes. *)
 
-      type value = [`Node of node | `Contents of contents * metadata ]
-      (** The type for either node keys or contents keys combined with
+      type value = [`Node of hash | `Contents of hash * metadata ]
+      (** The type for either (node) keys or (contents) keys combined with
           their metadata. *)
 
       val v: (step * value) list -> t
@@ -1531,11 +1528,8 @@ module Private: sig
       val metadata_t: metadata Type.t
       (** [metadata_t] is the value type for {!metadata}. *)
 
-      val contents_t: contents Type.t
-      (** [contents_t] is the value type for {!contents}. *)
-
-      val node_t: node Type.t
-      (** [node_t] is the value type for {!node}. *)
+      val hash_t: hash Type.t
+      (** [hash_t] is the value type for {!hash}. *)
 
       val step_t: step Type.t
       (** [step_t] is the value type for {!step}. *)
@@ -1546,10 +1540,9 @@ module Private: sig
     end
 
     (** [Node] provides a simple node implementation, parameterized by
-        the contents [C], node [N], paths [P] and metadata [M]. *)
-    module Make (C: Type.S) (N: Type.S) (P: Path.S) (M: Metadata.S):
-      S with type contents = C.t
-         and type node = N.t
+        the contents and notes keys [K], paths [P] and metadata [M]. *)
+    module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
+      S with type hash = K.t
          and type step = P.step
          and type metadata = M.t
 
@@ -1572,12 +1565,12 @@ module Private: sig
 
       (** [Val] provides base functions for node values. *)
       module Val: S with type t = value
-                     and type node = key
+                     and type hash = key
                      and type metadata = Metadata.t
                      and type step = Path.step
 
       (** [Contents] is the underlying contents store. *)
-      module Contents: Contents.STORE with type key = Val.contents
+      module Contents: Contents.STORE with type key = Val.hash
     end
 
     (** [Store] creates node stores. *)
@@ -1586,12 +1579,11 @@ module Private: sig
         (P: Path.S)
         (M: Metadata.S)
         (S: sig
-           include CONTENT_ADDRESSABLE_STORE
+           include CONTENT_ADDRESSABLE_STORE with type key = C.key
            module Key: Hash.S with type t = key
            module Val: S with type t = value
-                          and type node = key
+                          and type hash = key
                           and type metadata = M.t
-                          and type contents = C.key
                           and type step = P.step
          end):
       STORE with type 'a t = 'a C.t * 'a S.t
@@ -1718,19 +1710,16 @@ module Private: sig
       type t
       (** The type for commit values. *)
 
-      type commit
-      (** Type for commit keys. *)
+      type hash
+      (** Type for keys. *)
 
-      type node
-      (** Type for node keys. *)
-
-      val v: info:Info.t -> node:node -> parents:commit list -> t
+      val v: info:Info.t -> node:hash -> parents:hash list -> t
       (** Create a commit. *)
 
-      val node: t -> node
+      val node: t -> hash
       (** The underlying node. *)
 
-      val parents: t -> commit list
+      val parents: t -> hash list
       (** The commit parents. *)
 
       val info: t -> Info.t
@@ -1741,18 +1730,15 @@ module Private: sig
       val t: t Type.t
       (** [t] is the value type for {!t}. *)
 
-      val commit_t: commit Type.t
-      (** [commit_t] is the value type for {!commit}. *)
-
-      val node_t: node Type.t
-      (** [node_t] is the value type for {!node}. *)
+      val hash_t: hash Type.t
+      (** [hash_t] is the value type for {!hash}. *)
 
     end
 
     (** [Make] provides a simple implementation of commit values,
-        parameterized by the commit [C] and node [N]. *)
-    module Make (C: Type.S) (N: Type.S):
-      S with type commit = C.t and type node = N.t
+        parameterized by the commit and node keys [K]. *)
+    module Make (K: Type.S):
+      S with type hash = K.t
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig
@@ -1768,10 +1754,10 @@ module Private: sig
       (** [Key] provides base functions for commit keys. *)
 
       (** [Val] provides functions for commit values. *)
-      module Val: S with type t = value and type commit = key
+      module Val: S with type t = value and type hash = key
 
       (** [Node] is the underlying node store. *)
-      module Node: Node.STORE with type key = Val.node
+      module Node: Node.STORE with type key = Val.hash
 
     end
 
@@ -1779,11 +1765,10 @@ module Private: sig
     module Store
         (N: Node.STORE)
         (S: sig
-           include CONTENT_ADDRESSABLE_STORE
+           include CONTENT_ADDRESSABLE_STORE with type key = N.key
            module Key: Hash.S with type t = key
            module Val: S with type t = value
-                          and type commit = key
-                          and type node = N.key
+                          and type hash = key
          end):
       STORE with type 'a t = 'a N.t * 'a S.t
              and type key = S.key
@@ -1987,11 +1972,11 @@ module Private: sig
 
     (** Private nod store. *)
     module Node: Node.STORE
-      with type key = Hash.t and type Val.contents = Contents.key
+      with type key = Hash.t and type Val.hash = Contents.key
 
     (** Private commit store. *)
     module Commit: Commit.STORE
-      with type key = Hash.t and type Val.node = Node.key
+      with type key = Hash.t and type Val.hash = Node.key
 
     (** Private branch store. *)
     module Branch: Branch.STORE
@@ -3421,11 +3406,9 @@ module Make_ext
     (Branch  : Branch.S)
     (Hash    : Hash.S)
     (N: Private.Node.S with type metadata = Metadata.t
-                        and type contents = Hash.t
-                        and type node = Hash.t
+                        and type hash = Hash.t
                         and type step = Path.step)
-    (CT: Private.Commit.S with type node = Hash.t
-                           and type commit = Hash.t):
+    (CT: Private.Commit.S with type hash = Hash.t):
   S with type key = Path.t
      and type contents = Contents.t
      and type branch = Branch.t

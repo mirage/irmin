@@ -403,7 +403,7 @@ struct
     module Node = struct
       module X = struct
         module Key = H
-        module Val = Irmin.Private.Node.Make(H)(H)(P)(M)
+        module Val = Irmin.Private.Node.Make(H)(P)(M)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Node.Store(Contents)(P)(M)(X)
@@ -412,7 +412,7 @@ struct
     module Commit = struct
       module X = struct
         module Key = H
-        module Val = Irmin.Private.Commit.Make(H)(H)
+        module Val = Irmin.Private.Commit.Make(H)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Commit.Store(Node)(X)
