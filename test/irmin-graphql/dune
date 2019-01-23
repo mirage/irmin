@@ -1,7 +1,7 @@
 (library
  (name      test_graphql)
  (modules   test_graphql)
- (libraries irmin-test test_mem test_git irmin-unix irmin-graphql))
+ (libraries alcotest irmin-unix))
 
 (executable
  (name      test)
@@ -10,5 +10,5 @@
 
 (alias
  (name    runtest)
- (package irmin-graphql)
+ (package irmin-unix)
  (action  (chdir %{workspace_root} (run %{exe:test.exe} -q --color=always))))

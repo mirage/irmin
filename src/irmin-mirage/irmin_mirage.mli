@@ -137,7 +137,7 @@ end
 module Graphql: sig
   module Server: sig
     module type S = sig
-      module Pclock: Mirage_clock_lwt.PCLOCK
+      module Pclock: Mirage_clock.PCLOCK
       module Http: Cohttp_lwt.S.Server
       module Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
@@ -149,7 +149,7 @@ module Graphql: sig
 
     module Make
         (Http: Cohttp_lwt.S.Server)
-        (Pclock: Mirage_clock_lwt.PCLOCK)
+        (Pclock: Mirage_clock.PCLOCK)
         (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint):
       S with module Pclock = Pclock
          and module Store = Store

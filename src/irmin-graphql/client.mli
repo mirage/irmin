@@ -7,6 +7,13 @@ module Query: sig
   val generate_json: unit -> string
 end
 
+module Json: sig
+  type t = Irmin.Contents.Json_value.t
+
+  (** Used to find nested values in a JSON object *)
+  val find: t -> string list -> t option
+end
+
 module type S = sig
   type t
 

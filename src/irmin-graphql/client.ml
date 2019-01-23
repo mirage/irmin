@@ -1,6 +1,7 @@
 open Lwt.Infix
 
 module Query = Query
+module Json = Json
 
 type error = [`Msg of string]
 

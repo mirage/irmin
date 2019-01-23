@@ -362,7 +362,7 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
               mk_branch (Store.repo s) branch >>= fun t ->
               Sync.fetch t remote >>= function
               | Ok d ->
-                Store.Head.set s d >|= fun () ->
+                Store.Head.set t d >|= fun () ->
                 Ok d
               | Error e ->
                 let err = Fmt.to_to_string Sync.pp_fetch_error e in
