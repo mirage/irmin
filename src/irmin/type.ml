@@ -772,7 +772,7 @@ module Decode_json = struct
 
   let char e =
     lexeme e >>= function
-    | `String s when String.length s = 1 -> Ok (String.get s 1)
+    | `String s when String.length s = 1 -> Ok (String.get s 0)
     | l -> error e l "`String[1]"
 
   let int32 e = float e >|= Int32.of_float
