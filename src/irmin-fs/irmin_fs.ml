@@ -161,7 +161,7 @@ struct
 
   module E = Ephemeron.K1.Make (struct
     type t = string
-    let equal = (=)
+    let equal = fun x y -> compare x y = 0
     let hash = Hashtbl.hash
   end)
 

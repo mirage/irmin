@@ -487,7 +487,7 @@ module Irmin_branch_store
 
   module E = Ephemeron.K1.Make (struct
     type t = Fpath.t
-    let equal = (=)
+    let equal = fun x y -> compare x y = 0
     let hash = Hashtbl.hash
   end)
 
@@ -914,14 +914,14 @@ module Mem = struct
 
   module E = Ephemeron.K1.Make (struct
     type t = Fpath.t  * Fpath.t option * int option * buffer Lwt_pool.t option
-    let equal = (=)
+    let equal = fun x y -> compare x y = 0
     let hash = Hashtbl.hash
   end)
 
   let confs = E.create 10
 
   let find_conf c = match E.find confs c with
-    | exception Not_found -> None 
+    | exception Not_found -> None
     | x -> Some x
 
   let add_conf c t = E.replace confs c t; t
