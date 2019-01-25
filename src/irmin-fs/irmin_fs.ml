@@ -159,18 +159,22 @@ struct
 
   let temp_dir t = t.t.RO.path / "tmp"
 
-  (* FIXME: do we really want a global state here?
-     maybe we should use a weak map? *)
-  let watches = Hashtbl.create 10
+  module E = Ephemeron.K1.Make (struct
+    type t = string
+    let equal = fun x y -> compare x y = 0
+    let hash = Hashtbl.hash
+  end)
+
+  let watches = E.create 10
 
   let v config =
     RO.v config >|= fun t ->
     let w =
       let path = RO.get_path config in
-      try Hashtbl.find watches path
+      try E.find watches path
       with Not_found ->
         let w = W.v () in
-        Hashtbl.add watches path w;
+        E.add watches path w;
         w
     in
     { t; w }

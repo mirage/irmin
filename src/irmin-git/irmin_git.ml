@@ -485,7 +485,13 @@ module Irmin_branch_store
     m: Lwt_mutex.t;
   }
 
-  let watches = Hashtbl.create 10
+  module E = Ephemeron.K1.Make (struct
+    type t = Fpath.t
+    let equal = fun x y -> compare x y = 0
+    let hash = Hashtbl.hash
+  end)
+
+  let watches = E.create 10
 
   type key = Key.t
   type value = Val.t
@@ -564,11 +570,10 @@ module Irmin_branch_store
         | Ok r             -> Lwt.return r
     end >|= fun git_head ->
     let w =
-      try Hashtbl.find watches (G.dotgit t)
+      try E.find watches (G.dotgit t)
       with Not_found ->
         let w = W.v () in
-        (* FIXME: we might want to use a weak table *)
-        Hashtbl.add watches (G.dotgit t) w;
+        E.add watches (G.dotgit t) w;
         w
     in
     { git_head; bare; t; w; dot_git; m }
@@ -907,13 +912,19 @@ module Mem = struct
 
   include Git.Mem.Store
 
-  let confs = Hashtbl.create 10 (* XXX: should probably be a weak table *)
+  module E = Ephemeron.K1.Make (struct
+    type t = Fpath.t  * Fpath.t option * int option * buffer Lwt_pool.t option
+    let equal = fun x y -> compare x y = 0
+    let hash = Hashtbl.hash
+  end)
 
-  let find_conf c = match Hashtbl.find confs c with
+  let confs = E.create 10
+
+  let find_conf c = match E.find confs c with
     | exception Not_found -> None
     | x -> Some x
 
-  let add_conf c t = Hashtbl.replace confs c t; t
+  let add_conf c t = E.replace confs c t; t
 
   let v' ?dotgit ?compression ?buffers root =
     let buffer = match buffers with
