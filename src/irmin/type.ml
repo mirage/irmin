@@ -66,7 +66,7 @@ module Json = struct
 
 end
 
-type len = [`Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
+type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 
 type 'a pp = 'a Fmt.t
 type 'a of_string = string -> ('a, [`Msg of string]) result
@@ -234,13 +234,13 @@ let int = Prim Int
 let int32 = Prim Int32
 let int64 = Prim Int64
 let float = Prim Float
-let string = Prim (String `Int64)
-let bytes = Prim (Bytes `Int64)
+let string = Prim (String `Int)
+let bytes = Prim (Bytes `Int)
 let string_of n = Prim (String n)
 let bytes_of n = Prim (Bytes n)
 
-let list ?(len=`Int64) v = List { v; len }
-let array ?(len=`Int64) v = Array { v; len }
+let list ?(len=`Int) v = List { v; len }
+let array ?(len=`Int) v = Array { v; len }
 let pair a b = Tuple (Pair (a, b))
 let triple a b c = Tuple (Triple (a, b, c))
 let option a = Option a
@@ -646,7 +646,7 @@ module Encode_json = struct
       match encode_json with
       | Some f -> f e u
       | None   ->
-        let string = Prim (String `Int64) in
+        let string = Prim (String `Int) in
         match x, pp with
         | Prim _, Some pp -> t string e (Fmt.to_to_string pp u)
         | _               -> t x e (g u)
@@ -836,7 +836,7 @@ module Decode_json = struct
       match decode_json with
       | Some d -> d e
       | None   ->
-        let string = Prim (String `Int64) in
+        let string = Prim (String `Int) in
         match x, of_string with
         | Prim _, Some x -> t string e >|= x |> join
         | _              -> t x e >|= f
@@ -924,32 +924,41 @@ let of_json_string x s = Decode_json.(t x @@ Json.decoder (`String s))
 
 module Size_of = struct
 
-  let len = function
+  let int n =
+    let rec aux len n =
+      if n >= 0 && n < 128 then len
+      else aux (len+1) (n lsr 7)
+    in
+    `Size (aux 1 n)
+
+  let size = function
+    | `Size s   -> s
+    | `Buffer b -> String.length b
+
+  let len n = function
+    | `Int     -> size (int n)
     | `Int8    -> 1
     | `Int16   -> 2
     | `Int32   -> 4
     | `Int64   -> 8
     | `Fixed _ -> 0
 
-  let size = function
-    | `Size s   -> s
-    | `Buffer b -> String.length b
-
   let unit () = `Size 0
   let char (_:char) = `Size 1
   let int32 (_:int32) = `Size 4
   let int64 (_:int64) = `Size 8
-  let int (_:int) = `Size 8 (* always use 64 bits for storing ints *)
   let bool (_:bool) = `Size 1
   let float (_:float) = `Size 8 (* NOTE: we consider 'double' here *)
-  let string n s = `Size (len n + String.length s)
-  let bytes n s = `Size (len n + Bytes.length s)
+  let string n s = let s = String.length s in `Size (len s n + s)
+  let bytes n s = let s = Bytes.length s in `Size (len s n + s)
 
   let list l n x =
-    `Size (List.fold_left (fun acc x -> acc + size (l x)) (len n) x)
+    let init = len (List.length x) n in
+    `Size (List.fold_left (fun acc x -> acc + size (l x)) init x)
 
   let array l n x =
-    `Size (Array.fold_left (fun acc x -> acc + size (l x)) (len n) x)
+    let init = len (Array.length x) n in
+    `Size (Array.fold_left (fun acc x -> acc + size (l x)) init x)
 
   let pair a b (x, y) = `Size (size (a x) + size (b y))
   let triple a b c (x, y, z) = `Size (size (a x) + size (b y) + size (c z))
@@ -1064,10 +1073,21 @@ module Encode_bin = struct
   let int32 buf ofs i = B.set_uint32 buf ofs i ; ofs + 4
   let int64 buf ofs i = B.set_uint64 buf ofs i ; ofs + 8
   let float buf ofs f = int64 buf ofs (Int64.bits_of_float f)
-  let int buf ofs i = int64 buf ofs (Int64.of_int i)
   let bool buf ofs b = char buf ofs (if b then '\255' else '\000')
 
+  let int buf ofs i =
+    let rec aux n ofs =
+      if n >= 0 && n < 128 then
+        int8 buf ofs n
+      else
+        let out = 128 + (n land 127) in
+        let ofs = int8 buf ofs out in
+        aux (n lsr 7) ofs
+    in
+    aux i ofs
+
   let len n buf ofs i = match n with
+    | `Int     -> int buf ofs i
     | `Int8    -> int8 buf ofs i
     | `Int16   -> int16 buf ofs i
     | `Int32   -> int32 buf ofs (Int32.of_int i)
@@ -1212,10 +1232,19 @@ module Decode_bin = struct
   let int32 buf ofs = ok (ofs+4) (B.get_uint32 buf ofs)
   let int64 buf ofs = ok (ofs+8) (B.get_uint64 buf ofs)
   let bool buf ofs = char buf ofs >|= function '\000' -> false | _ -> true
-  let int buf ofs = int64 buf ofs >|= Int64.to_int
   let float buf ofs = int64 buf ofs >|= Int64.float_of_bits
 
+  let int buf ofs =
+    let rec aux n p ofs =
+      int8 buf ofs >>= fun (ofs, i) ->
+      let n = n + ((i land 127) lsl (p*7)) in
+      if i >= 0 && i < 128 then (ofs, n)
+      else aux n (p+1) ofs
+    in
+    aux 0 0 ofs
+
   let len buf ofs = function
+    | `Int     -> int buf ofs
     | `Int8    -> int8 buf ofs
     | `Int16   -> int16 buf ofs
     | `Int32   -> int32 buf ofs >|= Int32.to_int
