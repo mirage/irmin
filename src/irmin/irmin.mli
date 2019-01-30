@@ -61,7 +61,7 @@ module Type: sig
   type 'a t
   (** The type for runtime representation of values of type ['a]. *)
 
-  type len = [ `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int]
+  type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int]
   (** The type of integer used to store buffers, list or array
      lengths. *)
 
@@ -77,8 +77,8 @@ module Type: sig
   (** [char] is a representation of the character type. *)
 
   val int: int t
-  (** [int] is a representation of integers. They will always be
-     serialised to 64 bits. *)
+  (** [int] is a representation of integers. Binary serialization used
+      a varying-width representation. *)
 
   val int32: int32 t
   (** [int32] is a representation of the 32-bit integers type. *)

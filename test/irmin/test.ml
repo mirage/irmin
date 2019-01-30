@@ -21,7 +21,7 @@ let test_base () =
   Alcotest.(check string) "JSON int" "42" s;
 
   let s = T.encode_bin T.int 42 in
-  Alcotest.(check string) "binery int" "\000\000\000\000\000\000\000*" s;
+  Alcotest.(check string) "binary int" "*" s;
 
   let s = T.to_string T.int 42 in
   Alcotest.(check string) "CLI string" "42" s
@@ -118,6 +118,45 @@ let test_equal () =
   let b = `O ["a", `Bool true; "b", `Float 2.; "c", `A [`String "test"]] in
   Alcotest.(check bool) "json eq" (T.equal Irmin.Contents.Json_value.t a b) true
 
+let test_int () =
+  let test dx x =
+    let tt = Alcotest.testable (T.pp dx) (T.equal dx) in
+    match T.decode_bin dx (T.encode_bin dx x) with
+    | Error (`Msg e) -> Alcotest.fail e
+    | Ok y -> Alcotest.(check tt) "eq" x y
+  in
+  let size x s =
+    match T.size_of T.int x with
+    | `Size ss -> Alcotest.(check int) (Fmt.strf "size:%d" x) s ss
+    | _ -> Alcotest.fail "size"
+  in
+  let p7  = 128 in
+  let p14 = 16384 in
+  let p21 = 2097152 in
+  let p28 = 268435456 in
+  let p35 = 34359738368 in
+  let p42 = 4398046511104 in
+  let p49 = 562949953421312 in
+  let p56 = 72057594037927936 in
+  (*  let p63 = max_int in *)
+  let ps = [p7; p14; p21; p28; p35; p42; p49; p56; (* p63 *) ] in
+  List.iter (fun p ->
+      test T.int (p - 1);
+      test T.int p;
+      test T.int (p + 1)
+    ) (0 :: ps);
+  test T.(list int) [];
+  test T.string "";
+  test T.string (String.make p14 'x');
+  List.iter (fun p ->
+      if p > 0 && p < p28 then test T.(array int) (Array.make p 42)
+    ) ps;
+  size 0 1;
+  List.iteri (fun i p ->
+      size (p - 1) (i + 1);
+      size p (i + 2)
+    ) ps
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -125,6 +164,7 @@ let suite = [
     "bin"    , `Quick, test_bin;
     "compare", `Quick, test_compare;
     "equal"  , `Quick, test_equal;
+    "ints"   , `Quick, test_int;
   ]
 ]
 
