@@ -1,0 +1,14 @@
+(library
+ (name      test_fdb)
+ (modules   test_fdb)
+ (libraries irmin-fdb irmin-test))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries digestif.c test_fdb))
+
+(alias
+ (name    runtest)
+ (package irmin-fdb)
+ (action (run ./test.exe -q --color=always)))

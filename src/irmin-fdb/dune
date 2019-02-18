@@ -1,0 +1,4 @@
+(library
+ (name        irmin_fdb)
+ (public_name irmin-fdb)
+ (libraries   irmin irmin-chunk fdb lwt lwt.unix))
