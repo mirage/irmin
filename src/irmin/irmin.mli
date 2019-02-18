@@ -2898,6 +2898,11 @@ module type S = sig
       (or from the [t]'s head if the list of heads is empty) and
       stopping at [min] if specified. *)
 
+  val last_modified: ?number:int -> t -> key -> commit list Lwt.t
+  (** [last_modified ?number c k] is the list of the last [number] commits
+      that modified [key], starting from [t]'s head. Default value for
+      [number] is 1 *)
+
   (** Manipulate branches. *)
   module Branch: sig
 

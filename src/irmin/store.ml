@@ -903,6 +903,49 @@ module Make (P: S.PRIVATE) = struct
         | _ -> Lwt.return_none
       ) g
 
+  module Heap = Bheap.Make(struct
+      type t = commit
+      let compare c1 c2 =
+         Int64.compare
+          (Info.date @@ Commit.info c2)
+          (Info.date @@ Commit.info c1)
+    end)
+
+  let last_modified ?(number = 1) t key =
+    Head.get t >>= fun commit ->
+    let heap = Heap.create 5 in
+    let () = Heap.add heap commit in
+    let rec search acc =
+      if Heap.is_empty heap || List.length acc = number then Lwt.return acc
+      else
+        let current = Heap.pop_maximum heap in
+        let parents = Commit.parents current in
+        of_commit current >>= fun store ->
+        find store key >>= fun current_value ->
+        if List.length parents = 0
+        then (
+          if current_value <> None
+          then Lwt.return (current :: acc)
+          else Lwt.return acc)
+        else
+          Lwt_list.for_all_p
+            (fun hash ->
+              Commit.of_hash (repo store) hash >>= function
+              | Some commit -> (
+                let () = Heap.add heap commit in
+                of_commit commit >>= fun store ->
+                find store key >|= fun e ->
+                match (e, current_value) with
+                | Some x, Some y -> not (Type.equal Contents.t x y)
+                | Some _, None -> true
+                | _, _ -> false )
+              | None -> Lwt.return_false)
+            parents
+          >>= fun found ->
+          if found then search (current :: acc) else search acc
+    in
+    search []
+
   module Branch = struct
 
     include P.Branch.Key
