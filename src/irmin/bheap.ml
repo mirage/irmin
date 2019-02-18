@@ -47,14 +47,14 @@ module Make(X : Ordered) = struct
     assert (n > 0);
     let n' = 2 * n in
     let d = h.data in
-    let d' = Array.create n' d.(0) in
+    let d' = Array.make n' d.(0) in
     Array.blit d 0 d' 0 n;
     h.data <- d'
 
   let add h x =
     (* first addition: we allocate the array *)
     if h.size < 0 then begin
-      h.data <- Array.create (- h.size) x; h.size <- 0
+      h.data <- Array.make (- h.size) x; h.size <- 0
     end;
     let n = h.size in
     (* resizing if needed *)
