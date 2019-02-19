@@ -434,7 +434,7 @@ module Type: sig
   type 'a size_of = 'a -> [`Size of int | `Buffer of string]
     (** The type for size function related to binary encoder/decoders. *)
 
-  val encode_bin: ?buf:bytes -> 'a t -> 'a -> string
+  val encode_bin: ?buf:(bytes * int) -> 'a t -> 'a -> string
   (** [encode_bin t e] encodes [t] into a [string] buffer. The size
      of the returned buffer is precomputed and the buffer is allocated
      at once or it can be passed using the optional argument [buf].
@@ -443,7 +443,8 @@ module Type: sig
      single buffer (of type [bytes] or [string]): the original value
      is returned as is, without being copied. *)
 
-  val decode_bin: ?exact:bool -> 'a t -> string -> ('a, [`Msg of string]) result
+  val decode_bin: ?exact:bool -> ?off:int -> 'a t ->
+    string -> ('a, [`Msg of string]) result
   (** [decode_bin t buf] decodes values of type [t] as produced by
       [encode_string t v].
 
