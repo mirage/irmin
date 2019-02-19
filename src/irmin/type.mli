@@ -134,7 +134,7 @@ val to_json_string: ?minify:bool -> 'a t -> 'a to_string
 val of_json_string: 'a t -> 'a of_string
 
 val encode_bin: ?buf:(bytes * int) -> 'a t -> 'a to_string
-val decode_bin: ?exact:bool -> ?off:int -> 'a t -> 'a of_string
+val decode_bin: ?exact:bool -> ?off:int -> ?len:int -> 'a t -> 'a of_string
 
 type 'a ty = 'a t
 

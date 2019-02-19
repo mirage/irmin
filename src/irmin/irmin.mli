@@ -443,7 +443,7 @@ module Type: sig
      single buffer (of type [bytes] or [string]): the original value
      is returned as is, without being copied. *)
 
-  val decode_bin: ?exact:bool -> ?off:int -> 'a t ->
+  val decode_bin: ?exact:bool -> ?off:int -> ?len:int -> 'a t ->
     string -> ('a, [`Msg of string]) result
   (** [decode_bin t buf] decodes values of type [t] as produced by
       [encode_string t v].

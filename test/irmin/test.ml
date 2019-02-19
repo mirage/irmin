@@ -185,6 +185,19 @@ let test_sharing () =
   Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\004xxxx";
   Alcotest.(check bool) "foo 4 shares" true (buf == Bytes.unsafe_of_string buf')
 
+let test_decode () =
+  let decode ~exact ~off ?len buf exp =
+      match exp, T.decode_bin ~exact ~off ?len T.string buf with
+        | Error (), Error _ -> ()
+        | Ok x, Ok y -> Alcotest.(check string) ("decode " ^ x) x y
+        | Error _, Ok _ -> Alcotest.fail "error expected"
+        | Ok _, Error (`Msg e) -> Alcotest.fail e
+  in
+  decode ~exact:true ~off:3 ~len:3 "123aaayyy" (Ok "aaa");
+  decode ~exact:true ~off:3 ~len:3 "xxxaa" (Error ());
+  decode ~exact:false ~off:3 ~len:3 "xxxaa" (Ok "aa");
+  decode ~exact:false ~off:3 "xxxaaaaa" (Ok "aaaaa")
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -194,6 +207,7 @@ let suite = [
     "equal"  , `Quick, test_equal;
     "ints"   , `Quick, test_int;
     "sharing", `Quick, test_sharing;
+    "decode" , `Quick, test_decode;
   ]
 ]
 
