@@ -57,7 +57,7 @@ end = struct
     |+ field "message"   string (fun t -> t.message)
     |> sealr
 
-  let t =  Irmin.Type.like' ~cli:(pp, of_string) ~compare t
+  let t =  Irmin.Type.like ~cli:(pp, of_string) ~compare t
 
 end
 
@@ -89,7 +89,7 @@ end = struct
 
   let cli = lines, of_string
 
-  let t = Irmin.Type.(like' ~cli (list Entry.t))
+  let t = Irmin.Type.(like ~cli (list Entry.t))
 
   let timestamp = function
     | [] -> 0L
