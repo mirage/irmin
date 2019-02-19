@@ -185,6 +185,23 @@ let test_sharing () =
   Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\004xxxx";
   Alcotest.(check int) "foo 4 len" 4 n
 
+let test_decode () =
+  let wrap f =
+    try Ok (f ())
+    with e -> Fmt.kstrf (fun s -> Error s) "%a" Fmt.exn e
+  in
+  let decode ~off buf exp =
+      match exp, wrap (fun () -> T.decode_bin T.string buf off) with
+        | Error (), Error _   -> ()
+        | Ok x    , Ok (_, y) -> Alcotest.(check string) ("decode " ^ x) x y
+        | Error _ , Ok (_, y) -> Alcotest.failf "error expected, got %s" y
+        | Ok x    , Error e   -> Alcotest.failf "expected: %s, got error: %s" x e
+  in
+  decode ~off:2 "xx\003aaayyy" (Ok "aaa");
+  decode ~off:2 "xx\003aa" (Error ());
+  decode ~off:2 "xx\002aa" (Ok "aa");
+  decode ~off:2 "xx\000aaaaa" (Ok "")
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -194,6 +211,7 @@ let suite = [
     "equal"  , `Quick, test_equal;
     "ints"   , `Quick, test_int;
     "sharing", `Quick, test_sharing;
+    "decode" , `Quick, test_decode;
   ]
 ]
 

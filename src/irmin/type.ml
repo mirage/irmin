@@ -1355,9 +1355,7 @@ let decode_bin t buf off =
   let rec aux : type a. a t -> string -> (int * a) = fun t x -> match t with
     | Like l when l.decode_bin = None -> let n, v = aux l.x x in n, l.f v
     | Self s          -> aux s.self x
-    | Prim (String _) -> String.length x, x
-    | Prim (Bytes _)  -> String.length x, Bytes.unsafe_of_string x
-    | _ -> Decode_bin.t t buf off
+    | _               -> Decode_bin.t t buf off
   in
   aux t buf
 
