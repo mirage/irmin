@@ -94,7 +94,7 @@ module Make (P: S.PRIVATE) = struct
         (fun _ -> assert false)
       |> sealv
 
-    let t = Type.like value (fun v -> { v }) (fun t -> t.v)
+    let t = Type.like_map value (fun v -> { v }) (fun t -> t.v)
 
     let of_contents c = { v = Contents c }
     let of_key db k = { v = Key (db, k) }
@@ -180,7 +180,7 @@ module Make (P: S.PRIVATE) = struct
         List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
       in
       let of_map m = StepMap.fold (fun k v acc -> (k, v) :: acc) m [] in
-      like (list (pair Path.step_t value)) to_map of_map
+      like_map (list (pair Path.step_t value)) to_map of_map
 
     let node map =
       let open Type in
@@ -193,7 +193,7 @@ module Make (P: S.PRIVATE) = struct
       |~ case1 "Both" (pair P.Node.Key.t map) (fun _ -> assert false)
       |> sealv
 
-    let t node = Type.like node (fun v -> { v }) (fun t -> t.v)
+    let t node = Type.like_map node (fun v -> { v }) (fun t -> t.v)
 
     let _, t = Type.mu2 (fun _ y ->
         let value = value y in

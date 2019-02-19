@@ -52,6 +52,6 @@ module String_list = struct
 
   let of_string s = Ok (List.filter ((<>)"") (String.cuts s ~sep:"/"))
 
-  let t = Type.like' ~cli:(pp, of_string) Type.(list step_t)
+  let t = Type.like ~cli:(pp, of_string) Type.(list step_t)
 
 end

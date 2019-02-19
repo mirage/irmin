@@ -458,16 +458,7 @@ module Type: sig
 
   (** {1 Customs converters} *)
 
-  val like: 'a t ->
-    ?cli:('b pp * 'b of_string) ->
-    ?json:('b encode_json * 'b decode_json) ->
-    ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
-    ?equal:('b -> 'b -> bool) ->
-    ?compare:('b -> 'b -> int) ->
-    ?hash:('b -> int) ->
-     ('a -> 'b) -> ('b -> 'a) -> 'b t
-
-  val like':
+  val like:
     ?cli:('a pp * 'a of_string) ->
     ?json:('a encode_json * 'a decode_json) ->
     ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
@@ -475,6 +466,15 @@ module Type: sig
     ?compare:('a -> 'a -> int) ->
     ?hash:('a -> int) ->
     'a t -> 'a t
+
+  val like_map: 'a t ->
+    ?cli:('b pp * 'b of_string) ->
+    ?json:('b encode_json * 'b decode_json) ->
+    ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
+    ?equal:('b -> 'b -> bool) ->
+    ?compare:('b -> 'b -> int) ->
+    ?hash:('b -> int) ->
+     ('a -> 'b) -> ('b -> 'a) -> 'b t
 
   type 'a ty = 'a t
   module type S = sig type t val t: t ty end

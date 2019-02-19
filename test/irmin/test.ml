@@ -30,7 +30,7 @@ let id x = x
 let pp_hex ppf s = let `Hex x = Hex.of_string s in Fmt.string ppf x
 let of_hex_string x = Ok (Hex.to_string (`Hex x))
 
-let hex = T.like T.string ~cli:(pp_hex, of_hex_string) id id
+let hex = T.like_map T.string ~cli:(pp_hex, of_hex_string) id id
 
 let hex2 =
   let encode_json e x =
@@ -55,7 +55,7 @@ let hex2 =
     | _ -> Alcotest.failf "invalid strings: %a %a"
              Jsonm.pp_lexeme x Jsonm.pp_lexeme y
   in
-  T.like T.string ~json:(encode_json, decode_json) id id
+  T.like_map T.string ~json:(encode_json, decode_json) id id
 
 let error = Alcotest.testable (fun ppf (`Msg e) -> Fmt.string ppf e) (=)
 let ok x = Alcotest.result x error
@@ -81,7 +81,7 @@ let test_json () =
   Alcotest.(check string) "JSON of hex2" "[\"foo\",\"666f6f\"]" x
 
 let l =
-  let hex = T.like (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
+  let hex = T.like_map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
   T.list ~len:(`Fixed 2) hex
 
 let tl = Alcotest.testable (T.pp l) (T.equal l)
@@ -98,7 +98,7 @@ let test_bin () =
   let s = T.decode_bin l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s
 
-let x = T.like' ~compare:(fun x y -> y - x - 1) T.int
+let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
 let test_compare () =
   Alcotest.(check int) "rev compare" (T.compare x 1 2) 0;
@@ -107,7 +107,7 @@ let test_compare () =
   Alcotest.(check bool) "rev equal" (T.equal x 1 2) true;
   Alcotest.(check bool) "rev equal" (T.equal x 1 1) false
 
-let x = T.like' ~equal:(fun x y -> x - y = 2) T.int
+let x = T.like ~equal:(fun x y -> x - y = 2) T.int
 
 let test_equal () =
   Alcotest.(check int) "eq" (T.compare x 1 2) (compare 1 2);

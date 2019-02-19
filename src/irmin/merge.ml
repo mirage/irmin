@@ -263,7 +263,7 @@ module MultiSet (K: sig
 
   module M = Map.Make(K)
   let of_alist l = List.fold_left (fun map (k, v)  -> M.add k v map) M.empty l
-  let t = Type.like Type.(list (pair K.t int64)) of_alist M.bindings
+  let t = Type.like_map Type.(list (pair K.t int64)) of_alist M.bindings
 
   let merge ~old m1 m2 =
     let get k m = try M.find k m with Not_found -> 0L in
@@ -294,7 +294,7 @@ struct
 
   module S = Set.Make(K)
   let of_list l = List.fold_left (fun set elt -> S.add elt set) S.empty l
-  let t = Type.(like @@ list K.t) of_list S.elements
+  let t = Type.(like_map @@ list K.t) of_list S.elements
   let pp = Type.pp t
 
   let merge ~old x y =
@@ -317,7 +317,7 @@ module Map (K: sig
 
   module M = Map.Make(K)
   let of_alist l = List.fold_left (fun map (k, v)  -> M.add k v map) M.empty l
-  let t x = Type.like Type.(list @@ pair K.t x) of_alist M.bindings
+  let t x = Type.like_map Type.(list @@ pair K.t x) of_alist M.bindings
   let iter2 f t1 t2 = alist_iter2 K.compare f (M.bindings t1) (M.bindings t2)
 
   let iter2 f m1 m2 =
@@ -429,7 +429,7 @@ let with_conflict rewrite (d, f) =
   d, f
 
 let conflict_t =
-  Type.(like string) (fun x -> `Conflict x) (function `Conflict x -> x)
+  Type.(like_map string) (fun x -> `Conflict x) (function `Conflict x -> x)
 
 let result_t ok =
   let open Type in

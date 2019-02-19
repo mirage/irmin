@@ -253,7 +253,7 @@ let split3 = function
   | Some (x, y, z) -> Some x, Some y, Some z
   | None           -> None  , None  , None
 
-let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare ?hash
+let like_map (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare ?hash
     (f: a -> b) (g: b -> a) =
   let pp, of_string = split2 cli in
   let encode_json, decode_json = split2 json in
@@ -264,8 +264,8 @@ let like (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare ?hash
          encode_bin; decode_bin; size_of;
          compare; equal; hash }
 
-let like' ?cli ?json ?bin ?equal ?compare ?hash t =
-  like ?cli ?json ?bin ?equal ?compare ?hash t (fun x -> x) (fun x -> x)
+let like ?cli ?json ?bin ?equal ?compare ?hash t =
+  like_map ?cli ?json ?bin ?equal ?compare ?hash t (fun x -> x) (fun x -> x)
 
 (* fix points *)
 

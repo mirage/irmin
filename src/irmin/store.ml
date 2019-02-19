@@ -990,6 +990,6 @@ module Make (P: S.PRIVATE) = struct
 
   let write_error_t =
     let of_string _ = assert false in
-    Type.like' ~cli:(pp_write_error, of_string) write_error_t
+    Type.like ~cli:(pp_write_error, of_string) write_error_t
 
 end
