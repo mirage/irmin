@@ -157,6 +157,34 @@ let test_int () =
       size p (i + 2)
     ) ps
 
+let test_sharing () =
+  let make () = Bytes.of_string "xxxxxxxx" in
+
+  let buf = make () in
+  let buf' = T.encode_bin ~buf:(buf, 0) T.string "foo" in
+  Alcotest.(check string) "foo 1" (Bytes.to_string buf) "fooxxxxx";
+  Alcotest.(check bool) "foo 1 shares" true (buf == Bytes.unsafe_of_string buf');
+
+  let buf = make () in
+  let buf' = T.encode_bin ~buf:(buf, 1) T.string "foo" in
+  Alcotest.(check string) "foo 2" (Bytes.to_string buf) "xfooxxxx";
+  Alcotest.(check bool) "foo 2 shares" true (buf == Bytes.unsafe_of_string buf');
+
+  let buf = make () in
+  let buf' = T.encode_bin ~buf:(buf, 2) T.bytes (Bytes.of_string "foo") in
+  Alcotest.(check string) "foo 3" (Bytes.to_string buf) "xxfooxxx";
+  Alcotest.(check bool) "foo 3 shares" true (buf == Bytes.unsafe_of_string buf');
+
+  let buf = make () in
+  let buf' = T.encode_bin ~buf:(buf, 3) T.bytes (Bytes.of_string "foo") in
+  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxxfooxx";
+  Alcotest.(check bool) "foo 4 shares" true (buf == Bytes.unsafe_of_string buf');
+
+  let buf = make () in
+  let buf' = T.encode_bin ~buf:(buf, 3) T.int 4 in
+  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\004xxxx";
+  Alcotest.(check bool) "foo 4 shares" true (buf == Bytes.unsafe_of_string buf')
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -165,6 +193,7 @@ let suite = [
     "compare", `Quick, test_compare;
     "equal"  , `Quick, test_equal;
     "ints"   , `Quick, test_int;
+    "sharing", `Quick, test_sharing;
   ]
 ]
 
