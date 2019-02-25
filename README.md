@@ -97,8 +97,8 @@ The same thing can also be accomplished using `irmin`, the command-line applicat
 ```bash
 $ echo "root: ." > irmin.yml
 $ irmin init
-$ irmin set foo/bar "testing 123"
-$ irmin get foo/bar
+$ irmin write foo/bar "testing 123"
+$ irmin read foo/bar
 ```
 
 `irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You can also set flags globally using `$HOME/.irmin/config.yml`. Run `irmin help irmin.yml` for further details.
