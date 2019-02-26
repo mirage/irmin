@@ -31,7 +31,7 @@ module Store
   with type 'a t = 'a N.t * 'a C.t
    and type key = C.key
    and type value = C.value
-   and module Key = C.Key
+   and type Key.t = C.Key.t
    and module Val = C.Val
 
 module History (C: S.COMMIT_STORE):

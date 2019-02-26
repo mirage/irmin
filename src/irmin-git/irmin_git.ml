@@ -1082,7 +1082,7 @@ module Generic
       (S.Private.Contents.Val)
       (S.Private.Node.Path)
       (S.Branch)
-      (S.Private.Contents.Key)
+      (S.Private.Hash)
       (S.Private.Node.Val)
       (S.Private.Commit.Val)
 end

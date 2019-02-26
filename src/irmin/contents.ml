@@ -265,6 +265,8 @@ module Bytes = struct
   let merge = Merge.idempotent Type.(option t)
 end
 
+module type STORE = S.CONTENTS_STORE
+
 module Store
     (S: sig
        include S.CONTENT_ADDRESSABLE_STORE
@@ -272,7 +274,17 @@ module Store
        module Val: S.CONTENTS with type t = value
      end) =
 struct
-  include S
+
+  module Key = Hash.With_digest(S.Key)(S.Val)
+  module Val = S.Val
+
+  type 'a t = 'a S.t
+  type key = S.key
+  type value = S.value
+
+  let find = S.find
+  let add = S.add
+  let mem = S.mem
 
   let read_opt t = function
     | None   -> Lwt.return_none

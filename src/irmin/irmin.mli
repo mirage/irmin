@@ -1152,7 +1152,10 @@ module Contents: sig
 
         If any of these operations fail, return [`Conflict]. *)
 
-    module Key: Hash.S with type t = key
+    module Key: sig
+      include Hash.S with type t = key
+      val digest: value -> key
+    end
     (** [Key] provides base functions for user-defined contents keys. *)
 
     module Val: S with type t = value
@@ -1562,7 +1565,10 @@ module Private: sig
       val merge: [`Read | `Write] t -> key option Merge.t
       (** [merge] is the 3-way merge function for nodes keys. *)
 
-      module Key: Hash.S with type t = key
+      module Key: sig
+        include Hash.S with type t = key
+        val digest: value -> key
+      end
       (** [Key] provides base functions for node keys. *)
 
       module Metadata: Metadata.S
@@ -1596,7 +1602,7 @@ module Private: sig
              and type value = S.value
              and module Path = P
              and module Metadata = M
-             and module Key = S.Key
+             and type Key.t = S.Key.t
              and module Val = S.Val
 
 
@@ -1755,7 +1761,10 @@ module Private: sig
       val merge: [`Read | `Write] t -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
-      module Key: Hash.S with type t = key
+      module Key: sig
+        include Hash.S with type t = key
+        val digest: value -> key
+      end
       (** [Key] provides base functions for commit keys. *)
 
       (** [Val] provides functions for commit values. *)
@@ -1778,7 +1787,7 @@ module Private: sig
       STORE with type 'a t = 'a N.t * 'a S.t
              and type key = S.key
              and type value = S.value
-             and module Key = S.Key
+             and type Key.t = S.Key.t
              and module Val = S.Val
 
     (** [History] specifies the signature for commit history. The
