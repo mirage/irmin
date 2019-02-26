@@ -35,7 +35,7 @@ let test_add_read ?(stable=false) (module AO: Test_chunk.S) () =
     let v = String.make size 'x' in
     AO.batch t (fun t -> AO.add t v) >>= fun k ->
     if stable then (
-      let str = Irmin.Type.encode_bin Test_chunk.Value.t v in
+      let str = Irmin.Type.to_bin_string Test_chunk.Value.t v in
       Alcotest.(check key_t) (name ^ " is stable") k (Test_chunk.Key.digest str)
     );
     AO.find t k >|= fun v' ->

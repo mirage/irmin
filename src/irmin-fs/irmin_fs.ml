@@ -83,7 +83,7 @@ struct
     IO.file_exists file
 
   let value v =
-    match Irmin.Type.decode_bin V.t v with
+    match Irmin.Type.of_bin_string V.t v with
     | Ok v           -> Some v
     | Error (`Msg e) ->
       Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -137,7 +137,7 @@ struct
     IO.file_exists file >>= function
     | true  -> Lwt.return_unit
     | false ->
-      let str = Irmin.Type.encode_bin V.t value in
+      let str = Irmin.Type.to_bin_string V.t value in
       IO.write_file ~temp_dir file str
 
 end
@@ -207,7 +207,7 @@ struct
     stop () >>= fun () ->
     W.unwatch t.w id
 
-  let raw_value v = Irmin.Type.encode_bin V.t v
+  let raw_value v = Irmin.Type.to_bin_string V.t v
 
   let set t key value =
     Log.debug (fun f -> f "update %a" RO.pp_key key);

@@ -9,7 +9,7 @@ let test_base () =
   let s = T.to_json_string T.string "foo" in
   Alcotest.(check string) "JSON string" "\"foo\"" s;
 
-  let s = T.encode_bin T.string "foo" in
+  let s = T.to_bin_string T.string "foo" in
   Alcotest.(check string) "binary string" "foo" s;
   Alcotest.(check int) "binary size"
     (String.length "foo") (size (T.size_of T.string "foo"));
@@ -20,7 +20,7 @@ let test_base () =
   let s = T.to_json_string T.int 42 in
   Alcotest.(check string) "JSON int" "42" s;
 
-  let s = T.encode_bin T.int 42 in
+  let s = T.to_bin_string T.int 42 in
   Alcotest.(check string) "binary int" "*" s;
 
   let s = T.to_string T.int 42 in
@@ -68,7 +68,7 @@ let test_json () =
   let s = T.to_json_string hex "foo" in
   Alcotest.(check string) "JSON hex" "\"666f6f\"" s;
 
-  let s = T.encode_bin hex "foo" in
+  let s = T.to_bin_string hex "foo" in
   Alcotest.(check string) "CLI hex" "foo" s;
 
   let x = T.of_json_string hex "\"666f6f\"" in
@@ -91,11 +91,11 @@ let test_bin () =
   let s = T.to_string l ["foo"; "foo"] in
   Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
 
-  let s = T.encode_bin l ["foo"; "bar"] in
+  let s = T.to_bin_string l ["foo"; "bar"] in
   Alcotest.(check string) "encode list" "foobar" s;
   Alcotest.(check int) "size of list" 6 (size (T.size_of l ["foo"; "bar"]));
 
-  let s = T.decode_bin l "foobar" in
+  let s = T.of_bin_string l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
@@ -121,7 +121,7 @@ let test_equal () =
 let test_int () =
   let test dx x =
     let tt = Alcotest.testable (T.pp dx) (T.equal dx) in
-    match T.decode_bin dx (T.encode_bin dx x) with
+    match T.of_bin_string dx (T.to_bin_string dx x) with
     | Error (`Msg e) -> Alcotest.fail e
     | Ok y -> Alcotest.(check tt) "eq" x y
   in
@@ -161,29 +161,29 @@ let test_sharing () =
   let make () = Bytes.of_string "xxxxxxxx" in
 
   let buf = make () in
-  let buf' = T.encode_bin ~buf:(buf, 0) T.string "foo" in
-  Alcotest.(check string) "foo 1" (Bytes.to_string buf) "fooxxxxx";
-  Alcotest.(check bool) "foo 1 shares" true (buf == Bytes.unsafe_of_string buf');
+  let n = T.encode_bin T.string buf 0 "foo" in
+  Alcotest.(check string) "foo 1" (Bytes.to_string buf) "\003fooxxxx";
+  Alcotest.(check int) "foo 1 len" 4 n;
 
   let buf = make () in
-  let buf' = T.encode_bin ~buf:(buf, 1) T.string "foo" in
-  Alcotest.(check string) "foo 2" (Bytes.to_string buf) "xfooxxxx";
-  Alcotest.(check bool) "foo 2 shares" true (buf == Bytes.unsafe_of_string buf');
+  let n = T.encode_bin T.string buf 1 "foo" in
+  Alcotest.(check string) "foo 2" (Bytes.to_string buf) "x\003fooxxx";
+  Alcotest.(check int) "foo 2 len" 5 n;
 
   let buf = make () in
-  let buf' = T.encode_bin ~buf:(buf, 2) T.bytes (Bytes.of_string "foo") in
-  Alcotest.(check string) "foo 3" (Bytes.to_string buf) "xxfooxxx";
-  Alcotest.(check bool) "foo 3 shares" true (buf == Bytes.unsafe_of_string buf');
+  let n = T.encode_bin T.bytes buf 2 (Bytes.of_string "foo") in
+  Alcotest.(check string) "foo 3" (Bytes.to_string buf) "xx\003fooxx";
+  Alcotest.(check int) "foo 3 len" 6 n;
 
   let buf = make () in
-  let buf' = T.encode_bin ~buf:(buf, 3) T.bytes (Bytes.of_string "foo") in
-  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxxfooxx";
-  Alcotest.(check bool) "foo 4 shares" true (buf == Bytes.unsafe_of_string buf');
+  let n = T.encode_bin T.bytes buf 3 (Bytes.of_string "foo") in
+  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\003foox";
+  Alcotest.(check int) "foo 4 len" 7 n;
 
   let buf = make () in
-  let buf' = T.encode_bin ~buf:(buf, 3) T.int 4 in
+  let n = T.encode_bin T.int buf 3 4 in
   Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\004xxxx";
-  Alcotest.(check bool) "foo 4 shares" true (buf == Bytes.unsafe_of_string buf')
+  Alcotest.(check int) "foo 4 len" 4 n
 
 let suite = [
   "type", [

@@ -101,7 +101,7 @@ module Make (P: S.PRIVATE) = struct
 
     let key c = match c.v with
       | Both (_, k, _) | Key (_, k) -> k
-      | Contents v -> P.Hash.digest (Type.encode_bin P.Contents.Val.t v)
+      | Contents v -> P.Hash.digest (Type.to_bin_string P.Contents.Val.t v)
 
     let v t = match t.v with
       | Both (_, _, c)
@@ -237,7 +237,7 @@ module Make (P: S.PRIVATE) = struct
 
     and key_of_map map =
       let v = export_map map in
-      P.Hash.digest (Type.encode_bin P.Node.Val.t v)
+      P.Hash.digest (Type.to_bin_string P.Node.Val.t v)
 
     let to_map t = match t.v with
       | Map m | Both (_, _, m) -> Lwt.return (Some m)
@@ -1026,6 +1026,6 @@ module Make (P: S.PRIVATE) = struct
   let hash (t:tree) = match t with
     | `Node n -> `Node (Node.key n)
     | `Contents (c, m) ->
-      let str = Type.encode_bin P.Contents.Val.t c in
+      let str = Type.to_bin_string P.Contents.Val.t c in
       `Contents (P.Hash.digest str, m)
 end

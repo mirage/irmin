@@ -43,7 +43,7 @@ module Make (P: S.PRIVATE) = struct
     include P.Contents.Val
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
     let hash c =
-      let s = Type.encode_bin P.Contents.Val.t c in
+      let s = Type.to_bin_string P.Contents.Val.t c in
       P.Hash.digest s
   end
 

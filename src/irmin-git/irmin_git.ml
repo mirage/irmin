@@ -160,7 +160,7 @@ module Make_private
       include C
 
       let to_bin t =
-        let blob = G.Value.Blob.of_string (Irmin.Type.encode_bin C.t t) in
+        let blob = G.Value.Blob.of_string (Irmin.Type.to_bin_string C.t t) in
         match Raw.to_raw (G.Value.blob blob) with
         | Error _ -> assert false
         | Ok s    -> s
@@ -177,7 +177,7 @@ module Make_private
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
         let blob t =
-          match Irmin.Type.decode_bin C.t (G.Value.Blob.to_string t) with
+          match Irmin.Type.of_bin_string C.t (G.Value.Blob.to_string t) with
           | Ok t -> t
           | Error (`Msg e) -> Fmt.failwith "cannot read blob: %s" e
         in

@@ -1180,54 +1180,38 @@ module Encode_bin = struct
 
 end
 
-let err_invalid_bounds =
-  Fmt.invalid_arg "Irmin.Type.%s: invalid bounds; expecting %d, got %d"
-
-let encode_bin_bytes ?buf t x =
-  let return x = match buf with
-      | None -> x
-      | Some (buf, off) ->
-      assert (Bytes.length buf - off >= Bytes.length x);
-      Bytes.blit x 0 buf off (Bytes.length x);
-      buf
+let encode_bin t buf off x =
+  let rec aux: type a. a t -> a -> int = fun t x -> match t with
+    | Like l when l.encode_bin = None -> aux l.x (l.g x)
+    | Self s -> aux s.self x
+    | _ -> Encode_bin.t t buf off x
   in
+  aux t x
+
+let to_bin_bytes t x =
   let rec aux: type a. a t -> a -> bytes = fun t x -> match t with
     | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
-    | Prim (String _)  -> return (Bytes.of_string x)
-    | Prim (Bytes _)   -> return x
+    | Prim (String _)  -> Bytes.of_string x
+    | Prim (Bytes _)   -> x
     | _ ->
       match size_of t x with
       | `Buffer b -> Bytes.unsafe_of_string b
       | `Size len ->
-        let exact, buf, off = match buf with
-          | None -> true, Bytes.create len, 0
-          | Some (buf, off) ->
-            if off+len > Bytes.length buf then
-              err_invalid_bounds "Type.encode_bytes" len (Bytes.length buf)
-            else
-              false, buf, off
-        in
-        let len' = Encode_bin.t t buf off x in
-        if exact then assert (len = len');
+        let buf = Bytes.create len in
+        let len' = Encode_bin.t t buf 0 x in
+        assert (len = len');
         buf
   in
   aux t x
 
-let encode_bin ?buf t x =
-  let return x = match buf with
-    | None -> x
-    | Some (buf, off) ->
-      assert (Bytes.length buf - off >= String.length x);
-      Bytes.blit_string x 0 buf off (String.length x);
-      Bytes.unsafe_to_string buf
-  in
+let to_bin_string t x =
   let rec aux: type a. a t -> a -> string = fun t x -> match t with
     | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
-    | Prim (String _)  -> return x
-    | Prim (Bytes _)   -> return (Bytes.to_string x)
-    | _ -> Bytes.unsafe_to_string (encode_bin_bytes ?buf t x)
+    | Prim (String _)  -> x
+    | Prim (Bytes _)   -> Bytes.to_string x
+    | _ -> Bytes.unsafe_to_string (to_bin_bytes t x)
   in
   aux t x
 
@@ -1367,14 +1351,38 @@ let map_result f = function
   | Ok x -> Ok (f x)
   | Error _ as e -> e
 
-let decode_bin ?(exact=true) ?(off=0) t x =
+let decode_bin t buf off =
+  let rec aux : type a. a t -> string -> (int * a) = fun t x -> match t with
+    | Like l when l.decode_bin = None -> let n, v = aux l.x x in n, l.f v
+    | Self s          -> aux s.self x
+    | Prim (String _) -> String.length x, x
+    | Prim (Bytes _)  -> String.length x, Bytes.unsafe_of_string x
+    | _ -> Decode_bin.t t buf off
+  in
+  aux t buf
+
+let of_bin_string ?(exact=true) ?(off=0) ?len t x =
+  let return length sub x =
+    let n = length x in
+    let len = match len with
+      | None   -> n - off
+      | Some n -> n
+    in
+    if off+len > n && exact then Error (`Msg "not enough input")
+    else if off = 0 && len = n then Ok x
+    else
+      let len = min len (n - off) in
+      Ok (sub x off len)
+  in
+  let return_string = return String.length String.sub in
+  let return_bytes = return Bytes.length Bytes.sub in
   let rec aux
     : type a. a t -> string -> (a, [`Msg of string]) result
     = fun t x -> match t with
       | Like l when l.decode_bin = None -> aux l.x x |> map_result l.f
       | Self s          -> aux s.self x
-      | Prim (String _) -> Ok x
-      | Prim (Bytes _)  -> Ok (Bytes.of_string x)
+      | Prim (String _) -> return_string x
+      | Prim (Bytes _)  -> return_bytes (Bytes.of_string x)
       | _ ->
         let last, v = Decode_bin.t t x off in
         if exact then assert (last = String.length x);
@@ -1440,7 +1448,7 @@ type 'a ty = 'a t
 
 let hash t x = match t with
   | Like { hash = Some h; _ } -> h x
-  | _ -> Hashtbl.hash (encode_bin t x)
+  | _ -> Hashtbl.hash (to_bin_string t x)
 
 module type S = sig
   type t
