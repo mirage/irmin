@@ -91,6 +91,7 @@ module Make (P: S.PRIVATE) = struct
     let equal x y = Type.equal Hash.t x.h y.h
     let hash t = t.h
     let info t = P.Commit.Val.info t.v
+    let pp_hash ppf t = Type.pp Hash.t ppf t.h
 
     let of_hash r h =
       P.Commit.find (P.Repo.commit_t r) h >|= function
@@ -100,7 +101,11 @@ module Make (P: S.PRIVATE) = struct
     let parents t =
       Lwt_list.filter_map_p (of_hash t.r) (P.Commit.Val.parents t.v)
 
-    let pp_hash ppf t = Type.pp Hash.t ppf t.h
+    let to_private_commit t = t.v
+
+    let of_private_commit r v =
+      let h = P.Commit.Key.digest v in
+      { r; h; v }
 
     let equal_opt x y =
       match x, y with
@@ -111,6 +116,12 @@ module Make (P: S.PRIVATE) = struct
   end
 
   type commit = Commit.t
+
+  let to_private_node = Tree.to_private_node
+  let of_private_node = Tree.of_private_node
+
+  let to_private_commit = Commit.to_private_commit
+  let of_private_commit = Commit.of_private_commit
 
   type head_ref = [ `Branch of branch | `Head of commit option ref ]
 

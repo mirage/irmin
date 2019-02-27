@@ -619,6 +619,12 @@ module type STORE = sig
   end
 
   type remote += E of Private.Sync.endpoint
+
+  val to_private_node: node -> Private.Node.value option Lwt.t
+  val of_private_node: repo -> Private.Node.value -> node
+
+  val to_private_commit: commit -> Private.Commit.value
+  val of_private_commit: repo -> Private.Commit.value -> commit
 end
 
 module type MAKER =

@@ -207,6 +207,21 @@ module Make (P: S.PRIVATE) = struct
 
     let of_map map = { v = Map map }
     let of_key repo k = { v = Key (repo, k) }
+
+    let of_node repo n =
+      let entries = P.Node.Val.list n in
+      let aux = function
+        | `Node h -> `Node (of_key repo h)
+        | `Contents (c, m) -> `Contents (Contents.of_key repo c, m)
+      in
+      let entries =
+        List.fold_left
+          (fun acc (k, v) -> StepMap.add k (aux v) acc)
+          StepMap.empty
+          entries
+      in
+      of_map entries
+
     let empty = of_map StepMap.empty
 
     let import t n =
@@ -248,6 +263,17 @@ module Make (P: S.PRIVATE) = struct
           let n = import db n in
           t.v <- Both (db, k, n);
           Some n
+
+    let to_node t = match t.v with
+      | Key (db, k) -> P.Node.find (P.Repo.node_t db) k
+      | Map m | Both (_, _, m) ->
+          let aux = function
+            | `Contents (c, m) -> `Contents (Contents.key c, m)
+            | `Node n -> `Node (key n)
+          in
+          let entries = StepMap.bindings m in
+          let entries = List.rev_map (fun (k, v) -> k, aux v) entries in
+          Lwt.return (Some (P.Node.Val.v entries))
 
     let key_equal x y =
       x == y ||
@@ -449,34 +475,14 @@ module Make (P: S.PRIVATE) = struct
             | `Node n          -> clear_caches n
           ) m
 
-    (*
-    let contents  =
-      let open Type in
-      variant "Node.contents" (fun keep set -> function
-          | `Keep x -> keep x
-          | `Set x  -> set x)
-      |~ case1 "Keep" P.Contents.Val.t (fun x -> `Keep x)
-      |~ case1 "Set" (pair P.Contents.Val.t Metadata.t) (fun x -> `Set x)
-      |> sealv
-
-    type update = [
-      | `Contents of [ `Keep of contents | `Set of contents * Metadata.t ]
-      | `Node of t ]
-
-    let update: update Type.t =
-      let open Type in
-      variant "Node.update" (fun contents node -> function
-          | `Contents x -> contents x
-          | `Node x     -> node x)
-      |~ case1 "Contents" contents (fun x -> `Contents x)
-      |~ case1 "Node" t (fun x -> `Node x)
-      |> sealv
-    *)
   end
 
   type node = Node.t
   type metadata = Metadata.t
   type tree = [ `Node of node | `Contents of contents * metadata ]
+
+  let of_private_node = Node.of_node
+  let to_private_node = Node.to_node
 
   let node_t = Node.t
 

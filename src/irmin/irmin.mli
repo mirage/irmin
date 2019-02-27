@@ -2961,6 +2961,14 @@ module type S = sig
   type remote += E of Private.Sync.endpoint
   (** Extend the [remote] type with [endpoint]. *)
 
+  (** Converters to private types. *)
+
+  val to_private_node: node -> Private.Node.value option Lwt.t
+  val of_private_node: repo -> Private.Node.value -> node
+
+  val to_private_commit: commit -> Private.Commit.value
+  val of_private_commit: repo -> Private.Commit.value -> commit
+
 end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
@@ -3002,9 +3010,9 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and type hash = H.t
-
 (** [KV] is similar to {!S} but choose sensible implementations for
     path and branch. *)
+
 module type KV =
   S with type key = string list
      and type step = string
