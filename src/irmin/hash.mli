@@ -26,3 +26,8 @@ module SHA384: S.HASH
 module SHA512: S.HASH
 module BLAKE2B: S.HASH
 module BLAKE2S: S.HASH
+
+module With_digest (K: S.HASH) (V: Type.S): sig
+  include S.HASH with type t = K.t
+  val digest: V.t -> t
+end

@@ -44,3 +44,8 @@ module SHA384 = Make(Digestif.SHA384)
 module SHA512 = Make(Digestif.SHA512)
 module BLAKE2B = Make(Digestif.BLAKE2B)
 module BLAKE2S = Make(Digestif.BLAKE2S)
+
+module With_digest (K: S.HASH) (V: Type.S) = struct
+  include K
+  let digest v = K.digest (Type.to_bin_string V.t v)
+end

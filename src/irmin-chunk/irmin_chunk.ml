@@ -98,13 +98,14 @@ module Chunk (K: Irmin.Hash.S) = struct
 
   let of_string b =
     let len = String.length b in
-    match Irmin.Type.decode_bin ~exact:false v b with
-    | Error (`Msg e) -> invalid_arg e
-    | Ok v -> { len; v }
+    let n, v = Irmin.Type.decode_bin v b 0 in
+    if len=n then { len; v }
+    else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
-    let buf = Bytes.make t.len '\000', 0 in
-    Irmin.Type.encode_bin ~buf v t.v
+    let buf = Bytes.make t.len '\000' in
+    let (_:int) = Irmin.Type.encode_bin v buf 0 t.v in
+    Bytes.unsafe_to_string buf
 
   let t = Irmin.Type.(like_map string) of_string to_string
 
@@ -224,7 +225,7 @@ struct
     find_leaves t key >>= fun bufs ->
     let buf = String.concat "" bufs in
     check_hash key buf >|= fun () ->
-    match Irmin.Type.decode_bin V.t buf with
+    match Irmin.Type.of_bin_string V.t buf with
     |Ok va   -> Some va
     |Error _ -> None
 
@@ -238,7 +239,7 @@ struct
   let pp_key = Irmin.Type.pp K.t
 
   let add t v =
-    let buf = Irmin.Type.encode_bin V.t v in
+    let buf = Irmin.Type.to_bin_string V.t v in
     let key = K.digest buf in
     let len = String.length buf in
     if len <= t.max_data then (

@@ -125,7 +125,7 @@ module Store
 struct
 
   module Contents = C
-  module Key = S.Key
+  module Key = Hash.With_digest(S.Key)(S.Val)
   module Path = P
   module Metadata = M
 

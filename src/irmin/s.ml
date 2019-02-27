@@ -69,7 +69,10 @@ end
 module type CONTENTS_STORE = sig
   include CONTENT_ADDRESSABLE_STORE
   val merge: [`Read | `Write] t -> key option Merge.t
-  module Key: HASH with type t = key
+  module Key: sig
+    include HASH with type t = key
+    val digest: value -> t
+  end
   module Val: CONTENTS with type t = value
 end
 
@@ -120,7 +123,10 @@ module type NODE_STORE = sig
   include CONTENT_ADDRESSABLE_STORE
   module Path: PATH
   val merge: [`Read | `Write] t -> key option Merge.t
-  module Key: HASH with type t = key
+  module Key: sig
+    include HASH with type t = key
+    val digest: value -> t
+  end
   module Metadata: METADATA
   module Val: NODE
     with type t = value
@@ -147,7 +153,10 @@ end
 module type COMMIT_STORE = sig
   include CONTENT_ADDRESSABLE_STORE
   val merge: [`Read| `Write] t -> info:Info.f -> key option Merge.t
-  module Key: HASH with type t = key
+  module Key: sig
+    include HASH with type t = key
+    val digest: value -> t
+  end
   module Val: COMMIT
     with type t = value
      and type hash = key
@@ -610,6 +619,12 @@ module type STORE = sig
   end
 
   type remote += E of Private.Sync.endpoint
+
+  val to_private_node: node -> Private.Node.value option Lwt.t
+  val of_private_node: repo -> Private.Node.value -> node
+
+  val to_private_commit: commit -> Private.Commit.value
+  val of_private_commit: repo -> Private.Commit.value -> commit
 end
 
 module type MAKER =

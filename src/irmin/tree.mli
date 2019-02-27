@@ -29,4 +29,6 @@ module Make (P: S.PRIVATE): sig
   val node_t: node Type.t
   val tree_t: tree Type.t
   val hash: tree -> [`Contents of (P.Hash.t * metadata) | `Node of P.Hash.t]
+  val of_private_node: P.Repo.t -> P.Node.value -> node
+  val to_private_node: node -> P.Node.value option Lwt.t
 end

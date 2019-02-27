@@ -118,7 +118,7 @@ module Store
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
-  module Key = S.Key
+  module Key = Hash.With_digest(S.Key)(S.Val)
   module Val = S.Val
 end
 

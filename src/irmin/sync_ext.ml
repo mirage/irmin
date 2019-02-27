@@ -31,8 +31,8 @@ module Make (S: S.STORE) = struct
   type commit = S.commit
 
   let conv dx dy x =
-    let str = Type.encode_bin dx x in
-    Type.decode_bin dy str
+    let str = Type.to_bin_string dx x in
+    Type.of_bin_string dy str
 
   let convert_slice (type r) (type s)
       (module RP: PRIVATE with type Slice.t = r)

@@ -65,7 +65,7 @@ struct
 
   let pp_key = Type.pp K.t
 
-  let digest v = K.digest (Type.encode_bin V.t v)
+  let digest v = K.digest (Type.to_bin_string V.t v)
 
   let find t k =
     find t k >>= function
@@ -108,10 +108,10 @@ struct
       type 'a t = 'a Values.t
       type key = Key.t
       type value = V.t
-      let add t v = Values.add t (Type.encode_bin V.t v)
+      let add t v = Values.add t (Type.to_bin_string V.t v)
       let find t k = Values.find t k >|= function
         | None -> None
-        | Some v -> match Type.decode_bin V.t v with
+        | Some v -> match Type.of_bin_string V.t v with
           | Ok v -> Some v
           | _ -> None
       let mem t k =

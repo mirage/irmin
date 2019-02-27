@@ -42,7 +42,7 @@ module Store
                 and type value = N.value
                 and module Path = P
                 and module Metadata = M
-                and module Key = N.Key
+                and type Key.t = N.key
                 and module Val = N.Val
 
 module Graph (N: S.NODE_STORE):
