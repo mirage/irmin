@@ -137,7 +137,7 @@ val encode_bin: 'a t -> 'a encode_bin
 val to_bin_string: 'a t -> 'a to_string
 
 val decode_bin: 'a t -> 'a decode_bin
-val of_bin_string: ?exact:bool -> ?off:int -> ?len:int -> 'a t -> 'a of_string
+val of_bin_string: 'a t -> 'a of_string
 
 type 'a ty = 'a t
 

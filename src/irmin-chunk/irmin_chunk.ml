@@ -98,9 +98,9 @@ module Chunk (K: Irmin.Hash.S) = struct
 
   let of_string b =
     let len = String.length b in
-    match Irmin.Type.of_bin_string ~exact:false v b with
-    | Error (`Msg e) -> invalid_arg e
-    | Ok v -> { len; v }
+    let n, v = Irmin.Type.decode_bin v b 0 in
+    if len=n then { len; v }
+    else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
