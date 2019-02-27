@@ -441,20 +441,19 @@ module Type: sig
   (** [decode_bin t] is the binary decoder for values of type [t]. *)
 
   val to_bin_string: 'a t -> 'a -> string
-  (** [to_bin_string t x] use {!encode_bin} to convert [x] to a string.
+  (** [to_bin_string t x] use {!encode_bin} to convert [x], of type
+     [t], to a string.
 
-      {b NOTE:} When the parameter [t] is a single buffer (of type
-      [bytes] or [string]) the original buffer is returned without
-      being copied. *)
+      {b NOTE:} When [t] is {!Type.string} or {!Type.bytes}, the
+     original buffer [x] is not prefixed by its size as {!encode_bin}
+     would do. If [t] is {!Type.string}, the result is [x] (without
+     copy). *)
 
-  val of_bin_string: ?exact:bool -> ?off:int -> ?len:int -> 'a t ->
-    string -> ('a, [`Msg of string]) result
-  (** [decode_bin t buf] decodes values of type [t] as produced by
-      [to_bin_string t v].
+  val of_bin_string:'a t -> string -> ('a, [`Msg of string]) result
+  (** [of_bin_string t s] is [v] such that [s = to_bin_string t v].
 
-      {b NOTE:} When the parameter [t] is a single buffer (of type
-      [bytes] or [string]) the original buffer is returned without
-      being copied. *)
+      {b NOTE:} When [t] is {!Type.string}, the result is [x] (without
+     copy). *)
 
   val size_of: 'a t -> 'a -> [`Size of int | `Buffer of string]
   (** [size_of t x] is either the size of [encode_bin t x] or the
