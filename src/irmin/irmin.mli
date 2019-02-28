@@ -2960,13 +2960,25 @@ module type S = sig
   type remote += E of Private.Sync.endpoint
   (** Extend the [remote] type with [endpoint]. *)
 
-  (** Converters to private types. *)
+  (** {2 Converters to private types} *)
 
   val to_private_node: node -> Private.Node.value option Lwt.t
+  (** [to_private_node n] is the private node objects built using [n].
+     The operation can fetch the database to read an object as [n]
+     could be represented as a hash. The result is [None] iff that
+     hash doesn't exist in the database. *)
+
   val of_private_node: repo -> Private.Node.value -> node
+  (** [of_private_node r n] is the node build from the private node
+     object [n]. *)
 
   val to_private_commit: commit -> Private.Commit.value
+  (** [to_private_commit c] is the private commit object associated
+     with the commit [c]. *)
+
   val of_private_commit: repo -> Private.Commit.value -> commit
+  (** [of_private_commit r c] is the commit associated with the
+     private commit object [c]. *)
 
 end
 
