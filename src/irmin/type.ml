@@ -1018,9 +1018,7 @@ end
 let size_of t x =
   let rec aux: type a. a t -> a size_of = fun t x -> match t with
     | Like l when l.size_of = None -> aux l.x (l.g x)
-    | Self s           -> aux s.self x
-    | Prim (String _)  -> `Size (String.length x)
-    | Prim (Bytes _)   -> `Size (Bytes.length x)
+    | Self s                       -> aux s.self x
     | _ -> Size_of.t t x
   in
   aux t x

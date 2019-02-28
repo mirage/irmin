@@ -12,7 +12,7 @@ let test_base () =
   let s = T.to_bin_string T.string "foo" in
   Alcotest.(check string) "binary string" "foo" s;
   Alcotest.(check int) "binary size"
-    (String.length "foo") (size (T.size_of T.string "foo"));
+    (String.length "foo") (size (T.size_of T.(string_of (`Fixed 3)) "foo"));
 
   let s = T.to_string T.string "foo" in
   Alcotest.(check string) "CLI string" "foo" s;
@@ -202,6 +202,21 @@ let test_decode () =
   decode ~off:2 "xx\002aa" (Ok "aa");
   decode ~off:2 "xx\000aaaaa" (Ok "")
 
+let test_size () =
+  let check t v n = match Irmin.Type.size_of t v with
+    | `Size s   ->
+      let name = Fmt.strf "size: %a" (Irmin.Type.pp t) v  in
+      Alcotest.(check int) name n s
+    | `Buffer _ -> Alcotest.fail "size expected"
+  in
+  check Irmin.Type.int 0   1;
+  check Irmin.Type.int 128 2;
+  check Irmin.Type.int 16384 3;
+  check Irmin.Type.string "foo" (1+3);
+  check Irmin.Type.string (String.make 128 'x') (2+128);
+  check Irmin.Type.bytes (Bytes.of_string "foo") 4;
+  check Irmin.Type.(list string) [] 1
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -212,6 +227,7 @@ let suite = [
     "ints"   , `Quick, test_int;
     "sharing", `Quick, test_sharing;
     "decode" , `Quick, test_decode;
+    "size_of", `Quick, test_size;
   ]
 ]
 
