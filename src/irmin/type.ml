@@ -592,7 +592,17 @@ module Encode_json = struct
   (* what about escaping? *)
   let string e s = lexeme e (`String s)
   let bytes e s = lexeme e (`String (Bytes.unsafe_to_string s))
-  let char e c = string e (String.make 1 c)
+
+  let char e c =
+    let i = int_of_char c in
+    if i > 127 then
+      let () = lexeme e `Os in
+      let () = lexeme e (`Name "hex") in
+      let () = lexeme e (`String (Printf.sprintf "%x" i)) in
+      lexeme e `Oe
+    else
+      string e (String.make 1 c)
+
   let float e f = lexeme e (`Float f)
   let int e i = float e (float_of_int i)
   let int32 e i = float e (Int32.to_float i)
@@ -773,6 +783,17 @@ module Decode_json = struct
   let char e =
     lexeme e >>= function
     | `String s when String.length s = 1 -> Ok (String.get s 0)
+    | `Os ->
+        (match lexeme e with
+        | Ok (`Name "hex") ->
+            (match lexeme e with
+            | Ok (`String hex) ->
+                expect_lexeme e `Oe >>= fun () ->
+                Ok (int_of_string ("0x" ^ hex) |> char_of_int)
+            | Ok l -> error e l "Bad hex encoded character"
+            | Error e -> Error e)
+        | Ok l -> error e l "Invalid hex character object"
+        | Error e -> Error e)
     | l -> error e l "`String[1]"
 
   let int32 e = float e >|= Int32.of_float
