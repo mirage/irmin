@@ -672,27 +672,26 @@ module Make (P: S.PRIVATE) = struct
       is_empty t >>= fun is_empty ->
       if is_empty then Lwt.return t else Lwt.return empty
     | Some (path, file) ->
-      let rec aux view path : Node.t option Lwt.t =
+      let rec aux view path k =
+        let some n = k (Some n) in
         match Path.decons path with
-        | None        -> may_remove view file
+        | None        -> may_remove view file >>= k
         | Some (h, p) ->
           Node.findv view h >>= function
-          | None | Some (`Contents _) -> Lwt.return_none
+          | None | Some (`Contents _) -> k None
           | Some (`Node child) ->
-            aux child p >>= function
-            | None -> Lwt.return_none
-            | Some child' ->
-              (* remove empty dirs *)
-              Node.is_empty child' >>= function
-              | true  -> may_remove view h
-              | false ->
-                Node.add view h (`Node child') >>= fun t ->
-                Lwt.return (Some t)
+            aux child p (function
+                | None -> k None
+                | Some child' ->
+                  (* remove empty dirs *)
+                  Node.is_empty child' >>= function
+                  | true  -> may_remove view h
+                  | false -> Node.add view h (`Node child') >>= some)
       in
       let n = match t with `Node n -> n | _ -> Node.empty in
-      aux n path >>= function
-      | None -> Lwt.return t
-      | Some node -> Lwt.return (`Node node)
+      aux n path Lwt.return >|= function
+      | None -> t
+      | Some n -> `Node n
 
   let with_setm = function
     | `Node _ as n -> n
@@ -703,38 +702,30 @@ module Make (P: S.PRIVATE) = struct
     match Path.rdecons k with
     | None              -> Lwt.return v
     | Some (path, file) ->
-      let rec aux view path =
+      let rec aux view path k =
+        let some n = k (Some n) in
         match Path.decons path with
         | None        -> begin
             Node.findv view file >>= function old ->
             match old with
+            | None -> Node.add view file (with_setm v) >>= some
             | Some old ->
-              if equal old v then Lwt.return_none
-              else
-                Node.add view file (with_setm v) >|= fun t ->
-                Some t
-            | None ->
-              Node.add view file (with_setm v) >|= fun t ->
-              Some t
+              if equal old v then k None
+              else Node.add view file (with_setm v) >>= some
           end
         | Some (h, p) ->
           Node.findv view h >>= function
-          | None | Some (`Contents _) -> begin
-              aux Node.empty p >>= function
-              | None -> Lwt.return_none
-              | Some child' ->
-                Node.add view h (`Node child') >|= fun t ->
-                Some t
-            end
+          | None | Some (`Contents _) ->
+            aux Node.empty p (function
+                | None -> k None
+                | Some child' -> Node.add view h (`Node child') >>= some)
           | Some (`Node child) ->
-            aux child p >>= function
-            | None -> Lwt.return_none
-            | Some child' ->
-              Node.add view h (`Node child') >|= fun t ->
-              Some t
+            aux child p (function
+                | None -> k None
+                | Some child' -> Node.add view h (`Node child') >>= some)
       in
       let n = match t with `Node n -> n | _ -> Node.empty in
-      aux n path >|= function
+      aux n path Lwt.return >|= function
       | None -> t
       | Some node -> `Node node
 
@@ -754,41 +745,34 @@ module Make (P: S.PRIVATE) = struct
        | Some m, `Contents c' when contents_equal c' (c, m) -> Lwt.return t
        | Some m, _ -> Lwt.return (`Contents (c, m)))
     | Some (path, file) ->
-      let rec aux view path =
+      let rec aux view path k =
+        let some n = k (Some n) in
         match Path.decons path with
         | None        -> begin
             Node.findv view file >>= function old ->
             match old with
             | Some (`Node _) | None ->
-              Node.add view file (with_optm metadata c) >>= fun t ->
-              Lwt.return (Some t)
+              Node.add view file (with_optm metadata c) >>= some
             | Some (`Contents (_, oldm) as old) ->
               let m = match metadata with None -> oldm | Some m -> m in
-              if equal old (`Contents (c,  m)) then Lwt.return_none
-              else
-                Node.add view file (`Contents (`Set (c,  m))) >|= fun t ->
-                Some t
+              if equal old (`Contents (c,  m)) then k None
+              else Node.add view file (`Contents (`Set (c,  m))) >>= some
           end
         | Some (h, p) ->
           Node.findv view h >>= function
-          | None | Some (`Contents _) -> begin
-              aux Node.empty p >>= function
-              | None -> assert false
-              | Some child ->
-                Node.add view h (`Node child) >|= fun t ->
-                Some t
-            end
+          | None | Some (`Contents _) ->
+            aux Node.empty p (function
+                | None -> assert false
+                | Some child -> Node.add view h (`Node child) >>= some)
           | Some (`Node child) ->
-            aux child p >>= function
-            | None -> Lwt.return_none
-            | Some child' ->
-              Node.add view h (`Node child') >|= fun t ->
-              Some t
+            aux child p (function
+                | None -> k None
+                | Some child' -> Node.add view h (`Node child') >>= some)
       in
       let n = match t with `Node n -> n | _ -> Node.empty in
-      aux n path >>= function
-      | None      -> Lwt.return t
-      | Some node -> Lwt.return (`Node node)
+      aux n path Lwt.return >|= function
+      | None   -> t
+      | Some n -> `Node n
 
   let import repo k = Node.of_key repo k
 
