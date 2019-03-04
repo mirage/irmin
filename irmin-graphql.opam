@@ -21,6 +21,7 @@ depends: [
   "graphql-lwt" {>= "0.9"}
   "graphql-cohttp" {>= "0.10"}
   "cohttp-lwt"
+  "graphql_parser" {>= "0.11"}
 ]
 
 
