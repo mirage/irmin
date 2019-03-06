@@ -18,14 +18,15 @@
 
 (** The context to use for synchronisation. *)
 
-module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
+module Info (C: Mirage_clock.PCLOCK): sig
 
   (** {1 Commit info creators} *)
 
-  val f: C.t -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
-  (** Commit info function, using [N.name] and [C.now_d_ps] provided
-      in the functor arguments. *)
-
+  val f: author:string -> C.t ->
+    ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+  (** [f c ~author msg] is a new commit info with [author] as commit
+      author, [C.now_d_ps c] as commit date and [msg] as commit
+      message.*)
 end
 
 module type S = sig
@@ -82,7 +83,7 @@ module Git: sig
     val connect:
       ?depth:int ->
       ?branch:string ->
-      ?path:string ->
+      ?root:key ->
       ?conduit:Conduit_mirage.t ->
       ?resolver:Resolver_lwt.t ->
       ?headers:Cohttp.Header.t ->
@@ -96,8 +97,41 @@ module Git: sig
   end
 
   (** Functor to create a MirageOS' KV_RO store from a Git
-      repository. *)
+     repository. The key ["/HEAD"] always shows the current HEAD. *)
   module KV_RO (G: Irmin_git.G): KV_RO with type git := G.t
+
+  module type KV_RW = sig
+    type git
+    type clock
+
+    include Mirage_kv_lwt.RW
+
+    val connect:
+      ?depth:int ->
+      ?branch:string ->
+      ?root:key ->
+      ?conduit:Conduit_mirage.t ->
+      ?resolver:Resolver_lwt.t ->
+      ?headers:Cohttp.Header.t ->
+      ?author:string ->
+      ?msg:([`Set of key| `Remove of key| `Batch] -> string) ->
+      git -> clock -> string -> t Lwt.t
+      (** [connect ?depth ?branch ?path ?author ?msg g c uri] clones
+          the given [uri] into [g] repository, using the given
+          [branch], [depth] and ['/']-separated sub-[path]. By default,
+          [branch] is master, [depth] is [1] and [path] is empty,
+          ie. reads will be relative to the root of the repository.
+          [author], [msg] and [c] are used to create new commit info
+          values on every update.  By defaut [author] is ["irmin"
+          <irmin@mirage.io>] and [msg] returns basic information about
+          the kind of operations performed. *)
+
+  end
+
+(** Functor to create a MirageOS' KV_RW store from a Git
+      repository. *)
+  module KV_RW (G: Irmin_git.G) (C: Mirage_clock.PCLOCK):
+    KV_RW with type git := G.t and type clock = C.t
 
   (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem: sig
@@ -131,6 +165,7 @@ module Git: sig
          and module Git = G
 
     module KV_RO: KV_RO with type git := G.t
+    module KV_RW (C: Mirage_clock.PCLOCK): KV_RW with type git := G.t and type clock := C.t
   end
 end
 
