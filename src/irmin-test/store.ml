@@ -1133,6 +1133,15 @@ module Make (S: S) = struct
       S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
       check_val "tree update" (normal foo1) f;
 
+      S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1' ->
+      Alcotest.(check bool) "Tree.add keeps sharing" true (v1 == v1');
+
+      S.Tree.remove v1 ["foo";"2"] >>= fun v1' ->
+      Alcotest.(check bool) "Tree.remove keeps sharing" true (v1 == v1');
+
+      S.Tree.add_tree v1 [] v1 >>= fun v1' ->
+      Alcotest.(check bool) "Tree.add_tree keeps sharing" true (v1 == v1');
+
       S.Tree.add v2 ["foo";"1"] foo2 >>= fun v2 ->
       S.Tree.add v2 ["foo";"2"] foo1 >>= fun v2 ->
 
