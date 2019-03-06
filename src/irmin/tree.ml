@@ -75,7 +75,7 @@ module Make (P: S.PRIVATE) = struct
 
     type value =
       | Key     : repo * key -> value
-      | Contents: contents -> value
+      | Contents: contents * key option -> value
       | Both    : repo * key * contents -> value
 
     type t = { mutable v: value }
@@ -85,27 +85,32 @@ module Make (P: S.PRIVATE) = struct
     let value =
       let open Type in
       variant "Node.Contents" (fun key contents both -> function
-          | Key (_, x)     -> key x
-          | Contents x     -> contents x
-          | Both (_, x, y) -> both (x, y))
+          | Key (_, x)      -> key x
+          | Contents (x, y) -> contents (x, y)
+          | Both (_, x, y)  -> both (x, y))
       |~ case1 "Key" P.Contents.Key.t (fun _ -> assert false)
-      |~ case1 "Contents" P.Contents.Val.t (fun x -> Contents x)
+      |~ case1 "Contents"
+        (pair P.Contents.Val.t (option P.Contents.Key.t))
+           (fun (x, y) -> Contents (x, y))
       |~ case1 "Both" (pair P.Contents.Key.t P.Contents.Val.t)
-        (fun _ -> assert false)
+        (fun (x, y) -> Contents (y, Some x))
       |> sealv
 
     let t = Type.like_map value (fun v -> { v }) (fun t -> t.v)
 
-    let of_contents c = { v = Contents c }
+    let of_contents c = { v = Contents (c, None) }
     let of_key db k = { v = Key (db, k) }
 
     let key c = match c.v with
-      | Both (_, k, _) | Key (_, k) -> k
-      | Contents v -> P.Contents.Key.digest v
+      | Both (_, k, _) | Key (_, k) | Contents (_, Some k) -> k
+      | Contents (v, None) ->
+        let k = P.Contents.Key.digest v in
+        c.v <- Contents (v, Some k);
+        k
 
     let v t = match t.v with
       | Both (_, _, c)
-      | Contents c -> Lwt.return (Some c)
+      | Contents (c, _) -> Lwt.return (Some c)
       | Key (db, k) ->
         P.Contents.find (P.Repo.contents_t db) k >|= function
         | None   -> None
@@ -142,7 +147,7 @@ module Make (P: S.PRIVATE) = struct
       | `False skip ->
         match t.v with
         | Key _ -> skip path acc
-        | Both (_, _, c) | Contents c -> aux (Some c)
+        | Both (_, _, c) | Contents (c, _) -> aux (Some c)
 
     let clear_caches t = match t.v with
       | Key _ | Contents _ -> ()
@@ -159,7 +164,7 @@ module Make (P: S.PRIVATE) = struct
     and map = value StepMap.t
 
     and node =
-      | Map : map -> node
+      | Map : map * key option -> node
       | Key : repo * key -> node
       | Both: repo * key * map -> node
 
@@ -185,12 +190,12 @@ module Make (P: S.PRIVATE) = struct
     let node map =
       let open Type in
       variant "Node.node" (fun map key both -> function
-          | Map x        -> map x
+          | Map (x, y)   -> map (x, y)
           | Key (_,y)    -> key y
           | Both (_,y,z) -> both (y, z))
-      |~ case1 "Map" map (fun x -> Map x)
+      |~ case1 "Map" (pair map (option P.Node.Key.t)) (fun (x, y) -> Map (x, y))
       |~ case1 "Key" P.Node.Key.t (fun _ -> assert false)
-      |~ case1 "Both" (pair P.Node.Key.t map) (fun _ -> assert false)
+      |~ case1 "Both" (pair P.Node.Key.t map) (fun (x, y) -> Map (y, Some x))
       |> sealv
 
     let t node = Type.like_map node (fun v -> { v }) (fun t -> t.v)
@@ -205,7 +210,7 @@ module Make (P: S.PRIVATE) = struct
     let value_t = value t
     let dump = Type.pp_json ~minify:false t
 
-    let of_map map = { v = Map map }
+    let of_map map = { v = Map (map, None) }
     let of_key repo k = { v = Key (repo, k) }
 
     let of_node repo n =
@@ -235,8 +240,11 @@ module Make (P: S.PRIVATE) = struct
 
     let rec key t =
       match t.v with
-      | Key (_, k) | Both (_, k, _) -> k
-      | Map m -> key_of_map m
+      | Key (_, k) | Both (_, k, _) | Map (_, Some k) -> k
+      | Map (m, None) ->
+        let k = key_of_map m in
+        t.v <- Map (m, Some k);
+        k
 
     and export_map map =
       let alist =
@@ -254,7 +262,7 @@ module Make (P: S.PRIVATE) = struct
       P.Node.Key.digest (export_map map)
 
     let to_map t = match t.v with
-      | Map m | Both (_, _, m) -> Lwt.return (Some m)
+      | Map (m, _) | Both (_, _, m) -> Lwt.return (Some m)
       | Key (db, k) ->
         Log.debug (fun l -> l "Node.to_map %a" (Type.pp P.Node.Key.t) k);
         P.Node.find (P.Repo.node_t db) k >|= function
@@ -266,7 +274,7 @@ module Make (P: S.PRIVATE) = struct
 
     let to_node t = match t.v with
       | Key (db, k) -> P.Node.find (P.Repo.node_t db) k
-      | Map m | Both (_, _, m) ->
+      | Map (m, _)  | Both (_, _, m) ->
           let aux = function
             | `Contents (c, m) -> `Contents (Contents.key c, m)
             | `Node n -> `Node (key n)
@@ -341,7 +349,7 @@ module Make (P: S.PRIVATE) = struct
         | `False skip ->
           match t.v with
           | Key _ -> skip path acc
-          | Both (_, _, n) | Map n -> map ~path acc (Some n) k
+          | Both (_, _, n) | Map (n, _) -> map ~path acc (Some n) k
       and aux_uniq ~path acc t k =
         if uniq = `False then aux ~path acc t k
         else
@@ -469,7 +477,7 @@ module Make (P: S.PRIVATE) = struct
     let rec clear_caches t = match t.v with
       | Key _          -> ()
       | Both (r, k, _) -> t.v <- Key (r, k)
-      | Map m          ->
+      | Map (m, _)          ->
         StepMap.iter (fun _ -> function
             | `Contents (c, _) -> Contents.clear_caches c
             | `Node n          -> clear_caches n
@@ -791,7 +799,7 @@ module Make (P: S.PRIVATE) = struct
               Lwt.return_unit
           ) todo
       | (Node.Key _ | Node.Both _ ) -> ()
-      | Node.Map x ->
+      | Node.Map (x, _) ->
         (* 1. we push the current node job on the stack. *)
         Stack.push (fun () ->
             node x >>= fun k ->
@@ -804,12 +812,12 @@ module Make (P: S.PRIVATE) = struct
             | `Contents c -> contents := c :: !contents
             | `Node n     -> nodes := n :: !nodes
           ) x;
-        (* 2. we push the contents job on the stack. *)
+        (* 2. we pu§sh the contents job on the stack. *)
         List.iter (fun (c, _) ->
             match c.Contents.v with
             | Contents.Both _
             | Contents.Key _       -> ()
-            | Contents.Contents x  ->
+            | Contents.Contents (x, _)  ->
               Stack.push (fun () ->
                   P.Contents.add contents_t x >|= fun k ->
                   c.Contents.v <- Contents.Both (repo, k, x);
