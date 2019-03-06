@@ -107,7 +107,7 @@ let suite i server =
     init = begin fun () ->
       remove pid_file;
       Lwt_io.flush_all () >>= fun () ->
-      let _ = Sys.command @@ Fmt.strf "dune exec -- %s serve %d &" Sys.argv.(0) i in
+      let _ = Sys.command @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i in
       wait_for_the_server_to_start () >|= fun pid ->
       server_pid := pid
     end;
