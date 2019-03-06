@@ -20,7 +20,7 @@ depends: [
   "irmin-graphql"
   "git-mirage" {>= "1.11.4"}
   "ptime"
-  "mirage-kv-lwt"
+  "mirage-kv-lwt" {>= "2.0.0"}
   "mirage-clock"
   "mirage-clock-lwt"
 ]
