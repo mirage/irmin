@@ -24,8 +24,8 @@ depends: [
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
   "astring"
+  "hex"
   "alcotest" {with-test}
-  "hex"      {with-test}
 ]
 synopsis: """
 Irmin, a distributed database that follows the same design principles as Git

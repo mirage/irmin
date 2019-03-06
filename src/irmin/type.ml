@@ -583,15 +583,37 @@ end
 
 let compare = Compare.t
 
+
+exception Not_utf8
+
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8 (fun _ _ -> function
+        | `Malformed _ -> raise Not_utf8
+        | _ -> ()
+      ) () str;
+    true
+with Not_utf8 -> false
+
 module Encode_json = struct
 
   let lexeme e l = ignore (Jsonm.encode e (`Lexeme l))
 
   let unit e () = lexeme e `Null
 
-  (* what about escaping? *)
-  let string e s = lexeme e (`String s)
-  let bytes e s = lexeme e (`String (Bytes.unsafe_to_string s))
+  let string e s =
+    if is_valid_utf8 s then
+      lexeme e (`String s)
+    else
+      let `Hex x = Hex.of_string s in
+      let () = lexeme e `Os in
+      let () = lexeme e (`Name "hex") in
+      let () = lexeme e (`String x) in
+      lexeme e `Oe
+
+  let bytes e b =
+    let s = Bytes.unsafe_to_string b in
+    string e s
 
   let char e c =
     let i = int_of_char c in
@@ -765,14 +787,30 @@ module Decode_json = struct
 
   let unit e = expect_lexeme e `Null
 
+  let get_hex_value e f =
+    match lexeme e with
+    | Ok (`Name "hex") ->
+        (match lexeme e with
+        | Ok (`String hex) ->
+            (match expect_lexeme e `Oe with
+            | Ok () ->
+              Ok (f (`Hex hex))
+            | Error e -> Error e)
+        | Ok l -> error e l "Bad hex encoded character"
+        | Error e -> Error e)
+    | Ok l -> error e l "Invalid hex object"
+    | Error e -> Error e
+
   let string e =
     lexeme e >>= function
     | `String s -> Ok s
+    | `Os -> get_hex_value e Hex.to_string
     | l         -> error e l "`String"
 
   let bytes e =
     lexeme e >>= function
     | `String s -> Ok (Bytes.unsafe_of_string s)
+    | `Os -> get_hex_value e Hex.to_bytes
     | l         -> error e l "`String"
 
   let float e =
@@ -784,17 +822,11 @@ module Decode_json = struct
     lexeme e >>= function
     | `String s when String.length s = 1 -> Ok (String.get s 0)
     | `Os ->
-        (match lexeme e with
-        | Ok (`Name "hex") ->
-            (match lexeme e with
-            | Ok (`String hex) ->
-                expect_lexeme e `Oe >>= fun () ->
-                Ok (int_of_string ("0x" ^ hex) |> char_of_int)
-            | Ok l -> error e l "Bad hex encoded character"
-            | Error e -> Error e)
-        | Ok l -> error e l "Invalid hex character object"
-        | Error e -> Error e)
-    | l -> error e l "`String[1]"
+      (match get_hex_value e Hex.to_string with
+      | Ok s ->
+          Ok (String.get s 0)
+      | Error x -> Error x)
+    | l -> error e l "`String[0]"
 
   let int32 e = float e >|= Int32.of_float
   let int64 e = float e >|= Int64.of_float
