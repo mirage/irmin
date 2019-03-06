@@ -2285,7 +2285,7 @@ module type S = sig
     (** [pp] is the pretty-printer for commit. Display only the
         hash. *)
 
-    val v: repo -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
+    val v: repo -> info:Info.t -> parents:hash list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
         {ul
         {- [info c = i]}
@@ -2293,10 +2293,10 @@ module type S = sig
         {- [tree c = t]}}
     *)
 
-    val tree: commit -> tree Lwt.t
+    val tree: commit -> tree
     (** [tree c] is [c]'s root tree. *)
 
-    val parents: commit -> commit list Lwt.t
+    val parents: commit -> hash list
     (** [parents c] are [c]'s parents. *)
 
     val info: commit -> Info.t

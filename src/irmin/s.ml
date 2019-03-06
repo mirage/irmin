@@ -390,9 +390,9 @@ module type STORE = sig
     type t = commit
     val t: Repo.t -> t Type.t
     val pp_hash: t Fmt.t
-    val v: Repo.t -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
-    val tree: commit -> tree Lwt.t
-    val parents: commit -> commit list Lwt.t
+    val v: Repo.t -> info:Info.t -> parents:hash list -> tree -> commit Lwt.t
+    val tree: commit -> tree
+    val parents: commit -> hash list
     val info: commit -> Info.t
     val hash: commit -> hash
     val of_hash: Repo.t -> hash -> commit option Lwt.t
