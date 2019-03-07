@@ -105,7 +105,8 @@ module Make (S: S) = struct
     S.Tree.of_hash repo kn3 >>= function
     | None    -> Alcotest.fail "r2"
     | Some t3 ->
-      S.Commit.v repo ~info:Irmin.Info.empty  ~parents:[kr1] (t3 :> S.tree)
+      S.Commit.v repo ~info:Irmin.Info.empty ~parents:[S.Commit.hash kr1]
+        (t3 :> S.tree)
 
   let run x test =
     try
@@ -832,11 +833,15 @@ module Make (S: S) = struct
          0->1->2->3->4
 
       *)
-      S.Commit.v repo ~info:(info 0) ~parents:[]   tree >>= fun k0 ->
-      S.Commit.v repo ~info:(info 1) ~parents:[k0] tree >>= fun k1 ->
-      S.Commit.v repo ~info:(info 2) ~parents:[k1] tree >>= fun k2 ->
-      S.Commit.v repo ~info:(info 3) ~parents:[k2] tree >>= fun k3 ->
-      S.Commit.v repo ~info:(info 4) ~parents:[k3] tree >>= fun k4 ->
+      S.Commit.v repo ~info:(info 0) ~parents:[] tree >>= fun k0 ->
+      S.Commit.v repo ~info:(info 1) ~parents:[S.Commit.hash k0] tree
+      >>= fun k1 ->
+      S.Commit.v repo ~info:(info 2) ~parents:[S.Commit.hash k1] tree
+      >>= fun k2 ->
+      S.Commit.v repo ~info:(info 3) ~parents:[S.Commit.hash k2] tree
+      >>= fun k3 ->
+      S.Commit.v repo ~info:(info 4) ~parents:[S.Commit.hash k3] tree
+      >>= fun k4 ->
 
       assert_lcas "line lcas 1" ~max_depth:0 3 k3 k4 [k3] >>= fun () ->
       assert_lcas "line lcas 2" ~max_depth:1 3 k2 k4 [k2] >>= fun () ->
@@ -851,14 +856,24 @@ module Make (S: S) = struct
              \--->12-->14-->16-->17
 
       *)
-      S.Commit.v repo ~info:(info 10) ~parents:[k4]       tree >>= fun k10 ->
-      S.Commit.v repo ~info:(info 11) ~parents:[k10]      tree >>= fun k11 ->
-      S.Commit.v repo ~info:(info 12) ~parents:[k10]      tree >>= fun k12 ->
-      S.Commit.v repo ~info:(info 13) ~parents:[k11]      tree >>= fun k13 ->
-      S.Commit.v repo ~info:(info 14) ~parents:[k12]      tree >>= fun k14 ->
-      S.Commit.v repo ~info:(info 15) ~parents:[k12; k13] tree >>= fun k15 ->
-      S.Commit.v repo ~info:(info 16) ~parents:[k14]      tree >>= fun k16 ->
-      S.Commit.v repo ~info:(info 17) ~parents:[k11; k16] tree >>= fun k17 ->
+      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash k4] tree
+      >>= fun k10 ->
+      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash k10] tree
+      >>= fun k11 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash k10] tree
+      >>= fun k12 ->
+      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash k11] tree
+      >>= fun k13 ->
+      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash k12] tree
+      >>= fun k14 ->
+      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash k12;
+                                                S.Commit.hash k13] tree
+      >>= fun k15 ->
+      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash k14] tree
+      >>= fun k16 ->
+      S.Commit.v repo ~info:(info 17) ~parents:[S.Commit.hash k11;
+                                                S.Commit.hash k16] tree
+      >>= fun k17 ->
 
       assert_lcas "x lcas 0" ~max_depth:0 5 k10 k10 [k10]      >>= fun () ->
       assert_lcas "x lcas 1" ~max_depth:0 5 k14 k14 [k14]      >>= fun () ->
@@ -877,13 +892,22 @@ module Make (S: S) = struct
                  |        \--|--/
                  \-----------/
       *)
-      S.Commit.v repo ~info:(info 10) ~parents:[k4]      tree >>= fun k10 ->
-      S.Commit.v repo ~info:(info 11) ~parents:[k10]     tree >>= fun k11 ->
-      S.Commit.v repo ~info:(info 12) ~parents:[k11]     tree >>= fun k12 ->
-      S.Commit.v repo ~info:(info 13) ~parents:[k12]     tree >>= fun k13 ->
-      S.Commit.v repo ~info:(info 14) ~parents:[k11;k13] tree >>= fun k14 ->
-      S.Commit.v repo ~info:(info 15) ~parents:[k13;k14] tree >>= fun k15 ->
-      S.Commit.v repo ~info:(info 16) ~parents:[k11]     tree >>= fun k16 ->
+      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash k4] tree
+      >>= fun k10 ->
+      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash k10] tree
+      >>= fun k11 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash k11] tree
+      >>= fun k12 ->
+      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash k12] tree
+      >>= fun k13 ->
+      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash k11;
+                                                S.Commit.hash k13] tree
+      >>= fun k14 ->
+      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash k13;
+                                                S.Commit.hash k14] tree
+      >>= fun k15 ->
+      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash k11] tree
+      >>= fun k16 ->
 
       assert_lcas "weird lcas 1" ~max_depth:0 3 k14 k15 [k14] >>= fun () ->
       assert_lcas "weird lcas 2" ~max_depth:0 3 k13 k15 [k13] >>= fun () ->
@@ -1267,7 +1291,9 @@ module Make (S: S) = struct
       r1 ~repo >>= fun r1 ->
       r2 ~repo >>= fun r2 ->
       let i0 = Irmin.Info.empty in
-      S.Commit.v repo ~info:Irmin.Info.empty ~parents:[r1;r2] v3 >>= fun c ->
+      S.Commit.v repo ~info:Irmin.Info.empty ~parents:[S.Commit.hash r1;
+                                                       S.Commit.hash r2] v3
+      >>= fun c ->
       S.Head.set t c >>= fun () ->
       S.Head.get t >>= fun h ->
 

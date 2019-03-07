@@ -33,7 +33,10 @@ module Make (K: Type.S) = struct
   let parents t = t.parents
   let node t = t.node
   let info t = t.info
-  let v ~info ~node ~parents = { node; parents; info }
+
+  let v ~info ~node ~parents =
+    let parents = List.fast_sort (Type.compare K.t) parents in
+    { node; parents; info }
 
   let t =
     let open Type in

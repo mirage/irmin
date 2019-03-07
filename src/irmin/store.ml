@@ -72,12 +72,8 @@ module Make (P: S.PRIVATE) = struct
       |+ field "value" P.Commit.Val.t (fun t -> t.v)
       |> sealr
 
-    let compare_hash = Type.compare Hash.t
-
     let v r ~info ~parents tree =
       P.Repo.batch r @@ fun contents_t node_t commit_t ->
-      let parents = List.rev_map (fun c -> c.h) parents in
-      let parents = List.sort compare_hash parents in
       (match tree with
        | `Node n     -> Tree.export r contents_t node_t n
        | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
@@ -87,19 +83,18 @@ module Make (P: S.PRIVATE) = struct
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-    let tree t = Tree.import t.r (node t) |> fun n -> `Node n |> Lwt.return
+    let tree t = Tree.import t.r (node t) |> fun n -> `Node n
     let equal x y = Type.equal Hash.t x.h y.h
     let hash t = t.h
     let info t = P.Commit.Val.info t.v
+    let parents t = P.Commit.Val.parents t.v
+
     let pp_hash ppf t = Type.pp Hash.t ppf t.h
 
     let of_hash r h =
       P.Commit.find (P.Repo.commit_t r) h >|= function
       | None   -> None
       | Some v -> Some { r; h; v }
-
-    let parents t =
-      Lwt_list.filter_map_p (of_hash t.r) (P.Commit.Val.parents t.v)
 
     let to_private_commit t = t.v
 
@@ -411,7 +406,7 @@ module Make (P: S.PRIVATE) = struct
 
   let watch_key t key ?init fn =
     Log.info (fun f -> f "watch-key %a" pp_key key);
-    let tree c = Commit.tree c >>= fun tree -> Tree.find_tree tree key in
+    let tree c = Tree.find_tree (Commit.tree c) key in
     watch t ?init (lift_tree_diff tree fn)
 
   module Head = struct
@@ -595,6 +590,7 @@ module Make (P: S.PRIVATE) = struct
       | Ok root      ->
         let info = info () in
         let parents = match parents with None -> s.parents | Some p -> p in
+        let parents = List.map Commit.hash parents in
         Commit.v (repo t) ~info ~parents root >>= fun c ->
         add_commit t s.head (c, root_tree root) >|= fun r ->
         Ok r

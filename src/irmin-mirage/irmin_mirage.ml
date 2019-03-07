@@ -394,7 +394,7 @@ module KV_RW (G: Irmin_git.G) (C: Mirage_clock.PCLOCK) = struct
       S.Head.find t.t >>= function
       | None        -> Lwt.return None
       | Some origin ->
-        S.Commit.tree origin >>= fun tree ->
+        let tree = S.Commit.tree origin in
         S.Tree.find_tree tree t.root >|= function
         | Some t -> Some (origin, t)
         | None   -> Some (origin, S.Tree.empty)

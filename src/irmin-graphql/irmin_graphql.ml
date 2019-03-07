@@ -134,21 +134,18 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
 
   let rec commit = lazy Schema.(
       obj "Commit"
-        ~fields:(fun commit -> [
-              io_field "node"
+        ~fields:(fun _ -> [
+              field "node"
                 ~typ:(non_null (Lazy.force node))
                 ~args:[]
-                ~resolve:(fun _ c ->
-                    Store.Commit.tree c >|= fun tree ->
-                    Ok (tree, Store.Key.empty)
-                  )
+                ~resolve:(fun _ c -> Store.Commit.tree c, Store.Key.empty)
               ;
-              io_field "parents"
-                ~typ:(non_null (list (non_null commit)))
+              field "parents"
+                ~typ:(non_null (list (non_null string)))
                 ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.parents c >|= fun parents ->
-                           Ok parents
-                         )
+                ~resolve:(fun _ c ->
+                    let parents = Store.Commit.parents c in
+                    List.map (Irmin.Type.to_string Store.Hash.t) parents)
               ;
               field "info"
                 ~typ:(non_null Lazy.(force info))
