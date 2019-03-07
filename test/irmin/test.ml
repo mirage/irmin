@@ -244,7 +244,7 @@ let test_hashes () =
     "5ba93c9db0cff93f52b521d7420e43f6eda2784f"
     (digest Node.t Node.empty);
   Alcotest.(check string) "node"
-    "1953615818495694d41d06fdf4acaf3762a4d2b6"
+    "38920183f8b667f6b643b1c4e524a95b55b20d31"
     (digest Node.t (Node.v [
          "foo", `Contents (hash "", Metadata.default);
          "bar", `Node (hash "bar");
@@ -265,7 +265,7 @@ let test_hashes () =
     "31c7871af72105ccf25e527fc00c14c9cafbd280"
     (digest Commit.t v1);
   Alcotest.(check string) "commit v2"
-    "c163fdc8cc1116f21b5fb3f94464f89bb6fafc7a"
+    "2311a8c81b36dd2360a6c3a581c5699940423470"
     (digest Commit.t v2)
 
 let suite = [

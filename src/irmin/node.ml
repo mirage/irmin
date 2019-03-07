@@ -20,25 +20,6 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let node ~default c m n =
-  let open Type in
-  record "node" (fun contents metadata node ->
-      match contents, metadata, node with
-      | Some c, None  , None   -> `Contents (c, default)
-      | Some c, Some m, None   -> `Contents (c, m)
-      | None  , None  , Some n -> `Node n
-      | _ -> failwith "invalid node")
-  |+ field "contents" (option c) (function
-      | `Contents (x, _) -> Some x
-      | _ -> None)
-  |+ field "metadata" (option m) (function
-      | `Contents (_, x) when not (equal m default x) -> Some x
-      | _ -> None)
-  |+ field "node" (option n) (function
-      | `Node n -> Some n
-      | _ -> None)
-  |> sealr
-
 module No_metadata = struct
   type t = unit
   let t = Type.unit
@@ -53,60 +34,83 @@ struct
   type step = P.step
   type metadata = M.t
 
+  type kind = [ `Node | `Contents of M.t ]
+  type entry = { kind : kind; name : P.step; node : K.t }
+
+  let kind_t =
+    let open Type in
+    variant "Tree.kind" (fun node contents -> function
+        | `Node -> node
+        | `Contents m -> contents m)
+    |~ case0 "node" `Node
+    |~ case1 "contents" M.t (fun m -> `Contents m)
+  |> sealv
+
+  let entry_t: entry Type.t =
+    let open Type in
+    record "Tree.entry" (fun kind name node -> { kind ; name ; node } )
+    |+ field "kind" kind_t (function { kind; _ } -> kind)
+    |+ field "name" P.step_t (fun { name ; _ } -> name)
+    |+ field "node" K.t (fun { node ; _ } -> node)
+    |> sealr
+
+  let to_entry (k, v) = match v with
+    | `Node h -> { name = k; kind = `Node; node = h }
+    | `Contents (h, m) -> { name = k; kind = `Contents m; node = h }
+
+  let of_entry n =
+    n.name,
+    match n.kind with
+    | `Node -> `Node (n.node)
+    | `Contents m -> `Contents (n.node, m)
+
   module StepMap =
     Map.Make(struct type t = P.step let compare = Type.compare P.step_t end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
 
-  type k =
-    | Map  : value StepMap.t -> k
-    | List: (step * value) list -> k
-    | Both: value StepMap.t * (step * value) list -> k
+  type t = entry StepMap.t
 
-  type t = { mutable k: k }
-  let of_list l = { k = List l }
-  let of_map m = { k = Map m }
+  let v l =
+    List.fold_left (fun acc x ->
+        StepMap.add (fst x) (to_entry x) acc
+      ) StepMap.empty l
 
-  let list t = match t.k with
-    | List l | Both (_, l) -> l
-    | Map m ->
-      let alist = StepMap.bindings m in
-      t.k <- Both (m, alist);
-      alist
-
-  let map t = match t.k with
-    | Map m | Both (m, _) -> m
-    | List l ->
-      let map =
-        List.fold_left (fun acc (l, x) -> StepMap.add l x acc) StepMap.empty l
-      in
-      t.k <- Both (map, l);
-      map
-
-  let v = of_list
+  let list t = List.map (fun (_, e) -> of_entry e) (StepMap.bindings t)
 
   let find t s =
-    try Some (StepMap.find s (map t))
-    with Not_found -> None
+    try
+      let _, v = of_entry (StepMap.find s t) in
+      Some v
+    with Not_found ->
+      None
 
-  let empty = of_list []
+  let empty = StepMap.empty
   let is_empty e = list e = []
 
   let update t k v =
-    let map = map t in
-    let map' = StepMap.add k v map in
-    if map == map' then t else of_map map'
+    let e = to_entry (k, v) in
+    StepMap.add k e t
 
   let remove t k =
-    let map = map t in
-    let map' = StepMap.remove k map in
-    if map == map' then t else of_map map'
+    StepMap.remove k t
 
-  let value_t = node ~default:M.default K.t M.t K.t
   let step_t = P.step_t
   let hash_t = K.t
   let metadata_t = M.t
-  let t = Type.like_map Type.(list (pair P.step_t value_t)) of_list list
+
+  let value_t =
+    let open Type in
+    variant "value"  (fun n c -> function
+        | `Node h -> n h
+        | `Contents (h, m) -> c (h, m))
+    |~ case1 "node" K.t (fun k -> `Node k)
+    |~ case1 "contents" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
+    |> sealv
+
+  let of_entries e = v (List.map of_entry e)
+  let entries e = List.map to_entry (list e)
+  let t = Type.like_map Type.(list entry_t) of_entries entries
 
 end
 
@@ -347,9 +351,18 @@ module Graph (S: S.NODE_STORE) = struct
 
   let path_t = Path.t
   let node_t = S.Key.t
-  let value_t  = node ~default:Metadata.default Contents.t Metadata.t S.Key.t
   let metadata_t = Metadata.t
   let step_t = Path.step_t
   let contents_t = Contents.t
+
+  let value_t =
+    let open Type in
+    variant "value"  (fun n c -> function
+        | `Node h -> n h
+        | `Contents (h, m) -> c (h, m))
+    |~ case1 "node" node_t (fun k -> `Node k)
+    |~ case1 "contents" (pair contents_t metadata_t)
+      (fun (h, m) -> `Contents (h, m))
+    |> sealv
 
 end
