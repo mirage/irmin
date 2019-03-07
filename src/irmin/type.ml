@@ -601,29 +601,26 @@ module Encode_json = struct
 
   let unit e () = lexeme e `Null
 
+  let hex e s =
+    let `Hex x = Hex.of_string s in
+    let () = lexeme e `Os in
+    let () = lexeme e (`Name "hex") in
+    let () = lexeme e (`String x) in
+    lexeme e `Oe
+
   let string e s =
     if is_valid_utf8 s then
       lexeme e (`String s)
     else
-      let `Hex x = Hex.of_string s in
-      let () = lexeme e `Os in
-      let () = lexeme e (`Name "hex") in
-      let () = lexeme e (`String x) in
-      lexeme e `Oe
+      hex e s
 
   let bytes e b =
     let s = Bytes.unsafe_to_string b in
     string e s
 
   let char e c =
-    let i = int_of_char c in
-    if i > 127 then
-      let () = lexeme e `Os in
-      let () = lexeme e (`Name "hex") in
-      let () = lexeme e (`String (Printf.sprintf "%x" i)) in
-      lexeme e `Oe
-    else
-      string e (String.make 1 c)
+    let s = String.make 1 c in
+    string e s
 
   let float e f = lexeme e (`Float f)
   let int e i = float e (float_of_int i)
