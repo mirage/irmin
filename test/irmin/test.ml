@@ -217,6 +217,57 @@ let test_size () =
   check Irmin.Type.bytes (Bytes.of_string "foo") 4;
   check Irmin.Type.(list string) [] 1
 
+module Hash = Irmin.Hash.SHA1
+module Path = Irmin.Path.String_list
+module Metadata = Irmin.Metadata.None
+module Node = Irmin.Private.Node.Make(Hash)(Path)(Metadata)
+module Commit = Irmin.Private.Commit.Make(Hash)
+
+let hash c = Hash.digest (Irmin.Type.to_bin_string Irmin.Contents.String.t c)
+
+let test_hashes () =
+  let digest t x =
+    let s = Irmin.Type.to_bin_string t x in
+    Printf.eprintf "to_bin_string: %S\n" s;
+    Irmin.Type.to_string Hash.t (Hash.digest s)
+  in
+  Alcotest.(check string) "empty contents"
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    (digest Irmin.Contents.String.t "");
+  Alcotest.(check string) "empty bytes"
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    (digest Irmin.Contents.Bytes.t (Bytes.of_string ""));
+  Alcotest.(check string) "contents"
+    "b60d121b438a380c343d5ec3c2037564b82ffef3"
+    (digest Irmin.Contents.String.t "xxx");
+  Alcotest.(check string) "empty node"
+    "5ba93c9db0cff93f52b521d7420e43f6eda2784f"
+    (digest Node.t Node.empty);
+  Alcotest.(check string) "node"
+    "1953615818495694d41d06fdf4acaf3762a4d2b6"
+    (digest Node.t (Node.v [
+         "foo", `Contents (hash "", Metadata.default);
+         "bar", `Node (hash "bar");
+       ]));
+  let v1 =
+    Commit.v
+      ~info:(Irmin.Info.empty)
+      ~node:(hash "toto")
+      ~parents:[]
+  in
+  let v2 =
+    Commit.v
+      ~info:(Irmin.Info.v ~date:42L ~author:"yay" "\bfoo\bar")
+      ~node:(hash "toto")
+      ~parents:[hash "xxx"; hash"yyy"]
+  in
+  Alcotest.(check string) "commit v1"
+    "31c7871af72105ccf25e527fc00c14c9cafbd280"
+    (digest Commit.t v1);
+  Alcotest.(check string) "commit v2"
+    "c163fdc8cc1116f21b5fb3f94464f89bb6fafc7a"
+    (digest Commit.t v2)
+
 let suite = [
   "type", [
     "base"   , `Quick, test_base;
@@ -228,6 +279,7 @@ let suite = [
     "sharing", `Quick, test_sharing;
     "decode" , `Quick, test_decode;
     "size_of", `Quick, test_size;
+    "test_hashes", `Quick, test_hashes
   ]
 ]
 
