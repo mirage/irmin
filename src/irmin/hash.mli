@@ -31,3 +31,5 @@ module With_digest (K: S.HASH) (V: Type.S): sig
   include S.HASH with type t = K.t
   val digest: V.t -> t
 end
+
+module V1 (H: S.HASH): S.HASH with type t = H.t

@@ -298,3 +298,15 @@ struct
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)
 
 end
+
+module V1 = struct
+
+  module String = struct
+    include String
+
+    let t =
+      Type.(like_map (pair unit (string_of `Int64)))
+        (fun (_, x) -> x) (fun x -> (), x)
+  end
+
+end

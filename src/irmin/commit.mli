@@ -16,8 +16,7 @@
 
 (** Manage the database history. *)
 
-module Make (K: Type.S):
-  S.COMMIT with type hash = K.t
+module Make (K: Type.S): S.COMMIT with type hash = K.t
 
 module Store
     (N: S.NODE_STORE)
@@ -39,3 +38,5 @@ module History (C: S.COMMIT_STORE):
                     and type v = C.Val.t
                     and type node = C.Node.key
                     and type commit = C.key
+
+module V1 (C: S.COMMIT): S.COMMIT with type hash = C.hash

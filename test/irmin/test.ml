@@ -220,10 +220,20 @@ let test_size () =
 module Hash = Irmin.Hash.SHA1
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node.Make(Hash)(Path)(Metadata)
-module Commit = Irmin.Private.Commit.Make(Hash)
 
-let hash c = Hash.digest (Irmin.Type.to_bin_string Irmin.Contents.String.t c)
+module Node = Irmin.Private.Node.Make(Hash)(Path)(Metadata)
+module Node_v1 = Irmin.Private.Node.V1(Node)
+
+module Commit = Irmin.Private.Commit.Make(Hash)
+module Commit_v1 = Irmin.Private.Commit.V1(Commit)
+
+module Hash_v1 = Irmin.Hash.V1(Hash)
+
+let hash c =
+  Hash.digest (Irmin.Type.to_bin_string Irmin.Contents.String.t c)
+
+let hash_v1 c =
+  Hash_v1.digest (Irmin.Type.to_bin_string Irmin.Contents.V1.String.t c)
 
 let test_hashes () =
   let digest t x =
@@ -234,39 +244,60 @@ let test_hashes () =
   Alcotest.(check string) "empty contents"
     "da39a3ee5e6b4b0d3255bfef95601890afd80709"
     (digest Irmin.Contents.String.t "");
+  Alcotest.(check string) "empty v1 contents"
+    "05fe405753166f125559e7c9ac558654f107c7e9"
+    (digest Irmin.Contents.V1.String.t "");
   Alcotest.(check string) "empty bytes"
     "da39a3ee5e6b4b0d3255bfef95601890afd80709"
     (digest Irmin.Contents.Bytes.t (Bytes.of_string ""));
   Alcotest.(check string) "contents"
     "b60d121b438a380c343d5ec3c2037564b82ffef3"
     (digest Irmin.Contents.String.t "xxx");
+
   Alcotest.(check string) "empty node"
     "5ba93c9db0cff93f52b521d7420e43f6eda2784f"
     (digest Node.t Node.empty);
+  Alcotest.(check string) "empty v1 node"
+    "05fe405753166f125559e7c9ac558654f107c7e9"
+    (digest Node_v1.t Node_v1.empty);
+
+  let n1 v hash = v [
+    "foo", `Contents (hash "", Metadata.default);
+    "bar", `Node (hash "bar");
+  ]
+  in
+
   Alcotest.(check string) "node"
     "38920183f8b667f6b643b1c4e524a95b55b20d31"
-    (digest Node.t (Node.v [
-         "foo", `Contents (hash "", Metadata.default);
-         "bar", `Node (hash "bar");
-       ]));
-  let v1 =
-    Commit.v
+    (digest Node.t (n1 Node.v hash));
+
+  Alcotest.(check string) "node v1"
+    "bc5615e070d2838b278a1de0bb63fe325dd9cb11"
+    (digest Node_v1.t (n1 Node_v1.v hash_v1));
+
+  let v1 v hash = v
       ~info:(Irmin.Info.empty)
       ~node:(hash "toto")
       ~parents:[]
   in
-  let v2 =
-    Commit.v
+  let v2 v hash = v
       ~info:(Irmin.Info.v ~date:42L ~author:"yay" "\bfoo\bar")
       ~node:(hash "toto")
       ~parents:[hash "xxx"; hash"yyy"]
   in
-  Alcotest.(check string) "commit v1"
+  Alcotest.(check string) "commit 1"
     "31c7871af72105ccf25e527fc00c14c9cafbd280"
-    (digest Commit.t v1);
-  Alcotest.(check string) "commit v2"
+    (digest Commit.t (v1 Commit.v hash));
+  Alcotest.(check string) "commit v1 1"
+    "d37cc867cc6eca1b6818b0bc36fef3ffed5cc6d2"
+    (digest Commit_v1.t (v1 Commit_v1.v hash_v1));
+
+  Alcotest.(check string) "commit 2"
     "2311a8c81b36dd2360a6c3a581c5699940423470"
-    (digest Commit.t v2)
+    (digest Commit.t (v2 Commit.v hash));
+  Alcotest.(check string) "commit v1 2"
+    "e113f06cd69ed367dd7e4690f373a743cd4852b4"
+    (digest Commit_v1.t (v2 Commit_v1.v hash_v1))
 
 let suite = [
   "type", [

@@ -1044,6 +1044,9 @@ module Hash: sig
   module BLAKE2B: S
   module BLAKE2S: S
 
+  module V1 (H: S): S with type t = H.t
+  (** v1 serialisation *)
+
 end
 
 (** [Metadata] defines metadata that is attached to contents but stored in
@@ -1135,6 +1138,13 @@ module Contents: sig
 
   module Json_value: S with type t = json
   (** [Json_value] allows any kind of json value to be stored, not only objects. *)
+
+  module V1: sig
+
+    module String: S with type t = string
+    (** Same as {!String} but use v1 serialisation format. *)
+
+  end
 
   (** Contents store. *)
   module type STORE = sig
@@ -1532,6 +1542,9 @@ module Private: sig
       val t: t Type.t
       (** [t] is the value type for {!t}. *)
 
+      val default: metadata
+      (** [default] is the default metadata value. *)
+
       val metadata_t: metadata Type.t
       (** [metadata_t] is the value type for {!metadata}. *)
 
@@ -1546,12 +1559,18 @@ module Private: sig
 
     end
 
-    (** [Node] provides a simple node implementation, parameterized by
+    (** [Make] provides a simple node implementation, parameterized by
         the contents and notes keys [K], paths [P] and metadata [M]. *)
     module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
       S with type hash = K.t
          and type step = P.step
          and type metadata = M.t
+
+    (** v1 serialisation *)
+    module V1 (S: S):
+      S with type hash = S.hash
+           and type step = S.step
+           and type metadata = S.metadata
 
     (** [STORE] specifies the signature for node stores. *)
     module type STORE = sig
@@ -1747,8 +1766,10 @@ module Private: sig
 
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit and node keys [K]. *)
-    module Make (K: Type.S):
-      S with type hash = K.t
+    module Make (K: Type.S): S with type hash = K.t
+
+    module V1 (S: S): S with type hash = S.hash
+    (** V1 serialisation. *)
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig

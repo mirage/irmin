@@ -98,6 +98,7 @@ struct
   let step_t = P.step_t
   let hash_t = K.t
   let metadata_t = M.t
+  let default = M.default
 
   let value_t =
     let open Type in
@@ -364,5 +365,118 @@ module Graph (S: S.NODE_STORE) = struct
     |~ case1 "contents" (pair contents_t metadata_t)
       (fun (h, m) -> `Contents (h, m))
     |> sealv
+
+end
+
+module V1 (N: S.NODE) = struct
+
+  module K = struct
+
+    let h = Type.string_of `Int64
+
+    let size_of x =
+      Type.size_of h (Type.to_bin_string N.hash_t x)
+
+    let encode_bin buf off e =
+      Type.encode_bin h buf off (Type.to_bin_string N.hash_t e)
+
+    let decode_bin buf off =
+      let n, v = Type.decode_bin h buf off in
+      n, match Type.of_bin_string N.hash_t v with
+      | Ok v -> v
+      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
+
+    let t = Type.like N.hash_t ~bin:(encode_bin, decode_bin, size_of)
+
+  end
+
+  type step = N.step
+  type hash = N.hash
+  type metadata = N.metadata
+  type value = N.value
+
+  let hash_t = N.hash_t
+  let metadata_t = N.metadata_t
+
+  type v =
+    | N of N.t
+    | V of (step * value) list
+    | Both of N.t * (step * value) list
+
+  type t = { mutable v: v }
+
+  let v l = { v = V l }
+
+  let list t = match t.v with
+    | V l | Both (_, l) -> l
+    | N n ->
+      let l = N.list n in
+      t.v <- Both (n, l);
+      l
+
+  let empty = { v = Both (N.empty, []) }
+
+  let is_empty t = match t.v with
+    | V l | Both (_, l) -> l = []
+    | N n -> N.is_empty n
+
+  let default = N.default
+
+  let to_n t = match t.v with
+    | N n | Both (n, _) -> n
+    | V l ->
+      let n = N.v l in
+      t.v <- Both (n, l);
+      n
+
+  let find t k = N.find (to_n t) k
+
+  let update t k v =
+    let n1 = to_n t in
+    let n2 = N.update n1 k v in
+    if n1 == n2 then t else (
+      t.v <- N n2;
+      t
+    )
+
+  let remove t k =
+    let n1 = to_n t in
+    let n2 = N.remove n1 k in
+    if n1 == n2 then t else (
+      t.v <- N n2;
+      t
+    )
+
+  let step_t: step Type.t =
+    let to_string p = Type.to_bin_string N.step_t p in
+    let of_string s =
+      Type.of_bin_string N.step_t s |> function
+      | Ok x -> x
+      | Error (`Msg e) -> Fmt.failwith "Step.of_string: %s" e
+    in
+    Type.(like_map (string_of `Int64)) of_string to_string
+
+  let value_t =
+    let open Type in
+    record "node" (fun contents metadata node ->
+        match contents, metadata, node with
+        | Some c, None  , None   -> `Contents (c, N.default)
+        | Some c, Some m, None   -> `Contents (c, m)
+        | None  , None  , Some n -> `Node n
+        | _ -> failwith "invalid node")
+    |+ field "contents" (option K.t) (function
+        | `Contents (x, _) -> Some x
+        | _ -> None)
+    |+ field "metadata" (option N.metadata_t) (function
+        | `Contents (_, x) when not (equal N.metadata_t N.default x) -> Some x
+        | _ -> None)
+    |+ field "node" (option K.t) (function
+        | `Node n -> Some n
+        | _ -> None)
+    |> sealr
+
+
+  let t: t Type.t =
+    Type.like_map Type.(list ~len:`Int64 (pair step_t value_t)) v list
 
 end

@@ -210,6 +210,7 @@ module Make_private
       let metadata_t = Metadata.t
       let hash_t = Key.t
       let step_t = Path.step_t
+      let default = Metadata.default
 
       let value_t =
         let open Irmin.Type in

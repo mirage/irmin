@@ -49,3 +49,28 @@ module With_digest (K: S.HASH) (V: Type.S) = struct
   include K
   let digest v = K.digest (Type.to_bin_string V.t v)
 end
+
+module V1 (K: S.HASH): S.HASH with type t = K.t = struct
+
+  type t = K.t
+  let hash = K.hash
+  let digest = K.digest
+  let digest_size = K.digest_size
+
+  let h = Type.string_of `Int64
+
+  let size_of x =
+    Type.size_of h (Type.to_bin_string K.t x)
+
+  let encode_bin buf off e =
+    Type.encode_bin h buf off (Type.to_bin_string K.t e)
+
+  let decode_bin buf off =
+    let n, v = Type.decode_bin h buf off in
+    n, match Type.of_bin_string K.t v with
+    | Ok v -> v
+    | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
+
+  let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
+
+end
