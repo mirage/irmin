@@ -55,6 +55,12 @@ module Make (P: S.PRIVATE) = struct
       | `Contents (h, _) -> h
   end
 
+  let export_contents b c =  P.Contents.add b c
+
+  let export_tree r x y (tr:Tree.tree) = match tr with
+    | `Contents (c, _) -> export_contents x c
+    | `Node n -> Tree.export r x y n
+
   type node = Tree.node
   type contents = Contents.t
   type metadata = Metadata.t

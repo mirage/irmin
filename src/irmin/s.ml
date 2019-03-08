@@ -626,6 +626,12 @@ module type STORE = sig
 
   val to_private_commit: commit -> Private.Commit.value
   val of_private_commit: repo -> Private.Commit.value -> commit
+
+  val export_tree: repo ->
+    [> `Write] Private.Contents.t ->
+    [> `Write] Private.Node.t -> tree ->
+    hash Lwt.t
+
 end
 
 module type MAKER =
