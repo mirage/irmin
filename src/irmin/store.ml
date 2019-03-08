@@ -907,8 +907,8 @@ module Make (P: S.PRIVATE) = struct
       type t = commit
       let compare c1 c2 =
          Int64.compare
-          (Info.date @@ Commit.info c2)
-          (Info.date @@ Commit.info c1)
+          (Info.date (Commit.info c1))
+          (Info.date (Commit.info c2))
     end)
 
   let last_modified ?(number = 1) t key =
