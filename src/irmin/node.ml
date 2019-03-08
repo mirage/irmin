@@ -27,7 +27,10 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make (K: Type.S) (P: S.PATH) (M: S.METADATA) =
+module Make
+    (K: Type.S)
+    (P: sig type step val step_t: step Type.t end)
+    (M: S.METADATA) =
 struct
 
   type hash = K.t
