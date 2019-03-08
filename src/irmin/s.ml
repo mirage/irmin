@@ -90,6 +90,7 @@ module type NODE = sig
   val update: t -> step -> value -> t
   val remove: t -> step -> t
   val t: t Type.t
+  val default: metadata
   val metadata_t: metadata Type.t
   val hash_t: hash Type.t
   val step_t: step Type.t

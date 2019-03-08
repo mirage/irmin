@@ -39,6 +39,10 @@ module Json_tree(Store: S.STORE with type contents = json): sig
   val set : Store.t -> Store.key -> json -> info:Info.f -> unit Lwt.t
 end
 
+module V1: sig
+  module String: S.CONTENTS with type t = string
+end
+
 module Store
     (C: sig
        include S.CONTENT_ADDRESSABLE_STORE

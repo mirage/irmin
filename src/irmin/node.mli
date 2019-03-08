@@ -52,3 +52,8 @@ module Graph (N: S.NODE_STORE):
                 and type node = N.key
                 and type step = N.Path.step
                 and type path = N.Path.t
+
+module V1 (N: S.NODE): S.NODE
+  with type hash = N.hash
+   and type step = N.step
+   and type metadata = N.metadata

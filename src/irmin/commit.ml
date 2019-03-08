@@ -445,3 +445,57 @@ module History (S: S.COMMIT_STORE) = struct
       | Some c -> lca t ~info ?max_depth ?n (c::cs)
 
 end
+
+module V1 (C: S.COMMIT) = struct
+
+  module K = struct
+
+    let h = Type.string_of `Int64
+
+    let size_of x =
+      Type.size_of h (Type.to_bin_string C.hash_t x)
+
+    let encode_bin buf off e =
+      Type.encode_bin h buf off (Type.to_bin_string C.hash_t e)
+
+    let decode_bin buf off =
+      let n, v = Type.decode_bin h buf off in
+      n, match Type.of_bin_string C.hash_t v with
+      | Ok v -> v
+      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
+
+    let t = Type.like C.hash_t ~bin:(encode_bin, decode_bin, size_of)
+
+  end
+
+  type hash = C.hash
+  let hash_t = K.t
+
+  type t = {
+    parents: hash list;
+    c: C.t;
+  }
+
+  let node t = C.node t.c
+  let parents t = t.parents
+  let info t = C.info t.c
+
+  let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
+
+  let info_t: Info.t Type.t =
+    let open Type in
+    record "info" (fun date author message -> Info.v ~date ~author message)
+    |+ field "date"    int64  (fun t -> Info.date t)
+    |+ field "author"  (string_of `Int64) (fun t -> Info.author t)
+    |+ field "message" (string_of `Int64) (fun t -> Info.message t)
+    |> sealr
+
+  let t: t Type.t =
+    let open Type in
+    record "commit" (fun node parents info -> v ~info ~node ~parents)
+    |+ field "node"    K.t                     node
+    |+ field "parents" (list ~len:`Int64 K.t)  parents
+    |+ field "info"    info_t                  info
+    |> sealr
+
+end
