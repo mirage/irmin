@@ -603,9 +603,9 @@ module Encode_json = struct
 
   let base64 e s =
     let x = Base64.encode_exn s in
-    let () = lexeme e `Os in
-    let () = lexeme e (`Name "base64") in
-    let () = lexeme e (`String x) in
+    lexeme e `Os;
+    lexeme e (`Name "base64");
+    lexeme e (`String x);
     lexeme e `Oe
 
   let string e s =
