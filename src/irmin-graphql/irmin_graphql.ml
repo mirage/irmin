@@ -31,12 +31,40 @@ type commit_input = {
   message: string option;
 }
 
+module Option = struct
+  let map f t = match t with None -> None | Some x -> Some (f x)
+end
+
+module Result = struct
+  let ok x = Ok x
+end
+
 module type CONFIG = sig
   val remote: (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
   val info: ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 
-module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = struct
+module type PRESENTER = sig
+  type t
+  type src
+
+  val to_src : t -> src
+  val schema_typ : (unit, src option) Schema.typ
+end
+
+module type PRESENTATION = sig
+  module Contents : PRESENTER
+  module Metadata : PRESENTER
+end
+
+module Default_presenter (T : Irmin.Type.S) = struct
+  type t = T.t
+  type src = string
+  let to_src = Irmin.Type.to_string T.t
+  let schema_typ = Schema.string
+end
+
+module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata) = struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
   module Graphql_server = Graphql_cohttp.Make(Schema)(IO)(Cohttp_lwt.Body)
@@ -207,24 +235,21 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
               ;
               io_field "value"
                 ~args:[]
-                ~typ:string
+                ~typ:Presentation.Contents.schema_typ
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find tree key >>= function
-                    | Some contents ->
-                      let s = Irmin.Type.to_string Store.contents_t contents in
-                      Lwt.return_ok (Some s)
-                    | _ -> Lwt.return_ok None
+                    Store.Tree.find tree key >|=
+                    Option.map Presentation.Contents.to_src >|=
+                    Result.ok
                   );
               io_field "metadata"
                 ~args:[]
-                ~typ:string
+                ~typ:Presentation.Metadata.schema_typ
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find_all tree key >>= function
-                    | Some (_contents, metadata) ->
-                      let s = Irmin.Type.to_string Store.metadata_t metadata in
-                      Lwt.return_ok (Some s)
-                    | None -> Lwt.return_ok None
-                  );
+                    Store.Tree.find_all tree key >|=
+                    Option.map snd >|=
+                    Option.map Presentation.Metadata.to_src >|=
+                    Result.ok
+                 );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
@@ -259,11 +284,11 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(string)
+                ~typ:Presentation.Contents.schema_typ
                 ~resolve:(fun _ (s, _) key ->
-                    Store.find s key >>= function
-                    | Some v -> Lwt.return_ok (Some (Irmin.Type.to_string Store.contents_t v))
-                    | None -> Lwt.return_ok None
+                    Store.find s key >|=
+                    Option.map Presentation.Contents.to_src >|=
+                    Result.ok
                   )
               ;
               io_field "get_tree"
@@ -322,23 +347,22 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
                 ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
               ;
               io_field "metadata"
-                ~typ:string
+                ~typ:Presentation.Metadata.schema_typ
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find_all tree key >|= function
-                    | None -> Ok None
-                    | Some (_, metadata) ->
-                      Ok (Some (Irmin.Type.to_string Store.metadata_t metadata))
+                    Store.Tree.find_all tree key >|=
+                    Option.map snd >|=
+                    Option.map Presentation.Metadata.to_src >|=
+                    Result.ok
                   )
               ;
               io_field "value"
-                ~typ:string
+                ~typ:Presentation.Contents.schema_typ
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find tree key >|= function
-                    | None -> Ok None
-                    | Some contents ->
-                      Ok (Some (Irmin.Type.to_string Store.contents_t contents))
+                    Store.Tree.find tree key >|=
+                    Option.map Presentation.Contents.to_src >|=
+                    Result.ok
                   )
               ;
             ])
@@ -651,3 +675,13 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) = stru
     let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
     Server.make_response_action ~callback ()
 end
+
+module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) =
+  struct
+    module Presentation = struct
+      module Contents = Default_presenter(Store.Contents)
+      module Metadata = Default_presenter(Store.Metadata)
+    end
+
+    include Make_ext(Server)(Config)(Store)(Presentation)
+  end
