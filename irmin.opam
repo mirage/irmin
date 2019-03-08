@@ -20,12 +20,13 @@ depends: [
   "uri"     {>= "1.3.12"}
   "jsonm"   {>= "1.0.0"}
   "lwt"     {>= "2.4.7"}
+  "base64"  {>= "2.0.0"}
   "digestif"
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
   "astring"
-  "alcotest" {with-test}
   "hex"      {with-test}
+  "alcotest" {with-test}
 ]
 synopsis: """
 Irmin, a distributed database that follows the same design principles as Git

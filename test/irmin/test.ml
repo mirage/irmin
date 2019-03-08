@@ -78,7 +78,13 @@ let test_json () =
   Alcotest.(check (ok string)) "JSON to hex2" (Ok "foo") x;
 
   let x = T.to_json_string hex2 "foo" in
-  Alcotest.(check string) "JSON of hex2" "[\"foo\",\"666f6f\"]" x
+  Alcotest.(check string) "JSON of hex2" "[\"foo\",\"666f6f\"]" x;
+
+  let x = T.to_json_string T.char (char_of_int 128) in
+  Alcotest.(check string) "JSON char larger than 127" "{\"base64\":\"gA==\"}" x;
+
+  let x = T.to_json_string T.string "\128\129a" in
+  Alcotest.(check (ok string)) "JSON string with chars larger than 127" (T.of_json_string T.string x) (Ok "\128\129a")
 
 let l =
   let hex = T.like_map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
