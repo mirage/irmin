@@ -601,10 +601,10 @@ module Encode_json = struct
 
   let unit e () = lexeme e `Null
 
-  let hex e s =
-    let `Hex x = Hex.of_string s in
+  let base64 e s =
+    let x = Base64.encode_exn s in
     let () = lexeme e `Os in
-    let () = lexeme e (`Name "hex") in
+    let () = lexeme e (`Name "base64") in
     let () = lexeme e (`String x) in
     lexeme e `Oe
 
@@ -612,7 +612,7 @@ module Encode_json = struct
     if is_valid_utf8 s then
       lexeme e (`String s)
     else
-      hex e s
+      base64 e s
 
   let bytes e b =
     let s = Bytes.unsafe_to_string b in
@@ -784,30 +784,33 @@ module Decode_json = struct
 
   let unit e = expect_lexeme e `Null
 
-  let get_hex_value e f =
+  let get_base64_value e =
     match lexeme e with
-    | Ok (`Name "hex") ->
+    | Ok (`Name "base64") ->
         (match lexeme e with
-        | Ok (`String hex) ->
+        | Ok (`String b) ->
             (match expect_lexeme e `Oe with
             | Ok () ->
-              Ok (f (`Hex hex))
+              Ok (Base64.decode_exn b)
             | Error e -> Error e)
-        | Ok l -> error e l "Bad hex encoded character"
+        | Ok l -> error e l "Bad base64 encoded character"
         | Error e -> Error e)
-    | Ok l -> error e l "Invalid hex object"
+    | Ok l -> error e l "Invalid base64 object"
     | Error e -> Error e
 
   let string e =
     lexeme e >>= function
     | `String s -> Ok s
-    | `Os -> get_hex_value e Hex.to_string
+    | `Os -> get_base64_value e
     | l         -> error e l "`String"
 
   let bytes e =
     lexeme e >>= function
     | `String s -> Ok (Bytes.unsafe_of_string s)
-    | `Os -> get_hex_value e Hex.to_bytes
+    | `Os ->
+        (match get_base64_value e with
+        | Ok s -> Ok (Bytes.unsafe_of_string s)
+        | Error e -> Error e)
     | l         -> error e l "`String"
 
   let float e =
@@ -819,7 +822,7 @@ module Decode_json = struct
     lexeme e >>= function
     | `String s when String.length s = 1 -> Ok (String.get s 0)
     | `Os ->
-      (match get_hex_value e Hex.to_string with
+      (match get_base64_value e with
       | Ok s ->
           Ok (String.get s 0)
       | Error x -> Error x)
