@@ -603,7 +603,7 @@ let graphql = {
     in
     let graphql (S ((module S), store, remote_fn)) port addr =
       run begin
-        let module Server = Graphql.Make (S) (struct let remote = remote_fn end) in
+        let module Server = Graphql.Server.Make (S) (struct let remote = remote_fn end) in
         store >>= fun t ->
         let server = Server.server t in
         Conduit_lwt_unix.init ~src:addr () >>= fun ctx ->

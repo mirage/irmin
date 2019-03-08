@@ -467,17 +467,17 @@ module Graphql = struct
 
   module Make
       (Http: Cohttp_lwt.S.Server)
-      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
       (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
   = struct
     module Store = Store
     module Pclock = Pclock
     module Http = Http
+    module I = Info(Pclock)
 
     let init p =
       let module Config = struct
         let info ?(author = "irmin-graphql") fmt =
-          let module I = Info(Pclock) in
           I.f ~author p fmt
 
         let remote = Some (fun ?headers uri ->
@@ -486,7 +486,39 @@ module Graphql = struct
             in
             Store.E e)
       end in
-      (module Irmin_graphql.Make(Http)(Config)(Store): Irmin_graphql.S with type server = Http.t and type store = Store.t)
+      (module Irmin_graphql.Server.Make(Http)(Config)(Store):
+        Irmin_graphql.Server.S with type server = Http.t and type store = Store.t)
+
+    let start ~pclock ~http store =
+      let (module G) = init pclock in
+      let server = G.server store in
+      http server
+  end
+
+  module Make_ext
+      (Http: Cohttp_lwt.S.Server)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
+      (P: Irmin_graphql.Server.PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata)
+  = struct
+    module Store = Store
+    module Pclock = Pclock
+    module Http = Http
+    module I = Info(Pclock)
+
+    let init p =
+      let module Config = struct
+        let info ?(author = "irmin-graphql") fmt =
+          I.f ~author p fmt
+
+        let remote = Some (fun ?headers uri ->
+            let e =
+              Git_mirage.endpoint ?headers (Uri.of_string uri)
+            in
+            Store.E e)
+      end in
+      (module Irmin_graphql.Server.Make_ext(Http)(Config)(Store)(P):
+        Irmin_graphql.Server.S with type server = Http.t and type store = Store.t)
 
     let start ~pclock ~http store =
       let (module G) = init pclock in

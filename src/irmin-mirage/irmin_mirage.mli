@@ -183,8 +183,17 @@ module Graphql: sig
 
   module Make
       (Http: Cohttp_lwt.S.Server)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
+      (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint):
+    S with module Pclock = Pclock
+      and module Store = Store
+      and module Http = Http
+
+  module Make_ext
+      (Http: Cohttp_lwt.S.Server)
+      (Pclock: Mirage_clock_lwt.PCLOCK)
       (Store: Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
-      (Pclock: Mirage_clock_lwt.PCLOCK):
+      (P: Irmin_graphql.Server.PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata):
     S with module Pclock = Pclock
       and module Store = Store
       and module Http = Http

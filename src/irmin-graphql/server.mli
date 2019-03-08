@@ -41,10 +41,14 @@ end
 
 module Default_presenter (T : Irmin.Type.S) : PRESENTER with type t = T.t
 
-module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S): S
-  with type store = Store.t
-   and type server = Server.t
+module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S):
+  S with type store = Store.t
+    and type server = Server.t
 
-module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata): S
-  with type store = Store.t
-   and type server = Server.t
+module Make_ext
+  (Server: Cohttp_lwt.S.Server)
+  (Config: CONFIG)
+  (Store : Irmin.S)
+  (Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata):
+  S with type store = Store.t
+    and type server = Server.t
