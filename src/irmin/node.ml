@@ -401,54 +401,28 @@ module V1 (N: S.NODE) = struct
   let hash_t = N.hash_t
   let metadata_t = N.metadata_t
 
-  type v =
-    | N of N.t
-    | V of (step * value) list
-    | Both of N.t * (step * value) list
+  type t = {
+    n: N.t;
+    entries: (step * value) list;
+  }
 
-  type t = { mutable v: v }
+  let v entries =
+    let n = N.v entries in
+    { n; entries }
 
-  let v l = { v = V l }
-
-  let list t = match t.v with
-    | V l | Both (_, l) -> l
-    | N n ->
-      let l = N.list n in
-      t.v <- Both (n, l);
-      l
-
-  let empty = { v = Both (N.empty, []) }
-
-  let is_empty t = match t.v with
-    | V l | Both (_, l) -> l = []
-    | N n -> N.is_empty n
-
+  let list t = t.entries
+  let empty = { n = N.empty; entries = [] }
+  let is_empty t = t.entries = []
   let default = N.default
-
-  let to_n t = match t.v with
-    | N n | Both (n, _) -> n
-    | V l ->
-      let n = N.v l in
-      t.v <- Both (n, l);
-      n
-
-  let find t k = N.find (to_n t) k
+  let find t k = N.find t.n k
 
   let update t k v =
-    let n1 = to_n t in
-    let n2 = N.update n1 k v in
-    if n1 == n2 then t else (
-      t.v <- N n2;
-      t
-    )
+    let n = N.update t.n k v in
+    if t.n == n then t else { n; entries = N.list n }
 
   let remove t k =
-    let n1 = to_n t in
-    let n2 = N.remove n1 k in
-    if n1 == n2 then t else (
-      t.v <- N n2;
-      t
-    )
+    let n = N.remove t.n k in
+    if t.n == n then t else { n; entries = N.list n }
 
   let step_t: step Type.t =
     let to_string p = Type.to_bin_string N.step_t p in
