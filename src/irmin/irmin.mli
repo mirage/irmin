@@ -1561,7 +1561,10 @@ module Private: sig
 
     (** [Make] provides a simple node implementation, parameterized by
         the contents and notes keys [K], paths [P] and metadata [M]. *)
-    module Make (K: Type.S) (P: Path.S) (M: Metadata.S):
+    module Make
+        (K: Type.S)
+        (P: sig type step val step_t: step Type.t end)
+        (M: Metadata.S):
       S with type hash = K.t
          and type step = P.step
          and type metadata = M.t
