@@ -3001,6 +3001,12 @@ module type S = sig
   (** [of_private_commit r c] is the commit associated with the
      private commit object [c]. *)
 
+  (** Export trees. *)
+  val export_tree: repo ->
+    [> `Write] Private.Contents.t ->
+    [> `Write] Private.Node.t -> tree ->
+    hash Lwt.t
+
 end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
