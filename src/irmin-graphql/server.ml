@@ -26,10 +26,6 @@ let of_irmin_result = function
   | Ok _ as ok -> ok
   | Error (`Msg msg) -> Error msg
 
-type commit_input = {
-  author: string option;
-  message: string option;
-}
 
 module Option = struct
   let map f t = match t with None -> None | Some x -> Some (f x)
@@ -82,14 +78,29 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
     metadata: Store.metadata option;
   }
 
-  let mk_info input =
+  type txn_args = {
+    author: string option;
+    message: string option;
+    retries: int option;
+    allow_empty: bool option;
+    parents: Store.Hash.t list option;
+  }
+
+  let txn_args t input =
     match input with
     | Some input ->
+      let repo = Store.repo t in
       let message = match input.message with None -> "" | Some m -> m in
       let author = input.author in
-      Config.info ?author "%s" message
-    | None ->
-      Config.info ""
+      let parents =
+        match input.parents with
+        | Some l ->
+            Lwt_list.filter_map_s (fun hash -> Store.Commit.of_hash repo hash) l >>= Lwt.return_some
+        | None -> Lwt.return_none
+      in
+      parents >|= fun parents ->
+      Config.info ?author "%s" message, input.retries, input.allow_empty, parents
+    | None -> Lwt.return (Config.info "", None, None, None)
 
   type store = Store.t
   type server = Server.t
@@ -133,6 +144,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
     let key = Schema.Arg.(scalar "Key" ~coerce:coerce_key)
     let step = Schema.Arg.(scalar "Step" ~coerce:coerce_step)
     let commit_hash = Schema.Arg.(scalar "CommitHash" ~coerce:coerce_hash)
+    let object_hash = Schema.Arg.(scalar "ObjectHash" ~coerce:coerce_hash)
     let branch = Schema.Arg.(scalar "BranchName" ~coerce:coerce_branch)
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
     let value = Schema.Arg.(scalar "Value" ~coerce:coerce_value)
@@ -142,9 +154,12 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ~fields:[
             arg "author" ~typ:string;
             arg "message" ~typ:string;
+            arg "retries" ~typ:int;
+            arg "allow_empty" ~typ:bool;
+            arg "parents" ~typ:(list (non_null commit_hash));
           ]
-          ~coerce:(fun author message -> {author; message})
-      )
+          ~coerce:(fun author message retries allow_empty parents -> {author; message; retries; allow_empty; parents})
+        )
 
     let item = Schema.Arg.(
         obj "TreeItem"
@@ -157,13 +172,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
       )
 
     let tree = Schema.Arg.(
-        non_null (list (non_null item)))
+        list (non_null item))
   end
 
   let rec commit = lazy Schema.(
       obj "Commit"
         ~fields:(fun _ -> [
-              field "node"
+              field "tree"
                 ~typ:(non_null (Lazy.force node))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.tree c, Store.Key.empty)
@@ -321,7 +336,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     | false -> Lwt.return_ok None
                   )
               ;
-              io_field "lca"
+              io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, _) commit ->
@@ -365,6 +380,17 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Result.ok
                   )
               ;
+              io_field "hash"
+                ~typ:string
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find tree key >|= function
+                    | None -> Ok None
+                    | Some contents ->
+                      let contents = Store.Contents.hash contents in
+                      Ok (Some (Irmin.Type.to_string Store.Hash.t contents))
+                )
+              ;
             ])
     )
 
@@ -395,13 +421,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               mk_branch (Store.repo s) branch >>= fun t ->
               Sync.fetch t remote >>= function
               | Ok d ->
-                Store.Head.set s d >|= fun () ->
+                Store.Head.set t d >|= fun () ->
                 Ok d
               | Error e ->
                 let err = Fmt.to_to_string Sync.pp_fetch_error e in
                 Lwt_result.fail err
             )
-        ;
+          ;
         io_field "push"
           ~typ:(non_null bool)
           ~args:Arg.[
@@ -412,6 +438,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               mk_branch (Store.repo s) branch >>= fun t ->
               Sync.push t remote >>= function
               | Ok _ -> Lwt.return_ok true
+              | Error `No_head -> Lwt.return_ok false
               | Error e ->
                 let s = Fmt.to_to_string Sync.pp_push_error e in
                 Lwt.return_error s
@@ -423,11 +450,17 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               arg "branch" ~typ:Input.branch;
               arg "remote" ~typ:(non_null Input.remote);
               arg "info" ~typ:Input.info;
+              arg "depth" ~typ:int;
             ]
-          ~resolve:(fun _ _src branch remote info ->
+          ~resolve:(fun _ _src branch remote info depth ->
               mk_branch (Store.repo s) branch >>= fun t ->
-              let info = mk_info info in
-              Sync.pull t remote (`Merge info) >>= function
+              let strategy = match info with
+                | Some info ->
+                  txn_args t (Some info) >|= fun (info, _, _, _) ->
+                  `Merge info
+                | None -> Lwt.return `Set
+              in
+              strategy >>= Sync.pull ?depth t remote >>= function
               | Ok _ ->
                 (Store.Head.find t >>=
                  Lwt.return_ok)
@@ -436,7 +469,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               | Error `Not_available -> Lwt.return_error "not available"
               | Error `No_head -> Lwt.return_error "no head"
             )
-        ;
+          ;
+
       ]
     | None -> []
 
@@ -448,7 +482,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         Store.Tree.remove tree key) tree l
 
   let mutations s = Schema.[
-      io_field "set"
+    io_field "set"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
@@ -458,28 +492,44 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ]
         ~resolve:(fun _ _src branch k v i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = mk_info i in
-            (Store.set t k v ~info >>= function
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
+            (Store.set ?retries ?allow_empty ?parents t k v ~info >>= function
               | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
               | Error e -> err_write e)
           )
+      ;
+      io_field "test_and_set"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "test" ~typ:(Input.value);
+            arg "set" ~typ:(Input.value);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k test set i  ->
+            mk_branch (Store.repo s) branch >>= fun t ->
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
+            Store.test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set >>= function
+            | Ok _ -> Store.Head.find t >>= Lwt.return_ok
+            | Error e -> err_write e)
       ;
       io_field "set_tree"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "key" ~typ:(non_null Input.key);
-            arg "tree" ~typ:(Input.tree);
+            arg "tree" ~typ:(non_null Input.tree);
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = mk_info i in
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Lwt.catch (fun () ->
                 let tree = Store.Tree.empty in
                 to_tree tree items
                 >>= fun tree ->
-                Store.set_tree_exn t ~info k tree >>= fun () ->
+                Store.set_tree_exn ?retries ?allow_empty ?parents t ~info k tree >>= fun () ->
                 Store.Head.find t >>= Lwt.return_ok)
               (function
                 | Failure e -> Lwt.return_error e
@@ -491,14 +541,14 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "key" ~typ:(non_null Input.key);
-            arg "tree" ~typ:(Input.tree);
+            arg "tree" ~typ:(non_null Input.tree);
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = mk_info i in
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Lwt.catch (fun () ->
-                Store.with_tree_exn t k ~info (fun tree ->
+                Store.with_tree_exn ?retries ?allow_empty ?parents t k ~info (fun tree ->
                     let tree = match tree with
                       | Some t -> t
                       | None -> Store.Tree.empty
@@ -522,12 +572,12 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ]
         ~resolve:(fun _ _src branch k v m i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = mk_info i in
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             (Store.find_tree t k >>= (function
                  | Some tree -> Lwt.return tree
                  | None -> Lwt.return Store.Tree.empty) >>= fun tree ->
-             Store.Tree.add tree k ?metadata:m v >>= fun tree ->
-             Store.set_tree t k tree ~info >>= function
+             Store.Tree.add tree Store.Key.empty ?metadata:m v >>= fun tree ->
+             Store.set_tree ?retries ?allow_empty ?parents t k tree ~info >>= function
              | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
              | Error e -> err_write e)
           )
@@ -541,25 +591,93 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ]
         ~resolve:(fun _ _src branch key i ->
             mk_branch (Store.repo s) branch >>= fun t ->
-            let info = mk_info i in
-            Store.remove t key ~info >>= function
+            txn_args t i >>= fun (info, retries, allow_empty, parents) ->
+            Store.remove ?retries ?allow_empty ?parents t key ~info >>= function
             | Ok () -> Store.Head.find t >>= Lwt.return_ok
             | Error e -> err_write e
           )
       ;
       io_field "merge"
+        ~typ:(string)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "value" ~typ:Input.value;
+            arg "old" ~typ:Input.value;
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch key value old info ->
+            mk_branch (Store.repo s) branch >>= fun t ->
+            txn_args t info >>= fun (info, retries, allow_empty, parents) ->
+            Store.merge_exn t key ~info ?retries ?allow_empty ?parents ~old value >>= fun _ ->
+            Store.hash t key >>= (function
+            | Some hash -> Lwt.return_some (Irmin.Type.to_string Store.Hash.t hash)
+            | None -> Lwt.return_none) >>= Lwt.return_ok
+          )
+      ;
+      io_field "merge_tree"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "value" ~typ:Input.tree;
+            arg "old" ~typ:Input.tree;
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch key value old info ->
+            mk_branch (Store.repo s) branch >>= fun t ->
+            txn_args t info >>= fun (info, retries, allow_empty, parents) ->
+            (match old with
+            | Some old ->
+                let tree = Store.Tree.empty in
+                to_tree tree old  >>= Lwt.return_some
+            | None -> Lwt.return_none) >>= fun old ->
+            (match value with
+            | Some value ->
+                let tree = Store.Tree.empty in
+                to_tree tree value >>= Lwt.return_some
+            | None -> Lwt.return_none) >>= fun value ->
+            Store.merge_tree_exn t key ~info ?retries ?allow_empty ?parents ~old value >>= fun _ ->
+            Store.Head.find t >>=
+            Lwt.return_ok
+          )
+      ;
+      io_field "merge_with_branch"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "from" ~typ:(non_null Input.branch);
             arg "info" ~typ:Input.info;
+            arg "max_depth" ~typ:int;
+            arg "n" ~typ:int;
           ]
-        ~resolve:(fun _ _src into from i ->
+        ~resolve:(fun _ _src into from i max_depth n ->
             mk_branch (Store.repo s) into >>= fun t ->
-            let info = mk_info i in
-            Store.merge_with_branch t from ~info >>= fun _ ->
+            txn_args t i >>= fun (info, _, _, _) ->
+            Store.merge_with_branch t from ~info ?max_depth ?n >>= fun _ ->
             Store.Head.find t >>=
             Lwt.return_ok
+          )
+      ;
+      io_field "merge_with_commit"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "from" ~typ:(non_null Input.commit_hash);
+            arg "info" ~typ:Input.info;
+            arg "max_depth" ~typ:int;
+            arg "n" ~typ:int;
+          ]
+        ~resolve:(fun _ _src into from i max_depth n ->
+            mk_branch (Store.repo s) into >>= fun t ->
+            txn_args t i >>= fun (info, _, _, _) ->
+            Store.Commit.of_hash (Store.repo t) from >>= function
+            | Some from ->
+              Store.merge_with_commit t from ~info ?max_depth ?n >>= fun _ ->
+              Store.Head.find t >>=
+              Lwt.return_ok
+            | None ->
+              Lwt.return_error "invalid hash"
           )
       ;
       io_field "revert"
@@ -577,6 +695,98 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             | None -> Lwt.return_ok None
           )
       ;
+      io_field "set_branch"
+        ~typ:(non_null bool)
+        ~args:Arg.[
+            arg "branch" ~typ:(non_null Input.branch);
+            arg "commit" ~typ:(non_null Input.commit_hash);
+          ]
+        ~resolve:(fun _ _ branch commit ->
+            Store.Commit.of_hash (Store.repo s) commit >>= function
+            | Some commit ->
+              Store.Branch.set (Store.repo s) branch commit >>= fun () ->  Lwt.return_ok true
+            | None -> Lwt.return_error "invalid commit hash"
+          );
+      io_field "remove_branch"
+        ~typ:(non_null bool)
+        ~args:Arg.[
+            arg "branch" ~typ:(non_null Input.branch);
+          ]
+        ~resolve:(fun _ _ branch ->
+            Store.Branch.mem (Store.repo s) branch >>= fun exists ->
+            if exists then
+              Store.Branch.remove (Store.repo s) branch >>= fun () ->  Lwt.return_ok true
+            else Lwt.return_ok false
+          );
+      io_field "add_commit"
+        ~typ:(string)
+        ~args:Arg.[
+          arg "commit" ~typ:(non_null string);
+        ]
+        ~resolve:(fun _ _ node ->
+          let value = Irmin.Type.of_string Store.Private.Commit.Val.t node in
+          match value with
+          | Ok value ->
+            Store.Private.Repo.batch (Store.repo s) (fun _ _ commits ->
+              Store.Private.Commit.add commits value >>= fun x ->
+            Lwt.return_some (Irmin.Type.to_string Store.Hash.t x) >>= Lwt.return_ok)
+          | Error (`Msg msg) -> Lwt.return_error msg
+        );
+      io_field "add_node"
+        ~typ:string
+        ~args:Arg.[
+          arg "node" ~typ:(non_null string);
+        ]
+        ~resolve:(fun _ _ node ->
+          match Irmin.Type.of_string Store.Private.Node.Val.t node with
+          | Ok node ->
+            Store.Private.Repo.batch (Store.repo s) (fun _ nodes _ ->
+              Store.Private.Node.add nodes node >>= fun hash ->
+              Lwt.return_ok (Some (Irmin.Type.to_string Store.Hash.t hash)))
+          | Error (`Msg e) -> Lwt.return_error e
+        );
+      io_field "add_object"
+        ~typ:string
+        ~args:Arg.[
+          arg "object" ~typ:(non_null string);
+        ]
+        ~resolve:(fun _ _ o ->
+          match Irmin.Type.of_string Store.contents_t o with
+          | Ok o ->
+            Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
+              Store.Private.Contents.add contents o >>= fun hash ->
+              Lwt.return_ok (Some (Irmin.Type.to_string Store.Hash.t hash)))
+          | Error (`Msg e) -> Lwt.return_error e
+        );
+      io_field "merge_objects"
+        ~typ:(string)
+        ~args:Arg.[
+            arg "a" ~typ:Input.object_hash;
+            arg "b" ~typ:Input.object_hash;
+            arg "old" ~typ:Input.object_hash;
+          ]
+        ~resolve:(fun _ _src a b old ->
+          Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
+              let f = Store.Private.Contents.merge contents |> Irmin.Merge.f in
+              let old = Irmin.Merge.promise old in
+              f a b ~old >|= function
+              | Ok (Some x) -> Ok (Some (Irmin.Type.to_string Store.Hash.t x))
+              | Ok None ->  Ok None
+              | Error e -> Error (Irmin.Type.to_string Irmin.Merge.conflict_t e)
+            )
+          );
+      io_field "test_and_set_branch"
+        ~typ:(non_null bool)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "test" ~typ:(Input.commit_hash);
+            arg "set" ~typ:(Input.commit_hash);
+          ]
+        ~resolve:(fun _ _src branch test set  ->
+            let branch = match branch with Some b -> b | None -> Store.Branch.master in
+            let branches = Store.Private.Repo.branch_t (Store.repo s) in
+            Store.Private.Branch.test_and_set branches branch ~test ~set >>= Lwt.return_ok
+        );
     ]
 
   let diff = Schema.(obj "Diff"
@@ -658,14 +868,37 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ~resolve:(fun _ _ ->
               Store.master (Store.repo s) >>= fun s ->
               Lwt.return_ok (Some (s, Store.Branch.master))
-            );
+            )
+        ;
         io_field "branch"
           ~typ:(Lazy.force (branch))
-          ~args:Arg.[arg "name" ~typ:(non_null Input.branch)]
+          ~args:Arg.[arg "name" ~typ:(Input.branch)]
           ~resolve:(fun _ _ branch ->
-              Store.of_branch (Store.repo s) branch >>= fun t ->
-              Lwt.return_ok (Some (t, branch))
+              match branch with
+              | Some branch ->
+                Lwt.return_ok (Some (s, branch))
+              | None -> Lwt.return_ok (Some (s, Store.Branch.master))
             )
+        ;
+        io_field "find_object"
+          ~typ:(string)
+          ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
+          ~resolve:(fun _ _ hash ->
+              (Store.Contents.of_hash (Store.repo s) hash >>= function
+              | Some x -> Lwt.return_some (Irmin.Type.to_string Store.contents_t x) >>= Lwt.return_ok
+              | None -> Lwt.return_ok None)
+            )
+        ;
+        io_field "find_node"
+          ~typ:(string)
+          ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
+          ~resolve:(fun _ _ hash ->
+              Store.Private.Repo.batch (Store.repo s) (fun _ nodes _ ->
+                Store.Private.Node.find nodes hash >>= function
+                | Some x -> Lwt.return_ok (Some (Irmin.Type.to_string Store.Private.Node.Val.t x))
+                | None -> Lwt.return_ok None)
+            )
+        ;
       ])
 
   let execute_request ctx req = Graphql_server.execute_request ctx () req
