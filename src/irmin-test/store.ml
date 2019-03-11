@@ -826,8 +826,8 @@ module Make (S: S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
-      let assert_last_modified msg ~number t key expected =
-        S.last_modified ~number t key >|= fun last ->
+      let assert_last_modified msg ?depth ~number t key expected =
+        S.last_modified ?depth ~number t key >|= fun last ->
         S.repo t |> fun repo ->
         let msg = Printf.sprintf "%s [number=%d]" msg number in
         checks (S.commit_t repo) msg expected last
@@ -874,9 +874,11 @@ module Make (S: S) = struct
       >>= fun () ->
       assert_last_modified "line last_modified 3" ~number:3 store k0 [c0; c2; c3]
       >>= fun () ->
-      assert_last_modified "line last_modified 4" ~number:1 store k1 [c4]
+      assert_last_modified "line last_modified 4" ~depth:1 ~number:3 store k0 [c3]
       >>= fun () ->
       assert_last_modified "line last_modified 5" ~number:1 store k2 []
+      >>= fun () ->
+      assert_last_modified "line last_modified 5" ~depth:0 ~number:2 store k0 []
       >>= fun () ->
 
       (* test for multiple lca
@@ -939,6 +941,10 @@ module Make (S: S) = struct
       assert_last_modified "x last_modified 2" ~number:1 store k2 [c16]
       >>= fun () ->
       assert_last_modified "x last_modified 3" ~number:2 store k1 [c4; c12]
+      >>= fun () ->
+      assert_last_modified "x last_modified 4" ~depth:3 ~number:5 store k1 [c4; c12]
+      >>= fun () ->
+      assert_last_modified "x last_modified 5" ~depth:2 ~number:3 store k0 [c11; c17]
       >>= fun () ->
 
       (* lcas on non transitive reduced graphs

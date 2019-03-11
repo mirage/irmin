@@ -904,21 +904,21 @@ module Make (P: S.PRIVATE) = struct
       ) g
 
   module Heap = Bheap.Make(struct
-      type t = commit
+      type t = commit * int
       let compare c1 c2 =
          Int64.compare
-          (Info.date (Commit.info c1))
-          (Info.date (Commit.info c2))
+          (Info.date (Commit.info (fst c1)))
+          (Info.date (Commit.info (fst c2)))
     end)
 
-  let last_modified ?(number = 1) t key =
+  let last_modified ?depth ?(number = 1) t key =
     Head.get t >>= fun commit ->
     let heap = Heap.create 5 in
-    let () = Heap.add heap commit in
+    let () = Heap.add heap (commit, 0) in
     let rec search acc =
       if Heap.is_empty heap || List.length acc = number then Lwt.return acc
       else
-        let current = Heap.pop_maximum heap in
+        let current, current_depth = Heap.pop_maximum heap in
         let parents = Commit.parents current in
         of_commit current >>= fun store ->
         find store key >>= fun current_value ->
@@ -928,11 +928,18 @@ module Make (P: S.PRIVATE) = struct
           then Lwt.return (current :: acc)
           else Lwt.return acc)
         else
+          let max_depth = match depth with
+          | Some depth -> current_depth >= depth
+          | None -> false
+          in
           Lwt_list.for_all_p
             (fun hash ->
               Commit.of_hash (repo store) hash >>= function
               | Some commit -> (
-                let () = Heap.add heap commit in
+                let () =
+                  if not max_depth then
+                    Heap.add heap (commit, current_depth + 1)
+                in
                 of_commit commit >>= fun store ->
                 find store key >|= fun e ->
                 match (e, current_value) with
