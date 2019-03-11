@@ -304,9 +304,12 @@ module V1 = struct
   module String = struct
     include String
 
-    let t =
-      Type.(like_map (pair unit (string_of `Int64)))
-        (fun (_, x) -> x) (fun x -> (), x)
+    let t = Type.string_of `Int64
+    let size_of ~toplevel:_ = Type.size_of ~toplevel:false t
+    let decode_bin ~toplevel:_  = Type.decode_bin ~toplevel:false t
+    let encode_bin ~toplevel:_  = Type.encode_bin ~toplevel:false t
+
+    let t = Type.like t ~bin:(encode_bin, decode_bin, size_of)
   end
 
 end

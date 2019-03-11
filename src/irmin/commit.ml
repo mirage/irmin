@@ -449,23 +449,17 @@ end
 module V1 (C: S.COMMIT) = struct
 
   module K = struct
-
-    let h = Type.string_of `Int64
-
-    let size_of x =
-      Type.size_of h (Type.to_bin_string C.hash_t x)
-
-    let encode_bin buf off e =
-      Type.encode_bin h buf off (Type.to_bin_string C.hash_t e)
-
-    let decode_bin buf off =
-      let n, v = Type.decode_bin h buf off in
-      n, match Type.of_bin_string C.hash_t v with
-      | Ok v -> v
-      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
-
-    let t = Type.like C.hash_t ~bin:(encode_bin, decode_bin, size_of)
-
+    let h = Type.(like (string_of `Int64))
+    let size_of ~toplevel:_ = Type.size_of ~toplevel:false h
+    let encode_bin ~toplevel:_  = Type.encode_bin ~toplevel:false h
+    let decode_bin ~toplevel:_  = Type.decode_bin ~toplevel:false h
+    let h = Type.like h ~bin:(encode_bin, decode_bin, size_of)
+    let t =
+      Type.map h
+        (fun s -> match Type.of_bin_string C.hash_t s with
+         | Ok v -> v
+         | Error (`Msg e) -> Fmt.failwith "Commit.V1.of_string" e)
+        (Type.to_bin_string C.hash_t)
   end
 
   type hash = C.hash
@@ -481,6 +475,7 @@ module V1 (C: S.COMMIT) = struct
   let info t = C.info t.c
 
   let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
+  let make = v
 
   let info_t: Info.t Type.t =
     let open Type in
@@ -492,7 +487,7 @@ module V1 (C: S.COMMIT) = struct
 
   let t: t Type.t =
     let open Type in
-    record "commit" (fun node parents info -> v ~info ~node ~parents)
+    record "commit" (fun node parents info -> make ~info ~node ~parents)
     |+ field "node"    K.t                     node
     |+ field "parents" (list ~len:`Int64 K.t)  parents
     |+ field "info"    info_t                  info

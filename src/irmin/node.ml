@@ -114,7 +114,7 @@ struct
 
   let of_entries e = v (List.map of_entry e)
   let entries e = List.map to_entry (list e)
-  let t = Type.like_map Type.(list entry_t) of_entries entries
+  let t = Type.map Type.(list entry_t) of_entries entries
 
 end
 
@@ -374,23 +374,17 @@ end
 module V1 (N: S.NODE) = struct
 
   module K = struct
-
-    let h = Type.string_of `Int64
-
-    let size_of x =
-      Type.size_of h (Type.to_bin_string N.hash_t x)
-
-    let encode_bin buf off e =
-      Type.encode_bin h buf off (Type.to_bin_string N.hash_t e)
-
-    let decode_bin buf off =
-      let n, v = Type.decode_bin h buf off in
-      n, match Type.of_bin_string N.hash_t v with
-      | Ok v -> v
-      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
-
-    let t = Type.like N.hash_t ~bin:(encode_bin, decode_bin, size_of)
-
+    let h = Type.(like (string_of `Int64))
+    let size_of ~toplevel:_ = Type.size_of ~toplevel:false h
+    let encode_bin ~toplevel:_  = Type.encode_bin ~toplevel:false h
+    let decode_bin ~toplevel:_  = Type.decode_bin ~toplevel:false h
+    let h = Type.like h ~bin:(encode_bin, decode_bin, size_of)
+    let t =
+      Type.map h
+        (fun s -> match Type.of_bin_string N.hash_t s with
+           | Ok v -> v
+           | Error (`Msg e) -> Fmt.failwith "Commit.V1.of_string" e)
+        (Type.to_bin_string N.hash_t)
   end
 
   type step = N.step
@@ -398,7 +392,7 @@ module V1 (N: S.NODE) = struct
   type metadata = N.metadata
   type value = N.value
 
-  let hash_t = N.hash_t
+  let hash_t = K.t
   let metadata_t = N.metadata_t
 
   type v =
@@ -457,7 +451,7 @@ module V1 (N: S.NODE) = struct
       | Ok x -> x
       | Error (`Msg e) -> Fmt.failwith "Step.of_string: %s" e
     in
-    Type.(like_map (string_of `Int64)) of_string to_string
+    Type.(map (string_of `Int64)) of_string to_string
 
   let value_t =
     let open Type in
@@ -479,7 +473,6 @@ module V1 (N: S.NODE) = struct
     |> sealr
 
 
-  let t: t Type.t =
-    Type.like_map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+  let t = Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
 
 end

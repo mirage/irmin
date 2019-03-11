@@ -89,25 +89,26 @@ module Chunk (K: Irmin.Hash.S) = struct
 
   type t = { len: int; v: v }
 
-  let size_of_v t = match Irmin.Type.size_of v t with
-    | `Size i   -> i
-    | `Buffer b -> String.length b
+  let size_of_v t = match Irmin.Type.size_of v ~toplevel:true t with
+    | Some s -> s
+    | None -> assert false
 
   let size_of_data_header = size_of_v (Data "")
   let size_of_index_header = size_of_v (Index [])
 
   let of_string b =
     let len = String.length b in
-    let n, v = Irmin.Type.decode_bin v b 0 in
+    let n, v = Irmin.Type.decode_bin ~toplevel:true v b 0 in
     if len=n then { len; v }
     else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
-    let (_:int) = Irmin.Type.encode_bin v buf 0 t.v in
+    let s = Irmin.Type.to_bin_string v t.v in
+    Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
 
-  let t = Irmin.Type.(like_map string) of_string to_string
+  let t = Irmin.Type.(map string) of_string to_string
 
 end
 

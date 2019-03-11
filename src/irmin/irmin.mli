@@ -425,42 +425,55 @@ module Type: sig
 
   (** {2 Binary Converters} *)
 
-  type 'a encode_bin =  bytes -> int -> 'a -> int
+  type 'a encode_bin =  toplevel:bool -> Buffer.t -> 'a -> unit
   (** The type for binary encoders. *)
 
-  type 'a decode_bin = string -> int -> int * 'a
+  type 'a decode_bin = toplevel:bool -> string -> int -> int * 'a
   (** The type for binary decoders. *)
 
-  type 'a size_of = 'a -> [`Size of int | `Buffer of string]
-    (** The type for size function related to binary encoder/decoders. *)
+  type 'a size_of = toplevel:bool -> 'a -> int option
+  (** The type for size function related to binary encoder/decoders. *)
+
+  val pre_digest: 'a t -> 'a -> string
+  (** [pre_digest t] computes a string ready to be hashed. *)
 
   val encode_bin: 'a t -> 'a encode_bin
-  (** [encode_bin t] is the binary encoder for values of type [t]. *)
+  (** [encode_bin t] is the binary encoder for values of type [t].
+
+      {b NOTE:} When [toplevel] is set and [t] is {!Type.string} or
+      {!Type.bytes}, the original buffer [x] is not prefixed by its
+      size as {!encode_bin} would do. If [t] is {!Type.bytes} or
+      {!Types.string}, the result is [x] (without copy). *)
 
   val decode_bin: 'a t -> 'a decode_bin
-  (** [decode_bin t] is the binary decoder for values of type [t]. *)
+  (** [decode_bin t] is the binary decoder for values of type [t].
+
+      {b NOTE:} When [toplevel] is set and [t] is {!Type.string} or
+      {!Type.bytes}, the original buffer [x] is not prefixed by its
+      size as {!encode_bin} would do. If [t] is {!Type.bytes} or
+      {!Types.string}, the result is [x] (without copy). *)
+
+  val size_of: 'a t -> 'a size_of
+  (** [size_of t x] is the size of [encode_bin t x]. *)
 
   val to_bin_string: 'a t -> 'a -> string
-  (** [to_bin_string t x] use {!encode_bin} to convert [x], of type
-     [t], to a string.
+  (** [to_bin_string t x] use {!encode_bin ~toplevel:true} to convert
+     [x], of type [t], to a string. *)
 
-      {b NOTE:} When [t] is {!Type.string} or {!Type.bytes}, the
-     original buffer [x] is not prefixed by its size as {!encode_bin}
-     would do. If [t] is {!Type.string}, the result is [x] (without
-     copy). *)
-
-  val of_bin_string:'a t -> string -> ('a, [`Msg of string]) result
-  (** [of_bin_string t s] is [v] such that [s = to_bin_string t v].
-
-      {b NOTE:} When [t] is {!Type.string}, the result is [x] (without
-     copy). *)
-
-  val size_of: 'a t -> 'a -> [`Size of int | `Buffer of string]
-  (** [size_of t x] is either the size of [encode_bin t x] or the
-     binary encoding of [x], if the backend is not able to pre-compute
-     serialisation lenghts. *)
+  val of_bin_string: 'a t -> string -> ('a, [`Msg of string]) result
+  (** [of_bin_string t s] is [v] such that [s = to_bin_string t v]. *)
 
   (** {1 Customs converters} *)
+
+  val v:
+    cli:('a pp * 'a of_string) ->
+    json:('a encode_json * 'a decode_json) ->
+    bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+    equal:('a -> 'a -> bool) ->
+    compare:('a -> 'a -> int) ->
+    hash:('a -> int) ->
+    pre_digest:('a -> string) ->
+    'a t
 
   val like:
     ?cli:('a pp * 'a of_string) ->
@@ -469,16 +482,18 @@ module Type: sig
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
     ?hash:('a -> int) ->
+    ?pre_digest:('a -> string) ->
     'a t -> 'a t
 
-  val like_map: 'a t ->
-    ?cli:('b pp * 'b of_string) ->
-    ?json:('b encode_json * 'b decode_json) ->
-    ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
-    ?equal:('b -> 'b -> bool) ->
-    ?compare:('b -> 'b -> int) ->
-    ?hash:('b -> int) ->
-     ('a -> 'b) -> ('b -> 'a) -> 'b t
+  val map:
+    ?cli:('a pp * 'a of_string) ->
+    ?json:('a encode_json * 'a decode_json) ->
+    ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+    ?equal:('a -> 'a -> bool) ->
+    ?compare:('a -> 'a -> int) ->
+    ?hash:('a -> int) ->
+    ?pre_digest:('a -> string) ->
+    'b t -> ('b -> 'a) -> ('a -> 'b) -> 'a t
 
   type 'a ty = 'a t
   module type S = sig type t val t: t ty end

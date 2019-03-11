@@ -165,14 +165,11 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf off (t:t) =
+      let encode_bin ~toplevel:_ buf (t:t) =
         Log.debug (fun l -> l "Content.encode_bin");
-        let s = to_bin t in
-        let len = String.length s in
-        Bytes.blit_string s 0 buf off len;
-        off + len
+        Buffer.add_string buf (to_bin t)
 
-      let decode_bin buf off =
+      let decode_bin ~toplevel:_ buf off =
         Log.debug (fun l -> l "Content.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -186,7 +183,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t = `Buffer (to_bin t)
+      let size_of ~toplevel:_ _t = None
 
     let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
   end
@@ -299,14 +296,11 @@ module Make_private
          | Error _ -> assert false
          | Ok s    -> s
 
-       let encode_bin buf off (t:t) =
+       let encode_bin ~toplevel:_ buf (t:t) =
          Log.debug (fun l -> l "Tree.encode_bin");
-         let s = to_bin t in
-         let len = String.length s in
-         Bytes.blit_string s 0 buf off len;
-           off + len
+         Buffer.add_string buf (to_bin t)
 
-       let decode_bin buf off =
+       let decode_bin ~toplevel:_ buf off =
          Log.debug (fun l -> l "Tree.decode_bin");
          let buf = Cstruct.of_string buf in
          let buf = Cstruct.shift buf off in
@@ -315,10 +309,10 @@ module Make_private
          | Ok _    -> failwith "wrong object kind"
          | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-       let size_of t = `Buffer (to_bin t)
+       let size_of ~toplevel:_ _t = None
 
        let t =
-         Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
     end
 
     include Content_addressable (struct
@@ -412,14 +406,11 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf off (t:t) =
+      let encode_bin ~toplevel:_ buf (t:t) =
         Log.debug (fun l -> l "Commit.encode_bin");
-        let s = to_bin t in
-        let len = String.length s in
-        Bytes.blit_string s 0 buf off len;
-        off + len
+        Buffer.add_string buf (to_bin t)
 
-      let decode_bin buf off =
+      let decode_bin ~toplevel:_ buf off =
         Log.debug (fun l -> l "Commit.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -428,10 +419,9 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t = `Buffer (to_bin t)
+      let size_of ~toplevel:_ _t = None
 
-      let t =
-        Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
+      let t = Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
     end
 
     module Key = H

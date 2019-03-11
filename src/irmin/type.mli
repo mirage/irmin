@@ -95,12 +95,22 @@ type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
 
 (* Raw (disk) *)
 
-type 'a encode_bin =  bytes -> int -> 'a -> int
-type 'a decode_bin = string -> int -> int * 'a
-type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
+type 'a encode_bin =  toplevel:bool -> Buffer.t -> 'a -> unit
+type 'a decode_bin = toplevel:bool -> string -> int -> int * 'a
+type 'a size_of = toplevel:bool -> 'a -> int option
 
 val size_of: 'a t -> 'a size_of
 (* like *)
+
+val v:
+  cli:('a pp * 'a of_string) ->
+  json:('a encode_json * 'a decode_json) ->
+  bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+  equal:('a -> 'a -> bool) ->
+  compare:('a -> 'a -> int) ->
+  hash:('a -> int) ->
+  pre_digest:('a -> string) ->
+  'a t
 
 val like:
   ?cli:('a pp * 'a of_string) ->
@@ -109,16 +119,18 @@ val like:
   ?equal:('a -> 'a -> bool) ->
   ?compare:('a -> 'a -> int) ->
   ?hash:('a -> int) ->
+  ?pre_digest:('a -> string) ->
   'a t -> 'a t
 
-val like_map: 'a t ->
-  ?cli:('b pp * 'b of_string) ->
-  ?json:('b encode_json * 'b decode_json) ->
-  ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
-  ?equal:('b -> 'b -> bool) ->
-  ?compare:('b -> 'b -> int) ->
-  ?hash:('b -> int) ->
-  ('a -> 'b) -> ('b -> 'a) -> 'b t
+val map:
+  ?cli:('a pp * 'a of_string) ->
+  ?json:('a encode_json * 'a decode_json) ->
+  ?bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+  ?equal:('a -> 'a -> bool) ->
+  ?compare:('a -> 'a -> int) ->
+  ?hash:('a -> int) ->
+  ?pre_digest:('a -> string) ->
+  'b t -> ('b -> 'a) -> ('a -> 'b) -> 'a t
 
 (* convenient functions. *)
 
@@ -139,9 +151,13 @@ val to_bin_string: 'a t -> 'a to_string
 val decode_bin: 'a t -> 'a decode_bin
 val of_bin_string: 'a t -> 'a of_string
 
+val pre_digest: 'a t -> 'a -> string
+
 type 'a ty = 'a t
 
 module type S = sig
   type t
   val t: t ty
 end
+
+val pp_ty: 'a ty Fmt.t

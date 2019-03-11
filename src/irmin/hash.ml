@@ -31,9 +31,10 @@ module Make (H: Digestif.S) = struct
   let pp_hex ppf x = Fmt.string ppf (H.to_hex x)
 
   let t =
-    Type.like_map ~cli:(pp_hex, of_hex)
-      Type.(string_of (`Fixed digest_size))
-      H.of_raw_string H.to_raw_string
+    let open Type in
+    like ~cli:(pp_hex, of_hex) @@
+    map (string_of (`Fixed digest_size)) H.of_raw_string H.to_raw_string
+
 end
 
 module SHA1 = Make(Digestif.SHA1)
@@ -47,7 +48,7 @@ module BLAKE2S = Make(Digestif.BLAKE2S)
 
 module With_digest (K: S.HASH) (V: Type.S) = struct
   include K
-  let digest v = K.digest (Type.to_bin_string V.t v)
+  let digest v = K.digest (Type.pre_digest V.t v)
 end
 
 module V1 (K: S.HASH): S.HASH with type t = K.t = struct
@@ -57,20 +58,20 @@ module V1 (K: S.HASH): S.HASH with type t = K.t = struct
   let digest = K.digest
   let digest_size = K.digest_size
 
-  let h = Type.string_of `Int64
+  let h = Type.(like (string_of `Int64))
 
-  let size_of x =
-    Type.size_of h (Type.to_bin_string K.t x)
+  let size_of ~toplevel:_ = Type.size_of ~toplevel:false h
+  let decode_bin ~toplevel:_  = Type.decode_bin ~toplevel:false h
+  let encode_bin ~toplevel:_  = Type.encode_bin ~toplevel:false h
 
-  let encode_bin buf off e =
-    Type.encode_bin h buf off (Type.to_bin_string K.t e)
+  let h = Type.like h ~bin:(encode_bin, decode_bin, size_of)
 
-  let decode_bin buf off =
-    let n, v = Type.decode_bin h buf off in
-    n, match Type.of_bin_string K.t v with
+  let to_string = Type.to_bin_string K.t
+
+  let of_string s = match Type.of_bin_string K.t s with
     | Ok v -> v
-    | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
+    | Error (`Msg e) -> Fmt.failwith "Hash.V1.of_string: %s" e
 
-  let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
+  let t = Type.map h of_string to_string
 
 end
