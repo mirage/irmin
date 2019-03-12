@@ -24,3 +24,7 @@ module Server = struct
       end)(S)(P)
   end
 end
+
+module Client = struct
+  module Make  = Irmin_graphql.Client.Make(Cohttp_lwt_unix.Client)
+end

@@ -1,0 +1,14 @@
+(library
+ (name      test_graphql)
+ (modules   test_graphql)
+ (libraries alcotest irmin-unix test_mem test_git))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries checkseum.c digestif.c test_graphql))
+
+(alias
+ (name    runtest)
+ (package irmin-unix)
+ (action  (chdir %{workspace_root} (run %{exe:test.exe} -q --color=always))))

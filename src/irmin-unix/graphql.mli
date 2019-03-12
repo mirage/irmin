@@ -20,3 +20,7 @@ module Server: sig
       Irmin_graphql.Server.S with type store = Store.t
                               and type server = Cohttp_lwt_unix.Server.t
 end
+
+module Client: sig
+  module Make: Irmin.S_MAKER
+end

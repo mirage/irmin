@@ -3,8 +3,14 @@ open Lwt.Infix
 let uri: Uri.t option Irmin.Private.Conf.key =
   Irmin.Private.Conf.key
     ~docv:"URI"
-    ~doc:"Location of the remote store."
+    ~doc:"Location of the GraphQL server"
     "uri" Irmin.Private.Conf.(some uri) None
+
+let config u =
+  let open Irmin.Private in
+  let cfg = Conf.empty in
+  let cfg = Conf.add cfg uri (Some u) in
+  cfg
 
 module Make
     (Client : Cohttp_lwt.S.Client)
@@ -167,7 +173,11 @@ struct
         let query = {|
           query FindCommit($hash: CommitHash!) {
             commit(hash: $hash) {
-              info
+              info {
+                author
+                message
+                date
+              }
               hash
               parents
             }
@@ -177,7 +187,18 @@ struct
           "hash", `String (Irmin.Type.to_string H.t hash)
         ] in
         Graphql.execute_json t ~vars query ["data"; "commit"] >|= function
-        | Some (`O _) -> failwith "UNIMPLEMENTED"
+        | Some (`O _ as j) ->
+            let f x = Json.to_string x |> Irmin.Type.of_string H.t |> Graphql.unwrap in
+            let node = Json.find_exn j ["hash"] |> f  in
+            let parents = match Json.find_exn j ["parents"] with `A x -> (List.map f x)  | _ -> [] in
+            (match Json.find_exn j ["info"] with
+            | `O _ as info ->
+                let author = Json.find_exn info ["author"] |> Json.to_string in
+                let message = Json.find_exn info ["message"] |> Json.to_string in
+                let date = Json.find_exn info ["date"] |> Json.to_string |> Int64.of_string in
+                let info = Irmin.Info.v ~author ~date message in
+                Some (Val.v ~info ~node  ~parents)
+            | _ -> None)
         | _ -> None
 
       let mem t hash =
@@ -198,7 +219,7 @@ struct
 
       let get_uri config =
         match Irmin.Private.Conf.get config uri with
-        | None   -> invalid_arg "Irmin_graphql client: No URI specified"
+        | None   -> Uri.of_string "localhost:8080/graphql"
         | Some u -> u
 
       let v config =
@@ -230,14 +251,16 @@ struct
         let query = {|
           query FindBranch($branch: BranchName!) {
             branch(name: $name) {
-              hash
+              head {
+                hash
+              }
             }
           }
         |} in
         let vars = [
           "name", `String (Irmin.Type.to_string B.t branch)
         ] in
-        Graphql.execute_json t ~vars query ["data"; "branch"; "hash"] >|= function
+        Graphql.execute_json t ~vars query ["data"; "branch"; "head"; "hash"] >|= function
         | Some (`String s) -> Some (Graphql.unwrap (Irmin.Type.of_string H.t s))
         | _ -> None
 
@@ -246,13 +269,58 @@ struct
         | Some _ -> true
         | None -> false
 
-      let list _t = failwith "UNIMPLEMENTED"
+      let list t =
+        let query = {| query { branches } |} in
+        Graphql.execute_json t query ["data"; "branches"] >|= function
+        | Some (`A l) -> List.map (fun x -> Irmin.Type.of_string B.t (Json.to_string x) |> Graphql.unwrap) l
+        | _ -> []
 
-      let remove _t _branch = failwith "UNIMPLEMENTED"
+      let remove t branch =
+        let query = {|
+          mutation RemoveBranch($branch: BranchName!) {
+            remove_branch(branch: $branch)
+          }
+        |} in
+        let branch = Irmin.Type.to_string B.t branch in
+        let vars = ["branch", `String branch] in
+        Graphql.execute_json t ~vars query ["data"; "remove_branch"] >|= function
+        | Some (`Bool true) -> ()
+        | _ -> Graphql.unwrap (Error (`Msg "unable to remove branch"))
 
-      let set _t _branch _hash = failwith "UNIMPLEMENTED"
+      let set t branch hash =
+        let query = {|
+          mutation SetBranch($branch: BranchName!, $commit: CommitHash!) {
+            set_branch(branch: $branch, commit: $commit)
+          }
+        |} in
+        let branch = Irmin.Type.to_string B.t branch in
+        let commit = Irmin.Type.to_string H.t hash in
+        let vars = [
+          "branch", `String branch;
+          "commit", `String commit;
+        ] in
+        Graphql.execute_json t ~vars query ["data"; "set_branch"] >|= function
+        | Some (`Bool true) -> ()
+        | _ -> Graphql.unwrap (Error (`Msg "unable to set branch"))
 
-      let test_and_set _t _branch ~test:_test ~set:_set = failwith "UNIMPLEMENTED"
+
+      let test_and_set t branch ~test ~set =
+        let query = {|
+          mutation TestAndSetBranch($branch: BranchName!, $test: CommitHash!, $set: CommitHash!) {
+            test_and_set_branch(branch: $branch, test: $test, set: $set)
+          }
+        |} in
+        let branch = Irmin.Type.to_string B.t branch in
+        let test = match test with Some test -> `String (Irmin.Type.to_string H.t test) | None -> `Null in
+        let set = match set with Some set -> `String (Irmin.Type.to_string H.t set) | None -> `Null in
+        let vars = [
+          "branch", `String branch;
+          "test", test;
+          "set", set;
+        ] in
+        Graphql.execute_json t ~vars query ["data"; "test_and_set_branch"] >|= function
+        | Some (`Bool true) -> true
+        | _ -> false
 
       let watch _t ?init x =
         Watch.watch w ?init x
