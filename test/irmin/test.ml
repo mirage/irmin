@@ -104,8 +104,12 @@ let test_bin () =
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s;
 
   let buf = Buffer.create 10 in
-  T.encode_bin T.string buf "foo";
-  Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo"
+  T.encode_bin ~headers:true T.string buf "foo";
+  Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo";
+
+  let buf = Buffer.create 10 in
+  T.encode_bin ~headers:false T.string buf "foo";
+  Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo"
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
@@ -196,7 +200,12 @@ let test_size () =
   check Irmin.Type.string "foo" (1+3);
   check Irmin.Type.string (String.make 128 'x') (2+128);
   check Irmin.Type.bytes (Bytes.of_string "foo") 4;
-  check Irmin.Type.(list string) [] 1
+  check Irmin.Type.(list string) [] 1;
+
+  let s = T.size_of ~headers:false T.string "foo" in
+  Alcotest.(check (option int)) "foo 1" (Some 3) s;
+  let s = T.size_of ~headers:true T.string "foo" in
+  Alcotest.(check (option int)) "foo 1" (Some 4) s
 
 module Hash = Irmin.Hash.SHA1
 module Path = Irmin.Path.String_list
