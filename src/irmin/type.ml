@@ -73,9 +73,9 @@ type 'a of_string = string -> ('a, [`Msg of string]) result
 type 'a to_string = 'a -> string
 type 'a encode_json = Jsonm.encoder -> 'a -> unit
 type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
-type 'a encode_bin = Buffer.t -> 'a -> unit
-type 'a decode_bin = string -> int -> int * 'a
-type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
+type 'a encode_bin = ?headers:bool -> Buffer.t -> 'a -> unit
+type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
+type 'a size_of = ?headers:bool -> 'a -> [ `Size of int | `Buffer of string ]
 type 'a compare = 'a -> 'a -> int
 type 'a equal = 'a -> 'a -> bool
 type 'a hash = 'a -> int
@@ -1002,8 +1002,14 @@ module Size_of = struct
   let int64 (_:int64) = `Size 8
   let bool (_:bool) = `Size 1
   let float (_:float) = `Size 8 (* NOTE: we consider 'double' here *)
-  let string n s = let s = String.length s in `Size (len s n + s)
-  let bytes n s = let s = Bytes.length s in `Size (len s n + s)
+
+  let string ?(headers=true) n s =
+    let s = String.length s in
+    if not headers then `Size s else `Size (len s n + s)
+
+  let bytes ?(headers=true) n s =
+    let s = Bytes.length s in
+    if not headers then `Size s else `Size (len s n + s)
 
   let list l n x =
     let init = len (List.length x) n in
@@ -1015,32 +1021,33 @@ module Size_of = struct
 
   let pair a b (x, y) = `Size (size (a x) + size (b y))
   let triple a b c (x, y, z) = `Size (size (a x) + size (b y) + size (c z))
+
   let option o = function
   | None   -> char '\000'
   | Some x -> `Size (size (char '\000') + size (o x))
 
-  let rec t: type a. a t -> a size_of = function
-  | Self s    -> t s.self
-  | Like b    -> like b
-  | Prim t    -> prim t
+  let rec t: type a. a t -> a size_of = fun ty ?headers -> match ty with
+  | Self s    -> t ?headers s.self
+  | Like b    -> like ?headers b
+  | Prim t    -> prim ?headers t
   | List l    -> list (t l.v) l.len
   | Array a   -> array (t a.v) a.len
-  | Tuple t   -> tuple t
+  | Tuple t   -> tuple ?headers t
   | Option x  -> option (t x)
-  | Record r  -> record r
-  | Variant v -> variant v
+  | Record r  -> record ?headers r
+  | Variant v -> variant ?headers v
 
-  and tuple: type a. a tuple -> a size_of = function
+  and tuple: type a. a tuple -> a size_of = fun ty ?headers:_ -> match ty with
   | Pair (x,y)     -> pair (t x) (t y)
   | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
   and like: type a b. (a, b) like -> b size_of =
-    fun { x; g; size_of; _ } u ->
+    fun { x; g; size_of; _ } ?headers u ->
       match size_of with
-      | None   -> t x (g u)
-      | Some f -> f u
+      | None   -> t ?headers x (g u)
+      | Some f -> f ?headers u
 
-  and prim: type a. a prim -> a size_of = function
+  and prim: type a. a prim -> a size_of = fun p ?headers -> match p with
   | Unit   -> unit
   | Bool   -> bool
   | Char   -> char
@@ -1048,33 +1055,33 @@ module Size_of = struct
   | Int32  -> int32
   | Int64  -> int64
   | Float  -> float
-  | String n  -> string n
-  | Bytes  n  -> bytes n
+  | String n  -> string ?headers n
+  | Bytes  n  -> bytes ?headers n
 
-  and record: type a. a record -> a size_of = fun r x ->
+  and record: type a. a record -> a size_of = fun r ?headers:_ x ->
     let fields = fields r in
     let s =
       List.fold_left (fun acc (Field f) -> acc + size (field f x)) 0 fields
     in
     `Size s
 
-  and field: type a b. (a, b) field -> a size_of = fun f x ->
+  and field: type a b. (a, b) field -> a size_of = fun f ?headers:_ x ->
     t f.ftype (f.fget x)
 
-  and variant: type a. a variant -> a size_of = fun v x ->
+  and variant: type a. a variant -> a size_of = fun v ?headers:_ x ->
     match v.vget x with
     | CV0 _       -> char '\000'
     | CV1 (x, vx) -> `Size (size (char '\000') + size (t x.ctype1 vx))
 
 end
 
-let size_of t x =
-  let rec aux: type a. a t -> a size_of = fun t x -> match t with
-    | Like l when l.size_of = None -> aux l.x (l.g x)
-    | Self s                       -> aux s.self x
-    | _ -> Size_of.t t x
+let size_of t ?headers x =
+  let rec aux: type a. a t -> a size_of = fun t ?headers x -> match t with
+    | Like l when l.size_of = None -> aux ?headers l.x (l.g x)
+    | Self s                       -> aux ?headers s.self x
+    | _ -> Size_of.t ?headers t x
   in
-  aux t x
+  aux t ?headers x
 
 module B = struct
 
@@ -1153,15 +1160,21 @@ module Encode_bin = struct
     | `Int64   -> int64 buf (Int64.of_int i)
     | `Fixed _ -> ()
 
-  let string n buf s =
-    let k = String.length s in
-    len n buf k;
-    Buffer.add_string buf s
+  let string ?(headers=true) n buf s =
+    if not headers then
+      Buffer.add_string buf s
+    else
+      let k = String.length s in
+      len n buf k;
+      Buffer.add_string buf s
 
-  let bytes n buf s =
-    let k = Bytes.length s in
-    len n buf k;
-    Buffer.add_bytes buf s
+  let bytes ?(headers=true) n buf s =
+    if not headers then
+      Buffer.add_bytes buf s
+    else
+      let k = Bytes.length s in
+      len n buf k;
+      Buffer.add_bytes buf s
 
   let list l n buf x =
     len n buf (List.length x);
@@ -1184,28 +1197,28 @@ module Encode_bin = struct
     | None   -> char buf '\000'
     | Some x -> char buf '\255'; o buf x
 
-  let rec t: type a. a t -> a encode_bin = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim t    -> prim t
+  let rec t: type a. a t -> a encode_bin = fun ty ?headers -> match ty with
+    | Self s    -> t ?headers s.self
+    | Like b    -> like ?headers b
+    | Prim t    -> prim ?headers t
     | List l    -> list (t l.v) l.len
     | Array a   -> array (t a.v) a.len
-    | Tuple t   -> tuple t
+    | Tuple t   -> tuple ?headers t
     | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+    | Record r  -> record ?headers r
+    | Variant v -> variant ?headers v
 
-  and tuple: type a. a tuple -> a encode_bin = function
+  and tuple: type a. a tuple -> a encode_bin = fun ty ?headers:_ -> match ty with
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
   and like: type a b. (a, b) like -> b encode_bin =
-    fun { x; g; encode_bin; _ } buf u ->
+    fun { x; g; encode_bin; _ } ?headers buf u ->
       match encode_bin with
-      | None   -> t x buf (g u)
-      | Some f -> f buf u
+      | None   -> t ?headers x buf (g u)
+      | Some f -> f ?headers buf u
 
-  and prim: type a. a prim -> a encode_bin = function
+  and prim: type a. a prim -> a encode_bin = fun ty ?headers -> match ty with
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
@@ -1213,19 +1226,19 @@ module Encode_bin = struct
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
-    | String n  -> string n
-    | Bytes n   -> bytes n
+    | String n  -> string ?headers n
+    | Bytes n   -> bytes ?headers n
 
-  and record: type a. a record -> a encode_bin = fun r buf x ->
+  and record: type a. a record -> a encode_bin = fun r ?headers:_ buf x ->
     let fields = fields r in
     List.iter (fun (Field f) ->
         t f.ftype buf (f.fget x)
       ) fields
 
-  and variant: type a. a variant -> a encode_bin = fun v buf x ->
+  and variant: type a. a variant -> a encode_bin = fun v ?headers:_ buf x ->
     case_v buf (v.vget x)
 
-  and case_v: type a. a case_v encode_bin = fun buf c ->
+  and case_v: type a. a case_v encode_bin = fun ?headers:_ buf c ->
     match c with
     | CV0 c     -> char buf (char_of_int c.ctag0)
     | CV1 (c, v) ->
@@ -1234,11 +1247,11 @@ module Encode_bin = struct
 
 end
 
-let encode_bin t buf x =
+let encode_bin t ?headers buf x =
   let rec aux: type a. a t -> a -> unit = fun t x -> match t with
     | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s -> aux s.self x
-    | _ -> Encode_bin.t t buf x
+    | _ -> Encode_bin.t t ?headers buf x
   in
   aux t x
 
@@ -1249,11 +1262,11 @@ let to_bin_string t x =
     | Prim (String _)  -> x
     | Prim (Bytes _)   -> Bytes.to_string x
     | _ ->
-      match size_of t x with
+      match size_of t ~headers:false x with
       | `Buffer b -> b
       | `Size len ->
         let buf = Buffer.create len in
-        Encode_bin.t t buf x;
+        Encode_bin.t t buf ~headers:false x;
         Buffer.contents buf
   in
   aux t x
@@ -1292,17 +1305,25 @@ module Decode_bin = struct
     | `Int64   -> int64 buf ofs >|= Int64.to_int
     | `Fixed n -> ok ofs n
 
-  let string n buf ofs =
-    len buf ofs n >>= fun (ofs, len) ->
-    let str = Bytes.create len in
-    String.blit buf ofs str 0 len ;
-    ok (ofs+len) (Bytes.unsafe_to_string str)
+  let string ?(headers=true) n buf ofs =
+    if not headers then
+      ok (String.length buf) buf
+    else (
+      len buf ofs n >>= fun (ofs, len) ->
+      let str = Bytes.create len in
+      String.blit buf ofs str 0 len ;
+      ok (ofs+len) (Bytes.unsafe_to_string str)
+    )
 
-  let bytes n buf ofs =
-    len buf ofs n >>= fun (ofs, len) ->
-    let str = Bytes.create len in
-    String.blit buf ofs str 0 len ;
-    ok (ofs+len) str
+  let bytes ?(headers=true) n buf ofs =
+    if not headers then
+      ok (String.length buf) (Bytes.of_string buf)
+    else (
+      len buf ofs n >>= fun (ofs, len) ->
+      let str = Bytes.create len in
+      String.blit buf ofs str 0 len ;
+      ok (ofs+len) str
+    )
 
   let list l n buf ofs =
     len buf ofs n >>= fun (ofs, len) ->
@@ -1327,33 +1348,33 @@ module Decode_bin = struct
     c buf ofs >|= fun c ->
     (a, b, c)
 
-  let option: type a. a decode_bin -> a option decode_bin = fun o buf ofs ->
+  let option: type a. a decode_bin -> a option decode_bin = fun o ?headers:_ buf ofs ->
     char buf ofs >>= function
     | ofs, '\000' -> ok ofs None
     | ofs, _ -> o buf ofs >|= fun x -> Some x
 
-  let rec t: type a. a t -> a decode_bin = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim t    -> prim t
+  let rec t: type a. a t -> a decode_bin = fun ty ?headers -> match ty with
+    | Self s    -> t ?headers s.self
+    | Like b    -> like ?headers b
+    | Prim t    -> prim ?headers t
     | List l    -> list (t l.v) l.len
     | Array a   -> array (t a.v) a.len
-    | Tuple t   -> tuple t
-    | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+    | Tuple t   -> tuple ?headers t
+    | Option x  -> option ?headers (t x)
+    | Record r  -> record ?headers r
+    | Variant v -> variant ?headers v
 
-  and tuple: type a. a tuple -> a decode_bin = function
+  and tuple: type a. a tuple -> a decode_bin = fun ty ?headers:_ -> match ty with
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
   and like: type a b. (a, b) like -> b decode_bin =
-    fun { x; f; decode_bin; _ } buf ofs ->
+    fun { x; f; decode_bin; _ } ?headers buf ofs ->
       match decode_bin with
-      | None   -> t x buf ofs >|= f
-      | Some r -> r buf ofs
+      | None   -> t ?headers x buf ofs >|= f
+      | Some r -> r ?headers buf ofs
 
-  and prim: type a. a prim -> a decode_bin = function
+  and prim: type a. a prim -> a decode_bin = fun ty ?headers -> match ty with
     | Unit   -> unit
     | Bool   -> bool
     | Char   -> char
@@ -1361,10 +1382,10 @@ module Decode_bin = struct
     | Int32  -> int32
     | Int64  -> int64
     | Float  -> float
-    | String n  -> string n
-    | Bytes n   -> bytes n
+    | String n  -> string ?headers n
+    | Bytes n   -> bytes ?headers n
 
-  and record: type a. a record -> a decode_bin = fun r buf ofs ->
+  and record: type a. a record -> a decode_bin = fun r ?headers:_ buf ofs ->
     match r.rfields with
     | Fields (fs, c) ->
       let rec aux: type b. int -> b -> (a, b) fields -> a res
@@ -1378,12 +1399,12 @@ module Decode_bin = struct
 
   and field: type a  b. (a, b) field -> b decode_bin = fun f -> t f.ftype
 
-  and variant: type a. a variant -> a decode_bin = fun v buf ofs ->
+  and variant: type a. a variant -> a decode_bin = fun v ?headers:_ buf ofs ->
     (* FIXME: we support 'only' 256 variants *)
     char buf ofs >>= fun (ofs, i) ->
     case v.vcases.(int_of_char i) buf ofs
 
-  and case: type a. a a_case -> a decode_bin = fun c buf ofs ->
+  and case: type a. a a_case -> a decode_bin = fun c ?headers:_ buf ofs ->
     match c with
     | C0 c -> ok ofs c.c0
     | C1 c -> t c.ctype1 buf ofs >|= c.c1
@@ -1394,11 +1415,11 @@ let map_result f = function
   | Ok x -> Ok (f x)
   | Error _ as e -> e
 
-let decode_bin t buf off =
+let decode_bin t ?headers buf off =
   let rec aux : type a. a t -> string -> (int * a) = fun t x -> match t with
     | Like l when l.decode_bin = None -> let n, v = aux l.x x in n, l.f v
     | Self s          -> aux s.self x
-    | _               -> Decode_bin.t t buf off
+    | _               -> Decode_bin.t t ?headers buf off
   in
   aux t buf
 
@@ -1411,7 +1432,7 @@ let of_bin_string t x =
       | Prim (String _) -> Ok x
       | Prim (Bytes _)  -> Ok (Bytes.of_string x)
       | _ ->
-        let last, v = Decode_bin.t t x 0 in
+        let last, v = Decode_bin.t t ~headers:false x 0 in
         assert (last = String.length x);
         Ok v
   in

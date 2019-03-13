@@ -165,11 +165,11 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf (t:t) =
+      let encode_bin ?headers:_ buf (t:t) =
         Log.debug (fun l -> l "Content.encode_bin");
         Buffer.add_string buf (to_bin t)
 
-      let decode_bin buf off =
+      let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Content.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -183,7 +183,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t = `Buffer (to_bin t)
+      let size_of ?headers:_ t = `Buffer (to_bin t)
 
     let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
   end
@@ -296,11 +296,11 @@ module Make_private
          | Error _ -> assert false
          | Ok s    -> s
 
-       let encode_bin buf (t:t) =
+       let encode_bin ?headers:_ buf (t:t) =
          Log.debug (fun l -> l "Tree.encode_bin");
          Buffer.add_string buf (to_bin t)
 
-       let decode_bin buf off =
+       let decode_bin ?headers:_ buf off =
          Log.debug (fun l -> l "Tree.decode_bin");
          let buf = Cstruct.of_string buf in
          let buf = Cstruct.shift buf off in
@@ -309,7 +309,7 @@ module Make_private
          | Ok _    -> failwith "wrong object kind"
          | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-       let size_of t = `Buffer (to_bin t)
+       let size_of ?headers:_ t = `Buffer (to_bin t)
 
        let t =
          Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
@@ -406,11 +406,11 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf (t:t) =
+      let encode_bin ?headers:_ buf (t:t) =
         Log.debug (fun l -> l "Commit.encode_bin");
         Buffer.add_string buf (to_bin t)
 
-      let decode_bin buf off =
+      let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Commit.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -419,7 +419,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of t = `Buffer (to_bin t)
+      let size_of ?headers:_ t = `Buffer (to_bin t)
 
       let t =
         Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c

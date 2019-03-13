@@ -452,14 +452,14 @@ module V1 (C: S.COMMIT) = struct
 
     let h = Type.string_of `Int64
 
-    let size_of x =
-      Type.size_of h (Type.to_bin_string C.hash_t x)
+    let size_of ?headers x =
+      Type.size_of ?headers h (Type.to_bin_string C.hash_t x)
 
-    let encode_bin buf e =
-      Type.encode_bin h buf (Type.to_bin_string C.hash_t e)
+    let encode_bin ?headers buf e =
+      Type.encode_bin ?headers h buf (Type.to_bin_string C.hash_t e)
 
-    let decode_bin buf off =
-      let n, v = Type.decode_bin h buf off in
+    let decode_bin ?headers buf off =
+      let n, v = Type.decode_bin ?headers h buf off in
       n, match Type.of_bin_string C.hash_t v with
       | Ok v -> v
       | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e

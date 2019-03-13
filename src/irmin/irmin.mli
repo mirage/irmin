@@ -425,13 +425,16 @@ module Type: sig
 
   (** {2 Binary Converters} *)
 
-  type 'a encode_bin =  Buffer.t -> 'a -> unit
-  (** The type for binary encoders. *)
+  type 'a encode_bin =  ?headers:bool -> Buffer.t -> 'a -> unit
+  (** The type for binary encoders. If [headers] is not set, do not
+     output extra length headers for buffers. *)
 
-  type 'a decode_bin = string -> int -> int * 'a
-  (** The type for binary decoders. *)
+  type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
+  (** The type for binary decoders. IF [headers] is not set, do not
+     read extra length header for buffers and consider the whole
+     buffer instead. *)
 
-  type 'a size_of = 'a -> [`Size of int | `Buffer of string]
+  type 'a size_of = ?headers:bool -> 'a -> [`Size of int | `Buffer of string]
     (** The type for size function related to binary encoder/decoders. *)
 
   val encode_bin: 'a t -> 'a encode_bin
@@ -455,7 +458,7 @@ module Type: sig
       {b NOTE:} When [t] is {!Type.string}, the result is [x] (without
      copy). *)
 
-  val size_of: 'a t -> 'a -> [`Size of int | `Buffer of string]
+  val size_of: 'a t -> 'a size_of
   (** [size_of t x] is either the size of [encode_bin t x] or the
      binary encoding of [x], if the backend is not able to pre-compute
      serialisation lenghts. *)
