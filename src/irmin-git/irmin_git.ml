@@ -165,12 +165,9 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf off (t:t) =
+      let encode_bin buf (t:t) =
         Log.debug (fun l -> l "Content.encode_bin");
-        let s = to_bin t in
-        let len = String.length s in
-        Bytes.blit_string s 0 buf off len;
-        off + len
+        Buffer.add_string buf (to_bin t)
 
       let decode_bin buf off =
         Log.debug (fun l -> l "Content.decode_bin");
@@ -299,12 +296,9 @@ module Make_private
          | Error _ -> assert false
          | Ok s    -> s
 
-       let encode_bin buf off (t:t) =
+       let encode_bin buf (t:t) =
          Log.debug (fun l -> l "Tree.encode_bin");
-         let s = to_bin t in
-         let len = String.length s in
-         Bytes.blit_string s 0 buf off len;
-           off + len
+         Buffer.add_string buf (to_bin t)
 
        let decode_bin buf off =
          Log.debug (fun l -> l "Tree.decode_bin");
@@ -412,12 +406,9 @@ module Make_private
         | Error _ -> assert false
         | Ok s    -> s
 
-      let encode_bin buf off (t:t) =
+      let encode_bin buf (t:t) =
         Log.debug (fun l -> l "Commit.encode_bin");
-        let s = to_bin t in
-        let len = String.length s in
-        Bytes.blit_string s 0 buf off len;
-        off + len
+        Buffer.add_string buf (to_bin t)
 
       let decode_bin buf off =
         Log.debug (fun l -> l "Commit.decode_bin");

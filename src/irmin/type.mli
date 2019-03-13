@@ -95,7 +95,7 @@ type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
 
 (* Raw (disk) *)
 
-type 'a encode_bin =  bytes -> int -> 'a -> int
+type 'a encode_bin =  Buffer.t -> 'a -> unit
 type 'a decode_bin = string -> int -> int * 'a
 type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
 

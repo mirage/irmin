@@ -104,7 +104,10 @@ module Chunk (K: Irmin.Hash.S) = struct
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
-    let (_:int) = Irmin.Type.encode_bin v buf 0 t.v in
+    let b = Buffer.create t.len in
+    Irmin.Type.encode_bin v b t.v;
+    let s = Buffer.contents b in
+    Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
 
   let t = Irmin.Type.(like_map string) of_string to_string
