@@ -1070,8 +1070,8 @@ module Size_of = struct
 
   and variant: type a. a variant -> a size_of = fun v ?headers:_ x ->
     match v.vget x with
-    | CV0 _       -> char '\000'
-    | CV1 (x, vx) -> `Size (size (char '\000') + size (t x.ctype1 vx))
+    | CV0 v       -> int v.ctag0
+    | CV1 (x, vx) -> `Size (size (int x.ctag1) + size (t x.ctype1 vx))
 
 end
 
@@ -1240,9 +1240,9 @@ module Encode_bin = struct
 
   and case_v: type a. a case_v encode_bin = fun ?headers:_ buf c ->
     match c with
-    | CV0 c     -> char buf (char_of_int c.ctag0)
+    | CV0 c     -> int buf c.ctag0
     | CV1 (c, v) ->
-      char buf (char_of_int c.ctag1);
+      int buf c.ctag1;
       t c.ctype1 buf v
 
 end
@@ -1400,9 +1400,8 @@ module Decode_bin = struct
   and field: type a  b. (a, b) field -> b decode_bin = fun f -> t f.ftype
 
   and variant: type a. a variant -> a decode_bin = fun v ?headers:_ buf ofs ->
-    (* FIXME: we support 'only' 256 variants *)
-    char buf ofs >>= fun (ofs, i) ->
-    case v.vcases.(int_of_char i) buf ofs
+    int buf ofs >>= fun (ofs, i) ->
+    case v.vcases.(i) buf ofs
 
   and case: type a. a a_case -> a decode_bin = fun c ?headers:_ buf ofs ->
     match c with
