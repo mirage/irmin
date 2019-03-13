@@ -434,7 +434,7 @@ module Type: sig
      read extra length header for buffers and consider the whole
      buffer instead. *)
 
-  type 'a size_of = ?headers:bool -> 'a -> [`Size of int | `Buffer of string]
+  type 'a size_of = ?headers:bool -> 'a -> int option
     (** The type for size function related to binary encoder/decoders. *)
 
   val encode_bin: 'a t -> 'a encode_bin

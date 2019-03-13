@@ -183,7 +183,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of ?headers:_ t = `Buffer (to_bin t)
+      let size_of ?headers:_ _ = None
 
     let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
   end
@@ -309,7 +309,7 @@ module Make_private
          | Ok _    -> failwith "wrong object kind"
          | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-       let size_of ?headers:_ t = `Buffer (to_bin t)
+       let size_of ?headers:_ _ = None
 
        let t =
          Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
@@ -419,7 +419,7 @@ module Make_private
         | Ok _    -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of ?headers:_ t = `Buffer (to_bin t)
+      let size_of ?headers:_ _ = None
 
       let t =
         Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c

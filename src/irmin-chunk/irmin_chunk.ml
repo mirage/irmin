@@ -90,8 +90,8 @@ module Chunk (K: Irmin.Hash.S) = struct
   type t = { len: int; v: v }
 
   let size_of_v t = match Irmin.Type.size_of v t with
-    | `Size i   -> i
-    | `Buffer b -> String.length b
+    | Some n -> n
+    | None   -> String.length (Irmin.Type.to_bin_string v t)
 
   let size_of_data_header = size_of_v (Data "")
   let size_of_index_header = size_of_v (Index [])

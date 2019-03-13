@@ -97,7 +97,7 @@ type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
 
 type 'a encode_bin =  ?headers:bool -> Buffer.t -> 'a -> unit
 type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
-type 'a size_of = ?headers:bool -> 'a -> [ `Size of int | `Buffer of string ]
+type 'a size_of = ?headers:bool -> 'a -> int option
 
 val size_of: 'a t -> 'a size_of
 (* like *)
