@@ -102,7 +102,11 @@ let test_bin () =
   Alcotest.(check int) "size of list" 6 (size (T.size_of l ["foo"; "bar"]));
 
   let s = T.of_bin_string l "foobar" in
-  Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s
+  Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s;
+
+  let buf = Buffer.create 10 in
+  T.encode_bin T.string buf "foo";
+  Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo"
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
@@ -162,34 +166,6 @@ let test_int () =
       size (p - 1) (i + 1);
       size p (i + 2)
     ) ps
-
-let test_sharing () =
-  let make () = Bytes.of_string "xxxxxxxx" in
-
-  let buf = make () in
-  let n = T.encode_bin T.string buf 0 "foo" in
-  Alcotest.(check string) "foo 1" (Bytes.to_string buf) "\003fooxxxx";
-  Alcotest.(check int) "foo 1 len" 4 n;
-
-  let buf = make () in
-  let n = T.encode_bin T.string buf 1 "foo" in
-  Alcotest.(check string) "foo 2" (Bytes.to_string buf) "x\003fooxxx";
-  Alcotest.(check int) "foo 2 len" 5 n;
-
-  let buf = make () in
-  let n = T.encode_bin T.bytes buf 2 (Bytes.of_string "foo") in
-  Alcotest.(check string) "foo 3" (Bytes.to_string buf) "xx\003fooxx";
-  Alcotest.(check int) "foo 3 len" 6 n;
-
-  let buf = make () in
-  let n = T.encode_bin T.bytes buf 3 (Bytes.of_string "foo") in
-  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\003foox";
-  Alcotest.(check int) "foo 4 len" 7 n;
-
-  let buf = make () in
-  let n = T.encode_bin T.int buf 3 4 in
-  Alcotest.(check string) "foo 4" (Bytes.to_string buf) "xxx\004xxxx";
-  Alcotest.(check int) "foo 4 len" 4 n
 
 let test_decode () =
   let wrap f =
@@ -313,7 +289,6 @@ let suite = [
     "compare", `Quick, test_compare;
     "equal"  , `Quick, test_equal;
     "ints"   , `Quick, test_int;
-    "sharing", `Quick, test_sharing;
     "decode" , `Quick, test_decode;
     "size_of", `Quick, test_size;
     "test_hashes", `Quick, test_hashes

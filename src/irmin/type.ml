@@ -73,7 +73,7 @@ type 'a of_string = string -> ('a, [`Msg of string]) result
 type 'a to_string = 'a -> string
 type 'a encode_json = Jsonm.encoder -> 'a -> unit
 type 'a decode_json = Json.decoder -> ('a, [`Msg of string]) result
-type 'a encode_bin = bytes -> int -> 'a -> int
+type 'a encode_bin = Buffer.t -> 'a -> unit
 type 'a decode_bin = string -> int -> int * 'a
 type 'a size_of = 'a -> [ `Size of int | `Buffer of string ]
 type 'a compare = 'a -> 'a -> int
@@ -1082,9 +1082,9 @@ module B = struct
   external get_32 : string -> int -> int32 = "%caml_string_get32"
   external get_64 : string -> int -> int64 = "%caml_string_get64"
 
-  external set_16 : Bytes.t -> int -> int -> unit = "%caml_string_set16"
-  external set_32 : Bytes.t -> int -> int32 -> unit = "%caml_string_set32"
-  external set_64 : Bytes.t -> int -> int64 -> unit = "%caml_string_set64"
+  external set_16 : Bytes.t -> int -> int -> unit = "%caml_string_set16u"
+  external set_32 : Bytes.t -> int -> int32 -> unit = "%caml_string_set32u"
+  external set_64 : Bytes.t -> int -> int64 -> unit = "%caml_string_set64u"
 
   external swap16 : int -> int = "%bswap16"
   external swap32 : int32 -> int32 = "%bswap_int32"
@@ -1108,78 +1108,81 @@ module B = struct
   let set_uint64 s off v =
     if not Sys.big_endian then set_64 s off (swap64 v) else set_64 s off v
 
-  let set_char = Bytes.set
-  let get_char = String.get
-  let blit_from_bytes = Bytes.blit
-  let blit_from_string = Bytes.blit_string
-  let blit_to_bytes = String.blit
 end
 
 module Encode_bin = struct
 
-  let unit _buf ofs () = ofs
-  let char buf ofs c = B.set_char buf ofs c ; ofs + 1
-  let int8 buf ofs i = char buf ofs (Char.chr i)
-  let int16 buf ofs i = B.set_uint16 buf ofs i ; ofs + 2
-  let int32 buf ofs i = B.set_uint32 buf ofs i ; ofs + 4
-  let int64 buf ofs i = B.set_uint64 buf ofs i ; ofs + 8
-  let float buf ofs f = int64 buf ofs (Int64.bits_of_float f)
-  let bool buf ofs b = char buf ofs (if b then '\255' else '\000')
+  let unit _buf () = ()
+  let char buf c = Buffer.add_char buf c
+  let int8 buf i = Buffer.add_char buf (Char.chr i)
 
-  let int buf ofs i =
-    let rec aux n ofs =
+  let int16 buf i =
+    let b = Bytes.create 2 in
+    B.set_uint16 b 0 i;
+    Buffer.add_bytes buf b
+
+  let int32 buf i =
+    let b = Bytes.create 4 in
+    B.set_uint32 b 0 i;
+    Buffer.add_bytes buf b
+
+  let int64 buf i =
+    let b = Bytes.create 8 in
+    B.set_uint64 b 0 i;
+    Buffer.add_bytes buf b
+
+  let float buf f = int64 buf (Int64.bits_of_float f)
+  let bool buf b = char buf (if b then '\255' else '\000')
+
+  let int buf i =
+    let rec aux n =
       if n >= 0 && n < 128 then
-        int8 buf ofs n
+        int8 buf n
       else
         let out = 128 + (n land 127) in
-        let ofs = int8 buf ofs out in
-        aux (n lsr 7) ofs
+        int8 buf out;
+        aux (n lsr 7)
     in
-    aux i ofs
+    aux i
 
-  let len n buf ofs i = match n with
-    | `Int     -> int buf ofs i
-    | `Int8    -> int8 buf ofs i
-    | `Int16   -> int16 buf ofs i
-    | `Int32   -> int32 buf ofs (Int32.of_int i)
-    | `Int64   -> int64 buf ofs (Int64.of_int i)
-    | `Fixed _ -> ofs
+  let len n buf i = match n with
+    | `Int     -> int buf i
+    | `Int8    -> int8 buf i
+    | `Int16   -> int16 buf i
+    | `Int32   -> int32 buf (Int32.of_int i)
+    | `Int64   -> int64 buf (Int64.of_int i)
+    | `Fixed _ -> ()
 
-  let string n buf ofs s =
+  let string n buf s =
     let k = String.length s in
-    let ofs = len n buf ofs k in
-    B.blit_from_string s 0 buf ofs k ;
-    ofs + k
+    len n buf k;
+    Buffer.add_string buf s
 
-  let bytes n buf ofs s =
+  let bytes n buf s =
     let k = Bytes.length s in
-    let ofs = len n buf ofs k in
-    B.blit_from_bytes s 0 buf ofs k ;
-    ofs + k
+    len n buf k;
+    Buffer.add_bytes buf s
 
-  let list l n buf ofs x =
-    let ofs = len n buf ofs (List.length x) in
-    List.fold_left (fun ofs e -> l buf ofs e) ofs x
+  let list l n buf x =
+    len n buf (List.length x);
+    List.iter (fun e -> l buf e) x
 
-  let array l n buf ofs x =
-    let ofs = len n buf ofs (Array.length x) in
-    Array.fold_left (fun ofs e -> l buf ofs e) ofs x
+  let array l n buf x =
+    len n buf (Array.length x);
+    Array.iter (fun e -> l buf e) x
 
-  let pair a b buf ofs (x, y) =
-    let ofs = a buf ofs x in
-    b buf ofs y
+  let pair a b buf (x, y) =
+    a buf x;
+    b buf y
 
-  let triple a b c buf ofs (x, y, z) =
-    let ofs = a buf ofs x in
-    let ofs = b buf ofs y in
-    c buf ofs z
+  let triple a b c buf (x, y, z) =
+    a buf x;
+    b buf y;
+    c buf z
 
-  let option o buf ofs = function
-    | None   ->
-      char buf ofs '\000'
-    | Some x ->
-      let ofs = char buf ofs '\255' in
-      o buf ofs x
+  let option o buf = function
+    | None   -> char buf '\000'
+    | Some x -> char buf '\255'; o buf x
 
   let rec t: type a. a t -> a encode_bin = function
     | Self s    -> t s.self
@@ -1197,10 +1200,10 @@ module Encode_bin = struct
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
   and like: type a b. (a, b) like -> b encode_bin =
-    fun { x; g; encode_bin; _ } buf ofs u ->
+    fun { x; g; encode_bin; _ } buf u ->
       match encode_bin with
-      | None   -> t x buf ofs (g u)
-      | Some f -> f buf ofs u
+      | None   -> t x buf (g u)
+      | Some f -> f buf u
 
   and prim: type a. a prim -> a encode_bin = function
     | Unit   -> unit
@@ -1213,46 +1216,29 @@ module Encode_bin = struct
     | String n  -> string n
     | Bytes n   -> bytes n
 
-  and record: type a. a record -> a encode_bin = fun r buf ofs x ->
+  and record: type a. a record -> a encode_bin = fun r buf x ->
     let fields = fields r in
-    List.fold_left (fun ofs (Field f) ->
-        t f.ftype buf ofs (f.fget x)
-      ) ofs fields
+    List.iter (fun (Field f) ->
+        t f.ftype buf (f.fget x)
+      ) fields
 
-  and variant: type a. a variant -> a encode_bin = fun v buf ofs x ->
-    case_v buf ofs (v.vget x)
+  and variant: type a. a variant -> a encode_bin = fun v buf x ->
+    case_v buf (v.vget x)
 
-  and case_v: type a. a case_v encode_bin = fun buf ofs c ->
+  and case_v: type a. a case_v encode_bin = fun buf c ->
     match c with
-    | CV0 c     -> char buf ofs (char_of_int c.ctag0)
+    | CV0 c     -> char buf (char_of_int c.ctag0)
     | CV1 (c, v) ->
-      let ofs = char buf ofs (char_of_int c.ctag1) in
-      t c.ctype1 buf ofs v
+      char buf (char_of_int c.ctag1);
+      t c.ctype1 buf v
 
 end
 
-let encode_bin t buf off x =
-  let rec aux: type a. a t -> a -> int = fun t x -> match t with
+let encode_bin t buf x =
+  let rec aux: type a. a t -> a -> unit = fun t x -> match t with
     | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s -> aux s.self x
-    | _ -> Encode_bin.t t buf off x
-  in
-  aux t x
-
-let to_bin_bytes t x =
-  let rec aux: type a. a t -> a -> bytes = fun t x -> match t with
-    | Like l when l.encode_bin = None -> aux l.x (l.g x)
-    | Self s           -> aux s.self x
-    | Prim (String _)  -> Bytes.of_string x
-    | Prim (Bytes _)   -> x
-    | _ ->
-      match size_of t x with
-      | `Buffer b -> Bytes.unsafe_of_string b
-      | `Size len ->
-        let buf = Bytes.create len in
-        let len' = Encode_bin.t t buf 0 x in
-        assert (len = len');
-        buf
+    | _ -> Encode_bin.t t buf x
   in
   aux t x
 
@@ -1262,7 +1248,13 @@ let to_bin_string t x =
     | Self s           -> aux s.self x
     | Prim (String _)  -> x
     | Prim (Bytes _)   -> Bytes.to_string x
-    | _ -> Bytes.unsafe_to_string (to_bin_bytes t x)
+    | _ ->
+      match size_of t x with
+      | `Buffer b -> b
+      | `Size len ->
+        let buf = Buffer.create len in
+        Encode_bin.t t buf x;
+        Buffer.contents buf
   in
   aux t x
 
@@ -1275,7 +1267,7 @@ module Decode_bin = struct
   type 'a res = int * 'a
 
   let unit _ ofs = ok ofs ()
-  let char buf ofs = ok (ofs+1) (B.get_char buf ofs)
+  let char buf ofs = ok (ofs+1) (String.get buf ofs)
   let int8 buf ofs = char buf ofs >|= Char.code
   let int16 buf ofs = ok (ofs+2) (B.get_uint16 buf ofs)
   let int32 buf ofs = ok (ofs+4) (B.get_uint32 buf ofs)
@@ -1303,13 +1295,13 @@ module Decode_bin = struct
   let string n buf ofs =
     len buf ofs n >>= fun (ofs, len) ->
     let str = Bytes.create len in
-    B.blit_to_bytes buf ofs str 0 len ;
+    String.blit buf ofs str 0 len ;
     ok (ofs+len) (Bytes.unsafe_to_string str)
 
   let bytes n buf ofs =
     len buf ofs n >>= fun (ofs, len) ->
     let str = Bytes.create len in
-    B.blit_to_bytes buf ofs str 0 len ;
+    String.blit buf ofs str 0 len ;
     ok (ofs+len) str
 
   let list l n buf ofs =

@@ -62,8 +62,8 @@ module V1 (K: S.HASH): S.HASH with type t = K.t = struct
   let size_of x =
     Type.size_of h (Type.to_bin_string K.t x)
 
-  let encode_bin buf off e =
-    Type.encode_bin h buf off (Type.to_bin_string K.t e)
+  let encode_bin buf e =
+    Type.encode_bin h buf (Type.to_bin_string K.t e)
 
   let decode_bin buf off =
     let n, v = Type.decode_bin h buf off in
