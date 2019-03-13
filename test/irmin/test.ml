@@ -1,9 +1,5 @@
 module T = Irmin.Type
 
-let size = function
-  | `Size s -> s
-  | _ -> Alcotest.fail "size"
-
 let test_base () =
 
   let s = T.to_json_string T.string "foo" in
@@ -11,8 +7,9 @@ let test_base () =
 
   let s = T.to_bin_string T.string "foo" in
   Alcotest.(check string) "binary string" "foo" s;
-  Alcotest.(check int) "binary size"
-    (String.length "foo") (size (T.size_of T.(string_of (`Fixed 3)) "foo"));
+  Alcotest.(check (option int)) "binary size"
+    (Some (String.length "foo"))
+    (T.size_of T.(string_of (`Fixed 3)) "foo");
 
   let s = T.to_string T.string "foo" in
   Alcotest.(check string) "CLI string" "foo" s;
@@ -99,7 +96,9 @@ let test_bin () =
 
   let s = T.to_bin_string l ["foo"; "bar"] in
   Alcotest.(check string) "encode list" "foobar" s;
-  Alcotest.(check int) "size of list" 6 (size (T.size_of l ["foo"; "bar"]));
+  Alcotest.(check (option int)) "size of list"
+    (Some 6)
+    (T.size_of l ["foo"; "bar"]);
 
   let s = T.of_bin_string l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok ["foo"; "bar"]) s;
@@ -137,8 +136,8 @@ let test_int () =
   in
   let size x s =
     match T.size_of T.int x with
-    | `Size ss -> Alcotest.(check int) (Fmt.strf "size:%d" x) s ss
-    | _ -> Alcotest.fail "size"
+    | Some ss -> Alcotest.(check int) (Fmt.strf "size:%d" x) s ss
+    | None -> Alcotest.fail "size"
   in
   let p7  = 128 in
   let p14 = 16384 in
@@ -186,10 +185,10 @@ let test_decode () =
 
 let test_size () =
   let check t v n = match Irmin.Type.size_of t v with
-    | `Size s   ->
+    | Some s ->
       let name = Fmt.strf "size: %a" (Irmin.Type.pp t) v  in
       Alcotest.(check int) name n s
-    | `Buffer _ -> Alcotest.fail "size expected"
+    | None -> Alcotest.fail "size expected"
   in
   check Irmin.Type.int 0   1;
   check Irmin.Type.int 128 2;
@@ -843,9 +842,9 @@ let test_variants () =
       | Ok x -> x
       | Error (`Msg e) -> failwith e
     in
-    let n = size (Irmin.Type.size_of v i) in
+    let n = Irmin.Type.size_of v i in
     let s = Irmin.Type.to_string v i in
-    Alcotest.(check int) ("sizes " ^ s) (String.length x) n;
+    Alcotest.(check (option int)) ("sizes " ^ s) (Some (String.length x)) n;
     Alcotest.(check v_t) ("bij " ^ s) i y
   in
   test `X000;
