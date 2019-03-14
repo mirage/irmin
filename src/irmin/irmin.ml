@@ -65,7 +65,7 @@ struct
 
   let pp_key = Type.pp K.t
 
-  let digest v = K.digest (Type.to_bin_string V.t v)
+  let digest v = K.digest (Type.pre_digest V.t v)
 
   let find t k =
     find t k >>= function

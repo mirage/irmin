@@ -220,10 +220,10 @@ module Commit_v1 = Irmin.Private.Commit.V1(Commit)
 module Hash_v1 = Irmin.Hash.V1(Hash)
 
 let hash c =
-  Hash.digest (Irmin.Type.to_bin_string Irmin.Contents.String.t c)
+  Hash.digest (Irmin.Type.pre_digest Irmin.Contents.String.t c)
 
 let hash_v1 c =
-  Hash_v1.digest (Irmin.Type.to_bin_string Irmin.Contents.V1.String.t c)
+  Hash_v1.digest (Irmin.Type.pre_digest Irmin.Contents.V1.String.t c)
 
 let test_hashes () =
   let digest t x =

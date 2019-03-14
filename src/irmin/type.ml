@@ -106,6 +106,7 @@ and 'a custom = {
   encode_bin  : 'a encode_bin;
   decode_bin  : 'a decode_bin;
   hash        : 'a hash;
+  pre_digest  : 'a -> string;
   size_of     : 'a size_of;
   compare     : 'a compare;
   equal       : 'a equal;
@@ -294,13 +295,13 @@ let pair a b = Tuple (Pair (a, b))
 let triple a b c = Tuple (Triple (a, b, c))
 let option a = Option a
 
-let v ~cli ~json ~bin ~equal ~compare ~hash =
+let v ~cli ~json ~bin ~equal ~compare ~hash ~pre_digest =
   let pp, of_string = cli in
   let encode_json, decode_json = json in
   let encode_bin, decode_bin, size_of = bin in
   Custom {
     cwit = `Witness (Witness.make ());
-    pp; of_string;
+    pp; of_string; pre_digest;
     encode_json; decode_json;
     encode_bin; decode_bin; size_of;
     compare; equal; hash
@@ -1339,6 +1340,15 @@ let to_bin_string t x =
   in
   aux t x
 
+let pre_digest t x =
+  let rec aux: type a. a t -> a -> string = fun t x -> match t with
+    | Self s   -> aux s.self x
+    | Map m    -> aux m.x (m.g x)
+    | Custom c -> c.pre_digest x
+    | _        -> to_bin_string t x
+  in
+  aux t x
+
 module Decode_bin = struct
 
   let (>|=) (ofs, x) f = ofs, f x
@@ -1531,9 +1541,9 @@ type 'a ty = 'a t
 
 let hash t x = match t with
   | Custom c -> c.hash x
-  | _ -> Hashtbl.hash (to_bin_string t x)
+  | _ -> Hashtbl.hash (pre_digest t x)
 
-let like ?cli ?json ?bin ?equal ?compare ?hash:h t =
+let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
   let encode_json, decode_json = match json with
     | Some (x, y) -> x, (fun d -> Fmt.epr "YO\n%!"; y d)
     | None ->
@@ -1573,21 +1583,25 @@ let like ?cli ?json ?bin ?equal ?compare ?hash:h t =
     | Some x -> x
     | None -> hash t
   in
+  let pre_digest = match p with
+    | Some x -> x
+    | None -> to_bin size_of encode_bin
+  in
   Custom {
     cwit = `Type t;
     pp; of_string;
     encode_json; decode_json;
     encode_bin; decode_bin; size_of;
-    compare; equal; hash
+    compare; equal; hash; pre_digest;
   }
 
-let map ?cli ?json ?bin ?equal ?compare ?hash x f g =
-  match cli, json, bin, equal, compare, hash with
-  | None, None, None, None, None, None ->
+let map ?cli ?json ?bin ?equal ?compare ?hash ?pre_digest x f g =
+  match cli, json, bin, equal, compare, hash, pre_digest with
+  | None, None, None, None, None, None, None ->
     Map { x; f; g; mwit = Witness.make () }
   | _ ->
     let x = Map { x; f; g; mwit = Witness.make () } in
-    like ?cli ?json ?bin ?equal ?compare ?hash x
+    like ?cli ?json ?bin ?equal ?compare ?hash ?pre_digest x
 
 module type S = sig
   type t
