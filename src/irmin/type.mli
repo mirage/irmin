@@ -102,6 +102,15 @@ type 'a size_of = ?headers:bool -> 'a -> int option
 val size_of: 'a t -> 'a size_of
 (* like *)
 
+val v:
+  cli:('a pp * 'a of_string) ->
+  json:('a encode_json * 'a decode_json) ->
+  bin:('a encode_bin * 'a decode_bin * 'a size_of) ->
+  equal:('a -> 'a -> bool) ->
+  compare:('a -> 'a -> int) ->
+  hash:('a -> int) ->
+  'a t
+
 val like:
   ?cli:('a pp * 'a of_string) ->
   ?json:('a encode_json * 'a decode_json) ->
@@ -111,14 +120,14 @@ val like:
   ?hash:('a -> int) ->
   'a t -> 'a t
 
-val like_map: 'a t ->
+val map:
   ?cli:('b pp * 'b of_string) ->
   ?json:('b encode_json * 'b decode_json) ->
   ?bin:('b encode_bin * 'b decode_bin * 'b size_of) ->
   ?equal:('b -> 'b -> bool) ->
   ?compare:('b -> 'b -> int) ->
   ?hash:('b -> int) ->
-  ('a -> 'b) -> ('b -> 'a) -> 'b t
+  'a t ->  ('a -> 'b) -> ('b -> 'a) -> 'b t
 
 (* convenient functions. *)
 
@@ -140,6 +149,7 @@ val decode_bin: 'a t -> 'a decode_bin
 val of_bin_string: 'a t -> 'a of_string
 
 type 'a ty = 'a t
+val pp_ty: 'a t Fmt.t
 
 module type S = sig
   type t

@@ -114,7 +114,7 @@ struct
 
   let of_entries e = v (List.map of_entry e)
   let entries e = List.map to_entry (list e)
-  let t = Type.like_map Type.(list entry_t) of_entries entries
+  let t = Type.map Type.(list entry_t) of_entries entries
 
 end
 
@@ -431,7 +431,7 @@ module V1 (N: S.NODE) = struct
       | Ok x -> x
       | Error (`Msg e) -> Fmt.failwith "Step.of_string: %s" e
     in
-    Type.(like_map (string_of `Int64)) of_string to_string
+    Type.(map (string_of `Int64)) of_string to_string
 
   let value_t =
     let open Type in
@@ -454,6 +454,6 @@ module V1 (N: S.NODE) = struct
 
 
   let t: t Type.t =
-    Type.like_map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
 
 end

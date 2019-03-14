@@ -82,7 +82,8 @@ type 'a hash = 'a -> int
 
 type 'a t =
   | Self   : 'a self -> 'a t
-  | Like   : ('a, 'b) like -> 'b t
+  | Custom : 'a custom -> 'a t
+  | Map    : ('a, 'b) map -> 'b t
   | Prim   : 'a prim -> 'a t
   | List   : 'a len_v -> 'a list t
   | Array  : 'a len_v -> 'a array t
@@ -96,21 +97,25 @@ and 'a len_v = {
   v  : 'a t;
 }
 
-and ('a, 'b) like = {
-  x           : 'a t;
-  pp          : 'b pp option;
-  of_string   : 'b of_string option;
-  encode_json : 'b encode_json option;
-  decode_json : 'b decode_json option;
-  encode_bin  : 'b encode_bin option;
-  decode_bin  : 'b decode_bin option;
-  hash        : 'b hash option;
-  size_of     : 'b size_of option;
-  compare     : 'b compare option;
-  equal       : 'b equal option;
-  f           : ('a -> 'b);
-  g           : ('b -> 'a);
-  lwit        : 'b Witness.t;
+and 'a custom = {
+  cwit        : [`Type of 'a t | `Witness of 'a Witness.t];
+  pp          : 'a pp;
+  of_string   : 'a of_string;
+  encode_json : 'a encode_json;
+  decode_json : 'a decode_json;
+  encode_bin  : 'a encode_bin;
+  decode_bin  : 'a decode_bin;
+  hash        : 'a hash;
+  size_of     : 'a size_of;
+  compare     : 'a compare;
+  equal       : 'a equal;
+}
+
+and ('a, 'b) map = {
+  x   : 'a t;
+  f   : ('a -> 'b);
+  g   : ('b -> 'a);
+  mwit: 'b Witness.t;
 }
 
 and 'a self = {
@@ -181,6 +186,43 @@ and ('a, 'b) case1 = {
 
 type _ a_field = Field: ('a, 'b) field -> 'a a_field
 
+let rec pp_ty: type a. a t Fmt.t = fun ppf -> function
+  | Self s -> Fmt.pf ppf "@[Self (%a@)]" pp_ty s.self
+  | Custom c -> Fmt. pf ppf "@[Custom (%a)@]" pp_custom c
+  | Map m -> Fmt.pf ppf "@[Map (%a)]" pp_ty m.x
+  | Prim p -> Fmt.pf ppf "@[Prim %a@]" pp_prim p
+  | List l -> Fmt.pf ppf"@[List%a (%a)@]" pp_len l.len pp_ty l.v
+  | Array a -> Fmt.pf ppf "@[Array%a (%a)@]" pp_len a.len pp_ty a.v
+  | Tuple (Pair (a, b)) -> Fmt.pf ppf "@[Pair (%a, %a)@]" pp_ty a pp_ty b
+  | Tuple (Triple (a, b, c)) ->
+    Fmt.pf ppf "@[Triple (%a, %a, %a)@]" pp_ty a pp_ty b pp_ty c
+  | Option t -> Fmt.pf ppf "@[Option (%a)@]" pp_ty t
+  | Record _ -> Fmt.pf ppf "@[Record@]"
+  | Variant _ -> Fmt.pf ppf "@[Variant@]"
+
+and pp_custom: type a. a custom Fmt.t = fun ppf c -> match c.cwit with
+  | `Type t -> pp_ty ppf t
+  | `Witness _ -> Fmt.string ppf "-"
+
+and pp_prim: type a. a prim Fmt.t = fun ppf -> function
+  | Unit -> Fmt.string ppf "Unit"
+  | Bool -> Fmt.string ppf "Bool"
+  | Char -> Fmt.string ppf "Char"
+  | Int    -> Fmt.string ppf "Int"
+  | Int32  -> Fmt.string ppf "Int32"
+  | Int64  -> Fmt.string ppf "Int64"
+  | Float  -> Fmt.string ppf "Float"
+  | String n -> Fmt.pf ppf "String%a" pp_len n
+  | Bytes n -> Fmt.pf ppf "Bytes%a" pp_len n
+
+and pp_len: len Fmt.t = fun ppf -> function
+  | `Int8    -> Fmt.string ppf ":8"
+  | `Int64   -> Fmt.string ppf ":64"
+  | `Int16   -> Fmt.string ppf ":16"
+  | `Fixed n -> Fmt.pf ppf ":<%d>" n
+  | `Int     -> ()
+  | `Int32   -> Fmt.pf ppf ":32"
+
 module Refl = struct
 
   let prim: type a b. a prim -> b prim -> (a, b) eq option = fun a b ->
@@ -200,7 +242,8 @@ module Refl = struct
     match a, b with
     | Self a, _ -> t a.self b
     | _, Self b -> t a b.self
-    | Like a, Like b -> Witness.eq a.lwit b.lwit
+    | Map a, Map b -> Witness.eq a.mwit b.mwit
+    | Custom a, Custom b -> custom a b
     | Prim a, Prim b -> prim a b
     | Array a, Array b ->
       (match t a.v b.v with Some Refl -> Some Refl | None -> None)
@@ -211,6 +254,12 @@ module Refl = struct
       (match t a b with Some Refl -> Some Refl | None -> None)
     | Record a, Record b   -> Witness.eq a.rwit b.rwit
     | Variant a, Variant b -> Witness.eq a.vwit b.vwit
+    | _ -> None
+
+  and custom: type a b. a custom -> b custom -> (a, b) eq option = fun a b ->
+    match a.cwit, b.cwit with
+    | `Witness a, `Witness b -> Witness.eq a b
+    | `Type a, `Type b -> t a b
     | _ -> None
 
   and tuple: type a b. a tuple -> b tuple -> (a, b) eq option = fun a b ->
@@ -245,27 +294,17 @@ let pair a b = Tuple (Pair (a, b))
 let triple a b c = Tuple (Triple (a, b, c))
 let option a = Option a
 
-let split2 = function
-  | Some (x, y) -> Some x, Some y
-  | None        -> None  , None
-
-let split3 = function
-  | Some (x, y, z) -> Some x, Some y, Some z
-  | None           -> None  , None  , None
-
-let like_map (type a b) (x: a t) ?cli ?json ?bin ?equal ?compare ?hash
-    (f: a -> b) (g: b -> a) =
-  let pp, of_string = split2 cli in
-  let encode_json, decode_json = split2 json in
-  let encode_bin, decode_bin, size_of = split3 bin in
-  Like { x = x; f; g; lwit = Witness.make ();
-         pp; of_string;
-         encode_json; decode_json;
-         encode_bin; decode_bin; size_of;
-         compare; equal; hash }
-
-let like ?cli ?json ?bin ?equal ?compare ?hash t =
-  like_map ?cli ?json ?bin ?equal ?compare ?hash t (fun x -> x) (fun x -> x)
+let v ~cli ~json ~bin ~equal ~compare ~hash =
+  let pp, of_string = cli in
+  let encode_json, decode_json = json in
+  let encode_bin, decode_bin, size_of = bin in
+  Custom {
+    cwit = `Witness (Witness.make ());
+    pp; of_string;
+    encode_json; decode_json;
+    encode_bin; decode_bin; size_of;
+    compare; equal; hash
+  }
 
 (* fix points *)
 
@@ -402,28 +441,25 @@ module Equal = struct
     | Some x, Some y -> e x y
     | _ -> false
 
-  let rec t: type a. a t -> a equal = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim p    -> prim p
-    | List l    -> list (t l.v)
-    | Array a   -> array (t a.v)
-    | Tuple t   -> tuple t
-    | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+  let rec t: type a. a t -> a equal = fun ty a b ->
+    match ty with
+    | Self s    -> t s.self a b
+    | Custom c  -> c.equal a b
+    | Map m     -> map m a b
+    | Prim p    -> prim p a b
+    | List l    -> list (t l.v) a b
+    | Array x   -> array (t x.v) a b
+    | Tuple t   -> tuple t a b
+    | Option x  -> option (t x) a b
+    | Record r  -> record r a b
+    | Variant v -> variant v a b
 
   and tuple: type a. a tuple -> a equal = function
     | Pair (a, b)      -> pair (t a) (t b)
     | Triple (a, b, c) -> triple (t a) (t b) (t c)
 
-  and like: type a b. (a, b) like -> b equal =
-    fun { x; g; equal; compare; _ } u v ->
-      match equal with
-      | Some f -> f u v
-      | None   -> match compare with
-        | Some f -> f u v = 0
-        | None   -> t x (g u) (g v)
+  and map: type a b. (a, b) map -> b equal =
+    fun { x; g; _ } u v -> t x (g u) (g v)
 
   and prim: type a. a prim -> a equal = function
     | Unit   -> unit
@@ -519,26 +555,25 @@ module Compare = struct
       | None  , Some _ -> -1
       | Some x, Some y -> c x y
 
-  let rec t: type a. a t -> a compare = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim p    -> prim p
-    | List l    -> list (t l.v)
-    | Array a   -> array (t a.v)
-    | Tuple t   -> tuple t
-    | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+  let rec t: type a. a t -> a compare = fun ty a b->
+    match ty with
+    | Self s    -> t s.self a b
+    | Custom c  -> c.compare a b
+    | Map m     -> map m a b
+    | Prim p    -> prim p a b
+    | List l    -> list (t l.v) a b
+    | Array x   -> array (t x.v) a b
+    | Tuple t   -> tuple t a b
+    | Option x  -> option (t x) a b
+    | Record r  -> record r a b
+    | Variant v -> variant v a b
 
   and tuple: type a. a tuple -> a compare = function
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b compare =
-    fun { x; g; compare; _ } u v ->
-      match compare with
-      | Some f -> f u v
-      | None   -> t x (g u) (g v)
+  and map: type a b. (a, b) map -> b compare =
+    fun { x; g; _ } u v -> t x (g u) (g v)
 
   and prim: type a. a prim -> a compare = function
     | Unit   -> unit
@@ -655,30 +690,25 @@ module Encode_json = struct
     | None   -> lexeme e `Null
     | Some x -> o e x
 
-  let rec t: type a. a t -> a encode_json = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim t    -> prim t
-    | List l    -> list (t l.v)
-    | Array a   -> array (t a.v)
-    | Tuple t   -> tuple t
-    | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+  let rec t: type a. a t -> a encode_json = fun ty e ->
+    match ty with
+    | Self s    -> t s.self e
+    | Custom c  -> c.encode_json e
+    | Map b     -> map b e
+    | Prim t    -> prim t e
+    | List l    -> list (t l.v) e
+    | Array a   -> array (t a.v) e
+    | Tuple t   -> tuple t e
+    | Option x  -> option (t x) e
+    | Record r  -> record r e
+    | Variant v -> variant v e
 
   and tuple: type a. a tuple -> a encode_json = function
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b encode_json =
-    fun { x; g; encode_json; pp; _ } e u ->
-      match encode_json with
-      | Some f -> f e u
-      | None   ->
-        let string = Prim (String `Int) in
-        match x, pp with
-        | Prim _, Some pp -> t string e (Fmt.to_to_string pp u)
-        | _               -> t x e (g u)
+  and map: type a b. (a, b) map -> b encode_json =
+    fun { x; g; _ } e u -> t x e (g u)
 
   and prim: type a. a prim -> a encode_json = function
     | Unit   -> unit
@@ -725,7 +755,35 @@ let pp_json ?minify t ppf x =
   ignore (Jsonm.encode e `End);
   Fmt.string ppf (Buffer.contents buf)
 
-let to_json_string ?minify t = Fmt.to_to_string (pp_json ?minify t)
+let pp t =
+  let rec aux: type a. a t -> a pp = fun t ppf x ->
+    match t with
+    | Self s   -> aux s.self ppf x
+    | Custom c -> c.pp ppf x
+    | Map m    -> map m ppf x
+    | Prim p   -> prim p ppf x
+    | _        -> pp_json t ppf x
+  and map: type a b. (a, b) map -> b pp = fun l ppf x ->
+    aux l.x ppf (l.g x)
+  and prim: type a. a prim -> a pp = fun t ppf x ->
+    match t with
+    | Unit     -> ()
+    | Bool     -> Fmt.bool ppf x
+    | Char     -> Fmt.char ppf x
+    | Int      -> Fmt.int ppf x
+    | Int32    -> Fmt.int32 ppf x
+    | Int64    -> Fmt.int64 ppf x
+    | Float    -> Fmt.float ppf x
+    | String _ -> Fmt.string ppf x
+    | Bytes _  -> Fmt.string ppf (Bytes.unsafe_to_string x)
+  in
+  aux t
+
+let to_json_string ?minify t x =
+  Fmt.epr "UUU\n%!";
+  let s = Fmt.to_to_string (pp_json ?minify t) x in
+  Fmt.epr "YYY %a -> %s\n%!" (pp t) x s;
+  s
 
 module Decode_json = struct
 
@@ -869,30 +927,25 @@ module Decode_json = struct
       Json.rewind e lex;
       o e >|= fun v -> Some v
 
-  let rec t: type a. a t -> a decode_json = function
-    | Self s    -> t s.self
-    | Like b    -> like b
-    | Prim t    -> prim t
-    | List l    -> list (t l.v)
-    | Array a   -> array (t a.v)
-    | Tuple t   -> tuple t
-    | Option x  -> option (t x)
-    | Record r  -> record r
-    | Variant v -> variant v
+  let rec t: type a. a t -> a decode_json = fun ty d ->
+    match ty with
+    | Self s    -> t s.self d
+    | Custom c  -> c.decode_json d
+    | Map b     -> map b d
+    | Prim t    -> prim t d
+    | List l    -> list (t l.v) d
+    | Array a   -> array (t a.v) d
+    | Tuple t   -> tuple t d
+    | Option x  -> option (t x) d
+    | Record r  -> record r d
+    | Variant v -> variant v d
 
   and tuple: type a. a tuple -> a decode_json = function
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b decode_json =
-    fun { x; f; decode_json; of_string; _ } e ->
-      match decode_json with
-      | Some d -> d e
-      | None   ->
-        let string = Prim (String `Int) in
-        match x, of_string with
-        | Prim _, Some x -> t string e >|= x |> join
-        | _              -> t x e >|= f
+  and map: type a b. (a, b) map -> b decode_json =
+    fun { x; f; _ } e -> t x e >|= f
 
   and prim: type a. a prim -> a decode_json = function
     | Unit   -> unit
@@ -1048,26 +1101,25 @@ module Size_of = struct
     o x >|= fun o ->
     char '\000' + o
 
-  let rec t: type a. a t -> a size_of = fun ty ?headers -> match ty with
-  | Self s    -> t ?headers s.self
-  | Like b    -> like ?headers b
-  | Prim t    -> prim ?headers t
-  | List l    -> list (t l.v) l.len
-  | Array a   -> array (t a.v) a.len
-  | Tuple t   -> tuple ?headers t
-  | Option x  -> option (t x)
-  | Record r  -> record ?headers r
-  | Variant v -> variant ?headers v
+  let rec t: type a. a t -> a size_of = fun ty ?headers e ->
+    match ty with
+    | Self s    -> t ?headers s.self e
+    | Custom c  -> c.size_of ?headers e
+    | Map b     -> map ?headers b e
+    | Prim t    -> prim ?headers t e
+    | List l    -> list (t l.v) l.len e
+    | Array a   -> array (t a.v) a.len e
+    | Tuple t   -> tuple ?headers t e
+    | Option x  -> option (t x) e
+    | Record r  -> record ?headers r e
+    | Variant v -> variant ?headers v e
 
   and tuple: type a. a tuple -> a size_of = fun ty ?headers:_ -> match ty with
   | Pair (x,y)     -> pair (t x) (t y)
   | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b size_of =
-    fun { x; g; size_of; _ } ?headers u ->
-      match size_of with
-      | None   -> t ?headers x (g u)
-      | Some f -> f ?headers u
+  and map: type a b. (a, b) map -> b size_of =
+    fun { x; g; _ } ?headers u -> t ?headers x (g u)
 
   and prim: type a. a prim -> a size_of = fun p ?headers x -> match p with
   | Unit   -> Some (unit x)
@@ -1100,13 +1152,7 @@ module Size_of = struct
 
 end
 
-let size_of t ?headers x =
-  let rec aux: type a. a t -> a size_of = fun t ?headers x -> match t with
-    | Like l when l.size_of = None -> aux ?headers l.x (l.g x)
-    | Self s                       -> aux ?headers s.self x
-    | _ -> Size_of.t ?headers t x
-  in
-  aux t ?headers x
+let size_of = Size_of.t
 
 module B = struct
 
@@ -1222,26 +1268,25 @@ module Encode_bin = struct
     | None   -> char buf '\000'
     | Some x -> char buf '\255'; o buf x
 
-  let rec t: type a. a t -> a encode_bin = fun ty ?headers -> match ty with
-    | Self s    -> t ?headers s.self
-    | Like b    -> like ?headers b
-    | Prim t    -> prim ?headers t
-    | List l    -> list (t l.v) l.len
-    | Array a   -> array (t a.v) a.len
-    | Tuple t   -> tuple ?headers t
-    | Option x  -> option (t x)
-    | Record r  -> record ?headers r
-    | Variant v -> variant ?headers v
+  let rec t: type a. a t -> a encode_bin = fun ty ?headers buf e ->
+    match ty with
+    | Self s    -> t ?headers s.self buf e
+    | Custom c  -> c.encode_bin ?headers buf e
+    | Map b     -> map ?headers b buf e
+    | Prim t    -> prim ?headers t buf e
+    | List l    -> list (t l.v) l.len buf e
+    | Array a   -> array (t a.v) a.len buf e
+    | Tuple t   -> tuple ?headers t buf e
+    | Option x  -> option (t x) buf e
+    | Record r  -> record ?headers r buf e
+    | Variant v -> variant ?headers v buf e
 
   and tuple: type a. a tuple -> a encode_bin = fun ty ?headers:_ -> match ty with
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b encode_bin =
-    fun { x; g; encode_bin; _ } ?headers buf u ->
-      match encode_bin with
-      | None   -> t ?headers x buf (g u)
-      | Some f -> f ?headers buf u
+  and map: type a b. (a, b) map -> b encode_bin =
+    fun { x; g; _ } ?headers buf u -> t ?headers x buf (g u)
 
   and prim: type a. a prim -> a encode_bin = fun ty ?headers -> match ty with
     | Unit   -> unit
@@ -1272,28 +1317,25 @@ module Encode_bin = struct
 
 end
 
-let encode_bin t ?headers buf x =
-  let rec aux: type a. a t -> a -> unit = fun t x -> match t with
-    | Like l when l.encode_bin = None -> aux l.x (l.g x)
-    | Self s -> aux s.self x
-    | _ -> Encode_bin.t t ?headers buf x
+let encode_bin = Encode_bin.t
+
+let to_bin size_of encode_bin x =
+  let len = match size_of ?headers:(Some false) x with
+    | None   -> 1024
+    | Some n -> n
   in
-  aux t x
+  let buf = Buffer.create len in
+  encode_bin ?headers:(Some false) buf x;
+  Buffer.contents buf
 
 let to_bin_string t x =
   let rec aux: type a. a t -> a -> string = fun t x -> match t with
-    | Like l when l.encode_bin = None -> aux l.x (l.g x)
     | Self s           -> aux s.self x
+    | Map m            -> aux m.x (m.g x)
     | Prim (String _)  -> x
     | Prim (Bytes _)   -> Bytes.to_string x
-    | _ ->
-      let len = match size_of t ~headers:false x with
-        | None   -> 1024
-        | Some n -> n
-      in
-      let buf = Buffer.create len in
-      Encode_bin.t t buf ~headers:false x;
-      Buffer.contents buf
+    | Custom c         -> to_bin c.size_of c.encode_bin x
+    | _                -> to_bin (size_of t) (encode_bin t) x
   in
   aux t x
 
@@ -1379,26 +1421,25 @@ module Decode_bin = struct
     | ofs, '\000' -> ok ofs None
     | ofs, _ -> o buf ofs >|= fun x -> Some x
 
-  let rec t: type a. a t -> a decode_bin = fun ty ?headers -> match ty with
-    | Self s    -> t ?headers s.self
-    | Like b    -> like ?headers b
-    | Prim t    -> prim ?headers t
-    | List l    -> list (t l.v) l.len
-    | Array a   -> array (t a.v) a.len
-    | Tuple t   -> tuple ?headers t
-    | Option x  -> option ?headers (t x)
-    | Record r  -> record ?headers r
-    | Variant v -> variant ?headers v
+  let rec t: type a. a t -> a decode_bin = fun ty ?headers buf ofs ->
+    match ty with
+    | Self s    -> t ?headers s.self buf ofs
+    | Custom c  -> c.decode_bin ?headers buf ofs
+    | Map b     -> map ?headers b buf ofs
+    | Prim t    -> prim ?headers t buf ofs
+    | List l    -> list (t l.v) l.len buf ofs
+    | Array a   -> array (t a.v) a.len buf ofs
+    | Tuple t   -> tuple ?headers t buf ofs
+    | Option x  -> option ?headers (t x) buf ofs
+    | Record r  -> record ?headers r buf ofs
+    | Variant v -> variant ?headers v buf ofs
 
   and tuple: type a. a tuple -> a decode_bin = fun ty ?headers:_ -> match ty with
     | Pair (x,y)     -> pair (t x) (t y)
     | Triple (x,y,z) -> triple (t x) (t y) (t z)
 
-  and like: type a b. (a, b) like -> b decode_bin =
-    fun { x; f; decode_bin; _ } ?headers buf ofs ->
-      match decode_bin with
-      | None   -> t ?headers x buf ofs >|= f
-      | Some r -> r ?headers buf ofs
+  and map: type a b. (a, b) map -> b decode_bin =
+    fun { x; f; _ } ?headers buf ofs -> t ?headers x buf ofs >|= f
 
   and prim: type a. a prim -> a decode_bin = fun ty ?headers -> match ty with
     | Unit   -> unit
@@ -1440,69 +1481,38 @@ let map_result f = function
   | Ok x -> Ok (f x)
   | Error _ as e -> e
 
-let decode_bin t ?headers buf off =
-  let rec aux : type a. a t -> string -> (int * a) = fun t x -> match t with
-    | Like l when l.decode_bin = None -> let n, v = aux l.x x in n, l.f v
-    | Self s          -> aux s.self x
-    | _               -> Decode_bin.t t ?headers buf off
-  in
-  aux t buf
+let decode_bin = Decode_bin.t
+
+let of_bin decode_bin x =
+  let last, v = decode_bin ?headers:(Some false) x 0 in
+  assert (last = String.length x);
+  Ok v
 
 let of_bin_string t x =
   let rec aux
     : type a. a t -> string -> (a, [`Msg of string]) result
     = fun t x -> match t with
-      | Like l when l.decode_bin = None -> aux l.x x |> map_result l.f
       | Self s          -> aux s.self x
+      | Map l           -> aux l.x x |> map_result l.f
       | Prim (String _) -> Ok x
       | Prim (Bytes _)  -> Ok (Bytes.of_string x)
-      | _ ->
-        let last, v = Decode_bin.t t ~headers:false x 0 in
-        assert (last = String.length x);
-        Ok v
+      | Custom c        -> of_bin c.decode_bin x
+      | _               -> of_bin (decode_bin t) x
   in
   try aux t x
   with Invalid_argument e -> Error (`Msg e)
-
-let pp t =
-  let rec aux: type a. a t -> a pp = fun t ppf x ->
-      match t with
-      | Self s -> aux s.self ppf x
-      | Like l -> like l ppf x
-      | Prim p -> prim p ppf x
-      | _      -> pp_json t ppf x
-  and like: type a b. (a, b) like -> b pp = fun l ppf x ->
-    match l.pp with
-    | None   -> aux l.x ppf (l.g x)
-    | Some f -> f ppf x
-  and prim: type a. a prim -> a pp = fun t ppf x ->
-    match t with
-    | Unit     -> ()
-    | Bool     -> Fmt.bool ppf x
-    | Char     -> Fmt.char ppf x
-    | Int      -> Fmt.int ppf x
-    | Int32    -> Fmt.int32 ppf x
-    | Int64    -> Fmt.int64 ppf x
-    | Float    -> Fmt.float ppf x
-    | String _ -> Fmt.string ppf x
-    | Bytes _  -> Fmt.string ppf (Bytes.unsafe_to_string x)
-  in
-  aux t
 
 let to_string t = Fmt.to_to_string (pp t)
 
 let of_string t =
   let v f x = try Ok (f x) with Invalid_argument e -> Error (`Msg e) in
   let rec aux: type a a. a t -> a of_string = fun t x ->
-      match t with
-      | Self s -> aux s.self x
-      | Like l -> like l x
-      | Prim p -> prim p x
-      | _      -> of_json_string t x
-  and like: type a b. (a, b) like -> b of_string = fun l x ->
-    match l.of_string with
-    | None   -> aux l.x x |> map_result l.f
-    | Some f -> f x
+    match t with
+    | Self s   -> aux s.self x
+    | Custom c -> c.of_string x
+    | Map m    -> aux m.x x |> map_result m.f
+    | Prim p -> prim p x
+    | _      -> of_json_string t x
   and prim: type a. a prim -> a of_string = fun t x ->
     match t with
     | Unit     -> Ok ()
@@ -1520,8 +1530,64 @@ let of_string t =
 type 'a ty = 'a t
 
 let hash t x = match t with
-  | Like { hash = Some h; _ } -> h x
+  | Custom c -> c.hash x
   | _ -> Hashtbl.hash (to_bin_string t x)
+
+let like ?cli ?json ?bin ?equal ?compare ?hash:h t =
+  let encode_json, decode_json = match json with
+    | Some (x, y) -> x, (fun d -> Fmt.epr "YO\n%!"; y d)
+    | None ->
+      let rec is_prim: type a. a t -> bool = function
+        | Self s -> is_prim s.self
+        | Map m  -> is_prim m.x
+        | Prim _ -> true
+        | _ -> false
+      in
+      match t, cli with
+      | ty, Some (pp, of_string) when is_prim ty->
+        let ty = string in
+        (fun ppf u -> Encode_json.t ty ppf (Fmt.to_to_string pp u)),
+        (fun buf -> Decode_json.(t ty buf >|= of_string |> join))
+      | _ ->
+        Encode_json.t t, Decode_json.t t
+  in
+  let pp, of_string = match cli with
+    | Some (x, y) -> x, y
+    | None -> pp t, of_string t
+  in
+  let encode_bin, decode_bin, size_of = match bin with
+    | Some (x, y, z) -> x, y, z
+    | None -> encode_bin t, decode_bin t, size_of t
+  in
+  let equal = match equal with
+    | Some x -> x
+    | None -> match compare with
+      | Some f -> (fun x y -> f x y = 0)
+      | None   -> Equal.t t
+  in
+  let compare = match compare with
+    | Some x -> x
+    | None -> Compare.t t
+  in
+  let hash = match h with
+    | Some x -> x
+    | None -> hash t
+  in
+  Custom {
+    cwit = `Type t;
+    pp; of_string;
+    encode_json; decode_json;
+    encode_bin; decode_bin; size_of;
+    compare; equal; hash
+  }
+
+let map ?cli ?json ?bin ?equal ?compare ?hash x f g =
+  match cli, json, bin, equal, compare, hash with
+  | None, None, None, None, None, None ->
+    Map { x; f; g; mwit = Witness.make () }
+  | _ ->
+    let x = Map { x; f; g; mwit = Witness.make () } in
+    like ?cli ?json ?bin ?equal ?compare ?hash x
 
 module type S = sig
   type t
