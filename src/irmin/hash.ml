@@ -47,7 +47,7 @@ module BLAKE2S = Make(Digestif.BLAKE2S)
 
 module With_digest (K: S.HASH) (V: Type.S) = struct
   include K
-  let digest v = K.digest (Type.to_bin_string V.t v)
+  let digest v = K.digest (Type.pre_digest V.t v)
 end
 
 module V1 (K: S.HASH): S.HASH with type t = K.t = struct

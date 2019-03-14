@@ -109,6 +109,7 @@ val v:
   equal:('a -> 'a -> bool) ->
   compare:('a -> 'a -> int) ->
   hash:('a -> int) ->
+  pre_digest:('a -> string) ->
   'a t
 
 val like:
@@ -118,6 +119,7 @@ val like:
   ?equal:('a -> 'a -> bool) ->
   ?compare:('a -> 'a -> int) ->
   ?hash:('a -> int) ->
+  ?pre_digest:('a -> string) ->
   'a t -> 'a t
 
 val map:
@@ -127,6 +129,7 @@ val map:
   ?equal:('b -> 'b -> bool) ->
   ?compare:('b -> 'b -> int) ->
   ?hash:('b -> int) ->
+  ?pre_digest:('b -> string) ->
   'a t ->  ('a -> 'b) -> ('b -> 'a) -> 'b t
 
 (* convenient functions. *)
@@ -135,6 +138,7 @@ val to_string: 'a t -> 'a -> string
 
 val pp_json: ?minify:bool -> 'a t -> 'a Fmt.t
 
+val pre_digest: 'a t -> 'a -> string
 val encode_json: 'a t -> Jsonm.encoder -> 'a -> unit
 val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
 val decode_json_lexemes: 'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result

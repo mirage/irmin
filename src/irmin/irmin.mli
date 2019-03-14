@@ -437,6 +437,12 @@ module Type: sig
   type 'a size_of = ?headers:bool -> 'a -> int option
     (** The type for size function related to binary encoder/decoders. *)
 
+  val pre_digest: 'a t -> 'a -> string
+  (** [pre_digest t x] is the string representation of [x], of type
+      [t], which will be used to compute the digest of the value. By
+      default it's [to_bin_string t x] but it can be overriden by {!v},
+      {!like} and {!map} operators. *)
+
   val encode_bin: 'a t -> 'a encode_bin
   (** [encode_bin t] is the binary encoder for values of type [t]. *)
 
@@ -472,6 +478,7 @@ module Type: sig
     equal:('a -> 'a -> bool) ->
     compare:('a -> 'a -> int) ->
     hash:('a -> int) ->
+    pre_digest:('a -> string) ->
     'a t
 
   val like:
@@ -481,6 +488,7 @@ module Type: sig
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
     ?hash:('a -> int) ->
+    ?pre_digest:('a -> string) ->
     'a t -> 'a t
 
   val map:
@@ -490,6 +498,7 @@ module Type: sig
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
     ?hash:('a -> int) ->
+    ?pre_digest:('a -> string) ->
     'b t -> ('b -> 'a) -> ('a -> 'b) -> 'a t
 
   type 'a ty = 'a t
