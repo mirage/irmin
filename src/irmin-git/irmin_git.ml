@@ -312,7 +312,7 @@ module Make_private
        let size_of ?headers:_ _ = None
 
        let t =
-         Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
     end
 
     include Content_addressable (struct
@@ -422,7 +422,7 @@ module Make_private
       let size_of ?headers:_ _ = None
 
       let t =
-        Irmin.Type.like_map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
+        Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
     end
 
     module Key = H

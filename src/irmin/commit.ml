@@ -481,6 +481,7 @@ module V1 (C: S.COMMIT) = struct
   let info t = C.info t.c
 
   let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
+  let make = v
 
   let info_t: Info.t Type.t =
     let open Type in
@@ -492,7 +493,7 @@ module V1 (C: S.COMMIT) = struct
 
   let t: t Type.t =
     let open Type in
-    record "commit" (fun node parents info -> v ~info ~node ~parents)
+    record "commit" (fun node parents info -> make ~info ~node ~parents)
     |+ field "node"    K.t                     node
     |+ field "parents" (list ~len:`Int64 K.t)  parents
     |+ field "info"    info_t                  info
