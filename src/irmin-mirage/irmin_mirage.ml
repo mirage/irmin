@@ -491,7 +491,7 @@ module Graphql = struct
 
     let start ~pclock ~http store =
       let (module G) = init pclock in
-      let server = G.server store in
+      let server = G.v store in
       http server
   end
 
@@ -522,7 +522,7 @@ module Graphql = struct
 
     let start ~pclock ~http store =
       let (module G) = init pclock in
-      let server = G.server store in
+      let server = G.v store in
       http server
   end
 end

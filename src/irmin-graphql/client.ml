@@ -12,8 +12,13 @@ let config u =
   let cfg = Conf.add cfg uri (Some u) in
   cfg
 
+module type CLIENT = sig
+  include Cohttp_lwt.S.Client
+  val ctx: unit -> ctx option
+end
+
 module Make
-    (Client : Cohttp_lwt.S.Client)
+    (Client : CLIENT)
     (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (K: Irmin.Path.S)
@@ -223,7 +228,7 @@ struct
       let v config =
         let uri = get_uri config in
         let headers = None in
-        let ctx = None in
+        let ctx = Client.ctx () in
         let branch = None in
         Lwt.return (Graphql.v ?headers ?ctx ?branch uri)
 
@@ -336,7 +341,7 @@ struct
   include Irmin.Of_private (X)
 end
 
-module KV (Client: Cohttp_lwt.S.Client)(Contents: Irmin.Contents.S) =
+module KV (Client: CLIENT)(Contents: Irmin.Contents.S) =
   Make
     (Client)
     (Irmin.Metadata.None)

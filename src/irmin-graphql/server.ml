@@ -19,7 +19,7 @@ module type S = sig
     unit Schema.schema ->
     Cohttp_lwt.Request.t ->
     Cohttp_lwt.Body.t -> response_action Lwt.t
-  val server : store -> server
+  val v : store -> server
 end
 
 let of_irmin_result = function
@@ -933,7 +933,7 @@ struct
 
   let execute_request ctx req = Graphql_server.execute_request ctx () req
 
-  let server store =
+  let v store =
     let schema = schema store in
     let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
     Server.make_response_action ~conn_closed:(fun _ -> ()) ~callback ()
@@ -948,4 +948,3 @@ struct
 
   include Make_ext(Server)(Config)(Store)(Presentation)
 end
-

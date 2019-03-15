@@ -1,7 +1,7 @@
 (library
  (name      test_graphql)
  (modules   test_graphql)
- (libraries alcotest irmin-unix test_mem test_git))
+ (libraries alcotest irmin-unix test_mem))
 
 (executable
  (name      test)

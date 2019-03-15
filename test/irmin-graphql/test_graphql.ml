@@ -16,24 +16,52 @@
 
 open Lwt.Infix
 
-module Store = Test_git.Mem.S
-module Client =
-  Irmin_unix.Graphql.Client.Make
-    (Store.Metadata)
-    (Store.Contents)
-    (Store.Key)
-    (Store.Branch)
-    (Store.Hash)
+module Config = struct
 
-let uri = Uri.of_string "http://localhost:80808/graphql"
+  let remote = None
+
+  let info ?(author="test") fmt =
+    let d = ref 0 in
+    let date = incr d; Int64.of_int !d in
+    Fmt.kstrf (fun msg () -> Irmin.Info.v ~date ~author msg) fmt
+end
+
+let (/) = Filename.concat
+
+let socket = Filename.get_temp_dir_name () / "irmin-graphql.sock"
+let pid_file = Filename.get_temp_dir_name () / "irmin-graphql-test.pid"
+let uri = Uri.of_string "http://irmin"
+
+module Client = struct
+  include Cohttp_lwt_unix.Client
+  let ctx () =
+    let resolver =
+      let h = Hashtbl.create 1 in
+      Hashtbl.add h "irmin" (`Unix_domain_socket socket);
+      Resolver_lwt_unix.static h
+    in
+    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+end
+
+let graphql_store (module S: Irmin_test.S) =
+  Irmin_test.store
+    (module Irmin_graphql.Client.Make(Client))
+    (module S.Metadata)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
 let () = Lwt.async_exception_hook := (fun e ->
     Fmt.pr "Async exception caught: %a" Fmt.exn e;
   )
 
-let ( / ) = Filename.concat
-let pid_file = Filename.get_temp_dir_name () / "irmin-graphql-test.pid"
+let remove file = try Unix.unlink file with _ -> ()
+
+let signal pid =
+  let oc = open_out pid_file in
+  Logs.debug (fun l -> l "write PID %d in %s" pid pid_file);
+  output_string oc (string_of_int pid);
+  flush oc;
+  close_out oc;
+  Lwt.return_unit
 
 let rec wait_for_the_server_to_start () =
   if Sys.file_exists pid_file then (
@@ -43,42 +71,67 @@ let rec wait_for_the_server_to_start () =
     let pid = int_of_string line in
     Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
     Unix.unlink pid_file;
-    Unix.sleep 1;
-    pid
+    Lwt.return pid
   ) else (
     Logs.debug (fun l -> l "waiting for the server to start...");
-    Unix.sleep 1;
+    Lwt_unix.sleep 0.1 >>= fun () ->
     wait_for_the_server_to_start ()
   )
 
-let unwrap = function
-  | Ok x -> Lwt.return x
-  | Error (`Msg e) -> Alcotest.fail e
+let servers = [
+  `Quick, Test_mem.suite;
+]
 
-let check_type_eq name t a b =
-  Alcotest.(check bool) name true (Irmin.Type.equal t a b)
+let root c = Irmin.Private.Conf.(get c root)
 
-let check_type_not_eq name t a b =
-  Alcotest.(check bool) name false (Irmin.Type.equal t a b)
+let serve servers n =
+  Logs.set_level ~all:true (Some Logs.Debug);
+  Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
+  let (_, (server : Irmin_test.t)) = List.nth servers n in
+  Logs.debug (fun l -> l "Got server: %s, root=%a"
+                 server.name Fmt.(option string) (root server.config));
+  let (module Server: Irmin_test.S) = server.store in
+  let module G =
+    Irmin_graphql.Server.Make(Cohttp_lwt_unix.Server)(Config)(Server)
+  in
+  let server () =
+    server.init () >>= fun () ->
+    Server.Repo.v server.config >>= fun repo ->
+    signal (Unix.getpid ()) >>= fun () ->
+    (* XXX(samoht): the server should take a repo, not a t *)
+    Server.master repo >>= fun t ->
+    let spec = G.v t in
+    Lwt.catch
+      (fun () -> Lwt_unix.unlink socket)
+      (function Unix.Unix_error _ -> Lwt.return () | e -> Lwt.fail e)
+    >>= fun () ->
+    let mode = `Unix_domain_socket (`File socket) in
+    Conduit_lwt_unix.set_max_active 100;
+    Cohttp_lwt_unix.Server.create ~mode spec
+  in
+  Lwt_main.run (server ())
 
-let server_pid = ref 0
-
-let clean () = Unix.kill !server_pid Sys.sigint
-
-let graphql_store (module S: Irmin_test.S) =
-  Irmin_test.store (module Irmin_unix.Graphql.Client.Make) (module S.Metadata)
-
-let suite server =
+let suite i server =
   let open Irmin_test in
+  let server_pid = ref 0 in
   { name = Printf.sprintf "GRAPHQL.%s" server.name;
 
     init = begin fun () ->
-      Lwt_io.flush_all ()
+      remove pid_file;
+      Lwt_io.flush_all () >>= fun () ->
+      let _ = Sys.command @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i in
+      wait_for_the_server_to_start () >|= fun pid ->
+      server_pid := pid
     end;
 
     stats = None;
     clean = begin fun () ->
-      Lwt.return_unit
+      try Unix.kill !server_pid Sys.sigkill;
+        let () =
+          try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)
+          with _ -> () in
+        server.clean ()
+      with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit
     end;
 
     config = Irmin_graphql.Client.config uri;
@@ -91,36 +144,14 @@ let suites servers =
        we can't fork. Can work around that later if needed. *)
     []
   else
-    List.map (fun (s, server) ->
-        s, suite server
+    List.mapi (fun i (s, server) ->
+        s, suite i server
       ) servers
 
-let run_server () =
-  let module Server = Irmin_unix.Graphql.Server.Make(Store)(struct let remote =  None end) in
-  let server =
-    Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore;
-    Store.Repo.v (Irmin_mem.config ()) >>= Store.master >>= fun t ->
-    server_pid := Unix.getpid ();
-    Conduit_lwt_unix.set_max_active 100;
-    let server = Server.server t in
-    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 80808)) server
-  in
-  Lwt_main.run server
-
-let servers = [
-  `Quick, Test_git.suite;
-]
-
-let run () =
-  if Sys.os_type = "Win32" then
-    (* it's a bit hard to test client/server stuff on windows because
-       we can't fork. Can work around that later if needed. *)
-    exit 0
+let with_server servers f =
+  if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
+    let n = int_of_string Sys.argv.(2) in
+    Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
+    serve servers n
   else
-  if (Array.length Sys.argv > 1 && Sys.argv.(1) = "server") then
-    run_server ()
-  else
-    let _ = Sys.command (Printf.sprintf "dune exec --root . -- %s server & echo $! > %s" Sys.argv.(0) pid_file) in
-    let () = server_pid := wait_for_the_server_to_start () in
-    let () = at_exit clean in
-    Irmin_test.Store.run "irmin-graphql" ~misc:[] (suites servers)
+    f ()
