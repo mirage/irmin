@@ -2,8 +2,20 @@ open Lwt.Infix
 
 exception Graphql of string
 
+module type S = sig
+  module Client: Cohttp_lwt.S.Client
+  module Branch: Irmin.Branch.S
+
+  type t
+  val v: ?headers:Cohttp.Header.t -> ?ctx:Client.ctx -> ?branch:Branch.t -> Uri.t -> t
+  val with_branch: t -> Branch.t option -> t
+  val execute: t -> ?vars:(string * Json.t) list -> ?operation:string -> string -> string Lwt.t
+  val execute_json: t -> ?vars:(string * Json.t) list -> ?operation:string -> string -> string list -> Json.t option Lwt.t
+end
+
 module Make(Client: Cohttp_lwt.S.Client)(Branch: Irmin.Branch.S)(Hash: Irmin.Hash.S) = struct
   module Client = Client
+  module Branch = Branch
 
   type t = {
     uri: Uri.t;

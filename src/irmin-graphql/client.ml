@@ -12,10 +12,16 @@ let config u =
   let cfg = Conf.add cfg uri (Some u) in
   cfg
 
+module Json = Json
+module type S = Helper.S
+module Make_client = Helper.Make
+
 module type CLIENT = sig
   include Cohttp_lwt.S.Client
   val ctx: unit -> ctx option
 end
+
+
 
 module Make
     (Client : CLIENT)
