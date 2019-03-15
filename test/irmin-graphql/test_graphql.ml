@@ -98,9 +98,7 @@ let serve servers n =
     server.init () >>= fun () ->
     Server.Repo.v server.config >>= fun repo ->
     signal (Unix.getpid ()) >>= fun () ->
-    (* XXX(samoht): the server should take a repo, not a t *)
-    Server.master repo >>= fun t ->
-    let spec = G.v t in
+    let spec = G.v repo in
     Lwt.catch
       (fun () -> Lwt_unix.unlink socket)
       (function Unix.Unix_error _ -> Lwt.return () | e -> Lwt.fail e)

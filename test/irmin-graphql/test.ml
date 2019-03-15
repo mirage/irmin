@@ -16,5 +16,5 @@
 
 let () =
   Test_graphql.(with_server servers) (fun () ->
-      Irmin_test.Store.run "irmin-http" ~misc:[] Test_graphql.(suites servers)
+      Irmin_test.Store.run "irmin-graphql" ~misc:[] Test_graphql.(suites servers)
     )

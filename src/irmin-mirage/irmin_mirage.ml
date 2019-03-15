@@ -487,11 +487,11 @@ module Graphql = struct
             Store.E e)
       end in
       (module Irmin_graphql.Server.Make(Http)(Config)(Store):
-        Irmin_graphql.Server.S with type server = Http.t and type store = Store.t)
+        Irmin_graphql.Server.S with type server = Http.t and type repo = Store.repo)
 
-    let start ~pclock ~http store =
+    let start ~pclock ~http repo =
       let (module G) = init pclock in
-      let server = G.v store in
+      let server = G.v repo in
       http server
   end
 

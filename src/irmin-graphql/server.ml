@@ -4,7 +4,7 @@ module Schema = Graphql_lwt.Schema
 
 module type S = sig
   module IO : Cohttp_lwt.S.IO
-  type store
+  type repo
   type server
 
   type response_action =
@@ -14,12 +14,12 @@ module type S = sig
                     -> unit Lwt.t)
     | `Response of Cohttp.Response.t * Cohttp_lwt.Body.t ]
 
-  val schema : store -> unit Schema.schema
+  val schema : repo -> unit Schema.schema
   val execute_request :
     unit Schema.schema ->
     Cohttp_lwt.Request.t ->
     Cohttp_lwt.Body.t -> response_action Lwt.t
-  val v : store -> server
+  val v : repo -> server
 end
 
 let of_irmin_result = function
@@ -106,7 +106,7 @@ struct
       Config.info ?author "%s" message, input.retries, input.allow_empty, parents
     | None -> Lwt.return (Config.info "", None, None, None)
 
-  type store = Store.t
+  type repo = Store.Repo.t
   type server = Server.t
 
   module Input = struct
@@ -304,7 +304,7 @@ struct
             ])
     )
 
-  and branch :  ('ctx, (Store.t * Store.Branch.t) option) Schema.typ Lazy.t = lazy Schema.(
+  and branch :  ('ctx, (Store.repo * Store.Branch.t) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Branch"
         ~fields:(fun _branch -> [
               field "name"
@@ -318,14 +318,14 @@ struct
                 ~args:[]
                 ~typ:(Lazy.force (commit))
                 ~resolve:(fun _  (s, b) ->
-                    Store.Branch.find (Store.repo s) b >>= Lwt.return_ok
+                    Store.Branch.find s b >>= Lwt.return_ok
                   )
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:Presentation.Contents.schema_typ
                 ~resolve:(fun _ (s, b) key ->
-                    mk_branch (Store.repo s) (Some b) >>= fun t ->
+                    mk_branch s (Some b) >>= fun t ->
                     Store.find t key >|=
                     Option.map Presentation.Contents.to_src >|=
                     Result.ok
@@ -335,7 +335,7 @@ struct
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(list (non_null @@ Lazy.force contents))
                 ~resolve:(fun _ (s, b) key ->
-                    mk_branch (Store.repo s) (Some b) >>= fun s ->
+                    mk_branch s (Some b) >>= fun s ->
                     let rec tree_list base tree key acc =
                       match tree with
                       | `Contents (_, _) ->
@@ -355,7 +355,7 @@ struct
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(Lazy.force contents)
                 ~resolve:(fun _ (s, b) key ->
-                    mk_branch (Store.repo s) (Some b) >>= fun s ->
+                    mk_branch s (Some b) >>= fun s ->
                     Store.mem_tree s key >>= function
                     | true ->
                       Store.get_tree s Store.Key.empty >>= fun tree ->
@@ -367,7 +367,7 @@ struct
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
                 ~resolve:(fun _ (s, b) commit ->
-                    mk_branch (Store.repo s) (Some b) >>= fun s ->
+                    mk_branch s (Some b) >>= fun s ->
                     Store.Commit.of_hash (Store.repo s) commit >>= function
                     | Some commit ->
                       (Store.lcas_with_commit s commit >>= function
@@ -442,7 +442,7 @@ struct
               arg "remote" ~typ:(non_null Input.remote)
             ]
           ~resolve:(fun _ _src branch remote ->
-              mk_branch (Store.repo s) branch >>= fun t ->
+              mk_branch s branch >>= fun t ->
               Sync.fetch t remote >>= function
               | Ok d ->
                 Store.Head.set t d >|= fun () ->
@@ -459,7 +459,7 @@ struct
               arg "remote" ~typ:(non_null Input.remote);
             ]
           ~resolve:(fun _ _src branch remote ->
-              mk_branch (Store.repo s) branch >>= fun t ->
+              mk_branch s branch >>= fun t ->
               Sync.push t remote >>= function
               | Ok _ -> Lwt.return_ok true
               | Error `No_head -> Lwt.return_ok false
@@ -477,7 +477,7 @@ struct
               arg "depth" ~typ:int;
             ]
           ~resolve:(fun _ _src branch remote info depth ->
-              mk_branch (Store.repo s) branch >>= fun t ->
+              mk_branch s branch >>= fun t ->
               let strategy = match info with
                 | Some info ->
                   txn_args t (Some info) >|= fun (info, _, _, _) ->
@@ -515,7 +515,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k v i ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             (Store.set ?retries ?allow_empty ?parents t k v ~info >>= function
               | Ok ()   -> Store.Head.find t >>= Lwt.return_ok
@@ -532,7 +532,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k test set i  ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Store.test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set >>= function
             | Ok _ -> Store.Head.find t >>= Lwt.return_ok
@@ -547,7 +547,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Lwt.catch (fun () ->
                 let tree = Store.Tree.empty in
@@ -569,7 +569,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Lwt.catch (fun () ->
                 Store.with_tree_exn ?retries ?allow_empty ?parents t k ~info (fun tree ->
@@ -595,7 +595,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k v m i ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             (Store.find_tree t k >>= (function
                  | Some tree -> Lwt.return tree
@@ -614,7 +614,7 @@ struct
             arg "info" ~typ:Input.info
           ]
         ~resolve:(fun _ _src branch key i ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t i >>= fun (info, retries, allow_empty, parents) ->
             Store.remove ?retries ?allow_empty ?parents t key ~info >>= function
             | Ok () -> Store.Head.find t >>= Lwt.return_ok
@@ -631,7 +631,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch key value old info ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t info >>= fun (info, retries, allow_empty, parents) ->
             Store.merge_exn t key ~info ?retries ?allow_empty ?parents ~old value >>= fun _ ->
             Store.hash t key >>= (function
@@ -649,7 +649,7 @@ struct
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch key value old info ->
-            mk_branch (Store.repo s) branch >>= fun t ->
+            mk_branch s branch >>= fun t ->
             txn_args t info >>= fun (info, retries, allow_empty, parents) ->
             (match old with
             | Some old ->
@@ -676,7 +676,7 @@ struct
             arg "n" ~typ:int;
           ]
         ~resolve:(fun _ _src into from i max_depth n ->
-            mk_branch (Store.repo s) into >>= fun t ->
+            mk_branch s into >>= fun t ->
             txn_args t i >>= fun (info, _, _, _) ->
             Store.merge_with_branch t from ~info ?max_depth ?n >>= fun _ ->
             Store.Head.find t >>=
@@ -693,7 +693,7 @@ struct
             arg "n" ~typ:int;
           ]
         ~resolve:(fun _ _src into from i max_depth n ->
-            mk_branch (Store.repo s) into >>= fun t ->
+            mk_branch s into >>= fun t ->
             txn_args t i >>= fun (info, _, _, _) ->
             Store.Commit.of_hash (Store.repo t) from >>= function
             | Some from ->
@@ -711,8 +711,8 @@ struct
             arg "commit" ~typ:(non_null Input.commit_hash);
           ]
         ~resolve:(fun _ _src branch commit ->
-            mk_branch (Store.repo s) branch >>= fun t ->
-            Store.Commit.of_hash (Store.repo s) commit >>= function
+            mk_branch s branch >>= fun t ->
+            Store.Commit.of_hash s commit >>= function
             | Some commit ->
               Store.Head.set t commit >>= fun () ->
               Lwt.return_ok (Some commit)
@@ -726,9 +726,9 @@ struct
             arg "commit" ~typ:(non_null Input.commit_hash);
           ]
         ~resolve:(fun _ _ branch commit ->
-            Store.Commit.of_hash (Store.repo s) commit >>= function
+            Store.Commit.of_hash s commit >>= function
             | Some commit ->
-              Store.Branch.set (Store.repo s) branch commit >>= fun () -> Lwt.return_ok true
+              Store.Branch.set s branch commit >>= fun () -> Lwt.return_ok true
             | None -> Lwt.return_error "invalid commit hash"
           );
       io_field "remove_branch"
@@ -737,9 +737,9 @@ struct
             arg "branch" ~typ:(non_null Input.branch);
           ]
         ~resolve:(fun _ _ branch ->
-            Store.Branch.mem (Store.repo s) branch >>= fun exists ->
+            Store.Branch.mem s branch >>= fun exists ->
             if exists then
-              Store.Branch.remove (Store.repo s) branch >>= fun () ->  Lwt.return_ok true
+              Store.Branch.remove s branch >>= fun () ->  Lwt.return_ok true
             else Lwt.return_ok false
           );
       io_field "add_commit"
@@ -751,7 +751,7 @@ struct
           let value = Irmin.Type.of_string Store.Private.Commit.Val.t (Base64.decode_exn commit) in
           match value with
           | Ok value ->
-            Store.Private.Repo.batch (Store.repo s) (fun _ _ commits ->
+            Store.Private.Repo.batch s (fun _ _ commits ->
               Store.Private.Commit.add commits value >>= fun x ->
             Lwt.return_some (Irmin.Type.to_string Store.Hash.t x) >>= Lwt.return_ok)
           | Error (`Msg msg) -> Lwt.return_error msg
@@ -764,7 +764,7 @@ struct
         ~resolve:(fun _ _ node ->
           match Irmin.Type.of_string Store.Private.Node.Val.t (Base64.decode_exn node) with
           | Ok node ->
-            Store.Private.Repo.batch (Store.repo s) (fun _ nodes _ ->
+            Store.Private.Repo.batch s (fun _ nodes _ ->
               Store.Private.Node.add nodes node >>= fun hash ->
               Lwt.return_ok (Irmin.Type.to_string Store.Private.Node.Key.t hash))
           | Error (`Msg e) -> Lwt.return_error e
@@ -777,7 +777,7 @@ struct
         ~resolve:(fun _ _ o ->
           match Irmin.Type.of_string Store.contents_t (Base64.decode_exn o) with
           | Ok o ->
-            Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
+            Store.Private.Repo.batch s (fun contents _ _ ->
               Store.Private.Contents.add contents o >>= fun hash ->
               Lwt.return_ok (Irmin.Type.to_string Store.Hash.t hash))
           | Error (`Msg e) -> Lwt.return_error e
@@ -790,7 +790,7 @@ struct
             arg "old" ~typ:string;
           ]
         ~resolve:(fun _ _src a b old ->
-          Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
+          Store.Private.Repo.batch s (fun contents _ _ ->
               let f = Store.Private.Contents.merge contents |> Irmin.Merge.f in
               let old =
                 match old with
@@ -815,7 +815,7 @@ struct
             arg "set" ~typ:(Input.commit_hash);
           ]
         ~resolve:(fun _ _src branch test set  ->
-            let branches = Store.Private.Repo.branch_t (Store.repo s) in
+            let branches = Store.Private.Repo.branch_t s in
             Store.Private.Branch.test_and_set branches branch ~test ~set >>= Lwt.return_ok
         );
     ]
@@ -847,7 +847,7 @@ struct
         arg "key" ~typ:Input.key
       ]
       ~resolve:(fun _ctx branch key ->
-        mk_branch (Store.repo s) branch >>= fun t ->
+        mk_branch s branch >>= fun t ->
         let stream, push = Lwt_stream.create () in
         let destroy_stream watch () =
           push None;
@@ -882,13 +882,13 @@ struct
               arg "hash" ~typ:(non_null Input.commit_hash)
             ]
           ~resolve:(fun _ _src hash ->
-              Store.Commit.of_hash (Store.repo s) hash >>= Lwt.return_ok
+              Store.Commit.of_hash s hash >>= Lwt.return_ok
             );
         io_field "branches"
           ~typ:(non_null (list (non_null string)))
           ~args:[]
           ~resolve:(fun _ _ ->
-              Store.Branch.list (Store.repo s) >|= fun l ->
+              Store.Branch.list s >|= fun l ->
               let branches = List.map (fun b ->
                   Irmin.Type.to_string Store.branch_t b) l
               in Ok branches
@@ -897,7 +897,6 @@ struct
           ~typ:(Lazy.force branch)
           ~args:[]
           ~resolve:(fun _ _ ->
-              Store.master (Store.repo s) >>= fun s ->
               Lwt.return_ok (Some (s, Store.Branch.master))
             )
         ;
@@ -915,7 +914,7 @@ struct
           ~typ:(string)
           ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
           ~resolve:(fun _ _ hash ->
-              (Store.Contents.of_hash (Store.repo s) hash >>= function
+              (Store.Contents.of_hash s hash >>= function
               | Some x -> Lwt.return_some (Base64.encode_exn (Irmin.Type.to_string Store.contents_t x)) >>= Lwt.return_ok
               | None -> Lwt.return_ok None)
             )
@@ -924,7 +923,7 @@ struct
           ~typ:(string)
           ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
           ~resolve:(fun _ _ hash ->
-              let nodes = Store.Private.Repo.node_t (Store.repo s) in
+              let nodes = Store.Private.Repo.node_t s in
               Store.Private.Node.find nodes hash >>= function
               | Some x -> Lwt.return_ok (Some (Base64.encode_exn (Irmin.Type.to_string Store.Private.Node.Val.t x)))
               | None -> Lwt.return_ok None)

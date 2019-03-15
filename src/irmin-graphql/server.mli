@@ -2,7 +2,7 @@ module Schema : Graphql_intf.Schema with type 'a Io.t = 'a Lwt.t
 
 module type S = sig
   module IO : Cohttp_lwt.S.IO
-  type store
+  type repo
   type server
 
   type response_action =
@@ -12,13 +12,13 @@ module type S = sig
                     -> unit Lwt.t)
     | `Response of Cohttp.Response.t * Cohttp_lwt.Body.t ]
 
-  val schema : store -> unit Schema.schema
+  val schema : repo -> unit Schema.schema
 
   val execute_request :
       unit Schema.schema ->
       Cohttp_lwt.Request.t ->
       Cohttp_lwt.Body.t -> response_action Lwt.t
-  val v : store -> server
+  val v : repo -> server
 end
 
 module type CONFIG = sig
@@ -42,7 +42,7 @@ end
 module Default_presenter (T : Irmin.Type.S) : PRESENTER with type t = T.t
 
 module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S):
-  S with type store = Store.t
+  S with type repo = Store.Repo.t
     and type server = Server.t
 
 module Make_ext
@@ -50,5 +50,5 @@ module Make_ext
   (Config: CONFIG)
   (Store : Irmin.S)
   (Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata):
-  S with type store = Store.t
+  S with type repo = Store.Repo.t
     and type server = Server.t

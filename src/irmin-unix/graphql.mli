@@ -9,7 +9,7 @@ module Server: sig
 
   module Make(S: Irmin.S)(Remote: Remote.S):
     Irmin_graphql.Server.S
-      with type store = S.t
+      with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t
 
 
@@ -17,7 +17,7 @@ module Server: sig
     (Store : Irmin.S)
     (Remote: Remote.S)
     (Presentation : Irmin_graphql.Server.PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata):
-      Irmin_graphql.Server.S with type store = Store.t
+      Irmin_graphql.Server.S with type repo = Store.repo
                               and type server = Cohttp_lwt_unix.Server.t
 end
 

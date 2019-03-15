@@ -178,7 +178,7 @@ module Graphql: sig
     val start:
       pclock:Pclock.t
       -> http:(Http.t -> unit Lwt.t)
-      -> Store.t -> unit Lwt.t
+      -> Store.repo -> unit Lwt.t
   end
 
   module Make
