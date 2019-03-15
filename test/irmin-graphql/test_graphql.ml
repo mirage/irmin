@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-module Store = Irmin_unix.Git.Mem.KV(Irmin.Contents.String)
+module Store = Test_git.Mem.S
 module Client =
   Irmin_unix.Graphql.Client.Make
     (Store.Metadata)
@@ -96,15 +96,7 @@ let suites servers =
       ) servers
 
 let run_server () =
-  let module Server = Irmin_unix.Graphql.Server.Make(Store)(struct let remote = Some (fun ?headers r ->
-      let uri = Uri.of_string r in
-      match Uri.scheme uri with
-      | Some "file" ->
-        let cfg = Irmin_git.config (Uri.path uri) in
-        let store = Lwt_main.run (Store.Repo.v cfg >>= Store.master) in
-        Irmin.remote_store (module Store) store
-      | _ -> Store.remote ?headers r)
-    end) in
+  let module Server = Irmin_unix.Graphql.Server.Make(Store)(struct let remote =  None end) in
   let server =
     Lwt_unix.on_signal Sys.sigint (fun _ -> exit 0) |> ignore;
     Store.Repo.v (Irmin_mem.config ()) >>= Store.master >>= fun t ->

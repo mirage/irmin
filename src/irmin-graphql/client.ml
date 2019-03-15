@@ -45,11 +45,11 @@ struct
           }
         |} in
         let vars = [
-          "object", `String (Irmin.Type.to_string C.t x)
+          "object", `String (Base64.encode_exn (Irmin.Type.to_string C.t x))
         ] in
         Graphql.execute_json t ~vars query ["data"; "add_object"] >|= function
-        | Some (`String hash) -> Graphql.unwrap (Irmin.Type.of_string H.t hash)
-        | _ -> raise (Graphql.unwrap (Graphql.invalid_response "Contents.add"))
+        | Some (`String hash) -> Graphql.unwrap ~prefix:"Contents.add" (Irmin.Type.of_string H.t hash)
+        | _ -> raise (Graphql.unwrap(Graphql.invalid_response "Contents.add"))
 
       let merge: [`Read | `Write] t -> key option Irmin.Merge.t = fun t ->
         let query = {|
@@ -60,12 +60,7 @@ struct
         Irmin.(Merge.v (Type.option Key.t) (fun ~old a b ->
           old () >>= function
           | Ok old ->
-            let old = match old with
-              | Some (Some x) -> Some (Some x)
-              | Some None -> Some None
-              | None -> None
-            in
-            let opt = function None -> `Null | Some x -> `String (Irmin.Type.to_string H.t x) in
+            let opt = function None -> `String "" | Some x -> `String (Irmin.Type.to_string H.t x) in
             let a = opt a in
             let b = opt b in
             let old = match old with Some old -> opt old | None -> `Null in
@@ -94,7 +89,7 @@ struct
         ] in
         Graphql.execute_json t ~vars query ["data"; "find_object"] >|= function
         | Some (`String s) ->
-            (match Irmin.Type.of_string C.t s with
+            (match Irmin.Type.of_string C.t (Base64.decode_exn s) with
             | Ok x -> Some x
             | Error _ -> None)
         | Some `Null -> None
@@ -120,10 +115,10 @@ struct
           }
         |} in
         let vars = [
-          "node", `String (Irmin.Type.to_string Val.t v)
+          "node", `String (Base64.encode_exn (Irmin.Type.to_string Val.t v))
         ] in
         Graphql.execute_json t ~vars query ["data"; "add_node"] >|= function
-        | Some (`String hash) -> Graphql.unwrap (Irmin.Type.of_string H.t hash)
+        | Some (`String hash) -> Graphql.unwrap ~prefix:"Node.add" (Irmin.Type.of_string Key.t hash)
         | _ -> raise (Graphql.unwrap (Graphql.invalid_response "Node.add"))
 
       let find t k =
@@ -137,7 +132,7 @@ struct
         ] in
         Graphql.execute_json t ~vars query ["data"; "find_node"] >|= function
         | Some (`String s) ->
-            (match Irmin.Type.of_string Val.t s with
+            (match Irmin.Type.of_string Val.t (Base64.decode_exn s) with
             | Ok x -> Some x
             | Error _ -> None)
         | Some `Null -> None
@@ -163,22 +158,25 @@ struct
           }
         |} in
         let vars = [
-          "commit", `String (Irmin.Type.to_string Val.t x)
+          "commit", `String (Base64.encode_exn (Irmin.Type.to_string Val.t x))
         ] in
         Graphql.execute_json t ~vars query ["data"; "add_commit"] >|= function
-        | Some (`String hash) -> Graphql.unwrap (Irmin.Type.of_string H.t hash)
+        | Some (`String hash) -> Graphql.unwrap ~prefix:"Commit.add" (Irmin.Type.of_string H.t hash)
         | _ -> raise (Graphql.unwrap (Graphql.invalid_response "Contents.add"))
 
       let find t hash =
         let query = {|
           query FindCommit($hash: CommitHash!) {
             commit(hash: $hash) {
+              hash
               info {
                 author
                 message
                 date
               }
-              hash
+              tree {
+                hash
+              }
               parents
             }
           }
@@ -188,14 +186,14 @@ struct
         ] in
         Graphql.execute_json t ~vars query ["data"; "commit"] >|= function
         | Some (`O _ as j) ->
-            let f x = Json.to_string x |> Irmin.Type.of_string H.t |> Graphql.unwrap in
-            let node = Json.find_exn j ["hash"] |> f  in
-            let parents = match Json.find_exn j ["parents"] with `A x -> (List.map f x)  | _ -> [] in
+            let f p x = Json.get_string_exn x |> Irmin.Type.of_string Hash.t |> Graphql.unwrap ~prefix:("Commit.find," ^ p) in
+            let node = Json.find_exn j ["tree"; "hash"] |> f "node"  in
+            let parents = match Json.find_exn j ["parents"] with `A x -> (List.map (f "parents") x)  | _ -> [] in
             (match Json.find_exn j ["info"] with
             | `O _ as info ->
-                let author = Json.find_exn info ["author"] |> Json.to_string in
-                let message = Json.find_exn info ["message"] |> Json.to_string in
-                let date = Json.find_exn info ["date"] |> Json.to_string |> Int64.of_string in
+                let author = Json.find_exn info ["author"] |> Json.get_string_exn in
+                let message = Json.find_exn info ["message"] |> Json.get_string_exn in
+                let date = Json.find_exn info ["date"] |> Json.get_string_exn |> Int64.of_string in
                 let info = Irmin.Info.v ~author ~date message in
                 Some (Val.v ~info ~node  ~parents)
             | _ -> None)
@@ -219,7 +217,7 @@ struct
 
       let get_uri config =
         match Irmin.Private.Conf.get config uri with
-        | None   -> Uri.of_string "localhost:8080/graphql"
+        | None   -> Uri.of_string "http://localhost:8080/graphql"
         | Some u -> u
 
       let v config =
@@ -244,13 +242,14 @@ struct
       type value = Val.t
       type watch = Watch.watch
 
-
+      (* TODO: use websockets to subscribe to branch on graphql server *)
       let w = Watch.v ()
 
       let find t branch =
         let query = {|
           query FindBranch($branch: BranchName!) {
             branch(name: $name) {
+              name,
               head {
                 hash
               }
@@ -261,7 +260,8 @@ struct
           "name", `String (Irmin.Type.to_string B.t branch)
         ] in
         Graphql.execute_json t ~vars query ["data"; "branch"; "head"; "hash"] >|= function
-        | Some (`String s) -> Some (Graphql.unwrap (Irmin.Type.of_string H.t s))
+        | Some (`String s) ->
+            Some (Graphql.unwrap ~prefix:"Branch.find" (Irmin.Type.of_string H.t s))
         | _ -> None
 
       let mem t branch =
@@ -272,7 +272,7 @@ struct
       let list t =
         let query = {| query { branches } |} in
         Graphql.execute_json t query ["data"; "branches"] >|= function
-        | Some (`A l) -> List.map (fun x -> Irmin.Type.of_string B.t (Json.to_string x) |> Graphql.unwrap) l
+        | Some (`A l) -> List.map (fun x -> Irmin.Type.of_string B.t (Json.get_string_exn x) |> Graphql.unwrap ~prefix:"Branch.list") l
         | _ -> []
 
       let remove t branch =
@@ -281,10 +281,10 @@ struct
             remove_branch(branch: $branch)
           }
         |} in
-        let branch = Irmin.Type.to_string B.t branch in
-        let vars = ["branch", `String branch] in
-        Graphql.execute_json t ~vars query ["data"; "remove_branch"] >|= function
-        | Some (`Bool true) -> ()
+        let branch' = Irmin.Type.to_string B.t branch in
+        let vars = ["branch", `String branch'] in
+        Graphql.execute_json t ~vars query ["data"; "remove_branch"] >>= function
+        | Some (`Bool _) -> Watch.notify w branch None
         | _ -> Graphql.unwrap (Error (`Msg "unable to remove branch"))
 
       let set t branch hash =
@@ -293,34 +293,34 @@ struct
             set_branch(branch: $branch, commit: $commit)
           }
         |} in
-        let branch = Irmin.Type.to_string B.t branch in
+        let branch' = Irmin.Type.to_string B.t branch in
         let commit = Irmin.Type.to_string H.t hash in
         let vars = [
-          "branch", `String branch;
+          "branch", `String branch';
           "commit", `String commit;
         ] in
-        Graphql.execute_json t ~vars query ["data"; "set_branch"] >|= function
-        | Some (`Bool true) -> ()
+        Graphql.execute_json t ~vars query ["data"; "set_branch"] >>= function
+        | Some (`Bool true) -> Watch.notify w branch (Some hash)
         | _ -> Graphql.unwrap (Error (`Msg "unable to set branch"))
 
 
       let test_and_set t branch ~test ~set =
         let query = {|
-          mutation TestAndSetBranch($branch: BranchName!, $test: CommitHash!, $set: CommitHash!) {
+          mutation TestAndSetBranch($branch: BranchName!, $test: CommitHash, $set: CommitHash) {
             test_and_set_branch(branch: $branch, test: $test, set: $set)
           }
         |} in
-        let branch = Irmin.Type.to_string B.t branch in
+        let branch' = Irmin.Type.to_string B.t branch in
         let test = match test with Some test -> `String (Irmin.Type.to_string H.t test) | None -> `Null in
-        let set = match set with Some set -> `String (Irmin.Type.to_string H.t set) | None -> `Null in
+        let set' = match set with Some set -> `String (Irmin.Type.to_string H.t set) | None -> `Null in
         let vars = [
-          "branch", `String branch;
+          "branch", `String branch';
           "test", test;
-          "set", set;
+          "set", set';
         ] in
-        Graphql.execute_json t ~vars query ["data"; "test_and_set_branch"] >|= function
-        | Some (`Bool true) -> true
-        | _ -> false
+        Graphql.execute_json t ~vars query ["data"; "test_and_set_branch"] >>= function
+        | Some (`Bool true) -> Watch.notify w branch set >>= fun () -> Lwt.return_true
+        | _ -> Lwt.return_false
 
       let watch _t ?init x =
         Watch.watch w ?init x

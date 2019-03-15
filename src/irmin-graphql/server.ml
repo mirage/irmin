@@ -24,8 +24,7 @@ end
 
 let of_irmin_result = function
   | Ok _ as ok -> ok
-  | Error (`Msg msg) -> Error msg
-
+  | Error (`Msg msg) -> Error ("irmin: " ^ msg)
 
 module Option = struct
   let map f t = match t with None -> None | Some x -> Some (f x)
@@ -60,7 +59,12 @@ module Default_presenter (T : Irmin.Type.S) = struct
   let schema_typ = Schema.string
 end
 
-module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata) = struct
+module Make_ext
+    (Server: Cohttp_lwt.S.Server)
+    (Config: CONFIG)
+    (Store : Irmin.S)
+    (Presentation : PRESENTATION with type Contents.t = Store.contents and type Metadata.t = Store.metadata) =
+struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
   module Graphql_server = Graphql_cohttp.Make(Schema)(IO)(Cohttp_lwt.Body)
@@ -158,7 +162,14 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             arg "allow_empty" ~typ:bool;
             arg "parents" ~typ:(list (non_null commit_hash));
           ]
-          ~coerce:(fun author message retries allow_empty parents -> {author; message; retries; allow_empty; parents})
+          ~coerce:(fun author message retries allow_empty parents ->
+              let message =
+                match message with
+                | Some message when String.length message > 0 && String.get message 0 = '\n' ->
+                  Some (String.sub message 1 (String.length message - 1))
+                | m -> m
+              in
+              {author; message; retries; allow_empty; parents})
         )
 
     let item = Schema.Arg.(
@@ -174,6 +185,11 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
     let tree = Schema.Arg.(
         list (non_null item))
   end
+
+
+  let mk_branch repo = function
+    | Some b -> Store.of_branch repo b
+    | None -> Store.master repo
 
   let rec commit = lazy Schema.(
       obj "Commit"
@@ -220,7 +236,11 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               field "message"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ i -> Irmin.Info.message i)
+                ~resolve:(fun _ i ->
+                  let msg = Irmin.Info.message i in
+                  if String.length msg > 0 && String.get msg 0 = '\n' then
+                    String.sub msg 1 (String.length msg - 1)
+                  else msg)
             ])
     )
 
@@ -232,6 +252,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                 ~args:[]
                 ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
               ;
+              io_field "hash"
+                ~typ:(non_null string)
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                  Store.Tree.get_tree tree key >>= fun tree ->
+                  Lwt.return_ok (Irmin.Type.to_string Store.Hash.t (Store.Tree.hash tree)))
+              ;
               io_field "get"
                 ~args:Arg.[arg "step" ~typ:Input.step]
                 ~typ:node
@@ -239,13 +266,10 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Store.Tree.get_tree tree key >>= fun tree ->
                     let key =
                       match step with
-                      | Some s -> Ok (Store.Key.v [s])
-                      | None -> Ok Store.Key.empty
+                      | Some s -> Store.Key.v [s]
+                      | None -> Store.Key.empty
                     in
-                    match key with
-                    | Ok key ->
-                      Lwt.return_ok (Some (tree, key))
-                    | Error msg -> Lwt.return_error msg
+                    Lwt.return_ok (Some (tree, key))
                   )
               ;
               io_field "value"
@@ -293,15 +317,16 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "head"
                 ~args:[]
                 ~typ:(Lazy.force (commit))
-                ~resolve:(fun _  (s, _) ->
-                    Store.Head.find s >>= Lwt.return_ok
+                ~resolve:(fun _  (s, b) ->
+                    Store.Branch.find (Store.repo s) b >>= Lwt.return_ok
                   )
               ;
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:Presentation.Contents.schema_typ
-                ~resolve:(fun _ (s, _) key ->
-                    Store.find s key >|=
+                ~resolve:(fun _ (s, b) key ->
+                    mk_branch (Store.repo s) (Some b) >>= fun t ->
+                    Store.find t key >|=
                     Option.map Presentation.Contents.to_src >|=
                     Result.ok
                   )
@@ -309,7 +334,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "get_tree"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(list (non_null @@ Lazy.force contents))
-                ~resolve:(fun _ (s, _) key ->
+                ~resolve:(fun _ (s, b) key ->
+                    mk_branch (Store.repo s) (Some b) >>= fun s ->
                     let rec tree_list base tree key acc =
                       match tree with
                       | `Contents (_, _) ->
@@ -328,7 +354,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "get_all"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(Lazy.force contents)
-                ~resolve:(fun _ (s, _) key ->
+                ~resolve:(fun _ (s, b) key ->
+                    mk_branch (Store.repo s) (Some b) >>= fun s ->
                     Store.mem_tree s key >>= function
                     | true ->
                       Store.get_tree s Store.Key.empty >>= fun tree ->
@@ -339,7 +366,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[arg "commit" ~typ:(non_null Input.commit_hash)]
-                ~resolve:(fun _ (s, _) commit ->
+                ~resolve:(fun _ (s, b) commit ->
+                    mk_branch (Store.repo s) (Some b) >>= fun s ->
                     Store.Commit.of_hash (Store.repo s) commit >>= function
                     | Some commit ->
                       (Store.lcas_with_commit s commit >>= function
@@ -400,10 +428,6 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
 
   let _ = Lazy.force node_as_tree
   let _ = Lazy.force contents_as_tree
-
-  let mk_branch repo = function
-    | Some b -> Store.of_branch repo b
-    | None -> Store.master repo
 
   let err_write e =
     Lwt.return_error (Irmin.Type.to_string Store.write_error_t e)
@@ -704,7 +728,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~resolve:(fun _ _ branch commit ->
             Store.Commit.of_hash (Store.repo s) commit >>= function
             | Some commit ->
-              Store.Branch.set (Store.repo s) branch commit >>= fun () ->  Lwt.return_ok true
+              Store.Branch.set (Store.repo s) branch commit >>= fun () -> Lwt.return_ok true
             | None -> Lwt.return_error "invalid commit hash"
           );
       io_field "remove_branch"
@@ -723,8 +747,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~args:Arg.[
           arg "commit" ~typ:(non_null string);
         ]
-        ~resolve:(fun _ _ node ->
-          let value = Irmin.Type.of_string Store.Private.Commit.Val.t node in
+        ~resolve:(fun _ _ commit ->
+          let value = Irmin.Type.of_string Store.Private.Commit.Val.t (Base64.decode_exn commit) in
           match value with
           | Ok value ->
             Store.Private.Repo.batch (Store.repo s) (fun _ _ commits ->
@@ -733,29 +757,29 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           | Error (`Msg msg) -> Lwt.return_error msg
         );
       io_field "add_node"
-        ~typ:string
+        ~typ:(non_null string)
         ~args:Arg.[
           arg "node" ~typ:(non_null string);
         ]
         ~resolve:(fun _ _ node ->
-          match Irmin.Type.of_string Store.Private.Node.Val.t node with
+          match Irmin.Type.of_string Store.Private.Node.Val.t (Base64.decode_exn node) with
           | Ok node ->
             Store.Private.Repo.batch (Store.repo s) (fun _ nodes _ ->
               Store.Private.Node.add nodes node >>= fun hash ->
-              Lwt.return_ok (Some (Irmin.Type.to_string Store.Hash.t hash)))
+              Lwt.return_ok (Irmin.Type.to_string Store.Private.Node.Key.t hash))
           | Error (`Msg e) -> Lwt.return_error e
         );
       io_field "add_object"
-        ~typ:string
+        ~typ:(non_null string)
         ~args:Arg.[
           arg "object" ~typ:(non_null string);
         ]
         ~resolve:(fun _ _ o ->
-          match Irmin.Type.of_string Store.contents_t o with
+          match Irmin.Type.of_string Store.contents_t (Base64.decode_exn o) with
           | Ok o ->
             Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
               Store.Private.Contents.add contents o >>= fun hash ->
-              Lwt.return_ok (Some (Irmin.Type.to_string Store.Hash.t hash)))
+              Lwt.return_ok (Irmin.Type.to_string Store.Hash.t hash))
           | Error (`Msg e) -> Lwt.return_error e
         );
       io_field "merge_objects"
@@ -763,12 +787,20 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~args:Arg.[
             arg "a" ~typ:Input.object_hash;
             arg "b" ~typ:Input.object_hash;
-            arg "old" ~typ:Input.object_hash;
+            arg "old" ~typ:string;
           ]
         ~resolve:(fun _ _src a b old ->
           Store.Private.Repo.batch (Store.repo s) (fun contents _ _ ->
               let f = Store.Private.Contents.merge contents |> Irmin.Merge.f in
-              let old = Irmin.Merge.promise old in
+              let old =
+                match old with
+                | Some "" -> fun () -> Lwt.return_ok (Some None)
+                | Some s ->
+                  (match Irmin.Type.of_string Store.Hash.t s with
+                  | Ok x -> fun () -> Lwt.return_ok (Some (Some x))
+                  | Error (`Msg msg) -> failwith msg)
+                | None -> fun () -> Lwt.return_ok None
+              in
               f a b ~old >|= function
               | Ok (Some x) -> Ok (Some (Irmin.Type.to_string Store.Hash.t x))
               | Ok None ->  Ok None
@@ -778,12 +810,11 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
       io_field "test_and_set_branch"
         ~typ:(non_null bool)
         ~args:Arg.[
-            arg "branch" ~typ:Input.branch;
+            arg "branch" ~typ:(non_null Input.branch);
             arg "test" ~typ:(Input.commit_hash);
             arg "set" ~typ:(Input.commit_hash);
           ]
         ~resolve:(fun _ _src branch test set  ->
-            let branch = match branch with Some b -> b | None -> Store.Branch.master in
             let branches = Store.Private.Repo.branch_t (Store.repo s) in
             Store.Private.Branch.test_and_set branches branch ~test ~set >>= Lwt.return_ok
         );
@@ -885,7 +916,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
           ~resolve:(fun _ _ hash ->
               (Store.Contents.of_hash (Store.repo s) hash >>= function
-              | Some x -> Lwt.return_some (Irmin.Type.to_string Store.contents_t x) >>= Lwt.return_ok
+              | Some x -> Lwt.return_some (Base64.encode_exn (Irmin.Type.to_string Store.contents_t x)) >>= Lwt.return_ok
               | None -> Lwt.return_ok None)
             )
         ;
@@ -893,11 +924,10 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ~typ:(string)
           ~args:Arg.[arg "hash" ~typ:(non_null Input.object_hash)]
           ~resolve:(fun _ _ hash ->
-              Store.Private.Repo.batch (Store.repo s) (fun _ nodes _ ->
-                Store.Private.Node.find nodes hash >>= function
-                | Some x -> Lwt.return_ok (Some (Irmin.Type.to_string Store.Private.Node.Val.t x))
-                | None -> Lwt.return_ok None)
-            )
+              let nodes = Store.Private.Repo.node_t (Store.repo s) in
+              Store.Private.Node.find nodes hash >>= function
+              | Some x -> Lwt.return_ok (Some (Base64.encode_exn (Irmin.Type.to_string Store.Private.Node.Val.t x)))
+              | None -> Lwt.return_ok None)
         ;
       ])
 
@@ -906,16 +936,16 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
   let server store =
     let schema = schema store in
     let callback = Graphql_server.make_callback (fun _ctx -> ()) schema in
-    Server.make_response_action ~callback ()
+    Server.make_response_action ~conn_closed:(fun _ -> ()) ~callback ()
 end
 
 module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) =
-  struct
-    module Presentation = struct
-      module Contents = Default_presenter(Store.Contents)
-      module Metadata = Default_presenter(Store.Metadata)
-    end
-
-    include Make_ext(Server)(Config)(Store)(Presentation)
+struct
+  module Presentation = struct
+    module Contents = Default_presenter(Store.Contents)
+    module Metadata = Default_presenter(Store.Metadata)
   end
+
+  include Make_ext(Server)(Config)(Store)(Presentation)
+end
 

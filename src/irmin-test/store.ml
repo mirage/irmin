@@ -345,10 +345,10 @@ module Make (S: S) = struct
       S.Branch.set repo b1 kv1 >>= fun () ->
       line "post-update";
       S.Branch.find repo b1 >>= fun k1' ->
-      check_val "r1" (Some kv1) k1';
+      check_val "k1" (Some kv1) k1';
       S.Branch.set repo b2 kv2 >>= fun () ->
       S.Branch.find repo b2 >>= fun k2' ->
-      check_val "r2" (Some kv2) k2';
+      check_val "k2" (Some kv2) k2';
       S.Branch.set repo b1 kv2 >>= fun () ->
       S.Branch.find repo b1 >>= fun k2'' ->
       check_val "r1-after-update" (Some kv2) k2'';

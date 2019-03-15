@@ -12,9 +12,15 @@ module Make(Client: Cohttp_lwt.S.Client)(Branch: Irmin.Branch.S)(Hash: Irmin.Has
     branch: Branch.t option;
   }
 
-  let unwrap = function
+  let unwrap ?prefix = function
     | Ok x -> x
-    | Error (`Msg msg) -> raise (Graphql msg)
+    | Error (`Msg msg) ->
+        let msg = (match prefix with
+          | Some x -> x ^ ": " ^ msg
+          | None -> "client: " ^ msg)
+        in
+        Printexc.record_backtrace true;
+        raise (Graphql msg)
 
   let unwrap_option name = function
     | Ok (Some x) -> Ok x
@@ -29,7 +35,7 @@ module Make(Client: Cohttp_lwt.S.Client)(Branch: Irmin.Branch.S)(Hash: Irmin.Has
 
   let error msg = Error (`Msg msg)
   let error_msg msg = Error msg
-  let invalid_response name = print_endline ("INVALID RESPONSE: " ^ name); error ("invalid response: " ^ name)
+  let invalid_response name = error ("invalid response: " ^ name)
 
   let v ?headers ?ctx ?branch uri = {uri; headers; ctx; branch}
   let with_branch t branch = {t with branch = branch}
@@ -50,13 +56,13 @@ module Make(Client: Cohttp_lwt.S.Client)(Branch: Irmin.Branch.S)(Hash: Irmin.Has
       | None ->
         query
     in
-    let body = Cohttp_lwt.Body.of_string @@ Json.to_string (`O query) in
+    let j = Json.to_string (`O query) in
+    let body = Cohttp_lwt.Body.of_string j in
     Client.post ?ctx:client.ctx ?headers:client.headers ~body client.uri >>= fun (_, body) ->
     Cohttp_lwt.Body.to_string body
 
   let execute_json client ?vars ?operation body response =
     execute client ?vars ?operation body >|= fun res ->
-    Printf.printf "RESPONSE: %s\n" res;
     match Json.of_string res with
     | Ok j ->
       (match Json.find j ["errors"] with
@@ -65,16 +71,5 @@ module Make(Client: Cohttp_lwt.S.Client)(Branch: Irmin.Branch.S)(Hash: Irmin.Has
          raise (Graphql s)
        | _ -> Json.find j response)
     | Error (`Msg msg) -> raise (Graphql msg)
-
-  (*let decode_hash name ?(suffix = ["hash"]) key = function
-    | Ok `Null -> Lwt.return_ok None
-    | Ok j ->
-      (match Json.find j ("data" :: key @ suffix) with
-       | Some (`String hash) ->
-           (match Irmin.Type.of_string Hash.t hash with
-           | Ok x -> Lwt.return_ok (Some x)
-           | Error e -> Lwt.return_error e)
-       | _ -> Lwt.return @@ invalid_response name)
-    | Error msg -> Lwt.return @@ error_msg msg*)
 end
 
