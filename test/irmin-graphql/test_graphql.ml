@@ -30,7 +30,7 @@ let (/) = Filename.concat
 
 let socket = Filename.get_temp_dir_name () / "irmin-graphql.sock"
 let pid_file = Filename.get_temp_dir_name () / "irmin-graphql-test.pid"
-let uri = Uri.of_string "http://irmin"
+let uri = Uri.of_string "http://irmin/graphql"
 
 module Client = struct
   include Cohttp_lwt_unix.Client
