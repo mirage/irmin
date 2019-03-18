@@ -826,10 +826,10 @@ module Make (S: S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
-      let assert_last_modified msg ?depth ~number t key expected =
-        S.last_modified ?depth ~number t key >|= fun last ->
+      let assert_last_modified msg ?depth ~n t key expected =
+        S.last_modified ?depth ~n t key >|= fun last ->
         S.repo t |> fun repo ->
-        let msg = Printf.sprintf "%s [number=%d]" msg number in
+        let msg = Printf.sprintf "%s [n=%d]" msg n in
         checks (S.commit_t repo) msg expected last
       in
 
@@ -868,17 +868,17 @@ module Make (S: S) = struct
       assert_lcas "line lcas 2" ~max_depth:1 3 c2 c4 [c2] >>= fun () ->
       assert_lcas "line lcas 3" ~max_depth:2 3 c1 c4 [c1] >>= fun () ->
       S.of_commit c4 >>= fun store ->
-      assert_last_modified "line last_modified 1" ~number:1 store k0 [c3]
+      assert_last_modified "line last_modified 1" ~n:1 store k0 [c3]
       >>= fun () ->
-      assert_last_modified "line last_modified 2" ~number:2 store k0 [c2; c3]
+      assert_last_modified "line last_modified 2" ~n:2 store k0 [c2; c3]
       >>= fun () ->
-      assert_last_modified "line last_modified 3" ~number:3 store k0 [c0; c2; c3]
+      assert_last_modified "line last_modified 3" ~n:3 store k0 [c0; c2; c3]
       >>= fun () ->
-      assert_last_modified "line last_modified 4" ~depth:1 ~number:3 store k0 [c3]
+      assert_last_modified "line last_modified 4" ~depth:1 ~n:3 store k0 [c3]
       >>= fun () ->
-      assert_last_modified "line last_modified 5" ~number:1 store k2 []
+      assert_last_modified "line last_modified 5" ~n:1 store k2 []
       >>= fun () ->
-      assert_last_modified "line last_modified 5" ~depth:0 ~number:2 store k0 []
+      assert_last_modified "line last_modified 5" ~depth:0 ~n:2 store k0 []
       >>= fun () ->
 
       (* test for multiple lca
@@ -936,15 +936,15 @@ module Make (S: S) = struct
       assert_lcas "x lcas 6" ~max_depth:3 5 c15 c16 [c12]      >>= fun () ->
       assert_lcas "x lcas 7" ~max_depth:3 5 c15 c17 [c11; c12] >>= fun () ->
       S.of_commit c17 >>= fun store ->
-      assert_last_modified "x last_modified 1" ~number:3 store k0 [c11; c12; c17]
+      assert_last_modified "x last_modified 1" ~n:3 store k0 [c11; c12; c17]
       >>= fun () ->
-      assert_last_modified "x last_modified 2" ~number:1 store k2 [c16]
+      assert_last_modified "x last_modified 2" ~n:1 store k2 [c16]
       >>= fun () ->
-      assert_last_modified "x last_modified 3" ~number:2 store k1 [c4; c12]
+      assert_last_modified "x last_modified 3" ~n:2 store k1 [c4; c12]
       >>= fun () ->
-      assert_last_modified "x last_modified 4" ~depth:3 ~number:5 store k1 [c4; c12]
+      assert_last_modified "x last_modified 4" ~depth:3 ~n:5 store k1 [c4; c12]
       >>= fun () ->
-      assert_last_modified "x last_modified 5" ~depth:2 ~number:3 store k0 [c11; c17]
+      assert_last_modified "x last_modified 5" ~depth:2 ~n:3 store k0 [c11; c17]
       >>= fun () ->
 
       (* lcas on non transitive reduced graphs

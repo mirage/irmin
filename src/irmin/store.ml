@@ -903,6 +903,8 @@ module Make (P: S.PRIVATE) = struct
         | _ -> Lwt.return_none
       ) g
 
+  let pp_option = Type.pp (Type.option Type.int)
+
   module Heap = Bheap.Make(struct
       type t = commit * int
       let compare c1 c2 =
@@ -911,12 +913,15 @@ module Make (P: S.PRIVATE) = struct
           (Info.date (Commit.info (fst c2)))
     end)
 
-  let last_modified ?depth ?(number = 1) t key =
+  let last_modified ?depth ?(n = 1) t key =
+    Log.debug (fun l ->
+      l "last_modified depth=%a number=%d key=%a"
+      pp_option depth n pp_key key );
     Head.get t >>= fun commit ->
     let heap = Heap.create 5 in
     let () = Heap.add heap (commit, 0) in
     let rec search acc =
-      if Heap.is_empty heap || List.length acc = number then Lwt.return acc
+      if Heap.is_empty heap || List.length acc = n then Lwt.return acc
       else
         let current, current_depth = Heap.pop_maximum heap in
         let parents = Commit.parents current in
