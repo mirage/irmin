@@ -796,7 +796,6 @@ module Make (S: S) = struct
         let i = Int64.of_int date in
         Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
-      let tree = S.Tree.empty in
       let assert_lcas_err msg err l2 =
         let err_str = function
           | `Too_many_lcas    -> "Too_many_lcas"
@@ -827,62 +826,126 @@ module Make (S: S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
+      let assert_last_modified msg ?depth ~n t key expected =
+        S.last_modified ?depth ~n t key >|= fun last ->
+        S.repo t |> fun repo ->
+        let msg = Printf.sprintf "%s [n=%d]" msg n in
+        checks (S.commit_t repo) msg expected last
+      in
+
+      let tree = S.Tree.empty in
+      let k0 = random_path ~label:8 ~path:5 in
+      let k1 = random_path ~label:8 ~path:4 in
+      let k2 = random_path ~label:8 ~path:6 in
 
       (* test that we don't compute too many lcas
 
-         0->1->2->3->4
+         0(k0, k1) -> 1(k1) -> 2(k0) -> 3(k1, k0) -> 4(k1)
 
       *)
-      S.Commit.v repo ~info:(info 0) ~parents:[] tree >>= fun k0 ->
-      S.Commit.v repo ~info:(info 1) ~parents:[S.Commit.hash k0] tree
-      >>= fun k1 ->
-      S.Commit.v repo ~info:(info 2) ~parents:[S.Commit.hash k1] tree
-      >>= fun k2 ->
-      S.Commit.v repo ~info:(info 3) ~parents:[S.Commit.hash k2] tree
-      >>= fun k3 ->
-      S.Commit.v repo ~info:(info 4) ~parents:[S.Commit.hash k3] tree
-      >>= fun k4 ->
+      S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
+      S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 0) ~parents:[] tree >>= fun c0 ->
 
-      assert_lcas "line lcas 1" ~max_depth:0 3 k3 k4 [k3] >>= fun () ->
-      assert_lcas "line lcas 2" ~max_depth:1 3 k2 k4 [k2] >>= fun () ->
-      assert_lcas "line lcas 3" ~max_depth:2 3 k1 k4 [k1] >>= fun () ->
+      S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 1) ~parents:[S.Commit.hash c0] tree
+      >>= fun c1 ->
+
+      S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 2) ~parents:[S.Commit.hash c1] tree
+      >>= fun c2 ->
+
+      S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
+      S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 3) ~parents:[S.Commit.hash c2] tree
+      >>= fun c3 ->
+
+      S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 4) ~parents:[S.Commit.hash c3] tree
+      >>= fun c4 ->
+
+      assert_lcas "line lcas 1" ~max_depth:0 3 c3 c4 [c3] >>= fun () ->
+      assert_lcas "line lcas 2" ~max_depth:1 3 c2 c4 [c2] >>= fun () ->
+      assert_lcas "line lcas 3" ~max_depth:2 3 c1 c4 [c1] >>= fun () ->
+      S.of_commit c4 >>= fun store ->
+      assert_last_modified "line last_modified 1" ~n:1 store k0 [c3]
+      >>= fun () ->
+      assert_last_modified "line last_modified 2" ~n:2 store k0 [c2; c3]
+      >>= fun () ->
+      assert_last_modified "line last_modified 3" ~n:3 store k0 [c0; c2; c3]
+      >>= fun () ->
+      assert_last_modified "line last_modified 4" ~depth:1 ~n:3 store k0 [c3]
+      >>= fun () ->
+      assert_last_modified "line last_modified 5" ~n:1 store k2 []
+      >>= fun () ->
+      assert_last_modified "line last_modified 5" ~depth:0 ~n:2 store k0 []
+      >>= fun () ->
 
       (* test for multiple lca
 
-         4->10--->11-->13-->15
-             |      \______/___
-             |       ____/     \
-             |      /           \
-             \--->12-->14-->16-->17
+         4(k1) -> 10 (k2) ---> 11(k0, k2) --> 13(k1) --> 15(k1, k2)
+                  |                 \_______________________/____
+                  |           _____________________/             \
+                  |          /                                   \
+                  \---> 12 (k0, k1) --> 14 (k2) --> 16 (k2) --> 17 (k0)
 
       *)
-      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash k4] tree
-      >>= fun k10 ->
-      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash k10] tree
-      >>= fun k11 ->
-      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash k10] tree
-      >>= fun k12 ->
-      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash k11] tree
-      >>= fun k13 ->
-      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash k12] tree
-      >>= fun k14 ->
-      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash k12;
-                                                S.Commit.hash k13] tree
-      >>= fun k15 ->
-      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash k14] tree
-      >>= fun k16 ->
-      S.Commit.v repo ~info:(info 17) ~parents:[S.Commit.hash k11;
-                                                S.Commit.hash k16] tree
-      >>= fun k17 ->
+      S.Tree.add tree k2 (random_value 1024) >>= fun tree ->
+      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash c4] tree
+      >>= fun c10 ->
 
-      assert_lcas "x lcas 0" ~max_depth:0 5 k10 k10 [k10]      >>= fun () ->
-      assert_lcas "x lcas 1" ~max_depth:0 5 k14 k14 [k14]      >>= fun () ->
-      assert_lcas "x lcas 2" ~max_depth:0 5 k10 k11 [k10]      >>= fun () ->
-      assert_lcas "x lcas 3" ~max_depth:1 5 k12 k16 [k12]      >>= fun () ->
-      assert_lcas "x lcas 4" ~max_depth:1 5 k10 k13 [k10]      >>= fun () ->
-      assert_lcas "x lcas 5" ~max_depth:2 5 k13 k14 [k10]      >>= fun () ->
-      assert_lcas "x lcas 6" ~max_depth:3 5 k15 k16 [k12]      >>= fun () ->
-      assert_lcas "x lcas 7" ~max_depth:3 5 k15 k17 [k11; k12] >>= fun () ->
+      S.Tree.add tree k0 (random_value 1024) >>= fun tree_up ->
+      S.Tree.add tree_up k2 (random_value 1024) >>= fun tree_up ->
+      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash c10] tree_up
+      >>= fun c11 ->
+
+      S.Tree.add tree k0 (random_value 1024) >>= fun tree_down ->
+      S.Tree.add tree_down k1 (random_value 1024) >>= fun tree_12 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash c10] tree_12
+      >>= fun c12 ->
+
+      S.Tree.add tree_up k1 (random_value 1024) >>= fun tree_up ->
+      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash c11] tree_up
+      >>= fun c13 ->
+
+      S.Tree.add tree_12 k2 (random_value 1024) >>= fun tree_down ->
+      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash c12] tree_down
+      >>= fun c14 ->
+
+      S.Tree.add tree_12 k1 (random_value 1024) >>= fun tree_up ->
+      S.Tree.add tree_up k2 (random_value 1024) >>= fun tree_up ->
+      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash c12;
+                                                S.Commit.hash c13] tree_up
+      >>= fun c15 ->
+
+      S.Tree.add tree_down k2 (random_value 1024) >>= fun tree_down ->
+      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash c14] tree_down
+      >>= fun c16 ->
+
+      S.Tree.add tree_down k0 (random_value 1024) >>= fun tree_down ->
+      S.Commit.v repo ~info:(info 17) ~parents:[S.Commit.hash c11;
+                                                S.Commit.hash c16] tree_down
+      >>= fun c17 ->
+
+      assert_lcas "x lcas 0" ~max_depth:0 5 c10 c10 [c10]      >>= fun () ->
+      assert_lcas "x lcas 1" ~max_depth:0 5 c14 c14 [c14]      >>= fun () ->
+      assert_lcas "x lcas 2" ~max_depth:0 5 c10 c11 [c10]      >>= fun () ->
+      assert_lcas "x lcas 3" ~max_depth:1 5 c12 c16 [c12]      >>= fun () ->
+      assert_lcas "x lcas 4" ~max_depth:1 5 c10 c13 [c10]      >>= fun () ->
+      assert_lcas "x lcas 5" ~max_depth:2 5 c13 c14 [c10]      >>= fun () ->
+      assert_lcas "x lcas 6" ~max_depth:3 5 c15 c16 [c12]      >>= fun () ->
+      assert_lcas "x lcas 7" ~max_depth:3 5 c15 c17 [c11; c12] >>= fun () ->
+      S.of_commit c17 >>= fun store ->
+      assert_last_modified "x last_modified 1" ~n:3 store k0 [c11; c12; c17]
+      >>= fun () ->
+      assert_last_modified "x last_modified 2" ~n:1 store k2 [c16]
+      >>= fun () ->
+      assert_last_modified "x last_modified 3" ~n:2 store k1 [c4; c12]
+      >>= fun () ->
+      assert_last_modified "x last_modified 4" ~depth:3 ~n:5 store k1 [c4; c12]
+      >>= fun () ->
+      assert_last_modified "x last_modified 5" ~depth:2 ~n:3 store k0 [c11; c17]
+      >>= fun () ->
 
       (* lcas on non transitive reduced graphs
 
@@ -892,47 +955,47 @@ module Make (S: S) = struct
                  |        \--|--/
                  \-----------/
       *)
-      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash k4] tree
-      >>= fun k10 ->
-      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash k10] tree
-      >>= fun k11 ->
-      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash k11] tree
-      >>= fun k12 ->
-      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash k12] tree
-      >>= fun k13 ->
-      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash k11;
-                                                S.Commit.hash k13] tree
-      >>= fun k14 ->
-      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash k13;
-                                                S.Commit.hash k14] tree
-      >>= fun k15 ->
-      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash k11] tree
-      >>= fun k16 ->
+      S.Commit.v repo ~info:(info 10) ~parents:[S.Commit.hash c4] tree
+      >>= fun c10 ->
+      S.Commit.v repo ~info:(info 11) ~parents:[S.Commit.hash c10] tree
+      >>= fun c11 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[S.Commit.hash c11] tree
+      >>= fun c12 ->
+      S.Commit.v repo ~info:(info 13) ~parents:[S.Commit.hash c12] tree
+      >>= fun c13 ->
+      S.Commit.v repo ~info:(info 14) ~parents:[S.Commit.hash c11;
+                                                S.Commit.hash c13] tree
+      >>= fun c14 ->
+      S.Commit.v repo ~info:(info 15) ~parents:[S.Commit.hash c13;
+                                                S.Commit.hash c14] tree
+      >>= fun c15 ->
+      S.Commit.v repo ~info:(info 16) ~parents:[S.Commit.hash c11] tree
+      >>= fun c16 ->
 
-      assert_lcas "weird lcas 1" ~max_depth:0 3 k14 k15 [k14] >>= fun () ->
-      assert_lcas "weird lcas 2" ~max_depth:0 3 k13 k15 [k13] >>= fun () ->
-      assert_lcas "weird lcas 3" ~max_depth:1 3 k12 k15 [k12] >>= fun () ->
-      assert_lcas "weird lcas 4" ~max_depth:1 3 k11 k15 [k11] >>= fun () ->
-      assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
+      assert_lcas "weird lcas 1" ~max_depth:0 3 c14 c15 [c14] >>= fun () ->
+      assert_lcas "weird lcas 2" ~max_depth:0 3 c13 c15 [c13] >>= fun () ->
+      assert_lcas "weird lcas 3" ~max_depth:1 3 c12 c15 [c12] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:1 3 c11 c15 [c11] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:3 3 c15 c16 [c11] >>= fun () ->
 
       (* fast-forward *)
       let ff = testable (Irmin.Type.(result unit S.ff_error_t)) in
 
-      S.of_commit k12 >>= fun t12  ->
-      S.Head.fast_forward t12 k16 >>= fun b1 ->
+      S.of_commit c12 >>= fun t12  ->
+      S.Head.fast_forward t12 c16 >>= fun b1 ->
       Alcotest.(check ff) "ff 1.1" (Error `Rejected) b1;
       S.Head.get t12 >>= fun k12' ->
-      check (S.commit_t repo) "ff 1.2" k12 k12';
+      check (S.commit_t repo) "ff 1.2" c12 k12';
 
-      S.Head.fast_forward t12 ~n:1 k14 >>= fun b2 ->
+      S.Head.fast_forward t12 ~n:1 c14 >>= fun b2 ->
       Alcotest.(check ff) "ff 2.1" (Error `Rejected) b2;
       S.Head.get t12 >>= fun k12'' ->
-      check (S.commit_t repo) "ff 2.2" k12 k12'';
+      check (S.commit_t repo) "ff 2.2" c12 k12'';
 
-      S.Head.fast_forward t12 k14 >>= fun b3 ->
+      S.Head.fast_forward t12 c14 >>= fun b3 ->
       Alcotest.(check ff) "ff 2.2" (Ok ()) b3;
-      S.Head.get t12 >>= fun k14' ->
-      check (S.commit_t repo) "ff 2.3" k14 k14';
+      S.Head.get t12 >>= fun c14' ->
+      check (S.commit_t repo) "ff 2.3" c14 c14';
 
       Lwt.return_unit
     in

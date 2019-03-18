@@ -903,6 +903,61 @@ module Make (P: S.PRIVATE) = struct
         | _ -> Lwt.return_none
       ) g
 
+  let pp_option = Type.pp (Type.option Type.int)
+
+  module Heap = Bheap.Make(struct
+      type t = commit * int
+      let compare c1 c2 =
+         Int64.compare
+          (Info.date (Commit.info (fst c1)))
+          (Info.date (Commit.info (fst c2)))
+    end)
+
+  let last_modified ?depth ?(n = 1) t key =
+    Log.debug (fun l ->
+      l "last_modified depth=%a number=%d key=%a"
+      pp_option depth n pp_key key );
+    Head.get t >>= fun commit ->
+    let heap = Heap.create 5 in
+    let () = Heap.add heap (commit, 0) in
+    let rec search acc =
+      if Heap.is_empty heap || List.length acc = n then Lwt.return acc
+      else
+        let current, current_depth = Heap.pop_maximum heap in
+        let parents = Commit.parents current in
+        of_commit current >>= fun store ->
+        find store key >>= fun current_value ->
+        if List.length parents = 0
+        then (
+          if current_value <> None
+          then Lwt.return (current :: acc)
+          else Lwt.return acc)
+        else
+          let max_depth = match depth with
+          | Some depth -> current_depth >= depth
+          | None -> false
+          in
+          Lwt_list.for_all_p
+            (fun hash ->
+              Commit.of_hash (repo store) hash >>= function
+              | Some commit -> (
+                let () =
+                  if not max_depth then
+                    Heap.add heap (commit, current_depth + 1)
+                in
+                of_commit commit >>= fun store ->
+                find store key >|= fun e ->
+                match (e, current_value) with
+                | Some x, Some y -> not (Type.equal Contents.t x y)
+                | Some _, None -> true
+                | _, _ -> false )
+              | None -> Lwt.return_false)
+            parents
+          >>= fun found ->
+          if found then search (current :: acc) else search acc
+    in
+    search []
+
   module Branch = struct
 
     include P.Branch.Key

@@ -575,6 +575,7 @@ module type STORE = sig
   val history:
     ?depth:int -> ?min:commit list -> ?max:commit list -> t ->
     History.t Lwt.t
+  val last_modified: ?depth:int -> ?n:int -> t -> key -> commit list Lwt.t
   module Branch: sig
     val mem: Repo.t -> branch -> bool Lwt.t
     val find: Repo.t -> branch -> commit option Lwt.t
