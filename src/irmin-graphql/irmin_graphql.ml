@@ -179,8 +179,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           ~coerce:(fun key value metadata -> {key; value; metadata})
       )
 
-    let tree = Schema.Arg.(
-        non_null (list (non_null item)))
+    let tree = Schema.Arg.(list (non_null item))
   end
 
   let rec commit = lazy Schema.(
@@ -507,7 +506,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "key" ~typ:(non_null Input.key);
-            arg "tree" ~typ:(Input.tree);
+            arg "tree" ~typ:(non_null Input.tree);
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
@@ -529,7 +528,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "key" ~typ:(non_null Input.key);
-            arg "tree" ~typ:(Input.tree);
+            arg "tree" ~typ:(non_null Input.tree);
             arg "info" ~typ:Input.info;
           ]
         ~resolve:(fun _ _src branch k items i ->
@@ -570,6 +569,33 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
              | Error e -> err_write e)
           )
       ;
+      io_field "test_and_set"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "test" ~typ:(Input.value);
+            arg "set" ~typ:(Input.value);
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch k test set i  ->
+            mk_branch s branch >>= fun t ->
+            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            Store.test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set >>= function
+            | Ok _ -> Store.Head.find t >>= Lwt.return_ok
+            | Error e -> err_write e
+        );
+      io_field "test_and_set_branch"
+        ~typ:(non_null bool)
+        ~args:Arg.[
+            arg "branch" ~typ:(non_null Input.branch);
+            arg "test" ~typ:(Input.commit_hash);
+            arg "set" ~typ:(Input.commit_hash);
+          ]
+        ~resolve:(fun _ _src branch test set  ->
+            let branches = Store.Private.Repo.branch_t s in
+            Store.Private.Branch.test_and_set branches branch ~test ~set >>= Lwt.return_ok
+        );
       io_field "remove"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
@@ -586,21 +612,89 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
           )
       ;
       io_field "merge"
+        ~typ:(string)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "value" ~typ:Input.value;
+            arg "old" ~typ:Input.value;
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch key value old info ->
+            mk_branch s branch >>= fun t ->
+            txn_args s info >>= fun (info, retries, allow_empty, parents) ->
+            Store.merge_exn t key ~info ?retries ?allow_empty ?parents ~old value >>= fun _ ->
+            Store.hash t key >>= (function
+            | Some hash -> Lwt.return_some (Irmin.Type.to_string Store.Hash.t hash)
+            | None -> Lwt.return_none) >>= Lwt.return_ok
+          )
+      ;
+      io_field "merge_tree"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "key" ~typ:(non_null Input.key);
+            arg "value" ~typ:Input.tree;
+            arg "old" ~typ:Input.tree;
+            arg "info" ~typ:Input.info;
+          ]
+        ~resolve:(fun _ _src branch key value old info ->
+            mk_branch s branch >>= fun t ->
+            txn_args s info >>= fun (info, retries, allow_empty, parents) ->
+            (match old with
+            | Some old ->
+                let tree = Store.Tree.empty in
+                to_tree tree old  >>= Lwt.return_some
+            | None -> Lwt.return_none) >>= fun old ->
+            (match value with
+            | Some value ->
+                let tree = Store.Tree.empty in
+                to_tree tree value >>= Lwt.return_some
+            | None -> Lwt.return_none) >>= fun value ->
+            Store.merge_tree_exn t key ~info ?retries ?allow_empty ?parents ~old value >>= fun _ ->
+            Store.Head.find t >>=
+            Lwt.return_ok
+          )
+      ;
+      io_field "merge_with_branch"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
             arg "branch" ~typ:Input.branch;
             arg "from" ~typ:(non_null Input.branch);
             arg "info" ~typ:Input.info;
             arg "max_depth" ~typ:int;
+            arg "n" ~typ:int;
           ]
-        ~resolve:(fun _ _src into from i max_depth ->
+        ~resolve:(fun _ _src into from i max_depth n ->
             mk_branch s into >>= fun t ->
             txn_args s i >>= fun (info, _, _, _) ->
-            Store.merge_with_branch t from ?max_depth ~info >>= fun _ ->
+            Store.merge_with_branch t from ~info ?max_depth ?n >>= fun _ ->
             Store.Head.find t >>=
             Lwt.return_ok
           )
       ;
+      io_field "merge_with_commit"
+        ~typ:(Lazy.force commit)
+        ~args:Arg.[
+            arg "branch" ~typ:Input.branch;
+            arg "from" ~typ:(non_null Input.commit_hash);
+            arg "info" ~typ:Input.info;
+            arg "max_depth" ~typ:int;
+            arg "n" ~typ:int;
+          ]
+        ~resolve:(fun _ _src into from i max_depth n ->
+            mk_branch s into >>= fun t ->
+            txn_args s i >>= fun (info, _, _, _) ->
+            Store.Commit.of_hash (Store.repo t) from >>= function
+            | Some from ->
+              Store.merge_with_commit t from ~info ?max_depth ?n >>= fun _ ->
+              Store.Head.find t >>=
+              Lwt.return_ok
+            | None ->
+              Lwt.return_error "invalid hash"
+          )
+        ;
+
       io_field "revert"
         ~typ:(Lazy.force commit)
         ~args:Arg.[
