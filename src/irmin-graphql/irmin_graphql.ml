@@ -273,6 +273,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Option.map Presentation.Metadata.to_src >|=
                     Result.ok
                  );
+              io_field "hash"
+                ~typ:(non_null string)
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.get_tree tree key >>= fun tree ->
+                    Lwt.return_ok (Irmin.Type.to_string Store.Hash.t (Store.Tree.hash tree))
+                );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
@@ -283,8 +290,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                         | `Contents -> Lwt.return (Lazy.(force contents_as_tree) (tree, key'))
                         | `Node -> Lwt.return (Lazy.(force node_as_tree) (tree, key'))
                       ) >>= Lwt.return_ok
-                  )
-              ;
+                );
             ])
     )
 
@@ -387,6 +393,17 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Option.map Presentation.Contents.to_src >|=
                     Result.ok
                   )
+              ;
+              io_field "hash"
+                ~typ:string
+                ~args:[]
+                ~resolve:(fun _ (tree, key) ->
+                    Store.Tree.find tree key >|= function
+                    | None -> Ok None
+                    | Some contents ->
+                      let contents = Store.Contents.hash contents in
+                      Ok (Some (Irmin.Type.to_string Store.Hash.t contents))
+                )
               ;
             ])
     )
