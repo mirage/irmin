@@ -8,5 +8,5 @@ module Make(S: Irmin.S)(Remote: sig
   val remote: Resolver.Store.remote_fn option
 end):
   Irmin_graphql.S
-    with type store = S.t
+    with type repo = S.repo
      and type server = Cohttp_lwt_unix.Server.t
