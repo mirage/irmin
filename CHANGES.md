@@ -16,10 +16,13 @@
 
 **irmin-graphql**
 
-Added a new package: `irmin-graphql`, which provides a GraphQL client/server implementation
-that can be used to support both MirageOS and Unix backends. Additionally, a `graphql`
-command has been added to the command-line interface for starting `irmin-graphql` servers.
-(#558, @andreas, @zshipko)
+Added a new package: `irmin-graphql`, which provides a GraphQL server implementation
+that can be used with both the MirageOS and Unix backends. Additionally, a `graphql`
+command has been added to the command-line interface for starting `irmin-graphql`
+servers. (#558, @andreas, @zshipko)
+
+- Contents can now be queried directly using `irmin-graphql` with `Irmin_graphql.Server.Make_ext`
+  and the `Irmin_graphql.Server.PRESENTER` interface. (#643, @andreas)
 
 **irmin-test**
 
@@ -36,6 +39,8 @@ implementations against the same tests that the core backends are tested against
 - Replaced `Irmin.Contents.S0` with `Irmin.Type.S`
 - Removed `pp` and `of_string` functions from `Irmin.Contents.S` in favor of `Irmin.Type.to_string`
   and `Irmin.Type.of_string`
+- Added `Store.last_modified` function, which provides a list of commits where the given key was
+  modified last. (#617, @pascutto)
 
 ### 1.4.0 (2018-06-06)
 
