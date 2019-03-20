@@ -818,3 +818,4 @@ module Make(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S) =
 
     include Make_ext(Server)(Config)(Store)(Presentation)
   end
+
