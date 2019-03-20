@@ -846,7 +846,7 @@ module Make_ext
 
       let config c =
         let root = match Irmin.Private.Conf.get c Conf.root with
-          | None   -> Sys.getcwd ()
+          | None   -> "."
           | Some d -> d
         in
         let dot_git = Irmin.Private.Conf.get c Conf.dot_git in
