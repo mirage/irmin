@@ -246,13 +246,10 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Store.Tree.get_tree tree key >>= fun tree ->
                     let key =
                       match step with
-                      | Some s -> Ok (Store.Key.v [s])
-                      | None -> Ok Store.Key.empty
+                      | Some s -> Store.Key.v [s]
+                      | None -> Store.Key.empty
                     in
-                    match key with
-                    | Ok key ->
-                      Lwt.return_ok (Some (tree, key))
-                    | Error msg -> Lwt.return_error msg
+                    Lwt.return_ok (Some (tree, key))
                   )
               ;
               io_field "value"
@@ -448,6 +445,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               mk_branch s branch >>= fun t ->
               Sync.push t ?depth remote >>= function
               | Ok _ -> Lwt.return_ok true
+              | Error `No_head -> Lwt.return_ok false
               | Error e ->
                 let s = Fmt.to_to_string Sync.pp_push_error e in
                 Lwt.return_error s
@@ -463,8 +461,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             ]
           ~resolve:(fun _ _src branch remote info depth ->
               mk_branch s branch >>= fun t ->
-              txn_args s info >>= fun (info, _, _, _) ->
-              Sync.pull t ?depth remote (`Merge info) >>= function
+              let strategy = match info with
+                | Some info ->
+                  txn_args s (Some info) >|= fun (info, _, _, _) ->
+                  `Merge info
+                | None -> Lwt.return `Set
+              in
+              strategy >>= Sync.pull ?depth t remote >>= function
               | Ok _ ->
                 (Store.Head.find t >>=
                  Lwt.return_ok)
@@ -473,7 +476,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               | Error `Not_available -> Lwt.return_error "not available"
               | Error `No_head -> Lwt.return_error "no head"
             )
-        ;
+          ;
       ]
     | None -> []
 
