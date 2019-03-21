@@ -160,12 +160,6 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             arg "parents" ~typ:(list (non_null commit_hash));
           ]
           ~coerce:(fun author message retries allow_empty parents ->
-              let message =
-                match message with
-                | Some message when String.length message > 0 && String.get message 0 = '\n' ->
-                  Some (String.sub message 1 (String.length message - 1))
-                | m -> m
-              in
               {author; message; retries; allow_empty; parents})
     )
 
