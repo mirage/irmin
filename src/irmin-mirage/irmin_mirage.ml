@@ -462,7 +462,7 @@ module Graphql = struct
     val start:
       pclock:Pclock.t
       -> http:(Http.t -> unit Lwt.t)
-      -> Store.t -> unit Lwt.t
+      -> Store.repo -> unit Lwt.t
   end
 
   module Make
@@ -486,11 +486,11 @@ module Graphql = struct
             in
             Store.E e)
       end in
-      (module Irmin_graphql.Make(Http)(Config)(Store): Irmin_graphql.S with type server = Http.t and type store = Store.t)
+      (module Irmin_graphql.Server.Make(Http)(Config)(Store): Irmin_graphql.Server.S with type server = Http.t and type repo = Store.repo)
 
     let start ~pclock ~http store =
       let (module G) = init pclock in
-      let server = G.server store in
+      let server = G.v store in
       http server
   end
 end
