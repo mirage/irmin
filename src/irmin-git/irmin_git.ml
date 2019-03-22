@@ -634,7 +634,7 @@ module Irmin_branch_store
         ) >>= fun b ->
         (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
         begin
-          (* We do not protect [write_index] because it can take a log
+          (* We do not protect [write_index] because it can take a long
              time and we don't want to hold the lock for too long. Would
              be safer to grab a lock, although the expanded filesystem
              is not critical for Irmin consistency (it's only a
