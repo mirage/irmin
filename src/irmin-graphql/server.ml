@@ -231,8 +231,9 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
-              ;
+                ~resolve:(fun _ (_, key) ->
+                  Irmin.Type.to_string Store.key_t key
+                );
               io_field "get"
                 ~args:Arg.[arg "step" ~typ:Input.step]
                 ~typ:node
@@ -263,22 +264,26 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Option.map Presentation.Metadata.to_src >|=
                     Result.ok
                  );
-              io_field "hash"
+              field "hash"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.get_tree tree key >>= fun tree ->
-                    Lwt.return_ok (Irmin.Type.to_string Store.Hash.t (Store.Tree.hash tree))
+                ~resolve:(fun _ (tree, _) ->
+                    let hash = Store.Tree.hash tree in
+                    Irmin.Type.to_string Store.Hash.t hash
                 );
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
                 ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.list tree key >>= Lwt_list.map_p (fun (step, kind) ->
+                    Store.Tree.list tree Store.Key.empty >>= Lwt_list.map_p (fun (step, kind) ->
                         let key' = Store.Key.rcons key step in
                         match kind with
-                        | `Contents -> Lwt.return (Lazy.(force contents_as_tree) (tree, key'))
-                        | `Node -> Lwt.return (Lazy.(force node_as_tree) (tree, key'))
+                        | `Contents ->
+                          Store.Tree.get_all tree key' >|= fun (c, m) ->
+                          Lazy.(force contents_as_tree (c, m, key'))
+                        | `Node ->
+                          Store.Tree.get_tree tree key' >|= fun t ->
+                          Lazy.(force node_as_tree (t, key'))
                       ) >>= Lwt.return_ok
                 );
             ])
@@ -312,19 +317,20 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               ;
               io_field "get_tree"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(list (non_null @@ Lazy.force contents))
+                ~typ:(list (non_null Lazy.(force contents)))
                 ~resolve:(fun _ (t, _) key ->
-                    let rec tree_list base tree key acc =
+                    let rec tree_list tree key acc =
                       match tree with
-                      | `Contents (_, _) ->
-                        (Store.Tree.of_concrete base, key) :: acc
+                      | `Contents (c, m) -> [c, m, key]
                       | `Tree l ->
-                        List.fold_right (fun (step, t) acc -> tree_list base t (Store.Key.rcons key step) [] @ acc) l acc
+                        List.fold_right (fun (step, t) acc ->
+                          tree_list t (Store.Key.rcons key step) [] @ acc
+                        ) l acc
                     in
                     Store.find_tree t key >>= function
                     | Some tree ->
                       Store.Tree.to_concrete tree >>= fun tree ->
-                      let l = tree_list tree tree Store.Key.empty [] in
+                      let l = tree_list tree Store.Key.empty [] in
                       Lwt.return_ok (Some l)
                     | None -> Lwt.return_ok None
                   )
@@ -335,8 +341,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                 ~resolve:(fun _ (t, _) key ->
                     Store.mem_tree t key >>= function
                     | true ->
-                      Store.get_tree t Store.Key.empty >>= fun tree ->
-                      Lwt.return_ok (Some (tree, key))
+                      Store.get_all t Store.Key.empty >>= fun (c, m) ->
+                      Lwt.return_ok (Some (c, m, key))
                     | false -> Lwt.return_ok None
                   )
               ;
@@ -357,44 +363,34 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             ])
     )
 
-  and contents : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
+  and contents : ('ctx, (Store.contents * Store.metadata * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Contents"
         ~fields:(fun _contents -> [
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (_, key) -> Irmin.Type.to_string Store.key_t key)
-              ;
-              io_field "metadata"
-                ~typ:Presentation.Metadata.schema_typ
+                ~resolve:(fun _ (_, _, key) ->
+                  Irmin.Type.to_string Store.key_t key
+                );
+              field "metadata"
+                ~typ:(non_null Presentation.Metadata.schema_typ)
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find_all tree key >|=
-                    Option.map snd >|=
-                    Option.map Presentation.Metadata.to_src >|=
-                    Result.ok
-                  )
-              ;
-              io_field "value"
-                ~typ:Presentation.Contents.schema_typ
+                ~resolve:(fun _ (_, metadata, _) ->
+                    Presentation.Metadata.to_src metadata
+                  );
+              field "value"
+                ~typ:(non_null Presentation.Contents.schema_typ)
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find tree key >|=
-                    Option.map Presentation.Contents.to_src >|=
-                    Result.ok
-                  )
-              ;
-              io_field "hash"
-                ~typ:string
+                ~resolve:(fun _ (contents, _, _) ->
+                    Presentation.Contents.to_src contents
+                  );
+              field "hash"
+                ~typ:(non_null string)
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find tree key >|= function
-                    | None -> Ok None
-                    | Some contents ->
-                      let contents = Store.Contents.hash contents in
-                      Ok (Some (Irmin.Type.to_string Store.Hash.t contents))
-                )
-              ;
+                ~resolve:(fun _ (contents, _, _) ->
+                    let hash = Store.Contents.hash contents in
+                    Irmin.Type.to_string Store.Hash.t hash
+                );
             ])
     )
 
