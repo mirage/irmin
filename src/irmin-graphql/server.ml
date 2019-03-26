@@ -123,10 +123,6 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
         of_irmin_result (Irmin.Type.of_string Store.metadata_t s)
       | _ -> Error "invalid metadata encoding"
 
-    let coerce_step = function
-      | `String s -> of_irmin_result (Irmin.Type.of_string Store.step_t s)
-      | _ -> Error "invalid step encoding"
-
     let coerce_branch = function
       | `String s -> of_irmin_result @@ Irmin.Type.of_string Store.branch_t s
       | _ -> Error "invalid branch encoding"
@@ -144,7 +140,6 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
       | _ -> Error "invalid hash encoding"
 
     let key = Schema.Arg.(scalar "Key" ~coerce:coerce_key)
-    let step = Schema.Arg.(scalar "Step" ~coerce:coerce_step)
     let commit_hash = Schema.Arg.(scalar "CommitHash" ~coerce:coerce_hash)
     let branch = Schema.Arg.(scalar "BranchName" ~coerce:coerce_branch)
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
@@ -227,7 +222,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
 
   and node : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
       obj "Node"
-        ~fields:(fun node -> [
+        ~fields:(fun _ -> [
               field "key"
                 ~typ:(non_null string)
                 ~args:[]
@@ -235,18 +230,17 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                   Irmin.Type.to_string Store.key_t key
                 );
               io_field "get"
-                ~args:Arg.[arg "step" ~typ:Input.step]
-                ~typ:node
-                ~resolve:(fun _ (tree, key) step ->
-                    Store.Tree.get_tree tree key >>= fun tree ->
-                    let key =
-                      match step with
-                      | Some s -> Store.Key.v [s]
-                      | None -> Store.Key.empty
-                    in
-                    Lwt.return_ok (Some (tree, key))
-                  )
-              ;
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:tree
+                ~resolve:(fun _ (tree, _) key ->
+                    Store.Tree.kind tree key >>= function
+                    | Some `Contents ->
+                      Store.Tree.get_all tree key >|= fun (c, m) ->
+                      Ok (Some (Lazy.(force contents_as_tree (c, m, key))))
+                    | Some `Node ->
+                      Store.Tree.get_tree tree key >|= fun t ->
+                      Ok (Some (Lazy.(force node_as_tree (t, key))))
+                    | None -> Lwt.return_ok None
                   );
               field "hash"
                 ~typ:(non_null string)
