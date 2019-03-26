@@ -247,23 +247,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Lwt.return_ok (Some (tree, key))
                   )
               ;
-              io_field "value"
-                ~args:[]
-                ~typ:Presentation.Contents.schema_typ
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find tree key >|=
-                    Option.map Presentation.Contents.to_src >|=
-                    Result.ok
                   );
-              io_field "metadata"
-                ~args:[]
-                ~typ:Presentation.Metadata.schema_typ
-                ~resolve:(fun _ (tree, key) ->
-                    Store.Tree.find_all tree key >|=
-                    Option.map snd >|=
-                    Option.map Presentation.Metadata.to_src >|=
-                    Result.ok
-                 );
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
