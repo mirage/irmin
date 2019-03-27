@@ -748,13 +748,15 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               Store.Commit.of_hash s hash >>= Lwt.return_ok
             );
         io_field "branches"
-          ~typ:(non_null (list (non_null string)))
+          ~typ:(non_null (list (non_null Lazy.(force branch))))
           ~args:[]
           ~resolve:(fun _ _ ->
-              Store.Branch.list s >|= fun l ->
-              let branches = List.map (fun b ->
-                  Irmin.Type.to_string Store.branch_t b) l
-              in Ok branches
+              Store.Branch.list s >>=
+              Lwt_list.map_p (fun branch ->
+                Store.of_branch s branch >|= fun store ->
+                store, branch
+              ) >|=
+              Result.ok
             );
         io_field "master"
           ~typ:(Lazy.force branch)
