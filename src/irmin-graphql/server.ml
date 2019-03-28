@@ -236,18 +236,53 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                 );
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:tree
-                ~resolve:(fun _ (tree, tree_key) relative_key ->
-                    let absolute_key = concat_key tree_key relative_key in
-                    Store.Tree.kind tree relative_key >>= function
-                    | Some `Contents ->
-                      Store.Tree.get_all tree relative_key >|= fun (c, m) ->
-                      Ok (Some (Lazy.(force contents_as_tree (c, m, absolute_key))))
-                    | Some `Node ->
-                      Store.Tree.get_tree tree relative_key >|= fun t ->
-                      Ok (Some (Lazy.(force node_as_tree (t, absolute_key))))
-                    | None -> Lwt.return_ok None
-                  );
+                ~typ:Presentation.Contents.schema_typ
+                ~resolve:(fun _ (tree, _) key ->
+                  Store.Tree.find tree key >|=
+                  Option.map Presentation.Contents.to_src >|=
+                  Result.ok
+                )
+              ;
+              io_field "get_contents"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:Lazy.(force contents)
+                ~resolve:(fun _ (tree, tree_key) key ->
+                  Store.Tree.find_all tree key >|=
+                  Option.map (fun (c, m) ->
+                    let key' = concat_key tree_key key in
+                    (c, m, key')
+                  ) >|= Result.ok
+                )
+              ;
+              io_field "get_node"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:Lazy.(force node)
+                ~resolve:(fun _ (tree, tree_key) key ->
+                  Store.Tree.find_tree tree key >|=
+                  Option.map (fun tree ->
+                    let tree_key' = concat_key tree_key key in
+                    tree, tree_key'
+                  ) >|= Result.ok
+                )
+              ;
+              io_field "list_contents_recursively"
+                ~args:[]
+                ~typ:(non_null (list (non_null Lazy.(force contents))))
+                ~resolve:(fun _ (tree, key) ->
+                  let rec tree_list ?(acc=[]) tree key =
+                    match tree with
+                    | `Contents (c, m) -> (c, m, key)::acc
+                    | `Tree l ->
+                      List.fold_left (fun acc (step, t) ->
+                        let key' = Store.Key.rcons key step in
+                        tree_list t key' ~acc
+                      ) acc l
+                      |> List.rev
+                  in
+                  Store.Tree.to_concrete tree >|= fun concrete_tree ->
+                  Ok (tree_list concrete_tree key)
+                )
+              ;
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
@@ -255,7 +290,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     let hash = Store.Tree.hash tree in
                     Irmin.Type.to_string Store.Hash.t hash
                 );
-              io_field "tree"
+              io_field "list"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
@@ -300,7 +335,16 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Result.ok
                   )
               ;
-              io_field "get_tree"
+              io_field "get_contents"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:(Lazy.force contents)
+                ~resolve:(fun _ (t, _) key ->
+                    Store.find_all t key >|=
+                    Option.map (fun (c, m) -> (c, m, key)) >|=
+                    Result.ok
+                  )
+              ;
+              io_field "get_node"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(list (non_null Lazy.(force contents)))
                 ~resolve:(fun _ (t, _) key ->
@@ -320,7 +364,7 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     | None -> Lwt.return_ok None
                   )
               ;
-              io_field "get_all"
+              io_field "list_contents_recursively"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:(Lazy.force contents)
                 ~resolve:(fun _ (t, _) key ->
