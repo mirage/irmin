@@ -107,6 +107,11 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
     | Some b -> Store.of_branch repo b
     | None -> Store.master repo
 
+  let rec concat_key key key' =
+    match Store.Key.decons key' with
+    | None -> key
+    | Some (step, key'') -> concat_key (Store.Key.cons step key) key''
+
   module Input = struct
     let coerce_key = function
       | `String s ->
@@ -232,14 +237,15 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
                 ~typ:tree
-                ~resolve:(fun _ (tree, _) key ->
-                    Store.Tree.kind tree key >>= function
+                ~resolve:(fun _ (tree, tree_key) relative_key ->
+                    let absolute_key = concat_key tree_key relative_key in
+                    Store.Tree.kind tree relative_key >>= function
                     | Some `Contents ->
-                      Store.Tree.get_all tree key >|= fun (c, m) ->
-                      Ok (Some (Lazy.(force contents_as_tree (c, m, key))))
+                      Store.Tree.get_all tree relative_key >|= fun (c, m) ->
+                      Ok (Some (Lazy.(force contents_as_tree (c, m, absolute_key))))
                     | Some `Node ->
-                      Store.Tree.get_tree tree key >|= fun t ->
-                      Ok (Some (Lazy.(force node_as_tree (t, key))))
+                      Store.Tree.get_tree tree relative_key >|= fun t ->
+                      Ok (Some (Lazy.(force node_as_tree (t, absolute_key))))
                     | None -> Lwt.return_ok None
                   );
               field "hash"
@@ -252,16 +258,17 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
               io_field "tree"
                 ~typ:(non_null (list (non_null tree)))
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
+                ~resolve:(fun _ (tree, tree_key) ->
                     Store.Tree.list tree Store.Key.empty >>= Lwt_list.map_p (fun (step, kind) ->
-                        let key' = Store.Key.rcons key step in
+                        let relative_key = Store.Key.v [step] in
+                        let absolute_key = Store.Key.rcons tree_key step in
                         match kind with
                         | `Contents ->
-                          Store.Tree.get_all tree key' >|= fun (c, m) ->
-                          Lazy.(force contents_as_tree (c, m, key'))
+                          Store.Tree.get_all tree relative_key >|= fun (c, m) ->
+                          Lazy.(force contents_as_tree (c, m, absolute_key))
                         | `Node ->
-                          Store.Tree.get_tree tree key' >|= fun t ->
-                          Lazy.(force node_as_tree (t, key'))
+                          Store.Tree.get_tree tree relative_key >|= fun t ->
+                          Lazy.(force node_as_tree (t, absolute_key))
                       ) >>= Lwt.return_ok
                 );
             ])
