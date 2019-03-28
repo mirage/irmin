@@ -326,54 +326,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Store.Head.find t >>= Lwt.return_ok
                   )
               ;
-              io_field "get"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:Presentation.Contents.schema_typ
-                ~resolve:(fun _ (t, _) key ->
-                    Store.find t key >|=
-                    Option.map Presentation.Contents.to_src >|=
-                    Result.ok
-                  )
-              ;
-              io_field "get_contents"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(Lazy.force contents)
-                ~resolve:(fun _ (t, _) key ->
-                    Store.find_all t key >|=
-                    Option.map (fun (c, m) -> (c, m, key)) >|=
-                    Result.ok
-                  )
-              ;
-              io_field "get_node"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(list (non_null Lazy.(force contents)))
-                ~resolve:(fun _ (t, _) key ->
-                    let rec tree_list tree key acc =
-                      match tree with
-                      | `Contents (c, m) -> [c, m, key]
-                      | `Tree l ->
-                        List.fold_right (fun (step, t) acc ->
-                          tree_list t (Store.Key.rcons key step) [] @ acc
-                        ) l acc
-                    in
-                    Store.find_tree t key >>= function
-                    | Some tree ->
-                      Store.Tree.to_concrete tree >>= fun tree ->
-                      let l = tree_list tree Store.Key.empty [] in
-                      Lwt.return_ok (Some l)
-                    | None -> Lwt.return_ok None
-                  )
-              ;
-              io_field "list_contents_recursively"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(Lazy.force contents)
-                ~resolve:(fun _ (t, _) key ->
-                    Store.mem_tree t key >>= function
-                    | true ->
-                      Store.get_all t Store.Key.empty >>= fun (c, m) ->
-                      Lwt.return_ok (Some (c, m, key))
-                    | false -> Lwt.return_ok None
-                  )
+              io_field "node"
+                ~args:[]
+                ~typ:(non_null Lazy.(force node))
+                ~resolve:(fun _  (t, _) ->
+                  Store.tree t >>= fun tree ->
+                  Lwt.return_ok (tree, Store.Key.empty)
+                )
               ;
               io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
