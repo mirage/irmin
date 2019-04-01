@@ -107,6 +107,11 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
     | Some b -> Store.of_branch repo b
     | None -> Store.master repo
 
+  let rec concat_key key key' =
+    match Store.Key.decons key' with
+    | None -> key
+    | Some (step, key'') -> concat_key (Store.Key.cons step key) key''
+
   module Input = struct
     let coerce_key = function
       | `String s ->
@@ -174,8 +179,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
   let rec commit = lazy Schema.(
       obj "Commit"
         ~fields:(fun _ -> [
-              field "node"
-                ~typ:(non_null (Lazy.force node))
+              field "tree"
+                ~typ:(non_null (Lazy.force tree))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.tree c, Store.Key.empty)
               ;
@@ -220,8 +225,8 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             ])
     )
 
-  and node : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
-      obj "Node"
+  and tree : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t = lazy Schema.(
+      obj "Tree"
         ~fields:(fun _ -> [
               field "key"
                 ~typ:(non_null string)
@@ -231,17 +236,53 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                 );
               io_field "get"
                 ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:tree
+                ~typ:Presentation.Contents.schema_typ
                 ~resolve:(fun _ (tree, _) key ->
-                    Store.Tree.kind tree key >>= function
-                    | Some `Contents ->
-                      Store.Tree.get_all tree key >|= fun (c, m) ->
-                      Ok (Some (Lazy.(force contents_as_tree (c, m, key))))
-                    | Some `Node ->
-                      Store.Tree.get_tree tree key >|= fun t ->
-                      Ok (Some (Lazy.(force node_as_tree (t, key))))
-                    | None -> Lwt.return_ok None
-                  );
+                  Store.Tree.find tree key >|=
+                  Option.map Presentation.Contents.to_src >|=
+                  Result.ok
+                )
+              ;
+              io_field "get_contents"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:Lazy.(force contents)
+                ~resolve:(fun _ (tree, tree_key) key ->
+                  Store.Tree.find_all tree key >|=
+                  Option.map (fun (c, m) ->
+                    let key' = concat_key tree_key key in
+                    (c, m, key')
+                  ) >|= Result.ok
+                )
+              ;
+              io_field "get_tree"
+                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
+                ~typ:Lazy.(force tree)
+                ~resolve:(fun _ (tree, tree_key) key ->
+                  Store.Tree.find_tree tree key >|=
+                  Option.map (fun tree ->
+                    let tree_key' = concat_key tree_key key in
+                    tree, tree_key'
+                  ) >|= Result.ok
+                )
+              ;
+              io_field "list_contents_recursively"
+                ~args:[]
+                ~typ:(non_null (list (non_null Lazy.(force contents))))
+                ~resolve:(fun _ (tree, key) ->
+                  let rec tree_list ?(acc=[]) tree key =
+                    match tree with
+                    | `Contents (c, m) -> (c, m, key)::acc
+                    | `Tree l ->
+                      List.fold_left (fun acc (step, t) ->
+                        let key' = Store.Key.rcons key step in
+                        tree_list t key' ~acc
+                      ) acc l
+                      |> List.rev
+                  in
+                  Store.Tree.to_concrete tree >|= fun concrete_tree ->
+                  Ok (tree_list concrete_tree key)
+                )
+              ;
               field "hash"
                 ~typ:(non_null string)
                 ~args:[]
@@ -249,19 +290,20 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     let hash = Store.Tree.hash tree in
                     Irmin.Type.to_string Store.Hash.t hash
                 );
-              io_field "tree"
-                ~typ:(non_null (list (non_null tree)))
+              io_field "list"
+                ~typ:(non_null (list (non_null node)))
                 ~args:[]
-                ~resolve:(fun _ (tree, key) ->
+                ~resolve:(fun _ (tree, tree_key) ->
                     Store.Tree.list tree Store.Key.empty >>= Lwt_list.map_p (fun (step, kind) ->
-                        let key' = Store.Key.rcons key step in
+                        let relative_key = Store.Key.v [step] in
+                        let absolute_key = Store.Key.rcons tree_key step in
                         match kind with
                         | `Contents ->
-                          Store.Tree.get_all tree key' >|= fun (c, m) ->
-                          Lazy.(force contents_as_tree (c, m, key'))
+                          Store.Tree.get_all tree relative_key >|= fun (c, m) ->
+                          Lazy.(force contents_as_node (c, m, absolute_key))
                         | `Node ->
-                          Store.Tree.get_tree tree key' >|= fun t ->
-                          Lazy.(force node_as_tree (t, key'))
+                          Store.Tree.get_tree tree relative_key >|= fun t ->
+                          Lazy.(force tree_as_node (t, absolute_key))
                       ) >>= Lwt.return_ok
                 );
             ])
@@ -284,45 +326,13 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
                     Store.Head.find t >>= Lwt.return_ok
                   )
               ;
-              io_field "get"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:Presentation.Contents.schema_typ
-                ~resolve:(fun _ (t, _) key ->
-                    Store.find t key >|=
-                    Option.map Presentation.Contents.to_src >|=
-                    Result.ok
-                  )
-              ;
-              io_field "get_tree"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(list (non_null Lazy.(force contents)))
-                ~resolve:(fun _ (t, _) key ->
-                    let rec tree_list tree key acc =
-                      match tree with
-                      | `Contents (c, m) -> [c, m, key]
-                      | `Tree l ->
-                        List.fold_right (fun (step, t) acc ->
-                          tree_list t (Store.Key.rcons key step) [] @ acc
-                        ) l acc
-                    in
-                    Store.find_tree t key >>= function
-                    | Some tree ->
-                      Store.Tree.to_concrete tree >>= fun tree ->
-                      let l = tree_list tree Store.Key.empty [] in
-                      Lwt.return_ok (Some l)
-                    | None -> Lwt.return_ok None
-                  )
-              ;
-              io_field "get_all"
-                ~args:Arg.[arg "key" ~typ:(non_null Input.key)]
-                ~typ:(Lazy.force contents)
-                ~resolve:(fun _ (t, _) key ->
-                    Store.mem_tree t key >>= function
-                    | true ->
-                      Store.get_all t Store.Key.empty >>= fun (c, m) ->
-                      Lwt.return_ok (Some (c, m, key))
-                    | false -> Lwt.return_ok None
-                  )
+              io_field "tree"
+                ~args:[]
+                ~typ:(non_null Lazy.(force tree))
+                ~resolve:(fun _  (t, _) ->
+                  Store.tree t >>= fun tree ->
+                  Lwt.return_ok (tree, Store.Key.empty)
+                )
               ;
               io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
@@ -372,12 +382,12 @@ module Make_ext(Server: Cohttp_lwt.S.Server)(Config: CONFIG)(Store : Irmin.S)(Pr
             ])
     )
 
-  and tree = Schema.union "Tree"
-  and node_as_tree = lazy (Schema.add_type tree (Lazy.force node))
-  and contents_as_tree = lazy (Schema.add_type tree (Lazy.force contents))
+  and node = Schema.union "Node"
+  and tree_as_node = lazy (Schema.add_type node (Lazy.force tree))
+  and contents_as_node = lazy (Schema.add_type node (Lazy.force contents))
 
-  let _ = Lazy.force node_as_tree
-  let _ = Lazy.force contents_as_tree
+  let _ = Lazy.force tree_as_node
+  let _ = Lazy.force contents_as_node
 
   let err_write e =
     Lwt.return_error (Irmin.Type.to_string Store.write_error_t e)
