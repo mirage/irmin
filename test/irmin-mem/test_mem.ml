@@ -22,10 +22,12 @@ let store =
 let config = Irmin_mem.config ()
 
 let clean () =
-  let (module S: Irmin_test.S) = store in
+  let (module S : Irmin_test.S) = store in
   S.Repo.v config >>= fun repo ->
   S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
 
 let init () = Lwt.return_unit
+
 let stats = None
+
 let suite = { Irmin_test.name = "MEM"; init; clean; config; store; stats }

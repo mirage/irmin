@@ -16,18 +16,15 @@
 
 (** HTTP helpers *)
 
-val irmin_version: string
+val irmin_version : string
 
-type 'a set = {
-  test: 'a option;
-  set : 'a option;
-  v   : 'a option;
-}
+type 'a set = { test : 'a option; set : 'a option; v : 'a option }
 
-val status_t: string Irmin.Type.t
-val set_t: 'a Irmin.Type.t -> 'a set Irmin.Type.t
+val status_t : string Irmin.Type.t
 
-val event_t:
+val set_t : 'a Irmin.Type.t -> 'a set Irmin.Type.t
+
+val event_t :
   'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b Irmin.Diff.t) Irmin.Type.t
 
-val init_t: 'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b) Irmin.Type.t
+val init_t : 'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b) Irmin.Type.t

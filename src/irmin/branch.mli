@@ -16,4 +16,4 @@
 
 (** Handling of branches. *)
 
-module String: S.BRANCH with type t = string
+module String : S.BRANCH with type t = string

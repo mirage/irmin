@@ -16,20 +16,28 @@
 
 (** Implementation of keys *)
 
-module Make (H: Digestif.S): S.HASH with type t = H.t
+module Make (H : Digestif.S) : S.HASH with type t = H.t
 
-module SHA1: S.HASH
-module RMD160: S.HASH
-module SHA224: S.HASH
-module SHA256: S.HASH
-module SHA384: S.HASH
-module SHA512: S.HASH
-module BLAKE2B: S.HASH
-module BLAKE2S: S.HASH
+module SHA1 : S.HASH
 
-module With_digest (K: S.HASH) (V: Type.S): sig
+module RMD160 : S.HASH
+
+module SHA224 : S.HASH
+
+module SHA256 : S.HASH
+
+module SHA384 : S.HASH
+
+module SHA512 : S.HASH
+
+module BLAKE2B : S.HASH
+
+module BLAKE2S : S.HASH
+
+module With_digest (K : S.HASH) (V : Type.S) : sig
   include S.HASH with type t = K.t
-  val digest: V.t -> t
+
+  val digest : V.t -> t
 end
 
-module V1 (H: S.HASH): S.HASH with type t = H.t
+module V1 (H : S.HASH) : S.HASH with type t = H.t

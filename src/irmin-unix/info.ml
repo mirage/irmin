@@ -15,13 +15,16 @@
  *)
 
 let v ?author fmt =
-  Fmt.kstrf (fun msg () ->
+  Fmt.kstrf
+    (fun msg () ->
       let date = Int64.of_float (Unix.gettimeofday ()) in
-      let author = match author with
+      let author =
+        match author with
         | Some a -> a
-        | None   ->
-          (* XXX: get "git config user.name" *)
-          Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname()) (Unix.getpid())
+        | None ->
+            (* XXX: get "git config user.name" *)
+            Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname ())
+              (Unix.getpid ())
       in
-      Irmin.Info.v ~date ~author msg
-    ) fmt
+      Irmin.Info.v ~date ~author msg )
+    fmt

@@ -15,20 +15,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (P: S.PRIVATE): sig
-  include S.TREE with type key = P.Node.Path.t
-                  and type step = P.Node.Path.step
-                  and type metadata = P.Node.Val.metadata
-                  and type contents = P.Contents.value
+module Make (P : S.PRIVATE) : sig
+  include
+    S.TREE
+    with type key = P.Node.Path.t
+     and type step = P.Node.Path.step
+     and type metadata = P.Node.Val.metadata
+     and type contents = P.Contents.value
 
-  val import: P.Repo.t -> P.Node.key -> node
-  val export: P.Repo.t -> [> `Write] P.Contents.t -> [> `Write] P.Node.t ->
-    node -> P.Node.key Lwt.t
-  val dump: tree Fmt.t
-  val equal: tree -> tree -> bool
-  val node_t: node Type.t
-  val tree_t: tree Type.t
-  val hash: tree -> [`Contents of (P.Hash.t * metadata) | `Node of P.Hash.t]
-  val of_private_node: P.Repo.t -> P.Node.value -> node
-  val to_private_node: node -> P.Node.value option Lwt.t
+  val import : P.Repo.t -> P.Node.key -> node
+
+  val export :
+    P.Repo.t ->
+    [> `Write ] P.Contents.t ->
+    [> `Write ] P.Node.t ->
+    node ->
+    P.Node.key Lwt.t
+
+  val dump : tree Fmt.t
+
+  val equal : tree -> tree -> bool
+
+  val node_t : node Type.t
+
+  val tree_t : tree Type.t
+
+  val hash : tree -> [ `Contents of P.Hash.t * metadata | `Node of P.Hash.t ]
+
+  val of_private_node : P.Repo.t -> P.Node.value -> node
+
+  val to_private_node : node -> P.Node.value option Lwt.t
 end

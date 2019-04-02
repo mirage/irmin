@@ -18,34 +18,26 @@ let irmin_version = "X-IrminVersion"
 
 let status_t =
   let open Irmin.Type in
-  record "status" (fun x -> x)
-  |+ field "status" string (fun x -> x)
-  |> sealr
+  record "status" (fun x -> x) |+ field "status" string (fun x -> x) |> sealr
 
-type 'a set = {
-  test: 'a option;
-  set : 'a option;
-  v   : 'a option;
-}
+type 'a set = { test : 'a option; set : 'a option; v : 'a option }
 
 let set_t a =
   let open Irmin.Type in
   record "set" (fun test set v -> { test; set; v })
   |+ field "test" (option a) (fun x -> x.test)
-  |+ field "set"  (option a) (fun x -> x.set)
-  |+ field "v"    (option a) (fun x -> x.v)
+  |+ field "set" (option a) (fun x -> x.set)
+  |+ field "v" (option a) (fun x -> x.v)
   |> sealr
 
 let event_t k x =
   let open Irmin.Type in
-  record "event" (fun k d -> k, d)
+  record "event" (fun k d -> (k, d))
   |+ field "branch" k fst
-  |+ field "diff"   (Irmin.Diff.t x) snd
+  |+ field "diff" (Irmin.Diff.t x) snd
   |> sealr
 
 let init_t k x =
   let open Irmin.Type in
-  record "init" (fun k v -> k, v)
-  |+ field "branch" k fst
-  |+ field "commit" x snd
-  |> sealr
+  record "init" (fun k v -> (k, v))
+  |+ field "branch" k fst |+ field "commit" x snd |> sealr

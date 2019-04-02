@@ -14,36 +14,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let (>>=) = Lwt.bind
+let ( >>= ) = Lwt.bind
 
 module type S = sig
   type key
+
   type t
-  val v: unit -> t
-  val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+
+  val v : unit -> t
+
+  val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (K: Type.S) = struct
-
+module Make (K : Type.S) = struct
   module K = struct
     type t = K.t
+
     let hash = Hashtbl.hash
+
     let equal = Type.equal K.t
   end
 
-  module KHashtbl = Hashtbl.Make(K)
+  module KHashtbl = Hashtbl.Make (K)
 
   type key = K.t
 
-  type t = {
-    global: Lwt_mutex.t;
-    locks : Lwt_mutex.t KHashtbl.t;
-  }
+  type t = { global : Lwt_mutex.t; locks : Lwt_mutex.t KHashtbl.t }
 
-  let v () = {
-    global = Lwt_mutex.create ();
-    locks  = KHashtbl.create 1024;
-  }
+  let v () = { global = Lwt_mutex.create (); locks = KHashtbl.create 1024 }
 
   let lock t key () =
     let lock =
@@ -66,7 +64,5 @@ module Make (K: Type.S) = struct
   let with_lock t k fn =
     Lwt_mutex.with_lock t.global (lock t k) >>= fun lock ->
     Lwt_mutex.with_lock lock fn >>= fun r ->
-    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () ->
-    Lwt.return r
-
+    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () -> Lwt.return r
 end

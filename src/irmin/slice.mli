@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make
-    (C: S.CONTENTS_STORE)
-    (N: S.NODE_STORE)
-    (H: S.COMMIT_STORE):
-  S.SLICE with type contents = C.key * C.value
-              and type node = N.key * N.value
-              and type commit = H.key * H.value
+module Make (C : S.CONTENTS_STORE) (N : S.NODE_STORE) (H : S.COMMIT_STORE) :
+  S.SLICE
+  with type contents = C.key * C.value
+   and type node = N.key * N.value
+   and type commit = H.key * H.value

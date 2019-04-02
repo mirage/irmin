@@ -16,57 +16,59 @@
 
 (** Irmin store resolver. *)
 
-val global_option_section: string
+val global_option_section : string
 
-val branch: string option Cmdliner.Term.t
+val branch : string option Cmdliner.Term.t
 
 (** {1 Contents} *)
-module Contents: sig
-
+module Contents : sig
   type t = (module Irmin.Contents.S)
 
-  val add: string -> ?default:bool -> (module Irmin.Contents.S) -> unit
-  val find: string -> t
-  val term: string option Cmdliner.Term.t
+  val add : string -> ?default:bool -> (module Irmin.Contents.S) -> unit
+
+  val find : string -> t
+
+  val term : string option Cmdliner.Term.t
 end
 
 type contents = Contents.t
 
 (** {1 Global Configuration} *)
 
-module Store: sig
-
-  type t
+module Store : sig
   (** The type for store configurations. A configuration value
      contains: the store implementation a creator of store's state and
      endpoint. *)
+  type t
 
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
-  val v: ?remote:remote_fn -> (module Irmin.S) -> t
+  val v : ?remote:remote_fn -> (module Irmin.S) -> t
 
-  val mem: contents -> t
-  val irf: contents -> t
-  val http: contents -> t
-  val git: contents -> t
+  val mem : contents -> t
 
-  val find: string -> contents -> t
-  val add: string -> ?default:bool -> (contents -> t) -> unit
+  val irf : contents -> t
 
+  val http : contents -> t
+
+  val git : contents -> t
+
+  val find : string -> contents -> t
+
+  val add : string -> ?default:bool -> (contents -> t) -> unit
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
 
-val remote: Irmin.remote Lwt.t Cmdliner.Term.t
+val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 (** Parse a remote store location. *)
 
 (** {1 Stores} *)
 
 type store =
-  | S: (module Irmin.S with type t = 'a)
-       * 'a Lwt.t
-       * Store.remote_fn option
-    -> store
+  | S :
+      (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
+      -> store
 
-val store: store Cmdliner.Term.t
+val store : store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)

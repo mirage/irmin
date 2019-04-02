@@ -16,6 +16,7 @@
 
 module Client = struct
   include Cohttp_lwt_unix.Client
+
   let ctx () =
     let resolver =
       let h = Hashtbl.create 1 in
@@ -25,14 +26,8 @@ module Client = struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-module Make = Irmin_http.Make(Client)
-
-module KV (C: Irmin.Contents.S) =
-  Make
-    (Irmin.Metadata.None)
-    (C)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
+module Make = Irmin_http.Make (Client)
+module KV (C : Irmin.Contents.S) =
+  Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
     (Irmin.Hash.SHA1)
-
 module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)

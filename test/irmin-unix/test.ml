@@ -14,15 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [
-  "GIT-BARE" , [Test_unix.Git.misc];
-  "GIT.misc" , Test_git.tests Test_unix.Git.store;
-]
+let misc =
+  [ ("GIT-BARE", [ Test_unix.Git.misc ]);
+    ("GIT.misc", Test_git.tests Test_unix.Git.store)
+  ]
 
 let () =
   Test_http.with_server Test_unix.Http.servers (fun () ->
-      Irmin_test.Store.run "irmin-unix" ~misc ([
-          `Quick , Test_unix.FS.suite;
-          `Quick , Test_unix.Git.suite;
-        ] @ Test_http.suites Test_unix.Http.servers)
-    )
+      Irmin_test.Store.run "irmin-unix" ~misc
+        ( [ (`Quick, Test_unix.FS.suite); (`Quick, Test_unix.Git.suite) ]
+        @ Test_http.suites Test_unix.Http.servers ) )
