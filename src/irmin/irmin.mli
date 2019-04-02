@@ -1579,11 +1579,17 @@ module Private : sig
       S with type hash = K.t and type step = P.step and type metadata = M.t
 
     (** v1 serialisation *)
-    module V1 (S : S) :
-      S
-      with type hash = S.hash
-       and type step = S.step
-       and type metadata = S.metadata
+    module V1 (S : S) : sig
+      include
+        S
+        with type hash = S.hash
+         and type step = S.step
+         and type metadata = S.metadata
+
+      val import : S.t -> t
+
+      val export : t -> S.t
+    end
 
     (** [STORE] specifies the signature for node stores. *)
     module type STORE = sig
@@ -1783,7 +1789,13 @@ module Private : sig
     module Make (K : Type.S) : S with type hash = K.t
 
     (** V1 serialisation. *)
-    module V1 (S : S) : S with type hash = S.hash
+    module V1 (S : S) : sig
+      include S with type hash = S.hash
+
+      val import : S.t -> t
+
+      val export : t -> S.t
+    end
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig
