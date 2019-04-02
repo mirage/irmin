@@ -17,13 +17,13 @@
 
 module type Ordered = sig
   type t
+
   val compare : t -> t -> int
 end
 
 exception Empty
 
-module Make(X : Ordered) = struct
-
+module Make (X : Ordered) = struct
   (* The heap is encoded in the array [data], where elements are stored
      from [0] to [size - 1]. From an element stored at [i], the left
      (resp. right) subtree, if any, is rooted at [2*i+1] (resp. [2*i+2]). *)
@@ -53,9 +53,9 @@ module Make(X : Ordered) = struct
 
   let add h x =
     (* first addition: we allocate the array *)
-    if h.size < 0 then begin
-      h.data <- Array.make (- h.size) x; h.size <- 0
-    end;
+    if h.size < 0 then (
+      h.data <- Array.make (-h.size) x;
+      h.size <- 0 );
     let n = h.size in
     (* resizing if needed *)
     if n == Array.length h.data then resize h;
@@ -63,11 +63,10 @@ module Make(X : Ordered) = struct
     (* moving [x] up in the heap *)
     let rec moveup i =
       let fi = (i - 1) / 2 in
-      if i > 0 && X.compare d.(fi) x < 0 then begin
-	d.(i) <- d.(fi);
-	moveup fi
-      end else
-	d.(i) <- x
+      if i > 0 && X.compare d.(fi) x < 0 then (
+        d.(i) <- d.(fi);
+        moveup fi )
+      else d.(i) <- x
     in
     moveup n;
     h.size <- n + 1
@@ -84,34 +83,34 @@ module Make(X : Ordered) = struct
     let x = d.(n) in
     (* moving [x] down in the heap *)
     let rec movedown i =
-      let j = 2 * i + 1 in
+      let j = (2 * i) + 1 in
       if j < n then
-	let j =
-	  let j' = j + 1 in
-	  if j' < n && X.compare d.(j') d.(j) > 0 then j' else j
-	in
-	if X.compare d.(j) x > 0 then begin
-	  d.(i) <- d.(j);
-	  movedown j
-	end else
-	  d.(i) <- x
-      else
-	d.(i) <- x
+        let j =
+          let j' = j + 1 in
+          if j' < n && X.compare d.(j') d.(j) > 0 then j' else j
+        in
+        if X.compare d.(j) x > 0 then (
+          d.(i) <- d.(j);
+          movedown j )
+        else d.(i) <- x
+      else d.(i) <- x
     in
     movedown 0
 
-  let pop_maximum h = let m = maximum h in remove h; m
+  let pop_maximum h =
+    let m = maximum h in
+    remove h;
+    m
 
   let iter f h =
     let d = h.data in
-    for i = 0 to h.size - 1 do f d.(i) done
+    for i = 0 to h.size - 1 do
+      f d.(i)
+    done
 
   let fold f h x0 =
     let n = h.size in
     let d = h.data in
-    let rec foldrec x i =
-      if i >= n then x else foldrec (f d.(i) x) (succ i)
-    in
+    let rec foldrec x i = if i >= n then x else foldrec (f d.(i) x) (succ i) in
     foldrec x0 0
-
 end

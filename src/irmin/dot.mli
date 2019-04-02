@@ -18,9 +18,15 @@
 
 module type S = sig
   type db
-  val output_buffer:
-    db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string)
-    -> Buffer.t -> unit Lwt.t
+
+  val output_buffer :
+    db ->
+    ?html:bool ->
+    ?depth:int ->
+    ?full:bool ->
+    date:(int64 -> string) ->
+    Buffer.t ->
+    unit Lwt.t
 end
 
-module Make (S: S.STORE): S with type db = S.t
+module Make (S : S.STORE) : S with type db = S.t

@@ -16,86 +16,93 @@
 
 (** Disk persistence. *)
 
-val config: ?config:Irmin.config -> string -> Irmin.config
+val config : ?config:Irmin.config -> string -> Irmin.config
 (** [config ?config root] is the configuration [config] augmented with
     the key {!Irmin.Config.root} set to [root]. If not specified,
     [config] is {!Irmin.Config.empty}. *)
 
 module type IO = sig
-
   (** {1 File-system abstractions} *)
 
-  type path = string
   (** The type for paths. *)
+  type path = string
 
   (** {2 Read operations} *)
 
-  val rec_files: path -> string list Lwt.t
+  val rec_files : path -> string list Lwt.t
   (** [rec_files dir] is the list of files recursively present in
       [dir] and all of its sub-directories. Return filenames prefixed
       by [dir].  *)
 
-  val file_exists: path -> bool Lwt.t
+  val file_exists : path -> bool Lwt.t
   (** [file_exist f] is true if [f] exists. *)
 
-  val read_file: path -> string option Lwt.t
+  val read_file : path -> string option Lwt.t
   (** Read the contents of a file using mmap. *)
 
   (** {2 Write Operations} *)
 
-  val mkdir: path -> unit Lwt.t
+  val mkdir : path -> unit Lwt.t
   (** Create a directory. *)
 
-  type lock
   (** The type for file locks. *)
+  type lock
 
-  val lock_file: path -> lock
+  val lock_file : path -> lock
   (** [lock_file f] is the lock associated to the file [f]. *)
 
-  val write_file: ?temp_dir:path -> ?lock:lock ->
-    path -> string -> unit Lwt.t
+  val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit Lwt.t
   (** Atomic writes. *)
 
-  val test_and_set_file: ?temp_dir:string -> lock:lock ->
-    path ->test:string option -> set:string option -> bool Lwt.t
+  val test_and_set_file :
+    ?temp_dir:string ->
+    lock:lock ->
+    path ->
+    test:string option ->
+    set:string option ->
+    bool Lwt.t
   (** Test and set. *)
 
-  val remove_file: ?lock:lock -> path -> unit Lwt.t
+  val remove_file : ?lock:lock -> path -> unit Lwt.t
   (** Remove a file or directory (even if non-empty). *)
-
 end
 
-module Append_only (IO: IO): Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write (IO: IO): Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make (IO: IO): Irmin.S_MAKER
-module KV (IO: IO): Irmin.KV_MAKER
+module Append_only (IO : IO) : Irmin.APPEND_ONLY_STORE_MAKER
+
+module Atomic_write (IO : IO) : Irmin.ATOMIC_WRITE_STORE_MAKER
+
+module Make (IO : IO) : Irmin.S_MAKER
+
+module KV (IO : IO) : Irmin.KV_MAKER
 
 (** {2 Advanced configuration} *)
 
 module type Config = sig
-
   (** Same as [Config] but gives more control on the file
       hierarchy. *)
 
-  val dir: string -> string
+  val dir : string -> string
   (** [dir root] is the sub-directory to look for the keys. *)
 
-  val file_of_key: string -> string
+  val file_of_key : string -> string
   (** Convert a key to a filename. *)
 
-  val key_of_file: string -> string
-    (** Convert a filename to a key. *)
-
+  val key_of_file : string -> string
+  (** Convert a filename to a key. *)
 end
 
-module Append_only_ext (IO: IO) (C: Config): Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write_ext (IO: IO) (C: Config): Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER
+module Append_only_ext (IO : IO) (C : Config) : Irmin.APPEND_ONLY_STORE_MAKER
+
+module Atomic_write_ext (IO : IO) (C : Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
+
+module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.S_MAKER
 
 (** {1 In-memory IO mocks} *)
 
-module IO_mem: sig
+module IO_mem : sig
   include IO
-  val clear: unit -> unit Lwt.t
-  val set_listen_hook: unit -> unit
+
+  val clear : unit -> unit Lwt.t
+
+  val set_listen_hook : unit -> unit
 end

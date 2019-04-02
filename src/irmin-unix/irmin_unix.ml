@@ -15,6 +15,7 @@
  *)
 
 let info = Info.v
+
 let set_listen_dir_hook = Hook.init
 
 module Git = Xgit

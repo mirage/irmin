@@ -15,21 +15,19 @@
  *)
 
 open Lwt.Infix
-
 module IO = Irmin_fs.IO_mem
 
 let test_db = "test-db"
 
-let init () =
-  IO.clear () >|= fun () ->
-  IO.set_listen_hook ()
+let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
 
 let config = Irmin_fs.config test_db
+
 let clean () = Lwt.return_unit
+
 let stats = None
 
 let store =
-  Irmin_test.store (module Irmin_fs.Make(IO)) (module Irmin.Metadata.None)
+  Irmin_test.store (module Irmin_fs.Make (IO)) (module Irmin.Metadata.None)
 
-let suite =
-  { Irmin_test.name = "FS"; init; clean; config; store; stats }
+let suite = { Irmin_test.name = "FS"; init; clean; config; store; stats }

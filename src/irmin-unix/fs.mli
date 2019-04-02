@@ -14,11 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Append_only: Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write: Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make: Irmin.S_MAKER
-module KV: Irmin.KV_MAKER
+module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
 
-module Append_only_ext (C: Irmin_fs.Config): Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write_ext (C: Irmin_fs.Config): Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make_ext (Obj: Irmin_fs.Config) (Ref: Irmin_fs.Config): Irmin.S_MAKER
+module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
+
+module Make : Irmin.S_MAKER
+
+module KV : Irmin.KV_MAKER
+
+module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
+
+module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
+
+module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.S_MAKER

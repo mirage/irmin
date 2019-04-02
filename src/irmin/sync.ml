@@ -14,12 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module None (H: Type.S) (R: Type.S) = struct
+module None (H : Type.S) (R : Type.S) = struct
   type t = unit
+
   let v _ = Lwt.return ()
+
   type endpoint = unit
+
   type commit = H.t
+
   type branch = R.t
+
   let fetch () ?depth:_ _ _br = Lwt.return (Error `Not_available)
+
   let push () ?depth:_ _ _br = Lwt.return (Error `Not_available)
 end

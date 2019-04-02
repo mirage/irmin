@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val v: ?author:string ->
-  ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+val v :
+  ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a

@@ -16,9 +16,10 @@
 
 open Lwt.Infix
 
-let (/) = Filename.concat
+let ( / ) = Filename.concat
 
 let socket = Filename.get_temp_dir_name () / "irmin.sock"
+
 let uri = Uri.of_string "http://irmin"
 
 let pid_file = Filename.get_temp_dir_name () / "irmin-test.pid"
@@ -27,6 +28,7 @@ let rewrite _ _ = Lwt.return (`Unix_domain_socket socket)
 
 module Client = struct
   include Cohttp_lwt_unix.Client
+
   let ctx () =
     let resolver =
       let h = Hashtbl.create 1 in
@@ -36,13 +38,13 @@ module Client = struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-let http_store (module S: Irmin_test.S) =
-  Irmin_test.store (module Irmin_http.Make(Client)) (module S.Metadata)
+let http_store (module S : Irmin_test.S) =
+  Irmin_test.store (module Irmin_http.Make (Client)) (module S.Metadata)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
-let () = Lwt.async_exception_hook := (fun e ->
-    Fmt.pr "Async exception caught: %a" Fmt.exn e;
-  )
+let () =
+  Lwt.async_exception_hook :=
+    fun e -> Fmt.pr "Async exception caught: %a" Fmt.exn e
 
 let remove file = try Unix.unlink file with _ -> ()
 
@@ -62,28 +64,25 @@ let rec wait_for_the_server_to_start () =
     let pid = int_of_string line in
     Logs.debug (fun l -> l "read PID %d fomr %s" pid pid_file);
     Unix.unlink pid_file;
-    Lwt.return pid
-  ) else (
+    Lwt.return pid )
+  else (
     Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () ->
-    wait_for_the_server_to_start ()
-  )
+    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start () )
 
-let servers = [
-  `Quick, Test_mem.suite;
-  `Quick, Test_git.suite;
-]
+let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
 let root c = Irmin.Private.Conf.(get c root)
 
 let serve servers n =
   Logs.set_level ~all:true (Some Logs.Debug);
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
-  let (_, (server : Irmin_test.t)) = List.nth servers n in
-  Logs.debug (fun l -> l "Got server: %s, root=%a"
-                 server.name Fmt.(option string) (root server.config));
-  let (module Server: Irmin_test.S) = server.store in
-  let module HTTP = Irmin_http_server.Make(Cohttp_lwt_unix.Server)(Server) in
+  let _, (server : Irmin_test.t) = List.nth servers n in
+  Logs.debug (fun l ->
+      l "Got server: %s, root=%a" server.name
+        Fmt.(option string)
+        (root server.config) );
+  let (module Server : Irmin_test.S) = server.store in
+  let module HTTP = Irmin_http_server.Make (Cohttp_lwt_unix.Server) (Server) in
   let server () =
     server.init () >>= fun () ->
     Server.Repo.v server.config >>= fun repo ->
@@ -103,27 +102,28 @@ let suite i server =
   let open Irmin_test in
   let server_pid = ref 0 in
   { name = Printf.sprintf "HTTP.%s" server.name;
-
-    init = begin fun () ->
-      remove pid_file;
-      Lwt_io.flush_all () >>= fun () ->
-      let _ = Sys.command @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i in
-      wait_for_the_server_to_start () >|= fun pid ->
-      server_pid := pid
-    end;
-
+    init =
+      (fun () ->
+        remove pid_file;
+        Lwt_io.flush_all () >>= fun () ->
+        let _ =
+          Sys.command
+          @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i
+        in
+        wait_for_the_server_to_start () >|= fun pid -> server_pid := pid );
     stats = None;
-    clean = begin fun () ->
-      try Unix.kill !server_pid Sys.sigkill;
-        let () =
-          try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)
-          with _ -> () in
-        server.clean ()
-      with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit
-    end;
-
+    clean =
+      (fun () ->
+        try
+          Unix.kill !server_pid Sys.sigkill;
+          let () =
+            try ignore (Unix.waitpid [ Unix.WUNTRACED ] !server_pid)
+            with _ -> ()
+          in
+          server.clean ()
+        with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit );
     config = Irmin_http.config uri;
-    store = http_store server.store;
+    store = http_store server.store
   }
 
 let suites servers =
@@ -131,15 +131,11 @@ let suites servers =
     (* it's a bit hard to test client/server stuff on windows because
        we can't fork. Can work around that later if needed. *)
     []
-  else
-    List.mapi (fun i (s, server) ->
-        s, suite i server
-      ) servers
+  else List.mapi (fun i (s, server) -> (s, suite i server)) servers
 
 let with_server servers f =
-  if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
+  if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then (
     let n = int_of_string Sys.argv.(2) in
     Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
-    serve servers n
-  else
-    f ()
+    serve servers n )
+  else f ()

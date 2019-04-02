@@ -14,13 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [
-  "GIT.misc"  , Test_git.tests Test_git.store;
-  "GIT.import", ["git -> mem", `Quick, Test_git.test_import_export];
-]
+let misc =
+  [ ("GIT.misc", Test_git.tests Test_git.store);
+    ("GIT.import", [ ("git -> mem", `Quick, Test_git.test_import_export) ])
+  ]
 
 let () =
-  Irmin_test.Store.run "irmin-git" ~misc [
-    `Quick , Test_git.suite;
-    `Quick , Test_git.suite2;
-  ]
+  Irmin_test.Store.run "irmin-git" ~misc
+    [ (`Quick, Test_git.suite); (`Quick, Test_git.suite2) ]

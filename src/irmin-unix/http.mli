@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make: Irmin.S_MAKER
-module KV: Irmin.KV_MAKER
-module Server (S: Irmin.S): Irmin_http_server.S
+module Make : Irmin.S_MAKER
+
+module KV : Irmin.KV_MAKER
+
+module Server (S : Irmin.S) :
+  Irmin_http_server.S
   with type repo = S.Repo.t
    and type t = Cohttp_lwt_unix.Server.t

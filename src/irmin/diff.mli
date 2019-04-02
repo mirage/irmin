@@ -14,6 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a t = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
+type 'a t = [ `Updated of 'a * 'a | `Removed of 'a | `Added of 'a ]
 
-val t: 'a Type.t -> 'a t Type.t
+val t : 'a Type.t -> 'a t Type.t

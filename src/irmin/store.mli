@@ -17,7 +17,8 @@
 (** Branch-consistent stores: read-write store with support fork/merge
     operations. *)
 
-module Make (P: S.PRIVATE): S.STORE
+module Make (P : S.PRIVATE) :
+  S.STORE
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
    and type branch = P.Branch.key

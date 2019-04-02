@@ -1,4 +1,4 @@
- (*
+(*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
  *
@@ -55,14 +55,18 @@ v}
     case for {{!AO}AO}.
 *)
 
-val chunk_size: int Irmin.Private.Conf.key
+val chunk_size : int Irmin.Private.Conf.key
 (** [chunk_size] is the configuration key to configure chunks'
     size. By default, it is set to 4666, so that payload and metadata
     can be stored in a 4K block. *)
 
-val config:
-  ?config:Irmin.config -> ?size:int -> ?min_size:int ->
-  ?chunking:[`Max | `Best_fit] -> unit -> Irmin.config
+val config :
+  ?config:Irmin.config ->
+  ?size:int ->
+  ?min_size:int ->
+  ?chunking:[ `Max | `Best_fit ] ->
+  unit ->
+  Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value
     extending the optional [config] with bindings associating
     {{!chunk_size}chunk_size} to [size].
@@ -78,8 +82,7 @@ val config:
     the smaller [size] is, the bigger the risk of hash collisions, so
     use reasonable values. *)
 
-module Content_addressable
-    (S: Irmin.APPEND_ONLY_STORE_MAKER)
-  : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
 (** [Content_addressable(X)] is a content-addressable store which store values
     cut into chunks into the underlying store [X]. *)
+module Content_addressable (S : Irmin.APPEND_ONLY_STORE_MAKER) :
+  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER

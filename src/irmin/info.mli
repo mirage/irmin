@@ -17,14 +17,21 @@
 (** Provenance tracking. *)
 
 type t
-val t: t Type.t
-val v: date:int64 -> author:string -> string -> t
-val date: t -> int64
-val author: t -> string
-val message: t -> string
-val with_message: t -> string -> t
 
-val empty: t
+val t : t Type.t
+
+val v : date:int64 -> author:string -> string -> t
+
+val date : t -> int64
+
+val author : t -> string
+
+val message : t -> string
+
+val with_message : t -> string -> t
+
+val empty : t
 
 type f = unit -> t
-val none: f
+
+val none : f

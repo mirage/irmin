@@ -17,13 +17,13 @@
 
 module type Ordered = sig
   type t
+
   val compare : t -> t -> int
 end
 
 exception Empty
 
-module Make(X: Ordered) : sig
-
+module Make (X : Ordered) : sig
   (* Type of imperative heaps.
      (In the following [n] refers to the number of elements in the heap) *)
 
@@ -56,5 +56,4 @@ module Make(X: Ordered) : sig
   val iter : (X.t -> unit) -> t -> unit
 
   val fold : (X.t -> 'a -> 'a) -> t -> 'a -> 'a
-
 end

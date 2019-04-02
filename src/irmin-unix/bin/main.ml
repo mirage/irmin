@@ -16,5 +16,4 @@
 
 open Irmin_unix
 
-let () =
-  Cli.(run ~default commands)
+let () = Cli.(run ~default commands)

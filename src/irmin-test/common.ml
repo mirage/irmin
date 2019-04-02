@@ -17,31 +17,35 @@
 open Astring
 
 module type S =
-  Irmin.S with type step = string
-    and type key = string list
-    and type contents = string
-    and type branch = string
+  Irmin.S
+  with type step = string
+   and type key = string list
+   and type contents = string
+   and type branch = string
 
-let reporter ?(prefix="") () =
+let reporter ?(prefix = "") () =
   let pad n x =
     if String.length x > n then x
     else x ^ String.v ~len:(n - String.length x) (fun _ -> ' ')
   in
   let report src level ~over k msgf =
-    let k _ = over (); k () in
+    let k _ =
+      over ();
+      k ()
+    in
     let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
     let with_stamp h _tags k fmt =
       let dt = Mtime.Span.to_us (Mtime_clock.elapsed ()) in
-      Fmt.kpf k ppf ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
-        prefix
-        dt
-        Fmt.(styled `Magenta string) (pad 10 @@ Logs.Src.name src)
+      Fmt.kpf k ppf
+        ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
+        prefix dt
+        Fmt.(styled `Magenta string)
+        (pad 10 @@ Logs.Src.name src)
         Logs_fmt.pp_header (level, h)
     in
-    msgf @@ fun ?header ?tags fmt ->
-    with_stamp header tags k fmt
+    msgf @@ fun ?header ?tags fmt -> with_stamp header tags k fmt
   in
-  { Logs.report = report }
+  { Logs.report }
 
 let () =
   Logs.set_level (Some Logs.Debug);
@@ -53,27 +57,25 @@ let line msg =
   Logs.info (fun f -> f "ASSERT %s" msg);
   line ()
 
-let store:
-  (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
-  fun (module B) (module M) ->
-    let module S =
-        B (M)
-          (Irmin.Contents.String)
-          (Irmin.Path.String_list)
-          (Irmin.Branch.String)
-          (Irmin.Hash.SHA1)
-    in (module S)
+let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
+ fun (module B) (module M) ->
+  let module S =
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
+  in
+  (module S)
 
 type t = {
-  name  : string;
-  init  : unit -> unit Lwt.t;
+  name : string;
+  init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
-  config: Irmin.config;
+  config : Irmin.config;
   store : (module S);
-  stats: (unit -> int * int) option;
+  stats : (unit -> int * int) option
 }
 
-let (/) = Filename.concat
+let ( / ) = Filename.concat
 
 let testable t = Alcotest.testable (Irmin.Type.pp t) (Irmin.Type.equal t)
 
