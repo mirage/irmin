@@ -19,7 +19,7 @@ depends: [
   "irmin"
   "graphql" {>= "0.9"}
   "graphql-lwt" {>= "0.9"}
-  "graphql-cohttp" {>= "0.12"}
+  "graphql-cohttp" {>= "0.12.1"}
   "cohttp-lwt"
   "graphql_parser" {>= "0.11"}
 ]
