@@ -41,6 +41,8 @@ implementations against the same tests that the core backends are tested against
   and `Irmin.Type.of_string`
 - Added `Store.last_modified` function, which provides a list of commits where the given key was
   modified last. (#617, @pascutto)
+- `Irmin.AO` has been replaced with `Irmin.CONTENT_ADDRESSABLE_STORE` and `Irmin.RW` has been replaced with `Irmin.ATOMIC_WRITE_STORE`
+- A `batch` function has been added to the backend definition to allow for better control over how groups of operations are processed. (#609, @samoht)
 
 ### 1.4.0 (2018-06-06)
 
