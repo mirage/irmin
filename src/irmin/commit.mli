@@ -40,4 +40,10 @@ module History (C : S.COMMIT_STORE) :
    and type node = C.Node.key
    and type commit = C.key
 
-module V1 (C : S.COMMIT) : S.COMMIT with type hash = C.hash
+module V1 (C : S.COMMIT) : sig
+  include S.COMMIT with type hash = C.hash
+
+  val import : C.t -> t
+
+  val export : t -> C.t
+end
