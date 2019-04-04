@@ -62,10 +62,6 @@ let error = Alcotest.testable (fun ppf (`Msg e) -> Fmt.string ppf e) ( = )
 let ok x = Alcotest.result x error
 
 let test_json () =
-  Fmt.epr "XXX test+json\n%!";
-  (*  let s = T.to_string hex "foo" in
-  Alcotest.(check string) "CLI hex" "666f6f" s;
-*)
   let s = T.to_json_string hex "foo" in
   Alcotest.(check string) "JSON hex" "\"666f6f\"" s;
   let s = T.to_bin_string hex "foo" in

@@ -820,11 +820,7 @@ let pp t =
   in
   aux t
 
-let to_json_string ?minify t x =
-  Fmt.epr "UUU\n%!";
-  let s = Fmt.to_to_string (pp_json ?minify t) x in
-  Fmt.epr "YYY %a -> %s\n%!" (pp t) x s;
-  s
+let to_json_string ?minify t x = Fmt.to_to_string (pp_json ?minify t) x
 
 module Decode_json = struct
   let lexeme e =
@@ -1572,11 +1568,7 @@ let hash t x =
 let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
   let encode_json, decode_json =
     match json with
-    | Some (x, y) ->
-        ( x,
-          fun d ->
-            Fmt.epr "YO\n%!";
-            y d )
+    | Some (x, y) -> (x, y)
     | None -> (
         let rec is_prim : type a. a t -> bool = function
           | Self s -> is_prim s.self
