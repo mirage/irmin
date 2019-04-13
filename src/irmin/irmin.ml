@@ -115,37 +115,12 @@ module Make_ext
 struct
   module X = struct
     module Hash = H
-    module Val = Contents.String
-    module Values = CA (Hash) (Val)
-
-    module Make (V : Type.S) = struct
-      module Key = H
-
-      type 'a t = 'a Values.t
-
-      type key = Key.t
-
-      type value = V.t
-
-      let add t v = Values.add t (Type.to_bin_string V.t v)
-
-      let find t k =
-        Values.find t k >|= function
-        | None -> None
-        | Some v -> (
-          match Type.of_bin_string V.t v with Ok v -> Some v | _ -> None )
-
-      let mem t k =
-        (* normally we should also check that [find] returns a value
-           of the right type, but type mismatch here is not supposed to
-           happen. *)
-        Values.mem t k
-    end
 
     module Contents = struct
       module CA = struct
         module Val = C
-        include Make (Val)
+        module Key = Hash
+        include CA (Key) (Val)
       end
 
       include Contents.Store (CA)
@@ -154,7 +129,8 @@ struct
     module Node = struct
       module CA = struct
         module Val = N
-        include Make (Val)
+        module Key = Hash
+        include CA (Key) (Val)
       end
 
       include Node.Store (Contents) (P) (M) (CA)
@@ -163,7 +139,8 @@ struct
     module Commit = struct
       module CA = struct
         module Val = CT
-        include Make (Val)
+        module Key = Hash
+        include CA (Key) (Val)
       end
 
       include Commit.Store (Node) (CA)
@@ -181,28 +158,37 @@ struct
     module Repo = struct
       type t = {
         config : Conf.t;
-        values : [ `Read ] Values.t;
+        contents : [ `Read ] Contents.t;
+        nodes : [ `Read ] Node.t;
+        commits : [ `Read ] Commit.t;
         branch : Branch.t
       }
 
-      let contents_t t = t.values
+      let contents_t t = t.contents
 
-      let node_t t = (t.values, t.values)
+      let node_t t = t.nodes
 
-      let commit_t t = ((t.values, t.values), t.values)
+      let commit_t t = t.commits
 
       let branch_t t = t.branch
 
       let batch t f =
-        Values.batch t.values @@ fun t ->
-        let contents_t = t in
-        let node_t = (contents_t, t) in
-        let commit_t = (node_t, t) in
+        Contents.CA.batch t.contents @@ fun c ->
+        Node.CA.batch (snd t.nodes) @@ fun n ->
+        Commit.CA.batch (snd t.commits) @@ fun ct ->
+        let contents_t = c in
+        let node_t = (contents_t, n) in
+        let commit_t = (node_t, ct) in
         f contents_t node_t commit_t
 
       let v config =
-        Values.v config >>= fun values ->
-        Branch.v config >|= fun branch -> { values; branch; config }
+        Contents.CA.v config >>= fun contents ->
+        Node.CA.v config >>= fun nodes ->
+        Commit.CA.v config >>= fun commits ->
+        let nodes = (contents, nodes) in
+        let commits = (nodes, commits) in
+        Branch.v config >|= fun branch ->
+        { contents; nodes; commits; branch; config }
     end
   end
 
