@@ -688,7 +688,7 @@ module Make (P : S.PRIVATE) = struct
                         (* remove empty dirs *)
                         Node.is_empty child'
                         >>= function
-                        | true -> may_remove view h
+                        | true -> may_remove view h >>= k
                         | false -> Node.add view h (`Node child') >>= some ) )
               )
         in
