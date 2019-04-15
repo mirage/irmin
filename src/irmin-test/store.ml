@@ -1111,6 +1111,12 @@ module Make (S : S) = struct
       let foo2 = random_value 10 in
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
+      S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
+      S.Tree.add v1 [ "foo"; "bar"; "toto" ] foo2 >>= fun v1 ->
+      S.Tree.remove v1 [ "foo"; "bar"; "toto" ] >>= fun v1 ->
+      S.Tree.find v1 [ "foo"; "toto" ] >>= fun v ->
+      Alcotest.(check (option string)) "remove" (Some foo1) v;
+      S.Tree.empty |> fun v1 ->
       S.Tree.stats v1 >>= fun s ->
       Alcotest.(check stats_t) "empty stats" empty_stats s;
       S.Tree.add v1 [ "foo"; "1" ] foo1 >>= fun v1 ->
