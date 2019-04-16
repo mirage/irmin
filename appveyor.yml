@@ -7,7 +7,7 @@ environment:
     FORK_BRANCH: master
     CYG_ROOT: C:\cygwin64
     OPAM_SWITCH: 4.06.1+mingw64c
-    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
+    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:. encore.dev git.dev git-http.dev git-unix.dev git-mirage.dev"
   matrix:
   - PACKAGE: "irmin-mirage.dev"
 
