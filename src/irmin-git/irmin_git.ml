@@ -177,7 +177,8 @@ struct
 
       let to_bin t =
         let blob = G.Value.Blob.of_string (Irmin.Type.to_bin_string C.t t) in
-        match Raw.to_raw (G.Value.blob blob) with
+        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        match Raw.to_raw ~raw ~etmp (G.Value.blob blob) with
         | Error _ -> assert false
         | Ok s -> s
 
@@ -331,7 +332,8 @@ struct
       let of_n n = v (N.list n)
 
       let to_bin t =
-        match Raw.to_raw (G.Value.tree t) with
+        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        match Raw.to_raw ~raw ~etmp (G.Value.tree t) with
         | Error _ -> assert false
         | Ok s -> s
 
@@ -449,7 +451,8 @@ struct
         C.v ~info ~node ~parents
 
       let to_bin t =
-        match Raw.to_raw (G.Value.commit t) with
+        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        match Raw.to_raw ~raw ~etmp (G.Value.commit t) with
         | Error _ -> assert false
         | Ok s -> s
 
