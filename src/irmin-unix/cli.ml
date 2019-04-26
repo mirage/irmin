@@ -653,7 +653,7 @@ let graphql =
        let graphql (S ((module S), store, remote_fn)) port addr =
          run
            (let module Server =
-              Graphql.Make
+              Graphql.Server.Make
                 (S)
                 (struct
                   let remote = remote_fn

@@ -57,35 +57,35 @@ module Git : sig
         and module Git = G
 
   module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
-                                                                             with type 
+                                                                             with type
                                                                              key =
                                                                                string
                                                                                list
-                                                                              and type 
+                                                                              and type
                                                                              step =
                                                                                string
-                                                                              and type 
+                                                                              and type
                                                                              contents =
                                                                                C
                                                                                .t
-                                                                              and type 
+                                                                              and type
                                                                              branch =
                                                                                string
                                                                               and module Git = G
 
   module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
-                                                                              with type 
+                                                                              with type
                                                                               key =
                                                                                string
                                                                                list
-                                                                               and type 
+                                                                               and type
                                                                               step =
                                                                                string
-                                                                               and type 
+                                                                               and type
                                                                               contents =
                                                                                C
                                                                                .t
-                                                                               and type 
+                                                                               and type
                                                                               branch =
                                                                                Irmin_git
                                                                                .reference
@@ -197,27 +197,29 @@ module Git : sig
 end
 
 module Graphql : sig
-  module type S = sig
-    module Pclock : Mirage_clock_lwt.PCLOCK
+  module Server: sig
+    module type S = sig
+      module Pclock : Mirage_clock_lwt.PCLOCK
 
-    module Http : Cohttp_lwt.S.Server
+      module Http : Cohttp_lwt.S.Server
 
-    module Store :
-      Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
+      module Store :
+        Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
-    val start :
-      pclock:Pclock.t ->
-      http:(Http.t -> unit Lwt.t) ->
-      Store.repo ->
-      unit Lwt.t
+      val start :
+        pclock:Pclock.t ->
+        http:(Http.t -> unit Lwt.t) ->
+        Store.repo ->
+        unit Lwt.t
+    end
+
+    module Make
+        (Http : Cohttp_lwt.S.Server)
+        (Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
+        (Pclock : Mirage_clock_lwt.PCLOCK) :
+      S
+      with module Pclock = Pclock
+       and module Store = Store
+       and module Http = Http
   end
-
-  module Make
-      (Http : Cohttp_lwt.S.Server)
-      (Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
-      (Pclock : Mirage_clock_lwt.PCLOCK) :
-    S
-    with module Pclock = Pclock
-     and module Store = Store
-     and module Http = Http
 end
