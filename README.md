@@ -34,6 +34,7 @@ The following packages have been made available on `opam`:
 - `irmin-chunk` - chunked storage
 - `irmin-fs` - filesystem-based storage using `bin_prot`
 - `irmin-git` - Git compatible storage
+- `irmin-graphql` - GraphQL server
 - `irmin-http` - a simple REST interface
 - `irmin-mem` - in-memory storage implementation
 - `irmin-mirage` - mirage compatibility
@@ -87,8 +88,8 @@ foo/bar => 'testing 123'
 The `examples` directory contains some more advanced examples. The build them, run:
 
 ```bash
-$ jbuilder build examples/trees.exe
-$ _build/default/examples/trees.exe
+$ dune build examples/trees.exe
+$ ./_build/default/examples/trees.exe
 ```
 
 ### Command-line
