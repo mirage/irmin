@@ -3421,7 +3421,7 @@ module type SYNC = sig
 
       If the remote repository has no commits then [fetch] will return
       [Error `No_head]. In the case where calling [fetch] on an empty repository
-      is expected you should explicitly handle the [Error `No_head] case. *)
+      is expected you should explicitly handle [Error `No_head]. *)
 
   val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
   (** Same as {!fetch} but raise [Invalid_argument] if either the
@@ -3449,7 +3449,7 @@ module type SYNC = sig
 
       If the remote repository has no commits then [pull] will return
       [Error `No_head]. In the case where calling [pull] on an empty repository
-      is expected you should explicitly handle the [Error `No_head] case. *)
+      is expected you should explicitly handle [Error `No_head] *)
 
   val pull_exn :
     db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t
