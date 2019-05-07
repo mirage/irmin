@@ -59,7 +59,7 @@ struct
         Lwt.return_unit
 
   let iter t f =
-    Lwt.join
+    Lwt.choose
       [ Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
         Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
         Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits

@@ -1446,7 +1446,7 @@ module Make (S : S) = struct
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
     in
-    run x (fun repo -> Lwt.join [ test_branches repo; test_contents repo ])
+    run x (fun repo -> Lwt.choose [ test_branches repo; test_contents repo ])
 
   let test_concurrent_updates x () =
     let test_one repo =
@@ -1547,7 +1547,7 @@ module Make (S : S) = struct
         let ry = Lwt_mvar.create_empty () in
         let wy = Lwt_mvar.create_empty () in
         S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        Lwt.choose
           [ update [ "a" ] ~retries:0 `Set rx wx;
             update [ "a" ] ~retries:0 `Set ry wy;
             ( Lwt_mvar.put rx "1" >>= fun () ->
@@ -1568,7 +1568,7 @@ module Make (S : S) = struct
         let rz = Lwt_mvar.create_empty () in
         let wz = Lwt_mvar.create_empty () in
         S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        Lwt.choose
           [ update [ "a" ] ~retries:0 `Test_and_set rx wx;
             update [ "a" ] ~retries:0 `Test_and_set ry wy;
             update [ "a" ] ~retries:1 `Test_and_set rz wz;
@@ -1598,7 +1598,7 @@ module Make (S : S) = struct
         let rz = Lwt_mvar.create_empty () in
         let wz = Lwt_mvar.create_empty () in
         S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        Lwt.choose
           [ update [ "a" ] ~retries:0 `Merge rx wx;
             update [ "a" ] ~retries:0 `Merge ry wy;
             update [ "a" ] ~retries:1 `Merge rz wz;
