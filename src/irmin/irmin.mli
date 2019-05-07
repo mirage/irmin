@@ -3417,8 +3417,7 @@ module type SYNC = sig
   val fetch : db -> ?depth:int -> remote -> (commit, fetch_error) result Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
-      parameter limits the history depth. Return [None] if either the
-      local or remote store do not have a valid head.
+      parameter limits the history depth.
 
       If the remote repository has no commits then [fetch] will return
       [Error `No_head]. In the case where calling [fetch] on an empty repository
