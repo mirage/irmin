@@ -1062,12 +1062,16 @@ module type SYNC_STORE = sig
 
   val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
 
+  type pull_error = [ fetch_error | Merge.conflict ]
+
+  val pp_pull_error : pull_error Fmt.t
+
   val pull :
     db ->
     ?depth:int ->
     remote ->
     [ `Merge of Info.f | `Set ] ->
-    (unit, [ fetch_error | Merge.conflict ]) result Lwt.t
+    (unit, pull_error) result Lwt.t
 
   val pull_exn :
     db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t

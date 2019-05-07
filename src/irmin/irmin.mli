@@ -3418,25 +3418,39 @@ module type SYNC = sig
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
-      local or remote store do not have a valid head. *)
+      local or remote store do not have a valid head.
+
+      If the remote repository has no commits then [fetch] will return
+      [Error `No_head]. In the case where calling [fetch] on an empty repository
+      is expected you should explicitly handle the [Error `No_head] case. *)
 
   val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
+
+  (** The type for pull errors. *)
+  type pull_error = [ fetch_error | Merge.conflict ]
+
+  val pp_pull_error : pull_error Fmt.t
+  (** [pp_pull_error] pretty prints pull errors. *)
 
   val pull :
     db ->
     ?depth:int ->
     remote ->
     [ `Merge of Info.f | `Set ] ->
-    (unit, [ fetch_error | Merge.conflict ]) result Lwt.t
+    (unit, pull_error) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
 
       {ul
       {- [`Merge] uses [Head.merge]. Can return a conflict.}
       {- [`Set] uses [S.Head.set].}
-      } *)
+      }
+
+      If the remote repository has no commits then [pull] will return
+      [Error `No_head]. In the case where calling [pull] on an empty repository
+      is expected you should explicitly handle the [Error `No_head] case. *)
 
   val pull_exn :
     db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t
