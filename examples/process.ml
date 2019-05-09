@@ -140,6 +140,7 @@ let rec watchdog () =
 let () =
   let aux () =
     init () >>= fun () ->
-    Lwt.join (watchdog () :: List.map (protect process) (Array.to_list images))
+    Lwt.choose
+      (watchdog () :: List.map (protect process) (Array.to_list images))
   in
   Lwt_main.run (aux ())
