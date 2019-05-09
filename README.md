@@ -89,7 +89,7 @@ The `examples` directory contains some more advanced examples. The build them, r
 
 ```bash
 $ dune build examples/trees.exe
-$ ./_build/default/examples/trees.exe
+$ dune exec examples/trees.exe
 ```
 
 ### Command-line
