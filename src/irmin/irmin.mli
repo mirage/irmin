@@ -3420,8 +3420,13 @@ module type SYNC = sig
       parameter limits the history depth.
 
       If the remote repository has no commits then [fetch] will return
-      [Error `No_head]. In the case where calling [fetch] on an empty repository
-      is expected you should explicitly handle [Error `No_head]. *)
+      [Error `No_head]. In the case where calling [fetch] on an empty
+      repository is expected you should explicitly handle [Error `No_head].
+
+      `` Error `Not_available `` denotes an Irmin instance that is not
+      configured to use `fetch`, otherwise `` Error (`Msg s) `` is used
+      to pass an error message.
+      *)
 
   val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
   (** Same as {!fetch} but raise [Invalid_argument] if either the
@@ -3448,8 +3453,12 @@ module type SYNC = sig
       }
 
       If the remote repository has no commits then [pull] will return
-      [Error `No_head]. In the case where calling [pull] on an empty repository
-      is expected you should explicitly handle [Error `No_head] *)
+      [Error `No_head]. In the case where calling [pull] on an empty
+      repository is expected you should explicitly handle [Error `No_head].
+
+      `` Error `Not_available `` denotes an Irmin instance that is not
+      configured to use `pull`, otherwise `` Error (`Msg s) `` is used
+      to pass an error message. *)
 
   val pull_exn :
     db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t
@@ -3466,6 +3475,16 @@ module type SYNC = sig
       from the current store [t], using [t]'s current branch. If [b]
       is [t]'s current branch, [push] also updates the head of [b] in
       [r] to be the same as in [t].
+
+      If the source repository has no commits then [push] will return
+      [Error `No_head]. In the case where calling [push] on an empty
+      repository is expected you should explicitly handle [Error `No_head].
+
+      `` Error `Not_available `` denotes an Irmin instance that is not
+      configured to use `push` and `` Error `Detached_head `` is returned
+      when the store argument is a reference to a commit rather than
+      a branch, otherwise `` Error (`Msg s) `` is used to pass an
+      error message.
 
       {b Note:} {e Git} semantics is to update [b] only if the new
       head if more recent. This is not the case in {e Irmin}. *)
