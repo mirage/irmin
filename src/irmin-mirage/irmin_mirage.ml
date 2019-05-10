@@ -52,35 +52,35 @@ module Git = struct
         and module Git = G
 
   module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
-                                                                             with type
+                                                                             with type 
                                                                              key =
                                                                                string
                                                                                list
-                                                                              and type
+                                                                              and type 
                                                                              step =
                                                                                string
-                                                                              and type
+                                                                              and type 
                                                                              contents =
                                                                                C
                                                                                .t
-                                                                              and type
+                                                                              and type 
                                                                              branch =
                                                                                string
                                                                               and module Git = G
 
   module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
-                                                                              with type
+                                                                              with type 
                                                                               key =
                                                                                string
                                                                                list
-                                                                               and type
+                                                                               and type 
                                                                               step =
                                                                                string
-                                                                               and type
+                                                                               and type 
                                                                               contents =
                                                                                C
                                                                                .t
-                                                                               and type
+                                                                               and type 
                                                                               branch =
                                                                                Irmin_git
                                                                                .reference
@@ -253,7 +253,7 @@ module Git = struct
       let head = G.Reference.of_string ("refs/heads/" ^ branch) in
       S.repo_of_git ~bare:true ~head t >>= fun repo ->
       S.of_branch repo branch >>= fun t ->
-      Sync.pull_exn t ~depth remote `Set >|= fun () ->
+      Sync.pull_exn t ~depth remote `Set >|= fun _ ->
       let root = path root in
       { t; root }
 
@@ -381,7 +381,7 @@ module Git = struct
     type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
 
     let write_error = function
-      | Ok _ as x -> x
+      | Ok _ -> Ok ()
       | Error e -> Error (e :> write_error)
 
     let pp_write_error ppf = function

@@ -2008,8 +2008,7 @@ module Private : sig
         ?depth:int ->
         endpoint ->
         branch ->
-        (commit option, [ `No_head | `Not_available | `Msg of string ]) result
-        Lwt.t
+        (commit option, [ `Msg of string ]) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
@@ -2020,9 +2019,7 @@ module Private : sig
         ?depth:int ->
         endpoint ->
         branch ->
-        ( unit,
-          [ `No_head | `Not_available | `Msg of string | `Detached_head ] )
-        result
+        ([ `No_head | `Success ], [ `Msg of string | `Detached_head ]) result
         Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
           the remote store located at [uri]. *)
@@ -3408,28 +3405,28 @@ module type SYNC = sig
   (** The type for store heads. *)
   type commit
 
-  (** The type for fetch errors. *)
-  type fetch_error = [ `No_head | `Not_available | `Msg of string ]
-
-  val pp_fetch_error : fetch_error Fmt.t
-  (** [pp_fetch_error] pretty prints fetch errors. *)
-
-  val fetch : db -> ?depth:int -> remote -> (commit, fetch_error) result Lwt.t
+  val fetch :
+    db ->
+    ?depth:int ->
+    remote ->
+    (commit option, [ `Msg of string ]) result Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
       local or remote store do not have a valid head. *)
 
-  val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
+  val fetch_exn : db -> ?depth:int -> remote -> commit option Lwt.t
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
+
+  type pull_error = [ `Msg of string | Merge.conflict ]
 
   val pull :
     db ->
     ?depth:int ->
     remote ->
     [ `Merge of Info.f | `Set ] ->
-    (unit, [ fetch_error | Merge.conflict ]) result Lwt.t
+    ([ `No_head | `Success ], pull_error) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
 
@@ -3439,16 +3436,24 @@ module type SYNC = sig
       } *)
 
   val pull_exn :
-    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t
+    db ->
+    ?depth:int ->
+    remote ->
+    [ `Merge of Info.f | `Set ] ->
+    [ `No_head | `Success ] Lwt.t
   (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
   (** The type for push errors. *)
-  type push_error = [ fetch_error | `Detached_head ]
+  type push_error = [ `Msg of string | `Detached_head ]
 
   val pp_push_error : push_error Fmt.t
   (** [pp_push_error] pretty-prints push errors. *)
 
-  val push : db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
+  val push :
+    db ->
+    ?depth:int ->
+    remote ->
+    ([ `No_head | `Success ], push_error) result Lwt.t
   (** [push t ?depth r] populates the remote store [r] with objects
       from the current store [t], using [t]'s current branch. If [b]
       is [t]'s current branch, [push] also updates the head of [b] in
@@ -3457,7 +3462,7 @@ module type SYNC = sig
       {b Note:} {e Git} semantics is to update [b] only if the new
       head if more recent. This is not the case in {e Irmin}. *)
 
-  val push_exn : db -> ?depth:int -> remote -> unit Lwt.t
+  val push_exn : db -> ?depth:int -> remote -> [ `No_head | `Success ] Lwt.t
   (** Same as {!push} but raise [Invalid_argument] if an error
       happens. *)
 end

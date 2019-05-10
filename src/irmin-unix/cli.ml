@@ -325,8 +325,9 @@ let clone =
            ( store >>= fun t ->
              remote >>= fun r ->
              Sync.fetch t ?depth (apply r f) >>= function
-             | Ok d -> S.Head.set t d
-             | Error e -> failwith (Fmt.to_to_string Sync.pp_fetch_error e) )
+             | Ok (Some d) -> S.Head.set t d
+             | Ok None -> Lwt.return_unit
+             | Error (`Msg e) -> failwith e )
        in
        Term.(mk clone $ store $ remote $ depth))
   }
@@ -344,7 +345,7 @@ let fetch =
              remote >>= fun r ->
              let branch = branch S.Branch.t "import" in
              S.of_branch (S.repo t) branch >>= fun t ->
-             Sync.pull_exn t (apply r f) `Set )
+             Sync.pull_exn t (apply r f) `Set >>= fun _ -> Lwt.return_unit )
        in
        Term.(mk fetch $ store $ remote))
   }
@@ -391,7 +392,7 @@ let pull =
            ( store >>= fun t ->
              remote >>= fun r ->
              Sync.pull_exn t (apply r f) (`Merge (Info.v ?author "%s" message))
-           )
+             >>= fun _ -> Lwt.return_unit )
        in
        Term.(mk pull $ store $ author $ message $ remote))
   }
@@ -405,7 +406,9 @@ let push =
       (let push (S ((module S), store, f)) remote =
          let module Sync = Irmin.Sync (S) in
          run
-           (store >>= fun t -> remote >>= fun r -> Sync.push_exn t (apply r f))
+           ( store >>= fun t ->
+             remote >>= fun r ->
+             Sync.push_exn t (apply r f) >>= fun _ -> Lwt.return_unit )
        in
        Term.(mk push $ store $ remote))
   }
