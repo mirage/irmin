@@ -20,7 +20,7 @@ let test () =
   let config = Irmin_git.config Config.root in
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
-  Sync.pull_exn t remote `Set >>= fun () ->
+  Sync.pull_exn t remote `Set >>= fun _ ->
   Store.get t [ "README.md" ] >>= fun readme ->
   Store.get_tree t [] >>= fun tree ->
   Store.Tree.add tree [ "BAR.md" ] "Hoho!" >>= fun tree ->
@@ -31,6 +31,6 @@ let test () =
   Printf.printf "%s\n%!" bar;
   Store.get t [ "FOO.md" ] >>= fun foo ->
   Printf.printf "%s\n%!" foo;
-  Sync.push_exn t remote
+  Sync.push_exn t remote >|= ignore
 
 let () = Lwt_main.run (test ())
