@@ -17,9 +17,6 @@ depends: [
   "irmin"      {>= "1.3.0"}
   "irmin-mem"  {>= "1.3.0"}
   "ptime"
-  "mirage-kv-lwt" {>= "2.0.0"}
-  "mirage-clock"
-  "mirage-clock-lwt"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"

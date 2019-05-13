@@ -16,6 +16,8 @@ depends: [
   "dune"    {build & >= "1.1.0"}
   "irmin-mirage"
   "irmin-graphql"
+  "mirage-clock"
+  "mirage-clock-lwt"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
