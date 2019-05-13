@@ -382,10 +382,10 @@ struct
               ~resolve:(fun _ _src branch remote ->
                 mk_branch s branch >>= fun t ->
                 Sync.fetch t remote >>= function
-                | Ok (Some d) -> Store.Head.set t d >|= fun () -> Ok (Some d)
-                | Ok None -> Lwt.return_ok None
+                | Ok (`Head d) -> Store.Head.set t d >|= fun () -> Ok (Some d)
+                | Ok `Empty -> Lwt.return_ok None
                 | Error (`Msg e) -> Lwt.return_error e );
-            io_field "push" ~typ:(non_null bool)
+            io_field "push" ~typ:(Lazy.force commit)
               ~args:
                 Arg.
                   [ arg "branch" ~typ:Input.branch;
@@ -395,8 +395,8 @@ struct
               ~resolve:(fun _ _src branch remote depth ->
                 mk_branch s branch >>= fun t ->
                 Sync.push t ?depth remote >>= function
-                | Ok `Success -> Lwt.return_ok true
-                | Ok `No_head -> Lwt.return_ok false
+                | Ok (`Head commit) -> Lwt.return_ok (Some commit)
+                | Ok `Empty -> Lwt.return_ok None
                 | Error e ->
                     let s = Fmt.to_to_string Sync.pp_push_error e in
                     Lwt.return_error s );
@@ -418,8 +418,8 @@ struct
                   | None -> Lwt.return `Set
                 in
                 strategy >>= Sync.pull ?depth t remote >>= function
-                | Ok `Success -> Store.Head.find t >>= Lwt.return_ok
-                | Ok `No_head -> Lwt.return_ok None
+                | Ok (`Head h) -> Lwt.return_ok (Some h)
+                | Ok `Empty -> Lwt.return_ok None
                 | Error (`Msg msg) -> Lwt.return_error msg
                 | Error (`Conflict msg) -> Lwt.return_error ("conflict: " ^ msg)
                 )

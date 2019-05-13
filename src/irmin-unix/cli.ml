@@ -325,8 +325,8 @@ let clone =
            ( store >>= fun t ->
              remote >>= fun r ->
              Sync.fetch t ?depth (apply r f) >>= function
-             | Ok (Some d) -> S.Head.set t d
-             | Ok None -> Lwt.return_unit
+             | Ok (`Head d) -> S.Head.set t d
+             | Ok `Empty -> Lwt.return_unit
              | Error (`Msg e) -> failwith e )
        in
        Term.(mk clone $ store $ remote $ depth))

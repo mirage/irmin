@@ -69,6 +69,8 @@ module Make (S : S.STORE) = struct
 
   let pp_hash = Type.pp S.Hash.t
 
+  type status = [ `Empty | `Head of commit ]
+
   let fetch t ?depth remote =
     match remote with
     | Store ((module R), r) -> (
@@ -78,7 +80,7 @@ module Make (S : S.STORE) = struct
         S.Repo.heads s_repo >>= fun min ->
         let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
         R.Head.find r >>= function
-        | None -> Lwt.return_ok None
+        | None -> Lwt.return_ok `Empty
         | Some h -> (
             R.Repo.export (R.repo r) ?depth ~min ~max:[ h ] >>= fun r_slice ->
             convert_slice (module R.Private) (module S.Private) r_slice
@@ -87,11 +89,11 @@ module Make (S : S.STORE) = struct
             | Error e -> Error e
             | Ok () -> (
               match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
-              | Ok h -> Ok (Some h)
+              | Ok h -> Ok (`Head h)
               | Error e -> Error e ) ) )
     | S.E e -> (
       match S.status t with
-      | `Empty | `Commit _ -> Lwt.return_ok None
+      | `Empty | `Commit _ -> Lwt.return_ok `Empty
       | `Branch br -> (
           Log.debug (fun l -> l "Fetching branch %a" pp_branch br);
           B.v (S.repo t) >>= fun g ->
@@ -100,23 +102,18 @@ module Make (S : S.STORE) = struct
           | Ok (Some c) -> (
               Log.debug (fun l -> l "Fetched %a" pp_hash c);
               S.Commit.of_hash (S.repo t) c >|= function
-              | None -> Ok None
-              | Some x -> Ok (Some x) )
+              | None -> Ok `Empty
+              | Some x -> Ok (`Head x) )
           | Ok None -> (
               S.Head.find t >>= function
-              | Some h -> Lwt.return_ok (Some h)
-              | None -> Lwt.return_ok None ) ) )
+              | Some h -> Lwt.return_ok (`Head h)
+              | None -> Lwt.return_ok `Empty ) ) )
     | _ -> Lwt.return_error (`Msg "fetch operation is not available")
-
-  let pp_fetch_error ppf = function
-    | `No_head -> Fmt.string ppf "empty head!"
-    | `Not_available -> Fmt.string ppf "not available!"
-    | `Msg m -> Fmt.string ppf m
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
     | Ok h -> Lwt.return h
-    | Error e -> invalid_argf "Sync.fetch_exn: %a" pp_fetch_error e
+    | Error (`Msg e) -> invalid_argf "Sync.fetch_exn: %s" e
 
   type pull_error = [ `Msg of string | Merge.conflict ]
 
@@ -124,18 +121,17 @@ module Make (S : S.STORE) = struct
     | `Msg s -> Fmt.string ppf s
     | `Conflict c -> Fmt.pf ppf "conflict: %s" c
 
-  let pull t ?depth remote kind :
-      ([ `Success | `No_head ], pull_error) result Lwt.t =
+  let pull t ?depth remote kind : (status, pull_error) result Lwt.t =
     fetch t ?depth remote >>= function
     | Error e -> Lwt.return_error (e :> pull_error)
-    | Ok (Some k) -> (
+    | Ok (`Head k) -> (
       match kind with
-      | `Set -> S.Head.set t k >|= fun () -> Ok `Success
+      | `Set -> S.Head.set t k >|= fun () -> Ok (`Head k)
       | `Merge info -> (
           S.Head.merge ~into:t ~info k >>= function
-          | Ok () -> Lwt.return_ok `Success
+          | Ok () -> Lwt.return_ok (`Head k)
           | Error e -> Lwt.return_error (e :> pull_error) ) )
-    | Ok None -> Lwt.return_ok `No_head
+    | Ok `Empty -> Lwt.return_ok `Empty
 
   let pull_exn t ?depth remote kind =
     pull t ?depth remote kind >>= function
@@ -153,7 +149,7 @@ module Make (S : S.STORE) = struct
     match remote with
     | Store ((module R), r) -> (
         S.Head.find t >>= function
-        | None -> Lwt.return_ok `No_head
+        | None -> Lwt.return_ok `Empty
         | Some h -> (
             Log.debug (fun f -> f "push store");
             R.Repo.heads (R.repo r) >>= fun min ->
@@ -168,15 +164,19 @@ module Make (S : S.STORE) = struct
             | Ok () -> (
               match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
               | Error e -> Lwt.return (Error (e :> push_error))
-              | Ok h -> R.Head.set r h >|= fun () -> Ok `Success ) ) )
+              | Ok h ->
+                  R.Head.set r h >>= fun () ->
+                  S.Head.get t >|= fun head -> Ok (`Head head) ) ) )
     | S.E e -> (
       match S.status t with
-      | `Empty -> Lwt.return_ok `No_head
+      | `Empty -> Lwt.return_ok `Empty
       | `Commit _ -> Lwt.return (Error `Detached_head)
-      | `Branch br ->
+      | `Branch br -> (
+          S.of_branch (S.repo t) br >>= S.Head.get >>= fun head ->
           B.v (S.repo t) >>= fun g ->
-          ( B.push g ?depth e br
-            :> ([ `No_head | `Success ], push_error) result Lwt.t ) )
+          B.push g ?depth e br >>= function
+          | Ok () -> Lwt.return_ok (`Head head)
+          | Error err -> Lwt.return_error (err :> push_error) ) )
     | _ -> Lwt.return_error (`Msg "push operation is not available")
 
   let push_exn t ?depth remote =

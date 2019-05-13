@@ -756,7 +756,7 @@ struct
           | Error (r, e) ->
               errors := Fmt.strf "%a: %s" G.Reference.pp r e :: !errors )
         refs;
-      if !errors = [] then Ok `Success
+      if !errors = [] then Ok ()
       else
         Fmt.kstrf
           (fun e -> Error (`Msg e))
