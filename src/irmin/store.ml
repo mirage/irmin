@@ -295,12 +295,10 @@ module Make (P : S.PRIVATE) = struct
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e )
   end
 
-  type root_tree = [ `Node of node ]
-
   type t = {
     repo : Repo.t;
     head_ref : head_ref;
-    mutable tree : (commit * root_tree) option;
+    mutable tree : (commit * tree) option;
     (* cache for the store tree *)
     lock : Lwt_mutex.t
   }
