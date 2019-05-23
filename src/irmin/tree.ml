@@ -778,7 +778,12 @@ module Make (P : S.PRIVATE) = struct
         let n = match t with `Node n -> n | _ -> Node.empty in
         aux n path Lwt.return >|= function None -> t | Some n -> `Node n )
 
-  let import repo k = Node.of_key repo k
+  let import repo k =
+    P.Node.mem (P.Repo.node_t repo) k >|= function
+    | true -> Some (Node.of_key repo k)
+    | false -> None
+
+  let import_no_check repo k = Node.of_key repo k
 
   let export repo contents_t node_t n =
     let node n = P.Node.add node_t (Node.export_map n) in
