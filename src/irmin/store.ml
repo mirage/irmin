@@ -54,7 +54,8 @@ module Make (P : S.PRIVATE) = struct
   module Tree = struct
     include Tree.Make (P)
 
-    let of_hash r h = Lwt.return (Some (`Node (import r h)))
+    let of_hash r h =
+      import r h >|= function Some t -> Some (`Node t) | None -> None
 
     let hash : tree -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
@@ -99,7 +100,7 @@ module Make (P : S.PRIVATE) = struct
 
     let node t = P.Commit.Val.node t.v
 
-    let tree t = Tree.import t.r (node t) |> fun n -> `Node n
+    let tree t = Tree.import_no_check t.r (node t) |> fun n -> `Node n
 
     let equal x y = Type.equal Hash.t x.h y.h
 
@@ -401,7 +402,7 @@ module Make (P : S.PRIVATE) = struct
       | _ ->
           t.tree <- None;
           (* the tree cache needs to be invalidated *)
-          let n = Tree.import (repo t) (Commit.node h) in
+          let n = Tree.import_no_check (repo t) (Commit.node h) in
           let tree = `Node n in
           t.tree <- Some (h, tree);
           Some (h, tree) )

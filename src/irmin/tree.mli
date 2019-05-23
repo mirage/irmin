@@ -23,7 +23,9 @@ module Make (P : S.PRIVATE) : sig
      and type metadata = P.Node.Val.metadata
      and type contents = P.Contents.value
 
-  val import : P.Repo.t -> P.Node.key -> node
+  val import : P.Repo.t -> P.Node.key -> node option Lwt.t
+
+  val import_no_check : P.Repo.t -> P.Node.key -> node
 
   val export :
     P.Repo.t ->
