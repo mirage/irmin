@@ -403,18 +403,14 @@ module type SYNC = sig
     ?depth:int ->
     endpoint ->
     branch ->
-    (commit option, [ `No_head | `Not_available | `Msg of string ]) result
-    Lwt.t
+    (commit option, [ `Msg of string ]) result Lwt.t
 
   val push :
     t ->
     ?depth:int ->
     endpoint ->
     branch ->
-    ( unit,
-      [ `No_head | `Not_available | `Msg of string | `Detached_head ] )
-    result
-    Lwt.t
+    (unit, [ `Msg of string | `Detached_head ]) result Lwt.t
 end
 
 module type PRIVATE = sig
@@ -1052,29 +1048,30 @@ module type SYNC_STORE = sig
 
   type commit
 
-  type fetch_error = [ `No_head | `Not_available | `Msg of string ]
+  type push_error = [ `Msg of string | `Detached_head ]
 
-  val pp_fetch_error : fetch_error Fmt.t
+  type pull_error = [ `Msg of string | Merge.conflict ]
 
-  type push_error = [ fetch_error | `Detached_head ]
+  type status = [ `Empty | `Head of commit ]
 
-  val fetch : db -> ?depth:int -> remote -> (commit, fetch_error) result Lwt.t
+  val fetch :
+    db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
 
-  val fetch_exn : db -> ?depth:int -> remote -> commit Lwt.t
+  val fetch_exn : db -> ?depth:int -> remote -> status Lwt.t
 
   val pull :
     db ->
     ?depth:int ->
     remote ->
     [ `Merge of Info.f | `Set ] ->
-    (unit, [ fetch_error | Merge.conflict ]) result Lwt.t
+    (status, pull_error) result Lwt.t
 
   val pull_exn :
-    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> unit Lwt.t
+    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> status Lwt.t
 
   val pp_push_error : push_error Fmt.t
 
-  val push : db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
+  val push : db -> ?depth:int -> remote -> (status, push_error) result Lwt.t
 
-  val push_exn : db -> ?depth:int -> remote -> unit Lwt.t
+  val push_exn : db -> ?depth:int -> remote -> status Lwt.t
 end

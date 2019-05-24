@@ -373,7 +373,7 @@ struct
     | Some _ ->
         Schema.
           [ io_field "clone"
-              ~typ:(non_null Lazy.(force commit))
+              ~typ:Lazy.(force commit)
               ~args:
                 Arg.
                   [ arg "branch" ~typ:Input.branch;
@@ -382,11 +382,10 @@ struct
               ~resolve:(fun _ _src branch remote ->
                 mk_branch s branch >>= fun t ->
                 Sync.fetch t remote >>= function
-                | Ok d -> Store.Head.set t d >|= fun () -> Ok d
-                | Error e ->
-                    let err = Fmt.to_to_string Sync.pp_fetch_error e in
-                    Lwt_result.fail err );
-            io_field "push" ~typ:(non_null bool)
+                | Ok (`Head d) -> Store.Head.set t d >|= fun () -> Ok (Some d)
+                | Ok `Empty -> Lwt.return_ok None
+                | Error (`Msg e) -> Lwt.return_error e );
+            io_field "push" ~typ:(Lazy.force commit)
               ~args:
                 Arg.
                   [ arg "branch" ~typ:Input.branch;
@@ -396,8 +395,8 @@ struct
               ~resolve:(fun _ _src branch remote depth ->
                 mk_branch s branch >>= fun t ->
                 Sync.push t ?depth remote >>= function
-                | Ok _ -> Lwt.return_ok true
-                | Error `No_head -> Lwt.return_ok false
+                | Ok (`Head commit) -> Lwt.return_ok (Some commit)
+                | Ok `Empty -> Lwt.return_ok None
                 | Error e ->
                     let s = Fmt.to_to_string Sync.pp_push_error e in
                     Lwt.return_error s );
@@ -419,11 +418,11 @@ struct
                   | None -> Lwt.return `Set
                 in
                 strategy >>= Sync.pull ?depth t remote >>= function
-                | Ok _ -> Store.Head.find t >>= Lwt.return_ok
+                | Ok (`Head h) -> Lwt.return_ok (Some h)
+                | Ok `Empty -> Lwt.return_ok None
                 | Error (`Msg msg) -> Lwt.return_error msg
                 | Error (`Conflict msg) -> Lwt.return_error ("conflict: " ^ msg)
-                | Error `Not_available -> Lwt.return_error "not available"
-                | Error `No_head -> Lwt.return_error "no head" )
+                )
           ]
     | None -> []
 

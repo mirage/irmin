@@ -177,7 +177,7 @@ let test_import_export () =
     let remote = Irmin.remote_store (module Mem) t in
     Generic.Repo.v (Irmin_mem.config ()) >>= fun repo ->
     Generic.master repo >>= fun t ->
-    Sync.pull_exn t remote `Set >>= fun () ->
+    Sync.pull_exn t remote `Set >>= fun _ ->
     Generic.get t [ "test" ] >|= fun toto ->
     Alcotest.(check string) "import" toto "toto"
   in

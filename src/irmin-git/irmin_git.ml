@@ -177,7 +177,7 @@ struct
 
       let to_bin t =
         let blob = G.Value.Blob.of_string (Irmin.Type.to_bin_string C.t t) in
-        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        let raw, etmp = (Cstruct.create 0x100, Cstruct.create 0x100) in
         match Raw.to_raw ~raw ~etmp (G.Value.blob blob) with
         | Error _ -> assert false
         | Ok s -> s
@@ -332,7 +332,7 @@ struct
       let of_n n = v (N.list n)
 
       let to_bin t =
-        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        let raw, etmp = (Cstruct.create 0x100, Cstruct.create 0x100) in
         match Raw.to_raw ~raw ~etmp (G.Value.tree t) with
         | Error _ -> assert false
         | Ok s -> s
@@ -451,7 +451,7 @@ struct
         C.v ~info ~node ~parents
 
       let to_bin t =
-        let raw, etmp = Cstruct.create 0x100, Cstruct.create 0x100 in
+        let raw, etmp = (Cstruct.create 0x100, Cstruct.create 0x100) in
         match Raw.to_raw ~raw ~etmp (G.Value.commit t) with
         | Error _ -> assert false
         | Ok s -> s
@@ -711,7 +711,7 @@ struct
 
   let git_of_branch r = git_of_branch_str (Irmin.Type.to_string B.t r)
 
-  let o_head_of_git = function None -> Error `No_head | Some k -> Ok (Some k)
+  let o_head_of_git = function None -> Ok None | Some k -> Ok (Some k)
 
   let fetch t ?depth e br =
     let uri = S.Endpoint.uri e in

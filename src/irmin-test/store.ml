@@ -1323,7 +1323,15 @@ module Make (S : S) = struct
       Alcotest.(check int) "history-e" 2 (S.History.nb_edges h);
       let remote = Irmin.remote_store (module S) t1 in
       Sync.fetch_exn t1 ~depth:0 remote >>= fun partial ->
+      let partial =
+        match partial with
+        | `Head x -> x
+        | `Empty -> failwith "no head: partial"
+      in
       Sync.fetch_exn t1 remote >>= fun full ->
+      let full =
+        match full with `Head x -> x | `Empty -> failwith "no head: full"
+      in
       (* Restart a fresh store and import everything in there. *)
       let tag = "export" in
       S.of_branch repo tag >>= fun t2 ->
