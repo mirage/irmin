@@ -88,6 +88,9 @@ let l =
 
 let tl = Alcotest.testable (T.pp l) (T.equal l)
 
+let sha1 =
+  Alcotest.testable (T.pp Irmin.Hash.SHA1.t) (T.equal Irmin.Hash.SHA1.t)
+
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
   Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
@@ -103,7 +106,20 @@ let test_bin () =
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo";
   let buf = Buffer.create 10 in
   T.encode_bin ~headers:false T.string buf "foo";
-  Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo"
+  Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
+  let buf = Buffer.create 10 in
+  let h = Irmin.Hash.SHA1.digest "foo" in
+  T.encode_bin ~headers:false Irmin.Hash.SHA1.t buf h;
+  let x = Buffer.contents buf in
+  let buf = Bytes.create 100 in
+  Bytes.blit_string x 0 buf 0 (String.length x);
+  let n, v =
+    T.decode_bin ~headers:false Irmin.Hash.SHA1.t
+      (Bytes.unsafe_to_string buf)
+      0
+  in
+  Alcotest.(check int) "hash size" n Irmin.Hash.SHA1.digest_size;
+  Alcotest.(check sha1) "hash" v h
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
