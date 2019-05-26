@@ -690,6 +690,8 @@ module type STORE = sig
     val hash : tree -> hash
 
     val of_hash : Repo.t -> hash -> [ `Node of node ] option Lwt.t
+
+    val shallow : Repo.t -> hash -> [ `Node of node ]
   end
 
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
