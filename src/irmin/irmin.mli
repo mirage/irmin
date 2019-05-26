@@ -2578,11 +2578,11 @@ module type S = sig
     val hash : tree -> hash
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash : repo -> hash -> [ `Node of node ] option Lwt.t
+    val of_hash : repo -> hash -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as
         hash, or [None] is no such tree object exists. *)
 
-    val shallow : repo -> hash -> [ `Node of node ]
+    val shallow : repo -> hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No
        check is performed to verify if [h] actually exists in [r]. *)
   end
