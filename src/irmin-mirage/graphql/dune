@@ -1,0 +1,4 @@
+(library
+  (name irmin_mirage_graphql)
+  (public_name irmin-mirage-graphql)
+  (libraries irmin-mirage irmin-graphql git-mirage mirage-clock-lwt))
