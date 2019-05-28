@@ -689,7 +689,9 @@ module type STORE = sig
 
     val hash : tree -> hash
 
-    val of_hash : Repo.t -> hash -> [ `Node of node ] option Lwt.t
+    val of_hash : Repo.t -> hash -> tree option Lwt.t
+
+    val shallow : Repo.t -> hash -> tree
   end
 
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
@@ -1018,7 +1020,9 @@ module type STORE = sig
 
   val of_private_commit : repo -> Private.Commit.value -> commit
 
-  val export_tree :
+  val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
+
+  val save_tree :
     repo ->
     [> `Write ] Private.Contents.t ->
     [> `Write ] Private.Node.t ->

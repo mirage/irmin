@@ -57,15 +57,17 @@ module Make (P : S.PRIVATE) = struct
     let of_hash r h =
       import r h >|= function Some t -> Some (`Node t) | None -> None
 
+    let shallow r h = `Node (import_no_check r h)
+
     let hash : tree -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
   end
 
-  let export_contents b c = P.Contents.add b c
+  let save_contents b c = P.Contents.add b c
 
-  let export_tree r x y (tr : Tree.tree) =
+  let save_tree r x y (tr : Tree.tree) =
     match tr with
-    | `Contents (c, _) -> export_contents x c
+    | `Contents (c, _) -> save_contents x c
     | `Node n -> Tree.export r x y n
 
   type node = Tree.node

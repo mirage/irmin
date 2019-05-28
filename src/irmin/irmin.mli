@@ -2501,15 +2501,15 @@ module type S = sig
     (** [empty_marks ()] is an empty collection of marks. *)
 
     (** The type for {!fold}'s [force] parameter. [`True] forces the
-       fold to read the objects of the lazy nodes. [`False f] is
-       applying [f] on every lazy node instead. *)
+        fold to read the objects of the lazy nodes. [`False f] is
+        applying [f] on every lazy node instead. *)
     type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
 
     (** The type for {!fold}'s [uniq] parameters. [`False] folds over
-       all the nodes. [`True] does not recurse on nodes already
-       seen. [`Marks m] uses the collection of marks [m] to store the
-       cache of keys: the fold will modify [m]. This can be used for
-       incremental folds.  *)
+        all the nodes. [`True] does not recurse on nodes already
+        seen. [`Marks m] uses the collection of marks [m] to store the
+        cache of keys: the fold will modify [m]. This can be used for
+        incremental folds.  *)
     type uniq = [ `False | `True | `Marks of marks ]
 
     (** The type for {!fold}'s [pre] and [post] parameters. *)
@@ -2556,8 +2556,8 @@ module type S = sig
 
     val stats : ?force:bool -> tree -> stats Lwt.t
     (** [stats ~force t] are [t]'s statistics. If [force] is true,
-       this will force the reading of lazy nodes. By default it is
-       [false]. *)
+        this will force the reading of lazy nodes. By default it is
+        [false]. *)
 
     (** {1 Concrete Trees} *)
 
@@ -2578,9 +2578,13 @@ module type S = sig
     val hash : tree -> hash
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash : repo -> hash -> [ `Node of node ] option Lwt.t
+    val of_hash : repo -> hash -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as
         hash, or [None] is no such tree object exists. *)
+
+    val shallow : repo -> hash -> tree
+    (** [shallow r h] is the shallow tree object with the hash [h]. No
+       check is performed to verify if [h] actually exists in [r]. *)
   end
 
   (** {1 Reads} *)
@@ -3120,13 +3124,16 @@ module type S = sig
   (** [of_private_commit r c] is the commit associated with the
      private commit object [c]. *)
 
-  val export_tree :
+  val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
+  (** Save a content into the database *)
+
+  val save_tree :
     repo ->
     [> `Write ] Private.Contents.t ->
     [> `Write ] Private.Node.t ->
     tree ->
     hash Lwt.t
-  (** Export trees. *)
+  (** Save a tree into the database. *)
 end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
