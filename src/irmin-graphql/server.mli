@@ -32,20 +32,39 @@ end
 module type PRESENTER = sig
   type t
 
+  type key
+
+  type tree
+
   type src
 
-  val to_src : t -> src
+  val to_src : tree -> key -> t -> src
 
   val schema_typ : (unit, src option) Schema.typ
 end
 
 module type PRESENTATION = sig
-  module Contents : PRESENTER
+  type tree
 
-  module Metadata : PRESENTER
+  type key
+
+  type contents
+
+  type metadata
+
+  module Contents :
+    PRESENTER with type tree := tree and type key := key and type t := contents
+
+  module Metadata :
+    PRESENTER with type tree := tree and type key := key and type t := metadata
 end
 
-module Default_presenter (T : Irmin.Type.S) : PRESENTER with type t = T.t
+module Default_presentation (S : Irmin.S) :
+  PRESENTATION
+  with type contents := S.contents
+   and type metadata := S.metadata
+   and type tree := S.tree
+   and type key := S.key
 
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) :
   S with type repo = Store.repo and type server = Server.t
@@ -55,6 +74,8 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S)
     (Presentation : PRESENTATION
-                    with type Contents.t = Store.contents
-                     and type Metadata.t = Store.metadata) :
+                    with type contents := Store.contents
+                     and type metadata := Store.metadata
+                     and type tree := Store.tree
+                     and type key := Store.key) :
   S with type repo = Store.repo and type server = Server.t
