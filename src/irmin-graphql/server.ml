@@ -45,27 +45,44 @@ end
 module type PRESENTER = sig
   type t
 
+  type key
+
+  type tree
+
   type src
 
-  val to_src : t -> src
+  val to_src : tree -> key -> t -> src
 
   val schema_typ : (unit, src option) Schema.typ
 end
 
 module type PRESENTATION = sig
-  module Contents : PRESENTER
+  type tree
 
-  module Metadata : PRESENTER
+  type key
+
+  type contents
+
+  type metadata
+
+  module Contents :
+    PRESENTER with type tree := tree and type key := key and type t := contents
+
+  module Metadata :
+    PRESENTER with type tree := tree and type key := key and type t := metadata
 end
 
 module Default_presenter (T : Irmin.Type.S) = struct
-  type t = T.t
-
   type src = string
 
-  let to_src = Irmin.Type.to_string T.t
+  let to_src _tree _key = Irmin.Type.to_string T.t
 
   let schema_typ = Schema.string
+end
+
+module Default_presentation (S : Irmin.S) = struct
+  module Contents = Default_presenter (S.Contents)
+  module Metadata = Default_presenter (S.Metadata)
 end
 
 module Make_ext
@@ -73,8 +90,10 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S)
     (Presentation : PRESENTATION
-                    with type Contents.t = Store.contents
-                     and type Metadata.t = Store.metadata) =
+                    with type contents := Store.contents
+                     and type metadata := Store.metadata
+                     and type tree := Store.tree
+                     and type key := Store.key) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
@@ -244,7 +263,7 @@ struct
                 ~typ:Presentation.Contents.schema_typ
                 ~resolve:(fun _ (tree, _) key ->
                   Store.Tree.find tree key
-                  >|= Option.map Presentation.Contents.to_src
+                  >|= Option.map (Presentation.Contents.to_src tree key)
                   >|= Result.ok );
               io_field "get_contents"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
@@ -253,7 +272,7 @@ struct
                   Store.Tree.find_all tree key
                   >|= Option.map (fun (c, m) ->
                           let key' = concat_key tree_key key in
-                          (c, m, key') )
+                          (tree, c, m, key') )
                   >|= Result.ok );
               io_field "get_tree"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
@@ -267,9 +286,9 @@ struct
               io_field "list_contents_recursively" ~args:[]
                 ~typ:(non_null (list (non_null Lazy.(force contents))))
                 ~resolve:(fun _ (tree, key) ->
-                  let rec tree_list ?(acc = []) tree key =
-                    match tree with
-                    | `Contents (c, m) -> (c, m, key) :: acc
+                  let rec tree_list ?(acc = []) concrete_tree key =
+                    match concrete_tree with
+                    | `Contents (c, m) -> (tree, c, m, key) :: acc
                     | `Tree l ->
                         List.fold_left
                           (fun acc (step, t) ->
@@ -297,7 +316,8 @@ struct
                               Store.Tree.get_all tree relative_key
                               >|= fun (c, m) ->
                               Lazy.(
-                                force contents_as_node (c, m, absolute_key))
+                                force contents_as_node
+                                  (tree, c, m, absolute_key))
                           | `Node ->
                               Store.Tree.get_tree tree relative_key
                               >|= fun t ->
@@ -335,22 +355,24 @@ struct
             ] ))
 
   and contents :
-      ('ctx, (Store.contents * Store.metadata * Store.key) option) Schema.typ
+      ( 'ctx,
+        (Store.tree * Store.contents * Store.metadata * Store.key) option )
+      Schema.typ
       Lazy.t =
     lazy
       Schema.(
         obj "Contents" ~fields:(fun _contents ->
             [ field "key" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (_, _, key) ->
+                ~resolve:(fun _ (_, _, _, key) ->
                   Irmin.Type.to_string Store.key_t key );
               field "metadata" ~typ:(non_null Presentation.Metadata.schema_typ)
-                ~args:[] ~resolve:(fun _ (_, metadata, _) ->
-                  Presentation.Metadata.to_src metadata );
+                ~args:[] ~resolve:(fun _ (tree, _, metadata, key) ->
+                  Presentation.Metadata.to_src tree key metadata );
               field "value" ~typ:(non_null Presentation.Contents.schema_typ)
-                ~args:[] ~resolve:(fun _ (contents, _, _) ->
-                  Presentation.Contents.to_src contents );
+                ~args:[] ~resolve:(fun _ (tree, contents, _, key) ->
+                  Presentation.Contents.to_src tree key contents );
               field "hash" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (contents, _, _) ->
+                ~resolve:(fun _ (_, contents, _, _) ->
                   let hash = Store.Contents.hash contents in
                   Irmin.Type.to_string Store.Hash.t hash )
             ] ))
@@ -733,10 +755,6 @@ end
 
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) =
 struct
-  module Presentation = struct
-    module Contents = Default_presenter (Store.Contents)
-    module Metadata = Default_presenter (Store.Metadata)
-  end
-
+  module Presentation = Default_presentation (Store)
   include Make_ext (Server) (Config) (Store) (Presentation)
 end
