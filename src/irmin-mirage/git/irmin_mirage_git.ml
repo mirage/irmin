@@ -171,37 +171,11 @@ module KV_RO (G : Git.S) = struct
           (Irmin.Info.author info) (Irmin.Info.date info)
           (Irmin.Info.message info)
 
-  (* XXX(samoht): extracted from Canopy. Should probably be
-       upstreamed directly. *)
-
-  module Topological = Graph.Topological.Make (S.History)
-
-  (* XXX(samoht): very slow: will go through the entire history!! *)
-  let created_updated_ids commit key =
-    S.of_commit commit >>= fun t ->
-    S.history t >>= fun history ->
-    let aux commit_id acc =
-      S.of_commit commit_id >>= fun store ->
-      acc >>= fun (created, updated, last) ->
-      S.find store (path key) >|= fun data ->
-      match (data, last) with
-      | None, None -> (created, updated, last)
-      | None, Some _ -> (created, updated, last)
-      | Some x, Some y when x = y -> (created, updated, last)
-      | Some _, None -> (commit_id, commit_id, data)
-      | Some _, Some _ -> (created, commit_id, data)
-    in
-    Topological.fold aux history (Lwt.return (commit, commit, None))
-
-  let last_modified_at_commit head key =
-    created_updated_ids head key >|= fun (_, updated, _) ->
-    S.Commit.info updated |> fun info ->
-    (* XXX(samoht): should Irmin use Ptime directly? *)
-    Ok (0, Irmin.Info.date info)
-
   let last_modified t key =
-    S.Head.get t.t >>= fun head ->
-    last_modified_at_commit head key
+    let key' = path key in
+    S.last_modified t.t key' >|= function
+    | [] -> Error (`Not_found key)
+    | h :: _ -> Ok (0, Irmin.Info.date (S.Commit.info h))
 
   let connect ?(depth = 1) ?(branch = "master") ?(root = Mirage_kv.Key.empty)
       ?conduit ?resolver ?headers t uri =
@@ -321,12 +295,12 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   (* XXX(samoht): always return the 'last modified' on the
        underlying storage layer, not for the current batch. *)
-  let last_modified t k =
+  let last_modified t key =
     match t.store with
-    | Store t -> RO.last_modified t k
+    | Store t -> RO.last_modified t key
     | Batch b ->
-        (* XXX(samoht): we need a Tree.last_modified function too *)
-        RO.last_modified_at_commit b.origin k
+        RO.S.of_commit b.origin >>= fun t ->
+        RO.last_modified { root = S.Key.empty; t } key
 
   let repo t = match t.store with Store t -> S.repo t.t | Batch b -> b.repo
 
