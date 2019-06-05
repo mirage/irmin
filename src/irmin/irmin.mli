@@ -1484,6 +1484,8 @@ module Private : sig
       val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
       (** [with_lock t k f] executes [f ()] while holding the exclusive
           lock associated to the key [k]. *)
+
+      val stats : t -> int
     end
 
     (** Create a lock manager implementation. *)
@@ -2488,10 +2490,6 @@ module type S = sig
     val merge : tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
 
-    (** {1 Caches} *)
-
-    val clear_caches : tree -> unit
-
     (** {1 Folds} *)
 
     (** The type for fold marks. *)
@@ -2573,6 +2571,20 @@ module type S = sig
     (** [to_concrete t] is the concrete tree equivalent to the subtree
         [t]. *)
 
+    (** {1 Caches} *)
+
+    val clear : tree -> unit
+
+    (** Global cache of key -> tree -- used for hash-consing and to
+        speed-up lookups. *)
+    module Cache : sig
+      val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
+
+      val trim : unit -> unit
+
+      val dump : unit Fmt.t
+    end
+
     (** {1 Import/Export} *)
 
     val hash : tree -> hash
@@ -2584,7 +2596,7 @@ module type S = sig
 
     val shallow : repo -> hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No
-       check is performed to verify if [h] actually exists in [r]. *)
+        check is performed to verify if [h] actually exists in [r]. *)
   end
 
   (** {1 Reads} *)
@@ -3128,16 +3140,20 @@ module type S = sig
   (** Save a content into the database *)
 
   val save_tree :
+    ?clear:bool ->
     repo ->
     [> `Write ] Private.Contents.t ->
     [> `Write ] Private.Node.t ->
     tree ->
     hash Lwt.t
-  (** Save a tree into the database. *)
+  (** Save a tree into the database. Does not do any reads. If
+        [clear] is set (it is by default), the tree cache will be
+        cleared after the save. *)
 end
 
-(** [Json_tree] is used to project JSON values onto trees. Instead of the entire object being stored under one key, it
-    is split across several keys starting at the specified root key.  *)
+(** [Json_tree] is used to project JSON values onto trees. Instead of the entire
+    object being stored under one key, it is split across several keys starting
+    at the specified root key.  *)
 module Json_tree (Store : S with type contents = Contents.json) : sig
   include Contents.S with type t = Contents.json
 
@@ -3591,11 +3607,11 @@ module Make_ext
     (Path : Path.S)
     (Branch : Branch.S)
     (Hash : Hash.S)
-    (N : Private.Node.S
-         with type metadata = Metadata.t
-          and type hash = Hash.t
-          and type step = Path.step)
-    (CT : Private.Commit.S with type hash = Hash.t) :
+    (Node : Private.Node.S
+            with type metadata = Metadata.t
+             and type hash = Hash.t
+             and type step = Path.step)
+    (Commit : Private.Commit.S with type hash = Hash.t) :
   S
   with type key = Path.t
    and type contents = Contents.t

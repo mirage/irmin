@@ -22,6 +22,8 @@ module type S = sig
   val v : unit -> t
 
   val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+
+  val stats : t -> int
 end
 
 module Make (K : Type.S) : S with type key = K.t

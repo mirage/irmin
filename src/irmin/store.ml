@@ -65,10 +65,10 @@ module Make (P : S.PRIVATE) = struct
 
   let save_contents b c = P.Contents.add b c
 
-  let save_tree r x y (tr : Tree.tree) =
+  let save_tree ?(clear = true) r x y (tr : Tree.tree) =
     match tr with
     | `Contents (c, _) -> save_contents x c
-    | `Node n -> Tree.export r x y n
+    | `Node n -> Tree.export ~clear r x y n
 
   type node = Tree.node
 
