@@ -354,6 +354,8 @@ struct
 
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+
+      let merge merge_key = Irmin.Merge.like t (N.merge merge_key) to_n of_n
     end
 
     include Content_addressable (struct

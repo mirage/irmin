@@ -1551,6 +1551,9 @@ module Private : sig
       val t : t Type.t
       (** [t] is the value type for {!t}. *)
 
+      val merge : hash option Merge.t -> t Merge.t
+      (** [merge] is the merge function for values of type {!t}. *)
+
       val default : metadata
       (** [default] is the default metadata value. *)
 

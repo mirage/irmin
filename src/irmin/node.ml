@@ -130,6 +130,38 @@ struct
   let entries e = List.map to_entry (list e)
 
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  let merge_value (merge_key : K.t option Merge.t) : value option Merge.t =
+    let explode = function
+      | None -> (None, None)
+      | Some (`Contents (c, m)) -> (Some c, Some m)
+      | Some (`Node n) -> (Some n, None)
+    in
+    let implode = function
+      | None, _ -> None
+      | Some c, Some m -> Some (`Contents (c, m))
+      | Some n, None -> Some (`Node n)
+    in
+    Merge.like (Type.option value_t)
+      (Merge.pair merge_key (Merge.option M.merge))
+      explode implode
+
+  let merge (merge_key : K.t option Merge.t) : t Merge.t =
+    let merge =
+      Merge.alist step_t value_t (fun _step -> merge_value merge_key)
+    in
+    let explode l =
+      if StepMap.is_empty l then []
+      else StepMap.fold (fun _ v acc -> of_entry v :: acc) l []
+    in
+    let implode = function
+      | [] -> StepMap.empty
+      | l ->
+          List.fold_left
+            (fun acc (k, v) -> StepMap.add k (to_entry (k, v)) acc)
+            StepMap.empty l
+    in
+    Merge.like t merge explode implode
 end
 
 module Store
@@ -165,70 +197,24 @@ struct
 
   let add (_, t) = S.add t
 
-  let all_contents t =
-    let kvs = S.Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
-      [] kvs
-
-  let all_succ t =
-    let kvs = S.Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
-      [] kvs
-
-  let contents_t = C.Key.t
-
-  let metadata_t = M.t
-
-  let step_t = Path.step_t
-
-  (* [Merge.alist] expects us to return an option. [C.merge] does
-     that, but we need to consider the metadata too... *)
-  let merge_contents_meta c =
-    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
-       S.Val.Metadata.t) option]. *)
-    let explode = function
-      | None -> (None, M.default)
-      | Some (c, m) -> (Some c, m)
-    in
-    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
-    Merge.like
-      Type.(option (pair contents_t metadata_t))
-      (Merge.pair (C.merge c) M.merge)
-      explode implode
-
-  let merge_contents_meta c =
-    Merge.alist step_t
-      Type.(pair contents_t metadata_t)
-      (fun _step -> merge_contents_meta c)
-
-  let merge_parents merge_key =
-    Merge.alist step_t S.Key.t (fun _step -> merge_key)
-
-  let merge_value (c, _) merge_key =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
-      let xs = List.map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.map (fun (s, n) -> (s, `Node n)) succ in
-      S.Val.v (xs @ ys)
-    in
-    let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
-    Merge.like S.Val.t merge explode implode
-
-  let rec merge t =
+  let rec merge t : key option Merge.t =
     let merge_key =
       Merge.v (Type.option S.Key.t) (fun ~old x y ->
           Merge.(f (merge t)) ~old x y )
     in
-    let merge = merge_value t merge_key in
+    let merge = Merge.option (S.Val.merge merge_key) in
     let read = function
-      | None -> Lwt.return S.Val.empty
-      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v )
+      | None -> Lwt.return None
+      | Some k -> (
+          find t k >|= function
+          | None -> None
+          | Some v -> if S.Val.is_empty v then None else Some v )
     in
-    let add v =
-      if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return (Some k)
+    let add = function
+      | None -> Lwt.return None
+      | Some v ->
+          if S.Val.is_empty v then Lwt.return None
+          else add t v >>= fun k -> Lwt.return (Some k)
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -417,6 +403,7 @@ module V1 (N : S.NODE) = struct
   type t = { n : N.t; entries : (step * value) list }
 
   let import n = { n; entries = N.list n }
+
   let export t = t.n
 
   let v entries =
@@ -469,4 +456,6 @@ module V1 (N : S.NODE) = struct
 
   let t : t Type.t =
     Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+
+  let merge merge_key = Merge.like t (N.merge merge_key) export import
 end

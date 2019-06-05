@@ -134,6 +134,8 @@ module type NODE = sig
 
   val t : t Type.t
 
+  val merge : hash option Merge.t -> t Merge.t
+
   val default : metadata
 
   val metadata_t : metadata Type.t
