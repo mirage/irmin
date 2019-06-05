@@ -79,7 +79,7 @@ module Make (P : S.PRIVATE) = struct
 
     type value =
       | Key : repo * key -> value
-      | Contents : contents * key option -> value
+      | Val : contents * key option -> value
       | Both : repo * key * contents -> value
 
     type t = { mutable v : value }
@@ -89,35 +89,101 @@ module Make (P : S.PRIVATE) = struct
 
     let value =
       let open Type in
-      variant "Node.Contents" (fun key contents both -> function
+      variant "Node.Contents" (fun key value both -> function
         | Key (_, x) -> key x
-        | Contents (x, y) -> contents (x, y)
+        | Val (x, y) -> value (x, y)
         | Both (_, x, y) -> both (x, y) )
       |~ case1 "Key" P.Contents.Key.t (fun _ -> assert false)
       |~ case1 "Contents"
            (pair P.Contents.Val.t (option P.Contents.Key.t))
-           (fun (x, y) -> Contents (x, y))
+           (fun (x, y) -> Val (x, y))
       |~ case1 "Both" (pair P.Contents.Key.t P.Contents.Val.t) (fun (x, y) ->
-             Contents (y, Some x) )
+             Val (y, Some x) )
       |> sealv
+
+    let clear_local_cache t =
+      match t.v with Key _ | Val _ -> () | Both (r, k, _) -> t.v <- Key (r, k)
+
+    module Cache = struct
+      module M =
+        Lru.Make (struct
+            type t = key
+
+            let equal (x : t) (y : t) = Type.equal P.Contents.Key.t x y
+
+            let hash (x : t) = Type.hash P.Contents.Key.t x
+          end)
+          (struct
+            type nonrec t = t
+
+            let weight _ = 1
+          end)
+
+      include M
+
+      let global = create 100_000
+
+      let resize n =
+        resize n global;
+        trim global
+
+      let capacity () = capacity global
+
+      let add k v =
+        add k v global;
+        trim ~drop:(fun _ -> clear_local_cache) global
+
+      let promote k = promote k global
+
+      let clear () =
+        iter (fun _ -> clear_local_cache) global;
+        clear global
+
+      let find k = find k global
+    end
 
     let t = Type.map value (fun v -> { v }) (fun t -> t.v)
 
-    let of_contents c = { v = Contents (c, None) }
+    let of_value c = { v = Val (c, None) }
 
-    let of_key db k = { v = Key (db, k) }
+    let of_key db k =
+      match Cache.find k with
+      | None ->
+          let t = { v = Key (db, k) } in
+          Cache.add k t;
+          t
+      | Some t ->
+          Cache.promote k;
+          t
 
     let key c =
       match c.v with
-      | Both (_, k, _) | Key (_, k) | Contents (_, Some k) -> k
-      | Contents (v, None) ->
+      | Both (_, k, _) | Key (_, k) | Val (_, Some k) -> k
+      | Val (v, None) ->
           let k = P.Contents.Key.digest v in
-          c.v <- Contents (v, Some k);
+          let () =
+            match Cache.find k with
+            | None ->
+                c.v <- Val (v, Some k);
+                Cache.add k c
+            | Some t -> (
+                Cache.promote k;
+                match t.v with
+                | Both _ -> c.v <- t.v
+                | Val _ ->
+                    let v = Val (v, Some k) in
+                    t.v <- v;
+                    c.v <- v
+                | Key (r, _) ->
+                    let v = Both (r, k, v) in
+                    t.v <- v;
+                    c.v <- v )
+          in
           k
 
-    let v t =
+    let to_value t =
       match t.v with
-      | Both (_, _, c) | Contents (c, _) -> Lwt.return (Some c)
+      | Both (_, _, c) | Val (c, _) -> Lwt.return (Some c)
       | Key (db, k) -> (
           P.Contents.find (P.Repo.contents_t db) k >|= function
           | None -> None
@@ -131,12 +197,13 @@ module Make (P : S.PRIVATE) = struct
     let merge : t Merge.t =
       let f ~old x y =
         let old =
-          Merge.bind_promise old (fun old () -> v old >|= fun c -> Ok (Some c))
+          Merge.bind_promise old (fun old () ->
+              to_value old >|= fun c -> Ok (Some c) )
         in
-        v x >>= fun x ->
-        v y >>= fun y ->
+        to_value x >>= fun x ->
+        to_value y >>= fun y ->
         Merge.(f P.Contents.Val.merge) ~old x y >|= function
-        | Ok (Some c) -> Ok (of_contents c)
+        | Ok (Some c) -> Ok (of_value c)
         | Ok None -> Error (`Conflict "empty contents")
         | Error _ as e -> e
       in
@@ -145,16 +212,11 @@ module Make (P : S.PRIVATE) = struct
     let fold ~force ~path f t acc =
       let aux = function None -> Lwt.return acc | Some c -> f path c acc in
       match force with
-      | `True -> v t >>= aux
+      | `True -> to_value t >>= aux
       | `False skip -> (
         match t.v with
         | Key _ -> skip path acc
-        | Both (_, _, c) | Contents (c, _) -> aux (Some c) )
-
-    let clear_caches t =
-      match t.v with
-      | Key _ | Contents _ -> ()
-      | Both (r, k, _) -> t.v <- Key (r, k)
+        | Both (_, _, c) | Val (c, _) -> aux (Some c) )
   end
 
   module Node = struct
@@ -324,7 +386,7 @@ module Make (P : S.PRIVATE) = struct
         | exception Not_found -> Lwt.return None
         | `Node n -> Lwt.return (Some (`Node n))
         | `Contents (c, m) -> (
-            Contents.v c >|= function
+            Contents.to_value c >|= function
             | None -> None
             | Some c -> Some (`Contents (c, m)) ) )
 
@@ -397,12 +459,11 @@ module Make (P : S.PRIVATE) = struct
             match v with
             | `Node _ as n -> fun _ -> n
             | `Contents (`Set (c, m)) ->
-                fun _ -> `Contents (Contents.of_contents c, m)
+                fun _ -> `Contents (Contents.of_value c, m)
             | `Contents (`Keep c) -> (
                 function
-                | Some m -> `Contents (Contents.of_contents c, m)
-                | None -> `Contents (Contents.of_contents c, Metadata.default)
-                )
+                | Some m -> `Contents (Contents.of_value c, m)
+                | None -> `Contents (Contents.of_value c, Metadata.default) )
           in
           to_map t >>= function
           | None ->
@@ -472,14 +533,15 @@ module Make (P : S.PRIVATE) = struct
 
     let merge_value = merge_value ()
 
-    let rec clear_caches t =
+    let rec clear_local_cache t =
       match t.v with
       | Key _ -> ()
       | Both (r, k, _) -> t.v <- Key (r, k)
       | Map (m, _) ->
           StepMap.iter
-            (fun _ -> function `Contents (c, _) -> Contents.clear_caches c
-              | `Node n -> clear_caches n )
+            (fun _ -> function
+              | `Contents (c, _) -> Contents.clear_local_cache c
+              | `Node n -> clear_local_cache n )
             m
   end
 
@@ -531,8 +593,8 @@ module Make (P : S.PRIVATE) = struct
 
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
 
-  let clear_caches = function
-    | `Node n -> Node.clear_caches n
+  let clear_local_cache = function
+    | `Node n -> Node.clear_local_cache n
     | `Contents _ -> ()
 
   let sub t path =
@@ -820,7 +882,7 @@ module Make (P : S.PRIVATE) = struct
             (fun (c, _) ->
               match c.Contents.v with
               | Contents.Both _ | Contents.Key _ -> ()
-              | Contents.Contents (x, _) ->
+              | Contents.Val (x, _) ->
                   Stack.push
                     (fun () ->
                       P.Contents.add contents_t x >|= fun k ->
@@ -852,7 +914,7 @@ module Make (P : S.PRIVATE) = struct
       let to_node x =
         match x with
         | `Node _ as x -> x
-        | `Contents (c, m) -> `Contents (Contents.of_contents c, m)
+        | `Contents (c, m) -> `Contents (Contents.of_value c, m)
       in
       let x = to_node x in
       let y = to_node y in
@@ -861,7 +923,7 @@ module Make (P : S.PRIVATE) = struct
       in
       Merge.(f Node.merge_value) ~old x y >>= function
       | Ok (`Contents (c, m)) -> (
-          Contents.v c >>= function
+          Contents.to_value c >>= function
           | None -> Merge.conflict "conflict: contents"
           | Some c -> Merge.ok (`Contents (c, m)) )
       | Ok (`Node _ as n) -> Merge.ok n
@@ -892,12 +954,12 @@ module Make (P : S.PRIVATE) = struct
       Node.to_map n >|= function None -> [] | Some m -> StepMap.bindings m
     in
     let removed acc (k, (c, m)) =
-      Contents.v c >|= function
+      Contents.to_value c >|= function
       | None -> acc
       | Some c -> (k, `Removed (c, m)) :: acc
     in
     let added acc (k, (c, m)) =
-      Contents.v c >|= function
+      Contents.to_value c >|= function
       | None -> acc
       | Some c -> (k, `Added (c, m)) :: acc
     in
@@ -943,8 +1005,8 @@ module Make (P : S.PRIVATE) = struct
                 | `Both (`Contents x, `Contents y) -> (
                     if Node.contents_equal x y then Lwt.return_unit
                     else
-                      Contents.v (fst x) >>= fun cx ->
-                      Contents.v (fst y) >|= fun cy ->
+                      Contents.to_value (fst x) >>= fun cx ->
+                      Contents.to_value (fst y) >|= fun cy ->
                       match (cx, cy) with
                       | None, None -> ()
                       | Some cx, None ->
@@ -980,7 +1042,7 @@ module Make (P : S.PRIVATE) = struct
     let rec concrete k = function
       | `Contents _ as v -> k v
       | `Tree childs -> tree StepMap.empty (fun n -> k (`Node n)) childs
-    and contents k (c, m) = k (`Contents (Contents.of_contents c, m))
+    and contents k (c, m) = k (`Contents (Contents.of_value c, m))
     and tree map k = function
       | [] -> k (Node.of_map map)
       | (s, n) :: t ->
@@ -1001,7 +1063,7 @@ module Make (P : S.PRIVATE) = struct
           | None -> k (`Tree [])
           | Some n -> node [] (fun n -> k (`Tree n)) (StepMap.bindings n) )
     and contents k (c, m) =
-      Contents.v c >>= function
+      Contents.to_value c >>= function
       | None -> k None
       | Some c -> k @@ Some (`Contents (c, m))
     and node childs k = function
@@ -1022,4 +1084,12 @@ module Make (P : S.PRIVATE) = struct
     match t with
     | `Node n -> `Node (Node.key n)
     | `Contents (c, m) -> `Contents (P.Contents.Key.digest c, m)
+
+  module Cache = struct
+    let capacity = Contents.Cache.capacity
+
+    let resize = Contents.Cache.resize
+
+    let clear = Contents.Cache.clear
+  end
 end

@@ -510,8 +510,6 @@ module type TREE = sig
 
   val merge : tree Merge.t
 
-  val clear_caches : tree -> unit
-
   type marks
 
   val empty_marks : unit -> marks
@@ -550,6 +548,16 @@ module type TREE = sig
   val of_concrete : concrete -> tree
 
   val to_concrete : tree -> concrete Lwt.t
+
+  val clear_local_cache : tree -> unit
+
+  module Cache : sig
+    val capacity : unit -> int
+
+    val resize : int -> unit
+
+    val clear : unit -> unit
+  end
 end
 
 module type STORE = sig

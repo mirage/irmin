@@ -1283,7 +1283,7 @@ module Make (S : S) = struct
       let px = [ "x"; "y"; "z" ] in
       S.set_exn tt ~info:(infof "update") px vx >>= fun () ->
       S.get_tree tt [] >>= fun tree ->
-      S.Tree.clear_caches tree;
+      S.Tree.clear_local_cache tree;
       S.Tree.stats tree >>= fun s ->
       Alcotest.(check stats_t)
         "lazy stats"

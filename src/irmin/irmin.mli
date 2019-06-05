@@ -2488,10 +2488,6 @@ module type S = sig
     val merge : tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
 
-    (** {1 Caches} *)
-
-    val clear_caches : tree -> unit
-
     (** {1 Folds} *)
 
     (** The type for fold marks. *)
@@ -2573,6 +2569,20 @@ module type S = sig
     (** [to_concrete t] is the concrete tree equivalent to the subtree
         [t]. *)
 
+    (** {1 Caches} *)
+
+    val clear_local_cache : tree -> unit
+
+    (** Global cache of key -> tree -- used for hash-consing and to
+        speed-up lookups. *)
+    module Cache : sig
+      val capacity : unit -> int
+
+      val resize : int -> unit
+
+      val clear : unit -> unit
+    end
+
     (** {1 Import/Export} *)
 
     val hash : tree -> hash
@@ -2584,7 +2594,7 @@ module type S = sig
 
     val shallow : repo -> hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No
-       check is performed to verify if [h] actually exists in [r]. *)
+        check is performed to verify if [h] actually exists in [r]. *)
   end
 
   (** {1 Reads} *)
