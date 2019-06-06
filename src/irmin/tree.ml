@@ -74,6 +74,51 @@ module Make (P : S.PRIVATE) = struct
 
   type repo = P.Repo.t
 
+  module Make_cache (S : sig
+    type t
+
+    val weight : t -> int
+
+    val clear : t -> unit
+  end) =
+  struct
+    module M =
+      Lru.Make (struct
+          type t = P.Hash.t
+
+          let equal (x : t) (y : t) = Type.equal P.Hash.t x y
+
+          let hash (x : t) = Type.hash P.Hash.t x
+        end)
+        (struct
+          type nonrec t = S.t
+
+          let weight = S.weight
+        end)
+
+    include M
+
+    let global = create 100_000
+
+    let resize n =
+      resize n global;
+      trim global
+
+    let capacity () = capacity global
+
+    let add k v =
+      add k v global;
+      trim ~drop:(fun _ -> S.clear) global
+
+    let promote k = promote k global
+
+    let clear () =
+      iter (fun _ -> S.clear) global;
+      clear global
+
+    let find k = find k global
+  end
+
   module Contents = struct
     type key = P.Contents.key
 
@@ -104,43 +149,13 @@ module Make (P : S.PRIVATE) = struct
     let clear_local_cache t =
       match t.v with Key _ | Val _ -> () | Both (r, k, _) -> t.v <- Key (r, k)
 
-    module Cache = struct
-      module M =
-        Lru.Make (struct
-            type t = key
+    module Cache = Make_cache (struct
+      type nonrec t = t
 
-            let equal (x : t) (y : t) = Type.equal P.Contents.Key.t x y
+      let weight _ = 1
 
-            let hash (x : t) = Type.hash P.Contents.Key.t x
-          end)
-          (struct
-            type nonrec t = t
-
-            let weight _ = 1
-          end)
-
-      include M
-
-      let global = create 100_000
-
-      let resize n =
-        resize n global;
-        trim global
-
-      let capacity () = capacity global
-
-      let add k v =
-        add k v global;
-        trim ~drop:(fun _ -> clear_local_cache) global
-
-      let promote k = promote k global
-
-      let clear () =
-        iter (fun _ -> clear_local_cache) global;
-        clear global
-
-      let find k = find k global
-    end
+      let clear = clear_local_cache
+    end)
 
     let t = Type.map value (fun v -> { v }) (fun t -> t.v)
 
