@@ -288,11 +288,38 @@ module Make (P : S.PRIVATE) = struct
 
     let dump = Type.pp_json ~minify:false t
 
+    let rec clear_local_cache t =
+      match t.v with
+      | Key _ -> ()
+      | Both (r, k, _) -> t.v <- Key (r, k)
+      | Map (m, _) ->
+          StepMap.iter
+            (fun _ -> function
+              | `Contents (c, _) -> Contents.clear_local_cache c
+              | `Node n -> clear_local_cache n )
+            m
+
+    module Cache = Make_cache (struct
+      type nonrec t = t
+
+      let weight _ = 1
+
+      let clear = clear_local_cache
+    end)
+
     let of_map map = { v = Map (map, None) }
 
-    let of_key repo k = { v = Key (repo, k) }
+    let of_key repo k =
+      match Cache.find k with
+      | None ->
+          let t = { v = Key (repo, k) } in
+          Cache.add k t;
+          t
+      | Some t ->
+          Cache.promote k;
+          t
 
-    let of_node repo n =
+    let of_value repo n =
       let entries = P.Node.Val.list n in
       let aux = function
         | `Node h -> `Node (of_key repo h)
@@ -327,7 +354,24 @@ module Make (P : S.PRIVATE) = struct
       | Key (_, k) | Both (_, k, _) | Map (_, Some k) -> k
       | Map (m, None) ->
           let k = key_of_map m in
-          t.v <- Map (m, Some k);
+          let () =
+            match Cache.find k with
+            | None ->
+                t.v <- Map (m, Some k);
+                Cache.add k t
+            | Some x -> (
+                Cache.promote k;
+                match x.v with
+                | Both _ -> t.v <- x.v
+                | Map _ ->
+                    let v = Map (m, Some k) in
+                    x.v <- v;
+                    t.v <- v
+                | Key (r, _) ->
+                    let v = Both (r, k, m) in
+                    x.v <- v;
+                    t.v <- v )
+          in
           k
 
     and export_map map =
@@ -358,7 +402,7 @@ module Make (P : S.PRIVATE) = struct
               t.v <- Both (db, k, n);
               Some n )
 
-    let to_node t =
+    let to_value t =
       match t.v with
       | Key (db, k) -> P.Node.find (P.Repo.node_t db) k
       | Map (m, _) | Both (_, _, m) ->
@@ -547,17 +591,6 @@ module Make (P : S.PRIVATE) = struct
       Merge.seq [ Merge.default value_t; Merge.v value_t f ]
 
     let merge_value = merge_value ()
-
-    let rec clear_local_cache t =
-      match t.v with
-      | Key _ -> ()
-      | Both (r, k, _) -> t.v <- Key (r, k)
-      | Map (m, _) ->
-          StepMap.iter
-            (fun _ -> function
-              | `Contents (c, _) -> Contents.clear_local_cache c
-              | `Node n -> clear_local_cache n )
-            m
   end
 
   type node = Node.t
@@ -566,9 +599,9 @@ module Make (P : S.PRIVATE) = struct
 
   type tree = [ `Node of node | `Contents of contents * metadata ]
 
-  let of_private_node = Node.of_node
+  let of_private_node = Node.of_value
 
-  let to_private_node = Node.to_node
+  let to_private_node = Node.to_value
 
   let node_t = Node.t
 
@@ -1101,10 +1134,15 @@ module Make (P : S.PRIVATE) = struct
     | `Contents (c, m) -> `Contents (P.Contents.Key.digest c, m)
 
   module Cache = struct
-    let capacity = Contents.Cache.capacity
+    let capacity () =
+      (`Contents (Contents.Cache.capacity ()), `Nodes (Node.Cache.capacity ()))
 
-    let resize = Contents.Cache.resize
+    let resize ~contents ~nodes =
+      Contents.Cache.resize contents;
+      Node.Cache.resize nodes
 
-    let clear = Contents.Cache.clear
+    let clear () =
+      Contents.Cache.clear ();
+      Node.Cache.clear ()
   end
 end

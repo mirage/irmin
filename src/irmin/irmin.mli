@@ -2576,9 +2576,9 @@ module type S = sig
     (** Global cache of key -> tree -- used for hash-consing and to
         speed-up lookups. *)
     module Cache : sig
-      val capacity : unit -> int
+      val capacity : unit -> [ `Contents of int ] * [ `Nodes of int ]
 
-      val resize : int -> unit
+      val resize : contents:int -> nodes:int -> unit
 
       val clear : unit -> unit
     end

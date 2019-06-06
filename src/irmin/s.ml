@@ -552,9 +552,9 @@ module type TREE = sig
   val clear_local_cache : tree -> unit
 
   module Cache : sig
-    val capacity : unit -> int
+    val capacity : unit -> [ `Contents of int ] * [ `Nodes of int ]
 
-    val resize : int -> unit
+    val resize : contents:int -> nodes:int -> unit
 
     val clear : unit -> unit
   end
