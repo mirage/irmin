@@ -387,22 +387,15 @@ module type CLIENT = sig
   val ctx : unit -> ctx option
 end
 
-module Make
-    (Client : CLIENT)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
+module Make (Client : CLIENT) (S : Irmin.S) = struct
   module X = struct
-    module Hash = H
+    module Hash = S.Hash
 
     module Contents = struct
       module X = struct
-        module Key = H
-        module Val = C
-        include AO (Client) (H) (C)
+        module Key = S.Hash
+        module Val = S.Contents
+        include AO (Client) (Key) (Val)
       end
 
       include Irmin.Contents.Store (X)
@@ -412,20 +405,20 @@ struct
 
     module Node = struct
       module X = struct
-        module Key = H
-        module Val = Irmin.Private.Node.Make (H) (P) (M)
+        module Key = S.Hash
+        module Val = S.Private.Node.Val
         include AO (Client) (Key) (Val)
       end
 
-      include Irmin.Private.Node.Store (Contents) (P) (M) (X)
+      include Irmin.Private.Node.Store (Contents) (S.Key) (S.Metadata) (X)
 
       let v ?ctx config = X.v ?ctx config "tree" "trees"
     end
 
     module Commit = struct
       module X = struct
-        module Key = H
-        module Val = Irmin.Private.Commit.Make (H)
+        module Key = S.Hash
+        module Val = S.Private.Commit.Val
         include AO (Client) (Key) (Val)
       end
 
@@ -434,16 +427,16 @@ struct
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end
 
+    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
+    module Sync = Irmin.Private.Sync.None (Hash) (S.Branch)
+
     module Branch = struct
-      module Key = B
-      module Val = H
+      module Key = S.Branch
+      module Val = S.Hash
       include RW (Client) (Key) (Val)
 
       let v ?ctx config = v ?ctx config "branch" "branches"
     end
-
-    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = Irmin.Private.Sync.None (H) (B)
 
     module Repo = struct
       type t = {
@@ -485,8 +478,3 @@ struct
 
   include Irmin.Of_private (X)
 end
-
-module KV (H : CLIENT) (C : Irmin.Contents.S) =
-  Make (H) (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)

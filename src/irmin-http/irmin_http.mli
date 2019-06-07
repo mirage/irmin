@@ -26,6 +26,12 @@ module type CLIENT = sig
   val ctx : unit -> ctx option
 end
 
-module Make (C : CLIENT) : Irmin.S_MAKER
-
-module KV (C : CLIENT) : Irmin.KV_MAKER
+module Make (C : CLIENT) (S : Irmin.S) :
+  Irmin.S
+  with type key = S.key
+   and type contents = S.contents
+   and type branch = S.branch
+   and type hash = S.hash
+   and type step = S.step
+   and type metadata = S.metadata
+   and type Key.step = S.Key.step

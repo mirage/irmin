@@ -39,7 +39,8 @@ module Client = struct
 end
 
 let http_store (module S : Irmin_test.S) =
-  Irmin_test.store (module Irmin_http.Make (Client)) (module S.Metadata)
+  let module M = Irmin_http.Make (Client) (S) in
+  (module M : Irmin_test.S)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
 let () =

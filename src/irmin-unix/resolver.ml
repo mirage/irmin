@@ -136,7 +136,7 @@ module Store = struct
 
   let irf = create (module Fs.Make)
 
-  let http = create (module Http.Make)
+  let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
 
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
 
@@ -147,8 +147,9 @@ module Store = struct
       [ ("git", git);
         ("git-mem", git_mem);
         ("irf", irf);
-        ("http", http);
-        ("mem", mem)
+        ("mem", mem);
+        ("http", fun c -> http (mem c));
+        ("http.git", fun c -> http (git c))
       ]
 
   let default = ref git
@@ -261,14 +262,8 @@ let from_config_file_with_defaults path (store, contents) config branch : store
   in
   match store with
   | Store.T ((module S), remote) -> (
-      let mk_master () =
-        S.Repo.v config >>= fun repo ->
-        S.master repo
-      in
-      let mk_branch b =
-        S.Repo.v config >>= fun repo ->
-        S.of_branch repo b
-      in
+      let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+      let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
       let branch =
         let of_string = Irmin.Type.of_string S.Branch.t in
         match branch with
@@ -276,7 +271,7 @@ let from_config_file_with_defaults path (store, contents) config branch : store
             assoc "branch" (fun x ->
                 match of_string x with
                 | Ok x -> x
-                | Error (`Msg msg) -> failwith msg)
+                | Error (`Msg msg) -> failwith msg )
         | Some t -> (
           match of_string t with
           | Ok x -> Some x
@@ -338,8 +333,7 @@ let infer_remote contents headers str =
           |> add_opt Irmin.Private.Conf.root (Some str)
         in
         R.Repo.v config >>= fun repo ->
-        R.master repo >|= fun r ->
-        Irmin.remote_store (module R) r
+        R.master repo >|= fun r -> Irmin.remote_store (module R) r
   else
     let headers =
       match headers with [] -> None | h -> Some (Cohttp.Header.of_list h)

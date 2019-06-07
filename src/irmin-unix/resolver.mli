@@ -49,7 +49,7 @@ module Store : sig
 
   val irf : contents -> t
 
-  val http : contents -> t
+  val http : t -> t
 
   val git : contents -> t
 
