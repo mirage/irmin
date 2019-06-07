@@ -23,6 +23,17 @@ module type S =
    and type contents = string
    and type branch = string
 
+let ignore_srcs src =
+  List.mem (Logs.Src.name src)
+    [ "git.inflater.decoder";
+      "git.deflater.encoder";
+      "git.encoder";
+      "git.decoder";
+      "git.loose";
+      "git.store";
+      "cohttp.lwt.io"
+    ]
+
 let reporter ?(prefix = "") () =
   let pad n x =
     if String.length x > n then x
@@ -40,10 +51,12 @@ let reporter ?(prefix = "") () =
         ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
         prefix dt
         Fmt.(styled `Magenta string)
-        (pad 10 @@ Logs.Src.name src)
+        (pad 15 @@ Logs.Src.name src)
         Logs_fmt.pp_header (level, h)
     in
-    msgf @@ fun ?header ?tags fmt -> with_stamp header tags k fmt
+    msgf @@ fun ?header ?tags fmt ->
+    if ignore_srcs src then Format.ikfprintf k ppf fmt
+    else with_stamp header tags k fmt
   in
   { Logs.report }
 
