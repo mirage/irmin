@@ -1669,6 +1669,36 @@ module Make (S : S) = struct
       perform (write t1 1 5 @ write t2 2 5) >>= fun () -> perform (read t1 5)
     in
     run x test
+
+  let test_shallow_objects x () =
+    let test repo =
+      let foo_k = S.Private.Contents.Key.digest "foo" in
+      let bar_k = S.Private.Contents.Key.digest "bar" in
+      let tree_1 = S.Tree.shallow repo foo_k in
+      let tree_2 = S.Tree.shallow repo bar_k in
+      let node_3 =
+        S.Private.Node.Val.v
+          [ ("foo", `Contents (foo_k, S.Metadata.default));
+            ("bar", `Node bar_k)
+          ]
+      in
+      let tree_3 = `Node (S.of_private_node repo node_3) in
+      let info () = info "shallow" in
+      S.master repo >>= fun t ->
+      S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->
+      S.set_tree_exn t [ "2" ] tree_2 ~info >>= fun () ->
+      S.Head.get t >>= fun h ->
+      let commit =
+        S.of_private_commit repo
+        @@ S.Private.Commit.Val.v ~info:(info ()) ~node:(S.Tree.hash tree_3)
+             ~parents:[ S.Commit.hash h; foo_k ]
+      in
+      S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
+      S.find_tree t [ "1" ] >>= fun t1 ->
+      Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
+      Lwt.return ()
+    in
+    run x test
 end
 
 let suite (speed, x) =
@@ -1695,7 +1725,8 @@ let suite (speed, x) =
       ("Concurrent updates", speed, T.test_concurrent_updates x);
       ("with_tree strategies", speed, T.test_with_tree x);
       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
-      ("Concurrent merges", speed, T.test_concurrent_merges x)
+      ("Concurrent merges", speed, T.test_concurrent_merges x);
+      ("Shallow objects", speed, T.test_shallow_objects x)
     ] )
 
 let run name ~misc tl =
