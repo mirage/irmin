@@ -77,13 +77,13 @@ let hash = Alcotest.testable pp_hash (Irmin.Type.equal Irmin.Hash.SHA1.t)
 
 let test_index _switch () =
   Index.v ~fresh:true test_file >>= fun t ->
-  let h1 = Irmin.Hash.SHA1.digest "foo" in
+  let h1 = Irmin.Hash.SHA1.hash "foo" in
   let o1 = 42L in
-  let h2 = Irmin.Hash.SHA1.digest "bar" in
+  let h2 = Irmin.Hash.SHA1.hash "bar" in
   let o2 = 142L in
-  let h3 = Irmin.Hash.SHA1.digest "otoo" in
+  let h3 = Irmin.Hash.SHA1.hash "otoo" in
   let o3 = 10_098L in
-  let h4 = Irmin.Hash.SHA1.digest "sdadsadas" in
+  let h4 = Irmin.Hash.SHA1.hash "sdadsadas" in
   let o4 = 8978_232L in
   Lwt_list.iter_s
     (fun (h, off) -> Index.append t h ~off ~len:42)
@@ -131,10 +131,10 @@ let test_pack _switch () =
   let x2 = "bar" in
   let x3 = "otoo" in
   let x4 = "sdadsadas" in
-  let h1 = Irmin.Hash.SHA1.digest x1 in
-  let h2 = Irmin.Hash.SHA1.digest x2 in
-  let h3 = Irmin.Hash.SHA1.digest x3 in
-  let h4 = Irmin.Hash.SHA1.digest x4 in
+  let h1 = Irmin.Hash.SHA1.hash x1 in
+  let h2 = Irmin.Hash.SHA1.hash x2 in
+  let h3 = Irmin.Hash.SHA1.hash x3 in
+  let h4 = Irmin.Hash.SHA1.hash x4 in
   Lwt_list.iter_s
     (fun (k, v) -> Pack.append t k v)
     [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ]
@@ -157,13 +157,11 @@ module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 let test_branch _switch () =
   let branches = [ "foo"; "bar/toto"; "titi" ] in
   let test t =
-    Lwt_list.iter_s
-      (fun k -> Branch.set t k (Irmin.Hash.SHA1.digest k))
-      branches
+    Lwt_list.iter_s (fun k -> Branch.set t k (Irmin.Hash.SHA1.hash k)) branches
     >>= fun () ->
     let check h =
       Branch.find t h >|= fun v ->
-      Alcotest.(check (option hash)) h (Some (Irmin.Hash.SHA1.digest h)) v
+      Alcotest.(check (option hash)) h (Some (Irmin.Hash.SHA1.hash h)) v
     in
     Lwt_list.iter_p check branches
   in
@@ -172,7 +170,7 @@ let test_branch _switch () =
   Branch.v ~fresh:true test_file >>= test >>= fun () ->
   Branch.v ~fresh:false test_file >>= fun t ->
   test t >>= fun () ->
-  let x = Irmin.Hash.SHA1.digest "XXX" in
+  let x = Irmin.Hash.SHA1.hash "XXX" in
   Branch.set t "foo" x >>= fun () ->
   Branch.v ~fresh:false test_file >>= fun t ->
   Branch.find t "foo" >>= fun v ->

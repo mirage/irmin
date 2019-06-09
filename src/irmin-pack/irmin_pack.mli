@@ -69,7 +69,7 @@ module type S = sig
 
   val to_bin :
     dict:(string -> int Lwt.t) ->
-    offset:(hash -> int64 Lwt.t) ->
+    offset:(hash -> int64 option Lwt.t) ->
     t ->
     hash ->
     string Lwt.t

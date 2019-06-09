@@ -386,7 +386,7 @@ module Index (H : Irmin.Hash.S) = struct
 
   let pp_hash = Irmin.Type.pp H.t
 
-  let pad = H.digest_size + offset_size + length_size
+  let pad = H.hash_size + offset_size + length_size
 
   (* last allowed offset *)
   let log_size = 300 * pad
@@ -406,7 +406,9 @@ module Index (H : Irmin.Hash.S) = struct
     Irmin.Type.to_bin_string entry (hash, offset, len)
 
   module Tbl = Hashtbl.Make (struct
-    include H
+    type t = H.t
+
+    let hash x = Irmin.Type.short_hash H.t x
 
     let equal x y = Irmin.Type.equal H.t x y
   end)
@@ -486,7 +488,7 @@ module Index (H : Irmin.Hash.S) = struct
     | None -> get_entry t (Int64.of_float off)
 
   let interpolation_search t key =
-    let hashed_key = H.hash key in
+    let hashed_key = H.short_hash key in
     Log.debug (fun l -> l "interpolation_search %a (%d)" pp_hash key hashed_key);
     let hashed_key = float_of_int hashed_key in
     let low = 0. in
@@ -499,8 +501,8 @@ module Index (H : Irmin.Hash.S) = struct
           Lwt.return_some lowest_entry
         else Lwt.return_none
       else
-        let lowest_hash = float_of_int (H.hash lowest_entry.hash) in
-        let highest_hash = float_of_int (H.hash highest_entry.hash) in
+        let lowest_hash = float_of_int (H.short_hash lowest_entry.hash) in
+        let highest_hash = float_of_int (H.short_hash highest_entry.hash) in
         if high < low || lowest_hash > hashed_key || highest_hash < hashed_key
         then Lwt.return_none
         else
@@ -514,7 +516,7 @@ module Index (H : Irmin.Hash.S) = struct
           let offL = Int64.of_float off in
           get_entry t offL >>= fun e ->
           if Irmin.Type.equal H.t e.hash key then Lwt.return_some e
-          else if float_of_int (H.hash e.hash) < hashed_key then
+          else if float_of_int (H.short_hash e.hash) < hashed_key then
             search (off +. padf) high None (Some highest_entry)
           else search low (off -. padf) (Some lowest_entry) None
     in
@@ -543,7 +545,7 @@ module Index (H : Irmin.Hash.S) = struct
   module HashMap = Map.Make (struct
     type t = H.t
 
-    let compare a b = compare (H.hash a) (H.hash b)
+    let compare a b = compare (H.short_hash a) (H.short_hash b)
   end)
 
   let merge_with t tmp =
@@ -570,8 +572,8 @@ module Index (H : Irmin.Hash.S) = struct
             ( if Irmin.Type.equal H.t e.hash k then
               append_entry tmp e >|= fun () -> (None, r)
             else
-              let hashed_e = H.hash e.hash in
-              let hashed_k = H.hash k in
+              let hashed_e = H.short_hash e.hash in
+              let hashed_k = H.short_hash k in
               if hashed_e = hashed_k then
                 append_entry tmp e >>= fun () ->
                 append_entry tmp v >|= fun () -> (None, r)
@@ -628,7 +630,7 @@ module type S = sig
 
   val to_bin :
     dict:(string -> int Lwt.t) ->
-    offset:(hash -> int64 Lwt.t) ->
+    offset:(hash -> int64 option Lwt.t) ->
     t ->
     hash ->
     string Lwt.t
@@ -645,7 +647,9 @@ module Pack (K : Irmin.Hash.S) = struct
   module Index = Index (K)
 
   module Tbl = Hashtbl.Make (struct
-    include K
+    type t = K.t
+
+    let hash t = Irmin.Type.short_hash K.t t
 
     let equal x y = Irmin.Type.equal K.t x y
   end)
@@ -692,7 +696,7 @@ module Pack (K : Irmin.Hash.S) = struct
 
       let equal = Irmin.Type.equal K.t
 
-      let hash = Irmin.Type.hash K.t
+      let hash t = Irmin.Type.short_hash K.t t
     end)
 
     let lru_size = 10_000
@@ -738,10 +742,10 @@ module Pack (K : Irmin.Hash.S) = struct
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
       Index.mem t.pack.index k
 
-    let digest v = K.digest (Irmin.Type.pre_digest V.t v)
+    let hash v = K.hash (Irmin.Type.pre_hash V.t v)
 
     let check_key k v =
-      let k' = digest v in
+      let k' = hash v in
       if Irmin.Type.equal K.t k k' then Lwt.return ()
       else
         Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a."
@@ -760,7 +764,7 @@ module Pack (K : Irmin.Hash.S) = struct
                 match Hashtbl.find t.pack.index.offsets off with
                 | e -> Lwt.return e.hash
                 | exception Not_found ->
-                    Pool.read t.pages ~off ~len:K.digest_size
+                    Pool.read t.pages ~off ~len:K.hash_size
                     >|= fun (buf, pos) ->
                     let _, v =
                       Irmin.Type.decode_bin ~headers:false K.t
@@ -799,8 +803,8 @@ module Pack (K : Irmin.Hash.S) = struct
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
             Index.find t.pack.index k >|= function
-            | Some e -> e.offset
-            | None -> Fmt.failwith "cannot find %a" pp_hash k
+            | Some e -> Some e.offset
+            | None -> None
           in
           let dict = Dict.index t.pack.dict in
           V.to_bin ~offset ~dict v k >>= fun buf ->
@@ -813,7 +817,7 @@ module Pack (K : Irmin.Hash.S) = struct
       Lwt_mutex.with_lock t.pack.lock (fun () -> unsafe_append t k v)
 
     let add t v =
-      let k = digest v in
+      let k = hash v in
       append t k v >|= fun () -> k
   end
 end
@@ -822,9 +826,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   module Tbl = Hashtbl.Make (struct
     type t = K.t
 
-    let hash = Irmin.Type.hash K.t
+    let hash t = Irmin.Type.short_hash K.t t
 
-    let equal = Irmin.Type.equal K.t
+    let equal x y = Irmin.Type.equal K.t x y
   end)
 
   module W = Irmin.Private.Watch.Make (K) (V)
@@ -875,7 +879,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let mem t v = Lwt_mutex.with_lock t.lock (fun () -> unsafe_mem t v)
 
   let zero =
-    match Irmin.Type.of_bin_string V.t (String.make V.digest_size '\000') with
+    match Irmin.Type.of_bin_string V.t (String.make V.hash_size '\000') with
     | Ok x -> x
     | Error _ -> assert false
 
@@ -919,7 +923,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         if offset >= len then Lwt.return ()
         else
           read_length32 ~off:offset block >>= fun len ->
-          let buf = Bytes.create (len + V.digest_size) in
+          let buf = Bytes.create (len + V.hash_size) in
           let off = offset ++ 4L in
           IO.read block ~off buf >>= fun () ->
           let buf = Bytes.unsafe_to_string buf in
@@ -930,10 +934,10 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
             | Error (`Msg e) -> failwith e
           in
           let n, v = Irmin.Type.decode_bin V.t buf len in
-          assert (n = len + V.digest_size);
+          assert (n = len + V.hash_size);
           if not (Irmin.Type.equal V.t v zero) then Tbl.add cache k v;
           Tbl.add index k offset;
-          aux (off ++ Int64.(of_int @@ (len + V.digest_size)))
+          aux (off ++ Int64.(of_int @@ (len + V.hash_size)))
       in
       aux 0L >|= fun () ->
       let t =
@@ -1039,30 +1043,49 @@ struct
         module Key = H
         module Val = Node
 
-        module Int = struct
-          type t = int64
+        module Compress = struct
+          type address = Indirect of int64 | Direct of H.t
 
-          type step = int64
+          type value = Contents of address * M.t | Node of address
 
-          let step_t = Irmin.Type.int64
-
-          let t = Irmin.Type.int64
+          let value =
+            let open Irmin.Type in
+            variant "x-val" (fun contents_i node_i contents_d node_d ->
+              function
+              | Contents (Indirect h, m) -> contents_i (h, m)
+              | Node (Indirect h) -> node_i h
+              | Contents (Direct h, m) -> contents_d (h, m)
+              | Node (Direct h) -> node_d h )
+            |~ case1 "contents-i" (pair int64 M.t) (fun (i, m) ->
+                   Contents (Indirect i, m) )
+            |~ case1 "node-i" int64 (fun i -> Node (Indirect i))
+            |~ case1 "contents-d" (pair H.t M.t) (fun (h, m) ->
+                   Contents (Direct h, m) )
+            |~ case1 "node-d" H.t (fun h -> Node (Direct h))
+            |> sealv
         end
 
-        module Val_int = Irmin.Private.Node.Make (Int) (Int) (M)
-
         include Pack.Make (struct
+          open Compress
           include Val
 
           let entries_t =
-            Irmin.Type.(pair H.t (list (pair int Val_int.value_t)))
+            Irmin.Type.(pair H.t (list (pair int Compress.value)))
 
           let to_bin ~dict ~offset t k =
             let entries = Val.list t in
             let step s = dict (Irmin.Type.to_bin_string P.step_t s) in
             let value = function
-              | `Contents (v, m) -> offset v >|= fun off -> `Contents (off, m)
-              | `Node v -> offset v >|= fun off -> `Node off
+              | `Contents (h, m) ->
+                  (offset h >|= function
+                   | None -> Direct h
+                   | Some off -> Indirect off)
+                  >|= fun v -> Contents (v, m)
+              | `Node h ->
+                  (offset h >|= function
+                   | None -> Direct h
+                   | Some off -> Indirect off)
+                  >|= fun v -> Node v
             in
             Lwt_list.map_p
               (fun (s, v) -> step s >>= fun s -> value v >|= fun v -> (s, v))
@@ -1086,8 +1109,11 @@ struct
                 | Ok v -> v )
             in
             let value = function
-              | `Contents (off, m) -> hash off >|= fun v -> `Contents (v, m)
-              | `Node off -> hash off >|= fun v -> `Node v
+              | Contents (Indirect off, m) ->
+                  hash off >|= fun h -> `Contents (h, m)
+              | Contents (Direct h, m) -> Lwt.return (`Contents (h, m))
+              | Node (Indirect off) -> hash off >|= fun h -> `Node h
+              | Node (Direct h) -> Lwt.return (`Node h)
             in
             Lwt.catch
               (fun () ->
