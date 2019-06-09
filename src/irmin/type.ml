@@ -766,6 +766,7 @@ module Encode_json = struct
         | Option o, Some x ->
             lexeme e (`Name f.fname);
             t o e x
+        | List _, [] -> ()
         | tx, x ->
             lexeme e (`Name f.fname);
             t tx e x )
@@ -1003,6 +1004,7 @@ module Decode_json = struct
             with Not_found -> (
               match h.ftype with
               | Option _ -> Ok None
+              | List _ -> Ok []
               | _ ->
                   Error
                     (`Msg (Fmt.strf "missing value for %s.%s" r.rname h.fname)) )

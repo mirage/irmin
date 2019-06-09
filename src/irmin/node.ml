@@ -51,9 +51,12 @@ struct
 
   let kind_t =
     let open Type in
-    variant "Tree.kind" (fun node contents -> function
-      | `Node -> node | `Contents m -> contents m )
+    variant "Tree.kind" (fun node contents contents_m -> function
+      | `Node -> node
+      | `Contents m ->
+          if Type.equal M.t m M.default then contents else contents_m m )
     |~ case0 "node" `Node
+    |~ case0 "contents" (`Contents M.default)
     |~ case1 "contents" M.t (fun m -> `Contents m)
     |> sealv
 
@@ -417,6 +420,7 @@ module V1 (N : S.NODE) = struct
   type t = { n : N.t; entries : (step * value) list }
 
   let import n = { n; entries = N.list n }
+
   let export t = t.n
 
   let v entries =
