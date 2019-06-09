@@ -25,6 +25,6 @@ module Client (S : Irmin.S) :
    and type Key.step = S.Key.step
 
 module Server (S : Irmin.S) :
-  Irmin_http_server.S
+  Irmin_http.SERVER
   with type repo = S.Repo.t
    and type t = Cohttp_lwt_unix.Server.t

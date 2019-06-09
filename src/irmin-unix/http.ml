@@ -26,5 +26,5 @@ module HTTP = struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-module Client = Irmin_http.Make (HTTP)
-module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
+module Client = Irmin_http.Client (HTTP)
+module Server = Irmin_http.Server (Cohttp_lwt_unix.Server)

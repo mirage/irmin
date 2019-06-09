@@ -20,13 +20,13 @@ val config : ?config:Irmin.config -> Uri.t -> Irmin.config
 
 val uri : Uri.t option Irmin.Private.Conf.key
 
-module type CLIENT = sig
+module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client
 
   val ctx : unit -> ctx option
 end
 
-module Make (C : CLIENT) (S : Irmin.S) :
+module Client (C : HTTP_CLIENT) (S : Irmin.S) :
   Irmin.S
   with type key = S.key
    and type contents = S.contents
@@ -35,3 +35,24 @@ module Make (C : CLIENT) (S : Irmin.S) :
    and type step = S.step
    and type metadata = S.metadata
    and type Key.step = S.Key.step
+
+(** HTTP server *)
+
+module type SERVER = sig
+  (** The type for Irmin repository. *)
+  type repo
+
+  (** The type for HTTP configuration. *)
+  type t
+
+  val v : ?strict:bool -> repo -> t
+  (** [v repo] returns the configuration for a server serving the
+      contents of [repo]. If [strict] is set, incoming connections
+      will fail if they do not have the right {i X-IrminVersion}
+      headers. *)
+end
+
+(** Create an HTTP server, serving the contents of an Irmin
+   database. *)
+module Server (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) :
+  SERVER with type repo = S.Repo.t and type t = HTTP.t

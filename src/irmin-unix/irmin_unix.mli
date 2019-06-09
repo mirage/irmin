@@ -198,7 +198,7 @@ module Http : sig
 
   (** Server-side of the REST API over HTTP. *)
   module Server (S : Irmin.S) :
-    Irmin_http_server.S
+    Irmin_http.SERVER
     with type repo = S.Repo.t
      and type t = Cohttp_lwt_unix.Server.t
 end

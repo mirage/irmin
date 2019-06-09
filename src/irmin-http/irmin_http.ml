@@ -381,13 +381,13 @@ struct
     Lwt.return_unit
 end
 
-module type CLIENT = sig
+module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client
 
   val ctx : unit -> ctx option
 end
 
-module Make (Client : CLIENT) (S : Irmin.S) = struct
+module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
   module X = struct
     module Hash = S.Hash
 
@@ -478,3 +478,7 @@ module Make (Client : CLIENT) (S : Irmin.S) = struct
 
   include Irmin.Of_private (X)
 end
+
+module type SERVER = Irmin_http_server.S
+
+module Server = Irmin_http_server.Make

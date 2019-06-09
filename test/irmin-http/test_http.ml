@@ -39,7 +39,7 @@ module Client = struct
 end
 
 let http_store (module S : Irmin_test.S) =
-  let module M = Irmin_http.Make (Client) (S) in
+  let module M = Irmin_http.Client (Client) (S) in
   (module M : Irmin_test.S)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
@@ -83,7 +83,7 @@ let serve servers n =
         Fmt.(option string)
         (root server.config) );
   let (module Server : Irmin_test.S) = server.store in
-  let module HTTP = Irmin_http_server.Make (Cohttp_lwt_unix.Server) (Server) in
+  let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let server () =
     server.init () >>= fun () ->
     Server.Repo.v server.config >>= fun repo ->
