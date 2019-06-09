@@ -184,15 +184,21 @@ module Http : sig
       to the server, all the high-level logic is done on the
       client. Hence a high-level operation might take multiple
       RTTs. *)
-  module Make : Irmin.S_MAKER
-
-  module KV : Irmin.KV_MAKER
+  module Client (S : Irmin.S) :
+    Irmin.S
+    with type key = S.key
+     and type contents = S.contents
+     and type branch = S.branch
+     and type hash = S.hash
+     and type step = S.step
+     and type metadata = S.metadata
+     and type Key.step = S.Key.step
 
   (** {1 HTTP server} *)
 
   (** Server-side of the REST API over HTTP. *)
   module Server (S : Irmin.S) :
-    Irmin_http_server.S
+    Irmin_http.SERVER
     with type repo = S.Repo.t
      and type t = Cohttp_lwt_unix.Server.t
 end

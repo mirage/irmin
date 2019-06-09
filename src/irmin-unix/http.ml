@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Client = struct
+module HTTP = struct
   include Cohttp_lwt_unix.Client
 
   let ctx () =
@@ -26,8 +26,5 @@ module Client = struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-module Make = Irmin_http.Make (Client)
-module KV (C : Irmin.Contents.S) =
-  Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
-module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
+module Client = Irmin_http.Client (HTTP)
+module Server = Irmin_http.Server (Cohttp_lwt_unix.Server)
