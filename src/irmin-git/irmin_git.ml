@@ -98,9 +98,6 @@ struct
   module type V = sig
     type t
 
-    (* FIXME: use G.Value.kind *)
-    val pp : t Fmt.t
-
     val type_eq : [ `Commit | `Blob | `Tree | `Tag ] -> bool
 
     val to_git : t -> G.Value.t
@@ -138,10 +135,11 @@ struct
         | Error (`Msg e) -> Lwt.fail_with e )
 
     let add t v =
-      Log.debug (fun l -> l "add %a" V.pp v);
       G.write t (V.to_git v) >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-      | Ok k -> Lwt.return (fst k)
+      | Ok (k, _) ->
+          Log.debug (fun l -> l "add %a" pp_key k);
+          Lwt.return k
   end
 
   let err fmt = Fmt.kstrf (fun e -> Error (`Msg e)) fmt
@@ -150,8 +148,6 @@ struct
 
   module GitContents = struct
     type t = C.t
-
-    let pp = Irmin.Type.pp C.t
 
     let to_string = Irmin.Type.to_string C.t
 
@@ -218,8 +214,6 @@ struct
       module Metadata = Metadata
 
       type t = G.Value.Tree.t
-
-      let pp = G.Value.Tree.pp
 
       type metadata = Metadata.t
 
@@ -359,8 +353,6 @@ struct
     include Content_addressable (struct
       type t = Val.t
 
-      let pp = Val.pp
-
       let type_eq = function `Tree -> true | _ -> false
 
       let to_git t = G.Value.tree t
@@ -374,8 +366,6 @@ struct
   module XCommit = struct
     module Val = struct
       type t = G.Value.Commit.t
-
-      let pp = G.Value.Commit.pp
 
       type hash = H.t
 
@@ -479,8 +469,6 @@ struct
 
     include Content_addressable (struct
       type t = Val.t
-
-      let pp = Val.pp
 
       let type_eq = function `Commit -> true | _ -> false
 

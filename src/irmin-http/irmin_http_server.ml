@@ -22,7 +22,7 @@ let to_json = Irmin.Type.to_json_string
 
 let of_json = Irmin.Type.of_json_string
 
-let src = Logs.Src.create "irmin.http-server" ~doc:"Irmin REST API server"
+let src = Logs.Src.create "irmin.http-srv" ~doc:"Irmin REST API server"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -333,14 +333,12 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (Wm.dispatch' routes ~body ~request >|= function
        | None -> (`Not_found, Header.init (), `String "Not found", [])
        | Some result -> result)
-      >>= fun (status, headers, body, path) ->
+      >>= fun (status, headers, body, _path) ->
       Log.info (fun l ->
           l "[%a] %d - %s %s" pp_con conn
             (Code.code_of_status status)
             (Code.string_of_method (Request.meth request))
             (Uri.path (Request.uri request)) );
-      Log.debug (fun l ->
-          l "[%a] path=%a" pp_con conn Fmt.(Dump.list string) path );
       (* Finally, send the response to the client *)
       HTTP.respond ~headers ~body ~status ()
     in
