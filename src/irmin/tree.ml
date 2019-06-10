@@ -329,10 +329,6 @@ module Make (P : S.PRIVATE) = struct
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |> sealv
 
-    let clear_info i =
-      i.map <- None;
-      i.hash <- None
-
     let info_is_empty i = i.map = None && i.hash = None
 
     let depth i =
@@ -354,6 +350,30 @@ module Make (P : S.PRIVATE) = struct
 
     let dump_info ppf i = Fmt.pf ppf "[width=%d, depth=%d]" (width i) (depth i)
 
+    let clear_info ?depth:d i =
+      i.hash <- None;
+      match d with
+      | None -> i.map <- None
+      | Some d -> (
+          let depth = depth i in
+          if depth < d then ()
+          else
+            let rec map depth m =
+              StepMap.iter
+                (fun _ v ->
+                  match v with
+                  | `Contents (c, _) ->
+                      if depth + 1 >= d then
+                        Contents.clear_info c.Contents.info
+                  | `Node t -> aux (depth + 1) t )
+                m
+            and aux depth t =
+              match (t.v, t.info.map) with
+              | Hash _, None -> ()
+              | Map m, _ | _, Some m -> map depth m
+            in
+            match i.map with None -> () | Some m -> map depth m )
+
     module Cache = struct
       include Cache (P.Hash)
 
@@ -362,7 +382,7 @@ module Make (P : S.PRIVATE) = struct
         iter (fun _ i -> if not (info_is_empty i) then incr n) t;
         !n
 
-      let trim t = iter (fun _ -> clear_info) t
+      let trim ?depth t = iter (fun _ i -> clear_info ?depth i) t
     end
 
     let cache = Cache.create 10_001
@@ -1260,10 +1280,12 @@ module Make (P : S.PRIVATE) = struct
       ( `Contents Contents.(Cache.length cache),
         `Nodes Node.(Cache.length cache) )
 
-    let trim () =
+    let trim ?depth () =
       Log.info (fun l -> l "Tree.Cache.trim");
-      Contents.(Cache.trim cache);
-      Node.(Cache.trim cache)
+      Node.Cache.trim ?depth Node.cache;
+      match depth with
+      | None -> Contents.Cache.trim Contents.cache
+      | Some _ -> ()
 
     let dump ppf () =
       let ppo t ppf = function
