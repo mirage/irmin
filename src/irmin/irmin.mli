@@ -1484,6 +1484,8 @@ module Private : sig
       val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
       (** [with_lock t k f] executes [f ()] while holding the exclusive
           lock associated to the key [k]. *)
+
+      val stats : t -> int
     end
 
     (** Create a lock manager implementation. *)
