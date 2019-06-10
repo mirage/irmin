@@ -129,7 +129,7 @@ module Make (P : S.PRIVATE) = struct
       i.value <- None;
       i.hash <- None
 
-    let info_is_empty i = i.value = None && i.hash = None
+    let info_is_empty i = i.value = None
 
     module Cache = struct
       include Cache (P.Hash)
@@ -163,6 +163,7 @@ module Make (P : S.PRIVATE) = struct
           match Cache.find cache k with
           | exception Not_found ->
               let i = { hash; value } in
+              Log.debug (fun l -> l "Contents.of_v: cache %a" pp_hash k);
               Cache.add cache k i;
               i
           | i -> i )
@@ -198,8 +199,7 @@ module Make (P : S.PRIVATE) = struct
           let h = Some k in
           t.info.hash <- h;
           h
-      | _, Some k -> Some k
-      | _ -> None
+      | _, h -> h
 
     let value t =
       match (t.v, t.info.value) with
@@ -207,8 +207,7 @@ module Make (P : S.PRIVATE) = struct
           let v = Some v in
           t.info.value <- v;
           v
-      | _, Some v -> Some v
-      | _ -> None
+      | _, v -> v
 
     let hashcons t =
       match (t.v, t.info.hash, t.info.value) with
@@ -231,6 +230,7 @@ module Make (P : S.PRIVATE) = struct
                   hashcons c
               | exception Not_found ->
                   c.info.hash <- Some k;
+                  Log.debug (fun l -> l "Contents.to_hash: cache %a" pp_hash k);
                   Cache.add cache k c.info
             in
             let k =
@@ -288,22 +288,29 @@ module Make (P : S.PRIVATE) = struct
   end
 
   module Node = struct
+    type value = P.Node.Val.t
+
     type elt = [ `Node of t | `Contents of Contents.t * Metadata.t ]
 
     and map = elt StepMap.t
 
-    and info = { mutable map : map option; mutable hash : hash option }
+    and info = {
+      mutable value : value option;
+      mutable map : map option;
+      mutable hash : hash option
+    }
 
-    and v = Map of map | Hash of repo * hash
+    and v = Map of map | Hash of repo * hash | Value of repo * value
 
     and t = { mutable v : v; mutable info : info }
 
     let check msg t =
-      match (t.v, t.info.hash, t.info.map) with
-      | Hash (_, x), Some y, _ ->
-          if not (x == y) then Fmt.failwith "%s: Hash" msg
-      | Map x, _, Some y -> if not (x == y) then Fmt.failwith "%s: Map" msg
-      | (Hash _ | Map _), _, _ -> ()
+      match (t.v, t.info.hash, t.info.map, t.info.value) with
+      | Hash (_, x), Some y, _, _ -> if x != y then Fmt.failwith "%s: Hash" msg
+      | Map x, _, Some y, _ -> if x != y then Fmt.failwith "%s: Map" msg
+      | Value (_, x), _, _, Some y ->
+          if x != y then Fmt.failwith "%s: Value" msg
+      | (Hash _ | Map _ | Value _), _, _, _ -> ()
 
     let v t =
       let open Type in
@@ -323,13 +330,14 @@ module Make (P : S.PRIVATE) = struct
 
     let node m =
       let open Type in
-      variant "Node.node" (fun map hash -> function
-        | Map m -> map m | Hash (_, y) -> hash y )
+      variant "Node.node" (fun map hash value -> function
+        | Map m -> map m | Hash (_, y) -> hash y | Value (_, v) -> value v )
       |~ case1 "map" m (fun m -> Map m)
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
+      |~ case1 "value" P.Node.Val.t (fun _ -> assert false)
       |> sealv
 
-    let info_is_empty i = i.map = None && i.hash = None
+    let info_is_empty i = i.map = None && i.value = None
 
     let depth i =
       let rec map depth m =
@@ -341,38 +349,48 @@ module Make (P : S.PRIVATE) = struct
           m depth
       and aux depth t =
         match (t.v, t.info.map) with
-        | Hash _, None -> 0
+        | (Hash _ | Value _), None -> 0
         | Map m, _ | _, Some m -> map depth m
       in
       match i.map with None -> 0 | Some m -> map 0 m
 
     let width i = match i.map with None -> 0 | Some m -> StepMap.cardinal m
 
-    let dump_info ppf i = Fmt.pf ppf "[width=%d, depth=%d]" (width i) (depth i)
+    let dump_info ppf i =
+      let value = match i.value with None -> "<none>" | Some _ -> "<some>" in
+      let map = match i.map with None -> "<none>" | Some _ -> "<some>" in
+      let hash = match i.hash with None -> "<none>" | Some _ -> "<some>" in
+      let empty = if info_is_empty i then "*" else "" in
+      Fmt.pf ppf "[width=%d, depth=%d, value=%s, map=%s, hash=%s]%s %b"
+        (width i) (depth i) value map hash empty
+        (i.map = None && i.value = None)
 
     let clear_info ?depth:d i =
       i.hash <- None;
+      i.value <- None;
       match d with
       | None -> i.map <- None
-      | Some d -> (
+      | Some max_depth -> (
           let depth = depth i in
-          if depth < d then ()
+          if depth <= max_depth then ()
           else
             let rec map depth m =
               StepMap.iter
                 (fun _ v ->
                   match v with
                   | `Contents (c, _) ->
-                      if depth + 1 >= d then
+                      if depth + 1 > max_depth then
                         Contents.clear_info c.Contents.info
                   | `Node t -> aux (depth + 1) t )
                 m
             and aux depth t =
               match (t.v, t.info.map) with
-              | Hash _, None -> ()
-              | Map m, _ | _, Some m -> map depth m
+              | (Hash _ | Value _), None -> ()
+              | Map m, _ | _, Some m ->
+                  if depth >= max_depth then t.info.map <- None
+                  else map depth m
             in
-            match i.map with None -> () | Some m -> map depth m )
+            match i.map with None -> () | Some m -> map 0 m )
 
     module Cache = struct
       include Cache (P.Hash)
@@ -388,26 +406,31 @@ module Make (P : S.PRIVATE) = struct
     let cache = Cache.create 10_001
 
     let of_v v =
-      let hash, map =
-        match v with Map m -> (None, Some m) | Hash (_, k) -> (Some k, None)
+      let hash, map, value =
+        match v with
+        | Map m -> (None, Some m, None)
+        | Hash (_, k) -> (Some k, None, None)
+        | Value (_, v) -> (None, None, Some v)
       in
       (* hashcons info *)
       let info =
         match hash with
-        | None -> { hash; map }
+        | None -> { hash; map; value }
         | Some k -> (
           match Cache.find cache k with
           | exception Not_found ->
-              let i = { hash; map } in
+              let i = { hash; map; value } in
+              Log.debug (fun l -> l "Node.of_v: cache %a" pp_hash k);
               Cache.add cache k i;
               i
           | i -> i )
       in
       (* hashcons v *)
       let v =
-        match (v, info.map, info.hash) with
-        | Map _, Some m, _ -> Map m
-        | Hash (r, _), _, Some h -> Hash (r, h)
+        match (v, info.map, info.hash, info.value) with
+        | Map _, Some m, _, _ -> Map m
+        | Hash (r, _), _, Some h, _ -> Hash (r, h)
+        | Value (r, _), _, _, Some v -> Value (r, v)
         | _ -> v
       in
       (* hashcons hash *)
@@ -422,6 +445,7 @@ module Make (P : S.PRIVATE) = struct
       t.info.map <- None;
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
+      | Value _ -> t.v <- Hash (repo, k)
       | Map m -> (
           if StepMap.is_empty m then ()
           else
@@ -446,7 +470,9 @@ module Make (P : S.PRIVATE) = struct
 
     let of_hash repo k = of_v (Hash (repo, k))
 
-    let map_of_value repo n =
+    let of_value repo v = of_v (Value (repo, v))
+
+    let map_of_value repo (n : value) : map =
       let entries = P.Node.Val.list n in
       let aux = function
         | `Node h -> `Node (of_hash repo h)
@@ -456,8 +482,6 @@ module Make (P : S.PRIVATE) = struct
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
         StepMap.empty entries
 
-    let of_value repo n = of_map (map_of_value repo n)
-
     let empty = of_map StepMap.empty
 
     let hash t =
@@ -466,8 +490,7 @@ module Make (P : S.PRIVATE) = struct
           let h = Some h in
           t.info.hash <- h;
           h
-      | _, Some h -> Some h
-      | _ -> None
+      | _, h -> h
 
     let map t =
       match (t.v, t.info.map) with
@@ -475,41 +498,58 @@ module Make (P : S.PRIVATE) = struct
           let m = Some m in
           t.info.map <- m;
           m
-      | _, Some m -> Some m
-      | _ -> None
+      | _, m -> m
+
+    let value t =
+      match (t.v, t.info.value) with
+      | Value (_, v), None ->
+          let v = Some v in
+          t.info.value <- v;
+          v
+      | _, v -> v
 
     let hashcons t =
-      match (t.v, t.info.hash, t.info.map) with
-      | Hash (r, h), Some h', _ -> if h != h' then t.v <- Hash (r, h')
-      | Map v, _, Some v' -> if v != v' then t.v <- Map v'
+      match (t.v, t.info.hash, t.info.map, t.info.value) with
+      | Hash (r, h), Some h', _, _ -> if h != h' then t.v <- Hash (r, h')
+      | Map v, _, Some v', _ -> if v != v' then t.v <- Map v'
+      | Value (r, v), _, _, Some v' -> if v != v' then t.v <- Value (r, v')
       | _ -> ()
+
+    let hash_of_value t v =
+      let k = P.Node.Key.digest v in
+      let () =
+        match Cache.find cache k with
+        | i ->
+            t.info <- i;
+            hashcons t
+        | exception Not_found ->
+            t.info.hash <- Some k;
+            Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
+            Cache.add cache k t.info
+      in
+      let k =
+        match t.info.hash with
+        | Some k -> k
+        | None ->
+            t.info.hash <- Some k;
+            k
+      in
+      check __LOC__ t;
+      k
 
     let rec to_hash t =
       match hash t with
       | Some k -> k
       | None -> (
-        match map t with
-        | None -> assert false
-        | Some m ->
-            let k = hash_of_map m in
-            let () =
-              match Cache.find cache k with
-              | i ->
-                  t.info <- i;
-                  hashcons t
-              | exception Not_found ->
-                  t.info.hash <- Some k;
-                  Cache.add cache k t.info
-            in
-            let k =
-              match t.info.hash with
-              | Some k -> k
-              | None ->
-                  t.info.hash <- Some k;
-                  k
-            in
-            check __LOC__ t;
-            k )
+        match value t with
+        | Some v -> hash_of_value t v
+        | None -> (
+          match map t with
+          | None -> assert false
+          | Some m ->
+              let v = value_of_map m in
+              t.info.value <- Some v;
+              hash_of_value t v ) )
 
     and value_of_map map =
       let alist =
@@ -525,44 +565,45 @@ module Make (P : S.PRIVATE) = struct
       in
       P.Node.Val.v alist
 
-    and hash_of_map map = P.Node.Key.digest (value_of_map map)
+    let to_value t =
+      match value t with
+      | Some v -> Lwt.return (Some v)
+      | None ->
+          ( match t.v with
+          | Value (_, v) -> Lwt.return (Some v)
+          | Map m -> Lwt.return (Some (value_of_map m))
+          | Hash (repo, k) ->
+              Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
+              P.Node.find (P.Repo.node_t repo) k )
+          >|= fun value ->
+          let value =
+            match t.info.value with
+            | None ->
+                t.info.value <- value;
+                value
+            | Some _ as v -> v
+          in
+          check __LOC__ t;
+          value
 
     let to_map t =
-      match (t.v, t.info.map) with
-      | _, Some m -> Lwt.return (Some m)
-      | Map m, None ->
-          t.info.map <- Some m;
-          check __LOC__ t;
-          Lwt.return (Some m)
-      | Hash (repo, k), None -> (
-          Log.debug (fun l -> l "Tree.Node.to_map %a" pp_hash k);
-          P.Node.find (P.Repo.node_t repo) k >|= function
-          | None -> None
-          | Some n ->
-              let m = map_of_value repo n in
-              t.info.map <- Some m;
-              check __LOC__ t;
-              Some m )
-
-    let to_value t =
-      match (t.v, t.info.map) with
-      | Map m, _ | _, Some m ->
-          let aux = function
-            | `Contents (c, m) -> `Contents (Contents.to_hash c, m)
-            | `Node n -> `Node (to_hash n)
+      match map t with
+      | Some m -> Lwt.return (Some m)
+      | None -> (
+          let of_value repo v =
+            let m = map_of_value repo v in
+            t.info.map <- Some m;
+            check __LOC__ t;
+            Some m
           in
-          let entries = StepMap.bindings m in
-          let entries = List.rev_map (fun (k, v) -> (k, aux v)) entries in
-          Lwt.return (Some (P.Node.Val.v entries))
-      | Hash (repo, k), None -> (
-          Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
-          P.Node.find (P.Repo.node_t repo) k >|= function
-          | None -> None
-          | Some n ->
-              let m = map_of_value repo n in
-              t.info.map <- Some m;
-              check __LOC__ t;
-              Some n )
+          match t.v with
+          | Map m -> Lwt.return (Some m)
+          | Value (repo, v) -> Lwt.return (of_value repo v)
+          | Hash (repo, k) -> (
+              Log.debug (fun l -> l "Tree.Node.to_map %a" pp_hash k);
+              P.Node.find (P.Repo.node_t repo) k >|= function
+              | None -> None
+              | Some v -> of_value repo v ) )
 
     let hash_equal x y = x == y || Type.equal P.Hash.t x y
 
@@ -1034,16 +1075,30 @@ module Make (P : S.PRIVATE) = struct
 
   let import_no_check repo k = Node.of_hash repo k
 
+  module Seen_hashes = Cache (P.Hash)
+
+  (* we assume there is a small amount of repositories ...*)
+  let repos = ref []
+
+  let seen_of_repo r =
+    try List.assq r !repos
+    with Not_found ->
+      let c = Seen_hashes.create 103 in
+      repos := (r, c) :: !repos;
+      c
+
   (* It is important that this function does not call P.Contents.mem
      and P.Node.mem as these calls are not batched and could be very
      expensive for some backends (for instance the HTTP one). *)
   let export ?clear repo contents_t node_t n =
-    let add_node n x () =
-      P.Node.add node_t (Node.value_of_map x) >|= fun k ->
+    let seen = seen_of_repo repo in
+    let add_node n v () =
+      P.Node.add node_t v >|= fun k ->
       let k' = Node.to_hash n in
       assert (Type.equal P.Hash.t k k');
       Node.export ?clear repo n k
     in
+    let add_node_map n x () = add_node n (Node.value_of_map x) () in
     let add_contents c x () =
       P.Contents.add contents_t x >|= fun k ->
       let k' = Contents.to_hash c in
@@ -1051,43 +1106,46 @@ module Make (P : S.PRIVATE) = struct
       Contents.export ?clear repo c k
     in
     let todo = Stack.create () in
-    let seen = Hashes.create 13 in
     let rec add_to_todo n =
       let h = Node.to_hash n in
-      if Hashes.mem seen h then ()
-      else (
-        Hashes.add seen h ();
-        match n.Node.v with
-        | Node.Hash _ -> ()
-        | Node.Map x ->
-            (* 1. we push the current node job on the stack. *)
-            Stack.push (add_node n x) todo;
-            let contents = ref [] in
-            let nodes = ref [] in
-            StepMap.iter
-              (fun _ -> function `Contents c -> contents := c :: !contents
-                | `Node n -> nodes := n :: !nodes )
-              x;
-            (* 2. we push the contents job on the stack. *)
-            List.iter
-              (fun (c, _) ->
-                let h = Contents.to_hash c in
-                if Hashes.mem seen h then ()
-                else (
-                  Hashes.add seen h ();
-                  match c.Contents.v with
-                  | Contents.Hash _ -> ()
-                  | Contents.Value x -> Stack.push (add_contents c x) todo ) )
-              !contents;
-            (* 3. we push the children jobs on the stack. *)
-            List.iter
-              (fun n ->
-                Stack.push
-                  (fun () ->
-                    add_to_todo n;
-                    Lwt.return () )
-                  todo )
-              !nodes )
+      match Seen_hashes.find seen h with
+      | _ -> ()
+      | exception Not_found -> (
+          Seen_hashes.add seen h ();
+          match n.Node.v with
+          | Node.Hash _ -> ()
+          | Node.Value (_, x) -> Stack.push (add_node n x) todo
+          | Node.Map x ->
+              (* 1. we push the current node job on the stack. *)
+              Stack.push (add_node_map n x) todo;
+              let contents = ref [] in
+              let nodes = ref [] in
+              StepMap.iter
+                (fun _ -> function `Contents c -> contents := c :: !contents
+                  | `Node n -> nodes := n :: !nodes )
+                x;
+              (* 2. we push the contents job on the stack. *)
+              List.iter
+                (fun (c, _) ->
+                  let h = Contents.to_hash c in
+                  match Seen_hashes.find seen h with
+                  | _ -> ()
+                  | exception Not_found -> (
+                      Seen_hashes.add seen h ();
+                      match c.Contents.v with
+                      | Contents.Hash _ -> ()
+                      | Contents.Value x -> Stack.push (add_contents c x) todo
+                      ) )
+                !contents;
+              (* 3. we push the children jobs on the stack. *)
+              List.iter
+                (fun n ->
+                  Stack.push
+                    (fun () ->
+                      add_to_todo n;
+                      Lwt.return () )
+                    todo )
+                !nodes )
     in
     let rec loop () =
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in
@@ -1294,11 +1352,14 @@ module Make (P : S.PRIVATE) = struct
       in
       Contents.Cache.iter
         (fun k v ->
-          Fmt.pf ppf "C|%a: value:%a@." pp_hash k (ppo P.Contents.Val.t)
-            v.Contents.value )
+          if not (Contents.info_is_empty v) then
+            Fmt.pf ppf "C|%a: value:%a@." pp_hash k (ppo P.Contents.Val.t)
+              v.Contents.value )
         Contents.cache;
       Node.Cache.iter
-        (fun k v -> Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v)
+        (fun k v ->
+          if not (Node.info_is_empty v) then
+            Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v )
         Node.cache
   end
 end
