@@ -121,6 +121,8 @@ struct
 
   type key = CA.key
 
+  let pp_key = Irmin.Type.pp K.t
+
   type value = V.t
 
   type 'a t = {
@@ -212,32 +214,31 @@ struct
 
   let find_leaves t key =
     AO.find t.db key >>= function
-    | None -> Lwt.return []
-    | Some x -> Tree.find_leaves t x
+    | None -> Lwt.return None (* shallow objects *)
+    | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
   let check_hash k v =
     let k' = K.digest v in
     if Irmin.Type.equal K.t k k' then Lwt.return ()
     else
-      let pp_key = Irmin.Type.pp K.t in
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
 
   let find t key =
-    find_leaves t key >>= fun bufs ->
-    let buf = String.concat "" bufs in
-    check_hash key buf >|= fun () ->
-    match Irmin.Type.of_bin_string V.t buf with
-    | Ok va -> Some va
-    | Error _ -> None
+    find_leaves t key >>= function
+    | None -> Lwt.return None
+    | Some bufs -> (
+        let buf = String.concat "" bufs in
+        check_hash key buf >|= fun () ->
+        match Irmin.Type.of_bin_string V.t buf with
+        | Ok va -> Some va
+        | Error _ -> None )
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =
       if n >= stop then List.rev acc else aux (n :: acc) (n + step)
     in
     aux [] init
-
-  let pp_key = Irmin.Type.pp K.t
 
   let add t v =
     let buf = Irmin.Type.to_bin_string V.t v in
