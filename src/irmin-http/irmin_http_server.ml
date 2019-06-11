@@ -106,7 +106,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               let str = Irmin.Type.to_string V.t in
               S.find db key >>= function
               | Some value -> Wm.continue (`String (str value)) rd
-              | None -> assert false )
+              | None -> Wm.respond 404 rd )
 
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
 
@@ -178,7 +178,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               let str = Irmin.Type.to_string V.t in
               S.find db key >>= function
               | Some value -> Wm.continue (`String (str value)) rd
-              | None -> assert false )
+              | None -> Wm.respond 404 rd )
 
         method! resource_exists rd =
           with_key rd (fun key ->
