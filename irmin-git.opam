@@ -25,6 +25,11 @@ depends: [
   "mtime"      {with-test & >= "1.0.0"}
 ]
 
+pin-depends: [
+  ["git.dev" "git+https://github.com/mirage/ocaml-git"]
+  ["git-http.dev" "git+https://github.com/mirage/ocaml-git"]
+]
+
 synopsis: "Git backend for Irmin"
 description: """
 `Irmin_git` expose a bi-directional bridge between Git repositories and
