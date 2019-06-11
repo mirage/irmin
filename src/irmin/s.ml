@@ -510,8 +510,6 @@ module type TREE = sig
 
   val merge : tree Merge.t
 
-  val clear_caches : tree -> unit
-
   type marks
 
   val empty_marks : unit -> marks
@@ -550,6 +548,16 @@ module type TREE = sig
   val of_concrete : concrete -> tree
 
   val to_concrete : tree -> concrete Lwt.t
+
+  val clear : tree -> unit
+
+  module Cache : sig
+    val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
+
+    val trim : ?depth:int -> unit -> unit
+
+    val dump : unit Fmt.t
+  end
 end
 
 module type STORE = sig
@@ -1023,6 +1031,7 @@ module type STORE = sig
   val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
 
   val save_tree :
+    ?clear:bool ->
     repo ->
     [> `Write ] Private.Contents.t ->
     [> `Write ] Private.Node.t ->
