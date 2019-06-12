@@ -24,30 +24,41 @@ let config =
 
 module Net = Git_unix.Net
 
-module type Test_S = sig
-  include
-    Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
-
-  module Git : Irmin_git.G
-
-  val author : Repo.t -> commit -> string option Lwt.t
+module type S = sig
+  include Irmin_test.S
 
   val init : unit -> unit Lwt.t
 end
 
-module Mem = struct
+module type G = sig
+  include S
+
+  module Git : Irmin_git.G
+end
+
+module X = struct
+  type t = X of (int * int) | Y of string list
+
+  let t : t Irmin.Type.t =
+    let open Irmin.Type in
+    variant "test" (fun x y -> function X i -> x i | Y i -> y i)
+    |~ case1 "x" (pair int int) (fun x -> X x)
+    |~ case1 "y" (list string) (fun y -> Y y)
+    |> sealv
+
+  let merge = Irmin.Merge.idempotent Irmin.Type.(option t)
+end
+
+module type X =
+  Irmin.S
+  with type step = string
+   and type key = string list
+   and type contents = X.t
+   and type branch = string
+
+module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module S = Irmin_git.KV (G) (Git_unix.Sync (G)) (Irmin.Contents.String)
-
-  let author repo c =
-    S.git_commit repo c >|= function
-    | None -> None
-    | Some c -> Some (S.Git.Value.Commit.author c).Git.User.name
-
+  module S = Irmin_git.KV (G) (Git_unix.Sync (G)) (C)
   include S
 
   let init () =
@@ -56,39 +67,37 @@ module Mem = struct
     | _ -> Lwt.return ()
 end
 
-module Generic = struct
+module Generic (C : Irmin.Contents.S) = struct
   include Irmin_git.Generic_KV
             (Irmin.Content_addressable
                (Irmin_mem.Append_only))
                (Irmin_mem.Atomic_write)
-            (Irmin.Contents.String)
+            (C)
 
   let init () =
     Repo.v config >>= fun repo ->
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo)
 end
 
-let store = (module Mem : Test_S)
-
-let store2 = (module Generic : Irmin_test.S)
-
 let suite =
-  let store = (module Mem : Irmin_test.S) in
-  let init () = Mem.init () in
-  let clean () = Mem.init () in
+  let module S = Mem (Irmin.Contents.String) in
+  let store = (module S : Irmin_test.S) in
+  let init () = S.init () in
+  let clean () = S.init () in
   let stats = None in
   { Irmin_test.name = "GIT"; clean; init; store; stats; config }
 
-let suite2 =
-  let store = store2 in
-  let clean () = Generic.init () in
-  let init () = Generic.init () in
+let suite_generic =
+  let module S = Generic (Irmin.Contents.String) in
+  let store = (module S : Irmin_test.S) in
+  let clean () = S.init () in
+  let init () = S.init () in
   let stats = None in
   { Irmin_test.name = "GIT.generic"; clean; init; store; stats; config }
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 
-let test_sort_order (module S : Test_S) =
+let test_sort_order (module S : S) =
   S.init () >>= fun () ->
   S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
   let commit_t = S.Private.Repo.commit_t repo in
@@ -132,7 +141,7 @@ let pp_reference ppf = function
 
 let reference = Alcotest.testable pp_reference ( = )
 
-let test_list_refs (module S : Test_S) =
+let test_list_refs (module S : G) =
   let module R = Ref (S.Git) in
   S.init () >>= fun () ->
   R.Repo.v (Irmin_git.config test_db) >>= fun repo ->
@@ -165,26 +174,55 @@ let test_list_refs (module S : Test_S) =
    else *)
   Lwt.return_unit
 
-module Sync = Irmin.Sync (Generic)
+let bin_string = Alcotest.testable (Fmt.fmt "%S") ( = )
 
-let test_import_export () =
-  let test () =
-    Mem.init () >>= fun () ->
-    Generic.init () >>= fun () ->
-    Mem.Repo.v (Irmin_git.config test_db) >>= fun repo ->
-    Mem.master repo >>= fun t ->
-    Mem.set_exn t ~info:Irmin.Info.none [ "test" ] "toto" >>= fun () ->
-    let remote = Irmin.remote_store (module Mem) t in
-    Generic.Repo.v (Irmin_mem.config ()) >>= fun repo ->
-    Generic.master repo >>= fun t ->
-    Sync.pull_exn t remote `Set >>= fun _ ->
-    Generic.get t [ "test" ] >|= fun toto ->
-    Alcotest.(check string) "import" toto "toto"
-  in
-  Lwt_main.run (test ())
+let test_blobs (module S : S) =
+  let str = Irmin.Type.pre_digest S.Contents.t "foo" in
+  Alcotest.(check bin_string) "blob foo" "blob 3\000foo" str;
+  let str = Irmin.Type.pre_digest S.Contents.t "" in
+  Alcotest.(check bin_string) "blob ''" "blob 0\000" str;
+  let module X = Mem (X) in
+  let str = Irmin.Type.pre_digest X.Contents.t (Y [ "foo"; "bar" ]) in
+  Alcotest.(check bin_string)
+    "blob foo" "blob 19\000{\"y\":[\"foo\",\"bar\"]}" str;
+  let str = Irmin.Type.pre_digest X.Contents.t (X (1, 2)) in
+  Alcotest.(check bin_string) "blob ''" "blob 11\000{\"x\":[1,2]}" str;
+  let t = X.Tree.empty in
+  X.Tree.add t [ "foo" ] (X (1, 2)) >>= fun t ->
+  let k1 = X.Tree.hash t in
+  X.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+  X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
+  >>= fun k2 ->
+  let hash = Irmin_test.testable X.Hash.t in
+  Alcotest.(check hash) "blob" k1 k2;
+  Lwt.return ()
 
-let tests store =
-  let run f () = Lwt_main.run (f store) in
-  [ ("Testing sort order", `Quick, run test_sort_order);
-    ("Testing listing refs", `Quick, run test_list_refs)
+let test_import_export (module S : S) =
+  let module Generic = Generic (Irmin.Contents.String) in
+  let module Sync = Irmin.Sync (Generic) in
+  S.init () >>= fun () ->
+  Generic.init () >>= fun () ->
+  S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+  S.master repo >>= fun t ->
+  S.set_exn t ~info:Irmin.Info.none [ "test" ] "toto" >>= fun () ->
+  let remote = Irmin.remote_store (module S) t in
+  Generic.Repo.v (Irmin_mem.config ()) >>= fun repo ->
+  Generic.master repo >>= fun t ->
+  Sync.pull_exn t remote `Set >>= fun _ ->
+  Generic.get t [ "test" ] >|= fun toto ->
+  Alcotest.(check string) "import" toto "toto"
+
+let misc (module S : G) =
+  let s = (module S : S) in
+  let g = (module S : G) in
+  let generic = (module Generic (Irmin.Contents.String) : S) in
+  let run f x () = Lwt_main.run (f x) in
+  [ ("Testing sort order", `Quick, run test_sort_order s);
+    ("Testing sort order (generic)", `Quick, run test_sort_order generic);
+    ("Testing listing refs", `Quick, run test_list_refs g);
+    ("git -> mem", `Quick, run test_import_export s);
+    ("git blobs", `Quick, run test_blobs s);
+    ("git blobs of generic", `Quick, run test_blobs s)
   ]
+
+let mem = (module Mem (Irmin.Contents.String) : G)
