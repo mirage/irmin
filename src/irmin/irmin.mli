@@ -1138,9 +1138,6 @@ module Contents : sig
      conflict iff values are modified concurrently. *)
   module String : S with type t = string
 
-  (** Same as {!String} but for values of type [bytes]. *)
-  module Bytes : S with type t = bytes
-
   type json =
     [ `Null
     | `Bool of bool

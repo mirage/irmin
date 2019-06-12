@@ -26,8 +26,6 @@ type json =
 
 module String : S.CONTENTS with type t = string
 
-module Bytes : S.CONTENTS with type t = bytes
-
 module Json : S.CONTENTS with type t = (string * json) list
 
 module Json_value : S.CONTENTS with type t = json
