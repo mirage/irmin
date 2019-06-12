@@ -70,7 +70,6 @@ module Contents = struct
   let all =
     ref
       [ ("string", (module Irmin.Contents.String : Irmin.Contents.S));
-        ("bytes", (module Irmin.Contents.Bytes));
         ("json", (module Irmin.Contents.Json));
         ("json_value", (module Irmin.Contents.Json_value))
       ]

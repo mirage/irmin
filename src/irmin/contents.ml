@@ -262,14 +262,6 @@ module String = struct
   let merge = Merge.idempotent Type.(option string)
 end
 
-module Bytes = struct
-  type t = bytes
-
-  let t = Type.bytes
-
-  let merge = Merge.idempotent Type.(option t)
-end
-
 module type STORE = S.CONTENTS_STORE
 
 module Store (S : sig
