@@ -109,7 +109,8 @@ let suite i server =
         Lwt_io.flush_all () >>= fun () ->
         let _ =
           Sys.command
-          @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i
+          @@ Fmt.strf "INSIDE_DUNE=1 dune exec --root . -- %s serve %d &"
+               Sys.argv.(0) i
         in
         wait_for_the_server_to_start () >|= fun pid -> server_pid := pid );
     stats = None;
