@@ -67,29 +67,13 @@ module Git = struct
     >|= fun () -> Irmin_unix.set_listen_dir_hook ()
 
   module S = struct
-    module G = struct
-      include Git_unix.Store
-
-      let v ?dotgit ?compression ?buffers root =
-        let buffer =
-          match buffers with None -> None | Some p -> Some (Lwt_pool.use p)
-        in
-        v ?dotgit ?compression ?buffer root
-    end
-
-    module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
-
-    let author repo c =
-      S.git_commit repo c >|= function
-      | None -> None
-      | Some c -> Some (S.Git.Value.Commit.author c).Git.User.name
-
-    include S
+    module G = Git_unix.Store
+    include Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
     let init = init
   end
 
-  let store = (module S : Test_git.Test_S)
+  let store = (module S : Test_git.G)
 
   let clean () =
     Irmin.Private.Watch.(set_listen_dir_hook none);
@@ -113,7 +97,8 @@ module Git = struct
     S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?" >>= fun () ->
     S.set_exn t ~info:(info "fst one") [ "fst" ] "hoho"
 
-  let misc = ("non-bare", `Quick, fun () -> Lwt_main.run (test_non_bare ()))
+  let misc : unit Alcotest.test_case list =
+    [ ("non-bare", `Quick, fun () -> Lwt_main.run (test_non_bare ())) ]
 end
 
 module Http = struct

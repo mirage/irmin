@@ -102,7 +102,7 @@ struct
 
     val to_git : t -> G.Value.t
 
-    val of_git : G.Value.t -> (t option, [ `Msg of string ]) result
+    val of_git : G.Value.t -> t option
   end
 
   module Content_addressable (V : V) = struct
@@ -129,71 +129,60 @@ struct
       G.read t key >>= function
       | Error `Not_found -> Lwt.return None
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-      | Ok v -> (
-        match V.of_git v with
-        | Ok v -> Lwt.return v
-        | Error (`Msg e) -> Lwt.fail_with e )
+      | Ok v -> Lwt.return (V.of_git v)
 
     let add t v =
-      G.write t (V.to_git v) >>= function
+      let v = V.to_git v in
+      G.write t v >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok (k, _) ->
           Log.debug (fun l -> l "add %a" pp_key k);
           Lwt.return k
   end
 
-  let err fmt = Fmt.kstrf (fun e -> Error (`Msg e)) fmt
-
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
 
-  module GitContents = struct
-    type t = C.t
-
-    let to_string = Irmin.Type.to_string C.t
-
-    let type_eq = function `Blob -> true | _ -> false
-
-    let of_string str =
-      match Irmin.Type.of_string C.t str with
-      | Ok x -> Ok (Some x)
-      | Error (`Msg e) -> err "Git.Contents: cannot parse %S: %s" str e
-
-    let of_git = function
-      | G.Value.Blob b -> of_string (G.Value.Blob.to_string b)
-      | _ -> Ok None
-
-    let to_git b = G.Value.blob (G.Value.Blob.of_string (to_string b))
-  end
-
   module XContents = struct
+    module GitContents = struct
+      type t = C.t
+
+      let type_eq = function `Blob -> true | _ -> false
+
+      let of_git = function
+        | G.Value.Blob b -> (
+            let str = G.Value.Blob.to_string b in
+            match Irmin.Type.of_string C.t str with
+            | Ok x -> Some x
+            | Error (`Msg e) -> Fmt.invalid_arg "error %s" e )
+        | _ -> None
+
+      let to_git b =
+        let str = Irmin.Type.to_string C.t b in
+        G.Value.blob (G.Value.Blob.of_string str)
+    end
+
     include Content_addressable (GitContents)
 
     module Val = struct
       include C
 
       let to_bin t =
-        let blob = G.Value.Blob.of_string (Irmin.Type.to_bin_string C.t t) in
         let raw, etmp = (Cstruct.create 0x100, Cstruct.create 0x100) in
-        match Raw.to_raw ~raw ~etmp (G.Value.blob blob) with
+        match Raw.to_raw ~raw ~etmp (GitContents.to_git t) with
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ buf (t : t) =
-        Log.debug (fun l -> l "Content.encode_bin");
-        Buffer.add_string buf (to_bin t)
+      let encode_bin ?headers:_ buf (t : t) = Buffer.add_string buf (to_bin t)
 
       let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Content.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
-        let blob t =
-          match Irmin.Type.of_bin_string C.t (G.Value.Blob.to_string t) with
-          | Ok t -> t
-          | Error (`Msg e) -> Fmt.failwith "cannot read blob: %s" e
-        in
         match Raw.of_raw_with_header buf with
-        | Ok (G.Value.Blob t) -> (off + Cstruct.len buf, blob t)
-        | Ok _ -> failwith "wrong object kind"
+        | Ok g -> (
+          match GitContents.of_git g with
+          | Some g -> (off + Cstruct.len buf, g)
+          | None -> failwith "wrong object kind" )
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
       let size_of ?headers:_ _ = None
@@ -357,7 +346,7 @@ struct
 
       let to_git t = G.Value.tree t
 
-      let of_git = function G.Value.Tree t -> Ok (Some t) | _ -> Ok None
+      let of_git = function G.Value.Tree t -> Some t | _ -> None
     end)
   end
 
@@ -472,7 +461,7 @@ struct
 
       let type_eq = function `Commit -> true | _ -> false
 
-      let of_git = function G.Value.Commit c -> Ok (Some c) | _ -> Ok None
+      let of_git = function G.Value.Commit c -> Some c | _ -> None
 
       let to_git c = G.Value.commit c
     end)
