@@ -16,4 +16,5 @@ env:
   - OCAML_VERSION=4.05 PACKAGE="irmin-mirage-git"
   - OCAML_VERSION=4.05 PACKAGE="irmin-mirage-graphql"
   - OCAML_VERSION=4.07 PACKAGE="irmin-graphql"
+  - OCAML_VERSION=4.07 PACKAGE="irmin-pack"
   - OCAML_VERSION=4.06 PACKAGE="irmin-unix" REVDEPS="irmin-indexeddb"
