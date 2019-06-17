@@ -250,7 +250,7 @@ module Make (S : S) = struct
       with_node repo (fun g -> Graph.v g [ ("b", `Node k1); ("c", `Node k4) ])
       >>= fun k5 ->
       with_node repo (fun g -> Graph.v g [ ("a", `Node k5) ]) >>= fun k6 ->
-      with_node repo (fun g -> Graph.update g k3 [ "a"; "c"; "x" ] (normal kv2))
+      with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       >>= fun k6' ->
       P.Node.find n k6' >>= fun n6' ->
       P.Node.find n k6 >>= fun n6 ->
@@ -266,32 +266,26 @@ module Make (S : S) = struct
           all
       in
       with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
-      with_node repo (fun g -> Graph.update g n0 [ "b" ] (`Node n0))
-      >>= fun n1 ->
-      with_node repo (fun g -> Graph.update g n1 [ "a" ] (`Node n0))
-      >>= fun n2 ->
-      with_node repo (fun g -> Graph.update g n2 [ "a" ] (`Node n0))
-      >>= fun n3 ->
+      with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.add g n1 [ "a" ] (`Node n0)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) >>= fun n3 ->
       assert_no_duplicates "1" n3 >>= fun () ->
-      with_node repo (fun g -> Graph.update g n0 [ "a" ] (`Node n0))
-      >>= fun n1 ->
-      with_node repo (fun g -> Graph.update g n1 [ "b" ] (`Node n0))
-      >>= fun n2 ->
-      with_node repo (fun g -> Graph.update g n2 [ "a" ] (`Node n0))
-      >>= fun n3 ->
+      with_node repo (fun g -> Graph.add g n0 [ "a" ] (`Node n0)) >>= fun n1 ->
+      with_node repo (fun g -> Graph.add g n1 [ "b" ] (`Node n0)) >>= fun n2 ->
+      with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) >>= fun n3 ->
       assert_no_duplicates "2" n3 >>= fun () ->
-      with_node repo (fun g -> Graph.update g n0 [ "b" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n0 [ "b" ] (normal kv1))
       >>= fun n1 ->
-      with_node repo (fun g -> Graph.update g n1 [ "a" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n1 [ "a" ] (normal kv1))
       >>= fun n2 ->
-      with_node repo (fun g -> Graph.update g n2 [ "a" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n2 [ "a" ] (normal kv1))
       >>= fun n3 ->
       assert_no_duplicates "3" n3 >>= fun () ->
-      with_node repo (fun g -> Graph.update g n0 [ "a" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n0 [ "a" ] (normal kv1))
       >>= fun n1 ->
-      with_node repo (fun g -> Graph.update g n1 [ "b" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n1 [ "b" ] (normal kv1))
       >>= fun n2 ->
-      with_node repo (fun g -> Graph.update g n2 [ "b" ] (normal kv1))
+      with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1))
       >>= fun n3 -> assert_no_duplicates "4" n3 >>= fun () -> Lwt.return_unit
     in
     run x test

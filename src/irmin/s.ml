@@ -128,7 +128,7 @@ module type NODE = sig
 
   val find : t -> step -> value option
 
-  val update : t -> step -> value -> t
+  val add : t -> step -> value -> t
 
   val remove : t -> step -> t
 
@@ -168,7 +168,7 @@ module type NODE_GRAPH = sig
 
   val find : [> `Read ] t -> node -> path -> value option Lwt.t
 
-  val update : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
+  val add : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
 
   val remove : [ `Read | `Write ] t -> node -> path -> node Lwt.t
 

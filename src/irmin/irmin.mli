@@ -1537,8 +1537,8 @@ module Private : sig
           {{!Node.S.contents}contents}. The edge between the node and
           the contents is labeled by a {{!Node.S.step}step}. *)
 
-      val update : t -> step -> value -> t
-      (** [update t s v] is the node where [find t v] is [Some s] but
+      val add : t -> step -> value -> t
+      (** [add t s v] is the node where [find t v] is [Some s] but
           is similar to [t] otherwise. *)
 
       val remove : t -> step -> t
@@ -1688,8 +1688,8 @@ module Private : sig
       (** [find t n p] is the contents of the path [p] starting form
           [n]. *)
 
-      val update : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
-      (** [update t n p v] is the node [x] such that [find t x p] is
+      val add : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
+      (** [add t n p v] is the node [x] such that [find t x p] is
           [Some v] and it behaves the same [n] for other
           operations. *)
 
