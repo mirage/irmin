@@ -252,9 +252,6 @@ let test_hashes () =
     "empty v1 contents" "05fe405753166f125559e7c9ac558654f107c7e9"
     (digest Irmin.Contents.V1.String.t "");
   Alcotest.(check string)
-    "empty bytes" "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-    (digest Irmin.Contents.Bytes.t (Bytes.of_string ""));
-  Alcotest.(check string)
     "contents" "b60d121b438a380c343d5ec3c2037564b82ffef3"
     (digest Irmin.Contents.String.t "xxx");
   Alcotest.(check string)
