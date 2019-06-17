@@ -1505,6 +1505,9 @@ module Private : sig
       (** The type for node values. *)
       type t
 
+      (** The type for inodes. *)
+      type inode
+
       (** The type for node metadata. *)
       type metadata
 
@@ -1545,10 +1548,19 @@ module Private : sig
       (** [remove t s] is the node where [find t s] is [None] but is
           similar to [t] otherwise. *)
 
+      (** {1 Save/load from the database} *)
+
+      val load : find:(hash -> inode option Lwt.t) -> hash -> t option Lwt.t
+
+      val save : add:(inode -> hash Lwt.t) -> t -> hash Lwt.t
+
       (** {1 Value types} *)
 
       val t : t Type.t
       (** [t] is the value type for {!t}. *)
+
+      val inode_t : inode Type.t
+      (** [inode_t] is the value type for {!inode}. *)
 
       val default : metadata
       (** [default] is the default metadata value. *)
@@ -1566,16 +1578,53 @@ module Private : sig
       (** [value_t] is the value type for {!value}. *)
     end
 
-    (** [Make] provides a simple node implementation, parameterized by
-        the contents and notes keys [K], paths [P] and metadata [M]. *)
-    module Make
+    (** [Tree] provides a tree-structured node implementation,
+        parameterized by the contents and notes keys [K], paths [P] and
+        metadata [M]. *)
+    module Tree (Conf : sig
+      val max_inodes : int
+
+      val max_values : int
+    end)
+    (K : Hash.S) (P : sig
+        type step
+
+        val step_t : step Type.t
+    end)
+    (M : Metadata.S) : sig
+      type entry =
+        | Node of { name : P.step; node : K.t }
+        | Contents of { metadata : M.t; name : P.step; node : K.t }
+        | Inode of { index : int; node : K.t }
+
+      include
+        S
+        with type inode = entry list
+         and type hash = K.t
+         and type step = P.step
+         and type metadata = M.t
+    end
+
+    (** [Flat] provides a list-based node implementation,
+        parameterized by the contents and notes keys [K], paths [P] and
+        metadata [M]. *)
+    module Flat
         (K : Type.S) (P : sig
             type step
 
             val step_t : step Type.t
         end)
-        (M : Metadata.S) :
-      S with type hash = K.t and type step = P.step and type metadata = M.t
+        (M : Metadata.S) : sig
+      type t
+
+      include
+        S
+        with type t := t
+         and type inode = t
+         and type hash = K.t
+         and type step = P.step
+         and type metadata = M.t
+    end
 
     (** v1 serialisation *)
     module V1 (S : S) : sig
@@ -1633,7 +1682,7 @@ module Private : sig
 
             module Val :
               S
-              with type t = value
+              with type inode = value
                and type hash = key
                and type metadata = M.t
                and type step = P.step
@@ -1641,7 +1690,7 @@ module Private : sig
       STORE
       with type 'a t = 'a C.t * 'a S.t
        and type key = S.key
-       and type value = S.value
+       and type value = S.Val.t
        and module Path = P
        and module Metadata = M
        and type Key.t = S.Key.t

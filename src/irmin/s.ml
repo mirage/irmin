@@ -110,6 +110,8 @@ end
 module type NODE = sig
   type t
 
+  type inode
+
   type metadata
 
   type hash
@@ -132,7 +134,13 @@ module type NODE = sig
 
   val remove : t -> step -> t
 
+  val load : find:(hash -> inode option Lwt.t) -> hash -> t option Lwt.t
+
+  val save : add:(inode -> hash Lwt.t) -> t -> hash Lwt.t
+
   val t : t Type.t
+
+  val inode_t : inode Type.t
 
   val default : metadata
 

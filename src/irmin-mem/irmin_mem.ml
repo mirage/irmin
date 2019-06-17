@@ -56,7 +56,7 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   include Read_only (K) (V)
 
   let add t key value =
-    Log.debug (fun f -> f "add -> %a" pp_key key);
+    Log.debug (fun f -> f "add %a -> %a" Irmin.Type.(pp V.t) value pp_key key);
     t.t <- KMap.add key value t.t;
     Lwt.return ()
 end

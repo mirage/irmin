@@ -20,14 +20,50 @@
 
 module No_metadata : S.METADATA with type t = unit
 
-module Make
+module type Conf = sig
+  val max_inodes : int
+
+  val max_values : int
+end
+
+module Tree
+    (Conf : Conf)
+    (K : S.HASH) (P : sig
+        type step
+
+        val step_t : step Type.t
+    end)
+    (M : S.METADATA) : sig
+  type entry =
+    | Node of { name : P.step; node : K.t }
+    | Contents of { metadata : M.t; name : P.step; node : K.t }
+    | Inode of { index : int; node : K.t }
+
+  include
+    S.NODE
+    with type inode = entry list
+     and type hash = K.t
+     and type step = P.step
+     and type metadata = M.t
+end
+
+module Flat
     (K : Type.S) (P : sig
         type step
 
         val step_t : step Type.t
     end)
-    (M : S.METADATA) :
-  S.NODE with type hash = K.t and type step = P.step and type metadata = M.t
+    (M : S.METADATA) : sig
+  type t
+
+  include
+    S.NODE
+    with type t := t
+     and type inode = t
+     and type hash = K.t
+     and type step = P.step
+     and type metadata = M.t
+end
 
 module Store
     (C : S.CONTENTS_STORE)
@@ -39,7 +75,7 @@ module Store
 
         module Val :
           S.NODE
-          with type t = value
+          with type inode = value
            and type hash = key
            and type metadata = M.t
            and type step = P.step
@@ -47,7 +83,7 @@ module Store
   S.NODE_STORE
   with type 'a t = 'a C.t * 'a N.t
    and type key = N.key
-   and type value = N.value
+   and type value = N.Val.t
    and module Path = P
    and module Metadata = M
    and type Key.t = N.key

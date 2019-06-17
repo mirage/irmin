@@ -228,7 +228,14 @@ let test_size () =
 module Hash = Irmin.Hash.SHA1
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node.Make (Hash) (Path) (Metadata)
+
+module Conf = struct
+  let max_inodes = 2
+
+  let max_values = 2
+end
+
+module Node = Irmin.Private.Node.Tree (Conf) (Hash) (Path) (Metadata)
 module Node_v1 = Irmin.Private.Node.V1 (Node)
 module Commit = Irmin.Private.Commit.Make (Hash)
 module Commit_v1 = Irmin.Private.Commit.V1 (Commit)
@@ -241,8 +248,8 @@ let hash_v1 c =
 
 let test_hashes () =
   let digest t x =
-    let s = Irmin.Type.to_bin_string t x in
-    Printf.eprintf "to_bin_string: %S\n" s;
+    let s = Irmin.Type.pre_digest t x in
+    Printf.eprintf "pre_digest: %S\n" s;
     Irmin.Type.to_string Hash.t (Hash.digest s)
   in
   Alcotest.(check string)
@@ -1097,6 +1104,55 @@ let test_variants () =
   test (`X259 1024);
   test (`X259 (1024 * 1024))
 
+let node = Alcotest.testable (Irmin.Type.pp Node.t) (Irmin.Type.equal Node.t)
+
+let () = Random.self_init ()
+
+let random_char () = char_of_int (Random.int 256)
+
+let random_ascii () =
+  let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in
+  chars.[Random.int @@ String.length chars]
+
+let random_ascii_string n = String.init n (fun _i -> random_ascii ())
+
+let random_string n = String.init n (fun _i -> random_char ())
+
+let blob x = `Contents (hash x, ())
+
+let random_blob () = blob (random_string 100)
+
+let random_entry () = (random_ascii_string 20, random_blob ())
+
+let random_entries n =
+  let rec aux acc = function
+    | 0 -> acc
+    | n -> aux (random_entry () :: acc) (n - 1)
+  in
+  aux [] n
+
+let test_nodes () =
+  let open Lwt.Infix in
+  let test () =
+    let entries = random_entries 10_000 in
+    let n = Node.v entries in
+    let db = ref [] in
+    let add v =
+      let k = hash (Irmin.Type.pre_digest Node.inode_t v) in
+      db := (k, v) :: !db;
+      Lwt.return k
+    in
+    Node.save ~add n >>= fun h ->
+    let find h =
+      Lwt.return (try Some (List.assoc h !db) with Not_found -> None)
+    in
+    Node.load ~find h >|= fun y ->
+    Alcotest.(check (option node)) "save/load" (Some n) y;
+    let x = List.fold_left (fun acc (s, _) -> Node.remove acc s) n entries in
+    Alcotest.(check node) "remove" x Node.empty
+  in
+  Lwt_main.run (test ())
+
 let suite =
   [ ( "type",
       [ ("base", `Quick, test_base);
@@ -1108,7 +1164,8 @@ let suite =
         ("decode", `Quick, test_decode);
         ("size_of", `Quick, test_size);
         ("test_hashes", `Quick, test_hashes);
-        ("test_variants", `Quick, test_variants)
+        ("test_variants", `Quick, test_variants);
+        ("test_nodes", `Quick, test_nodes)
       ] )
   ]
 

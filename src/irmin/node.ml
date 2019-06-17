@@ -31,7 +31,314 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make
+module type Conf = sig
+  val max_inodes : int
+
+  val max_values : int
+end
+
+module Tree
+    (Conf : Conf)
+    (K : S.HASH) (P : sig
+        type step
+
+        val step_t : step Type.t
+    end)
+    (M : S.METADATA) =
+struct
+  type hash = K.t
+
+  type step = P.step
+
+  module StepMap = struct
+    include Map.Make (struct
+      type t = step
+
+      let compare = Type.compare P.step_t
+    end)
+
+    let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
+  end
+
+  type metadata = M.t
+
+  type entry =
+    | Node of { name : P.step; node : K.t }
+    | Contents of { metadata : M.t; name : P.step; node : K.t }
+    | Inode of { index : int; node : K.t }
+
+  let entry_t : entry Type.t =
+    let open Type in
+    variant "Tree.entry" (fun node contents inode -> function
+      | Node n -> node (n.name, n.node)
+      | Contents c -> contents (c.metadata, c.name, c.node)
+      | Inode i -> inode (i.index, i.node) )
+    |~ case1 "Node" (pair P.step_t K.t) (fun (name, node) ->
+           Node { name; node } )
+    |~ case1 "Contents" (triple M.t P.step_t K.t)
+         (fun (metadata, name, node) -> Contents { metadata; name; node })
+    |~ case1 "Inode" (pair int K.t) (fun (index, node) -> Inode { index; node })
+    |> sealv
+
+  let entry_of_value name v =
+    match v with
+    | `Node node -> Node { name; node }
+    | `Contents (node, metadata) -> Contents { metadata; name; node }
+
+  let entries_of_values m =
+    StepMap.fold (fun s v acc -> entry_of_value s v :: acc) m [] |> List.rev
+
+  let entry_of_inode index node = Inode { index; node }
+
+  type value = [ `Contents of hash * metadata | `Node of hash ]
+
+  let value_t =
+    let open Type in
+    variant "value" (fun n c -> function
+      | `Node h -> n h | `Contents (h, m) -> c (h, m) )
+    |~ case1 "node" K.t (fun k -> `Node k)
+    |~ case1 "contents" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
+    |> sealv
+
+  type t = Values of value StepMap.t | Nodes of t array | Empty
+
+  type inode = entry list
+
+  let inode_t : inode Type.t = Type.(list entry_t)
+
+  let list (t : t) =
+    let rec aux acc = function
+      | Empty -> acc
+      | Values t ->
+          List.fold_left (fun acc e -> e :: acc) acc (StepMap.bindings t)
+      | Nodes n -> Array.fold_left aux acc n
+    in
+    aux [] t
+
+  let index ~seed k = abs (Type.hash P.step_t ~seed k) mod Conf.max_inodes
+
+  let find (t : t) s =
+    let rec aux seed = function
+      | Empty -> None
+      | Values t -> ( try Some (StepMap.find s t) with Not_found -> None )
+      | Nodes n ->
+          let i = index ~seed s in
+          aux (seed + 1) n.(i)
+    in
+    aux 0 t
+
+  let empty = Empty
+
+  let is_empty = function Empty -> true | _ -> false
+
+  let singleton s v = Values (StepMap.singleton s v)
+
+  let rec add_values : type a. seed:_ -> _ -> _ -> _ -> _ -> (t -> a) -> a =
+   fun ~seed t vs s v k ->
+    let values = StepMap.add s v vs in
+    if values == vs then k t
+    else if StepMap.cardinal values <= Conf.max_values then k (Values values)
+    else (nodes_of_values [@tailcall]) ~seed values (fun n -> k (Nodes n))
+
+  and nodes_of_values : type a. seed:_ -> _ -> (t array -> a) -> a =
+   fun ~seed entries k ->
+    let n = Array.make Conf.max_inodes Empty in
+    StepMap.iter (fun s e -> (update_nodes [@tailcall]) ~seed n s e) entries;
+    k n
+
+  and with_node : type a.
+      seed:_ -> copy:_ -> _ -> _ -> _ -> (int -> t -> t -> a) -> a =
+   fun ~seed ~copy n s v k ->
+    let i = index ~seed s in
+    let x = n.(i) in
+    match x with
+    | Empty -> k i x (singleton s v)
+    | Values vs as t ->
+        (add_values [@tailcall]) ~seed:(seed + 1) t vs s v (fun y -> k i x y)
+    | Nodes n as t ->
+        (add_nodes [@tailcall]) ~seed:(seed + 1) ~copy t n s v (fun y ->
+            k i x y )
+
+  and update_nodes ~seed n s e =
+    with_node ~seed ~copy:false n s e @@ fun i x y -> if x != y then n.(i) <- y
+
+  and add_nodes : type a. seed:_ -> copy:_ -> _ -> _ -> _ -> _ -> (t -> a) -> a
+      =
+   fun ~seed ~copy t n s e k ->
+    with_node ~seed ~copy n s e @@ fun i x y ->
+    if x == y then k t
+    else
+      let n = if copy then Array.copy n else n in
+      n.(i) <- y;
+      k (Nodes n)
+
+  let add (t : t) s v =
+    match t with
+    | Empty -> singleton s v
+    | Values vs as t -> (add_values [@tailcall]) ~seed:0 t vs s v (fun x -> x)
+    | Nodes n as t ->
+        (add_nodes [@tailcall]) ~seed:0 ~copy:true t n s v (fun x -> x)
+
+  let remove_values t x s k =
+    let y = StepMap.remove s x in
+    if x == y then k t
+    else if StepMap.is_empty y then k Empty
+    else k (Values y)
+
+  let fold f init t =
+    let rec aux acc = function
+      | Empty -> acc
+      | Values vs -> f vs acc
+      | Nodes n -> Array.fold_left aux acc n
+    in
+    aux init t
+
+  exception Break
+
+  let length t =
+    try
+      fold
+        (fun es acc ->
+          let n = StepMap.cardinal es + acc in
+          if n > Conf.max_values then raise_notrace Break else n )
+        0 t
+    with Break -> Conf.max_values + 1
+
+  let values t =
+    fold
+      (fun es acc -> StepMap.union (fun _ -> assert false) es acc)
+      StepMap.empty t
+
+  let rec remove_nodes ~seed t n s k =
+    let i = index ~seed s in
+    let x = n.(i) in
+    let return y =
+      if x == y then k t
+      else
+        (* FIXME(samoht): avoid copy if Entries isreturned *)
+        let n = Array.copy n in
+        n.(i) <- y;
+        let t = Nodes n in
+        if length t <= Conf.max_values then
+          let vs = values t in
+          k (Values vs)
+        else k (Nodes n)
+    in
+    match x with
+    | Empty -> return x
+    | Values es as t -> (remove_values [@tailcall]) t es s return
+    | Nodes n as t -> (remove_nodes [@tailcall]) ~seed:(seed + 1) t n s return
+
+  let remove (t : t) s =
+    match t with
+    | Empty -> t
+    | Values x -> (remove_values [@tailcall]) t x s (fun x -> x)
+    | Nodes x -> (remove_nodes [@tailcall]) ~seed:0 t x s (fun x -> x)
+
+  let load ~find h =
+    let rec inode ~seed h k =
+      find h >>= function
+      | None -> k None
+      | Some [] -> k (Some Empty)
+      | Some i ->
+          let vs, is =
+            List.fold_left
+              (fun (vs, is) -> function
+                | Node n -> (StepMap.add n.name (`Node n.node) vs, is)
+                | Contents c ->
+                    (StepMap.add c.name (`Contents (c.node, c.metadata)) vs, is)
+                | Inode i -> (vs, (i.index, i.node) :: is) )
+              (StepMap.empty, []) i
+          in
+          if is = [] then k (Some (Values vs))
+          else
+            (nodes_of_values [@tailcall]) ~seed vs @@ fun n ->
+            (inodes [@tailcall]) ~seed n is @@ fun n -> k (Some (Nodes n))
+    and inodes ~seed n l k =
+      match l with
+      | [] -> k n
+      | (i, h) :: t -> (
+          (inode [@tailcall]) ~seed:(seed + 1) h @@ fun v ->
+          (inodes [@tailcall]) ~seed n t @@ fun n ->
+          match v with
+          | None -> k n
+          | Some v ->
+              assert (i < Conf.max_inodes);
+              assert (n.(i) = Empty);
+              n.(i) <- v;
+              k n )
+    in
+    inode ~seed:0 h (function
+      | None -> Lwt.return None
+      | Some x -> Lwt.return (Some x) )
+
+  let fold f t init =
+    let rec inode t k =
+      match t with
+      | Empty -> k []
+      | Values vs -> k (entries_of_values vs)
+      | Nodes n -> (inodes [@tailcall]) n 0 k
+    and inodes n i k =
+      if i >= Array.length n then k []
+      else
+        match n.(i) with
+        | Empty -> inodes n (i + 1) k
+        | Values es when StepMap.cardinal es = 1 ->
+            let s, v = StepMap.choose es in
+            (inodes [@tailcall]) n (i + 1) @@ fun inodes ->
+            k (entry_of_value s v :: inodes)
+        | x ->
+            (inode [@tailcall]) x @@ fun t ->
+            (inodes [@tailcall]) n (i + 1) @@ fun inodes ->
+            f t @@ fun h -> k (entry_of_inode i h :: inodes)
+    in
+    inode t init
+
+  let save ~add t = fold (fun x f -> add x >>= f) t add
+
+  let pre_digest t =
+    let pre_digest t = Type.pre_digest inode_t t in
+    let digest t = K.digest (pre_digest t) in
+    fold (fun t f -> f (digest t)) t pre_digest
+
+  let pre_t : t Type.t =
+    let open Type in
+    mu @@ fun t ->
+    variant "Node.t" (fun values nodes empty -> function
+      | Values x -> values (StepMap.bindings x)
+      | Nodes x -> nodes x
+      | Empty -> empty )
+    |~ case1 "Values"
+         (list (pair P.step_t value_t))
+         (fun e -> Values (StepMap.of_list e))
+    |~ case1 "Nodes" (array t) (fun n -> Nodes n)
+    |~ case0 "Empty" Empty |> sealv
+
+  let v l : t =
+    if List.length l < Conf.max_values then Values (StepMap.of_list l)
+    else
+      let aux t (s, v) =
+        match t with
+        | Empty -> singleton s v
+        | Values vs as t ->
+            (add_values [@tailcall]) ~seed:0 t vs s v (fun x -> x)
+        | Nodes n as t ->
+            (add_nodes [@tailcall]) ~seed:0 ~copy:false t n s v (fun x -> x)
+      in
+      List.fold_left aux empty l
+
+  let t : t Type.t = Type.like ~pre_digest pre_t
+
+  let step_t = P.step_t
+
+  let hash_t = K.t
+
+  let metadata_t = M.t
+
+  let default = M.default
+end
+
+module Flat
     (K : Type.S) (P : sig
         type step
 
@@ -89,6 +396,8 @@ struct
 
   type t = entry StepMap.t
 
+  type inode = t
+
   let v l =
     List.fold_left
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
@@ -133,6 +442,12 @@ struct
   let entries e = List.map to_entry (list e)
 
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  let inode_t = t
+
+  let load ~find t = find t
+
+  let save ~add t = add t
 end
 
 module Store
@@ -145,7 +460,7 @@ module Store
 
         module Val :
           S.NODE
-          with type t = value
+          with type inode = value
            and type hash = key
            and type metadata = M.t
            and type step = P.step
@@ -160,13 +475,13 @@ struct
 
   type key = S.key
 
-  type value = S.value
+  type value = S.Val.t
 
   let mem (_, t) = S.mem t
 
-  let find (_, t) = S.find t
+  let find (_, t) k = S.Val.load ~find:(S.find t) k
 
-  let add (_, t) = S.add t
+  let add (_, t) v = S.Val.save ~add:(S.add t) v
 
   let all_contents t =
     let kvs = S.Val.list t in
@@ -209,7 +524,7 @@ struct
   let merge_parents merge_key =
     Merge.alist step_t S.Key.t (fun _step -> merge_key)
 
-  let merge_value (c, _) merge_key =
+  let merge_node (c, _) merge_key =
     let explode t = (all_contents t, all_succ t) in
     let implode (contents, succ) =
       let xs = List.map (fun (s, c) -> (s, `Contents c)) contents in
@@ -224,7 +539,7 @@ struct
       Merge.v (Type.option S.Key.t) (fun ~old x y ->
           Merge.(f (merge t)) ~old x y )
     in
-    let merge = merge_value t merge_key in
+    let merge = merge_node t merge_key in
     let read = function
       | None -> Lwt.return S.Val.empty
       | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v )
@@ -409,6 +724,10 @@ module V1 (N : S.NODE) = struct
 
   type value = N.value
 
+  type inode = N.inode
+
+  let inode_t = N.inode_t
+
   let hash_t = N.hash_t
 
   let metadata_t = N.metadata_t
@@ -469,4 +788,8 @@ module V1 (N : S.NODE) = struct
 
   let t : t Type.t =
     Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+
+  let save ~add:_ _ = failwith "TODO: V1.save"
+
+  let load ~find:_ _ = failwith "TODO: V1.load"
 end

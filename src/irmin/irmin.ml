@@ -130,7 +130,14 @@ struct
       module CA = struct
         module Val = N
         module Key = Hash
-        include CA (Key) (Val)
+
+        module Inode = struct
+          type t = Val.inode
+
+          let t = Val.inode_t
+        end
+
+        include CA (Key) (Inode)
       end
 
       include Node.Store (Contents) (P) (M) (CA)
@@ -204,7 +211,13 @@ module Make
     (B : S.BRANCH)
     (H : S.HASH) =
 struct
-  module N = Node.Make (H) (P) (M)
+  module Conf = struct
+    let max_inodes = 32
+
+    let max_values = 32
+  end
+
+  module N = Node.Tree (Conf) (H) (P) (M)
   module CT = Commit.Make (H)
   include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 end

@@ -511,6 +511,7 @@ module V1 (C : S.COMMIT) = struct
   type t = { parents : hash list; c : C.t }
 
   let import c = { c; parents = C.parents c }
+
   let export t = t.c
 
   let node t = C.node t.c

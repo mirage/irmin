@@ -204,6 +204,8 @@ struct
 
       type t = G.Value.Tree.t
 
+      type inode = t
+
       type metadata = Metadata.t
 
       type hash = Key.t
@@ -308,7 +310,7 @@ struct
                 (to_step name, mk_c node perm) :: acc )
           [] (G.Value.Tree.to_list t)
 
-      module N = Irmin.Private.Node.Make (H) (P) (Metadata)
+      module N = Irmin.Private.Node.Flat (H) (P) (Metadata)
 
       let to_n t = N.v (alist t)
 
@@ -337,6 +339,12 @@ struct
 
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+
+      let inode_t = t
+
+      let load ~find h = find h
+
+      let save ~add t = add t
     end
 
     include Content_addressable (struct
