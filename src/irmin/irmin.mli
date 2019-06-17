@@ -318,7 +318,7 @@ module Type : sig
   val compare : 'a t -> 'a -> 'a -> int
   (** [compare t] compares values of type [t]. *)
 
-  val hash : 'a t -> 'a -> int
+  val hash : 'a t -> ?seed:int -> 'a -> int
   (** [hash t x] is a short hash of [x] of type [t]. *)
 
   (** The type for pretty-printers for CLI arguments. *)
@@ -480,7 +480,7 @@ module Type : sig
     bin:'a encode_bin * 'a decode_bin * 'a size_of ->
     equal:('a -> 'a -> bool) ->
     compare:('a -> 'a -> int) ->
-    hash:('a -> int) ->
+    hash:(?seed:int -> 'a -> int) ->
     pre_digest:('a -> string) ->
     'a t
 
