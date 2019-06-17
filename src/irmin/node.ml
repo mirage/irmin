@@ -106,7 +106,7 @@ struct
 
   let is_empty e = list e = []
 
-  let update t k v =
+  let add t k v =
     let e = to_entry (k, v) in
     StepMap.add k e t
 
@@ -331,10 +331,7 @@ module Graph (S : S.NODE_STORE) = struct
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
-    else
-      S.add t new_node >>= fun k ->
-      let node = S.Val.update node label (`Node k) in
-      Lwt.return node
+    else S.add t new_node >|= fun k -> S.Val.add node label (`Node k)
 
   let map t node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
@@ -346,15 +343,14 @@ module Graph (S : S.NODE_STORE) = struct
     (S.find t node >|= function None -> S.Val.empty | Some n -> n)
     >>= fun node -> aux node path >>= S.add t
 
-  let update t node path n =
-    Log.debug (fun f -> f "update %a %a" pp_key node pp_path path);
+  let add t node path n =
+    Log.debug (fun f -> f "add %a %a" pp_key node pp_path path);
     match Path.rdecons path with
-    | Some (path, file) ->
-        map t node path (fun node -> S.Val.update node file n)
+    | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (
       match n with
       | `Node n -> Lwt.return n
-      | `Contents _ -> failwith "TODO: Node.update" )
+      | `Contents _ -> failwith "TODO: Node.add" )
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -437,8 +433,8 @@ module V1 (N : S.NODE) = struct
 
   let find t k = N.find t.n k
 
-  let update t k v =
-    let n = N.update t.n k v in
+  let add t k v =
+    let n = N.add t.n k v in
     if t.n == n then t else { n; entries = N.list n }
 
   let remove t k =

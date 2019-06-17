@@ -263,7 +263,7 @@ struct
 
       let is_empty = G.Value.Tree.is_empty
 
-      let update t name value =
+      let add t name value =
         let entry =
           match value with
           | `Node node -> G.Value.Tree.entry (of_step name) `Dir node
