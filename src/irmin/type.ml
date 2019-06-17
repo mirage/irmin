@@ -85,7 +85,7 @@ type 'a compare = 'a -> 'a -> int
 
 type 'a equal = 'a -> 'a -> bool
 
-type 'a hash = 'a -> int
+type 'a hash = ?seed:int -> 'a -> int
 
 type 'a t =
   | Self : 'a self -> 'a t
@@ -1567,8 +1567,13 @@ let of_string t =
 
 type 'a ty = 'a t
 
-let hash t x =
-  match t with Custom c -> c.hash x | _ -> Hashtbl.hash (pre_digest t x)
+let hash t ?seed x =
+  match t with
+  | Custom c -> c.hash ?seed x
+  | _ -> (
+    match seed with
+    | None -> Hashtbl.hash (pre_digest t x)
+    | Some s -> Hashtbl.seeded_hash s (pre_digest t x) )
 
 let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
   let encode_json, decode_json =
@@ -1603,7 +1608,7 @@ let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
       match compare with Some f -> fun x y -> f x y = 0 | None -> Equal.t t )
   in
   let compare = match compare with Some x -> x | None -> Compare.t t in
-  let hash = match h with Some x -> x | None -> hash t in
+  let hash ?seed = match h with Some x -> x | None -> hash ?seed t in
   let pre_digest =
     match p with Some x -> x | None -> to_bin size_of encode_bin
   in

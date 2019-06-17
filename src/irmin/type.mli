@@ -94,7 +94,7 @@ val equal : 'a t -> 'a -> 'a -> bool
 
 val compare : 'a t -> 'a -> 'a -> int
 
-val hash : 'a t -> 'a -> int
+val hash : 'a t -> ?seed:int -> 'a -> int
 
 (* CLI *)
 
@@ -144,7 +144,7 @@ val v :
   bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   equal:('a -> 'a -> bool) ->
   compare:('a -> 'a -> int) ->
-  hash:('a -> int) ->
+  hash:(?seed:int -> 'a -> int) ->
   pre_digest:('a -> string) ->
   'a t
 
