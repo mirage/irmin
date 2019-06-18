@@ -362,9 +362,7 @@ module Dict = struct
       let rec aux n offset =
         if offset >= len then Lwt.return ()
         else
-          let _, v =
-            Irmin.Type.(decode_bin int32) (String.sub raw offset 4) 0
-          in
+          let _, v = Irmin.Type.(decode_bin int32) raw offset in
           let len = Int32.to_int v in
           let v = String.sub raw (offset + 4) len in
           Hashtbl.add cache v n;
