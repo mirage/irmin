@@ -28,3 +28,7 @@ val event_t :
   'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b Irmin.Diff.t) Irmin.Type.t
 
 val init_t : 'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b) Irmin.Type.t
+
+type 'a merge = { old : 'a; left : 'a; right : 'a }
+
+val merge_t : 'a Irmin.Type.t -> 'a merge Irmin.Type.t

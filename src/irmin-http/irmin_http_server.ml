@@ -97,6 +97,30 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               Wm.continue true { rd with Wm.Rd.resp_body }
       end
 
+    class merge merge repo =
+      object
+        inherit resource
+
+        method! allowed_methods rd = Wm.continue [ `POST ] rd
+
+        method content_types_provided rd =
+          Wm.continue [ ("application/json", fun _ -> assert false) ] rd
+
+        method content_types_accepted rd = Wm.continue [] rd
+
+        method! process_post rd =
+          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+          match Irmin.Type.(of_string (merge_t (option K.t)) body) with
+          | Error e -> parse_error rd body e
+          | Ok { old; left; right } ->
+              S.batch repo @@ fun db ->
+              let old = Irmin.Merge.promise old in
+              Irmin.Merge.f (merge db) ~old left right >>= fun m ->
+              let result = Irmin.Merge.result_t (Irmin.Type.option K.t) in
+              let resp_body = `String Irmin.(Type.to_string result m) in
+              Wm.continue true { rd with Wm.Rd.resp_body }
+      end
+
     class item db =
       object (self)
         inherit resource
@@ -317,6 +341,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       [ ("/blobs", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
         ("/trees", fun () -> new Tree.items db);
+        ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
         ("/tree/:id", fun () -> new Tree.item tree);
         ("/commits", fun () -> new Commit.items db);
         ("/commit/:id", fun () -> new Commit.item commit);

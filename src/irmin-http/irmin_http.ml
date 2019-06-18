@@ -404,15 +404,37 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     end
 
     module Node = struct
-      module X = struct
-        module Key = S.Hash
-        module Val = S.Private.Node.Val
-        include AO (Client) (Key) (Val)
+      module Val = S.Private.Node.Val
+
+      module Key = struct
+        include S.Hash
+
+        let digest v = digest (Irmin.Type.pre_digest Val.t v)
       end
 
-      include Irmin.Private.Node.Store (Contents) (S.Key) (S.Metadata) (X)
+      include AO (Client) (S.Hash) (Val)
+      module Contents = Contents
+      module Metadata = S.Metadata
+      module Path = S.Key
 
-      let v ?ctx config = X.v ?ctx config "tree" "trees"
+      let merge t =
+        let f ~(old : Key.t option Irmin.Merge.promise) left right =
+          (old () >|= function
+           | Ok (Some old) -> old
+           | Ok None -> None
+           | Error _ -> None)
+          >>= fun old ->
+          let body =
+            Irmin.Type.(to_string (merge_t (option Key.t)))
+              { old; left; right }
+          in
+          let result = Irmin.Merge.result_t (Irmin.Type.option Key.t) in
+          HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
+            (Irmin.Type.of_string result)
+        in
+        Irmin.Merge.(v Irmin.Type.(option Key.t)) f
+
+      let v ?ctx config = v ?ctx config "tree" "trees"
     end
 
     module Commit = struct
@@ -457,9 +479,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
       let batch t f =
         Contents.X.batch t.contents @@ fun contents_t ->
-        Node.X.batch (snd t.node) @@ fun node_t ->
+        Node.batch t.node @@ fun node_t ->
         Commit.X.batch (snd t.commit) @@ fun commit_t ->
-        let node_t = (contents_t, node_t) in
         let commit_t = (node_t, commit_t) in
         f contents_t node_t commit_t
 
@@ -470,7 +491,6 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         Node.v ?ctx uri >>= fun node ->
         Commit.v ?ctx uri >>= fun commit ->
         Branch.v ?ctx uri >|= fun branch ->
-        let node = (contents, node) in
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
     end
