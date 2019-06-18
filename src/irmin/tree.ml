@@ -129,6 +129,21 @@ module Make (P : S.PRIVATE) = struct
       i.value <- None;
       i.hash <- None
 
+    let merge_info ~into:x y =
+      let () =
+        match (x.hash, y.hash) with
+        | None, None | Some _, None -> ()
+        | Some x, Some y -> assert (Type.equal P.Hash.t x y)
+        | None, _ -> x.hash <- y.hash
+      in
+      let () =
+        match (x.value, y.value) with
+        | None, None | Some _, None -> ()
+        | Some x, Some y -> assert (Type.equal P.Contents.Val.t x y)
+        | None, _ -> x.value <- y.value
+      in
+      ()
+
     let info_is_empty i = i.value = None
 
     module Cache = struct
@@ -211,8 +226,14 @@ module Make (P : S.PRIVATE) = struct
 
     let hashcons t =
       match (t.v, t.info.hash, t.info.value) with
-      | Hash (r, h), Some h', _ -> if h != h' then t.v <- Hash (r, h')
-      | Value v, _, Some v' -> if v != v' then t.v <- Value v'
+      | Hash (r, h), Some h', _ ->
+          if h != h' then (
+            assert (Type.equal P.Hash.t h h');
+            t.v <- Hash (r, h') )
+      | Value v, _, Some v' ->
+          if v != v' then (
+            assert (Type.equal P.Contents.Val.t v v');
+            t.v <- Value v' )
       | _ -> ()
 
     let to_hash c =
@@ -303,6 +324,49 @@ module Make (P : S.PRIVATE) = struct
     and v = Map of map | Hash of repo * hash | Value of repo * value
 
     and t = { mutable v : v; mutable info : info }
+
+    let rec merge_map ~into:x y =
+      List.iter2
+        (fun (a, x) (b, y) ->
+          assert (Type.equal P.Node.Path.step_t a b);
+          match (x, y) with
+          | `Contents (x, m1), `Contents (y, m2) ->
+              assert (Type.equal P.Node.Metadata.t m1 m2);
+              Contents.merge_info ~into:x.Contents.info y.Contents.info
+          | `Node x, `Node y -> (merge_info [@tailcall]) ~into:x.info y.info
+          | _ -> assert false )
+        (StepMap.bindings x) (StepMap.bindings y)
+
+    and merge_info ~into:x y =
+      let () =
+        match (x.hash, y.hash) with
+        | None, None | Some _, None -> ()
+        | Some x, Some y -> assert (Type.equal P.Hash.t x y)
+        | None, _ -> x.hash <- y.hash
+      in
+      let () =
+        match (x.value, y.value) with
+        | None, None | Some _, None -> ()
+        | Some x, Some y -> assert (Type.equal P.Node.Val.t x y)
+        | None, _ -> x.value <- y.value
+      in
+      match (x.map, y.map) with
+      | None, None | Some _, None -> ()
+      | None, Some _ -> x.map <- y.map
+      | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
+
+    let equiv_map (x : map) (y : map) =
+      List.for_all2
+        (fun (a, x) (b, y) ->
+          Type.equal P.Node.Path.step_t a b
+          &&
+          match (x, y) with
+          | `Node _, `Contents _ | `Contents _, `Node _ -> false
+          | `Contents (c1, m1), `Contents (c2, m2) ->
+              Type.equal P.Node.Metadata.t m1 m2
+              && c1.Contents.info == c2.Contents.info
+          | `Node n1, `Node n2 -> n1.info == n2.info )
+        (StepMap.bindings x) (StepMap.bindings y)
 
     let check msg t =
       match (t.v, t.info.hash, t.info.map, t.info.value) with
@@ -514,8 +578,15 @@ module Make (P : S.PRIVATE) = struct
     let hashcons t =
       match (t.v, t.info.hash, t.info.map, t.info.value) with
       | Hash (r, h), Some h', _, _ -> if h != h' then t.v <- Hash (r, h')
-      | Map v, _, Some v', _ -> if v != v' then t.v <- Map v'
-      | Value (r, v), _, _, Some v' -> if v != v' then t.v <- Value (r, v')
+      | Map v, _, Some v', _ ->
+          if v != v' then (
+            merge_map ~into:v' v;
+            assert (equiv_map v v');
+            t.v <- Map v' )
+      | Value (r, v), _, _, Some v' ->
+          if v != v' then (
+            assert (Type.equal P.Node.Val.t v v');
+            t.v <- Value (r, v') )
       | _ -> ()
 
     let hash_of_value t v =
