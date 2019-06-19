@@ -76,17 +76,17 @@ module IO : IO = struct
     let really_write fd buf =
       let rec aux off len =
         Lwt_unix.write fd buf off len >>= fun w ->
-        if w = 0 then Lwt.return () else aux (off + w) (len - w)
+        if w = 0 then Lwt.return () else (aux [@tailcall]) (off + w) (len - w)
       in
-      aux 0 (Bytes.length buf)
+      (aux [@tailcall]) 0 (Bytes.length buf)
 
     let really_read fd buf =
       let rec aux off len =
         Lwt_unix.read fd buf off len >>= fun r ->
         if r = 0 || r = len then Lwt.return (off + r)
-        else aux (off + r) (len - r)
+        else (aux [@tailcall]) (off + r) (len - r)
       in
-      aux 0 (Bytes.length buf)
+      (aux [@tailcall]) 0 (Bytes.length buf)
 
     let lseek t off =
       if off = t.cursor then Lwt.return ()
@@ -199,18 +199,18 @@ module IO : IO = struct
   let safe f x = Lwt.catch (fun () -> f x) ignore_enoent
 
   let mkdir dirname =
-    let rec aux dir =
-      if Sys.file_exists dir && Sys.is_directory dir then Lwt.return_unit
+    let rec aux dir k =
+      if Sys.file_exists dir && Sys.is_directory dir then k ()
       else
         let clear =
           if Sys.file_exists dir then safe Lwt_unix.unlink dir
           else Lwt.return_unit
         in
         clear >>= fun () ->
-        aux (Filename.dirname dir) >>= fun () ->
+        (aux [@tailcall]) (Filename.dirname dir) @@ fun () ->
         protect (Lwt_unix.mkdir dir) 0o755
     in
-    aux dirname
+    (aux [@tailcall]) dirname Lwt.return
 
   let clear t =
     t.offset <- 0L;
@@ -276,7 +276,7 @@ end = struct
     | Some buf ->
         if t.length - ioff < len then (
           Lru.remove page_off t.pages;
-          read t ~off ~len )
+          (read [@tailcall]) t ~off ~len )
         else (
           Lru.promote page_off t.pages;
           Lru.trim t.pages;
@@ -359,20 +359,20 @@ module Dict = struct
       let raw = Bytes.create len in
       IO.read block ~off:0L raw >>= fun () ->
       let raw = Bytes.unsafe_to_string raw in
-      let rec aux n offset =
-        if offset >= len then Lwt.return ()
+      let rec aux n offset k =
+        if offset >= len then k ()
         else
           let _, v = Irmin.Type.(decode_bin int32) raw offset in
           let len = Int32.to_int v in
           let v = String.sub raw (offset + 4) len in
           Hashtbl.add cache v n;
           Hashtbl.add index n v;
-          aux (n + 1) (offset + 4 + len)
+          (aux [@tailcall]) (n + 1) (offset + 4 + len) k
       in
-      aux 0 0 >|= fun () ->
+      (aux [@tailcall]) 0 0 @@ fun () ->
       let t = { index; cache; block; lock = Lwt_mutex.create () } in
       Hashtbl.add files root t;
-      t
+      Lwt.return t
 
   let v ?fresh root =
     Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
@@ -469,12 +469,12 @@ module Index (H : Irmin.Hash.S) = struct
               Irmin.Type.decode_bin entry page off
             in
             f { hash; offset; len = Int32.to_int len };
-            read_page page (off + pad)
+            (read_page [@tailcall]) page (off + pad)
         in
         let () = read_page page 0 in
-        aux (offset ++ Int64.of_int page_size)
+        (aux [@tailcall]) (offset ++ Int64.of_int page_size)
     in
-    aux 0L
+    (aux [@tailcall]) 0L
 
   let unsafe_v ?(fresh = false) root =
     let log_path = log_path root in
@@ -561,10 +561,11 @@ module Index (H : Irmin.Hash.S) = struct
           get_entry t i offL >>= fun e ->
           if Irmin.Type.equal H.t e.hash key then Lwt.return_some e
           else if float_of_int (H.short_hash e.hash) < hashed_key then
-            search (off +. padf) high None (Some highest_entry)
-          else search low (off -. padf) (Some lowest_entry) None
+            (search [@tailcall]) (off +. padf) high None (Some highest_entry)
+          else (search [@tailcall]) low (off -. padf) (Some lowest_entry) None
     in
-    if high < 0. then Lwt.return_none else search low high None None
+    if high < 0. then Lwt.return_none
+    else (search [@tailcall]) low high None None
 
   (*  let dump_entry ppf e = Fmt.pf ppf "[offset:%Ld len:%d]" e.offset e.len *)
 
@@ -639,7 +640,7 @@ module Index (H : Irmin.Hash.S) = struct
             >>= fun (last, rst) ->
             if !offset >= IO.offset t.index.(i) && last = None then
               Lwt_list.iter_s (fun (_, e) -> append_entry tmp e) rst
-            else go last rst
+            else (go [@tailcall]) last rst
         | [] ->
             append_entry tmp e >>= fun () ->
             if !offset >= IO.offset t.index.(i) then Lwt.return_unit
@@ -649,7 +650,7 @@ module Index (H : Irmin.Hash.S) = struct
               IO.read t.index.(i) ~off:!offset buf >>= fun () ->
               IO.append tmp (Bytes.unsafe_to_string buf) )
     in
-    go None log
+    (go [@tailcall]) None log
 
   let merge t =
     IO.sync t.log >>= fun () ->
@@ -970,32 +971,32 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       let cache = Tbl.create 997 in
       let index = Tbl.create 997 in
       let len = IO.offset block in
-      let rec aux offset =
-        if offset >= len then Lwt.return ()
+      let rec aux offset k =
+        if offset >= len then k ()
         else
           read_length32 ~off:offset block >>= fun len ->
           let buf = Bytes.create (len + V.hash_size) in
           let off = offset ++ 4L in
           IO.read block ~off buf >>= fun () ->
           let buf = Bytes.unsafe_to_string buf in
-          let k = String.sub buf 0 len in
-          let k =
-            match Irmin.Type.of_bin_string K.t k with
+          let h =
+            let h = String.sub buf 0 len in
+            match Irmin.Type.of_bin_string K.t h with
             | Ok k -> k
             | Error (`Msg e) -> failwith e
           in
           let n, v = Irmin.Type.decode_bin V.t buf len in
           assert (n = len + V.hash_size);
-          if not (Irmin.Type.equal V.t v zero) then Tbl.add cache k v;
-          Tbl.add index k offset;
-          aux (off ++ Int64.(of_int @@ (len + V.hash_size)))
+          if not (Irmin.Type.equal V.t v zero) then Tbl.add cache h v;
+          Tbl.add index h offset;
+          (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
       in
-      aux 0L >|= fun () ->
+      (aux [@tailcall]) 0L @@ fun () ->
       let t =
         { cache; index; block; w = watches; lock = Lwt_mutex.create () }
       in
       Hashtbl.add files root t;
-      t
+      Lwt.return t
 
   let v ?fresh root =
     Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
