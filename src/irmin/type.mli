@@ -94,7 +94,7 @@ val equal : 'a t -> 'a -> 'a -> bool
 
 val compare : 'a t -> 'a -> 'a -> int
 
-val hash : 'a t -> ?seed:int -> 'a -> int
+val short_hash : 'a t -> ?seed:int -> 'a -> int
 
 (* CLI *)
 
@@ -144,8 +144,8 @@ val v :
   bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   equal:('a -> 'a -> bool) ->
   compare:('a -> 'a -> int) ->
-  hash:(?seed:int -> 'a -> int) ->
-  pre_digest:('a -> string) ->
+  short_hash:(?seed:int -> 'a -> int) ->
+  pre_hash:('a -> string) ->
   'a t
 
 val like :
@@ -154,8 +154,8 @@ val like :
   ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   ?equal:('a -> 'a -> bool) ->
   ?compare:('a -> 'a -> int) ->
-  ?hash:('a -> int) ->
-  ?pre_digest:('a -> string) ->
+  ?short_hash:('a -> int) ->
+  ?pre_hash:('a -> string) ->
   'a t ->
   'a t
 
@@ -165,8 +165,8 @@ val map :
   ?bin:'b encode_bin * 'b decode_bin * 'b size_of ->
   ?equal:('b -> 'b -> bool) ->
   ?compare:('b -> 'b -> int) ->
-  ?hash:('b -> int) ->
-  ?pre_digest:('b -> string) ->
+  ?short_hash:('b -> int) ->
+  ?pre_hash:('b -> string) ->
   'a t ->
   ('a -> 'b) ->
   ('b -> 'a) ->
@@ -178,7 +178,7 @@ val to_string : 'a t -> 'a -> string
 
 val pp_json : ?minify:bool -> 'a t -> 'a Fmt.t
 
-val pre_digest : 'a t -> 'a -> string
+val pre_hash : 'a t -> 'a -> string
 
 val encode_json : 'a t -> Jsonm.encoder -> 'a -> unit
 

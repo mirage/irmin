@@ -144,8 +144,8 @@ struct
     | `Max -> { Chunk.v; len = t.chunk_size }
     | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
 
-  let data t v =
-    let v = Chunk.Data v in
+  let data t s =
+    let v = Chunk.Data s in
     match t.chunking with
     | `Max -> { Chunk.v; len = t.chunk_size }
     | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
@@ -198,15 +198,15 @@ struct
     let chunk_size = C.get config Conf.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
-      (chunk_size - Chunk.size_of_index_header) / K.digest_size
+      (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
     let chunking = C.get config Conf.chunking in
     ( if max_children <= 1 then
-      let min = Chunk.size_of_index_header + (K.digest_size * 2) in
+      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
       err_too_small ~min chunk_size );
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
-          chunk_size K.digest_size max_data max_children );
+          chunk_size K.hash_size max_data max_children );
     CA.v config >|= fun db ->
     { chunking; db; chunk_size; max_children; max_data }
 
@@ -218,7 +218,7 @@ struct
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
   let check_hash k v =
-    let k' = K.digest v in
+    let k' = K.hash v in
     if Irmin.Type.equal K.t k k' then Lwt.return ()
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -242,7 +242,7 @@ struct
 
   let add t v =
     let buf = Irmin.Type.to_bin_string V.t v in
-    let key = K.digest buf in
+    let key = K.hash buf in
     let len = String.length buf in
     if len <= t.max_data then (
       AO.add t.db key (data t buf) >|= fun () ->

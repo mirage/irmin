@@ -409,7 +409,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module Key = struct
         include S.Hash
 
-        let digest v = digest (Irmin.Type.pre_digest Val.t v)
+        let hash v = hash (Irmin.Type.pre_hash Val.t v)
       end
 
       include AO (Client) (S.Hash) (Val)

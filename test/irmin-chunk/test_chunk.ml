@@ -32,6 +32,10 @@ module Value = struct
   let pp = Fmt.string
 
   let equal = String.equal
+
+  type hash = Key.t
+
+  let hash x = Key.hash (Irmin.Type.pre_hash t x)
 end
 
 module type S = sig
