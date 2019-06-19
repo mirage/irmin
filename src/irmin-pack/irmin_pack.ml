@@ -694,7 +694,7 @@ module Pack (K : Irmin.Hash.S) = struct
     module Tbl = Hashtbl.Make (struct
       type t = K.t
 
-      let equal = Irmin.Type.equal K.t
+      let equal x y = Irmin.Type.equal K.t x y
 
       let hash t = Irmin.Type.short_hash K.t t
     end)
