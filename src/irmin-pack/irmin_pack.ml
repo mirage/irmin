@@ -297,6 +297,14 @@ end = struct
   let clear t = t.pages <- Lru.create t.lru_size
 end
 
+module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
+  type t = K.t
+
+  let hash (t : t) = Irmin.Type.short_hash K.t t
+
+  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
+end)
+
 module Dict = struct
   type t = {
     cache : (string, int) Hashtbl.t;
@@ -405,13 +413,7 @@ module Index (H : Irmin.Hash.S) = struct
     let len = Int32.of_int len in
     Irmin.Type.to_bin_string entry (hash, offset, len)
 
-  module Tbl = Hashtbl.Make (struct
-    type t = H.t
-
-    let hash x = Irmin.Type.short_hash H.t x
-
-    let equal x y = Irmin.Type.equal H.t x y
-  end)
+  module Tbl = Table (H)
 
   let lru_size = 1000
 
@@ -645,14 +647,7 @@ end
 
 module Pack (K : Irmin.Hash.S) = struct
   module Index = Index (K)
-
-  module Tbl = Hashtbl.Make (struct
-    type t = K.t
-
-    let hash t = Irmin.Type.short_hash K.t t
-
-    let equal x y = Irmin.Type.equal K.t x y
-  end)
+  module Tbl = Table (K)
 
   type 'a t = {
     block : IO.t;
@@ -691,13 +686,7 @@ module Pack (K : Irmin.Hash.S) = struct
     Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
 
   module Make (V : S with type hash = K.t) = struct
-    module Tbl = Hashtbl.Make (struct
-      type t = K.t
-
-      let equal x y = Irmin.Type.equal K.t x y
-
-      let hash t = Irmin.Type.short_hash K.t t
-    end)
+    module Tbl = Table (K)
 
     let lru_size = 10_000
 
@@ -823,14 +812,7 @@ module Pack (K : Irmin.Hash.S) = struct
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
-  module Tbl = Hashtbl.Make (struct
-    type t = K.t
-
-    let hash t = Irmin.Type.short_hash K.t t
-
-    let equal x y = Irmin.Type.equal K.t x y
-  end)
-
+  module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
 
   type key = K.t
