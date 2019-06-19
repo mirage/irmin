@@ -154,10 +154,10 @@ struct
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     IO.file_exists file >>= function
-    | true -> Lwt.return_unit
+    | true -> Lwt.return (`Created false)
     | false ->
         let str = Irmin.Type.to_bin_string V.t value in
-        IO.write_file ~temp_dir file str
+        IO.write_file ~temp_dir file str >|= fun () -> `Created true
 end
 
 module Atomic_write_ext

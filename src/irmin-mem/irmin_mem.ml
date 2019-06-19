@@ -57,8 +57,16 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let add t key value =
     Log.debug (fun f -> f "add -> %a" pp_key key);
-    t.t <- KMap.add key value t.t;
-    Lwt.return ()
+    let created = ref false in
+    t.t
+    <- KMap.update key
+         (function
+           | Some v when Irmin.Type.equal V.t v value ->
+               let () = created := true in
+               Some value
+           | _ -> Some value )
+         t.t;
+    Lwt.return (`Created !created)
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct

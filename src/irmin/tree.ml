@@ -1190,14 +1190,14 @@ module Make (P : S.PRIVATE) = struct
   let export ?clear repo contents_t node_t n =
     let seen = seen_of_repo repo in
     let add_node n v () =
-      P.Node.add node_t v >|= fun k ->
+      P.Node.add node_t v >|= fun (k, _) ->
       let k' = Node.to_hash n in
       assert (Type.equal P.Hash.t k k');
       Node.export ?clear repo n k
     in
     let add_node_map n x () = add_node n (Node.value_of_map x) () in
     let add_contents c x () =
-      P.Contents.add contents_t x >|= fun k ->
+      P.Contents.add contents_t x >|= fun (k, _) ->
       let k' = Contents.to_hash c in
       assert (Type.equal P.Hash.t k k');
       Contents.export ?clear repo c k

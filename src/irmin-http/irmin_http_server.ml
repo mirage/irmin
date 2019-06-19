@@ -92,8 +92,11 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           | Error e -> parse_error rd body e
           | Ok body ->
               S.batch repo @@ fun db ->
-              S.add db body >>= fun new_id ->
-              let resp_body = `String (Irmin.Type.to_string K.t new_id) in
+              S.add db body >>= fun (new_id, `Created created) ->
+              let resp_body =
+                `String
+                  Irmin.Type.(to_string (pair K.t bool) (new_id, created))
+              in
               Wm.continue true { rd with Wm.Rd.resp_body }
       end
 

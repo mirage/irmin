@@ -291,7 +291,7 @@ struct
 
   let add_opt t = function
     | None -> Lwt.return_none
-    | Some v -> add t v >>= fun k -> Lwt.return (Some k)
+    | Some v -> add t v >>= fun (k, _) -> Lwt.return (Some k)
 
   let merge t =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)

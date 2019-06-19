@@ -236,7 +236,9 @@ struct
 
   let add t value =
     let body = Irmin.Type.to_string V.t value in
-    HTTP.call `POST t.uri t.ctx [ t.items ] ~body (Irmin.Type.of_string K.t)
+    HTTP.call `POST t.uri t.ctx [ t.items ] ~body
+      Irmin.Type.(of_string (pair K.t bool))
+    >|= fun (h, c) -> (h, `Created c)
 end
 
 module RW (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =

@@ -14,30 +14,48 @@ module type S_MAKER = functor
   (C : Irmin.Contents.S)
   (P : Irmin.Path.S)
   (B : Irmin.Branch.S)
-  ->
-  S
-  with type key = P.t
-   and type step = P.step
-   and module Key = P
-   and type contents = C.t
-   and type branch = B.t
-   and module Git = G
+  -> S
+     with type key = P.t
+      and type step = P.step
+      and module Key = P
+      and type contents = C.t
+      and type branch = B.t
+      and module Git = G
 
-module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
-  S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = string
-   and module Git = G
+module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
+                                                                           with type 
+                                                                           key =
+                                                                             string
+                                                                             list
+                                                                            and type 
+                                                                           step =
+                                                                             string
+                                                                            and type 
+                                                                           contents =
+                                                                             C
+                                                                             .t
+                                                                            and type 
+                                                                           branch =
+                                                                             string
+                                                                            and module Git = G
 
-module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
-  S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = Irmin_git.reference
-   and module Git = G
+module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) -> S
+                                                                            with type 
+                                                                            key =
+                                                                              string
+                                                                              list
+                                                                             and type 
+                                                                            step =
+                                                                              string
+                                                                             and type 
+                                                                            contents =
+                                                                              C
+                                                                              .t
+                                                                             and type 
+                                                                            branch =
+                                                                              Irmin_git
+                                                                              .reference
+                                                                             and module Git = G
 
 module Make : S_MAKER
 
@@ -67,9 +85,9 @@ module type KV_RO = sig
       the root of the repository. *)
 end
 
-module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
 (** Functor to create a MirageOS' KV_RO store from a Git
    repository. The key ["/HEAD"] always shows the current HEAD. *)
+module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
 
 module type KV_RW = sig
   type git

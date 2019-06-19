@@ -186,9 +186,10 @@ struct
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
-            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux
-            )
+            | [ i ] -> AO.add t.db key (index t i) >|= fun _ -> key
+            | l ->
+                Lwt_list.map_p (fun i -> CA.add t.db (index t i) >|= fst) l
+                >>= aux )
       in
       aux l
   end
@@ -245,9 +246,9 @@ struct
     let key = K.hash buf in
     let len = String.length buf in
     if len <= t.max_data then (
-      AO.add t.db key (data t buf) >|= fun () ->
+      AO.add t.db key (data t buf) >|= fun created ->
       Log.debug (fun l -> l "add -> %a (no split)" pp_key key);
-      key )
+      (key, created) )
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in
       let aux off =
@@ -255,9 +256,15 @@ struct
         let payload = String.sub buf off len in
         CA.add t.db (data t payload)
       in
-      Lwt_list.map_s aux offs >>= Tree.add ~key t >|= fun k ->
+      Lwt_list.fold_left_s
+        (fun (keys, cr) off ->
+          aux off >|= fun (key, `Created created) ->
+          (key :: keys, created || cr) )
+        ([], false) offs
+      >>= fun (keys, created) ->
+      Tree.add ~key t keys >|= fun k ->
       Log.debug (fun l -> l "add -> %a (split)" pp_key k);
-      key
+      (key, `Created created)
 
   let mem t key = CA.mem t.db key
 end

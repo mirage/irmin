@@ -71,7 +71,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
 
   val find : [> `Read ] t -> key -> value option Lwt.t
 
-  val add : [> `Write ] t -> value -> key Lwt.t
+  val add : [> `Write ] t -> value -> (key * [ `Created of bool ]) Lwt.t
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
@@ -96,7 +96,7 @@ module type APPEND_ONLY_STORE = sig
 
   val find : [> `Read ] t -> key -> value option Lwt.t
 
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val add : [> `Write ] t -> key -> value -> [ `Created of bool ] Lwt.t
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig

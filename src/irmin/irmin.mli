@@ -856,7 +856,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
       [None] is [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> value -> key Lwt.t
+  val add : [> `Write ] t -> value -> (key * [ `Created of bool ]) Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the content-addressable store to generate a
       consistent key. *)
@@ -886,7 +886,7 @@ module type APPEND_ONLY_STORE = sig
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
       [None] is [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val add : [> `Write ] t -> key -> value -> [ `Created of bool ] Lwt.t
   (** Write the contents of a value to the store. *)
 end
 

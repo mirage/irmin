@@ -231,7 +231,7 @@ struct
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return (Some k)
+      else add t v >>= fun (k, _) -> Lwt.return (Some k)
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -257,7 +257,7 @@ module Graph (S : S.NODE_STORE) = struct
 
   type value = [ `Contents of contents * metadata | `Node of node ]
 
-  let empty t = S.add t S.Val.empty
+  let empty t = S.add t S.Val.empty >|= fun (n, _) -> n
 
   let list t n =
     Log.debug (fun f -> f "steps");
@@ -298,7 +298,7 @@ module Graph (S : S.NODE_STORE) = struct
     in
     Lwt.return keys
 
-  let v t xs = S.add t (S.Val.v xs)
+  let v t xs = S.add t (S.Val.v xs) >|= fun (n, _) -> n
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
@@ -331,7 +331,7 @@ module Graph (S : S.NODE_STORE) = struct
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
-    else S.add t new_node >|= fun k -> S.Val.add node label (`Node k)
+    else S.add t new_node >|= fun (k, _) -> S.Val.add node label (`Node k)
 
   let map t node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
@@ -341,7 +341,7 @@ module Graph (S : S.NODE_STORE) = struct
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
     (S.find t node >|= function None -> S.Val.empty | Some n -> n)
-    >>= fun node -> aux node path >>= S.add t
+    >>= fun node -> aux node path >>= S.add t >|= fst
 
   let add t node path n =
     Log.debug (fun f -> f "add %a %a" pp_key node pp_path path);

@@ -45,7 +45,7 @@ struct
 
   let add t v =
     let k = hash v in
-    add t k v >|= fun () -> k
+    add t k v >|= fun created -> (k, created)
 end
 
 module Make (P : S.PRIVATE) = struct
@@ -90,7 +90,7 @@ module Make (P : S.PRIVATE) = struct
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
   end
 
-  let save_contents b c = P.Contents.add b c
+  let save_contents b c = P.Contents.add b c >|= fun (h, _) -> h
 
   let save_tree ?(clear = true) r x y (tr : Tree.tree) =
     match tr with
@@ -125,7 +125,7 @@ module Make (P : S.PRIVATE) = struct
       )
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
-      P.Commit.add commit_t v >|= fun h -> { r; h; v }
+      P.Commit.add commit_t v >|= fun (h, _) -> { r; h; v }
 
     let node t = P.Commit.Val.node t.v
 
@@ -284,7 +284,7 @@ module Make (P : S.PRIVATE) = struct
 
     let import t s =
       let aux name add dk (k, v) =
-        add v >>= fun k' ->
+        add v >>= fun (k', _) ->
         if not (Type.equal dk k k') then
           import_error "%s import error: expected %a, got %a" name
             Type.(pp dk)
@@ -494,7 +494,8 @@ module Make (P : S.PRIVATE) = struct
       | `Head h ->
           h := Some c;
           Lwt.return_unit
-      | `Branch name -> Branch_store.set (branch_t t) name c.Commit.h
+      | `Branch name ->
+          Branch_store.set (branch_t t) name c.Commit.h >|= fun _ -> ()
 
     let test_and_set_unsafe t ~test ~set =
       match t.head_ref with
@@ -835,7 +836,7 @@ module Make (P : S.PRIVATE) = struct
   let clone ~src ~dst =
     (Head.find src >>= function
      | None -> Branch_store.remove (branch_t src) dst
-     | Some h -> Branch_store.set (branch_t src) dst h.Commit.h)
+     | Some h -> Branch_store.set (branch_t src) dst h.Commit.h >|= fun _ -> ())
     >>= fun () -> of_branch (repo src) dst
 
   let return_lcas r = function
@@ -1013,7 +1014,8 @@ module Make (P : S.PRIVATE) = struct
       | None -> Lwt.return_none
       | Some h -> Commit.of_hash t h
 
-    let set t br h = P.Branch.set (P.Repo.branch_t t) br (Commit.hash h)
+    let set t br h =
+      P.Branch.set (P.Repo.branch_t t) br (Commit.hash h) >|= fun _ -> ()
 
     let remove t = P.Branch.remove (P.Repo.branch_t t)
 

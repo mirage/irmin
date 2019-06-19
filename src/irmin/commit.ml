@@ -82,7 +82,7 @@ struct
 
   let empty_if_none (n, _) = function
     | None -> N.add n N.Val.empty
-    | Some node -> Lwt.return node
+    | Some node -> Lwt.return (node, `Created false)
 
   let equal_opt_keys = Type.(equal (option S.Key.t))
 
@@ -114,10 +114,10 @@ struct
         in
         merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
-        empty_if_none t node >>= fun node ->
+        empty_if_none t node >>= fun (node, _) ->
         let parents = [ k1; k2 ] in
         let commit = S.Val.v ~node ~parents ~info:(info ()) in
-        add t commit >>= fun key -> Merge.ok key
+        add t commit >>= fun (key, _) -> Merge.ok key
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
@@ -148,7 +148,7 @@ module History (S : S.COMMIT_STORE) = struct
 
   let v t ~node ~parents ~info =
     let commit = S.Val.v ~node ~parents ~info in
-    S.add t commit >|= fun hash -> (hash, commit)
+    S.add t commit >|= fun (hash, _) -> (hash, commit)
 
   let pp_key = Type.pp S.Key.t
 

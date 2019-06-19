@@ -137,7 +137,8 @@ struct
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok (k, _) ->
           Log.debug (fun l -> l "add %a" pp_key k);
-          Lwt.return k
+          (* XXX: This `Created(false) is wrong, should be checked by git  *)
+          Lwt.return (k, `Created true)
   end
 
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
