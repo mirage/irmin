@@ -106,10 +106,10 @@ struct
        are good enough to be used as short hashes. *)
     let hash (t : t) : int =
       match t with
-      | `Contents (c, _) -> Type.hash Contents.t c
-      | `Node n -> Type.hash Node.t n
-      | `Commit c -> Type.hash Commit.t c
-      | `Branch b -> Type.hash Branch.t b
+      | `Contents (c, _) -> Type.short_hash Contents.t c
+      | `Node n -> Type.short_hash Node.t n
+      | `Commit c -> Type.short_hash Commit.t c
+      | `Branch b -> Type.short_hash Branch.t b
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional (X)

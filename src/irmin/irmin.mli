@@ -318,7 +318,7 @@ module Type : sig
   val compare : 'a t -> 'a -> 'a -> int
   (** [compare t] compares values of type [t]. *)
 
-  val hash : 'a t -> ?seed:int -> 'a -> int
+  val short_hash : 'a t -> ?seed:int -> 'a -> int
   (** [hash t x] is a short hash of [x] of type [t]. *)
 
   (** The type for pretty-printers for CLI arguments. *)
@@ -440,8 +440,8 @@ module Type : sig
   (** The type for size function related to binary encoder/decoders. *)
   type 'a size_of = ?headers:bool -> 'a -> int option
 
-  val pre_digest : 'a t -> 'a -> string
-  (** [pre_digest t x] is the string representation of [x], of type
+  val pre_hash : 'a t -> 'a -> string
+  (** [pre_hash t x] is the string representation of [x], of type
       [t], which will be used to compute the digest of the value. By
       default it's [to_bin_string t x] but it can be overriden by {!v},
       {!like} and {!map} operators. *)
@@ -480,8 +480,8 @@ module Type : sig
     bin:'a encode_bin * 'a decode_bin * 'a size_of ->
     equal:('a -> 'a -> bool) ->
     compare:('a -> 'a -> int) ->
-    hash:(?seed:int -> 'a -> int) ->
-    pre_digest:('a -> string) ->
+    short_hash:(?seed:int -> 'a -> int) ->
+    pre_hash:('a -> string) ->
     'a t
 
   val like :
@@ -490,8 +490,8 @@ module Type : sig
     ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
-    ?hash:('a -> int) ->
-    ?pre_digest:('a -> string) ->
+    ?short_hash:('a -> int) ->
+    ?pre_hash:('a -> string) ->
     'a t ->
     'a t
 
@@ -501,8 +501,8 @@ module Type : sig
     ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
-    ?hash:('a -> int) ->
-    ?pre_digest:('a -> string) ->
+    ?short_hash:('a -> int) ->
+    ?pre_hash:('a -> string) ->
     'b t ->
     ('b -> 'a) ->
     ('a -> 'b) ->
@@ -1037,15 +1037,15 @@ module Hash : sig
     (** The type for digest hashes. *)
     type t
 
-    val digest : string -> t
+    val hash : string -> t
     (** Compute a deterministic store key from a string. *)
 
-    val hash : t -> int
-    (** [hash h] is a small hash of [h], to be used for instance as
+    val short_hash : t -> int
+    (** [short_hash h] is a small hash of [h], to be used for instance as
        the `hash` function of an OCaml [Hashtbl]. *)
 
-    val digest_size : int
-    (** [digest_size] is the size of hash results, in bytes. *)
+    val hash_size : int
+    (** [hash_size] is the size of hash results, in bytes. *)
 
     (** {1 Value Types} *)
 
@@ -1178,7 +1178,7 @@ module Contents : sig
     module Key : sig
       include Hash.S with type t = key
 
-      val digest : value -> key
+      val hash : value -> key
     end
 
     (** [Val] provides base functions for user-defined contents values. *)
@@ -1604,7 +1604,7 @@ module Private : sig
       module Key : sig
         include Hash.S with type t = key
 
-        val digest : value -> key
+        val hash : value -> key
       end
 
       (** [Metadata] provides base functions for node metadata. *)
@@ -1809,7 +1809,7 @@ module Private : sig
       module Key : sig
         include Hash.S with type t = key
 
-        val digest : value -> key
+        val hash : value -> key
       end
 
       (** [Val] provides functions for commit values. *)

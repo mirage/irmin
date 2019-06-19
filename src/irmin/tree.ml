@@ -66,7 +66,7 @@ end = struct
 
     let equal (x : t) (y : t) = Type.equal K.t x y
 
-    let hash (x : t) = Type.hash K.t x
+    let hash (x : t) = Type.short_hash K.t x
   end)
 end
 
@@ -105,7 +105,7 @@ module Make (P : S.PRIVATE) = struct
   module Hashes = Hashtbl.Make (struct
     type t = hash
 
-    let hash = P.Hash.hash
+    let hash = P.Hash.short_hash
 
     let equal = Type.equal P.Hash.t
   end)
@@ -243,7 +243,7 @@ module Make (P : S.PRIVATE) = struct
         match value c with
         | None -> assert false
         | Some v ->
-            let k = P.Contents.Key.digest v in
+            let k = P.Contents.Key.hash v in
             let () =
               match Cache.find cache k with
               | i ->
@@ -590,7 +590,7 @@ module Make (P : S.PRIVATE) = struct
       | _ -> ()
 
     let hash_of_value t v =
-      let k = P.Node.Key.digest v in
+      let k = P.Node.Key.hash v in
       let () =
         match Cache.find cache k with
         | i ->
@@ -1435,7 +1435,7 @@ module Make (P : S.PRIVATE) = struct
   let hash (t : tree) =
     match t with
     | `Node n -> `Node (Node.to_hash n)
-    | `Contents (c, m) -> `Contents (P.Contents.Key.digest c, m)
+    | `Contents (c, m) -> `Contents (P.Contents.Key.hash c, m)
 
   module Cache = struct
     let length () =

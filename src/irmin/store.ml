@@ -21,6 +21,33 @@ let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Content_addressable
+    (AO : S.APPEND_ONLY_STORE_MAKER)
+    (K : S.HASH)
+    (V : Type.S) =
+struct
+  include AO (K) (V)
+  open Lwt.Infix
+
+  let hash x = K.hash (Type.pre_hash V.t x)
+
+  let pp_key = Type.pp K.t
+
+  let find t k =
+    find t k >>= function
+    | None -> Lwt.return None
+    | Some v as r ->
+        let k' = hash v in
+        if Type.equal K.t k k' then Lwt.return r
+        else
+          Fmt.kstrf Lwt.fail_invalid_arg
+            "corrupted value: got %a, expecting %a" pp_key k' pp_key k
+
+  let add t v =
+    let k = hash v in
+    add t k v >|= fun () -> k
+end
+
 module Make (P : S.PRIVATE) = struct
   module Branch_store = P.Branch
 
@@ -48,7 +75,7 @@ module Make (P : S.PRIVATE) = struct
 
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
 
-    let hash c = P.Contents.Key.digest c
+    let hash c = P.Contents.Key.hash c
   end
 
   module Tree = struct
@@ -122,7 +149,7 @@ module Make (P : S.PRIVATE) = struct
     let to_private_commit t = t.v
 
     let of_private_commit r v =
-      let h = P.Commit.Key.digest v in
+      let h = P.Commit.Key.hash v in
       { r; h; v }
 
     let equal_opt x y =
@@ -866,7 +893,7 @@ module Make (P : S.PRIVATE) = struct
   module History = OCamlGraph.Persistent.Digraph.ConcreteBidirectional (struct
     type t = commit
 
-    let hash h = P.Commit.Key.hash h.Commit.h
+    let hash h = P.Commit.Key.short_hash h.Commit.h
 
     let compare x y = Type.compare P.Commit.Key.t x.Commit.h y.Commit.h
 

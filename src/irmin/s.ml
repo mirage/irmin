@@ -45,11 +45,11 @@ end
 module type HASH = sig
   type t
 
-  val digest : string -> t
+  val hash : string -> t
 
-  val hash : t -> int
+  val short_hash : t -> int
 
-  val digest_size : int
+  val hash_size : int
 
   val t : t Type.t
 end
@@ -85,6 +85,28 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   val v : Conf.t -> [ `Read ] t Lwt.t
 end
 
+module type APPEND_ONLY_STORE = sig
+  type 'a t
+
+  type key
+
+  type value
+
+  val mem : [> `Read ] t -> key -> bool Lwt.t
+
+  val find : [> `Read ] t -> key -> value option Lwt.t
+
+  val add : [> `Write ] t -> key -> value -> unit Lwt.t
+end
+
+module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
+  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+  val v : Conf.t -> [ `Read ] t Lwt.t
+end
+
 module type METADATA = sig
   include Type.S
 
@@ -101,7 +123,7 @@ module type CONTENTS_STORE = sig
   module Key : sig
     include HASH with type t = key
 
-    val digest : value -> t
+    val hash : value -> t
   end
 
   module Val : CONTENTS with type t = value
@@ -198,7 +220,7 @@ module type NODE_STORE = sig
   module Key : sig
     include HASH with type t = key
 
-    val digest : value -> t
+    val hash : value -> t
   end
 
   module Metadata : METADATA
@@ -243,7 +265,7 @@ module type COMMIT_STORE = sig
   module Key : sig
     include HASH with type t = key
 
-    val digest : value -> t
+    val hash : value -> t
   end
 
   module Val : COMMIT with type t = value and type hash = key
