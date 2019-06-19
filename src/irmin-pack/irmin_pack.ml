@@ -685,7 +685,16 @@ module Pack (K : Irmin.Hash.S) = struct
   let v ?fresh root =
     Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
 
-  module Make (V : S with type hash = K.t) = struct
+  module Make (V : S with type hash = K.t) : sig
+    include
+      Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+
+    val v : ?fresh:bool -> string -> [ `Read ] t Lwt.t
+
+    val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+    val append : 'a t -> K.t -> V.t -> unit Lwt.t
+  end = struct
     module Tbl = Table (K)
 
     let lru_size = 10_000
