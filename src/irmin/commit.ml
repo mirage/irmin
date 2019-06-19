@@ -121,7 +121,7 @@ struct
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
-  module Key = Hash.With_digest (S.Key) (S.Val)
+  module Key = Hash.With_hash (S.Key) (S.Val)
   module Val = S.Val
 end
 
@@ -188,7 +188,7 @@ module History (S : S.COMMIT_STORE) = struct
 
     let compare = Type.compare S.Key.t
 
-    let hash = S.Key.hash
+    let hash = S.Key.short_hash
 
     let equal = Type.equal S.Key.t
   end
@@ -511,6 +511,7 @@ module V1 (C : S.COMMIT) = struct
   type t = { parents : hash list; c : C.t }
 
   let import c = { c; parents = C.parents c }
+
   let export t = t.c
 
   let node t = C.node t.c

@@ -272,7 +272,7 @@ module Store (S : sig
   module Val : S.CONTENTS with type t = value
 end) =
 struct
-  module Key = Hash.With_digest (S.Key) (S.Val)
+  module Key = Hash.With_hash (S.Key) (S.Val)
   module Val = S.Val
 
   type 'a t = 'a S.t

@@ -108,7 +108,7 @@ let test_bin () =
   T.encode_bin ~headers:false T.string buf "foo";
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
   let buf = Buffer.create 10 in
-  let h = Irmin.Hash.SHA1.digest "foo" in
+  let h = Irmin.Hash.SHA1.hash "foo" in
   T.encode_bin ~headers:false Irmin.Hash.SHA1.t buf h;
   let x = Buffer.contents buf in
   let buf = Bytes.create 100 in
@@ -118,7 +118,7 @@ let test_bin () =
       (Bytes.unsafe_to_string buf)
       0
   in
-  Alcotest.(check int) "hash size" n Irmin.Hash.SHA1.digest_size;
+  Alcotest.(check int) "hash size" n Irmin.Hash.SHA1.hash_size;
   Alcotest.(check sha1) "hash" v h
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
@@ -234,16 +234,15 @@ module Commit = Irmin.Private.Commit.Make (Hash)
 module Commit_v1 = Irmin.Private.Commit.V1 (Commit)
 module Hash_v1 = Irmin.Hash.V1 (Hash)
 
-let hash c = Hash.digest (Irmin.Type.pre_digest Irmin.Contents.String.t c)
+let hash c = Hash.hash (Irmin.Type.pre_hash Irmin.Contents.String.t c)
 
-let hash_v1 c =
-  Hash_v1.digest (Irmin.Type.pre_digest Irmin.Contents.V1.String.t c)
+let hash_v1 c = Hash_v1.hash (Irmin.Type.pre_hash Irmin.Contents.V1.String.t c)
 
 let test_hashes () =
   let digest t x =
     let s = Irmin.Type.to_bin_string t x in
     Printf.eprintf "to_bin_string: %S\n" s;
-    Irmin.Type.to_string Hash.t (Hash.digest s)
+    Irmin.Type.to_string Hash.t (Hash.hash s)
   in
   Alcotest.(check string)
     "empty contents" "da39a3ee5e6b4b0d3255bfef95601890afd80709"

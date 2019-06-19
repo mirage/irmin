@@ -82,27 +82,29 @@ module Chunk (K : Irmin.Hash.S) = struct
     |~ case1 "Index" (list ~len:`Int16 K.t) (fun i -> Index i)
     |> sealv
 
-  type t = { len : int; v : v }
+  type t = { len : int; hash : K.t; v : v }
 
   let size_of_v t =
     match Irmin.Type.size_of v t with
     | Some n -> n
     | None -> String.length (Irmin.Type.to_bin_string v t)
 
-  let size_of_data_header = size_of_v (Data "")
+  let size_of_data_header = K.hash_size + size_of_v (Data "")
 
-  let size_of_index_header = size_of_v (Index [])
+  let size_of_index_header = K.hash_size + size_of_v (Index [])
+
+  let encoding = Irmin.Type.pair K.t v
 
   let of_string b =
     let len = String.length b in
-    let n, v = Irmin.Type.decode_bin v b 0 in
-    if len = n then { len; v }
+    let n, (hash, v) = Irmin.Type.decode_bin encoding b 0 in
+    if len = n then { hash; len; v }
     else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
     let b = Buffer.create t.len in
-    Irmin.Type.encode_bin v b t.v;
+    Irmin.Type.encode_bin encoding b (t.hash, t.v);
     let s = Buffer.contents b in
     Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
@@ -113,9 +115,16 @@ end
 module Content_addressable
     (S : Irmin.APPEND_ONLY_STORE_MAKER)
     (K : Irmin.Hash.S)
-    (V : Irmin.Type.S) =
+    (V : Irmin.Hash.HASHABLE with type hash = K.t) =
 struct
-  module Chunk = Chunk (K)
+  module Chunk = struct
+    include Chunk (K)
+
+    type hash = K.t
+
+    let hash t = t.hash
+  end
+
   module AO = S (K) (Chunk)
   module CA = Irmin.Content_addressable (S) (K) (Chunk)
 
@@ -138,17 +147,21 @@ struct
                           chunk. *)
   }
 
-  let index t i =
-    let v = Chunk.Index i in
-    match t.chunking with
-    | `Max -> { Chunk.v; len = t.chunk_size }
-    | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
+  let hash_keys ks = K.hash Irmin.Type.(pre_hash (list K.t) ks)
 
-  let data t v =
-    let v = Chunk.Data v in
+  let index t ?key i =
+    let v = Chunk.Index i in
+    let hash = match key with None -> hash_keys i | Some h -> h in
     match t.chunking with
-    | `Max -> { Chunk.v; len = t.chunk_size }
-    | `Best_fit -> { Chunk.v; len = Chunk.size_of_v v }
+    | `Max -> { Chunk.v; hash; len = t.chunk_size }
+    | `Best_fit -> { Chunk.v; hash; len = Chunk.size_of_v v }
+
+  let data t s =
+    let v = Chunk.Data s in
+    let hash = K.hash s in
+    match t.chunking with
+    | `Max -> { Chunk.v; hash; len = t.chunk_size }
+    | `Best_fit -> { Chunk.v; hash; len = Chunk.size_of_v v }
 
   module Tree = struct
     (* return all the tree leaves *)
@@ -186,7 +199,7 @@ struct
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
+            | [ i ] -> AO.add t.db key (index ~key t i) >|= fun () -> key
             | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux
             )
       in
@@ -198,15 +211,15 @@ struct
     let chunk_size = C.get config Conf.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
-      (chunk_size - Chunk.size_of_index_header) / K.digest_size
+      (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
     let chunking = C.get config Conf.chunking in
     ( if max_children <= 1 then
-      let min = Chunk.size_of_index_header + (K.digest_size * 2) in
+      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
       err_too_small ~min chunk_size );
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
-          chunk_size K.digest_size max_data max_children );
+          chunk_size K.hash_size max_data max_children );
     CA.v config >|= fun db ->
     { chunking; db; chunk_size; max_children; max_data }
 
@@ -218,7 +231,7 @@ struct
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
   let check_hash k v =
-    let k' = K.digest v in
+    let k' = K.hash v in
     if Irmin.Type.equal K.t k k' then Lwt.return ()
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -242,7 +255,7 @@ struct
 
   let add t v =
     let buf = Irmin.Type.to_bin_string V.t v in
-    let key = K.digest buf in
+    let key = K.hash buf in
     let len = String.length buf in
     if len <= t.max_data then (
       AO.add t.db key (data t buf) >|= fun () ->

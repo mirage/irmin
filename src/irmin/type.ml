@@ -85,7 +85,7 @@ type 'a compare = 'a -> 'a -> int
 
 type 'a equal = 'a -> 'a -> bool
 
-type 'a hash = ?seed:int -> 'a -> int
+type 'a short_hash = ?seed:int -> 'a -> int
 
 type 'a t =
   | Self : 'a self -> 'a t
@@ -109,8 +109,8 @@ and 'a custom = {
   decode_json : 'a decode_json;
   encode_bin : 'a encode_bin;
   decode_bin : 'a decode_bin;
-  hash : 'a hash;
-  pre_digest : 'a -> string;
+  short_hash : 'a short_hash;
+  pre_hash : 'a -> string;
   size_of : 'a size_of;
   compare : 'a compare;
   equal : 'a equal
@@ -306,7 +306,7 @@ let triple a b c = Tuple (Triple (a, b, c))
 
 let option a = Option a
 
-let v ~cli ~json ~bin ~equal ~compare ~hash ~pre_digest =
+let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
   let pp, of_string = cli in
   let encode_json, decode_json = json in
   let encode_bin, decode_bin, size_of = bin in
@@ -314,7 +314,7 @@ let v ~cli ~json ~bin ~equal ~compare ~hash ~pre_digest =
     { cwit = `Witness (Witness.make ());
       pp;
       of_string;
-      pre_digest;
+      pre_hash;
       encode_json;
       decode_json;
       encode_bin;
@@ -322,7 +322,7 @@ let v ~cli ~json ~bin ~equal ~compare ~hash ~pre_digest =
       size_of;
       compare;
       equal;
-      hash
+      short_hash
     }
 
 (* fix points *)
@@ -1364,13 +1364,13 @@ let to_bin_string t x =
   in
   aux t x
 
-let pre_digest t x =
+let pre_hash t x =
   let rec aux : type a. a t -> a -> string =
    fun t x ->
     match t with
     | Self s -> aux s.self x
     | Map m -> aux m.x (m.g x)
-    | Custom c -> c.pre_digest x
+    | Custom c -> c.pre_hash x
     | _ -> to_bin_string t x
   in
   aux t x
@@ -1567,15 +1567,15 @@ let of_string t =
 
 type 'a ty = 'a t
 
-let hash t ?seed x =
+let short_hash t ?seed x =
   match t with
-  | Custom c -> c.hash ?seed x
+  | Custom c -> c.short_hash ?seed x
   | _ -> (
     match seed with
-    | None -> Hashtbl.hash (pre_digest t x)
-    | Some s -> Hashtbl.seeded_hash s (pre_digest t x) )
+    | None -> Hashtbl.hash (pre_hash t x)
+    | Some s -> Hashtbl.seeded_hash s (pre_hash t x) )
 
-let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
+let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
   let encode_json, decode_json =
     match json with
     | Some (x, y) -> (x, y)
@@ -1608,8 +1608,10 @@ let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
       match compare with Some f -> fun x y -> f x y = 0 | None -> Equal.t t )
   in
   let compare = match compare with Some x -> x | None -> Compare.t t in
-  let hash ?seed = match h with Some x -> x | None -> hash ?seed t in
-  let pre_digest =
+  let short_hash ?seed =
+    match h with Some x -> x | None -> short_hash ?seed t
+  in
+  let pre_hash =
     match p with Some x -> x | None -> to_bin size_of encode_bin
   in
   Custom
@@ -1623,17 +1625,17 @@ let like ?cli ?json ?bin ?equal ?compare ?hash:h ?pre_digest:p t =
       size_of;
       compare;
       equal;
-      hash;
-      pre_digest
+      short_hash;
+      pre_hash
     }
 
-let map ?cli ?json ?bin ?equal ?compare ?hash ?pre_digest x f g =
-  match (cli, json, bin, equal, compare, hash, pre_digest) with
+let map ?cli ?json ?bin ?equal ?compare ?short_hash ?pre_hash x f g =
+  match (cli, json, bin, equal, compare, short_hash, pre_hash) with
   | None, None, None, None, None, None, None ->
       Map { x; f; g; mwit = Witness.make () }
   | _ ->
       let x = Map { x; f; g; mwit = Witness.make () } in
-      like ?cli ?json ?bin ?equal ?compare ?hash ?pre_digest x
+      like ?cli ?json ?bin ?equal ?compare ?short_hash ?pre_hash x
 
 module type S = sig
   type t

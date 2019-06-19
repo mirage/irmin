@@ -152,7 +152,7 @@ module Store
     end) =
 struct
   module Contents = C
-  module Key = Hash.With_digest (S.Key) (S.Val)
+  module Key = Hash.With_hash (S.Key) (S.Val)
   module Path = P
   module Metadata = M
 

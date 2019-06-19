@@ -19,11 +19,11 @@ module Make (H : Digestif.S) = struct
 
   external get_64 : string -> int -> int64 = "%caml_string_get64u"
 
-  let hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
+  let short_hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
 
-  let digest_size = H.digest_size
+  let hash_size = H.digest_size
 
-  let digest x = H.digest_string x
+  let hash x = H.digest_string x
 
   let of_hex s =
     match H.consistent_of_hex s with
@@ -34,7 +34,7 @@ module Make (H : Digestif.S) = struct
 
   let t =
     Type.map ~cli:(pp_hex, of_hex)
-      Type.(string_of (`Fixed digest_size))
+      Type.(string_of (`Fixed hash_size))
       H.of_raw_string H.to_raw_string
 end
 
@@ -47,10 +47,10 @@ module SHA512 = Make (Digestif.SHA512)
 module BLAKE2B = Make (Digestif.BLAKE2B)
 module BLAKE2S = Make (Digestif.BLAKE2S)
 
-module With_digest (K : S.HASH) (V : Type.S) = struct
+module With_hash (K : S.HASH) (V : Type.S) = struct
   include K
 
-  let digest v = K.digest (Type.pre_digest V.t v)
+  let hash v = K.hash (Type.pre_hash V.t v)
 end
 
 module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
@@ -58,9 +58,9 @@ module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
 
   let hash = K.hash
 
-  let digest = K.digest
+  let short_hash = K.short_hash
 
-  let digest_size = K.digest_size
+  let hash_size = K.hash_size
 
   let h = Type.string_of `Int64
 

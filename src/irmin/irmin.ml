@@ -17,6 +17,7 @@
 open Lwt.Infix
 module Type = Type
 module Diff = Diff
+module Content_addressable = Store.Content_addressable
 
 module Contents = struct
   include Contents
@@ -43,60 +44,14 @@ module Hash = struct
   include Hash
 
   module type S = S.HASH
+
+  module type HASHABLE = S.HASHABLE
 end
 
 module Path = struct
   include Path
 
   module type S = S.PATH
-end
-
-module type APPEND_ONLY_STORE = sig
-  type 'a t
-
-  type key
-
-  type value
-
-  val mem : [> `Read ] t -> key -> bool Lwt.t
-
-  val find : [> `Read ] t -> key -> value option Lwt.t
-
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
-end
-
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  val v : Conf.t -> [ `Read ] t Lwt.t
-end
-
-module Content_addressable
-    (AO : APPEND_ONLY_STORE_MAKER)
-    (K : S.HASH)
-    (V : Type.S) =
-struct
-  include AO (K) (V)
-
-  let pp_key = Type.pp K.t
-
-  let digest v = K.digest (Type.pre_digest V.t v)
-
-  let find t k =
-    find t k >>= function
-    | None -> Lwt.return None
-    | Some v as r ->
-        let k' = digest v in
-        if Type.equal K.t k k' then Lwt.return r
-        else
-          Fmt.kstrf Lwt.fail_invalid_arg
-            "corrupted value: got %a, expecting %a" pp_key k' pp_key k
-
-  let add t v =
-    let k = digest v in
-    add t k v >|= fun () -> k
 end
 
 module Make_ext
@@ -116,10 +71,21 @@ struct
   module X = struct
     module Hash = H
 
+    module With_hash (V : Type.S) = struct
+      let hash t = Hash.hash (Type.pre_hash V.t t)
+    end
+
     module Contents = struct
       module CA = struct
-        module Val = C
         module Key = Hash
+
+        module Val = struct
+          type hash = Hash.t
+
+          include C
+          include With_hash (C)
+        end
+
         include CA (Key) (Val)
       end
 
@@ -128,8 +94,13 @@ struct
 
     module Node = struct
       module CA = struct
-        module Val = N
         module Key = Hash
+
+        module Val = struct
+          include N
+          include With_hash (N)
+        end
+
         include CA (Key) (Val)
       end
 
@@ -138,8 +109,13 @@ struct
 
     module Commit = struct
       module CA = struct
-        module Val = CT
         module Key = Hash
+
+        module Val = struct
+          include CT
+          include With_hash (CT)
+        end
+
         include CA (Key) (Val)
       end
 
@@ -213,6 +189,8 @@ module Of_private = Store.Make
 
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
 
+module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
+
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 
 module type TREE = S.TREE
@@ -224,6 +202,8 @@ type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
+
+module type APPEND_ONLY_STORE_MAKER = S.APPEND_ONLY_STORE_MAKER
 
 module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
 
