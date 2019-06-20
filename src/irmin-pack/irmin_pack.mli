@@ -67,6 +67,8 @@ module type S = sig
 
   type hash
 
+  val hash : t -> hash
+
   val to_bin :
     dict:(string -> int Lwt.t) ->
     offset:(hash -> int64 option Lwt.t) ->

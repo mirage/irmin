@@ -113,12 +113,12 @@ module S = struct
 
   type hash = Irmin.Hash.SHA1.t
 
+  let hash x = Irmin.Hash.SHA1.hash (Irmin.Type.pre_hash t x)
+
   let to_bin ~dict:_ ~offset:_ x _k = Lwt.return (Irmin.Type.to_bin_string t x)
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    Fmt.epr "XXX 1\n%!";
     let _, v = Irmin.Type.decode_bin ~headers:false t x off in
-    Fmt.epr "XXX 2\n%!";
     Lwt.return v
 end
 
