@@ -1172,23 +1172,11 @@ module Make (P : S.PRIVATE) = struct
 
   let import_no_check repo k = Node.of_hash repo k
 
-  module Seen_hashes = Cache (P.Hash)
-
-  (* we assume there is a small amount of repositories ...*)
-  let repos = ref []
-
-  let seen_of_repo r =
-    try List.assq r !repos
-    with Not_found ->
-      let c = Seen_hashes.create 103 in
-      repos := (r, c) :: !repos;
-      c
-
   (* It is important that this function does not call P.Contents.mem
      and P.Node.mem as these calls are not batched and could be very
      expensive for some backends (for instance the HTTP one). *)
   let export ?clear repo contents_t node_t n =
-    let seen = seen_of_repo repo in
+    let seen = Hashtbl.create 127 in
     let add_node n v () =
       P.Node.add node_t v >|= fun k ->
       let k' = Node.to_hash n in
@@ -1206,10 +1194,10 @@ module Make (P : S.PRIVATE) = struct
     let rec add_to_todo : type a. _ -> (unit -> a) -> a =
      fun n k ->
       let h = Node.to_hash n in
-      match Seen_hashes.find seen h with
+      match Hashtbl.find seen h with
       | _ -> k ()
       | exception Not_found -> (
-          Seen_hashes.add seen h ();
+          Hashtbl.add seen h ();
           match n.Node.v with
           | Node.Hash _ -> k ()
           | Node.Value (_, x) ->
@@ -1228,10 +1216,10 @@ module Make (P : S.PRIVATE) = struct
               List.iter
                 (fun (c, _) ->
                   let h = Contents.to_hash c in
-                  match Seen_hashes.find seen h with
+                  match Hashtbl.find seen h with
                   | _ -> ()
                   | exception Not_found -> (
-                      Seen_hashes.add seen h ();
+                      Hashtbl.add seen h ();
                       match c.Contents.v with
                       | Contents.Hash _ -> ()
                       | Contents.Value x -> Stack.push (add_contents c x) todo
