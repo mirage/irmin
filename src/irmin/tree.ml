@@ -1172,9 +1172,6 @@ module Make (P : S.PRIVATE) = struct
 
   let import_no_check repo k = Node.of_hash repo k
 
-  (* It is important that this function does not call P.Contents.mem
-     and P.Node.mem as these calls are not batched and could be very
-     expensive for some backends (for instance the HTTP one). *)
   let export ?clear repo contents_t node_t n =
     let seen = Hashtbl.create 127 in
     let add_node n v () =
@@ -1191,7 +1188,7 @@ module Make (P : S.PRIVATE) = struct
       Contents.export ?clear repo c k
     in
     let todo = Stack.create () in
-    let rec add_to_todo : type a. _ -> (unit -> a) -> a =
+    let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
       let h = Node.to_hash n in
       match Hashtbl.find seen h with
@@ -1203,36 +1200,41 @@ module Make (P : S.PRIVATE) = struct
           | Node.Value (_, x) ->
               Stack.push (add_node n x) todo;
               k ()
-          | Node.Map x ->
+          | Node.Map x -> (
               (* 1. we push the current node job on the stack. *)
-              Stack.push (add_node_map n x) todo;
-              let contents = ref [] in
-              let nodes = ref [] in
-              StepMap.iter
-                (fun _ -> function `Contents c -> contents := c :: !contents
-                  | `Node n -> nodes := n :: !nodes )
-                x;
-              (* 2. we push the contents job on the stack. *)
-              List.iter
-                (fun (c, _) ->
-                  let h = Contents.to_hash c in
-                  match Hashtbl.find seen h with
-                  | _ -> ()
-                  | exception Not_found -> (
-                      Hashtbl.add seen h ();
-                      match c.Contents.v with
-                      | Contents.Hash _ -> ()
-                      | Contents.Value x -> Stack.push (add_contents c x) todo
-                      ) )
-                !contents;
-              (* 3. we push the children jobs on the stack. *)
-              List.iter
-                (fun n ->
-                  Stack.push
-                    (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
-                    todo )
-                !nodes;
-              k () )
+              P.Node.mem node_t h
+              >>= function
+              | true -> k ()
+              | false ->
+                  Stack.push (add_node_map n x) todo;
+                  let contents = ref [] in
+                  let nodes = ref [] in
+                  StepMap.iter
+                    (fun _ -> function
+                      | `Contents c -> contents := c :: !contents
+                      | `Node n -> nodes := n :: !nodes )
+                    x;
+                  (* 2. we push the contents job on the stack. *)
+                  List.iter
+                    (fun (c, _) ->
+                      let h = Contents.to_hash c in
+                      match Hashtbl.find seen h with
+                      | _ -> ()
+                      | exception Not_found -> (
+                          Hashtbl.add seen h ();
+                          match c.Contents.v with
+                          | Contents.Hash _ -> ()
+                          | Contents.Value x ->
+                              Stack.push (add_contents c x) todo ) )
+                    !contents;
+                  (* 3. we push the children jobs on the stack. *)
+                  List.iter
+                    (fun n ->
+                      Stack.push
+                        (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
+                        todo )
+                    !nodes;
+                  k () ) )
     in
     let rec loop () =
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in

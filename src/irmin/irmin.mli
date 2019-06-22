@@ -3140,7 +3140,7 @@ module type S = sig
     ?clear:bool ->
     repo ->
     [> `Write ] Private.Contents.t ->
-    [> `Write ] Private.Node.t ->
+    [ `Read | `Write ] Private.Node.t ->
     tree ->
     hash Lwt.t
   (** Save a tree into the database. Does not do any reads. If
