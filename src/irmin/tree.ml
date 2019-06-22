@@ -48,6 +48,137 @@ let alist_iter2_lwt compare_k f l1 l2 =
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
   Lwt_list.iter_s (fun b -> b >>= fun () -> Lwt.return_unit) (List.rev !l3)
 
+module Lru = struct
+  (* Extracted from https://github.com/pqwy/lru
+     Copyright (c) 2016 David Kaloper Meršinjak *)
+
+  module Q = struct
+    type 'a node = {
+      value : 'a;
+      mutable next : 'a node option;
+      mutable prev : 'a node option
+    }
+
+    type 'a t = {
+      mutable first : 'a node option;
+      mutable last : 'a node option
+    }
+
+    let clear t =
+      t.first <- None;
+      t.last <- None
+
+    let detach t n =
+      let np = n.prev and nn = n.next in
+      ( match np with
+      | None -> t.first <- nn
+      | Some x ->
+          x.next <- nn;
+          n.prev <- None );
+      match nn with
+      | None -> t.last <- np
+      | Some x ->
+          x.prev <- np;
+          n.next <- None
+
+    let append t n =
+      let on = Some n in
+      match t.last with
+      | Some x as l ->
+          x.next <- on;
+          t.last <- on;
+          n.prev <- l
+      | None ->
+          t.first <- on;
+          t.last <- on
+
+    let node x = { value = x; prev = None; next = None }
+
+    let create () = { first = None; last = None }
+
+    let iter f t =
+      let rec go f = function
+        | Some n ->
+            f n.value;
+            go f n.next
+        | _ -> ()
+      in
+      go f t.first
+  end
+
+  module Bake (HT : Hashtbl.SeededS) = struct
+    type key = HT.key
+
+    type 'a t = {
+      ht : (key * 'a) Q.node HT.t;
+      q : (key * 'a) Q.t;
+      mutable cap : int;
+      mutable w : int
+    }
+
+    let size t = HT.length t.ht
+
+    let weight t = t.w
+
+    let create ?random cap =
+      { cap; w = 0; ht = HT.create ?random cap; q = Q.create () }
+
+    let drop_lru t =
+      match t.q.Q.first with
+      | None -> ()
+      | Some ({ Q.value = k, _; _ } as n) ->
+          t.w <- t.w - 1;
+          HT.remove t.ht k;
+          Q.detach t.q n
+
+    let rec trim t =
+      if weight t > t.cap then (
+        drop_lru t;
+        trim t )
+
+    let remove k t =
+      try
+        let n = HT.find t.ht k in
+        t.w <- t.w - 1;
+        HT.remove t.ht k;
+        Q.detach t.q n
+      with Not_found -> ()
+
+    let clear t =
+      HT.clear t.ht;
+      Q.clear t.q
+
+    let add k v t =
+      remove k t;
+      let n = Q.node (k, v) in
+      t.w <- t.w + 1;
+      HT.add t.ht k n;
+      Q.append t.q n
+
+    let promote k t =
+      try
+        let n = HT.find t.ht k in
+        Q.(
+          detach t.q n;
+          append t.q n)
+      with Not_found -> ()
+
+    let find k t =
+      try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
+
+    let iter f t = Q.iter (fun (k, v) -> f k v) t.q
+  end
+
+  module SeededHash (H : Hashtbl.HashedType) = struct
+    include H
+
+    let hash _ x = hash x
+  end
+
+  module Make (K : Hashtbl.HashedType) =
+    Bake (Hashtbl.MakeSeeded (SeededHash (K)))
+end
+
 module Cache (K : S.HASH) : sig
   type 'a t
 
@@ -60,14 +191,35 @@ module Cache (K : S.HASH) : sig
   val add : 'a t -> key -> 'a -> unit
 
   val iter : (key -> 'a -> unit) -> 'a t -> unit
+
+  val clear : 'a t -> unit
+
+  val length : 'a t -> int
 end = struct
-  include Ephemeron.K1.Make (struct
+  module M = Lru.Make (struct
     type t = K.t
 
     let equal (x : t) (y : t) = Type.equal K.t x y
 
     let hash (x : t) = Type.short_hash K.t x
   end)
+
+  include M
+
+  let create x = M.create x
+
+  let length = M.size
+
+  let add t k v =
+    M.add k v t;
+    M.trim t
+
+  let find t k =
+    match M.find k t with
+    | None -> raise Not_found
+    | Some v ->
+        M.promote k t;
+        v
 end
 
 module Make (P : S.PRIVATE) = struct
@@ -133,29 +285,20 @@ module Make (P : S.PRIVATE) = struct
       let () =
         match (x.hash, y.hash) with
         | None, None | Some _, None -> ()
-        | Some x, Some y -> assert (Type.equal P.Hash.t x y)
+        | Some _, Some _ -> ()
         | None, _ -> x.hash <- y.hash
       in
       let () =
         match (x.value, y.value) with
         | None, None | Some _, None -> ()
-        | Some x, Some y -> assert (Type.equal P.Contents.Val.t x y)
+        | Some _, Some _ -> ()
         | None, _ -> x.value <- y.value
       in
       ()
 
     let info_is_empty i = i.value = None
 
-    module Cache = struct
-      include Cache (P.Hash)
-
-      let length t =
-        let n = ref 0 in
-        iter (fun _ i -> if not (info_is_empty i) then incr n) t;
-        !n
-
-      let trim t = iter (fun _ -> clear_info) t
-    end
+    module Cache = Cache (P.Hash)
 
     let cache = Cache.create 10_000
 
@@ -226,14 +369,8 @@ module Make (P : S.PRIVATE) = struct
 
     let hashcons t =
       match (t.v, t.info.hash, t.info.value) with
-      | Hash (r, h), Some h', _ ->
-          if h != h' then (
-            assert (Type.equal P.Hash.t h h');
-            t.v <- Hash (r, h') )
-      | Value v, _, Some v' ->
-          if v != v' then (
-            assert (Type.equal P.Contents.Val.t v v');
-            t.v <- Value v' )
+      | Hash (r, h), Some h', _ -> if h != h' then t.v <- Hash (r, h')
+      | Value v, _, Some v' -> if v != v' then t.v <- Value v'
       | _ -> ()
 
     let to_hash c =
@@ -327,11 +464,9 @@ module Make (P : S.PRIVATE) = struct
 
     let rec merge_map ~into:x y =
       List.iter2
-        (fun (a, x) (b, y) ->
-          assert (Type.equal P.Node.Path.step_t a b);
+        (fun (_, x) (_, y) ->
           match (x, y) with
-          | `Contents (x, m1), `Contents (y, m2) ->
-              assert (Type.equal P.Node.Metadata.t m1 m2);
+          | `Contents (x, _), `Contents (y, _) ->
               Contents.merge_info ~into:x.Contents.info y.Contents.info
           | `Node x, `Node y -> (merge_info [@tailcall]) ~into:x.info y.info
           | _ -> assert false )
@@ -341,32 +476,19 @@ module Make (P : S.PRIVATE) = struct
       let () =
         match (x.hash, y.hash) with
         | None, None | Some _, None -> ()
-        | Some x, Some y -> assert (Type.equal P.Hash.t x y)
+        | Some _, Some _ -> ()
         | None, _ -> x.hash <- y.hash
       in
       let () =
         match (x.value, y.value) with
         | None, None | Some _, None -> ()
-        | Some x, Some y -> assert (Type.equal P.Node.Val.t x y)
+        | Some _, Some _ -> ()
         | None, _ -> x.value <- y.value
       in
       match (x.map, y.map) with
       | None, None | Some _, None -> ()
       | None, Some _ -> x.map <- y.map
       | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
-
-    let equiv_map (x : map) (y : map) =
-      List.for_all2
-        (fun (a, x) (b, y) ->
-          Type.equal P.Node.Path.step_t a b
-          &&
-          match (x, y) with
-          | `Node _, `Contents _ | `Contents _, `Node _ -> false
-          | `Contents (c1, m1), `Contents (c2, m2) ->
-              Type.equal P.Node.Metadata.t m1 m2
-              && c1.Contents.info == c2.Contents.info
-          | `Node n1, `Node n2 -> n1.info == n2.info )
-        (StepMap.bindings x) (StepMap.bindings y)
 
     let check msg t =
       match (t.v, t.info.hash, t.info.map, t.info.value) with
@@ -459,16 +581,7 @@ module Make (P : S.PRIVATE) = struct
             in
             match i.map with None -> () | Some m -> (map [@tailcall]) 0 m )
 
-    module Cache = struct
-      include Cache (P.Hash)
-
-      let length t =
-        let n = ref 0 in
-        iter (fun _ i -> if not (info_is_empty i) then incr n) t;
-        !n
-
-      let trim ?depth t = iter (fun _ i -> clear_info ?depth i) t
-    end
+    module Cache = Cache (P.Hash)
 
     let cache = Cache.create 10_001
 
@@ -581,12 +694,8 @@ module Make (P : S.PRIVATE) = struct
       | Map v, _, Some v', _ ->
           if v != v' then (
             merge_map ~into:v' v;
-            assert (equiv_map v v');
             t.v <- Map v' )
-      | Value (r, v), _, _, Some v' ->
-          if v != v' then (
-            assert (Type.equal P.Node.Val.t v v');
-            t.v <- Value (r, v') )
+      | Value (r, v), _, _, Some v' -> if v != v' then t.v <- Value (r, v')
       | _ -> ()
 
     let hash_of_value t v =
@@ -1432,12 +1541,10 @@ module Make (P : S.PRIVATE) = struct
       ( `Contents Contents.(Cache.length cache),
         `Nodes Node.(Cache.length cache) )
 
-    let trim ?depth () =
-      Log.info (fun l -> l "Tree.Cache.trim");
-      Node.Cache.trim ?depth Node.cache;
-      match depth with
-      | None -> Contents.Cache.trim Contents.cache
-      | Some _ -> ()
+    let clear () =
+      Log.info (fun l -> l "Tree.Cache.clear");
+      Node.Cache.clear Node.cache;
+      Contents.Cache.clear Contents.cache
 
     let dump ppf () =
       let ppo t ppf = function

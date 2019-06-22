@@ -576,7 +576,7 @@ module type TREE = sig
   module Cache : sig
     val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
 
-    val trim : ?depth:int -> unit -> unit
+    val clear : unit -> unit
 
     val dump : unit Fmt.t
   end
