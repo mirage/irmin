@@ -218,9 +218,21 @@ module IO : IO = struct
     Buffer.clear t.buf;
     Lwt.return ()
 
+  let buffers = Hashtbl.create 301
+
+  let buffer file =
+    try
+      let buf = Hashtbl.find buffers file in
+      Buffer.clear buf;
+      buf
+    with Not_found ->
+      let buf = Buffer.create (4 * 1024) in
+      Hashtbl.add buffers file buf;
+      buf
+
   let v file =
     let v ~offset raw =
-      let buf = Buffer.create (1024 * 1024) in
+      let buf = buffer file in
       { file;
         lock = Lwt_mutex.create ();
         offset;
