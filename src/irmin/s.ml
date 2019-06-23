@@ -1056,7 +1056,7 @@ module type STORE = sig
     ?clear:bool ->
     repo ->
     [> `Write ] Private.Contents.t ->
-    [> `Write ] Private.Node.t ->
+    [ `Read | `Write ] Private.Node.t ->
     tree ->
     hash Lwt.t
 end

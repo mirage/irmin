@@ -31,7 +31,7 @@ module Make (P : S.PRIVATE) : sig
     ?clear:bool ->
     P.Repo.t ->
     [> `Write ] P.Contents.t ->
-    [> `Write ] P.Node.t ->
+    [ `Read | `Write ] P.Node.t ->
     node ->
     P.Node.key Lwt.t
 
