@@ -69,40 +69,41 @@ end
 
 module IO : IO = struct
   module Raw = struct
-    type t = { fd : Lwt_unix.file_descr; mutable cursor : int64 }
+    type t = { fd : Unix.file_descr; mutable cursor : int64 }
 
     let v fd = { fd; cursor = 0L }
 
     let really_write fd buf =
       let rec aux off len =
-        Lwt_unix.write fd buf off len >>= fun w ->
-        if w = 0 then Lwt.return () else (aux [@tailcall]) (off + w) (len - w)
+        let w = Unix.write fd buf off len in
+        if w = 0 then () else (aux [@tailcall]) (off + w) (len - w)
       in
       (aux [@tailcall]) 0 (Bytes.length buf)
 
     let really_read fd buf =
       let rec aux off len =
-        Lwt_unix.read fd buf off len >>= fun r ->
-        if r = 0 || r = len then Lwt.return (off + r)
+        let r = Unix.read fd buf off len in
+        if r = 0 || r = len then off + r
         else (aux [@tailcall]) (off + r) (len - r)
       in
       (aux [@tailcall]) 0 (Bytes.length buf)
 
     let lseek t off =
-      if off = t.cursor then Lwt.return ()
+      if off = t.cursor then ()
       else
-        Lwt_unix.LargeFile.lseek t.fd off Unix.SEEK_SET >|= fun _ ->
+        let _ = Unix.LargeFile.lseek t.fd off Unix.SEEK_SET in
         t.cursor <- off
 
     let unsafe_write t ~off buf =
-      lseek t off >>= fun () ->
+      lseek t off;
       let buf = Bytes.unsafe_of_string buf in
-      really_write t.fd buf >|= fun () ->
+      really_write t.fd buf;
       t.cursor <- off ++ Int64.of_int (Bytes.length buf)
 
     let unsafe_read t ~off buf =
-      lseek t off >>= fun () ->
-      really_read t.fd buf >|= fun n -> t.cursor <- off ++ Int64.of_int n
+      lseek t off;
+      let n = really_read t.fd buf in
+      t.cursor <- off ++ Int64.of_int n
 
     let unsafe_set_offset fd n =
       let buf = Irmin.Type.(to_bin_string int64) n in
@@ -110,14 +111,13 @@ module IO : IO = struct
 
     let unsafe_get_offset fd =
       let buf = Bytes.create 8 in
-      unsafe_read fd ~off:0L buf >|= fun () ->
+      unsafe_read fd ~off:0L buf;
       match Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string buf) with
       | Ok t -> t
       | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
   end
 
   type t = {
-    lock : Lwt_mutex.t;
     file : string;
     mutable raw : Raw.t;
     mutable offset : int64;
@@ -132,34 +132,36 @@ module IO : IO = struct
     let buf = Buffer.contents t.buf in
     let offset = t.offset in
     Buffer.clear t.buf;
-    if buf = "" then Lwt.return ()
-    else
-      Raw.unsafe_write t.raw ~off:t.flushed buf >>= fun () ->
-      Raw.unsafe_set_offset t.raw offset >|= fun () ->
+    if buf = "" then ()
+    else (
+      Raw.unsafe_write t.raw ~off:t.flushed buf;
+      Raw.unsafe_set_offset t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
       then
         Fmt.failwith "sync error: %s flushed=%Ld offset+header=%Ld\n%!" t.file
           t.flushed (offset ++ header);
-      t.flushed <- offset ++ header
+      t.flushed <- offset ++ header )
 
-  let sync t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_sync t)
+  let sync t =
+    unsafe_sync t;
+    Lwt.return ()
 
   let unsafe_rename ~src ~dst =
-    unsafe_sync src >>= fun () ->
-    Lwt_unix.close dst.raw.fd >>= fun () ->
+    unsafe_sync src;
+    Unix.close dst.raw.fd;
     Log.debug (fun l -> l "IO rename %s => %s" src.file dst.file);
-    Lwt_unix.rename src.file dst.file >|= fun () ->
+    Unix.rename src.file dst.file;
     dst.offset <- src.offset;
     dst.flushed <- src.flushed;
     dst.raw <- src.raw
 
   let rename ~src ~dst =
-    Lwt_mutex.with_lock src.lock (fun () ->
-        Lwt_mutex.with_lock dst.lock (fun () -> unsafe_rename ~src ~dst) )
+    unsafe_rename ~src ~dst;
+    Lwt.return ()
 
-  let auto_flush_limit = 10_000_000L
+  let auto_flush_limit = 100_000L
 
   let append t buf =
     Buffer.add_string t.buf buf;
@@ -168,19 +170,20 @@ module IO : IO = struct
     if t.offset -- t.flushed > auto_flush_limit then sync t else Lwt.return ()
 
   let unsafe_set t ~off buf =
-    unsafe_sync t >>= fun () ->
-    Raw.unsafe_write t.raw ~off:(header ++ off) buf >|= fun () ->
+    unsafe_sync t;
+    Raw.unsafe_write t.raw ~off:(header ++ off) buf;
     let len = Int64.of_int (String.length buf) in
     let off = header ++ off ++ len in
     assert (off <= t.flushed)
 
   let set t ~off buf =
-    Lwt_mutex.with_lock t.lock (fun () -> unsafe_set t ~off buf)
+    unsafe_set t ~off buf;
+    Lwt.return ()
 
   let read t ~off buf =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        assert (header ++ off <= t.flushed);
-        Raw.unsafe_read t.raw ~off:(header ++ off) buf )
+    assert (header ++ off <= t.flushed);
+    Raw.unsafe_read t.raw ~off:(header ++ off) buf;
+    Lwt.return ()
 
   let offset t = t.offset
 
@@ -218,7 +221,7 @@ module IO : IO = struct
     Buffer.clear t.buf;
     Lwt.return ()
 
-  let buffers = Hashtbl.create 301
+  let buffers = Hashtbl.create 256
 
   let buffer file =
     try
@@ -232,25 +235,21 @@ module IO : IO = struct
 
   let v file =
     let v ~offset raw =
-      let buf = buffer file in
-      { file;
-        lock = Lwt_mutex.create ();
-        offset;
-        raw;
-        buf;
-        flushed = header ++ offset
-      }
+      Lwt.return
+        { file; offset; raw; buf = buffer file; flushed = header ++ offset }
     in
     mkdir (Filename.dirname file) >>= fun () ->
     Lwt_unix.file_exists file >>= function
     | false ->
-        Lwt_unix.openfile file Unix.[ O_CREAT; O_RDWR ] 0o644 >>= fun x ->
+        let x = Unix.openfile file Unix.[ O_CREAT; O_RDWR ] 0o644 in
         let raw = Raw.v x in
-        Raw.unsafe_set_offset raw 0L >|= fun () -> v ~offset:0L raw
+        Raw.unsafe_set_offset raw 0L;
+        v ~offset:0L raw
     | true ->
-        Lwt_unix.openfile file Unix.[ O_EXCL; O_RDWR ] 0o644 >>= fun x ->
+        let x = Unix.openfile file Unix.[ O_EXCL; O_RDWR ] 0o644 in
         let raw = Raw.v x in
-        Raw.unsafe_get_offset raw >|= fun offset -> v ~offset raw
+        let offset = Raw.unsafe_get_offset raw in
+        v ~offset raw
 end
 
 module Pool : sig
