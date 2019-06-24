@@ -43,27 +43,27 @@ let suite = { Irmin_test.name = "PACK"; init; clean; config; store; stats }
 module Dict = Irmin_pack.Dict
 
 let test_dict _switch () =
-  Dict.v ~fresh:true test_file >>= fun dict ->
-  Dict.index dict "foo" >>= fun x1 ->
+  let dict = Dict.v ~fresh:true test_file in
+  let x1 = Dict.index dict "foo" in
   Alcotest.(check int) "foo" 0 x1;
-  Dict.index dict "foo" >>= fun x1 ->
+  let x1 = Dict.index dict "foo" in
   Alcotest.(check int) "foo" 0 x1;
-  Dict.index dict "bar" >>= fun x2 ->
+  let x2 = Dict.index dict "bar" in
   Alcotest.(check int) "bar" 1 x2;
-  Dict.index dict "toto" >>= fun x3 ->
+  let x3 = Dict.index dict "toto" in
   Alcotest.(check int) "toto" 2 x3;
-  Dict.index dict "titiabc" >>= fun x4 ->
+  let x4 = Dict.index dict "titiabc" in
   Alcotest.(check int) "titiabc" 3 x4;
-  Dict.index dict "foo" >>= fun x1 ->
+  let x1 = Dict.index dict "foo" in
   Alcotest.(check int) "foo" 0 x1;
-  Dict.v ~fresh:false test_file >>= fun dict2 ->
-  Dict.index dict2 "titiabc" >>= fun x4 ->
+  let dict2 = Dict.v ~fresh:false test_file in
+  let x4 = Dict.index dict2 "titiabc" in
   Alcotest.(check int) "titiabc" 3 x4;
-  Dict.find dict2 x1 >>= fun v1 ->
+  let v1 = Dict.find dict2 x1 in
   Alcotest.(check (option string)) "find x1" (Some "foo") v1;
-  Dict.find dict2 x2 >>= fun v2 ->
+  let v2 = Dict.find dict2 x2 in
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
-  Dict.find dict2 x3 >>= fun v3 ->
+  let v3 = Dict.find dict2 x3 in
   Alcotest.(check (option string)) "find x3" (Some "toto") v3;
   Lwt.return ()
 
@@ -114,11 +114,11 @@ module S = struct
 
   let hash x = Irmin.Hash.SHA1.hash (Irmin.Type.pre_hash t x)
 
-  let to_bin ~dict:_ ~offset:_ x _k = Lwt.return (Irmin.Type.to_bin_string t x)
+  let to_bin ~dict:_ ~offset:_ x _k = Irmin.Type.to_bin_string t x
 
   let decode_bin ~dict:_ ~hash:_ x off =
     let _, v = Irmin.Type.decode_bin ~headers:false t x off in
-    Lwt.return v
+    v
 end
 
 module P = Irmin_pack.Pack (Irmin.Hash.SHA1)

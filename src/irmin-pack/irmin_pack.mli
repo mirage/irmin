@@ -47,11 +47,11 @@ module KV : Irmin.KV_MAKER
 module Dict : sig
   type t
 
-  val find : t -> int -> string option Lwt.t
+  val find : t -> int -> string option
 
-  val index : t -> string -> int Lwt.t
+  val index : t -> string -> int
 
-  val v : ?fresh:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> string -> t
 end
 
 module Index (H : Irmin.Hash.S) : sig
@@ -74,18 +74,14 @@ module type S = sig
   val hash : t -> hash
 
   val to_bin :
-    dict:(string -> int Lwt.t) ->
-    offset:(hash -> int64 option Lwt.t) ->
+    dict:(string -> int) ->
+    offset:(hash -> int64 option) ->
     t ->
     hash ->
-    string Lwt.t
+    string
 
   val decode_bin :
-    dict:(int -> string option Lwt.t) ->
-    hash:(int64 -> hash Lwt.t) ->
-    string ->
-    int ->
-    t Lwt.t
+    dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
