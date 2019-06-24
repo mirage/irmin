@@ -483,14 +483,6 @@ module Make (P : S.PRIVATE) = struct
       | None, Some _ -> x.map <- y.map
       | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
 
-    let check msg t =
-      match (t.v, t.info.hash, t.info.map, t.info.value) with
-      | Hash (_, x), Some y, _, _ -> if x != y then Fmt.failwith "%s: Hash" msg
-      | Map x, _, Some y, _ -> if x != y then Fmt.failwith "%s: Map" msg
-      | Value (_, x), _, _, Some y ->
-          if x != y then Fmt.failwith "%s: Value" msg
-      | (Hash _ | Map _ | Value _), _, _, _ -> ()
-
     let elt t : elt Type.t =
       let open Type in
       variant "Node.value" (fun node contents -> function
@@ -602,10 +594,7 @@ module Make (P : S.PRIVATE) = struct
         | Value (r, _), _, _, Some v -> Value (r, v)
         | _ -> v
       in
-      (* hashcons hash *)
-      let t = { v; info } in
-      check __LOC__ t;
-      t
+      { v; info }
 
     (* export t to the given repo and clear the cache *)
     let export ?clear repo t k =
@@ -699,15 +688,11 @@ module Make (P : S.PRIVATE) = struct
             Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
             Cache.add cache k t.info
       in
-      let k =
-        match t.info.hash with
-        | Some k -> k
-        | None ->
-            t.info.hash <- Some k;
-            k
-      in
-      check __LOC__ t;
-      k
+      match t.info.hash with
+      | Some k -> k
+      | None ->
+          t.info.hash <- Some k;
+          k
 
     let rec to_hash : type a. t -> (hash -> a) -> a =
      fun t k ->
@@ -748,7 +733,7 @@ module Make (P : S.PRIVATE) = struct
     let to_value t =
       match value t with
       | Some v -> Lwt.return (Some v)
-      | None ->
+      | None -> (
           ( match t.v with
           | Value (_, v) -> Lwt.return (Some v)
           | Map m -> Lwt.return (Some (value_of_map m))
@@ -756,15 +741,11 @@ module Make (P : S.PRIVATE) = struct
               Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
               P.Node.find (P.Repo.node_t repo) k )
           >|= fun value ->
-          let value =
-            match t.info.value with
-            | None ->
-                t.info.value <- value;
-                value
-            | Some _ as v -> v
-          in
-          check __LOC__ t;
-          value
+          match t.info.value with
+          | None ->
+              t.info.value <- value;
+              value
+          | Some _ as v -> v )
 
     let to_map t =
       match map t with
@@ -773,7 +754,6 @@ module Make (P : S.PRIVATE) = struct
           let of_value repo v =
             let m = map_of_value repo v in
             t.info.map <- Some m;
-            check __LOC__ t;
             Some m
           in
           match t.v with
