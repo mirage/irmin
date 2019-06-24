@@ -348,6 +348,15 @@ module Lru (H : Hashtbl.HashedType) = struct
     let node x = { value = x; prev = None; next = None }
 
     let create () = { first = None; last = None }
+
+    let iter f t =
+      let rec go f = function
+        | Some n ->
+            f n.value;
+            go f n.next
+        | _ -> ()
+      in
+      go f t.first
   end
 
   module M = struct
@@ -408,6 +417,8 @@ module Lru (H : Hashtbl.HashedType) = struct
       try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
 
     let mem k t = HT.mem t.ht k
+
+    let iter f t = Q.iter (fun (k, v) -> f k v) t.q
   end
 
   include M
@@ -456,6 +467,8 @@ module Pool : sig
 
   val read : t -> off:int64 -> len:int -> bytes * int
 
+  val trim : off:int64 -> t -> unit
+
   val clear : t -> unit
 end = struct
   module Lru = Lru (struct
@@ -464,12 +477,7 @@ end = struct
     let hash = Hashtbl.hash
   end)
 
-  type t = {
-    mutable pages : bytes Lru.t;
-    length : int;
-    lru_size : int;
-    io : IO.t
-  }
+  type t = { pages : bytes Lru.t; length : int; lru_size : int; io : IO.t }
 
   let v ~length ~lru_size io =
     let pages = Lru.create lru_size in
@@ -507,6 +515,15 @@ end = struct
         Lru.M.add page_off buf t.pages;
         Lru.M.trim t.pages;
         (buf, ioff)
+
+  let trim ~off t =
+    let to_remove = ref [] in
+    Lru.M.iter
+      (fun h _ ->
+        if h > off -- Int64.of_int t.length then to_remove := h :: !to_remove
+        )
+      t.pages;
+    List.iter (fun k -> Lru.remove k t.pages) !to_remove
 
   let clear t = Lru.M.clear t.pages
 end
@@ -1082,9 +1099,10 @@ module Pack (K : Irmin.Hash.S) = struct
     let flush t =
       IO.sync t.pack.dict.block;
       IO.sync t.pack.index.log;
+      let off = IO.offset t.pack.block in
+      Pool.trim ~off t.pages;
       IO.sync t.pack.block;
-      Tbl.clear t.staging;
-      Pool.clear t.pages
+      Tbl.clear t.staging
 
     let batch t f =
       f (cast t) >>= fun r ->
