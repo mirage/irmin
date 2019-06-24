@@ -219,7 +219,7 @@ module IO : IO = struct
     dst.flushed <- src.flushed;
     dst.raw <- src.raw
 
-  let auto_flush_limit = 100_000L
+  let auto_flush_limit = 1_000_000L
 
   let append t buf =
     Buffer.add_string t.buf buf;
