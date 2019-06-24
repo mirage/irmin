@@ -85,10 +85,9 @@ let test_index _switch () =
   let o3 = 10_098L in
   let h4 = Irmin.Hash.SHA1.hash "sdadsadas" in
   let o4 = 8978_232L in
-  Lwt_list.iter_s
+  List.iter
     (fun (h, off) -> Index.append t h ~off ~len:42)
-    [ (h1, o1); (h2, o2); (h3, o3); (h4, o4) ]
-  >>= fun () ->
+    [ (h1, o1); (h2, o2); (h3, o3); (h4, o4) ];
   let test t =
     Index.find t h1 >|= get >>= fun x1 ->
     Alcotest.(check int64) "h1" o1 x1.offset;

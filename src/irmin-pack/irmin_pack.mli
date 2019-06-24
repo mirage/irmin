@@ -59,7 +59,7 @@ module Index (H : Irmin.Hash.S) : sig
 
   val find : t -> H.t -> entry option Lwt.t
 
-  val append : t -> H.t -> off:int64 -> len:int -> unit Lwt.t
+  val append : t -> H.t -> off:int64 -> len:int -> unit
 end
 
 module type S = sig
