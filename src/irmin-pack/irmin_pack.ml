@@ -45,6 +45,72 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
+type stats = {
+  mutable index_appends : int;
+  mutable index_mems : int;
+  mutable index_finds : int;
+  mutable index_bloomf_misses : int;
+  mutable index_bloomf_mems : int;
+  mutable index_is : int;
+  mutable index_is_steps : int;
+  mutable pack_finds : int;
+  mutable pack_cache_misses : int;
+  mutable pack_page_read : int;
+  mutable pack_page_miss : int;
+  mutable index_page_read : int;
+  mutable index_page_miss : int
+}
+
+let fresh_stats () =
+  { index_appends = 0;
+    index_mems = 0;
+    index_finds = 0;
+    index_bloomf_misses = 0;
+    index_bloomf_mems = 0;
+    index_is = 0;
+    index_is_steps = 0;
+    pack_finds = 0;
+    pack_cache_misses = 0;
+    pack_page_read = 0;
+    pack_page_miss = 0;
+    index_page_read = 0;
+    index_page_miss = 0
+  }
+
+let stats = fresh_stats ()
+
+let reset_stats () =
+  stats.index_appends <- 0;
+  stats.index_finds <- 0;
+  stats.index_mems <- 0;
+  stats.index_mems <- 0;
+  stats.index_bloomf_misses <- 0;
+  stats.index_bloomf_mems <- 0;
+  stats.index_is <- 0;
+  stats.index_is_steps <- 0;
+  stats.pack_finds <- 0;
+  stats.pack_cache_misses <- 0;
+  stats.pack_page_read <- 0;
+  stats.pack_page_miss <- 0;
+  stats.index_page_read <- 0;
+  stats.index_page_miss <- 0
+
+let dump_stats () =
+  Fmt.epr "%f, %f, %f, %f, %f\n%!"
+    ( 100.
+    *. float_of_int stats.index_bloomf_misses
+    /. float_of_int stats.index_bloomf_mems )
+    ( 100.
+    *. float_of_int stats.pack_page_miss
+    /. float_of_int stats.pack_page_read )
+    ( 100.
+    *. float_of_int stats.index_page_miss
+    /. float_of_int stats.index_page_read )
+    (float_of_int stats.index_is_steps /. float_of_int stats.index_is)
+    ( 100.
+    *. float_of_int stats.pack_cache_misses
+    /. float_of_int stats.pack_finds )
+
 module type IO = sig
   type t
 
@@ -61,6 +127,8 @@ module type IO = sig
   val read : t -> off:int64 -> bytes -> unit
 
   val offset : t -> int64
+
+  val file : t -> string
 
   val sync : t -> unit
 end
@@ -172,7 +240,7 @@ module IO : IO = struct
 
   let offset t = t.offset
 
-  (*  let file t = t.file *)
+  let file t = t.file
 
   let protect_unix_exn = function
     | Unix.Unix_error _ as e -> failwith (Printexc.to_string e)
@@ -408,6 +476,10 @@ end = struct
     { pages; length; io; lru_size }
 
   let rec read t ~off ~len =
+    let name = IO.file t.io in
+    if Filename.check_suffix name "pack" then
+      stats.pack_page_read <- succ stats.pack_page_read
+    else stats.index_page_read <- succ stats.index_page_read;
     let l = Int64.of_int t.length in
     let page_off = Int64.(mul (div off l) l) in
     let ioff = Int64.to_int (off -- page_off) in
@@ -428,6 +500,9 @@ end = struct
           else length
         in
         let buf = Bytes.create length in
+        if Filename.check_suffix name "pack" then
+          stats.pack_page_miss <- succ stats.pack_page_miss
+        else stats.index_page_miss <- succ stats.index_page_miss;
         IO.read t.io ~off:page_off buf;
         Lru.M.add page_off buf t.pages;
         Lru.M.trim t.pages;
@@ -594,7 +669,7 @@ module Index (H : Irmin.Hash.S) = struct
             f { hash; offset; len = Int32.to_int len };
             (read_page [@tailcall]) page (off + pad)
         in
-        let () = read_page page 0 in
+        read_page page 0;
         (aux [@tailcall]) (offset ++ Int64.of_int page_size)
     in
     (aux [@tailcall]) 0L
@@ -659,21 +734,27 @@ module Index (H : Irmin.Hash.S) = struct
 
   let interpolation_search t i key =
     let hashed_key = H.short_hash key in
+    stats.index_is <- succ stats.index_is;
     Log.debug (fun l -> l "interpolation_search %a (%d)" pp_hash key hashed_key);
     let hashed_key = float_of_int hashed_key in
     let low = 0. in
     let high = Int64.to_float (IO.offset t.index.(i)) -. padf in
     let rec search low high lowest_entry highest_entry =
+      stats.index_is_steps <- succ stats.index_is_steps;
       let lowest_entry = get_entry_iff_needed t i low lowest_entry in
       let highest_entry = get_entry_iff_needed t i high highest_entry in
       if high = low then
         if Irmin.Type.equal H.t lowest_entry.hash key then Some lowest_entry
-        else None
+        else (
+          stats.index_bloomf_misses <- succ stats.index_bloomf_misses;
+          None )
       else
         let lowest_hash = float_of_int (H.short_hash lowest_entry.hash) in
         let highest_hash = float_of_int (H.short_hash highest_entry.hash) in
         if high < low || lowest_hash > hashed_key || highest_hash < hashed_key
-        then None
+        then (
+          stats.index_bloomf_misses <- succ stats.index_bloomf_misses;
+          None )
         else
           let doff =
             floor
@@ -689,13 +770,19 @@ module Index (H : Irmin.Hash.S) = struct
             (search [@tailcall]) (off +. padf) high None (Some highest_entry)
           else (search [@tailcall]) low (off -. padf) (Some lowest_entry) None
     in
-    if high < 0. then None else (search [@tailcall]) low high None None
+    if high < 0. then (
+      stats.index_bloomf_misses <- succ stats.index_bloomf_misses;
+      None )
+    else (search [@tailcall]) low high None None
 
   (*  let dump_entry ppf e = Fmt.pf ppf "[offset:%Ld len:%d]" e.offset e.len *)
 
   let unsafe_find t key =
     Log.debug (fun l -> l "[index] find %a" pp_hash key);
-    if not (Bloomf.mem t.entries key) then None
+    stats.index_finds <- succ stats.index_finds;
+    if not (Bloomf.mem t.entries key) then (
+      stats.index_bloomf_mems <- succ stats.index_bloomf_mems;
+      None )
     else
       match Tbl.find t.cache key with
       | e -> Some e
@@ -708,14 +795,9 @@ module Index (H : Irmin.Hash.S) = struct
         let v = unsafe_find t key in
         Lwt.return v )
 
-  let unsafe_mem t key =
-    if not (Bloomf.mem t.entries key) then false
-    else match unsafe_find t key with None -> false | Some _ -> true
-
   let mem t key =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        let b = unsafe_mem t key in
-        Lwt.return b )
+    stats.index_mems <- succ stats.index_mems;
+    find t key >|= function None -> false | Some _ -> true
 
   let append_entry t e = IO.append t (encode_entry e)
 
@@ -727,13 +809,11 @@ module Index (H : Irmin.Hash.S) = struct
 
   let fan_out_cache t n =
     let caches = Array.make n [] in
-    let () =
-      Tbl.iter
-        (fun k v ->
-          let index = H.short_hash k land (n - 1) in
-          caches.(index) <- (k, v) :: caches.(index) )
-        t.cache
-    in
+    Tbl.iter
+      (fun k v ->
+        let index = H.short_hash k land (n - 1) in
+        caches.(index) <- (k, v) :: caches.(index) )
+      t.cache;
     Array.map
       (List.sort (fun (k, _) (k', _) ->
            compare (H.short_hash k) (H.short_hash k') ))
@@ -809,6 +889,7 @@ module Index (H : Irmin.Hash.S) = struct
   let append t key ~off ~len =
     Log.debug (fun l ->
         l "[index] append %a off=%Ld len=%d" pp_hash key off len );
+    stats.index_appends <- succ stats.index_appends;
     let entry = { hash = key; offset = off; len } in
     append_entry t.log entry;
     Tbl.add t.cache key entry;
@@ -960,6 +1041,7 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let unsafe_find t k =
       Log.debug (fun l -> l "[pack] find %a" pp_hash k);
+      stats.pack_finds <- succ stats.pack_finds;
       match Tbl.find t.staging k with
       | v ->
           Lru.add t.lru k v;
@@ -990,6 +1072,7 @@ module Pack (K : Irmin.Hash.S) = struct
                 check_key k v >|= fun () ->
                 Tbl.add t.staging k v;
                 Lru.add t.lru k v;
+                stats.pack_cache_misses <- succ stats.pack_cache_misses;
                 Some v ) )
 
     let find t k = Lwt_mutex.with_lock t.pack.lock (fun () -> unsafe_find t k)

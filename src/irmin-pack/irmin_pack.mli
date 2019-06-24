@@ -16,6 +16,10 @@
 
 val config : ?fresh:bool -> string -> Irmin.config
 
+val reset_stats : unit -> unit
+
+val dump_stats : unit -> unit
+
 module Make_ext
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
