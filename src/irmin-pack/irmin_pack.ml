@@ -292,8 +292,6 @@ module Lru (H : Hashtbl.HashedType) = struct
       mutable w : int
     }
 
-    let size t = HT.length t.ht
-
     let weight t = t.w
 
     let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
@@ -340,13 +338,13 @@ module Lru (H : Hashtbl.HashedType) = struct
 
     let find k t =
       try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
+
+    let mem k t = HT.mem t.ht k
   end
 
   include M
 
   let create x = M.create x
-
-  let length = M.size
 
   let add t k v =
     M.add k v t;
@@ -358,6 +356,13 @@ module Lru (H : Hashtbl.HashedType) = struct
     | Some v ->
         M.promote k t;
         v
+
+  let mem t k =
+    match M.mem k t with
+    | false -> false
+    | true ->
+        M.promote k t;
+        true
 end
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -891,19 +896,25 @@ module Pack (K : Irmin.Hash.S) = struct
 
     val append : 'a t -> K.t -> V.t -> unit Lwt.t
   end = struct
-    module Tbl = Cache (K)
+    module Tbl = Table (K)
+    module Lru = Cache (K)
 
     let lru_size = 30_000
 
     let page_size = 4 * 1024
 
-    type nonrec 'a t = { pack : 'a t; cache : V.t Tbl.t; pages : Pool.t }
+    type nonrec 'a t = {
+      pack : 'a t;
+      lru : V.t Lru.t;
+      staging : V.t Tbl.t;
+      pages : Pool.t
+    }
 
     type key = K.t
 
     type value = V.t
 
-    let clear t = clear t.pack >|= fun () -> Tbl.clear t.cache
+    let clear t = clear t.pack >|= fun () -> Tbl.clear t.staging
 
     let files = Hashtbl.create 10
 
@@ -916,9 +927,11 @@ module Pack (K : Irmin.Hash.S) = struct
         (if fresh then clear t else Lwt.return ()) >|= fun () -> t
       with Not_found ->
         v ~fresh root >>= fun pack ->
-        let cache = Tbl.create 10_000 in
+        let staging = Tbl.create 127 in
+        let lru = Lru.create 10_000 in
         let t =
-          { cache;
+          { staging;
+            lru;
             pack;
             pages = Pool.v ~lru_size ~length:page_size pack.block
           }
@@ -934,7 +947,9 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let mem t k =
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
-      Index.mem t.pack.index k
+      if Tbl.mem t.staging k then Lwt.return true
+      else if Lru.mem t.lru k then Lwt.return true
+      else Index.mem t.pack.index k
 
     let check_key k v =
       let k' = V.hash v in
@@ -945,31 +960,37 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let unsafe_find t k =
       Log.debug (fun l -> l "[pack] find %a" pp_hash k);
-      match Tbl.find t.cache k with
-      | v -> Lwt.return (Some v)
+      match Tbl.find t.staging k with
+      | v ->
+          Lru.add t.lru k v;
+          Lwt.return (Some v)
       | exception Not_found -> (
-          Index.find t.pack.index k >>= function
-          | None -> Lwt.return None
-          | Some e ->
-              let buf, pos = Pool.read t.pages ~off:e.offset ~len:e.len in
-              let hash off =
-                match Hashtbl.find t.pack.index.offsets off with
-                | e -> Lwt.return e.hash
-                | exception Not_found ->
-                    let buf, pos = Pool.read t.pages ~off ~len:K.hash_size in
-                    let _, v =
-                      Irmin.Type.decode_bin ~headers:false K.t
-                        (Bytes.unsafe_to_string buf)
-                        pos
-                    in
-                    Lwt.return v
-              in
-              let dict = Dict.find t.pack.dict in
-              V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) pos
-              >>= fun v ->
-              check_key k v >|= fun () ->
-              Tbl.add t.cache k v;
-              Some v )
+        match Lru.find t.lru k with
+        | v -> Lwt.return (Some v)
+        | exception Not_found -> (
+            Index.find t.pack.index k >>= function
+            | None -> Lwt.return None
+            | Some e ->
+                let buf, pos = Pool.read t.pages ~off:e.offset ~len:e.len in
+                let hash off =
+                  match Hashtbl.find t.pack.index.offsets off with
+                  | e -> Lwt.return e.hash
+                  | exception Not_found ->
+                      let buf, pos = Pool.read t.pages ~off ~len:K.hash_size in
+                      let _, v =
+                        Irmin.Type.decode_bin ~headers:false K.t
+                          (Bytes.unsafe_to_string buf)
+                          pos
+                      in
+                      Lwt.return v
+                in
+                let dict = Dict.find t.pack.dict in
+                V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) pos
+                >>= fun v ->
+                check_key k v >|= fun () ->
+                Tbl.add t.staging k v;
+                Lru.add t.lru k v;
+                Some v ) )
 
     let find t k = Lwt_mutex.with_lock t.pack.lock (fun () -> unsafe_find t k)
 
@@ -977,16 +998,17 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let batch t f =
       f (cast t) >>= fun r ->
-      if Tbl.length t.cache = 0 then Lwt.return r
+      if Tbl.length t.staging = 0 then Lwt.return r
       else (
         IO.sync t.pack.dict.block;
         IO.sync t.pack.index.log;
         IO.sync t.pack.block;
+        Tbl.clear t.staging;
         Pool.clear t.pages;
         Lwt.return r )
 
     let unsafe_append t k v =
-      Index.mem t.pack.index k >>= function
+      mem t k >>= function
       | true -> Lwt.return ()
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
@@ -1000,7 +1022,8 @@ module Pack (K : Irmin.Hash.S) = struct
           let off = IO.offset t.pack.block in
           IO.append t.pack.block buf;
           Index.append t.pack.index k ~off ~len:(String.length buf);
-          Tbl.add t.cache k v;
+          Tbl.add t.staging k v;
+          Lru.add t.lru k v;
           Lwt.return ()
 
     let append t k v =
