@@ -306,13 +306,6 @@ module Make (P : S.PRIVATE) = struct
 
     let cache = Cache.create 10_000
 
-    let check msg t =
-      match (t.v, t.info.hash, t.info.value) with
-      | Hash (_, x), Some y, _ ->
-          if not (x == y) then Fmt.failwith "%s: Hash" msg
-      | Value x, _, Some y -> if not (x == y) then Fmt.failwith "%s: Val" msg
-      | (Hash _ | Value _), _, _ -> ()
-
     let of_v v =
       let hash, value =
         match v with Hash (_, k) -> (Some k, None) | Value v -> (None, Some v)
@@ -338,7 +331,6 @@ module Make (P : S.PRIVATE) = struct
         | _ -> v
       in
       let t = { v; info } in
-      check __LOC__ t;
       t
 
     let export ?clear repo t k =
@@ -402,7 +394,6 @@ module Make (P : S.PRIVATE) = struct
                   c.info.hash <- Some k;
                   k
             in
-            check __LOC__ c;
             k )
 
     let to_value t =
@@ -410,7 +401,6 @@ module Make (P : S.PRIVATE) = struct
       | _, Some v -> Lwt.return (Some v)
       | Value v, None ->
           t.info.value <- Some v;
-          check __LOC__ t;
           Lwt.return (Some v)
       | Hash (repo, k), None -> (
           Log.debug (fun l -> l "Node.Contents.to_value %a" pp_hash k);
@@ -418,7 +408,6 @@ module Make (P : S.PRIVATE) = struct
           | None -> None
           | Some v ->
               t.info.value <- Some v;
-              check __LOC__ t;
               Some v )
 
     let equal (x : t) (y : t) =
