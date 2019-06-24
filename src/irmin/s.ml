@@ -571,12 +571,12 @@ module type TREE = sig
 
   val to_concrete : tree -> concrete Lwt.t
 
-  val clear : tree -> unit
+  val clear : ?depth:int -> tree -> unit
 
   module Cache : sig
     val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
 
-    val clear : unit -> unit
+    val clear : ?depth:int -> unit -> unit
 
     val dump : unit Fmt.t
   end

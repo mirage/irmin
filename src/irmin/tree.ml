@@ -190,6 +190,8 @@ module Cache (K : S.HASH) : sig
 
   val add : 'a t -> key -> 'a -> unit
 
+  val remove : 'a t -> key -> unit
+
   val iter : (key -> 'a -> unit) -> 'a t -> unit
 
   val clear : 'a t -> unit
@@ -220,6 +222,8 @@ end = struct
     | Some v ->
         M.promote k t;
         v
+
+  let remove t k = M.remove k t
 end
 
 module Make (P : S.PRIVATE) = struct
@@ -557,29 +561,25 @@ module Make (P : S.PRIVATE) = struct
     let clear_info ?depth:d i =
       i.hash <- None;
       i.value <- None;
-      match d with
-      | None -> i.map <- None
-      | Some max_depth -> (
-          let depth = depth i in
-          if depth <= max_depth then ()
-          else
-            let rec map depth m =
-              StepMap.iter
-                (fun _ v ->
-                  match v with
-                  | `Contents (c, _) ->
-                      if depth + 1 > max_depth then
-                        Contents.clear_info c.Contents.info
-                  | `Node t -> (aux [@tailcall]) (depth + 1) t )
-                m
-            and aux depth t =
-              match (t.v, t.info.map) with
-              | (Hash _ | Value _), None -> ()
-              | Map m, _ | _, Some m ->
-                  if depth >= max_depth then t.info.map <- None
-                  else (map [@tailcall]) depth m
-            in
-            match i.map with None -> () | Some m -> (map [@tailcall]) 0 m )
+      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
+      let rec map depth m =
+        StepMap.fold
+          (fun _ v acc ->
+            match v with
+            | `Contents (c, _) ->
+                if depth + 1 > max_depth then
+                  Contents.clear_info c.Contents.info;
+                acc
+            | `Node t -> (aux [@tailcall]) (depth + 1) t )
+          m depth
+      and aux depth t =
+        match (t.v, t.info.map) with
+        | (Hash _ | Value _), None -> depth
+        | Map m, _ | _, Some m ->
+            if depth >= max_depth then t.info.map <- None;
+            (map [@tailcall]) depth m
+      in
+      match i.map with None -> 0 | Some m -> (map [@tailcall]) 0 m
 
     module Cache = Cache (P.Hash)
 
@@ -1023,8 +1023,10 @@ module Make (P : S.PRIVATE) = struct
 
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
 
-  let clear = function
-    | `Node n -> Node.clear_info n.Node.info
+  let clear ?depth = function
+    | `Node n ->
+        let (_ : int) = Node.clear_info ?depth n.Node.info in
+        ()
     | `Contents _ -> ()
 
   let sub t path =
@@ -1541,10 +1543,20 @@ module Make (P : S.PRIVATE) = struct
       ( `Contents Contents.(Cache.length cache),
         `Nodes Node.(Cache.length cache) )
 
-    let clear () =
+    let clear ?depth () =
       Log.info (fun l -> l "Tree.Cache.clear");
-      Node.Cache.clear Node.cache;
-      Contents.Cache.clear Contents.cache
+      match depth with
+      | None ->
+          Contents.Cache.clear Contents.cache;
+          Node.Cache.clear Node.cache
+      | Some depth ->
+          let to_remove = ref [] in
+          Node.Cache.iter
+            (fun h i ->
+              let d = Node.clear_info ~depth i in
+              if d >= depth then to_remove := h :: !to_remove )
+            Node.cache;
+          List.iter (Node.Cache.remove Node.cache) !to_remove
 
     let dump ppf () =
       let ppo t ppf = function

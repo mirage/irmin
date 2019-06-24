@@ -2570,14 +2570,20 @@ module type S = sig
 
     (** {1 Caches} *)
 
-    val clear : tree -> unit
+    val clear : ?depth:int -> tree -> unit
+    (** [clear ?depth t] clears all the cache in the tree [t] for
+        subtrees with a depth higher than [depth]. If [depth] is not
+        set, all the subtrees are cleared. *)
 
     (** Global cache of key -> tree -- used for hash-consing and to
         speed-up lookups. *)
     module Cache : sig
       val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
 
-      val clear : unit -> unit
+      val clear : ?depth:int -> unit -> unit
+      (** [clear ?depth ()] clears the global cache. If [depth] is
+          set, only keep entries with depth greater than [depth] and
+          prune these so that their depth is [depth]. *)
 
       val dump : unit Fmt.t
     end
