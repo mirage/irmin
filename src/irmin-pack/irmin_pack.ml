@@ -916,7 +916,7 @@ module Pack (K : Irmin.Hash.S) = struct
         (if fresh then clear t else Lwt.return ()) >|= fun () -> t
       with Not_found ->
         v ~fresh root >>= fun pack ->
-        let cache = Tbl.create 1024 in
+        let cache = Tbl.create 10_000 in
         let t =
           { cache;
             pack;
