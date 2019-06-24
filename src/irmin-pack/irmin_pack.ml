@@ -996,16 +996,21 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let cast t = (t :> [ `Read | `Write ] t)
 
+    let flush t =
+      IO.sync t.pack.dict.block;
+      IO.sync t.pack.index.log;
+      IO.sync t.pack.block;
+      Tbl.clear t.staging;
+      Pool.clear t.pages
+
     let batch t f =
       f (cast t) >>= fun r ->
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
-        IO.sync t.pack.dict.block;
-        IO.sync t.pack.index.log;
-        IO.sync t.pack.block;
-        Tbl.clear t.staging;
-        Pool.clear t.pages;
+        flush t;
         Lwt.return r )
+
+    let auto_flush = 1024
 
     let unsafe_append t k v =
       mem t k >>= function
@@ -1022,7 +1027,8 @@ module Pack (K : Irmin.Hash.S) = struct
           let off = IO.offset t.pack.block in
           IO.append t.pack.block buf;
           Index.append t.pack.index k ~off ~len:(String.length buf);
-          Tbl.add t.staging k v;
+          if Tbl.length t.staging >= auto_flush then flush t
+          else Tbl.add t.staging k v;
           Lru.add t.lru k v;
           Lwt.return ()
 
