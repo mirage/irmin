@@ -125,7 +125,7 @@ module Make (S : S) = struct
     try
       Lwt_main.run
         ( x.init () >>= fun () ->
-          S.Tree.Cache.trim ();
+          S.Tree.Cache.clear ();
           S.Repo.v x.config >>= fun repo -> test repo >>= x.clean )
     with e ->
       Lwt_main.run (x.clean ());
@@ -1142,51 +1142,34 @@ module Make (S : S) = struct
        Lwt.return ())
       >>= fun () ->
       (* Test caching (makesure that no tree is lying in scope) *)
-      ( S.Tree.Cache.trim ();
-        Gc.full_major ();
-        let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo") in
-        check_cache "empty" 0 0;
-        let foo = "foo-x" in
-        S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
-        check_cache "still empty" 0 0;
-        (* cache is filled whenever we hash something *)
-        let () =
-          let k = S.Tree.hash v0 in
-          check_cache "one leaf" 1 1;
-          let _ = k in
-          ()
-        in
-        S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
-        let () =
-          let k = S.Tree.hash v0 in
-          Gc.full_major ();
-          check_cache "still one leaf" 1 1;
-          let _ = (k, foo) in
-          ()
-        in
-        S.Tree.Cache.trim ();
-        let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar") in
-        let xxx = "xxx" in
-        let yyy = "yyy" in
-        let zzz = "zzz" in
-        S.Tree.add v0 [ "a" ] xxx >>= fun v0 ->
-        S.Tree.add v0 [ "b" ] xxx >>= fun v0 ->
-        S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
-        S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
-        let () =
-          S.Tree.Cache.trim ();
-          Gc.full_major ();
-          let k = S.Tree.hash v0 in
-          check_cache "mores" 3 3;
-          S.Tree.Cache.trim ~depth:2 ();
-          check_cache "trim 2" 3 2;
-          S.Tree.Cache.trim ~depth:1 ();
-          check_cache "trim 1" 3 1;
-          let _ = (k, yyy, zzz, foo) in
-          ()
-        in
-        Lwt.return () )
-      >>= fun () ->
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo") in
+      S.Tree.Cache.clear ();
+      check_cache "empty" 0 0;
+      let foo = "foo-x" in
+      S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
+      check_cache "still empty" 0 0;
+      (* cache is filled whenever we hash something *)
+      let _ = S.Tree.hash v0 in
+      check_cache "one leaf" 1 1;
+      S.Tree.add v0 [ "foo" ] foo >>= fun _v0 ->
+      let _k = S.Tree.hash v0 in
+      check_cache "still one leaf" 1 1;
+      S.Tree.Cache.clear ();
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar") in
+      let xxx = "xxx" in
+      let yyy = "yyy" in
+      let zzz = "zzz" in
+      S.Tree.add v0 [ "a" ] xxx >>= fun v0 ->
+      S.Tree.add v0 [ "b" ] xxx >>= fun v0 ->
+      S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
+      S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
+      S.Tree.Cache.clear ();
+      let _k = S.Tree.hash v0 in
+      check_cache "mores" 3 3;
+      S.Tree.Cache.clear ~depth:2 ();
+      check_cache "trim 2" 3 2;
+      S.Tree.Cache.clear ~depth:1 ();
+      check_cache "trim 1" 3 1;
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
