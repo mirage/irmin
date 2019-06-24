@@ -231,14 +231,6 @@ module IO : IO = struct
         v ~offset raw
 end
 
-module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
-  type t = K.t
-
-  let hash (t : t) = Irmin.Type.short_hash K.t t
-
-  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
-end)
-
 module Lru (H : Hashtbl.HashedType) = struct
   (* Extracted from https://github.com/pqwy/lru
      Copyright (c) 2016 David Kaloper Meršinjak *)
@@ -288,15 +280,6 @@ module Lru (H : Hashtbl.HashedType) = struct
     let node x = { value = x; prev = None; next = None }
 
     let create () = { first = None; last = None }
-
-    let iter f t =
-      let rec go f = function
-        | Some n ->
-            f n.value;
-            go f n.next
-        | _ -> ()
-      in
-      go f t.first
   end
 
   module M = struct
@@ -357,8 +340,6 @@ module Lru (H : Hashtbl.HashedType) = struct
 
     let find k t =
       try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
-
-    let iter f t = Q.iter (fun (k, v) -> f k v) t.q
   end
 
   include M
@@ -377,9 +358,23 @@ module Lru (H : Hashtbl.HashedType) = struct
     | Some v ->
         M.promote k t;
         v
-
-  let remove t k = M.remove k t
 end
+
+module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
+  type t = K.t
+
+  let hash (t : t) = Irmin.Type.short_hash K.t t
+
+  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
+end)
+
+module Cache (K : Irmin.Type.S) = Lru (struct
+  type t = K.t
+
+  let hash (t : t) = Irmin.Type.short_hash K.t t
+
+  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
+end)
 
 module Pool : sig
   type t
@@ -629,7 +624,7 @@ module Index (H : Irmin.Hash.S) = struct
       let t =
         { cache;
           root;
-          offsets = Hashtbl.create log_size;
+          offsets = Hashtbl.create 127;
           pages =
             Array.init fan_out_size (fun i ->
                 Pool.v ~length:page_size ~lru_size index.(i) );
@@ -896,11 +891,11 @@ module Pack (K : Irmin.Hash.S) = struct
 
     val append : 'a t -> K.t -> V.t -> unit Lwt.t
   end = struct
-    module Tbl = Table (K)
+    module Tbl = Cache (K)
 
     let lru_size = 30_000
 
-    let page_size = 1024
+    let page_size = 4 * 1024
 
     type nonrec 'a t = { pack : 'a t; cache : V.t Tbl.t; pages : Pool.t }
 
@@ -921,7 +916,7 @@ module Pack (K : Irmin.Hash.S) = struct
         (if fresh then clear t else Lwt.return ()) >|= fun () -> t
       with Not_found ->
         v ~fresh root >>= fun pack ->
-        let cache = Tbl.create (1024 * 1024) in
+        let cache = Tbl.create 1024 in
         let t =
           { cache;
             pack;
@@ -987,8 +982,6 @@ module Pack (K : Irmin.Hash.S) = struct
         IO.sync t.pack.dict.block;
         IO.sync t.pack.index.log;
         IO.sync t.pack.block;
-        Tbl.clear t.cache;
-        (* would probably be better to just clear the last page *)
         Pool.clear t.pages;
         Lwt.return r )
 
