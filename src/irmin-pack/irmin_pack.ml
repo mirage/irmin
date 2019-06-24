@@ -802,10 +802,15 @@ module Index (H : Irmin.Hash.S) = struct
         let v = unsafe_find t key in
         Lwt.return v )
 
-  let mem t key =
+  let unsafe_mem t key =
     stats.index_mems <- succ stats.index_mems;
-    find t key >|= function None -> false | Some _ -> true
+    match unsafe_find t key with None -> false | Some _ -> true
 
+  (*  let mem t key =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        let b = unsafe_mem t key in
+        Lwt.return b )
+*)
   let append_entry t e = IO.append t (encode_entry e)
 
   module HashMap = Map.Make (struct
@@ -979,6 +984,10 @@ module Pack (K : Irmin.Hash.S) = struct
     val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
     val append : 'a t -> K.t -> V.t -> unit Lwt.t
+
+    val unsafe_append : 'a t -> K.t -> V.t -> unit
+
+    val unsafe_find : 'a t -> K.t -> V.t option
   end = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
@@ -1029,11 +1038,16 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let pp_hash = Irmin.Type.pp K.t
 
-    let mem t k =
+    let unsafe_mem t k =
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
-      if Tbl.mem t.staging k then Lwt.return true
-      else if Lru.mem t.lru k then Lwt.return true
-      else Index.mem t.pack.index k
+      if Tbl.mem t.staging k then true
+      else if Lru.mem t.lru k then true
+      else Index.unsafe_mem t.pack.index k
+
+    let mem t k =
+      Lwt_mutex.with_lock create (fun () ->
+          let b = unsafe_mem t k in
+          Lwt.return b )
 
     let check_key k v =
       let k' = V.hash v in
@@ -1104,8 +1118,8 @@ module Pack (K : Irmin.Hash.S) = struct
     let auto_flush = 1024
 
     let unsafe_append t k v =
-      mem t k >>= function
-      | true -> Lwt.return ()
+      match unsafe_mem t k with
+      | true -> ()
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
@@ -1120,11 +1134,12 @@ module Pack (K : Irmin.Hash.S) = struct
           Index.append t.pack.index k ~off ~len:(String.length buf);
           if Tbl.length t.staging >= auto_flush then flush t
           else Tbl.add t.staging k v;
-          Lru.add t.lru k v;
-          Lwt.return ()
+          Lru.add t.lru k v
 
     let append t k v =
-      Lwt_mutex.with_lock t.pack.lock (fun () -> unsafe_append t k v)
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_append t k v;
+          Lwt.return () )
 
     let add t v =
       let k = V.hash v in
@@ -1731,14 +1746,23 @@ struct
         let mem t k = Inode.mem t k
 
         let find t k =
-          Inode.Tree.load ~find:(Inode.find t) k >|= function
+          Inode.Tree.load
+            ~find:(fun k ->
+              let v = Inode.unsafe_find t k in
+              Lwt.return v )
+            k
+          >|= function
           | None -> None
           | Some t -> Some (Val.v (Inode.Tree.list t))
 
         let add t v =
           let n = Val.list v in
           let v = Inode.Tree.v n in
-          Inode.Tree.save ~add:(Inode.append t) v
+          Inode.Tree.save
+            ~add:(fun k v ->
+              Inode.unsafe_append t k v;
+              Lwt.return () )
+            v
 
         let batch = Inode.batch
 
