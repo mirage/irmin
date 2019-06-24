@@ -773,17 +773,26 @@ module Make (P : S.PRIVATE) = struct
     let equal (x : t) (y : t) = x == y || hash_equal (to_hash x) (to_hash y)
 
     let is_empty t =
-      to_map t >|= function None -> false | Some m -> StepMap.is_empty m
+      match map t with
+      | Some m -> Lwt.return (StepMap.is_empty m)
+      | None -> (
+          to_value t >|= function
+          | None -> false
+          | Some n -> P.Node.Val.is_empty n )
 
     let list t =
-      to_map t >|= function
-      | None -> []
-      | Some m ->
-          let kvs = StepMap.bindings m in
-          List.map
-            (fun (k, v) ->
-              (k, match v with `Contents _ -> `Contents | `Node _ -> `Node) )
-            kvs
+      let trim l =
+        List.map
+          (fun (s, v) ->
+            (s, match v with `Contents _ -> `Contents | `Node _ -> `Node) )
+          l
+      in
+      match map t with
+      | Some m -> Lwt.return (trim (StepMap.bindings m))
+      | None -> (
+          to_value t >|= function
+          | None -> []
+          | Some v -> trim (P.Node.Val.list v) )
 
     let listv t =
       to_map t >|= function None -> [] | Some m -> StepMap.bindings m
