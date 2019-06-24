@@ -59,9 +59,9 @@ module Index (H : Irmin.Hash.S) : sig
 
   type entry = { hash : H.t; offset : int64; len : int }
 
-  val v : ?fresh:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> string -> t
 
-  val find : t -> H.t -> entry option Lwt.t
+  val find : t -> H.t -> entry option
 
   val append : t -> H.t -> off:int64 -> len:int -> unit
 end

@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
-
 let src = Logs.Src.create "irmin.pack" ~doc:"Irmin in-memory store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -637,8 +635,7 @@ module Index (H : Irmin.Hash.S) = struct
     log : IO.t;
     index : IO.t array;
     entries : H.t Bloomf.t;
-    root : string;
-    lock : Lwt_mutex.t
+    root : string
   }
 
   let clear t =
@@ -652,8 +649,6 @@ module Index (H : Irmin.Hash.S) = struct
     Hashtbl.clear t.offsets
 
   let files = Hashtbl.create 10
-
-  let create = Lwt_mutex.create ()
 
   let log_path root = root // "store.log"
 
@@ -681,7 +676,7 @@ module Index (H : Irmin.Hash.S) = struct
     in
     (aux [@tailcall]) 0L
 
-  let unsafe_v ?(fresh = false) root =
+  let v ?(fresh = false) root =
     let log_path = log_path root in
     let index_path = index_path root in
     Log.debug (fun l ->
@@ -717,17 +712,11 @@ module Index (H : Irmin.Hash.S) = struct
                 Pool.v ~length:page_size ~lru_size index.(i) );
           log;
           index;
-          lock = Lwt_mutex.create ();
           entries
         }
       in
       Hashtbl.add files root t;
       t
-
-  let v ?fresh root =
-    Lwt_mutex.with_lock create (fun () ->
-        let t = unsafe_v ?fresh root in
-        Lwt.return t )
 
   let get_entry t i off =
     let page, ioff = Pool.read t.pages.(i) ~off ~len:pad in
@@ -784,7 +773,7 @@ module Index (H : Irmin.Hash.S) = struct
 
   (*  let dump_entry ppf e = Fmt.pf ppf "[offset:%Ld len:%d]" e.offset e.len *)
 
-  let unsafe_find t key =
+  let find t key =
     Log.debug (fun l -> l "[index] find %a" pp_hash key);
     stats.index_finds <- succ stats.index_finds;
     if not (Bloomf.mem t.entries key) then (
@@ -797,20 +786,10 @@ module Index (H : Irmin.Hash.S) = struct
           let i = H.short_hash key land (fan_out_size - 1) in
           interpolation_search t i key
 
-  let find t key =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        let v = unsafe_find t key in
-        Lwt.return v )
-
-  let unsafe_mem t key =
+  let mem t key =
     stats.index_mems <- succ stats.index_mems;
-    match unsafe_find t key with None -> false | Some _ -> true
+    match find t key with None -> false | Some _ -> true
 
-  (*  let mem t key =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        let b = unsafe_mem t key in
-        Lwt.return b )
-*)
   let append_entry t e = IO.append t (encode_entry e)
 
   module HashMap = Map.Make (struct
@@ -928,6 +907,8 @@ module type S = sig
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
+open Lwt.Infix
+
 module Pack (K : Irmin.Hash.S) = struct
   module Index = Index (K)
   module Tbl = Table (K)
@@ -962,7 +943,7 @@ module Pack (K : Irmin.Hash.S) = struct
       t
     with Not_found ->
       let lock = Lwt_mutex.create () in
-      let index = Index.unsafe_v ~fresh root in
+      let index = Index.v ~fresh root in
       let dict = Dict.v ~fresh root in
       let block = IO.v root_f in
       if fresh then IO.clear block;
@@ -1042,7 +1023,7 @@ module Pack (K : Irmin.Hash.S) = struct
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
       if Tbl.mem t.staging k then true
       else if Lru.mem t.lru k then true
-      else Index.unsafe_mem t.pack.index k
+      else Index.mem t.pack.index k
 
     let mem t k =
       Lwt_mutex.with_lock create (fun () ->
@@ -1067,7 +1048,7 @@ module Pack (K : Irmin.Hash.S) = struct
         match Lru.find t.lru k with
         | v -> Some v
         | exception Not_found -> (
-          match Index.unsafe_find t.pack.index k with
+          match Index.find t.pack.index k with
           | None -> None
           | Some e ->
               let buf, pos = Pool.read t.pages ~off:e.offset ~len:e.len in
@@ -1123,7 +1104,7 @@ module Pack (K : Irmin.Hash.S) = struct
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
-            match Index.unsafe_find t.pack.index k with
+            match Index.find t.pack.index k with
             | Some e -> Some e.offset
             | None -> None
           in

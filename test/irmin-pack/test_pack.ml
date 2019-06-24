@@ -42,7 +42,7 @@ let suite = { Irmin_test.name = "PACK"; init; clean; config; store; stats }
 
 module Dict = Irmin_pack.Dict
 
-let test_dict _switch () =
+let test_dict () =
   let dict = Dict.v ~fresh:true test_file in
   let x1 = Dict.index dict "foo" in
   Alcotest.(check int) "foo" 0 x1;
@@ -64,8 +64,7 @@ let test_dict _switch () =
   let v2 = Dict.find dict2 x2 in
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
   let v3 = Dict.find dict2 x3 in
-  Alcotest.(check (option string)) "find x3" (Some "toto") v3;
-  Lwt.return ()
+  Alcotest.(check (option string)) "find x3" (Some "toto") v3
 
 module Index = Irmin_pack.Index (Irmin.Hash.SHA1)
 
@@ -75,8 +74,8 @@ let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 
 let hash = Alcotest.testable pp_hash (Irmin.Type.equal Irmin.Hash.SHA1.t)
 
-let test_index _switch () =
-  Index.v ~fresh:true test_file >>= fun t ->
+let test_index () =
+  let t = Index.v ~fresh:true test_file in
   let h1 = Irmin.Hash.SHA1.hash "foo" in
   let o1 = 42L in
   let h2 = Irmin.Hash.SHA1.hash "bar" in
@@ -89,23 +88,24 @@ let test_index _switch () =
     (fun (h, off) -> Index.append t h ~off ~len:42)
     [ (h1, o1); (h2, o2); (h3, o3); (h4, o4) ];
   let test t =
-    Index.find t h1 >|= get >>= fun x1 ->
+    let x1 = Index.find t h1 |> get in
     Alcotest.(check int64) "h1" o1 x1.offset;
-    Index.find t h2 >|= get >>= fun x2 ->
+    let x2 = Index.find t h2 |> get in
     Alcotest.(check int64) "h2" o2 x2.offset;
     Alcotest.(check int) "h2 len" 42 x2.len;
-    Index.find t h3 >|= get >>= fun x3 ->
+    let x3 = Index.find t h3 |> get in
     Alcotest.(check int64) "h3" o3 x3.offset;
-    Index.find t h4 >|= get >>= fun x4 ->
+    let x4 = Index.find t h4 |> get in
     Alcotest.(check int64) "h4" o4 x4.offset;
-    Lwt_list.iter_s
+    List.iter
       (fun (h, o) ->
-        Index.find t h >|= get >|= fun e ->
+        let e = Index.find t h |> get in
         Alcotest.(check int64) "entry off" o e.offset;
         Alcotest.(check hash) "entry hash" h e.hash )
       [ (h1, o1); (h2, o2); (h3, o3) ]
   in
-  test t >>= fun () -> Index.v ~fresh:false test_file >>= test
+  test t;
+  test (Index.v ~fresh:false test_file)
 
 module S = struct
   include Irmin.Contents.String
@@ -189,8 +189,8 @@ let test_branch _switch () =
 
 let misc =
   ( "misc",
-    [ Alcotest_lwt.test_case "dict" `Quick test_dict;
-      Alcotest_lwt.test_case "index" `Quick test_index;
+    [ Alcotest.test_case "dict" `Quick test_dict;
+      Alcotest.test_case "index" `Quick test_index;
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch
     ] )
