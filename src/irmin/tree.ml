@@ -273,6 +273,10 @@ module Make (P : S.PRIVATE) = struct
 
     type t = { mutable v : v; mutable info : info }
 
+    module Cache = Cache (P.Hash)
+
+    let cache = Cache.create 10_000
+
     let v =
       let open Type in
       variant "Node.Contents.v" (fun hash value -> function
@@ -281,9 +285,17 @@ module Make (P : S.PRIVATE) = struct
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
       |> sealv
 
-    let clear_info i =
+    let clear_info ?v i =
+      let hash =
+        match (v, i.hash) with
+        | Some (Hash (_, h)), _ | _, Some h -> Some h
+        | _ -> None
+      in
       i.value <- None;
-      i.hash <- None
+      i.hash <- None;
+      match hash with None -> () | Some h -> Cache.remove cache h
+
+    let clear t = clear_info ~v:t.v t.info
 
     let merge_info ~into:x y =
       let () =
@@ -299,12 +311,6 @@ module Make (P : S.PRIVATE) = struct
         | None, _ -> x.value <- y.value
       in
       ()
-
-    let info_is_empty i = i.value = None
-
-    module Cache = Cache (P.Hash)
-
-    let cache = Cache.create 10_000
 
     let of_v v =
       let hash, value =
@@ -333,10 +339,11 @@ module Make (P : S.PRIVATE) = struct
       let t = { v; info } in
       t
 
-    let export ?clear repo t k =
-      Log.debug (fun l -> l "Tree.Contents.export clear=%b" (clear = Some true));
-      if clear = Some true then t.info.value <- None;
-      match (t.v, t.info.hash) with
+    let export ?clear:c repo t k =
+      Log.debug (fun l -> l "Tree.Contents.export clear=%b" (c = Some true));
+      let hash = t.info.hash in
+      if c = Some true then clear t;
+      match (t.v, hash) with
       | Hash (_, k), _ -> t.v <- Hash (repo, k)
       | Value _, None -> t.v <- Hash (repo, k)
       | Value _, Some k -> t.v <- Hash (repo, k)
@@ -483,14 +490,6 @@ module Make (P : S.PRIVATE) = struct
       | None, Some _ -> x.map <- y.map
       | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
 
-    let check msg t =
-      match (t.v, t.info.hash, t.info.map, t.info.value) with
-      | Hash (_, x), Some y, _, _ -> if x != y then Fmt.failwith "%s: Hash" msg
-      | Map x, _, Some y, _ -> if x != y then Fmt.failwith "%s: Map" msg
-      | Value (_, x), _, _, Some y ->
-          if x != y then Fmt.failwith "%s: Value" msg
-      | (Hash _ | Map _ | Value _), _, _, _ -> ()
-
     let elt t : elt Type.t =
       let open Type in
       variant "Node.value" (fun node contents -> function
@@ -547,32 +546,47 @@ module Make (P : S.PRIVATE) = struct
         (width i) (depth i) value map hash empty
         (i.map = None && i.value = None)
 
-    let clear_info ?depth:d i =
-      i.hash <- None;
-      i.value <- None;
-      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
-      let rec map depth m =
-        StepMap.fold
-          (fun _ v acc ->
-            match v with
-            | `Contents (c, _) ->
-                if depth + 1 > max_depth then
-                  Contents.clear_info c.Contents.info;
-                acc
-            | `Node t -> (aux [@tailcall]) (depth + 1) t )
-          m depth
-      and aux depth t =
-        match (t.v, t.info.map) with
-        | (Hash _ | Value _), None -> depth
-        | Map m, _ | _, Some m ->
-            if depth >= max_depth then t.info.map <- None;
-            (map [@tailcall]) depth m
-      in
-      match i.map with None -> 0 | Some m -> (map [@tailcall]) 0 m
-
     module Cache = Cache (P.Hash)
 
     let cache = Cache.create 10_001
+
+    let rec clear_map ~max_depth depth m =
+      StepMap.iter
+        (fun _ v ->
+          match v with
+          | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
+          | `Node t -> (clear [@tailcall]) ~max_depth (depth + 1) t )
+        m
+
+    and clear_info ~max_depth ?v depth i =
+      let map =
+        match (v, i.map) with
+        | Some (Map m), _ | _, Some m -> Some m
+        | _ -> None
+      in
+      if depth >= max_depth then (
+        let hash =
+          match (v, i.hash) with
+          | Some (Hash (_, h)), _ | _, Some h -> Some h
+          | _ -> None
+        in
+        i.value <- None;
+        i.map <- None;
+        i.hash <- None;
+        match hash with None -> () | Some h -> Cache.remove cache h );
+      match map with
+      | None -> ()
+      | Some m -> (clear_map [@tailcall]) ~max_depth depth m
+
+    and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
+
+    let clear_info ?depth:d i =
+      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
+      clear_info ~max_depth 0 i
+
+    let clear ?depth:d n =
+      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
+      clear ~max_depth 0 n
 
     let of_v v =
       let hash, map, value =
@@ -602,25 +616,20 @@ module Make (P : S.PRIVATE) = struct
         | Value (r, _), _, _, Some v -> Value (r, v)
         | _ -> v
       in
-      (* hashcons hash *)
-      let t = { v; info } in
-      check __LOC__ t;
-      t
+      { v; info }
 
     (* export t to the given repo and clear the cache *)
-    let export ?clear repo t k =
+    let export ?clear:c repo t k =
       Log.debug (fun l ->
-          l "Tree.Node.export_and_clear_cache clear=%b" (clear = Some true) );
-      t.info.map <- None;
+          l "Tree.Node.export_and_clear_cache clear=%b" (c = Some true) );
+      let hash = t.info.hash in
+      if c = Some true then clear t;
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
-      | Value _ -> t.v <- Hash (repo, k)
-      | Map m -> (
-          if StepMap.is_empty m then ()
-          else
-            match t.info.hash with
-            | None -> t.v <- Hash (repo, k)
-            | Some k -> t.v <- Hash (repo, k) )
+      | Value _ | Map _ -> (
+        match hash with
+        | None -> t.v <- Hash (repo, k)
+        | Some k -> t.v <- Hash (repo, k) )
 
     let t node = Type.map node of_v (fun t -> t.v)
 
@@ -699,15 +708,11 @@ module Make (P : S.PRIVATE) = struct
             Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
             Cache.add cache k t.info
       in
-      let k =
-        match t.info.hash with
-        | Some k -> k
-        | None ->
-            t.info.hash <- Some k;
-            k
-      in
-      check __LOC__ t;
-      k
+      match t.info.hash with
+      | Some k -> k
+      | None ->
+          t.info.hash <- Some k;
+          k
 
     let rec to_hash : type a. t -> (hash -> a) -> a =
      fun t k ->
@@ -748,7 +753,7 @@ module Make (P : S.PRIVATE) = struct
     let to_value t =
       match value t with
       | Some v -> Lwt.return (Some v)
-      | None ->
+      | None -> (
           ( match t.v with
           | Value (_, v) -> Lwt.return (Some v)
           | Map m -> Lwt.return (Some (value_of_map m))
@@ -756,15 +761,11 @@ module Make (P : S.PRIVATE) = struct
               Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
               P.Node.find (P.Repo.node_t repo) k )
           >|= fun value ->
-          let value =
-            match t.info.value with
-            | None ->
-                t.info.value <- value;
-                value
-            | Some _ as v -> v
-          in
-          check __LOC__ t;
-          value
+          match t.info.value with
+          | None ->
+              t.info.value <- value;
+              value
+          | Some _ as v -> v )
 
     let to_map t =
       match map t with
@@ -773,7 +774,6 @@ module Make (P : S.PRIVATE) = struct
           let of_value repo v =
             let m = map_of_value repo v in
             t.info.map <- Some m;
-            check __LOC__ t;
             Some m
           in
           match t.v with
@@ -793,17 +793,26 @@ module Make (P : S.PRIVATE) = struct
     let equal (x : t) (y : t) = x == y || hash_equal (to_hash x) (to_hash y)
 
     let is_empty t =
-      to_map t >|= function None -> false | Some m -> StepMap.is_empty m
+      match map t with
+      | Some m -> Lwt.return (StepMap.is_empty m)
+      | None -> (
+          to_value t >|= function
+          | None -> false
+          | Some n -> P.Node.Val.is_empty n )
 
     let list t =
-      to_map t >|= function
-      | None -> []
-      | Some m ->
-          let kvs = StepMap.bindings m in
-          List.map
-            (fun (k, v) ->
-              (k, match v with `Contents _ -> `Contents | `Node _ -> `Node) )
-            kvs
+      let trim l =
+        List.map
+          (fun (s, v) ->
+            (s, match v with `Contents _ -> `Contents | `Node _ -> `Node) )
+          l
+      in
+      match map t with
+      | Some m -> Lwt.return (trim (StepMap.bindings m))
+      | None -> (
+          to_value t >|= function
+          | None -> []
+          | Some v -> trim (P.Node.Val.list v) )
 
     let listv t =
       to_map t >|= function None -> [] | Some m -> StepMap.bindings m
@@ -1013,9 +1022,7 @@ module Make (P : S.PRIVATE) = struct
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
 
   let clear ?depth = function
-    | `Node n ->
-        let (_ : int) = Node.clear_info ?depth n.Node.info in
-        ()
+    | `Node n -> Node.clear ?depth n
     | `Contents _ -> ()
 
   let sub t path =
@@ -1539,13 +1546,7 @@ module Make (P : S.PRIVATE) = struct
           Contents.Cache.clear Contents.cache;
           Node.Cache.clear Node.cache
       | Some depth ->
-          let to_remove = ref [] in
-          Node.Cache.iter
-            (fun h i ->
-              let d = Node.clear_info ~depth i in
-              if d >= depth then to_remove := h :: !to_remove )
-            Node.cache;
-          List.iter (Node.Cache.remove Node.cache) !to_remove
+          Node.Cache.iter (fun _ i -> Node.clear_info ~depth i) Node.cache
 
     let dump ppf () =
       let ppo t ppf = function
@@ -1554,14 +1555,11 @@ module Make (P : S.PRIVATE) = struct
       in
       Contents.Cache.iter
         (fun k v ->
-          if not (Contents.info_is_empty v) then
-            Fmt.pf ppf "C|%a: value:%a@." pp_hash k (ppo P.Contents.Val.t)
-              v.Contents.value )
+          Fmt.pf ppf "C|%a: value:%a@." pp_hash k (ppo P.Contents.Val.t)
+            v.Contents.value )
         Contents.cache;
       Node.Cache.iter
-        (fun k v ->
-          if not (Node.info_is_empty v) then
-            Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v )
+        (fun k v -> Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v)
         Node.cache
   end
 end
