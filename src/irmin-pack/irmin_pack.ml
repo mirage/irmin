@@ -43,7 +43,7 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
-type stats = {
+type all_stats = {
   mutable index_appends : int;
   mutable index_mems : int;
   mutable index_finds : int;
@@ -92,22 +92,6 @@ let reset_stats () =
   stats.pack_page_miss <- 0;
   stats.index_page_read <- 0;
   stats.index_page_miss <- 0
-
-let dump_stats () =
-  Fmt.epr "%f, %f, %f, %f, %f\n%!"
-    ( 100.
-    *. float_of_int stats.index_bloomf_misses
-    /. float_of_int stats.index_bloomf_mems )
-    ( 100.
-    *. float_of_int stats.pack_page_miss
-    /. float_of_int stats.pack_page_read )
-    ( 100.
-    *. float_of_int stats.index_page_miss
-    /. float_of_int stats.index_page_read )
-    (float_of_int stats.index_is_steps /. float_of_int stats.index_is)
-    ( 100.
-    *. float_of_int stats.pack_cache_misses
-    /. float_of_int stats.pack_finds )
 
 module type IO = sig
   type t
@@ -1862,3 +1846,21 @@ end
 
 module KV (C : Irmin.Contents.S) =
   Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+
+let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
+
+type stats = {
+  bf_misses : float;
+  pack_page_faults : float;
+  index_page_faults : float;
+  pack_cache_misses : float;
+  search_steps : float
+}
+
+let stats () =
+  { bf_misses = div_or_zero stats.index_bloomf_misses stats.index_bloomf_mems;
+    pack_page_faults = div_or_zero stats.pack_page_miss stats.pack_page_read;
+    index_page_faults = div_or_zero stats.index_page_miss stats.index_page_read;
+    pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
+    search_steps = div_or_zero stats.index_is_steps stats.index_is
+  }

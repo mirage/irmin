@@ -16,10 +16,6 @@
 
 val config : ?fresh:bool -> string -> Irmin.config
 
-val reset_stats : unit -> unit
-
-val dump_stats : unit -> unit
-
 module Make_ext
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -101,3 +97,15 @@ module Pack (K : Irmin.Hash.S) : sig
     val append : 'a t -> K.t -> V.t -> unit Lwt.t
   end
 end
+
+type stats = {
+  bf_misses : float;
+  pack_page_faults : float;
+  index_page_faults : float;
+  pack_cache_misses : float;
+  search_steps : float
+}
+
+val reset_stats : unit -> unit
+
+val stats : unit -> stats
