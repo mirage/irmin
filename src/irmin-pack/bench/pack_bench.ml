@@ -9,9 +9,7 @@ let times ~n ~init f =
   in
   go n Lwt.return
 
-let ncommits = 2000
-
-let run ~path =
+let run ~path ~ncommits =
   let config = Irmin_pack.config ~fresh:false (Fpath.to_string path) in
   let tree = Store.Tree.empty in
   Store.Repo.v config >>= Store.master >>= fun t ->
@@ -20,6 +18,16 @@ let run ~path =
       Store.set_tree_exn t ~info [] tree >>= fun () -> Lwt.return tree )
   >>= fun _ -> Lwt_io.printl "ok"
 
-let () =
-  Bos.OS.Dir.with_tmp "irmin%s" (fun path () -> Lwt_main.run (run ~path)) ()
+let main ~ncommits =
+  Bos.OS.Dir.with_tmp "irmin%s"
+    (fun path () -> Lwt_main.run (run ~path ~ncommits))
+    ()
   |> Rresult.R.failwith_error_msg
+
+let () =
+  match Sys.argv with
+  | [| _ |] -> main ~ncommits:1000
+  | [| _; ncommits_str |] ->
+      let ncommits = int_of_string ncommits_str in
+      main ~ncommits
+  | _ -> assert false

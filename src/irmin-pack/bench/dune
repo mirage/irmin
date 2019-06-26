@@ -1,3 +1,8 @@
 (executable
  (name pack_bench)
  (libraries irmin_pack bos))
+
+(alias
+ (name bench)
+ (action
+  (run ./pack_bench.exe)))
