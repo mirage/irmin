@@ -1142,7 +1142,7 @@ module Make (S : S) = struct
        Lwt.return ())
       >>= fun () ->
       (* Test caching (makesure that no tree is lying in scope) *)
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo") in
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo-x") in
       S.Tree.Cache.clear ();
       check_cache "empty" 0 0;
       let foo = "foo-x" in
@@ -1155,7 +1155,7 @@ module Make (S : S) = struct
       let _k = S.Tree.hash v0 in
       check_cache "still one leaf" 1 1;
       S.Tree.Cache.clear ();
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar") in
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar-x") in
       let xxx = "xxx" in
       let yyy = "yyy" in
       let zzz = "zzz" in

@@ -1,0 +1,14 @@
+(library
+ (name      test_pack)
+ (modules   test_pack)
+ (libraries irmin-test irmin-pack alcotest-lwt))
+
+(executable
+ (name      test)
+ (modules   test)
+ (libraries digestif.ocaml test_pack))
+
+(alias
+ (name    runtest)
+ (package irmin-pack)
+ (action  (run ./test.exe -q --color=always)))
