@@ -1312,7 +1312,11 @@ module Make (P : S.PRIVATE) = struct
             >>= function
             | true -> k ()
             | false ->
-                Stack.push (add_node_map n x) todo;
+                let () =
+                  match Node.value n with
+                  | None -> Stack.push (add_node_map n x) todo
+                  | Some v -> Stack.push (add_node n v) todo
+                in
                 let contents = ref [] in
                 let nodes = ref [] in
                 StepMap.iter
