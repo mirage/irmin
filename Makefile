@@ -1,10 +1,13 @@
-.PHONY: all clean test doc examples
+.PHONY: all clean test bench doc examples
 
 all:
 	dune build
 
 test:
 	dune runtest
+
+bench:
+	dune build @bench
 
 examples:
 	dune build @examples
