@@ -21,6 +21,121 @@ let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+type counters = {
+  mutable contents_hash : int;
+  mutable contents_find : int;
+  mutable contents_add : int;
+  mutable contents_cache_length : int;
+  mutable contents_cache_find : int;
+  mutable contents_cache_miss : int;
+  mutable node_hash : int;
+  mutable node_mem : int;
+  mutable node_add : int;
+  mutable node_find : int;
+  mutable node_cache_length : int;
+  mutable node_cache_find : int;
+  mutable node_cache_miss : int;
+  mutable node_val_v : int;
+  mutable node_val_find : int;
+  mutable node_val_list : int
+}
+
+let counters_t =
+  let open Type in
+  record "counters"
+    (fun contents_hash
+    contents_find
+    contents_add
+    contents_cache_length
+    contents_cache_find
+    contents_cache_miss
+    node_hash
+    node_mem
+    node_add
+    node_find
+    node_cache_length
+    node_cache_find
+    node_cache_miss
+    node_val_v
+    node_val_find
+    node_val_list
+    ->
+      { contents_hash;
+        contents_find;
+        contents_add;
+        contents_cache_length;
+        contents_cache_find;
+        contents_cache_miss;
+        node_hash;
+        node_mem;
+        node_add;
+        node_find;
+        node_cache_length;
+        node_cache_find;
+        node_cache_miss;
+        node_val_v;
+        node_val_find;
+        node_val_list
+      } )
+  |+ field "contents_hash" int (fun x -> x.contents_hash)
+  |+ field "contents_find" int (fun x -> x.contents_find)
+  |+ field "contents_add" int (fun x -> x.contents_add)
+  |+ field "contents_cache_length" int (fun x -> x.contents_cache_length)
+  |+ field "contents_cache_find" int (fun x -> x.contents_cache_find)
+  |+ field "contents_cache_miss" int (fun x -> x.contents_cache_miss)
+  |+ field "node_hash" int (fun x -> x.node_hash)
+  |+ field "node_mem" int (fun x -> x.node_mem)
+  |+ field "node_add" int (fun x -> x.node_add)
+  |+ field "node_find" int (fun x -> x.node_find)
+  |+ field "node_cache_length" int (fun x -> x.node_cache_length)
+  |+ field "node_cache_find" int (fun x -> x.node_cache_find)
+  |+ field "node_cache_miss" int (fun x -> x.node_cache_miss)
+  |+ field "node_val_v" int (fun x -> x.node_val_v)
+  |+ field "node_val_find" int (fun x -> x.node_val_find)
+  |+ field "node_val_list" int (fun x -> x.node_val_list)
+  |> sealr
+
+let dump_counters ppf t = Type.pp_json ~minify:false counters_t ppf t
+
+let fresh_counters () =
+  { contents_hash = 0;
+    contents_add = 0;
+    contents_find = 0;
+    contents_cache_length = 0;
+    contents_cache_find = 0;
+    contents_cache_miss = 0;
+    node_hash = 0;
+    node_mem = 0;
+    node_add = 0;
+    node_find = 0;
+    node_cache_length = 0;
+    node_cache_find = 0;
+    node_cache_miss = 0;
+    node_val_v = 0;
+    node_val_find = 0;
+    node_val_list = 0
+  }
+
+let reset_counters t =
+  t.contents_hash <- 0;
+  t.contents_add <- 0;
+  t.contents_find <- 0;
+  t.contents_cache_length <- 0;
+  t.contents_cache_find <- 0;
+  t.contents_cache_miss <- 0;
+  t.node_hash <- 0;
+  t.node_mem <- 0;
+  t.node_add <- 0;
+  t.node_find <- 0;
+  t.node_cache_length <- 0;
+  t.node_cache_find <- 0;
+  t.node_cache_miss <- 0;
+  t.node_val_v <- 0;
+  t.node_val_find <- 0;
+  t.node_val_list <- 0
+
+let cnt = fresh_counters ()
+
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
   let rec aux l1 l2 =
@@ -321,13 +436,15 @@ module Make (P : S.PRIVATE) = struct
         match hash with
         | None -> { hash; value }
         | Some k -> (
-          match Cache.find cache k with
-          | exception Not_found ->
-              let i = { hash; value } in
-              Log.debug (fun l -> l "Contents.of_v: cache %a" pp_hash k);
-              Cache.add cache k i;
-              i
-          | i -> i )
+            cnt.contents_cache_find <- cnt.contents_cache_find + 1;
+            match Cache.find cache k with
+            | exception Not_found ->
+                cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
+                let i = { hash; value } in
+                Log.debug (fun l -> l "Contents.of_v: cache %a" pp_hash k);
+                Cache.add cache k i;
+                i
+            | i -> i )
       in
       (* hashcons for the contents (= leaf nodes) *)
       let v =
@@ -383,13 +500,16 @@ module Make (P : S.PRIVATE) = struct
         match value c with
         | None -> assert false
         | Some v ->
+            cnt.contents_hash <- cnt.contents_hash + 1;
             let k = P.Contents.Key.hash v in
             let () =
+              cnt.contents_cache_find <- cnt.contents_find + 1;
               match Cache.find cache k with
               | i ->
                   c.info <- i;
                   hashcons c
               | exception Not_found ->
+                  cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
                   c.info.hash <- Some k;
                   Log.debug (fun l -> l "Contents.to_hash: cache %a" pp_hash k);
                   Cache.add cache k c.info
@@ -411,6 +531,7 @@ module Make (P : S.PRIVATE) = struct
           Lwt.return (Some v)
       | Hash (repo, k), None -> (
           Log.debug (fun l -> l "Node.Contents.to_value %a" pp_hash k);
+          cnt.contents_find <- cnt.contents_find + 1;
           P.Contents.find (P.Repo.contents_t repo) k >|= function
           | None -> None
           | Some v ->
@@ -600,13 +721,15 @@ module Make (P : S.PRIVATE) = struct
         match hash with
         | None -> { hash; map; value }
         | Some k -> (
-          match Cache.find cache k with
-          | exception Not_found ->
-              let i = { hash; map; value } in
-              Log.debug (fun l -> l "Node.of_v: cache %a" pp_hash k);
-              Cache.add cache k i;
-              i
-          | i -> i )
+            cnt.node_cache_find <- cnt.node_cache_find + 1;
+            match Cache.find cache k with
+            | exception Not_found ->
+                cnt.node_cache_miss <- cnt.node_cache_miss + 1;
+                let i = { hash; map; value } in
+                Log.debug (fun l -> l "Node.of_v: cache %a" pp_hash k);
+                Cache.add cache k i;
+                i
+            | i -> i )
       in
       (* hashcons v *)
       let v =
@@ -651,6 +774,7 @@ module Make (P : S.PRIVATE) = struct
     let of_value repo v = of_v (Value (repo, v))
 
     let map_of_value repo (n : value) : map =
+      cnt.node_val_list <- cnt.node_val_list + 1;
       let entries = P.Node.Val.list n in
       let aux = function
         | `Node h -> `Node (of_hash repo h)
@@ -697,13 +821,16 @@ module Make (P : S.PRIVATE) = struct
       | _ -> ()
 
     let hash_of_value t v =
+      cnt.node_hash <- cnt.node_hash + 1;
       let k = P.Node.Key.hash v in
       let () =
+        cnt.node_cache_find <- cnt.node_cache_find + 1;
         match Cache.find cache k with
         | i ->
             t.info <- i;
             hashcons t
         | exception Not_found ->
+            cnt.node_cache_miss <- cnt.node_cache_miss + 1;
             t.info.hash <- Some k;
             Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
             Cache.add cache k t.info
@@ -744,6 +871,7 @@ module Make (P : S.PRIVATE) = struct
                 (step, v) :: acc )
           map []
       in
+      cnt.node_val_v <- cnt.node_val_v + 1;
       k (P.Node.Val.v alist)
 
     let to_hash t = to_hash t (fun t -> t)
@@ -759,6 +887,7 @@ module Make (P : S.PRIVATE) = struct
           | Map m -> Lwt.return (Some (value_of_map m))
           | Hash (repo, k) ->
               Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
+              cnt.node_find <- cnt.node_find + 1;
               P.Node.find (P.Repo.node_t repo) k )
           >|= fun value ->
           match t.info.value with
@@ -781,6 +910,7 @@ module Make (P : S.PRIVATE) = struct
           | Value (repo, v) -> Lwt.return (of_value repo v)
           | Hash (repo, k) -> (
               Log.debug (fun l -> l "Tree.Node.to_map %a" pp_hash k);
+              cnt.node_find <- cnt.node_find + 1;
               P.Node.find (P.Repo.node_t repo) k >|= function
               | None -> None
               | Some v -> of_value repo v ) )
@@ -812,7 +942,9 @@ module Make (P : S.PRIVATE) = struct
       | None -> (
           to_value t >|= function
           | None -> []
-          | Some v -> trim (P.Node.Val.list v) )
+          | Some v ->
+              cnt.node_val_list <- cnt.node_val_list + 1;
+              trim (P.Node.Val.list v) )
 
     let listv t =
       to_map t >|= function None -> [] | Some m -> StepMap.bindings m
@@ -1094,19 +1226,6 @@ module Make (P : S.PRIVATE) = struct
     let width = max s.width (List.length childs) in
     { s with width }
 
-  let stats ?(force = false) (t : tree) =
-    let force =
-      if force then `True
-      else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
-    in
-    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
-    let pre k childs s =
-      if childs = [] then Lwt.return s
-      else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
-    in
-    let post _ _ acc = Lwt.return acc in
-    fold ~force ~pre ~post f t empty_stats
-
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n pp_path k
 
@@ -1273,6 +1392,7 @@ module Make (P : S.PRIVATE) = struct
         | Some n -> Lwt.return (`Node n) )
 
   let import repo k =
+    cnt.node_mem <- cnt.node_mem + 1;
     P.Node.mem (P.Repo.node_t repo) k >|= function
     | true -> Some (Node.of_hash repo k)
     | false -> None
@@ -1282,6 +1402,7 @@ module Make (P : S.PRIVATE) = struct
   let export ?clear repo contents_t node_t n =
     let seen = Hashtbl.create 127 in
     let add_node n v () =
+      cnt.node_add <- cnt.node_add + 1;
       P.Node.add node_t v >|= fun k ->
       let k' = Node.to_hash n in
       assert (Type.equal P.Hash.t k k');
@@ -1289,6 +1410,7 @@ module Make (P : S.PRIVATE) = struct
     in
     let add_node_map n x () = add_node n (Node.value_of_map x) () in
     let add_contents c x () =
+      cnt.contents_add <- cnt.contents_add + 1;
       P.Contents.add contents_t x >|= fun k ->
       let k' = Contents.to_hash c in
       assert (Type.equal P.Hash.t k k');
@@ -1530,7 +1652,9 @@ module Make (P : S.PRIVATE) = struct
   let hash (t : tree) =
     match t with
     | `Node n -> `Node (Node.to_hash n)
-    | `Contents (c, m) -> `Contents (P.Contents.Key.hash c, m)
+    | `Contents (c, m) ->
+        cnt.contents_hash <- cnt.contents_hash + 1;
+        `Contents (P.Contents.Key.hash c, m)
 
   module Cache = struct
     let length () =
@@ -1560,4 +1684,25 @@ module Make (P : S.PRIVATE) = struct
         (fun k v -> Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v)
         Node.cache
   end
+
+  let stats ?(force = false) (t : tree) =
+    let force =
+      if force then `True
+      else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
+    in
+    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
+    let pre k childs s =
+      if childs = [] then Lwt.return s
+      else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
+    in
+    let post _ _ acc = Lwt.return acc in
+    fold ~force ~pre ~post f t empty_stats
+
+  let dump_counters ppf () =
+    let `Contents c, `Nodes n = Cache.length () in
+    cnt.contents_cache_length <- c;
+    cnt.node_cache_length <- n;
+    dump_counters ppf cnt
+
+  let reset_counters () = reset_counters cnt
 end

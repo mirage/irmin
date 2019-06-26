@@ -722,6 +722,10 @@ module type STORE = sig
     val of_hash : Repo.t -> hash -> tree option Lwt.t
 
     val shallow : Repo.t -> hash -> tree
+
+    val dump_counters : unit Fmt.t
+
+    val reset_counters : unit -> unit
   end
 
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t

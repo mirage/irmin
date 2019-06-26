@@ -2600,6 +2600,12 @@ module type S = sig
     val shallow : repo -> hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No
         check is performed to verify if [h] actually exists in [r]. *)
+
+    (** {1 Performance counters} *)
+
+    val dump_counters : unit Fmt.t
+
+    val reset_counters : unit -> unit
   end
 
   (** {1 Reads} *)
