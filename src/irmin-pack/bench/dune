@@ -1,0 +1,3 @@
+(executable
+ (name pack_bench)
+ (libraries irmin_pack bos))
