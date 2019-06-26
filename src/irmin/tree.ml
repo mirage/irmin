@@ -1298,50 +1298,48 @@ module Make (P : S.PRIVATE) = struct
     let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
       let h = Node.to_hash n in
-      match Hashtbl.find seen h with
-      | _ -> k ()
-      | exception Not_found -> (
-          Hashtbl.add seen h ();
-          match n.Node.v with
-          | Node.Hash _ -> k ()
-          | Node.Value (_, x) ->
-              Stack.push (add_node n x) todo;
-              k ()
-          | Node.Map x -> (
-              (* 1. we push the current node job on the stack. *)
-              P.Node.mem node_t h
-              >>= function
-              | true -> k ()
-              | false ->
-                  Stack.push (add_node_map n x) todo;
-                  let contents = ref [] in
-                  let nodes = ref [] in
-                  StepMap.iter
-                    (fun _ -> function
-                      | `Contents c -> contents := c :: !contents
-                      | `Node n -> nodes := n :: !nodes )
-                    x;
-                  (* 2. we push the contents job on the stack. *)
-                  List.iter
-                    (fun (c, _) ->
-                      let h = Contents.to_hash c in
-                      match Hashtbl.find seen h with
-                      | _ -> ()
-                      | exception Not_found -> (
-                          Hashtbl.add seen h ();
-                          match c.Contents.v with
-                          | Contents.Hash _ -> ()
-                          | Contents.Value x ->
-                              Stack.push (add_contents c x) todo ) )
-                    !contents;
-                  (* 3. we push the children jobs on the stack. *)
-                  List.iter
-                    (fun n ->
-                      Stack.push
-                        (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
-                        todo )
-                    !nodes;
-                  k () ) )
+      if Hashtbl.mem seen h then k ()
+      else (
+        Hashtbl.add seen h ();
+        match n.Node.v with
+        | Node.Hash _ -> k ()
+        | Node.Value (_, x) ->
+            Stack.push (add_node n x) todo;
+            k ()
+        | Node.Map x -> (
+            (* 1. we push the current node job on the stack. *)
+            P.Node.mem node_t h
+            >>= function
+            | true -> k ()
+            | false ->
+                Stack.push (add_node_map n x) todo;
+                let contents = ref [] in
+                let nodes = ref [] in
+                StepMap.iter
+                  (fun _ -> function
+                    | `Contents c -> contents := c :: !contents
+                    | `Node n -> nodes := n :: !nodes )
+                  x;
+                (* 2. we push the contents job on the stack. *)
+                List.iter
+                  (fun (c, _) ->
+                    let h = Contents.to_hash c in
+                    if Hashtbl.mem seen h then ()
+                    else (
+                      Hashtbl.add seen h ();
+                      match c.Contents.v with
+                      | Contents.Hash _ -> ()
+                      | Contents.Value x -> Stack.push (add_contents c x) todo )
+                    )
+                  !contents;
+                (* 3. we push the children jobs on the stack. *)
+                List.iter
+                  (fun n ->
+                    Stack.push
+                      (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
+                      todo )
+                  !nodes;
+                k () ) )
     in
     let rec loop () =
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in
