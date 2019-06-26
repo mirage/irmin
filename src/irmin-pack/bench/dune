@@ -1,6 +1,6 @@
 (executable
  (name pack_bench)
- (libraries irmin_pack bos))
+ (libraries irmin_pack bos logs.fmt))
 
 (alias
  (name bench)
