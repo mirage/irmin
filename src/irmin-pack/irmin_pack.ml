@@ -154,13 +154,13 @@ module IO : IO = struct
       t.cursor <- off ++ Int64.of_int n;
       n
 
-    let unsafe_set_offset fd n =
+    let unsafe_set_offset t n =
       let buf = Irmin.Type.(to_bin_string int64) n in
-      unsafe_write fd ~off:0L buf
+      unsafe_write t ~off:0L buf
 
-    let unsafe_get_offset fd =
+    let unsafe_get_offset t =
       let buf = Bytes.create 8 in
-      let n = unsafe_read fd ~off:0L buf in
+      let n = unsafe_read t ~off:0L buf in
       assert (n = 8);
       match Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string buf) with
       | Ok t -> t
