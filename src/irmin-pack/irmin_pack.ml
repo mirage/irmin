@@ -343,89 +343,68 @@ module Lru (H : Hashtbl.HashedType) = struct
       go f t.first
   end
 
-  module M = struct
-    type key = HT.key
+  type key = HT.key
 
-    type 'a t = {
-      ht : (key * 'a) Q.node HT.t;
-      q : (key * 'a) Q.t;
-      mutable cap : int;
-      mutable w : int
-    }
+  type 'a t = {
+    ht : (key * 'a) Q.node HT.t;
+    q : (key * 'a) Q.t;
+    mutable cap : int;
+    mutable w : int
+  }
 
-    let weight t = t.w
+  let weight t = t.w
 
-    let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
+  let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
 
-    let drop_lru t =
-      match t.q.Q.first with
-      | None -> ()
-      | Some ({ Q.value = k, _; _ } as n) ->
-          t.w <- t.w - 1;
-          HT.remove t.ht k;
-          Q.detach t.q n
-
-    let rec trim t =
-      if weight t > t.cap then (
-        drop_lru t;
-        trim t )
-
-    let remove k t =
-      try
-        let n = HT.find t.ht k in
+  let drop_lru t =
+    match t.q.first with
+    | None -> ()
+    | Some ({ Q.value = k, _; _ } as n) ->
         t.w <- t.w - 1;
         HT.remove t.ht k;
         Q.detach t.q n
-      with Not_found -> ()
 
-    let clear t =
-      HT.clear t.ht;
-      Q.clear t.q
+  let remove t k =
+    try
+      let n = HT.find t.ht k in
+      t.w <- t.w - 1;
+      HT.remove t.ht k;
+      Q.detach t.q n
+    with Not_found -> ()
 
-    let add k v t =
-      remove k t;
-      let n = Q.node (k, v) in
-      t.w <- t.w + 1;
-      HT.add t.ht k n;
-      Q.append t.q n
-
-    let promote k t =
-      try
-        let n = HT.find t.ht k in
-        Q.(
-          detach t.q n;
-          append t.q n)
-      with Not_found -> ()
-
-    let find k t =
-      try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
-
-    let mem k t = HT.mem t.ht k
-
-    let iter f t = Q.iter (fun (k, v) -> f k v) t.q
-  end
-
-  include M
-
-  let create x = M.create x
+  let clear t =
+    HT.clear t.ht;
+    Q.clear t.q
 
   let add t k v =
-    M.add k v t;
-    M.trim t
+    remove t k;
+    let n = Q.node (k, v) in
+    t.w <- t.w + 1;
+    if weight t > t.cap then drop_lru t;
+    HT.add t.ht k n;
+    Q.append t.q n
+
+  let promote t k =
+    try
+      let n = HT.find t.ht k in
+      Q.(
+        detach t.q n;
+        append t.q n)
+    with Not_found -> ()
 
   let find t k =
-    match M.find k t with
-    | None -> raise Not_found
-    | Some v ->
-        M.promote k t;
-        v
+    let v = HT.find t.ht k in
+    promote t k;
+    snd v.value
 
   let mem t k =
-    match M.mem k t with
+    match HT.mem t.ht k with
     | false -> false
     | true ->
-        M.promote k t;
+        promote t k;
         true
+
+  let iter f t = Q.iter (fun (k, v) -> f k v) t.q
 end
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -475,16 +454,13 @@ end = struct
     let l = Int64.of_int t.length in
     let page_off = Int64.(mul (div off l) l) in
     let ioff = Int64.to_int (off -- page_off) in
-    match Lru.M.find page_off t.pages with
-    | Some buf ->
+    match Lru.find t.pages page_off with
+    | buf ->
         if t.length - ioff < len then (
-          Lru.M.remove page_off t.pages;
+          Lru.remove t.pages page_off;
           (read [@tailcall]) t ~off ~len )
-        else (
-          Lru.M.promote page_off t.pages;
-          Lru.M.trim t.pages;
-          (buf, ioff) )
-    | None ->
+        else (buf, ioff)
+    | exception Not_found ->
         let length = max t.length (ioff + len) in
         let length =
           if page_off ++ Int64.of_int length > IO.offset t.io then
@@ -497,20 +473,19 @@ end = struct
         else stats.index_page_miss <- succ stats.index_page_miss;
         let n = IO.read t.io ~off:page_off buf in
         assert (n = length);
-        Lru.M.add page_off buf t.pages;
-        Lru.M.trim t.pages;
+        Lru.add t.pages page_off buf;
         (buf, ioff)
 
   let trim ~off t =
     let to_remove = ref [] in
-    Lru.M.iter
+    Lru.iter
       (fun h _ ->
         if h > off -- Int64.of_int t.length then to_remove := h :: !to_remove
         )
       t.pages;
-    List.iter (fun k -> Lru.remove k t.pages) !to_remove
+    List.iter (fun k -> Lru.remove t.pages k) !to_remove
 
-  let clear t = Lru.M.clear t.pages
+  let clear t = Lru.clear t.pages
 end
 
 module Dict = struct
