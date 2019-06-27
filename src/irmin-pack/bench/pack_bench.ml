@@ -72,3 +72,5 @@ let () =
       let ncommits = int_of_string ncommits_str in
       main ~ncommits
   | _ -> assert false
+
+let () = Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ()
