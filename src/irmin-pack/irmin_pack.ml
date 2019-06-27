@@ -404,7 +404,7 @@ module Lru (H : Hashtbl.HashedType) = struct
         promote t k;
         true
 
-  let iter f t = Q.iter (fun (k, v) -> f k v) t.q
+  let filter f t = Q.iter (fun (k, v) -> if not (f k v) then remove t k) t.q
 end
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -477,13 +477,8 @@ end = struct
         (buf, ioff)
 
   let trim ~off t =
-    let to_remove = ref [] in
-    Lru.iter
-      (fun h _ ->
-        if h > off -- Int64.of_int t.length then to_remove := h :: !to_remove
-        )
-      t.pages;
-    List.iter (fun k -> Lru.remove t.pages k) !to_remove
+    let max = off -- Int64.of_int t.length in
+    Lru.filter (fun h _ -> h <= max) t.pages
 
   let clear t = Lru.clear t.pages
 end
