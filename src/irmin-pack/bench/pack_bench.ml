@@ -1,6 +1,47 @@
 open Lwt.Infix
 module Store = Irmin_pack.KV (Irmin.Contents.String)
 
+let ignore_srcs src =
+  List.mem (Logs.Src.name src)
+    [ "git.inflater.decoder";
+      "git.deflater.encoder";
+      "git.encoder";
+      "git.decoder";
+      "git.loose";
+      "git.store";
+      "cohttp.lwt.io"
+    ]
+
+let reporter ?(prefix = "") () =
+  let report src level ~over k msgf =
+    let k _ =
+      over ();
+      k ()
+    in
+    let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
+    let with_stamp h _tags k fmt =
+      let dt = Unix.gettimeofday () in
+      Fmt.kpf k ppf
+        ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
+        prefix dt
+        Fmt.(styled `Magenta string)
+        (Logs.Src.name src) Logs_fmt.pp_header (level, h)
+    in
+    msgf @@ fun ?header ?tags fmt ->
+    if ignore_srcs src then Format.ikfprintf k ppf fmt
+    else with_stamp header tags k fmt
+  in
+  { Logs.report }
+
+let () =
+  match Sys.getenv "BENCH_VERBOSE" with
+  | exception Not_found -> ()
+  | "0" | "" -> ()
+  | "1" | "true" ->
+      Logs.set_level (Some Logs.Debug);
+      Logs.set_reporter (reporter ())
+  | s -> Fmt.failwith "%s: invalid BENCH_VERBOSE value, use 1" s
+
 let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
 
 let times ~n ~init f =
