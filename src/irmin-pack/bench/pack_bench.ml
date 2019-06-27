@@ -1,6 +1,81 @@
 open Lwt.Infix
 module Store = Irmin_pack.KV (Irmin.Contents.String)
 
+type t = { root : Fpath.t; commits : int; depth : int; entries : int }
+
+let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
+
+let times ~n ~init f =
+  let rec go i k =
+    if i = 0 then k init else go (i - 1) (fun r -> f i r >>= k)
+  in
+  go n Lwt.return
+
+let path ~depth i n =
+  List.init depth string_of_int @ [ string_of_int i ^ "-" ^ string_of_int n ]
+
+let print_headers () =
+  Fmt.epr
+    "# time, level, dict, index, pack, mem, bf_misses, pack_page_faults, \
+     index_page_faults, pack_cache_misses, search_steps\n\
+     %!"
+
+let get_maxrss () =
+  let usage = Rusage.get SELF in
+  let ( / ) = Int64.div in
+  Int64.to_int (usage.maxrss / 1024L / 1024L)
+
+let file f =
+  (* in MiB *)
+  try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
+
+let t0 = Unix.gettimeofday ()
+
+let print_stats ~level t =
+  let mem = get_maxrss () in
+  let root = Fpath.to_string t.root in
+  let dict = file (Filename.concat root "store.dict") / 1024 / 1024 in
+  let index =
+    let rec aux acc i =
+      if i = 256 then acc
+      else
+        let filename = Format.sprintf "store.index.%d" i in
+        let s = file (Filename.concat root filename) in
+        aux (acc + s) (i + 1)
+    in
+    aux 0 0 / 1024 / 1024
+  in
+  let pack = file (Filename.concat root "store.pack") / 1024 / 1024 in
+  let time =
+    (* in seconds *)
+    int_of_float (Unix.gettimeofday () -. t0)
+  in
+  let stats = Irmin_pack.stats () in
+  Fmt.epr "%d, %d, %d, %d, %d, %d, %f, %f, %f, %f, %f\n%!" time level dict
+    index pack mem stats.bf_misses stats.pack_page_faults
+    stats.index_page_faults stats.pack_cache_misses stats.search_steps
+
+let run t =
+  let config = Irmin_pack.config ~fresh:false (Fpath.to_string t.root) in
+  let tree = Store.Tree.empty in
+  Store.Repo.v config >>= Store.master >>= fun v ->
+  print_headers ();
+  times ~n:t.commits ~init:tree (fun i tree ->
+      if i mod 10 = 0 then print_stats ~level:i t;
+      times ~n:t.entries ~init:tree (fun n tree ->
+          Store.Tree.add tree (path ~depth:t.depth i n) (string_of_int i) )
+      >>= fun tree ->
+      Store.set_tree_exn v ~info [] tree >>= fun () -> Lwt.return tree )
+  >>= fun _ -> Lwt_io.printl "ok"
+
+let main t =
+  Bos.OS.Dir.with_tmp "irmin%s"
+    (fun root () -> Lwt_main.run (run { t with root }))
+    ()
+  |> Rresult.R.failwith_error_msg
+
+(* logs *)
+
 let ignore_srcs src =
   List.mem (Logs.Src.name src)
     [ "git.inflater.decoder";
@@ -33,44 +108,44 @@ let reporter ?(prefix = "") () =
   in
   { Logs.report }
 
-let () =
-  match Sys.getenv "BENCH_VERBOSE" with
-  | exception Not_found -> ()
-  | "0" | "" -> ()
-  | "1" | "true" ->
-      Logs.set_level (Some Logs.Debug);
-      Logs.set_reporter (reporter ())
-  | s -> Fmt.failwith "%s: invalid BENCH_VERBOSE value, use 1" s
+(* cli *)
 
-let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
+open Cmdliner
 
-let times ~n ~init f =
-  let rec go i k =
-    if i = 0 then k init else go (i - 1) (fun r -> f i r >>= k)
+let log style_renderer level =
+  Fmt_tty.setup_std_outputs ?style_renderer ();
+  Logs.set_level level;
+  Logs.set_reporter (reporter ());
+  ()
+
+let log = Term.(const log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
+
+let commits =
+  let doc = Arg.info ~doc:"Number of commits" [ "c"; "commits" ] in
+  Arg.(value @@ opt int 1000 doc)
+
+let depth =
+  let doc = Arg.info ~doc:"Depth of the tree" [ "d"; "10" ] in
+  Arg.(value @@ opt int 10 doc)
+
+let entries =
+  let doc =
+    Arg.info ~doc:"Number of entries added per commit" [ "e"; "entries" ]
   in
-  go n Lwt.return
+  Arg.(value @@ opt int 10 doc)
 
-let run ~path ~ncommits =
-  let config = Irmin_pack.config ~fresh:false (Fpath.to_string path) in
-  let tree = Store.Tree.empty in
-  Store.Repo.v config >>= Store.master >>= fun t ->
-  times ~n:ncommits ~init:tree (fun i tree ->
-      Store.Tree.add tree [ string_of_int i ] "contents" >>= fun tree ->
-      Store.set_tree_exn t ~info [] tree >>= fun () -> Lwt.return tree )
-  >>= fun _ -> Lwt_io.printl "ok"
+let t =
+  Term.(
+    const (fun () commits depth entries ->
+        { commits; depth; entries; root = Fpath.v "." } )
+    $ log $ commits $ depth $ entries)
 
-let main ~ncommits =
-  Bos.OS.Dir.with_tmp "irmin%s"
-    (fun path () -> Lwt_main.run (run ~path ~ncommits))
-    ()
-  |> Rresult.R.failwith_error_msg
+let main = Term.(const main $ t)
 
 let () =
-  match Sys.argv with
-  | [| _ |] -> main ~ncommits:1000
-  | [| _; ncommits_str |] ->
-      let ncommits = int_of_string ncommits_str in
-      main ~ncommits
-  | _ -> assert false
+  at_exit (fun () ->
+      Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters () )
 
-let () = Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ()
+let () =
+  let info = Term.info "Simple benchmark for trees" in
+  Term.exit @@ Term.eval (main, info)
