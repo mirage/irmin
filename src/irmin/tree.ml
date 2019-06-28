@@ -163,143 +163,12 @@ let alist_iter2_lwt compare_k f l1 l2 =
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
   Lwt_list.iter_s (fun b -> b >>= fun () -> Lwt.return_unit) (List.rev !l3)
 
-module Lru = struct
-  (* Extracted from https://github.com/pqwy/lru
-     Copyright (c) 2016 David Kaloper Meršinjak *)
-
-  module Q = struct
-    type 'a node = {
-      value : 'a;
-      mutable next : 'a node option;
-      mutable prev : 'a node option
-    }
-
-    type 'a t = {
-      mutable first : 'a node option;
-      mutable last : 'a node option
-    }
-
-    let clear t =
-      t.first <- None;
-      t.last <- None
-
-    let detach t n =
-      let np = n.prev and nn = n.next in
-      ( match np with
-      | None -> t.first <- nn
-      | Some x ->
-          x.next <- nn;
-          n.prev <- None );
-      match nn with
-      | None -> t.last <- np
-      | Some x ->
-          x.prev <- np;
-          n.next <- None
-
-    let append t n =
-      let on = Some n in
-      match t.last with
-      | Some x as l ->
-          x.next <- on;
-          t.last <- on;
-          n.prev <- l
-      | None ->
-          t.first <- on;
-          t.last <- on
-
-    let node x = { value = x; prev = None; next = None }
-
-    let create () = { first = None; last = None }
-
-    let iter f t =
-      let rec go f = function
-        | Some n ->
-            f n.value;
-            go f n.next
-        | _ -> ()
-      in
-      go f t.first
-  end
-
-  module Bake (HT : Hashtbl.SeededS) = struct
-    type key = HT.key
-
-    type 'a t = {
-      ht : (key * 'a) Q.node HT.t;
-      q : (key * 'a) Q.t;
-      mutable cap : int;
-      mutable w : int
-    }
-
-    let size t = HT.length t.ht
-
-    let weight t = t.w
-
-    let create ?random cap =
-      { cap; w = 0; ht = HT.create ?random cap; q = Q.create () }
-
-    let drop_lru t =
-      match t.q.Q.first with
-      | None -> ()
-      | Some ({ Q.value = k, _; _ } as n) ->
-          t.w <- t.w - 1;
-          HT.remove t.ht k;
-          Q.detach t.q n
-
-    let rec trim t =
-      if weight t > t.cap then (
-        drop_lru t;
-        trim t )
-
-    let remove k t =
-      try
-        let n = HT.find t.ht k in
-        t.w <- t.w - 1;
-        HT.remove t.ht k;
-        Q.detach t.q n
-      with Not_found -> ()
-
-    let clear t =
-      HT.clear t.ht;
-      Q.clear t.q
-
-    let add k v t =
-      remove k t;
-      let n = Q.node (k, v) in
-      t.w <- t.w + 1;
-      HT.add t.ht k n;
-      Q.append t.q n
-
-    let promote k t =
-      try
-        let n = HT.find t.ht k in
-        Q.(
-          detach t.q n;
-          append t.q n)
-      with Not_found -> ()
-
-    let find k t =
-      try Some (snd (HT.find t.ht k).Q.value) with Not_found -> None
-
-    let iter f t = Q.iter (fun (k, v) -> f k v) t.q
-  end
-
-  module SeededHash (H : Hashtbl.HashedType) = struct
-    include H
-
-    let hash _ x = hash x
-  end
-
-  module Make (K : Hashtbl.HashedType) =
-    Bake (Hashtbl.MakeSeeded (SeededHash (K)))
-end
-
 module Cache (K : S.HASH) : sig
   type 'a t
 
   type key = K.t
 
-  val create : int -> 'a t
+  val create : is_empty:('a -> bool) -> int -> 'a t
 
   val find : 'a t -> key -> 'a
 
@@ -309,11 +178,9 @@ module Cache (K : S.HASH) : sig
 
   val iter : (key -> 'a -> unit) -> 'a t -> unit
 
-  val clear : 'a t -> unit
-
   val length : 'a t -> int
 end = struct
-  module M = Lru.Make (struct
+  module M = Ephemeron.K1.Make (struct
     type t = K.t
 
     let equal (x : t) (y : t) = Type.equal K.t x y
@@ -321,24 +188,22 @@ end = struct
     let hash (x : t) = Type.short_hash K.t x
   end)
 
-  include M
+  type 'a t = { is_empty : 'a -> bool; m : 'a M.t }
 
-  let create x = M.create x
+  type key = K.t
 
-  let length = M.size
+  let create ~is_empty x = { is_empty; m = M.create x }
 
-  let add t k v =
-    M.add k v t;
-    M.trim t
+  let length t =
+    M.fold (fun _ v acc -> if t.is_empty v then acc else acc + 1) t.m 0
 
-  let find t k =
-    match M.find k t with
-    | None -> raise Not_found
-    | Some v ->
-        M.promote k t;
-        v
+  let add t k v = M.add t.m k v
 
-  let remove t k = M.remove k t
+  let find t k = M.find t.m k
+
+  let remove t k = M.remove t.m k
+
+  let iter f t = M.iter f t.m
 end
 
 module Make (P : S.PRIVATE) = struct
@@ -390,7 +255,9 @@ module Make (P : S.PRIVATE) = struct
 
     module Cache = Cache (P.Hash)
 
-    let cache = Cache.create 10_000
+    let info_is_empty i = i.hash = None && i.value = None
+
+    let cache = Cache.create ~is_empty:info_is_empty 100
 
     let v =
       let open Type in
@@ -669,7 +536,7 @@ module Make (P : S.PRIVATE) = struct
 
     module Cache = Cache (P.Hash)
 
-    let cache = Cache.create 10_001
+    let cache = Cache.create ~is_empty:info_is_empty 100
 
     let rec clear_map ~max_depth depth m =
       StepMap.iter
@@ -1669,8 +1536,8 @@ module Make (P : S.PRIVATE) = struct
       Log.info (fun l -> l "Tree.Cache.clear");
       match depth with
       | None ->
-          Contents.Cache.clear Contents.cache;
-          Node.Cache.clear Node.cache
+          Node.Cache.iter (fun _ i -> Node.clear_info i) Node.cache;
+          Contents.Cache.iter (fun _ i -> Contents.clear_info i) Contents.cache
       | Some depth ->
           Node.Cache.iter (fun _ i -> Node.clear_info ~depth i) Node.cache
 
