@@ -1172,6 +1172,8 @@ module Make (S : S) = struct
       check_cache "trim 2" 2 2;
       S.Tree.Cache.clear ~depth:1 ();
       check_cache "trim 1" 1 1;
+      (* keep the value alive *)
+      let _ = (xxx, yyy, zzz) in
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
