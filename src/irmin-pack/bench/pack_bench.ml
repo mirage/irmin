@@ -1,7 +1,13 @@
 open Lwt.Infix
 module Store = Irmin_pack.KV (Irmin.Contents.String)
 
-type t = { root : Fpath.t; commits : int; depth : int; entries : int }
+type t = {
+  root : Fpath.t;
+  ncommits : int;
+  depth : int;
+  tree_add : int;
+  display : int
+}
 
 let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
 
@@ -11,8 +17,7 @@ let times ~n ~init f =
   in
   go n Lwt.return
 
-let path ~depth i n =
-  List.init depth string_of_int @ [ string_of_int i ^ "-" ^ string_of_int n ]
+let path ~depth n = List.init depth string_of_int @ [ string_of_int n ]
 
 let print_headers () =
   Fmt.epr
@@ -60,10 +65,10 @@ let run t =
   let tree = Store.Tree.empty in
   Store.Repo.v config >>= Store.master >>= fun v ->
   print_headers ();
-  times ~n:t.commits ~init:tree (fun i tree ->
-      if i mod 10 = 0 then print_stats ~level:i t;
-      times ~n:t.entries ~init:tree (fun n tree ->
-          Store.Tree.add tree (path ~depth:t.depth i n) (string_of_int i) )
+  times ~n:t.ncommits ~init:tree (fun i tree ->
+      if i mod t.display = 0 then print_stats ~level:i t;
+      times ~n:t.tree_add ~init:tree (fun n tree ->
+          Store.Tree.add tree (path ~depth:t.depth n) (string_of_int i) )
       >>= fun tree ->
       Store.set_tree_exn v ~info [] tree >>= fun () -> Lwt.return tree )
   >>= fun _ -> Lwt_io.printl "ok"
@@ -120,25 +125,32 @@ let log style_renderer level =
 
 let log = Term.(const log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let commits =
-  let doc = Arg.info ~doc:"Number of commits" [ "c"; "commits" ] in
+let ncommits =
+  let doc = Arg.info ~doc:"Number of iterations." [ "n"; "ncommits" ] in
   Arg.(value @@ opt int 1000 doc)
 
 let depth =
-  let doc = Arg.info ~doc:"Depth of the tree" [ "d"; "10" ] in
-  Arg.(value @@ opt int 10 doc)
+  let doc = Arg.info ~doc:"Depth of the tree." [ "d"; "depth" ] in
+  Arg.(value @@ opt int 30 doc)
 
-let entries =
+let tree_add =
   let doc =
-    Arg.info ~doc:"Number of entries added per commit" [ "e"; "entries" ]
+    Arg.info ~doc:"Number of tree entries added per commit" [ "a"; "tree-add" ]
+  in
+  Arg.(value @@ opt int 1000 doc)
+
+let display =
+  let doc =
+    Arg.info ~doc:"Number of commits after which the stats are displayed."
+      [ "s"; "stats" ]
   in
   Arg.(value @@ opt int 10 doc)
 
 let t =
   Term.(
-    const (fun () commits depth entries ->
-        { commits; depth; entries; root = Fpath.v "." } )
-    $ log $ commits $ depth $ entries)
+    const (fun () ncommits depth tree_add display ->
+        { ncommits; depth; tree_add; display; root = Fpath.v "." } )
+    $ log $ ncommits $ depth $ tree_add $ display)
 
 let main = Term.(const main $ t)
 
