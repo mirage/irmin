@@ -1430,8 +1430,8 @@ module Make (P : S.PRIVATE) = struct
             k ()
         | Node.Map x -> (
             (* 1. we push the current node job on the stack. *)
-            P.Node.mem node_t h
-            >>= function
+            cnt.node_mem <- cnt.node_mem + 1;
+            P.Node.mem node_t h >>= function
             | true -> k ()
             | false ->
                 let () =
