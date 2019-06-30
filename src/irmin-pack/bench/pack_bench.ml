@@ -18,7 +18,9 @@ let times ~n ~init f =
   in
   go n Lwt.return
 
-let path ~depth n = List.init depth string_of_int @ [ string_of_int n ]
+let path ~depth n =
+  List.init (depth + 1) (fun i ->
+      if i = depth then string_of_int n else string_of_int i )
 
 let print_headers () =
   Fmt.epr
@@ -66,10 +68,11 @@ let run t =
   let tree = Store.Tree.empty in
   Store.Repo.v config >>= Store.master >>= fun v ->
   print_headers ();
+  let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
   times ~n:t.ncommits ~init:tree (fun i tree ->
       if i mod t.display = 0 then print_stats ~level:i t;
       times ~n:t.tree_add ~init:tree (fun n tree ->
-          Store.Tree.add tree (path ~depth:t.depth n) (string_of_int i) )
+          Store.Tree.add tree paths.(n) (string_of_int i) )
       >>= fun tree ->
       Store.set_tree_exn v ~info [] tree >>= fun () ->
       if t.clear then Store.Tree.clear tree;
