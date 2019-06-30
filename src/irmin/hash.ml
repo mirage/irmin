@@ -23,8 +23,6 @@ module Make (H : Digestif.S) = struct
 
   let hash_size = H.digest_size
 
-  let hash x = H.digest_string x
-
   let of_hex s =
     match H.consistent_of_hex s with
     | x -> Ok x
@@ -36,6 +34,8 @@ module Make (H : Digestif.S) = struct
     Type.map ~cli:(pp_hex, of_hex)
       Type.(string_of (`Fixed hash_size))
       H.of_raw_string H.to_raw_string
+
+  let hash s = H.digesti_string s
 end
 
 module SHA1 = Make (Digestif.SHA1)
@@ -47,8 +47,10 @@ module SHA512 = Make (Digestif.SHA512)
 module BLAKE2B = Make (Digestif.BLAKE2B)
 module BLAKE2S = Make (Digestif.BLAKE2S)
 
-module With_hash (K : S.HASH) (V : Type.S) = struct
+module Typed (K : S.HASH) (V : Type.S) = struct
   include K
+
+  type value = V.t
 
   let hash v = K.hash (Type.pre_hash V.t v)
 end
@@ -66,8 +68,8 @@ module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
 
   let size_of ?headers x = Type.size_of ?headers h (Type.to_bin_string K.t x)
 
-  let encode_bin ?headers buf e =
-    Type.encode_bin ?headers h buf (Type.to_bin_string K.t e)
+  let encode_bin ?headers e k =
+    Type.encode_bin ?headers h (Type.to_bin_string K.t e) k
 
   let decode_bin ?headers buf off =
     let n, v = Type.decode_bin ?headers h buf off in

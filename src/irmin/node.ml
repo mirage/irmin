@@ -152,7 +152,7 @@ module Store
     end) =
 struct
   module Contents = C
-  module Key = Hash.With_hash (S.Key) (S.Val)
+  module Key = Hash.Typed (S.Key) (S.Val)
   module Path = P
   module Metadata = M
 
@@ -388,8 +388,8 @@ module V1 (N : S.NODE) = struct
     let size_of ?headers x =
       Type.size_of ?headers h (Type.to_bin_string N.hash_t x)
 
-    let encode_bin ?headers buf e =
-      Type.encode_bin ?headers h buf (Type.to_bin_string N.hash_t e)
+    let encode_bin ?headers e k =
+      Type.encode_bin ?headers h (Type.to_bin_string N.hash_t e) k
 
     let decode_bin ?headers buf off =
       let n, v = Type.decode_bin ?headers h buf off in

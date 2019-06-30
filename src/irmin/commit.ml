@@ -121,7 +121,7 @@ struct
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
-  module Key = Hash.With_hash (S.Key) (S.Val)
+  module Key = Hash.Typed (S.Key) (S.Val)
   module Val = S.Val
 end
 
@@ -491,8 +491,8 @@ module V1 (C : S.COMMIT) = struct
     let size_of ?headers x =
       Type.size_of ?headers h (Type.to_bin_string C.hash_t x)
 
-    let encode_bin ?headers buf e =
-      Type.encode_bin ?headers h buf (Type.to_bin_string C.hash_t e)
+    let encode_bin ?headers e k =
+      Type.encode_bin ?headers h (Type.to_bin_string C.hash_t e) k
 
     let decode_bin ?headers buf off =
       let n, v = Type.decode_bin ?headers h buf off in

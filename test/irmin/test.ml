@@ -88,8 +88,10 @@ let l =
 
 let tl = Alcotest.testable (T.pp l) (T.equal l)
 
-let sha1 =
+let hash =
   Alcotest.testable (T.pp Irmin.Hash.SHA1.t) (T.equal Irmin.Hash.SHA1.t)
+
+let sha1 x = Irmin.Hash.SHA1.hash (fun l -> l x)
 
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
@@ -102,14 +104,14 @@ let test_bin () =
   let s = T.of_bin_string l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok [ "foo"; "bar" ]) s;
   let buf = Buffer.create 10 in
-  T.encode_bin ~headers:true T.string buf "foo";
+  T.encode_bin ~headers:true T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo";
   let buf = Buffer.create 10 in
-  T.encode_bin ~headers:false T.string buf "foo";
+  T.encode_bin ~headers:false T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
   let buf = Buffer.create 10 in
-  let h = Irmin.Hash.SHA1.hash "foo" in
-  T.encode_bin ~headers:false Irmin.Hash.SHA1.t buf h;
+  let h = sha1 "foo" in
+  T.encode_bin ~headers:false Irmin.Hash.SHA1.t h (Buffer.add_string buf);
   let x = Buffer.contents buf in
   let buf = Bytes.create 100 in
   Bytes.blit_string x 0 buf 0 (String.length x);
@@ -119,7 +121,7 @@ let test_bin () =
       0
   in
   Alcotest.(check int) "hash size" n Irmin.Hash.SHA1.hash_size;
-  Alcotest.(check sha1) "hash" v h
+  Alcotest.(check hash) "hash" v h
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
@@ -133,10 +135,10 @@ let test_compare () =
 let x = T.like ~equal:(fun x y -> x - y = 2) T.int
 
 let test_equal () =
-  Alcotest.(check int) "eq" (T.compare x 1 2) (compare 1 2);
-  Alcotest.(check int) "eq" (T.compare x 3 1) (compare 3 1);
-  Alcotest.(check bool) "eq" (T.equal x 3 1) true;
-  Alcotest.(check bool) "eq" (T.equal x 0 0) false;
+  Alcotest.(check int) "eq1" (T.compare x 1 2) (compare 1 2);
+  Alcotest.(check int) "eq2" (T.compare x 3 1) (compare 3 1);
+  Alcotest.(check bool) "eq3" (T.equal x 3 1) true;
+  Alcotest.(check bool) "eq4" (T.equal x 0 0) false;
   let a =
     `O [ ("b", `Float 2.); ("c", `A [ `String "test" ]); ("a", `Bool true) ]
   in
@@ -233,16 +235,19 @@ module Node_v1 = Irmin.Private.Node.V1 (Node)
 module Commit = Irmin.Private.Commit.Make (Hash)
 module Commit_v1 = Irmin.Private.Commit.V1 (Commit)
 module Hash_v1 = Irmin.Hash.V1 (Hash)
+module H = Irmin.Hash.Typed (Hash) (Irmin.Contents.String)
 
-let hash c = Hash.hash (Irmin.Type.pre_hash Irmin.Contents.String.t c)
+let hash = H.hash
 
-let hash_v1 c = Hash_v1.hash (Irmin.Type.pre_hash Irmin.Contents.V1.String.t c)
+module H_v1 = Irmin.Hash.Typed (Hash_v1) (Irmin.Contents.V1.String)
+
+let hash_v1 = H_v1.hash
 
 let test_hashes () =
   let digest t x =
     let s = Irmin.Type.to_bin_string t x in
     Printf.eprintf "to_bin_string: %S\n" s;
-    Irmin.Type.to_string Hash.t (Hash.hash s)
+    Irmin.Type.to_string Hash.t (Hash.hash (fun l -> l s))
   in
   Alcotest.(check string)
     "empty contents" "da39a3ee5e6b4b0d3255bfef95601890afd80709"

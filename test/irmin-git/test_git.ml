@@ -176,16 +176,21 @@ let test_list_refs (module S : G) =
 
 let bin_string = Alcotest.testable (Fmt.fmt "%S") ( = )
 
+let pre_hash t v =
+  let buf = Buffer.create 13 in
+  Irmin.Type.pre_hash t v (Buffer.add_string buf);
+  Buffer.contents buf
+
 let test_blobs (module S : S) =
-  let str = Irmin.Type.pre_hash S.Contents.t "foo" in
+  let str = pre_hash S.Contents.t "foo" in
   Alcotest.(check bin_string) "blob foo" "blob 3\000foo" str;
-  let str = Irmin.Type.pre_hash S.Contents.t "" in
+  let str = pre_hash S.Contents.t "" in
   Alcotest.(check bin_string) "blob ''" "blob 0\000" str;
   let module X = Mem (X) in
-  let str = Irmin.Type.pre_hash X.Contents.t (Y [ "foo"; "bar" ]) in
+  let str = pre_hash X.Contents.t (Y [ "foo"; "bar" ]) in
   Alcotest.(check bin_string)
     "blob foo" "blob 19\000{\"y\":[\"foo\",\"bar\"]}" str;
-  let str = Irmin.Type.pre_hash X.Contents.t (X (1, 2)) in
+  let str = pre_hash X.Contents.t (X (1, 2)) in
   Alcotest.(check bin_string) "blob ''" "blob 11\000{\"x\":[1,2]}" str;
   let t = X.Tree.empty in
   X.Tree.add t [ "foo" ] (X (1, 2)) >>= fun t ->
