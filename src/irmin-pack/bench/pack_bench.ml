@@ -6,7 +6,8 @@ type t = {
   ncommits : int;
   depth : int;
   tree_add : int;
-  display : int
+  display : int;
+  clear : bool
 }
 
 let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
@@ -70,7 +71,9 @@ let run t =
       times ~n:t.tree_add ~init:tree (fun n tree ->
           Store.Tree.add tree (path ~depth:t.depth n) (string_of_int i) )
       >>= fun tree ->
-      Store.set_tree_exn v ~info [] tree >>= fun () -> Lwt.return tree )
+      Store.set_tree_exn v ~info [] tree >>= fun () ->
+      if t.clear then Store.Tree.clear tree;
+      Lwt.return tree )
   >>= fun _ -> Lwt_io.printl "ok"
 
 let main t =
@@ -146,11 +149,15 @@ let display =
   in
   Arg.(value @@ opt int 10 doc)
 
+let clear =
+  let doc = Arg.info ~doc:"Clear the tree after each commit." [ "clear" ] in
+  Arg.(value @@ flag doc)
+
 let t =
   Term.(
-    const (fun () ncommits depth tree_add display ->
-        { ncommits; depth; tree_add; display; root = Fpath.v "." } )
-    $ log $ ncommits $ depth $ tree_add $ display)
+    const (fun () ncommits depth tree_add display clear ->
+        { ncommits; depth; tree_add; display; root = Fpath.v "."; clear } )
+    $ log $ ncommits $ depth $ tree_add $ display $ clear)
 
 let main = Term.(const main $ t)
 
