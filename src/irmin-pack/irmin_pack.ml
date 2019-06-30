@@ -586,13 +586,15 @@ module Index (H : Irmin.Hash.S) = struct
 
   let fan_out_size = 256
 
+  module Bloomf = Bloomf.Make(struct type t = H.t let hash t = abs (H.short_hash t) end)
+
   type t = {
     pages : Pool.t array;
     offsets : (int64, entry) Hashtbl.t;
     log : IO.t;
     log_mem : entry Tbl.t;
     index : IO.t array;
-    entries : H.t Bloomf.t;
+    entries : Bloomf.t;
     root : string
   }
 
