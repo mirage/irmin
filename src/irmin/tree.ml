@@ -932,10 +932,11 @@ module Make (P : S.PRIVATE) = struct
 
     let list t =
       let trim l =
-        List.map
+        List.rev_map
           (fun (s, v) ->
             (s, match v with `Contents _ -> `Contents | `Node _ -> `Node) )
           l
+        |> List.rev
       in
       match map t with
       | Some m -> Lwt.return (trim (StepMap.bindings m))
@@ -1005,7 +1006,7 @@ module Make (P : S.PRIVATE) = struct
         | None -> k acc
         | Some m ->
             let bindings = StepMap.bindings m in
-            let s = List.map fst bindings in
+            let s = List.rev_map fst bindings in
             pre path s acc >>= fun acc ->
             (steps [@tailcall]) ~path acc bindings @@ fun acc ->
             post path s acc >>= k

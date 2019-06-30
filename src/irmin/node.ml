@@ -82,7 +82,7 @@ struct
   module StepMap = Map.Make (struct
     type t = P.step
 
-    let compare = Type.compare P.step_t
+    let compare (x : t) (y : t) = Type.compare P.step_t y x
   end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
@@ -94,7 +94,7 @@ struct
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
 
-  let list t = List.map (fun (_, e) -> of_entry e) (StepMap.bindings t)
+  let list t = List.rev_map (fun (_, e) -> of_entry e) (StepMap.bindings t)
 
   let find t s =
     try
@@ -128,9 +128,9 @@ struct
     |~ case1 "contents" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
-  let of_entries e = v (List.map of_entry e)
+  let of_entries e = v (List.rev_map of_entry e)
 
-  let entries e = List.map to_entry (list e)
+  let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
 
   let t = Type.map Type.(list entry_t) of_entries entries
 end
@@ -212,8 +212,8 @@ struct
   let merge_value (c, _) merge_key =
     let explode t = (all_contents t, all_succ t) in
     let implode (contents, succ) =
-      let xs = List.map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.map (fun (s, n) -> (s, `Node n)) succ in
+      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
+      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
       S.Val.v (xs @ ys)
     in
     let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
@@ -272,7 +272,7 @@ module Graph (S : S.NODE_STORE) = struct
   module Graph = Object_graph.Make (Contents) (Metadata) (S.Key) (U) (U)
 
   let edges t =
-    List.map
+    List.rev_map
       (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
       (S.Val.list t)
 
@@ -288,8 +288,8 @@ module Graph (S : S.NODE_STORE) = struct
       | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
       | _ -> Lwt.return_nil
     in
-    let min = List.map (fun x -> `Node x) min in
-    let max = List.map (fun x -> `Node x) max in
+    let min = List.rev_map (fun x -> `Node x) min in
+    let max = List.rev_map (fun x -> `Node x) max in
     Graph.closure ~pred ~min ~max () >>= fun g ->
     let keys =
       List.fold_left

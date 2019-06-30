@@ -1639,6 +1639,7 @@ struct
                 let v = hash i.node in
                 Compress.Inode (i.index, v)
           in
+          (* List.map is fine here as the number of entries is small *)
           let inodes = List.map inode t.entries in
           let res = Irmin.Type.to_bin_string Compress.t (k, inodes) in
           res
@@ -1677,6 +1678,7 @@ struct
                 Inode { index; node }
           in
           try
+            (* List.map is fine here as the number of inodes is small. *)
             let entries = List.map inode inodes in
             { hash = h; entries }
           with Exit (`Msg e) -> failwith e
