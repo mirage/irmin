@@ -1020,34 +1020,17 @@ module Make (P : S.PRIVATE) = struct
           if not (StepMap.mem step n) then t
           else of_map (StepMap.remove step n)
 
-    let add t step x =
-      match x with
-      | (`Node _ | `Contents _) as v -> (
-          let v =
-            match v with
-            | `Node _ as n -> fun _ -> n
-            | `Contents (`Set (c, m)) ->
-                fun _ -> `Contents (Contents.of_value c, m)
-            | `Contents (`Keep c) -> (
-                function
-                | Some m -> `Contents (Contents.of_value c, m)
-                | None -> `Contents (Contents.of_value c, Metadata.default) )
-          in
-          to_map t >>= function
-          | None ->
-              v (Some Metadata.default) |> StepMap.singleton step |> of_map
-              |> Lwt.return
-          | Some m ->
-              let previous =
-                try Some (StepMap.find step m) with Not_found -> None
-              in
-              let previous_m =
-                match previous with
-                | None | Some (`Node _) -> None
-                | Some (`Contents (_, m)) -> Some m
-              in
-              let v = v previous_m in
-              Lwt.return (of_map (StepMap.add step v m)) )
+    let add t step v =
+      let v =
+        match v with
+        | `Node _ as n -> n
+        | `Contents (c, m) -> `Contents (Contents.of_value c, m)
+      in
+      to_map t >|= function
+      | None -> of_map (StepMap.singleton step v)
+      | Some m ->
+          let m' = StepMap.add step v m in
+          if m == m' then t else of_map m'
 
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
@@ -1307,10 +1290,6 @@ module Make (P : S.PRIVATE) = struct
         | None -> Lwt.return t
         | Some n -> Lwt.return (`Node n) )
 
-  let with_setm = function
-    | `Node _ as n -> n
-    | `Contents c -> `Contents (`Set c)
-
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
     match Path.rdecons k with
@@ -1323,10 +1302,10 @@ module Make (P : S.PRIVATE) = struct
               Node.findv view file >>= function
               | old -> (
                 match old with
-                | None -> Node.add view file (with_setm v) >>= some
+                | None -> Node.add view file v >>= some
                 | Some old ->
                     if equal old v then k None
-                    else Node.add view file (with_setm v) >>= some ) )
+                    else Node.add view file v >>= some ) )
           | Some (h, p) -> (
               Node.findv view h >>= function
               | None | Some (`Contents _) ->
@@ -1344,22 +1323,13 @@ module Make (P : S.PRIVATE) = struct
         | None -> Lwt.return t
         | Some node -> Lwt.return (`Node node) )
 
-  let with_optm m c =
-    match m with
-    | None -> `Contents (`Keep c)
-    | Some m -> `Contents (`Set (c, m))
-
-  let add t k ?metadata c =
+  let add t k ?(metadata = Metadata.default) c =
     Log.debug (fun l -> l "Tree.add %a" pp_path k);
     match Path.rdecons k with
     | None -> (
-      match (metadata, t) with
-      | None, `Contents (c', _) when Type.equal P.Contents.Val.t c' c ->
-          Lwt.return t
-      | None, `Contents (_, m) -> Lwt.return (`Contents (c, m))
-      | None, _ -> Lwt.return (`Contents (c, Metadata.default))
-      | Some m, `Contents c' when contents_equal c' (c, m) -> Lwt.return t
-      | Some m, _ -> Lwt.return (`Contents (c, m)) )
+      match t with
+      | `Contents c' when contents_equal c' (c, metadata) -> Lwt.return t
+      | _ -> Lwt.return (`Contents (c, metadata)) )
     | Some (path, file) -> (
         let rec aux view path k =
           let some n = k (Some n) in
@@ -1369,11 +1339,10 @@ module Make (P : S.PRIVATE) = struct
               | old -> (
                 match old with
                 | Some (`Node _) | None ->
-                    Node.add view file (with_optm metadata c) >>= some
-                | Some (`Contents (_, oldm) as old) ->
-                    let m = match metadata with None -> oldm | Some m -> m in
-                    if equal old (`Contents (c, m)) then k None
-                    else Node.add view file (`Contents (`Set (c, m))) >>= some
+                    Node.add view file (`Contents (c, metadata)) >>= some
+                | Some (`Contents _ as old) ->
+                    if equal old (`Contents (c, metadata)) then k None
+                    else Node.add view file (`Contents (c, metadata)) >>= some
                 ) )
           | Some (h, p) -> (
               Node.findv view h >>= function
