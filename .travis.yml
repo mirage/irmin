@@ -1,10 +1,13 @@
 language: c
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-script: bash -ex .travis-opam.sh
+services:
+  - docker
+install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
+script: bash -ex .travis-docker.sh
 env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
   - PINS="irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
+  - DISTRO=debian-stable
   matrix:
   - OCAML_VERSION=4.07 PACKAGE="irmin"
   - OCAML_VERSION=4.03 PACKAGE="irmin-fs"
