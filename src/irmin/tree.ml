@@ -539,7 +539,12 @@ module Make (P : S.PRIVATE) = struct
               Some v )
 
     let equal (x : t) (y : t) =
-      x == y || Type.equal P.Hash.t (to_hash x) (to_hash y)
+      x == y
+      ||
+      match (x.v, y.v) with
+      | Hash (_, x), Hash (_, y) -> Type.equal P.Hash.t x y
+      | Value x, Value y -> Type.equal P.Contents.Val.t x y
+      | _ -> Type.equal P.Hash.t (to_hash x) (to_hash y)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -922,7 +927,24 @@ module Make (P : S.PRIVATE) = struct
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && Type.equal Metadata.t m1 m2)
 
-    let equal (x : t) (y : t) = x == y || hash_equal (to_hash x) (to_hash y)
+    let rec elt_equal (x : elt) (y : elt) =
+      x == y
+      ||
+      match (x, y) with
+      | `Contents x, `Contents y -> contents_equal x y
+      | `Node x, `Node y -> equal x y
+      | _ -> false
+
+    and map_equal (x : map) (y : map) = StepMap.equal elt_equal x y
+
+    and equal (x : t) (y : t) =
+      x == y
+      ||
+      match (x.v, y.v) with
+      | Hash (_, x), Hash (_, y) -> hash_equal x y
+      | Value (_, x), Value (_, y) -> Type.equal P.Node.Val.t x y
+      | Map x, Map y -> map_equal x y
+      | _ -> hash_equal (to_hash x) (to_hash y)
 
     let is_empty t =
       match map t with
