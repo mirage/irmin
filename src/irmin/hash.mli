@@ -34,10 +34,7 @@ module BLAKE2B : S.HASH
 
 module BLAKE2S : S.HASH
 
-module With_hash (K : S.HASH) (V : Type.S) : sig
-  include S.HASH with type t = K.t
-
-  val hash : V.t -> t
-end
+module Typed (K : S.HASH) (V : Type.S) :
+  S.TYPED_HASH with type t = K.t and type value = V.t
 
 module V1 (H : S.HASH) : S.HASH with type t = H.t

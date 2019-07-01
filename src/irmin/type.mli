@@ -128,7 +128,9 @@ type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
 
 (* Raw (disk) *)
 
-type 'a encode_bin = ?headers:bool -> Buffer.t -> 'a -> unit
+type 'a bin_seq = 'a -> (string -> unit) -> unit
+
+type 'a encode_bin = ?headers:bool -> 'a bin_seq
 
 type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
 
@@ -145,7 +147,7 @@ val v :
   equal:('a -> 'a -> bool) ->
   compare:('a -> 'a -> int) ->
   short_hash:(?seed:int -> 'a -> int) ->
-  pre_hash:('a -> string) ->
+  pre_hash:'a bin_seq ->
   'a t
 
 val like :
@@ -155,7 +157,7 @@ val like :
   ?equal:('a -> 'a -> bool) ->
   ?compare:('a -> 'a -> int) ->
   ?short_hash:('a -> int) ->
-  ?pre_hash:('a -> string) ->
+  ?pre_hash:'a bin_seq ->
   'a t ->
   'a t
 
@@ -166,7 +168,7 @@ val map :
   ?equal:('b -> 'b -> bool) ->
   ?compare:('b -> 'b -> int) ->
   ?short_hash:('b -> int) ->
-  ?pre_hash:('b -> string) ->
+  ?pre_hash:'b bin_seq ->
   'a t ->
   ('a -> 'b) ->
   ('b -> 'a) ->
@@ -178,7 +180,7 @@ val to_string : 'a t -> 'a -> string
 
 val pp_json : ?minify:bool -> 'a t -> 'a Fmt.t
 
-val pre_hash : 'a t -> 'a -> string
+val pre_hash : 'a t -> 'a bin_seq
 
 val encode_json : 'a t -> Jsonm.encoder -> 'a -> unit
 

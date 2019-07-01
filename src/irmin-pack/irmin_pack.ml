@@ -586,7 +586,11 @@ module Index (H : Irmin.Hash.S) = struct
 
   let fan_out_size = 256
 
-  module Bloomf = Bloomf.Make(struct type t = H.t let hash t = abs (H.short_hash t) end)
+  module Bloomf = Bloomf.Make (struct
+    type t = H.t
+
+    let hash t = abs (H.short_hash t)
+  end)
 
   type t = {
     pages : Pool.t array;
@@ -1292,8 +1296,9 @@ struct
 
         include Pack.Make (struct
           include Val
+          module H = Irmin.Hash.Typed (H) (Val)
 
-          let hash t = H.hash (Irmin.Type.pre_hash Val.t t)
+          let hash = H.hash
 
           let with_hash_t = Irmin.Type.(pair H.t Val.t)
 
@@ -1341,7 +1346,9 @@ struct
         (* hash is the hash of the corresponding sub-node *)
         type t = { hash : H.t; entries : entry list }
 
-        let hash x = H.hash (Irmin.Type.pre_hash Node.t x)
+        module H = Irmin.Hash.Typed (H) (Node)
+
+        let hash = H.hash
 
         let empty = { hash = hash Node.empty; entries = [] }
 
@@ -1394,11 +1401,22 @@ struct
           in
           aux [] t
 
-        let hash_node t = H.hash (Irmin.Type.pre_hash Node.t t)
+        module H_node = Irmin.Hash.Typed (H) (Node)
+
+        let hash_node = H_node.hash
 
         let hash_values vs = hash_node (Node.v vs)
 
-        let hash_entries es = H.hash Irmin.Type.(pre_hash (list Val.entry) es)
+        module H_entries =
+          Irmin.Hash.Typed
+            (H)
+            (struct
+              type t = Val.entry list
+
+              let t = Irmin.Type.list Val.entry
+            end)
+
+        let hash_entries = H_entries.hash
 
         let index ~seed k =
           abs (Irmin.Type.short_hash P.step_t ~seed k) mod Conf.max_inodes
@@ -1734,8 +1752,9 @@ struct
 
         include Pack.Make (struct
           include Val
+          module H = Irmin.Hash.Typed (H) (Val)
 
-          let hash t = H.hash (Irmin.Type.pre_hash Val.t t)
+          let hash = H.hash
 
           let with_hash_t = Irmin.Type.(pair H.t Val.t)
 

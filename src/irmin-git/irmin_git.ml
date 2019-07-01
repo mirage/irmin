@@ -172,7 +172,7 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ buf (t : t) = Buffer.add_string buf (to_bin t)
+      let encode_bin ?headers:_ (t : t) k = k (to_bin t)
 
       let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Content.decode_bin");
@@ -320,9 +320,9 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ buf (t : t) =
+      let encode_bin ?headers:_ (t : t) k =
         Log.debug (fun l -> l "Tree.encode_bin");
-        Buffer.add_string buf (to_bin t)
+        k (to_bin t)
 
       let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Tree.decode_bin");
@@ -435,9 +435,9 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ buf (t : t) =
+      let encode_bin ?headers:_ (t : t) k =
         Log.debug (fun l -> l "Commit.encode_bin");
-        Buffer.add_string buf (to_bin t)
+        k (to_bin t)
 
       let decode_bin ?headers:_ buf off =
         Log.debug (fun l -> l "Commit.decode_bin");

@@ -44,6 +44,8 @@ module Hash = struct
   include Hash
 
   module type S = S.HASH
+
+  module type TYPED = S.TYPED_HASH
 end
 
 module Path = struct

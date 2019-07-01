@@ -75,7 +75,9 @@ type 'a encode_json = Jsonm.encoder -> 'a -> unit
 
 type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
 
-type 'a encode_bin = ?headers:bool -> Buffer.t -> 'a -> unit
+type 'a bin_seq = 'a -> (string -> unit) -> unit
+
+type 'a encode_bin = ?headers:bool -> 'a bin_seq
 
 type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
 
@@ -110,7 +112,7 @@ and 'a custom = {
   encode_bin : 'a encode_bin;
   decode_bin : 'a decode_bin;
   short_hash : 'a short_hash;
-  pre_hash : 'a -> string;
+  pre_hash : 'a bin_seq;
   size_of : 'a size_of;
   compare : 'a compare;
   equal : 'a equal
@@ -1207,100 +1209,105 @@ module B = struct
 end
 
 module Encode_bin = struct
-  let unit _buf () = ()
+  let unit () _k = ()
 
-  let char buf c = Buffer.add_char buf c
+  let add_bytes b k = k (Bytes.to_string b)
 
-  let int8 buf i = Buffer.add_char buf (Char.chr i)
+  let add_string s k = k s
 
-  let int16 buf i =
+  let char c = add_bytes (Bytes.make 1 c)
+
+  let int8 i = char (Char.chr i)
+
+  let int16 i =
     let b = Bytes.create 2 in
     B.set_uint16 b 0 i;
-    Buffer.add_bytes buf b
+    add_bytes b
 
-  let int32 buf i =
+  let int32 i =
     let b = Bytes.create 4 in
     B.set_uint32 b 0 i;
-    Buffer.add_bytes buf b
+    add_bytes b
 
-  let int64 buf i =
+  let int64 i =
     let b = Bytes.create 8 in
     B.set_uint64 b 0 i;
-    Buffer.add_bytes buf b
+    add_bytes b
 
-  let float buf f = int64 buf (Int64.bits_of_float f)
+  let float f = int64 (Int64.bits_of_float f)
 
-  let bool buf b = char buf (if b then '\255' else '\000')
+  let bool b = char (if b then '\255' else '\000')
 
-  let int buf i =
+  let int i k =
     let rec aux n =
-      if n >= 0 && n < 128 then int8 buf n
+      if n >= 0 && n < 128 then int8 n k
       else
         let out = 128 + (n land 127) in
-        int8 buf out;
+        int8 out k;
         aux (n lsr 7)
     in
     aux i
 
-  let len n buf i =
+  let len n i =
     match n with
-    | `Int -> int buf i
-    | `Int8 -> int8 buf i
-    | `Int16 -> int16 buf i
-    | `Int32 -> int32 buf (Int32.of_int i)
-    | `Int64 -> int64 buf (Int64.of_int i)
-    | `Fixed _ -> ()
+    | `Int -> int i
+    | `Int8 -> int8 i
+    | `Int16 -> int16 i
+    | `Int32 -> int32 (Int32.of_int i)
+    | `Int64 -> int64 (Int64.of_int i)
+    | `Fixed _ -> unit ()
 
-  let string ?(headers = true) n buf s =
-    if not headers then Buffer.add_string buf s
+  let string ?(headers = true) n s k =
+    if not headers then add_string s k
     else
-      let k = String.length s in
-      len n buf k;
-      Buffer.add_string buf s
+      let i = String.length s in
+      len n i k;
+      add_string s k
 
-  let bytes ?(headers = true) n buf s =
-    if not headers then Buffer.add_bytes buf s
+  let bytes ?(headers = true) n s k =
+    if not headers then add_bytes s k
     else
-      let k = Bytes.length s in
-      len n buf k;
-      Buffer.add_bytes buf s
+      let i = Bytes.length s in
+      len n i k;
+      add_bytes s k
 
-  let list l n buf x =
-    len n buf (List.length x);
-    List.iter (fun e -> l buf e) x
+  let list l n x k =
+    len n (List.length x) k;
+    List.iter (fun e -> l e k) x
 
-  let array l n buf x =
-    len n buf (Array.length x);
-    Array.iter (fun e -> l buf e) x
+  let array l n x k =
+    len n (Array.length x) k;
+    Array.iter (fun e -> l e k) x
 
-  let pair a b buf (x, y) =
-    a buf x;
-    b buf y
+  let pair a b (x, y) k =
+    a x k;
+    b y k
 
-  let triple a b c buf (x, y, z) =
-    a buf x;
-    b buf y;
-    c buf z
+  let triple a b c (x, y, z) k =
+    a x k;
+    b y k;
+    c z k
 
-  let option o buf = function
-    | None -> char buf '\000'
+  let option o v k =
+    match v with
+    | None -> char '\000' k
     | Some x ->
-        char buf '\255';
-        o buf x
+        char '\255' k;
+        o x k
 
   let rec t : type a. a t -> a encode_bin =
-   fun ty ?headers buf e ->
+   fun ty ?headers e k ->
     match ty with
-    | Self s -> t ?headers s.self buf e
-    | Custom c -> c.encode_bin ?headers buf e
-    | Map b -> map ?headers b buf e
-    | Prim t -> prim ?headers t buf e
-    | List l -> list (t l.v) l.len buf e
-    | Array a -> array (t a.v) a.len buf e
-    | Tuple t -> tuple ?headers t buf e
-    | Option x -> option (t x) buf e
-    | Record r -> record ?headers r buf e
-    | Variant v -> variant ?headers v buf e
+    | Self s -> t ?headers s.self e k
+    | Custom c -> c.encode_bin ?headers e k
+    | Map b -> map ?headers b e k
+    | Prim t -> prim ?headers t e k
+    | List l -> list (t l.v) l.len e k
+    | Array a -> array (t a.v) a.len e k
+    | Tuple t -> tuple ?headers t e k
+    | Option x -> option (t x) e k
+    | Record r -> record ?headers r e k
+    | Variant v -> variant ?headers v e k
 
   and tuple : type a. a tuple -> a encode_bin =
    fun ty ?headers:_ ->
@@ -1309,7 +1316,7 @@ module Encode_bin = struct
     | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
   and map : type a b. (a, b) map -> b encode_bin =
-   fun { x; g; _ } ?headers buf u -> t ?headers x buf (g u)
+   fun { x; g; _ } ?headers u k -> t ?headers x (g u) k
 
   and prim : type a. a prim -> a encode_bin =
    fun ty ?headers ->
@@ -1325,30 +1332,31 @@ module Encode_bin = struct
     | Bytes n -> bytes ?headers n
 
   and record : type a. a record -> a encode_bin =
-   fun r ?headers:_ buf x ->
+   fun r ?headers:_ x k ->
     let fields = fields r in
-    List.iter (fun (Field f) -> t f.ftype buf (f.fget x)) fields
+    List.iter (fun (Field f) -> t f.ftype (f.fget x) k) fields
 
   and variant : type a. a variant -> a encode_bin =
-   fun v ?headers:_ buf x -> case_v buf (v.vget x)
+   fun v ?headers:_ x k -> case_v (v.vget x) k
 
   and case_v : type a. a case_v encode_bin =
-   fun ?headers:_ buf c ->
+   fun ?headers:_ c k ->
     match c with
-    | CV0 c -> int buf c.ctag0
+    | CV0 c -> int c.ctag0 k
     | CV1 (c, v) ->
-        int buf c.ctag1;
-        t c.ctype1 buf v
+        int c.ctag1 k;
+        t c.ctype1 v k
 end
 
 let encode_bin = Encode_bin.t
 
 let to_bin size_of encode_bin x =
+  let seq = encode_bin ?headers:(Some false) x in
   let len =
     match size_of ?headers:(Some false) x with None -> 1024 | Some n -> n
   in
   let buf = Buffer.create len in
-  encode_bin ?headers:(Some false) buf x;
+  seq (Buffer.add_string buf);
   Buffer.contents buf
 
 let to_bin_string t x =
@@ -1365,13 +1373,13 @@ let to_bin_string t x =
   aux t x
 
 let pre_hash t x =
-  let rec aux : type a. a t -> a -> string =
-   fun t x ->
+  let rec aux : type a. a t -> a bin_seq =
+   fun t v k ->
     match t with
-    | Self s -> aux s.self x
-    | Map m -> aux m.x (m.g x)
-    | Custom c -> c.pre_hash x
-    | _ -> to_bin_string t x
+    | Self s -> aux s.self v k
+    | Map m -> aux m.x (m.g v) k
+    | Custom c -> c.pre_hash v k
+    | _ -> encode_bin ?headers:(Some false) t v k
   in
   aux t x
 
@@ -1567,13 +1575,20 @@ let of_string t =
 
 type 'a ty = 'a t
 
+let ( %% ) (h1 : int) (h2 : int) : int = Hashtbl.hash (h1, h2)
+
 let short_hash t ?seed x =
   match t with
   | Custom c -> c.short_hash ?seed x
-  | _ -> (
-    match seed with
-    | None -> Hashtbl.hash (pre_hash t x)
-    | Some s -> Hashtbl.seeded_hash s (pre_hash t x) )
+  | _ ->
+      let hash =
+        match seed with
+        | None -> Hashtbl.hash
+        | Some s -> Hashtbl.seeded_hash s
+      in
+      let h = ref 0 in
+      pre_hash t x (fun s -> h := hash s %% !h);
+      !h
 
 let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
   let encode_json, decode_json =
@@ -1612,7 +1627,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
     match h with Some x -> x | None -> short_hash ?seed t
   in
   let pre_hash =
-    match p with Some x -> x | None -> to_bin size_of encode_bin
+    match p with Some x -> x | None -> encode_bin ?headers:(Some false)
   in
   Custom
     { cwit = `Type t;

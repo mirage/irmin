@@ -28,8 +28,9 @@ module Content_addressable
 struct
   include AO (K) (V)
   open Lwt.Infix
+  module H = Hash.Typed (K) (V)
 
-  let hash x = K.hash (Type.pre_hash V.t x)
+  let hash = H.hash
 
   let pp_key = Type.pp K.t
 

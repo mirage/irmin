@@ -428,9 +428,11 @@ module Type : sig
 
   (** {2 Binary Converters} *)
 
+  type 'a bin_seq = 'a -> (string -> unit) -> unit
+
   (** The type for binary encoders. If [headers] is not set, do not
      output extra length headers for buffers. *)
-  type 'a encode_bin = ?headers:bool -> Buffer.t -> 'a -> unit
+  type 'a encode_bin = ?headers:bool -> 'a bin_seq
 
   (** The type for binary decoders. IF [headers] is not set, do not
      read extra length header for buffers and consider the whole
@@ -440,7 +442,7 @@ module Type : sig
   (** The type for size function related to binary encoder/decoders. *)
   type 'a size_of = ?headers:bool -> 'a -> int option
 
-  val pre_hash : 'a t -> 'a -> string
+  val pre_hash : 'a t -> 'a bin_seq
   (** [pre_hash t x] is the string representation of [x], of type
       [t], which will be used to compute the digest of the value. By
       default it's [to_bin_string t x] but it can be overriden by {!v},
@@ -481,7 +483,7 @@ module Type : sig
     equal:('a -> 'a -> bool) ->
     compare:('a -> 'a -> int) ->
     short_hash:(?seed:int -> 'a -> int) ->
-    pre_hash:('a -> string) ->
+    pre_hash:'a bin_seq ->
     'a t
 
   val like :
@@ -491,7 +493,7 @@ module Type : sig
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
     ?short_hash:('a -> int) ->
-    ?pre_hash:('a -> string) ->
+    ?pre_hash:'a bin_seq ->
     'a t ->
     'a t
 
@@ -502,7 +504,7 @@ module Type : sig
     ?equal:('a -> 'a -> bool) ->
     ?compare:('a -> 'a -> int) ->
     ?short_hash:('a -> int) ->
-    ?pre_hash:('a -> string) ->
+    ?pre_hash:'a bin_seq ->
     'b t ->
     ('b -> 'a) ->
     ('a -> 'b) ->
@@ -1037,7 +1039,30 @@ module Hash : sig
     (** The type for digest hashes. *)
     type t
 
-    val hash : string -> t
+    val hash : ((string -> unit) -> unit) -> t
+    (** Compute a deterministic store key from a sequence of strings. *)
+
+    val short_hash : t -> int
+    (** [short_hash h] is a small hash of [h], to be used for instance as
+       the `hash` function of an OCaml [Hashtbl]. *)
+
+    val hash_size : int
+    (** [hash_size] is the size of hash results, in bytes. *)
+
+    (** {1 Value Types} *)
+
+    val t : t Type.t
+    (** [t] is the value type for {!t}. *)
+  end
+
+  (** Signature for typed hashes, where [hash] directly takes a value
+      as argument and incremental hashing is not possible. *)
+  module type TYPED = sig
+    type t
+
+    type value
+
+    val hash : value -> t
     (** Compute a deterministic store key from a string. *)
 
     val short_hash : t -> int
@@ -1074,6 +1099,11 @@ module Hash : sig
 
   (** v1 serialisation *)
   module V1 (H : S) : S with type t = H.t
+
+  (** Typed hashes. *)
+
+  module Typed (K : S) (E : Type.S) :
+    TYPED with type t = K.t and type value = E.t
 end
 
 (** [Metadata] defines metadata that is attached to contents but stored in
@@ -1175,11 +1205,7 @@ module Contents : sig
         If any of these operations fail, return [`Conflict]. *)
 
     (** [Key] provides base functions for user-defined contents keys. *)
-    module Key : sig
-      include Hash.S with type t = key
-
-      val hash : value -> key
-    end
+    module Key : Hash.TYPED with type t = key and type value = value
 
     (** [Val] provides base functions for user-defined contents values. *)
     module Val : S with type t = value
@@ -1601,11 +1627,7 @@ module Private : sig
       (** [merge] is the 3-way merge function for nodes keys. *)
 
       (** [Key] provides base functions for node keys. *)
-      module Key : sig
-        include Hash.S with type t = key
-
-        val hash : value -> key
-      end
+      module Key : Hash.TYPED with type t = key and type value = value
 
       (** [Metadata] provides base functions for node metadata. *)
       module Metadata : Metadata.S
@@ -1806,11 +1828,7 @@ module Private : sig
       (** [merge] is the 3-way merge function for commit keys. *)
 
       (** [Key] provides base functions for commit keys. *)
-      module Key : sig
-        include Hash.S with type t = key
-
-        val hash : value -> key
-      end
+      module Key : Hash.TYPED with type t = key and type value = value
 
       (** [Val] provides functions for commit values. *)
       module Val : S with type t = value and type hash = key
@@ -3202,7 +3220,8 @@ module type S_MAKER = functor
       and type contents = C.t
       and type branch = B.t
       and type hash = H.t
- (** [KV] is similar to {!S} but choose sensible implementations for
+
+(** [KV] is similar to {!S} but choose sensible implementations for
     path and branch. *)
 
 module type KV =

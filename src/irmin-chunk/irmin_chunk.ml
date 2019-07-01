@@ -102,7 +102,7 @@ module Chunk (K : Irmin.Hash.S) = struct
   let to_string t =
     let buf = Bytes.make t.len '\000' in
     let b = Buffer.create t.len in
-    Irmin.Type.encode_bin v b t.v;
+    Irmin.Type.encode_bin v t.v (Buffer.add_string b);
     let s = Buffer.contents b in
     Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
@@ -218,7 +218,7 @@ struct
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
   let check_hash k v =
-    let k' = K.hash v in
+    let k' = K.hash (fun f -> f v) in
     if Irmin.Type.equal K.t k k' then Lwt.return ()
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -242,7 +242,7 @@ struct
 
   let add t v =
     let buf = Irmin.Type.to_bin_string V.t v in
-    let key = K.hash buf in
+    let key = K.hash (fun f -> f buf) in
     let len = String.length buf in
     if len <= t.max_data then (
       AO.add t.db key (data t buf) >|= fun () ->

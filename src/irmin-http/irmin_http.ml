@@ -405,13 +405,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
     module Node = struct
       module Val = S.Private.Node.Val
-
-      module Key = struct
-        include S.Hash
-
-        let hash v = hash (Irmin.Type.pre_hash Val.t v)
-      end
-
+      module Key = Irmin.Hash.Typed (S.Hash) (Val)
       include AO (Client) (S.Hash) (Val)
       module Contents = Contents
       module Metadata = S.Metadata

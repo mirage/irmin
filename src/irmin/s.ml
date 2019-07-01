@@ -45,7 +45,21 @@ end
 module type HASH = sig
   type t
 
-  val hash : string -> t
+  val hash : ((string -> unit) -> unit) -> t
+
+  val short_hash : t -> int
+
+  val hash_size : int
+
+  val t : t Type.t
+end
+
+module type TYPED_HASH = sig
+  type t
+
+  type value
+
+  val hash : value -> t
 
   val short_hash : t -> int
 
@@ -120,11 +134,7 @@ module type CONTENTS_STORE = sig
 
   val merge : [ `Read | `Write ] t -> key option Merge.t
 
-  module Key : sig
-    include HASH with type t = key
-
-    val hash : value -> t
-  end
+  module Key : TYPED_HASH with type t = key and type value = value
 
   module Val : CONTENTS with type t = value
 end
@@ -217,11 +227,7 @@ module type NODE_STORE = sig
 
   val merge : [ `Read | `Write ] t -> key option Merge.t
 
-  module Key : sig
-    include HASH with type t = key
-
-    val hash : value -> t
-  end
+  module Key : TYPED_HASH with type t = key and type value = value
 
   module Metadata : METADATA
 
@@ -262,11 +268,7 @@ module type COMMIT_STORE = sig
 
   val merge : [ `Read | `Write ] t -> info:Info.f -> key option Merge.t
 
-  module Key : sig
-    include HASH with type t = key
-
-    val hash : value -> t
-  end
+  module Key : TYPED_HASH with type t = key and type value = value
 
   module Val : COMMIT with type t = value and type hash = key
 
@@ -1074,7 +1076,6 @@ module type MAKER = functor
   -> STORE
      with type key = P.t
       and type step = P.step
-      and module Key = P
       and type metadata = M.t
       and type contents = C.t
       and type branch = B.t

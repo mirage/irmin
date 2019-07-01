@@ -35,7 +35,9 @@ module Value = struct
 
   type hash = Key.t
 
-  let hash x = Key.hash (Irmin.Type.pre_hash t x)
+  module H = Irmin.Hash.Typed (Key) (Irmin.Contents.String)
+
+  let hash = H.hash
 end
 
 module type S = sig
