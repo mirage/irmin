@@ -1617,7 +1617,7 @@ struct
         let to_bin ~dict ~offset (t : t) k =
           assert (Irmin.Type.equal H.t k t.hash);
           let step s : Compress.name =
-            let str = Irmin.Type.to_string P.step_t s in
+            let str = Irmin.Type.to_bin_string P.step_t s in
             if String.length str <= 4 then Direct s
             else
               let s = dict str in
