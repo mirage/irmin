@@ -858,21 +858,23 @@ module Make (P : S.PRIVATE) = struct
 
     and value_of_map : type a. map -> (value -> a) -> a =
      fun map k ->
-      let alist =
-        StepMap.fold
-          (fun step v acc ->
-            match v with
-            | `Contents (c, m) ->
-                let v = `Contents (Contents.to_hash c, m) in
-                (step, v) :: acc
-            | `Node n ->
-                (to_hash [@tailcall]) n @@ fun n ->
-                let v = `Node n in
-                (step, v) :: acc )
-          map []
+      let alist = StepMap.bindings map in
+      let rec aux acc = function
+        | [] ->
+            let alist = List.rev acc in
+            cnt.node_val_v <- cnt.node_val_v + 1;
+            k (P.Node.Val.v alist)
+        | (step, v) :: rest -> (
+          match v with
+          | `Contents (c, m) ->
+              let v = `Contents (Contents.to_hash c, m) in
+              (aux [@tailcall]) ((step, v) :: acc) rest
+          | `Node n ->
+              (to_hash [@tailcall]) n @@ fun n ->
+              let v = `Node n in
+              (aux [@tailcall]) ((step, v) :: acc) rest )
       in
-      cnt.node_val_v <- cnt.node_val_v + 1;
-      k (P.Node.Val.v alist)
+      aux [] alist
 
     let to_hash t = to_hash t (fun t -> t)
 
