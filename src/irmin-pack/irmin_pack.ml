@@ -870,12 +870,13 @@ module type S = sig
 
   val hash : t -> hash
 
-  val to_bin :
+  val encode_bin :
     dict:(string -> int) ->
     offset:(hash -> int64 option) ->
     t ->
     hash ->
-    string
+    (string -> unit) ->
+    unit
 
   val decode_bin :
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
@@ -1083,10 +1084,10 @@ module Pack (K : Irmin.Hash.S) = struct
             | None -> None
           in
           let dict = Dict.index t.pack.dict in
-          let buf = V.to_bin ~offset ~dict v k in
           let off = IO.offset t.pack.block in
-          IO.append t.pack.block buf;
-          Index.append t.pack.index k ~off ~len:(String.length buf);
+          V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+          let len = Int64.to_int (IO.offset t.pack.block -- off) in
+          Index.append t.pack.index k ~off ~len;
           if Tbl.length t.staging >= auto_flush then flush t
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
@@ -1302,8 +1303,8 @@ struct
 
           let with_hash_t = Irmin.Type.(pair H.t Val.t)
 
-          let to_bin ~dict:_ ~offset:_ t k =
-            Irmin.Type.to_bin_string with_hash_t (k, t)
+          let encode_bin ~dict:_ ~offset:_ t k =
+            Irmin.Type.encode_bin with_hash_t (k, t)
 
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, (_, t) =
@@ -1632,7 +1633,7 @@ struct
 
         let hash t = t.hash
 
-        let to_bin ~dict ~offset (t : t) k =
+        let encode_bin ~dict ~offset (t : t) k =
           assert (Irmin.Type.equal H.t k t.hash);
           let step s : Compress.name =
             let str = Irmin.Type.to_bin_string P.step_t s in
@@ -1661,8 +1662,7 @@ struct
           in
           (* List.map is fine here as the number of entries is small *)
           let inodes = List.map inode t.entries in
-          let res = Irmin.Type.to_bin_string Compress.t (k, inodes) in
-          res
+          Irmin.Type.encode_bin Compress.t (k, inodes)
 
         exception Exit of [ `Msg of string ]
 
@@ -1758,8 +1758,8 @@ struct
 
           let with_hash_t = Irmin.Type.(pair H.t Val.t)
 
-          let to_bin ~dict:_ ~offset:_ t k =
-            Irmin.Type.to_bin_string with_hash_t (k, t)
+          let encode_bin ~dict:_ ~offset:_ t k =
+            Irmin.Type.encode_bin with_hash_t (k, t)
 
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, (_, v) =

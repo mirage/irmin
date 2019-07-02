@@ -69,12 +69,13 @@ module type S = sig
 
   val hash : t -> hash
 
-  val to_bin :
+  val encode_bin :
     dict:(string -> int) ->
     offset:(hash -> int64 option) ->
     t ->
     hash ->
-    string
+    (string -> unit) ->
+    unit
 
   val decode_bin :
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
