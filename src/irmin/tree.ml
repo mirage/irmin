@@ -163,7 +163,7 @@ let alist_iter2_lwt compare_k f l1 l2 =
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
   Lwt_list.iter_s (fun b -> b >>= fun () -> Lwt.return_unit) (List.rev !l3)
 
-module Cache (K : S.HASH) : sig
+module Cache (K : Type.S) : sig
   type 'a t
 
   type key = K.t
@@ -249,11 +249,14 @@ module Make (P : S.PRIVATE) = struct
 
     type t = { mutable v : v; mutable info : info }
 
-    module Cache = Cache (P.Hash)
+    module Hashes = Cache (P.Hash)
+    module Values = Cache (P.Contents.Val)
 
     let info_is_empty i = i.hash = None && i.value = None
 
-    let cache = Cache.create ~is_empty:info_is_empty 100
+    let values = Values.create ~is_empty:info_is_empty 1000
+
+    let hashes = Hashes.create ~is_empty:info_is_empty 1000
 
     let v =
       let open Type in
@@ -290,15 +293,25 @@ module Make (P : S.PRIVATE) = struct
       in
       (* hashcons the info *)
       let info =
-        match hash with
-        | None -> { hash; value }
-        | Some k -> (
+        match (hash, value) with
+        | Some _, Some _ -> assert false
+        | None, None -> { hash; value }
+        | None, Some v -> (
             cnt.contents_cache_find <- cnt.contents_cache_find + 1;
-            match Cache.find cache k with
+            match Values.find values v with
             | exception Not_found ->
                 cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
                 let i = { hash; value } in
-                Cache.add cache k i;
+                Values.add values v i;
+                i
+            | i -> i )
+        | Some k, None -> (
+            cnt.contents_cache_find <- cnt.contents_cache_find + 1;
+            match Hashes.find hashes k with
+            | exception Not_found ->
+                cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
+                let i = { hash; value } in
+                Hashes.add hashes k i;
                 i
             | i -> i )
       in
@@ -354,7 +367,7 @@ module Make (P : S.PRIVATE) = struct
       c.info.hash <- Some k;
       let () =
         cnt.contents_cache_find <- cnt.contents_find + 1;
-        match Cache.find cache k with
+        match Hashes.find hashes k with
         | i ->
             let old = c.info in
             c.info <- i;
@@ -362,8 +375,7 @@ module Make (P : S.PRIVATE) = struct
             hashcons c
         | exception Not_found ->
             cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
-            c.info.hash <- Some k;
-            Cache.add cache k c.info
+            Hashes.add hashes k c.info
       in
       match c.info.hash with Some k -> k | None -> k
 
@@ -377,9 +389,21 @@ module Make (P : S.PRIVATE) = struct
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
       | None -> None
-      | Some v ->
-          t.info.value <- Some v;
-          Some v
+      | Some v as vo ->
+          t.info.value <- vo;
+          let () =
+            cnt.contents_cache_find <- cnt.contents_find + 1;
+            match Values.find values v with
+            | i ->
+                let old = t.info in
+                t.info <- i;
+                merge_info ~into:i old;
+                hashcons t
+            | exception Not_found ->
+                cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
+                Values.add values v t.info
+          in
+          t.info.value
 
     let to_value t =
       match value t with
@@ -1519,15 +1543,16 @@ module Make (P : S.PRIVATE) = struct
 
   module Cache = struct
     let length () =
-      ( `Contents Contents.(Cache.length cache),
+      ( `Contents Contents.(Hashes.length hashes),
         `Nodes Node.(Cache.length cache) )
 
     let clear ?depth () =
       Log.info (fun l -> l "Tree.Cache.clear");
       match depth with
       | None ->
-          Node.Cache.iter (fun _ i -> Node.clear_info i) Node.cache;
-          Contents.Cache.iter (fun _ i -> Contents.clear_info i) Contents.cache
+          Contents.Hashes.iter (fun _ -> Contents.clear_info) Contents.hashes;
+          Contents.Values.iter (fun _ -> Contents.clear_info) Contents.values;
+          Node.Cache.iter (fun _ i -> Node.clear_info i) Node.cache
       | Some depth ->
           Node.Cache.iter (fun _ i -> Node.clear_info ~depth i) Node.cache
 
@@ -1536,11 +1561,11 @@ module Make (P : S.PRIVATE) = struct
         | None -> Fmt.pf ppf "<none>"
         | Some y -> Type.pp t ppf y
       in
-      Contents.Cache.iter
+      Contents.Hashes.iter
         (fun k v ->
-          Fmt.pf ppf "C|%a: value:%a@." pp_hash k (ppo P.Contents.Val.t)
+          Fmt.pf ppf "C|%a: %a@." pp_hash k (ppo P.Contents.Val.t)
             v.Contents.value )
-        Contents.cache;
+        Contents.hashes;
       Node.Cache.iter
         (fun k v -> Fmt.pf ppf "N|%a: %a@." pp_hash k Node.dump_info v)
         Node.cache
