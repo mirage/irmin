@@ -1,8 +1,0 @@
-(executable
- (name pack_bench)
- (libraries irmin_pack irmin-test.bench))
-
-(alias
- (name bench)
- (action
-  (run ./pack_bench.exe)))
