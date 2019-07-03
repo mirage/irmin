@@ -727,23 +727,25 @@ module Make (P : S.PRIVATE) = struct
 
     let value_of_map m = value_of_map m (fun t -> t)
 
+    let value_of_hash t repo k =
+      match t.info.value with
+      | Some _ as v -> Lwt.return v
+      | None -> (
+          cnt.node_find <- cnt.node_find + 1;
+          P.Node.find (P.Repo.node_t repo) k >|= function
+          | None -> None
+          | Some _ as v ->
+              t.info.value <- v;
+              v )
+
     let to_value t =
       match value t with
       | Some v -> Lwt.return (Some v)
       | None -> (
-          ( match t.v with
-          | Value (_, v) -> Lwt.return (Some v)
-          | Map m -> Lwt.return (Some (value_of_map m))
-          | Hash (repo, k) ->
-              Log.debug (fun l -> l "Tree.Node.to_value %a" pp_hash k);
-              cnt.node_find <- cnt.node_find + 1;
-              P.Node.find (P.Repo.node_t repo) k )
-          >|= fun value ->
-          match t.info.value with
-          | None ->
-              t.info.value <- value;
-              value
-          | Some _ as v -> v )
+        match t.v with
+        | Value (_, v) -> Lwt.return (Some v)
+        | Map m -> Lwt.return (Some (value_of_map m))
+        | Hash (repo, k) -> value_of_hash t repo k )
 
     let to_map t =
       match map t with
@@ -758,9 +760,7 @@ module Make (P : S.PRIVATE) = struct
           | Map m -> Lwt.return (Some m)
           | Value (repo, v) -> Lwt.return (of_value repo v)
           | Hash (repo, k) -> (
-              Log.debug (fun l -> l "Tree.Node.to_map %a" pp_hash k);
-              cnt.node_find <- cnt.node_find + 1;
-              P.Node.find (P.Repo.node_t repo) k >|= function
+              value_of_hash t repo k >|= function
               | None -> None
               | Some v -> of_value repo v ) )
 
@@ -817,16 +817,37 @@ module Make (P : S.PRIVATE) = struct
       to_map t >|= function None -> [] | Some m -> StepMap.bindings m
 
     let findv t step =
-      to_map t >>= function
-      | None -> Lwt.return None
-      | Some m -> (
+      let of_map m =
         match StepMap.find step m with
         | exception Not_found -> Lwt.return None
         | `Node n -> Lwt.return (Some (`Node n))
         | `Contents (c, m) -> (
             Contents.to_value c >|= function
             | None -> None
-            | Some c -> Some (`Contents (c, m)) ) )
+            | Some c -> Some (`Contents (c, m)) )
+      in
+      let of_value repo v =
+        match P.Node.Val.find v step with
+        | None -> Lwt.return None
+        | Some (`Contents (c, m)) -> (
+            let c = Contents.of_hash repo c in
+            Contents.to_value c >|= function
+            | None -> None
+            | Some c -> Some (`Contents (c, m)) )
+        | Some (`Node n) ->
+            let n = of_hash repo n in
+            Lwt.return (Some (`Node n))
+      in
+      match map t with
+      | Some m -> of_map m
+      | None -> (
+        match t.v with
+        | Map m -> of_map m
+        | Value (repo, v) -> of_value repo v
+        | Hash (repo, v) -> (
+            value_of_hash t repo v >>= function
+            | None -> Lwt.return None
+            | Some v -> of_value repo v ) )
 
     let dummy_marks = Hashes.create 0
 
