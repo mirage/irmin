@@ -1165,15 +1165,15 @@ module Make (S : S) = struct
       S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
       S.Tree.Cache.clear ();
       let _k = S.Tree.hash v0 in
-      check_cache "mores" 3 3;
+      check_cache "mores:1" 3 3;
       S.Tree.Cache.clear ~depth:3 ();
-      check_cache "mores" 3 3;
+      check_cache "mores:2" 3 3;
       S.Tree.Cache.clear ~depth:2 ();
       check_cache "trim 2" 2 2;
       S.Tree.Cache.clear ~depth:1 ();
       check_cache "trim 1" 1 1;
       (* keep the value alive *)
-      let _ = (xxx, yyy, zzz) in
+      let _ = (v0, xxx, yyy, zzz) in
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->

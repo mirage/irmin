@@ -19,7 +19,7 @@ open Lwt.Infix
 let store =
   Irmin_test.store (module Irmin_pack.Make) (module Irmin.Metadata.None)
 
-let test_file = "test-db-pack"
+let test_file = Filename.concat "_build" "test-db-pack"
 
 let config = Irmin_pack.config ~fresh:false test_file
 
