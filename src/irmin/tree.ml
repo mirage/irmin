@@ -264,8 +264,9 @@ module Make (P : S.PRIVATE) = struct
       |> sealv
 
     let clear_info i =
-      i.value <- None;
-      i.hash <- None
+      if not (info_is_empty i) then (
+        i.value <- None;
+        i.hash <- None )
 
     let clear t = clear_info t.info
 
@@ -541,7 +542,7 @@ module Make (P : S.PRIVATE) = struct
         | Some (Map m), _ | _, Some m -> Some m
         | _ -> None
       in
-      if depth >= max_depth then (
+      if depth >= max_depth && not (info_is_empty i) then (
         i.value <- None;
         i.map <- None;
         i.hash <- None );
