@@ -625,7 +625,7 @@ module Index (H : Irmin.Hash.S) = struct
       else
         let raw = Bytes.create page_size in
         let n = IO.read io ~off:offset raw in
-        assert (n = page_size);
+        assert (n <= page_size);
         let page = Bytes.unsafe_to_string raw in
         let rec read_page page off =
           if off = page_size then ()
