@@ -174,8 +174,6 @@ module Cache (K : S.HASH) : sig
 
   val add : 'a t -> key -> 'a -> unit
 
-  val remove : 'a t -> key -> unit
-
   val iter : (key -> 'a -> unit) -> 'a t -> unit
 
   val length : 'a t -> int
@@ -200,8 +198,6 @@ end = struct
   let add t k v = M.add t.m k v
 
   let find t k = M.find t.m k
-
-  let remove t k = M.remove t.m k
 
   let iter f t = M.iter f t.m
 end
@@ -267,17 +263,11 @@ module Make (P : S.PRIVATE) = struct
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
       |> sealv
 
-    let clear_info ?v i =
-      let hash =
-        match (v, i.hash) with
-        | Some (Hash (_, h)), _ | _, Some h -> Some h
-        | _ -> None
-      in
+    let clear_info i =
       i.value <- None;
-      i.hash <- None;
-      match hash with None -> () | Some h -> Cache.remove cache h
+      i.hash <- None
 
-    let clear t = clear_info ~v:t.v t.info
+    let clear t = clear_info t.info
 
     let merge_info ~into:x y =
       let () =
@@ -360,50 +350,48 @@ module Make (P : S.PRIVATE) = struct
       | Value v, _, Some v' -> if v != v' then t.v <- Value v'
       | _ -> ()
 
+    let hash_of_value c v =
+      cnt.contents_hash <- cnt.contents_hash + 1;
+      let k = P.Contents.Key.hash v in
+      c.info.hash <- Some k;
+      let () =
+        cnt.contents_cache_find <- cnt.contents_find + 1;
+        match Cache.find cache k with
+        | i ->
+            let old = c.info in
+            c.info <- i;
+            merge_info ~into:i old;
+            hashcons c
+        | exception Not_found ->
+            cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
+            c.info.hash <- Some k;
+            Log.debug (fun l -> l "Contents.to_hash: cache %a" pp_hash k);
+            Cache.add cache k c.info
+      in
+      match c.info.hash with Some k -> k | None -> k
+
     let to_hash c =
       match hash c with
       | Some k -> k
       | None -> (
-        match value c with
-        | None -> assert false
-        | Some v ->
-            cnt.contents_hash <- cnt.contents_hash + 1;
-            let k = P.Contents.Key.hash v in
-            let () =
-              cnt.contents_cache_find <- cnt.contents_find + 1;
-              match Cache.find cache k with
-              | i ->
-                  c.info <- i;
-                  hashcons c
-              | exception Not_found ->
-                  cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
-                  c.info.hash <- Some k;
-                  Log.debug (fun l -> l "Contents.to_hash: cache %a" pp_hash k);
-                  Cache.add cache k c.info
-            in
-            let k =
-              match c.info.hash with
-              | Some k -> k
-              | None ->
-                  c.info.hash <- Some k;
-                  k
-            in
-            k )
+        match value c with None -> assert false | Some v -> hash_of_value c v )
+
+    let value_of_hash t repo k =
+      Log.debug (fun l -> l "Node.Contents.to_value %a" pp_hash k);
+      cnt.contents_find <- cnt.contents_find + 1;
+      P.Contents.find (P.Repo.contents_t repo) k >|= function
+      | None -> None
+      | Some v ->
+          t.info.value <- Some v;
+          Some v
 
     let to_value t =
-      match (t.v, t.info.value) with
-      | _, Some v -> Lwt.return (Some v)
-      | Value v, None ->
-          t.info.value <- Some v;
-          Lwt.return (Some v)
-      | Hash (repo, k), None -> (
-          Log.debug (fun l -> l "Node.Contents.to_value %a" pp_hash k);
-          cnt.contents_find <- cnt.contents_find + 1;
-          P.Contents.find (P.Repo.contents_t repo) k >|= function
-          | None -> None
-          | Some v ->
-              t.info.value <- Some v;
-              Some v )
+      match value t with
+      | Some v -> Lwt.return (Some v)
+      | None -> (
+        match t.v with
+        | Value v -> Lwt.return (Some v)
+        | Hash (repo, k) -> value_of_hash t repo k )
 
     let equal (x : t) (y : t) =
       x == y
@@ -558,15 +546,9 @@ module Make (P : S.PRIVATE) = struct
         | _ -> None
       in
       if depth >= max_depth then (
-        let hash =
-          match (v, i.hash) with
-          | Some (Hash (_, h)), _ | _, Some h -> Some h
-          | _ -> None
-        in
         i.value <- None;
         i.map <- None;
-        i.hash <- None;
-        match hash with None -> () | Some h -> Cache.remove cache h );
+        i.hash <- None );
       match map with
       | None -> ()
       | Some m -> (clear_map [@tailcall]) ~max_depth depth m
@@ -621,7 +603,9 @@ module Make (P : S.PRIVATE) = struct
       if c = Some true then clear t;
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
-      | Value _ | Map _ -> (
+      | Value (_, v) when P.Node.Val.is_empty v -> ()
+      | Map m when StepMap.is_empty m -> ()
+      | _ -> (
         match hash with
         | None -> t.v <- Hash (repo, k)
         | Some k -> t.v <- Hash (repo, k) )
@@ -695,11 +679,14 @@ module Make (P : S.PRIVATE) = struct
     let hash_of_value t v =
       cnt.node_hash <- cnt.node_hash + 1;
       let k = P.Node.Key.hash v in
+      t.info.hash <- Some k;
       let () =
         cnt.node_cache_find <- cnt.node_cache_find + 1;
         match Cache.find cache k with
         | i ->
+            let old = t.info in
             t.info <- i;
+            merge_info ~into:i old;
             hashcons t
         | exception Not_found ->
             cnt.node_cache_miss <- cnt.node_cache_miss + 1;
@@ -707,11 +694,7 @@ module Make (P : S.PRIVATE) = struct
             Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
             Cache.add cache k t.info
       in
-      match t.info.hash with
-      | Some k -> k
-      | None ->
-          t.info.hash <- Some k;
-          k
+      match t.info.hash with Some k -> k | None -> k
 
     let rec to_hash : type a. t -> (hash -> a) -> a =
      fun t k ->
