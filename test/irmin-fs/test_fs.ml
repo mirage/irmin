@@ -17,7 +17,7 @@
 open Lwt.Infix
 module IO = Irmin_fs.IO_mem
 
-let test_db = "test-db"
+let test_db = Filename.concat "_build" "test-db"
 
 let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
 
