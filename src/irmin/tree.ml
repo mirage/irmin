@@ -366,7 +366,7 @@ module Make (P : S.PRIVATE) = struct
       let k = P.Contents.Key.hash v in
       c.info.hash <- Some k;
       let () =
-        cnt.contents_cache_find <- cnt.contents_find + 1;
+        cnt.contents_cache_find <- cnt.contents_cache_find + 1;
         match Hashes.find hashes k with
         | i ->
             let old = c.info in
@@ -392,7 +392,7 @@ module Make (P : S.PRIVATE) = struct
       | Some v as vo ->
           t.info.value <- vo;
           let () =
-            cnt.contents_cache_find <- cnt.contents_find + 1;
+            cnt.contents_cache_find <- cnt.contents_cache_find + 1;
             match Values.find values v with
             | i ->
                 let old = t.info in
