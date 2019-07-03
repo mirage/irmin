@@ -108,11 +108,14 @@ let suite i server =
         remove pid_file;
         Lwt_io.flush_all () >>= fun () ->
         let pwd = Sys.getcwd () in
-        if Filename.basename pwd = "default" then Unix.chdir "../..";
-        let _ =
-          Sys.command
-          @@ Fmt.strf "dune exec --root . -- %s serve %d &" Sys.argv.(0) i
+        let chdir =
+          if Filename.basename pwd = "default" then "cd ../.. && " else ""
         in
+        let cmd =
+          Fmt.strf "%sdune exec --root . -- %s serve %d &" chdir Sys.argv.(0) i
+        in
+        Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
+        let _ = Sys.command cmd in
         wait_for_the_server_to_start () >|= fun pid -> server_pid := pid );
     stats = None;
     clean =
