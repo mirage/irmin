@@ -127,8 +127,11 @@ module Make (Store : Irmin.KV with type contents = string) = struct
     go n Lwt.return
 
   let path ~depth n =
-    List.init (depth + 1) (fun i ->
-        if i = depth then string_of_int n else string_of_int i )
+    let rec aux acc = function
+      | i when i = depth -> List.rev (string_of_int n :: acc)
+      | i -> aux (string_of_int i :: acc) (i + 1)
+    in
+    aux [] 0
 
   let get_maxrss () =
     let usage = Rusage.get SELF in
