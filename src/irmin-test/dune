@@ -1,4 +1,13 @@
 (library
   (name        irmin_test)
   (public_name irmin-test)
+  (modules     Irmin_test Store Common)
   (libraries   irmin mtime mtime.clock.os alcotest lwt.unix logs.fmt))
+
+(library
+  (name        irmin_bench)
+  (public_name irmin-test.bench)
+  (modules     Irmin_bench Rusage)
+  (c_names     rusage_stubs)
+  (libraries   lwt.unix irmin logs.fmt cmdliner fmt.cli fmt.tty logs.cli
+               metrics metrics-unix))

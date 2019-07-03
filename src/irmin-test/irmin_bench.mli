@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2019      Etienne Millon
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,29 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let config ~root = Irmin_pack.config ~fresh:false root
-
-module KV = Irmin_pack.KV (Irmin.Contents.String)
-module Bench = Irmin_bench.Make (KV)
-
-let file f =
-  (* in MiB *)
-  try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
-
-let dict root = file (Filename.concat root "store.dict") / 1024 / 1024
-
-let index root =
-  let rec aux acc i =
-    if i = 256 then acc
-    else
-      let filename = Format.sprintf "store.index.%d" i in
-      let s = file (Filename.concat root filename) in
-      aux (acc + s) (i + 1)
-  in
-  aux 0 0 / 1024 / 1024
-
-let pack root = file (Filename.concat root "store.pack") / 1024 / 1024
-
-let size ~root = dict root + index root + pack root
-
-let () = Bench.run ~config ~size
+module Make (S : Irmin.KV with type contents = string) : sig
+  val run :
+    config:(root:string -> Irmin.config) -> size:(root:string -> int) -> unit
+end

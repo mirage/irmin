@@ -1,12 +1,6 @@
-(library
-  (name rusage)
-  (modules rusage)
-  (c_names rusage_stubs))
-
 (executable
  (name pack_bench)
- (modules pack_bench)
- (libraries rusage irmin_pack bos logs.fmt cmdliner fmt.cli fmt.tty logs.cli))
+ (libraries irmin_pack irmin-test.bench))
 
 (alias
  (name bench)
