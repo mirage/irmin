@@ -298,7 +298,6 @@ module Make (P : S.PRIVATE) = struct
             | exception Not_found ->
                 cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
                 let i = { hash; value } in
-                Log.debug (fun l -> l "Contents.of_v: cache %a" pp_hash k);
                 Cache.add cache k i;
                 i
             | i -> i )
@@ -314,7 +313,6 @@ module Make (P : S.PRIVATE) = struct
       t
 
     let export ?clear:c repo t k =
-      Log.debug (fun l -> l "Tree.Contents.export clear=%b" (c = Some true));
       let hash = t.info.hash in
       if c = Some true then clear t;
       match (t.v, hash) with
@@ -365,7 +363,6 @@ module Make (P : S.PRIVATE) = struct
         | exception Not_found ->
             cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
             c.info.hash <- Some k;
-            Log.debug (fun l -> l "Contents.to_hash: cache %a" pp_hash k);
             Cache.add cache k c.info
       in
       match c.info.hash with Some k -> k | None -> k
@@ -377,7 +374,6 @@ module Make (P : S.PRIVATE) = struct
         match value c with None -> assert false | Some v -> hash_of_value c v )
 
     let value_of_hash t repo k =
-      Log.debug (fun l -> l "Node.Contents.to_value %a" pp_hash k);
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
       | None -> None
@@ -580,7 +576,6 @@ module Make (P : S.PRIVATE) = struct
             | exception Not_found ->
                 cnt.node_cache_miss <- cnt.node_cache_miss + 1;
                 let i = { hash; map; value } in
-                Log.debug (fun l -> l "Node.of_v: cache %a" pp_hash k);
                 Cache.add cache k i;
                 i
             | i -> i )
@@ -597,8 +592,6 @@ module Make (P : S.PRIVATE) = struct
 
     (* export t to the given repo and clear the cache *)
     let export ?clear:c repo t k =
-      Log.debug (fun l ->
-          l "Tree.Node.export_and_clear_cache clear=%b" (c = Some true) );
       let hash = t.info.hash in
       if c = Some true then clear t;
       match t.v with
@@ -691,7 +684,6 @@ module Make (P : S.PRIVATE) = struct
         | exception Not_found ->
             cnt.node_cache_miss <- cnt.node_cache_miss + 1;
             t.info.hash <- Some k;
-            Log.debug (fun l -> l "Node.hash_of_value: cache %a" pp_hash k);
             Cache.add cache k t.info
       in
       match t.info.hash with Some k -> k | None -> k
