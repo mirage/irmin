@@ -1029,6 +1029,7 @@ module Make (P : S.PRIVATE) = struct
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
+    || (c1 == c2 && m1 == m2)
     || (Type.equal P.Contents.Val.t c1 c2 && Type.equal Metadata.t m1 m2)
 
   let equal (x : tree) (y : tree) =
