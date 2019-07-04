@@ -1248,14 +1248,11 @@ module Make (P : S.PRIVATE) = struct
           match Path.decons path with
           | None -> (
               Node.findv view file >>= function
-              | old -> (
-                match old with
-                | Some (`Node _) | None ->
-                    Node.add view file (`Contents (c, metadata)) >>= some
-                | Some (`Contents _ as old) ->
-                    if equal old (`Contents (c, metadata)) then k None
-                    else Node.add view file (`Contents (c, metadata)) >>= some
-                ) )
+              | Some (`Node _) | None ->
+                  Node.add view file (`Contents (c, metadata)) >>= some
+              | Some (`Contents _ as old) ->
+                  if equal old (`Contents (c, metadata)) then k None
+                  else Node.add view file (`Contents (c, metadata)) >>= some )
           | Some (h, p) -> (
               Node.findv view h >>= function
               | None | Some (`Contents _) ->
