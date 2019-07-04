@@ -581,9 +581,9 @@ module Index (H : Irmin.Hash.S) = struct
 
   module Tbl = Table (H)
 
-  let lru_size = 3_000
+  let lru_size = 200
 
-  let page_size = 10_000 * pad
+  let page_size = 100 * pad
 
   let fan_out_size = 256
 
@@ -949,7 +949,7 @@ module Pack (K : Irmin.Hash.S) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
-    let lru_size = 30_000
+    let lru_size = 200
 
     let page_size = 4 * 1024
 
