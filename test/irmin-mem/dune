@@ -12,3 +12,12 @@
  (name    runtest)
  (package irmin-mem)
  (action  (run ./test.exe -q --color=always)))
+
+(executable
+ (name      bench)
+ (modules   bench)
+ (libraries irmin-mem irmin-test.bench))
+
+(alias
+ (name   bench)
+ (action (run ./bench.exe)))
