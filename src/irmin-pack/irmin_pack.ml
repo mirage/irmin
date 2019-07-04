@@ -244,7 +244,8 @@ module IO : IO = struct
       else (
         if Sys.file_exists dir then safe Unix.unlink dir;
         (aux [@tailcall]) (Filename.dirname dir) @@ fun () ->
-        protect (Unix.mkdir dir) 0o755 )
+        protect (Unix.mkdir dir) 0o755;
+        k () )
     in
     (aux [@tailcall]) dirname (fun () -> ())
 
@@ -625,7 +626,7 @@ module Index (H : Irmin.Hash.S) = struct
       else
         let raw = Bytes.create page_size in
         let n = IO.read io ~off:offset raw in
-        assert (n = page_size);
+        assert (n <= page_size);
         let page = Bytes.unsafe_to_string raw in
         let rec read_page page off =
           if off = page_size then ()
