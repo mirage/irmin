@@ -147,6 +147,18 @@ module Make (Store : Irmin.KV with type contents = string) = struct
 
   let plot_progress n t = Fmt.epr "\rcommits: %4d/%d%!" n t
 
+  (* init: create a tree with [t.depth] levels and each levels has
+     [t.tree_add] files + one directory going to the next levele. *)
+  let init t config =
+    let tree = Store.Tree.empty in
+    Store.Repo.v config >>= Store.master >>= fun v ->
+    times ~n:t.depth ~init:tree (fun depth tree ->
+        let paths = Array.init (t.tree_add + 1) (path ~depth) in
+        times ~n:t.tree_add ~init:tree (fun n tree ->
+            Store.Tree.add tree paths.(n) "init" ) )
+    >>= fun tree ->
+    Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
+
   let run t config size =
     let tree = Store.Tree.empty in
     Store.Repo.v config >>= Store.master >>= fun v ->
@@ -161,14 +173,14 @@ module Make (Store : Irmin.KV with type contents = string) = struct
         Store.set_tree_exn v ~info [] tree >>= fun () ->
         if t.clear then Store.Tree.clear tree;
         Lwt.return tree )
-    >|= fun _ -> Fmt.epr "\n[done]\n%!"
+    >|= fun _ -> Fmt.epr "\n[run done]\n%!"
 
   let main t config size =
     let root = "_build/_bench" in
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
-    Lwt_main.run (run t config size)
+    Lwt_main.run (init t config >>= fun () -> run t config size)
 
   let main_term config size = Term.(const main $ t $ pure config $ pure size)
 
