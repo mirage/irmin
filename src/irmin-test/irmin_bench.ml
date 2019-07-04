@@ -23,7 +23,8 @@ type t = {
   depth : int;
   tree_add : int;
   display : int;
-  clear : bool
+  clear : bool;
+  gc : int
 }
 
 type stats = { commits : int; size : int; maxrss : int }
@@ -107,15 +108,22 @@ let display =
   in
   Arg.(value @@ opt int 10 doc)
 
+let gc =
+  let doc =
+    Arg.info ~doc:"Number of commits after which Gc.full_major is called."
+      [ "gc" ]
+  in
+  Arg.(value @@ opt int 100 doc)
+
 let clear =
   let doc = Arg.info ~doc:"Clear the tree after each commit." [ "clear" ] in
   Arg.(value @@ flag doc)
 
 let t =
   Term.(
-    const (fun () ncommits depth tree_add display clear ->
-        { ncommits; depth; tree_add; display; root = "."; clear } )
-    $ log $ ncommits $ depth $ tree_add $ display $ clear)
+    const (fun () ncommits depth tree_add display clear gc ->
+        { ncommits; depth; tree_add; display; root = "."; clear; gc } )
+    $ log $ ncommits $ depth $ tree_add $ display $ clear $ gc)
 
 module Make (Store : Irmin.KV with type contents = string) = struct
   let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
@@ -164,6 +172,7 @@ module Make (Store : Irmin.KV with type contents = string) = struct
     Store.Repo.v config >>= Store.master >>= fun v ->
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
     times ~n:t.ncommits ~init:tree (fun i tree ->
+        if i mod t.gc = 0 then Gc.full_major ();
         if i mod t.display = 0 then (
           plot_progress i t.ncommits;
           print_stats ~size ~commits:i );
