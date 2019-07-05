@@ -131,7 +131,8 @@ module IO : IO = struct
     let really_read fd buf =
       let rec aux off len =
         let r = Unix.read fd buf off len in
-        if r = 0 || r = len then off + r
+        if r = len then off + r
+        else if r = 0 then raise End_of_file
         else (aux [@tailcall]) (off + r) (len - r)
       in
       (aux [@tailcall]) 0 (Bytes.length buf)
