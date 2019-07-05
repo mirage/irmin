@@ -1029,6 +1029,7 @@ module Make (P : S.PRIVATE) = struct
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
+    || (c1 == c2 && m1 == m2)
     || (Type.equal P.Contents.Val.t c1 c2 && Type.equal Metadata.t m1 m2)
 
   let equal (x : tree) (y : tree) =
@@ -1248,14 +1249,11 @@ module Make (P : S.PRIVATE) = struct
           match Path.decons path with
           | None -> (
               Node.findv view file >>= function
-              | old -> (
-                match old with
-                | Some (`Node _) | None ->
-                    Node.add view file (`Contents (c, metadata)) >>= some
-                | Some (`Contents _ as old) ->
-                    if equal old (`Contents (c, metadata)) then k None
-                    else Node.add view file (`Contents (c, metadata)) >>= some
-                ) )
+              | Some (`Node _) | None ->
+                  Node.add view file (`Contents (c, metadata)) >>= some
+              | Some (`Contents _ as old) ->
+                  if equal old (`Contents (c, metadata)) then k None
+                  else Node.add view file (`Contents (c, metadata)) >>= some )
           | Some (h, p) -> (
               Node.findv view h >>= function
               | None | Some (`Contents _) ->
