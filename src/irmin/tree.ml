@@ -21,121 +21,6 @@ let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-type counters = {
-  mutable contents_hash : int;
-  mutable contents_find : int;
-  mutable contents_add : int;
-  mutable contents_cache_length : int;
-  mutable contents_cache_find : int;
-  mutable contents_cache_miss : int;
-  mutable node_hash : int;
-  mutable node_mem : int;
-  mutable node_add : int;
-  mutable node_find : int;
-  mutable node_cache_length : int;
-  mutable node_cache_find : int;
-  mutable node_cache_miss : int;
-  mutable node_val_v : int;
-  mutable node_val_find : int;
-  mutable node_val_list : int
-}
-
-let counters_t =
-  let open Type in
-  record "counters"
-    (fun contents_hash
-    contents_find
-    contents_add
-    contents_cache_length
-    contents_cache_find
-    contents_cache_miss
-    node_hash
-    node_mem
-    node_add
-    node_find
-    node_cache_length
-    node_cache_find
-    node_cache_miss
-    node_val_v
-    node_val_find
-    node_val_list
-    ->
-      { contents_hash;
-        contents_find;
-        contents_add;
-        contents_cache_length;
-        contents_cache_find;
-        contents_cache_miss;
-        node_hash;
-        node_mem;
-        node_add;
-        node_find;
-        node_cache_length;
-        node_cache_find;
-        node_cache_miss;
-        node_val_v;
-        node_val_find;
-        node_val_list
-      } )
-  |+ field "contents_hash" int (fun x -> x.contents_hash)
-  |+ field "contents_find" int (fun x -> x.contents_find)
-  |+ field "contents_add" int (fun x -> x.contents_add)
-  |+ field "contents_cache_length" int (fun x -> x.contents_cache_length)
-  |+ field "contents_cache_find" int (fun x -> x.contents_cache_find)
-  |+ field "contents_cache_miss" int (fun x -> x.contents_cache_miss)
-  |+ field "node_hash" int (fun x -> x.node_hash)
-  |+ field "node_mem" int (fun x -> x.node_mem)
-  |+ field "node_add" int (fun x -> x.node_add)
-  |+ field "node_find" int (fun x -> x.node_find)
-  |+ field "node_cache_length" int (fun x -> x.node_cache_length)
-  |+ field "node_cache_find" int (fun x -> x.node_cache_find)
-  |+ field "node_cache_miss" int (fun x -> x.node_cache_miss)
-  |+ field "node_val_v" int (fun x -> x.node_val_v)
-  |+ field "node_val_find" int (fun x -> x.node_val_find)
-  |+ field "node_val_list" int (fun x -> x.node_val_list)
-  |> sealr
-
-let dump_counters ppf t = Type.pp_json ~minify:false counters_t ppf t
-
-let fresh_counters () =
-  { contents_hash = 0;
-    contents_add = 0;
-    contents_find = 0;
-    contents_cache_length = 0;
-    contents_cache_find = 0;
-    contents_cache_miss = 0;
-    node_hash = 0;
-    node_mem = 0;
-    node_add = 0;
-    node_find = 0;
-    node_cache_length = 0;
-    node_cache_find = 0;
-    node_cache_miss = 0;
-    node_val_v = 0;
-    node_val_find = 0;
-    node_val_list = 0
-  }
-
-let reset_counters t =
-  t.contents_hash <- 0;
-  t.contents_add <- 0;
-  t.contents_find <- 0;
-  t.contents_cache_length <- 0;
-  t.contents_cache_find <- 0;
-  t.contents_cache_miss <- 0;
-  t.node_hash <- 0;
-  t.node_mem <- 0;
-  t.node_add <- 0;
-  t.node_find <- 0;
-  t.node_cache_length <- 0;
-  t.node_cache_find <- 0;
-  t.node_cache_miss <- 0;
-  t.node_val_v <- 0;
-  t.node_val_find <- 0;
-  t.node_val_list <- 0
-
-let cnt = fresh_counters ()
-
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
   let rec aux l1 l2 =
@@ -203,6 +88,121 @@ end = struct
 end
 
 module Make (P : S.PRIVATE) = struct
+  type counters = {
+    mutable contents_hash : int;
+    mutable contents_find : int;
+    mutable contents_add : int;
+    mutable contents_cache_length : int;
+    mutable contents_cache_find : int;
+    mutable contents_cache_miss : int;
+    mutable node_hash : int;
+    mutable node_mem : int;
+    mutable node_add : int;
+    mutable node_find : int;
+    mutable node_cache_length : int;
+    mutable node_cache_find : int;
+    mutable node_cache_miss : int;
+    mutable node_val_v : int;
+    mutable node_val_find : int;
+    mutable node_val_list : int
+  }
+
+  let counters_t =
+    let open Type in
+    record "counters"
+      (fun contents_hash
+      contents_find
+      contents_add
+      contents_cache_length
+      contents_cache_find
+      contents_cache_miss
+      node_hash
+      node_mem
+      node_add
+      node_find
+      node_cache_length
+      node_cache_find
+      node_cache_miss
+      node_val_v
+      node_val_find
+      node_val_list
+      ->
+        { contents_hash;
+          contents_find;
+          contents_add;
+          contents_cache_length;
+          contents_cache_find;
+          contents_cache_miss;
+          node_hash;
+          node_mem;
+          node_add;
+          node_find;
+          node_cache_length;
+          node_cache_find;
+          node_cache_miss;
+          node_val_v;
+          node_val_find;
+          node_val_list
+        } )
+    |+ field "contents_hash" int (fun x -> x.contents_hash)
+    |+ field "contents_find" int (fun x -> x.contents_find)
+    |+ field "contents_add" int (fun x -> x.contents_add)
+    |+ field "contents_cache_length" int (fun x -> x.contents_cache_length)
+    |+ field "contents_cache_find" int (fun x -> x.contents_cache_find)
+    |+ field "contents_cache_miss" int (fun x -> x.contents_cache_miss)
+    |+ field "node_hash" int (fun x -> x.node_hash)
+    |+ field "node_mem" int (fun x -> x.node_mem)
+    |+ field "node_add" int (fun x -> x.node_add)
+    |+ field "node_find" int (fun x -> x.node_find)
+    |+ field "node_cache_length" int (fun x -> x.node_cache_length)
+    |+ field "node_cache_find" int (fun x -> x.node_cache_find)
+    |+ field "node_cache_miss" int (fun x -> x.node_cache_miss)
+    |+ field "node_val_v" int (fun x -> x.node_val_v)
+    |+ field "node_val_find" int (fun x -> x.node_val_find)
+    |+ field "node_val_list" int (fun x -> x.node_val_list)
+    |> sealr
+
+  let dump_counters ppf t = Type.pp_json ~minify:false counters_t ppf t
+
+  let fresh_counters () =
+    { contents_hash = 0;
+      contents_add = 0;
+      contents_find = 0;
+      contents_cache_length = 0;
+      contents_cache_find = 0;
+      contents_cache_miss = 0;
+      node_hash = 0;
+      node_mem = 0;
+      node_add = 0;
+      node_find = 0;
+      node_cache_length = 0;
+      node_cache_find = 0;
+      node_cache_miss = 0;
+      node_val_v = 0;
+      node_val_find = 0;
+      node_val_list = 0
+    }
+
+  let reset_counters t =
+    t.contents_hash <- 0;
+    t.contents_add <- 0;
+    t.contents_find <- 0;
+    t.contents_cache_length <- 0;
+    t.contents_cache_find <- 0;
+    t.contents_cache_miss <- 0;
+    t.node_hash <- 0;
+    t.node_mem <- 0;
+    t.node_add <- 0;
+    t.node_find <- 0;
+    t.node_cache_length <- 0;
+    t.node_cache_find <- 0;
+    t.node_cache_miss <- 0;
+    t.node_val_v <- 0;
+    t.node_val_find <- 0;
+    t.node_val_list <- 0
+
+  let cnt = fresh_counters ()
+
   module Path = P.Node.Path
 
   module StepMap = struct
@@ -1586,6 +1586,8 @@ module Make (P : S.PRIVATE) = struct
     let post _ _ acc = Lwt.return acc in
     fold ~force ~pre ~post f t empty_stats
 
+  let counters () = cnt
+
   let dump_counters ppf () =
     let `Contents c, `Nodes n = Cache.length () in
     cnt.contents_cache_length <- c;
@@ -1593,4 +1595,13 @@ module Make (P : S.PRIVATE) = struct
     dump_counters ppf cnt
 
   let reset_counters () = reset_counters cnt
+
+  let inspect = function
+    | `Contents _ -> `Contents
+    | `Node n ->
+        `Node
+          ( match n.Node.v with
+          | Map _ -> `Map
+          | Value _ -> `Value
+          | Hash _ -> `Hash )
 end

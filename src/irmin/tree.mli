@@ -48,8 +48,4 @@ module Make (P : S.PRIVATE) : sig
   val of_private_node : P.Repo.t -> P.Node.value -> node
 
   val to_private_node : node -> P.Node.value option Lwt.t
-
-  val dump_counters : unit Fmt.t
-
-  val reset_counters : unit -> unit
 end
