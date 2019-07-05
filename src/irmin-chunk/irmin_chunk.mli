@@ -82,7 +82,7 @@ val config :
     the smaller [size] is, the bigger the risk of hash collisions, so
     use reasonable values. *)
 
-(** [Content_addressable(X)] is a content-addressable store which store values
-    cut into chunks into the underlying store [X]. *)
 module Content_addressable (S : Irmin.APPEND_ONLY_STORE_MAKER) :
   Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+(** [Content_addressable(X)] is a content-addressable store which store values
+    cut into chunks into the underlying store [X]. *)

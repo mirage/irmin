@@ -103,7 +103,7 @@ let test_index () =
       (fun (h, o) ->
         let e = Index.find t h |> get in
         Alcotest.(check int64) "entry off" o e.offset;
-        Alcotest.(check hash) "entry hash" h e.hash )
+        Alcotest.(check hash) "entry hash" h e.hash)
       [ (h1, o1); (h2, o2); (h3, o3) ]
   in
   test t;
@@ -154,7 +154,8 @@ let test_pack _switch () =
     Alcotest.(check string) "x4" x4 y4;
     Lwt.return ()
   in
-  test t >>= fun () -> Pack.v ~fresh:false test_file >>= test
+  test t >>= fun () ->
+  Pack.v ~fresh:false test_file >>= test
 
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 

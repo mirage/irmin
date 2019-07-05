@@ -68,7 +68,8 @@ let rec wait_for_the_server_to_start () =
     Lwt.return pid )
   else (
     Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start () )
+    Lwt_unix.sleep 0.1 >>= fun () ->
+    wait_for_the_server_to_start () )
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
@@ -81,7 +82,7 @@ let serve servers n =
   Logs.debug (fun l ->
       l "Got server: %s, root=%a" server.name
         Fmt.(option string)
-        (root server.config) );
+        (root server.config));
   let (module Server : Irmin_test.S) = server.store in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let server () =
@@ -102,7 +103,8 @@ let serve servers n =
 let suite i server =
   let open Irmin_test in
   let server_pid = ref 0 in
-  { name = Printf.sprintf "HTTP.%s" server.name;
+  {
+    name = Printf.sprintf "HTTP.%s" server.name;
     init =
       (fun () ->
         remove pid_file;
@@ -116,7 +118,8 @@ let suite i server =
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in
-        wait_for_the_server_to_start () >|= fun pid -> server_pid := pid );
+        wait_for_the_server_to_start () >|= fun pid ->
+        server_pid := pid);
     stats = None;
     clean =
       (fun () ->
@@ -127,9 +130,9 @@ let suite i server =
             with _ -> ()
           in
           server.clean ()
-        with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit );
+        with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit);
     config = Irmin_http.config uri;
-    store = http_store server.store
+    store = http_store server.store;
   }
 
 let suites servers =

@@ -90,10 +90,10 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S)
     (Presentation : PRESENTATION
-                    with type contents := Store.contents
-                     and type metadata := Store.metadata
-                     and type tree := Store.tree
-                     and type key := Store.key) =
+                      with type contents := Store.contents
+                       and type metadata := Store.metadata
+                       and type tree := Store.tree
+                       and type key := Store.key) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
@@ -108,7 +108,7 @@ struct
     message : string option;
     retries : int option;
     allow_empty : bool option;
-    parents : Store.Hash.t list option
+    parents : Store.Hash.t list option;
   }
 
   let txn_args repo input =
@@ -139,7 +139,7 @@ struct
   type tree_item = {
     key : Store.key;
     value : Store.contents option;
-    metadata : Store.metadata option
+    metadata : Store.metadata option;
   }
 
   let mk_branch repo = function
@@ -170,9 +170,9 @@ struct
 
     let coerce_remote = function
       | `String s -> (
-        match Config.remote with
-        | Some remote -> Ok (remote s)
-        | None -> Error "sync is not available" )
+          match Config.remote with
+          | Some remote -> Ok (remote s)
+          | None -> Error "sync is not available" )
       | _ -> Error "invalid remote encoding"
 
     let coerce_hash = function

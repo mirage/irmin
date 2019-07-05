@@ -24,7 +24,7 @@ type t = {
   tree_add : int;
   display : int;
   clear : bool;
-  gc : int
+  gc : int;
 }
 
 type stats = { commits : int; size : int; maxrss : int }
@@ -122,7 +122,7 @@ let clear =
 let t =
   Term.(
     const (fun () ncommits depth tree_add display clear gc ->
-        { ncommits; depth; tree_add; display; root = "."; clear; gc } )
+        { ncommits; depth; tree_add; display; root = "."; clear; gc })
     $ log $ ncommits $ depth $ tree_add $ display $ clear $ gc)
 
 module Make (Store : Irmin.KV with type contents = string) = struct
@@ -163,9 +163,10 @@ module Make (Store : Irmin.KV with type contents = string) = struct
     times ~n:t.depth ~init:tree (fun depth tree ->
         let paths = Array.init (t.tree_add + 1) (path ~depth) in
         times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) "init" ) )
+            Store.Tree.add tree paths.(n) "init"))
     >>= fun tree ->
-    Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
+    Store.set_tree_exn v ~info [] tree >|= fun () ->
+    Fmt.epr "[init done]\n%!"
 
   let run t config size =
     let tree = Store.Tree.empty in
@@ -177,25 +178,28 @@ module Make (Store : Irmin.KV with type contents = string) = struct
           plot_progress i t.ncommits;
           print_stats ~size ~commits:i );
         times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) (string_of_int i) )
+            Store.Tree.add tree paths.(n) (string_of_int i))
         >>= fun tree ->
         Store.set_tree_exn v ~info [] tree >>= fun () ->
         if t.clear then Store.Tree.clear tree;
-        Lwt.return tree )
-    >|= fun _ -> Fmt.epr "\n[run done]\n%!"
+        Lwt.return tree)
+    >|= fun _ ->
+    Fmt.epr "\n[run done]\n%!"
 
   let main t config size =
     let root = "_build/_bench" in
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
-    Lwt_main.run (init t config >>= fun () -> run t config size)
+    Lwt_main.run
+      ( init t config >>= fun () ->
+        run t config size )
 
   let main_term config size = Term.(const main $ t $ pure config $ pure size)
 
   let () =
     at_exit (fun () ->
-        Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters () )
+        Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
     let info = Term.info "Simple benchmark for trees" in

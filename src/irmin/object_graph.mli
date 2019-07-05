@@ -17,11 +17,11 @@
 (** Graphs. *)
 
 module type S = sig
-  (** Directed graph *)
   include Graph.Sig.I
+  (** Directed graph *)
 
-  (** Basic operations. *)
   include Graph.Oper.S with type g := t
+  (** Basic operations. *)
 
   (** Topoogical traversal *)
   module Topological : sig
@@ -61,8 +61,8 @@ module type S = sig
   val max : t -> vertex list
   (** Compute the maximun vertex. *)
 
-  (** Expose the graph internals. *)
   type dump = vertex list * (vertex * vertex) list
+  (** Expose the graph internals. *)
 
   val export : t -> dump
   (** Expose the graph as a pair of vertices and edges. *)
@@ -70,11 +70,10 @@ module type S = sig
   val import : dump -> t
   (** Import a graph. *)
 
-  (** The base functions over graph internals. *)
   module Dump : Type.S with type t = dump
+  (** The base functions over graph internals. *)
 end
 
-(** Build a graph. *)
 module Make
     (Contents : Type.S)
     (Metadata : Type.S)
@@ -82,8 +81,9 @@ module Make
     (Commit : Type.S)
     (Branch : Type.S) :
   S
-  with type V.t =
-              [ `Contents of Contents.t * Metadata.t
-              | `Node of Node.t
-              | `Commit of Commit.t
-              | `Branch of Branch.t ]
+    with type V.t =
+          [ `Contents of Contents.t * Metadata.t
+          | `Node of Node.t
+          | `Commit of Commit.t
+          | `Branch of Branch.t ]
+(** Build a graph. *)

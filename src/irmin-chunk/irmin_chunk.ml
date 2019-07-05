@@ -76,8 +76,8 @@ module Chunk (K : Irmin.Hash.S) = struct
 
   let v =
     let open Irmin.Type in
-    variant "chunk" (fun d i -> function
-      | Data data -> d data | Index index -> i index )
+    variant "chunk" (fun d i ->
+      function Data data -> d data | Index index -> i index)
     |~ case1 "Data" string (fun d -> Data d)
     |~ case1 "Index" (list ~len:`Int16 K.t) (fun i -> Index i)
     |> sealv
@@ -133,7 +133,7 @@ struct
     (* the size of chunks. *)
     max_children : int;
     (* the maximum number of children a node can have. *)
-    max_data : int
+    max_data : int;
         (* the maximum length (in bytes) of data stored in one
                           chunk. *)
   }
@@ -161,7 +161,7 @@ struct
               (fun acc key ->
                 CA.find t.db key >>= function
                 | None -> Lwt.return acc
-                | Some v -> aux acc v )
+                | Some v -> aux acc v)
               acc i
       in
       aux [] root >|= List.rev
@@ -186,7 +186,9 @@ struct
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
+            | [ i ] ->
+                AO.add t.db key (index t i) >|= fun () ->
+                key
             | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux
             )
       in
@@ -206,7 +208,7 @@ struct
       err_too_small ~min chunk_size );
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
-          chunk_size K.hash_size max_data max_children );
+          chunk_size K.hash_size max_data max_children);
     CA.v config >|= fun db ->
     { chunking; db; chunk_size; max_children; max_data }
 
@@ -215,7 +217,9 @@ struct
   let find_leaves t key =
     AO.find t.db key >>= function
     | None -> Lwt.return None (* shallow objects *)
-    | Some x -> Tree.find_leaves t x >|= fun v -> Some v
+    | Some x ->
+        Tree.find_leaves t x >|= fun v ->
+        Some v
 
   let check_hash k v =
     let k' = K.hash (fun f -> f v) in

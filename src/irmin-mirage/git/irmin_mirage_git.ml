@@ -18,28 +18,28 @@ module type S_MAKER = functor
   (B : Irmin.Branch.S)
   ->
   S
-  with type key = P.t
-   and type step = P.step
-   and module Key = P
-   and type contents = C.t
-   and type branch = B.t
-   and module Git = G
+    with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
 
 module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = string
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
 
 module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = Irmin_git.reference
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = Irmin_git.reference
+     and module Git = G
 
 module Make
     (G : Irmin_git.G)
@@ -263,7 +263,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     author : string;
     clock : C.t;
     msg : [ `Set of RO.key | `Remove of RO.key | `Batch ] -> string;
-    remote : Irmin.remote
+    remote : Irmin.remote;
   }
 
   type key = RO.key

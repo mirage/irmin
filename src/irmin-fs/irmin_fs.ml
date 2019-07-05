@@ -84,7 +84,8 @@ struct
 
   let v config =
     let path = get_path config in
-    IO.mkdir path >|= fun () -> { path }
+    IO.mkdir path >|= fun () ->
+    { path }
 
   let cast t = (t :> [ `Read | `Write ] t)
 
@@ -126,7 +127,7 @@ struct
           if n <= p + 1 then acc
           else
             let file = String.with_range file ~first:(p + 1) in
-            file :: acc )
+            file :: acc)
         [] files
     in
     List.fold_left
@@ -135,7 +136,7 @@ struct
         | Ok k -> k :: acc
         | Error (`Msg e) ->
             Log.err (fun l -> l "Irmin_fs.list: %s" e);
-            acc )
+            acc)
       [] files
 end
 
@@ -220,12 +221,17 @@ struct
 
   let watch_key t key ?init f =
     listen_dir t >>= fun stop ->
-    W.watch_key t.w key ?init f >|= fun w -> (w, stop)
+    W.watch_key t.w key ?init f >|= fun w ->
+    (w, stop)
 
   let watch t ?init f =
-    listen_dir t >>= fun stop -> W.watch t.w ?init f >|= fun w -> (w, stop)
+    listen_dir t >>= fun stop ->
+    W.watch t.w ?init f >|= fun w ->
+    (w, stop)
 
-  let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
+  let unwatch t (id, stop) =
+    stop () >>= fun () ->
+    W.unwatch t.w id
 
   let raw_value v = Irmin.Type.to_bin_string V.t v
 
@@ -241,7 +247,8 @@ struct
     Log.debug (fun f -> f "remove %a" RO.pp_key key);
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
-    IO.remove_file ~lock file >>= fun () -> W.notify t.w key None
+    IO.remove_file ~lock file >>= fun () ->
+    W.notify t.w key None
 
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
@@ -252,7 +259,8 @@ struct
     IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
       ~set:(raw_value set)
     >>= fun b ->
-    (if b then W.notify t.w key set else Lwt.return_unit) >|= fun () -> b
+    (if b then W.notify t.w key set else Lwt.return_unit) >|= fun () ->
+    b
 end
 
 module Make_ext
@@ -319,7 +327,7 @@ module KV (IO : IO) (C : Irmin.Contents.S) =
 module IO_mem = struct
   type t = {
     watches : (string, string -> unit Lwt.t) Hashtbl.t;
-    files : (string, string) Hashtbl.t
+    files : (string, string) Hashtbl.t;
   }
 
   let t = { watches = Hashtbl.create 3; files = Hashtbl.create 13 }
@@ -345,14 +353,14 @@ module IO_mem = struct
       Hashtbl.replace t.watches dir f;
       Lwt.return (fun () ->
           Hashtbl.remove t.watches dir;
-          Lwt.return_unit )
+          Lwt.return_unit)
     in
     Irmin.Private.Watch.set_listen_dir_hook h
 
   let notify file =
     Hashtbl.fold
       (fun dir f acc ->
-        if String.is_prefix ~affix:dir file then f file :: acc else acc )
+        if String.is_prefix ~affix:dir file then f file :: acc else acc)
       t.watches []
     |> Lwt_list.iter_p (fun x -> x)
 
@@ -361,7 +369,7 @@ module IO_mem = struct
   let remove_file ?lock file =
     with_lock lock (fun () ->
         Hashtbl.remove t.files file;
-        Lwt.return_unit )
+        Lwt.return_unit)
 
   let rec_files dir =
     Hashtbl.fold
@@ -380,8 +388,9 @@ module IO_mem = struct
   let write_file ?temp_dir:_ ?lock file v =
     with_lock lock (fun () ->
         Hashtbl.replace t.files file v;
-        Lwt.return_unit )
-    >>= fun () -> notify file
+        Lwt.return_unit)
+    >>= fun () ->
+    notify file
 
   let equal x y =
     match (x, y) with
@@ -405,7 +414,8 @@ module IO_mem = struct
               Hashtbl.replace t.files file v;
               true
       in
-      (if b then notify file else Lwt.return_unit) >|= fun () -> b
+      (if b then notify file else Lwt.return_unit) >|= fun () ->
+      b
     in
     with_lock (Some lock) f
 

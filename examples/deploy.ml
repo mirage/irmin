@@ -39,7 +39,8 @@ let configure repo =
     [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23"
   >>= fun () ->
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.clone ~src:t ~dst:"prod" >>= fun _ -> Lwt.return_unit
+  Store.clone ~src:t ~dst:"prod" >>= fun _ ->
+  Lwt.return_unit
 
 let attack repo =
   let info = info ~user:"Remote connection from 132.443.12.444" in
@@ -68,7 +69,8 @@ let revert repo =
        detected!\n\
        Reverting the production system to the dev environment.\n\
        %!";
-    Lwt_unix.sleep 2. >>= fun () -> Store.Head.set prod h2 )
+    Lwt_unix.sleep 2. >>= fun () ->
+    Store.Head.set prod h2 )
   else Lwt.return_unit
 
 let () =

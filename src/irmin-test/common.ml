@@ -18,10 +18,10 @@ open Astring
 
 module type S =
   Irmin.S
-  with type step = string
-   and type key = string list
-   and type contents = string
-   and type branch = string
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
 
 let ignore_srcs src =
   List.mem (Logs.Src.name src)
@@ -85,7 +85,7 @@ type t = {
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
-  stats : (unit -> int * int) option
+  stats : (unit -> int * int) option;
 }
 
 let ( / ) = Filename.concat

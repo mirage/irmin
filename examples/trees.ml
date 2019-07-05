@@ -16,15 +16,18 @@ let tree_of_t t =
     (fun (v, i) t2 ->
       let si = string_of_int i in
       Tree.add v [ si; "x" ] t2.x >>= fun v ->
-      Tree.add v [ si; "y" ] (string_of_int t2.y) >|= fun v -> (v, i + 1) )
+      Tree.add v [ si; "y" ] (string_of_int t2.y) >|= fun v ->
+      (v, i + 1))
     (Tree.empty, 0) t
-  >|= fun (v, _) -> v
+  >|= fun (v, _) ->
+  v
 
 let t_of_tree v =
   let aux acc i =
     let i = string_of_int i in
     Tree.get v [ i; "x" ] >>= fun x ->
-    Tree.get v [ i; "y" ] >|= fun y -> { x; y = int_of_string y } :: acc
+    Tree.get v [ i; "y" ] >|= fun y ->
+    { x; y = int_of_string y } :: acc
   in
   Tree.list v [] >>= fun t2s ->
   let t2s = List.map (fun (i, _) -> int_of_string i) t2s in

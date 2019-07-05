@@ -9,61 +9,69 @@ let fin () =
 
 type action = {
   message : string;
-  files : (string list * (unit -> string)) list
+  files : (string list * (unit -> string)) list;
 }
 
 type image = { name : string; actions : action list }
 
 let ubuntu =
-  { name = "official-images/ubuntu:14.04";
+  {
+    name = "official-images/ubuntu:14.04";
     actions =
-      [ { message = "Updating source lists";
+      [ {
+          message = "Updating source lists";
           files =
             [ ( [ "etc"; "source.list" ],
                 fun () -> sprintf "deb %d" (Random.int 10) )
-            ]
+            ];
         };
         { message = "grep -v '^#' /etc/apt/sources.list"; files = [] };
         { message = "cat /etc/issue"; files = [] }
-      ]
+      ];
   }
 
 let wordpress =
-  { name = "official-images/wordpress:latest";
+  {
+    name = "official-images/wordpress:latest";
     actions =
-      [ { message = "user logging";
+      [ {
+          message = "user logging";
           files =
             [ ( [ "wordpress"; "wp-users.php" ],
                 fun () -> sprintf "<?php ...%d" (Random.int 10) )
-            ]
+            ];
         };
-        { message = "configuration updates";
+        {
+          message = "configuration updates";
           files =
             [ ( [ "wordpress"; "wp-settings.php" ],
                 fun () -> sprintf "<?php .. %d" (Random.int 10) )
-            ]
+            ];
         }
-      ]
+      ];
   }
 
 let mysql =
-  { name = "local/mysql:5.5.41";
+  {
+    name = "local/mysql:5.5.41";
     actions =
       [ { message = "Reading table wp_users"; files = [] };
-        { message = "Writing table wp_users";
+        {
+          message = "Writing table wp_users";
           files =
             [ ( [ "var"; "lib"; "mysql" ],
                 fun () -> sprintf "X%duYYt" (Random.int 10) )
-            ]
+            ];
         };
         { message = "Reading table wp_posts"; files = [] };
-        { message = "Writing table wp_posts";
+        {
+          message = "Writing table wp_posts";
           files =
             [ ( [ "var"; "lib"; "mysql" ],
                 fun () -> sprintf "X%dxYYt" (Random.int 10) )
-            ]
+            ];
         }
-      ]
+      ];
   }
 
 let branch image = String.map (function ':' -> '/' | c -> c) image.name
@@ -89,7 +97,9 @@ let init () =
   Store.of_branch repo master >>= fun t ->
   Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" >>= fun () ->
   Lwt_list.iter_s
-    (fun i -> Store.clone ~src:t ~dst:(branch i) >>= fun _ -> Lwt.return_unit)
+    (fun i ->
+      Store.clone ~src:t ~dst:(branch i) >>= fun _ ->
+      Lwt.return_unit)
     (Array.to_list images)
 
 let random_array a = a.(Random.int (Array.length a))
@@ -124,18 +134,20 @@ let rec process image =
     else Lwt.return_unit
   else Lwt.return_unit )
   >>= fun () ->
-  Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () -> process image
+  Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () ->
+  process image
 
 let rec protect fn x =
   Lwt.catch
     (fun () -> fn x)
     (fun e ->
       Printf.eprintf "error: %s" (Printexc.to_string e);
-      protect fn x )
+      protect fn x)
 
 let rec watchdog () =
   Printf.printf "I'm alive!\n%!";
-  Lwt_unix.sleep 1. >>= fun () -> watchdog ()
+  Lwt_unix.sleep 1. >>= fun () ->
+  watchdog ()
 
 let () =
   let aux () =

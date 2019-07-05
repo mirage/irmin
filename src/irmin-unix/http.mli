@@ -16,15 +16,15 @@
 
 module Client (S : Irmin.S) :
   Irmin.S
-  with type key = S.key
-   and type contents = S.contents
-   and type branch = S.branch
-   and type hash = S.hash
-   and type step = S.step
-   and type metadata = S.metadata
-   and type Key.step = S.Key.step
+    with type key = S.key
+     and type contents = S.contents
+     and type branch = S.branch
+     and type hash = S.hash
+     and type step = S.step
+     and type metadata = S.metadata
+     and type Key.step = S.Key.step
 
 module Server (S : Irmin.S) :
   Irmin_http.SERVER
-  with type repo = S.Repo.t
-   and type t = Cohttp_lwt_unix.Server.t
+    with type repo = S.Repo.t
+     and type t = Cohttp_lwt_unix.Server.t

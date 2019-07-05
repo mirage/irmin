@@ -30,7 +30,7 @@ type t = {
   msgrcv : int64;
   nsignals : int64;
   nvcsw : int64;
-  nivcsw : int64
+  nivcsw : int64;
 }
 
 type who = SELF | CHILDREN

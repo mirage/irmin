@@ -16,6 +16,6 @@
 
 module Make (C : S.CONTENTS_STORE) (N : S.NODE_STORE) (H : S.COMMIT_STORE) :
   S.SLICE
-  with type contents = C.key * C.value
-   and type node = N.key * N.value
-   and type commit = H.key * H.value
+    with type contents = C.key * C.value
+     and type node = N.key * N.value
+     and type commit = H.key * H.value

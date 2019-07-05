@@ -20,7 +20,7 @@ let stats =
   Some
     (fun () ->
       let stats = Irmin_watcher.stats () in
-      (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()) )
+      (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()))
 
 (* FS *)
 
@@ -61,10 +61,13 @@ module Git = struct
       Unix.chdir Fpath.(to_string @@ (v "test" / "irmin-unix")) );
     ( if Sys.file_exists test_db then
       Git_unix.Store.v (Fpath.v test_db) >>= function
-      | Ok t -> Git_unix.Store.reset t >|= fun _ -> ()
+      | Ok t ->
+          Git_unix.Store.reset t >|= fun _ ->
+          ()
       | Error _ -> Lwt.return ()
     else Lwt.return_unit )
-    >|= fun () -> Irmin_unix.set_listen_dir_hook ()
+    >|= fun () ->
+    Irmin_unix.set_listen_dir_hook ()
 
   module S = struct
     module G = Git_unix.Store

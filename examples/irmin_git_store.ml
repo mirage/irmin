@@ -34,7 +34,8 @@ let main () =
   | Ok () ->
       print_endline "merging ...";
       read_exn t [ "root"; "misc"; "2.txt" ] >>= fun _ ->
-      read_exn t [ "root"; "misc"; "3.txt" ] >>= fun _ -> Lwt.return_unit
+      read_exn t [ "root"; "misc"; "3.txt" ] >>= fun _ ->
+      Lwt.return_unit
 
 let () =
   Printf.printf

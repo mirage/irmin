@@ -78,7 +78,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let lock = L.v ()
 
-  let v config = RO.v config >>= fun t -> Lwt.return { t; w = watches; lock }
+  let v config =
+    RO.v config >>= fun t ->
+    Lwt.return { t; w = watches; lock }
 
   let find t = RO.find t.t
 
@@ -98,15 +100,17 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Log.debug (fun f -> f "update");
     L.with_lock t.lock key (fun () ->
         t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-        Lwt.return_unit )
-    >>= fun () -> W.notify t.w key (Some value)
+        Lwt.return_unit)
+    >>= fun () ->
+    W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug (fun f -> f "remove");
     L.with_lock t.lock key (fun () ->
         t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-        Lwt.return_unit )
-    >>= fun () -> W.notify t.w key None
+        Lwt.return_unit)
+    >>= fun () ->
+    W.notify t.w key None
 
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set");
@@ -119,7 +123,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
           in
           Lwt.return true
-        else Lwt.return false )
+        else Lwt.return false)
     >>= fun updated ->
     (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
     Lwt.return updated

@@ -56,11 +56,12 @@ type all_stats = {
   mutable pack_page_read : int;
   mutable pack_page_miss : int;
   mutable index_page_read : int;
-  mutable index_page_miss : int
+  mutable index_page_miss : int;
 }
 
 let fresh_stats () =
-  { index_appends = 0;
+  {
+    index_appends = 0;
     index_mems = 0;
     index_finds = 0;
     index_bloomf_misses = 0;
@@ -72,7 +73,7 @@ let fresh_stats () =
     pack_page_read = 0;
     pack_page_miss = 0;
     index_page_read = 0;
-    index_page_miss = 0
+    index_page_miss = 0;
   }
 
 let stats = fresh_stats ()
@@ -172,7 +173,7 @@ module IO : IO = struct
     mutable raw : Raw.t;
     mutable offset : int64;
     mutable flushed : int64;
-    buf : Buffer.t
+    buf : Buffer.t;
   }
 
   let header = 8L
@@ -186,6 +187,7 @@ module IO : IO = struct
     else (
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.unsafe_set_offset t.raw offset;
+
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
@@ -294,12 +296,12 @@ module Lru (H : Hashtbl.HashedType) = struct
     type 'a node = {
       value : 'a;
       mutable next : 'a node option;
-      mutable prev : 'a node option
+      mutable prev : 'a node option;
     }
 
     type 'a t = {
       mutable first : 'a node option;
-      mutable last : 'a node option
+      mutable last : 'a node option;
     }
 
     let clear t =
@@ -350,7 +352,7 @@ module Lru (H : Hashtbl.HashedType) = struct
     ht : (key * 'a) Q.node HT.t;
     q : (key * 'a) Q.t;
     mutable cap : int;
-    mutable w : int
+    mutable w : int;
   }
 
   let weight t = t.w
@@ -488,7 +490,7 @@ module Dict = struct
   type t = {
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    block : IO.t
+    block : IO.t;
   }
 
   let append_string t v =
@@ -600,7 +602,7 @@ module Index (H : Irmin.Hash.S) = struct
     log_mem : entry Tbl.t;
     index : IO.t array;
     entries : Bloomf.t;
-    root : string
+    root : string;
   }
 
   let clear t =
@@ -646,7 +648,7 @@ module Index (H : Irmin.Hash.S) = struct
     let log_path = log_path root in
     let index_path = index_path root in
     Log.debug (fun l ->
-        l "[index] v fresh=%b log=%s index=%s" fresh log_path index_path );
+        l "[index] v fresh=%b log=%s index=%s" fresh log_path index_path);
     try
       let t = Hashtbl.find files root in
       if fresh then clear t;
@@ -661,24 +663,25 @@ module Index (H : Irmin.Hash.S) = struct
             let index = IO.v index_path in
             if fresh then IO.clear index;
             map_io (fun e -> Bloomf.add entries e.hash) index;
-            index )
+            index)
       in
       if fresh then IO.clear log;
       map_io
         (fun e ->
           Tbl.add log_mem e.hash e;
-          Bloomf.add entries e.hash )
+          Bloomf.add entries e.hash)
         log;
       let t =
-        { root;
+        {
+          root;
           offsets = Hashtbl.create 127;
           pages =
             Array.init fan_out_size (fun i ->
-                Pool.v ~length:page_size ~lru_size index.(i) );
+                Pool.v ~length:page_size ~lru_size index.(i));
           log;
           log_mem;
           index;
-          entries
+          entries;
         }
       in
       Hashtbl.add files root t;
@@ -697,7 +700,8 @@ module Index (H : Irmin.Hash.S) = struct
   let interpolation_search t i key =
     let hashed_key = H.short_hash key in
     stats.index_is <- succ stats.index_is;
-    Log.debug (fun l -> l "interpolation_search %a (%d)" pp_hash key hashed_key);
+    Log.debug (fun l ->
+        l "interpolation_search %a (%d)" pp_hash key hashed_key);
     let hashed_key = float_of_int hashed_key in
     let low = 0. in
     let high = Int64.to_float (IO.offset t.index.(i)) -. padf in
@@ -769,11 +773,11 @@ module Index (H : Irmin.Hash.S) = struct
     Tbl.iter
       (fun k v ->
         let index = H.short_hash k land (n - 1) in
-        caches.(index) <- (k, v) :: caches.(index) )
+        caches.(index) <- (k, v) :: caches.(index))
       t.log_mem;
     Array.map
       (List.sort (fun (k, _) (k', _) ->
-           compare (H.short_hash k) (H.short_hash k') ))
+           compare (H.short_hash k) (H.short_hash k')))
       caches
 
   let merge_with log t i tmp =
@@ -791,46 +795,46 @@ module Index (H : Irmin.Hash.S) = struct
       match get_index_entry last_read with
       | None -> List.iter (fun (_, e) -> append_entry tmp e) l
       | Some e -> (
-        match l with
-        | (k, v) :: r ->
-            let last, rst =
-              if Irmin.Type.equal H.t e.hash k then (
-                append_entry tmp e;
-                (None, r) )
-              else
-                let hashed_e = H.short_hash e.hash in
-                let hashed_k = H.short_hash k in
-                if hashed_e = hashed_k then (
+          match l with
+          | (k, v) :: r ->
+              let last, rst =
+                if Irmin.Type.equal H.t e.hash k then (
                   append_entry tmp e;
-                  append_entry tmp v;
                   (None, r) )
-                else if hashed_e < hashed_k then (
-                  append_entry tmp e;
-                  (None, l) )
-                else (
-                  append_entry tmp v;
-                  (Some e, r) )
-            in
-            if !offset >= IO.offset t.index.(i) && last = None then
-              List.iter (fun (_, e) -> append_entry tmp e) rst
-            else (go [@tailcall]) last rst
-        | [] ->
-            append_entry tmp e;
-            if !offset >= IO.offset t.index.(i) then ()
-            else
-              let len = IO.offset t.index.(i) -- !offset in
-              let buf = Bytes.create (min (Int64.to_int len) 4096) in
-              let rec refill () =
-                let n = IO.read t.index.(i) ~off:!offset buf in
-                let buf =
-                  if n = Bytes.length buf then Bytes.unsafe_to_string buf
-                  else Bytes.sub_string buf 0 n
-                in
-                IO.append tmp buf;
-                offset := !offset ++ Int64.of_int n;
-                if !offset < IO.offset t.index.(i) then refill ()
+                else
+                  let hashed_e = H.short_hash e.hash in
+                  let hashed_k = H.short_hash k in
+                  if hashed_e = hashed_k then (
+                    append_entry tmp e;
+                    append_entry tmp v;
+                    (None, r) )
+                  else if hashed_e < hashed_k then (
+                    append_entry tmp e;
+                    (None, l) )
+                  else (
+                    append_entry tmp v;
+                    (Some e, r) )
               in
-              refill () )
+              if !offset >= IO.offset t.index.(i) && last = None then
+                List.iter (fun (_, e) -> append_entry tmp e) rst
+              else (go [@tailcall]) last rst
+          | [] ->
+              append_entry tmp e;
+              if !offset >= IO.offset t.index.(i) then ()
+              else
+                let len = IO.offset t.index.(i) -- !offset in
+                let buf = Bytes.create (min (Int64.to_int len) 4096) in
+                let rec refill () =
+                  let n = IO.read t.index.(i) ~off:!offset buf in
+                  let buf =
+                    if n = Bytes.length buf then Bytes.unsafe_to_string buf
+                    else Bytes.sub_string buf 0 n
+                  in
+                  IO.append tmp buf;
+                  offset := !offset ++ Int64.of_int n;
+                  if !offset < IO.offset t.index.(i) then refill ()
+                in
+                refill () )
     in
     (go [@tailcall]) None log
 
@@ -843,7 +847,7 @@ module Index (H : Irmin.Hash.S) = struct
           let tmp_path = Format.sprintf "%s.%d" tmp_path i in
           let tmp = IO.v tmp_path in
           merge_with log.(i) t i tmp;
-          IO.rename ~src:tmp ~dst:t.index.(i) )
+          IO.rename ~src:tmp ~dst:t.index.(i))
     in
     (* reset the log *)
     IO.clear t.log;
@@ -854,7 +858,7 @@ module Index (H : Irmin.Hash.S) = struct
   (* do not check for duplicates *)
   let append t key ~off ~len =
     Log.debug (fun l ->
-        l "[index] append %a off=%Ld len=%d" pp_hash key off len );
+        l "[index] append %a off=%Ld len=%d" pp_hash key off len);
     stats.index_appends <- succ stats.index_appends;
     let entry = { hash = key; offset = off; len } in
     append_entry t.log entry;
@@ -893,7 +897,7 @@ module Pack (K : Irmin.Hash.S) = struct
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t
+    lock : Lwt_mutex.t;
   }
 
   let unsafe_clear t =
@@ -904,7 +908,7 @@ module Pack (K : Irmin.Hash.S) = struct
   let clear t =
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_clear t;
-        Lwt.return () )
+        Lwt.return ())
 
   let files = Hashtbl.create 10
 
@@ -930,7 +934,7 @@ module Pack (K : Irmin.Hash.S) = struct
   let v ?fresh root =
     Lwt_mutex.with_lock create (fun () ->
         let t = unsafe_v ?fresh root in
-        Lwt.return t )
+        Lwt.return t)
 
   module Make (V : S with type hash := K.t) : sig
     include
@@ -957,14 +961,16 @@ module Pack (K : Irmin.Hash.S) = struct
       pack : 'a t;
       lru : V.t Lru.t;
       staging : V.t Tbl.t;
-      pages : Pool.t
+      pages : Pool.t;
     }
 
     type key = K.t
 
     type value = V.t
 
-    let clear t = clear t.pack >|= fun () -> Tbl.clear t.staging
+    let clear t =
+      clear t.pack >|= fun () ->
+      Tbl.clear t.staging
 
     let files = Hashtbl.create 10
 
@@ -974,16 +980,18 @@ module Pack (K : Irmin.Hash.S) = struct
       Log.debug (fun l -> l "[pack] v fresh=%b root=%s" fresh root);
       try
         let t = Hashtbl.find files root in
-        (if fresh then clear t else Lwt.return ()) >|= fun () -> t
+        (if fresh then clear t else Lwt.return ()) >|= fun () ->
+        t
       with Not_found ->
         v ~fresh root >>= fun pack ->
         let staging = Tbl.create 127 in
         let lru = Lru.create 10_000 in
         let t =
-          { staging;
+          {
+            staging;
             lru;
             pack;
-            pages = Pool.v ~lru_size ~length:page_size pack.block
+            pages = Pool.v ~lru_size ~length:page_size pack.block;
           }
         in
         (if fresh then clear t else Lwt.return ()) >|= fun () ->
@@ -1004,7 +1012,7 @@ module Pack (K : Irmin.Hash.S) = struct
     let mem t k =
       Lwt_mutex.with_lock create (fun () ->
           let b = unsafe_mem t k in
-          Lwt.return b )
+          Lwt.return b)
 
     let check_key k v =
       let k' = V.hash v in
@@ -1021,39 +1029,41 @@ module Pack (K : Irmin.Hash.S) = struct
           Lru.add t.lru k v;
           Some v
       | exception Not_found -> (
-        match Lru.find t.lru k with
-        | v -> Some v
-        | exception Not_found -> (
-          match Index.find t.pack.index k with
-          | None -> None
-          | Some e ->
-              let buf, pos = Pool.read t.pages ~off:e.offset ~len:e.len in
-              let hash off =
-                match Hashtbl.find t.pack.index.offsets off with
-                | e -> e.hash
-                | exception Not_found ->
-                    let buf, pos = Pool.read t.pages ~off ~len:K.hash_size in
-                    let _, v =
-                      Irmin.Type.decode_bin ~headers:false K.t
-                        (Bytes.unsafe_to_string buf)
-                        pos
-                    in
-                    v
-              in
-              let dict = Dict.find t.pack.dict in
-              let v =
-                V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) pos
-              in
-              check_key k v;
-              Tbl.add t.staging k v;
-              Lru.add t.lru k v;
-              stats.pack_cache_misses <- succ stats.pack_cache_misses;
-              Some v ) )
+          match Lru.find t.lru k with
+          | v -> Some v
+          | exception Not_found -> (
+              match Index.find t.pack.index k with
+              | None -> None
+              | Some e ->
+                  let buf, pos = Pool.read t.pages ~off:e.offset ~len:e.len in
+                  let hash off =
+                    match Hashtbl.find t.pack.index.offsets off with
+                    | e -> e.hash
+                    | exception Not_found ->
+                        let buf, pos =
+                          Pool.read t.pages ~off ~len:K.hash_size
+                        in
+                        let _, v =
+                          Irmin.Type.decode_bin ~headers:false K.t
+                            (Bytes.unsafe_to_string buf)
+                            pos
+                        in
+                        v
+                  in
+                  let dict = Dict.find t.pack.dict in
+                  let v =
+                    V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) pos
+                  in
+                  check_key k v;
+                  Tbl.add t.staging k v;
+                  Lru.add t.lru k v;
+                  stats.pack_cache_misses <- succ stats.pack_cache_misses;
+                  Some v ) )
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           let v = unsafe_find t k in
-          Lwt.return v )
+          Lwt.return v)
 
     let cast t = (t :> [ `Read | `Write ] t)
 
@@ -1096,11 +1106,12 @@ module Pack (K : Irmin.Hash.S) = struct
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_append t k v;
-          Lwt.return () )
+          Lwt.return ())
 
     let add t v =
       let k = V.hash v in
-      append t k v >|= fun () -> k
+      append t k v >|= fun () ->
+      k
   end
 end
 
@@ -1119,7 +1130,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     cache : V.t Tbl.t;
     block : IO.t;
     lock : Lwt_mutex.t;
-    w : W.t
+    w : W.t;
   }
 
   let read_length32 ~off block =
@@ -1170,8 +1181,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] remove %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_remove t k;
-        Lwt.return () )
-    >>= fun () -> W.notify t.w k None
+        Lwt.return ())
+    >>= fun () ->
+    W.notify t.w k None
 
   let clear t =
     W.clear t.w >|= fun () ->
@@ -1190,7 +1202,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] v fresh=%b root=%s" fresh root);
     try
       let t = Hashtbl.find files root in
-      (if fresh then clear t else Lwt.return ()) >|= fun () -> t
+      (if fresh then clear t else Lwt.return ()) >|= fun () ->
+      t
     with Not_found ->
       let block = IO.v root in
       if fresh then IO.clear block;
@@ -1243,8 +1256,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] set %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_set t k v;
-        Lwt.return () )
-    >>= fun () -> W.notify t.w k (Some v)
+        Lwt.return ())
+    >>= fun () ->
+    W.notify t.w k (Some v)
 
   let unsafe_test_and_set t k ~test ~set =
     let v = try Some (Tbl.find t.cache k) with Not_found -> None in
@@ -1259,7 +1273,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] test-and-set %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () -> unsafe_test_and_set t k ~test ~set)
     >>= function
-    | true -> W.notify t.w k set >|= fun () -> true
+    | true ->
+        W.notify t.w k set >|= fun () ->
+        true
     | false -> Lwt.return false
 
   let list t =
@@ -1281,9 +1297,9 @@ module Make_ext
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S
-            with type metadata = M.t
-             and type hash = H.t
-             and type step = P.step)
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Pack = Pack (H)
@@ -1333,16 +1349,18 @@ struct
 
         let entry : entry Irmin.Type.t =
           let open Irmin.Type in
-          variant "Inode.entry" (fun node contents inode -> function
+          variant "Inode.entry" (fun node contents inode ->
+            function
             | Node n -> node (n.name, n.node)
             | Contents c -> contents (c.metadata, c.name, c.node)
-            | Inode i -> inode (i.index, i.node) )
+            | Inode i -> inode (i.index, i.node))
           |~ case1 "Node" (pair P.step_t H.t) (fun (name, node) ->
-                 Node { name; node } )
+                 Node { name; node })
           |~ case1 "Contents" (triple M.t P.step_t H.t)
-               (fun (metadata, name, node) -> Contents { metadata; name; node })
+               (fun (metadata, name, node) ->
+                 Contents { metadata; name; node })
           |~ case1 "Inode" (pair int H.t) (fun (index, node) ->
-                 Inode { index; node } )
+                 Inode { index; node })
           |> sealv
 
         (* hash is the hash of the corresponding sub-node *)
@@ -1425,15 +1443,16 @@ struct
 
         let singleton s v = Values (StepMap.singleton s v)
 
-        let rec add_values : type a.
-            seed:_ -> _ -> _ -> _ -> _ -> (t -> a) -> a =
+        let rec add_values :
+            type a. seed:_ -> _ -> _ -> _ -> _ -> (t -> a) -> a =
          fun ~seed t vs s v k ->
           let values = StepMap.add s v vs in
           if values == vs then k t
           else if StepMap.cardinal values <= Conf.max_values then
             k (Values values)
           else
-            (nodes_of_values [@tailcall]) ~seed values @@ fun n -> k (Nodes n)
+            (nodes_of_values [@tailcall]) ~seed values @@ fun n ->
+            k (Nodes n)
 
         and nodes_of_values : type a. seed:_ -> _ -> (t array -> a) -> a =
          fun ~seed entries k ->
@@ -1443,7 +1462,8 @@ struct
             entries;
           k n
 
-        and with_node : type a.
+        and with_node :
+            type a.
             seed:_ -> copy:_ -> _ -> _ -> _ -> (int -> t -> t -> a) -> a =
          fun ~seed ~copy n s v k ->
           let i = index ~seed s in
@@ -1455,14 +1475,15 @@ struct
               k i x y
           | Nodes n ->
               (add_nodes [@tailcall]) ~seed:(seed + 1) ~copy x n s v
-              @@ fun y -> k i x y
+              @@ fun y ->
+              k i x y
 
         and update_nodes ~seed n s e =
           with_node ~seed ~copy:false n s e @@ fun i x y ->
           if x != y then n.(i) <- y
 
-        and add_nodes : type a.
-            seed:_ -> copy:_ -> t -> _ -> _ -> _ -> (t -> a) -> a =
+        and add_nodes :
+            type a. seed:_ -> copy:_ -> t -> _ -> _ -> _ -> (t -> a) -> a =
          fun ~seed ~copy t n s e k ->
           with_node ~seed ~copy n s e @@ fun i x y ->
           if x == y then k t
@@ -1483,7 +1504,7 @@ struct
                   (add_values [@tailcall]) ~seed:0 t vs s v (fun x -> x)
               | Nodes n ->
                   (add_nodes [@tailcall]) ~seed:0 ~copy:false t n s v (fun x ->
-                      x )
+                      x)
             in
             List.fold_left aux empty l
 
@@ -1520,13 +1541,15 @@ struct
               let values = list t in
               let hash = hash_values values in
               let v = { v with hash } in
-              init hash v )
+              init hash v)
 
         let save ~add t =
           fold
             (fun k v f -> add k v >>= f)
             t
-            (fun k v -> add k v >|= fun () -> k)
+            (fun k v ->
+              add k v >|= fun () ->
+              k)
 
         let load ~find h =
           let rec inode ~seed h k =
@@ -1542,7 +1565,7 @@ struct
                           ( StepMap.add c.name
                               (`Contents (c.node, c.metadata))
                               vs,
-                            is ) | Inode i -> (vs, (i.index, i.node) :: is) )
+                            is ) | Inode i -> (vs, (i.index, i.node) :: is))
                     (StepMap.empty, []) i
                 in
                 if is = [] then
@@ -1568,7 +1591,7 @@ struct
           in
           inode ~seed:0 h (function
             | None -> Lwt.return None
-            | Some x -> Lwt.return (Some x) )
+            | Some x -> Lwt.return (Some x))
       end
 
       module Compress = struct
@@ -1585,16 +1608,17 @@ struct
           let open Irmin.Type in
           variant "Compress.entry"
             (fun contents_ii
-            node_ii
-            inode_i
-            contents_id
-            node_id
-            inode_d
-            contents_di
-            node_di
-            contents_dd
-            node_dd
-            -> function
+                 node_ii
+                 inode_i
+                 contents_id
+                 node_id
+                 inode_d
+                 contents_di
+                 node_di
+                 contents_dd
+                 node_dd
+                 ->
+            function
             | Contents (Indirect n, Indirect h, m) -> contents_ii (n, h, m)
             | Node (Indirect n, Indirect h) -> node_ii (n, h)
             | Inode (n, Indirect h) -> inode_i (n, h)
@@ -1604,26 +1628,26 @@ struct
             | Contents (Direct n, Indirect h, m) -> contents_di (n, h, m)
             | Node (Direct n, Indirect h) -> node_di (n, h)
             | Contents (Direct n, Direct h, m) -> contents_dd (n, h, m)
-            | Node (Direct n, Direct h) -> node_dd (n, h) )
+            | Node (Direct n, Direct h) -> node_dd (n, h))
           |~ case1 "contents-ii" (triple int int64 M.t) (fun (n, i, m) ->
-                 Contents (Indirect n, Indirect i, m) )
+                 Contents (Indirect n, Indirect i, m))
           |~ case1 "node-ii" (pair int int64) (fun (n, i) ->
-                 Node (Indirect n, Indirect i) )
+                 Node (Indirect n, Indirect i))
           |~ case1 "inode-i" (pair int int64) (fun (n, i) ->
-                 Inode (n, Indirect i) )
+                 Inode (n, Indirect i))
           |~ case1 "contents-id" (triple int H.t M.t) (fun (n, h, m) ->
-                 Contents (Indirect n, Direct h, m) )
+                 Contents (Indirect n, Direct h, m))
           |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
-                 Node (Indirect n, Direct h) )
+                 Node (Indirect n, Direct h))
           |~ case1 "inode-d" (pair int H.t) (fun (n, h) -> Inode (n, Direct h))
           |~ case1 "contents-di" (triple P.step_t int64 M.t) (fun (n, i, m) ->
-                 Contents (Direct n, Indirect i, m) )
+                 Contents (Direct n, Indirect i, m))
           |~ case1 "node-di" (pair P.step_t int64) (fun (n, i) ->
-                 Node (Direct n, Indirect i) )
+                 Node (Direct n, Indirect i))
           |~ case1 "contents-dd" (triple P.step_t H.t M.t) (fun (n, i, m) ->
-                 Contents (Direct n, Direct i, m) )
+                 Contents (Direct n, Direct i, m))
           |~ case1 "node-dd" (pair P.step_t H.t) (fun (n, i) ->
-                 Node (Direct n, Direct i) )
+                 Node (Direct n, Direct i))
           |> sealv
 
         let t = Irmin.Type.(pair H.t (list entry))
@@ -1674,12 +1698,12 @@ struct
           let step : Compress.name -> P.step = function
             | Direct n -> n
             | Indirect s -> (
-              match dict s with
-              | None -> raise_notrace (Exit (`Msg "dict"))
-              | Some s -> (
-                match Irmin.Type.of_bin_string P.step_t s with
-                | Error e -> raise_notrace (Exit e)
-                | Ok v -> v ) )
+                match dict s with
+                | None -> raise_notrace (Exit (`Msg "dict"))
+                | Some s -> (
+                    match Irmin.Type.of_bin_string P.step_t s with
+                    | Error e -> raise_notrace (Exit e)
+                    | Ok v -> v ) )
           in
           let hash : Compress.address -> H.t = function
             | Indirect off -> hash off
@@ -1723,7 +1747,7 @@ struct
           Inode.Tree.load
             ~find:(fun k ->
               let v = Inode.unsafe_find t k in
-              Lwt.return v )
+              Lwt.return v)
             k
           >|= function
           | None -> None
@@ -1735,7 +1759,7 @@ struct
           Inode.Tree.save
             ~add:(fun k v ->
               Inode.unsafe_append t k v;
-              Lwt.return () )
+              Lwt.return ())
             v
 
         let batch = Inode.batch
@@ -1788,7 +1812,7 @@ struct
         contents : [ `Read ] Contents.CA.t;
         node : [ `Read ] Node.CA.t;
         commit : [ `Read ] Commit.CA.t;
-        branch : Branch.t
+        branch : Branch.t;
       }
 
       let contents_t t : 'a Contents.t = t.contents
@@ -1806,7 +1830,7 @@ struct
                     let contents : 'a Contents.t = contents in
                     let node : 'a Node.t = (contents, node) in
                     let commit : 'a Commit.t = (node, commit) in
-                    f contents node commit ) ) )
+                    f contents node commit)))
 
       let v config =
         let root = root config in
@@ -1848,13 +1872,14 @@ type stats = {
   pack_page_faults : float;
   index_page_faults : float;
   pack_cache_misses : float;
-  search_steps : float
+  search_steps : float;
 }
 
 let stats () =
-  { bf_misses = div_or_zero stats.index_bloomf_misses stats.index_bloomf_mems;
+  {
+    bf_misses = div_or_zero stats.index_bloomf_misses stats.index_bloomf_mems;
     pack_page_faults = div_or_zero stats.pack_page_miss stats.pack_page_read;
     index_page_faults = div_or_zero stats.index_page_miss stats.index_page_read;
     pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
-    search_steps = div_or_zero stats.index_is_steps stats.index_is
+    search_steps = div_or_zero stats.index_is_steps stats.index_is;
   }

@@ -33,9 +33,9 @@ module Server = struct
           Some
             (fun ?headers uri ->
               let e = Git_mirage.endpoint ?headers (Uri.of_string uri) in
-              Store.E e )
+              Store.E e)
       end in
-      (module Irmin_graphql.Server.Make (Http) (Config) (Store)
+      ( module Irmin_graphql.Server.Make (Http) (Config) (Store)
       : Irmin_graphql.Server.S
         with type server = Http.t
          and type repo = Store.repo )

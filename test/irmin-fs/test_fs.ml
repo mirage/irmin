@@ -19,7 +19,9 @@ module IO = Irmin_fs.IO_mem
 
 let test_db = Filename.concat "_build" "test-db"
 
-let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
+let init () =
+  IO.clear () >|= fun () ->
+  IO.set_listen_hook ()
 
 let config = Irmin_fs.config test_db
 

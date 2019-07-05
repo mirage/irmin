@@ -233,10 +233,10 @@ module type NODE_STORE = sig
 
   module Val :
     NODE
-    with type t = value
-     and type hash = key
-     and type metadata = Metadata.t
-     and type step = Path.step
+      with type t = value
+       and type hash = key
+       and type metadata = Metadata.t
+       and type step = Path.step
 
   module Contents : CONTENTS_STORE with type key = Val.hash
 end
@@ -452,9 +452,9 @@ module type PRIVATE = sig
 
   module Slice :
     SLICE
-    with type contents = Contents.key * Contents.value
-     and type node = Node.key * Node.value
-     and type commit = Commit.key * Commit.value
+      with type contents = Contents.key * Contents.value
+       and type node = Node.key * Node.value
+       and type commit = Commit.key * Commit.value
 
   module Repo : sig
     type t
@@ -472,9 +472,9 @@ module type PRIVATE = sig
     val batch :
       t ->
       ([ `Read | `Write ] Contents.t ->
-       [ `Read | `Write ] Node.t ->
-       [ `Read | `Write ] Commit.t ->
-       'a Lwt.t) ->
+      [ `Read | `Write ] Node.t ->
+      [ `Read | `Write ] Commit.t ->
+      'a Lwt.t) ->
       'a Lwt.t
   end
 
@@ -559,7 +559,7 @@ module type TREE = sig
     leafs : int;
     skips : int;
     depth : int;
-    width : int
+    width : int;
   }
 
   val pp_stats : stats Fmt.t
@@ -712,12 +712,12 @@ module type STORE = sig
   module Tree : sig
     include
       TREE
-      with type step := step
-       and type key := key
-       and type metadata := metadata
-       and type contents := contents
-       and type node := node
-       and type tree := tree
+        with type step := step
+         and type key := key
+         and type metadata := metadata
+         and type contents := contents
+         and type node := node
+         and type tree := tree
 
     val hash : tree -> hash
 
@@ -1037,13 +1037,13 @@ module type STORE = sig
   module Private : sig
     include
       PRIVATE
-      with type Contents.value = contents
-       and module Hash = Hash
-       and module Node.Path = Key
-       and type Node.Metadata.t = metadata
-       and type Branch.key = branch
-       and type Slice.t = slice
-       and type Repo.t = repo
+        with type Contents.value = contents
+         and module Hash = Hash
+         and module Node.Path = Key
+         and type Node.Metadata.t = metadata
+         and type Branch.key = branch
+         and type Slice.t = slice
+         and type Repo.t = repo
   end
 
   type remote += E of Private.Sync.endpoint
@@ -1073,13 +1073,14 @@ module type MAKER = functor
   (P : PATH)
   (B : BRANCH)
   (H : HASH)
-  -> STORE
-     with type key = P.t
-      and type step = P.step
-      and type metadata = M.t
-      and type contents = C.t
-      and type branch = B.t
-      and type hash = H.t
+  ->
+  STORE
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
 
 type remote += Store : (module STORE with type t = 'a) * 'a -> remote
 

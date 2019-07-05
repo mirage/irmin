@@ -46,7 +46,7 @@ module String_list = struct
     List.iter
       (fun s ->
         Buffer.add_char buf '/';
-        Buffer.add_string buf s )
+        Buffer.add_string buf s)
       t;
     Fmt.string ppf (Buffer.contents buf)
 

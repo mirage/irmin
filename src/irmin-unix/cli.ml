@@ -52,7 +52,7 @@ type sub = {
   name : string;
   doc : string;
   man : Manpage.block list;
-  term : unit Term.t
+  term : unit Term.t;
 }
 
 let create_command c =
@@ -90,7 +90,8 @@ let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
 let init =
-  { name = "init";
+  {
+    name = "init";
     doc = "Initialize a store.";
     man = [];
     term =
@@ -145,7 +146,7 @@ let init =
                      spec )
              else Lwt.return_unit )
        in
-       Term.(mk init $ store $ daemon $ uri))
+       Term.(mk init $ store $ daemon $ uri));
   }
 
 let print fmt = Fmt.kstrf print_endline fmt
@@ -165,7 +166,8 @@ let commit f x = get "commit" f x
 
 (* GET *)
 let get =
-  { name = "get";
+  {
+    name = "get";
     doc = "Read the value associated with a key.";
     man = [];
     term =
@@ -180,12 +182,13 @@ let get =
                  print "%a" (Irmin.Type.pp S.Contents.t) v;
                  Lwt.return_unit )
        in
-       Term.(mk get $ store $ path))
+       Term.(mk get $ store $ path));
   }
 
 (* LIST *)
 let list =
-  { name = "list";
+  {
+    name = "list";
     doc = "List subdirectories.";
     man = [];
     term =
@@ -202,12 +205,13 @@ let list =
              List.iter (print "%a" pp) paths;
              Lwt.return_unit )
        in
-       Term.(mk list $ store $ path))
+       Term.(mk list $ store $ path));
   }
 
 (* TREE *)
 let tree =
-  { name = "tree";
+  {
+    name = "tree";
     doc = "List the store contents.";
     man = [];
     term =
@@ -230,7 +234,8 @@ let tree =
                            todo := k :: !todo;
                            Lwt.return_unit
                        | `Contents ->
-                           S.get t k >|= fun v -> all := (k, v) :: !all )
+                           S.get t k >|= fun v ->
+                           all := (k, v) :: !all)
                      childs
                    >>= walk
              in
@@ -240,7 +245,7 @@ let tree =
                List.map
                  (fun (k, v) ->
                    ( Irmin.Type.to_string S.Key.t k,
-                     Irmin.Type.to_string S.Contents.t v ) )
+                     Irmin.Type.to_string S.Contents.t v ))
                  all
              in
              let max_length l =
@@ -254,11 +259,11 @@ let tree =
                  let dots =
                    String.make (pad - String.length k - String.length v) '.'
                  in
-                 print "%s%s%s" k dots v )
+                 print "%s%s%s" k dots v)
                all;
              Lwt.return_unit )
        in
-       Term.(mk tree $ store))
+       Term.(mk tree $ store));
   }
 
 let author =
@@ -271,7 +276,8 @@ let message =
 
 (* SET *)
 let set =
-  { name = "set";
+  {
+    name = "set";
     doc = "Update the value associated with a key.";
     man = [];
     term =
@@ -287,12 +293,13 @@ let set =
             let value = value S.Contents.t v in
             S.set_exn t ~info:(info ?author "%s" message) path value)
        in
-       Term.(mk set $ store $ author $ message $ path $ v))
+       Term.(mk set $ store $ author $ message $ path $ v));
   }
 
 (* REMOVE *)
 let remove =
-  { name = "remove";
+  {
+    name = "remove";
     doc = "Delete a key.";
     man = [];
     term =
@@ -304,7 +311,7 @@ let remove =
             store >>= fun t ->
             S.remove_exn t ~info:(info ?author "%s" message) (key S.Key.t path))
        in
-       Term.(mk remove $ store $ author $ message $ path))
+       Term.(mk remove $ store $ author $ message $ path));
   }
 
 let apply e f =
@@ -315,7 +322,8 @@ let apply e f =
 
 (* CLONE *)
 let clone =
-  { name = "clone";
+  {
+    name = "clone";
     doc = "Copy a remote respository to a local store";
     man = [];
     term =
@@ -329,12 +337,13 @@ let clone =
              | Ok `Empty -> Lwt.return_unit
              | Error (`Msg e) -> failwith e )
        in
-       Term.(mk clone $ store $ remote $ depth))
+       Term.(mk clone $ store $ remote $ depth));
   }
 
 (* FETCH *)
 let fetch =
-  { name = "fetch";
+  {
+    name = "fetch";
     doc = "Download objects and refs from another repository.";
     man = [];
     term =
@@ -345,14 +354,16 @@ let fetch =
              remote >>= fun r ->
              let branch = branch S.Branch.t "import" in
              S.of_branch (S.repo t) branch >>= fun t ->
-             Sync.pull_exn t (apply r f) `Set >>= fun _ -> Lwt.return_unit )
+             Sync.pull_exn t (apply r f) `Set >>= fun _ ->
+             Lwt.return_unit )
        in
-       Term.(mk fetch $ store $ remote))
+       Term.(mk fetch $ store $ remote));
   }
 
 (* MERGE *)
 let merge =
-  { name = "merge";
+  {
+    name = "merge";
     doc = "Merge branches.";
     man = [];
     term =
@@ -376,12 +387,13 @@ let merge =
          let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
          Arg.(required & pos 0 (some string) None & doc)
        in
-       Term.(mk merge $ store $ author $ message $ branch_name))
+       Term.(mk merge $ store $ author $ message $ branch_name));
   }
 
 (* PULL *)
 let pull =
-  { name = "pull";
+  {
+    name = "pull";
     doc = "Fetch and merge with another repository.";
     man = [];
     term =
@@ -392,14 +404,16 @@ let pull =
            ( store >>= fun t ->
              remote >>= fun r ->
              Sync.pull_exn t (apply r f) (`Merge (Info.v ?author "%s" message))
-             >>= fun _ -> Lwt.return_unit )
+             >>= fun _ ->
+             Lwt.return_unit )
        in
-       Term.(mk pull $ store $ author $ message $ remote))
+       Term.(mk pull $ store $ author $ message $ remote));
   }
 
 (* PUSH *)
 let push =
-  { name = "push";
+  {
+    name = "push";
     doc = "Update remote references along with associated objects.";
     man = [];
     term =
@@ -408,14 +422,16 @@ let push =
          run
            ( store >>= fun t ->
              remote >>= fun r ->
-             Sync.push_exn t (apply r f) >>= fun _ -> Lwt.return_unit )
+             Sync.push_exn t (apply r f) >>= fun _ ->
+             Lwt.return_unit )
        in
-       Term.(mk push $ store $ remote))
+       Term.(mk push $ store $ remote));
   }
 
 (* SNAPSHOT *)
 let snapshot =
-  { name = "snapshot";
+  {
+    name = "snapshot";
     doc = "Return a snapshot for the current state of the database.";
     man = [];
     term =
@@ -426,12 +442,13 @@ let snapshot =
              print "%a" S.Commit.pp_hash k;
              Lwt.return_unit )
        in
-       Term.(mk snapshot $ store))
+       Term.(mk snapshot $ store));
   }
 
 (* REVERT *)
 let revert =
-  { name = "revert";
+  {
+    name = "revert";
     doc = "Revert the contents of the store to a previous state.";
     man = [];
     term =
@@ -450,12 +467,13 @@ let revert =
              | Some s -> S.Head.set t s
              | None -> failwith "invalid commit" )
        in
-       Term.(mk revert $ store $ snapshot))
+       Term.(mk revert $ store $ snapshot));
   }
 
 (* WATCH *)
 let watch =
-  { name = "watch";
+  {
+    name = "watch";
     doc = "Get notifications when values change.";
     man = [];
     term =
@@ -490,17 +508,18 @@ let watch =
                  y >>= fun y ->
                  S.Tree.diff x y >>= fun diff ->
                  List.iter pr diff;
-                 Lwt.return_unit )
+                 Lwt.return_unit)
              >>= fun _ ->
              let t, _ = Lwt.task () in
              t )
        in
-       Term.(mk watch $ store $ path))
+       Term.(mk watch $ store $ path));
   }
 
 (* DOT *)
 let dot =
-  { name = "dot";
+  {
+    name = "dot";
     doc = "Dump the contents of the store as a Graphviz file.";
     man = [];
     term =
@@ -546,10 +565,10 @@ let dot =
              Lwt.finalize
                (fun () ->
                  output_string oc (Buffer.contents buf);
-                 Lwt.return_unit )
+                 Lwt.return_unit)
                (fun () ->
                  close_out oc;
-                 Lwt.return_unit )
+                 Lwt.return_unit)
              >>= fun () ->
              if call_dot then (
                let i = Sys.command "/bin/sh -c 'command -v dot'" in
@@ -557,8 +576,7 @@ let dot =
                  Logs.err (fun f ->
                      f
                        "Cannot find the `dot' utility. Please install it on \
-                        your system and be sure it is available in your $PATH."
-                 );
+                        your system and be sure it is available in your $PATH.");
                let i =
                  Sys.command
                    (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename
@@ -568,7 +586,7 @@ let dot =
                  Logs.err (fun f -> f "The %s.dot is corrupted" basename) );
              Lwt.return_unit )
        in
-       Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full))
+       Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full));
   }
 
 let config_man =
@@ -604,7 +622,8 @@ let config_man =
 
 (* HELP *)
 let help =
-  { name = "help";
+  {
+    name = "help";
     doc = "Display help about Irmin and Irmin commands.";
     man =
       [ `P "Use `$(mname) help topics' to get the full list of help topics." ];
@@ -634,12 +653,13 @@ let help =
                       config_man)
              | `Ok t -> `Help (man_format, Some t) )
        in
-       Term.(ret (mk help $ Term.man_format $ Term.choice_names $ topic)))
+       Term.(ret (mk help $ Term.man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
 let graphql =
-  { name = "graphql";
+  {
+    name = "graphql";
     doc = "Run a graphql server.";
     man = [];
     term =
@@ -673,7 +693,7 @@ let graphql =
              ~mode:(`TCP (`Port port))
              server)
        in
-       Term.(mk graphql $ store $ port $ addr))
+       Term.(mk graphql $ store $ port $ addr));
   }
 
 let default =

@@ -32,7 +32,7 @@ let rec encode_json e = function
       List.iter
         (fun (k, v) ->
           lexeme e (`Name k);
-          encode_json e v )
+          encode_json e v)
         o;
       lexeme e `Oe
 
@@ -91,20 +91,21 @@ module Json_value = struct
   let t =
     let open Type in
     mu (fun ty ->
-        variant "json" (fun null bool string float obj arr -> function
+        variant "json" (fun null bool string float obj arr ->
+          function
           | `Null -> null
           | `Bool b -> bool b
           | `String s -> string s
           | `Float f -> float f
           | `O o -> obj o
-          | `A a -> arr a )
+          | `A a -> arr a)
         |~ case0 "null" `Null
         |~ case1 "bool" bool (fun x -> `Bool x)
         |~ case1 "string" string (fun x -> `String x)
         |~ case1 "float" float (fun x -> `Float x)
         |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
         |~ case1 "array" (list ty) (fun arr -> `A arr)
-        |> sealv )
+        |> sealv)
 
   let rec equal a b =
     match (a, b) with
@@ -113,8 +114,8 @@ module Json_value = struct
     | `String a, `String b -> String.equal a b
     | `Float a, `Float b -> Type.(equal float) a b
     | `A a, `A b -> (
-      try List.for_all2 (fun a' b' -> equal a' b') a b
-      with Invalid_argument _ -> false )
+        try List.for_all2 (fun a' b' -> equal a' b') a b
+        with Invalid_argument _ -> false )
     | `O a, `O b -> (
         let compare_fst (a, _) (b, _) = compare a b in
         try
@@ -131,19 +132,23 @@ module Json_value = struct
     let m =
       Merge.(alist Type.string t (fun _key -> option (v t merge_value)))
     in
-    Merge.(f m ~old x y) >>=* fun x -> Merge.ok (`O x)
+    Merge.(f m ~old x y) >>=* fun x ->
+    Merge.ok (`O x)
 
   and merge_float ~old x y =
     let open Merge.Infix in
-    Merge.(f float ~old x y) >>=* fun f -> Merge.ok (`Float f)
+    Merge.(f float ~old x y) >>=* fun f ->
+    Merge.ok (`Float f)
 
   and merge_string ~old x y =
     let open Merge.Infix in
-    Merge.(f string ~old x y) >>=* fun s -> Merge.ok (`String s)
+    Merge.(f string ~old x y) >>=* fun s ->
+    Merge.ok (`String s)
 
   and merge_bool ~old x y =
     let open Merge.Infix in
-    Merge.(f bool ~old x y) >>=* fun b -> Merge.ok (`Bool b)
+    Merge.(f bool ~old x y) >>=* fun b ->
+    Merge.ok (`Bool b)
 
   and merge_array ~old x y =
     let open Merge.Infix in
@@ -216,9 +221,9 @@ module Json_tree (Store : S.STORE with type contents = json) = struct
       match j with
       | [] -> `Tree acc
       | (k, v) :: l -> (
-        match Type.of_string Store.Key.step_t k with
-        | Ok key -> obj l ((key, node v []) :: acc)
-        | _ -> obj l acc )
+          match Type.of_string Store.Key.step_t k with
+          | Ok key -> obj l ((key, node v []) :: acc)
+          | _ -> obj l acc )
     and node j acc =
       match j with
       | `O j -> obj j acc
@@ -244,14 +249,16 @@ module Json_tree (Store : S.STORE with type contents = json) = struct
 
   let get_tree (tree : Store.tree) key =
     Store.Tree.get_tree tree key >>= fun t ->
-    Store.Tree.to_concrete t >|= fun c -> of_concrete_tree c
+    Store.Tree.to_concrete t >|= fun c ->
+    of_concrete_tree c
 
   let set t key j ~info =
     set_tree Store.Tree.empty Store.Key.empty j >>= function
     | tree -> Store.set_tree_exn ~info t key tree
 
   let get t key =
-    Store.get_tree t key >>= fun tree -> get_tree tree Store.Key.empty
+    Store.get_tree t key >>= fun tree ->
+    get_tree tree Store.Key.empty
 end
 
 module String = struct
@@ -291,7 +298,9 @@ struct
 
   let add_opt t = function
     | None -> Lwt.return_none
-    | Some v -> add t v >>= fun k -> Lwt.return (Some k)
+    | Some v ->
+        add t v >>= fun k ->
+        Lwt.return (Some k)
 
   let merge t =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)

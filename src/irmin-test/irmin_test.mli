@@ -1,9 +1,9 @@
 module type S =
   Irmin.S
-  with type step = string
-   and type key = string list
-   and type contents = string
-   and type branch = string
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
@@ -13,7 +13,7 @@ type t = {
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
-  stats : (unit -> int * int) option
+  stats : (unit -> int * int) option;
 }
 
 val line : string -> unit

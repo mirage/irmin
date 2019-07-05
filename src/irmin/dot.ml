@@ -62,7 +62,7 @@ module Make (S : S.STORE) = struct
         f "fprintf depth=%s html=%b full=%s"
           (match depth with None -> "<none>" | Some d -> string_of_int d)
           html
-          (match full with None -> "<none>" | Some b -> string_of_bool b) );
+          (match full with None -> "<none>" | Some b -> string_of_bool b));
     S.Repo.export ?full ?depth (S.repo t) >>= fun slice ->
     let vertex = Hashtbl.create 102 in
     let add_vertex v l = Hashtbl.add vertex v l in
@@ -155,21 +155,20 @@ module Make (S : S.STORE) = struct
           Lwt.return_unit
       | `Commit c ->
           commits := c :: !commits;
-          Lwt.return_unit )
+          Lwt.return_unit)
     >>= fun () ->
     List.iter
       (fun (k, c) ->
-        add_vertex (`Contents k) [ `Shape `Box; label_of_contents k c ] )
+        add_vertex (`Contents k) [ `Shape `Box; label_of_contents k c ])
       !contents;
     List.iter
       (fun (k, t) ->
-        add_vertex (`Node k) [ `Shape `Box; `Style `Dotted; label_of_node k t ]
-        )
+        add_vertex (`Node k) [ `Shape `Box; `Style `Dotted; label_of_node k t ])
       !nodes;
     List.iter
       (fun (k, r) ->
         add_vertex (`Commit k)
-          [ `Shape `Box; `Style `Bold; label_of_commit k r ] )
+          [ `Shape `Box; `Style `Bold; label_of_commit k r ])
       !commits;
     List.iter
       (fun (k, t) ->
@@ -181,16 +180,15 @@ module Make (S : S.STORE) = struct
                   [ `Style `Dotted; label_of_step l ]
                   (`Contents v)
             | `Node n ->
-                add_edge (`Node k) [ `Style `Solid; label_of_step l ] (`Node n)
-            )
-          (Node.Val.list t) )
+                add_edge (`Node k) [ `Style `Solid; label_of_step l ] (`Node n))
+          (Node.Val.list t))
       !nodes;
     List.iter
       (fun (k, r) ->
         List.iter
           (fun c -> add_edge (`Commit k) [ `Style `Bold ] (`Commit c))
           (Commit.Val.parents r);
-        add_edge (`Commit k) [ `Style `Dashed ] (`Node (Commit.Val.node r)) )
+        add_edge (`Commit k) [ `Style `Dashed ] (`Node (Commit.Val.node r)))
       !commits;
     let branch_t = S.Private.Repo.branch_t (S.repo t) in
     Branch.list branch_t >>= fun bs ->
@@ -201,7 +199,7 @@ module Make (S : S.STORE) = struct
         | Some k ->
             add_vertex (`Branch r)
               [ `Shape `Plaintext; label_of_tag r; `Style `Filled ];
-            add_edge (`Branch r) [ `Style `Bold ] (`Commit k) )
+            add_edge (`Branch r) [ `Style `Bold ] (`Commit k))
       bs
     >|= fun () ->
     let map = function

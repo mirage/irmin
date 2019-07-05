@@ -18,10 +18,10 @@
 module Make (P : S.PRIVATE) : sig
   include
     S.TREE
-    with type key = P.Node.Path.t
-     and type step = P.Node.Path.step
-     and type metadata = P.Node.Val.metadata
-     and type contents = P.Contents.value
+      with type key = P.Node.Path.t
+       and type step = P.Node.Path.step
+       and type metadata = P.Node.Val.metadata
+       and type contents = P.Contents.value
 
   val import : P.Repo.t -> P.Node.key -> node option Lwt.t
 

@@ -17,11 +17,11 @@
 (** HTTP server *)
 
 module type S = sig
-  (** The type for Irmin repository. *)
   type repo
+  (** The type for Irmin repository. *)
 
-  (** The type for HTTP configuration. *)
   type t
+  (** The type for HTTP configuration. *)
 
   val v : ?strict:bool -> repo -> t
   (** [v repo] returns the configuration for a server serving the

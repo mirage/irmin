@@ -68,5 +68,6 @@ module Make (K : Type.S) = struct
   let with_lock t k fn =
     Lwt_mutex.with_lock t.global (lock t k) >>= fun lock ->
     Lwt_mutex.with_lock lock fn >>= fun r ->
-    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () -> Lwt.return r
+    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () ->
+    Lwt.return r
 end

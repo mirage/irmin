@@ -33,9 +33,9 @@ end
 
 module Make
     (K : Type.S) (P : sig
-        type step
+      type step
 
-        val step_t : step Type.t
+      val step_t : step Type.t
     end)
     (M : S.METADATA) =
 struct
@@ -51,10 +51,11 @@ struct
 
   let kind_t =
     let open Type in
-    variant "Tree.kind" (fun node contents contents_m -> function
+    variant "Tree.kind" (fun node contents contents_m ->
+      function
       | `Node -> node
       | `Contents m ->
-          if Type.equal M.t m M.default then contents else contents_m m )
+          if Type.equal M.t m M.default then contents else contents_m m)
     |~ case0 "node" `Node
     |~ case0 "contents" (`Contents M.default)
     |~ case1 "contents" M.t (fun m -> `Contents m)
@@ -122,8 +123,8 @@ struct
 
   let value_t =
     let open Type in
-    variant "value" (fun n c -> function
-      | `Node h -> n h | `Contents (h, m) -> c (h, m) )
+    variant "value" (fun n c ->
+      function `Node h -> n h | `Contents (h, m) -> c (h, m))
     |~ case1 "node" K.t (fun k -> `Node k)
     |~ case1 "contents" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
@@ -139,12 +140,12 @@ module Store
     (C : S.CONTENTS_STORE)
     (P : S.PATH)
     (M : S.METADATA) (S : sig
-        include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
+      include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
 
-        module Key : S.HASH with type t = key
+      module Key : S.HASH with type t = key
 
-        module Val :
-          S.NODE
+      module Val :
+        S.NODE
           with type t = value
            and type hash = key
            and type metadata = M.t
@@ -222,7 +223,7 @@ struct
   let rec merge t =
     let merge_key =
       Merge.v (Type.option S.Key.t) (fun ~old x y ->
-          Merge.(f (merge t)) ~old x y )
+          Merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
     let read = function
@@ -231,7 +232,9 @@ struct
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return (Some k)
+      else
+        add t v >>= fun k ->
+        Lwt.return (Some k)
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -331,7 +334,9 @@ module Graph (S : S.NODE_STORE) = struct
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
-    else S.add t new_node >|= fun k -> S.Val.add node label (`Node k)
+    else
+      S.add t new_node >|= fun k ->
+      S.Val.add node label (`Node k)
 
   let map t node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
@@ -341,16 +346,17 @@ module Graph (S : S.NODE_STORE) = struct
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
     (S.find t node >|= function None -> S.Val.empty | Some n -> n)
-    >>= fun node -> aux node path >>= S.add t
+    >>= fun node ->
+    aux node path >>= S.add t
 
   let add t node path n =
     Log.debug (fun f -> f "add %a %a" pp_key node pp_path path);
     match Path.rdecons path with
     | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (
-      match n with
-      | `Node n -> Lwt.return n
-      | `Contents _ -> failwith "TODO: Node.add" )
+        match n with
+        | `Node n -> Lwt.return n
+        | `Contents _ -> failwith "TODO: Node.add" )
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -373,11 +379,11 @@ module Graph (S : S.NODE_STORE) = struct
 
   let value_t =
     let open Type in
-    variant "value" (fun n c -> function
-      | `Node h -> n h | `Contents (h, m) -> c (h, m) )
+    variant "value" (fun n c ->
+      function `Node h -> n h | `Contents (h, m) -> c (h, m))
     |~ case1 "node" node_t (fun k -> `Node k)
     |~ case1 "contents" (pair contents_t metadata_t) (fun (h, m) ->
-           `Contents (h, m) )
+           `Contents (h, m))
     |> sealv
 end
 
@@ -457,13 +463,13 @@ module V1 (N : S.NODE) = struct
         | Some c, None, None -> `Contents (c, N.default)
         | Some c, Some m, None -> `Contents (c, m)
         | None, None, Some n -> `Node n
-        | _ -> failwith "invalid node" )
+        | _ -> failwith "invalid node")
     |+ field "contents" (option K.t) (function
          | `Contents (x, _) -> Some x
-         | _ -> None )
+         | _ -> None)
     |+ field "metadata" (option N.metadata_t) (function
          | `Contents (_, x) when not (equal N.metadata_t N.default x) -> Some x
-         | _ -> None )
+         | _ -> None)
     |+ field "node" (option K.t) (function `Node n -> Some n | _ -> None)
     |> sealr
 
