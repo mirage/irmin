@@ -1107,12 +1107,33 @@ module Make (S : S) = struct
     P.Repo.batch repo (fun x y _ -> S.save_tree ~clear:false repo x y t)
     >|= fun _ -> ()
 
-  let test_trees x () =
+  let inspect =
+    Alcotest.testable
+      (fun ppf -> function `Contents -> Fmt.string ppf "contents"
+        | `Node `Hash -> Fmt.string ppf "hash"
+        | `Node `Map -> Fmt.string ppf "map"
+        | `Node `Value -> Fmt.string ppf "value" )
+      ( = )
+
+  let test_tree_caches x () =
     let test repo =
-      S.master repo >>= fun t ->
-      let nodes = random_nodes 100 in
-      let foo1 = random_value 10 in
-      let foo2 = random_value 10 in
+      let info = Irmin.Info.none in
+      S.master repo >>= fun t1 ->
+      S.set_exn t1 ~info [ "a"; "b" ] "foo" >>= fun () ->
+      (* Testing cache *)
+      S.Tree.reset_counters ();
+      S.get_tree t1 [] >>= fun v ->
+      Alcotest.(check inspect) "inspect:1" (`Node `Hash) (S.Tree.inspect v);
+      S.Tree.add v [ "foo" ] "foo" >>= fun v ->
+      Alcotest.(check inspect) "inspect:2" (`Node `Value) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:0" 0 (S.Tree.counters ()).node_val_v;
+      S.Tree.add v [ "bar"; "foo" ] "bar" >>= fun v ->
+      Alcotest.(check int) "val-v:1" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
+      let _ = S.Tree.hash v in
+      Alcotest.(check int) "val-v:2" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
+      let _ = v in
       (* Testing hashconsing  *)
       (let v0 = S.Tree.empty in
        S.Tree.add v0 [ "foo" ] "foo" >>= fun v0 ->
@@ -1163,17 +1184,29 @@ module Make (S : S) = struct
       S.Tree.add v0 [ "b" ] xxx >>= fun v0 ->
       S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
       S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
-      S.Tree.Cache.clear ();
-      let _k = S.Tree.hash v0 in
+      Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
+      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
       check_cache "mores:1" 3 3;
       S.Tree.Cache.clear ~depth:3 ();
       check_cache "mores:2" 3 3;
       S.Tree.Cache.clear ~depth:2 ();
+      Gc.full_major ();
+      S.Tree.Cache.dump Format.err_formatter ();
       check_cache "trim 2" 2 2;
       S.Tree.Cache.clear ~depth:1 ();
       check_cache "trim 1" 1 1;
       (* keep the value alive *)
       let _ = (v0, xxx, yyy, zzz) in
+      Lwt.return ()
+    in
+    run x test
+
+  let test_trees x () =
+    let test repo =
+      S.master repo >>= fun t ->
+      let nodes = random_nodes 100 in
+      let foo1 = random_value 10 in
+      let foo2 = random_value 10 in
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
@@ -1779,6 +1812,7 @@ let suite (speed, x) =
       ("Basic operations on watches", speed, T.test_watches x);
       ("Basic merge operations", speed, T.test_simple_merges x);
       ("Basic operations on slices", speed, T.test_slice x);
+      ("Tree caches and hashconsing", speed, T.test_tree_caches x);
       ("Complex histories", speed, T.test_history x);
       ("Empty stores", speed, T.test_empty x);
       ("Private node manipulation", speed, T.test_private_nodes x);
