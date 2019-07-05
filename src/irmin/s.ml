@@ -582,6 +582,33 @@ module type TREE = sig
 
     val dump : unit Fmt.t
   end
+
+  type counters = {
+    mutable contents_hash : int;
+    mutable contents_find : int;
+    mutable contents_add : int;
+    mutable contents_cache_length : int;
+    mutable contents_cache_find : int;
+    mutable contents_cache_miss : int;
+    mutable node_hash : int;
+    mutable node_mem : int;
+    mutable node_add : int;
+    mutable node_find : int;
+    mutable node_cache_length : int;
+    mutable node_cache_find : int;
+    mutable node_cache_miss : int;
+    mutable node_val_v : int;
+    mutable node_val_find : int;
+    mutable node_val_list : int
+  }
+
+  val counters : unit -> counters
+
+  val dump_counters : unit Fmt.t
+
+  val reset_counters : unit -> unit
+
+  val inspect : tree -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
 end
 
 module type STORE = sig
@@ -724,10 +751,6 @@ module type STORE = sig
     val of_hash : Repo.t -> hash -> tree option Lwt.t
 
     val shallow : Repo.t -> hash -> tree
-
-    val dump_counters : unit Fmt.t
-
-    val reset_counters : unit -> unit
   end
 
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
