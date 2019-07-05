@@ -750,7 +750,10 @@ module Make (P : S.PRIVATE) = struct
 
     let to_hash t = to_hash t (fun t -> t)
 
-    let value_of_map m = value_of_map m (fun t -> t)
+    let value_of_map t m =
+      value_of_map m (fun v ->
+          t.info.value <- Some v;
+          v )
 
     let value_of_hash t repo k =
       match t.info.value with
@@ -769,7 +772,7 @@ module Make (P : S.PRIVATE) = struct
       | None -> (
         match t.v with
         | Value (_, v) -> Lwt.return (Some v)
-        | Map m -> Lwt.return (Some (value_of_map m))
+        | Map m -> Lwt.return (Some (value_of_map t m))
         | Hash (repo, k) -> value_of_hash t repo k )
 
     let to_map t =
@@ -1288,7 +1291,7 @@ module Make (P : S.PRIVATE) = struct
       assert (Type.equal P.Hash.t k k');
       Node.export ?clear repo n k
     in
-    let add_node_map n x () = add_node n (Node.value_of_map x) () in
+    let add_node_map n x () = add_node n (Node.value_of_map n x) () in
     let add_contents c x () =
       cnt.contents_add <- cnt.contents_add + 1;
       P.Contents.add contents_t x >|= fun k ->
