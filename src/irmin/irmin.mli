@@ -2606,6 +2606,35 @@ module type S = sig
       val dump : unit Fmt.t
     end
 
+    (** {1 Performance counters} *)
+
+    type counters = {
+      mutable contents_hash : int;
+      mutable contents_find : int;
+      mutable contents_add : int;
+      mutable contents_cache_length : int;
+      mutable contents_cache_find : int;
+      mutable contents_cache_miss : int;
+      mutable node_hash : int;
+      mutable node_mem : int;
+      mutable node_add : int;
+      mutable node_find : int;
+      mutable node_cache_length : int;
+      mutable node_cache_find : int;
+      mutable node_cache_miss : int;
+      mutable node_val_v : int;
+      mutable node_val_find : int;
+      mutable node_val_list : int
+    }
+
+    val counters : unit -> counters
+
+    val dump_counters : unit Fmt.t
+
+    val reset_counters : unit -> unit
+
+    val inspect : tree -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
+
     (** {1 Import/Export} *)
 
     val hash : tree -> hash
@@ -2618,12 +2647,6 @@ module type S = sig
     val shallow : repo -> hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No
         check is performed to verify if [h] actually exists in [r]. *)
-
-    (** {1 Performance counters} *)
-
-    val dump_counters : unit Fmt.t
-
-    val reset_counters : unit -> unit
   end
 
   (** {1 Reads} *)
