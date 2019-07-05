@@ -492,7 +492,7 @@ module Make (P : S.PRIVATE) = struct
       | None, Some _ -> x.map <- y.map
       | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
 
-    let elt t : elt Type.t =
+    let elt_t t : elt Type.t =
       let open Type in
       variant "Node.value" (fun node contents -> function
         | `Node x -> node x | `Contents x -> contents x )
@@ -500,7 +500,7 @@ module Make (P : S.PRIVATE) = struct
       |~ case1 "Contents" (pair Contents.t Metadata.t) (fun x -> `Contents x)
       |> sealv
 
-    let map (elt : elt Type.t) : map Type.t =
+    let map_t (elt : elt Type.t) : map Type.t =
       let open Type in
       let to_map x =
         List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
@@ -508,7 +508,7 @@ module Make (P : S.PRIVATE) = struct
       let of_map m = StepMap.fold (fun k v acc -> (k, v) :: acc) m [] in
       map (list (pair Path.step_t elt)) to_map of_map
 
-    let node m =
+    let v_t (m : map Type.t) : v Type.t =
       let open Type in
       variant "Node.node" (fun map hash value -> function
         | Map m -> map m | Hash (_, y) -> hash y | Value (_, v) -> value v )
@@ -632,12 +632,12 @@ module Make (P : S.PRIVATE) = struct
 
     let _, t =
       Type.mu2 (fun _ y ->
-          let elt = elt y in
-          let node = node (map elt) in
-          let t = t node in
-          (node, t) )
+          let elt = elt_t y in
+          let v = v_t (map_t elt) in
+          let t = t v in
+          (v, t) )
 
-    let elt = elt t
+    let elt_t = elt_t t
 
     let dump = Type.pp_json ~minify:false t
 
@@ -954,7 +954,8 @@ module Make (P : S.PRIVATE) = struct
         to_map x >>= fun x ->
         to_map y >>= fun y ->
         let m =
-          StepMap.merge elt (fun _step -> (merge_elt [@tailcall]) Merge.option)
+          StepMap.merge elt_t (fun _step ->
+              (merge_elt [@tailcall]) Merge.option )
         in
         Merge.(f @@ option m) ~old x y >|= function
         | Ok (Some map) -> Ok (of_map map)
@@ -996,7 +997,7 @@ module Make (P : S.PRIVATE) = struct
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node n) )
         | _ -> Merge.conflict "add/add values"
       in
-      k (Merge.seq [ Merge.default elt; Merge.v elt f ])
+      k (Merge.seq [ Merge.default elt_t; Merge.v elt_t f ])
 
     let merge_elt = merge_elt (fun x -> x)
   end
