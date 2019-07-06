@@ -464,6 +464,35 @@ module Make (P : S.PRIVATE) = struct
 
     and t = { mutable v : v; mutable info : info }
 
+    let elt_t t : elt Type.t =
+      let open Type in
+      variant "Node.value" (fun node contents contents_m -> function
+        | `Node x -> node x
+        | `Contents (c, m) ->
+            if Type.equal Metadata.t m Metadata.default then contents c
+            else contents_m (c, m) )
+      |~ case1 "Node" t (fun x -> `Node x)
+      |~ case1 "Contents" Contents.t (fun x -> `Contents (x, Metadata.default))
+      |~ case1 "Contents-x" (pair Contents.t Metadata.t) (fun x -> `Contents x)
+      |> sealv
+
+    let map_t (elt : elt Type.t) : map Type.t =
+      let open Type in
+      let to_map x =
+        List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
+      in
+      let of_map m = StepMap.fold (fun k v acc -> (k, v) :: acc) m [] in
+      map (list (pair Path.step_t elt)) to_map of_map
+
+    let v_t (m : map Type.t) : v Type.t =
+      let open Type in
+      variant "Node.node" (fun map hash value -> function
+        | Map m -> map m | Hash (_, y) -> hash y | Value (_, v) -> value v )
+      |~ case1 "map" m (fun m -> Map m)
+      |~ case1 "hash" P.Hash.t (fun _ -> assert false)
+      |~ case1 "value" P.Node.Val.t (fun _ -> assert false)
+      |> sealv
+
     let rec merge_map ~into:x y =
       List.iter2
         (fun (_, x) (_, y) ->
@@ -491,31 +520,6 @@ module Make (P : S.PRIVATE) = struct
       | None, None | Some _, None -> ()
       | None, Some _ -> x.map <- y.map
       | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
-
-    let elt_t t : elt Type.t =
-      let open Type in
-      variant "Node.value" (fun node contents -> function
-        | `Node x -> node x | `Contents x -> contents x )
-      |~ case1 "Node" t (fun x -> `Node x)
-      |~ case1 "Contents" (pair Contents.t Metadata.t) (fun x -> `Contents x)
-      |> sealv
-
-    let map_t (elt : elt Type.t) : map Type.t =
-      let open Type in
-      let to_map x =
-        List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
-      in
-      let of_map m = StepMap.fold (fun k v acc -> (k, v) :: acc) m [] in
-      map (list (pair Path.step_t elt)) to_map of_map
-
-    let v_t (m : map Type.t) : v Type.t =
-      let open Type in
-      variant "Node.node" (fun map hash value -> function
-        | Map m -> map m | Hash (_, y) -> hash y | Value (_, v) -> value v )
-      |~ case1 "map" m (fun m -> Map m)
-      |~ case1 "hash" P.Hash.t (fun _ -> assert false)
-      |~ case1 "value" P.Node.Val.t (fun _ -> assert false)
-      |> sealv
 
     let info_is_empty i = i.map = None && i.value = None
 
