@@ -170,6 +170,7 @@ module Make (Store : Irmin.KV with type contents = string) = struct
   let run t config size =
     let tree = Store.Tree.empty in
     Store.Repo.v config >>= Store.master >>= fun v ->
+    Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
     times ~n:t.ncommits ~init:tree (fun i tree ->
         if i mod t.gc = 0 then Gc.full_major ();
