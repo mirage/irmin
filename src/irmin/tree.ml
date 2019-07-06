@@ -494,10 +494,14 @@ module Make (P : S.PRIVATE) = struct
 
     let elt_t t : elt Type.t =
       let open Type in
-      variant "Node.value" (fun node contents -> function
-        | `Node x -> node x | `Contents x -> contents x )
+      variant "Node.value" (fun node contents contents_m -> function
+        | `Node x -> node x
+        | `Contents (c, m) ->
+            if Type.equal Metadata.t m Metadata.default then contents c
+            else contents_m (c, m) )
       |~ case1 "Node" t (fun x -> `Node x)
-      |~ case1 "Contents" (pair Contents.t Metadata.t) (fun x -> `Contents x)
+      |~ case1 "Contents" Contents.t (fun x -> `Contents (x, Metadata.default))
+      |~ case1 "Contents-x" (pair Contents.t Metadata.t) (fun x -> `Contents x)
       |> sealv
 
     let map_t (elt : elt Type.t) : map Type.t =
