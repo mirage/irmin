@@ -128,14 +128,14 @@ module IO : IO = struct
       in
       (aux [@tailcall]) 0 (Bytes.length buf)
 
-    let really_read fd buf =
+    let really_read fd len buf =
       let rec aux off len =
         let r = Unix.read fd buf off len in
-        if r = len then off + r
-        else if r = 0 then raise End_of_file
+        if r = 0 then off (* end of file *)
+        else if r = len then off + r
         else (aux [@tailcall]) (off + r) (len - r)
       in
-      (aux [@tailcall]) 0 (Bytes.length buf)
+      (aux [@tailcall]) 0 len
 
     let lseek t off =
       if off = t.cursor then ()
@@ -149,9 +149,9 @@ module IO : IO = struct
       really_write t.fd buf;
       t.cursor <- off ++ Int64.of_int (Bytes.length buf)
 
-    let unsafe_read t ~off buf =
+    let unsafe_read t ~off ~len buf =
       lseek t off;
-      let n = really_read t.fd buf in
+      let n = really_read t.fd len buf in
       t.cursor <- off ++ Int64.of_int n;
       n
 
@@ -159,11 +159,14 @@ module IO : IO = struct
       let buf = Irmin.Type.(to_bin_string int64) n in
       unsafe_write t ~off:0L buf
 
+    let int64_buf = Bytes.create 8
+
     let unsafe_get_offset t =
-      let buf = Bytes.create 8 in
-      let n = unsafe_read t ~off:0L buf in
+      let n = unsafe_read t ~off:0L ~len:8 int64_buf in
       assert (n = 8);
-      match Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string buf) with
+      match
+        Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string int64_buf)
+      with
       | Ok t -> t
       | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
   end
@@ -221,7 +224,7 @@ module IO : IO = struct
 
   let read t ~off buf =
     assert (header ++ off <= t.flushed);
-    Raw.unsafe_read t.raw ~off:(header ++ off) buf
+    Raw.unsafe_read t.raw ~off:(header ++ off) ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 
@@ -820,9 +823,10 @@ module Index (H : Irmin.Hash.S) = struct
             if !offset >= IO.offset t.index.(i) then ()
             else
               let len = IO.offset t.index.(i) -- !offset in
-              let buf = Bytes.create (min (Int64.to_int len) 4096) in
+              let buf = Bytes.create (min (Int64.to_int len) (10 * 4096)) in
               let rec refill () =
                 let n = IO.read t.index.(i) ~off:!offset buf in
+                assert (n <= Bytes.length buf);
                 let buf =
                   if n = Bytes.length buf then Bytes.unsafe_to_string buf
                   else Bytes.sub_string buf 0 n
@@ -1123,8 +1127,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     w : W.t
   }
 
+  let page = Bytes.create 4
+
   let read_length32 ~off block =
-    let page = Bytes.create 4 in
     let n = IO.read block ~off page in
     assert (n = 4);
     let n, v = Irmin.Type.(decode_bin int32) (Bytes.unsafe_to_string page) 0 in
@@ -1205,7 +1210,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
           let buf = Bytes.create (len + V.hash_size) in
           let off = offset ++ 4L in
           let n = IO.read block ~off buf in
-          assert (n = len + V.hash_size);
+          assert (n = Bytes.length buf);
           let buf = Bytes.unsafe_to_string buf in
           let h =
             let h = String.sub buf 0 len in
@@ -1214,7 +1219,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
             | Error (`Msg e) -> failwith e
           in
           let n, v = Irmin.Type.decode_bin V.t buf len in
-          assert (n = len + V.hash_size);
+          assert (n = String.length buf);
           if not (Irmin.Type.equal V.t v zero) then Tbl.add cache h v;
           Tbl.add index h offset;
           (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
