@@ -168,11 +168,11 @@ module Make (Store : Irmin.KV with type contents = string) = struct
     Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
 
   let run t config size =
-    let tree = Store.Tree.empty in
     Store.Repo.v config >>= Store.master >>= fun v ->
     Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
-    times ~n:t.ncommits ~init:tree (fun i tree ->
+    times ~n:t.ncommits ~init:() (fun i () ->
+        Store.get_tree v [] >>= fun tree ->
         if i mod t.gc = 0 then Gc.full_major ();
         if i mod t.display = 0 then (
           plot_progress i t.ncommits;
@@ -180,9 +180,8 @@ module Make (Store : Irmin.KV with type contents = string) = struct
         times ~n:t.tree_add ~init:tree (fun n tree ->
             Store.Tree.add tree paths.(n) (string_of_int i) )
         >>= fun tree ->
-        Store.set_tree_exn v ~info [] tree >>= fun () ->
-        if t.clear then Store.Tree.clear tree;
-        Lwt.return tree )
+        Store.set_tree_exn v ~info [] tree >|= fun () ->
+        if t.clear then Store.Tree.clear tree )
     >|= fun _ -> Fmt.epr "\n[run done]\n%!"
 
   let main t config size =
