@@ -1098,14 +1098,110 @@ module Make (S : S) = struct
   let empty_stats =
     { S.Tree.nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }
 
-  let check_cache msg c n =
-    let `Contents x, `Nodes y = S.Tree.Cache.length () in
-    Alcotest.(check int) (msg ^ ": contents") c x;
-    Alcotest.(check int) (msg ^ ": nodes") n y
-
   let save_tree repo t =
     P.Repo.batch repo (fun x y _ -> S.save_tree ~clear:false repo x y t)
     >|= fun _ -> ()
+
+  let inspect =
+    Alcotest.testable
+      (fun ppf -> function `Contents -> Fmt.string ppf "contents"
+        | `Node `Hash -> Fmt.string ppf "hash"
+        | `Node `Map -> Fmt.string ppf "map"
+        | `Node `Value -> Fmt.string ppf "value" )
+      ( = )
+
+  let test_tree_caches x () =
+    let test repo =
+      let info = Irmin.Info.none in
+      S.master repo >>= fun t1 ->
+      S.set_exn t1 ~info [ "a"; "b" ] "foo" >>= fun () ->
+      (* Testing cache *)
+      S.Tree.reset_counters ();
+      S.get_tree t1 [] >>= fun v ->
+      Alcotest.(check inspect) "inspect" (`Node `Hash) (S.Tree.inspect v);
+      S.Tree.add v [ "foo" ] "foo" >>= fun v ->
+      Alcotest.(check inspect) "inspect:0" (`Node `Map) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:0" 0 (S.Tree.counters ()).node_val_v;
+      S.Tree.add v [ "bar"; "foo" ] "bar" >>= fun v ->
+      Alcotest.(check inspect) "inspect:1" (`Node `Map) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:1" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
+      let _ = S.Tree.hash v in
+      Alcotest.(check inspect) "inspect:2" (`Node `Map) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:2" 2 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
+      S.set_tree_exn t1 ~info [] v >>= fun () ->
+      Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:3" 2 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
+      let _ = v in
+      (* Testing hashconsing  *)
+      let v0 = S.Tree.empty in
+      S.Tree.add v0 [ "foo" ] "foo" >>= fun v0 ->
+      S.Tree.add v0 [ "bar" ] "foo" >>= fun v0 ->
+      save_tree repo v0 >>= fun () ->
+      S.Tree.get v0 [ "foo" ] >>= fun x ->
+      S.Tree.get v0 [ "bar" ] >>= fun y ->
+      Alcotest.(check bool) "hashconsing contents" true (x == y);
+      S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v1 ->
+      S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v2 ->
+      S.Tree.add_tree v0 [ "x"; "b"; "c" ] v0 >>= fun v3 ->
+      save_tree repo v1 >>= fun () ->
+      save_tree repo v2 >>= fun () ->
+      save_tree repo v3 >>= fun () ->
+      Alcotest.(check inspect) "inspect v1:1" (`Node `Hash) (S.Tree.inspect v1);
+      Alcotest.(check inspect) "inspect v2:1" (`Node `Map) (S.Tree.inspect v2);
+      Alcotest.(check inspect) "inspect v3:1" (`Node `Hash) (S.Tree.inspect v3);
+      let k1 = S.Tree.hash v1 in
+      let k2 = S.Tree.hash v2 in
+      Alcotest.(check inspect) "inspect v1:2" (`Node `Hash) (S.Tree.inspect v1);
+      Alcotest.(check inspect) "inspect v2:2" (`Node `Map) (S.Tree.inspect v2);
+      Alcotest.(check bool) "hashconsing tree hashes" true (k1 == k2);
+      S.Tree.get_tree v1 [ "a" ] >>= fun x ->
+      S.Tree.get_tree v2 [ "a" ] >>= fun y ->
+      S.Tree.get_tree v2 [ "a" ] >>= fun z ->
+      Alcotest.(check inspect) "inspect x" (`Node `Hash) (S.Tree.inspect x);
+      Alcotest.(check inspect) "inspect y" (`Node `Hash) (S.Tree.inspect y);
+      Alcotest.(check inspect) "inspect z" (`Node `Hash) (S.Tree.inspect z);
+      Alcotest.(check bool)
+        "hashconsing same tree" true
+        (get_node x == get_node y);
+      Alcotest.(check bool)
+        "hashconsing unrelated tree" true
+        (get_node x == get_node z);
+      (* Test caching (makesure that no tree is lying in scope) *)
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo-x") in
+      S.Tree.Cache.clear ();
+      S.Tree.reset_counters ();
+      let foo = "foo-x" in
+      S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
+      (* 2 calls to Node.find because v0 is a shallow tree *)
+      Alcotest.(check int) "1 Node.find" 2 (S.Tree.counters ()).node_find;
+      (* cache is filled whenever we hash something *)
+      let _ = S.Tree.hash v0 in
+      S.Tree.add v0 [ "foo" ] foo >>= fun _v0 ->
+      let _k = S.Tree.hash v0 in
+      S.Tree.Cache.clear ();
+      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar-x") in
+      let xxx = "xxx" in
+      let yyy = "yyy" in
+      let zzz = "zzz" in
+      Fmt.epr "%a" S.Tree.Cache.dump ();
+      S.Tree.add v0 [ "a" ] xxx >>= fun v0 ->
+      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
+      S.get_tree t1 [] >>= fun v0 ->
+      S.Tree.add v0 [ "b" ] xxx >>= fun v0 ->
+      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
+      S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
+      S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
+      Alcotest.(check inspect) "inspect" (`Node `Map) (S.Tree.inspect v0);
+      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
+      S.Tree.Cache.clear ~depth:3 ();
+      S.Tree.Cache.clear ~depth:2 ();
+      S.Tree.Cache.clear ~depth:1 ();
+      Lwt.return ()
+    in
+    run x test
 
   let test_trees x () =
     let test repo =
@@ -1113,67 +1209,6 @@ module Make (S : S) = struct
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
-      (* Testing hashconsing  *)
-      (let v0 = S.Tree.empty in
-       S.Tree.add v0 [ "foo" ] "foo" >>= fun v0 ->
-       S.Tree.add v0 [ "bar" ] "foo" >>= fun v0 ->
-       save_tree repo v0 >>= fun () ->
-       S.Tree.get v0 [ "foo" ] >>= fun x ->
-       S.Tree.get v0 [ "bar" ] >>= fun y ->
-       Alcotest.(check bool) "hashconsing contents" true (x == y);
-       S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v1 ->
-       S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v2 ->
-       S.Tree.add_tree v0 [ "x"; "b"; "c" ] v0 >>= fun v3 ->
-       save_tree repo v1 >>= fun () ->
-       save_tree repo v2 >>= fun () ->
-       save_tree repo v3 >>= fun () ->
-       let k1 = S.Tree.hash v1 in
-       let k2 = S.Tree.hash v2 in
-       Alcotest.(check bool) "hashconsing tree hashes" true (k1 == k2);
-       S.Tree.get_tree v1 [ "a" ] >>= fun x ->
-       S.Tree.get_tree v2 [ "a" ] >>= fun y ->
-       S.Tree.get_tree v2 [ "a" ] >>= fun z ->
-       Alcotest.(check bool)
-         "hashconsing same tree" true
-         (get_node x == get_node y);
-       Alcotest.(check bool)
-         "hashconsing unrelated tree" true
-         (get_node x == get_node z);
-       Lwt.return ())
-      >>= fun () ->
-      (* Test caching (makesure that no tree is lying in scope) *)
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo-x") in
-      S.Tree.Cache.clear ();
-      check_cache "empty" 0 0;
-      let foo = "foo-x" in
-      S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
-      check_cache "still empty" 0 0;
-      (* cache is filled whenever we hash something *)
-      let _ = S.Tree.hash v0 in
-      check_cache "one leaf" 1 1;
-      S.Tree.add v0 [ "foo" ] foo >>= fun _v0 ->
-      let _k = S.Tree.hash v0 in
-      check_cache "still one leaf" 1 1;
-      S.Tree.Cache.clear ();
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar-x") in
-      let xxx = "xxx" in
-      let yyy = "yyy" in
-      let zzz = "zzz" in
-      S.Tree.add v0 [ "a" ] xxx >>= fun v0 ->
-      S.Tree.add v0 [ "b" ] xxx >>= fun v0 ->
-      S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
-      S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
-      S.Tree.Cache.clear ();
-      let _k = S.Tree.hash v0 in
-      check_cache "mores:1" 3 3;
-      S.Tree.Cache.clear ~depth:3 ();
-      check_cache "mores:2" 3 3;
-      S.Tree.Cache.clear ~depth:2 ();
-      check_cache "trim 2" 2 2;
-      S.Tree.Cache.clear ~depth:1 ();
-      check_cache "trim 1" 1 1;
-      (* keep the value alive *)
-      let _ = (v0, xxx, yyy, zzz) in
       (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
@@ -1779,6 +1814,7 @@ let suite (speed, x) =
       ("Basic operations on watches", speed, T.test_watches x);
       ("Basic merge operations", speed, T.test_simple_merges x);
       ("Basic operations on slices", speed, T.test_slice x);
+      ("Tree caches and hashconsing", speed, T.test_tree_caches x);
       ("Complex histories", speed, T.test_history x);
       ("Empty stores", speed, T.test_empty x);
       ("Private node manipulation", speed, T.test_private_nodes x);
