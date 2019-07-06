@@ -464,34 +464,6 @@ module Make (P : S.PRIVATE) = struct
 
     and t = { mutable v : v; mutable info : info }
 
-    let rec merge_map ~into:x y =
-      List.iter2
-        (fun (_, x) (_, y) ->
-          match (x, y) with
-          | `Contents (x, _), `Contents (y, _) ->
-              Contents.merge_info ~into:x.Contents.info y.Contents.info
-          | `Node x, `Node y -> (merge_info [@tailcall]) ~into:x.info y.info
-          | _ -> assert false )
-        (StepMap.bindings x) (StepMap.bindings y)
-
-    and merge_info ~into:x y =
-      let () =
-        match (x.hash, y.hash) with
-        | None, None | Some _, None -> ()
-        | Some _, Some _ -> ()
-        | None, _ -> x.hash <- y.hash
-      in
-      let () =
-        match (x.value, y.value) with
-        | None, None | Some _, None -> ()
-        | Some _, Some _ -> ()
-        | None, _ -> x.value <- y.value
-      in
-      match (x.map, y.map) with
-      | None, None | Some _, None -> ()
-      | None, Some _ -> x.map <- y.map
-      | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
-
     let elt_t t : elt Type.t =
       let open Type in
       variant "Node.value" (fun node contents contents_m -> function
@@ -520,6 +492,34 @@ module Make (P : S.PRIVATE) = struct
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" P.Node.Val.t (fun _ -> assert false)
       |> sealv
+
+    let rec merge_map ~into:x y =
+      List.iter2
+        (fun (_, x) (_, y) ->
+          match (x, y) with
+          | `Contents (x, _), `Contents (y, _) ->
+              Contents.merge_info ~into:x.Contents.info y.Contents.info
+          | `Node x, `Node y -> (merge_info [@tailcall]) ~into:x.info y.info
+          | _ -> assert false )
+        (StepMap.bindings x) (StepMap.bindings y)
+
+    and merge_info ~into:x y =
+      let () =
+        match (x.hash, y.hash) with
+        | None, None | Some _, None -> ()
+        | Some _, Some _ -> ()
+        | None, _ -> x.hash <- y.hash
+      in
+      let () =
+        match (x.value, y.value) with
+        | None, None | Some _, None -> ()
+        | Some _, Some _ -> ()
+        | None, _ -> x.value <- y.value
+      in
+      match (x.map, y.map) with
+      | None, None | Some _, None -> ()
+      | None, Some _ -> x.map <- y.map
+      | Some x, Some y -> (merge_map [@tailcall]) ~into:x y
 
     let info_is_empty i = i.map = None && i.value = None
 
