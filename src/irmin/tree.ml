@@ -1288,7 +1288,7 @@ module Make (P : S.PRIVATE) = struct
   let import_no_check repo k = Node.of_hash repo k
 
   let export ?clear repo contents_t node_t n =
-    let seen = Hashtbl.create 127 in
+    let seen = Hashes.create 127 in
     let add_node n v () =
       cnt.node_add <- cnt.node_add + 1;
       P.Node.add node_t v >|= fun k ->
@@ -1308,11 +1308,13 @@ module Make (P : S.PRIVATE) = struct
     let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
       let h = Node.to_hash n in
-      if Hashtbl.mem seen h then k ()
+      if Hashes.mem seen h then k ()
       else (
-        Hashtbl.add seen h ();
+        Hashes.add seen h ();
         match n.Node.v with
-        | Node.Hash _ -> k ()
+        | Node.Hash _ ->
+            Node.export ?clear repo n h;
+            k ()
         | Node.Value (_, x) ->
             Stack.push (add_node n x) todo;
             k ()
@@ -1320,7 +1322,9 @@ module Make (P : S.PRIVATE) = struct
             (* 1. we push the current node job on the stack. *)
             cnt.node_mem <- cnt.node_mem + 1;
             P.Node.mem node_t h >>= function
-            | true -> k ()
+            | true ->
+                Node.export ?clear repo n h;
+                k ()
             | false ->
                 let () =
                   match Node.value n with
@@ -1338,9 +1342,9 @@ module Make (P : S.PRIVATE) = struct
                 List.iter
                   (fun (c, _) ->
                     let h = Contents.to_hash c in
-                    if Hashtbl.mem seen h then ()
+                    if Hashes.mem seen h then ()
                     else (
-                      Hashtbl.add seen h ();
+                      Hashes.add seen h ();
                       match c.Contents.v with
                       | Contents.Hash _ -> ()
                       | Contents.Value x -> Stack.push (add_contents c x) todo )
