@@ -1,0 +1,19 @@
+lib: [
+  "_build/install/default/lib/ppx_irmin/META"
+  "_build/install/default/lib/ppx_irmin/dune-package"
+  "_build/install/default/lib/ppx_irmin/opam"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.a"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cma"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmi"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmt"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmti"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmx"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmxa"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.cmxs"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.ml"
+  "_build/install/default/lib/ppx_irmin/ppx_irmin.mli"
+]
+doc: [
+  "_build/install/default/doc/ppx_irmin/CHANGES.md"
+  "_build/install/default/doc/ppx_irmin/README.md"
+]

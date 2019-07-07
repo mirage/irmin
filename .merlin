@@ -1,0 +1,37 @@
+EXCLUDE_QUERY_DIR
+B /home/craigfe/.opam/default/lib/base
+B /home/craigfe/.opam/default/lib/base/caml
+B /home/craigfe/.opam/default/lib/base/shadow_stdlib
+B /home/craigfe/.opam/default/lib/ocaml-compiler-libs/common
+B /home/craigfe/.opam/default/lib/ocaml-compiler-libs/shadow
+B /home/craigfe/.opam/default/lib/ocaml-migrate-parsetree
+B /home/craigfe/.opam/default/lib/ppx_derivers
+B /home/craigfe/.opam/default/lib/ppxlib
+B /home/craigfe/.opam/default/lib/ppxlib/ast
+B /home/craigfe/.opam/default/lib/ppxlib/print_diff
+B /home/craigfe/.opam/default/lib/ppxlib/traverse_builtins
+B /home/craigfe/.opam/default/lib/result
+B /home/craigfe/.opam/default/lib/sexplib0
+B /home/craigfe/.opam/default/lib/stdio
+B /usr/lib/ocaml/compiler-libs
+B _build/default/.pp.eobjs/byte
+B _build/default/.test.eobjs/byte
+B _build/default/rewriter/.ppx_irmin.objs/byte
+S /home/craigfe/.opam/default/lib/base
+S /home/craigfe/.opam/default/lib/base/caml
+S /home/craigfe/.opam/default/lib/base/shadow_stdlib
+S /home/craigfe/.opam/default/lib/ocaml-compiler-libs/common
+S /home/craigfe/.opam/default/lib/ocaml-compiler-libs/shadow
+S /home/craigfe/.opam/default/lib/ocaml-migrate-parsetree
+S /home/craigfe/.opam/default/lib/ppx_derivers
+S /home/craigfe/.opam/default/lib/ppxlib
+S /home/craigfe/.opam/default/lib/ppxlib/ast
+S /home/craigfe/.opam/default/lib/ppxlib/print_diff
+S /home/craigfe/.opam/default/lib/ppxlib/traverse_builtins
+S /home/craigfe/.opam/default/lib/result
+S /home/craigfe/.opam/default/lib/sexplib0
+S /home/craigfe/.opam/default/lib/stdio
+S /usr/lib/ocaml/compiler-libs
+S .
+S rewriter
+FLG -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs
