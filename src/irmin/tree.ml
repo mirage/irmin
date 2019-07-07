@@ -245,7 +245,11 @@ module Make (P : S.PRIVATE) = struct
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
 
-    type info = { mutable hash : hash option; mutable value : contents option }
+    type info = {
+      mutable hash : hash option;
+      mutable value : contents option;
+      mutable color : [ `White | `Black ]
+    }
 
     type t = { mutable v : v; mutable info : info }
 
@@ -257,6 +261,12 @@ module Make (P : S.PRIVATE) = struct
     let values = Values.create ~is_empty:info_is_empty 1000
 
     let hashes = Hashes.create ~is_empty:info_is_empty 1000
+
+    let iter_info f =
+      Values.iter (fun _ i -> f i) values;
+      Hashes.iter (fun _ i -> f i) hashes
+
+    let mark color i = i.color <- color
 
     let v =
       let open Type in
@@ -296,13 +306,13 @@ module Make (P : S.PRIVATE) = struct
       let info =
         match (hash, value) with
         | Some _, Some _ -> assert false
-        | None, None -> { hash; value }
+        | None, None -> { hash; value; color = `White }
         | None, Some v -> (
             cnt.contents_cache_find <- cnt.contents_cache_find + 1;
             match Values.find values v with
             | exception Not_found ->
                 cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
-                let i = { hash; value } in
+                let i = { hash; value; color = `White } in
                 Values.add values v i;
                 i
             | i -> i )
@@ -311,7 +321,7 @@ module Make (P : S.PRIVATE) = struct
             match Hashes.find hashes k with
             | exception Not_found ->
                 cnt.contents_cache_miss <- cnt.contents_cache_miss + 1;
-                let i = { hash; value } in
+                let i = { hash; value; color = `White } in
                 Hashes.add hashes k i;
                 i
             | i -> i )
@@ -457,7 +467,8 @@ module Make (P : S.PRIVATE) = struct
     and info = {
       mutable value : value option;
       mutable map : map option;
-      mutable hash : hash option
+      mutable hash : hash option;
+      mutable color : [ `White | `Black ]
     }
 
     and v = Map of map | Hash of repo * hash | Value of repo * value
@@ -548,45 +559,16 @@ module Make (P : S.PRIVATE) = struct
       let map = match i.map with None -> "<none>" | Some _ -> "<some>" in
       let hash = match i.hash with None -> "<none>" | Some _ -> "<some>" in
       let empty = if info_is_empty i then "*" else "" in
-      Fmt.pf ppf "[width=%d, depth=%d, value=%s, map=%s, hash=%s]%s %b"
-        (width i) (depth i) value map hash empty
-        (i.map = None && i.value = None)
+      Fmt.pf ppf "[width=%d, depth=%d, value=%s, map=%s, hash=%s]%s" (width i)
+        (depth i) value map hash empty
 
     module Cache = Cache (P.Hash)
 
     let cache = Cache.create ~is_empty:info_is_empty 100
 
-    let rec clear_map ~max_depth depth m =
-      StepMap.iter
-        (fun _ v ->
-          match v with
-          | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
-          | `Node t -> (clear [@tailcall]) ~max_depth (depth + 1) t )
-        m
+    let iter_info f = Cache.iter (fun _ i -> f i) cache
 
-    and clear_info ~max_depth ?v depth i =
-      let map =
-        match (v, i.map) with
-        | Some (Map m), _ | _, Some m -> Some m
-        | _ -> None
-      in
-      if depth >= max_depth && not (info_is_empty i) then (
-        i.value <- None;
-        i.map <- None;
-        i.hash <- None );
-      match map with
-      | None -> ()
-      | Some m -> (clear_map [@tailcall]) ~max_depth depth m
-
-    and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
-
-    let clear_info ?depth:d i =
-      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
-      clear_info ~max_depth 0 i
-
-    let clear ?depth:d n =
-      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
-      clear ~max_depth 0 n
+    let mark c t = t.color <- c
 
     let of_v v =
       let hash, map, value =
@@ -598,13 +580,13 @@ module Make (P : S.PRIVATE) = struct
       (* hashcons info *)
       let info =
         match hash with
-        | None -> { hash; map; value }
+        | None -> { hash; map; value; color = `White }
         | Some k -> (
             cnt.node_cache_find <- cnt.node_cache_find + 1;
             match Cache.find cache k with
             | exception Not_found ->
                 cnt.node_cache_miss <- cnt.node_cache_miss + 1;
-                let i = { hash; map; value } in
+                let i = { hash; map; value; color = `White } in
                 Cache.add cache k i;
                 i
             | i -> i )
@@ -618,6 +600,42 @@ module Make (P : S.PRIVATE) = struct
         | _ -> v
       in
       { v; info }
+
+    let rec clear_map ~max_depth depth m =
+      StepMap.iter
+        (fun _ v ->
+          match v with
+          | `Contents (c, _) ->
+              Contents.mark `Black c.Contents.info;
+              if depth + 1 > max_depth then Contents.clear c
+          | `Node t -> (clear [@tailcall]) ~max_depth (depth + 1) t )
+        m
+
+    and clear_info ~max_depth ?v depth i =
+      if i.color = `White then (
+        let map =
+          match (v, i.map) with
+          | Some (Map m), _ | _, Some m -> Some m
+          | _ -> None
+        in
+        if depth >= max_depth && not (info_is_empty i) then (
+          i.color <- `Black;
+          i.value <- None;
+          i.map <- None;
+          i.hash <- None );
+        match map with
+        | None -> ()
+        | Some m -> (clear_map [@tailcall]) ~max_depth depth m )
+
+    and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
+
+    let clear_info ?depth:d i =
+      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
+      clear_info ~max_depth 0 i
+
+    let clear ?depth:d n =
+      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
+      clear ~max_depth 0 n
 
     (* export t to the given repo and clear the cache *)
     let export ?clear:c repo t k =
@@ -1015,7 +1033,7 @@ module Make (P : S.PRIVATE) = struct
 
   type tree = [ `Node of node | `Contents of contents * metadata ]
 
-  let of_private_node = Node.of_value
+  let of_private_node repo n = Node.of_value repo n
 
   let to_private_node = Node.to_value
 
@@ -1558,14 +1576,17 @@ module Make (P : S.PRIVATE) = struct
         `Nodes Node.(Cache.length cache) )
 
     let clear ?depth () =
-      Log.info (fun l -> l "Tree.Cache.clear");
+      Log.info (fun l -> l "Tree.Cache.clear %a" Fmt.(option int) depth);
       match depth with
       | None ->
-          Contents.Hashes.iter (fun _ -> Contents.clear_info) Contents.hashes;
-          Contents.Values.iter (fun _ -> Contents.clear_info) Contents.values;
-          Node.Cache.iter (fun _ i -> Node.clear_info i) Node.cache
+          Contents.iter_info Contents.clear_info;
+          Node.iter_info (fun i -> Node.clear_info i)
       | Some depth ->
-          Node.Cache.iter (fun _ i -> Node.clear_info ~depth i) Node.cache
+          Contents.iter_info (Contents.mark `White);
+          Node.iter_info (Node.mark `White);
+          Node.iter_info (fun i -> Node.clear_info ~depth i);
+          Contents.iter_info (fun i ->
+              if i.Contents.color = `White then Contents.clear_info i )
 
     let dump ppf () =
       let ppo t ppf = function
