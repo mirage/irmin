@@ -1150,12 +1150,12 @@ module Make (S : S) = struct
       save_tree repo v2 >>= fun () ->
       save_tree repo v3 >>= fun () ->
       Alcotest.(check inspect) "inspect v1:1" (`Node `Hash) (S.Tree.inspect v1);
-      Alcotest.(check inspect) "inspect v2:1" (`Node `Map) (S.Tree.inspect v2);
+      Alcotest.(check inspect) "inspect v2:1" (`Node `Hash) (S.Tree.inspect v2);
       Alcotest.(check inspect) "inspect v3:1" (`Node `Hash) (S.Tree.inspect v3);
       let k1 = S.Tree.hash v1 in
       let k2 = S.Tree.hash v2 in
       Alcotest.(check inspect) "inspect v1:2" (`Node `Hash) (S.Tree.inspect v1);
-      Alcotest.(check inspect) "inspect v2:2" (`Node `Map) (S.Tree.inspect v2);
+      Alcotest.(check inspect) "inspect v2:2" (`Node `Hash) (S.Tree.inspect v2);
       Alcotest.(check bool) "hashconsing tree hashes" true (k1 == k2);
       S.Tree.get_tree v1 [ "a" ] >>= fun x ->
       S.Tree.get_tree v2 [ "a" ] >>= fun y ->
