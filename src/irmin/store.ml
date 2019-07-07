@@ -392,22 +392,42 @@ module Make (P : S.PRIVATE) = struct
 
   let of_commit c = of_ref c.Commit.r (`Head (ref (Some c)))
 
-  let ( >>? ) x f = x >>= function None -> Lwt.return_unit | Some x -> f x
+  let pp_key = Type.pp Key.t
 
-  let lift_tree_diff tree fn = function
-    | `Removed x -> tree x >>? fun v -> fn @@ `Removed (x, v)
-    | `Added x -> tree x >>? fun v -> fn @@ `Added (x, v)
+  let skip_key key =
+    Log.debug (fun l -> l "[watch-key] key %a has not changed" pp_key key);
+    Lwt.return ()
+
+  let changed_key key =
+    Log.debug (fun l -> l "[watch-key] key %a has changed" pp_key key)
+
+  let with_tree ~key x f =
+    x >>= function
+    | None -> skip_key key
+    | Some x ->
+        changed_key key;
+        f x
+
+  let lift_tree_diff ~key tree fn = function
+    | `Removed x -> with_tree ~key (tree x) @@ fun v -> fn @@ `Removed (x, v)
+    | `Added x -> with_tree ~key (tree x) @@ fun v -> fn @@ `Added (x, v)
     | `Updated (x, y) -> (
         assert (not (Commit.equal x y));
         tree x >>= fun vx ->
         tree y >>= fun vy ->
         match (vx, vy) with
-        | None, None -> Lwt.return_unit
-        | None, Some vy -> fn @@ `Added (y, vy)
-        | Some vx, None -> fn @@ `Removed (x, vx)
+        | None, None -> skip_key key
+        | None, Some vy ->
+            changed_key key;
+            fn @@ `Added (y, vy)
+        | Some vx, None ->
+            changed_key key;
+            fn @@ `Removed (x, vx)
         | Some vx, Some vy ->
-            if Tree.equal vx vy then Lwt.return_unit
-            else fn @@ `Updated ((x, vx), (y, vy)) )
+            if Tree.equal vx vy then skip_key key
+            else (
+              changed_key key;
+              fn @@ `Updated ((x, vx), (y, vy)) ) )
 
   let head t =
     let h =
@@ -480,7 +500,7 @@ module Make (P : S.PRIVATE) = struct
   let watch_key t key ?init fn =
     Log.info (fun f -> f "watch-key %a" pp_key key);
     let tree c = Tree.find_tree (Commit.tree c) key in
-    watch t ?init (lift_tree_diff tree fn)
+    watch t ?init (lift_tree_diff ~key tree fn)
 
   module Head = struct
     let list = Repo.heads
