@@ -1120,19 +1120,19 @@ module Make (S : S) = struct
       S.get_tree t1 [] >>= fun v ->
       Alcotest.(check inspect) "inspect" (`Node `Hash) (S.Tree.inspect v);
       S.Tree.add v [ "foo" ] "foo" >>= fun v ->
-      Alcotest.(check inspect) "inspect:0" (`Node `Map) (S.Tree.inspect v);
+      Alcotest.(check inspect) "inspect:0" (`Node `Value) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:0" 0 (S.Tree.counters ()).node_val_v;
       S.Tree.add v [ "bar"; "foo" ] "bar" >>= fun v ->
-      Alcotest.(check inspect) "inspect:1" (`Node `Map) (S.Tree.inspect v);
+      Alcotest.(check inspect) "inspect:1" (`Node `Value) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:1" 0 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
       let _ = S.Tree.hash v in
-      Alcotest.(check inspect) "inspect:2" (`Node `Map) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:2" 2 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check inspect) "inspect:2" (`Node `Value) (S.Tree.inspect v);
+      Alcotest.(check int) "val-v:2" 0 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
       S.set_tree_exn t1 ~info [] v >>= fun () ->
       Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:3" 2 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:3" 0 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
       let _ = v in
       (* Testing hashconsing  *)
@@ -1194,7 +1194,7 @@ module Make (S : S) = struct
       S.set_tree_exn ~info t1 [] v0 >>= fun () ->
       S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
       S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
-      Alcotest.(check inspect) "inspect" (`Node `Map) (S.Tree.inspect v0);
+      Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
       S.set_tree_exn ~info t1 [] v0 >>= fun () ->
       S.Tree.Cache.clear ~depth:3 ();
       S.Tree.Cache.clear ~depth:2 ();
