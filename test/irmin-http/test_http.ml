@@ -112,7 +112,7 @@ let suite i server =
           if Filename.basename pwd = "default" then "cd ../.. && " else ""
         in
         let cmd =
-          Fmt.strf "%sdune exec --root . -- %s serve %d &" chdir Sys.argv.(0) i
+          Fmt.strf "%s_build/default/%s serve %d &" chdir Sys.argv.(0) i
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in
