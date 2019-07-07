@@ -1467,55 +1467,55 @@ module Make (P : S.PRIVATE) = struct
             | true ->
                 Node.export ?clear repo n h;
                 k ()
-            | false ->
-                let children =
-                  match n.v with
-                  | Map m -> m
-                  | Value (_, _, Some m) -> m
-                  | _ -> assert false
-                in
-                (* 1. convert partial values to total values *)
-                ( match n.v with
-                | Value (_, _, Some _) -> (
-                    Node.to_value n >|= function
-                    | None -> ()
-                    | Some v -> n.v <- Value (repo, v, None) )
-                | _ -> Lwt.return () )
-                >>= fun () ->
-                (* 2. push the current node job on the stack. *)
-                let () =
-                  match (n.v, Node.value n) with
-                  | _, Some v -> Stack.push (add_node n v) todo
-                  | Map x, None -> Stack.push (add_node_map n x) todo
-                  | _ -> assert false
-                in
-                let contents = ref [] in
-                let nodes = ref [] in
-                StepMap.iter
-                  (fun _ -> function
-                    | `Contents c -> contents := c :: !contents
-                    | `Node n -> nodes := n :: !nodes )
-                  children;
-                (* 2. push the contents job on the stack. *)
-                List.iter
-                  (fun (c, _) ->
-                    let h = Contents.to_hash c in
-                    if Hashes.mem seen h then ()
-                    else (
-                      Hashes.add seen h ();
-                      match c.Contents.v with
-                      | Contents.Hash _ -> ()
-                      | Contents.Value x -> Stack.push (add_contents c x) todo )
-                    )
-                  !contents;
-                (* 3. push the children jobs on the stack. *)
-                List.iter
-                  (fun n ->
-                    Stack.push
-                      (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
-                      todo )
-                  !nodes;
-                k () ) )
+            | false -> (
+              match n.v with
+              | Hash _ | Value (_, _, None) ->
+                  (* might happen if the node has already been added
+                     (while the thread was block on P.Node.mem *)
+                  k ()
+              | Map children | Value (_, _, Some children) ->
+                  (* 1. convert partial values to total values *)
+                  ( match n.v with
+                  | Value (_, _, Some _) -> (
+                      Node.to_value n >|= function
+                      | None -> ()
+                      | Some v -> n.v <- Value (repo, v, None) )
+                  | _ -> Lwt.return () )
+                  >>= fun () ->
+                  (* 2. push the current node job on the stack. *)
+                  let () =
+                    match (n.v, Node.value n) with
+                    | _, Some v -> Stack.push (add_node n v) todo
+                    | Map x, None -> Stack.push (add_node_map n x) todo
+                    | _ -> assert false
+                  in
+                  let contents = ref [] in
+                  let nodes = ref [] in
+                  StepMap.iter
+                    (fun _ -> function
+                      | `Contents c -> contents := c :: !contents
+                      | `Node n -> nodes := n :: !nodes )
+                    children;
+                  (* 2. push the contents job on the stack. *)
+                  List.iter
+                    (fun (c, _) ->
+                      let h = Contents.to_hash c in
+                      if Hashes.mem seen h then ()
+                      else (
+                        Hashes.add seen h ();
+                        match c.Contents.v with
+                        | Contents.Hash _ -> ()
+                        | Contents.Value x ->
+                            Stack.push (add_contents c x) todo ) )
+                    !contents;
+                  (* 3. push the children jobs on the stack. *)
+                  List.iter
+                    (fun n ->
+                      Stack.push
+                        (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
+                        todo )
+                    !nodes;
+                  k () ) ) )
     in
     let rec loop () =
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in
