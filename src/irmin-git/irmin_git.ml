@@ -264,15 +264,19 @@ struct
       let is_empty = G.Value.Tree.is_empty
 
       let add t name value =
+        let name = of_step name in
         let entry =
           match value with
-          | `Node node -> G.Value.Tree.entry (of_step name) `Dir node
+          | `Node node -> G.Value.Tree.entry name `Dir node
           | `Contents (node, perm) ->
-              G.Value.Tree.entry (of_step name)
-                (perm :> G.Value.Tree.perm)
-                node
+              G.Value.Tree.entry name (perm :> G.Value.Tree.perm) node
         in
-        G.Value.Tree.add t entry
+        (* FIXME(samoht): issue in G.Value.Tree.add *)
+        let entries = G.Value.Tree.to_list t in
+        let entries =
+          List.filter (fun e -> e.G.Value.Tree.name <> name) entries
+        in
+        G.Value.Tree.of_list (entry :: entries)
 
       let empty = G.Value.Tree.of_list []
 
@@ -290,6 +294,7 @@ struct
               )
             alist
         in
+        (* Tree.of_list will sort the list in the right order *)
         G.Value.Tree.of_list alist
 
       let alist t =
@@ -307,6 +312,7 @@ struct
             | { G.Value.Tree.perm = #Metadata.t as perm; name; node; _ } ->
                 (to_step name, mk_c node perm) :: acc )
           [] (G.Value.Tree.to_list t)
+        |> List.rev
 
       module N = Irmin.Private.Node.Make (H) (P) (Metadata)
 
