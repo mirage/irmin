@@ -1,0 +1,20 @@
+opam-version: "2.0"
+maintainer: "Craig Ferguson <craig@tarides.com>"
+author: "Craig Ferguson <craig@tarides.com>"
+homepage: "https://github.com/CraigFe/ppx_irmin"
+bug-reports: "https://github.com/CraigFe/ppx_irmin/issues"
+license: "BSD-2"
+dev-repo: "git+https://github.com/CraigFe/ppx_irmin.git"
+build: [
+  [ "dune" "build" "-p" name "-j" jobs ]
+]
+run-test: [
+  [ "dune" "runtest" "-p" name "-j" jobs ]
+]
+depends: [
+  "dune" {build}
+  "ocaml" {>= "4.04.2"}
+  "ppxlib" {>= "0.3.0"}
+  "irmin" {>= "1.4.0"}
+]
+synopsis: "PPX deriver for Irmin type witnesses"
