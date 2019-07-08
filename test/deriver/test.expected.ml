@@ -82,7 +82,32 @@ let test_variant5 =
        (case1 "C5" (triple int32 string unit)
           (fun (x1, x2, x3) -> C5 (x1, x2, x3))))
       |> sealv
-type test_variant6 =
-  | Nil
-  | Cons of string * test_variant5 [@@deriving irmin]
-let test_variant5
+type test_record1 = {
+  alpha: string ;
+  beta: int64 list ;
+  gamma: test_variant5 }[@@deriving irmin]
+let test_record1 =
+  let open Irmin.Type in
+    ((((record "irmin"
+          (fun alpha -> fun beta -> fun gamma -> { alpha; beta; gamma }))
+         |+ (field "alpha" string (fun t -> t.alpha)))
+        |+ (field "beta" (list int64) (fun t -> t.beta)))
+       |+ (field "gamma" test_variant5 (fun t -> t.gamma)))
+      |> sealr
+type test_record2 =
+  {
+  the_FIRST_identifier: test_record1 option ;
+  the_SECOND_identifier: (string, int32) result list }[@@deriving irmin]
+let test_record2 =
+  let open Irmin.Type in
+    (((record "irmin"
+         (fun the_FIRST_identifier ->
+            fun the_SECOND_identifier ->
+              { the_FIRST_identifier; the_SECOND_identifier }))
+        |+
+        (field "the_FIRST_identifier" (option test_record1)
+           (fun t -> t.the_FIRST_identifier)))
+       |+
+       (field "the_SECOND_identifier" (list (result string int32))
+          (fun t -> t.the_SECOND_identifier)))
+      |> sealr

@@ -23,6 +23,12 @@ type test_variant5 =
   | A5
   | B5 of string * test_variant4
   | C5 of int32 * string * unit [@@deriving irmin]
-type test_variant6 =
-  | Nil
-  | Cons of string * test_variant5 [@@deriving irmin]
+type test_record1 = {
+  alpha: string;
+  beta: int64 list;
+  gamma: test_variant5
+} [@@deriving irmin]
+type test_record2 = {
+  the_FIRST_identifier: test_record1 option;
+  the_SECOND_identifier: (string, int32) result list;
+} [@@deriving irmin]

@@ -4,6 +4,7 @@ let name = "irmin"
 
 module Utils = struct
   let unlabelled x = (Nolabel, x)
+  let compose_all = List.fold_left (fun f g x -> f (g x)) (fun x -> x)
 end
 
 module type S = sig
@@ -15,6 +16,20 @@ module Located (S: Ast_builder.S): S = struct
   open Utils
 
   let (>|=) x f = List.map f x
+
+  let seal sealer e =
+    pexp_apply
+      (pexp_ident @@ Located.lident "|>")
+      ([e; pexp_ident @@ Located.lident sealer] >|= unlabelled)
+
+  let sealv = seal "sealv"
+  let sealr = seal "sealr"
+
+  let lambda fparam =
+    Located.mk fparam
+    |> ppat_var
+    |> pexp_fun Nolabel None
+
 
   let rec derive input_ast =
 
@@ -74,8 +89,52 @@ module Located (S: Ast_builder.S): S = struct
     >|= unlabelled
     |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
 
-  and derive_record: label_declaration list -> expression = fun _ls ->
-    pexp_ident @@ Located.lident "foo"
+  and derive_record: label_declaration list -> expression = fun ls ->
+
+    let rcase_of_ldecl l = fun e ->
+      let label_name = l.pld_name.txt in
+
+      (* |~ case0 "cons_name" Cons_name *)
+      pexp_apply (pexp_ident @@ Located.lident "|+") ([
+          e;
+          pexp_apply (pexp_ident @@ Located.lident "field") ([
+              pexp_constant @@ Pconst_string (label_name, None);
+              derive_core l.pld_type;
+              pexp_fun
+                Nolabel
+                None
+                (ppat_var @@ Located.mk "t")
+                (pexp_field
+                   (pexp_ident @@ Located.lident "t")
+                   (Located.map_lident l.pld_name))
+            ] >|= unlabelled)
+        ] >|= unlabelled)
+    in
+
+    let nested =
+      ls
+      >|= (fun l -> l.pld_name.txt)
+      >|= lambda
+      |> compose_all
+    in
+
+    let record =
+      (ls
+      >|= (fun l -> l.pld_name.txt)
+      >|= (fun s -> (Located.lident s, pexp_ident @@ Located.lident s))
+      |> pexp_record)
+        None
+    in
+
+    let cases =
+      List.rev ls
+      >|= rcase_of_ldecl
+      |> compose_all
+    in
+
+    cases @@ pexp_apply (pexp_ident @@ Located.lident "record")
+      ([estring name; nested record] >|= unlabelled)
+    |> sealr
 
     (* pexp_apply (pexp_ident @@ Located.lident "|>")
      *   [
@@ -91,13 +150,6 @@ module Located (S: Ast_builder.S): S = struct
     let fparam_of_cdecl c =
       c.pcd_name.txt
       |> String.lowercase_ascii
-    in
-
-    let function_of_cdecl c =
-      fparam_of_cdecl c
-      |> Located.mk
-      |> ppat_var
-      |> pexp_fun Nolabel None
     in
 
     let generate_identifiers =
@@ -181,11 +233,10 @@ module Located (S: Ast_builder.S): S = struct
         )
     in
 
-    let compose_all = List.fold_left (fun f g x -> f (g x)) (fun x -> x) in
-
     let nested =
       cs
-      >|= function_of_cdecl
+      >|= fparam_of_cdecl
+      >|= lambda
       |> compose_all
     in
 
@@ -201,14 +252,12 @@ module Located (S: Ast_builder.S): S = struct
       |> pexp_function
     in
 
-    (* TODO: if the type is recursive, wrap everything in a mu (fun cons_name -> ... )*)
-    pexp_apply (pexp_ident @@ Located.lident "|>")
-      ([
-        cases @@ pexp_apply (pexp_ident @@ Located.lident "variant")
-          ([estring name; nested pattern] >|= unlabelled);
 
-        pexp_ident @@ Located.lident "sealv"
-      ] >|= unlabelled)
+    (* TODO: if the type is recursive, wrap everything in a mu (fun cons_name -> ... )*)
+    cases @@ pexp_apply (pexp_ident @@ Located.lident "variant")
+      ([estring name; nested pattern] >|= unlabelled)
+    |> sealv
+
 
 end
 
