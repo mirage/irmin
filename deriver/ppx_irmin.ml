@@ -8,7 +8,7 @@ module Utils = struct
 end
 
 module type S = sig
-  val derive: rec_flag * type_declaration list -> structure_item list
+  val derive_str: (rec_flag * type_declaration list) -> structure_item list
 end
 
 module Located (S: Ast_builder.S): S = struct
@@ -25,15 +25,17 @@ module Located (S: Ast_builder.S): S = struct
   let sealv = seal "sealv"
   let sealr = seal "sealr"
 
+  let open_type =
+    pexp_open Fresh (Located.lident "Irmin.Type")
+
   let lambda fparam =
     Located.mk fparam
     |> ppat_var
     |> pexp_fun Nolabel None
 
 
-  let rec derive input_ast =
 
-    let open_type = pexp_open Fresh (Located.lident "Irmin.Type") in
+  let rec derive_str input_ast =
     match input_ast with
     | (_, [typ]) -> (
         let name = typ.ptype_name.txt in
@@ -59,6 +61,7 @@ module Located (S: Ast_builder.S): S = struct
           | Ptype_record ls -> derive_record ls |> open_type
           | Ptype_open -> invalid_arg "Open types unsupported" in
 
+        (* TODO: if the type is recursive, wrap everything in a mu (fun cons_name -> ... )*)
         [ pstr_value Nonrecursive [ value_binding ~pat:(ppat_var @@ Located.mk name) ~expr]]
       )
 
@@ -94,7 +97,7 @@ module Located (S: Ast_builder.S): S = struct
     let rcase_of_ldecl l = fun e ->
       let label_name = l.pld_name.txt in
 
-      (* |~ case0 "cons_name" Cons_name *)
+      (* |+ field "field_name" (field_type) (fun t -> t.field_name) *)
       pexp_apply (pexp_ident @@ Located.lident "|+") ([
           e;
           pexp_apply (pexp_ident @@ Located.lident "field") ([
@@ -135,16 +138,6 @@ module Located (S: Ast_builder.S): S = struct
     cases @@ pexp_apply (pexp_ident @@ Located.lident "record")
       ([estring name; nested record] >|= unlabelled)
     |> sealr
-
-    (* pexp_apply (pexp_ident @@ Located.lident "|>")
-     *   [
-     *     (Nolabel, cases @@ pexp_apply (pexp_ident @@ Located.lident "variant") [
-     *         unlabelled @@ estring name;
-     *         unlabelled @@ nested pattern
-     *       ]);
-     *     (Nolabel, pexp_ident @@ Located.lident "sealr")
-     *   ] *)
-
 
   and derive_variant: string -> constructor_declaration list -> expression = fun name cs ->
     let fparam_of_cdecl c =
@@ -252,19 +245,16 @@ module Located (S: Ast_builder.S): S = struct
       |> pexp_function
     in
 
-
-    (* TODO: if the type is recursive, wrap everything in a mu (fun cons_name -> ... )*)
     cases @@ pexp_apply (pexp_ident @@ Located.lident "variant")
       ([estring name; nested pattern] >|= unlabelled)
     |> sealv
 
-
 end
 
-let expand_str ~loc ~path:_ (input_ast: rec_flag * type_declaration list) =
+let expand_str ~loc ~path:_ input_ast =
   let (module S) = Ast_builder.make loc in
   let (module L) = (module Located(S): S) in
-  L.derive input_ast
+  L.derive_str input_ast
 
 let str_type_decl_generator =
   Deriving.Generator.make_noarg expand_str
