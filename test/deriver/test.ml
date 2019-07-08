@@ -52,3 +52,13 @@ type test_record2 = {
   the_FIRST_identifier: test_record1 option;
   the_SECOND_identifier: (string, int32) result list;
 } [@@deriving irmin]
+
+(* Tests of the signature deriver *)
+module type S = sig
+  type my_int = int32 [@@deriving irmin]
+
+  type my_variant =
+    | A of (my_int, int) result
+    | B of unit
+    | C of string * int32 [@@deriving irmin]
+end

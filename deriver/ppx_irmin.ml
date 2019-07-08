@@ -9,6 +9,7 @@ end
 
 module type S = sig
   val derive_str: (rec_flag * type_declaration list) -> structure_item list
+  val derive_sig: (rec_flag * type_declaration list) -> signature_item list
 end
 
 module Located (S: Ast_builder.S): S = struct
@@ -33,6 +34,21 @@ module Located (S: Ast_builder.S): S = struct
     |> ppat_var
     |> pexp_fun Nolabel None
 
+  let derive_sig input_ast =
+    match input_ast with
+    | (_, [typ]) -> (
+        let name = typ.ptype_name.txt in
+
+        match typ.ptype_manifest with
+        | None -> invalid_arg "No manifest"
+        | Some c -> [
+            psig_value @@ value_description
+              ~name:(Located.mk name)
+              ~type_:(ptyp_constr (Located.lident "Irmin.Type.t") [c])
+              ~prim:[]
+          ]
+      )
+    | _ -> invalid_arg "Multiple type declarations not supported"
 
 
   let rec derive_str input_ast =
@@ -256,11 +272,20 @@ let expand_str ~loc ~path:_ input_ast =
   let (module L) = (module Located(S): S) in
   L.derive_str input_ast
 
+let expand_sig ~loc ~path:_ input_ast =
+  let (module S) = Ast_builder.make loc in
+  let (module L) = (module Located(S): S) in
+  L.derive_sig input_ast
+
 let str_type_decl_generator =
   Deriving.Generator.make_noarg expand_str
+
+let sig_typ_decl_generator =
+  Deriving.Generator.make_noarg expand_sig
 
 let irmin =
   Deriving.add
     ~str_type_decl:str_type_decl_generator
+    ~sig_type_decl:sig_typ_decl_generator
     name
 
