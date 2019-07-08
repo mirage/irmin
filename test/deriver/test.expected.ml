@@ -26,15 +26,63 @@ type test_triple = (string * int32 * bool)[@@deriving irmin]
 let test_triple = let open Irmin.Type in triple string int32 bool
 type test_result = (int32, string) result[@@deriving irmin]
 let test_result = let open Irmin.Type in result int32 string
-type test_variant1 = A[@@deriving irmin]
-let test_variant1 = let open Irmin.Type in
-  variant "test_variant1" (fun f A -> f)
-  |~ case0 "A" A
-(* let test_variant2 = let open Irmin.Type in
- *   variant "test_variant2" (fun a b c -> function
- *       | A -> a
- *       | B -> b
- *       | C -> c)
- *   |~ case0 "A" A
- *   |~ case0 "B" B
- *   |~ case0 "C" C *)
+type test_variant1 =
+  | A [@@deriving irmin]
+let test_variant1 =
+  let open Irmin.Type in
+    ((variant "test_variant1" (fun a -> function | A -> a)) |~ (case0 "A" A))
+      |> sealv
+type test_variant2 =
+  | A2 of int64 [@@deriving irmin]
+let test_variant2 =
+  let open Irmin.Type in
+    ((variant "test_variant2" (fun a2 -> function | A2 x1 -> a2 x1)) |~
+       (case1 "A2" int64 (fun x1 -> A2 x1)))
+      |> sealv
+type test_variant3 =
+  | A3 of string * test_variant2 [@@deriving irmin]
+let test_variant3 =
+  let open Irmin.Type in
+    ((variant "test_variant3"
+        (fun a3 -> function | A3 (x1, x2) -> a3 (x1, x2)))
+       |~
+       (case1 "A3" (pair string test_variant2) (fun (x1, x2) -> A3 (x1, x2))))
+      |> sealv
+type test_variant4 =
+  | A4 
+  | B4 
+  | C4 [@@deriving irmin]
+let test_variant4 =
+  let open Irmin.Type in
+    ((((variant "test_variant4"
+          (fun a4 ->
+             fun b4 -> fun c4 -> function | A4 -> a4 | B4 -> b4 | C4 -> c4))
+         |~ (case0 "A4" A4))
+        |~ (case0 "B4" B4))
+       |~ (case0 "C4" C4))
+      |> sealv
+type test_variant5 =
+  | A5 
+  | B5 of string * test_variant4 
+  | C5 of int32 * string * unit [@@deriving irmin]
+let test_variant5 =
+  let open Irmin.Type in
+    ((((variant "test_variant5"
+          (fun a5 ->
+             fun b5 ->
+               fun c5 ->
+                 function
+                 | A5 -> a5
+                 | B5 (x1, x2) -> b5 (x1, x2)
+                 | C5 (x1, x2, x3) -> c5 (x1, x2, x3)))
+         |~ (case0 "A5" A5))
+        |~
+        (case1 "B5" (pair string test_variant4) (fun (x1, x2) -> B5 (x1, x2))))
+       |~
+       (case1 "C5" (triple int32 string unit)
+          (fun (x1, x2, x3) -> C5 (x1, x2, x3))))
+      |> sealv
+type test_variant6 =
+  | Nil
+  | Cons of string * test_variant5 [@@deriving irmin]
+let test_variant5
