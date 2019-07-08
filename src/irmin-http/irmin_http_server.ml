@@ -75,6 +75,26 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       | Ok key -> f key
       | Error _ -> Wm.respond 404 rd
 
+    let add rd repo =
+      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+      match Irmin.Type.of_string V.t body with
+      | Error e -> parse_error rd body e
+      | Ok body ->
+          S.batch repo @@ fun db ->
+          S.add db body >>= fun new_id ->
+          let resp_body = `String (Irmin.Type.to_string K.t new_id) in
+          Wm.continue true { rd with Wm.Rd.resp_body }
+
+    let unsafe_add rd repo key =
+      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+      match Irmin.Type.of_string V.t body with
+      | Error e -> parse_error rd body e
+      | Ok body ->
+          S.batch repo @@ fun db ->
+          S.unsafe_add db key body >>= fun () ->
+          let resp_body = `String "" in
+          Wm.continue true { rd with Wm.Rd.resp_body }
+
     class items repo =
       object
         inherit resource
@@ -86,15 +106,21 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method content_types_accepted rd = Wm.continue [] rd
 
-        method! process_post rd =
-          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
-          match Irmin.Type.of_string V.t body with
-          | Error e -> parse_error rd body e
-          | Ok body ->
-              S.batch repo @@ fun db ->
-              S.add db body >>= fun new_id ->
-              let resp_body = `String (Irmin.Type.to_string K.t new_id) in
-              Wm.continue true { rd with Wm.Rd.resp_body }
+        method! process_post rd = add rd repo
+      end
+
+    class unsafe_items repo =
+      object
+        inherit resource
+
+        method! allowed_methods rd = Wm.continue [ `POST ] rd
+
+        method content_types_provided rd =
+          Wm.continue [ ("application/json", fun _ -> assert false) ] rd
+
+        method content_types_accepted rd = Wm.continue [] rd
+
+        method! process_post rd = with_key rd (unsafe_add rd repo)
       end
 
     class merge merge repo =
@@ -338,13 +364,16 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let commit = P.Repo.commit_t db in
     let branch = P.Repo.branch_t db in
     let routes =
-      [ ("/blobs", fun () -> new Blob.items db);
+      [ ("/blobs/", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
-        ("/trees", fun () -> new Tree.items db);
+        ("/trees/", fun () -> new Tree.items db);
         ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
         ("/tree/:id", fun () -> new Tree.item tree);
-        ("/commits", fun () -> new Commit.items db);
+        ("/commits/", fun () -> new Commit.items db);
         ("/commit/:id", fun () -> new Commit.item commit);
+        ("/unsafe/blobs/:id", fun () -> new Blob.unsafe_items db);
+        ("/unsafe/trees/:id", fun () -> new Tree.unsafe_items db);
+        ("/unsafe/commits/:id", fun () -> new Commit.unsafe_items db);
         ("/branches", fun () -> new Branch.items branch);
         ("/branch/*", fun () -> new Branch.item branch);
         ("/watches", fun () -> new Branch.watches branch);

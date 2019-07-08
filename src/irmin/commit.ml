@@ -66,6 +66,8 @@ struct
 
   let add (_, t) = S.add t
 
+  let unsafe_add (_, t) = S.unsafe_add t
+
   let mem (_, t) = S.mem t
 
   let find (_, t) = S.find t
