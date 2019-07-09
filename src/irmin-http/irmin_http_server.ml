@@ -366,7 +366,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let routes =
       [ ("/blobs", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
-        ("/trees/", fun () -> new Tree.items db);
+        ("/trees", fun () -> new Tree.items db);
         ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
         ("/tree/:id", fun () -> new Tree.item tree);
         ("/commits/", fun () -> new Commit.items db);
