@@ -240,7 +240,7 @@ struct
 
   let unsafe_add t key value =
     let body = Irmin.Type.to_string V.t value in
-    HTTP.call `POST t.uri t.ctx [ t.items; key_str key ] ~body
+    HTTP.call `POST t.uri t.ctx [ "unsafe"; t.items; key_str key ] ~body
       Irmin.Type.(of_string unit)
 end
 
