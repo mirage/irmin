@@ -842,7 +842,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       and hence are deterministic. *)
 
   (** The type for content-addressable backend stores. The ['a]
-     phantom type carries information about the store mutability. *)
+      phantom type carries information about the store mutability. *)
   type 'a t
 
   (** The type for keys. *)
@@ -862,6 +862,11 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   (** Write the contents of a value to the store. It's the
       responsibility of the content-addressable store to generate a
       consistent key. *)
+
+  val unsafe_add : [> `Write ] t -> key -> value -> unit Lwt.t
+  (** Same as {!add} but allows to specify the key directly. The
+      backend might choose to discared that key and/or can be corrupt
+      if the key scheme is not consistent. *)
 end
 
 (** Append-onlye backend store. *)

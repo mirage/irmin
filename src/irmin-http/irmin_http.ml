@@ -237,6 +237,11 @@ struct
   let add t value =
     let body = Irmin.Type.to_string V.t value in
     HTTP.call `POST t.uri t.ctx [ t.items ] ~body (Irmin.Type.of_string K.t)
+
+  let unsafe_add t key value =
+    let body = Irmin.Type.to_string V.t value in
+    HTTP.call `POST t.uri t.ctx [ "unsafe"; t.items; key_str key ] ~body
+      Irmin.Type.(of_string unit)
 end
 
 module RW (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =

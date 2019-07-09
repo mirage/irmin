@@ -240,14 +240,11 @@ struct
     in
     aux [] init
 
-  let add t v =
-    let buf = Irmin.Type.to_bin_string V.t v in
-    let key = K.hash (fun f -> f buf) in
+  let unsafe_add_buffer t key buf =
     let len = String.length buf in
-    if len <= t.max_data then (
+    if len <= t.max_data then
       AO.add t.db key (data t buf) >|= fun () ->
-      Log.debug (fun l -> l "add -> %a (no split)" pp_key key);
-      key )
+      Log.debug (fun l -> l "add -> %a (no split)" pp_key key)
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in
       let aux off =
@@ -256,8 +253,16 @@ struct
         CA.add t.db (data t payload)
       in
       Lwt_list.map_s aux offs >>= Tree.add ~key t >|= fun k ->
-      Log.debug (fun l -> l "add -> %a (split)" pp_key k);
-      key
+      Log.debug (fun l -> l "add -> %a (split)" pp_key k)
+
+  let add t v =
+    let buf = Irmin.Type.to_bin_string V.t v in
+    let key = K.hash (fun f -> f buf) in
+    unsafe_add_buffer t key buf >|= fun () -> key
+
+  let unsafe_add t key v =
+    let buf = Irmin.Type.to_bin_string V.t v in
+    unsafe_add_buffer t key buf
 
   let mem t key = CA.mem t.db key
 end

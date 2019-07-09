@@ -1106,6 +1106,8 @@ module Pack (K : Irmin.Hash.S) = struct
     let add t v =
       let k = V.hash v in
       append t k v >|= fun () -> k
+
+    let unsafe_add t k v = append t k v
   end
 end
 
@@ -1409,12 +1411,6 @@ struct
           in
           aux [] t
 
-        module H_node = Irmin.Hash.Typed (H) (Node)
-
-        let hash_node = H_node.hash
-
-        let hash_values vs = hash_node (Node.v vs)
-
         module H_entries =
           Irmin.Hash.Typed
             (H)
@@ -1493,7 +1489,7 @@ struct
             in
             List.fold_left aux empty l
 
-        let fold f t init =
+        let fold f t ~hash init =
           let rec inode t k =
             match t with
             | Empty -> k Val.empty
@@ -1523,8 +1519,6 @@ struct
                   k entries
           in
           inode t (fun v ->
-              let values = list t in
-              let hash = hash_values values in
               let v = { v with hash } in
               init hash v )
 
@@ -1735,14 +1729,29 @@ struct
           | None -> None
           | Some t -> Some (Val.v (Inode.Tree.list t))
 
+        module H_node = Irmin.Hash.Typed (H) (Val)
+
+        let hash_node = H_node.hash
+
         let add t v =
           let n = Val.list v in
+          let hash = hash_node v in
           let v = Inode.Tree.v n in
-          Inode.Tree.save
+          Inode.Tree.save ~hash
             ~add:(fun k v ->
               Inode.unsafe_append t k v;
               Lwt.return () )
             v
+
+        let unsafe_add t k v =
+          let n = Val.list v in
+          let v = Inode.Tree.v n in
+          Inode.Tree.save ~hash:k
+            ~add:(fun k v ->
+              Inode.unsafe_append t k v;
+              Lwt.return () )
+            v
+          >|= fun _ -> ()
 
         let batch = Inode.batch
 
