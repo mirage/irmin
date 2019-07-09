@@ -648,7 +648,7 @@ module Pack (K : Irmin.Hash.S) = struct
       t
     with Not_found ->
       let lock = Lwt_mutex.create () in
-      let index = Index.v ~fresh ~log_size:500_000 ~fan_out_size:256 root in
+      let index = Index.v ~fresh ~log_size:10_000_000 ~fan_out_size:256 root in
       let dict = Dict.v ~fresh root in
       let block = IO.v root_f in
       if fresh then IO.clear block;
