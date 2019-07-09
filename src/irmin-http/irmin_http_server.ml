@@ -369,7 +369,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         ("/trees", fun () -> new Tree.items db);
         ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
         ("/tree/:id", fun () -> new Tree.item tree);
-        ("/commits/", fun () -> new Commit.items db);
+        ("/commits", fun () -> new Commit.items db);
         ("/commit/:id", fun () -> new Commit.item commit);
         ("/unsafe/blobs/:id", fun () -> new Blob.unsafe_items db);
         ("/unsafe/trees/:id", fun () -> new Tree.unsafe_items db);
