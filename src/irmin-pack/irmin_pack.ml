@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let current_version = "00000001"
+
 let src = Logs.Src.create "irmin.pack" ~doc:"Irmin in-memory store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -110,6 +112,8 @@ module type IO = sig
 
   val offset : t -> int64
 
+  val version : t -> string
+
   val file : t -> string
 
   val sync : t -> unit
@@ -169,6 +173,15 @@ module IO : IO = struct
       with
       | Ok t -> t
       | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
+
+    let version_buf = Bytes.create 8
+
+    let unsafe_get_version t =
+      let n = unsafe_read t ~off:8L ~len:8 version_buf in
+      assert (n = 8);
+      Bytes.to_string version_buf
+
+    let unsafe_set_version t = unsafe_write t ~off:8L current_version
   end
 
   type t = {
@@ -176,10 +189,11 @@ module IO : IO = struct
     mutable raw : Raw.t;
     mutable offset : int64;
     mutable flushed : int64;
+    version : string;
     buf : Buffer.t
   }
 
-  let header = 8L
+  let header = 16L (* offset + version *)
 
   let sync t =
     Log.debug (fun l -> l "IO sync %s" t.file);
@@ -228,6 +242,8 @@ module IO : IO = struct
 
   let offset t = t.offset
 
+  let version t = t.version
+
   let file t = t.file
 
   let protect_unix_exn = function
@@ -270,9 +286,17 @@ module IO : IO = struct
       Hashtbl.add buffers file buf;
       buf
 
+  let () = assert (String.length current_version = 8)
+
   let v file =
-    let v ~offset raw =
-      { file; offset; raw; buf = buffer file; flushed = header ++ offset }
+    let v ~offset ~version raw =
+      { version;
+        file;
+        offset;
+        raw;
+        buf = buffer file;
+        flushed = header ++ offset
+      }
     in
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
@@ -280,12 +304,14 @@ module IO : IO = struct
         let x = Unix.openfile file Unix.[ O_CREAT; O_RDWR ] 0o644 in
         let raw = Raw.v x in
         Raw.unsafe_set_offset raw 0L;
-        v ~offset:0L raw
+        Raw.unsafe_set_version raw;
+        v ~offset:0L ~version:current_version raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; O_RDWR ] 0o644 in
         let raw = Raw.v x in
         let offset = Raw.unsafe_get_offset raw in
-        v ~offset raw
+        let version = Raw.unsafe_get_version raw in
+        v ~offset ~version raw
 end
 
 module Lru (H : Hashtbl.HashedType) = struct
@@ -928,6 +954,9 @@ module Pack (K : Irmin.Hash.S) = struct
       let dict = Dict.v ~fresh root in
       let block = IO.v root_f in
       if fresh then IO.clear block;
+      if IO.version block <> current_version then
+        Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
+          current_version;
       let t = { block; index; lock; dict } in
       Hashtbl.add files root_f t;
       t
@@ -1299,6 +1328,16 @@ struct
   module X = struct
     module Hash = H
 
+    type 'a value = { magic : char; hash : H.t; v : 'a }
+
+    let value a =
+      let open Irmin.Type in
+      record "value" (fun magic hash v -> { magic; hash; v })
+      |+ field "magic" char (fun v -> v.magic)
+      |+ field "hash" H.t (fun v -> v.hash)
+      |+ field "v" a (fun v -> v.v)
+      |> sealr
+
     module Contents = struct
       module CA = struct
         module Key = H
@@ -1310,16 +1349,16 @@ struct
 
           let hash = H.hash
 
-          let with_hash_t = Irmin.Type.(pair H.t Val.t)
+          let magic = 'B'
 
-          let encode_bin ~dict:_ ~offset:_ t k =
-            Irmin.Type.encode_bin with_hash_t (k, t)
+          let value = value Val.t
+
+          let encode_bin ~dict:_ ~offset:_ v hash =
+            Irmin.Type.encode_bin value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, (_, t) =
-              Irmin.Type.decode_bin ~headers:false with_hash_t s off
-            in
-            t
+            let _, t = Irmin.Type.decode_bin ~headers:false value s off in
+            t.v
         end)
       end
 
@@ -1354,20 +1393,19 @@ struct
           |> sealv
 
         (* hash is the hash of the corresponding sub-node *)
-        type t = { hash : H.t; entries : entry list }
+        type t = entry list value
 
         module H = Irmin.Hash.Typed (H) (Node)
 
         let hash = H.hash
 
-        let empty = { hash = hash Node.empty; entries = [] }
+        let magic = 'T'
 
-        let t =
-          let open Irmin.Type in
-          record "Inode.t" (fun hash entries -> { hash; entries })
-          |+ field "hash" H.t (fun t -> t.hash)
-          |+ field "entries" (list entry) (fun t -> t.entries)
-          |> sealr
+        let empty = { magic; hash = hash Node.empty; v = [] }
+
+        let v ~hash v = { magic; hash; v }
+
+        let t = value (Irmin.Type.list entry)
 
         let entry_of_value name v =
           match v with
@@ -1375,13 +1413,13 @@ struct
           | `Contents (node, metadata) -> Contents { metadata; name; node }
 
         let entries_of_values l =
-          let entries =
+          let v =
             List.fold_left
               (fun acc (s, v) -> entry_of_value s v :: acc)
               [] (List.rev l)
           in
           let hash = hash (Node.v l) in
-          { hash; entries }
+          { magic; hash; v }
 
         let entry_of_inode index node = Inode { index; node }
       end
@@ -1500,7 +1538,7 @@ struct
             | Nodes n ->
                 (inodes [@tailcall]) n 0 @@ fun entries ->
                 let hash = hash_entries entries in
-                k { Val.hash; entries }
+                k (Val.v ~hash entries)
           and inodes n i k =
             if i >= Array.length n then k []
             else
@@ -1532,8 +1570,8 @@ struct
           let rec inode ~seed h k =
             find h >>= function
             | None -> k None
-            | Some { Val.entries = []; _ } -> k (Some empty)
-            | Some { entries = i; _ } ->
+            | Some { v = []; _ } -> k (Some empty)
+            | Some { v = i; _ } ->
                 let vs, is =
                   List.fold_left
                     (fun (vs, is) -> function
@@ -1626,7 +1664,7 @@ struct
                  Node (Direct n, Direct i) )
           |> sealv
 
-        let t = Irmin.Type.(pair H.t (list entry))
+        let t = value (Irmin.Type.list entry)
       end
 
       include Pack.Make (struct
@@ -1662,15 +1700,13 @@ struct
                 Compress.Inode (i.index, v)
           in
           (* List.map is fine here as the number of entries is small *)
-          let inodes = List.map inode t.entries in
-          Irmin.Type.encode_bin Compress.t (k, inodes)
+          let inodes = List.map inode t.v in
+          Irmin.Type.encode_bin Compress.t (Val.v ~hash:k inodes)
 
         exception Exit of [ `Msg of string ]
 
         let decode_bin ~dict ~hash t off : t =
-          let _, (h, inodes) =
-            Irmin.Type.decode_bin ~headers:false Compress.t t off
-          in
+          let _, i = Irmin.Type.decode_bin ~headers:false Compress.t t off in
           let step : Compress.name -> P.step = function
             | Direct n -> n
             | Indirect s -> (
@@ -1700,8 +1736,8 @@ struct
           in
           try
             (* List.map is fine here as the number of inodes is small. *)
-            let entries = List.map inode inodes in
-            { hash = h; entries }
+            let entries = List.map inode i.v in
+            Val.v ~hash:i.hash entries
           with Exit (`Msg e) -> failwith e
       end)
     end
@@ -1772,16 +1808,16 @@ struct
 
           let hash = H.hash
 
-          let with_hash_t = Irmin.Type.(pair H.t Val.t)
+          let value = value Val.t
 
-          let encode_bin ~dict:_ ~offset:_ t k =
-            Irmin.Type.encode_bin with_hash_t (k, t)
+          let magic = 'C'
+
+          let encode_bin ~dict:_ ~offset:_ v hash =
+            Irmin.Type.encode_bin value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, (_, v) =
-              Irmin.Type.decode_bin ~headers:false with_hash_t s off
-            in
-            v
+            let _, v = Irmin.Type.decode_bin ~headers:false value s off in
+            v.v
         end)
       end
 
