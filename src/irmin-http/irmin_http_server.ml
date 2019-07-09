@@ -364,7 +364,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let commit = P.Repo.commit_t db in
     let branch = P.Repo.branch_t db in
     let routes =
-      [ ("/blobs/", fun () -> new Blob.items db);
+      [ ("/blobs", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
         ("/trees/", fun () -> new Tree.items db);
         ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
