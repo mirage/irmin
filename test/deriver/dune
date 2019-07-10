@@ -1,19 +1,26 @@
 (executable
  (name pp)
  (modules pp)
- (libraries ppx_irmin ppxlib))
+ (libraries
+   ppx_irmin
+   ppxlib
+ )
+)
 
 (rule
  (targets test.actual.ml)
  (deps (:pp pp.exe) (:input test.ml))
- (action (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+ (action (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets}))
+)
 
 (alias
  (name runtest)
- (action (diff test.expected.ml test.actual.ml)))
+ (action (diff test.expected.ml test.actual.ml))
+)
 
 (test
  (name test)
  (modules test)
  (libraries irmin)
- (preprocess (pps ppx_irmin)))
+ (preprocess (pps ppx_irmin))
+)
