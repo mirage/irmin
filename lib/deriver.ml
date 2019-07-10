@@ -7,17 +7,17 @@ module Utils = struct
   let compose_all = List.fold_left (fun f g x -> f (g x)) (fun x -> x)
 end
 
-module type S = sig
-  val derive_str: ?name:string -> (rec_flag * type_declaration list) -> structure_item list
-  val derive_sig: (rec_flag * type_declaration list) -> signature_item list
-end
-
 module SSet = Set.Make(String)
 
 (* TODO: get this list dynamically? *)
 let irmin_types = SSet.of_list
     [ "unit"; "bool"; "char"; "int"; "int32"; "int64"; "float"; "string"; "bytes";
       "list"; "array"; "option"; "pair"; "triple"; "result" ]
+
+module type S = sig
+  val derive_str: ?name:string -> (rec_flag * type_declaration list) -> structure_item list
+  val derive_sig: ?name:string -> (rec_flag * type_declaration list) -> signature_item list
+end
 
 module Located (S: Ast_builder.S): S = struct
   open S
@@ -49,16 +49,20 @@ module Located (S: Ast_builder.S): S = struct
     | "t" -> "t"
     | x   -> (x ^ "_t")
 
-  let derive_sig input_ast =
+  let derive_sig ?name input_ast =
     match input_ast with
     | (_, [typ]) -> (
-        let name = typ.ptype_name.txt in
+        let type_name = typ.ptype_name.txt in
+        let witness_name = match name with
+          | Some n -> n
+          | None -> witness_name_of_type_name typ.ptype_name.txt
+        in
         [
           psig_value @@ value_description
-            ~name:(Located.mk @@ witness_name_of_type_name name)
+            ~name:(Located.mk @@ witness_name)
             ~type_:(ptyp_constr
                       (Located.lident ("Irmin.Type.t"))
-                      [ptyp_constr (Located.lident name) []]
+                      [ptyp_constr (Located.lident type_name) []]
                    )
             ~prim:[]
         ]
