@@ -2,6 +2,13 @@ open Ppxlib
 
 let ppx_name = "irmin"
 
+let attribute_witness =
+  Attribute.declare
+    "ppx_irmin.witness"
+    Attribute.Context.Core_type
+    Ast_pattern.(single_expr_payload __)
+    (fun e -> e)
+
 module Utils = struct
   let (>|=) x f = List.map f x
 
@@ -10,11 +17,13 @@ module Utils = struct
 end
 
 module type S = sig
-  val derive_str: (rec_flag * type_declaration list) -> structure_item list
+  val derive_str: ?name:string -> (rec_flag * type_declaration list) -> structure_item list
   val derive_sig: (rec_flag * type_declaration list) -> signature_item list
 end
 
 module SSet = Set.Make(String)
+
+(* TODO: get this list dynamically? *)
 let irmin_types = SSet.of_list
     [ "unit"; "bool"; "char"; "int"; "int32"; "int64"; "float"; "string"; "bytes";
       "list"; "array"; "option"; "pair"; "triple"; "result" ]
@@ -66,11 +75,14 @@ module Located (S: Ast_builder.S): S = struct
     | _ -> invalid_arg "Multiple type declarations not supported"
 
 
-  let rec derive_str input_ast =
+  let rec derive_str ?name input_ast =
     match input_ast with
     | (_, [typ]) -> (
+
         let type_name = typ.ptype_name.txt in
-        let witness_name = witness_name_of_type_name type_name in
+        let witness_name = match name with
+          | Some s -> s
+          | None -> witness_name_of_type_name type_name in
         let kind = typ.ptype_kind in
         let rec_flag = ref false in
 
@@ -80,17 +92,21 @@ module Located (S: Ast_builder.S): S = struct
               match typ.ptype_manifest with
               | None -> invalid_arg "No manifest"
               | Some c -> (match c.ptyp_desc with
-
                   (* No need to open Irmin.Type *)
-                  | Ptyp_constr ({txt = Lident cons_name; loc = _}, []) ->
+                  | Ptyp_constr ({txt = Lident cons_name; loc = _}, []) -> (
 
-                      if SSet.mem cons_name irmin_types then
-                        pexp_ident (Located.lident @@ "Irmin.Type." ^ cons_name)
-                      else
-                        (* If not a basic type, assume it's a composite witness with the same naming convention *)
-                        pexp_ident (Located.lident @@ witness_name_of_type_name cons_name)
+                      match Attribute.get attribute_witness c with
+                      | Some e -> e
+                      | None -> (
 
+                          if SSet.mem cons_name irmin_types then
+                            pexp_ident (Located.lident @@ "Irmin.Type." ^ cons_name)
+                          else
+                            (* If not a basic type, assume a composite witness /w same naming convention *)
+                            pexp_ident (Located.lident @@ witness_name_of_type_name cons_name)
 
+                        )
+                    )
 
                   (* Type constructor: list, tuple, etc. *)
                   | _ -> derive_core ~type_name ~witness_name ~rec_flag c |> open_type
@@ -100,107 +116,103 @@ module Located (S: Ast_builder.S): S = struct
           | Ptype_record ls ->  derive_record  ~type_name ~witness_name ~rec_flag ls |> open_type
           | Ptype_open -> invalid_arg "Open types unsupported"
         )
-
         in
 
-        let expr =
-          expr
-          |> if !rec_flag then recursive witness_name else (fun x -> x)
-        in
-
+        let expr = expr |> if !rec_flag then recursive witness_name else (fun x -> x) in
         [ pstr_value Nonrecursive [ value_binding ~pat:(ppat_var @@ Located.mk @@ witness_name) ~expr]]
       )
 
     | _ -> invalid_arg "Multiple type declarations not supported"
 
-  and derive_core: type_name:string -> witness_name:string -> rec_flag:bool ref -> core_type -> expression
-    = fun ~type_name ~witness_name ~rec_flag typ ->
+  and derive_core ~type_name ~witness_name ~rec_flag typ =
+    match typ.ptyp_desc with
+    | Ptyp_constr ({txt = Lident const_name; _}, args) -> (
 
-      match typ.ptyp_desc with
-      | Ptyp_constr ({txt = Lident const_name; _}, args) -> (
+        match Attribute.get attribute_witness typ with
+        | Some e -> e
+        | None -> (
 
-          let name =
-            (* If this type is the one we are deriving, replace with the witness name *)
-            if String.equal const_name type_name then (rec_flag := true; witness_name)
+            let name =
+              (* If this type is the one we are deriving, replace with the witness name *)
+              if String.equal const_name type_name then
+                (rec_flag := true; witness_name)
 
-            (* If it's not a base type, assume it's a composite witness with the same naming convention *)
-            else if not @@ SSet.mem const_name irmin_types then witness_name_of_type_name const_name
+              (* If not a base type, assume a composite witness with the same naming convention *)
+              else if not @@ SSet.mem const_name irmin_types then
+                witness_name_of_type_name const_name
 
-            else const_name
-          in
+              else const_name
+            in
 
-          args
-          >|= derive_core ~type_name ~witness_name ~rec_flag
-          >|= unlabelled
-          |> pexp_apply (pexp_ident @@ Located.lident name)
-        )
+            args
+            >|= derive_core ~type_name ~witness_name ~rec_flag
+            >|= unlabelled
+            |> pexp_apply (pexp_ident @@ Located.lident name)
+          )
+      )
 
-      | Ptyp_tuple args -> derive_tuple ~type_name ~witness_name ~rec_flag args
+    | Ptyp_tuple args -> derive_tuple ~type_name ~witness_name ~rec_flag args
 
-      | Ptyp_arrow _ -> invalid_arg "Arrow types unsupported"
-      | _ -> invalid_arg "Unsupported type"
+    | Ptyp_arrow _ -> invalid_arg "Arrow types unsupported"
+    | _ -> invalid_arg "Unsupported type"
 
 
-  and derive_tuple: type_name:string -> witness_name:string -> rec_flag:bool ref -> core_type list -> expression
-    = fun ~type_name ~witness_name ~rec_flag args ->
+  and derive_tuple ~type_name ~witness_name ~rec_flag args =
+    let tuple_type = match List.length args with
+      | 2 -> "pair"
+      | 3 -> "triple"
+      | l -> invalid_arg (Printf.sprintf "Tuples must have 2 or 3 components. Found %d." l)
+    in
+    args
+    >|= derive_core ~type_name ~witness_name ~rec_flag
+    >|= unlabelled
+    |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
 
-      let tuple_type = match List.length args with
-        | 2 -> "pair"
-        | 3 -> "triple"
-        | l -> invalid_arg (Printf.sprintf "Tuples must have 2 or 3 components. Found %d." l)
-      in
-      args
-      >|= derive_core ~type_name ~witness_name ~rec_flag
-      >|= unlabelled
-      |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
+  and derive_record ~type_name ~witness_name ~rec_flag ls =
+    let rcase_of_ldecl l = fun e ->
+      let label_name = l.pld_name.txt in
 
-  and derive_record: type_name:string -> witness_name:string -> rec_flag:bool ref -> label_declaration list -> expression
-    = fun ~type_name ~witness_name ~rec_flag ls ->
+      (* |+ field "field_name" (field_type) (fun t -> t.field_name) *)
+      pexp_apply (pexp_ident @@ Located.lident "|+") ([
+          e;
+          pexp_apply (pexp_ident @@ Located.lident "field") ([
+              pexp_constant @@ Pconst_string (label_name, None);
+              derive_core ~type_name ~witness_name ~rec_flag l.pld_type;
+              pexp_fun
+                Nolabel
+                None
+                (ppat_var @@ Located.mk "t")
+                (pexp_field
+                   (pexp_ident @@ Located.lident "t")
+                   (Located.map_lident l.pld_name))
+            ] >|= unlabelled)
+        ] >|= unlabelled)
+    in
 
-      let rcase_of_ldecl l = fun e ->
-        let label_name = l.pld_name.txt in
+    let nested =
+      ls
+      >|= (fun l -> l.pld_name.txt)
+      >|= lambda
+      |> compose_all
+    in
 
-        (* |+ field "field_name" (field_type) (fun t -> t.field_name) *)
-        pexp_apply (pexp_ident @@ Located.lident "|+") ([
-            e;
-            pexp_apply (pexp_ident @@ Located.lident "field") ([
-                pexp_constant @@ Pconst_string (label_name, None);
-                derive_core ~type_name ~witness_name ~rec_flag l.pld_type;
-                pexp_fun
-                  Nolabel
-                  None
-                  (ppat_var @@ Located.mk "t")
-                  (pexp_field
-                     (pexp_ident @@ Located.lident "t")
-                     (Located.map_lident l.pld_name))
-              ] >|= unlabelled)
-          ] >|= unlabelled)
-      in
+    let record =
+      (ls
+       >|= (fun l -> l.pld_name.txt)
+       >|= (fun s -> (Located.lident s, pexp_ident @@ Located.lident s))
+       |> pexp_record)
+        None
+    in
 
-      let nested =
-        ls
-        >|= (fun l -> l.pld_name.txt)
-        >|= lambda
-        |> compose_all
-      in
+    let cases =
+      List.rev ls
+      >|= rcase_of_ldecl
+      |> compose_all
+    in
 
-      let record =
-        (ls
-         >|= (fun l -> l.pld_name.txt)
-         >|= (fun s -> (Located.lident s, pexp_ident @@ Located.lident s))
-         |> pexp_record)
-          None
-      in
-
-      let cases =
-        List.rev ls
-        >|= rcase_of_ldecl
-        |> compose_all
-      in
-
-      cases @@ pexp_apply (pexp_ident @@ Located.lident "record")
-        ([estring type_name; nested record] >|= unlabelled)
-      |> sealr
+    cases @@ pexp_apply (pexp_ident @@ Located.lident "record")
+      ([estring type_name; nested record] >|= unlabelled)
+    |> sealr
 
   and derive_variant: type_name:string -> witness_name:string -> rec_flag:bool ref
     -> string -> constructor_declaration list -> expression
@@ -314,13 +326,12 @@ module Located (S: Ast_builder.S): S = struct
       cases @@ pexp_apply (pexp_ident @@ Located.lident "variant")
         ([estring name; nested pattern] >|= unlabelled)
       |> sealv
-
 end
 
-let expand_str ~loc ~path:_ input_ast =
+let expand_str ~loc ~path:_ input_ast name =
   let (module S) = Ast_builder.make loc in
   let (module L) = (module Located(S): S) in
-  L.derive_str input_ast
+  L.derive_str ?name input_ast
 
 let expand_sig ~loc ~path:_ input_ast =
   let (module S) = Ast_builder.make loc in
@@ -328,7 +339,9 @@ let expand_sig ~loc ~path:_ input_ast =
   L.derive_sig input_ast
 
 let str_type_decl_generator =
-  Deriving.Generator.make_noarg expand_str
+  let args = Deriving.Args.(empty +> arg "name" (estring __)) in
+  let attributes = Attribute.[T attribute_witness] in
+  Deriving.Generator.make ~attributes args expand_str
 
 let sig_typ_decl_generator =
   Deriving.Generator.make_noarg expand_sig
