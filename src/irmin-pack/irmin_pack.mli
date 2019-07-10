@@ -104,7 +104,9 @@ type stats = {
   pack_page_faults : float;
   index_page_faults : float;
   pack_cache_misses : float;
-  search_steps : float
+  search_steps : float;
+  offset_ratio : float;
+  offset_significance : int;
 }
 
 val reset_stats : unit -> unit
