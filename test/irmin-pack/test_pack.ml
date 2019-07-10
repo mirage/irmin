@@ -66,8 +66,6 @@ let test_dict () =
   let v3 = Dict.find dict2 x3 in
   Alcotest.(check (option string)) "find x3" (Some "toto") v3
 
-module Index = Irmin_pack.Index (Irmin.Hash.SHA1)
-
 let get = function Some x -> x | None -> Alcotest.fail "None"
 
 let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
@@ -75,39 +73,6 @@ let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 let hash = Alcotest.testable pp_hash (Irmin.Type.equal Irmin.Hash.SHA1.t)
 
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
-
-let test_index () =
-  let t = Index.v ~fresh:true test_file in
-  let h1 = sha1 "foo" in
-  let o1 = 42L in
-  let h2 = sha1 "bar" in
-  let o2 = 142L in
-  let h3 = sha1 "otoo" in
-  let o3 = 10_098L in
-  let h4 = sha1 "sdadsadas" in
-  let o4 = 8978_232L in
-  List.iter
-    (fun (h, off) -> Index.append t h ~off ~len:42)
-    [ (h1, o1); (h2, o2); (h3, o3); (h4, o4) ];
-  let test t =
-    let x1 = Index.find t h1 |> get in
-    Alcotest.(check int64) "h1" o1 x1.offset;
-    let x2 = Index.find t h2 |> get in
-    Alcotest.(check int64) "h2" o2 x2.offset;
-    Alcotest.(check int) "h2 len" 42 x2.len;
-    let x3 = Index.find t h3 |> get in
-    Alcotest.(check int64) "h3" o3 x3.offset;
-    let x4 = Index.find t h4 |> get in
-    Alcotest.(check int64) "h4" o4 x4.offset;
-    List.iter
-      (fun (h, o) ->
-        let e = Index.find t h |> get in
-        Alcotest.(check int64) "entry off" o e.offset;
-        Alcotest.(check hash) "entry hash" h e.hash )
-      [ (h1, o1); (h2, o2); (h3, o3) ]
-  in
-  test t;
-  test (Index.v ~fresh:false test_file)
 
 module S = struct
   include Irmin.Contents.String
@@ -194,7 +159,6 @@ let test_branch _switch () =
 let misc =
   ( "misc",
     [ Alcotest.test_case "dict" `Quick test_dict;
-      Alcotest.test_case "index" `Quick test_index;
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch
     ] )

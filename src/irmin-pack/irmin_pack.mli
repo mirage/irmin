@@ -50,18 +50,6 @@ module Dict : sig
   val v : ?fresh:bool -> string -> t
 end
 
-module Index (H : Irmin.Hash.S) : sig
-  type t
-
-  type entry = { hash : H.t; offset : int64; len : int }
-
-  val v : ?fresh:bool -> string -> t
-
-  val find : t -> H.t -> entry option
-
-  val append : t -> H.t -> off:int64 -> len:int -> unit
-end
-
 module type S = sig
   include Irmin.Type.S
 
