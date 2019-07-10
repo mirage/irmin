@@ -1,10 +1,4 @@
 open Ppxlib
-let attribute_witness =
-  Attribute.declare
-    "ppx_irmin.witness"
-    Attribute.Context.Core_type
-    Ast_pattern.(single_expr_payload __)
-    (fun e -> e)
 
 module Utils = struct
   let (>|=) x f = List.map f x
@@ -92,7 +86,7 @@ module Located (S: Ast_builder.S): S = struct
                   (* No need to open Irmin.Type *)
                   | Ptyp_constr ({txt = Lident cons_name; loc = _}, []) -> (
 
-                      match Attribute.get attribute_witness c with
+                      match Attribute.get Attributes.witness c with
                       | Some e -> e
                       | None -> (
 
@@ -125,7 +119,7 @@ module Located (S: Ast_builder.S): S = struct
     match typ.ptyp_desc with
     | Ptyp_constr ({txt = Lident const_name; _}, args) -> (
 
-        match Attribute.get attribute_witness typ with
+        match Attribute.get Attributes.witness typ with
         | Some e -> e
         | None -> (
 
