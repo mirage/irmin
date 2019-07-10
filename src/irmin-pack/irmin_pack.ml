@@ -58,7 +58,9 @@ type all_stats = {
   mutable pack_page_read : int;
   mutable pack_page_miss : int;
   mutable index_page_read : int;
-  mutable index_page_miss : int
+  mutable index_page_miss : int;
+  mutable appended_hashes: int;
+  mutable appended_offsets: int;
 }
 
 let fresh_stats () =
@@ -74,7 +76,9 @@ let fresh_stats () =
     pack_page_read = 0;
     pack_page_miss = 0;
     index_page_read = 0;
-    index_page_miss = 0
+    index_page_miss = 0;
+    appended_hashes = 0;
+    appended_offsets = 0;
   }
 
 let stats = fresh_stats ()
@@ -93,7 +97,10 @@ let reset_stats () =
   stats.pack_page_read <- 0;
   stats.pack_page_miss <- 0;
   stats.index_page_read <- 0;
-  stats.index_page_miss <- 0
+  stats.index_page_miss <- 0;
+  stats.appended_hashes <- 0;
+  stats.appended_offsets <- 0;
+  ()
 
 module type IO = sig
   type t
@@ -1115,8 +1122,8 @@ module Pack (K : Irmin.Hash.S) = struct
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
             match Index.find t.pack.index k with
-            | Some e -> Some e.offset
-            | None -> None
+            | Some e -> (stats.appended_offsets <- stats.appended_offsets + 1; Some e.offset)
+            | None -> (stats.appended_hashes <- stats.appended_hashes + 1; None)
           in
           let dict = Dict.index t.pack.dict in
           let off = IO.offset t.pack.block in
@@ -1899,7 +1906,9 @@ type stats = {
   pack_page_faults : float;
   index_page_faults : float;
   pack_cache_misses : float;
-  search_steps : float
+  search_steps : float;
+  offset_ratio : float;
+  offset_significance : int;
 }
 
 let stats () =
@@ -1907,5 +1916,7 @@ let stats () =
     pack_page_faults = div_or_zero stats.pack_page_miss stats.pack_page_read;
     index_page_faults = div_or_zero stats.index_page_miss stats.index_page_read;
     pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
-    search_steps = div_or_zero stats.index_is_steps stats.index_is
+    search_steps = div_or_zero stats.index_is_steps stats.index_is;
+    offset_ratio = div_or_zero stats.appended_offsets (stats.appended_offsets + stats.appended_hashes);
+    offset_significance = stats.appended_offsets + stats.appended_hashes;
   }
