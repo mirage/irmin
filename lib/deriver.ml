@@ -72,16 +72,17 @@ module Located (S: Ast_builder.S): S = struct
 
   let rec derive_str ?name input_ast =
     match input_ast with
-    | (_, [typ]) -> (
+    | (rec_flag, [typ]) -> (
 
         let type_name = typ.ptype_name.txt in
         let witness_name = match name with
           | Some s -> s
           | None -> witness_name_of_type_name type_name in
         let kind = typ.ptype_kind in
-        let rec_flag = ref false in
+        let rec_detected = ref false in
 
         let expr = (
+
           match kind with
           | Ptype_abstract -> (
               match typ.ptype_manifest with
@@ -104,22 +105,30 @@ module Located (S: Ast_builder.S): S = struct
                     )
 
                   (* Type constructor: list, tuple, etc. *)
-                  | _ -> derive_core ~type_name ~witness_name ~rec_flag c |> open_type
+                  | _ -> derive_core ~rec_flag ~type_name ~witness_name ~rec_detected c |> open_type
                 ))
 
-          | Ptype_variant cs -> derive_variant ~type_name ~witness_name ~rec_flag type_name cs |> open_type
-          | Ptype_record ls ->  derive_record  ~type_name ~witness_name ~rec_flag ls |> open_type
+          | Ptype_variant cs -> derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected type_name cs |> open_type
+          | Ptype_record ls ->  derive_record  ~rec_flag ~type_name ~witness_name ~rec_detected ls |> open_type
           | Ptype_open -> invalid_arg "Open types unsupported"
         )
         in
 
-        let expr = expr |> if !rec_flag then recursive witness_name else (fun x -> x) in
+        (* If the type is syntactically self-referential, and the user has not asserted 'nonrec' in the type
+           declaration, then wrap in a 'mu' combinator *)
+        let expr = if !rec_detected && not (rec_flag == Nonrecursive) then
+            recursive witness_name expr
+          else
+            expr
+        in
+
         [ pstr_value Nonrecursive [ value_binding ~pat:(ppat_var @@ Located.mk @@ witness_name) ~expr]]
       )
 
     | _ -> invalid_arg "Multiple type declarations not supported"
 
-  and derive_core ~type_name ~witness_name ~rec_flag typ =
+
+  and derive_core ~rec_flag ~type_name ~witness_name ~rec_detected typ =
     match typ.ptyp_desc with
     | Ptyp_constr ({txt = Lident const_name; _}, args) -> (
 
@@ -128,9 +137,10 @@ module Located (S: Ast_builder.S): S = struct
         | None -> (
 
             let name =
-              (* If this type is the one we are deriving, replace with the witness name *)
-              if String.equal const_name type_name then
-                (rec_flag := true; witness_name)
+              (* If this type is the one we are deriving and the 'nonrec' keyword hasn't been used,
+                 replace with the witness name *)
+              if (rec_flag <> Nonrecursive) && String.equal const_name type_name then
+                (rec_detected := true; witness_name)
 
               (* If not a base type, assume a composite witness with the same naming convention *)
               else if not @@ SSet.mem const_name irmin_types then
@@ -140,30 +150,31 @@ module Located (S: Ast_builder.S): S = struct
             in
 
             args
-            >|= derive_core ~type_name ~witness_name ~rec_flag
+            >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
             >|= unlabelled
             |> pexp_apply (pexp_ident @@ Located.lident name)
           )
       )
 
-    | Ptyp_tuple args -> derive_tuple ~type_name ~witness_name ~rec_flag args
+    | Ptyp_tuple args -> derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
 
     | Ptyp_arrow _ -> invalid_arg "Arrow types unsupported"
     | _ -> invalid_arg "Unsupported type"
 
 
-  and derive_tuple ~type_name ~witness_name ~rec_flag args =
+  and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
     let tuple_type = match List.length args with
       | 2 -> "pair"
       | 3 -> "triple"
       | l -> invalid_arg (Printf.sprintf "Tuples must have 2 or 3 components. Found %d." l)
     in
     args
-    >|= derive_core ~type_name ~witness_name ~rec_flag
+    >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
     >|= unlabelled
     |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
 
-  and derive_record ~type_name ~witness_name ~rec_flag ls =
+
+  and derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls =
     let rcase_of_ldecl l = fun e ->
       let label_name = l.pld_name.txt in
 
@@ -172,7 +183,7 @@ module Located (S: Ast_builder.S): S = struct
           e;
           pexp_apply (pexp_ident @@ Located.lident "field") ([
               pexp_constant @@ Pconst_string (label_name, None);
-              derive_core ~type_name ~witness_name ~rec_flag l.pld_type;
+              derive_core ~rec_flag ~type_name ~witness_name ~rec_detected l.pld_type;
               pexp_fun
                 Nolabel
                 None
@@ -209,9 +220,7 @@ module Located (S: Ast_builder.S): S = struct
       ([estring type_name; nested record] >|= unlabelled)
     |> sealr
 
-  and derive_variant: type_name:string -> witness_name:string -> rec_flag:bool ref
-    -> string -> constructor_declaration list -> expression
-    = fun ~type_name ~witness_name ~rec_flag name cs ->
+  and derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected name cs =
 
       let fparam_of_cdecl c =
         c.pcd_name.txt
@@ -285,8 +294,8 @@ module Located (S: Ast_builder.S): S = struct
                     pexp_constant @@ Pconst_string (cons_name, None);
 
                     (match components with
-                     | [t] -> derive_core ~type_name ~witness_name ~rec_flag t
-                     | c   -> derive_tuple ~type_name ~witness_name ~rec_flag c);
+                     | [t] -> derive_core  ~rec_flag ~type_name ~witness_name ~rec_detected t
+                     | c   -> derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected c);
 
                     (pexp_fun Nolabel None
                        (idents >|= Located.mk >|= ppat_var |> ppat_tuple)

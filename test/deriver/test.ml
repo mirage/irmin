@@ -17,10 +17,25 @@ type test_triple = string * int32 * bool [@@deriving irmin]
 type test_result = (int32, string) result [@@deriving irmin]
 
 (* Miscellaneous *)
-type test_alias = test_result [@@deriving irmin]
-type t = test_alias
-module S = struct
-  type nonrec t = t list
+type t_alias = test_result [@@deriving irmin]
+type t = t_alias [@@deriving irmin]
+
+(* Ensure that 'nonrec' assertions are respected *)
+module S1 : sig
+  type nonrec t = t list [@@deriving irmin]
+  type nonrec t_alias = t_alias list [@@deriving irmin]
+end = struct
+  type nonrec t = t list [@@deriving irmin]
+  type nonrec t_alias = t_alias list [@@deriving irmin]
+end
+
+(* Now test the interaction of 'nonrec' with custom naming *)
+module S2 : sig
+  type nonrec t = t list [@@deriving irmin {name = "t_witness"}]
+  type nonrec t_alias = t_alias list [@@deriving irmin {name = "t_witness"}]
+end = struct
+  type nonrec t = t list [@@deriving irmin {name = "t_witness"}]
+  type nonrec t_alias = t_alias list [@@deriving irmin {name = "t_witness"}]
 end
 
 (* Variants *)

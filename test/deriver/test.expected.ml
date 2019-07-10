@@ -26,10 +26,38 @@ type test_triple = (string * int32 * bool)[@@deriving irmin]
 let test_triple_t = let open Irmin.Type in triple string int32 bool
 type test_result = (int32, string) result[@@deriving irmin]
 let test_result_t = let open Irmin.Type in result int32 string
-type test_alias = test_result[@@deriving irmin]
-let test_alias_t = test_result_t
-type t = test_alias
-module S = struct type nonrec t = t list end
+type t_alias = test_result[@@deriving irmin]
+let t_alias_t = test_result_t
+type t = t_alias[@@deriving irmin]
+let t = t_alias_t
+module S1 :
+  sig
+    type nonrec t = t list[@@deriving irmin]
+    val t : t Irmin.Type.t
+    type nonrec t_alias = t_alias list[@@deriving irmin]
+    val t_alias_t : t_alias Irmin.Type.t
+  end =
+  struct
+    type nonrec t = t list[@@deriving irmin]
+    let t = let open Irmin.Type in list t
+    type nonrec t_alias = t_alias list[@@deriving irmin]
+    let t_alias_t = let open Irmin.Type in list t_alias_t
+  end 
+module S2 :
+  sig
+    type nonrec t = t list[@@deriving irmin { name = "t_witness" }]
+    val t_witness : t Irmin.Type.t
+    type nonrec t_alias = t_alias list[@@deriving
+                                        irmin { name = "t_witness" }]
+    val t_witness : t_alias Irmin.Type.t
+  end =
+  struct
+    type nonrec t = t list[@@deriving irmin { name = "t_witness" }]
+    let t_witness = let open Irmin.Type in list t
+    type nonrec t_alias = t_alias list[@@deriving
+                                        irmin { name = "t_witness" }]
+    let t_witness = let open Irmin.Type in list t_alias_t
+  end 
 type test_variant1 =
   | A [@@deriving irmin]
 let test_variant1_t =
