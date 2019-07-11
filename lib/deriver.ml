@@ -79,15 +79,20 @@ module Located (S: Ast_builder.S): S = struct
 
     | Ptyp_tuple args -> derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
 
-    | Ptyp_arrow _ -> invalid_arg "Arrow types unsupported"
-    | _ -> invalid_arg "Unsupported type"
+    | Ptyp_arrow _     -> Raise.unsupported_type_arrow ~loc typ
+    | Ptyp_var v       -> Raise.unsupported_type_var ~loc v
+    | Ptyp_poly _      -> Raise.unsupported_type_poly ~loc typ
+    | Ptyp_variant _   -> Raise.unsupported_type_polyvar ~loc typ
+    | Ptyp_package _   -> Raise.unsupported_type_package ~loc typ
+    | Ptyp_extension _ -> Raise.unsupported_type_extension ~loc typ
 
+    | _ -> invalid_arg "unsupported"
 
   and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
     let tuple_type = match List.length args with
       | 2 -> "pair"
       | 3 -> "triple"
-      | l -> invalid_arg (Printf.sprintf "Tuples must have 2 or 3 components. Found %d." l)
+      | n -> Raise.unsupported_tuple_size ~loc n
     in
     args
     >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
@@ -275,7 +280,7 @@ module Located (S: Ast_builder.S): S = struct
             derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected type_name cs |> open_module
           | Ptype_record ls ->
             derive_record  ~rec_flag ~type_name ~witness_name ~rec_detected ls |> open_module
-          | Ptype_open -> invalid_arg "Open types unsupported"
+          | Ptype_open -> Raise.unsupported_type_open ~loc
         in
 
         (* If the type is syntactically self-referential and the user has not asserted 'nonrec' in the type
