@@ -26,6 +26,13 @@ type test_triple = (string * int32 * bool)[@@deriving irmin]
 let test_triple_t = let open Irmin.Type in triple string int32 bool
 type test_result = (int32, string) result[@@deriving irmin]
 let test_result_t = let open Irmin.Type in result int32 string
+type deep_tuple =
+  ((((int32 * int32) * int32 * int32) * int32 * int32) * int32 * int32)
+[@@deriving irmin]
+let deep_tuple_t =
+  let open Irmin.Type in
+    triple (triple (triple (pair int32 int32) int32 int32) int32 int32) int32
+      int32
 type t_alias = test_result[@@deriving irmin]
 let t_alias_t = test_result_t
 type t = t_alias[@@deriving irmin]

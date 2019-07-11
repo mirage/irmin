@@ -17,6 +17,7 @@ type test_triple = string * int32 * bool [@@deriving irmin]
 type test_result = (int32, string) result [@@deriving irmin]
 
 (* Miscellaneous *)
+type deep_tuple = (((int32 * int32) * int32 * int32) * int32 * int32) * int32 * int32 [@@deriving irmin]
 type t_alias = test_result [@@deriving irmin]
 type t = t_alias [@@deriving irmin]
 
