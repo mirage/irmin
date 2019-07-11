@@ -17,9 +17,14 @@ depends: [
   "dune"       {build  & >= "1.1.0"}
   "bloomf"
   "irmin"      {>= "1.3.0"}
+  "index"
   "lwt"
   "irmin-test" {with-test}
   "alcotest-lwt" {with-test}
+]
+
+pin-depends: [
+  ["index.dev" "git+https://github.com/mirage/index.git"]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
