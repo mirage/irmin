@@ -3258,8 +3258,8 @@ val remote_store : (module S with type t = 'a) -> 'a -> remote
     synchronization using {!Store.remote} but it works for all
     backends. *)
 
-(** [SYNC] provides functions to synchronization an Irmin store with
-    local and remote Irmin stores. *)
+(** [SYNC] provides functions to synchronize an Irmin store with local
+    and remote Irmin stores. *)
 module type SYNC = sig
   (** {1 Native Synchronization} *)
 
@@ -3269,7 +3269,14 @@ module type SYNC = sig
   (** The type for store heads. *)
   type commit
 
+  (** The type for remote status. *)
   type status = [ `Empty | `Head of commit ]
+
+  val status_t : db -> status Type.t
+  (** [status_t db] is the value type for {!status} of remote [db]. *)
+
+  val pp_status : status Fmt.t
+  (** [pp_status] pretty-prints return statuses. *)
 
   val fetch :
     db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
@@ -3282,7 +3289,11 @@ module type SYNC = sig
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
 
+  (** The type for pull errors. *)
   type pull_error = [ `Msg of string | Merge.conflict ]
+
+  val pp_pull_error : pull_error Fmt.t
+  (** [pp_push_error] pretty-prints pull errors. *)
 
   val pull :
     db ->

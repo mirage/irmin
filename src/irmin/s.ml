@@ -1119,10 +1119,16 @@ module type SYNC_STORE = sig
 
   type status = [ `Empty | `Head of commit ]
 
+  val status_t : db -> status Type.t
+
+  val pp_status : status Fmt.t
+
   val fetch :
     db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
 
   val fetch_exn : db -> ?depth:int -> remote -> status Lwt.t
+
+  val pp_pull_error : pull_error Fmt.t
 
   val pull :
     db ->
