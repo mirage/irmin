@@ -59,8 +59,8 @@ type all_stats = {
   mutable pack_page_miss : int;
   mutable index_page_read : int;
   mutable index_page_miss : int;
-  mutable appended_hashes: int;
-  mutable appended_offsets: int;
+  mutable appended_hashes : int;
+  mutable appended_offsets : int
 }
 
 let fresh_stats () =
@@ -78,7 +78,7 @@ let fresh_stats () =
     index_page_read = 0;
     index_page_miss = 0;
     appended_hashes = 0;
-    appended_offsets = 0;
+    appended_offsets = 0
   }
 
 let stats = fresh_stats ()
@@ -572,6 +572,8 @@ module type S = sig
 
   val hash : t -> hash
 
+  val magic : char
+
   val encode_bin :
     dict:(string -> int) ->
     offset:(hash -> int64 option) ->
@@ -602,18 +604,19 @@ module Pack (K : Irmin.Hash.S) = struct
         let encoded_size = K.hash_size
       end)
       (struct
-        type t = int64 * int
+        type t = int64 * int * char
 
-        let encode (off, len) =
-          Irmin.Type.(to_bin_string (pair int64 int32)) (off, Int32.of_int len)
+        let encode (off, len, kind) =
+          Irmin.Type.(to_bin_string (triple int64 int32 char))
+            (off, Int32.of_int len, kind)
 
         let decode s off =
-          let off, len =
-            snd (Irmin.Type.(decode_bin (pair int64 int32)) s off)
+          let off, len, kind =
+            snd (Irmin.Type.(decode_bin (triple int64 int32 char)) s off)
           in
-          (off, Int32.to_int len)
+          (off, Int32.to_int len, kind)
 
-        let encoded_size = (64 / 8) + (32 / 8)
+        let encoded_size = (64 / 8) + (32 / 8) + 1
       end)
 
   module Tbl = Table (K)
@@ -758,7 +761,7 @@ module Pack (K : Irmin.Hash.S) = struct
         | exception Not_found -> (
           match Index.find t.pack.index k with
           | None -> None
-          | Some (off, len) ->
+          | Some (off, len, _) ->
               let buf, pos = Pool.read t.pages ~off ~len in
               let hash off =
                 (* match Hashtbl.find t.pack.index.offsets off with
@@ -811,17 +814,20 @@ module Pack (K : Irmin.Hash.S) = struct
       | true -> ()
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
-
           let offset k =
             match Index.find t.pack.index k with
-            | Some (off, _) -> (stats.appended_offsets <- stats.appended_offsets + 1; Some off)
-            | None -> (stats.appended_hashes <- stats.appended_hashes + 1; None)
+            | Some (off, _, _) ->
+                stats.appended_offsets <- stats.appended_offsets + 1;
+                Some off
+            | None ->
+                stats.appended_hashes <- stats.appended_hashes + 1;
+                None
           in
           let dict = Dict.index t.pack.dict in
           let off = IO.offset t.pack.block in
           V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
-          Index.replace t.pack.index k (off, len);
+          Index.replace t.pack.index k (off, len, V.magic);
           if Tbl.length t.staging >= auto_flush then flush t
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
@@ -1600,7 +1606,7 @@ type stats = {
   pack_cache_misses : float;
   search_steps : float;
   offset_ratio : float;
-  offset_significance : int;
+  offset_significance : int
 }
 
 let stats () =
@@ -1609,6 +1615,8 @@ let stats () =
     index_page_faults = div_or_zero stats.index_page_miss stats.index_page_read;
     pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
     search_steps = div_or_zero stats.index_is_steps stats.index_is;
-    offset_ratio = div_or_zero stats.appended_offsets (stats.appended_offsets + stats.appended_hashes);
-    offset_significance = stats.appended_offsets + stats.appended_hashes;
+    offset_ratio =
+      div_or_zero stats.appended_offsets
+        (stats.appended_offsets + stats.appended_hashes);
+    offset_significance = stats.appended_offsets + stats.appended_hashes
   }

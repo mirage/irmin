@@ -57,6 +57,8 @@ module type S = sig
 
   val hash : t -> hash
 
+  val magic : char
+
   val encode_bin :
     dict:(string -> int) ->
     offset:(hash -> int64 option) ->
@@ -94,7 +96,7 @@ type stats = {
   pack_cache_misses : float;
   search_steps : float;
   offset_ratio : float;
-  offset_significance : int;
+  offset_significance : int
 }
 
 val reset_stats : unit -> unit

@@ -79,6 +79,8 @@ module S = struct
 
   type hash = Irmin.Hash.SHA1.t
 
+  let magic = 'S'
+
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
   let hash = H.hash
