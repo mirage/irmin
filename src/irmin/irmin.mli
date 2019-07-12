@@ -52,7 +52,7 @@ module Type : sig
 
       The type combinators supports all the usual {{!primitives}type
       primitives} but also compact definitions of {{!records}records}
-      and {{!variants}variants}. It also allows the user to define
+      and {{!variants}variants}. It also allows the definition of
       run-time representations of {{!recursive}recursive types}. *)
 
   (** {1 Type Combinators} *)
@@ -124,14 +124,14 @@ module Type : sig
 
   (** The type for representing open records of type ['a] with a constructor
       of type ['b]. ['c] represents the remaining fields to be described using
-      the {{!(|+)}|+} operator. An open record initially satisfies
-      ['c = 'b] and can be {{!sealr}sealed} once ['c = 'a]. *)
+      the {!(|+)} operator. An open record initially satisfies ['c = 'b] and
+      can be {{!sealr}sealed} once ['c = 'a]. *)
   type ('a, 'b, 'c) open_record
 
   val record : string -> 'b -> ('a, 'b, 'b) open_record
   (** [record n f] is an incomplete representation of the record called [n] of
       type ['a] with constructor [f]. To complete the representation, add fields
-      with {{!(|+)}|+} and then seal the record with {{!sealr}sealr}. *)
+      with {!(|+)} and then seal the record with {!sealr}. *)
 
   (** The type for fields holding values of type ['b] and belonging to a
       record of type ['a]. *)
@@ -174,15 +174,15 @@ module Type : sig
 
   (** The type for representing open variants of type ['a] with pattern
       matching of type ['b]. ['c] represents the remaining constructors to
-      be described using the {{!(|~)}|~} operator. An open variant initially
+      be described using the {!(|~)} operator. An open variant initially
       satisfies [c' = 'b] and can be {{!sealv}sealed} once ['c = 'a]. *)
   type ('a, 'b, 'c) open_variant
 
   val variant : string -> 'b -> ('a, 'b, 'b) open_variant
   (** [variant n p] is an incomplete representation of the variant type
       called [n] of type ['a] using [p] to deconstruct values. To complete
-      the representation, add cases with {{!(|~)}|~} and then seal the
-      variant with {{!sealv}sealv}. *)
+      the representation, add cases with {!(|~)} and then seal the variant
+      with {!sealv}. *)
 
   (** The type for representing variant cases of type ['a] with
       patterns of type ['b]. *)
@@ -1138,8 +1138,8 @@ end
     versions of the same contents.}
     }
 
-    Default implementations for {{!Contents.String}string} and
-    {{!Contents.Json}JSON} contents are provided. *)
+    Default implementations for {{!Contents.String}idempotent string}
+    and {{!Contents.Json}JSON} contents are provided. *)
 module Contents : sig
   module type S = sig
     (** {1 Signature for store contents} *)
