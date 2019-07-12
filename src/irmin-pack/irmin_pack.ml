@@ -24,7 +24,13 @@ let fresh_key =
   Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh"
     Irmin.Private.Conf.bool false
 
+let lru_size_key =
+  Irmin.Private.Conf.key ~doc:"Size of the LRU cache for pack entries."
+    "lru-size" Irmin.Private.Conf.int 10_000
+
 let fresh config = Irmin.Private.Conf.get config fresh_key
+
+let lru_size config = Irmin.Private.Conf.get config lru_size_key
 
 let root_key = Irmin.Private.Conf.root
 
@@ -33,10 +39,11 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
-let config ?(fresh = false) root =
+let config ?(fresh = false) ?(lru_size = 10_000) root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
+  let config = Irmin.Private.Conf.add config lru_size_key lru_size in
   config
 
 let ( // ) = Filename.concat
@@ -383,12 +390,14 @@ module Lru (H : Hashtbl.HashedType) = struct
     with Not_found -> ()
 
   let add t k v =
-    remove t k;
-    let n = Q.node (k, v) in
-    t.w <- t.w + 1;
-    if weight t > t.cap then drop_lru t;
-    HT.add t.ht k n;
-    Q.append t.q n
+    if t.w = 0 then ()
+    else (
+      remove t k;
+      let n = Q.node (k, v) in
+      t.w <- t.w + 1;
+      if weight t > t.cap then drop_lru t;
+      HT.add t.ht k n;
+      Q.append t.q n )
 
   let promote t k =
     try
@@ -600,7 +609,7 @@ module Pack (K : Irmin.Hash.S) = struct
     include
       Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
-    val v : ?fresh:bool -> string -> [ `Read ] t Lwt.t
+    val v : ?fresh:bool -> ?lru_size:int -> string -> [ `Read ] t Lwt.t
 
     val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
@@ -625,7 +634,7 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let create = Lwt_mutex.create ()
 
-    let unsafe_v ?(fresh = false) root =
+    let unsafe_v ?(fresh = false) ?(lru_size = 10_000) root =
       Log.debug (fun l -> l "[pack] v fresh=%b root=%s" fresh root);
       try
         let t = Hashtbl.find files root in
@@ -633,14 +642,14 @@ module Pack (K : Irmin.Hash.S) = struct
       with Not_found ->
         v ~fresh root >>= fun pack ->
         let staging = Tbl.create 127 in
-        let lru = Lru.create 10_000 in
+        let lru = Lru.create lru_size in
         let t = { staging; lru; pack } in
         (if fresh then clear t else Lwt.return ()) >|= fun () ->
         Hashtbl.add files root t;
         t
 
-    let v ?fresh root =
-      Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
+    let v ?fresh ?lru_size root =
+      Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh ?lru_size root)
 
     let pp_hash = Irmin.Type.pp K.t
 
@@ -1482,9 +1491,10 @@ struct
       let v config =
         let root = root config in
         let fresh = fresh config in
-        Contents.CA.v ~fresh root >>= fun contents ->
-        Node.CA.v ~fresh root >>= fun node ->
-        Commit.CA.v ~fresh root >>= fun commit ->
+        let lru_size = lru_size config in
+        Contents.CA.v ~fresh ~lru_size root >>= fun contents ->
+        Node.CA.v ~fresh ~lru_size root >>= fun node ->
+        Commit.CA.v ~fresh ~lru_size root >>= fun commit ->
         Branch.v ~fresh root >|= fun branch ->
         { contents; node; commit; branch; config }
     end

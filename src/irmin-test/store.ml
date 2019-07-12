@@ -213,6 +213,12 @@ module Make (S : S) = struct
       with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) >>= fun k1' ->
       check_key "k1.1" k1 k1';
       P.Node.find n k1 >>= fun t1 ->
+      let k' = P.Node.Val.find (get t1) "x" in
+      check
+        (Irmin.Type.option P.Node.Val.value_t)
+        "find x"
+        (Some (normal kv1))
+        k';
       with_node repo (fun n -> P.Node.add n (get t1)) >>= fun k1'' ->
       check_key "k1.2" k1 k1'';
       (* Create the node  t2 -b-> t1 -x-> (v1) *)
