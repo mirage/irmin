@@ -119,8 +119,6 @@ module type IO = sig
 
   val version : t -> string
 
-  val name : t -> string
-
   val sync : t -> unit
 end
 
@@ -240,8 +238,6 @@ module IO : IO = struct
 
   let version t = t.version
 
-  let name t = t.file
-
   let protect_unix_exn = function
     | Unix.Unix_error _ as e -> failwith (Printexc.to_string e)
     | e -> raise e
@@ -355,15 +351,6 @@ module Lru (H : Hashtbl.HashedType) = struct
     let node x = { value = x; prev = None; next = None }
 
     let create () = { first = None; last = None }
-
-    let iter f t =
-      let rec go f = function
-        | Some n ->
-            f n.value;
-            go f n.next
-        | _ -> ()
-      in
-      go f t.first
   end
 
   type key = HT.key
@@ -422,8 +409,6 @@ module Lru (H : Hashtbl.HashedType) = struct
     | true ->
         promote t k;
         true
-
-  let filter f t = Q.iter (fun (k, v) -> if not (f k v) then remove t k) t.q
 end
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -441,62 +426,6 @@ module Cache (K : Irmin.Type.S) = Lru (struct
 
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
-
-module Pool : sig
-  type t
-
-  val v : length:int -> lru_size:int -> IO.t -> t
-
-  val read : t -> off:int64 -> len:int -> bytes * int
-
-  val trim : off:int64 -> t -> unit
-end = struct
-  module Lru = Lru (struct
-    include Int64
-
-    let hash = Hashtbl.hash
-  end)
-
-  type t = { pages : bytes Lru.t; length : int; lru_size : int; io : IO.t }
-
-  let v ~length ~lru_size io =
-    let pages = Lru.create lru_size in
-    { pages; length; io; lru_size }
-
-  let rec read t ~off ~len =
-    let name = IO.name t.io in
-    if Filename.check_suffix name "pack" then
-      stats.pack_page_read <- succ stats.pack_page_read
-    else stats.index_page_read <- succ stats.index_page_read;
-    let l = Int64.of_int t.length in
-    let page_off = Int64.(mul (div off l) l) in
-    let ioff = Int64.to_int (off -- page_off) in
-    match Lru.find t.pages page_off with
-    | buf ->
-        if t.length - ioff < len then (
-          Lru.remove t.pages page_off;
-          (read [@tailcall]) t ~off ~len )
-        else (buf, ioff)
-    | exception Not_found ->
-        let length = max t.length (ioff + len) in
-        let length =
-          if page_off ++ Int64.of_int length > IO.offset t.io then
-            Int64.to_int (IO.offset t.io -- page_off)
-          else length
-        in
-        let buf = Bytes.create length in
-        if Filename.check_suffix name "pack" then
-          stats.pack_page_miss <- succ stats.pack_page_miss
-        else stats.index_page_miss <- succ stats.index_page_miss;
-        let n = IO.read t.io ~off:page_off buf in
-        assert (n = length);
-        Lru.add t.pages page_off buf;
-        (buf, ioff)
-
-  let trim ~off t =
-    let max = off -- Int64.of_int t.length in
-    Lru.filter (fun h _ -> h <= max) t.pages
-end
 
 module Dict = struct
   type t = {
@@ -684,16 +613,7 @@ module Pack (K : Irmin.Hash.S) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
-    let lru_size = 200
-
-    let page_size = 4 * 1024
-
-    type nonrec 'a t = {
-      pack : 'a t;
-      lru : V.t Lru.t;
-      staging : V.t Tbl.t;
-      pages : Pool.t
-    }
+    type nonrec 'a t = { pack : 'a t; lru : V.t Lru.t; staging : V.t Tbl.t }
 
     type key = K.t
 
@@ -714,13 +634,7 @@ module Pack (K : Irmin.Hash.S) = struct
         v ~fresh root >>= fun pack ->
         let staging = Tbl.create 127 in
         let lru = Lru.create 10_000 in
-        let t =
-          { staging;
-            lru;
-            pack;
-            pages = Pool.v ~lru_size ~length:page_size pack.block
-          }
-        in
+        let t = { staging; lru; pack } in
         (if fresh then clear t else Lwt.return ()) >|= fun () ->
         Hashtbl.add files root t;
         t
@@ -748,6 +662,8 @@ module Pack (K : Irmin.Hash.S) = struct
         Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash k'
           pp_hash k
 
+    let buffer_for_hash = Bytes.create K.hash_size
+
     let unsafe_find t k =
       Log.debug (fun l -> l "[pack] find %a" pp_hash k);
       stats.pack_finds <- succ stats.pack_finds;
@@ -762,22 +678,23 @@ module Pack (K : Irmin.Hash.S) = struct
           match Index.find t.pack.index k with
           | None -> None
           | Some (off, len, _) ->
-              let buf, pos = Pool.read t.pages ~off ~len in
+              let buf = Bytes.create len in
+              let n = IO.read t.pack.block ~off buf in
+              assert (n = len);
               let hash off =
-                (* match Hashtbl.find t.pack.index.offsets off with
-                | e -> e.hash
-                | exception Not_found -> *)
-                let buf, pos = Pool.read t.pages ~off ~len:K.hash_size in
+                let n = IO.read t.pack.block ~off buffer_for_hash in
+                assert (n = K.hash_size);
                 let _, v =
                   Irmin.Type.decode_bin ~headers:false K.t
-                    (Bytes.unsafe_to_string buf)
-                    pos
+                    (* the copy is important here *)
+                    (Bytes.to_string buffer_for_hash)
+                    0
                 in
                 v
               in
               let dict = Dict.find t.pack.dict in
               let v =
-                V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) pos
+                V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
               in
               check_key k v;
               Tbl.add t.staging k v;
@@ -795,8 +712,6 @@ module Pack (K : Irmin.Hash.S) = struct
     let flush t =
       IO.sync t.pack.dict.block;
       Index.flush t.pack.index;
-      let off = IO.offset t.pack.block in
-      Pool.trim ~off t.pages;
       IO.sync t.pack.block;
       Tbl.clear t.staging
 
