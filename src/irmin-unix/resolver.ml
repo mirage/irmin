@@ -127,7 +127,7 @@ module Store = struct
     let module S =
       S (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
         (Irmin.Branch.String)
-        (Irmin.Hash.SHA1)
+        (Irmin.Hash.BLAKE2B)
     in
     T ((module S), None)
 

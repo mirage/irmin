@@ -1019,12 +1019,12 @@ end
 
 (** Hashing functions.
 
-    [Hash] provides user-defined hash function to digest serialized
+    [Hash] provides user-defined hash functions to digest serialized
     contents. Some {{!backend}backends} might be parameterized by such
     hash functions, others might work with a fixed one (for instance,
     the Git format uses only {{!Hash.SHA1}SHA1}).
 
-    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
+    A {{!Hash.SHA1}SHA1} implementation is available to pass to the
     backends. *)
 module Hash : sig
   (** {1 Contents Hashing} *)

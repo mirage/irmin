@@ -131,4 +131,4 @@ module Make =
   Irmin.Make (Irmin.Content_addressable (Append_only)) (Atomic_write)
 module KV (C : Irmin.Contents.S) =
   Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+    (Irmin.Hash.BLAKE2B)
