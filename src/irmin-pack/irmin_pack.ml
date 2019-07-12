@@ -961,9 +961,9 @@ struct
 
     let value a =
       let open Irmin.Type in
-      record "value" (fun magic hash v -> { magic; hash; v })
-      |+ field "magic" char (fun v -> v.magic)
+      record "value" (fun hash magic v -> { magic; hash; v })
       |+ field "hash" H.t (fun v -> v.hash)
+      |+ field "magic" char (fun v -> v.magic)
       |+ field "v" a (fun v -> v.v)
       |> sealr
 
