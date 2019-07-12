@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val config : ?fresh:bool -> string -> Irmin.config
+val config : ?fresh:bool -> ?lru_size:int -> string -> Irmin.config
 
 module Make_ext
     (Metadata : Irmin.Metadata.S)
@@ -81,7 +81,7 @@ module Pack (K : Irmin.Hash.S) : sig
   module Make (V : S with type hash = K.t) : sig
     type 'a t
 
-    val v : ?fresh:bool -> string -> [ `Read ] t Lwt.t
+    val v : ?fresh:bool -> ?lru_size:int -> string -> [ `Read ] t Lwt.t
 
     val find : [> `Read ] t -> K.t -> V.t option Lwt.t
 

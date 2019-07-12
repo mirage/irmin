@@ -21,11 +21,11 @@ let store =
 
 let test_file = Filename.concat "_build" "test-db-pack"
 
-let config = Irmin_pack.config ~fresh:false test_file
+let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_file
 
 let clean () =
   let (module S : Irmin_test.S) = store in
-  let config = Irmin_pack.config ~fresh:true test_file in
+  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_file in
   S.Repo.v config >>= fun repo ->
   S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
 
@@ -97,7 +97,7 @@ module P = Irmin_pack.Pack (Irmin.Hash.SHA1)
 module Pack = P.Make (S)
 
 let test_pack _switch () =
-  Pack.v ~fresh:true test_file >>= fun t ->
+  Pack.v ~fresh:true ~lru_size:0 test_file >>= fun t ->
   let x1 = "foo" in
   let x2 = "bar" in
   let x3 = "otoo" in
