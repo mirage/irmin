@@ -593,6 +593,8 @@ module Pack (K : Irmin.Hash.S) = struct
     Index_unix.Make (struct
         type t = K.t
 
+        let pp = Irmin.Type.pp K.t
+
         let hash = K.short_hash
 
         let equal = Irmin.Type.equal K.t
@@ -605,6 +607,8 @@ module Pack (K : Irmin.Hash.S) = struct
       end)
       (struct
         type t = int64 * int * char
+
+        let pp = Irmin.Type.(pp (triple int64 int char))
 
         let encode (off, len, kind) =
           Irmin.Type.(to_bin_string (triple int64 int32 char))
