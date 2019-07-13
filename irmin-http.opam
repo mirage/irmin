@@ -14,16 +14,16 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.01.0"}
-  "dune"       {build & >= "1.1.0"}
-  "crunch"
+  "ocaml"      {>= "4.02.3"}
+  "dune"       {>= "1.1.0"}
+  "crunch"     {>= "2.2.0"}
   "webmachine" {>= "0.6.0"}
-  "irmin"      {>= "1.3.0"}
+  "irmin"      {=version}
   "cohttp-lwt" {>= "1.0.0"}
-  "irmin-git"  {with-test & >= "1.3.0"}
-  "irmin-mem"  {with-test & >= "1.3.0"}
+  "irmin-git"  {with-test & =version}
+  "irmin-mem"  {with-test & =version}
+  "irmin-test" {with-test & =version}
   "git-unix"   {with-test}
-  "irmin-test" {with-test}
   "digestif"   {with-test & >= "0.6.1"}
 ]
 
