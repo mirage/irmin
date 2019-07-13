@@ -131,7 +131,7 @@ struct
   module IMap = Map.Make (struct
     type t = int
 
-    let compare (x : int) (y : int) = Pervasives.compare x y
+    let compare (x : int) (y : int) = compare x y
   end)
 
   type key_handler = value Diff.t -> unit Lwt.t
