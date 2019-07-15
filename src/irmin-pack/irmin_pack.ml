@@ -796,8 +796,7 @@ struct
         let lru_size = lru_size config in
         let readonly = readonly config in
         let index =
-          Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
-            ~fan_out_size:256 root
+          Index.v ~fresh ~readonly ~log_size:10_000_000 ~fan_out_size:256 root
         in
         Contents.CA.v ~fresh ~readonly ~lru_size root >>= fun contents ->
         Node.CA.v ~fresh ~readonly ~lru_size root >>= fun node ->
