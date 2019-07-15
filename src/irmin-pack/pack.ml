@@ -45,7 +45,7 @@ let reset_stats () =
   stats.appended_offsets <- 0;
   ()
 
-module type S = sig
+module type ELT = sig
   include Irmin.Type.S
 
   type hash
@@ -64,6 +64,33 @@ module type S = sig
 
   val decode_bin :
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
+end
+
+module type S = sig
+  include Irmin.CONTENT_ADDRESSABLE_STORE
+
+  val v :
+    ?fresh:bool ->
+    ?shared:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    string ->
+    [ `Read ] t Lwt.t
+
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+  val unsafe_append : 'a t -> key -> value -> unit
+
+  val unsafe_find : 'a t -> key -> value option
+
+  val sync : 'a t -> unit
+end
+
+module type MAKER = sig
+  type key
+
+  module Make (V : ELT with type hash := key) :
+    S with type key = key and type value = V.t
 end
 
 open Lwt.Infix
@@ -119,7 +146,9 @@ module File (K : Irmin.Hash.S) = struct
 
   let v = with_cache ~clear ~v:unsafe_v "store.pack"
 
-  module Make (V : S with type hash := K.t) = struct
+  type key = K.t
+
+  module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
