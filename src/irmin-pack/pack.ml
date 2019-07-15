@@ -115,7 +115,7 @@ module File (K : Irmin.Hash.S) = struct
 
   let create = Lwt_mutex.create ()
 
-  let unsafe_v ?(fresh = false) ?(readonly = false) ?index root =
+  let unsafe_v ?(fresh = false) ?(readonly = false) root =
     Log.debug (fun l ->
         l "[state] v fresh=%b RO=%b root=%s" fresh readonly root );
     let root_f = root // "store.pack" in
@@ -126,11 +126,8 @@ module File (K : Irmin.Hash.S) = struct
     with Not_found ->
       let lock = Lwt_mutex.create () in
       let index =
-        match index with
-        | Some i -> i
-        | None ->
-            Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
-              ~fan_out_size:256 root
+        Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
+          ~fan_out_size:256 root
       in
       let dict = Dict.v ~fresh ~readonly root in
       let block = IO.v ~version:current_version ~readonly root_f in
@@ -142,9 +139,9 @@ module File (K : Irmin.Hash.S) = struct
       Hashtbl.add files root_f t;
       t
 
-  let v ?fresh ?readonly ?index root =
+  let v ?fresh ?readonly root =
     Lwt_mutex.with_lock create (fun () ->
-        let t = unsafe_v ?fresh ?readonly ?index root in
+        let t = unsafe_v ?fresh ?readonly root in
         Lwt.return t )
 
   module Make (V : S with type hash := K.t) : sig
@@ -189,11 +186,7 @@ module File (K : Irmin.Hash.S) = struct
         let t = Hashtbl.find files root in
         (if fresh then clear t else Lwt.return ()) >|= fun () -> t
       with Not_found ->
-        let index =
-          Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
-            ~fan_out_size:256 root
-        in
-        v ~fresh ~readonly ~index root >>= fun pack ->
+        v ~fresh ~readonly root >>= fun pack ->
         let staging = Tbl.create 127 in
         let lru = Lru.create lru_size in
         let t = { staging; lru; pack } in
