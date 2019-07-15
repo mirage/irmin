@@ -15,7 +15,7 @@
  *)
 
 let src =
-  Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionnaries"
+  Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+exception RO_Not_Allowed
+
 module type S = sig
   type t
 
@@ -33,7 +35,5 @@ module type S = sig
 
   val sync : t -> unit
 end
-
-exception RO_Not_Allowed
 
 module Unix : S
