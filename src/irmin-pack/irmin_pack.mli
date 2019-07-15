@@ -17,6 +17,9 @@
 val config :
   ?fresh:bool -> ?readonly:bool -> ?lru_size:int -> string -> Irmin.config
 
+module Dict = Dict
+module Pack = Pack
+
 module Make_ext
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -41,70 +44,8 @@ module Make : Irmin.S_MAKER
 
 module KV : Irmin.KV_MAKER
 
-module Dict : sig
-  type t
-
-  val find : t -> int -> string option
-
-  val index : t -> string -> int
-
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t
-end
-
-module type S = sig
-  include Irmin.Type.S
-
-  type hash
-
-  val hash : t -> hash
-
-  val magic : char
-
-  val encode_bin :
-    dict:(string -> int) ->
-    offset:(hash -> int64 option) ->
-    t ->
-    hash ->
-    (string -> unit) ->
-    unit
-
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
-end
-
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end
-
-module Pack (K : Irmin.Hash.S) : sig
-  module Make (V : S with type hash = K.t) : sig
-    type 'a t
-
-    val v :
-      ?fresh:bool ->
-      ?readonly:bool ->
-      ?lru_size:int ->
-      string ->
-      [ `Read ] t Lwt.t
-
-    val find : [> `Read ] t -> K.t -> V.t option Lwt.t
-
-    val append : 'a t -> K.t -> V.t -> unit Lwt.t
-  end
-end
-
-type stats = {
-  bf_misses : float;
-  pack_page_faults : float;
-  index_page_faults : float;
-  pack_cache_misses : float;
-  search_steps : float;
-  offset_ratio : float;
-  offset_significance : int
-}
-
-val reset_stats : unit -> unit
-
-val stats : unit -> stats
