@@ -24,7 +24,19 @@ let fresh_key =
   Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh"
     Irmin.Private.Conf.bool false
 
+let lru_size_key =
+  Irmin.Private.Conf.key ~doc:"Size of the LRU cache for pack entries."
+    "lru-size" Irmin.Private.Conf.int 10_000
+
+let readonly_key =
+  Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
+    Irmin.Private.Conf.bool false
+
 let fresh config = Irmin.Private.Conf.get config fresh_key
+
+let lru_size config = Irmin.Private.Conf.get config lru_size_key
+
+let readonly config = Irmin.Private.Conf.get config readonly_key
 
 let root_key = Irmin.Private.Conf.root
 
@@ -33,10 +45,12 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
-let config ?(fresh = false) root =
+let config ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000) root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
+  let config = Irmin.Private.Conf.add config lru_size_key lru_size in
+  let config = Irmin.Private.Conf.add config readonly_key readonly in
   config
 
 let ( // ) = Filename.concat
@@ -44,6 +58,8 @@ let ( // ) = Filename.concat
 let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
+
+exception RO_Not_Allowed
 
 type all_stats = {
   mutable index_appends : int;
@@ -105,7 +121,7 @@ let reset_stats () =
 module type IO = sig
   type t
 
-  val v : string -> t
+  val v : readonly:bool -> string -> t
 
   val clear : t -> unit
 
@@ -280,7 +296,7 @@ module IO : IO = struct
 
   let () = assert (String.length current_version = 8)
 
-  let v file =
+  let v ~readonly file =
     let v ~offset ~version raw =
       { version;
         file;
@@ -290,16 +306,18 @@ module IO : IO = struct
         flushed = header ++ offset
       }
     in
+    let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let x = Unix.openfile file Unix.[ O_CREAT; O_RDWR ] 0o644 in
+        if readonly then raise RO_Not_Allowed;
+        let x = Unix.openfile file Unix.[ O_CREAT; mode ] 0o644 in
         let raw = Raw.v x in
         Raw.unsafe_set_offset raw 0L;
         Raw.unsafe_set_version raw;
         v ~offset:0L ~version:current_version raw
     | true ->
-        let x = Unix.openfile file Unix.[ O_EXCL; O_RDWR ] 0o644 in
+        let x = Unix.openfile file Unix.[ O_EXCL; mode ] 0o644 in
         let raw = Raw.v x in
         let offset = Raw.unsafe_get_offset raw in
         let version = Raw.unsafe_get_version raw in
@@ -383,12 +401,14 @@ module Lru (H : Hashtbl.HashedType) = struct
     with Not_found -> ()
 
   let add t k v =
-    remove t k;
-    let n = Q.node (k, v) in
-    t.w <- t.w + 1;
-    if weight t > t.cap then drop_lru t;
-    HT.add t.ht k n;
-    Q.append t.q n
+    if t.w = 0 then ()
+    else (
+      remove t k;
+      let n = Q.node (k, v) in
+      t.w <- t.w + 1;
+      if weight t > t.cap then drop_lru t;
+      HT.add t.ht k n;
+      Q.append t.q n )
 
   let promote t k =
     try
@@ -461,15 +481,15 @@ module Dict = struct
 
   let files = Hashtbl.create 10
 
-  let v ?(fresh = false) root =
+  let v ?(fresh = false) ?(readonly = false) root =
     let root = root // "store.dict" in
-    Log.debug (fun l -> l "[dict] v fresh=%b root=%s" fresh root);
+    Log.debug (fun l -> l "[dict] v fresh=%b RO=%b root=%s" fresh readonly root);
     try
       let t = Hashtbl.find files root in
       if fresh then clear t;
       t
     with Not_found ->
-      let block = IO.v root in
+      let block = IO.v ~readonly root in
       if fresh then IO.clear block;
       let cache = Hashtbl.create 997 in
       let index = Hashtbl.create 997 in
@@ -575,8 +595,9 @@ module Pack (K : Irmin.Hash.S) = struct
 
   let create = Lwt_mutex.create ()
 
-  let unsafe_v ?(fresh = false) root =
-    Log.debug (fun l -> l "[state] v fresh=%b root=%s" fresh root);
+  let unsafe_v ?(fresh = false) ?(readonly = false) root =
+    Log.debug (fun l ->
+        l "[state] v fresh=%b RO=%b root=%s" fresh readonly root );
     let root_f = root // "store.pack" in
     try
       let t = Hashtbl.find files root_f in
@@ -584,10 +605,13 @@ module Pack (K : Irmin.Hash.S) = struct
       t
     with Not_found ->
       let lock = Lwt_mutex.create () in
-      let index = Index.v ~fresh ~log_size:10_000_000 ~fan_out_size:256 root in
-      let dict = Dict.v ~fresh root in
-      let block = IO.v root_f in
-      if fresh then IO.clear block;
+      let index =
+        Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
+          ~fan_out_size:256 root
+      in
+      let dict = Dict.v ~fresh ~readonly root in
+      let block = IO.v ~readonly root_f in
+      if fresh then if readonly then raise RO_Not_Allowed else IO.clear block;
       if IO.version block <> current_version then
         Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
           current_version;
@@ -595,16 +619,21 @@ module Pack (K : Irmin.Hash.S) = struct
       Hashtbl.add files root_f t;
       t
 
-  let v ?fresh root =
+  let v ?fresh ?readonly root =
     Lwt_mutex.with_lock create (fun () ->
-        let t = unsafe_v ?fresh root in
+        let t = unsafe_v ?fresh ?readonly root in
         Lwt.return t )
 
   module Make (V : S with type hash := K.t) : sig
     include
       Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
-    val v : ?fresh:bool -> string -> [ `Read ] t Lwt.t
+    val v :
+      ?fresh:bool ->
+      ?readonly:bool ->
+      ?lru_size:int ->
+      string ->
+      [ `Read ] t Lwt.t
 
     val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
@@ -629,22 +658,25 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let create = Lwt_mutex.create ()
 
-    let unsafe_v ?(fresh = false) root =
-      Log.debug (fun l -> l "[pack] v fresh=%b root=%s" fresh root);
+    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000) root
+        =
+      Log.debug (fun l ->
+          l "[pack] v fresh=%b RO=%b root=%s" fresh readonly root );
       try
         let t = Hashtbl.find files root in
         (if fresh then clear t else Lwt.return ()) >|= fun () -> t
       with Not_found ->
-        v ~fresh root >>= fun pack ->
+        v ~fresh ~readonly root >>= fun pack ->
         let staging = Tbl.create 127 in
-        let lru = Lru.create 10_000 in
+        let lru = Lru.create lru_size in
         let t = { staging; lru; pack } in
         (if fresh then clear t else Lwt.return ()) >|= fun () ->
         Hashtbl.add files root t;
         t
 
-    let v ?fresh root =
-      Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
+    let v ?fresh ?readonly ?lru_size root =
+      Lwt_mutex.with_lock create (fun () ->
+          unsafe_v ?fresh ?readonly ?lru_size root )
 
     let pp_hash = Irmin.Type.pp K.t
 
@@ -846,14 +878,15 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let watches = W.v ()
 
-  let unsafe_v ?(fresh = false) root =
+  let unsafe_v ?(fresh = false) ?(readonly = false) root =
     let root = root // "store.branches" in
-    Log.debug (fun l -> l "[branches] v fresh=%b root=%s" fresh root);
+    Log.debug (fun l ->
+        l "[branches] v fresh=%b RO=%b root=%s" fresh readonly root );
     try
       let t = Hashtbl.find files root in
       (if fresh then clear t else Lwt.return ()) >|= fun () -> t
     with Not_found ->
-      let block = IO.v root in
+      let block = IO.v ~readonly root in
       if fresh then IO.clear block;
       let cache = Tbl.create 997 in
       let index = Tbl.create 997 in
@@ -886,8 +919,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Hashtbl.add files root t;
       Lwt.return t
 
-  let v ?fresh root =
-    Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh root)
+  let v ?fresh ?readonly root =
+    Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh ?readonly root)
 
   let unsafe_set t k v =
     try
@@ -956,9 +989,9 @@ struct
 
     let value a =
       let open Irmin.Type in
-      record "value" (fun magic hash v -> { magic; hash; v })
-      |+ field "magic" char (fun v -> v.magic)
+      record "value" (fun hash magic v -> { magic; hash; v })
       |+ field "hash" H.t (fun v -> v.hash)
+      |+ field "magic" char (fun v -> v.magic)
       |+ field "v" a (fun v -> v.v)
       |> sealr
 
@@ -1486,10 +1519,12 @@ struct
       let v config =
         let root = root config in
         let fresh = fresh config in
-        Contents.CA.v ~fresh root >>= fun contents ->
-        Node.CA.v ~fresh root >>= fun node ->
-        Commit.CA.v ~fresh root >>= fun commit ->
-        Branch.v ~fresh root >|= fun branch ->
+        let lru_size = lru_size config in
+        let readonly = readonly config in
+        Contents.CA.v ~fresh ~readonly ~lru_size root >>= fun contents ->
+        Node.CA.v ~fresh ~readonly ~lru_size root >>= fun node ->
+        Commit.CA.v ~fresh ~readonly ~lru_size root >>= fun commit ->
+        Branch.v ~fresh ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config }
     end
   end

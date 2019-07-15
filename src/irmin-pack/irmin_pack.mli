@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val config : ?fresh:bool -> string -> Irmin.config
+val config :
+  ?fresh:bool -> ?readonly:bool -> ?lru_size:int -> string -> Irmin.config
 
 module Make_ext
     (Metadata : Irmin.Metadata.S)
@@ -47,7 +48,7 @@ module Dict : sig
 
   val index : t -> string -> int
 
-  val v : ?fresh:bool -> string -> t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t
 end
 
 module type S = sig
@@ -74,14 +75,19 @@ end
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : ?fresh:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end
 
 module Pack (K : Irmin.Hash.S) : sig
   module Make (V : S with type hash = K.t) : sig
     type 'a t
 
-    val v : ?fresh:bool -> string -> [ `Read ] t Lwt.t
+    val v :
+      ?fresh:bool ->
+      ?readonly:bool ->
+      ?lru_size:int ->
+      string ->
+      [ `Read ] t Lwt.t
 
     val find : [> `Read ] t -> K.t -> V.t option Lwt.t
 
