@@ -254,7 +254,8 @@ module Make_ext
              and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
-  module Pack = Pack.File (H)
+  module Pack = Pack (H)
+  module Index = Index.Make (H)
 
   module X = struct
     module Hash = H
@@ -775,7 +776,8 @@ struct
         contents : [ `Read ] Contents.CA.t;
         node : [ `Read ] Node.CA.t;
         commit : [ `Read ] Commit.CA.t;
-        branch : Branch.t
+        branch : Branch.t;
+        index : Index.t
       }
 
       let contents_t t : 'a Contents.t = t.contents
@@ -800,11 +802,16 @@ struct
         let fresh = fresh config in
         let lru_size = lru_size config in
         let readonly = readonly config in
-        Contents.CA.v ~fresh ~readonly ~lru_size root >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size root >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size root >>= fun commit ->
+        let index =
+          Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
+            ~fan_out_size:256 root
+        in
+        Contents.CA.v ~index ~fresh ~readonly ~lru_size root
+        >>= fun contents ->
+        Node.CA.v ~index ~fresh ~readonly ~lru_size root >>= fun node ->
+        Commit.CA.v ~index ~fresh ~readonly ~lru_size root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
-        { contents; node; commit; branch; config }
+        { contents; node; commit; branch; config; index }
     end
   end
 
