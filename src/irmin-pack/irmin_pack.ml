@@ -324,113 +324,6 @@ module IO : IO = struct
         v ~offset ~version raw
 end
 
-module Lru (H : Hashtbl.HashedType) = struct
-  (* Extracted from https://github.com/pqwy/lru
-     Copyright (c) 2016 David Kaloper Meršinjak *)
-
-  module HT = Hashtbl.Make (H)
-
-  module Q = struct
-    type 'a node = {
-      value : 'a;
-      mutable next : 'a node option;
-      mutable prev : 'a node option
-    }
-
-    type 'a t = {
-      mutable first : 'a node option;
-      mutable last : 'a node option
-    }
-
-    let detach t n =
-      let np = n.prev and nn = n.next in
-      ( match np with
-      | None -> t.first <- nn
-      | Some x ->
-          x.next <- nn;
-          n.prev <- None );
-      match nn with
-      | None -> t.last <- np
-      | Some x ->
-          x.prev <- np;
-          n.next <- None
-
-    let append t n =
-      let on = Some n in
-      match t.last with
-      | Some x as l ->
-          x.next <- on;
-          t.last <- on;
-          n.prev <- l
-      | None ->
-          t.first <- on;
-          t.last <- on
-
-    let node x = { value = x; prev = None; next = None }
-
-    let create () = { first = None; last = None }
-  end
-
-  type key = HT.key
-
-  type 'a t = {
-    ht : (key * 'a) Q.node HT.t;
-    q : (key * 'a) Q.t;
-    mutable cap : int;
-    mutable w : int
-  }
-
-  let weight t = t.w
-
-  let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
-
-  let drop_lru t =
-    match t.q.first with
-    | None -> ()
-    | Some ({ Q.value = k, _; _ } as n) ->
-        t.w <- t.w - 1;
-        HT.remove t.ht k;
-        Q.detach t.q n
-
-  let remove t k =
-    try
-      let n = HT.find t.ht k in
-      t.w <- t.w - 1;
-      HT.remove t.ht k;
-      Q.detach t.q n
-    with Not_found -> ()
-
-  let add t k v =
-    if t.w = 0 then ()
-    else (
-      remove t k;
-      let n = Q.node (k, v) in
-      t.w <- t.w + 1;
-      if weight t > t.cap then drop_lru t;
-      HT.add t.ht k n;
-      Q.append t.q n )
-
-  let promote t k =
-    try
-      let n = HT.find t.ht k in
-      Q.(
-        detach t.q n;
-        append t.q n)
-    with Not_found -> ()
-
-  let find t k =
-    let v = HT.find t.ht k in
-    promote t k;
-    snd v.value
-
-  let mem t k =
-    match HT.mem t.ht k with
-    | false -> false
-    | true ->
-        promote t k;
-        true
-end
-
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
 
@@ -439,7 +332,7 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
-module Cache (K : Irmin.Type.S) = Lru (struct
+module Cache (K : Irmin.Type.S) = Lru.Make (struct
   type t = K.t
 
   let hash (t : t) = Irmin.Type.short_hash K.t t
