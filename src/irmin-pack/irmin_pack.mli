@@ -41,15 +41,7 @@ module Make : Irmin.S_MAKER
 
 module KV : Irmin.KV_MAKER
 
-module Dict : sig
-  type t
-
-  val find : t -> int -> string option
-
-  val index : t -> string -> int
-
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t
-end
+module Dict = Dict
 
 module type S = sig
   include Irmin.Type.S

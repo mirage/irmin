@@ -16,9 +16,9 @@
 
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
-let current_version = "00000001"
-
 module Log = (val Logs.src_log src : Logs.LOG)
+
+let current_version = "00000001"
 
 let fresh_key =
   Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh"
@@ -135,73 +135,7 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
 end)
 
 module IO = IO.Unix
-
-module Dict = struct
-  type t = {
-    cache : (string, int) Hashtbl.t;
-    index : (int, string) Hashtbl.t;
-    block : IO.t
-  }
-
-  let append_string t v =
-    let len = Int32.of_int (String.length v) in
-    let buf = Irmin.Type.(to_bin_string int32 len) ^ v in
-    IO.append t.block buf
-
-  let index t v =
-    Log.debug (fun l -> l "[dict] index %S" v);
-    try Hashtbl.find t.cache v
-    with Not_found ->
-      let id = Hashtbl.length t.cache in
-      append_string t v;
-      Hashtbl.add t.cache v id;
-      Hashtbl.add t.index id v;
-      id
-
-  let find t id =
-    Log.debug (fun l -> l "[dict] find %d" id);
-    let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
-    v
-
-  let clear t =
-    IO.clear t.block;
-    Hashtbl.clear t.cache;
-    Hashtbl.clear t.index
-
-  let files = Hashtbl.create 10
-
-  let v ?(fresh = false) ?(readonly = false) root =
-    let root = root // "store.dict" in
-    Log.debug (fun l -> l "[dict] v fresh=%b RO=%b root=%s" fresh readonly root);
-    try
-      let t = Hashtbl.find files root in
-      if fresh then clear t;
-      t
-    with Not_found ->
-      let block = IO.v ~version:current_version ~readonly root in
-      if fresh then IO.clear block;
-      let cache = Hashtbl.create 997 in
-      let index = Hashtbl.create 997 in
-      let len = Int64.to_int (IO.offset block) in
-      let raw = Bytes.create len in
-      let n = IO.read block ~off:0L raw in
-      assert (n = len);
-      let raw = Bytes.unsafe_to_string raw in
-      let rec aux n offset k =
-        if offset >= len then k ()
-        else
-          let _, v = Irmin.Type.(decode_bin int32) raw offset in
-          let len = Int32.to_int v in
-          let v = String.sub raw (offset + 4) len in
-          Hashtbl.add cache v n;
-          Hashtbl.add index n v;
-          (aux [@tailcall]) (n + 1) (offset + 4 + len) k
-      in
-      (aux [@tailcall]) 0 0 @@ fun () ->
-      let t = { index; cache; block } in
-      Hashtbl.add files root t;
-      t
-end
+module Dict = Dict
 
 module type S = sig
   include Irmin.Type.S
@@ -436,7 +370,7 @@ module Pack (K : Irmin.Hash.S) = struct
     let cast t = (t :> [ `Read | `Write ] t)
 
     let flush t =
-      IO.sync t.pack.dict.block;
+      IO.sync (Dict.io t.pack.dict);
       Index.flush t.pack.index;
       IO.sync t.pack.block;
       Tbl.clear t.staging
