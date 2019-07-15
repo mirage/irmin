@@ -52,8 +52,8 @@ module Type : sig
 
       The type combinators supports all the usual {{!primitives}type
       primitives} but also compact definitions of {{!records}records}
-      and {{!variants}variants}. It also allows to define the runtime
-      representation of {{!recursive}recursive types}. *)
+      and {{!variants}variants}. It also allows the definition of
+      run-time representations of {{!recursive}recursive types}. *)
 
   (** {1 Type Combinators} *)
 
@@ -76,11 +76,11 @@ module Type : sig
   (** [char] is a representation of the character type. *)
 
   val int : int t
-  (** [int] is a representation of integers. Binary serialization used
+  (** [int] is a representation of integers. Binary serialization uses
       a varying-width representation. *)
 
   val int32 : int32 t
-  (** [int32] is a representation of the 32-bit integers type. *)
+  (** [int32] is a representation of the 32-bit integer type. *)
 
   val int64 : int64 t
   (** [int64] is a representation of the 64-bit integer type. *)
@@ -95,19 +95,19 @@ module Type : sig
   (** [bytes] is a representation of the [bytes] type. *)
 
   val string_of : len -> string t
-  (** Like {!string} but add control to the size. *)
+  (** Like {!string} but with a given fixed size. *)
 
   val bytes_of : len -> bytes t
-  (** Like {!bytes} but add control to the size. *)
+  (** Like {!bytes} but with a given fixed size. *)
 
   val list : ?len:len -> 'a t -> 'a list t
-  (** [list t] is a representation of list of values of type [t]. *)
+  (** [list t] is a representation of lists of values of type [t]. *)
 
   val array : ?len:len -> 'a t -> 'a array t
-  (** [array t] is a representation of array of values of type [t]. *)
+  (** [array t] is a representation of arrays of values of type [t]. *)
 
   val option : 'a t -> 'a option t
-  (** [option t] is a representation of value of type [t option]. *)
+  (** [option t] is a representation of values of type [t option]. *)
 
   val pair : 'a t -> 'b t -> ('a * 'b) t
   (** [pair x y] is a representation of values of type [x * y]. *)
@@ -121,6 +121,17 @@ module Type : sig
       [(a, b) result]. *)
 
   (** {1:records Records} *)
+
+  (** The type for representing open records of type ['a] with a constructor
+      of type ['b]. ['c] represents the remaining fields to be described using
+      the {!(|+)} operator. An open record initially satisfies ['c = 'b] and
+      can be {{!sealr}sealed} once ['c = 'a]. *)
+  type ('a, 'b, 'c) open_record
+
+  val record : string -> 'b -> ('a, 'b, 'b) open_record
+  (** [record n f] is an incomplete representation of the record called [n] of
+      type ['a] with constructor [f]. To complete the representation, add fields
+      with {!(|+)} and then seal the record with {!sealr}. *)
 
   (** The type for fields holding values of type ['b] and belonging to a
       record of type ['a]. *)
@@ -138,26 +149,16 @@ module Type : sig
         let manuscript = field "title" (option string) (fun t -> t.title)]}
   *)
 
-  (** The type for representing open records of type ['a] with
-      constructors of type ['b]. ['c] represents the fields missings to
-      the record, e.g. an open record initially holds ['c = 'b] and it
-      can can be {{!sealr}sealed} when ['c = 'a]. *)
-  type ('a, 'b, 'c) open_record
-
-  val sealr : ('a, 'b, 'a) open_record -> 'a t
-  (** [sealr r] seal the open record [r]. *)
-
   val ( |+ ) :
     ('a, 'b, 'c -> 'd) open_record ->
     ('a, 'c) field ->
     ('a, 'b, 'd) open_record
-  (** [r |+ f] adds the field [f] to the open record [r]. *)
+  (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
-  val record : string -> 'b -> ('a, 'b, 'b) open_record
-  (** [record n f fs] is the representation of the record called [n] of
-      type ['a] using [f] as constructor and with the fields [fs].
+  val sealr : ('a, 'b, 'a) open_record -> 'a t
+  (** [sealr r] seals the open record [r]. *)
 
-      Putting all together:
+  (** Putting all together:
 
       {[
         type menu = { restaurant: string; items: (string * int32) list; }
@@ -171,6 +172,18 @@ module Type : sig
 
   (** {1:variants Variants} *)
 
+  (** The type for representing open variants of type ['a] with pattern
+      matching of type ['b]. ['c] represents the remaining constructors to
+      be described using the {!(|~)} operator. An open variant initially
+      satisfies [c' = 'b] and can be {{!sealv}sealed} once ['c = 'a]. *)
+  type ('a, 'b, 'c) open_variant
+
+  val variant : string -> 'b -> ('a, 'b, 'b) open_variant
+  (** [variant n p] is an incomplete representation of the variant type
+      called [n] of type ['a] using [p] to deconstruct values. To complete
+      the representation, add cases with {!(|~)} and then seal the variant
+      with {!sealv}. *)
+
   (** The type for representing variant cases of type ['a] with
       patterns of type ['b]. *)
   type ('a, 'b) case
@@ -179,8 +192,8 @@ module Type : sig
   type 'a case_p
 
   val case0 : string -> 'a -> ('a, 'a case_p) case
-  (** [case0 n v] is a representation of a variant case [n] with no
-      argument and a singleton pattern. e.g.
+  (** [case0 n v] is a representation of a variant constructor [v] with no
+      arguments and name [n]. e.g.
 
       {[
         type t = Foo
@@ -189,9 +202,8 @@ module Type : sig
   *)
 
   val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
-  (** [case1 n t c] is a representation of a variant case [n] with 1
-      argument of type [t] and a pattern [c] an function with one argument
-      of type [t]. e.g.
+  (** [case1 n t c] is a representation of a variant constructor [c] with an
+      argument of type [t] and name [n]. e.g.
 
       {[
         type t = Foo of string
@@ -199,27 +211,16 @@ module Type : sig
         let foo = case1 "Foo" string (fun s -> Foo s)]}
   *)
 
-  (** The type for representing open variants of type ['a] with pattern
-      matching of type ['b]. ['c] represents the missing cases for the
-      variant, e.g. initially variant hols [c' = 'b] and it can be
-      {{!sealv}sealed} when ['c = 'a].  *)
-  type ('a, 'b, 'c) open_variant
-
-  val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
-  (** [sealv v] seals the open variant [v]. *)
-
   val ( |~ ) :
     ('a, 'b, 'c -> 'd) open_variant ->
     ('a, 'c) case ->
     ('a, 'b, 'd) open_variant
-  (** [v |~ c] is the map [v] augmented with the case [c]. *)
+  (** [v |~ c] is the open variant [v] augmented with the case [c]. *)
 
-  val variant : string -> 'b -> ('a, 'b, 'b) open_variant
-  (** [variant n c p] is a representation of a variant type containing
-      the cases [c] and using [p] to deconstruct values.
+  val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
+  (** [sealv v] seals the open variant [v]. *)
 
-      Putting all together:
-
+  (** Putting all together:
       {[
         type t = Foo | Bar of string
 
@@ -233,8 +234,8 @@ module Type : sig
   *)
 
   val enum : string -> (string * 'a) list -> 'a t
-  (** [enum n l] is a representation of the variant type which has
-      only constant variant case. e.g.
+  (** [enum n cs] is a representation of the variant type called [n]
+      with singleton cases [cs]. e.g.
 
       {[
         type t = Foo | Bar | Toto
@@ -244,7 +245,7 @@ module Type : sig
 
   (** {1:recursive Recursive definitions}
 
-      [Type] allows to create a limited form of recursive records and
+      [Type] allows a limited description of recursive records and
       variants.
 
       {b TODO}: describe the limitations, e.g. only regular recursion
@@ -297,14 +298,6 @@ module Type : sig
         let r, z = mu2 (fun r z -> mkr z, mkz y)]}
   *)
 
-  (** {1:proj Bijections}
-
-      Sometimes it is not always possible to describe precisely a type
-      (or it could be too tedious) and it is easier to describe the
-      relation with an other known type. This is what bijections are
-      about.
-  *)
-
   (** {1:generics Generic Operations}
 
       Given a value ['a t], it is possible to define generic operations
@@ -321,21 +314,20 @@ module Type : sig
   val short_hash : 'a t -> ?seed:int -> 'a -> int
   (** [hash t x] is a short hash of [x] of type [t]. *)
 
-  (** The type for pretty-printers for CLI arguments. *)
+  (** The type for pretty-printers. *)
   type 'a pp = 'a Fmt.t
 
-  (** The type for parsers of CLI arguments. *)
+  (** The type for parsers. *)
   type 'a of_string = string -> ('a, [ `Msg of string ]) result
 
   val pp : 'a t -> 'a pp
-  (** [pp t] is the pretty-printer for command-line arguments of type
-     [t]. *)
+  (** [pp t] is the pretty-printer for values of type [t]. *)
 
   val to_string : 'a t -> 'a -> string
   (** [to_string t] is [Fmt.to_to_string (pp t)]. *)
 
   val of_string : 'a t -> 'a of_string
-  (** [of_string t] parses command-line arguments of type [t]. *)
+  (** [of_string t] parses values of type [t]. *)
 
   (** {2 JSON converters} *)
 
@@ -407,7 +399,7 @@ module Type : sig
          with one field; the field name is the name of the variant.}
       }
 
-      {b NOTE:} this can be used to encode JSON fragments. That's the
+      {b NOTE:} this can be used to encode JSON fragments. It's the
       responsibility of the caller to ensure that the encoded JSON
       fragment fits properly into a well-formed JSON object. *)
 
@@ -417,7 +409,7 @@ module Type : sig
 
   val decode_json_lexemes :
     'a t -> Jsonm.lexeme list -> ('a, [ `Msg of string ]) result
-  (** [decode_json_lexemes] is similar to {!decode_json} but use an
+  (** [decode_json_lexemes] is similar to {!decode_json} but uses an
       already decoded list of JSON lexemes instead of a decoder. *)
 
   val to_json_string : ?minify:bool -> 'a t -> 'a -> string
@@ -466,13 +458,13 @@ module Type : sig
   val of_bin_string : 'a t -> string -> ('a, [ `Msg of string ]) result
   (** [of_bin_string t s] is [v] such that [s = to_bin_string t v].
 
-      {b NOTE:} When [t] is {!Type.string}, the result is [x] (without
+      {b NOTE:} When [t] is {!Type.string}, the result is [s] (without
      copy). *)
 
   val size_of : 'a t -> 'a size_of
   (** [size_of t x] is either the size of [encode_bin t x] or the
      binary encoding of [x], if the backend is not able to pre-compute
-     serialisation lenghts. *)
+     serialisation lengths. *)
 
   (** {1 Customs converters} *)
 
@@ -520,7 +512,7 @@ module Type : sig
 end
 
 (** Commit info are used to keep track of the origin of write
-    operations in the stores. [Info] model the metadata associated
+    operations in the stores. [Info] models the metadata associated
     with commit objects in Git. *)
 module Info : sig
   (** {1 Commit Info} *)
@@ -698,10 +690,10 @@ module Merge : sig
       function, otherwise use the same behavior as {!default}. *)
 
   val pair : 'a t -> 'b t -> ('a * 'b) t
-  (** Lift merge functions to pair of elements. *)
+  (** Lift merge functions to pairs of elements. *)
 
   val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
-  (** Lift merge functions to triple of elements. *)
+  (** Lift merge functions to triples of elements. *)
 
   (** {1 Counters and Multisets} *)
 
@@ -812,7 +804,7 @@ module Diff : sig
   (** {1 Value Types} *)
 
   val t : 'a Type.t -> 'a t Type.t
-  (** [ddiff_t] is the value type for {!diff}. *)
+  (** [t typ] is the value type for differences between values of type [typ]. *)
 end
 
 (** {1 Stores} *)
@@ -827,7 +819,7 @@ type config
 type 'a diff = 'a Diff.t
 
 (** An Irmin store is automatically built from a number of lower-level
-    stores, implementing fewer operations, such as
+    stores, each implementing fewer operations, such as
     {{!CONTENT_ADDRESSABLE_STORE}content-addressable}
     and {{!ATOMIC_WRITE_STORE}atomic-write} stores. These low-level stores
     are provided
@@ -869,7 +861,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       if the key scheme is not consistent. *)
 end
 
-(** Append-onlye backend store. *)
+(** Append-only backend store. *)
 module type APPEND_ONLY_STORE = sig
   (** {1 Append-only stores}
 
@@ -1030,7 +1022,7 @@ end
     [Hash] provides user-defined hash function to digest serialized
     contents. Some {{!backend}backends} might be parameterized by such
     hash functions, others might work with a fixed one (for instance,
-    the Git format use only SHA1).
+    the Git format uses only {{!Hash.SHA1}SHA1}).
 
     An {{!Hash.SHA1}SHA1} implementation is available to pass to the
     backends. *)
@@ -1083,7 +1075,7 @@ module Hash : sig
     (** [t] is the value type for {!t}. *)
   end
 
-  (** Digestif hashes *)
+  (** Digestif hashes. *)
   module Make (H : Digestif.S) : S with type t = H.t
 
   module SHA1 : S
@@ -1137,18 +1129,17 @@ end
 (** [Contents] specifies how user-defined contents need to be {e
     serializable} and {e mergeable}.
 
-    The user need to provide:
+    The user needs to provide:
 
     {ul
-    {- a [t] value type using the Irmin.Type combinator.}
-    {- a [pp] function, for converting values to strings.}
-    {- an [of_string] function for converting strings to values.}
+    {- a type [t] to be used as store contents.}
+    {- a value type for [t] (built using the {{!Irmin.Type}Irmin.Type} combinators).}
     {- a 3-way [merge] function, to handle conflicts between multiple
     versions of the same contents.}
     }
 
-    Default contents for idempotent {{!Contents.String}string}
-    and {{!Contents.Bytes}bytes} buffers are provided. *)
+    Default implementations for {{!Contents.String}idempotent string}
+    and {{!Contents.Json}JSON} contents are provided. *)
 module Contents : sig
   module type S = sig
     (** {1 Signature for store contents} *)
@@ -1168,9 +1159,9 @@ module Contents : sig
         should be deleted. *)
   end
 
-  (** Contents of type [string], with the default 3-way merge
-     strategy: assume that update operations are idempotent and
-     conflict iff values are modified concurrently. *)
+  (** Contents of type [string], with the {{!Irmin.Merge.default}default}
+      3-way merge strategy: assume that update operations are idempotent and
+      conflict iff values are modified concurrently. *)
   module String : S with type t = string
 
   type json =
@@ -1181,7 +1172,7 @@ module Contents : sig
     | `O of (string * json) list
     | `A of json list ]
 
-  (** [Json] contents are associations from string to [json] value
+  (** [Json] contents are associations from strings to [json] values
      stored as JSON encoded strings.  If the same JSON key has been
      modified concurrently with different values then the [merge]
      function conflicts. *)
@@ -1233,7 +1224,7 @@ module Branch : sig
 
   (** The signature for branches. Irmin branches are similar to Git
       branches: they are used to associated user-defined names to head
-      commits. Branches havve a default value: the
+      commits. Branches have a default value: the
       {{!Branch.S.master}master} branch. *)
   module type S = sig
     (** {1 Signature for Branches} *)
@@ -2122,7 +2113,7 @@ end
     of steps.
 
     An example is a Git repository where keys are filenames, {e i.e.}
-    list of ['/']-separated strings. More complex examples are
+    lists of ['/']-separated strings. More complex examples are
     structured values, where steps might contain first-class field
     accessors and array offsets.
 
@@ -2131,7 +2122,7 @@ end
     {ul
     {- Support for fast clones, branches and merges, in a fashion very
        similar to Git.}
-    {- Efficient taging areas for fast, transient, in-memory operations.}
+    {- Efficient staging areas for fast, transient, in-memory operations.}
     {- Fast {{!Sync}synchronization} primitives between remote
        stores, using native backend protocols (as the Git protocol)
        when available.}
@@ -3249,9 +3240,8 @@ module type S_MAKER = functor
       and type branch = B.t
       and type hash = H.t
 
-(** [KV] is similar to {!S} but choose sensible implementations for
+(** [KV] is similar to {!S} but chooses sensible implementations for
     path and branch. *)
-
 module type KV =
   S with type key = string list and type step = string and type branch = string
 
@@ -3272,7 +3262,7 @@ module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
     {{!Irmin_unix.Git}Git} backend and the {!Sync} helpers. The
     code clones a fresh repository if the repository does not exist
     locally, otherwise it performs a fetch: in this case, only
-    the missing contents is downloaded.
+    the missing contents are downloaded.
 
 {[
 open Lwt.Infix
@@ -3338,7 +3328,7 @@ end = struct
     |+ field "message"   string (fun t -> t.message)
     |> sealr
 
-  let t = Irmin.type.like' ~cli:(pp, of_string) ~compare t
+  let t = Irmin.Type.like ~cli:(pp, of_string) ~compare t
 
 end
 ]}
@@ -3407,7 +3397,7 @@ end ]}
 
     {b Note:} The serialisation primitives used in that example are
     not very efficient in this case as they parse the file
-    every-time. For real usage, you would write buffered versions of
+    every time. For real usage, you would write buffered versions of
     [Log.pp] and [Log.of_string].
 
     To persist the log file on disk, we need to choose a backend. We
