@@ -382,6 +382,7 @@ struct
 
   and contents_as_node = lazy (Schema.add_type node (Lazy.force contents))
 
+  [@@@ocaml.warning "-5"]
   let _ = Lazy.force tree_as_node
 
   let _ = Lazy.force contents_as_node
