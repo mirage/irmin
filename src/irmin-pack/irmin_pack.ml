@@ -53,9 +53,17 @@ let config ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000) root =
   let config = Irmin.Private.Conf.add config readonly_key readonly in
   config
 
-let ( // ) = Filename.concat
-
 let ( ++ ) = Int64.add
+
+let with_cache = IO.with_cache
+
+open Lwt.Infix
+
+exception RO_Not_Allowed = IO.RO_Not_Allowed
+
+module Dict = Dict
+module Pack = Pack
+module IO = IO.Unix
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -64,11 +72,6 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
 
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
-
-module IO = IO.Unix
-module Dict = Dict
-module Pack = Pack
-open Lwt.Infix
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   module Tbl = Table (K)
@@ -140,61 +143,51 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         Lwt.return () )
     >>= fun () -> W.notify t.w k None
 
-  let clear t =
-    W.clear t.w >|= fun () ->
+  let unsafe_clear t =
+    Lwt.async (fun () -> W.clear t.w);
     IO.clear t.block;
     Tbl.clear t.cache;
     Tbl.clear t.index
-
-  let files = Hashtbl.create 10
 
   let create = Lwt_mutex.create ()
 
   let watches = W.v ()
 
-  let unsafe_v ?(fresh = false) ?(readonly = false) root =
-    let root = root // "store.branches" in
-    Log.debug (fun l ->
-        l "[branches] v fresh=%b RO=%b root=%s" fresh readonly root );
-    try
-      let t = Hashtbl.find files root in
-      (if fresh then clear t else Lwt.return ()) >|= fun () -> t
-    with Not_found ->
-      let block = IO.v ~version:current_version ~readonly root in
-      if fresh then IO.clear block;
-      let cache = Tbl.create 997 in
-      let index = Tbl.create 997 in
-      let len = IO.offset block in
-      let rec aux offset k =
-        if offset >= len then k ()
-        else
-          let len = read_length32 ~off:offset block in
-          let buf = Bytes.create (len + V.hash_size) in
-          let off = offset ++ 4L in
-          let n = IO.read block ~off buf in
-          assert (n = Bytes.length buf);
-          let buf = Bytes.unsafe_to_string buf in
-          let h =
-            let h = String.sub buf 0 len in
-            match Irmin.Type.of_bin_string K.t h with
-            | Ok k -> k
-            | Error (`Msg e) -> failwith e
-          in
-          let n, v = Irmin.Type.decode_bin V.t buf len in
-          assert (n = String.length buf);
-          if not (Irmin.Type.equal V.t v zero) then Tbl.add cache h v;
-          Tbl.add index h offset;
-          (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
-      in
-      (aux [@tailcall]) 0L @@ fun () ->
-      let t =
-        { cache; index; block; w = watches; lock = Lwt_mutex.create () }
-      in
-      Hashtbl.add files root t;
-      Lwt.return t
+  let unsafe_v ~fresh ~readonly file =
+    let block = IO.v ~fresh ~version:current_version ~readonly file in
+    let cache = Tbl.create 997 in
+    let index = Tbl.create 997 in
+    let len = IO.offset block in
+    let rec aux offset k =
+      if offset >= len then k ()
+      else
+        let len = read_length32 ~off:offset block in
+        let buf = Bytes.create (len + V.hash_size) in
+        let off = offset ++ 4L in
+        let n = IO.read block ~off buf in
+        assert (n = Bytes.length buf);
+        let buf = Bytes.unsafe_to_string buf in
+        let h =
+          let h = String.sub buf 0 len in
+          match Irmin.Type.of_bin_string K.t h with
+          | Ok k -> k
+          | Error (`Msg e) -> failwith e
+        in
+        let n, v = Irmin.Type.decode_bin V.t buf len in
+        assert (n = String.length buf);
+        if not (Irmin.Type.equal V.t v zero) then Tbl.add cache h v;
+        Tbl.add index h offset;
+        (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
+    in
+    (aux [@tailcall]) 0L @@ fun () ->
+    { cache; index; block; w = watches; lock = Lwt_mutex.create () }
 
-  let v ?fresh ?readonly root =
-    Lwt_mutex.with_lock create (fun () -> unsafe_v ?fresh ?readonly root)
+  let unsafe_v = with_cache ~clear:unsafe_clear ~v:unsafe_v "store.branches"
+
+  let v ?fresh ?shared ?readonly file =
+    Lwt_mutex.with_lock create (fun () ->
+        let v = unsafe_v ?fresh ?shared ?readonly file in
+        Lwt.return v )
 
   let unsafe_set t k v =
     try
@@ -803,8 +796,7 @@ struct
         let lru_size = lru_size config in
         let readonly = readonly config in
         let index =
-          Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
-            ~fan_out_size:256 root
+          Index.v ~fresh ~readonly ~log_size:10_000_000 ~fan_out_size:256 root
         in
         Contents.CA.v ~fresh ~readonly ~lru_size root >>= fun contents ->
         Node.CA.v ~fresh ~readonly ~lru_size root >>= fun node ->

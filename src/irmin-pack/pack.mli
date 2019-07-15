@@ -42,6 +42,7 @@ module File (K : Irmin.Hash.S) : sig
 
     val v :
       ?fresh:bool ->
+      ?shared:bool ->
       ?readonly:bool ->
       ?lru_size:int ->
       string ->
@@ -54,6 +55,8 @@ module File (K : Irmin.Hash.S) : sig
     val unsafe_append : 'a t -> K.t -> V.t -> unit
 
     val unsafe_find : 'a t -> K.t -> V.t option
+
+    val sync : 'a t -> unit
   end
 end
 
