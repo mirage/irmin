@@ -21,7 +21,11 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = "00000001"
 
-let ( // ) = Filename.concat
+let ( -- ) = Int64.sub
+
+let with_cache = IO.with_cache
+
+exception RO_Not_Allowed = IO.RO_Not_Allowed
 
 module IO = IO.Unix
 
@@ -38,10 +42,37 @@ let append_string t v =
   let buf = Irmin.Type.(to_bin_string int32 len) ^ v in
   IO.append t.io buf
 
+let refill ~from t =
+  let len = Int64.to_int (IO.offset t.io -- from) in
+  let raw = Bytes.create len in
+  let n = IO.read t.io ~off:from raw in
+  assert (n = len);
+  let raw = Bytes.unsafe_to_string raw in
+  let rec aux n offset =
+    if offset >= len then ()
+    else
+      let _, v = Irmin.Type.(decode_bin int32) raw offset in
+      let len = Int32.to_int v in
+      let v = String.sub raw (offset + 4) len in
+      Hashtbl.add t.cache v n;
+      Hashtbl.add t.index n v;
+      (aux [@tailcall]) (n + 1) (offset + 4 + len)
+  in
+  (aux [@tailcall]) (Hashtbl.length t.cache) 0
+
+let sync_offset t =
+  let former_log_offset = IO.offset t.io in
+  let log_offset = IO.force_offset t.io in
+  if log_offset > former_log_offset then refill ~from:former_log_offset t
+
+let sync t = IO.sync t.io
+
 let index t v =
   Log.debug (fun l -> l "[dict] index %S" v);
+  if IO.readonly t.io then sync_offset t;
   try Hashtbl.find t.cache v
   with Not_found ->
+    if IO.readonly t.io then raise RO_Not_Allowed;
     let id = Hashtbl.length t.cache in
     append_string t v;
     Hashtbl.add t.cache v id;
@@ -49,6 +80,7 @@ let index t v =
     id
 
 let find t id =
+  if IO.readonly t.io then sync_offset t;
   Log.debug (fun l -> l "[dict] find %d" id);
   let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
   v
@@ -58,36 +90,12 @@ let clear t =
   Hashtbl.clear t.cache;
   Hashtbl.clear t.index
 
-let files = Hashtbl.create 10
+let v_no_cache ~fresh ~readonly file =
+  let io = IO.v ~fresh ~version:current_version ~readonly file in
+  let cache = Hashtbl.create 997 in
+  let index = Hashtbl.create 997 in
+  let t = { index; cache; io } in
+  refill ~from:0L t;
+  t
 
-let v ?(fresh = false) ?(readonly = false) root =
-  let root = root // "store.dict" in
-  Log.debug (fun l -> l "[dict] v fresh=%b RO=%b root=%s" fresh readonly root);
-  try
-    let t = Hashtbl.find files root in
-    if fresh then clear t;
-    t
-  with Not_found ->
-    let io = IO.v ~version:current_version ~readonly root in
-    if fresh then IO.clear io;
-    let cache = Hashtbl.create 997 in
-    let index = Hashtbl.create 997 in
-    let len = Int64.to_int (IO.offset io) in
-    let raw = Bytes.create len in
-    let n = IO.read io ~off:0L raw in
-    assert (n = len);
-    let raw = Bytes.unsafe_to_string raw in
-    let rec aux n offset k =
-      if offset >= len then k ()
-      else
-        let _, v = Irmin.Type.(decode_bin int32) raw offset in
-        let len = Int32.to_int v in
-        let v = String.sub raw (offset + 4) len in
-        Hashtbl.add cache v n;
-        Hashtbl.add index n v;
-        (aux [@tailcall]) (n + 1) (offset + 4 + len) k
-    in
-    (aux [@tailcall]) 0 0 @@ fun () ->
-    let t = { index; cache; io } in
-    Hashtbl.add files root t;
-    t
+let v = with_cache ~clear ~v:v_no_cache "store.dict"

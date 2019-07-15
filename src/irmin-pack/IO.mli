@@ -19,7 +19,9 @@ exception RO_Not_Allowed
 module type S = sig
   type t
 
-  val v : version:string -> readonly:bool -> string -> t
+  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+
+  val name : t -> string
 
   val clear : t -> unit
 
@@ -31,9 +33,23 @@ module type S = sig
 
   val offset : t -> int64
 
+  val force_offset : t -> int64
+
+  val readonly : t -> bool
+
   val version : t -> string
 
   val sync : t -> unit
 end
 
 module Unix : S
+
+val with_cache :
+  v:(fresh:bool -> readonly:bool -> string -> 'a) ->
+  clear:('a -> unit) ->
+  string ->
+  ?fresh:bool ->
+  ?shared:bool ->
+  ?readonly:bool ->
+  string ->
+  'a

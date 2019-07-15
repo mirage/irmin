@@ -20,7 +20,9 @@ val find : t -> int -> string option
 
 val index : t -> string -> int
 
-val v : ?fresh:bool -> ?readonly:bool -> string -> t
+val sync : t -> unit
+
+val v : ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> t
 
 val clear : t -> unit
 

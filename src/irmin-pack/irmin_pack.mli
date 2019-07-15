@@ -20,6 +20,8 @@ val config :
 module Dict = Dict
 module Pack = Pack
 
+exception RO_Not_Allowed
+
 module Make_ext
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -47,5 +49,5 @@ module KV : Irmin.KV_MAKER
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> t Lwt.t
 end

@@ -20,8 +20,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = "00000001"
 
-let ( // ) = Filename.concat
-
 let ( -- ) = Int64.sub
 
 type all_stats = {
@@ -86,7 +84,7 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
-exception RO_Not_Allowed = IO.RO_Not_Allowed
+let with_cache = IO.with_cache
 
 module IO = IO.Unix
 
@@ -101,68 +99,28 @@ module File (K : Irmin.Hash.S) = struct
     lock : Lwt_mutex.t
   }
 
-  let unsafe_clear t =
+  let clear t =
     IO.clear t.block;
     Index.clear t.index;
     Dict.clear t.dict
 
-  let clear t =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        unsafe_clear t;
-        Lwt.return () )
+  let unsafe_v ~fresh ~readonly file =
+    let root = Filename.dirname file in
+    let lock = Lwt_mutex.create () in
+    let index =
+      Index.v ~fresh ~read_only:readonly ~log_size:10_000_000 ~fan_out_size:256
+        root
+    in
+    let dict = Dict.v ~fresh ~readonly root in
+    let block = IO.v ~fresh ~version:current_version ~readonly file in
+    if IO.version block <> current_version then
+      Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
+        current_version;
+    { block; index; lock; dict }
 
-  let files = Hashtbl.create 10
+  let v = with_cache ~clear ~v:unsafe_v "store.pack"
 
-  let create = Lwt_mutex.create ()
-
-  let unsafe_v ?(fresh = false) ?(readonly = false) root =
-    Log.debug (fun l ->
-        l "[state] v fresh=%b RO=%b root=%s" fresh readonly root );
-    let root_f = root // "store.pack" in
-    try
-      let t = Hashtbl.find files root_f in
-      if fresh then unsafe_clear t;
-      t
-    with Not_found ->
-      let lock = Lwt_mutex.create () in
-      let index =
-        Index.v ~fresh ~read_only:readonly ~log_size:10_000_000
-          ~fan_out_size:256 root
-      in
-      let dict = Dict.v ~fresh ~readonly root in
-      let block = IO.v ~version:current_version ~readonly root_f in
-      if fresh then if readonly then raise RO_Not_Allowed else IO.clear block;
-      if IO.version block <> current_version then
-        Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
-          current_version;
-      let t = { block; index; lock; dict } in
-      Hashtbl.add files root_f t;
-      t
-
-  let v ?fresh ?readonly root =
-    Lwt_mutex.with_lock create (fun () ->
-        let t = unsafe_v ?fresh ?readonly root in
-        Lwt.return t )
-
-  module Make (V : S with type hash := K.t) : sig
-    include
-      Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-
-    val v :
-      ?fresh:bool ->
-      ?readonly:bool ->
-      ?lru_size:int ->
-      string ->
-      [ `Read ] t Lwt.t
-
-    val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-    val append : 'a t -> K.t -> V.t -> unit Lwt.t
-
-    val unsafe_append : 'a t -> K.t -> V.t -> unit
-
-    val unsafe_find : 'a t -> K.t -> V.t option
-  end = struct
+  module Make (V : S with type hash := K.t) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
@@ -172,31 +130,42 @@ module File (K : Irmin.Hash.S) = struct
 
     type value = V.t
 
-    let clear t = clear t.pack >|= fun () -> Tbl.clear t.staging
+    let clear t =
+      clear t.pack;
+      Tbl.clear t.staging
 
-    let files = Hashtbl.create 10
+    (* we need another cache here, as we want to share the LRU and
+       staging caches too. *)
+
+    let roots = Hashtbl.create 10
 
     let create = Lwt_mutex.create ()
 
-    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000) root
-        =
-      Log.debug (fun l ->
-          l "[pack] v fresh=%b RO=%b root=%s" fresh readonly root );
-      try
-        let t = Hashtbl.find files root in
-        (if fresh then clear t else Lwt.return ()) >|= fun () -> t
-      with Not_found ->
-        v ~fresh ~readonly root >>= fun pack ->
-        let staging = Tbl.create 127 in
-        let lru = Lru.create lru_size in
-        let t = { staging; lru; pack } in
-        (if fresh then clear t else Lwt.return ()) >|= fun () ->
-        Hashtbl.add files root t;
-        t
+    let unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size root =
+      let pack = v ~fresh ~shared ~readonly root in
+      let staging = Tbl.create 127 in
+      let lru = Lru.create lru_size in
+      { staging; lru; pack }
 
-    let v ?fresh ?readonly ?lru_size root =
+    let unsafe_v ?(fresh = false) ?(shared = true) ?(readonly = false)
+        ?(lru_size = 10_000) root =
+      if not shared then
+        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size root
+      else
+        try
+          let t = Hashtbl.find roots root in
+          if fresh then clear t;
+          t
+        with Not_found ->
+          let t = unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size root in
+          if fresh then clear t;
+          Hashtbl.add roots root t;
+          t
+
+    let v ?fresh ?shared ?readonly ?lru_size root =
       Lwt_mutex.with_lock create (fun () ->
-          unsafe_v ?fresh ?readonly ?lru_size root )
+          let t = unsafe_v ?fresh ?shared ?readonly ?lru_size root in
+          Lwt.return t )
 
     let pp_hash = Irmin.Type.pp K.t
 
@@ -221,6 +190,8 @@ module File (K : Irmin.Hash.S) = struct
     let buffer_for_hash = Bytes.create K.hash_size
 
     let io_read_and_decode ~off ~len t =
+      if not (IO.readonly t.pack.block) then
+        assert (off <= IO.offset t.pack.block);
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
       assert (n = len);
@@ -266,7 +237,7 @@ module File (K : Irmin.Hash.S) = struct
 
     let cast t = (t :> [ `Read | `Write ] t)
 
-    let flush t =
+    let sync t =
       IO.sync (Dict.io t.pack.dict);
       Index.flush t.pack.index;
       IO.sync t.pack.block;
@@ -276,7 +247,7 @@ module File (K : Irmin.Hash.S) = struct
       f (cast t) >>= fun r ->
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
-        flush t;
+        sync t;
         Lwt.return r )
 
     let auto_flush = 1024
@@ -300,7 +271,7 @@ module File (K : Irmin.Hash.S) = struct
           V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
           Index.replace t.pack.index k (off, len, V.magic);
-          if Tbl.length t.staging >= auto_flush then flush t
+          if Tbl.length t.staging >= auto_flush then sync t
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
 

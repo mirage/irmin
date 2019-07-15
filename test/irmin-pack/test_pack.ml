@@ -30,8 +30,9 @@ let clean () =
   S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
 
 let init () =
-  ( if Sys.file_exists test_file then
+  if Sys.file_exists test_file then (
     let cmd = Printf.sprintf "rm -rf %s" test_file in
+    Fmt.epr "exec: %s\n%!" cmd;
     let _ = Sys.command cmd in
     () );
   Lwt.return_unit
@@ -123,6 +124,67 @@ let test_pack _switch () =
   in
   test t >>= fun () -> Pack.v ~fresh:false test_file >>= test
 
+let test_readonly_pack _switch () =
+  Pack.v ~fresh:true test_file >>= fun w ->
+  Pack.v ~fresh:false ~shared:false ~readonly:true test_file >>= fun r ->
+  let adds l = Lwt_list.iter_s (fun (k, v) -> Pack.append w k v) l in
+  let x1 = "foo" in
+  let x2 = "bar" in
+  let h1 = sha1 x1 in
+  let h2 = sha1 x2 in
+  adds [ (h1, x1); (h2, x2) ] >>= fun () ->
+  Pack.find r h2 >>= fun y2 ->
+  Alcotest.(check (option string)) "before sync" None y2;
+  Pack.sync w;
+  Pack.find r h2 >>= fun y2 ->
+  Alcotest.(check (option string)) "after sync" (Some x2) y2;
+  let x3 = "otoo" in
+  let x4 = "sdadsadas" in
+  let h3 = sha1 x3 in
+  let h4 = sha1 x4 in
+  adds [ (h3, x3); (h4, x4) ] >>= fun () ->
+  Pack.sync w;
+  Pack.find r h2 >>= fun y2 ->
+  Alcotest.(check (option string)) "y2" (Some x2) y2;
+  Pack.find r h3 >>= fun y3 ->
+  Alcotest.(check (option string)) "y3" (Some x3) y3;
+  Lwt.return ()
+
+let test_readonly_dict () =
+  let ignore_int (_ : int) = () in
+  let w = Dict.v ~fresh:true test_file in
+  let r = Dict.v ~fresh:false ~shared:false ~readonly:true test_file in
+  let check_index k i = Alcotest.(check int) k i (Dict.index r k) in
+  let check_find k i =
+    Alcotest.(check (option string)) k (Some k) (Dict.find r i)
+  in
+  let check_none k i =
+    Alcotest.(check (option string)) k None (Dict.find r i)
+  in
+  let check_raise k =
+    try
+      ignore_int (Dict.index r k);
+      Alcotest.fail "RO dict should not be writable"
+    with Irmin_pack.RO_Not_Allowed -> ()
+  in
+  ignore_int (Dict.index w "foo");
+  ignore_int (Dict.index w "foo");
+  ignore_int (Dict.index w "bar");
+  ignore_int (Dict.index w "toto");
+  ignore_int (Dict.index w "titiabc");
+  ignore_int (Dict.index w "foo");
+  Dict.sync w;
+  check_index "titiabc" 3;
+  check_index "bar" 1;
+  check_index "toto" 2;
+  check_find "foo" 0;
+  check_raise "xxx";
+  ignore_int (Dict.index w "hello");
+  check_raise "hello";
+  check_none "hello" 4;
+  Dict.sync w;
+  check_find "hello" 4
+
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 
 let test_branch _switch () =
@@ -161,6 +223,8 @@ let test_branch _switch () =
 let misc =
   ( "misc",
     [ Alcotest.test_case "dict" `Quick test_dict;
+      Alcotest.test_case "RO dict" `Quick test_readonly_dict;
       Alcotest_lwt.test_case "pack" `Quick test_pack;
+      Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch
     ] )
