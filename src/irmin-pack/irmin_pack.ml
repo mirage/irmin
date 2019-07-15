@@ -255,7 +255,7 @@ module Make_ext
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Pack = Pack (H)
-  module Index = Index.Make (H)
+  module Index = Pack_index.Make (H)
 
   module X = struct
     module Hash = H
