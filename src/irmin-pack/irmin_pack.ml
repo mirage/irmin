@@ -700,6 +700,24 @@ module Pack (K : Irmin.Hash.S) = struct
 
     let buffer_for_hash = Bytes.create K.hash_size
 
+    let io_read_and_decode ~off ~len t =
+      let buf = Bytes.create len in
+      let n = IO.read t.pack.block ~off buf in
+      assert (n = len);
+      let hash off =
+        let n = IO.read t.pack.block ~off buffer_for_hash in
+        assert (n = K.hash_size);
+        let _, v =
+          Irmin.Type.decode_bin ~headers:false K.t
+            (* the copy is important here *)
+            (Bytes.to_string buffer_for_hash)
+            0
+        in
+        v
+      in
+      let dict = Dict.find t.pack.dict in
+      V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+
     let unsafe_find t k =
       Log.debug (fun l -> l "[pack] find %a" pp_hash k);
       stats.pack_finds <- succ stats.pack_finds;
@@ -711,32 +729,15 @@ module Pack (K : Irmin.Hash.S) = struct
         match Lru.find t.lru k with
         | v -> Some v
         | exception Not_found -> (
-          match Index.find t.pack.index k with
-          | None -> None
-          | Some (off, len, _) ->
-              let buf = Bytes.create len in
-              let n = IO.read t.pack.block ~off buf in
-              assert (n = len);
-              let hash off =
-                let n = IO.read t.pack.block ~off buffer_for_hash in
-                assert (n = K.hash_size);
-                let _, v =
-                  Irmin.Type.decode_bin ~headers:false K.t
-                    (* the copy is important here *)
-                    (Bytes.to_string buffer_for_hash)
-                    0
-                in
-                v
-              in
-              let dict = Dict.find t.pack.dict in
-              let v =
-                V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
-              in
-              check_key k v;
-              Tbl.add t.staging k v;
-              Lru.add t.lru k v;
-              stats.pack_cache_misses <- succ stats.pack_cache_misses;
-              Some v ) )
+            stats.pack_cache_misses <- succ stats.pack_cache_misses;
+            match Index.find t.pack.index k with
+            | None -> None
+            | Some (off, len, _) ->
+                let v = io_read_and_decode ~off ~len t in
+                check_key k v;
+                Tbl.add t.staging k v;
+                Lru.add t.lru k v;
+                Some v ) )
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
