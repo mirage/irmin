@@ -14,42 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception RO_Not_Allowed
-
-module type S = sig
-  type t
-
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
-
-  val name : t -> string
-
-  val clear : t -> unit
-
-  val append : t -> string -> unit
-
-  val set : t -> off:int64 -> string -> unit
-
-  val read : t -> off:int64 -> bytes -> int
-
-  val offset : t -> int64
-
-  val force_offset : t -> int64
-
-  val readonly : t -> bool
-
-  val version : t -> string
-
-  val sync : t -> unit
+module type CONFIG = sig
+  val entries : int
 end
 
-module Unix : S
+module Make
+    (Conf : CONFIG)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (P : Pack.MAKER with type key = H.t) : sig
+  module Val : Irmin.Type.S
 
-val with_cache :
-  v:(fresh:bool -> shared:bool -> readonly:bool -> string -> 'a) ->
-  clear:('a -> unit) ->
-  string ->
-  ?fresh:bool ->
-  ?shared:bool ->
-  ?readonly:bool ->
-  string ->
-  'a
+  module Tree : sig
+    type t
+
+    val list : t -> (Node.step * Node.value) list
+
+    val v : (Node.step * Node.value) list -> t
+
+    val load : find:(H.t -> Val.t option Lwt.t) -> H.t -> t option Lwt.t
+
+    val save : add:(H.t -> Val.t -> unit Lwt.t) -> t -> hash:H.t -> H.t Lwt.t
+  end
+
+  include Pack.S with type key = H.t and type value = Val.t
+end

@@ -264,7 +264,7 @@ let with_cache ~v ~clear file =
       Log.debug (fun l ->
           l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
             fresh shared readonly );
-      let t = v ~fresh ~readonly file in
+      let t = v ~fresh ~shared ~readonly file in
       if fresh then clear t;
       t )
     else
@@ -283,7 +283,7 @@ let with_cache ~v ~clear file =
         Log.debug (fun l ->
             l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
               fresh shared readonly );
-        let t = v ~fresh ~readonly file in
+        let t = v ~fresh ~shared ~readonly file in
         if fresh then clear t;
         Hashtbl.add files file t;
         t

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
+module type ELT = sig
   include Irmin.Type.S
 
   type hash
@@ -35,30 +35,37 @@ module type S = sig
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
-module File (K : Irmin.Hash.S) : sig
-  module Make (V : S with type hash = K.t) : sig
-    include
-      Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+module type S = sig
+  include Irmin.CONTENT_ADDRESSABLE_STORE
 
-    val v :
-      ?fresh:bool ->
-      ?shared:bool ->
-      ?readonly:bool ->
-      ?lru_size:int ->
-      string ->
-      [ `Read ] t Lwt.t
+  val v :
+    ?fresh:bool ->
+    ?shared:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    string ->
+    [ `Read ] t Lwt.t
 
-    val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-    val append : 'a t -> K.t -> V.t -> unit Lwt.t
+  val unsafe_append : 'a t -> key -> value -> unit
 
-    val unsafe_append : 'a t -> K.t -> V.t -> unit
+  val unsafe_find : 'a t -> key -> value option
 
-    val unsafe_find : 'a t -> K.t -> V.t option
-
-    val sync : 'a t -> unit
-  end
+  val sync : 'a t -> unit
 end
+
+module type MAKER = sig
+  type key
+
+  (** Save multiple kind of values in the same pack file. Values will
+      be distinguished using [V.magic], so they have to all be
+      different. *)
+  module Make (V : ELT with type hash := key) :
+    S with type key = key and type value = V.t
+end
+
+module File (K : Irmin.Hash.S) : MAKER with type key = K.t
 
 type stats = {
   pack_cache_misses : float;

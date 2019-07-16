@@ -15,7 +15,12 @@
  *)
 
 val config :
-  ?fresh:bool -> ?readonly:bool -> ?lru_size:int -> string -> Irmin.config
+  ?fresh:bool ->
+  ?shared:bool ->
+  ?readonly:bool ->
+  ?lru_size:int ->
+  string ->
+  Irmin.config
 
 module Dict = Dict
 module Pack = Pack

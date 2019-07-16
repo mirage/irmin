@@ -78,8 +78,6 @@ let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 module S = struct
   include Irmin.Contents.String
 
-  type hash = Irmin.Hash.SHA1.t
-
   let magic = 'S'
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
@@ -107,9 +105,10 @@ let test_pack _switch () =
   let h2 = sha1 x2 in
   let h3 = sha1 x3 in
   let h4 = sha1 x4 in
-  Lwt_list.iter_s
-    (fun (k, v) -> Pack.append t k v)
-    [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ]
+  Pack.batch t (fun w ->
+      Lwt_list.iter_s
+        (fun (k, v) -> Pack.unsafe_add w k v)
+        [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ] )
   >>= fun () ->
   let test t =
     Pack.find t h1 >|= get >>= fun y1 ->
@@ -127,12 +126,12 @@ let test_pack _switch () =
 let test_readonly_pack _switch () =
   Pack.v ~fresh:true test_file >>= fun w ->
   Pack.v ~fresh:false ~shared:false ~readonly:true test_file >>= fun r ->
-  let adds l = Lwt_list.iter_s (fun (k, v) -> Pack.append w k v) l in
+  let adds l = List.iter (fun (k, v) -> Pack.unsafe_append w k v) l in
   let x1 = "foo" in
   let x2 = "bar" in
   let h1 = sha1 x1 in
   let h2 = sha1 x2 in
-  adds [ (h1, x1); (h2, x2) ] >>= fun () ->
+  adds [ (h1, x1); (h2, x2) ];
   Pack.find r h2 >>= fun y2 ->
   Alcotest.(check (option string)) "before sync" None y2;
   Pack.sync w;
@@ -142,7 +141,7 @@ let test_readonly_pack _switch () =
   let x4 = "sdadsadas" in
   let h3 = sha1 x3 in
   let h4 = sha1 x4 in
-  adds [ (h3, x3); (h4, x4) ] >>= fun () ->
+  adds [ (h3, x3); (h4, x4) ];
   Pack.sync w;
   Pack.find r h2 >>= fun y2 ->
   Alcotest.(check (option string)) "y2" (Some x2) y2;
