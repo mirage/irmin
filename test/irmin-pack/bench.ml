@@ -16,7 +16,11 @@
 
 let config ~root = Irmin_pack.config ~fresh:false root
 
-module KV = Irmin_pack.KV (Irmin.Contents.String)
+module Config = struct
+  let entries = 2
+end
+
+module KV = Irmin_pack.KV (Config) (Irmin.Contents.String)
 module Bench = Irmin_bench.Make (KV)
 
 let file f =
