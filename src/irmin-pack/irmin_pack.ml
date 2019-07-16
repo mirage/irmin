@@ -433,7 +433,7 @@ struct
         let shared = shared config in
         let index =
           Index.v ~fresh ~shared ~readonly ~log_size:10_000_000
-            ~fan_out_size:256 root
+            ~fan_out_size:64 root
         in
         Contents.CA.v ~fresh ~shared ~readonly ~lru_size root
         >>= fun contents ->
