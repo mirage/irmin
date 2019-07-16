@@ -125,10 +125,13 @@ struct
 
   let value_t =
     let open Type in
-    variant "value" (fun n c -> function
-      | `Node h -> n h | `Contents (h, m) -> c (h, m) )
+    variant "value" (fun n c x -> function
+      | `Node h -> n h
+      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m)
+    )
     |~ case1 "node" K.t (fun k -> `Node k)
-    |~ case1 "contents" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
+    |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
+    |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
   let of_entries e = v (List.rev_map of_entry e)
@@ -376,14 +379,7 @@ module Graph (S : S.NODE_STORE) = struct
 
   let contents_t = Contents.t
 
-  let value_t =
-    let open Type in
-    variant "value" (fun n c -> function
-      | `Node h -> n h | `Contents (h, m) -> c (h, m) )
-    |~ case1 "node" node_t (fun k -> `Node k)
-    |~ case1 "contents" (pair contents_t metadata_t) (fun (h, m) ->
-           `Contents (h, m) )
-    |> sealv
+  let value_t = S.Val.value_t
 end
 
 module V1 (N : S.NODE) = struct
