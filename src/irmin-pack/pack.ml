@@ -131,11 +131,12 @@ module File (K : Irmin.Hash.S) = struct
     Index.clear t.index;
     Dict.clear t.dict
 
-  let unsafe_v ~fresh ~readonly file =
+  let unsafe_v ~fresh ~shared ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
     let index =
-      Index.v ~fresh ~readonly ~log_size:10_000_000 ~fan_out_size:256 root
+      Index.v ~fresh ~shared ~readonly ~log_size:10_000_000 ~fan_out_size:256
+        root
     in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in

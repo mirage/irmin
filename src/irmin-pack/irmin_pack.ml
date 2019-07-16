@@ -32,11 +32,20 @@ let readonly_key =
   Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
     Irmin.Private.Conf.bool false
 
+let shared_key =
+  Irmin.Private.Conf.key
+    ~doc:
+      "Share resources (file-descriptors, caches) with other instances when \
+       possible."
+    "shared" Irmin.Private.Conf.bool false
+
 let fresh config = Irmin.Private.Conf.get config fresh_key
 
 let lru_size config = Irmin.Private.Conf.get config lru_size_key
 
 let readonly config = Irmin.Private.Conf.get config readonly_key
+
+let shared config = Irmin.Private.Conf.get config shared_key
 
 let root_key = Irmin.Private.Conf.root
 
@@ -45,12 +54,14 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
-let config ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000) root =
+let config ?(fresh = false) ?(shared = true) ?(readonly = false)
+    ?(lru_size = 10_000) root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
   let config = Irmin.Private.Conf.add config lru_size_key lru_size in
   let config = Irmin.Private.Conf.add config readonly_key readonly in
+  let config = Irmin.Private.Conf.add config shared_key shared in
   config
 
 let ( ++ ) = Int64.add
@@ -153,7 +164,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let watches = W.v ()
 
-  let unsafe_v ~fresh ~readonly file =
+  let unsafe_v ~fresh ~shared:_ ~readonly file =
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
@@ -419,13 +430,16 @@ struct
         let fresh = fresh config in
         let lru_size = lru_size config in
         let readonly = readonly config in
+        let shared = shared config in
         let index =
-          Index.v ~fresh ~readonly ~log_size:10_000_000 ~fan_out_size:256 root
+          Index.v ~fresh ~shared ~readonly ~log_size:10_000_000
+            ~fan_out_size:256 root
         in
-        Contents.CA.v ~fresh ~readonly ~lru_size root >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size root >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size root >>= fun commit ->
-        Branch.v ~fresh ~readonly root >|= fun branch ->
+        Contents.CA.v ~fresh ~shared ~readonly ~lru_size root
+        >>= fun contents ->
+        Node.CA.v ~fresh ~shared ~readonly ~lru_size root >>= fun node ->
+        Commit.CA.v ~fresh ~shared ~readonly ~lru_size root >>= fun commit ->
+        Branch.v ~fresh ~shared ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }
     end
   end

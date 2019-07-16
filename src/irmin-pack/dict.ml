@@ -90,7 +90,7 @@ let clear t =
   Hashtbl.clear t.cache;
   Hashtbl.clear t.index
 
-let v_no_cache ~fresh ~readonly file =
+let v_no_cache ~fresh ~shared:_ ~readonly file =
   let io = IO.v ~fresh ~version:current_version ~readonly file in
   let cache = Hashtbl.create 997 in
   let index = Hashtbl.create 997 in
