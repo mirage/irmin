@@ -108,7 +108,10 @@ struct
 
   let add t k v =
     let e = to_entry (k, v) in
-    StepMap.add k e t
+    StepMap.update k
+      (fun e' ->
+        if Type.equal (Type.option entry_t) (Some e) e' then e' else Some e )
+      t
 
   let remove t k = StepMap.remove k t
 
