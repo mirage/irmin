@@ -202,12 +202,58 @@ module Make (S : S) = struct
 
   let get_node = function `Node n -> n | _ -> Alcotest.fail "get_node"
 
+  module H_node = Irmin.Hash.Typed (P.Hash) (P.Node.Val)
+
   let test_nodes x () =
     let test repo =
       let g = g repo and n = n repo in
-      kv1 ~repo >>= fun kv1 ->
+      let k = normal (P.Contents.Key.hash "foo") in
       let check_key = check P.Node.Key.t in
       let check_val = check (T.option Graph.value_t) in
+      let check_node msg v =
+        let h' = H_node.hash v in
+        with_node repo (fun n -> P.Node.add n v) >|= fun h ->
+        check_key (msg ^ ": hash(v) = add(v)") h h'
+      in
+      let v = P.Node.Val.empty in
+      check_node "empty node" v >>= fun () ->
+      let v1 = P.Node.Val.add v "x" k in
+      check_node "node: x" v1 >>= fun () ->
+      let v2 = P.Node.Val.add v "x" k in
+      check_node "node: x (bis)" v2 >>= fun () ->
+      check P.Node.Val.t "add x" v1 v2;
+      let v0 = P.Node.Val.remove v1 "x" in
+      check P.Node.Val.t "remove x" v v0;
+      let v3 = P.Node.Val.add v1 "x" k in
+      Alcotest.(check bool) "same same" true (v1 == v3);
+      let u = P.Node.Val.add v3 "y" k in
+      check_node "node: x+y" v3 >>= fun () ->
+      let u = P.Node.Val.add u "z" k in
+      check_node "node: x+y+z" u >>= fun () ->
+      let check_values u =
+        check_val "find x" (Some k) (P.Node.Val.find u "x");
+        check_val "find y" (Some k) (P.Node.Val.find u "y");
+        check_val "find z" (Some k) (P.Node.Val.find u "x");
+        check_val "find xx" None (P.Node.Val.find u "xx")
+      in
+      check_values u;
+      let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
+      check P.Node.Val.t "v" u w;
+      let l = P.Node.Val.list u in
+      check
+        Irmin.Type.(list (pair P.Node.Path.step_t P.Node.Val.value_t))
+        "list" l
+        [ ("x", k); ("y", k); ("z", k) ];
+      let u = P.Node.Val.add u "a" k in
+      check_node "node: x+y+z+a" u >>= fun () ->
+      let u = P.Node.Val.add u "b" k in
+      check_node "node: x+y+z+a+b" u >>= fun () ->
+      let h = H_node.hash u in
+      with_node repo (fun n -> P.Node.add n u) >>= fun k ->
+      check_key "hash(v) = add(v)" h k;
+      P.Node.find n k >>= fun w ->
+      check_values (get w);
+      kv1 ~repo >>= fun kv1 ->
       (* Create a node containing t1 -x-> (v1) *)
       with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) >>= fun k1 ->
       with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) >>= fun k1' ->
@@ -258,10 +304,10 @@ module Make (S : S) = struct
       with_node repo (fun g -> Graph.v g [ ("a", `Node k5) ]) >>= fun k6 ->
       with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       >>= fun k6' ->
+      check_key "node k6" k6 k6';
       P.Node.find n k6' >>= fun n6' ->
       P.Node.find n k6 >>= fun n6 ->
       check T.(option P.Node.Val.t) "node n6" n6 n6';
-      check_key "node k6" k6 k6';
       let assert_no_duplicates n node =
         let names = ref [] in
         Graph.list g node >|= fun all ->
