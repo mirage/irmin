@@ -27,7 +27,12 @@ module Pack = Pack
 
 exception RO_Not_Allowed
 
+module type CONFIG = sig
+  val entries : int
+end
+
 module Make_ext
+    (Config : CONFIG)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
     (Path : Irmin.Path.S)
@@ -47,9 +52,9 @@ module Make_ext
    and type metadata = Metadata.t
    and type Key.step = Path.step
 
-module Make : Irmin.S_MAKER
+module Make (Config : CONFIG) : Irmin.S_MAKER
 
-module KV : Irmin.KV_MAKER
+module KV (Config : CONFIG) : Irmin.KV_MAKER
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t

@@ -246,7 +246,10 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let unwatch t = W.unwatch t.w
 end
 
+module type CONFIG = Inode.CONFIG
+
 module Make_ext
+    (Config : CONFIG)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -301,64 +304,8 @@ struct
       include Irmin.Contents.Store (CA)
     end
 
-    module Config = struct
-      let entries = 32
-    end
-
-    module Inode = Inode.Make (Config) (H) (Node) (Pack)
-
     module Node = struct
-      module CA = struct
-        module Val = Node
-        module Key = H
-
-        type 'a t = 'a Inode.t
-
-        type key = Key.t
-
-        type value = Val.t
-
-        let mem t k = Inode.mem t k
-
-        let find t k =
-          Inode.Tree.load
-            ~find:(fun k ->
-              let v = Inode.unsafe_find t k in
-              Lwt.return v )
-            k
-          >|= function
-          | None -> None
-          | Some t -> Some (Val.v (Inode.Tree.list t))
-
-        module H_node = Irmin.Hash.Typed (H) (Val)
-
-        let hash_node = H_node.hash
-
-        let add t v =
-          let n = Val.list v in
-          let hash = hash_node v in
-          let v = Inode.Tree.v n in
-          Inode.Tree.save ~hash
-            ~add:(fun k v ->
-              Inode.unsafe_append t k v;
-              Lwt.return () )
-            v
-
-        let unsafe_add t k v =
-          let n = Val.list v in
-          let v = Inode.Tree.v n in
-          Inode.Tree.save ~hash:k
-            ~add:(fun k v ->
-              Inode.unsafe_append t k v;
-              Lwt.return () )
-            v
-          >|= fun _ -> ()
-
-        let batch = Inode.batch
-
-        let v = Inode.v
-      end
-
+      module CA = Inode.Make (Config) (Pack) (H) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -452,6 +399,7 @@ module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 
 module Make
+    (Config : CONFIG)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -460,8 +408,8 @@ module Make
 struct
   module XNode = Irmin.Private.Node.Make (H) (P) (M)
   module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (M) (C) (P) (B) (H) (XNode) (XCommit)
+  include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
-module KV (C : Irmin.Contents.S) =
-  Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+module KV (Config : CONFIG) (C : Irmin.Contents.S) =
+  Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)

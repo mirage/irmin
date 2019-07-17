@@ -16,8 +16,14 @@
 
 open Lwt.Infix
 
+module Config = struct
+  let entries = 2
+end
+
 let store =
-  Irmin_test.store (module Irmin_pack.Make) (module Irmin.Metadata.None)
+  Irmin_test.store
+    (module Irmin_pack.Make (Config))
+    (module Irmin.Metadata.None)
 
 let test_file = Filename.concat "_build" "test-db-pack"
 
