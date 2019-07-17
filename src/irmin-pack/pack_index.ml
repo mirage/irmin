@@ -18,6 +18,8 @@ module Make (K : Irmin.Hash.S) = struct
 
     let hash = K.short_hash
 
+    let hash_size = 63
+
     let equal = Irmin.Type.equal K.t
 
     let encode = Irmin.Type.to_bin_string K.t
