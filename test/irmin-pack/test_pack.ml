@@ -18,6 +18,8 @@ open Lwt.Infix
 
 module Config = struct
   let entries = 2
+
+  let stable_hash = 3
 end
 
 let store =
@@ -84,7 +86,7 @@ let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 module S = struct
   include Irmin.Contents.String
 
-  let magic = 'S'
+  let magic _ = 'S'
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 

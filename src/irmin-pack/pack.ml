@@ -52,7 +52,7 @@ module type ELT = sig
 
   val hash : t -> hash
 
-  val magic : char
+  val magic : t -> char
 
   val encode_bin :
     dict:(string -> int) ->
@@ -301,7 +301,7 @@ module File (K : Irmin.Hash.S) = struct
           let off = IO.offset t.pack.block in
           V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
-          Index.replace t.pack.index k (off, len, V.magic);
+          Index.replace t.pack.index k (off, len, V.magic v);
           if Tbl.length t.staging >= auto_flush then sync t
           else Tbl.add t.staging k v;
           Lru.add t.lru k v

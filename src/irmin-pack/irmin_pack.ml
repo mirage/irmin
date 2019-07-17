@@ -298,6 +298,8 @@ struct
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, t = Irmin.Type.decode_bin ~headers:false value s off in
             t.v
+
+          let magic _ = magic
         end)
       end
 
@@ -330,6 +332,8 @@ struct
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, v = Irmin.Type.decode_bin ~headers:false value s off in
             v.v
+
+          let magic _ = magic
         end)
       end
 
