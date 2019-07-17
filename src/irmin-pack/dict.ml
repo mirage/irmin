@@ -98,4 +98,6 @@ let v_no_cache ~fresh ~shared:_ ~readonly file =
   refill ~from:0L t;
   t
 
-let v = with_cache ~clear ~v:v_no_cache "store.dict"
+let v =
+  let (`Staged v) = with_cache ~clear ~v:(fun () -> v_no_cache) "store.dict" in
+  v ()

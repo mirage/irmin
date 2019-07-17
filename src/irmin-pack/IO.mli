@@ -45,11 +45,8 @@ end
 module Unix : S
 
 val with_cache :
-  v:(fresh:bool -> shared:bool -> readonly:bool -> string -> 'a) ->
-  clear:('a -> unit) ->
+  v:('a -> fresh:bool -> shared:bool -> readonly:bool -> string -> 'b) ->
+  clear:('b -> unit) ->
   string ->
-  ?fresh:bool ->
-  ?shared:bool ->
-  ?readonly:bool ->
-  string ->
-  'a
+  [ `Staged of
+    'a -> ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> 'b ]
