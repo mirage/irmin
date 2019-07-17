@@ -137,7 +137,7 @@ module File (K : Irmin.Hash.S) = struct
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
     let index =
-      Index.v ~fresh ~shared ~readonly ~log_size:10_000_000 ~fan_out_size:64
+      Index.v ~fresh ~shared ~readonly ~log_size:10_000_000 ~fan_out_size:16
         root
     in
     let dict = Dict.v ~fresh ~readonly root in
