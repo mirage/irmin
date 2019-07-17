@@ -45,17 +45,38 @@ module Make_ext
            with type metadata = Metadata.t
             and type hash = Hash.t
             and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
-  Irmin.S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
+    (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
+  include
+    Irmin.S
+      with type key = Path.t
+       and type contents = Contents.t
+       and type branch = Branch.t
+       and type hash = Hash.t
+       and type step = Path.step
+       and type metadata = Metadata.t
+       and type Key.step = Path.step
 
-module Make (Config : CONFIG) : Irmin.S_MAKER
+  val integrity_check : Format.formatter -> repo -> unit
+end
+
+module Make
+    (Config : CONFIG)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) : sig
+  include
+    Irmin.S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+
+  val integrity_check : Format.formatter -> repo -> unit
+end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER
 
