@@ -281,10 +281,19 @@ struct
         in
         (* FIXME(samoht): issue in G.Value.Tree.add *)
         let entries = G.Value.Tree.to_list t in
-        let entries =
-          List.filter (fun e -> e.G.Value.Tree.name <> name) entries
-        in
-        G.Value.Tree.of_list (entry :: entries)
+        match List.find (fun e -> e.G.Value.Tree.name = name) entries with
+        | exception Not_found -> G.Value.Tree.of_list (entry :: entries)
+        | e ->
+            let equal x y =
+              x.G.Value.Tree.perm = y.G.Value.Tree.perm
+              && x.name = y.name && G.Hash.equal x.node y.node
+            in
+            if equal e entry then t
+            else
+              let entries =
+                List.filter (fun e -> e.G.Value.Tree.name <> name) entries
+              in
+              G.Value.Tree.of_list (entry :: entries)
 
       let empty = G.Value.Tree.of_list []
 
