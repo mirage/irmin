@@ -132,7 +132,8 @@ struct
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t
+    lock : Lwt_mutex.t;
+    staging_offsets : int64 Tbl.t
   }
 
   let clear t =
@@ -143,12 +144,13 @@ struct
   let unsafe_v ~index ~fresh ~shared:_ ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
+    let staging_offsets = Tbl.create 0 in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     if IO.version block <> current_version then
       Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
         current_version;
-    { block; index; lock; dict }
+    { block; index; lock; dict; staging_offsets }
 
   let (`Staged v) =
     with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
@@ -169,7 +171,8 @@ struct
 
     let clear t =
       clear t.pack;
-      Tbl.clear t.staging
+      Tbl.clear t.staging;
+      Tbl.clear t.pack.staging_offsets
 
     (* we need another cache here, as we want to share the LRU and
        staging caches too. *)
@@ -219,7 +222,6 @@ struct
           (Bytes.to_string buffer_for_hash)
           0
       in
-      Fmt.epr "Read key %a at offset %Ld\n%!" (Irmin.Type.pp K.t) v off;
       v
 
     let unsafe_mem t k =
@@ -252,7 +254,6 @@ struct
         assert (off <= IO.offset t.pack.block);
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
-      Fmt.epr "Read %d bytes at offset %Ld\n%!" len off;
       assert (n = len);
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
@@ -275,10 +276,8 @@ struct
               | (off, len, _) :: tl ->
                   let hash = io_read_and_decode_hash ~off t in
                   if Irmin.Type.equal K.t k hash then (
-                    let () = Fmt.epr "XXX a\n%!" in
                     let v = io_read_and_decode ~off ~len t in
                     check_key k v;
-                    Tbl.add t.staging k v;
                     Lru.add t.lru k v;
                     Some v )
                   else loop tl
@@ -296,7 +295,8 @@ struct
       IO.sync (Dict.io t.pack.dict);
       Index.flush t.pack.index;
       IO.sync t.pack.block;
-      Tbl.clear t.staging
+      Tbl.clear t.staging;
+      Tbl.clear t.pack.staging_offsets
 
     let batch t f =
       f (cast t) >>= fun r ->
@@ -312,18 +312,20 @@ struct
       | true -> ()
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
-          IO.sync t.pack.block;
           let offset k =
-            let rec loop = function
-              | [] ->
-                  stats.appended_hashes <- stats.appended_hashes + 1;
-                  None
-              | (off, _, _) :: tl ->
-                  stats.appended_offsets <- stats.appended_offsets + 1;
-                  let hash = io_read_and_decode_hash ~off t in
-                  if Irmin.Type.equal K.t hash k then Some off else loop tl
-            in
-            loop (Index.find_all t.pack.index k)
+            match Tbl.find t.pack.staging_offsets k with
+            | off -> Some off
+            | exception Not_found ->
+                let rec loop = function
+                  | [] ->
+                      stats.appended_hashes <- stats.appended_hashes + 1;
+                      None
+                  | (off, _, _) :: tl ->
+                      stats.appended_offsets <- stats.appended_offsets + 1;
+                      let hash = io_read_and_decode_hash ~off t in
+                      if Irmin.Type.equal K.t hash k then Some off else loop tl
+                in
+                loop (Index.find_all t.pack.index k)
           in
           let dict = Dict.index t.pack.dict in
           let off = IO.offset t.pack.block in
@@ -331,7 +333,9 @@ struct
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
           Index.add t.pack.index k (off, len, V.magic v);
           if Tbl.length t.staging >= auto_flush then sync t
-          else Tbl.add t.staging k v;
+          else (
+            Tbl.add t.staging k v;
+            Tbl.add t.pack.staging_offsets k off );
           Lru.add t.lru k v
 
     let append t k v =
