@@ -18,6 +18,8 @@ let config ~root = Irmin_pack.config ~fresh:false root
 
 module Config = struct
   let entries = 2
+
+  let stable_hash = 3
 end
 
 module KV = Irmin_pack.KV (Config) (Irmin.Contents.String)

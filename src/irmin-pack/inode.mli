@@ -16,6 +16,8 @@
 
 module type CONFIG = sig
   val entries : int
+
+  val stable_hash : int
 end
 
 module type S = sig

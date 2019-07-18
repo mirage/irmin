@@ -29,6 +29,8 @@ exception RO_Not_Allowed
 
 module type CONFIG = sig
   val entries : int
+
+  val stable_hash : int
 end
 
 module Make_ext
