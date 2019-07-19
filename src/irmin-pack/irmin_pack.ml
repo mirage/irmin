@@ -74,6 +74,7 @@ exception RO_Not_Allowed = IO.RO_Not_Allowed
 
 module Dict = Dict
 module Pack = Pack
+module Index = Pack_index
 module IO = IO.Unix
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -261,8 +262,8 @@ module Make_ext
              and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
-  module Pack = Pack.File (H)
   module Index = Pack_index.Make (H)
+  module Pack = Pack.File (Index) (H)
 
   module X = struct
     module Hash = H

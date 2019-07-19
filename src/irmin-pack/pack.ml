@@ -117,9 +117,9 @@ let with_cache = IO.with_cache
 
 module IO = IO.Unix
 
-module File (K : Irmin.Hash.S) = struct
+module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
+struct
   module Tbl = Table (K)
-  module Index = Pack_index.Make (K)
 
   type 'a t = {
     block : IO.t;

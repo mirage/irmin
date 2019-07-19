@@ -100,7 +100,9 @@ module S = struct
     v
 end
 
-module P = Irmin_pack.Pack.File (Irmin.Hash.SHA1)
+module H = Irmin.Hash.SHA1
+module I = Irmin_pack.Index.Make (H)
+module P = Irmin_pack.Pack.File (I) (H)
 module Pack = P.Make (S)
 
 let test_pack _switch () =
