@@ -807,16 +807,10 @@ module Diff : sig
   (** [t typ] is the value type for differences between values of type [typ]. *)
 end
 
-(** {1 Stores} *)
-
-(** The type for backend-specific configuration values.
-
-    Every backend has different configuration options, which are kept
-    abstract to the user. *)
-type config
-
 (** The type for representing differences betwen values. *)
 type 'a diff = 'a Diff.t
+
+(** {1 Low-level Stores} *)
 
 (** An Irmin store is automatically built from a number of lower-level
     stores, each implementing fewer operations, such as
@@ -1268,6 +1262,12 @@ end
 
 (** The type for remote stores. *)
 type remote = ..
+
+(** The type for backend-specific configuration values.
+
+    Every backend has different configuration options, which are kept
+    abstract to the user. *)
+type config
 
 (** [Private] defines functions only useful for creating new
     backends. If you are just using the library (and not developing a
@@ -3251,12 +3251,86 @@ module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
+val remote_store : (module S with type t = 'a) -> 'a -> remote
+(** [remote_store t] is the remote corresponding to the local store
+    [t]. Synchronization is done by importing and exporting store
+    {{!BC.slice}slices}, so this is usually much slower than native
+    synchronization using {!Store.remote} but it works for all
+    backends. *)
+
+(** [SYNC] provides functions to synchronization an Irmin store with
+    local and remote Irmin stores. *)
+module type SYNC = sig
+  (** {1 Native Synchronization} *)
+
+  (** Type type for store handles. *)
+  type db
+
+  (** The type for store heads. *)
+  type commit
+
+  type status = [ `Empty | `Head of commit ]
+
+  val fetch :
+    db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
+  (** [fetch t ?depth r] populate the local store [t] with objects for
+      the remote store [r], using [t]'s current branch. The [depth]
+      parameter limits the history depth. Return [`Empty] if either the
+      local or remote store do not have a valid head. *)
+
+  val fetch_exn : db -> ?depth:int -> remote -> status Lwt.t
+  (** Same as {!fetch} but raise [Invalid_argument] if either the
+      local or remote store do not have a valid head. *)
+
+  type pull_error = [ `Msg of string | Merge.conflict ]
+
+  val pull :
+    db ->
+    ?depth:int ->
+    remote ->
+    [ `Merge of Info.f | `Set ] ->
+    (status, pull_error) result Lwt.t
+  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
+      also updates [t]'s current branch. [s] is the update strategy:
+
+      {ul
+      {- [`Merge] uses [Head.merge]. Can return a conflict.}
+      {- [`Set] uses [S.Head.set].}
+      } *)
+
+  val pull_exn :
+    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> status Lwt.t
+  (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
+
+  (** The type for push errors. *)
+  type push_error = [ `Msg of string | `Detached_head ]
+
+  val pp_push_error : push_error Fmt.t
+  (** [pp_push_error] pretty-prints push errors. *)
+
+  val push : db -> ?depth:int -> remote -> (status, push_error) result Lwt.t
+  (** [push t ?depth r] populates the remote store [r] with objects
+      from the current store [t], using [t]'s current branch. If [b]
+      is [t]'s current branch, [push] also updates the head of [b] in
+      [r] to be the same as in [t].
+
+      {b Note:} {e Git} semantics is to update [b] only if the new
+      head if more recent. This is not the case in {e Irmin}. *)
+
+  val push_exn : db -> ?depth:int -> remote -> status Lwt.t
+  (** Same as {!push} but raise [Invalid_argument] if an error
+      happens. *)
+end
+
+(** The default [Sync] implementation. *)
+module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
+
 (** {1:examples Examples}
 
     These examples are in the [examples] directory of the
     distribution.
 
-    {3 Synchronization}
+    {3 Syncing with a remote}
 
     A simple synchronization example, using the
     {{!Irmin_unix.Git}Git} backend and the {!Sync} helpers. The
@@ -3454,80 +3528,6 @@ end ]}
 *)
 
 (** {1 Helpers} *)
-
-val remote_store : (module S with type t = 'a) -> 'a -> remote
-(** [remote_store t] is the remote corresponding to the local store
-    [t]. Synchronization is done by importing and exporting store
-    {{!BC.slice}slices}, so this is usually much slower than native
-    synchronization using {!Store.remote} but it works for all
-    backends. *)
-
-(** [SYNC] provides functions to synchronization an Irmin store with
-    local and remote Irmin stores. *)
-module type SYNC = sig
-  (** {1 Native Synchronization} *)
-
-  (** Type type for store handles. *)
-  type db
-
-  (** The type for store heads. *)
-  type commit
-
-  type status = [ `Empty | `Head of commit ]
-
-  val fetch :
-    db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
-  (** [fetch t ?depth r] populate the local store [t] with objects for
-      the remote store [r], using [t]'s current branch. The [depth]
-      parameter limits the history depth. Return [`Empty] if either the
-      local or remote store do not have a valid head. *)
-
-  val fetch_exn : db -> ?depth:int -> remote -> status Lwt.t
-  (** Same as {!fetch} but raise [Invalid_argument] if either the
-      local or remote store do not have a valid head. *)
-
-  type pull_error = [ `Msg of string | Merge.conflict ]
-
-  val pull :
-    db ->
-    ?depth:int ->
-    remote ->
-    [ `Merge of Info.f | `Set ] ->
-    (status, pull_error) result Lwt.t
-  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
-      also updates [t]'s current branch. [s] is the update strategy:
-
-      {ul
-      {- [`Merge] uses [Head.merge]. Can return a conflict.}
-      {- [`Set] uses [S.Head.set].}
-      } *)
-
-  val pull_exn :
-    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> status Lwt.t
-  (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
-
-  (** The type for push errors. *)
-  type push_error = [ `Msg of string | `Detached_head ]
-
-  val pp_push_error : push_error Fmt.t
-  (** [pp_push_error] pretty-prints push errors. *)
-
-  val push : db -> ?depth:int -> remote -> (status, push_error) result Lwt.t
-  (** [push t ?depth r] populates the remote store [r] with objects
-      from the current store [t], using [t]'s current branch. If [b]
-      is [t]'s current branch, [push] also updates the head of [b] in
-      [r] to be the same as in [t].
-
-      {b Note:} {e Git} semantics is to update [b] only if the new
-      head if more recent. This is not the case in {e Irmin}. *)
-
-  val push_exn : db -> ?depth:int -> remote -> status Lwt.t
-  (** Same as {!push} but raise [Invalid_argument] if an error
-      happens. *)
-end
-
-(** The default [Sync] implementation. *)
-module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
