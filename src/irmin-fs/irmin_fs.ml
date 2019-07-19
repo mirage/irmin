@@ -314,7 +314,7 @@ module Make (IO : IO) = Make_ext (IO) (Obj) (Ref)
 module KV (IO : IO) (C : Irmin.Contents.S) =
   Make (IO) (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
     (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+    (Irmin.Hash.BLAKE2B)
 
 module IO_mem = struct
   type t = {

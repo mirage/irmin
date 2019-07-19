@@ -398,7 +398,7 @@ struct
   include Irmin.Of_private (X)
 end
 
-module Hash = Irmin.Hash.SHA1
+module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 

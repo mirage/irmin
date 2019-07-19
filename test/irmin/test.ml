@@ -89,9 +89,9 @@ let l =
 let tl = Alcotest.testable (T.pp l) (T.equal l)
 
 let hash =
-  Alcotest.testable (T.pp Irmin.Hash.SHA1.t) (T.equal Irmin.Hash.SHA1.t)
+  Alcotest.testable (T.pp Irmin.Hash.BLAKE2B.t) (T.equal Irmin.Hash.BLAKE2B.t)
 
-let sha1 x = Irmin.Hash.SHA1.hash (fun l -> l x)
+let sha1 x = Irmin.Hash.BLAKE2B.hash (fun l -> l x)
 
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
@@ -111,16 +111,16 @@ let test_bin () =
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
   let buf = Buffer.create 10 in
   let h = sha1 "foo" in
-  T.encode_bin ~headers:false Irmin.Hash.SHA1.t h (Buffer.add_string buf);
+  T.encode_bin ~headers:false Irmin.Hash.BLAKE2B.t h (Buffer.add_string buf);
   let x = Buffer.contents buf in
   let buf = Bytes.create 100 in
   Bytes.blit_string x 0 buf 0 (String.length x);
   let n, v =
-    T.decode_bin ~headers:false Irmin.Hash.SHA1.t
+    T.decode_bin ~headers:false Irmin.Hash.BLAKE2B.t
       (Bytes.unsafe_to_string buf)
       0
   in
-  Alcotest.(check int) "hash size" n Irmin.Hash.SHA1.hash_size;
+  Alcotest.(check int) "hash size" n Irmin.Hash.BLAKE2B.hash_size;
   Alcotest.(check hash) "hash" v h
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
