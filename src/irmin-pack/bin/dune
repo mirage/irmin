@@ -1,0 +1,6 @@
+(executable
+  (name        main)
+  (public_name packachu)
+  (libraries   cmdliner irmin-pack irmin-pack.io
+               fmt.cli fmt.tty logs.cli logs.fmt)
+  (package     irmin-pack))
