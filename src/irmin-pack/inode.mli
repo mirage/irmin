@@ -23,11 +23,14 @@ end
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
+  type index
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
+    index:index ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -35,19 +38,16 @@ module type S = sig
 
   module Key : Irmin.Hash.S with type t = key
 
-  module Val :
-    Irmin.Private.Node.S
-    with type t = value
-     and type hash = key
-     and type t = value
+  module Val : Irmin.Private.Node.S with type t = value and type hash = key
 end
 
 module Make
     (Conf : CONFIG)
-    (P : Pack.MAKER)
-    (H : Irmin.Hash.S with type t = P.key)
+    (H : Irmin.Hash.S)
+    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) :
   S
   with type key = H.t
    and type Val.metadata = Node.metadata
    and type Val.step = Node.step
+   and type index = Pack_index.Make(H).t

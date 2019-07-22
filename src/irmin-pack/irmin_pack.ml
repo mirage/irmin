@@ -194,11 +194,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     (aux [@tailcall]) 0L @@ fun () ->
     { cache; index; block; w = watches; lock = Lwt_mutex.create () }
 
-  let unsafe_v = with_cache ~clear:unsafe_clear ~v:unsafe_v "store.branches"
+  let (`Staged unsafe_v) =
+    with_cache ~clear:unsafe_clear ~v:(fun () -> unsafe_v) "store.branches"
 
   let v ?fresh ?shared ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
-        let v = unsafe_v ?fresh ?shared ?readonly file in
+        let v = unsafe_v () ?fresh ?shared ?readonly file in
         Lwt.return v )
 
   let unsafe_set t k v =
@@ -308,7 +309,7 @@ struct
     end
 
     module Node = struct
-      module CA = Inode.Make (Config) (Pack) (H) (Node)
+      module CA = Inode.Make (Config) (H) (Pack) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -387,10 +388,12 @@ struct
           Index.v ~fresh ~shared ~readonly ~log_size:10_000_000
             ~fan_out_size:64 root
         in
-        Contents.CA.v ~fresh ~shared ~readonly ~lru_size root
+        Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
         >>= fun contents ->
-        Node.CA.v ~fresh ~shared ~readonly ~lru_size root >>= fun node ->
-        Commit.CA.v ~fresh ~shared ~readonly ~lru_size root >>= fun commit ->
+        Node.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        >>= fun node ->
+        Commit.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        >>= fun commit ->
         Branch.v ~fresh ~shared ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }
     end

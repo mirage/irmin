@@ -24,11 +24,14 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
+  type index
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
+    index:index ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -36,11 +39,7 @@ module type S = sig
 
   module Key : Irmin.Hash.S with type t = key
 
-  module Val :
-    Irmin.Private.Node.S
-    with type t = value
-     and type hash = key
-     and type t = value
+  module Val : Irmin.Private.Node.S with type t = value and type hash = key
 end
 
 module type CONFIG = sig
@@ -51,10 +50,12 @@ end
 
 module Make
     (Conf : CONFIG)
-    (Pack : Pack.MAKER)
-    (H : Irmin.Hash.S with type t = Pack.key)
+    (H : Irmin.Hash.S)
+    (Pack : Pack.MAKER with type key = H.t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
+  type index = Pack.index
+
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
