@@ -24,6 +24,7 @@ val config :
 
 module Dict = Dict
 module Pack = Pack
+module Index = Pack_index
 
 exception RO_Not_Allowed
 

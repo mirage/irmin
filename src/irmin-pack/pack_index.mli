@@ -10,5 +10,6 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-module Make (K : Irmin.Hash.S) :
-  Index.S with type key = K.t and type value = int64 * int * char
+module type S = Index.S with type value = int64 * int * char
+
+module Make (K : Irmin.Hash.S) : S with type key = K.t

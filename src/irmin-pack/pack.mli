@@ -67,7 +67,8 @@ module type MAKER = sig
     S with type key = key and type value = V.t
 end
 
-module File (K : Irmin.Hash.S) : MAKER with type key = K.t
+module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
+  MAKER with type key = K.t
 
 type stats = {
   pack_cache_misses : float;
