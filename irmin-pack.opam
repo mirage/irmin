@@ -18,6 +18,7 @@ depends: [
   "bloomf"
   "irmin"      {=version}
   "index"
+  "dict"
   "lwt"
   "irmin-test" {with-test & =version}
   "alcotest-lwt" {with-test}

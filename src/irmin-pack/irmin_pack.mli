@@ -22,8 +22,8 @@ val config :
   string ->
   Irmin.config
 
-module Dict = Dict
 module Pack = Pack
+module Dict = Pack_dict
 module Index = Pack_index
 
 exception RO_Not_Allowed

@@ -72,8 +72,8 @@ open Lwt.Infix
 
 exception RO_Not_Allowed = IO.RO_Not_Allowed
 
-module Dict = Dict
 module Pack = Pack
+module Dict = Pack_dict
 module Index = Pack_index
 module IO = IO.Unix
 

@@ -53,7 +53,7 @@ module Dict = Irmin_pack.Dict
 
 let get = function None -> Alcotest.fail "get" | Some x -> x
 
-let test_dict () =
+let test_dict_caching () =
   let dict = Dict.v ~fresh:true test_file in
   let x1 = Dict.index dict "foo" in
   Alcotest.(check (option int)) "foo" (Some 0) x1;
@@ -76,8 +76,6 @@ let test_dict () =
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
   let v3 = Dict.find dict2 (get x3) in
   Alcotest.(check (option string)) "find x3" (Some "toto") v3
-
-let get = function Some x -> x | None -> Alcotest.fail "None"
 
 let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 
@@ -172,43 +170,6 @@ let test_readonly_pack _switch () =
   Alcotest.(check (option string)) "y3" (Some x3) y3;
   Lwt.return ()
 
-let test_readonly_dict () =
-  let ignore_int (_ : int option) = () in
-  let w = Dict.v ~fresh:true test_file in
-  let r = Dict.v ~fresh:false ~shared:false ~readonly:true test_file in
-  let check_index k i =
-    Alcotest.(check (option int)) k (Some i) (Dict.index r k)
-  in
-  let check_find k i =
-    Alcotest.(check (option string)) k (Some k) (Dict.find r i)
-  in
-  let check_none k i =
-    Alcotest.(check (option string)) k None (Dict.find r i)
-  in
-  let check_raise k =
-    try
-      ignore_int (Dict.index r k);
-      Alcotest.fail "RO dict should not be writable"
-    with Irmin_pack.RO_Not_Allowed -> ()
-  in
-  ignore_int (Dict.index w "foo");
-  ignore_int (Dict.index w "foo");
-  ignore_int (Dict.index w "bar");
-  ignore_int (Dict.index w "toto");
-  ignore_int (Dict.index w "titiabc");
-  ignore_int (Dict.index w "foo");
-  Dict.sync w;
-  check_index "titiabc" 3;
-  check_index "bar" 1;
-  check_index "toto" 2;
-  check_find "foo" 0;
-  check_raise "xxx";
-  ignore_int (Dict.index w "hello");
-  check_raise "hello";
-  check_none "hello" 4;
-  Dict.sync w;
-  check_find "hello" 4
-
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 
 let test_branch _switch () =
@@ -246,8 +207,7 @@ let test_branch _switch () =
 
 let misc =
   ( "misc",
-    [ Alcotest.test_case "dict" `Quick test_dict;
-      Alcotest.test_case "RO dict" `Quick test_readonly_dict;
+    [ Alcotest.test_case "dict caching" `Quick test_dict_caching;
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch
