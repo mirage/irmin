@@ -1,18 +1,26 @@
-open Irmin_pack
 module IO = Irmin_pack_io.Unix
+
+let ( // ) = Filename.concat
 
 type t = { context : string }
 
-let check_dict t =
-  let t = Dict.v t.context in
-  let io = Dict.io t in
+let check_file t file =
+  let io = IO.v ~fresh:false ~readonly:true (t.context // file) in
   let offset = IO.offset io in
   let version = IO.version io in
   Fmt.pr "%a\noffsets: %Ld\nversion: %s\n"
     Fmt.(styled `Bold string)
-    "store.dict" offset version
+    file offset version
 
-let check t = check_dict t
+let check t =
+  List.iter (check_file t)
+    [ "store.dict";
+      "store.pack";
+      "store.branches";
+      "index.log";
+      "index/index";
+      "tmp/index"
+    ]
 
 open Cmdliner
 
@@ -31,8 +39,7 @@ let reporter ?(prefix = "") () =
         Fmt.(styled `Magenta string)
         (Logs.Src.name src) Logs_fmt.pp_header (level, h)
     in
-    msgf @@ fun ?header ?tags fmt ->
-    with_stamp header tags k fmt
+    msgf @@ fun ?header ?tags fmt -> with_stamp header tags k fmt
   in
   { Logs.report }
 

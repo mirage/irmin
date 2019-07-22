@@ -23,7 +23,7 @@ exception RO_Not_Allowed
 module type S = sig
   type t
 
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+  val v : fresh:bool -> ?version:string -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -225,8 +225,15 @@ module Unix : S = struct
       Hashtbl.add buffers file buf;
       buf
 
-  let v ~fresh ~version:current_version ~readonly file =
-    assert (String.length current_version = 8);
+  let err_missing_version file = Fmt.failwith "%s: missing version" file
+
+  let check_version v f = match v with None -> () | Some v -> f v
+
+  let map_version file v f =
+    match v with None -> err_missing_version file | Some v -> f v
+
+  let v ~fresh ?version:current_version ~readonly file =
+    check_version current_version (fun v -> assert (String.length v = 8));
     let v ~offset ~version raw =
       { version;
         file;
@@ -245,19 +252,20 @@ module Unix : S = struct
         let x = Unix.openfile file Unix.[ O_CREAT; mode ] 0o644 in
         let raw = Raw.v x in
         Raw.unsafe_set_offset raw 0L;
-        Raw.unsafe_set_version raw current_version;
-        v ~offset:0L ~version:current_version raw
+        map_version file current_version @@ fun version ->
+        Raw.unsafe_set_version raw version;
+        v ~offset:0L ~version raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; mode ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
           Raw.unsafe_set_offset raw 0L;
-          Raw.unsafe_set_version raw current_version;
-          v ~offset:0L ~version:current_version raw )
+          map_version file current_version @@ fun version ->
+          Raw.unsafe_set_version raw version;
+          v ~offset:0L ~version raw )
         else
           let offset = Raw.unsafe_get_offset raw in
           let version = Raw.unsafe_get_version raw in
-          assert (version = current_version);
           v ~offset ~version raw
 end
 

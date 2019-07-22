@@ -19,7 +19,7 @@ exception RO_Not_Allowed
 module type S = sig
   type t
 
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+  val v : fresh:bool -> ?version:string -> readonly:bool -> string -> t
 
   val name : t -> string
 
