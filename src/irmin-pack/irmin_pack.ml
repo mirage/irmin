@@ -66,16 +66,16 @@ let config ?(fresh = false) ?(shared = true) ?(readonly = false)
 
 let ( ++ ) = Int64.add
 
-let with_cache = IO.with_cache
+let with_cache = Irmin_pack_io.with_cache
 
 open Lwt.Infix
 
-exception RO_Not_Allowed = IO.RO_Not_Allowed
+exception RO_Not_Allowed = Irmin_pack_io.RO_Not_Allowed
 
 module Dict = Dict
 module Pack = Pack
 module Index = Pack_index
-module IO = IO.Unix
+module IO = Irmin_pack_io.Unix
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t

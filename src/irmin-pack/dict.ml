@@ -19,20 +19,20 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module IO = Irmin_pack_io.Unix
+
 let current_version = "00000001"
 
 let ( -- ) = Int64.sub
 
-let with_cache = IO.with_cache
+let with_cache = Irmin_pack_io.with_cache
 
-exception RO_Not_Allowed = IO.RO_Not_Allowed
-
-module IO = IO.Unix
+exception RO_Not_Allowed = Irmin_pack_io.RO_Not_Allowed
 
 type t = {
   cache : (string, int) Hashtbl.t;
   index : (int, string) Hashtbl.t;
-  io : IO.t
+  io : IO.t;
 }
 
 let io t = t.io

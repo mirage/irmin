@@ -90,20 +90,28 @@ module Unix : S = struct
       t.cursor <- off ++ Int64.of_int n;
       n
 
-    let unsafe_set_offset t n =
-      let buf = Irmin.Type.(to_bin_string int64) n in
-      unsafe_write t ~off:0L buf
+    external get_64 : bytes -> int -> int64 = "%caml_string_get64"
+
+    external set_64 : bytes -> int -> int64 -> unit = "%caml_string_set64u"
+
+    external swap64 : int64 -> int64 = "%bswap_int64"
+
+    let get_uint64 s off =
+      if not Sys.big_endian then swap64 (get_64 s off) else get_64 s off
+
+    let set_uint64 s off v =
+      if not Sys.big_endian then set_64 s off (swap64 v) else set_64 s off v
 
     let int64_buf = Bytes.create 8
+
+    let unsafe_set_offset t n =
+      set_uint64 int64_buf 0 n;
+      unsafe_write t ~off:0L (Bytes.unsafe_to_string int64_buf)
 
     let unsafe_get_offset t =
       let n = unsafe_read t ~off:0L ~len:8 int64_buf in
       assert (n = 8);
-      match
-        Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string int64_buf)
-      with
-      | Ok t -> t
-      | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
+      get_uint64 int64_buf 0
 
     let version_buf = Bytes.create 8
 

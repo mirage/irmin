@@ -26,4 +26,4 @@ val v : ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> t
 
 val clear : t -> unit
 
-val io : t -> IO.Unix.t
+val io : t -> Irmin_pack_io.Unix.t

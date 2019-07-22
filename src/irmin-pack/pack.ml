@@ -113,9 +113,9 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
-let with_cache = IO.with_cache
+let with_cache = Irmin_pack_io.with_cache
 
-module IO = IO.Unix
+module IO = Irmin_pack_io.Unix
 
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
 struct
