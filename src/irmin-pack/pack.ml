@@ -132,7 +132,8 @@ struct
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t
+    lock : Lwt_mutex.t;
+    staging_offsets : int64 Tbl.t
   }
 
   let clear t =
@@ -143,12 +144,13 @@ struct
   let unsafe_v ~index ~fresh ~shared:_ ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
+    let staging_offsets = Tbl.create 0 in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     if IO.version block <> current_version then
       Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
         current_version;
-    { block; index; lock; dict }
+    { block; index; lock; dict; staging_offsets }
 
   let (`Staged v) =
     with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
@@ -169,7 +171,8 @@ struct
 
     let clear t =
       clear t.pack;
-      Tbl.clear t.staging
+      Tbl.clear t.staging;
+      Tbl.clear t.pack.staging_offsets
 
     (* we need another cache here, as we want to share the LRU and
        staging caches too. *)
@@ -208,11 +211,31 @@ struct
 
     let pp_hash = Irmin.Type.pp K.t
 
+    let buffer_for_hash = Bytes.create K.hash_size
+
+    let io_read_and_decode_hash ~off t =
+      let n = IO.read t.pack.block ~off buffer_for_hash in
+      assert (n = K.hash_size);
+      let _, v =
+        Irmin.Type.decode_bin ~headers:false K.t
+          (* the copy is important here *)
+          (Bytes.to_string buffer_for_hash)
+          0
+      in
+      v
+
     let unsafe_mem t k =
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
       if Tbl.mem t.staging k then true
       else if Lru.mem t.lru k then true
-      else Index.mem t.pack.index k
+      else
+        let rec loop = function
+          | [] -> false
+          | (off, _, _) :: tl ->
+              let hash = io_read_and_decode_hash ~off t in
+              if Irmin.Type.equal K.t k hash then true else loop tl
+        in
+        loop (Index.find_all t.pack.index k)
 
     let mem t k =
       Lwt_mutex.with_lock create (fun () ->
@@ -226,25 +249,13 @@ struct
         Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash k'
           pp_hash k
 
-    let buffer_for_hash = Bytes.create K.hash_size
-
     let io_read_and_decode ~off ~len t =
       if not (IO.readonly t.pack.block) then
         assert (off <= IO.offset t.pack.block);
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
       assert (n = len);
-      let hash off =
-        let n = IO.read t.pack.block ~off buffer_for_hash in
-        assert (n = K.hash_size);
-        let _, v =
-          Irmin.Type.decode_bin ~headers:false K.t
-            (* the copy is important here *)
-            (Bytes.to_string buffer_for_hash)
-            0
-        in
-        v
-      in
+      let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
       V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
 
@@ -258,16 +269,20 @@ struct
       | exception Not_found -> (
         match Lru.find t.lru k with
         | v -> Some v
-        | exception Not_found -> (
+        | exception Not_found ->
             stats.pack_cache_misses <- succ stats.pack_cache_misses;
-            match Index.find t.pack.index k with
-            | None -> None
-            | Some (off, len, _) ->
-                let v = io_read_and_decode ~off ~len t in
-                check_key k v;
-                Tbl.add t.staging k v;
-                Lru.add t.lru k v;
-                Some v ) )
+            let rec loop = function
+              | [] -> None
+              | (off, len, _) :: tl ->
+                  let hash = io_read_and_decode_hash ~off t in
+                  if Irmin.Type.equal K.t k hash then (
+                    let v = io_read_and_decode ~off ~len t in
+                    check_key k v;
+                    Lru.add t.lru k v;
+                    Some v )
+                  else loop tl
+            in
+            loop (Index.find_all t.pack.index k) )
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
@@ -280,7 +295,8 @@ struct
       IO.sync (Dict.io t.pack.dict);
       Index.flush t.pack.index;
       IO.sync t.pack.block;
-      Tbl.clear t.staging
+      Tbl.clear t.staging;
+      Tbl.clear t.pack.staging_offsets
 
     let batch t f =
       f (cast t) >>= fun r ->
@@ -297,21 +313,29 @@ struct
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
-            match Index.find t.pack.index k with
-            | Some (off, _, _) ->
-                stats.appended_offsets <- stats.appended_offsets + 1;
-                Some off
-            | None ->
-                stats.appended_hashes <- stats.appended_hashes + 1;
-                None
+            match Tbl.find t.pack.staging_offsets k with
+            | off -> Some off
+            | exception Not_found ->
+                let rec loop = function
+                  | [] ->
+                      stats.appended_hashes <- stats.appended_hashes + 1;
+                      None
+                  | (off, _, _) :: tl ->
+                      stats.appended_offsets <- stats.appended_offsets + 1;
+                      let hash = io_read_and_decode_hash ~off t in
+                      if Irmin.Type.equal K.t hash k then Some off else loop tl
+                in
+                loop (Index.find_all t.pack.index k)
           in
           let dict = Dict.index t.pack.dict in
           let off = IO.offset t.pack.block in
           V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
-          Index.replace t.pack.index k (off, len, V.magic v);
+          Index.add t.pack.index k (off, len, V.magic v);
           if Tbl.length t.staging >= auto_flush then sync t
-          else Tbl.add t.staging k v;
+          else (
+            Tbl.add t.staging k v;
+            Tbl.add t.pack.staging_offsets k off );
           Lru.add t.lru k v
 
     let append t k v =

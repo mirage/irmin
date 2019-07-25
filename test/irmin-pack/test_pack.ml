@@ -92,11 +92,13 @@ module S = struct
 
   let hash = H.hash
 
-  let encode_bin ~dict:_ ~offset:_ x _k =
-    Irmin.Type.encode_bin ~headers:false t x
+  let encode_bin ~dict:_ ~offset:_ x k =
+    Irmin.Type.(encode_bin ~headers:false (pair H.t t) (k, x))
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    let _, v = Irmin.Type.decode_bin ~headers:false t x off in
+    let _, (_, v) =
+      Irmin.Type.(decode_bin ~headers:false (pair H.t t) x off)
+    in
     v
 end
 
