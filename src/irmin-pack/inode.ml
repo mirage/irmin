@@ -615,10 +615,8 @@ struct
       let encode_bin ~dict ~offset (t : t) k =
         let step s : Compress.name =
           let str = Irmin.Type.to_bin_string T.step_t s in
-          if String.length str <= 4 then Direct s
-          else
-            let s = dict str in
-            Indirect s
+          if String.length str <= 3 then Direct s
+          else match dict str with Some i -> Indirect i | None -> Direct s
         in
         let hash h : Compress.address =
           match offset h with

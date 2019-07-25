@@ -18,11 +18,12 @@ type t
 
 val find : t -> int -> string option
 
-val index : t -> string -> int
+val index : t -> string -> int option
 
 val sync : t -> unit
 
-val v : ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> t
+val v :
+  ?fresh:bool -> ?shared:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
 val clear : t -> unit
 
