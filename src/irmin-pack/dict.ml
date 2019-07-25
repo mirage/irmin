@@ -30,6 +30,7 @@ exception RO_Not_Allowed = IO.RO_Not_Allowed
 module IO = IO.Unix
 
 type t = {
+  capacity : int;
   cache : (string, int) Hashtbl.t;
   index : (int, string) Hashtbl.t;
   io : IO.t
@@ -70,14 +71,16 @@ let sync t = IO.sync t.io
 let index t v =
   Log.debug (fun l -> l "[dict] index %S" v);
   if IO.readonly t.io then sync_offset t;
-  try Hashtbl.find t.cache v
+  try Some (Hashtbl.find t.cache v)
   with Not_found ->
-    if IO.readonly t.io then raise RO_Not_Allowed;
     let id = Hashtbl.length t.cache in
-    append_string t v;
-    Hashtbl.add t.cache v id;
-    Hashtbl.add t.index id v;
-    id
+    if id > t.capacity then None
+    else (
+      if IO.readonly t.io then raise RO_Not_Allowed;
+      append_string t v;
+      Hashtbl.add t.cache v id;
+      Hashtbl.add t.index id v;
+      Some id )
 
 let find t id =
   if IO.readonly t.io then sync_offset t;
@@ -90,14 +93,16 @@ let clear t =
   Hashtbl.clear t.cache;
   Hashtbl.clear t.index
 
-let v_no_cache ~fresh ~shared:_ ~readonly file =
+let v_no_cache ~capacity ~fresh ~shared:_ ~readonly file =
   let io = IO.v ~fresh ~version:current_version ~readonly file in
   let cache = Hashtbl.create 997 in
   let index = Hashtbl.create 997 in
-  let t = { index; cache; io } in
+  let t = { capacity; index; cache; io } in
   refill ~from:0L t;
   t
 
-let v =
-  let (`Staged v) = with_cache ~clear ~v:(fun () -> v_no_cache) "store.dict" in
-  v ()
+let (`Staged v) =
+  with_cache ~clear ~v:(fun capacity -> v_no_cache ~capacity) "store.dict"
+
+let v ?fresh ?shared ?readonly ?(capacity = 100_000) root =
+  v capacity ?fresh ?shared ?readonly root

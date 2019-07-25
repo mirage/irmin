@@ -24,7 +24,7 @@ module type ELT = sig
   val magic : t -> char
 
   val encode_bin :
-    dict:(string -> int) ->
+    dict:(string -> int option) ->
     offset:(hash -> int64 option) ->
     t ->
     hash ->

@@ -51,28 +51,30 @@ let suite = { Irmin_test.name = "PACK"; init; clean; config; store; stats }
 
 module Dict = Irmin_pack.Dict
 
+let get = function None -> Alcotest.fail "get" | Some x -> x
+
 let test_dict () =
   let dict = Dict.v ~fresh:true test_file in
   let x1 = Dict.index dict "foo" in
-  Alcotest.(check int) "foo" 0 x1;
+  Alcotest.(check (option int)) "foo" (Some 0) x1;
   let x1 = Dict.index dict "foo" in
-  Alcotest.(check int) "foo" 0 x1;
+  Alcotest.(check (option int)) "foo" (Some 0) x1;
   let x2 = Dict.index dict "bar" in
-  Alcotest.(check int) "bar" 1 x2;
+  Alcotest.(check (option int)) "bar" (Some 1) x2;
   let x3 = Dict.index dict "toto" in
-  Alcotest.(check int) "toto" 2 x3;
+  Alcotest.(check (option int)) "toto" (Some 2) x3;
   let x4 = Dict.index dict "titiabc" in
-  Alcotest.(check int) "titiabc" 3 x4;
+  Alcotest.(check (option int)) "titiabc" (Some 3) x4;
   let x1 = Dict.index dict "foo" in
-  Alcotest.(check int) "foo" 0 x1;
+  Alcotest.(check (option int)) "foo" (Some 0) x1;
   let dict2 = Dict.v ~fresh:false test_file in
   let x4 = Dict.index dict2 "titiabc" in
-  Alcotest.(check int) "titiabc" 3 x4;
-  let v1 = Dict.find dict2 x1 in
+  Alcotest.(check (option int)) "titiabc" (Some 3) x4;
+  let v1 = Dict.find dict2 (get x1) in
   Alcotest.(check (option string)) "find x1" (Some "foo") v1;
-  let v2 = Dict.find dict2 x2 in
+  let v2 = Dict.find dict2 (get x2) in
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
-  let v3 = Dict.find dict2 x3 in
+  let v3 = Dict.find dict2 (get x3) in
   Alcotest.(check (option string)) "find x3" (Some "toto") v3
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
@@ -171,10 +173,12 @@ let test_readonly_pack _switch () =
   Lwt.return ()
 
 let test_readonly_dict () =
-  let ignore_int (_ : int) = () in
+  let ignore_int (_ : int option) = () in
   let w = Dict.v ~fresh:true test_file in
   let r = Dict.v ~fresh:false ~shared:false ~readonly:true test_file in
-  let check_index k i = Alcotest.(check int) k i (Dict.index r k) in
+  let check_index k i =
+    Alcotest.(check (option int)) k (Some i) (Dict.index r k)
+  in
   let check_find k i =
     Alcotest.(check (option string)) k (Some k) (Dict.find r i)
   in
