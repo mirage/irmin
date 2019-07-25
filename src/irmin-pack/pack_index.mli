@@ -10,6 +10,29 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-module type S = Index.S with type value = int64 * int * char
+module type S = sig
+  type t
+
+  type key
+
+  type value = int64 * int * char
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?shared:bool ->
+    log_size:int ->
+    fan_out_size:int ->
+    string ->
+    t
+
+  val clear : t -> unit
+
+  val flush : t -> unit
+
+  val add : t -> key -> value -> unit
+
+  val find_all : t -> key -> value list
+end
 
 module Make (K : Irmin.Hash.S) : S with type key = K.t

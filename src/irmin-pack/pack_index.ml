@@ -10,26 +10,53 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-module type S = Index.S with type value = int64 * int * char
+module type S = sig
+  type t
+
+  type key
+
+  type value = int64 * int * char
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?shared:bool ->
+    log_size:int ->
+    fan_out_size:int ->
+    string ->
+    t
+
+  val clear : t -> unit
+
+  val flush : t -> unit
+
+  val add : t -> key -> value -> unit
+
+  val find_all : t -> key -> value list
+end
 
 module Make (K : Irmin.Hash.S) = struct
   module Key = struct
-    type t = K.t
+    type t = string
 
-    let pp = Irmin.Type.pp K.t
+    let pp = Fmt.fmt "%S"
 
-    let hash = K.short_hash
+    let hash = Hashtbl.hash
 
-    let hash_size = 63
+    let hash_size = Sys.int_size - 1
 
-    let equal = Irmin.Type.equal K.t
+    let equal x y = String.equal x y
 
-    let encode = Irmin.Type.to_bin_string K.t
+    let encode x = x
 
-    let decode s off = snd (Irmin.Type.decode_bin K.t s off)
+    let encoded_size = min 8 K.hash_size
 
-    let encoded_size = K.hash_size
+    let decode s off = String.sub s off encoded_size
   end
+
+  let key s =
+    let s = Irmin.Type.to_bin_string K.t s in
+    String.sub s 0 Key.encoded_size
 
   module Val = struct
     type t = int64 * int * char
@@ -49,5 +76,21 @@ module Make (K : Irmin.Hash.S) = struct
     let encoded_size = (64 / 8) + (32 / 8) + 1
   end
 
-  include Index_unix.Make (Key) (Val)
+  module Index = Index_unix.Make (Key) (Val)
+
+  type t = Index.t
+
+  type key = K.t
+
+  type value = Val.t
+
+  let v = Index.v
+
+  let clear = Index.clear
+
+  let flush = Index.flush
+
+  let add t k v = Index.add t (key k) v
+
+  let find_all t k = Index.find_all t (key k)
 end
