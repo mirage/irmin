@@ -1,4 +1,4 @@
-module Schema : Graphql_intf.Schema with type 'a Io.t = 'a Lwt.t
+module Schema = Graphql_lwt.Schema
 
 module type S = sig
   module IO : Cohttp_lwt.S.IO
