@@ -211,16 +211,12 @@ struct
 
     let pp_hash = Irmin.Type.pp K.t
 
-    let buffer_for_hash = Bytes.create K.hash_size
-
     let io_read_and_decode_hash ~off t =
-      let n = IO.read t.pack.block ~off buffer_for_hash in
+      let buf = Bytes.create K.hash_size in
+      let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
       let _, v =
-        Irmin.Type.decode_bin ~headers:false K.t
-          (* the copy is important here *)
-          (Bytes.to_string buffer_for_hash)
-          0
+        Irmin.Type.decode_bin ~headers:false K.t (Bytes.unsafe_to_string buf) 0
       in
       v
 
