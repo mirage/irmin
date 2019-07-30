@@ -43,7 +43,8 @@ module Make (K : Irmin.Hash.S) = struct
 
     let hash = Hashtbl.hash
 
-    let hash_size = Sys.int_size - 1
+    (* Hashtbl.hash uses 30 bits *)
+    let hash_size = 30
 
     let equal x y = String.equal x y
 
