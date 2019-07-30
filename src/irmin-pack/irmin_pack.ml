@@ -384,8 +384,8 @@ struct
         let readonly = readonly config in
         let shared = shared config in
         let index =
-          Index.v ~fresh ~shared ~readonly ~log_size:10_000_000
-            ~fan_out_size:64 root
+          Index.v ~fresh ~shared ~readonly ~log_size:10_000 ~fan_out_size:16
+            root
         in
         Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
         >>= fun contents ->
