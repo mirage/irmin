@@ -42,11 +42,6 @@ let http_store (module S : Irmin_test.S) =
   let module M = Irmin_http.Client (Client) (S) in
   (module M : Irmin_test.S)
 
-(* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
-let () =
-  Lwt.async_exception_hook :=
-    fun e -> Fmt.pr "Async exception caught: %a" Fmt.exn e
-
 let remove file = try Unix.unlink file with _ -> ()
 
 let signal pid =
@@ -95,7 +90,9 @@ let serve servers n =
     >>= fun () ->
     let mode = `Unix_domain_socket (`File socket) in
     Conduit_lwt_unix.set_max_active 100;
-    Cohttp_lwt_unix.Server.create ~mode spec
+    Cohttp_lwt_unix.Server.create
+      ~on_exn:(Fmt.pr "Async exception caught: %a" Fmt.exn)
+      ~mode spec
   in
   Lwt_main.run (server ())
 
