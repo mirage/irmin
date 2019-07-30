@@ -94,23 +94,19 @@ module Unix : S = struct
       let buf = Irmin.Type.(to_bin_string int64) n in
       unsafe_write t ~off:0L buf
 
-    let int64_buf = Bytes.create 8
-
     let unsafe_get_offset t =
-      let n = unsafe_read t ~off:0L ~len:8 int64_buf in
+      let buf = Bytes.create 8 in
+      let n = unsafe_read t ~off:0L ~len:8 buf in
       assert (n = 8);
-      match
-        Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string int64_buf)
-      with
+      match Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string buf) with
       | Ok t -> t
       | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
 
-    let version_buf = Bytes.create 8
-
     let unsafe_get_version t =
-      let n = unsafe_read t ~off:8L ~len:8 version_buf in
+      let buf = Bytes.create 8 in
+      let n = unsafe_read t ~off:8L ~len:8 buf in
       assert (n = 8);
-      Bytes.to_string version_buf
+      Bytes.unsafe_to_string buf
 
     let unsafe_set_version t v = unsafe_write t ~off:8L v
   end

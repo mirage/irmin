@@ -103,12 +103,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     w : W.t
   }
 
-  let page = Bytes.create 4
-
   let read_length32 ~off block =
-    let n = IO.read block ~off page in
+    let buf = Bytes.create 4 in
+    let n = IO.read block ~off buf in
     assert (n = 4);
-    let n, v = Irmin.Type.(decode_bin int32) (Bytes.unsafe_to_string page) 0 in
+    let n, v = Irmin.Type.(decode_bin int32) (Bytes.unsafe_to_string buf) 0 in
     assert (n = 4);
     Int32.to_int v
 
