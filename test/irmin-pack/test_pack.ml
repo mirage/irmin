@@ -27,19 +27,19 @@ let store =
     (module Irmin_pack.Make (Config))
     (module Irmin.Metadata.None)
 
-let test_file = Filename.concat "_build" "test-db-pack"
+let test_dir = Filename.concat "_build" "test-db-pack"
 
-let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_file
+let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir
 
 let clean () =
   let (module S : Irmin_test.S) = store in
-  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_file in
+  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
   S.Repo.v config >>= fun repo ->
   S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
 
 let init () =
-  if Sys.file_exists test_file then (
-    let cmd = Printf.sprintf "rm -rf %s" test_file in
+  if Sys.file_exists test_dir then (
+    let cmd = Printf.sprintf "rm -rf %s" test_dir in
     Fmt.epr "exec: %s\n%!" cmd;
     let _ = Sys.command cmd in
     () );
@@ -54,7 +54,7 @@ module Dict = Irmin_pack.Dict
 let get = function None -> Alcotest.fail "get" | Some x -> x
 
 let test_dict () =
-  let dict = Dict.v ~fresh:true test_file in
+  let dict = Dict.v ~fresh:true test_dir in
   let x1 = Dict.index dict "foo" in
   Alcotest.(check (option int)) "foo" (Some 0) x1;
   let x1 = Dict.index dict "foo" in
@@ -67,7 +67,7 @@ let test_dict () =
   Alcotest.(check (option int)) "titiabc" (Some 3) x4;
   let x1 = Dict.index dict "foo" in
   Alcotest.(check (option int)) "foo" (Some 0) x1;
-  let dict2 = Dict.v ~fresh:false test_file in
+  let dict2 = Dict.v ~fresh:false test_dir in
   let x4 = Dict.index dict2 "titiabc" in
   Alcotest.(check (option int)) "titiabc" (Some 3) x4;
   let v1 = Dict.find dict2 (get x1) in
@@ -113,9 +113,8 @@ module Index = Irmin_pack.Index.Make (Irmin.Hash.SHA1)
 let get_index = Index.v ~log_size:10_000_000 ~fan_out_size:16
 
 let test_pack _switch () =
-  let root = Filename.dirname test_file in
-  let index = get_index ~fresh:true root in
-  Pack.v ~fresh:true ~lru_size:0 ~index test_file >>= fun t ->
+  let index = get_index ~fresh:true test_dir in
+  Pack.v ~fresh:true ~lru_size:0 ~index test_dir >>= fun t ->
   let x1 = "foo" in
   let x2 = "bar" in
   let x3 = "otoo" in
@@ -140,15 +139,13 @@ let test_pack _switch () =
     Alcotest.(check string) "x4" x4 y4;
     Lwt.return ()
   in
-  test t >>= fun () -> Pack.v ~fresh:false ~index test_file >>= test
+  test t >>= fun () -> Pack.v ~fresh:false ~index test_dir >>= test
 
 let test_readonly_pack _switch () =
-  let root = Filename.dirname test_file in
-  let index = get_index ~fresh:true root in
-  Pack.v ~fresh:true ~index test_file >>= fun w ->
-  let index = get_index ~fresh:false ~shared:false ~readonly:true root in
-  Pack.v ~fresh:false ~shared:false ~readonly:true ~index test_file
-  >>= fun r ->
+  let index = get_index ~fresh:true test_dir in
+  Pack.v ~fresh:true ~index test_dir >>= fun w ->
+  let index = get_index ~fresh:false ~shared:false ~readonly:true test_dir in
+  Pack.v ~fresh:false ~shared:false ~readonly:true ~index test_dir >>= fun r ->
   let adds l = List.iter (fun (k, v) -> Pack.unsafe_append w k v) l in
   let x1 = "foo" in
   let x2 = "bar" in
@@ -174,8 +171,8 @@ let test_readonly_pack _switch () =
 
 let test_readonly_dict () =
   let ignore_int (_ : int option) = () in
-  let w = Dict.v ~fresh:true test_file in
-  let r = Dict.v ~fresh:false ~shared:false ~readonly:true test_file in
+  let w = Dict.v ~fresh:true test_dir in
+  let r = Dict.v ~fresh:false ~shared:false ~readonly:true test_dir in
   let check_index k i =
     Alcotest.(check (option int)) k (Some i) (Dict.index r k)
   in
@@ -221,20 +218,20 @@ let test_branch _switch () =
     in
     Lwt_list.iter_p check branches
   in
-  Branch.v ~fresh:true test_file >>= test >>= fun () ->
-  Branch.v ~fresh:true test_file >>= test >>= fun () ->
-  Branch.v ~fresh:true test_file >>= test >>= fun () ->
-  Branch.v ~fresh:false test_file >>= fun t ->
+  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
+  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
+  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
+  Branch.v ~fresh:false test_dir >>= fun t ->
   test t >>= fun () ->
   let x = sha1 "XXX" in
   Branch.set t "foo" x >>= fun () ->
-  Branch.v ~fresh:false test_file >>= fun t ->
+  Branch.v ~fresh:false test_dir >>= fun t ->
   Branch.find t "foo" >>= fun v ->
   Alcotest.(check (option hash)) "foo" (Some x) v;
   Branch.list t >>= fun br ->
   Alcotest.(check (slist string compare)) "branches" branches br;
   Branch.remove t "foo" >>= fun () ->
-  Branch.v ~fresh:false test_file >>= fun t ->
+  Branch.v ~fresh:false test_dir >>= fun t ->
   Branch.find t "foo" >>= fun v ->
   Alcotest.(check (option hash)) "foo none" None v;
   Branch.list t >>= fun br ->
