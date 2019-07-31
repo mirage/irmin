@@ -19,6 +19,7 @@ val config :
   ?shared:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
+  ?index_log_size:int ->
   string ->
   Irmin.config
 
