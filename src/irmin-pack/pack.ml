@@ -132,8 +132,7 @@ struct
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t;
-    staging_offsets : int64 Tbl.t
+    lock : Lwt_mutex.t
   }
 
   let clear t =
@@ -144,13 +143,12 @@ struct
   let unsafe_v ~index ~fresh ~shared:_ ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
-    let staging_offsets = Tbl.create 0 in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     if IO.version block <> current_version then
       Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
         current_version;
-    { block; index; lock; dict; staging_offsets }
+    { block; index; lock; dict }
 
   let (`Staged v) =
     with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
@@ -171,8 +169,7 @@ struct
 
     let clear t =
       clear t.pack;
-      Tbl.clear t.staging;
-      Tbl.clear t.pack.staging_offsets
+      Tbl.clear t.staging
 
     (* we need another cache here, as we want to share the LRU and
        staging caches too. *)
@@ -222,16 +219,7 @@ struct
 
     let unsafe_mem t k =
       Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
-      if Tbl.mem t.staging k then true
-      else if Lru.mem t.lru k then true
-      else
-        let rec loop = function
-          | [] -> false
-          | (off, _, _) :: tl ->
-              let hash = io_read_and_decode_hash ~off t in
-              if Irmin.Type.equal K.t k hash then true else loop tl
-        in
-        loop (Index.find_all t.pack.index k)
+      Tbl.mem t.staging k || Lru.mem t.lru k || Index.mem t.pack.index k
 
     let mem t k =
       Lwt_mutex.with_lock create (fun () ->
@@ -265,20 +253,15 @@ struct
       | exception Not_found -> (
         match Lru.find t.lru k with
         | v -> Some v
-        | exception Not_found ->
+        | exception Not_found -> (
             stats.pack_cache_misses <- succ stats.pack_cache_misses;
-            let rec loop = function
-              | [] -> None
-              | (off, len, _) :: tl ->
-                  let hash = io_read_and_decode_hash ~off t in
-                  if Irmin.Type.equal K.t k hash then (
-                    let v = io_read_and_decode ~off ~len t in
-                    check_key k v;
-                    Lru.add t.lru k v;
-                    Some v )
-                  else loop tl
-            in
-            loop (Index.find_all t.pack.index k) )
+            match Index.find t.pack.index k with
+            | None -> None
+            | Some (off, len, _) ->
+                let v = io_read_and_decode ~off ~len t in
+                check_key k v;
+                Lru.add t.lru k v;
+                Some v ) )
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
@@ -291,8 +274,7 @@ struct
       IO.sync (Dict.io t.pack.dict);
       Index.flush t.pack.index;
       IO.sync t.pack.block;
-      Tbl.clear t.staging;
-      Tbl.clear t.pack.staging_offsets
+      Tbl.clear t.staging
 
     let batch t f =
       f (cast t) >>= fun r ->
@@ -309,19 +291,13 @@ struct
       | false ->
           Log.debug (fun l -> l "[pack] append %a" pp_hash k);
           let offset k =
-            match Tbl.find t.pack.staging_offsets k with
-            | off -> Some off
-            | exception Not_found ->
-                let rec loop = function
-                  | [] ->
-                      stats.appended_hashes <- stats.appended_hashes + 1;
-                      None
-                  | (off, _, _) :: tl ->
-                      stats.appended_offsets <- stats.appended_offsets + 1;
-                      let hash = io_read_and_decode_hash ~off t in
-                      if Irmin.Type.equal K.t hash k then Some off else loop tl
-                in
-                loop (Index.find_all t.pack.index k)
+            match Index.find t.pack.index k with
+            | None ->
+                stats.appended_hashes <- stats.appended_hashes + 1;
+                None
+            | Some (off, _, _) ->
+                stats.appended_offsets <- stats.appended_offsets + 1;
+                Some off
           in
           let dict = Dict.index t.pack.dict in
           let off = IO.offset t.pack.block in
@@ -329,9 +305,7 @@ struct
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
           Index.add t.pack.index k (off, len, V.magic v);
           if Tbl.length t.staging >= auto_flush then sync t
-          else (
-            Tbl.add t.staging k v;
-            Tbl.add t.pack.staging_offsets k off );
+          else Tbl.add t.staging k v;
           Lru.add t.lru k v
 
     let append t k v =
