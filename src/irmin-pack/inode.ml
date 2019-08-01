@@ -26,12 +26,15 @@ module type S = sig
 
   type index
 
+  type 'a table
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
+    staging_offsets:int64 table ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -55,6 +58,8 @@ module Make
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   type index = Pack.index
+
+  type 'a table = 'a Pack.table
 
   module Node = struct
     include Node

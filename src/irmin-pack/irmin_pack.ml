@@ -272,6 +272,7 @@ module Make_ext
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
+  module Table = Pack.Table (H)
   module Pack = Pack.File (Index) (H)
 
   module X = struct
@@ -393,14 +394,18 @@ struct
         let readonly = readonly config in
         let shared = shared config in
         let log_size = index_log_size config in
+        let staging_offsets = Table.create 0 in
         let index =
           Index.v ~fresh ~shared ~readonly ~log_size ~fan_out_size:16 root
         in
-        Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index
+          ~staging_offsets root
         >>= fun contents ->
-        Node.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        Node.CA.v ~fresh ~shared ~readonly ~lru_size ~index ~staging_offsets
+          root
         >>= fun node ->
-        Commit.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        Commit.CA.v ~fresh ~shared ~readonly ~lru_size ~index ~staging_offsets
+          root
         >>= fun commit ->
         Branch.v ~fresh ~shared ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }

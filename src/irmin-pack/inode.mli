@@ -25,12 +25,15 @@ module type S = sig
 
   type index
 
+  type 'a table
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
+    staging_offsets:int64 table ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -44,10 +47,14 @@ end
 module Make
     (Conf : CONFIG)
     (H : Irmin.Hash.S)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+    (P : Pack.MAKER
+         with type key = H.t
+          and type index = Pack_index.Make(H).t
+          and type 'a table = 'a Pack.Table(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) :
   S
   with type key = H.t
    and type Val.metadata = Node.metadata
    and type Val.step = Node.step
-   and type index = Pack_index.Make(H).t
+   and type index = P.index
+   and type 'a table = 'a P.table

@@ -71,12 +71,15 @@ module type S = sig
 
   type index
 
+  type 'a table
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
+    staging_offsets:int64 table ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -96,8 +99,14 @@ module type MAKER = sig
 
   type index
 
+  type 'a table
+
   module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    S
+    with type key = key
+     and type value = V.t
+     and type index = index
+     and type 'a table = 'a table
 end
 
 open Lwt.Infix
@@ -128,6 +137,8 @@ struct
 
   type index = Index.t
 
+  type 'a table = 'a Tbl.t
+
   type 'a t = {
     block : IO.t;
     index : Index.t;
@@ -141,10 +152,9 @@ struct
     Index.clear t.index;
     Dict.clear t.dict
 
-  let unsafe_v ~index ~fresh ~shared:_ ~readonly file =
+  let unsafe_v ~index ~staging_offsets ~fresh ~shared:_ ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
-    let staging_offsets = Tbl.create 0 in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     if IO.version block <> current_version then
@@ -153,13 +163,17 @@ struct
     { block; index; lock; dict; staging_offsets }
 
   let (`Staged v) =
-    with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
+    with_cache ~clear
+      ~v:(fun (index, staging_offsets) -> unsafe_v ~index ~staging_offsets)
+      "store.pack"
 
   type key = K.t
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
+
+    type 'a table = 'a Tbl.t
 
     type nonrec 'a t = { pack : 'a t; lru : V.t Lru.t; staging : V.t Tbl.t }
 
@@ -181,16 +195,18 @@ struct
 
     let create = Lwt_mutex.create ()
 
-    let unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root =
-      let pack = v index ~fresh ~shared ~readonly root in
+    let unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index
+        ~staging_offsets root =
+      let pack = v (index, staging_offsets) ~fresh ~shared ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack }
 
     let unsafe_v ?(fresh = false) ?(shared = true) ?(readonly = false)
-        ?(lru_size = 10_000) ~index root =
+        ?(lru_size = 10_000) ~index ~staging_offsets root =
       if not shared then
-        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
+        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index
+          ~staging_offsets root
       else
         try
           let t = Hashtbl.find roots root in
@@ -198,15 +214,19 @@ struct
           t
         with Not_found ->
           let t =
-            unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
+            unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index
+              ~staging_offsets root
           in
           if fresh then clear t;
           Hashtbl.add roots root t;
           t
 
-    let v ?fresh ?shared ?readonly ?lru_size ~index root =
+    let v ?fresh ?shared ?readonly ?lru_size ~index ~staging_offsets root =
       Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?fresh ?shared ?readonly ?lru_size ~index root in
+          let t =
+            unsafe_v ?fresh ?shared ?readonly ?lru_size ~index ~staging_offsets
+              root
+          in
           Lwt.return t )
 
     let pp_hash = Irmin.Type.pp K.t

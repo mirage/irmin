@@ -109,12 +109,14 @@ module I = Irmin_pack.Index.Make (H)
 module P = Irmin_pack.Pack.File (I) (H)
 module Pack = P.Make (S)
 module Index = Irmin_pack.Index.Make (Irmin.Hash.SHA1)
+module Tbl = Irmin_pack.Pack.Table (H)
 
 let get_index = Index.v ~log_size:10_000_000 ~fan_out_size:16
 
 let test_pack _switch () =
   let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~lru_size:0 ~index test_dir >>= fun t ->
+  let staging_offsets = Tbl.create 0 in
+  Pack.v ~fresh:true ~lru_size:0 ~index ~staging_offsets test_dir >>= fun t ->
   let x1 = "foo" in
   let x2 = "bar" in
   let x3 = "otoo" in
@@ -139,13 +141,18 @@ let test_pack _switch () =
     Alcotest.(check string) "x4" x4 y4;
     Lwt.return ()
   in
-  test t >>= fun () -> Pack.v ~fresh:false ~index test_dir >>= test
+  test t >>= fun () ->
+  Pack.v ~fresh:false ~index ~staging_offsets test_dir >>= test
 
 let test_readonly_pack _switch () =
   let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~index test_dir >>= fun w ->
+  let staging_offsets = Tbl.create 0 in
+  Pack.v ~fresh:true ~index ~staging_offsets test_dir >>= fun w ->
   let index = get_index ~fresh:false ~shared:false ~readonly:true test_dir in
-  Pack.v ~fresh:false ~shared:false ~readonly:true ~index test_dir >>= fun r ->
+  let staging_offsets = Tbl.create 0 in
+  Pack.v ~fresh:false ~shared:false ~readonly:true ~index ~staging_offsets
+    test_dir
+  >>= fun r ->
   let adds l = List.iter (fun (k, v) -> Pack.unsafe_append w k v) l in
   let x1 = "foo" in
   let x2 = "bar" in

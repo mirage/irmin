@@ -40,12 +40,15 @@ module type S = sig
 
   type index
 
+  type 'a table
+
   val v :
     ?fresh:bool ->
     ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
+    staging_offsets:int64 table ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -65,15 +68,26 @@ module type MAKER = sig
 
   type index
 
+  type 'a table
+
   (** Save multiple kind of values in the same pack file. Values will
       be distinguished using [V.magic], so they have to all be
       different. *)
   module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    S
+    with type key = key
+     and type value = V.t
+     and type index = index
+     and type 'a table = 'a table
 end
 
+module Table (K : Irmin.Hash.S) : Hashtbl.S with type key = K.t
+
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
-  MAKER with type key = K.t and type index = Index.t
+  MAKER
+  with type key = K.t
+   and type index = Index.t
+   and type 'a table = 'a Table(K).t
 
 type stats = {
   pack_cache_misses : float;
