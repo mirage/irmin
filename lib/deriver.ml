@@ -1,13 +1,4 @@
 open Ppxlib
-
-module Utils = struct
-  let ( >|= ) x f = List.map f x
-
-  let unlabelled x = (Nolabel, x)
-
-  let compose_all = List.fold_left (fun f g x -> f (g x)) (fun x -> x)
-end
-
 module SSet = Set.Make (String)
 
 (* TODO: get this list dynamically? *)
@@ -38,9 +29,13 @@ module type S = sig
     ?name:string -> rec_flag * type_declaration list -> signature_item list
 end
 
-module Located (S : Ast_builder.S) : S = struct
-  open S
-  open Utils
+module Located (A : Ast_builder.S) : S = struct
+  module Utils = Utils.Located (A)
+  open A
+
+  let unlabelled x = (Nolabel, x)
+
+  let ( >|= ) x f = List.map f x
 
   let seal sealer e =
     pexp_apply
@@ -69,11 +64,6 @@ module Located (S : Ast_builder.S) : S = struct
         match Attribute.get Attributes.witness typ with
         | Some e -> e
         | None ->
-            let cons_args =
-              args
-              >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-              >|= unlabelled
-            in
             let lident =
               match const_name with
               | Lident const_name ->
@@ -98,148 +88,88 @@ module Located (S : Ast_builder.S) : S = struct
                   Located.mk @@ Ldot (lident, name)
               | Lapply _ -> invalid_arg "Lident.Lapply not supported"
             in
+            let cons_args =
+              args
+              >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
+              >|= unlabelled
+            in
             pexp_apply (pexp_ident lident) cons_args )
+    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_open_polyvar ~loc typ
+    (* | Ptyp_variant (rowfields, Closed, labellist) -> *)
+    | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
     | Ptyp_tuple args ->
         derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
     | Ptyp_arrow _ -> Raise.unsupported_type_arrow ~loc typ
     | Ptyp_var v -> Raise.unsupported_type_var ~loc v
-    | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
-    | Ptyp_variant _ -> Raise.unsupported_type_polyvar ~loc typ
     | Ptyp_package _ -> Raise.unsupported_type_package ~loc typ
     | Ptyp_extension _ -> Raise.unsupported_type_extension ~loc typ
+    | Ptyp_alias _ -> Raise.unsupported_type_alias ~loc typ
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
-    let tuple_type =
-      match List.length args with
-      | 2 -> "pair"
-      | 3 -> "triple"
-      | n -> Raise.unsupported_tuple_size ~loc n
-    in
-    args
-    >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-    >|= unlabelled
-    |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
+    match args with
+    | [ t ] ->
+        (* This case can occur when the tuple type is nested inside a variant *)
+        derive_core ~rec_flag ~type_name ~witness_name ~rec_detected t
+    | _ ->
+        let tuple_type =
+          match List.length args with
+          | 2 -> "pair"
+          | 3 -> "triple"
+          | n -> Raise.unsupported_tuple_size ~loc n
+        in
+        args
+        >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
+        >|= unlabelled
+        |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
 
   and derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls =
-    let rcase_of_ldecl l e =
-      let label_name = l.pld_name.txt in
-      (* |+ field "field_name" (field_type) (fun t -> t.field_name) *)
-      pexp_apply
-        (pexp_ident @@ Located.lident "|+")
-        ( [ e;
-            pexp_apply
-              (pexp_ident @@ Located.lident "field")
-              ( [ pexp_constant @@ Pconst_string (label_name, None);
-                  derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-                    l.pld_type;
-                  pexp_fun Nolabel None
-                    (ppat_var @@ Located.mk "t")
-                    (pexp_field
-                       (pexp_ident @@ Located.lident "t")
-                       (Located.map_lident l.pld_name))
-                ]
-              >|= unlabelled )
-          ]
-        >|= unlabelled )
+    let rfield_of_ldecl label_decl e =
+      let name = label_decl.pld_name.txt in
+      let field_type =
+        derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
+          label_decl.pld_type
+      in
+      Utils.record_field ~name ~field_type e
     in
-    let record_accessor =
-      ls
-      >|= (fun l -> l.pld_name.txt)
-      >|= (fun s -> (Located.lident s, pexp_ident @@ Located.lident s))
-      |> (fun fields -> pexp_record fields None)
-      |> compose_all
-           ( ls >|= fun l ->
-             lambda l.pld_name.txt )
+    let accessor =
+      let fields =
+        ls >|= fun l ->
+        l.pld_name.txt
+      in
+      Utils.record_accessor ~fields
     in
-    let cases = compose_all (List.rev ls >|= rcase_of_ldecl) in
+    let cases = Utils.compose_all (List.rev ls >|= rfield_of_ldecl) in
     pexp_apply
       (pexp_ident @@ Located.lident "record")
-      ([ estring type_name; record_accessor ] >|= unlabelled)
+      ([ estring type_name; accessor ] >|= unlabelled)
     |> cases |> sealr
 
   and derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected name cs =
     let fparam_of_cdecl c = c.pcd_name.txt |> String.lowercase_ascii in
-    let generate_identifiers =
-      List.mapi (fun i _ -> Printf.sprintf "x%d" (i + 1))
-    in
-    (* | Cons_name (x1, x2, x3) -> cons_name x1 x2 x3 *)
-    let pcase_of_cdecl c =
-      let constructor = ppat_construct (Located.map_lident c.pcd_name) in
-      match c.pcd_args with
-      | Pcstr_tuple [] ->
-          let lhs = constructor None in
-          let rhs = pexp_ident @@ Located.lident (fparam_of_cdecl c) in
-          case ~lhs ~guard:None ~rhs
-      | Pcstr_tuple components ->
-          let idents = generate_identifiers components in
-          let lhs =
-            idents >|= Located.mk >|= ppat_var |> ppat_tuple |> fun x ->
-            constructor (Some x)
-          in
-          let rhs =
-            idents >|= Located.lident >|= pexp_ident |> pexp_tuple |> fun x ->
-            pexp_apply
-              (pexp_ident @@ Located.lident (fparam_of_cdecl c))
-              [ (Nolabel, x) ]
-          in
-          case ~lhs ~guard:None ~rhs
-      | Pcstr_record _ -> invalid_arg "Record types unsupported"
-    in
-    let vcase_of_cdecl c e =
+    let variant_case_of_cdecl c =
       let cons_name = c.pcd_name.txt in
-      match c.pcd_args with
-      | Pcstr_record _ -> invalid_arg "Record types unsupported"
-      | Pcstr_tuple [] ->
-          (* |~ case0 "cons_name" Cons_name *)
-          pexp_apply
-            (pexp_ident @@ Located.lident "|~")
-            ( [ e;
-                pexp_apply
-                  (pexp_ident @@ Located.lident "case0")
-                  ( [ pexp_constant @@ Pconst_string (cons_name, None);
-                      pexp_construct (Located.lident cons_name) None
-                    ]
-                  >|= unlabelled )
-              ]
-            >|= unlabelled )
-      | Pcstr_tuple components ->
-          (* |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> Cons_name (x1, ..., xN)) *)
-          let idents = generate_identifiers components in
-          let component_type =
-            match components with
-            | [ t ] ->
-                derive_core ~rec_flag ~type_name ~witness_name ~rec_detected t
-            | c ->
-                derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected c
-          in
-          let constructor =
-            let tuple_pat = idents >|= Located.mk >|= ppat_var |> ppat_tuple in
-            let tuple_exp =
-              idents >|= Located.lident >|= pexp_ident |> pexp_tuple
-            in
-            let fnbody =
-              pexp_construct (Located.lident cons_name) (Some tuple_exp)
-            in
-            pexp_fun Nolabel None tuple_pat fnbody
-          in
-          pexp_apply
-            (pexp_ident @@ Located.lident "|~")
-            ( [ e;
-                pexp_apply
-                  (pexp_ident @@ Located.lident "case1")
-                  ( [ pexp_constant @@ Pconst_string (cons_name, None);
-                      component_type;
-                      constructor
-                    ]
-                  >|= unlabelled )
-              ]
-            >|= unlabelled )
+      let component_type =
+        match c.pcd_args with
+        | Pcstr_record _ -> invalid_arg "inline record types unsupported"
+        | Pcstr_tuple [] -> None
+        | Pcstr_tuple cs ->
+            Some
+              ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected cs,
+                List.length cs )
+      in
+      (cons_name, component_type)
     in
-    let cases = compose_all (List.rev cs >|= vcase_of_cdecl) in
+    let cases =
+      let case_wrappers =
+        cs >|= variant_case_of_cdecl >|= fun (cons_name, component_type) ->
+        Utils.variant_case ~cons_name ?component_type
+      in
+      Utils.compose_all (List.rev case_wrappers)
+    in
     let variant_accessor =
-      cs >|= pcase_of_cdecl |> pexp_function
-      |> compose_all (cs >|= fparam_of_cdecl >|= lambda)
+      cs >|= Utils.variant_pattern |> pexp_function
+      |> Utils.compose_all (cs >|= fparam_of_cdecl >|= lambda)
     in
     pexp_apply
       (pexp_ident @@ Located.lident "variant")
