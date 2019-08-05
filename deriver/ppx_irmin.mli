@@ -1,2 +1,1 @@
-
-val irmin: Ppxlib.Deriving.t
+val irmin : Ppxlib.Deriving.t

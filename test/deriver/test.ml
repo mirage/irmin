@@ -69,13 +69,13 @@ end
 
 (* Now test the interaction of 'nonrec' with custom naming *)
 module S2 : sig
-  type nonrec t = t list [@@deriving irmin {name= "t_witness"}]
+  type nonrec t = t list [@@deriving irmin { name = "t_witness" }]
 
-  type nonrec t_alias = t_alias list [@@deriving irmin {name= "t_witness"}]
+  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_witness" }]
 end = struct
-  type nonrec t = t list [@@deriving irmin {name= "t_witness"}]
+  type nonrec t = t list [@@deriving irmin { name = "t_witness" }]
 
-  type nonrec t_alias = t_alias list [@@deriving irmin {name= "t_witness"}]
+  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_witness" }]
 end
 
 (* Variants *)
@@ -96,18 +96,23 @@ type test_variant5 =
 type test_variant6 = Nil | Cons of string * test_variant6 [@@deriving irmin]
 
 (* Records *)
-type test_record1 = {alpha: string; beta: int64 list; gamma: test_variant5}
+type test_record1 = {
+  alpha : string;
+  beta : int64 list;
+  gamma : test_variant5;
+}
 [@@deriving irmin]
 
-type test_record2 =
-  { the_FIRST_identifier: test_record1 option
-  ; the_SECOND_identifier: (string, int32) result list }
+type test_record2 = {
+  the_FIRST_identifier : test_record1 option;
+  the_SECOND_identifier : (string, int32) result list;
+}
 [@@deriving irmin]
 
 (* Tests of the arguments/attributes *)
-type c = string [@@deriving irmin {name= "c_wit"}]
+type c = string [@@deriving irmin { name = "c_wit" }]
 
-type d = int [@@deriving irmin {name= "witness_for_d"}]
+type d = int [@@deriving irmin { name = "witness_for_d" }]
 
 type point_elsewhere1 = (c[@witness c_wit]) [@@deriving irmin]
 
@@ -118,18 +123,19 @@ type point_elsewhere3 =
   | B of (c[@witness c_wit])
 [@@deriving irmin]
 
-type point_elsewhere4 =
-  { lorem: string
-  ; ipsum: (c[@witness c_wit])
-  ; dolor: int
-  ; sit: (d[@witness witness_for_d]) }
+type point_elsewhere4 = {
+  lorem : string;
+  ipsum : (c[@witness c_wit]);
+  dolor : int;
+  sit : (d[@witness witness_for_d]);
+}
 [@@deriving irmin]
 
 (* Tests of the signature deriver *)
 module SigTests : sig
   type t = string [@@deriving irmin]
 
-  type foo = unit [@@deriving irmin {name= "foo_witness"}]
+  type foo = unit [@@deriving irmin { name = "foo_witness" }]
 
   type my_int = int32 * t [@@deriving irmin]
 
@@ -141,7 +147,7 @@ module SigTests : sig
 end = struct
   type t = string [@@deriving irmin]
 
-  type foo = unit [@@deriving irmin {name= "foo_witness"}]
+  type foo = unit [@@deriving irmin { name = "foo_witness" }]
 
   type my_int = int32 * t [@@deriving irmin]
 

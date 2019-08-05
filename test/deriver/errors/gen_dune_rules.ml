@@ -32,8 +32,5 @@ let is_error_test = function
   | filename -> Filename.check_suffix filename ".ml"
 
 let () =
-  Sys.readdir "."
-  |> Array.to_list
-  |> List.sort String.compare
-  |> List.filter is_error_test
-  |> List.iter output_stanzas
+  Sys.readdir "." |> Array.to_list |> List.sort String.compare
+  |> List.filter is_error_test |> List.iter output_stanzas

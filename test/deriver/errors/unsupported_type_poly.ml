@@ -1,1 +1,1 @@
-type t = {v: 'a. 'a} [@@deriving irmin]
+type t = { v : 'a. 'a } [@@deriving irmin]

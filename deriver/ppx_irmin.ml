@@ -5,12 +5,12 @@ let ppx_name = "irmin"
 
 let expand_str ~loc ~path:_ input_ast name =
   let (module S) = Ast_builder.make loc in
-  let (module L) = (module Deriver.Located(S): Deriver.S) in
+  let (module L) = (module Deriver.Located (S) : Deriver.S) in
   L.derive_str ?name input_ast
 
 let expand_sig ~loc ~path:_ input_ast name =
   let (module S) = Ast_builder.make loc in
-  let (module L) = (module Deriver.Located(S): Deriver.S) in
+  let (module L) = (module Deriver.Located (S) : Deriver.S) in
   L.derive_sig ?name input_ast
 
 let str_type_decl_generator =
@@ -23,7 +23,5 @@ let sig_typ_decl_generator =
   Deriving.Generator.make args expand_sig
 
 let irmin =
-  Deriving.add
-    ~str_type_decl:str_type_decl_generator
-    ~sig_type_decl:sig_typ_decl_generator
-    ppx_name
+  Deriving.add ~str_type_decl:str_type_decl_generator
+    ~sig_type_decl:sig_typ_decl_generator ppx_name

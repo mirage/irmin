@@ -1,1 +1,2 @@
-Ppxlib.Driver.standalone ();
+;;
+Ppxlib.Driver.standalone ()
