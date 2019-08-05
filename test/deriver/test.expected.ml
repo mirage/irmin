@@ -26,6 +26,25 @@ type test_triple = (string * int32 * bool)[@@deriving irmin]
 let test_triple_t = let open Irmin.Type in triple string int32 bool
 type test_result = (int32, string) result[@@deriving irmin]
 let test_result_t = let open Irmin.Type in result int32 string
+module ModuleQualifiedTypes =
+  struct
+    module X =
+      struct type t = int[@@deriving irmin]
+             let t = Irmin.Type.int end
+    module Y =
+      struct
+        type foo = X.t list[@@deriving irmin]
+        let foo_t = let open Irmin.Type in list X.t
+      end
+    type t = X.t[@@deriving irmin]
+    let t = X.t
+    type t_result = (X.t, unit) result[@@deriving irmin]
+    let t_result_t = let open Irmin.Type in result X.t unit
+    type foo = Y.foo[@@deriving irmin]
+    let foo_t = Y.foo_t
+    type foo_list = Y.foo list[@@deriving irmin]
+    let foo_list_t = let open Irmin.Type in list Y.foo_t
+  end
 type deep_tuple =
   ((((int32 * int32) * int32 * int32) * int32 * int32) * int32 * int32)
 [@@deriving irmin]

@@ -51,30 +51,38 @@ module Located (S: Ast_builder.S): S = struct
 
   let rec derive_core ~rec_flag ~type_name ~witness_name ~rec_detected typ =
     match typ.ptyp_desc with
-    | Ptyp_constr ({txt = Lident const_name; _}, args) -> (
+    | Ptyp_constr ({txt=const_name; _}, args) -> (
 
         match Attribute.get Attributes.witness typ with
         | Some e -> e
         | None -> (
-
-            let name =
-              (* If this type is the one we are deriving and the 'nonrec' keyword hasn't been used,
-                 replace with the witness name *)
-              if (rec_flag <> Nonrecursive) && String.equal const_name type_name then
-                (rec_detected := true; witness_name)
-
-              (* If not a base type, assume a composite witness with the same naming convention *)
-              else if not @@ SSet.mem const_name irmin_types then
-                witness_name_of_type_name const_name
-
-              else const_name
+            let cons_args =
+              args
+              >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
+              >|= unlabelled
             in
+            let lident = match const_name with
+            | Lident const_name ->
+              let name =
+                (* If this type is the one we are deriving and the 'nonrec' keyword hasn't been used,
+                  replace with the witness name *)
+                if (rec_flag <> Nonrecursive) && String.equal const_name type_name then
+                  (rec_detected := true; witness_name)
 
-            args
-            >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-            >|= unlabelled
-            |> pexp_apply (pexp_ident @@ Located.lident name)
-          )
+                (* If not a base type, assume a composite witness with the same naming convention *)
+                else if not @@ SSet.mem const_name irmin_types then
+                  witness_name_of_type_name const_name
+
+                else const_name
+              in
+              Located.lident name
+            | Ldot (lident, name) ->
+              let name = witness_name_of_type_name name in
+              Located.mk @@ Ldot (lident, name)
+            | Lapply _ -> invalid_arg "Lident.Lapply not supported"
+          in
+          pexp_apply (pexp_ident lident) cons_args
+        )
       )
 
     | Ptyp_tuple args -> derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
@@ -85,7 +93,6 @@ module Located (S: Ast_builder.S): S = struct
     | Ptyp_variant _   -> Raise.unsupported_type_polyvar ~loc typ
     | Ptyp_package _   -> Raise.unsupported_type_package ~loc typ
     | Ptyp_extension _ -> Raise.unsupported_type_extension ~loc typ
-
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
@@ -262,15 +269,24 @@ module Located (S: Ast_builder.S): S = struct
               | Some c -> match c.ptyp_desc with
 
                 (* No need to open Irmin.Type module *)
-                | Ptyp_constr ({txt = Lident cons_name; loc = _}, []) -> (
+                | Ptyp_constr ({txt; loc = _}, []) -> (
                     match Attribute.get Attributes.witness c with
                     | Some e -> e
-                    | None ->
-                      if SSet.mem cons_name irmin_types then
-                        pexp_ident (Located.lident @@ "Irmin.Type." ^ cons_name)
-                      else
-                        (* If not a basic type, assume a composite witness /w same naming convention *)
-                        pexp_ident (Located.lident @@ witness_name_of_type_name cons_name)
+                    | None -> (
+                      match txt with
+                      | Lident cons_name -> (
+                        if SSet.mem cons_name irmin_types then
+                          pexp_ident (Located.lident @@ "Irmin.Type." ^ cons_name)
+                        else
+                          (* If not a basic type, assume a composite witness /w same naming convention *)
+                          pexp_ident (Located.lident @@ witness_name_of_type_name cons_name)
+                      )
+                      | Ldot (lident, cons_name) ->
+                          pexp_ident (Located.mk @@ Ldot (lident, witness_name_of_type_name cons_name))
+
+                      | Lapply _ -> invalid_arg "Lident.Lapply not supported"
+
+                    )
                   )
 
                 (* Type constructor: list, tuple, etc. *)
