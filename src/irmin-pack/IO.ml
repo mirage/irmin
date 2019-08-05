@@ -18,10 +18,10 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-exception RO_Not_Allowed
-
 module type S = sig
   type t
+
+  exception RO_Not_Allowed
 
   val v : fresh:bool -> version:string -> readonly:bool -> string -> t
 
@@ -51,6 +51,8 @@ let ( ++ ) = Int64.add
 let ( -- ) = Int64.sub
 
 module Unix : S = struct
+  exception RO_Not_Allowed
+
   module Raw = struct
     type t = { fd : Unix.file_descr; mutable cursor : int64 }
 
@@ -256,7 +258,7 @@ let with_cache ~v ~clear file =
   let cached_constructor extra_args ?(fresh = false) ?(shared = true)
       ?(readonly = false) root =
     let file = root // file in
-    if fresh && readonly then raise RO_Not_Allowed;
+    if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
     if not shared then (
       Log.debug (fun l ->
           l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
