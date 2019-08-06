@@ -14,17 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t
+module type S = sig
+  type t
 
-val find : t -> int -> string option
+  val find : t -> int -> string option
 
-val index : t -> string -> int option
+  val index : t -> string -> int option
 
-val sync : t -> unit
+  val sync : t -> unit
 
-val v :
-  ?fresh:bool -> ?shared:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
-val clear : t -> unit
+  val clear : t -> unit
+end
 
-val io : t -> IO.Unix.t
+module Make (IO : IO.S) : S

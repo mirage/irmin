@@ -125,6 +125,7 @@ module IO = IO.Unix
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
 struct
   module Tbl = Table (K)
+  module Dict = Pack_dict
 
   type index = Index.t
 
@@ -288,7 +289,7 @@ struct
     let cast t = (t :> [ `Read | `Write ] t)
 
     let sync t =
-      IO.sync (Dict.io t.pack.dict);
+      Dict.sync t.pack.dict;
       Index.flush t.pack.index;
       IO.sync t.pack.block;
       Tbl.clear t.staging;

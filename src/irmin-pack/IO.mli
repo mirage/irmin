@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception RO_Not_Allowed
-
 module type S = sig
   type t
+
+  exception RO_Not_Allowed
 
   val v : fresh:bool -> version:string -> readonly:bool -> string -> t
 

@@ -78,13 +78,12 @@ let ( ++ ) = Int64.add
 let with_cache = IO.with_cache
 
 open Lwt.Infix
-
-exception RO_Not_Allowed = IO.RO_Not_Allowed
-
-module Dict = Dict
 module Pack = Pack
+module Dict = Pack_dict
 module Index = Pack_index
 module IO = IO.Unix
+
+exception RO_Not_Allowed = IO.RO_Not_Allowed
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
