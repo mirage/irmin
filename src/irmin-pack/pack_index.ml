@@ -32,32 +32,31 @@ module type S = sig
 
   val add : t -> key -> value -> unit
 
-  val find_all : t -> key -> value list
+  val mem : t -> key -> bool
+
+  val find : t -> key -> value option
 end
 
 module Make (K : Irmin.Hash.S) = struct
   module Key = struct
-    type t = string
+    type t = K.t
 
-    let pp = Fmt.fmt "%S"
+    let pp ppf t = Irmin.Type.pp K.t ppf t
 
-    let hash = Hashtbl.hash
+    let hash t = Irmin.Type.short_hash K.t t
 
-    (* Hashtbl.hash uses 30 bits *)
-    let hash_size = 30
+    let hash_size = 60
 
-    let equal x y = String.equal x y
+    let equal x y = Irmin.Type.equal K.t x y
 
-    let encode x = x
+    let encode x = Irmin.Type.to_bin_string K.t x
 
-    let encoded_size = min 8 K.hash_size
+    let encoded_size = K.hash_size
 
-    let decode s off = String.sub s off encoded_size
+    let decode s off =
+      let _, v = Irmin.Type.decode_bin ~headers:false K.t s off in
+      v
   end
-
-  let key s =
-    let s = Irmin.Type.to_bin_string K.t s in
-    String.sub s 0 Key.encoded_size
 
   module Val = struct
     type t = int64 * int * char
@@ -91,7 +90,13 @@ module Make (K : Irmin.Hash.S) = struct
 
   let flush = Index.flush
 
-  let add t k v = Index.add t (key k) v
+  let add t k v = if not (Index.mem t k) then Index.add t k v
 
-  let find_all t k = Index.find_all t (key k)
+  let mem = Index.mem
+
+  let find t k =
+    match Index.find_all t k with
+    | [] -> None
+    | [ h ] -> Some h
+    | _ -> assert false
 end

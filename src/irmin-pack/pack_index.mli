@@ -32,7 +32,9 @@ module type S = sig
 
   val add : t -> key -> value -> unit
 
-  val find_all : t -> key -> value list
+  val mem : t -> key -> bool
+
+  val find : t -> key -> value option
 end
 
 module Make (K : Irmin.Hash.S) : S with type key = K.t
