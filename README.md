@@ -81,19 +81,14 @@ let main =
 let () = Lwt_main.run main
 ```
 
-To compile the example above, save it to a file called `example.ml` and run:
+The example is contained in `examples/readme.ml`. It can be compiled and executed with dune:
 
 ```bash
-$ ocamlfind ocamlopt example.ml -o example -package irmin-unix,lwt.unix -linkpkg
-$ ./example
+$ dune build examples/readme.exe
+$ dune exec examples/readme.exe
 foo/bar => 'testing 123'
 ```
-The `examples` directory contains some more advanced examples. The build them, run:
-
-```bash
-$ dune build examples/trees.exe
-$ dune exec examples/trees.exe
-```
+The `examples/` directory also contains more advanced examples, which can be executed in the same way.
 
 ### Command-line
 The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:

@@ -1,14 +1,14 @@
 (executables
-  (names trees sync process deploy irmin_git_store custom_merge push)
+  (names readme trees sync process deploy irmin_git_store custom_merge push)
   (libraries checkseum.c digestif.c irmin irmin-unix))
 
 (alias
  (name examples)
- (deps trees.exe sync.exe process.exe deploy.exe push.exe
+ (deps readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
        irmin_git_store.exe custom_merge.exe))
 
 (alias
  (name    runtest)
  (package irmin-unix)
- (deps    trees.exe sync.exe process.exe deploy.exe push.exe
+ (deps    readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
           irmin_git_store.exe custom_merge.exe))
