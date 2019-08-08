@@ -19,16 +19,16 @@
 
 module Make (P : S.PRIVATE) :
   S.STORE
-  with type key = P.Node.Path.t
-   and type contents = P.Contents.value
-   and type branch = P.Branch.key
-   and type hash = P.Hash.t
-   and type slice = P.Slice.t
-   and type step = P.Node.Path.step
-   and type metadata = P.Node.Val.metadata
-   and module Key = P.Node.Path
-   and type repo = P.Repo.t
-   and module Private = P
+    with type key = P.Node.Path.t
+     and type contents = P.Contents.value
+     and type branch = P.Branch.key
+     and type hash = P.Hash.t
+     and type slice = P.Slice.t
+     and type step = P.Node.Path.step
+     and type metadata = P.Node.Val.metadata
+     and module Key = P.Node.Path
+     and type repo = P.Repo.t
+     and module Private = P
 
 module Content_addressable
     (X : S.APPEND_ONLY_STORE_MAKER)
@@ -36,9 +36,9 @@ module Content_addressable
     (V : Type.S) : sig
   include
     S.CONTENT_ADDRESSABLE_STORE
-    with type 'a t = 'a X(K)(V).t
-     and type key = K.t
-     and type value = V.t
+      with type 'a t = 'a X(K)(V).t
+       and type key = K.t
+       and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 

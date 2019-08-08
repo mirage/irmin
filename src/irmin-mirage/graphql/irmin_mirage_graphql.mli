@@ -19,7 +19,7 @@ module Server : sig
       (Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
       (Pclock : Mirage_clock_lwt.PCLOCK) :
     S
-    with module Pclock = Pclock
-     and module Store = Store
-     and module Http = Http
+      with module Pclock = Pclock
+       and module Store = Store
+       and module Http = Http
 end

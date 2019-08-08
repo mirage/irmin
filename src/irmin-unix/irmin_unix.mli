@@ -47,29 +47,29 @@ val info :
 module FS : sig
   (** {1 File-system Store} *)
 
-  (** Append-only store maker. *)
   module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
+  (** Append-only store maker. *)
 
-  (** Atomic-write store maker. *)
   module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
+  (** Atomic-write store maker. *)
 
-  (** Irmin store maker. *)
   module Make : Irmin.S_MAKER
+  (** Irmin store maker. *)
 
+  module KV : Irmin.KV_MAKER
   (** Irmin store make, where only the Contents have to be specified:
       branches are strings and paths are string lists. *)
-  module KV : Irmin.KV_MAKER
 
-  (** Append-only store maker, with control over the filenames shapes. *)
   module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
+  (** Append-only store maker, with control over the filenames shapes. *)
 
-  (** Read-write store maker, with control over the filename shapes. *)
   module Atomic_write_ext (C : Irmin_fs.Config) :
     Irmin.ATOMIC_WRITE_STORE_MAKER
+  (** Read-write store maker, with control over the filename shapes. *)
 
-  (** Irmin store maker, with control over the filename shapes. *)
   module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) :
     Irmin.S_MAKER
+  (** Irmin store maker, with control over the filename shapes. *)
 end
 
 (** Bidirectional Git backends. *)
@@ -88,35 +88,6 @@ module Git : sig
       (P : Irmin.Path.S)
       (B : Irmin.Branch.S) :
     S
-    with type key = P.t
-     and type step = P.step
-     and module Key = P
-     and type contents = C.t
-     and type branch = B.t
-     and module Git = G
-
-  module KV (G : Irmin_git.G) (C : Irmin.Contents.S) :
-    S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = string
-     and module Git = G
-
-  module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) :
-    S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = Irmin_git.reference
-     and module Git = G
-
-  (** Embed an Irmin store into a local Git repository. *)
-  module FS : sig
-    module G : Irmin_git.G
-
-    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
-      S
       with type key = P.t
        and type step = P.step
        and module Key = P
@@ -124,22 +95,51 @@ module Git : sig
        and type branch = B.t
        and module Git = G
 
-    module Ref (C : Irmin.Contents.S) :
-      S
+  module KV (G : Irmin_git.G) (C : Irmin.Contents.S) :
+    S
+      with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
+
+  module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) :
+    S
       with type key = string list
        and type step = string
        and type contents = C.t
        and type branch = Irmin_git.reference
        and module Git = G
 
+  (** Embed an Irmin store into a local Git repository. *)
+  module FS : sig
+    module G : Irmin_git.G
+
+    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
+      S
+        with type key = P.t
+         and type step = P.step
+         and module Key = P
+         and type contents = C.t
+         and type branch = B.t
+         and module Git = G
+
+    module Ref (C : Irmin.Contents.S) :
+      S
+        with type key = string list
+         and type step = string
+         and type contents = C.t
+         and type branch = Irmin_git.reference
+         and module Git = G
+
     module KV (C : Irmin.Contents.S) :
       S
-      with type key = Irmin.Path.String_list.t
-       and type step = string
-       and module Key = Irmin.Path.String_list
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
+        with type key = Irmin.Path.String_list.t
+         and type step = string
+         and module Key = Irmin.Path.String_list
+         and type contents = C.t
+         and type branch = string
+         and module Git = G
   end
 
   (** Embed an Irmin store into an in-memory Git repository. *)
@@ -148,29 +148,29 @@ module Git : sig
 
     module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
       S
-      with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and module Git = G
+        with type key = P.t
+         and type step = P.step
+         and module Key = P
+         and type contents = C.t
+         and type branch = B.t
+         and module Git = G
 
     module Ref (C : Irmin.Contents.S) :
       S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = Irmin_git.reference
-       and module Git = G
+        with type key = string list
+         and type step = string
+         and type contents = C.t
+         and type branch = Irmin_git.reference
+         and module Git = G
 
     module KV (C : Irmin.Contents.S) :
       S
-      with type key = Irmin.Path.String_list.t
-       and type step = string
-       and module Key = Irmin.Path.String_list
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
+        with type key = Irmin.Path.String_list.t
+         and type step = string
+         and module Key = Irmin.Path.String_list
+         and type contents = C.t
+         and type branch = string
+         and module Git = G
   end
 end
 
@@ -186,21 +186,21 @@ module Http : sig
       RTTs. *)
   module Client (S : Irmin.S) :
     Irmin.S
-    with type key = S.key
-     and type contents = S.contents
-     and type branch = S.branch
-     and type hash = S.hash
-     and type step = S.step
-     and type metadata = S.metadata
-     and type Key.step = S.Key.step
+      with type key = S.key
+       and type contents = S.contents
+       and type branch = S.branch
+       and type hash = S.hash
+       and type step = S.step
+       and type metadata = S.metadata
+       and type Key.step = S.Key.step
 
   (** {1 HTTP server} *)
 
   (** Server-side of the REST API over HTTP. *)
   module Server (S : Irmin.S) :
     Irmin_http.SERVER
-    with type repo = S.Repo.t
-     and type t = Cohttp_lwt_unix.Server.t
+      with type repo = S.Repo.t
+       and type t = Cohttp_lwt_unix.Server.t
 end
 
 val set_listen_dir_hook : unit -> unit

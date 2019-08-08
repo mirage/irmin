@@ -24,7 +24,7 @@ type t = {
   tree_add : int;
   display : int;
   clear : bool;
-  gc : int
+  gc : int;
 }
 
 type stats = { commits : int; size : int; maxrss : int }
@@ -34,9 +34,10 @@ let src =
   let tags = Tags.[] in
   let data t =
     Data.v
-      [ int "commits" t.commits;
+      [
+        int "commits" t.commits;
         int "size" ~unit:"MiB" t.size;
-        int "maxrss" ~unit:"MiB" t.maxrss
+        int "maxrss" ~unit:"MiB" t.maxrss;
       ]
   in
   Src.v "bench" ~tags ~data
@@ -45,13 +46,14 @@ let src =
 
 let ignore_srcs src =
   List.mem (Logs.Src.name src)
-    [ "git.inflater.decoder";
+    [
+      "git.inflater.decoder";
       "git.deflater.encoder";
       "git.encoder";
       "git.decoder";
       "git.loose";
       "git.store";
-      "cohttp.lwt.io"
+      "cohttp.lwt.io";
     ]
 
 let reporter ?(prefix = "") () =
@@ -122,7 +124,7 @@ let clear =
 let t =
   Term.(
     const (fun () ncommits depth tree_add display clear gc ->
-        { ncommits; depth; tree_add; display; root = "."; clear; gc } )
+        { ncommits; depth; tree_add; display; root = "."; clear; gc })
     $ log $ ncommits $ depth $ tree_add $ display $ clear $ gc)
 
 module Make (Store : Irmin.KV with type contents = string) = struct
@@ -163,7 +165,7 @@ module Make (Store : Irmin.KV with type contents = string) = struct
     times ~n:t.depth ~init:tree (fun depth tree ->
         let paths = Array.init (t.tree_add + 1) (path ~depth) in
         times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) "init" ) )
+            Store.Tree.add tree paths.(n) "init"))
     >>= fun tree ->
     Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
 
@@ -178,10 +180,10 @@ module Make (Store : Irmin.KV with type contents = string) = struct
           plot_progress i t.ncommits;
           print_stats ~size ~commits:i );
         times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) (string_of_int i) )
+            Store.Tree.add tree paths.(n) (string_of_int i))
         >>= fun tree ->
         Store.set_tree_exn v ~info [] tree >|= fun () ->
-        if t.clear then Store.Tree.clear tree )
+        if t.clear then Store.Tree.clear tree)
     >|= fun _ -> Fmt.epr "\n[run done]\n%!"
 
   let main t config size =
@@ -195,7 +197,7 @@ module Make (Store : Irmin.KV with type contents = string) = struct
 
   let () =
     at_exit (fun () ->
-        Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters () )
+        Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
     let info = Term.info "Simple benchmark for trees" in

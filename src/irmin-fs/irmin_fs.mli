@@ -24,8 +24,8 @@ val config : ?config:Irmin.config -> string -> Irmin.config
 module type IO = sig
   (** {1 File-system abstractions} *)
 
-  (** The type for paths. *)
   type path = string
+  (** The type for paths. *)
 
   (** {2 Read operations} *)
 
@@ -45,8 +45,8 @@ module type IO = sig
   val mkdir : path -> unit Lwt.t
   (** Create a directory. *)
 
-  (** The type for file locks. *)
   type lock
+  (** The type for file locks. *)
 
   val lock_file : path -> lock
   (** [lock_file f] is the lock associated to the file [f]. *)

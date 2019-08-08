@@ -126,7 +126,7 @@ let test_pack _switch () =
   Pack.batch t (fun w ->
       Lwt_list.iter_s
         (fun (k, v) -> Pack.unsafe_add w k v)
-        [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ] )
+        [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ])
   >>= fun () ->
   let test t =
     Pack.find t h1 >|= get >>= fun y1 ->
@@ -243,9 +243,10 @@ let test_branch _switch () =
 
 let misc =
   ( "misc",
-    [ Alcotest.test_case "dict" `Quick test_dict;
+    [
+      Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
-      Alcotest_lwt.test_case "branch" `Quick test_branch
+      Alcotest_lwt.test_case "branch" `Quick test_branch;
     ] )

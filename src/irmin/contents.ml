@@ -32,7 +32,7 @@ let rec encode_json e = function
       List.iter
         (fun (k, v) ->
           lexeme e (`Name k);
-          encode_json e v )
+          encode_json e v)
         o;
       lexeme e `Oe
 
@@ -91,20 +91,21 @@ module Json_value = struct
   let t =
     let open Type in
     mu (fun ty ->
-        variant "json" (fun null bool string float obj arr -> function
+        variant "json" (fun null bool string float obj arr ->
+          function
           | `Null -> null
           | `Bool b -> bool b
           | `String s -> string s
           | `Float f -> float f
           | `O o -> obj o
-          | `A a -> arr a )
+          | `A a -> arr a)
         |~ case0 "null" `Null
         |~ case1 "bool" bool (fun x -> `Bool x)
         |~ case1 "string" string (fun x -> `String x)
         |~ case1 "float" float (fun x -> `Float x)
         |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
         |~ case1 "array" (list ty) (fun arr -> `A arr)
-        |> sealv )
+        |> sealv)
 
   let rec equal a b =
     match (a, b) with
@@ -113,8 +114,8 @@ module Json_value = struct
     | `String a, `String b -> String.equal a b
     | `Float a, `Float b -> Type.(equal float) a b
     | `A a, `A b -> (
-      try List.for_all2 (fun a' b' -> equal a' b') a b
-      with Invalid_argument _ -> false )
+        try List.for_all2 (fun a' b' -> equal a' b') a b
+        with Invalid_argument _ -> false )
     | `O a, `O b -> (
         let compare_fst (a, _) (b, _) = compare a b in
         try
@@ -216,9 +217,9 @@ module Json_tree (Store : S.STORE with type contents = json) = struct
       match j with
       | [] -> `Tree acc
       | (k, v) :: l -> (
-        match Type.of_string Store.Key.step_t k with
-        | Ok key -> obj l ((key, node v []) :: acc)
-        | _ -> obj l acc )
+          match Type.of_string Store.Key.step_t k with
+          | Ok key -> obj l ((key, node v []) :: acc)
+          | _ -> obj l acc )
     and node j acc =
       match j with
       | `O j -> obj j acc

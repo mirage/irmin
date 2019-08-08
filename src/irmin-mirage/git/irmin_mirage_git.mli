@@ -16,28 +16,28 @@ module type S_MAKER = functor
   (B : Irmin.Branch.S)
   ->
   S
-  with type key = P.t
-   and type step = P.step
-   and module Key = P
-   and type contents = C.t
-   and type branch = B.t
-   and module Git = G
+    with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
 
 module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = string
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
 
 module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = Irmin_git.reference
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = Irmin_git.reference
+     and module Git = G
 
 module Make : S_MAKER
 
@@ -113,29 +113,29 @@ module Mem : sig
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
     S
-    with type key = P.t
-     and type step = P.step
-     and module Key = P
-     and type contents = C.t
-     and type branch = B.t
-     and module Git = G
+      with type key = P.t
+       and type step = P.step
+       and module Key = P
+       and type contents = C.t
+       and type branch = B.t
+       and module Git = G
 
   module Ref (C : Irmin.Contents.S) :
     S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = Irmin_git.reference
-     and module Git = G
+      with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = Irmin_git.reference
+       and module Git = G
 
   module KV (C : Irmin.Contents.S) :
     S
-    with type key = Irmin.Path.String_list.t
-     and type step = string
-     and module Key = Irmin.Path.String_list
-     and type contents = C.t
-     and type branch = string
-     and module Git = G
+      with type key = Irmin.Path.String_list.t
+       and type step = string
+       and module Key = Irmin.Path.String_list
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
 
   module KV_RO : KV_RO with type git := G.t
 

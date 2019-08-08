@@ -20,25 +20,25 @@ module Make (K : Type.S) : S.COMMIT with type hash = K.t
 
 module Store
     (N : S.NODE_STORE) (C : sig
-        include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
+      include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
 
-        module Key : S.HASH with type t = key
+      module Key : S.HASH with type t = key
 
-        module Val : S.COMMIT with type t = value and type hash = key
+      module Val : S.COMMIT with type t = value and type hash = key
     end) :
   S.COMMIT_STORE
-  with type 'a t = 'a N.t * 'a C.t
-   and type key = C.key
-   and type value = C.value
-   and type Key.t = C.Key.t
-   and module Val = C.Val
+    with type 'a t = 'a N.t * 'a C.t
+     and type key = C.key
+     and type value = C.value
+     and type Key.t = C.Key.t
+     and module Val = C.Val
 
 module History (C : S.COMMIT_STORE) :
   S.COMMIT_HISTORY
-  with type 'a t = 'a C.t
-   and type v = C.Val.t
-   and type node = C.Node.key
-   and type commit = C.key
+    with type 'a t = 'a C.t
+     and type v = C.Val.t
+     and type node = C.Node.key
+     and type commit = C.key
 
 module V1 (C : S.COMMIT) : sig
   include S.COMMIT with type hash = C.hash

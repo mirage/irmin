@@ -120,7 +120,7 @@ struct
       let inodes : inodes Irmin.Type.t =
         let open Irmin.Type in
         record "Bin.inodes" (fun seed length entries ->
-            { seed; length; entries } )
+            { seed; length; entries })
         |+ field "seed" int (fun t -> t.seed)
         |+ field "length" int (fun t -> t.length)
         |+ field "entries" (list inode) (fun t -> t.entries)
@@ -128,8 +128,8 @@ struct
 
       let v_t : v Irmin.Type.t =
         let open Irmin.Type in
-        variant "Bin.v" (fun values inodes -> function
-          | Values l -> values l | Inodes i -> inodes i )
+        variant "Bin.v" (fun values inodes ->
+          function Values l -> values l | Inodes i -> inodes i)
         |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
         |~ case1 "Inodes" inodes (fun t -> Inodes t)
         |> sealv
@@ -171,8 +171,8 @@ struct
 
       let address : address Irmin.Type.t =
         let open Irmin.Type in
-        variant "Compress.address" (fun i d -> function
-          | Indirect x -> i x | Direct x -> d x )
+        variant "Compress.address" (fun i d ->
+          function Indirect x -> i x | Direct x -> d x)
         |~ case1 "Indirect" int64 (fun x -> Indirect x)
         |~ case1 "Direct" H.t (fun x -> Direct x)
         |> sealv
@@ -191,7 +191,7 @@ struct
       let inodes : inodes Irmin.Type.t =
         let open Irmin.Type in
         record "Compress.inodes" (fun seed length entries ->
-            { seed; length; entries } )
+            { seed; length; entries })
         |+ field "seed" int (fun t -> t.seed)
         |+ field "length" int (fun t -> t.length)
         |+ field "entries" (list inode) (fun t -> t.entries)
@@ -207,18 +207,19 @@ struct
         let open Irmin.Type in
         variant "Compress.value"
           (fun contents_ii
-          contents_x_ii
-          node_ii
-          contents_id
-          contents_x_id
-          node_id
-          contents_di
-          contents_x_di
-          node_di
-          contents_dd
-          contents_x_dd
-          node_dd
-          -> function
+               contents_x_ii
+               node_ii
+               contents_id
+               contents_x_id
+               node_id
+               contents_di
+               contents_x_di
+               node_di
+               contents_dd
+               contents_x_dd
+               node_dd
+               ->
+          function
           | Contents (Indirect n, Indirect h, m) ->
               if is_default m then contents_ii (n, h)
               else contents_x_ii (n, h, m)
@@ -234,39 +235,39 @@ struct
           | Contents (Direct n, Direct h, m) ->
               if is_default m then contents_dd (n, h)
               else contents_x_dd (n, h, m)
-          | Node (Direct n, Direct h) -> node_dd (n, h) )
+          | Node (Direct n, Direct h) -> node_dd (n, h))
         |~ case1 "contents-ii" (pair int int64) (fun (n, i) ->
-               Contents (Indirect n, Indirect i, T.default) )
+               Contents (Indirect n, Indirect i, T.default))
         |~ case1 "contents-x-ii" (triple int int64 metadata_t)
              (fun (n, i, m) -> Contents (Indirect n, Indirect i, m))
         |~ case1 "node-ii" (pair int int64) (fun (n, i) ->
-               Node (Indirect n, Indirect i) )
+               Node (Indirect n, Indirect i))
         |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
-               Contents (Indirect n, Direct h, T.default) )
+               Contents (Indirect n, Direct h, T.default))
         |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
-               Contents (Indirect n, Direct h, m) )
+               Contents (Indirect n, Direct h, m))
         |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
-               Node (Indirect n, Direct h) )
+               Node (Indirect n, Direct h))
         |~ case1 "contents-di" (pair step_t int64) (fun (n, i) ->
-               Contents (Direct n, Indirect i, T.default) )
+               Contents (Direct n, Indirect i, T.default))
         |~ case1 "contents-x-di" (triple step_t int64 metadata_t)
              (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
         |~ case1 "node-di" (pair step_t int64) (fun (n, i) ->
-               Node (Direct n, Indirect i) )
+               Node (Direct n, Indirect i))
         |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
-               Contents (Direct n, Direct i, T.default) )
+               Contents (Direct n, Direct i, T.default))
         |~ case1 "contents-x-dd" (triple step_t H.t metadata_t)
              (fun (n, i, m) -> Contents (Direct n, Direct i, m))
         |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
-               Node (Direct n, Direct i) )
+               Node (Direct n, Direct i))
         |> sealv
 
       type v = Values of value list | Inodes of inodes
 
       let v_t : v Irmin.Type.t =
         let open Irmin.Type in
-        variant "Compress.v" (fun values inodes -> function
-          | Values x -> values x | Inodes x -> inodes x )
+        variant "Compress.v" (fun values inodes ->
+          function Values x -> values x | Inodes x -> inodes x)
         |~ case1 "Values" (list value) (fun x -> Values x)
         |~ case1 "Inodes" inodes (fun x -> Inodes x)
         |> sealv
@@ -322,8 +323,8 @@ struct
 
       let entry_t inode : entry Irmin.Type.t =
         let open Irmin.Type in
-        variant "Node.entry" (fun empty inode -> function
-          | Empty -> empty | Inode i -> inode i )
+        variant "Node.entry" (fun empty inode ->
+          function Empty -> empty | Inode i -> inode i)
         |~ case0 "Empty" Empty
         |~ case1 "Inode" inode (fun i -> Inode i)
         |> sealv
@@ -331,7 +332,7 @@ struct
       let inodes entry : inodes Irmin.Type.t =
         let open Irmin.Type in
         record "Node.entries" (fun seed length entries ->
-            { seed; length; entries } )
+            { seed; length; entries })
         |+ field "seed" int (fun t -> t.seed)
         |+ field "length" int (fun t -> t.length)
         |+ field "entries" (array entry) (fun t -> t.entries)
@@ -383,7 +384,7 @@ struct
                 (fun (i, acc) -> function Empty -> (i + 1, acc)
                   | Inode inode ->
                       let hash = hash_of_inode inode in
-                      (i + 1, { Bin.index = i; hash } :: acc) )
+                      (i + 1, { Bin.index = i; hash } :: acc))
                 (0, []) t.entries
             in
             let entries = List.rev entries in
@@ -423,7 +424,7 @@ struct
               let entries = Array.make Conf.entries Empty in
               List.iter
                 (fun { Bin.index; hash } ->
-                  entries.(index) <- inode (lazy hash) )
+                  entries.(index) <- inode (lazy hash))
                 t.entries;
               Inodes { seed = t.Bin.seed; length = t.length; entries }
         in
@@ -433,8 +434,8 @@ struct
         let open Irmin.Type in
         let pre_hash x = pre_hash Bin.v_t (to_bin_v x) in
         let entry = entry_t (inode_t t) in
-        variant "Inode.t" (fun values inodes -> function
-          | Values v -> values v | Inodes i -> inodes i )
+        variant "Inode.t" (fun values inodes ->
+          function Values v -> values v | Inodes i -> inodes i)
         |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
         |~ case1 "Inodes" (inodes entry) (fun t -> Inodes t)
         |> sealv |> like ~pre_hash
@@ -478,7 +479,7 @@ struct
       let find_value ~seed ~find t s =
         let rec aux ~seed = function
           | Values vs -> (
-            try Some (StepMap.find s vs) with Not_found -> None )
+              try Some (StepMap.find s vs) with Not_found -> None )
           | Inodes t -> (
               let i = index ~seed s in
               let x = t.entries.(i) in
@@ -494,49 +495,53 @@ struct
         match find_value ~seed ~find t s with
         | Some v' when Irmin.Type.equal value_t v v' -> k t
         | v' -> (
-          match t.v with
-          | Values vs ->
-              let length =
-                match v' with
-                | None -> StepMap.cardinal vs + 1
-                | Some _ -> StepMap.cardinal vs
-              in
-              let t =
-                if length <= Conf.entries then values (StepMap.add s v vs)
-                else
-                  let vs = StepMap.bindings (StepMap.add s v vs) in
-                  let empty =
-                    inodes
-                      { length = 0;
-                        seed;
-                        entries = Array.make Conf.entries Empty
-                      }
-                  in
-                  let aux t (s, v) =
-                    (add [@tailcall]) ~seed ~find ~copy:false t s v (fun x -> x)
-                  in
-                  List.fold_left aux empty vs
-              in
-              k t
-          | Inodes t -> (
-              let length =
-                match v' with None -> t.length + 1 | Some _ -> t.length
-              in
-              let entries = if copy then Array.copy t.entries else t.entries in
-              let i = index ~seed s in
-              match entries.(i) with
-              | Empty ->
-                  let tree = values (StepMap.singleton s v) in
-                  entries.(i) <- inode ~tree tree.hash;
-                  let t = inodes { seed; length; entries } in
-                  k t
-              | Inode n ->
-                  let t = get_tree ~find n in
-                  add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
-                  let inode = inode ~tree tree.hash in
-                  entries.(i) <- inode;
-                  let t = inodes { seed; length; entries } in
-                  k t ) )
+            match t.v with
+            | Values vs ->
+                let length =
+                  match v' with
+                  | None -> StepMap.cardinal vs + 1
+                  | Some _ -> StepMap.cardinal vs
+                in
+                let t =
+                  if length <= Conf.entries then values (StepMap.add s v vs)
+                  else
+                    let vs = StepMap.bindings (StepMap.add s v vs) in
+                    let empty =
+                      inodes
+                        {
+                          length = 0;
+                          seed;
+                          entries = Array.make Conf.entries Empty;
+                        }
+                    in
+                    let aux t (s, v) =
+                      (add [@tailcall]) ~seed ~find ~copy:false t s v (fun x ->
+                          x)
+                    in
+                    List.fold_left aux empty vs
+                in
+                k t
+            | Inodes t -> (
+                let length =
+                  match v' with None -> t.length + 1 | Some _ -> t.length
+                in
+                let entries =
+                  if copy then Array.copy t.entries else t.entries
+                in
+                let i = index ~seed s in
+                match entries.(i) with
+                | Empty ->
+                    let tree = values (StepMap.singleton s v) in
+                    entries.(i) <- inode ~tree tree.hash;
+                    let t = inodes { seed; length; entries } in
+                    k t
+                | Inode n ->
+                    let t = get_tree ~find n in
+                    add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
+                    let inode = inode ~tree tree.hash in
+                    entries.(i) <- inode;
+                    let t = inodes { seed; length; entries } in
+                    k t ) )
 
       let add ~find ~copy t s v =
         add ~seed:0 ~find ~copy t s v (stabilize ~find)
@@ -545,29 +550,29 @@ struct
         match find_value ~seed ~find t s with
         | None -> k t
         | Some _ -> (
-          match t.v with
-          | Values vs ->
-              let t = values (StepMap.remove s vs) in
-              k t
-          | Inodes t -> (
-              let length = t.length - 1 in
-              if length <= Conf.entries then
-                let vs = list_inodes ~find [] t in
-                let vs = StepMap.of_list vs in
-                let vs = StepMap.remove s vs in
-                let t = values vs in
+            match t.v with
+            | Values vs ->
+                let t = values (StepMap.remove s vs) in
                 k t
-              else
-                let entries = Array.copy t.entries in
-                let i = index ~seed s in
-                match entries.(i) with
-                | Empty -> assert false
-                | Inode t ->
-                    let t = get_tree ~find t in
-                    remove ~seed:(seed + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- inode ~tree (lazy (hash tree));
-                    let t = inodes { seed; length; entries } in
-                    k t ) )
+            | Inodes t -> (
+                let length = t.length - 1 in
+                if length <= Conf.entries then
+                  let vs = list_inodes ~find [] t in
+                  let vs = StepMap.of_list vs in
+                  let vs = StepMap.remove s vs in
+                  let t = values vs in
+                  k t
+                else
+                  let entries = Array.copy t.entries in
+                  let i = index ~seed s in
+                  match entries.(i) with
+                  | Empty -> assert false
+                  | Inode t ->
+                      let t = get_tree ~find t in
+                      remove ~seed:(seed + 1) ~find t s @@ fun tree ->
+                      entries.(i) <- inode ~tree (lazy (hash tree));
+                      let t = inodes { seed; length; entries } in
+                      k t ) )
 
       let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
 
@@ -595,7 +600,7 @@ struct
                   | Empty | Inode { tree = None; _ } -> ()
                   | Inode ({ tree = Some t; _ } as i) ->
                       let hash = hash_of_inode i in
-                      if mem hash then () else aux ~seed:(seed + 1) t )
+                      if mem hash then () else aux ~seed:(seed + 1) t)
                 n.entries;
               add (Lazy.force t.hash) (to_bin t)
         in
@@ -658,12 +663,12 @@ struct
         let step : Compress.name -> T.step = function
           | Direct n -> n
           | Indirect s -> (
-            match dict s with
-            | None -> raise_notrace (Exit (`Msg "dict"))
-            | Some s -> (
-              match Irmin.Type.of_bin_string T.step_t s with
-              | Error e -> raise_notrace (Exit e)
-              | Ok v -> v ) )
+              match dict s with
+              | None -> raise_notrace (Exit (`Msg "dict"))
+              | Some s -> (
+                  match Irmin.Type.of_bin_string T.step_t s with
+                  | Error e -> raise_notrace (Exit e)
+                  | Ok v -> v ) )
         in
         let hash : Compress.address -> H.t = function
           | Indirect off -> hash off

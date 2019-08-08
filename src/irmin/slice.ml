@@ -30,7 +30,7 @@ struct
   type t = {
     mutable contents : (Contents.key * Contents.value) list;
     mutable nodes : (Node.key * Node.value) list;
-    mutable commits : (Commit.key * Commit.value) list
+    mutable commits : (Commit.key * Commit.value) list;
   }
 
   let t =
@@ -60,9 +60,10 @@ struct
 
   let iter t f =
     Lwt.choose
-      [ Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
+      [
+        Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
         Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
-        Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits
+        Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
       ]
 
   let contents_t = Type.pair Contents.Key.t Contents.Val.t
@@ -73,9 +74,9 @@ struct
 
   let value_t =
     let open Type in
-    variant "slice" (fun contents node commit -> function
-      | `Contents x -> contents x | `Node x -> node x | `Commit x -> commit x
-    )
+    variant "slice" (fun contents node commit ->
+      function
+      | `Contents x -> contents x | `Node x -> node x | `Commit x -> commit x)
     |~ case1 "contents" contents_t (fun x -> `Contents x)
     |~ case1 "node" node_t (fun x -> `Node x)
     |~ case1 "commit" commit_t (fun x -> `Commit x)

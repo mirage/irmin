@@ -26,14 +26,15 @@ type all_stats = {
   mutable pack_finds : int;
   mutable pack_cache_misses : int;
   mutable appended_hashes : int;
-  mutable appended_offsets : int
+  mutable appended_offsets : int;
 }
 
 let fresh_stats () =
-  { pack_finds = 0;
+  {
+    pack_finds = 0;
     pack_cache_misses = 0;
     appended_hashes = 0;
-    appended_offsets = 0
+    appended_offsets = 0;
   }
 
 let stats = fresh_stats ()
@@ -133,7 +134,7 @@ struct
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t
+    lock : Lwt_mutex.t;
   }
 
   let clear t =
@@ -205,7 +206,7 @@ struct
     let v ?fresh ?shared ?readonly ?lru_size ~index root =
       Lwt_mutex.with_lock create (fun () ->
           let t = unsafe_v ?fresh ?shared ?readonly ?lru_size ~index root in
-          Lwt.return t )
+          Lwt.return t)
 
     let pp_hash = Irmin.Type.pp K.t
 
@@ -225,7 +226,7 @@ struct
     let mem t k =
       Lwt_mutex.with_lock create (fun () ->
           let b = unsafe_mem t k in
-          Lwt.return b )
+          Lwt.return b)
 
     let check_key k v =
       let k' = V.hash v in
@@ -252,22 +253,22 @@ struct
           Lru.add t.lru k v;
           Some v
       | exception Not_found -> (
-        match Lru.find t.lru k with
-        | v -> Some v
-        | exception Not_found -> (
-            stats.pack_cache_misses <- succ stats.pack_cache_misses;
-            match Index.find t.pack.index k with
-            | None -> None
-            | Some (off, len, _) ->
-                let v = io_read_and_decode ~off ~len t in
-                check_key k v;
-                Lru.add t.lru k v;
-                Some v ) )
+          match Lru.find t.lru k with
+          | v -> Some v
+          | exception Not_found -> (
+              stats.pack_cache_misses <- succ stats.pack_cache_misses;
+              match Index.find t.pack.index k with
+              | None -> None
+              | Some (off, len, _) ->
+                  let v = io_read_and_decode ~off ~len t in
+                  check_key k v;
+                  Lru.add t.lru k v;
+                  Some v ) )
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           let v = unsafe_find t k in
-          Lwt.return v )
+          Lwt.return v)
 
     let cast t = (t :> [ `Read | `Write ] t)
 
@@ -312,7 +313,7 @@ struct
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_append t k v;
-          Lwt.return () )
+          Lwt.return ())
 
     let add t v =
       let k = V.hash v in
@@ -327,13 +328,14 @@ let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
 type stats = {
   pack_cache_misses : float;
   offset_ratio : float;
-  offset_significance : int
+  offset_significance : int;
 }
 
 let stats () =
-  { pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
+  {
+    pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
     offset_ratio =
       div_or_zero stats.appended_offsets
         (stats.appended_offsets + stats.appended_hashes);
-    offset_significance = stats.appended_offsets + stats.appended_hashes
+    offset_significance = stats.appended_offsets + stats.appended_hashes;
   }

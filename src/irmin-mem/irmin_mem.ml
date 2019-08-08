@@ -98,14 +98,14 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Log.debug (fun f -> f "update");
     L.with_lock t.lock key (fun () ->
         t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-        Lwt.return_unit )
+        Lwt.return_unit)
     >>= fun () -> W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug (fun f -> f "remove");
     L.with_lock t.lock key (fun () ->
         t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-        Lwt.return_unit )
+        Lwt.return_unit)
     >>= fun () -> W.notify t.w key None
 
   let test_and_set t key ~test ~set =
@@ -119,7 +119,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
           in
           Lwt.return true
-        else Lwt.return false )
+        else Lwt.return false)
     >>= fun updated ->
     (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
     Lwt.return updated

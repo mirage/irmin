@@ -43,18 +43,18 @@ module Make_ext
     (Branch : Irmin.Branch.S)
     (Hash : Irmin.Hash.S)
     (N : Irmin.Private.Node.S
-         with type metadata = Metadata.t
-          and type hash = Hash.t
-          and type step = Path.step)
+           with type metadata = Metadata.t
+            and type hash = Hash.t
+            and type step = Path.step)
     (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
   Irmin.S
-  with type key = Path.t
-   and type contents = Contents.t
-   and type branch = Branch.t
-   and type hash = Hash.t
-   and type step = Path.step
-   and type metadata = Metadata.t
-   and type Key.step = Path.step
+    with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type hash = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
 
 module Make (Config : CONFIG) : Irmin.S_MAKER
 

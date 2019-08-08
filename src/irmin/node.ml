@@ -33,9 +33,9 @@ end
 
 module Make
     (K : Type.S) (P : sig
-        type step
+      type step
 
-        val step_t : step Type.t
+      val step_t : step Type.t
     end)
     (M : S.METADATA) =
 struct
@@ -51,10 +51,11 @@ struct
 
   let kind_t =
     let open Type in
-    variant "Tree.kind" (fun node contents contents_m -> function
+    variant "Tree.kind" (fun node contents contents_m ->
+      function
       | `Node -> node
       | `Contents m ->
-          if Type.equal M.t m M.default then contents else contents_m m )
+          if Type.equal M.t m M.default then contents else contents_m m)
     |~ case0 "node" `Node
     |~ case0 "contents" (`Contents M.default)
     |~ case1 "contents" M.t (fun m -> `Contents m)
@@ -110,7 +111,7 @@ struct
     let e = to_entry (k, v) in
     StepMap.update k
       (fun e' ->
-        if Type.equal (Type.option entry_t) (Some e) e' then e' else Some e )
+        if Type.equal (Type.option entry_t) (Some e) e' then e' else Some e)
       t
 
   let remove t k = StepMap.remove k t
@@ -125,10 +126,10 @@ struct
 
   let value_t =
     let open Type in
-    variant "value" (fun n c x -> function
+    variant "value" (fun n c x ->
+      function
       | `Node h -> n h
-      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m)
-    )
+      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m))
     |~ case1 "node" K.t (fun k -> `Node k)
     |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
     |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
@@ -145,12 +146,12 @@ module Store
     (C : S.CONTENTS_STORE)
     (P : S.PATH)
     (M : S.METADATA) (S : sig
-        include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
+      include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
 
-        module Key : S.HASH with type t = key
+      module Key : S.HASH with type t = key
 
-        module Val :
-          S.NODE
+      module Val :
+        S.NODE
           with type t = value
            and type hash = key
            and type metadata = M.t
@@ -230,7 +231,7 @@ struct
   let rec merge t =
     let merge_key =
       Merge.v (Type.option S.Key.t) (fun ~old x y ->
-          Merge.(f (merge t)) ~old x y )
+          Merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
     let read = function
@@ -356,9 +357,9 @@ module Graph (S : S.NODE_STORE) = struct
     match Path.rdecons path with
     | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (
-      match n with
-      | `Node n -> Lwt.return n
-      | `Contents _ -> failwith "TODO: Node.add" )
+        match n with
+        | `Node n -> Lwt.return n
+        | `Contents _ -> failwith "TODO: Node.add" )
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -458,13 +459,13 @@ module V1 (N : S.NODE) = struct
         | Some c, None, None -> `Contents (c, N.default)
         | Some c, Some m, None -> `Contents (c, m)
         | None, None, Some n -> `Node n
-        | _ -> failwith "invalid node" )
+        | _ -> failwith "invalid node")
     |+ field "contents" (option K.t) (function
          | `Contents (x, _) -> Some x
-         | _ -> None )
+         | _ -> None)
     |+ field "metadata" (option N.metadata_t) (function
          | `Contents (_, x) when not (equal N.metadata_t N.default x) -> Some x
-         | _ -> None )
+         | _ -> None)
     |+ field "node" (option K.t) (function `Node n -> Some n | _ -> None)
     |> sealr
 

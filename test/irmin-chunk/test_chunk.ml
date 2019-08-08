@@ -43,8 +43,8 @@ end
 module type S = sig
   include
     Irmin.CONTENT_ADDRESSABLE_STORE
-    with type key = Key.t
-     and type value = Value.t
+      with type key = Key.t
+       and type value = Value.t
 
   val v : unit -> [ `Read ] t Lwt.t
 

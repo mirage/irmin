@@ -18,28 +18,28 @@ module type S_MAKER = functor
   (B : Irmin.Branch.S)
   ->
   S
-  with type key = P.t
-   and type step = P.step
-   and module Key = P
-   and type contents = C.t
-   and type branch = B.t
-   and module Git = G
+    with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
 
 module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = string
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
 
 module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
-  with type key = string list
-   and type step = string
-   and type contents = C.t
-   and type branch = Irmin_git.reference
-   and module Git = G
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = Irmin_git.reference
+     and module Git = G
 
 module Make
     (G : Irmin_git.G)
@@ -192,30 +192,19 @@ module KV_RO (G : Git.S) = struct
     (S.find_tree t.t t.root >|= function
      | None -> S.Tree.empty
      | Some tree -> tree)
-    >|= fun tree ->
-    { Tree.repo; tree }
+    >|= fun tree -> { Tree.repo; tree }
 
-  let exists t k =
-    tree t >>= fun t ->
-    Tree.exists t k
+  let exists t k = tree t >>= fun t -> Tree.exists t k
 
-  let get t k =
-    tree t >>= fun t ->
-    Tree.get t k
+  let get t k = tree t >>= fun t -> Tree.get t k
 
-  let list t k =
-    tree t >>= fun t ->
-    Tree.list t k
+  let list t k = tree t >>= fun t -> Tree.list t k
 
-  let digest t k =
-    tree t >>= fun t ->
-    Tree.digest t k
+  let digest t k = tree t >>= fun t -> Tree.digest t k
 
   let get t k =
     match Key.segments k with
-    | [ "HEAD" ] ->
-        head_message t >|= fun v ->
-        Ok v
+    | [ "HEAD" ] -> head_message t >|= fun v -> Ok v
     | _ -> get t k
 end
 
@@ -263,7 +252,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     author : string;
     clock : C.t;
     msg : [ `Set of RO.key | `Remove of RO.key | `Batch ] -> string;
-    remote : Irmin.remote
+    remote : Irmin.remote;
   }
 
   type key = RO.key
@@ -309,21 +298,13 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store t -> RO.tree t
     | Batch b -> Lwt.return { Tree.tree = b.tree; repo = repo t }
 
-  let digest t k =
-    tree t >>= fun t ->
-    Tree.digest t k
+  let digest t k = tree t >>= fun t -> Tree.digest t k
 
-  let exists t k =
-    tree t >>= fun t ->
-    Tree.exists t k
+  let exists t k = tree t >>= fun t -> Tree.exists t k
 
-  let get t k =
-    tree t >>= fun t ->
-    Tree.get t k
+  let get t k = tree t >>= fun t -> Tree.get t k
 
-  let list t k =
-    tree t >>= fun t ->
-    Tree.list t k
+  let list t k = tree t >>= fun t -> Tree.list t k
 
   type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
 
@@ -382,10 +363,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
           let repo = S.repo s.t in
           (* get the tree origin *)
           get_store_tree s >>= function
-          | None ->
-              f t >|= fun x ->
-              Ok x
-              (* no transaction is needed *)
+          | None -> f t >|= fun x -> Ok x (* no transaction is needed *)
           | Some (origin, old_tree) -> (
               let batch = { repo; tree = old_tree; origin } in
               let b = Batch batch in

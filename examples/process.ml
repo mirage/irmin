@@ -9,61 +9,77 @@ let fin () =
 
 type action = {
   message : string;
-  files : (string list * (unit -> string)) list
+  files : (string list * (unit -> string)) list;
 }
 
 type image = { name : string; actions : action list }
 
 let ubuntu =
-  { name = "official-images/ubuntu:14.04";
+  {
+    name = "official-images/ubuntu:14.04";
     actions =
-      [ { message = "Updating source lists";
+      [
+        {
+          message = "Updating source lists";
           files =
-            [ ( [ "etc"; "source.list" ],
-                fun () -> sprintf "deb %d" (Random.int 10) )
-            ]
+            [
+              ( [ "etc"; "source.list" ],
+                fun () -> sprintf "deb %d" (Random.int 10) );
+            ];
         };
         { message = "grep -v '^#' /etc/apt/sources.list"; files = [] };
-        { message = "cat /etc/issue"; files = [] }
-      ]
+        { message = "cat /etc/issue"; files = [] };
+      ];
   }
 
 let wordpress =
-  { name = "official-images/wordpress:latest";
+  {
+    name = "official-images/wordpress:latest";
     actions =
-      [ { message = "user logging";
+      [
+        {
+          message = "user logging";
           files =
-            [ ( [ "wordpress"; "wp-users.php" ],
-                fun () -> sprintf "<?php ...%d" (Random.int 10) )
-            ]
+            [
+              ( [ "wordpress"; "wp-users.php" ],
+                fun () -> sprintf "<?php ...%d" (Random.int 10) );
+            ];
         };
-        { message = "configuration updates";
+        {
+          message = "configuration updates";
           files =
-            [ ( [ "wordpress"; "wp-settings.php" ],
-                fun () -> sprintf "<?php .. %d" (Random.int 10) )
-            ]
-        }
-      ]
+            [
+              ( [ "wordpress"; "wp-settings.php" ],
+                fun () -> sprintf "<?php .. %d" (Random.int 10) );
+            ];
+        };
+      ];
   }
 
 let mysql =
-  { name = "local/mysql:5.5.41";
+  {
+    name = "local/mysql:5.5.41";
     actions =
-      [ { message = "Reading table wp_users"; files = [] };
-        { message = "Writing table wp_users";
+      [
+        { message = "Reading table wp_users"; files = [] };
+        {
+          message = "Writing table wp_users";
           files =
-            [ ( [ "var"; "lib"; "mysql" ],
-                fun () -> sprintf "X%duYYt" (Random.int 10) )
-            ]
+            [
+              ( [ "var"; "lib"; "mysql" ],
+                fun () -> sprintf "X%duYYt" (Random.int 10) );
+            ];
         };
         { message = "Reading table wp_posts"; files = [] };
-        { message = "Writing table wp_posts";
+        {
+          message = "Writing table wp_posts";
           files =
-            [ ( [ "var"; "lib"; "mysql" ],
-                fun () -> sprintf "X%dxYYt" (Random.int 10) )
-            ]
-        }
-      ]
+            [
+              ( [ "var"; "lib"; "mysql" ],
+                fun () -> sprintf "X%dxYYt" (Random.int 10) );
+            ];
+        };
+      ];
   }
 
 let branch image = String.map (function ':' -> '/' | c -> c) image.name
@@ -131,7 +147,7 @@ let rec protect fn x =
     (fun () -> fn x)
     (fun e ->
       Printf.eprintf "error: %s" (Printexc.to_string e);
-      protect fn x )
+      protect fn x)
 
 let rec watchdog () =
   Printf.printf "I'm alive!\n%!";
