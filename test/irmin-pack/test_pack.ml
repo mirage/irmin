@@ -110,7 +110,7 @@ module P = Irmin_pack.Pack.File (I) (H)
 module Pack = P.Make (S)
 module Index = Irmin_pack.Index.Make (Irmin.Hash.SHA1)
 
-let get_index = Index.v ~log_size:10_000_000 ~fan_out_size:16
+let get_index = Index.v ~log_size:10_000_000
 
 let test_pack _switch () =
   let index = get_index ~fresh:true test_dir in

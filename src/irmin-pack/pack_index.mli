@@ -22,7 +22,6 @@ module type S = sig
     ?readonly:bool ->
     ?shared:bool ->
     log_size:int ->
-    fan_out_size:int ->
     string ->
     t
 
