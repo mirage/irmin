@@ -49,7 +49,7 @@ let conflict fmt =
   ksprintf
     (fun msg ->
       Log.debug (fun f -> f "conflict: %s" msg);
-      Lwt.return (Error (`Conflict msg)) )
+      Lwt.return (Error (`Conflict msg)))
     fmt
 
 let bind x f = x >>= function Error _ as x -> Lwt.return x | Ok x -> f x
@@ -110,7 +110,7 @@ let seq = function
         fun ~old v1 v2 ->
           Lwt_list.fold_left_s
             (fun acc (_, merge) ->
-              match acc with Ok x -> ok x | Error _ -> merge ~old v1 v2 )
+              match acc with Ok x -> ok x | Error _ -> merge ~old v1 v2)
             (Error (`Conflict "nothing to merge"))
             ts )
 
@@ -123,26 +123,26 @@ let option (type a) ((a, t) : a t) : a option t =
       f (default Type.(option a)) ~old t1 t2 >>= function
       | Ok x -> ok x
       | Error _ -> (
-        match (t1, t2) with
-        | None, None -> ok None
-        | Some v1, Some v2 ->
-            let open Infix in
-            let old () =
+          match (t1, t2) with
+          | None, None -> ok None
+          | Some v1, Some v2 ->
+              let open Infix in
+              let old () =
+                old () >>=* function
+                | None -> ok None
+                | Some o ->
+                    Log.debug (fun f -> f "option old=%a" pp o);
+                    ok o
+              in
+              t ~old v1 v2 >|=* fun x -> Some x
+          | Some x, None | None, Some x -> (
+              let open Infix in
               old () >>=* function
-              | None -> ok None
-              | Some o ->
+              | None | Some None -> ok (Some x)
+              | Some (Some o) ->
+                  let pp = Type.pp a and ( = ) = Type.equal a in
                   Log.debug (fun f -> f "option old=%a" pp o);
-                  ok o
-            in
-            t ~old v1 v2 >|=* fun x -> Some x
-        | Some x, None | None, Some x -> (
-            let open Infix in
-            old () >>=* function
-            | None | Some None -> ok (Some x)
-            | Some (Some o) ->
-                let pp = Type.pp a and ( = ) = Type.equal a in
-                Log.debug (fun f -> f "option old=%a" pp o);
-                if x = o then ok (Some x) else conflict "option: add/del" ) )
+                  if x = o then ok (Some x) else conflict "option: add/del" ) )
   )
 
 let pair (da, a) (db, b) =
@@ -157,8 +157,8 @@ let pair (da, a) (db, b) =
           let (a1, b1), (a2, b2) = (x, y) in
           let o1 = map_promise fst old in
           let o2 = map_promise snd old in
-          a ~old:o1 a1 a2 >>=* fun a3 -> b ~old:o2 b1 b2 >|=* fun b3 -> (a3, b3)
-  )
+          a ~old:o1 a1 a2 >>=* fun a3 ->
+          b ~old:o2 b1 b2 >|=* fun b3 -> (a3, b3) )
 
 let triple (da, a) (db, b) (dc, c) =
   let dt = Type.triple da db dc in
@@ -198,17 +198,17 @@ let alist_iter2 compare_k f l1 l2 =
     | [], t -> List.iter (fun (key, v) -> f key (`Right v)) t
     | t, [] -> List.iter (fun (key, v) -> f key (`Left v)) t
     | (k1, v1) :: t1, (k2, v2) :: t2 -> (
-      match compare_k k1 k2 with
-      | 0 ->
-          f k1 (`Both (v1, v2));
-          aux t1 t2
-      | x ->
-          if x < 0 then (
-            f k1 (`Left v1);
-            aux t1 l2 )
-          else (
-            f k2 (`Right v2);
-            aux l1 t2 ) )
+        match compare_k k1 k2 with
+        | 0 ->
+            f k1 (`Both (v1, v2));
+            aux t1 t2
+        | x ->
+            if x < 0 then (
+              f k1 (`Left v1);
+              aux t1 l2 )
+            else (
+              f k2 (`Right v2);
+              aux l1 t2 ) )
   in
   aux l1 l2
 
@@ -256,8 +256,7 @@ let alist dx dy merge_v =
       let merge_v k = f (merge_v k) in
       Lwt.catch
         (fun () ->
-          alist_merge_lwt Type.(compare dx) (merge_elt merge_v old) x y >>= ok
-          )
+          alist_merge_lwt Type.(compare dx) (merge_elt merge_v old) x y >>= ok)
         (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
 
 module MultiSet (K : sig
@@ -363,7 +362,7 @@ struct
                   in
                   ok (Some old)
             in
-            merge_maps (merge_elt merge_v old) m1 m2 >>= ok )
+            merge_maps (merge_elt merge_v old) m1 m2 >>= ok)
           (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
 end
 
@@ -392,7 +391,7 @@ let like_lwt (type a b) da (t : b t) (a_to_b : a -> b Lwt.t)
         memo (fun () ->
             bind (old ()) @@ function
             | None -> ok None
-            | Some a -> a_to_b a >|= fun b -> Ok (Some b) )
+            | Some a -> a_to_b a >|= fun b -> Ok (Some b))
       in
       bind ((f t) ~old b1 b2) @@ fun b3 -> b_to_a b3 >>= ok
     with Not_found -> conflict "biject'"
@@ -436,8 +435,8 @@ let conflict_t =
 
 let result_t ok =
   let open Type in
-  variant "result" (fun ok error -> function
-    | Ok x -> ok x | Error x -> error x )
+  variant "result" (fun ok error ->
+    function Ok x -> ok x | Error x -> error x)
   |~ case1 "ok" ok (fun x -> Ok x)
   |~ case1 "error" conflict_t (fun x -> Error x)
   |> sealv

@@ -42,7 +42,7 @@ module Make (IO : IO.S) : S = struct
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : IO.t
+    io : IO.t;
   }
 
   let append_string t v =

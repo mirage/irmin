@@ -26,5 +26,5 @@ let v ?author fmt =
             Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname ())
               (Unix.getpid ())
       in
-      Irmin.Info.v ~date ~author msg )
+      Irmin.Info.v ~date ~author msg)
     fmt

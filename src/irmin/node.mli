@@ -22,9 +22,9 @@ module No_metadata : S.METADATA with type t = unit
 
 module Make
     (K : Type.S) (P : sig
-        type step
+      type step
 
-        val step_t : step Type.t
+      val step_t : step Type.t
     end)
     (M : S.METADATA) :
   S.NODE with type hash = K.t and type step = P.step and type metadata = M.t
@@ -33,41 +33,41 @@ module Store
     (C : S.CONTENTS_STORE)
     (P : S.PATH)
     (M : S.METADATA) (N : sig
-        include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
+      include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
 
-        module Key : S.HASH with type t = key
+      module Key : S.HASH with type t = key
 
-        module Val :
-          S.NODE
+      module Val :
+        S.NODE
           with type t = value
            and type hash = key
            and type metadata = M.t
            and type step = P.step
     end) :
   S.NODE_STORE
-  with type 'a t = 'a C.t * 'a N.t
-   and type key = N.key
-   and type value = N.value
-   and module Path = P
-   and module Metadata = M
-   and type Key.t = N.key
-   and module Val = N.Val
+    with type 'a t = 'a C.t * 'a N.t
+     and type key = N.key
+     and type value = N.value
+     and module Path = P
+     and module Metadata = M
+     and type Key.t = N.key
+     and module Val = N.Val
 
 module Graph (N : S.NODE_STORE) :
   S.NODE_GRAPH
-  with type 'a t = 'a N.t
-   and type contents = N.Contents.key
-   and type metadata = N.Val.metadata
-   and type node = N.key
-   and type step = N.Path.step
-   and type path = N.Path.t
+    with type 'a t = 'a N.t
+     and type contents = N.Contents.key
+     and type metadata = N.Val.metadata
+     and type node = N.key
+     and type step = N.Path.step
+     and type path = N.Path.t
 
 module V1 (N : S.NODE) : sig
   include
     S.NODE
-    with type hash = N.hash
-     and type step = N.step
-     and type metadata = N.metadata
+      with type hash = N.hash
+       and type step = N.step
+       and type metadata = N.metadata
 
   val import : N.t -> t
 

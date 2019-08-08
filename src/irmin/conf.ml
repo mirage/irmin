@@ -43,7 +43,7 @@ let bool =
   ( (fun s ->
       try Ok (bool_of_string s)
       with Invalid_argument _ ->
-        Error (`Msg (Err.invalid_val s (Err.alts [ "true"; "false" ]))) ),
+        Error (`Msg (Err.invalid_val s (Err.alts [ "true"; "false" ])))),
     Fmt.bool )
 
 let parse_with t_of_str exp s =
@@ -83,7 +83,7 @@ type 'a key = {
   docv : string option;
   docs : string option;
   conv : 'a converter;
-  default : 'a
+  default : 'a;
 }
 
 let name t = t.name
@@ -103,7 +103,7 @@ let key ?docs ?docv ?doc name conv default =
     String.iter
       (function
         | '-' | '_' | 'a' .. 'z' | '0' .. '9' -> ()
-        | _ -> raise @@ Invalid_argument name )
+        | _ -> raise @@ Invalid_argument name)
       name
   in
   let to_univ, of_univ = Univ.create () in

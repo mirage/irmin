@@ -216,14 +216,14 @@ module Make (P : S.PRIVATE) = struct
           | Some h -> (
               Commit.of_hash repo h >|= function
               | None -> acc
-              | Some h -> h :: acc ) )
+              | Some h -> h :: acc ))
         [] bs
 
     let export ?(full = true) ?depth ?(min = []) ?(max = []) t =
       Log.debug (fun f ->
           f "export depth=%s full=%b min=%d max=%d"
             (match depth with None -> "<none>" | Some d -> string_of_int d)
-            full (List.length min) (List.length max) );
+            full (List.length min) (List.length max));
       (match max with [] -> heads t | m -> Lwt.return m) >>= fun max ->
       P.Slice.empty () >>= fun slice ->
       let max = List.map (fun x -> `Commit x.Commit.h) max in
@@ -247,7 +247,7 @@ module Make (P : S.PRIVATE) = struct
           | None -> Lwt.return_unit
           | Some c ->
               root_nodes := P.Commit.Val.node c :: !root_nodes;
-              P.Slice.add slice (`Commit (k, c)) )
+              P.Slice.add slice (`Commit (k, c)))
         keys
       >>= fun () ->
       if not full then Lwt.return slice
@@ -268,16 +268,16 @@ module Make (P : S.PRIVATE) = struct
                 List.iter
                   (function
                     | _, `Contents (c, _) -> contents := KSet.add c !contents
-                    | _ -> () )
+                    | _ -> ())
                   (P.Node.Val.list v);
-                P.Slice.add slice (`Node (k, v)) )
+                P.Slice.add slice (`Node (k, v)))
           nodes
         >>= fun () ->
         Lwt_list.iter_p
           (fun k ->
             P.Contents.find (contents_t t) k >>= function
             | None -> Lwt.return_unit
-            | Some m -> P.Slice.add slice (`Contents (k, m)) )
+            | Some m -> P.Slice.add slice (`Contents (k, m)))
           (KSet.elements !contents)
         >|= fun () -> slice
 
@@ -308,7 +308,7 @@ module Make (P : S.PRIVATE) = struct
             Lwt.return_unit
         | `Commit c ->
             commits := c :: !commits;
-            Lwt.return_unit )
+            Lwt.return_unit)
       >>= fun () ->
       P.Repo.batch t @@ fun contents_t node_t commit_t ->
       Lwt.catch
@@ -322,10 +322,10 @@ module Make (P : S.PRIVATE) = struct
           Lwt_list.iter_p
             (aux "Commit" (P.Commit.add commit_t) P.Commit.Key.t)
             !commits
-          >|= fun () -> Ok () )
+          >|= fun () -> Ok ())
         (function
           | Import_error e -> Lwt.return (Error (`Msg e))
-          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e )
+          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
   end
 
   type t = {
@@ -333,7 +333,7 @@ module Make (P : S.PRIVATE) = struct
     head_ref : head_ref;
     mutable tree : (commit * tree) option;
     (* cache for the store tree *)
-    lock : Lwt_mutex.t
+    lock : Lwt_mutex.t;
   }
 
   type step = Key.step
@@ -449,15 +449,16 @@ module Make (P : S.PRIVATE) = struct
     head t >|= function
     | None -> None
     | Some h -> (
-      match t.tree with
-      | Some (o, t) when Commit.equal o h -> Some (o, t)
-      | _ ->
-          t.tree <- None;
-          (* the tree cache needs to be invalidated *)
-          let n = Tree.import_no_check (repo t) (Commit.node h) in
-          let tree = `Node n in
-          t.tree <- Some (h, tree);
-          Some (h, tree) )
+        match t.tree with
+        | Some (o, t) when Commit.equal o h -> Some (o, t)
+        | _ ->
+            t.tree <- None;
+
+            (* the tree cache needs to be invalidated *)
+            let n = Tree.import_no_check (repo t) (Commit.node h) in
+            let tree = `Node n in
+            t.tree <- Some (h, tree);
+            Some (h, tree) )
 
   let tree t =
     tree_and_head t >|= function
@@ -494,7 +495,7 @@ module Make (P : S.PRIVATE) = struct
         Branch_store.watch (branch_t t) ?init (fun name head ->
             if Type.equal Branch_store.Key.t name0 name then
               lift_head_diff t.repo fn head
-            else Lwt.return_unit )
+            else Lwt.return_unit)
         >|= fun id () -> Branch_store.unwatch (branch_t t) id
 
   let pp_key = Type.pp Key.t
@@ -544,7 +545,7 @@ module Make (P : S.PRIVATE) = struct
       | Some old_head -> (
           Log.debug (fun f ->
               f "fast-forward-head old=%a new=%a" Commit.pp_hash old_head
-                Commit.pp_hash new_head );
+                Commit.pp_hash new_head);
           if Commit.equal new_head old_head then
             (* we only update if there is a change *)
             Lwt.return (Error `No_change)
@@ -610,7 +611,7 @@ module Make (P : S.PRIVATE) = struct
               (* [head] is protected by [t.lock] *)
               head := Some c;
               t.tree <- Some tree;
-              Lwt.return true ) )
+              Lwt.return true ))
     | `Branch name ->
         (* concurrent handlers and/or process can modify the
          branch. Need to check that we are still working on the same
@@ -646,7 +647,7 @@ module Make (P : S.PRIVATE) = struct
     root : tree;
     tree : tree option;
     (* the subtree used by the transaction *)
-    parents : commit list
+    parents : commit list;
   }
 
   let snapshot t key =
@@ -842,6 +843,7 @@ module Make (P : S.PRIVATE) = struct
             | Ok _ as x -> Lwt.return x
             | Error (`Conflict _) when retries > 0 && n <= retries ->
                 done_once := true;
+
                 (* use the store's current tree as the new 'old store' *)
                 (tree_and_head t >>= function
                  | None -> Lwt.return None
@@ -947,7 +949,7 @@ module Make (P : S.PRIVATE) = struct
               let t = Dst.add_vertex t x in
               let t = Dst.add_vertex t y in
               Dst.add_edge t x y
-          | _ -> t )
+          | _ -> t)
         g (Lwt.return t)
   end
 
@@ -985,7 +987,7 @@ module Make (P : S.PRIVATE) = struct
   let last_modified ?depth ?(n = 1) t key =
     Log.debug (fun l ->
         l "last_modified depth=%a number=%d key=%a" pp_option depth n pp_key
-          key );
+          key);
     Head.get t >>= fun commit ->
     let heap = Heap.create 5 in
     let () = Heap.add heap (commit, 0) in
@@ -1019,7 +1021,7 @@ module Make (P : S.PRIVATE) = struct
                   | Some x, Some y -> not (Type.equal Contents.t x y)
                   | Some _, None -> true
                   | _, _ -> false )
-              | None -> Lwt.return_false )
+              | None -> Lwt.return_false)
             parents
           >>= fun found ->
           if found then search (current :: acc) else search acc
@@ -1069,8 +1071,9 @@ module Make (P : S.PRIVATE) = struct
 
     let t r =
       let open Type in
-      variant "status" (fun empty branch commit -> function
-        | `Empty -> empty | `Branch b -> branch b | `Commit c -> commit c )
+      variant "status" (fun empty branch commit ->
+        function
+        | `Empty -> empty | `Branch b -> branch b | `Commit c -> commit c)
       |~ case0 "empty" `Empty
       |~ case1 "branch" Branch.t (fun b -> `Branch b)
       |~ case1 "commit" (Commit.t r) (fun c -> `Commit c)
@@ -1104,22 +1107,25 @@ module Make (P : S.PRIVATE) = struct
 
   let lca_error_t =
     Type.enum "lca-error"
-      [ ("max-depth-reached", `Max_depth_reached);
-        ("too-many-lcas", `Too_many_lcas)
+      [
+        ("max-depth-reached", `Max_depth_reached);
+        ("too-many-lcas", `Too_many_lcas);
       ]
 
   let ff_error_t =
     Type.enum "ff-error"
-      [ ("max-depth-reached", `Max_depth_reached);
+      [
+        ("max-depth-reached", `Max_depth_reached);
         ("too-many-lcas", `Too_many_lcas);
         ("no-change", `No_change);
-        ("rejected", `Rejected)
+        ("rejected", `Rejected);
       ]
 
   let write_error_t =
     let open Type in
-    variant "write-error" (fun c m e -> function
-      | `Conflict x -> c x | `Too_many_retries x -> m x | `Test_was x -> e x )
+    variant "write-error" (fun c m e ->
+      function
+      | `Conflict x -> c x | `Too_many_retries x -> m x | `Test_was x -> e x)
     |~ case1 "conflict" string (fun x -> `Conflict x)
     |~ case1 "too-many-retries" int (fun x -> `Too_many_retries x)
     |~ case1 "test-got" (option tree_t) (fun x -> `Test_was x)

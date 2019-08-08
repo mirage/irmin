@@ -49,11 +49,11 @@ end
 
 module Store
     (N : S.NODE_STORE) (S : sig
-        include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
+      include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
 
-        module Key : S.HASH with type t = key
+      module Key : S.HASH with type t = key
 
-        module Val : S.COMMIT with type t = value and type hash = key
+      module Val : S.COMMIT with type t = value and type hash = key
     end) =
 struct
   module Node = N
@@ -236,17 +236,17 @@ module History (S : S.COMMIT_STORE) = struct
       | (`Too_many_lcas | `Max_depth_reached) as x -> Lwt.return (Error x)
       | `Stop -> return ()
       | `Continue -> (
-        match unqueue todo seen with
-        | None -> return ()
-        | Some (depth, commit) ->
-            (* Log.debug "lca %d: %s.%d %a"
+          match unqueue todo seen with
+          | None -> return ()
+          | Some (depth, commit) ->
+              (* Log.debug "lca %d: %s.%d %a"
              !lca_calls (pp_key commit) depth force (pp ()); *)
-            let seen = KSet.add commit seen in
-            read_parents t commit >>= fun parents ->
-            let () = f depth commit parents in
-            let parents = KSet.diff parents seen in
-            KSet.iter (add_todo (depth + 1)) parents;
-            aux seen )
+              let seen = KSet.add commit seen in
+              read_parents t commit >>= fun parents ->
+              let () = f depth commit parents in
+              let parents = KSet.diff parents seen in
+              KSet.iter (add_todo (depth + 1)) parents;
+              aux seen )
     in
     aux KSet.empty
 
@@ -282,7 +282,7 @@ module History (S : S.COMMIT_STORE) = struct
     (* the current exploration depth *)
     mutable lcas : int;
     (* number of commit marked with LCA *)
-    mutable complete : bool (* is the exploration complete? *)
+    mutable complete : bool; (* is the exploration complete? *)
   }
 
   let pp_state t =
@@ -328,14 +328,15 @@ module History (S : S.COMMIT_STORE) = struct
 
   let empty_state c1 c2 =
     let t =
-      { marks = KHashtbl.create 10;
+      {
+        marks = KHashtbl.create 10;
         parents = KHashtbl.create 10;
         layers = Hashtbl.create 10;
         c1;
         c2;
         depth = 0;
         lcas = 0;
-        complete = false
+        complete = false;
       }
     in
     set_mark t c1 Seen1;
@@ -394,6 +395,7 @@ module History (S : S.COMMIT_STORE) = struct
     add_to_layer t depth commit;
     if depth <> t.depth then (
       assert (depth = t.depth + 1);
+
       (* before starting to explore a new layer, check if we really
          have some work to do, ie. do we still have a commit seen only
          by one node? *)
@@ -426,12 +428,12 @@ module History (S : S.COMMIT_STORE) = struct
       let t0 = Sys.time () in
       Lwt.finalize
         (fun () ->
-          traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return )
+          traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return)
         (fun () ->
           let t1 = Sys.time () -. t0 in
           Log.debug (fun f ->
-              f "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1 );
-          Lwt.return_unit )
+              f "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1);
+          Lwt.return_unit)
 
   let rec three_way_merge t ~info ?max_depth ?n c1 c2 =
     Log.debug (fun f -> f "3-way merge between %a and %a" pp_key c1 pp_key c2);
@@ -454,7 +456,7 @@ module History (S : S.COMMIT_STORE) = struct
       let merge =
         merge t ~info
         |> Merge.with_conflict (fun msg ->
-               Fmt.strf "Recursive merging of common ancestors: %s" msg )
+               Fmt.strf "Recursive merging of common ancestors: %s" msg)
         |> Merge.f
       in
       merge ~old c1 c2

@@ -20,7 +20,7 @@ let stats =
   Some
     (fun () ->
       let stats = Irmin_watcher.stats () in
-      (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()) )
+      (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()))
 
 (* FS *)
 

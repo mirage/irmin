@@ -58,6 +58,6 @@ module Store (C : sig
   module Val : S.CONTENTS with type t = value
 end) :
   S.CONTENTS_STORE
-  with type 'a t = 'a C.t
-   and type key = C.key
-   and type value = C.value
+    with type 'a t = 'a C.t
+     and type key = C.key
+     and type value = C.value

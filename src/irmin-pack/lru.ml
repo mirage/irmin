@@ -20,12 +20,12 @@ module Make (H : Hashtbl.HashedType) = struct
     type 'a node = {
       value : 'a;
       mutable next : 'a node option;
-      mutable prev : 'a node option
+      mutable prev : 'a node option;
     }
 
     type 'a t = {
       mutable first : 'a node option;
-      mutable last : 'a node option
+      mutable last : 'a node option;
     }
 
     let detach t n =
@@ -63,7 +63,7 @@ module Make (H : Hashtbl.HashedType) = struct
     ht : (key * 'a) Q.node HT.t;
     q : (key * 'a) Q.t;
     mutable cap : int;
-    mutable w : int
+    mutable w : int;
   }
 
   let weight t = t.w

@@ -126,7 +126,7 @@ struct
           if n <= p + 1 then acc
           else
             let file = String.with_range file ~first:(p + 1) in
-            file :: acc )
+            file :: acc)
         [] files
     in
     List.fold_left
@@ -135,7 +135,7 @@ struct
         | Ok k -> k :: acc
         | Error (`Msg e) ->
             Log.err (fun l -> l "Irmin_fs.list: %s" e);
-            acc )
+            acc)
       [] files
 end
 
@@ -223,7 +223,8 @@ struct
     W.watch_key t.w key ?init f >|= fun w -> (w, stop)
 
   let watch t ?init f =
-    listen_dir t >>= fun stop -> W.watch t.w ?init f >|= fun w -> (w, stop)
+    listen_dir t >>= fun stop ->
+    W.watch t.w ?init f >|= fun w -> (w, stop)
 
   let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
 
@@ -319,7 +320,7 @@ module KV (IO : IO) (C : Irmin.Contents.S) =
 module IO_mem = struct
   type t = {
     watches : (string, string -> unit Lwt.t) Hashtbl.t;
-    files : (string, string) Hashtbl.t
+    files : (string, string) Hashtbl.t;
   }
 
   let t = { watches = Hashtbl.create 3; files = Hashtbl.create 13 }
@@ -345,14 +346,14 @@ module IO_mem = struct
       Hashtbl.replace t.watches dir f;
       Lwt.return (fun () ->
           Hashtbl.remove t.watches dir;
-          Lwt.return_unit )
+          Lwt.return_unit)
     in
     Irmin.Private.Watch.set_listen_dir_hook h
 
   let notify file =
     Hashtbl.fold
       (fun dir f acc ->
-        if String.is_prefix ~affix:dir file then f file :: acc else acc )
+        if String.is_prefix ~affix:dir file then f file :: acc else acc)
       t.watches []
     |> Lwt_list.iter_p (fun x -> x)
 
@@ -361,7 +362,7 @@ module IO_mem = struct
   let remove_file ?lock file =
     with_lock lock (fun () ->
         Hashtbl.remove t.files file;
-        Lwt.return_unit )
+        Lwt.return_unit)
 
   let rec_files dir =
     Hashtbl.fold
@@ -380,7 +381,7 @@ module IO_mem = struct
   let write_file ?temp_dir:_ ?lock file v =
     with_lock lock (fun () ->
         Hashtbl.replace t.files file v;
-        Lwt.return_unit )
+        Lwt.return_unit)
     >>= fun () -> notify file
 
   let equal x y =

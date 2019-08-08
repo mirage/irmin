@@ -16,7 +16,7 @@ let tree_of_t t =
     (fun (v, i) t2 ->
       let si = string_of_int i in
       Tree.add v [ si; "x" ] t2.x >>= fun v ->
-      Tree.add v [ si; "y" ] (string_of_int t2.y) >|= fun v -> (v, i + 1) )
+      Tree.add v [ si; "y" ] (string_of_int t2.y) >|= fun v -> (v, i + 1))
     (Tree.empty, 0) t
   >|= fun (v, _) -> v
 

@@ -156,7 +156,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               let str = Irmin.Type.to_string V.t in
               S.find db key >>= function
               | Some value -> Wm.continue (`String (str value)) rd
-              | None -> Wm.respond 404 rd )
+              | None -> Wm.respond 404 rd)
 
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
 
@@ -164,7 +164,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method! resource_exists rd =
           with_key rd (fun key ->
-              S.mem db key >>= fun mem -> Wm.continue mem rd )
+              S.mem db key >>= fun mem -> Wm.continue mem rd)
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#to_json) ] rd
@@ -221,18 +221,18 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
                         `String (to_json status_t (string_of_bool b))
                       in
                       let rd = { rd with Wm.Rd.resp_body } in
-                      Wm.continue b rd )
+                      Wm.continue b rd)
 
         method private to_json rd =
           with_key rd (fun key ->
               let str = Irmin.Type.to_string V.t in
               S.find db key >>= function
               | Some value -> Wm.continue (`String (str value)) rd
-              | None -> Wm.respond 404 rd )
+              | None -> Wm.respond 404 rd)
 
         method! resource_exists rd =
           with_key rd (fun key ->
-              S.mem db key >>= fun mem -> Wm.continue mem rd )
+              S.mem db key >>= fun mem -> Wm.continue mem rd)
 
         method! allowed_methods rd =
           Wm.continue [ `GET; `HEAD; `PUT; `DELETE ] rd
@@ -247,7 +247,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           with_key rd (fun key ->
               S.remove db key >>= fun () ->
               let resp_body = `String (to_json status_t "ok") in
-              Wm.continue true { rd with Wm.Rd.resp_body } )
+              Wm.continue true { rd with Wm.Rd.resp_body })
       end
 
     class watches db =
@@ -264,10 +264,10 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               let v = to_json (event_t K.t V.t) (key, diff) in
               push (Some v);
               push (Some ",");
-              Lwt.return_unit )
+              Lwt.return_unit)
           >|= fun w ->
           Lwt.async (fun () ->
-              Lwt_stream.closed stream >>= fun () -> S.unwatch db w );
+              Lwt_stream.closed stream >>= fun () -> S.unwatch db w);
           push (Some "[");
           `Stream stream
 
@@ -300,10 +300,10 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               let v = to_json (event_t K.t V.t) (key, diff) in
               push (Some v);
               push (Some ",");
-              Lwt.return_unit )
+              Lwt.return_unit)
           >|= fun w ->
           Lwt.async (fun () ->
-              Lwt_stream.closed stream >>= fun () -> S.unwatch db w );
+              Lwt_stream.closed stream >>= fun () -> S.unwatch db w);
           push (Some "[");
           `Stream stream
 
@@ -314,11 +314,11 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           | Ok init ->
               with_key rd (fun key ->
                   self#stream ~init key >>= fun resp_body ->
-                  Wm.continue true { rd with Wm.Rd.resp_body } )
+                  Wm.continue true { rd with Wm.Rd.resp_body })
 
         method private of_json rd =
           with_key rd (fun key ->
-              self#stream key >>= fun body -> Wm.continue body rd )
+              self#stream key >>= fun body -> Wm.continue body rd)
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#of_json) ] rd
@@ -326,7 +326,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   end
 
   module Blob =
-    Content_addressable (struct
+    Content_addressable
+      (struct
         include P.Contents
 
         let batch t f = P.Repo.batch t @@ fun x _ _ -> f x
@@ -335,7 +336,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (P.Contents.Val)
 
   module Tree =
-    Content_addressable (struct
+    Content_addressable
+      (struct
         include P.Node
 
         let batch t f = P.Repo.batch t @@ fun _ x _ -> f x
@@ -344,7 +346,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (P.Node.Val)
 
   module Commit =
-    Content_addressable (struct
+    Content_addressable
+      (struct
         include P.Commit
 
         let batch t f = P.Repo.batch t @@ fun _ _ x -> f x
@@ -364,7 +367,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let commit = P.Repo.commit_t db in
     let branch = P.Repo.branch_t db in
     let routes =
-      [ ("/blobs", fun () -> new Blob.items db);
+      [
+        ("/blobs", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
         ("/trees", fun () -> new Tree.items db);
         ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
@@ -377,7 +381,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         ("/branches", fun () -> new Branch.items branch);
         ("/branch/*", fun () -> new Branch.item branch);
         ("/watches", fun () -> new Branch.watches branch);
-        ("/watch/*", fun () -> new Branch.watch branch)
+        ("/watch/*", fun () -> new Branch.watch branch);
       ]
     in
     let pp_con = Fmt.of_to_string Cohttp.Connection.to_string in
@@ -392,7 +396,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           l "[%a] %d - %s %s" pp_con conn
             (Code.code_of_status status)
             (Code.string_of_method (Request.meth request))
-            (Uri.path (Request.uri request)) );
+            (Uri.path (Request.uri request)));
+
       (* Finally, send the response to the client *)
       HTTP.respond ~headers ~body ~status ()
     in

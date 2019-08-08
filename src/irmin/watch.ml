@@ -92,7 +92,7 @@ let scheduler () =
         Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
              are at the back of the queue. *)
-            Lwt_stream.iter_s (fun f -> f ()) stream );
+            Lwt_stream.iter_s (fun f -> f ()) stream);
         p := Some push;
         (c := fun () -> push None);
         push elt
@@ -161,7 +161,7 @@ struct
     (* destroy the notification thread. *)
     mutable listeners : int;
     (* number of listeners. *)
-    mutable stop_listening : unit -> unit Lwt.t
+    mutable stop_listening : unit -> unit Lwt.t;
         (* clean-up listen resources. *)
   }
 
@@ -186,12 +186,13 @@ struct
   let clear t =
     Lwt_mutex.with_lock t.lock (fun () ->
         clear_unsafe t;
-        Lwt.return_unit )
+        Lwt.return_unit)
 
   let v () =
     let lock = Lwt_mutex.create () in
     let clean, enqueue = scheduler () in
-    { lock;
+    {
+      lock;
       clean;
       enqueue;
       id = global ();
@@ -199,7 +200,7 @@ struct
       keys = IMap.empty;
       glob = IMap.empty;
       listeners = 0;
-      stop_listening = (fun () -> Lwt.return_unit)
+      stop_listening = (fun () -> Lwt.return_unit);
     }
 
   let unwatch_unsafe t id =
@@ -213,7 +214,7 @@ struct
     Lwt_mutex.with_lock t.lock (fun () ->
         unwatch_unsafe t id;
         if is_empty t then t.clean ();
-        Lwt.return_unit )
+        Lwt.return_unit)
 
   let mk old value =
     match (old, value) with
@@ -226,8 +227,8 @@ struct
     Lwt.catch f (fun e ->
         Log.err (fun l ->
             l "watch callback got: %a\n%s" Fmt.exn e
-              (Printexc.get_backtrace ()) );
-        Lwt.return_unit )
+              (Printexc.get_backtrace ()));
+        Lwt.return_unit)
 
   let notify_all_unsafe t key value =
     let todo = ref [] in
@@ -238,7 +239,7 @@ struct
             Log.debug (fun f ->
                 f "notify-all[%d.%d]: firing! (v=%a)" t.id id
                   Fmt.(Dump.option pp_value)
-                  old_value );
+                  old_value);
             todo := protect (fun () -> f key (mk old_value value)) :: !todo;
             let init =
               match value with
@@ -252,9 +253,9 @@ struct
           in
           if equal_opt_values old_value value then (
             Log.debug (fun f ->
-                f "notify-all[%d:%d]: same value, skipping." t.id id );
+                f "notify-all[%d:%d]: same value, skipping." t.id id);
             IMap.add id arg acc )
-          else fire old_value )
+          else fire old_value)
         t.glob IMap.empty
     in
     t.glob <- glob;
@@ -270,12 +271,12 @@ struct
           if not (equal_keys key k) then IMap.add id arg acc
           else if equal_opt_values value old_value then (
             Log.debug (fun f ->
-                f "notify-key[%d.%d]: same value, skipping." t.id id );
+                f "notify-key[%d.%d]: same value, skipping." t.id id);
             IMap.add id arg acc )
           else (
             Log.debug (fun f -> f "notify-key[%d:%d] firing!" t.id id);
             todo := protect (fun () -> f (mk old_value value)) :: !todo;
-            IMap.add id (k, value, f) acc ) )
+            IMap.add id (k, value, f) acc ))
         t.keys IMap.empty
     in
     t.keys <- keys;
@@ -289,7 +290,7 @@ struct
         else (
           notify_all_unsafe t key value;
           notify_key_unsafe t key value;
-          Lwt.return_unit ) )
+          Lwt.return_unit ))
 
   let watch_key_unsafe t key ?init f =
     let id = next t in
@@ -300,7 +301,7 @@ struct
   let watch_key t key ?init f =
     Lwt_mutex.with_lock t.lock (fun () ->
         let id = watch_key_unsafe t ?init key f in
-        Lwt.return id )
+        Lwt.return id)
 
   let kmap_of_alist l =
     List.fold_left (fun map (k, v) -> KMap.add k v map) KMap.empty l
@@ -314,7 +315,7 @@ struct
   let watch t ?init f =
     Lwt_mutex.with_lock t.lock (fun () ->
         let id = watch_unsafe t ?init f in
-        Lwt.return id )
+        Lwt.return id)
 
   let listen_dir t dir ~key ~value =
     let init () =
@@ -323,7 +324,7 @@ struct
         !listen_dir_hook t.id dir (fun file ->
             match key file with
             | None -> Lwt.return_unit
-            | Some key -> value key >>= notify t key )
+            | Some key -> value key >>= notify t key)
         >|= fun f -> t.stop_listening <- f )
       else (
         Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);

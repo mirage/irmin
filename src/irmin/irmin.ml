@@ -63,9 +63,9 @@ module Make_ext
     (B : Branch.S)
     (H : Hash.S)
     (N : S.NODE
-         with type metadata = M.t
-          and type hash = H.t
-          and type step = P.step)
+           with type metadata = M.t
+            and type hash = H.t
+            and type step = P.step)
     (CT : S.COMMIT with type hash = H.t) =
 struct
   module X = struct
@@ -116,7 +116,7 @@ struct
         contents : [ `Read ] Contents.t;
         nodes : [ `Read ] Node.t;
         commits : [ `Read ] Commit.t;
-        branch : Branch.t
+        branch : Branch.t;
       }
 
       let contents_t t = t.contents

@@ -45,7 +45,7 @@ let uri_append t path =
           | "" -> ()
           | s ->
               if s.[0] <> '/' then Buffer.add_char buf '/';
-              Buffer.add_string buf s )
+              Buffer.add_string buf s)
         path;
       let path = Buffer.contents buf in
       Uri.with_path t path
@@ -168,13 +168,13 @@ module Helper (Client : Cohttp_lwt.S.Client) = struct
     let body = match body with None -> None | Some b -> Some (`String b) in
     let headers = headers ~keep_alive () in
     Log.debug (fun f ->
-        f "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri) );
+        f "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri));
     Lwt.catch
       (fun () -> Client.call ?ctx meth ~headers ?body uri >>= fn)
       (fun e ->
         Log.debug (fun l ->
-            l "request to %a failed: %a" Uri.pp_hum uri Fmt.exn e );
-        Lwt.fail e )
+            l "request to %a failed: %a" Uri.pp_hum uri Fmt.exn e);
+        Lwt.fail e)
 
   let call meth t ctx ?body path parse =
     map_call meth t ctx ~keep_alive:false ?body path
@@ -192,7 +192,7 @@ struct
     uri : Uri.t;
     item : string;
     items : string;
-    ctx : Client.ctx option
+    ctx : Client.ctx option;
   }
 
   let uri t = t.uri
@@ -213,13 +213,13 @@ struct
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
       (fun ((r, _) as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
-        else HTTP.map_string_response val_of_str x >|= fun x -> Some x )
+        else HTTP.map_string_response val_of_str x >|= fun x -> Some x)
 
   let mem t key =
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
       (fun (r, _) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
-        else Lwt.return_true )
+        else Lwt.return_true)
 
   let cast t = (t :> [ `Read | `Write ] t)
 
@@ -240,7 +240,9 @@ struct
 
   let unsafe_add t key value =
     let body = Irmin.Type.to_string V.t value in
-    HTTP.call `POST t.uri t.ctx [ "unsafe"; t.items; key_str key ] ~body
+    HTTP.call `POST t.uri t.ctx
+      [ "unsafe"; t.items; key_str key ]
+      ~body
       Irmin.Type.(of_string unit)
 end
 
@@ -310,7 +312,7 @@ struct
         | _ ->
             Cohttp_lwt.Body.to_string b >>= fun b ->
             Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" (Irmin.Type.pp K.t)
-              key b )
+              key b)
 
   let nb_keys t = fst (W.stats t.w)
 
@@ -341,7 +343,7 @@ struct
                 | `Removed _ -> None
                 | `Added v | `Updated (_, v) -> Some v
               in
-              W.notify t.w key v )
+              W.notify t.w key v)
             s
         in
         t.keys.stop <- stoppable stop;
@@ -367,7 +369,7 @@ struct
                 | `Removed _ -> None
                 | `Added v | `Updated (_, v) -> Some v
               in
-              W.notify t.w k v )
+              W.notify t.w k v)
             s
         in
         t.glob.stop <- stoppable stop;
@@ -465,7 +467,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         contents : [ `Read ] Contents.t;
         node : [ `Read ] Node.t;
         commit : [ `Read ] Commit.t;
-        branch : Branch.t
+        branch : Branch.t;
       }
 
       let branch_t t = t.branch

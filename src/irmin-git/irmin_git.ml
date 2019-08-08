@@ -22,10 +22,11 @@ module Metadata = struct
 
     let t =
       Irmin.Type.enum "metadata"
-        [ ("normal", `Normal);
+        [
+          ("normal", `Normal);
           ("exec", `Exec);
           ("link", `Link);
-          ("everybody", `Everybody)
+          ("everybody", `Everybody);
         ]
   end
 
@@ -188,9 +189,9 @@ struct
         let buf = Cstruct.shift buf off in
         match Raw.of_raw_with_header buf with
         | Ok g -> (
-          match GitContents.of_git g with
-          | Some g -> (off + Cstruct.len buf, g)
-          | None -> failwith "wrong object kind" )
+            match GitContents.of_git g with
+            | Some g -> (off + Cstruct.len buf, g)
+            | None -> failwith "wrong object kind" )
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
       let size_of ?headers:_ _ = None
@@ -230,8 +231,8 @@ struct
 
       let value_t =
         let open Irmin.Type in
-        variant "Tree.value" (fun node contents -> function
-          | `Node n -> node n | `Contents c -> contents c )
+        variant "Tree.value" (fun node contents ->
+          function `Node n -> node n | `Contents c -> contents c)
         |~ case1 "node" hash_t (fun n -> `Node n)
         |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
         |> sealv
@@ -250,7 +251,7 @@ struct
             match perm with
             | `Dir -> (name, `Node node) :: acc
             | `Commit -> acc (* FIXME *)
-            | #Metadata.t as p -> (name, `Contents (node, p)) :: acc )
+            | #Metadata.t as p -> (name, `Contents (node, p)) :: acc)
           [] (G.Value.Tree.to_list t)
         |> List.rev
 
@@ -260,10 +261,10 @@ struct
           | [] -> None
           | x :: xs when x.G.Value.Tree.name <> s -> aux xs
           | { G.Value.Tree.perm; node; _ } :: _ -> (
-            match perm with
-            | `Dir -> Some (`Node node)
-            | `Commit -> None (* FIXME *)
-            | #Metadata.t as p -> Some (`Contents (node, p)) )
+              match perm with
+              | `Dir -> Some (`Node node)
+              | `Commit -> None (* FIXME *)
+              | #Metadata.t as p -> Some (`Contents (node, p)) )
         in
         aux (G.Value.Tree.to_list t)
 
@@ -307,8 +308,7 @@ struct
               let v k = (l, k) in
               match x with
               | `Node n -> to_git `Dir (v n)
-              | `Contents (c, perm) -> to_git (perm :> G.Value.Tree.perm) (v c)
-              )
+              | `Contents (c, perm) -> to_git (perm :> G.Value.Tree.perm) (v c))
             alist
         in
         (* Tree.of_list will sort the list in the right order *)
@@ -327,7 +327,7 @@ struct
                 Log.warn (fun l -> l "skipping Git submodule: %s" name);
                 acc
             | { G.Value.Tree.perm = #Metadata.t as perm; name; node; _ } ->
-                (to_step name, mk_c node perm) :: acc )
+                (to_step name, mk_c node perm) :: acc)
           [] (G.Value.Tree.to_list t)
         |> List.rev
 
@@ -527,7 +527,7 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
     git_head : G.Reference.head_contents;
     t : G.t;
     w : W.t;
-    m : Lwt_mutex.t
+    m : Lwt_mutex.t;
   }
 
   let watches = Hashtbl.create 10
@@ -578,7 +578,8 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
 
   let watch t ?init f =
     Log.debug (fun l -> l "watch");
-    listen_dir t >>= fun stop -> W.watch t.w ?init f >|= fun w -> (w, stop)
+    listen_dir t >>= fun stop ->
+    W.watch t.w ?init f >|= fun w -> (w, stop)
 
   let unwatch t (w, stop) = stop () >>= fun () -> W.unwatch t.w w
 
@@ -617,7 +618,7 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
     G.Ref.list t >|= fun refs ->
     List.fold_left
       (fun acc (r, _) ->
-        match branch_of_git r with None -> acc | Some r -> r :: acc )
+        match branch_of_git r with None -> acc | Some r -> r :: acc)
       [] refs
 
   let write_index t gr gk =
@@ -625,9 +626,10 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
     if G.has_global_checkout then Log.debug (fun f -> f "write_index");
     let git_head = G.Reference.Ref gr in
     Log.debug (fun f ->
-        f "write_index/if bare=%b head=%a" t.bare G.Reference.pp gr );
+        f "write_index/if bare=%b head=%a" t.bare G.Reference.pp gr);
     if (not t.bare) && git_head = t.git_head then (
       Log.debug (fun f -> f "write cache (%a)" G.Reference.pp gr);
+
       (* FIXME G.write_index t.t gk *)
       let _ = gk in
       Lwt.return_unit )
@@ -689,7 +691,7 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
           | None -> Lwt.return_unit
           | Some v -> write_index t gr v
         else Lwt.return_unit )
-        >|= fun () -> b )
+        >|= fun () -> b)
 end
 
 module Irmin_sync_store
@@ -722,7 +724,7 @@ struct
     let result refs =
       (* FIXME: need pp_result *)
       Log.debug (fun f ->
-          f "fetch result: XXX" (* Git.Sync.Result.pp_fetch r *) );
+          f "fetch result: XXX" (* Git.Sync.Result.pp_fetch r *));
       let key =
         try Some (G.Reference.Map.find reference refs) with Not_found -> None
       in
@@ -732,9 +734,10 @@ struct
       (* remote *)
       ( reference,
         (* local *)
-        [ G.Reference.of_string
+        [
+          G.Reference.of_string
             ("refs/remotes/origin/" ^ Irmin.Type.to_string B.t br);
-          reference
+          reference;
         ] )
     in
     S.fetch_one t e ~reference:references >|= function
@@ -754,7 +757,7 @@ struct
         (function
           | Ok _ -> ()
           | Error (r, e) ->
-              errors := Fmt.strf "%a: %s" G.Reference.pp r e :: !errors )
+              errors := Fmt.strf "%a: %s" G.Reference.pp r e :: !errors)
         refs;
       if !errors = [] then Ok ()
       else
@@ -765,7 +768,8 @@ struct
           !errors
     in
     let references =
-      G.Reference.Map.singleton (* local *) reference (* remote *) [ reference ]
+      G.Reference.Map.singleton (* local *) reference
+        (* remote *) [ reference ]
     in
     S.update_and_create t ~references e >|= function
     | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
@@ -802,11 +806,12 @@ module Reference : BRANCH with type t = reference = struct
 
   let t =
     let open Irmin.Type in
-    variant "reference" (fun branch remote tag other -> function
+    variant "reference" (fun branch remote tag other ->
+      function
       | `Branch x -> branch x
       | `Remote x -> remote x
       | `Tag x -> tag x
-      | `Other x -> other x )
+      | `Other x -> other x)
     |~ case1 "branch" string (fun t -> `Branch t)
     |~ case1 "remote" string (fun t -> `Remote t)
     |~ case1 "tag" string (fun t -> `Tag t)
@@ -894,7 +899,7 @@ struct
         level : int option;
         buffers : int option;
         head : G.Reference.t option;
-        bare : bool
+        bare : bool;
       }
 
       let config c =
@@ -1089,38 +1094,41 @@ module type S_MAKER = functor
   (C : Irmin.Contents.S)
   (P : Irmin.Path.S)
   (B : Irmin.Branch.S)
-  -> S
-     with type key = P.t
-      and type step = P.step
-      and module Key = P
-      and type contents = C.t
-      and type branch = B.t
-      and module Git = G
-      and type Private.Sync.endpoint = S.Endpoint.t
+  ->
+  S
+    with type key = P.t
+     and type step = P.step
+     and module Key = P
+     and type contents = C.t
+     and type branch = B.t
+     and module Git = G
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 module type KV_MAKER = functor
   (G : G)
   (S : Git.Sync.S with module Store := G)
   (C : Irmin.Contents.S)
-  -> S
-     with type key = string list
-      and type step = string
-      and type contents = C.t
-      and type branch = string
-      and module Git = G
-      and type Private.Sync.endpoint = S.Endpoint.t
+  ->
+  S
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = string
+     and module Git = G
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 module type REF_MAKER = functor
   (G : G)
   (S : Git.Sync.S with module Store := G)
   (C : Irmin.Contents.S)
-  -> S
-     with type key = string list
-      and type step = string
-      and type contents = C.t
-      and type branch = reference
-      and module Git = G
-      and type Private.Sync.endpoint = S.Endpoint.t
+  ->
+  S
+    with type key = string list
+     and type step = string
+     and type contents = C.t
+     and type branch = reference
+     and module Git = G
+     and type Private.Sync.endpoint = S.Endpoint.t
 
 include Conf
 

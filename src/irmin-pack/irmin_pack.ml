@@ -108,7 +108,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     cache : V.t Tbl.t;
     block : IO.t;
     lock : Lwt_mutex.t;
-    w : W.t
+    w : W.t;
   }
 
   let read_length32 ~off block =
@@ -159,7 +159,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] remove %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_remove t k;
-        Lwt.return () )
+        Lwt.return ())
     >>= fun () -> W.notify t.w k None
 
   let unsafe_clear t =
@@ -207,7 +207,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let v ?fresh ?shared ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
         let v = unsafe_v () ?fresh ?shared ?readonly file in
-        Lwt.return v )
+        Lwt.return v)
 
   let unsafe_set t k v =
     try
@@ -224,7 +224,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] set %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_set t k v;
-        Lwt.return () )
+        Lwt.return ())
     >>= fun () -> W.notify t.w k (Some v)
 
   let unsafe_test_and_set t k ~test ~set =
@@ -265,9 +265,9 @@ module Make_ext
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S
-            with type metadata = M.t
-             and type hash = H.t
-             and type step = P.step)
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
@@ -365,7 +365,7 @@ struct
         node : [ `Read ] Node.CA.t;
         commit : [ `Read ] Commit.CA.t;
         branch : Branch.t;
-        index : Index.t
+        index : Index.t;
       }
 
       let contents_t t : 'a Contents.t = t.contents
@@ -383,7 +383,7 @@ struct
                     let contents : 'a Contents.t = contents in
                     let node : 'a Node.t = (contents, node) in
                     let commit : 'a Commit.t = (node, commit) in
-                    f contents node commit ) ) )
+                    f contents node commit)))
 
       let v config =
         let root = root config in

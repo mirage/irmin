@@ -120,7 +120,7 @@ module Unix : S = struct
     mutable flushed : int64;
     readonly : bool;
     version : string;
-    buf : Buffer.t
+    buf : Buffer.t;
   }
 
   let name t = t.file
@@ -137,6 +137,7 @@ module Unix : S = struct
     else (
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.unsafe_set_offset t.raw offset;
+
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
@@ -218,13 +219,14 @@ module Unix : S = struct
   let v ~fresh ~version:current_version ~readonly file =
     assert (String.length current_version = 8);
     let v ~offset ~version raw =
-      { version;
+      {
+        version;
         file;
         offset;
         raw;
         readonly;
         buf = buffer file;
-        flushed = header ++ offset
+        flushed = header ++ offset;
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
@@ -262,7 +264,7 @@ let with_cache ~v ~clear file =
     if not shared then (
       Log.debug (fun l ->
           l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
-            fresh shared readonly );
+            fresh shared readonly);
       let t = v extra_args ~fresh ~shared ~readonly file in
       if fresh then clear t;
       t )
@@ -271,7 +273,7 @@ let with_cache ~v ~clear file =
         if not (Sys.file_exists file) then (
           Log.debug (fun l ->
               l "[%s] does not exist anymore, cleaning up the fd cache"
-                (Filename.basename file) );
+                (Filename.basename file));
           Hashtbl.remove files file;
           raise Not_found );
         let t = Hashtbl.find files file in
@@ -281,7 +283,7 @@ let with_cache ~v ~clear file =
       with Not_found ->
         Log.debug (fun l ->
             l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
-              fresh shared readonly );
+              fresh shared readonly);
         let t = v extra_args ~fresh ~shared ~readonly file in
         if fresh then clear t;
         Hashtbl.add files file t;

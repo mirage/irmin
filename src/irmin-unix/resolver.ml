@@ -69,9 +69,10 @@ module Contents = struct
 
   let all =
     ref
-      [ ("string", (module Irmin.Contents.String : Irmin.Contents.S));
+      [
+        ("string", (module Irmin.Contents.String : Irmin.Contents.S));
         ("json", (module Irmin.Contents.Json));
-        ("json_value", (module Irmin.Contents.Json_value))
+        ("json_value", (module Irmin.Contents.Json_value));
       ]
 
   let default = ref (module Irmin.Contents.String : Irmin.Contents.S)
@@ -143,12 +144,13 @@ module Store = struct
 
   let all =
     ref
-      [ ("git", git);
+      [
+        ("git", git);
         ("git-mem", git_mem);
         ("irf", irf);
         ("mem", mem);
         ("http", fun c -> http (mem c));
-        ("http.git", fun c -> http (git c))
+        ("http.git", fun c -> http (git c));
       ]
 
   let default = ref git
@@ -227,17 +229,17 @@ let from_config_file_with_defaults path (store, contents) config branch : store
     let contents =
       match contents with
       | None -> (
-        match assoc "contents" Contents.find with
-        | None -> !Contents.default
-        | Some c -> c )
+          match assoc "contents" Contents.find with
+          | None -> !Contents.default
+          | Some c -> c )
       | Some c -> Contents.find c
     in
     let store =
       match store with
       | None -> (
-        match assoc "store" Store.find with
-        | None -> !Store.default
-        | Some s -> s )
+          match assoc "store" Store.find with
+          | None -> !Store.default
+          | Some s -> s )
       | Some s -> Store.find s
     in
     store contents
@@ -270,11 +272,11 @@ let from_config_file_with_defaults path (store, contents) config branch : store
             assoc "branch" (fun x ->
                 match of_string x with
                 | Ok x -> x
-                | Error (`Msg msg) -> failwith msg )
+                | Error (`Msg msg) -> failwith msg)
         | Some t -> (
-          match of_string t with
-          | Ok x -> Some x
-          | Error (`Msg e) -> failwith e )
+            match of_string t with
+            | Ok x -> Some x
+            | Error (`Msg e) -> failwith e )
       in
       match branch with
       | None -> S ((module S), mk_master (), remote)

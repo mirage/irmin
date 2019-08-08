@@ -44,7 +44,8 @@ let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
   in
   let x = 40 in
   Lwt_list.iter_s test
-    [ x - 1;
+    [
+      x - 1;
       x;
       x + 1;
       (x * 2) - 1;
@@ -53,24 +54,26 @@ let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
       (x * x) - 1;
       x * x;
       (x * x) + 1;
-      x * x * x
+      x * x * x;
     ]
 
 let simple =
   ( "simple",
-    [ ( "add/read: in-memory",
+    [
+      ( "add/read: in-memory",
         `Quick,
         run @@ test_add_read (module Test_chunk.Mem) );
       ( "add/read: in-memory+chunks",
         `Quick,
-        run @@ test_add_read (module Test_chunk.MemChunk) )
+        run @@ test_add_read (module Test_chunk.MemChunk) );
     ] )
 
 let stable =
   let test stable = test_add_read ~stable (module Test_chunk.MemChunk) in
   ( "stable",
-    [ ("add/read: simple", `Quick, run @@ test false);
-      ("add/read: stable", `Quick, run @@ test true)
+    [
+      ("add/read: simple", `Quick, run @@ test false);
+      ("add/read: stable", `Quick, run @@ test true);
     ] )
 
 let () =

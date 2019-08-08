@@ -36,10 +36,10 @@ type contents = Contents.t
 (** {1 Global Configuration} *)
 
 module Store : sig
+  type t
   (** The type for store configurations. A configuration value
      contains: the store implementation a creator of store's state and
      endpoint. *)
-  type t
 
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
 

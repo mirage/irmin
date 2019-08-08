@@ -51,10 +51,10 @@ end
 
 module type X =
   Irmin.S
-  with type step = string
-   and type key = string list
-   and type contents = X.t
-   and type branch = string
+    with type step = string
+     and type key = string list
+     and type contents = X.t
+     and type branch = string
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
@@ -124,6 +124,7 @@ let test_sort_order (module S : S) =
   Alcotest.(check string)
     "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
     (Irmin.Type.to_string S.Private.Node.Key.t tree_id);
+
   (* Convert dir to file; changes order in listing *)
   S.set_exn master ~info [ "foo" ] "foo" >>= fun () ->
   ls master >>= fun items ->
@@ -154,16 +155,18 @@ let test_list_refs (module S : G) =
   R.Repo.branches repo >>= fun bs ->
   Alcotest.(check (slist reference compare))
     "raw branches"
-    [ `Branch "foo";
+    [
+      `Branch "foo";
       `Branch "master";
       `Other "foo/bar/toto";
-      `Remote "datakit/master"
+      `Remote "datakit/master";
     ]
     bs;
   S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
   S.Repo.branches repo >>= fun bs ->
   Alcotest.(check (slist string String.compare))
     "filtered branches" [ "master"; "foo" ] bs;
+
   (* XXX: re-add
   if S.Git.kind = `Disk then
     let i = Fmt.kstrf Sys.command "cd %s && git gc" test_db in
@@ -222,12 +225,13 @@ let misc (module S : G) =
   let g = (module S : G) in
   let generic = (module Generic (Irmin.Contents.String) : S) in
   let run f x () = Lwt_main.run (f x) in
-  [ ("Testing sort order", `Quick, run test_sort_order s);
+  [
+    ("Testing sort order", `Quick, run test_sort_order s);
     ("Testing sort order (generic)", `Quick, run test_sort_order generic);
     ("Testing listing refs", `Quick, run test_list_refs g);
     ("git -> mem", `Quick, run test_import_export s);
     ("git blobs", `Quick, run test_blobs s);
-    ("git blobs of generic", `Quick, run test_blobs s)
+    ("git blobs of generic", `Quick, run test_blobs s);
   ]
 
 let mem = (module Mem (Irmin.Contents.String) : G)
