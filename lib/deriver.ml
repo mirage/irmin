@@ -94,7 +94,7 @@ module Located (A : Ast_builder.S) : S = struct
               >|= unlabelled
             in
             pexp_apply (pexp_ident lident) cons_args )
-    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_open_polyvar ~loc typ
+    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_polyvar ~loc typ
     (* | Ptyp_variant (rowfields, Closed, labellist) -> *)
     | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
     | Ptyp_tuple args ->

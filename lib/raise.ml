@@ -38,3 +38,8 @@ let unsupported_type_package ~loc ctyp =
 let unsupported_type_extension ~loc ctyp =
   Location.raise_errorf ~loc "%s: unprocessed extension %a encountered." name
     Pprintast.core_type ctyp
+
+let unsupported_type_alias ~loc ctyp =
+  Location.raise_errorf ~loc
+    "%s: alias type %a encountered. Alias types are not supported."
+    name Pprintast.core_type ctyp
