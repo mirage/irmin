@@ -1,2 +1,4 @@
-File "unsupported_type_open.ml", line 1, characters 0-30:
-Error: ppx_irmin: extensible variant types are not Irmin-serialisable.
+[1mFile "unsupported_type_open.ml", line 1, characters 0-30[0m:
+1 | type t = .. [@@deriving irmin]
+    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1;31mError[0m: ppx_irmin: extensible variant types are not Irmin-serialisable.

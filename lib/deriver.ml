@@ -46,7 +46,14 @@ module Located (A : Ast_builder.S) : S = struct
 
   let sealr = seal "sealr"
 
-  let open_module = pexp_open Fresh (Located.lident "Irmin.Type")
+  let open_module =
+    pexp_open
+      {
+        popen_expr = pmod_ident (Located.lident "Irmin.Type");
+        popen_override = Fresh;
+        popen_loc = A.loc;
+        popen_attributes = [];
+      }
 
   let lambda fparam = Located.mk fparam |> ppat_var |> pexp_fun Nolabel None
 
@@ -95,7 +102,8 @@ module Located (A : Ast_builder.S) : S = struct
             in
             pexp_apply (pexp_ident lident) cons_args )
     | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_polyvar ~loc typ
-    (* | Ptyp_variant (rowfields, Closed, labellist) -> *)
+    | Ptyp_variant (_rowfields, Closed, _labellist) ->
+        Raise.unsupported_type_polyvar ~loc typ
     | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
     | Ptyp_tuple args ->
         derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
