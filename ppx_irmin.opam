@@ -14,7 +14,7 @@ run-test: [
 depends: [
   "dune" {build}
   "ocaml" {>= "4.04.2"}
-  "ppxlib" {>= "0.3.0"}
+  "ppxlib" {>= "0.8.0"}
   "irmin" {>= "1.4.0"}
 ]
 synopsis: "PPX deriver for Irmin type witnesses"
