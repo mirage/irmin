@@ -1,2 +1,4 @@
-File "unsupported_type_extension.ml", line 1, characters 0-34:
-Error: ppx_irmin: unprocessed extension [%typ ] encountered.
+[1mFile "unsupported_type_extension.ml", line 1, characters 0-34[0m:
+1 | type t = [%typ] [@@deriving irmin]
+    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1;31mError[0m: ppx_irmin: unprocessed extension [%typ ] encountered.
