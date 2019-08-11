@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_arrow.ml", line 1, characters 0-39[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_arrow.ml", line 1, characters 0-39:
 1 | type t = unit -> int [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: function type encountered: unit -> int. Functions are not Irmin-serialisable.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: function type encountered: unit -> int. Functions are not Irmin-serialisable.

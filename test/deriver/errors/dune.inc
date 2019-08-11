@@ -11,7 +11,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -33,7 +33,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -55,7 +55,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -77,7 +77,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -99,7 +99,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -121,7 +121,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -143,7 +143,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )
@@ -165,7 +165,7 @@
   (action
     (with-stderr-to
       %{targets}
-      (bash "./%{pp} -no-color --impl %{input} || true")
+      (bash "! OCAML_COLOR=false ./%{pp} -no-color --impl %{input}")
     )
   )
 )

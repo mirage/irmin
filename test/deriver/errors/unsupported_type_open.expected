@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_open.ml", line 1, characters 0-30[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_open.ml", line 1, characters 0-30:
 1 | type t = .. [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: extensible variant types are not Irmin-serialisable.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: extensible variant types are not Irmin-serialisable.

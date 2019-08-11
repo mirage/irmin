@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_package.ml", line 5, characters 0-38[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_package.ml", line 5, characters 0-38:
 5 | type t = (module S) [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: package type (module S) encountered. Package types are not Irmin-serialisable.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: package type (module S) encountered. Package types are not Irmin-serialisable.
