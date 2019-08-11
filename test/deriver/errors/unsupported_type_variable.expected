@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_variable.ml", line 1, characters 0-43[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_variable.ml", line 1, characters 0-43:
 1 | type 'typvar t = 'typvar [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: uninstantiated type variable 'typvar found. Irmin types must be grounded.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: uninstantiated type variable 'typvar found. Irmin types must be grounded.

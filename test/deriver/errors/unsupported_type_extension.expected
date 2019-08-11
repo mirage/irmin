@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_extension.ml", line 1, characters 0-34[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_extension.ml", line 1, characters 0-34:
 1 | type t = [%typ] [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: unprocessed extension [%typ ] encountered.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: unprocessed extension [%typ ] encountered.

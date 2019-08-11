@@ -1,4 +1,6 @@
-[1mFile "unsupported_type_polyvariant.ml", line 1, characters 0-42[0m:
+File "_none_", line 1:
+Warning 46: illegal environment variable OCAML_COLOR : expected "auto", "always" or "never"
+File "unsupported_type_polyvariant.ml", line 1, characters 0-42:
 1 | type t = [ `On | `Off ] [@@deriving irmin]
-    [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-[1;31mError[0m: ppx_irmin: polymorphic variant [ `On  | `Off ] encountered. Polymorphic variants are not Irmin-serialisable.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: ppx_irmin: polymorphic variant [ `On  | `Off ] encountered. Polymorphic variants are not Irmin-serialisable.
