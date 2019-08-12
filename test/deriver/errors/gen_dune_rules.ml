@@ -14,7 +14,7 @@ let output_stanzas filename =
   (action
     (with-stderr-to
       %%{targets}
-      (bash "! OCAML_COLOR=false ./%%{pp} -no-color --impl %%{input}")
+      (bash "! OCAML_COLOR=never ./%%{pp} -no-color --impl %%{input}")
     )
   )
 )
