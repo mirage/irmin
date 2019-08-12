@@ -158,6 +158,54 @@ let test_variant6_t =
             (case1 "Cons" (pair string test_variant6_t)
                (fun (x1, x2) -> Cons (x1, x2))))
            |> sealv)
+type test_polyvar1 = [ `On of int  | `Off ][@@deriving irmin]
+let test_polyvar1_t =
+  let open Irmin.Type in
+    (((variant "test_polyvar1"
+         (fun on -> fun off -> function | `On x1 -> on x1 | `Off -> off))
+        |~ (case1 "On" int (fun x1 -> `On x1)))
+       |~ (case0 "Off" `Off))
+      |> sealv
+type test_polyvar2 =
+  [ `Outer_a of [ `Inner_a  | `Inner_b ]  | `Outer_b of [ `Inner_a ] 
+  | `Outer_c of [ `Inner_a of string  | `Inner_c of int ] ][@@deriving irmin]
+let test_polyvar2_t =
+  let open Irmin.Type in
+    ((((variant "test_polyvar2"
+          (fun outer_a ->
+             fun outer_b ->
+               fun outer_c ->
+                 function
+                 | `Outer_a x1 -> outer_a x1
+                 | `Outer_b x1 -> outer_b x1
+                 | `Outer_c x1 -> outer_c x1))
+         |~
+         (case1 "Outer_a"
+            ((((variant "test_polyvar2"
+                  (fun inner_a ->
+                     fun inner_b ->
+                       function | `Inner_a -> inner_a | `Inner_b -> inner_b))
+                 |~ (case0 "Inner_a" `Inner_a))
+                |~ (case0 "Inner_b" `Inner_b))
+               |> sealv) (fun x1 -> `Outer_a x1)))
+        |~
+        (case1 "Outer_b"
+           (((variant "test_polyvar2"
+                (fun inner_a -> function | `Inner_a -> inner_a))
+               |~ (case0 "Inner_a" `Inner_a))
+              |> sealv) (fun x1 -> `Outer_b x1)))
+       |~
+       (case1 "Outer_c"
+          ((((variant "test_polyvar2"
+                (fun inner_a ->
+                   fun inner_c ->
+                     function
+                     | `Inner_a x1 -> inner_a x1
+                     | `Inner_c x1 -> inner_c x1))
+               |~ (case1 "Inner_a" string (fun x1 -> `Inner_a x1)))
+              |~ (case1 "Inner_c" int (fun x1 -> `Inner_c x1)))
+             |> sealv) (fun x1 -> `Outer_c x1)))
+      |> sealv
 type test_record1 = {
   alpha: string ;
   beta: int64 list ;

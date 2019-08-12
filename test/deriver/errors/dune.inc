@@ -104,6 +104,32 @@
 )
 
 (library
+  (name unsupported_type_open_polyvariant)
+  (modules unsupported_type_open_polyvariant)
+  (preprocess (pps ppx_yojson))
+)
+
+(rule
+  (targets unsupported_type_open_polyvariant.actual)
+  (deps (:pp pp.exe) (:input unsupported_type_open_polyvariant.ml))
+  (action
+    (setenv "OCAML_ERROR_STYLE" "short"
+      (setenv "OCAML_COLOR" "never"
+        (with-stderr-to
+          %{targets}
+          (bash "! ./%{pp} -no-color --impl %{input}")
+        )
+      )
+    )
+  )
+)
+
+(alias
+  (name runtest)
+  (action (diff unsupported_type_open_polyvariant.expected unsupported_type_open_polyvariant.actual))
+)
+
+(library
   (name unsupported_type_package)
   (modules unsupported_type_package)
   (preprocess (pps ppx_yojson))
@@ -153,32 +179,6 @@
 (alias
   (name runtest)
   (action (diff unsupported_type_poly.expected unsupported_type_poly.actual))
-)
-
-(library
-  (name unsupported_type_polyvariant)
-  (modules unsupported_type_polyvariant)
-  (preprocess (pps ppx_yojson))
-)
-
-(rule
-  (targets unsupported_type_polyvariant.actual)
-  (deps (:pp pp.exe) (:input unsupported_type_polyvariant.ml))
-  (action
-    (setenv "OCAML_ERROR_STYLE" "short"
-      (setenv "OCAML_COLOR" "never"
-        (with-stderr-to
-          %{targets}
-          (bash "! ./%{pp} -no-color --impl %{input}")
-        )
-      )
-    )
-  )
-)
-
-(alias
-  (name runtest)
-  (action (diff unsupported_type_polyvariant.expected unsupported_type_polyvariant.actual))
 )
 
 (library
