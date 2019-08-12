@@ -2,6 +2,7 @@
 
 PPX extension for automatically generating Irmin type witnesses.
 
+[![Build Status](https://travis-ci.com/CraigFe/ppx_irmin.svg?branch=master)](https://travis-ci.com/CraigFe/ppx_irmin)
 ## Overview
 
 `ppx_irmin` automatically generates Irmin type witnesses (values of type `_ Irmin.Type.t`)
