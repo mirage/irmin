@@ -20,7 +20,6 @@ module type S = sig
   val v :
     ?fresh:bool ->
     ?readonly:bool ->
-    ?shared:bool ->
     log_size:int ->
     string ->
     t

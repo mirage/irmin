@@ -392,7 +392,7 @@ struct
         let readonly = readonly config in
         let shared = shared config in
         let log_size = index_log_size config in
-        let index = Index.v ~fresh ~shared ~readonly ~log_size root in
+        let index = Index.v ~fresh ~readonly ~log_size root in
         Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
         >>= fun contents ->
         Node.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
