@@ -1,4 +1,2 @@
 File "unsupported_type_package.ml", line 5, characters 0-38:
-5 | type t = (module S) [@@deriving irmin]
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: ppx_irmin: package type (module S) encountered. Package types are not Irmin-serialisable.

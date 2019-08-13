@@ -1,3 +1,5 @@
+open Ppxlib
+
 let name = "ppx_irmin"
 
 let unsupported_tuple_size ~loc count =
@@ -41,5 +43,5 @@ let unsupported_type_extension ~loc ctyp =
 
 let unsupported_type_alias ~loc ctyp =
   Location.raise_errorf ~loc
-    "%s: alias type %a encountered. Alias types are not supported."
-    name Pprintast.core_type ctyp
+    "%s: alias type %a encountered. Alias types are not supported." name
+    Pprintast.core_type ctyp

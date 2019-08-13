@@ -12,9 +12,13 @@ let output_stanzas filename =
   (targets %s.actual)
   (deps (:pp pp.exe) (:input %s.ml))
   (action
-    (with-stderr-to
-      %%{targets}
-      (bash "! OCAML_COLOR=never ./%%{pp} -no-color --impl %%{input}")
+    (setenv "OCAML_ERROR_STYLE" "short"
+      (setenv "OCAML_COLOR" "never"
+        (with-stderr-to
+          %%{targets}
+          (bash "! ./%%{pp} -no-color --impl %%{input}")
+        )
+      )
     )
   )
 )
