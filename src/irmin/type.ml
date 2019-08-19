@@ -1593,19 +1593,16 @@ let of_string t =
 
 type 'a ty = 'a t
 
-let ( %% ) (h1 : int) (h2 : int) : int = Hashtbl.hash (h1, h2)
-
 let short_hash t ?seed x =
   match t with
   | Custom c -> c.short_hash ?seed x
   | _ ->
-      let hash =
-        match seed with
-        | None -> Hashtbl.hash
-        | Some s -> Hashtbl.seeded_hash s
-      in
-      let h = ref 0 in
-      pre_hash t x (fun s -> h := hash s %% !h);
+      let seed = match seed with
+        | None -> 0
+        | Some t -> t
+        in
+      let h = ref seed in
+      pre_hash t x (fun s -> h := (Hashtbl.seeded_hash !h s));
       !h
 
 let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
