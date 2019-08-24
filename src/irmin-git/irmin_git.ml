@@ -92,7 +92,7 @@ let config ?(config = Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git
   let config = C.add config Conf.dot_git dot_git in
   config
 
-module Make_private (G : Git.S) (C : Irmin.Contents.S) (P : Irmin.Path.S) =
+module Make_private (G : Git.S) (C : Irmin.Contents.S) (P : Irmin.Path.S) (Z : Irmin.Serialize.S with type t = C.t and type key = P.t) =
 struct
   module H = Irmin.Hash.Make (G.Hash)
 
@@ -491,6 +491,8 @@ struct
   end
 
   module Commit = Irmin.Private.Commit.Store (Node) (XCommit)
+
+  module Serialize = Irmin.Serialize.Default (H) (C)
 end
 
 module type BRANCH = sig
@@ -860,7 +862,8 @@ module Make_ext
     (S : Git.Sync.S with module Store := G)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
-    (B : BRANCH) =
+    (B : BRANCH)
+    (Z : Irmin.Serialize.S with type t = C.t and type key = P.t) =
 struct
   module R = Irmin_branch_store (G) (B)
 
@@ -875,7 +878,7 @@ struct
       let v repo = Lwt.return repo.g
     end
 
-    include Make_private (G) (C) (P)
+    include Make_private (G) (C) (P) (Z)
     module Branch = R
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
     module Sync = XSync
@@ -981,7 +984,7 @@ module Make
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
-  Make_ext (G) (S) (C) (P) (Branch (B))
+  Make_ext (G) (S) (C) (P) (Branch (B)) (Irmin.Serialize.Default(P)(C))
 
 module No_sync (G : Git.S) = struct
   (* XXX(samoht): so much boilerplate... *)
@@ -1035,7 +1038,7 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
   end
 
   module M =
-    Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
+    Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference) (Irmin.Serialize.Default (Irmin.Path.String_list) (V))
   module X = M.Private.Contents
 
   let state t = M.repo_of_git t >|= fun r -> M.Private.Repo.contents_t r
@@ -1088,7 +1091,7 @@ module Ref
     (G : G)
     (S : Git.Sync.S with module Store := G)
     (C : Irmin.Contents.S) =
-  Make_ext (G) (S) (C) (Irmin.Path.String_list) (Reference)
+  Make_ext (G) (S) (C) (Irmin.Path.String_list) (Reference) (Irmin.Serialize.Default (Irmin.Path.String_list) (C))
 
 module type S_MAKER = functor
   (G : G)
@@ -1152,6 +1155,7 @@ struct
             (S.Private.Hash)
             (S.Private.Node.Val)
             (S.Private.Commit.Val)
+            (S.P.Serialize)
 end
 
 module Generic_KV

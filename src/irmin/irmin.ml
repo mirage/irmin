@@ -107,9 +107,10 @@ module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
 functor
   (K : Type.S)
   (V : Type.S)
+  (Z : S.SERIALIZE with type t = V.t and type key = K.t)
   ->
   struct
-    module S = AW (K) (V)
+    module S = AW (K) (V) (Z)
 
     type t = { closed : bool ref; t : S.t }
 
@@ -166,6 +167,12 @@ functor
         S.close t.t )
   end
 
+module Serialize = struct
+  include Serialize
+
+  module type S = S.SERIALIZE
+end
+
 module Make_ext
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
@@ -178,7 +185,8 @@ module Make_ext
            with type metadata = M.t
             and type hash = H.t
             and type step = P.step)
-    (CT : S.COMMIT with type hash = H.t) =
+    (CT : S.COMMIT with type hash = H.t)
+    (Z : S.SERIALIZE with type t = C.t and type key = H.t) =
 struct
   module CA = CA_check_closed (CA)
   module AW = AW_check_closed (AW)
@@ -219,7 +227,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include AW (Key) (Val)
+      include AW (Key) (Val) (Serialize.Default (Key) (Val))
     end
 
     module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -281,7 +289,8 @@ module Make
 struct
   module N = Node.Make (H) (P) (M)
   module CT = Commit.Make (H)
-  include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
+  module Z = Serialize.Default (H) (C)
+  include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT) (Z)
 end
 
 module Of_private = Store.Make

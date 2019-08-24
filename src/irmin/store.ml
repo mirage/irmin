@@ -26,7 +26,7 @@ module Content_addressable
     (K : S.HASH)
     (V : Type.S) =
 struct
-  include AO (K) (V)
+  include AO (K) (V) (Serialize.Default (K) (V))
   open Lwt.Infix
   module H = Hash.Typed (K) (V)
 

@@ -1212,6 +1212,24 @@ module Contents : sig
     STORE with type 'a t = 'a S.t and type key = S.key and type value = S.value
 end
 
+module Serialize : sig
+  module type S = sig
+    type t
+    type key
+
+    val encode_bin : key -> t Type.encode_bin
+    val decode_bin : key -> t Type.decode_bin
+    val size_of : key -> t Type.size_of
+  end
+
+  type ('a, 'b) t = (module S with type key = 'a and type t = 'b)
+
+  module Default (K : Type.S) (V : Type.S) : S with type t = V.t and type key = K.t
+
+  val to_bin_string : ('a, 'b) t -> 'a -> 'b -> string
+  val of_bin_string : ('a, 'b) t -> 'a -> string -> ('b, [ `Msg of string ]) result
+end
+
 (** User-defined branches. *)
 module Branch : sig
   (** {1 Branches} *)
@@ -3597,7 +3615,7 @@ end
 (** [APPEND_ONLY_STORE_MAKER] is the signature exposed by
     append-only store backends. [K] is the implementation of keys
     and [V] is the implementation of values. *)
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
+module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) (Z : Serialize.S with type t = V.t and type key = K.t) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
@@ -3641,7 +3659,7 @@ module Content_addressable
     (V : Type.S) : sig
   include
     CONTENT_ADDRESSABLE_STORE
-      with type 'a t = 'a S(K)(V).t
+      with type 'a t = 'a S(K)(V)(Serialize.Default(K)(V)).t
        and type key = K.t
        and type value = V.t
 
@@ -3661,7 +3679,7 @@ end
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write
     store backends. [K] is the implementation of keys and [V] is the
     implementation of values.*)
-module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
+module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) (Z : Serialize.S with type t = V.t and type key = K.t) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : config -> t Lwt.t
@@ -3691,7 +3709,8 @@ module Make_ext
               with type metadata = Metadata.t
                and type hash = Hash.t
                and type step = Path.step)
-    (Commit : Private.Commit.S with type hash = Hash.t) :
+    (Commit : Private.Commit.S with type hash = Hash.t)
+    (Serialize : S.SERIALIZE with type t = Contents.t and type key = Hash.t) :
   S
     with type key = Path.t
      and type contents = Contents.t

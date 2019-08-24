@@ -157,7 +157,8 @@ module Make_ext
     (S : Git.Sync.S with module Store := G)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
-    (B : BRANCH) :
+    (B : BRANCH)
+    (Z : Irmin.Serialize.S with type t = C.t and type key = P.t) :
   S
     with type key = P.t
      and type step = P.step

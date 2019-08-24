@@ -74,6 +74,15 @@ module type CONTENTS = sig
   val merge : t option Merge.t
 end
 
+module type SERIALIZE = sig
+  type t
+  type key
+
+  val encode_bin : key -> t Type.encode_bin
+  val decode_bin : key -> t Type.decode_bin
+  val size_of : key -> t Type.size_of
+end
+
 module type CONTENT_ADDRESSABLE_STORE = sig
   type 'a t
 
@@ -117,7 +126,7 @@ module type APPEND_ONLY_STORE = sig
   val add : [> `Write ] t -> key -> value -> unit Lwt.t
 end
 
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
+module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) (S : SERIALIZE with type t = V.t and type key = K.t) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
@@ -403,7 +412,7 @@ module type ATOMIC_WRITE_STORE = sig
   val unwatch : t -> watch -> unit Lwt.t
 end
 
-module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
+module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) (Z : SERIALIZE with type t = V.t and type key = K.t) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : Conf.t -> t Lwt.t

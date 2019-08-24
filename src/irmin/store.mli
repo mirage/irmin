@@ -36,7 +36,7 @@ module Content_addressable
     (V : Type.S) : sig
   include
     S.CONTENT_ADDRESSABLE_STORE
-      with type 'a t = 'a X(K)(V).t
+      with type 'a t = 'a X(K)(V)(Serialize.Default(K)(V)).t
        and type key = K.t
        and type value = V.t
 

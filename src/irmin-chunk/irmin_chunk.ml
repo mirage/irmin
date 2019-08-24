@@ -116,7 +116,7 @@ module Content_addressable
     (V : Irmin.Type.S) =
 struct
   module Chunk = Chunk (K)
-  module AO = S (K) (Chunk)
+  module AO = S (K) (Chunk) (Irmin.Serialize.Default (K) (Chunk))
   module CA = Irmin.Content_addressable (S) (K) (Chunk)
 
   type key = CA.key

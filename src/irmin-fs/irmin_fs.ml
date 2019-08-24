@@ -69,7 +69,8 @@ module Read_only_ext
     (IO : IO)
     (S : Config)
     (K : Irmin.Type.S)
-    (V : Irmin.Type.S) =
+    (V : Irmin.Type.S)
+    (Z : Irmin.Serialize.S with type t = V.t and type key = K.t) =
 struct
   type key = K.t
 
@@ -102,8 +103,8 @@ struct
     let file = file_of_key t key in
     IO.file_exists file
 
-  let value v =
-    match Irmin.Type.of_bin_string V.t v with
+  let value key v =
+    match Irmin.Serialize.of_bin_string (module Z) key v with
     | Ok v -> Some v
     | Error (`Msg e) ->
         Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -115,7 +116,7 @@ struct
     Log.debug (fun f -> f "find %a" pp_key key);
     IO.read_file (file_of_key t key) >|= function
     | None -> None
-    | Some x -> value x
+    | Some x -> value key x
 
   let list t =
     Log.debug (fun f -> f "list");
@@ -145,9 +146,10 @@ module Append_only_ext
     (IO : IO)
     (S : Config)
     (K : Irmin.Type.S)
-    (V : Irmin.Type.S) =
+    (V : Irmin.Type.S)
+    (Z : Irmin.Serialize.S with type t = V.t and type key = K.t) =
 struct
-  include Read_only_ext (IO) (S) (K) (V)
+  include Read_only_ext (IO) (S) (K) (V) (Z)
 
   let temp_dir t = t.path / "tmp"
 
@@ -158,7 +160,7 @@ struct
     IO.file_exists file >>= function
     | true -> Lwt.return_unit
     | false ->
-        let str = Irmin.Type.to_bin_string V.t value in
+        let str = Irmin.Serialize.to_bin_string (module Z) key value in
         IO.write_file ~temp_dir file str
 end
 
@@ -166,9 +168,10 @@ module Atomic_write_ext
     (IO : IO)
     (S : Config)
     (K : Irmin.Type.S)
-    (V : Irmin.Type.S) =
+    (V : Irmin.Type.S)
+    (Z : Irmin.Serialize.S with type t = V.t and type key = K.t) =
 struct
-  module RO = Read_only_ext (IO) (S) (K) (V)
+  module RO = Read_only_ext (IO) (S) (K) (V) (Z)
   module W = Irmin.Private.Watch.Make (K) (V)
 
   type t = { t : unit RO.t; w : W.t }
@@ -232,14 +235,14 @@ struct
 
   let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
 
-  let raw_value v = Irmin.Type.to_bin_string V.t v
+  let raw_value = Irmin.Serialize.to_bin_string (module Z)
 
   let set t key value =
     Log.debug (fun f -> f "update %a" RO.pp_key key);
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
-    IO.write_file ~temp_dir file ~lock (raw_value value) >>= fun () ->
+    IO.write_file ~temp_dir file ~lock (raw_value key value) >>= fun () ->
     W.notify t.w key (Some value)
 
   let remove t key =
@@ -253,7 +256,7 @@ struct
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
-    let raw_value = function None -> None | Some v -> Some (raw_value v) in
+    let raw_value = function None -> None | Some v -> Some (raw_value key v) in
     IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
       ~set:(raw_value set)
     >>= fun b ->
@@ -316,6 +319,7 @@ end
 module Append_only (IO : IO) = Append_only_ext (IO) (Obj)
 module Atomic_write (IO : IO) = Atomic_write_ext (IO) (Ref)
 module Make (IO : IO) = Make_ext (IO) (Obj) (Ref)
+
 module KV (IO : IO) (C : Irmin.Contents.S) =
   Make (IO) (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
     (Irmin.Branch.String)

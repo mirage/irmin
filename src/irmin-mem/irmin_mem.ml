@@ -56,7 +56,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Lwt.return (KMap.mem key t)
 end
 
-module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) (Z : Irmin.Serialize.S with type t = V.t and type key = K.t) = struct
   include Read_only (K) (V)
 
   let add t key value =
@@ -65,7 +65,7 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Lwt.return_unit
 end
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) (Z : Irmin.Serialize.S with type t = V.t and type key = K.t) = struct
   module RO = Read_only (K) (V)
   module W = Irmin.Private.Watch.Make (K) (V)
   module L = Irmin.Private.Lock.Make (K)
