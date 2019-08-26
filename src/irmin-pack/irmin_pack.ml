@@ -20,28 +20,40 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = "00000001"
 
+module Default = struct
+  let fresh = false
+
+  let lru_size = 100_000
+
+  let index_log_size = 500_000
+
+  let readonly = false
+
+  let shared = true
+end
+
 let fresh_key =
   Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh"
-    Irmin.Private.Conf.bool false
+    Irmin.Private.Conf.bool Default.fresh
 
 let lru_size_key =
   Irmin.Private.Conf.key ~doc:"Size of the LRU cache for pack entries."
-    "lru-size" Irmin.Private.Conf.int 10_000
+    "lru-size" Irmin.Private.Conf.int Default.lru_size
 
 let index_log_size_key =
   Irmin.Private.Conf.key ~doc:"Size of index logs." "index-log-size"
-    Irmin.Private.Conf.int 10_000
+    Irmin.Private.Conf.int Default.index_log_size
 
 let readonly_key =
   Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
-    Irmin.Private.Conf.bool false
+    Irmin.Private.Conf.bool Default.readonly
 
 let shared_key =
   Irmin.Private.Conf.key
     ~doc:
       "Share resources (file-descriptors, caches) with other instances when \
        possible."
-    "shared" Irmin.Private.Conf.bool false
+    "shared" Irmin.Private.Conf.bool Default.shared
 
 let fresh config = Irmin.Private.Conf.get config fresh_key
 
@@ -60,8 +72,9 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
-let config ?(fresh = false) ?(shared = true) ?(readonly = false)
-    ?(lru_size = 10_000) ?(index_log_size = 10_000) root =
+let config ?(fresh = Default.fresh) ?(shared = Default.shared)
+    ?(readonly = Default.readonly) ?(lru_size = Default.lru_size)
+    ?(index_log_size = Default.index_log_size) root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
