@@ -17,12 +17,7 @@ module type S = sig
 
   type value = int64 * int * char
 
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    log_size:int ->
-    string ->
-    t
+  val v : ?fresh:bool -> ?readonly:bool -> log_size:int -> string -> t
 
   val clear : t -> unit
 

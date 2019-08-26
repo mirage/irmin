@@ -1597,12 +1597,9 @@ let short_hash t ?seed x =
   match t with
   | Custom c -> c.short_hash ?seed x
   | _ ->
-      let seed = match seed with
-        | None -> 0
-        | Some t -> t
-        in
+      let seed = match seed with None -> 0 | Some t -> t in
       let h = ref seed in
-      pre_hash t x (fun s -> h := (Hashtbl.seeded_hash !h s));
+      pre_hash t x (fun s -> h := Hashtbl.seeded_hash !h s);
       !h
 
 let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
