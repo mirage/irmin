@@ -172,17 +172,17 @@ module Make (S : S.STORE) = struct
             convert_slice (module S.Private) (module R.Private) s_slice
             >>= fun r_slice ->
             R.Repo.import (R.repo r) r_slice >>= function
-            | Error e -> Lwt.return (Error (e :> push_error))
+            | Error e -> Lwt.return_error (e :> push_error)
             | Ok () -> (
                 match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
-                | Error e -> Lwt.return (Error (e :> push_error))
+                | Error e -> Lwt.return_error (e :> push_error)
                 | Ok h ->
                     R.Head.set r h >>= fun () ->
                     S.Head.get t >|= fun head -> Ok (`Head head) ) ) )
     | S.E e -> (
         match S.status t with
         | `Empty -> Lwt.return_ok `Empty
-        | `Commit _ -> Lwt.return (Error `Detached_head)
+        | `Commit _ -> Lwt.return_error `Detached_head
         | `Branch br -> (
             S.of_branch (S.repo t) br >>= S.Head.get >>= fun head ->
             B.v (S.repo t) >>= fun g ->

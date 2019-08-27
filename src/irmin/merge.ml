@@ -25,7 +25,7 @@ type conflict = [ `Conflict of string ]
 
 type 'a promise = unit -> ('a option, conflict) result Lwt.t
 
-let promise t : 'a promise = fun () -> Lwt.return (Ok (Some t))
+let promise t : 'a promise = fun () -> Lwt.return_ok (Some t)
 
 let memo fn =
   let r = ref None in
@@ -49,10 +49,10 @@ let conflict fmt =
   ksprintf
     (fun msg ->
       Log.debug (fun f -> f "conflict: %s" msg);
-      Lwt.return (Error (`Conflict msg)))
+      Lwt.return_error (`Conflict msg))
     fmt
 
-let bind x f = x >>= function Error _ as x -> Lwt.return x | Ok x -> f x
+let bind x f = x >>= function Error e -> Lwt.return_error e | Ok x -> f x
 
 let map f x = x >|= function Error _ as x -> x | Ok x -> Ok (f x)
 
@@ -64,11 +64,11 @@ let map_promise f t () =
 
 let bind_promise t f () =
   t () >>= function
-  | Error _ as x -> Lwt.return x
-  | Ok None -> Lwt.return @@ Ok None
+  | Error e -> Lwt.return_error e
+  | Ok None -> Lwt.return_ok None
   | Ok (Some a) -> f a ()
 
-let ok x = Lwt.return (Ok x)
+let ok x = Lwt.return_ok x
 
 module Infix = struct
   let ( >>=* ) = bind

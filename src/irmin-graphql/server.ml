@@ -743,7 +743,7 @@ struct
             | None ->
                 Store.watch t (fun diff ->
                     push (Some diff);
-                    Lwt.return ())
+                    Lwt.return_unit)
                 >|= fun watch -> Ok (stream, destroy_stream watch)
             | Some key ->
                 Store.watch_key t key (function diff ->
@@ -754,7 +754,7 @@ struct
                             ~removed:(fun (c, _) -> c)
                             ~updated:(fun (before, _) (after, _) ->
                               (before, after))));
-                    Lwt.return ())
+                    Lwt.return_unit)
                 >|= fun watch -> Ok (stream, destroy_stream watch));
       ]
 

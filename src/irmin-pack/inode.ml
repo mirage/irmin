@@ -780,7 +780,7 @@ struct
   let unsafe_add t k v =
     check_hash k (hash v);
     save t v.Val.v;
-    Lwt.return ()
+    Lwt.return_unit
 
   let batch = Inode.batch
 

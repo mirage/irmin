@@ -214,19 +214,19 @@ struct
 
   let find_leaves t key =
     AO.find t.db key >>= function
-    | None -> Lwt.return None (* shallow objects *)
+    | None -> Lwt.return_none (* shallow objects *)
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
   let check_hash k v =
     let k' = K.hash (fun f -> f v) in
-    if Irmin.Type.equal K.t k k' then Lwt.return ()
+    if Irmin.Type.equal K.t k k' then Lwt.return_unit
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
 
   let find t key =
     find_leaves t key >>= function
-    | None -> Lwt.return None
+    | None -> Lwt.return_none
     | Some bufs -> (
         let buf = String.concat "" bufs in
         check_hash key buf >|= fun () ->

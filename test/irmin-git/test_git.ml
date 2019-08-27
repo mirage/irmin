@@ -64,7 +64,7 @@ module Mem (C : Irmin.Contents.S) = struct
   let init () =
     Git.v (Fpath.v test_db) >>= function
     | Ok t -> S.Git.reset t >|= fun _ -> ()
-    | _ -> Lwt.return ()
+    | _ -> Lwt.return_unit
 end
 
 module Generic (C : Irmin.Contents.S) = struct
@@ -129,7 +129,7 @@ let test_sort_order (module S : S) =
   S.set_exn master ~info [ "foo" ] "foo" >>= fun () ->
   ls master >>= fun items ->
   Alcotest.(check (list string)) "Sort order" [ "foo"; "foo.c"; "foo1" ] items;
-  Lwt.return ()
+  Lwt.return_unit
 
 module Ref (S : Irmin_git.G) =
   Irmin_git.Ref (S) (Git_unix.Sync (S)) (Irmin.Contents.String)
@@ -203,7 +203,7 @@ let test_blobs (module S : S) =
   >>= fun k2 ->
   let hash = Irmin_test.testable X.Hash.t in
   Alcotest.(check hash) "blob" k1 k2;
-  Lwt.return ()
+  Lwt.return_unit
 
 let test_import_export (module S : S) =
   let module Generic = Generic (Irmin.Contents.String) in

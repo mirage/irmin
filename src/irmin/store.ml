@@ -36,7 +36,7 @@ struct
 
   let find t k =
     find t k >>= function
-    | None -> Lwt.return None
+    | None -> Lwt.return_none
     | Some v as r ->
         let k' = hash v in
         if Type.equal K.t k k' then Lwt.return r
@@ -324,7 +324,7 @@ module Make (P : S.PRIVATE) = struct
             !commits
           >|= fun () -> Ok ())
         (function
-          | Import_error e -> Lwt.return (Error (`Msg e))
+          | Import_error e -> Lwt.return_error (`Msg e)
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
   end
 
@@ -358,7 +358,7 @@ module Make (P : S.PRIVATE) = struct
 
   let branch t =
     match head_ref t with
-    | `Branch t -> Lwt.return (Some t)
+    | `Branch t -> Lwt.return_some t
     | `Empty | `Head _ -> Lwt.return_none
 
   let err_no_head s = Fmt.kstrf Lwt.fail_invalid_arg "Irmin.%s: no head" s
@@ -398,7 +398,7 @@ module Make (P : S.PRIVATE) = struct
 
   let skip_key key =
     Log.debug (fun l -> l "[watch-key] key %a has not changed" pp_key key);
-    Lwt.return ()
+    Lwt.return_unit
 
   let changed_key key =
     Log.debug (fun l -> l "[watch-key] key %a has changed" pp_key key)
@@ -434,7 +434,7 @@ module Make (P : S.PRIVATE) = struct
   let head t =
     let h =
       match head_ref t with
-      | `Head key -> Lwt.return (Some key)
+      | `Head key -> Lwt.return_some key
       | `Empty -> Lwt.return_none
       | `Branch name -> (
           Branch_store.find (branch_t t) name >>= function
@@ -526,8 +526,8 @@ module Make (P : S.PRIVATE) = struct
           (* [head] is protected by [t.lock]. *)
           if Commit.equal_opt !head test then (
             head := set;
-            Lwt.return true )
-          else Lwt.return false
+            Lwt.return_true )
+          else Lwt.return_false
       | `Branch name ->
           let h = function None -> None | Some c -> Some c.Commit.h in
           Branch_store.test_and_set (branch_t t) name ~test:(h test)
@@ -548,7 +548,7 @@ module Make (P : S.PRIVATE) = struct
                 Commit.pp_hash new_head);
           if Commit.equal new_head old_head then
             (* we only update if there is a change *)
-            Lwt.return (Error `No_change)
+            Lwt.return_error `No_change
           else
             H.lcas (history_t t) ?max_depth ?n new_head.Commit.h
               old_head.Commit.h
@@ -557,8 +557,8 @@ module Make (P : S.PRIVATE) = struct
                 (* we only update if new_head > old_head *)
                 test_and_set t ~test:(Some old_head) ~set:(Some new_head)
                 >|= return
-            | Ok _ -> Lwt.return (Error `Rejected)
-            | Error e -> Lwt.return (Error (e :> ff_error)) )
+            | Ok _ -> Lwt.return_error `Rejected
+            | Error e -> Lwt.return_error (e :> ff_error) )
 
     (* Merge two commits:
        - Search for common ancestors
@@ -589,11 +589,11 @@ module Make (P : S.PRIVATE) = struct
     let done_once = ref false in
     let rec aux i =
       if !done_once && i > retries then
-        Lwt.return (Error (`Too_many_retries retries))
+        Lwt.return_error (`Too_many_retries retries)
       else
         fn () >>= function
-        | Ok true -> Lwt.return (Ok ())
-        | Error e -> Lwt.return (Error e)
+        | Ok true -> Lwt.return_ok ()
+        | Error e -> Lwt.return_error e
         | Ok false ->
             done_once := true;
             aux (i + 1)
@@ -606,12 +606,12 @@ module Make (P : S.PRIVATE) = struct
     match t.head_ref with
     | `Head head ->
         Lwt_mutex.with_lock t.lock (fun () ->
-            if not (Commit.equal_opt old_head !head) then Lwt.return false
+            if not (Commit.equal_opt old_head !head) then Lwt.return_false
             else (
               (* [head] is protected by [t.lock] *)
               head := Some c;
               t.tree <- Some tree;
-              Lwt.return true ))
+              Lwt.return_true ))
     | `Branch name ->
         (* concurrent handlers and/or process can modify the
          branch. Need to check that we are still working on the same
@@ -638,7 +638,7 @@ module Make (P : S.PRIVATE) = struct
           Type.(pp (option Tree.tree_t))
           t
 
-  let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
+  let write_error e : ('a, write_error) result Lwt.t = Lwt.return_error e
 
   let err_test v = write_error (`Test_was v)
 
@@ -674,16 +674,16 @@ module Make (P : S.PRIVATE) = struct
     f s.tree >>= fun new_tree ->
     (* if no change and [allow_empty = true] then, do nothing *)
     if same_tree s.tree new_tree && (not allow_empty) && s.head <> None then
-      Lwt.return (Ok true)
+      Lwt.return_ok true
     else
       merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
-      | Error _ as e -> Lwt.return e
+      | Error e -> Lwt.return_error e
       | Ok root ->
           let info = info () in
           let parents = match parents with None -> s.parents | Some p -> p in
           let parents = List.map Commit.hash parents in
           Commit.v (repo t) ~info ~parents root >>= fun c ->
-          add_commit t s.head (c, root_tree root) >|= fun r -> Ok r
+          add_commit t s.head (c, root_tree root) >>= Lwt.return_ok
 
   let ok x = Ok x
 
@@ -700,7 +700,7 @@ module Make (P : S.PRIVATE) = struct
     Log.debug (fun l -> l "set %a" pp_key k);
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
-    Lwt.return (Some v)
+    Lwt.return_some v
 
   let set_tree_exn ?retries ?allow_empty ?parents ~info t k v =
     set_tree ?retries ?allow_empty ?parents ~info t k v >>= fail "set_exn"
@@ -709,7 +709,7 @@ module Make (P : S.PRIVATE) = struct
     Log.debug (fun l -> l "debug %a" pp_key k);
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
-    Lwt.return None
+    Lwt.return_none
 
   let remove_exn ?retries ?allow_empty ?parents ~info t k =
     remove ?retries ?allow_empty ?parents ~info t k >>= fail "remove_exn"
@@ -846,7 +846,7 @@ module Make (P : S.PRIVATE) = struct
 
                 (* use the store's current tree as the new 'old store' *)
                 (tree_and_head t >>= function
-                 | None -> Lwt.return None
+                 | None -> Lwt.return_none
                  | Some (_, tr) -> Tree.find_tree (tr :> tree) key)
                 >>= fun old_tree -> aux (n + 1) old_tree
             | Error e -> write_error e )

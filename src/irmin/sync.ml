@@ -17,7 +17,7 @@
 module None (H : Type.S) (R : Type.S) = struct
   type t = unit
 
-  let v _ = Lwt.return ()
+  let v _ = Lwt.return_unit
 
   type endpoint = unit
 

@@ -118,17 +118,17 @@ struct
     let mem t key =
       Log.debug (fun l -> l "mem %a" pp_key key);
       G.mem t key >>= function
-      | false -> Lwt.return false
+      | false -> Lwt.return_false
       | true -> (
           G.read t key >>= function
-          | Error `Not_found -> Lwt.return false
+          | Error `Not_found -> Lwt.return_false
           | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
           | Ok v -> Lwt.return (V.type_eq (G.Value.kind v)) )
 
     let find t key =
       Log.debug (fun l -> l "find %a" pp_key key);
       G.read t key >>= function
-      | Error `Not_found -> Lwt.return None
+      | Error `Not_found -> Lwt.return_none
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok v -> Lwt.return (V.of_git v)
 
@@ -553,9 +553,9 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
   let find { t; _ } r =
     Log.debug (fun l -> l "find %a" pp_key r);
     G.Ref.resolve t (git_of_branch r) >>= function
-    | Error `Not_found -> Lwt.return None
+    | Error `Not_found -> Lwt.return_none
     | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    | Ok k -> Lwt.return (Some k)
+    | Ok k -> Lwt.return_some k
 
   let listen_dir t =
     let ( / ) = Filename.concat in
@@ -590,7 +590,7 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
       let head = G.Reference.Ref head in
       (( if G.has_global_checkout then
          Lwt_mutex.with_lock m (fun () -> G.Ref.write t G.Reference.head head)
-       else Lwt.return (Ok ()) )
+       else Lwt.return_ok () )
        >|= function
        | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
        | Ok () -> ())
@@ -663,16 +663,16 @@ module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
     let gr = git_of_branch r in
     let c = function None -> None | Some h -> Some (G.Reference.Hash h) in
     let ok = function
-      | Ok () -> Lwt.return true
+      | Ok () -> Lwt.return_true
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
     in
     Lwt_mutex.with_lock t.m (fun () ->
         (G.Ref.read t.t gr >>= function
-         | Error `Not_found -> Lwt.return None
-         | Ok x -> Lwt.return (Some x)
+         | Error `Not_found -> Lwt.return_none
+         | Ok x -> Lwt.return_some x
          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e)
         >>= fun x ->
-        ( if not (eq_head_contents_opt x (c test)) then Lwt.return false
+        ( if not (eq_head_contents_opt x (c test)) then Lwt.return_false
         else
           match c set with
           | None -> G.Ref.remove t.t gr >>= ok

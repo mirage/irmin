@@ -137,7 +137,7 @@ let test_pack _switch () =
     Alcotest.(check string) "x2" x2 y2;
     Pack.find t h4 >|= get >>= fun y4 ->
     Alcotest.(check string) "x4" x4 y4;
-    Lwt.return ()
+    Lwt.return_unit
   in
   test t >>= fun () -> Pack.v ~fresh:false ~index test_dir >>= test
 
@@ -167,7 +167,7 @@ let test_readonly_pack _switch () =
   Alcotest.(check (option string)) "y2" (Some x2) y2;
   Pack.find r h3 >>= fun y3 ->
   Alcotest.(check (option string)) "y3" (Some x3) y3;
-  Lwt.return ()
+  Lwt.return_unit
 
 let test_readonly_dict () =
   let ignore_int (_ : int option) = () in
@@ -239,7 +239,7 @@ let test_branch _switch () =
     "branches"
     (List.filter (( <> ) "foo") branches)
     br;
-  Lwt.return ()
+  Lwt.return_unit
 
 let misc =
   ( "misc",
