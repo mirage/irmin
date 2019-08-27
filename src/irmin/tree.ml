@@ -931,9 +931,12 @@ module Make (P : S.PRIVATE) = struct
       match map t with
       | Some m -> Lwt.return (StepMap.is_empty m)
       | None -> (
-          to_value t >|= function
-          | None -> false
-          | Some n -> P.Node.Val.is_empty n )
+          match t.v with
+          | Value (_, _, Some _) -> Lwt.return false
+          | _ -> (
+              to_value t >|= function
+              | None -> false
+              | Some n -> P.Node.Val.is_empty n ) )
 
     let list t =
       let trim l =
