@@ -83,13 +83,10 @@ module Make (K : Irmin.Hash.S) = struct
 
   let flush = Index.flush
 
-  let add t k v = if not (Index.mem t k) then Index.add t k v
+  let add t k v = Index.replace t k v
 
   let mem = Index.mem
 
   let find t k =
-    match Index.find_all t k with
-    | [] -> None
-    | [ h ] -> Some h
-    | _ -> assert false
+    match Index.find t k with exception Not_found -> None | h -> Some h
 end
