@@ -16,7 +16,6 @@
 
 val config :
   ?fresh:bool ->
-  ?shared:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
@@ -63,5 +62,5 @@ module KV (Config : CONFIG) : Irmin.KV_MAKER
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : ?fresh:bool -> ?shared:bool -> ?readonly:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end

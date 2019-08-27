@@ -257,36 +257,28 @@ let ( // ) = Filename.concat
 
 let with_cache ~v ~clear file =
   let files = Hashtbl.create 13 in
-  let cached_constructor extra_args ?(fresh = false) ?(shared = true)
-      ?(readonly = false) root =
+  let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
     if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
-    if not shared then (
-      Log.debug (fun l ->
-          l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
-            fresh shared readonly);
-      let t = v extra_args ~fresh ~shared ~readonly file in
-      if fresh then clear t;
-      t )
-    else
-      try
-        if not (Sys.file_exists file) then (
-          Log.debug (fun l ->
-              l "[%s] does not exist anymore, cleaning up the fd cache"
-                (Filename.basename file));
-          Hashtbl.remove files file;
-          raise Not_found );
-        let t = Hashtbl.find files file in
-        Log.debug (fun l -> l "%s found in cache" file);
-        if fresh then clear t;
-        t
-      with Not_found ->
+    try
+      if not (Sys.file_exists file) then (
         Log.debug (fun l ->
-            l "[%s] v fresh=%b shared=%b readonly=%b" (Filename.basename file)
-              fresh shared readonly);
-        let t = v extra_args ~fresh ~shared ~readonly file in
-        if fresh then clear t;
-        Hashtbl.add files file t;
-        t
+            l "[%s] does not exist anymore, cleaning up the fd cache"
+              (Filename.basename file));
+        Hashtbl.remove files (file, true);
+        Hashtbl.remove files (file, false);
+        raise Not_found );
+      let t = Hashtbl.find files (file, readonly) in
+      Log.debug (fun l -> l "%s found in cache" file);
+      if fresh then clear t;
+      t
+    with Not_found ->
+      Log.debug (fun l ->
+          l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
+            readonly);
+      let t = v extra_args ~fresh ~readonly file in
+      if fresh then clear t;
+      Hashtbl.add files (file, readonly) t;
+      t
   in
   `Staged cached_constructor

@@ -27,7 +27,6 @@ module type S = sig
 
   val v :
     ?fresh:bool ->
-    ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
