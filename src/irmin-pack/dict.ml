@@ -113,7 +113,7 @@ module Make (IO : IO.S) : S = struct
     t
 
   let close t =
-    sync t;
+    if not (IO.readonly t.io) then sync t;
     IO.close t.io;
     Hashtbl.reset t.cache;
     Hashtbl.reset t.index

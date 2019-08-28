@@ -173,9 +173,34 @@ let test_readonly_pack _switch () =
   Alcotest.(check (option string)) "y3" (Some x3) y3;
   Lwt.return_unit
 
-let test_close_pack _switch () =
+let test_reuse_index _switch () =
+  (* reuse index in new pack *)
   let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~index test_dir >>= fun w ->
+  Pack.v ~fresh:true ~index "test1" >>= fun w1 ->
+  let x1 = "foo" in
+  let h1 = sha1 x1 in
+  Pack.unsafe_append w1 h1 x1;
+  Pack.find w1 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1" x1 y1;
+
+  (*reuse readonly index in rw pack*)
+  let index = get_index ~fresh:false ~readonly:true test_dir in
+  let _exn = Assert_failure ("src/index.ml", 350, 45) in
+  Pack.v ~fresh:false ~readonly:false ~index "test" >>= fun _r1 ->
+  (* this testcase is broken for now because Alcotest cannot detect the assert failure. Running:
+       Pack.find r1 h1 >|= get >>= fun y1 ->
+       Alcotest.(check string) "x1" x1 y1;
+     raises assert failure, but the following reports no failure detected:
+       Alcotest.(
+       check_raises "assertion failed in index" exn (fun () ->
+         let _ = Pack.find r1 h1 in
+         ()));
+   *)
+  Lwt.return ()
+
+let test_close_pack _switch () =
+  let index = get_index ~fresh:true "test2" in
+  Pack.v ~fresh:true ~index "test2" >>= fun w ->
   let x1 = "foo" in
   let x2 = "bar" in
   let h1 = sha1 x1 in
@@ -186,13 +211,46 @@ let test_close_pack _switch () =
         [ (h1, x1); (h2, x2) ])
   >>= fun () ->
   Pack.close w;
-  let index = get_index ~fresh:false ~readonly:true test_dir in
-  Pack.v ~fresh:false ~readonly:true ~index test_dir >>= fun r ->
+
+  (*reopen only pack and reuse index *)
+  Pack.v ~fresh:false ~index "test2" >>= fun w ->
+  Pack.find w h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "close1" x2 y2;
   Pack.find w h1 >|= get >>= fun y1 ->
-  Alcotest.(check string) "x1" x1 y1;
+  Alcotest.(check string) "close2" x1 y1;
+
+  (*open and close two packs *)
+  let x3 = "toto" in
+  let h3 = sha1 x3 in
+  Pack.unsafe_append w h3 x3;
+  Pack.v ~fresh:false ~index "test2" >>= fun w2 ->
+  Pack.close w;
+  Pack.find w2 h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "close3" x2 y2;
+  Pack.find w2 h3 >|= get >>= fun y3 ->
+  Alcotest.(check string) "close4" x3 y3;
+  Pack.find w2 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "close5" x1 y1;
+  Pack.close w2;
+  Index.close index;
+
+  (*reopen pack and index after both closed *)
+  let index = get_index ~fresh:false ~readonly:true "test2" in
+  Pack.v ~fresh:false ~readonly:true ~index "test2" >>= fun r ->
+  Pack.find r h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "close6" x1 y1;
   Pack.find r h2 >|= get >>= fun y2 ->
-  Alcotest.(check string) "x2" x2 y2;
+  Alcotest.(check string) "close7" x2 y2;
   Pack.close r;
+  Index.close index;
+
+  (*close index while in use*)
+  let index = get_index ~fresh:false "test2" in
+  Pack.v ~fresh:false ~index "test2" >>= fun r ->
+  Index.close index;
+  Pack.find r h1 >>= fun y1 ->
+  Alcotest.(check (option string)) "x1" None y1;
+
   Lwt.return ()
 
 let test_readonly_dict () =
@@ -275,5 +333,6 @@ let misc =
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch;
+      Alcotest_lwt.test_case "index" `Quick test_reuse_index;
       Alcotest_lwt.test_case "close" `Quick test_close_pack;
     ] )

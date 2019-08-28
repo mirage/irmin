@@ -16,6 +16,8 @@ module type S = sig
   val find : t -> key -> value option
 
   val add : t -> key -> value -> unit
+
+  val close : t -> unit
 end
 
 module Make (K : Irmin.Hash.S) = struct

@@ -170,7 +170,6 @@ struct
   let close t =
     t.counter <- t.counter - 1;
     if t.counter = 0 then (
-      (*Index.close t.index;*)
       IO.close t.block;
       Dict.close t.dict )
 
@@ -210,41 +209,21 @@ struct
       let lru = Lru.create lru_size in
       { staging; lru; pack; counter = 1 }
 
-<<<<<<< HEAD
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
       try
-        let t = Hashtbl.find roots root in
+        let t = Hashtbl.find roots (root, readonly) in
         if valid t.pack then (
-=======
-    let unsafe_v ?(fresh = false) ?(shared = true) ?(readonly = false)
-        ?(lru_size = 10_000) ~index root =
-      if not shared then
-        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
-      else
-        try
-          let t = Hashtbl.find roots root in
-          if valid t.pack then (
-            t.counter <- t.counter + 1;
-            if fresh then clear t;
-            t )
-          else (
-            Hashtbl.remove roots root;
-            raise Not_found )
-        with Not_found ->
-          let t =
-            unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
-          in
->>>>>>> Add counter for instances of pack
+          t.counter <- t.counter + 1;
           if fresh then clear t;
           t )
         else (
-          Hashtbl.remove roots root;
+          Hashtbl.remove roots (root, readonly);
           raise Not_found )
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
         if fresh then clear t;
-        Hashtbl.add roots root t;
+        Hashtbl.add roots (root, readonly) t;
         t
 
     let v ?fresh ?readonly ?lru_size ~index root =
@@ -372,9 +351,13 @@ struct
     let close t =
       t.counter <- t.counter - 1;
       if t.counter = 0 then (
-        sync t;
-        close t.pack;
-        ignore (Lru.clear t.lru) )
+        Log.debug (fun l -> l "closing %s" (IO.name t.pack.block));
+        if not (IO.readonly t.pack.block) then (
+          Index.flush t.pack.index;
+          IO.sync t.pack.block );
+        Tbl.clear t.staging;
+        ignore (Lru.clear t.lru);
+        close t.pack )
   end
 end
 
