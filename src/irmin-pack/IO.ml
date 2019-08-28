@@ -267,7 +267,9 @@ end
 
 let ( // ) = Filename.concat
 
-let with_cache ~v ~clear ?(valid = fun _ -> true) file =
+let may t = function None -> () | Some f -> f t
+
+let with_cache ~v ~clear ?(valid = fun _ -> true) ?incr_counter file =
   let files = Hashtbl.create 13 in
   let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
@@ -283,6 +285,7 @@ let with_cache ~v ~clear ?(valid = fun _ -> true) file =
       let t = Hashtbl.find files (file, readonly) in
       if valid t then (
         Log.debug (fun l -> l "%s found in cache" file);
+        may t incr_counter;
         if fresh then clear t;
         t )
       else (

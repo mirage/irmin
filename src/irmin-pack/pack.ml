@@ -138,6 +138,7 @@ struct
     index : Index.t;
     dict : Dict.t;
     lock : Lwt_mutex.t;
+    mutable counter : int;
   }
 
   let clear t =
@@ -147,6 +148,8 @@ struct
 
   let valid t = IO.valid_fd t.block
 
+  let incr_counter t = t.counter <- t.counter + 1
+
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
@@ -155,17 +158,21 @@ struct
     if IO.version block <> current_version then
       Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
         current_version;
-    { block; index; lock; dict }
+    { block; index; lock; dict; counter = 1 }
 
   let (`Staged v) =
-    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
+    with_cache ~clear ~valid ~incr_counter
+      ~v:(fun index -> unsafe_v ~index)
+      "store.pack"
 
   type key = K.t
 
   let close t =
-    (*Index.close t.index;*)
-    IO.close t.block;
-    Dict.close t.dict
+    t.counter <- t.counter - 1;
+    if t.counter = 0 then (
+      (*Index.close t.index;*)
+      IO.close t.block;
+      Dict.close t.dict )
 
   let valid t = IO.valid_fd t.block
 
@@ -173,7 +180,12 @@ struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
-    type nonrec 'a t = { pack : 'a t; lru : V.t Lru.t; staging : V.t Tbl.t }
+    type nonrec 'a t = {
+      pack : 'a t;
+      lru : V.t Lru.t;
+      staging : V.t Tbl.t;
+      mutable counter : int;
+    }
 
     type key = K.t
 
@@ -196,13 +208,34 @@ struct
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack }
+      { staging; lru; pack; counter = 1 }
 
+<<<<<<< HEAD
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
       try
         let t = Hashtbl.find roots root in
         if valid t.pack then (
+=======
+    let unsafe_v ?(fresh = false) ?(shared = true) ?(readonly = false)
+        ?(lru_size = 10_000) ~index root =
+      if not shared then
+        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
+      else
+        try
+          let t = Hashtbl.find roots root in
+          if valid t.pack then (
+            t.counter <- t.counter + 1;
+            if fresh then clear t;
+            t )
+          else (
+            Hashtbl.remove roots root;
+            raise Not_found )
+        with Not_found ->
+          let t =
+            unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
+          in
+>>>>>>> Add counter for instances of pack
           if fresh then clear t;
           t )
         else (
@@ -337,9 +370,11 @@ struct
     let unsafe_add t k v = append t k v
 
     let close t =
-      sync t;
-      close t.pack;
-      ignore (Lru.clear t.lru)
+      t.counter <- t.counter - 1;
+      if t.counter = 0 then (
+        sync t;
+        close t.pack;
+        ignore (Lru.clear t.lru) )
   end
 end
 
