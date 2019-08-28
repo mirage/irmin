@@ -74,7 +74,6 @@ module type S = sig
 
   val v :
     ?fresh:bool ->
-    ?shared:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
@@ -142,7 +141,7 @@ struct
     Index.clear t.index;
     Dict.clear t.dict
 
-  let unsafe_v ~index ~fresh ~shared:_ ~readonly file =
+  let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
@@ -180,32 +179,27 @@ struct
 
     let create = Lwt_mutex.create ()
 
-    let unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root =
-      let pack = v index ~fresh ~shared ~readonly root in
+    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
+      let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack }
 
-    let unsafe_v ?(fresh = false) ?(shared = true) ?(readonly = false)
-        ?(lru_size = 10_000) ~index root =
-      if not shared then
-        unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
-      else
-        try
-          let t = Hashtbl.find roots root in
-          if fresh then clear t;
-          t
-        with Not_found ->
-          let t =
-            unsafe_v_no_cache ~fresh ~readonly ~shared ~lru_size ~index root
-          in
-          if fresh then clear t;
-          Hashtbl.add roots root t;
-          t
+    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
+        ~index root =
+      try
+        let t = Hashtbl.find roots (root, readonly) in
+        if fresh then clear t;
+        t
+      with Not_found ->
+        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+        if fresh then clear t;
+        Hashtbl.add roots (root, readonly) t;
+        t
 
-    let v ?fresh ?shared ?readonly ?lru_size ~index root =
+    let v ?fresh ?readonly ?lru_size ~index root =
       Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?fresh ?shared ?readonly ?lru_size ~index root in
+          let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
 
     let pp_hash = Irmin.Type.pp K.t

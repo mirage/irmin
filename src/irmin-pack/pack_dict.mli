@@ -12,5 +12,4 @@
 
 include Dict.S
 
-val v :
-  ?fresh:bool -> ?shared:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t

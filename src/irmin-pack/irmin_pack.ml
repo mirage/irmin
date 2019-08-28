@@ -28,8 +28,6 @@ module Default = struct
   let index_log_size = 500_000
 
   let readonly = false
-
-  let shared = true
 end
 
 let fresh_key =
@@ -48,20 +46,11 @@ let readonly_key =
   Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
     Irmin.Private.Conf.bool Default.readonly
 
-let shared_key =
-  Irmin.Private.Conf.key
-    ~doc:
-      "Share resources (file-descriptors, caches) with other instances when \
-       possible."
-    "shared" Irmin.Private.Conf.bool Default.shared
-
 let fresh config = Irmin.Private.Conf.get config fresh_key
 
 let lru_size config = Irmin.Private.Conf.get config lru_size_key
 
 let readonly config = Irmin.Private.Conf.get config readonly_key
-
-let shared config = Irmin.Private.Conf.get config shared_key
 
 let index_log_size config = Irmin.Private.Conf.get config index_log_size_key
 
@@ -72,9 +61,9 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
-let config ?(fresh = Default.fresh) ?(shared = Default.shared)
-    ?(readonly = Default.readonly) ?(lru_size = Default.lru_size)
-    ?(index_log_size = Default.index_log_size) root =
+let config ?(fresh = Default.fresh) ?(readonly = Default.readonly)
+    ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
+    root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
@@ -83,7 +72,6 @@ let config ?(fresh = Default.fresh) ?(shared = Default.shared)
     Irmin.Private.Conf.add config index_log_size_key index_log_size
   in
   let config = Irmin.Private.Conf.add config readonly_key readonly in
-  let config = Irmin.Private.Conf.add config shared_key shared in
   config
 
 let ( ++ ) = Int64.add
@@ -185,7 +173,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let watches = W.v ()
 
-  let unsafe_v ~fresh ~shared:_ ~readonly file =
+  let unsafe_v ~fresh ~readonly file =
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
@@ -217,9 +205,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let (`Staged unsafe_v) =
     with_cache ~clear:unsafe_clear ~v:(fun () -> unsafe_v) "store.branches"
 
-  let v ?fresh ?shared ?readonly file =
+  let v ?fresh ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
-        let v = unsafe_v () ?fresh ?shared ?readonly file in
+        let v = unsafe_v () ?fresh ?readonly file in
         Lwt.return v)
 
   let unsafe_set t k v =
@@ -403,16 +391,13 @@ struct
         let fresh = fresh config in
         let lru_size = lru_size config in
         let readonly = readonly config in
-        let shared = shared config in
         let log_size = index_log_size config in
         let index = Index.v ~fresh ~readonly ~log_size root in
-        Contents.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
+        Contents.CA.v ~fresh ~readonly ~lru_size ~index root
         >>= fun contents ->
-        Node.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
-        >>= fun node ->
-        Commit.CA.v ~fresh ~shared ~readonly ~lru_size ~index root
-        >>= fun commit ->
-        Branch.v ~fresh ~shared ~readonly root >|= fun branch ->
+        Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
+        Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
+        Branch.v ~fresh ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }
     end
   end
