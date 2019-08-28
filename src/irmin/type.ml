@@ -532,23 +532,23 @@ end
 let equal = Equal.t
 
 module Compare = struct
-  let unit (_ : unit) (_ : unit) = 0
+  let unit (_ : unit) (_ : unit) = 0 [@@inline always]
 
-  let bool (x : bool) (y : bool) = compare x y
+  let bool (x : bool) (y : bool) = compare x y [@@inline always]
 
-  let char = Char.compare
+  let char x y = Char.compare x y [@@inline always]
 
-  let int (x : int) (y : int) = compare x y
+  let int (x : int) (y : int) = compare x y [@@inline always]
 
-  let int32 = Int32.compare
+  let int32 x y = Int32.compare x y [@@inline always]
 
-  let int64 = Int64.compare
+  let int64 x y = Int64.compare x y [@@inline always]
 
-  let float (x : float) (y : float) = compare x y
+  let float (x : float) (y : float) = compare x y [@@inline always]
 
-  let string x y = if x == y then 0 else String.compare x y
+  let string x y = if x == y then 0 else String.compare x y [@@inline always]
 
-  let bytes x y = if x == y then 0 else Bytes.compare x y
+  let bytes x y = if x == y then 0 else Bytes.compare x y [@@inline always]
 
   let list c x y =
     if x == y then 0
@@ -594,13 +594,27 @@ module Compare = struct
       | None, Some _ -> -1
       | Some x, Some y -> c x y
 
+  let prim : type a. a prim -> a compare =
+   fun ty a b ->
+    match ty with
+    | Unit -> (unit [@inlined]) a b
+    | Bool -> (bool [@inlined]) a b
+    | Char -> (char [@inlined]) a b
+    | Int -> (int [@inlined]) a b
+    | Int32 -> (int32 [@inlined]) a b
+    | Int64 -> (int64 [@inlined]) a b
+    | Float -> (float [@inlined]) a b
+    | String _ -> (string [@inlined]) a b
+    | Bytes _ -> (bytes [@inlined]) a b
+   [@@inline always]
+
   let rec t : type a. a t -> a compare =
    fun ty a b ->
     match ty with
     | Self s -> t s.self a b
     | Custom c -> c.compare a b
     | Map m -> map m a b
-    | Prim p -> prim p a b
+    | Prim p -> (prim [@inlined]) p a b
     | List l -> list (t l.v) a b
     | Array x -> array (t x.v) a b
     | Tuple t -> tuple t a b
@@ -614,17 +628,6 @@ module Compare = struct
 
   and map : type a b. (a, b) map -> b compare =
    fun { x; g; _ } u v -> t x (g u) (g v)
-
-  and prim : type a. a prim -> a compare = function
-    | Unit -> unit
-    | Bool -> bool
-    | Char -> char
-    | Int -> int
-    | Int32 -> int32
-    | Int64 -> int64
-    | Float -> float
-    | String _ -> string
-    | Bytes _ -> bytes
 
   and record : type a. a record -> a compare =
    fun r x y ->
@@ -658,7 +661,7 @@ module Compare = struct
   (* this should never happen *)
 end
 
-let compare = Compare.t
+let compare t x y = Compare.t t x y
 
 exception Not_utf8
 
