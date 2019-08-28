@@ -240,7 +240,7 @@ struct
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return (Some k)
+      else add t v >>= fun k -> Lwt.return_some k
     in
     Merge.like_lwt Type.(option S.Key.t) merge read add
 
@@ -317,7 +317,7 @@ module Graph (S : S.NODE_STORE) = struct
     Log.debug (fun f -> f "read_node_exn %a %a" pp_key node pp_path path);
     let rec aux node path =
       match Path.decons path with
-      | None -> Lwt.return (Some (`Node node))
+      | None -> Lwt.return_some (`Node node)
       | Some (h, tl) -> (
           find_step t node h >>= function
           | (None | Some (`Contents _)) as x -> Lwt.return x

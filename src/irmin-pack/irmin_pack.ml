@@ -133,14 +133,14 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
-    try Lwt.return (Some (Tbl.find t.cache k))
-    with Not_found -> Lwt.return None
+    try Lwt.return_some (Tbl.find t.cache k)
+    with Not_found -> Lwt.return_none
 
   let find t k = Lwt_mutex.with_lock t.lock (fun () -> unsafe_find t k)
 
   let unsafe_mem t k =
     Log.debug (fun l -> l "[branches] mem %a" pp_branch k);
-    try Lwt.return (Tbl.mem t.cache k) with Not_found -> Lwt.return false
+    try Lwt.return (Tbl.mem t.cache k) with Not_found -> Lwt.return_false
 
   let mem t v = Lwt_mutex.with_lock t.lock (fun () -> unsafe_mem t v)
 
@@ -160,7 +160,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] remove %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_remove t k;
-        Lwt.return ())
+        Lwt.return_unit)
     >>= fun () -> W.notify t.w k None
 
   let unsafe_clear t =
@@ -225,14 +225,14 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] set %a" pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_set t k v;
-        Lwt.return ())
+        Lwt.return_unit)
     >>= fun () -> W.notify t.w k (Some v)
 
   let unsafe_test_and_set t k ~test ~set =
     let v = try Some (Tbl.find t.cache k) with Not_found -> None in
-    if not (Irmin.Type.(equal (option V.t)) v test) then Lwt.return false
+    if not (Irmin.Type.(equal (option V.t)) v test) then Lwt.return_false
     else
-      let return () = Lwt.return true in
+      let return () = Lwt.return_true in
       match set with
       | None -> unsafe_remove t k |> return
       | Some v -> unsafe_set t k v |> return
@@ -242,7 +242,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Lwt_mutex.with_lock t.lock (fun () -> unsafe_test_and_set t k ~test ~set)
     >>= function
     | true -> W.notify t.w k set >|= fun () -> true
-    | false -> Lwt.return false
+    | false -> Lwt.return_false
 
   let list t =
     Log.debug (fun l -> l "[branches] list");

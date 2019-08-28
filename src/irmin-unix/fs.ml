@@ -83,7 +83,7 @@ module IO = struct
           if s.Unix.st_mtime < 1.0 (* ??? *) then false
           else Unix.gettimeofday () -. s.Unix.st_mtime > max_age)
         (function
-          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return false
+          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return_false
           | e -> Lwt.fail e)
 
     let unlock file = Lwt_unix.unlink file
@@ -288,7 +288,7 @@ module IO = struct
           | Some x, Some y -> String.equal x y
           | _ -> false
         in
-        if not equal then Lwt.return false
+        if not equal then Lwt.return_false
         else
           ( match set with
           | None -> remove_file file

@@ -89,7 +89,7 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
         | `Ae -> decr arrs
         | `Name _ | `Null | `Bool _ | `String _ | `Float _ -> ()
       in
-      if !objs > 0 || !arrs > 0 then aux () else Lwt.return ()
+      if !objs > 0 || !arrs > 0 then aux () else Lwt.return_unit
     in
     aux () >|= fun () -> List.rev !lexemes
   in
@@ -300,8 +300,8 @@ struct
     let value = { v = None; set; test } in
     let body = to_json (set_t V.t) value in
     put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-    | "true" -> Lwt.return true
-    | "false" -> Lwt.return false
+    | "true" -> Lwt.return_true
+    | "false" -> Lwt.return_false
     | e -> Lwt.fail_with e
 
   let remove t key =

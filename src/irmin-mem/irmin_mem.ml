@@ -45,7 +45,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let find { t; _ } key =
     Log.debug (fun f -> f "find %a" pp_key key);
-    try Lwt.return (Some (KMap.find key t)) with Not_found -> Lwt.return_none
+    try Lwt.return_some (KMap.find key t) with Not_found -> Lwt.return_none
 
   let mem { t; _ } key =
     Log.debug (fun f -> f "mem %a" pp_key key);
@@ -58,7 +58,7 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let add t key value =
     Log.debug (fun f -> f "add -> %a" pp_key key);
     t.t <- KMap.add key value t.t;
-    Lwt.return ()
+    Lwt.return_unit
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -118,8 +118,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
             | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
           in
-          Lwt.return true
-        else Lwt.return false)
+          Lwt.return_true
+        else Lwt.return_false)
     >>= fun updated ->
     (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
     Lwt.return updated

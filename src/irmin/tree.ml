@@ -422,10 +422,10 @@ module Make (P : S.PRIVATE) = struct
 
     let to_value t =
       match value t with
-      | Some v -> Lwt.return (Some v)
+      | Some v -> Lwt.return_some v
       | None -> (
           match t.v with
-          | Value v -> Lwt.return (Some v)
+          | Value v -> Lwt.return_some v
           | Hash (repo, k) -> value_of_hash t repo k )
 
     let equal (x : t) (y : t) =
@@ -863,19 +863,19 @@ module Make (P : S.PRIVATE) = struct
 
     let to_value t =
       match value t with
-      | Some v -> Lwt.return (Some v)
+      | Some v -> Lwt.return_some v
       | None -> (
           match t.v with
-          | Value (_, v, None) -> Lwt.return (Some v)
+          | Value (_, v, None) -> Lwt.return_some v
           | Value (_, v, Some m) ->
               let v = value_of_adds t v m in
-              Lwt.return (Some v)
-          | Map m -> Lwt.return (Some (value_of_map t m))
+              Lwt.return_some v
+          | Map m -> Lwt.return_some (value_of_map t m)
           | Hash (repo, h) -> value_of_hash t repo h )
 
     let to_map t =
       match map t with
-      | Some m -> Lwt.return (Some m)
+      | Some m -> Lwt.return_some m
       | None -> (
           let of_value repo v added =
             let m = map_of_value repo v in
@@ -888,7 +888,7 @@ module Make (P : S.PRIVATE) = struct
             Some m
           in
           match t.v with
-          | Map m -> Lwt.return (Some m)
+          | Map m -> Lwt.return_some m
           | Value (repo, v, m) -> Lwt.return (of_value repo v m)
           | Hash (repo, k) -> (
               value_of_hash t repo k >|= function
@@ -932,7 +932,7 @@ module Make (P : S.PRIVATE) = struct
       | Some m -> Lwt.return (StepMap.is_empty m)
       | None -> (
           match t.v with
-          | Value (_, _, Some _) -> Lwt.return false
+          | Value (_, _, Some _) -> Lwt.return_false
           | _ -> (
               to_value t >|= function
               | None -> false
@@ -966,8 +966,8 @@ module Make (P : S.PRIVATE) = struct
     let findv t step =
       let of_map m =
         match StepMap.find step m with
-        | exception Not_found -> Lwt.return None
-        | `Node n -> Lwt.return (Some (`Node n))
+        | exception Not_found -> Lwt.return_none
+        | `Node n -> Lwt.return_some (`Node n)
         | `Contents (c, m) -> (
             Contents.to_value c >|= function
             | None -> None
@@ -975,7 +975,7 @@ module Make (P : S.PRIVATE) = struct
       in
       let of_value repo v =
         match P.Node.Val.find v step with
-        | None -> Lwt.return None
+        | None -> Lwt.return_none
         | Some (`Contents (c, m)) -> (
             let c = Contents.of_hash repo c in
             let (v : elt) = `Contents (c, m) in
@@ -987,7 +987,7 @@ module Make (P : S.PRIVATE) = struct
             let n = of_hash repo n in
             let v = `Node n in
             add_to_findv_cache t step v;
-            Lwt.return (Some v)
+            Lwt.return_some v
       in
       let of_t () =
         match t.v with
@@ -1002,7 +1002,7 @@ module Make (P : S.PRIVATE) = struct
             | Some v -> of_value repo v
             | None -> (
                 value_of_hash t repo h >>= function
-                | None -> Lwt.return None
+                | None -> Lwt.return_none
                 | Some v -> of_value repo v ) )
       in
       match map t with
@@ -1131,15 +1131,15 @@ module Make (P : S.PRIVATE) = struct
             let mold =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (_, m) -> Lwt.return (Ok (Some m))
-                  | `Node _ -> Lwt.return (Ok None))
+                  | `Contents (_, m) -> Lwt.return_ok (Some m)
+                  | `Node _ -> Lwt.return_ok None)
             in
             Merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
             let old =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (c, _) -> Lwt.return (Ok (Some c))
-                  | `Node _ -> Lwt.return (Ok None))
+                  | `Contents (c, _) -> Lwt.return_ok (Some c)
+                  | `Node _ -> Lwt.return_ok None)
             in
             Merge.(f Contents.merge) ~old x y >>=* fun c ->
             Merge.ok (`Contents (c, m))
@@ -1148,8 +1148,8 @@ module Make (P : S.PRIVATE) = struct
                 let old =
                   Merge.bind_promise old (fun old () ->
                       match old with
-                      | `Contents _ -> Lwt.return (Ok None)
-                      | `Node n -> Lwt.return (Ok (Some n)))
+                      | `Contents _ -> Lwt.return_ok None
+                      | `Node n -> Lwt.return_ok (Some n))
                 in
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node n))
         | _ -> Merge.conflict "add/add values"
@@ -1200,7 +1200,7 @@ module Make (P : S.PRIVATE) = struct
 
   let is_empty = function
     | `Node n -> Node.is_empty n
-    | `Contents _ -> Lwt.return false
+    | `Contents _ -> Lwt.return_false
 
   let of_node n = `Node n
 
@@ -1213,7 +1213,7 @@ module Make (P : S.PRIVATE) = struct
   let sub t path =
     let rec aux node path =
       match Path.decons path with
-      | None -> Lwt.return (Some node)
+      | None -> Lwt.return_some node
       | Some (h, p) -> (
           Node.findv node h >>= function
           | None | Some (`Contents _) -> Lwt.return_none
@@ -1226,10 +1226,10 @@ module Make (P : S.PRIVATE) = struct
   let find_tree (t : tree) path =
     Log.debug (fun l -> l "Tree.find_tree %a" pp_path path);
     match (t, Path.rdecons path) with
-    | v, None -> Lwt.return (Some v)
+    | v, None -> Lwt.return_some v
     | _, Some (path, file) -> (
         sub t path >>= function
-        | None -> Lwt.return None
+        | None -> Lwt.return_none
         | Some n -> Node.findv n file )
 
   type marks = Node.marks
@@ -1309,25 +1309,25 @@ module Make (P : S.PRIVATE) = struct
   let kind t path =
     Log.debug (fun l -> l "Tree.kind %a" pp_path path);
     match (t, Path.rdecons path) with
-    | `Contents _, None -> Lwt.return (Some `Contents)
-    | _, None -> Lwt.return None
+    | `Contents _, None -> Lwt.return_some `Contents
+    | _, None -> Lwt.return_none
     | _, Some (dir, file) -> (
         sub t dir >>= function
-        | None -> Lwt.return None
+        | None -> Lwt.return_none
         | Some m -> (
             Node.findv m file >>= function
-            | None -> Lwt.return None
-            | Some (`Contents _) -> Lwt.return (Some `Contents)
-            | Some (`Node _) -> Lwt.return (Some `Node) ) )
+            | None -> Lwt.return_none
+            | Some (`Contents _) -> Lwt.return_some `Contents
+            | Some (`Node _) -> Lwt.return_some `Node ) )
 
   let list t path =
     Log.debug (fun l -> l "Tree.list %a" pp_path path);
-    sub t path >>= function None -> Lwt.return [] | Some n -> Node.list n
+    sub t path >>= function None -> Lwt.return_nil | Some n -> Node.list n
 
   let may_remove t k =
     Node.findv t k >>= function
     | None -> Lwt.return_none
-    | Some _ -> Node.remove t k >>= fun t -> Lwt.return (Some t)
+    | Some _ -> Node.remove t k >>= fun t -> Lwt.return_some t
 
   let empty = `Node (Node.of_map StepMap.empty)
 
@@ -1488,7 +1488,7 @@ module Make (P : S.PRIVATE) = struct
                         Node.to_value n >|= function
                         | None -> ()
                         | Some v -> n.v <- Value (repo, v, None) )
-                    | _ -> Lwt.return () )
+                    | _ -> Lwt.return_unit )
                     >>= fun () ->
                     (* 2. push the current node job on the stack. *)
                     let () =
@@ -1555,7 +1555,7 @@ module Make (P : S.PRIVATE) = struct
           | None -> Merge.conflict "conflict: contents"
           | Some c -> Merge.ok (`Contents (c, m)) )
       | Ok (`Node _ as n) -> Merge.ok n
-      | Error _ as e -> Lwt.return e
+      | Error e -> Lwt.return_error e
     in
     Merge.v tree_t f
 
@@ -1655,7 +1655,7 @@ module Make (P : S.PRIVATE) = struct
   let diff (x : tree) (y : tree) =
     match (x, y) with
     | `Contents x, `Contents y ->
-        if contents_equal x y then Lwt.return []
+        if contents_equal x y then Lwt.return_nil
         else Lwt.return [ (Path.empty, `Updated (y, x)) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents x, `Node y ->

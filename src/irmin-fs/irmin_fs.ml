@@ -375,7 +375,7 @@ module IO_mem = struct
   let read_file file =
     try
       let buf = Hashtbl.find t.files file in
-      Lwt.return (Some buf)
+      Lwt.return_some buf
     with Not_found -> Lwt.return_none
 
   let write_file ?temp_dir:_ ?lock file v =

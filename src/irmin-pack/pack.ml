@@ -307,7 +307,7 @@ struct
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_append t k v;
-          Lwt.return ())
+          Lwt.return_unit)
 
     let add t v =
       let k = V.hash v in

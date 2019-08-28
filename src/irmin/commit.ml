@@ -101,7 +101,7 @@ struct
       (old () >>= function
        | Error (`Conflict msg) ->
            Log.debug (fun f -> f "old: conflict %s" msg);
-           Lwt.return None
+           Lwt.return_none
        | Ok o -> Lwt.return o)
       >>= fun old ->
       if equal_opt_keys old (Some k1) then Merge.ok k2
@@ -233,7 +233,7 @@ module History (S : S.COMMIT_STORE) = struct
     KSet.iter (add_todo 0) init;
     let rec aux seen =
       match check () with
-      | (`Too_many_lcas | `Max_depth_reached) as x -> Lwt.return (Error x)
+      | (`Too_many_lcas | `Max_depth_reached) as x -> Lwt.return_error x
       | `Stop -> return ()
       | `Continue -> (
           match unqueue todo seen with
@@ -416,15 +416,15 @@ module History (S : S.COMMIT_STORE) = struct
 
   let lcas t ?(max_depth = max_int) ?(n = max_int) c1 c2 =
     incr lca_calls;
-    if max_depth < 0 then Lwt.return (Error `Max_depth_reached)
-    else if n <= 0 then Lwt.return (Error `Too_many_lcas)
-    else if equal_keys c1 c2 then Lwt.return (Ok [ c1 ])
+    if max_depth < 0 then Lwt.return_error `Max_depth_reached
+    else if n <= 0 then Lwt.return_error `Too_many_lcas
+    else if equal_keys c1 c2 then Lwt.return_ok [ c1 ]
     else
       let init = KSet.of_list [ c1; c2 ] in
       let s = empty_state c1 c2 in
       let check () = check ~max_depth ~n s in
       let pp () = pp_state s in
-      let return () = Lwt.return (Ok (lcas s)) in
+      let return () = Lwt.return_ok (lcas s) in
       let t0 = Sys.time () in
       Lwt.finalize
         (fun () ->

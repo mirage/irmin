@@ -86,7 +86,7 @@ let serve servers n =
     let spec = HTTP.v repo ~strict:false in
     Lwt.catch
       (fun () -> Lwt_unix.unlink socket)
-      (function Unix.Unix_error _ -> Lwt.return () | e -> Lwt.fail e)
+      (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
     >>= fun () ->
     let mode = `Unix_domain_socket (`File socket) in
     Conduit_lwt_unix.set_max_active 100;

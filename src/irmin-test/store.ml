@@ -171,7 +171,7 @@ module Make (S : S) = struct
     in
     aux 0
 
-  let old k () = Lwt.return (Ok (Some k))
+  let old k () = Lwt.return_ok (Some k)
 
   let test_contents x () =
     let test repo =
@@ -1259,7 +1259,7 @@ module Make (S : S) = struct
       S.Tree.Cache.clear ~depth:3 ();
       S.Tree.Cache.clear ~depth:2 ();
       S.Tree.Cache.clear ~depth:1 ();
-      Lwt.return ()
+      Lwt.return_unit
     in
     run x test
 
@@ -1865,7 +1865,7 @@ module Make (S : S) = struct
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
       S.find_tree t [ "1" ] >>= fun t1 ->
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
-      Lwt.return ()
+      Lwt.return_unit
     in
     run x test
 end

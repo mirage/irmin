@@ -280,7 +280,9 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     { store = Store t; author; clock; msg; remote }
 
   let disconnect t =
-    match t.store with Store t -> RO.disconnect t | Batch _ -> Lwt.return ()
+    match t.store with
+    | Store t -> RO.disconnect t
+    | Batch _ -> Lwt.return_unit
 
   (* XXX(samoht): always return the 'last modified' on the
        underlying storage layer, not for the current batch. *)
@@ -327,7 +329,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.set ~info s.t (path k) v >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)) )
+        | Error e -> Lwt.return_error (e :> write_error) )
     | Batch b ->
         S.Tree.add b.tree (path k) v >|= fun tree ->
         b.tree <- tree;
@@ -339,7 +341,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.remove ~info s.t (path k) >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)) )
+        | Error e -> Lwt.return_error (e :> write_error) )
     | Batch b ->
         S.Tree.remove b.tree (path k) >|= fun tree ->
         b.tree <- tree;
@@ -347,7 +349,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   let get_store_tree (t : RO.t) =
     S.Head.find t.t >>= function
-    | None -> Lwt.return None
+    | None -> Lwt.return_none
     | Some origin -> (
         let tree = S.Commit.tree origin in
         S.Tree.find_tree tree t.root >|= function
@@ -371,13 +373,13 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
               get_store_tree s >>= function
               | None ->
                   (* Someting weird happened, retring *)
-                  Lwt.return (Error `Retry)
+                  Lwt.return_error `Retry
               | Some (_, main_tree) -> (
                   Irmin.Merge.f S.Tree.merge
                     ~old:(Irmin.Merge.promise old_tree)
                     main_tree batch.tree
                   >>= function
-                  | Error (`Conflict _) -> Lwt.return (Error `Retry)
+                  | Error (`Conflict _) -> Lwt.return_error `Retry
                   | Ok new_tree -> (
                       S.set_tree s.t ~info s.root new_tree >|= function
                       | Ok () -> Ok result
