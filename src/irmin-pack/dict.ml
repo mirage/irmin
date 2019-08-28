@@ -35,6 +35,10 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
   val clear : t -> unit
+
+  val close : t -> unit
+
+  val valid : t -> bool
 end
 
 module Make (IO : IO.S) : S = struct
@@ -107,4 +111,12 @@ module Make (IO : IO.S) : S = struct
     let t = { capacity; index; cache; io } in
     refill ~from:0L t;
     t
+
+  let close t =
+    sync t;
+    IO.close t.io;
+    Hashtbl.reset t.cache;
+    Hashtbl.reset t.index
+
+  let valid t = IO.valid_fd t.io
 end

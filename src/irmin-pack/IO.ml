@@ -44,6 +44,10 @@ module type S = sig
   val version : t -> string
 
   val sync : t -> unit
+
+  val close : t -> unit
+
+  val valid_fd : t -> bool
 end
 
 let ( ++ ) = Int64.add
@@ -251,11 +255,19 @@ module Unix : S = struct
           let version = Raw.unsafe_get_version raw in
           assert (version = current_version);
           v ~offset ~version raw
+
+  let close t = Unix.close t.raw.fd
+
+  let valid_fd t =
+    try
+      let _ = Unix.fstat t.raw.fd in
+      true
+    with Unix.Unix_error (Unix.EBADF, _, _) -> false
 end
 
 let ( // ) = Filename.concat
 
-let with_cache ~v ~clear file =
+let with_cache ~v ~clear ?(valid = fun _ -> true) file =
   let files = Hashtbl.create 13 in
   let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
@@ -269,9 +281,13 @@ let with_cache ~v ~clear file =
         Hashtbl.remove files (file, false);
         raise Not_found );
       let t = Hashtbl.find files (file, readonly) in
-      Log.debug (fun l -> l "%s found in cache" file);
-      if fresh then clear t;
-      t
+      if valid t then (
+        Log.debug (fun l -> l "%s found in cache" file);
+        if fresh then clear t;
+        t )
+      else (
+        Hashtbl.remove files (file, readonly);
+        raise Not_found )
     with Not_found ->
       Log.debug (fun l ->
           l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh

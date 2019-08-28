@@ -75,7 +75,11 @@ let test_dict () =
   let v2 = Dict.find dict2 (get x2) in
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
   let v3 = Dict.find dict2 (get x3) in
-  Alcotest.(check (option string)) "find x3" (Some "toto") v3
+  Alcotest.(check (option string)) "find x3" (Some "toto") v3;
+  Dict.close dict;
+  let dict3 = Dict.v ~fresh:false test_dir in
+  let v1 = Dict.find dict3 (get x1) in
+  Alcotest.(check (option string)) "find x1" (Some "foo") v1
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 
@@ -169,6 +173,28 @@ let test_readonly_pack _switch () =
   Alcotest.(check (option string)) "y3" (Some x3) y3;
   Lwt.return_unit
 
+let test_close_pack _switch () =
+  let index = get_index ~fresh:true test_dir in
+  Pack.v ~fresh:true ~index test_dir >>= fun w ->
+  let x1 = "foo" in
+  let x2 = "bar" in
+  let h1 = sha1 x1 in
+  let h2 = sha1 x2 in
+  Pack.batch w (fun w ->
+      Lwt_list.iter_s
+        (fun (k, v) -> Pack.unsafe_add w k v)
+        [ (h1, x1); (h2, x2) ])
+  >>= fun () ->
+  Pack.close w;
+  let index = get_index ~fresh:false ~readonly:true test_dir in
+  Pack.v ~fresh:false ~readonly:true ~index test_dir >>= fun r ->
+  Pack.find w h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1" x1 y1;
+  Pack.find r h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "x2" x2 y2;
+  Pack.close r;
+  Lwt.return ()
+
 let test_readonly_dict () =
   let ignore_int (_ : int option) = () in
   let w = Dict.v ~fresh:true test_dir in
@@ -249,4 +275,5 @@ let misc =
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch;
+      Alcotest_lwt.test_case "close" `Quick test_close_pack;
     ] )

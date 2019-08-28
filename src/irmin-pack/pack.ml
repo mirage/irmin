@@ -91,6 +91,8 @@ module type S = sig
   val sync : 'a t -> unit
 
   val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
+
+  val close : 'a t -> unit
 end
 
 module type MAKER = sig
@@ -143,6 +145,8 @@ struct
     Index.clear t.index;
     Dict.clear t.dict
 
+  let valid t = IO.valid_fd t.block
+
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
@@ -154,9 +158,16 @@ struct
     { block; index; lock; dict }
 
   let (`Staged v) =
-    with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
+    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
 
   type key = K.t
+
+  let close t =
+    (*Index.close t.index;*)
+    IO.close t.block;
+    Dict.close t.dict
+
+  let valid t = IO.valid_fd t.block
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
@@ -190,13 +201,17 @@ struct
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
       try
-        let t = Hashtbl.find roots (root, readonly) in
-        if fresh then clear t;
-        t
+        let t = Hashtbl.find roots root in
+        if valid t.pack then (
+          if fresh then clear t;
+          t )
+        else (
+          Hashtbl.remove roots root;
+          raise Not_found )
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
         if fresh then clear t;
-        Hashtbl.add roots (root, readonly) t;
+        Hashtbl.add roots root t;
         t
 
     let v ?fresh ?readonly ?lru_size ~index root =
@@ -320,6 +335,11 @@ struct
       append t k v >|= fun () -> k
 
     let unsafe_add t k v = append t k v
+
+    let close t =
+      sync t;
+      close t.pack;
+      ignore (Lru.clear t.lru)
   end
 end
 
