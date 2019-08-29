@@ -89,6 +89,8 @@ module type S = sig
   val unsafe_find : 'a t -> key -> value option
 
   val sync : 'a t -> unit
+
+  val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
 end
 
 module type MAKER = sig
@@ -271,6 +273,10 @@ struct
       Index.flush t.pack.index;
       IO.sync t.pack.block;
       Tbl.clear t.staging
+
+    let integrity_check ~offset ~length k t =
+      let value = io_read_and_decode ~off:offset ~len:length t in
+      check_key k value
 
     let batch t f =
       f (cast t) >>= fun r ->

@@ -402,6 +402,39 @@ struct
     end
   end
 
+  let integrity_check ppf (t : X.Repo.t) =
+    Fmt.pf ppf "running the integrity check\n%!";
+    let commits = ref 0 in
+    let contents = ref 0 in
+    let nodes = ref 0 in
+    let pp_stats ppf () =
+      Fmt.pf ppf "%4dk blobs / %4dk trees / %4dk commits" (!contents / 1000)
+        (!nodes / 1000) (!commits / 1000)
+    in
+    let pr_stats () = Fmt.epr "\r%a%!" pp_stats () in
+    let count_increment count =
+      incr count;
+      if !count mod 100 = 0 then pr_stats ()
+    in
+    Index.iter
+      (fun k (offset, length, m) ->
+        match m with
+        | 'B' ->
+            let capability = X.Repo.contents_t t in
+            X.Contents.CA.integrity_check ~offset ~length k capability;
+            count_increment contents
+        | 'N' | 'I' ->
+            let _, capability = X.Repo.node_t t in
+            X.Node.CA.integrity_check ~offset ~length k capability;
+            count_increment nodes
+        | 'C' ->
+            let _, capability = X.Repo.commit_t t in
+            X.Commit.CA.integrity_check ~offset ~length k capability;
+            count_increment commits
+        | _ -> invalid_arg "unknown content type" )
+      t.index;
+    pr_stats ()
+
   include Irmin.Of_private (X)
 end
 

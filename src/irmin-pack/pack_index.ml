@@ -11,23 +11,11 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
 module type S = sig
-  type t
-
-  type key
-
-  type value = int64 * int * char
-
-  val v : ?fresh:bool -> ?readonly:bool -> log_size:int -> string -> t
-
-  val clear : t -> unit
-
-  val flush : t -> unit
-
-  val add : t -> key -> value -> unit
-
-  val mem : t -> key -> bool
+  include Index.S with type value = int64 * int * char
 
   val find : t -> key -> value option
+
+  val add : t -> key -> value -> unit
 end
 
 module Make (K : Irmin.Hash.S) = struct
@@ -70,23 +58,10 @@ module Make (K : Irmin.Hash.S) = struct
   end
 
   module Index = Index_unix.Make (Key) (Val)
+  include Index
 
-  type t = Index.t
-
-  type key = K.t
-
-  type value = Val.t
-
-  let v = Index.v
-
-  let clear = Index.clear
-
-  let flush = Index.flush
-
-  let add t k v = Index.replace t k v
-
-  let mem = Index.mem
+  let add t k v = replace t k v
 
   let find t k =
-    match Index.find t k with exception Not_found -> None | h -> Some h
+    match find t k with exception Not_found -> None | h -> Some h
 end
