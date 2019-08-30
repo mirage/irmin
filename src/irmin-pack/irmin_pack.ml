@@ -110,6 +110,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     block : IO.t;
     lock : Lwt_mutex.t;
     w : W.t;
+    mutable counter : int;
   }
 
   let read_length32 ~off block =
@@ -173,6 +174,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let watches = W.v ()
 
+  let valid t =
+    if IO.is_valid t.block then (
+      t.counter <- t.counter + 1;
+      true )
+    else false
+
   let unsafe_v ~fresh ~readonly file =
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Tbl.create 997 in
@@ -200,10 +207,19 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
     in
     (aux [@tailcall]) 0L @@ fun () ->
-    { cache; index; block; w = watches; lock = Lwt_mutex.create () }
+    {
+      cache;
+      index;
+      block;
+      w = watches;
+      lock = Lwt_mutex.create ();
+      counter = 1;
+    }
 
   let (`Staged unsafe_v) =
-    with_cache ~clear:unsafe_clear ~v:(fun () -> unsafe_v) "store.branches"
+    with_cache ~clear:unsafe_clear ~valid
+      ~v:(fun () -> unsafe_v)
+      "store.branches"
 
   let v ?fresh ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
@@ -254,6 +270,17 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let watch t = W.watch t.w
 
   let unwatch t = W.unwatch t.w
+
+  let unsafe_close t =
+    t.counter <- t.counter - 1;
+    if t.counter = 0 then (
+      Tbl.reset t.index;
+      Tbl.reset t.cache;
+      IO.close t.block;
+      W.clear t.w )
+    else Lwt.return_unit
+
+  let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
 end
 
 module type CONFIG = Inode.CONFIG
@@ -400,7 +427,10 @@ struct
         Branch.v ~fresh ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }
 
-      let close _ = Lwt.return_unit
+      let close t =
+        Contents.CA.close (contents_t t) >>= fun () ->
+        Node.CA.close (snd (node_t t)) >>= fun () ->
+        Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
     end
   end
 

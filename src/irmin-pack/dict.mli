@@ -26,6 +26,10 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
   val clear : t -> unit
+
+  val close : t -> unit
+
+  val valid : t -> bool
 end
 
 module Make (IO : IO.S) : S

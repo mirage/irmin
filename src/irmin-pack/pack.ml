@@ -91,6 +91,8 @@ module type S = sig
   val sync : 'a t -> unit
 
   val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
+
+  val close : 'a t -> unit Lwt.t
 end
 
 module type MAKER = sig
@@ -136,12 +138,19 @@ struct
     index : Index.t;
     dict : Dict.t;
     lock : Lwt_mutex.t;
+    mutable counter : int;
   }
 
   let clear t =
     IO.clear t.block;
     Index.clear t.index;
     Dict.clear t.dict
+
+  let valid t =
+    if IO.is_valid t.block then (
+      t.counter <- t.counter + 1;
+      true )
+    else false
 
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
@@ -151,18 +160,31 @@ struct
     if IO.version block <> current_version then
       Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
         current_version;
-    { block; index; lock; dict }
+    { block; index; lock; dict; counter = 1 }
 
   let (`Staged v) =
-    with_cache ~clear ~v:(fun index -> unsafe_v ~index) "store.pack"
+    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
 
   type key = K.t
+
+  let close t =
+    t.counter <- t.counter - 1;
+    if t.counter = 0 then (
+      IO.close t.block;
+      Dict.close t.dict )
+
+  let valid t = IO.is_valid t.block
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
     module Lru = Cache (K)
 
-    type nonrec 'a t = { pack : 'a t; lru : V.t Lru.t; staging : V.t Tbl.t }
+    type nonrec 'a t = {
+      pack : 'a t;
+      lru : V.t Lru.t;
+      staging : V.t Tbl.t;
+      mutable counter : int;
+    }
 
     type key = K.t
 
@@ -185,14 +207,19 @@ struct
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack }
+      { staging; lru; pack; counter = 1 }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
       try
         let t = Hashtbl.find roots (root, readonly) in
-        if fresh then clear t;
-        t
+        if valid t.pack then (
+          t.counter <- t.counter + 1;
+          if fresh then clear t;
+          t )
+        else (
+          Hashtbl.remove roots (root, readonly);
+          raise Not_found )
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
         if fresh then clear t;
@@ -320,6 +347,22 @@ struct
       append t k v >|= fun () -> k
 
     let unsafe_add t k v = append t k v
+
+    let unsafe_close t =
+      t.counter <- t.counter - 1;
+      if t.counter = 0 then (
+        Log.debug (fun l -> l "[pack] closing %s" (IO.name t.pack.block));
+        if not (IO.readonly t.pack.block) then (
+          Index.flush t.pack.index;
+          IO.sync t.pack.block );
+        Tbl.clear t.staging;
+        ignore (Lru.clear t.lru);
+        close t.pack )
+
+    let close t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_close t;
+          Lwt.return_unit)
   end
 end
 

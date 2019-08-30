@@ -115,4 +115,6 @@ module Make (H : Hashtbl.HashedType) = struct
     | true ->
         promote t k;
         true
+
+  let clear t = create t.cap
 end

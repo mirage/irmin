@@ -75,7 +75,11 @@ let test_dict () =
   let v2 = Dict.find dict2 (get x2) in
   Alcotest.(check (option string)) "find x2" (Some "bar") v2;
   let v3 = Dict.find dict2 (get x3) in
-  Alcotest.(check (option string)) "find x3" (Some "toto") v3
+  Alcotest.(check (option string)) "find x3" (Some "toto") v3;
+  Dict.close dict;
+  let dict3 = Dict.v ~fresh:false test_dir in
+  let v1 = Dict.find dict3 (get x1) in
+  Alcotest.(check (option string)) "find x1" (Some "foo") v1
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 
@@ -169,6 +173,71 @@ let test_readonly_pack _switch () =
   Alcotest.(check (option string)) "y3" (Some x3) y3;
   Lwt.return_unit
 
+let test_reuse_index _switch () =
+  (* reuse index in new pack *)
+  let index = get_index ~fresh:true test_dir in
+  Pack.v ~fresh:true ~index "test1" >>= fun w1 ->
+  let x1 = "foo" in
+  let h1 = sha1 x1 in
+  Pack.unsafe_append w1 h1 x1;
+  Pack.find w1 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1" x1 y1;
+  Lwt.return ()
+
+let test_close_pack _switch () =
+  let index = get_index ~fresh:true "test2" in
+  Pack.v ~fresh:true ~index "test2" >>= fun w ->
+  let x1 = "foo" in
+  let x2 = "bar" in
+  let h1 = sha1 x1 in
+  let h2 = sha1 x2 in
+  Pack.batch w (fun w ->
+      Lwt_list.iter_s
+        (fun (k, v) -> Pack.unsafe_add w k v)
+        [ (h1, x1); (h2, x2) ])
+  >>= fun () ->
+  Pack.close w >>= fun () ->
+  (*reopen only pack and reuse index *)
+  Pack.v ~fresh:false ~index "test2" >>= fun w ->
+  Pack.find w h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "close1" x2 y2;
+  Pack.find w h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "close2" x1 y1;
+
+  (*open and close two packs *)
+  let x3 = "toto" in
+  let h3 = sha1 x3 in
+  Pack.unsafe_append w h3 x3;
+  Pack.v ~fresh:false ~index "test2" >>= fun w2 ->
+  Pack.close w >>= fun () ->
+  Pack.find w2 h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "close3" x2 y2;
+  Pack.find w2 h3 >|= get >>= fun y3 ->
+  Alcotest.(check string) "close4" x3 y3;
+  Pack.find w2 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "close5" x1 y1;
+  Pack.close w2 >>= fun () ->
+  Index.close index;
+
+  (*reopen pack and index after both closed *)
+  let index = get_index ~fresh:false ~readonly:true "test2" in
+  Pack.v ~fresh:false ~readonly:true ~index "test2" >>= fun r ->
+  Pack.find r h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "close6" x1 y1;
+  Pack.find r h2 >|= get >>= fun y2 ->
+  Alcotest.(check string) "close7" x2 y2;
+  Pack.close r >>= fun () ->
+  Index.close index;
+
+  (*close index while in use*)
+  let index = get_index ~fresh:false "test2" in
+  Pack.v ~fresh:false ~index "test2" >>= fun r ->
+  Index.close index;
+  Pack.find r h1 >>= fun y1 ->
+  Alcotest.(check (option string)) "x1" None y1;
+
+  Lwt.return ()
+
 let test_readonly_dict () =
   let ignore_int (_ : int option) = () in
   let w = Dict.v ~fresh:true test_dir in
@@ -249,4 +318,6 @@ let misc =
       Alcotest_lwt.test_case "pack" `Quick test_pack;
       Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest_lwt.test_case "branch" `Quick test_branch;
+      Alcotest_lwt.test_case "index" `Quick test_reuse_index;
+      Alcotest_lwt.test_case "close" `Quick test_close_pack;
     ] )
