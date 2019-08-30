@@ -399,6 +399,8 @@ struct
         Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
         { contents; node; commit; branch; config; index }
+
+      let close _ = Lwt.return_unit
     end
   end
 
@@ -431,7 +433,7 @@ struct
             let _, capability = X.Repo.commit_t t in
             X.Commit.CA.integrity_check ~offset ~length k capability;
             count_increment commits
-        | _ -> invalid_arg "unknown content type" )
+        | _ -> invalid_arg "unknown content type")
       t.index;
     pr_stats ()
 

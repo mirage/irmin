@@ -494,6 +494,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         Branch.v ?ctx uri >|= fun branch ->
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
+
+      let close _ = Lwt.return_unit
     end
   end
 

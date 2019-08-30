@@ -54,6 +54,118 @@ module Path = struct
   module type S = S.PATH
 end
 
+exception Closed
+
+module CA_check_closed (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER) :
+  S.CONTENT_ADDRESSABLE_STORE_MAKER =
+functor
+  (K : S.HASH)
+  (V : Type.S)
+  ->
+  struct
+    module S = CA (K) (V)
+
+    type 'a t = { closed : bool ref; t : 'a S.t }
+
+    type key = S.key
+
+    type value = S.value
+
+    let check_closed t = if !(t.closed) then raise Closed
+
+    let mem t k =
+      check_closed t;
+      S.mem t.t k
+
+    let find t k =
+      check_closed t;
+      S.find t.t k
+
+    let add t v =
+      check_closed t;
+      S.add t.t v
+
+    let unsafe_add t k v =
+      check_closed t;
+      S.unsafe_add t.t k v
+
+    let batch t f =
+      check_closed t;
+      S.batch t.t (fun w -> f { t = w; closed = t.closed })
+
+    let v conf = S.v conf >|= fun t -> { closed = ref false; t }
+
+    let close t =
+      if !(t.closed) then Lwt.return_unit
+      else (
+        t.closed := true;
+        S.close t.t )
+  end
+
+module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
+  S.ATOMIC_WRITE_STORE_MAKER =
+functor
+  (K : Type.S)
+  (V : Type.S)
+  ->
+  struct
+    module S = AW (K) (V)
+
+    type t = { closed : bool ref; t : S.t }
+
+    type key = S.key
+
+    type value = S.value
+
+    let check_closed t = if !(t.closed) then raise Closed
+
+    let mem t k =
+      check_closed t;
+      S.mem t.t k
+
+    let find t k =
+      check_closed t;
+      S.find t.t k
+
+    let set t k v =
+      check_closed t;
+      S.set t.t k v
+
+    let test_and_set t k ~test ~set =
+      check_closed t;
+      S.test_and_set t.t k ~test ~set
+
+    let remove t k =
+      check_closed t;
+      S.remove t.t k
+
+    let list t =
+      check_closed t;
+      S.list t.t
+
+    type watch = S.watch
+
+    let watch t ?init f =
+      check_closed t;
+      S.watch t.t ?init f
+
+    let watch_key t k ?init f =
+      check_closed t;
+      S.watch_key t.t k ?init f
+
+    let unwatch t w =
+      check_closed t;
+      S.unwatch t.t w
+
+    let v conf = S.v conf >|= fun t -> { closed = ref false; t }
+
+    let close t =
+      if !(t.closed) then Lwt.return_unit
+      else (
+        t.closed := true;
+        S.close t.t )
+  end
+
 module Make_ext
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
@@ -68,6 +180,9 @@ module Make_ext
             and type step = P.step)
     (CT : S.COMMIT with type hash = H.t) =
 struct
+  module CA = CA_check_closed (CA)
+  module AW = AW_check_closed (AW)
+
   module X = struct
     module Hash = H
 
@@ -144,6 +259,11 @@ struct
         let commits = (nodes, commits) in
         Branch.v config >|= fun branch ->
         { contents; nodes; commits; branch; config }
+
+      let close t =
+        Contents.CA.close t.contents >>= fun () ->
+        Node.CA.close (snd t.nodes) >>= fun () ->
+        Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
     end
   end
 

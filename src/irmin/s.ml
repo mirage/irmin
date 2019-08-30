@@ -99,6 +99,8 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   val v : Conf.t -> [ `Read ] t Lwt.t
+
+  val close : 'a t -> unit Lwt.t
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -121,6 +123,8 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   val v : Conf.t -> [ `Read ] t Lwt.t
+
+  val close : 'a t -> unit Lwt.t
 end
 
 module type METADATA = sig
@@ -403,6 +407,8 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : Conf.t -> t Lwt.t
+
+  val close : t -> unit Lwt.t
 end
 
 module type BRANCH_STORE = sig
@@ -462,6 +468,8 @@ module type PRIVATE = sig
     type t
 
     val v : Conf.t -> t Lwt.t
+
+    val close : t -> unit Lwt.t
 
     val contents_t : t -> [ `Read ] Contents.t
 
@@ -646,6 +654,8 @@ module type STORE = sig
     type t = repo
 
     val v : config -> t Lwt.t
+
+    val close : t -> unit Lwt.t
 
     val heads : t -> commit list Lwt.t
 
