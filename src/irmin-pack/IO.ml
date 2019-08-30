@@ -237,7 +237,6 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        if readonly then raise RO_Not_Allowed;
         let x = Unix.openfile file Unix.[ O_CREAT; mode ] 0o644 in
         let raw = Raw.v x in
         Raw.unsafe_set_offset raw 0L;
