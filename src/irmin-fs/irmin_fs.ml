@@ -86,6 +86,8 @@ struct
     let path = get_path config in
     IO.mkdir path >|= fun () -> { path }
 
+  let close _ = Lwt.return_unit
+
   let cast t = (t :> [ `Read | `Write ] t)
 
   let batch t f = f (cast t)
@@ -200,6 +202,8 @@ struct
         w
     in
     { t; w }
+
+  let close t = W.clear t.w >>= fun () -> RO.close t.t
 
   let find t = RO.find t.t
 

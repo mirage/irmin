@@ -37,6 +37,10 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let v _config = Lwt.return map
 
+  let close t =
+    t.t <- KMap.empty;
+    Lwt.return_unit
+
   let cast t = (t :> [ `Read | `Write ] t)
 
   let batch t f = f (cast t)
@@ -79,6 +83,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let lock = L.v ()
 
   let v config = RO.v config >>= fun t -> Lwt.return { t; w = watches; lock }
+
+  let close t = W.clear t.w >>= fun () -> RO.close t.t
 
   let find t = RO.find t.t
 

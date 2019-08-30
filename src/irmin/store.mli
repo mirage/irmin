@@ -43,4 +43,6 @@ module Content_addressable
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   val v : Conf.t -> [ `Read ] t Lwt.t
+
+  val close : 'a t -> unit Lwt.t
 end

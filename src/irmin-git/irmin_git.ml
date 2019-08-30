@@ -929,6 +929,8 @@ struct
         G.v ?dotgit ?compression:level ?buffers root >>= function
         | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
         | Ok g -> R.v ~head ~bare g >|= fun b -> { g; b; config = conf }
+
+      let close _ = Lwt.return_unit
     end
   end
 

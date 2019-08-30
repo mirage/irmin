@@ -192,6 +192,8 @@ module Make (P : S.PRIVATE) = struct
 
     let v = P.Repo.v
 
+    let close = P.Repo.close
+
     let graph_t t = P.Repo.node_t t
 
     let history_t t = P.Repo.commit_t t

@@ -2081,6 +2081,8 @@ module Private : sig
 
       val v : config -> t Lwt.t
 
+      val close : t -> unit Lwt.t
+
       val contents_t : t -> [ `Read ] Contents.t
 
       val node_t : t -> [ `Read ] Node.t
@@ -2205,6 +2207,10 @@ module type S = sig
     val v : config -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific
         manner. *)
+
+    val close : t -> unit Lwt.t
+    (** [close t] frees up all resources associated with [t]. Any
+        operations run on a closed repository will raise [Closed]. *)
 
     val heads : t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -3601,6 +3607,10 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+
+  val close : 'a t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise [Closed].*)
 end
 
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
@@ -3619,6 +3629,10 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+
+  val close : 'a t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise [Closed].*)
 end
 
 module Content_addressable
@@ -3633,11 +3647,15 @@ module Content_addressable
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] applies the writes in [f] in a separate batch. The
-     exact guarantees depends on the backends. *)
+      exact guarantees depends on the backends. *)
 
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+
+  val close : 'a t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise [Closed]. *)
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write
@@ -3649,6 +3667,10 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   val v : config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+
+  val close : t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise [Closed]. *)
 end
 
 module Make
