@@ -182,20 +182,6 @@ let test_reuse_index _switch () =
   Pack.unsafe_append w1 h1 x1;
   Pack.find w1 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "x1" x1 y1;
-
-  (*reuse readonly index in rw pack*)
-  let index = get_index ~fresh:false ~readonly:true test_dir in
-  let _exn = Assert_failure ("src/index.ml", 350, 45) in
-  Pack.v ~fresh:false ~readonly:false ~index "test" >>= fun _r1 ->
-  (* this testcase is broken for now because Alcotest cannot detect the assert failure. Running:
-       Pack.find r1 h1 >|= get >>= fun y1 ->
-       Alcotest.(check string) "x1" x1 y1;
-     raises assert failure, but the following reports no failure detected:
-       Alcotest.(
-       check_raises "assertion failed in index" exn (fun () ->
-         let _ = Pack.find r1 h1 in
-         ()));
-   *)
   Lwt.return ()
 
 let test_close_pack _switch () =
