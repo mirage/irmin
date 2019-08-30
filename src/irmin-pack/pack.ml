@@ -92,7 +92,7 @@ module type S = sig
 
   val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
 
-  val close : 'a t -> unit
+  val close : 'a t -> unit Lwt.t
 end
 
 module type MAKER = sig
@@ -146,9 +146,11 @@ struct
     Index.clear t.index;
     Dict.clear t.dict
 
-  let valid t = IO.valid_fd t.block
-
-  let incr_counter t = t.counter <- t.counter + 1
+  let valid t =
+    if IO.is_valid t.block then (
+      t.counter <- t.counter + 1;
+      true )
+    else false
 
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
@@ -161,9 +163,7 @@ struct
     { block; index; lock; dict; counter = 1 }
 
   let (`Staged v) =
-    with_cache ~clear ~valid ~incr_counter
-      ~v:(fun index -> unsafe_v ~index)
-      "store.pack"
+    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
 
   type key = K.t
 
@@ -173,7 +173,7 @@ struct
       IO.close t.block;
       Dict.close t.dict )
 
-  let valid t = IO.valid_fd t.block
+  let valid t = IO.is_valid t.block
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
@@ -348,16 +348,21 @@ struct
 
     let unsafe_add t k v = append t k v
 
-    let close t =
+    let unsafe_close t =
       t.counter <- t.counter - 1;
       if t.counter = 0 then (
-        Log.debug (fun l -> l "closing %s" (IO.name t.pack.block));
+        Log.debug (fun l -> l "[pack] closing %s" (IO.name t.pack.block));
         if not (IO.readonly t.pack.block) then (
           Index.flush t.pack.index;
           IO.sync t.pack.block );
         Tbl.clear t.staging;
         ignore (Lru.clear t.lru);
         close t.pack )
+
+    let close t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_close t;
+          Lwt.return_unit)
   end
 end
 

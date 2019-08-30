@@ -47,7 +47,7 @@ module type S = sig
 
   val close : t -> unit
 
-  val valid_fd : t -> bool
+  val is_valid : t -> bool
 end
 
 let ( ++ ) = Int64.add
@@ -258,7 +258,7 @@ module Unix : S = struct
 
   let close t = Unix.close t.raw.fd
 
-  let valid_fd t =
+  let is_valid t =
     try
       let _ = Unix.fstat t.raw.fd in
       true
@@ -267,9 +267,7 @@ end
 
 let ( // ) = Filename.concat
 
-let may t = function None -> () | Some f -> f t
-
-let with_cache ~v ~clear ~valid ?incr_counter file =
+let with_cache ~v ~clear ~valid file =
   let files = Hashtbl.create 13 in
   let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
@@ -285,7 +283,6 @@ let with_cache ~v ~clear ~valid ?incr_counter file =
       let t = Hashtbl.find files (file, readonly) in
       if valid t then (
         Log.debug (fun l -> l "%s found in cache" file);
-        may t incr_counter;
         if fresh then clear t;
         t )
       else (

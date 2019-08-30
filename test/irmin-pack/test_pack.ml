@@ -196,8 +196,7 @@ let test_close_pack _switch () =
         (fun (k, v) -> Pack.unsafe_add w k v)
         [ (h1, x1); (h2, x2) ])
   >>= fun () ->
-  Pack.close w;
-
+  Pack.close w >>= fun () ->
   (*reopen only pack and reuse index *)
   Pack.v ~fresh:false ~index "test2" >>= fun w ->
   Pack.find w h2 >|= get >>= fun y2 ->
@@ -210,14 +209,14 @@ let test_close_pack _switch () =
   let h3 = sha1 x3 in
   Pack.unsafe_append w h3 x3;
   Pack.v ~fresh:false ~index "test2" >>= fun w2 ->
-  Pack.close w;
+  Pack.close w >>= fun () ->
   Pack.find w2 h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close3" x2 y2;
   Pack.find w2 h3 >|= get >>= fun y3 ->
   Alcotest.(check string) "close4" x3 y3;
   Pack.find w2 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "close5" x1 y1;
-  Pack.close w2;
+  Pack.close w2 >>= fun () ->
   Index.close index;
 
   (*reopen pack and index after both closed *)
@@ -227,7 +226,7 @@ let test_close_pack _switch () =
   Alcotest.(check string) "close6" x1 y1;
   Pack.find r h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close7" x2 y2;
-  Pack.close r;
+  Pack.close r >>= fun () ->
   Index.close index;
 
   (*close index while in use*)

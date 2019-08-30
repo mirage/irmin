@@ -43,7 +43,7 @@ module type S = sig
 
   val close : t -> unit
 
-  val valid_fd : t -> bool
+  val is_valid : t -> bool
 end
 
 module Unix : S
@@ -52,6 +52,5 @@ val with_cache :
   v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
   clear:('b -> unit) ->
   valid:('b -> bool) ->
-  ?incr_counter:('b -> unit) ->
   string ->
   [ `Staged of 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]

@@ -60,7 +60,7 @@ module type S = sig
 
   val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
 
-  val close : 'a t -> unit
+  val close : 'a t -> unit Lwt.t
 end
 
 module type MAKER = sig

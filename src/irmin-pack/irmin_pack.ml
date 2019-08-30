@@ -174,9 +174,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let watches = W.v ()
 
-  let valid t = IO.valid_fd t.block
-
-  let incr_counter t = t.counter <- t.counter + 1
+  let valid t =
+    if IO.is_valid t.block then (
+      t.counter <- t.counter + 1;
+      true )
+    else false
 
   let unsafe_v ~fresh ~readonly file =
     let block = IO.v ~fresh ~version:current_version ~readonly file in
@@ -215,7 +217,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     }
 
   let (`Staged unsafe_v) =
-    with_cache ~clear:unsafe_clear ~valid ~incr_counter
+    with_cache ~clear:unsafe_clear ~valid
       ~v:(fun () -> unsafe_v)
       "store.branches"
 
@@ -269,14 +271,16 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let unwatch t = W.unwatch t.w
 
-  let close t =
+  let unsafe_close t =
     t.counter <- t.counter - 1;
-    if t.counter = 0 && Lwt_mutex.is_empty t.lock then (
+    if t.counter = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
       IO.close t.block;
       W.clear t.w )
     else Lwt.return_unit
+
+  let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
 end
 
 module type CONFIG = Inode.CONFIG
