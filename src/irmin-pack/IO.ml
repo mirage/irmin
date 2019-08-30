@@ -269,7 +269,7 @@ let ( // ) = Filename.concat
 
 let may t = function None -> () | Some f -> f t
 
-let with_cache ~v ~clear ?(valid = fun _ -> true) ?incr_counter file =
+let with_cache ~v ~clear ~valid ?incr_counter file =
   let files = Hashtbl.create 13 in
   let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
