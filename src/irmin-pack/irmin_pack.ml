@@ -276,6 +276,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     if t.counter = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
+      if not (IO.readonly t.block) then IO.sync t.block;
       IO.close t.block;
       W.clear t.w )
     else Lwt.return_unit
