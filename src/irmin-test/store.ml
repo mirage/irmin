@@ -194,7 +194,7 @@ module Make (S : S) = struct
       check_val "v1" (Some v1) v1';
       P.Contents.find t kv2 >>= fun v2' ->
       check_val "v2" (Some v2) v2';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -412,6 +412,15 @@ module Make (S : S) = struct
       S.Branch.list repo >>= fun b2' ->
       check_keys "all-after-remove" [ b2 ] b2';
       Lwt.return_unit
+    in
+    run x test
+
+  let test_set_exn x () =
+    let test repo =
+      S.master repo >>= fun t ->
+      let key = [ "a" ] in
+      let v1 = "bar" in
+      S.set_exn t ~info:(infof "update") key v1
     in
     run x test
 
@@ -1876,6 +1885,7 @@ let suite (speed, x) =
   ( x.name,
     [
       ("Basic operations on contents", speed, T.test_contents x);
+      ("fail", speed, T.test_set_exn x);
       ("Basic operations on nodes", speed, T.test_nodes x);
       ("Basic operations on commits", speed, T.test_commits x);
       ("Basic operations on branches", speed, T.test_branches x);
