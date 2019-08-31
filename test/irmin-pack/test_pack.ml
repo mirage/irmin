@@ -197,7 +197,8 @@ let test_close_pack _switch () =
         [ (h1, x1); (h2, x2) ])
   >>= fun () ->
   Pack.close w >>= fun () ->
-  (*reopen only pack and reuse index *)
+  (*reopen pack and index *)
+  let index = get_index ~fresh:false "test2" in
   Pack.v ~fresh:false ~index "test2" >>= fun w ->
   Pack.find w h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close1" x2 y2;
@@ -217,9 +218,7 @@ let test_close_pack _switch () =
   Pack.find w2 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "close5" x1 y1;
   Pack.close w2 >>= fun () ->
-  Index.close index;
-
-  (*reopen pack and index after both closed *)
+  (*reopen pack and index in readonly *)
   let index = get_index ~fresh:false ~readonly:true "test2" in
   Pack.v ~fresh:false ~readonly:true ~index "test2" >>= fun r ->
   Pack.find r h1 >|= get >>= fun y1 ->
@@ -227,8 +226,6 @@ let test_close_pack _switch () =
   Pack.find r h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close7" x2 y2;
   Pack.close r >>= fun () ->
-  Index.close index;
-
   (*close index while in use*)
   let index = get_index ~fresh:false "test2" in
   Pack.v ~fresh:false ~index "test2" >>= fun r ->
