@@ -232,7 +232,6 @@ let test_close_pack _switch () =
   Index.close index;
   Pack.find r h1 >>= fun y1 ->
   Alcotest.(check (option string)) "x1" None y1;
-
   Lwt.return ()
 
 let test_readonly_dict () =
@@ -307,6 +306,36 @@ let test_branch _switch () =
     br;
   Lwt.return_unit
 
+let test_close_branch _switch () =
+  let branches = [ "foo"; "bar/toto"; "titi" ] in
+  let add t =
+    Lwt_list.iter_s
+      (fun k ->
+        Logs.debug (fun l -> l "k = %s, v= %a" k pp_hash (sha1 k));
+        Branch.set t k (sha1 k))
+      branches
+  in
+  let test t =
+    let check h =
+      Branch.find t h >|= fun v ->
+      Alcotest.(check (option hash)) h (Some (sha1 h)) v
+    in
+    Lwt_list.iter_p check branches
+  in
+  Branch.v ~fresh:true "close_branch" >>= fun t ->
+  add t >>= fun () ->
+  test t >>= fun () ->
+  Branch.close t >>= fun () ->
+  (* restart in readonly *)
+  Branch.v ~fresh:false ~readonly:true "close_branch" >>= fun t ->
+  test t >>= fun () ->
+  Branch.close t >>= fun () ->
+  (*open two instances and close one*)
+  Branch.v ~fresh:true "close_branch_two" >>= fun t1 ->
+  Branch.v ~fresh:false "close_branch_two" >>= fun t2 ->
+  add t1 >>= fun () ->
+  Branch.close t1 >>= fun () -> test t2
+
 let misc =
   ( "misc",
     [
@@ -317,4 +346,5 @@ let misc =
       Alcotest_lwt.test_case "branch" `Quick test_branch;
       Alcotest_lwt.test_case "index" `Quick test_reuse_index;
       Alcotest_lwt.test_case "close" `Quick test_close_pack;
+      Alcotest_lwt.test_case "branch close" `Quick test_close_branch;
     ] )
