@@ -237,13 +237,13 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let x = Unix.openfile file Unix.[ O_CREAT; mode ] 0o644 in
+        let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         Raw.unsafe_set_offset raw 0L;
         Raw.unsafe_set_version raw current_version;
         v ~offset:0L ~version:current_version raw
     | true ->
-        let x = Unix.openfile file Unix.[ O_EXCL; mode ] 0o644 in
+        let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
           Raw.unsafe_set_offset raw 0L;
