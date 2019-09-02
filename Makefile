@@ -4,7 +4,7 @@ all:
 	dune build
 
 test:
-	dune runtest -j1 --no-buffer
+	dune runtest
 
 examples:
 	dune build @examples
