@@ -170,7 +170,9 @@ struct
   let close t =
     t.counter <- t.counter - 1;
     if t.counter = 0 then (
+      if not (IO.readonly t.block) then IO.sync t.block;
       IO.close t.block;
+      Index.close t.index;
       Dict.close t.dict )
 
   let valid t = IO.is_valid t.block
@@ -352,9 +354,6 @@ struct
       t.counter <- t.counter - 1;
       if t.counter = 0 then (
         Log.debug (fun l -> l "[pack] closing %s" (IO.name t.pack.block));
-        if not (IO.readonly t.pack.block) then (
-          Index.flush t.pack.index;
-          IO.sync t.pack.block );
         Tbl.clear t.staging;
         ignore (Lru.clear t.lru);
         close t.pack )
