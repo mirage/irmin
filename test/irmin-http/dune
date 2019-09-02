@@ -11,4 +11,5 @@
 (alias
  (name    runtest)
  (package irmin-http)
+ (locks   http)
  (action  (chdir %{workspace_root} (run %{exe:test.exe} -q --color=always))))
