@@ -429,6 +429,7 @@ struct
         { contents; node; commit; branch; config; index }
 
       let close t =
+        Index.close t.index;
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch

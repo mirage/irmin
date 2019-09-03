@@ -172,7 +172,6 @@ struct
     if t.counter = 0 then (
       if not (IO.readonly t.block) then IO.sync t.block;
       IO.close t.block;
-      Index.close t.index;
       Dict.close t.dict )
 
   let valid t = IO.is_valid t.block

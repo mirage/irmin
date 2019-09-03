@@ -196,6 +196,7 @@ let test_close_pack _switch () =
         (fun (k, v) -> Pack.unsafe_add w k v)
         [ (h1, x1); (h2, x2) ])
   >>= fun () ->
+  Index.close index;
   Pack.close w >>= fun () ->
   (*reopen pack and index *)
   let index = get_index ~fresh:false "test2" in
@@ -217,6 +218,7 @@ let test_close_pack _switch () =
   Alcotest.(check string) "close4" x3 y3;
   Pack.find w2 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "close5" x1 y1;
+  Index.close index;
   Pack.close w2 >>= fun () ->
   (*reopen pack and index in readonly *)
   let index = get_index ~fresh:false ~readonly:true "test2" in
@@ -225,6 +227,7 @@ let test_close_pack _switch () =
   Alcotest.(check string) "close6" x1 y1;
   Pack.find r h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close7" x2 y2;
+  Index.close index;
   Pack.close r >>= fun () ->
   (*close index while in use*)
   let index = get_index ~fresh:false "test2" in
