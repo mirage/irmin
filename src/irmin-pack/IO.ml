@@ -46,8 +46,6 @@ module type S = sig
   val sync : t -> unit
 
   val close : t -> unit
-
-  val is_valid : t -> bool
 end
 
 let ( ++ ) = Int64.add
@@ -256,12 +254,6 @@ module Unix : S = struct
           v ~offset ~version raw
 
   let close t = Unix.close t.raw.fd
-
-  let is_valid t =
-    try
-      let _ = Unix.fstat t.raw.fd in
-      true
-    with Unix.Unix_error (Unix.EBADF, _, _) -> false
 end
 
 let ( // ) = Filename.concat

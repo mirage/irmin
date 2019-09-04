@@ -175,7 +175,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let watches = W.v ()
 
   let valid t =
-    if IO.is_valid t.block then (
+    if t.counter <> 0 then (
       t.counter <- t.counter + 1;
       true )
     else false

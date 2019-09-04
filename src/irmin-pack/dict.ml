@@ -122,7 +122,7 @@ module Make (IO : IO.S) : S = struct
       Hashtbl.reset t.index )
 
   let valid t =
-    if IO.is_valid t.io then (
+    if t.counter <> 0 then (
       t.counter <- t.counter + 1;
       true )
     else false
