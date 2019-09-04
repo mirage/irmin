@@ -194,7 +194,7 @@ module Make (S : S) = struct
       check_val "v1" (Some v1) v1';
       P.Contents.find t kv2 >>= fun v2' ->
       check_val "v2" (Some v2) v2';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
