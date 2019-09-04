@@ -147,7 +147,7 @@ struct
     Dict.clear t.dict
 
   let valid t =
-    if IO.is_valid t.block then (
+    if t.counter <> 0 then (
       t.counter <- t.counter + 1;
       true )
     else false
@@ -172,10 +172,7 @@ struct
     if t.counter = 0 then (
       if not (IO.readonly t.block) then IO.sync t.block;
       IO.close t.block;
-      Index.close t.index;
       Dict.close t.dict )
-
-  let valid t = IO.is_valid t.block
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
@@ -205,6 +202,12 @@ struct
 
     let create = Lwt_mutex.create ()
 
+    let valid t =
+      if t.counter <> 0 then (
+        t.counter <- t.counter + 1;
+        true )
+      else false
+
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
@@ -215,8 +218,7 @@ struct
         ~index root =
       try
         let t = Hashtbl.find roots (root, readonly) in
-        if valid t.pack then (
-          t.counter <- t.counter + 1;
+        if valid t then (
           if fresh then clear t;
           t )
         else (
@@ -353,7 +355,7 @@ struct
     let unsafe_close t =
       t.counter <- t.counter - 1;
       if t.counter = 0 then (
-        Log.debug (fun l -> l "[pack] closing %s" (IO.name t.pack.block));
+        Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
         Tbl.clear t.staging;
         ignore (Lru.clear t.lru);
         close t.pack )

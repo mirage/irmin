@@ -184,6 +184,36 @@ let test_reuse_index _switch () =
   Alcotest.(check string) "x1" x1 y1;
   Lwt.return ()
 
+let test_close_pack_more _switch () =
+  (*open and close in rw*)
+  let index = get_index ~fresh:true "test3" in
+  Pack.v ~fresh:true ~index "test3" >>= fun w ->
+  let x1 = "foo" in
+  let h1 = sha1 x1 in
+  Pack.unsafe_append w h1 x1;
+  Pack.sync w;
+  Index.close index;
+  Pack.close w >>= fun () ->
+  (*open and close in ro*)
+  let index = get_index ~fresh:false ~readonly:true "test3" in
+  Pack.v ~fresh:false ~readonly:true ~index "test3" >>= fun w1 ->
+  Pack.find w1 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1.1" x1 y1;
+  Index.close index;
+  Pack.close w1 >>= fun () ->
+  (* reopen in ro *)
+  let index = get_index ~fresh:false "test3" in
+  Pack.v ~fresh:false ~index "test3" >>= fun w2 ->
+  Pack.find w2 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1.2" x1 y1;
+
+  (*reopen in ro *)
+  let index = get_index ~fresh:false ~readonly:true "test3" in
+  Pack.v ~fresh:false ~readonly:true ~index "test3" >>= fun w3 ->
+  Pack.find w3 h1 >|= get >>= fun y1 ->
+  Alcotest.(check string) "x1.3" x1 y1;
+  Lwt.return ()
+
 let test_close_pack _switch () =
   let index = get_index ~fresh:true "test2" in
   Pack.v ~fresh:true ~index "test2" >>= fun w ->
@@ -196,6 +226,7 @@ let test_close_pack _switch () =
         (fun (k, v) -> Pack.unsafe_add w k v)
         [ (h1, x1); (h2, x2) ])
   >>= fun () ->
+  Index.close index;
   Pack.close w >>= fun () ->
   (*reopen pack and index *)
   let index = get_index ~fresh:false "test2" in
@@ -217,6 +248,7 @@ let test_close_pack _switch () =
   Alcotest.(check string) "close4" x3 y3;
   Pack.find w2 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "close5" x1 y1;
+  Index.close index;
   Pack.close w2 >>= fun () ->
   (*reopen pack and index in readonly *)
   let index = get_index ~fresh:false ~readonly:true "test2" in
@@ -225,6 +257,7 @@ let test_close_pack _switch () =
   Alcotest.(check string) "close6" x1 y1;
   Pack.find r h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close7" x2 y2;
+  Index.close index;
   Pack.close r >>= fun () ->
   (*close index while in use*)
   let index = get_index ~fresh:false "test2" in
@@ -346,5 +379,6 @@ let misc =
       Alcotest_lwt.test_case "branch" `Quick test_branch;
       Alcotest_lwt.test_case "index" `Quick test_reuse_index;
       Alcotest_lwt.test_case "close" `Quick test_close_pack;
+      Alcotest_lwt.test_case "close readonly" `Quick test_close_pack_more;
       Alcotest_lwt.test_case "branch close" `Quick test_close_branch;
     ] )

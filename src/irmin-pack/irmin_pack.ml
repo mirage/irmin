@@ -175,7 +175,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let watches = W.v ()
 
   let valid t =
-    if IO.is_valid t.block then (
+    if t.counter <> 0 then (
       t.counter <- t.counter + 1;
       true )
     else false
@@ -429,6 +429,7 @@ struct
         { contents; node; commit; branch; config; index }
 
       let close t =
+        Index.close t.index;
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch

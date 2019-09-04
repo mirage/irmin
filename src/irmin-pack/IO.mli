@@ -42,8 +42,6 @@ module type S = sig
   val sync : t -> unit
 
   val close : t -> unit
-
-  val is_valid : t -> bool
 end
 
 module Unix : S
