@@ -298,6 +298,144 @@ end
 
 module type CONFIG = Inode.CONFIG
 
+module CA_check_closed
+    (S : Pack.S)
+    (H : Irmin.Hash.S with type t = S.key)
+    (C : Irmin.Type.S with type t = S.value) :
+  Pack.S with type key = H.t and type value = C.t and type index = S.index =
+struct
+  type 'a t = { closed : bool ref; t : 'a S.t }
+
+  type key = S.key
+
+  type value = S.value
+
+  type index = S.index
+
+  let check_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let mem t k =
+    check_closed t;
+    S.mem t.t k
+
+  let find t k =
+    check_closed t;
+    S.find t.t k
+
+  let add t v =
+    check_closed t;
+    S.add t.t v
+
+  let unsafe_add t k v =
+    check_closed t;
+    S.unsafe_add t.t k v
+
+  let batch t f =
+    check_closed t;
+    S.batch t.t (fun w -> f { t = w; closed = t.closed })
+
+  let v ?fresh ?readonly ?lru_size ~index root =
+    S.v ?fresh ?readonly ?lru_size ~index root >|= fun t ->
+    { closed = ref false; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t )
+
+  let unsafe_append t k v =
+    check_closed t;
+    S.unsafe_append t.t k v
+
+  let unsafe_mem t k =
+    check_closed t;
+    S.unsafe_mem t.t k
+
+  let unsafe_find t k =
+    check_closed t;
+    S.unsafe_find t.t k
+
+  let sync t =
+    check_closed t;
+    S.sync t.t
+
+  let integrity_check ~offset ~length k t =
+    check_closed t;
+    S.integrity_check ~offset ~length k t.t
+end
+
+module type AW = sig
+  include Irmin.ATOMIC_WRITE_STORE
+
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+
+  val close : t -> unit Lwt.t
+end
+
+module AW_check_closed
+    (K : Irmin.Type.S)
+    (V : Irmin.Hash.S)
+    (AW : AW with type key = K.t and type value = V.t) =
+struct
+  module S = AW
+
+  type t = { closed : bool ref; t : S.t }
+
+  type key = S.key
+
+  type value = S.value
+
+  let check_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let mem t k =
+    check_closed t;
+    S.mem t.t k
+
+  let find t k =
+    check_closed t;
+    S.find t.t k
+
+  let set t k v =
+    check_closed t;
+    S.set t.t k v
+
+  let test_and_set t k ~test ~set =
+    check_closed t;
+    S.test_and_set t.t k ~test ~set
+
+  let remove t k =
+    check_closed t;
+    S.remove t.t k
+
+  let list t =
+    check_closed t;
+    S.list t.t
+
+  type watch = S.watch
+
+  let watch t ?init f =
+    check_closed t;
+    S.watch t.t ?init f
+
+  let watch_key t k ?init f =
+    check_closed t;
+    S.watch_key t.t k ?init f
+
+  let unwatch t w =
+    check_closed t;
+    S.unwatch t.t w
+
+  let v ?fresh ?readonly root =
+    S.v ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t )
+end
+
 module Make_ext
     (Config : CONFIG)
     (M : Irmin.Metadata.S)
@@ -332,7 +470,7 @@ struct
         module Key = H
         module Val = C
 
-        include Pack.Make (struct
+        module CA_Pack = Pack.Make (struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -351,6 +489,8 @@ struct
 
           let magic _ = magic
         end)
+
+        include CA_check_closed (CA_Pack) (H) (C)
       end
 
       include Irmin.Contents.Store (CA)
@@ -366,7 +506,7 @@ struct
         module Key = H
         module Val = Commit
 
-        include Pack.Make (struct
+        module CA_Pack = Pack.Make (struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -385,6 +525,8 @@ struct
 
           let magic _ = magic
         end)
+
+        include CA_check_closed (CA_Pack) (H) (Commit)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -393,7 +535,8 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include Atomic_write (Key) (Val)
+      module AW = Atomic_write (Key) (Val)
+      include AW_check_closed (Key) (Val) (AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)

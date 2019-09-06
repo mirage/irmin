@@ -193,7 +193,11 @@ module Make (S : S) = struct
       check_val "v1" (Some v1) v1';
       P.Contents.find t kv2 >>= fun v2' ->
       check_val "v2" (Some v2) v2';
-      P.Repo.close repo
+      P.Repo.close repo >>= fun () ->
+      try
+        ignore (with_contents repo (fun t -> P.Contents.add t v2));
+        Alcotest.fail "Add after close should not be allowed"
+      with Irmin.Closed -> Lwt.return_unit
     in
     run x test
 
@@ -341,7 +345,14 @@ module Make (S : S) = struct
       >>= fun n2 ->
       with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1))
       >>= fun n3 ->
-      assert_no_duplicates "4" n3 >>= fun () -> Lwt.return_unit
+      assert_no_duplicates "4" n3 >>= fun () ->
+      S.Repo.close repo >>= fun () ->
+      try
+        ignore
+          ( with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
+            with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) );
+        Alcotest.fail "Add after close should not be allowed"
+      with Irmin.Closed -> Lwt.return_unit
     in
     run x test
 
@@ -377,12 +388,18 @@ module Make (S : S) = struct
       check_keys "g1" [ kr1 ] kr1s;
       History.closure h ~min:[] ~max:[ kr2 ] >>= fun kr2s ->
       check_keys "g2" [ kr1; kr2 ] kr2s;
-      S.Commit.of_hash repo kr1 >|= function
-      | None -> Alcotest.fail "Cannot read commit hash"
-      | Some c ->
-          Alcotest.(check string)
-            "author" "test"
-            (Irmin.Info.author (S.Commit.info c))
+      (S.Commit.of_hash repo kr1 >|= function
+       | None -> Alcotest.fail "Cannot read commit hash"
+       | Some c ->
+           Alcotest.(check string)
+             "author" "test"
+             (Irmin.Info.author (S.Commit.info c)))
+      >>= fun () ->
+      S.Repo.close repo >>= fun () ->
+      try
+        ignore (with_info 3 (History.v ~node:kt1 ~parents:[]));
+        Alcotest.fail "Add after close should not be allowed"
+      with Irmin.Closed -> Lwt.return_unit
     in
     run x test
 
@@ -410,7 +427,11 @@ module Make (S : S) = struct
       check_val "empty" None empty;
       S.Branch.list repo >>= fun b2' ->
       check_keys "all-after-remove" [ b2 ] b2';
-      Lwt.return_unit
+      S.Repo.close repo >>= fun () ->
+      try
+        ignore (S.Branch.set repo b1 kv1);
+        Alcotest.fail "Add after close should not be allowed"
+      with Irmin.Closed -> Lwt.return_unit
     in
     run x test
 
@@ -1153,7 +1174,12 @@ module Make (S : S) = struct
       S.status ty |> fun tagy' ->
       check (S.Status.t repo) "tagx" (`Branch tagx) tagx';
       check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
-      Lwt.return_unit
+      S.master repo >>= fun t ->
+      S.Repo.close repo >>= fun () ->
+      try
+        ignore (S.set_exn t ~info:(infof "add after close") [ "a" ] "bar");
+        Alcotest.fail "Add after close should not be allowed"
+      with Irmin.Closed -> Lwt.return_unit
     in
     run x test
 

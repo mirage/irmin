@@ -2131,6 +2131,8 @@ end
     }
 *)
 
+exception Closed
+
 (** Irmin stores. *)
 module type S = sig
   (** {1 Irmin stores}
