@@ -132,8 +132,44 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let pp_branch = Irmin.Type.pp K.t
 
+  let zero =
+    match Irmin.Type.of_bin_string V.t (String.make V.hash_size '\000') with
+    | Ok x -> x
+    | Error _ -> assert false
+
+  let refill t ~from =
+    let len = IO.force_offset t.block in
+    let rec aux offset =
+      if offset >= len then ()
+      else
+        let len = read_length32 ~off:offset t.block in
+        let buf = Bytes.create (len + V.hash_size) in
+        let off = offset ++ 4L in
+        let n = IO.read t.block ~off buf in
+        assert (n = Bytes.length buf);
+        let buf = Bytes.unsafe_to_string buf in
+        let h =
+          let h = String.sub buf 0 len in
+          match Irmin.Type.of_bin_string K.t h with
+          | Ok k -> k
+          | Error (`Msg e) -> failwith e
+        in
+        let n, v = Irmin.Type.decode_bin V.t buf len in
+        assert (n = String.length buf);
+        if not (Irmin.Type.equal V.t v zero) then Tbl.add t.cache h v;
+        Tbl.add t.index h offset;
+        (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size)))
+    in
+    aux from
+
+  let sync_offset t =
+    let former_log_offset = IO.offset t.block in
+    let log_offset = IO.force_offset t.block in
+    if log_offset > former_log_offset then refill t ~from:former_log_offset
+
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
+    if IO.readonly t.block then sync_offset t;
     try Lwt.return_some (Tbl.find t.cache k)
     with Not_found -> Lwt.return_none
 
@@ -144,11 +180,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     try Lwt.return (Tbl.mem t.cache k) with Not_found -> Lwt.return_false
 
   let mem t v = Lwt_mutex.with_lock t.lock (fun () -> unsafe_mem t v)
-
-  let zero =
-    match Irmin.Type.of_bin_string V.t (String.make V.hash_size '\000') with
-    | Ok x -> x
-    | Error _ -> assert false
 
   let unsafe_remove t k =
     Tbl.remove t.cache k;
@@ -184,37 +215,18 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let len = IO.offset block in
-    let rec aux offset k =
-      if offset >= len then k ()
-      else
-        let len = read_length32 ~off:offset block in
-        let buf = Bytes.create (len + V.hash_size) in
-        let off = offset ++ 4L in
-        let n = IO.read block ~off buf in
-        assert (n = Bytes.length buf);
-        let buf = Bytes.unsafe_to_string buf in
-        let h =
-          let h = String.sub buf 0 len in
-          match Irmin.Type.of_bin_string K.t h with
-          | Ok k -> k
-          | Error (`Msg e) -> failwith e
-        in
-        let n, v = Irmin.Type.decode_bin V.t buf len in
-        assert (n = String.length buf);
-        if not (Irmin.Type.equal V.t v zero) then Tbl.add cache h v;
-        Tbl.add index h offset;
-        (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size))) k
+    let t =
+      {
+        cache;
+        index;
+        block;
+        w = watches;
+        lock = Lwt_mutex.create ();
+        counter = 1;
+      }
     in
-    (aux [@tailcall]) 0L @@ fun () ->
-    {
-      cache;
-      index;
-      block;
-      w = watches;
-      lock = Lwt_mutex.create ();
-      counter = 1;
-    }
+    refill t ~from:0L;
+    t
 
   let (`Staged unsafe_v) =
     with_cache ~clear:unsafe_clear ~valid
