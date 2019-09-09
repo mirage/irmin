@@ -301,8 +301,8 @@ struct
 
     let sync t =
       Dict.sync t.pack.dict;
-      Index.flush t.pack.index;
       IO.sync t.pack.block;
+      Index.flush t.pack.index;
       Tbl.clear t.staging
 
     let integrity_check ~offset ~length k t =
