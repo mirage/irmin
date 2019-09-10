@@ -21,3 +21,14 @@
 (alias
  (name   bench)
  (action (run ./bench.exe)))
+
+(library
+ (name      common)
+ (modules   common)
+ (libraries irmin-test irmin-pack))
+
+(executable
+ (name      concurrent)
+ (modules   concurrent)
+ (libraries irmin_pack alcotest-lwt common lwt))
+
