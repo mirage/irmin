@@ -22,32 +22,31 @@ module Config = struct
   let stable_hash = 3
 end
 
-let store =
-  Irmin_test.store
-    (module Irmin_pack.Make (Config))
-    (module Irmin.Metadata.None)
-
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir
-
-let clean () =
-  let (module S : Irmin_test.S) = store in
-  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-  S.Repo.v config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
-
-let init () =
-  if Sys.file_exists test_dir then (
-    let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    Fmt.epr "exec: %s\n%!" cmd;
-    let _ = Sys.command cmd in
-    () );
-  Lwt.return_unit
-
-let stats = None
-
-let suite = { Irmin_test.name = "PACK"; init; clean; config; store; stats }
+let suite =
+  let store =
+    Irmin_test.store
+      (module Irmin_pack.Make (Config))
+      (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let init () =
+    if Sys.file_exists test_dir then (
+      let cmd = Printf.sprintf "rm -rf %s" test_dir in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      () );
+    Lwt.return_unit
+  in
+  let clean () =
+    let (module S : Irmin_test.S) = store in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+  in
+  let stats = None in
+  { Irmin_test.name = "PACK"; init; clean; config; store; stats }
 
 let fresh_name =
   let c = ref 0 in
