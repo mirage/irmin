@@ -22,39 +22,46 @@ module Config = struct
   let stable_hash = 3
 end
 
-let store =
-  Irmin_test.store
-    (module Irmin_pack.Make (Config))
-    (module Irmin.Metadata.None)
-
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir
+let suite =
+  let store =
+    Irmin_test.store
+      (module Irmin_pack.Make (Config))
+      (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let init () =
+    if Sys.file_exists test_dir then (
+      let cmd = Printf.sprintf "rm -rf %s" test_dir in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      () );
+    Lwt.return_unit
+  in
+  let clean () =
+    let (module S : Irmin_test.S) = store in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+  in
+  let stats = None in
+  { Irmin_test.name = "PACK"; init; clean; config; store; stats }
 
-let clean () =
-  let (module S : Irmin_test.S) = store in
-  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-  S.Repo.v config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
-
-let init () =
-  if Sys.file_exists test_dir then (
-    let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    Fmt.epr "exec: %s\n%!" cmd;
-    let _ = Sys.command cmd in
-    () );
-  Lwt.return_unit
-
-let stats = None
-
-let suite = { Irmin_test.name = "PACK"; init; clean; config; store; stats }
+let fresh_name =
+  let c = ref 0 in
+  fun () ->
+    incr c;
+    let name = Filename.concat test_dir ("pack_" ^ string_of_int !c) in
+    name
 
 module Dict = Irmin_pack.Dict
 
 let get = function None -> Alcotest.fail "get" | Some x -> x
 
 let test_dict () =
-  let dict = Dict.v ~fresh:true test_dir in
+  let dict_name = fresh_name () in
+  let dict = Dict.v ~fresh:true dict_name in
   let x1 = Dict.index dict "foo" in
   Alcotest.(check (option int)) "foo" (Some 0) x1;
   let x1 = Dict.index dict "foo" in
@@ -67,7 +74,7 @@ let test_dict () =
   Alcotest.(check (option int)) "titiabc" (Some 3) x4;
   let x1 = Dict.index dict "foo" in
   Alcotest.(check (option int)) "foo" (Some 0) x1;
-  let dict2 = Dict.v ~fresh:false test_dir in
+  let dict2 = Dict.v ~fresh:false dict_name in
   let x4 = Dict.index dict2 "titiabc" in
   Alcotest.(check (option int)) "titiabc" (Some 3) x4;
   let v1 = Dict.find dict2 (get x1) in
@@ -77,9 +84,47 @@ let test_dict () =
   let v3 = Dict.find dict2 (get x3) in
   Alcotest.(check (option string)) "find x3" (Some "toto") v3;
   Dict.close dict;
-  let dict3 = Dict.v ~fresh:false test_dir in
+  let dict3 = Dict.v ~fresh:false dict_name in
   let v1 = Dict.find dict3 (get x1) in
   Alcotest.(check (option string)) "find x1" (Some "foo") v1
+
+let test_readonly_dict () =
+  let dict_name = fresh_name () in
+  let ignore_int (_ : int option) = () in
+  let w = Dict.v ~fresh:true dict_name in
+  let r = Dict.v ~fresh:false ~readonly:true dict_name in
+  let check_index k i =
+    Alcotest.(check (option int)) k (Some i) (Dict.index r k)
+  in
+  let check_find k i =
+    Alcotest.(check (option string)) k (Some k) (Dict.find r i)
+  in
+  let check_none k i =
+    Alcotest.(check (option string)) k None (Dict.find r i)
+  in
+  let check_raise k =
+    try
+      ignore_int (Dict.index r k);
+      Alcotest.fail "RO dict should not be writable"
+    with Irmin_pack.RO_Not_Allowed -> ()
+  in
+  ignore_int (Dict.index w "foo");
+  ignore_int (Dict.index w "foo");
+  ignore_int (Dict.index w "bar");
+  ignore_int (Dict.index w "toto");
+  ignore_int (Dict.index w "titiabc");
+  ignore_int (Dict.index w "foo");
+  Dict.sync w;
+  check_index "titiabc" 3;
+  check_index "bar" 1;
+  check_index "toto" 2;
+  check_find "foo" 0;
+  check_raise "xxx";
+  ignore_int (Dict.index w "hello");
+  check_raise "hello";
+  check_none "hello" 4;
+  Dict.sync w;
+  check_find "hello" 4
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 
@@ -117,8 +162,9 @@ module Index = Irmin_pack.Index.Make (Irmin.Hash.SHA1)
 let get_index = Index.v ~log_size:10_000_000
 
 let test_pack _switch () =
-  let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~lru_size:0 ~index test_dir >>= fun t ->
+  let name = fresh_name () in
+  let index = get_index ~fresh:true name in
+  Pack.v ~fresh:true ~lru_size:0 ~index name >>= fun t ->
   let x1 = "foo" in
   let x2 = "bar" in
   let x3 = "otoo" in
@@ -143,13 +189,14 @@ let test_pack _switch () =
     Alcotest.(check string) "x4" x4 y4;
     Lwt.return_unit
   in
-  test t >>= fun () -> Pack.v ~fresh:false ~index test_dir >>= test
+  test t >>= fun () -> Pack.v ~fresh:false ~index name >>= test
 
 let test_readonly_pack _switch () =
-  let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~index test_dir >>= fun w ->
-  let index = get_index ~fresh:false ~readonly:true test_dir in
-  Pack.v ~fresh:false ~readonly:true ~index test_dir >>= fun r ->
+  let name = fresh_name () in
+  let index = get_index ~fresh:true name in
+  Pack.v ~fresh:true ~index name >>= fun w ->
+  let index = get_index ~fresh:false ~readonly:true name in
+  Pack.v ~fresh:false ~readonly:true ~index name >>= fun r ->
   let adds l = List.iter (fun (k, v) -> Pack.unsafe_append w k v) l in
   let x1 = "foo" in
   let x2 = "bar" in
@@ -175,8 +222,8 @@ let test_readonly_pack _switch () =
 
 let test_reuse_index _switch () =
   (* reuse index in new pack *)
-  let index = get_index ~fresh:true test_dir in
-  Pack.v ~fresh:true ~index "test1" >>= fun w1 ->
+  let index = get_index ~fresh:true (fresh_name ()) in
+  Pack.v ~fresh:true ~index (fresh_name ()) >>= fun w1 ->
   let x1 = "foo" in
   let h1 = sha1 x1 in
   Pack.unsafe_append w1 h1 x1;
@@ -186,8 +233,9 @@ let test_reuse_index _switch () =
 
 let test_close_pack_more _switch () =
   (*open and close in rw*)
-  let index = get_index ~fresh:true "test3" in
-  Pack.v ~fresh:true ~index "test3" >>= fun w ->
+  let name = fresh_name () in
+  let index = get_index ~fresh:true name in
+  Pack.v ~fresh:true ~index name >>= fun w ->
   let x1 = "foo" in
   let h1 = sha1 x1 in
   Pack.unsafe_append w h1 x1;
@@ -195,28 +243,29 @@ let test_close_pack_more _switch () =
   Index.close index;
   Pack.close w >>= fun () ->
   (*open and close in ro*)
-  let index = get_index ~fresh:false ~readonly:true "test3" in
-  Pack.v ~fresh:false ~readonly:true ~index "test3" >>= fun w1 ->
+  let index = get_index ~fresh:false ~readonly:true name in
+  Pack.v ~fresh:false ~readonly:true ~index name >>= fun w1 ->
   Pack.find w1 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "x1.1" x1 y1;
   Index.close index;
   Pack.close w1 >>= fun () ->
   (* reopen in ro *)
-  let index = get_index ~fresh:false "test3" in
-  Pack.v ~fresh:false ~index "test3" >>= fun w2 ->
+  let index = get_index ~fresh:false name in
+  Pack.v ~fresh:false ~index name >>= fun w2 ->
   Pack.find w2 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "x1.2" x1 y1;
 
   (*reopen in ro *)
-  let index = get_index ~fresh:false ~readonly:true "test3" in
-  Pack.v ~fresh:false ~readonly:true ~index "test3" >>= fun w3 ->
+  let index = get_index ~fresh:false ~readonly:true name in
+  Pack.v ~fresh:false ~readonly:true ~index name >>= fun w3 ->
   Pack.find w3 h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "x1.3" x1 y1;
   Lwt.return ()
 
 let test_close_pack _switch () =
-  let index = get_index ~fresh:true "test2" in
-  Pack.v ~fresh:true ~index "test2" >>= fun w ->
+  let name = fresh_name () in
+  let index = get_index ~fresh:true name in
+  Pack.v ~fresh:true ~index name >>= fun w ->
   let x1 = "foo" in
   let x2 = "bar" in
   let h1 = sha1 x1 in
@@ -229,8 +278,8 @@ let test_close_pack _switch () =
   Index.close index;
   Pack.close w >>= fun () ->
   (*reopen pack and index *)
-  let index = get_index ~fresh:false "test2" in
-  Pack.v ~fresh:false ~index "test2" >>= fun w ->
+  let index = get_index ~fresh:false name in
+  Pack.v ~fresh:false ~index name >>= fun w ->
   Pack.find w h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close1" x2 y2;
   Pack.find w h1 >|= get >>= fun y1 ->
@@ -240,7 +289,7 @@ let test_close_pack _switch () =
   let x3 = "toto" in
   let h3 = sha1 x3 in
   Pack.unsafe_append w h3 x3;
-  Pack.v ~fresh:false ~index "test2" >>= fun w2 ->
+  Pack.v ~fresh:false ~index name >>= fun w2 ->
   Pack.close w >>= fun () ->
   Pack.find w2 h2 >|= get >>= fun y2 ->
   Alcotest.(check string) "close3" x2 y2;
@@ -251,8 +300,8 @@ let test_close_pack _switch () =
   Index.close index;
   Pack.close w2 >>= fun () ->
   (*reopen pack and index in readonly *)
-  let index = get_index ~fresh:false ~readonly:true "test2" in
-  Pack.v ~fresh:false ~readonly:true ~index "test2" >>= fun r ->
+  let index = get_index ~fresh:false ~readonly:true name in
+  Pack.v ~fresh:false ~readonly:true ~index name >>= fun r ->
   Pack.find r h1 >|= get >>= fun y1 ->
   Alcotest.(check string) "close6" x1 y1;
   Pack.find r h2 >|= get >>= fun y2 ->
@@ -260,49 +309,12 @@ let test_close_pack _switch () =
   Index.close index;
   Pack.close r >>= fun () ->
   (*close index while in use*)
-  let index = get_index ~fresh:false "test2" in
-  Pack.v ~fresh:false ~index "test2" >>= fun r ->
+  let index = get_index ~fresh:false name in
+  Pack.v ~fresh:false ~index name >>= fun r ->
   Index.close index;
   Pack.find r h1 >>= fun y1 ->
   Alcotest.(check (option string)) "x1" None y1;
   Lwt.return ()
-
-let test_readonly_dict () =
-  let ignore_int (_ : int option) = () in
-  let w = Dict.v ~fresh:true test_dir in
-  let r = Dict.v ~fresh:false ~readonly:true test_dir in
-  let check_index k i =
-    Alcotest.(check (option int)) k (Some i) (Dict.index r k)
-  in
-  let check_find k i =
-    Alcotest.(check (option string)) k (Some k) (Dict.find r i)
-  in
-  let check_none k i =
-    Alcotest.(check (option string)) k None (Dict.find r i)
-  in
-  let check_raise k =
-    try
-      ignore_int (Dict.index r k);
-      Alcotest.fail "RO dict should not be writable"
-    with Irmin_pack.RO_Not_Allowed -> ()
-  in
-  ignore_int (Dict.index w "foo");
-  ignore_int (Dict.index w "foo");
-  ignore_int (Dict.index w "bar");
-  ignore_int (Dict.index w "toto");
-  ignore_int (Dict.index w "titiabc");
-  ignore_int (Dict.index w "foo");
-  Dict.sync w;
-  check_index "titiabc" 3;
-  check_index "bar" 1;
-  check_index "toto" 2;
-  check_find "foo" 0;
-  check_raise "xxx";
-  ignore_int (Dict.index w "hello");
-  check_raise "hello";
-  check_none "hello" 4;
-  Dict.sync w;
-  check_find "hello" 4
 
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 
@@ -316,20 +328,21 @@ let test_branch _switch () =
     in
     Lwt_list.iter_p check branches
   in
-  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
-  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
-  Branch.v ~fresh:true test_dir >>= test >>= fun () ->
-  Branch.v ~fresh:false test_dir >>= fun t ->
+  let name = fresh_name () in
+  Branch.v ~fresh:true name >>= test >>= fun () ->
+  Branch.v ~fresh:true name >>= test >>= fun () ->
+  Branch.v ~fresh:true name >>= test >>= fun () ->
+  Branch.v ~fresh:false name >>= fun t ->
   test t >>= fun () ->
   let x = sha1 "XXX" in
   Branch.set t "foo" x >>= fun () ->
-  Branch.v ~fresh:false test_dir >>= fun t ->
+  Branch.v ~fresh:false name >>= fun t ->
   Branch.find t "foo" >>= fun v ->
   Alcotest.(check (option hash)) "foo" (Some x) v;
   Branch.list t >>= fun br ->
   Alcotest.(check (slist string compare)) "branches" branches br;
   Branch.remove t "foo" >>= fun () ->
-  Branch.v ~fresh:false test_dir >>= fun t ->
+  Branch.v ~fresh:false name >>= fun t ->
   Branch.find t "foo" >>= fun v ->
   Alcotest.(check (option hash)) "foo none" None v;
   Branch.list t >>= fun br ->
@@ -355,17 +368,19 @@ let test_close_branch _switch () =
     in
     Lwt_list.iter_p check branches
   in
-  Branch.v ~fresh:true "close_branch" >>= fun t ->
+  let name = fresh_name () in
+  Branch.v ~fresh:true name >>= fun t ->
   add t >>= fun () ->
   test t >>= fun () ->
   Branch.close t >>= fun () ->
   (* restart in readonly *)
-  Branch.v ~fresh:false ~readonly:true "close_branch" >>= fun t ->
+  Branch.v ~fresh:false ~readonly:true name >>= fun t ->
   test t >>= fun () ->
   Branch.close t >>= fun () ->
   (*open two instances and close one*)
-  Branch.v ~fresh:true "close_branch_two" >>= fun t1 ->
-  Branch.v ~fresh:false "close_branch_two" >>= fun t2 ->
+  let name = fresh_name () in
+  Branch.v ~fresh:true name >>= fun t1 ->
+  Branch.v ~fresh:false name >>= fun t2 ->
   add t1 >>= fun () ->
   Branch.close t1 >>= fun () -> test t2
 
