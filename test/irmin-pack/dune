@@ -1,7 +1,7 @@
 (library
  (name      test_pack)
  (modules   test_pack)
- (libraries irmin-test irmin-pack alcotest-lwt))
+ (libraries irmin-test irmin-pack alcotest-lwt common))
 
 (executable
  (name      test)
@@ -21,3 +21,8 @@
 (alias
  (name   bench)
  (action (run ./bench.exe)))
+
+(library
+ (name      common)
+ (modules   common)
+ (libraries irmin-test irmin-pack))
