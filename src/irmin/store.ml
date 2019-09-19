@@ -941,18 +941,24 @@ module Make (P : S.PRIVATE) = struct
 
     let filter_map f g =
       let t = Dst.empty () in
-      Src.fold_edges
-        (fun x y t ->
-          t >>= fun t ->
-          f x >>= fun x ->
-          f y >|= fun y ->
-          match (x, y) with
-          | Some x, Some y ->
-              let t = Dst.add_vertex t x in
-              let t = Dst.add_vertex t y in
-              Dst.add_edge t x y
-          | _ -> t)
-        g (Lwt.return t)
+      if Src.nb_vertex g = 1 then
+        match Src.vertex g with
+        | [ v ] -> (
+            f v >|= function Some v -> Dst.add_vertex t v | None -> t )
+        | _ -> assert false
+      else
+        Src.fold_edges
+          (fun x y t ->
+            t >>= fun t ->
+            f x >>= fun x ->
+            f y >|= fun y ->
+            match (x, y) with
+            | Some x, Some y ->
+                let t = Dst.add_vertex t x in
+                let t = Dst.add_vertex t y in
+                Dst.add_edge t x y
+            | _ -> t)
+          g (Lwt.return t)
   end
 
   let history ?depth ?(min = []) ?(max = []) t =
