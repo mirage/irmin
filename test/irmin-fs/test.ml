@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () = Irmin_test.Store.run "irmin" ~misc:[] [ (`Quick, Test_fs.suite) ]
+let () = Irmin_test.Store.run "irmin-fs" ~misc:[] [ (`Quick, Test_fs.suite) ]
