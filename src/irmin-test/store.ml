@@ -853,6 +853,11 @@ module Make (S : S) = struct
         let msg = Printf.sprintf "%s [n=%d]" msg n in
         checks (S.commit_t repo) msg expected last
       in
+      let assert_history_empty msg c expected =
+        S.of_commit c >>= fun t ->
+        S.history t >|= S.History.is_empty
+        >|= Alcotest.(check bool) msg expected
+      in
       let tree = S.Tree.empty in
       let k0 = random_path ~label:8 ~path:5 in
       let k1 = random_path ~label:8 ~path:4 in
@@ -865,9 +870,11 @@ module Make (S : S) = struct
       S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 0) ~parents:[] tree >>= fun c0 ->
+      assert_history_empty "nonempty 1 commit" c0 false >>= fun () ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 1) ~parents:[ S.Commit.hash c0 ] tree
       >>= fun c1 ->
+      assert_history_empty "nonempty 2 commits" c0 false >>= fun () ->
       S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 2) ~parents:[ S.Commit.hash c1 ] tree
       >>= fun c2 ->
