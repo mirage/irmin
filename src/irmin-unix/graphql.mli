@@ -21,7 +21,9 @@ module Server : sig
              with type contents := S.contents
               and type metadata := S.metadata
               and type tree := S.tree
-              and type key := S.key) :
+              and type key := S.key)
+      (I : Irmin_graphql.Server.INPUT
+             with type contents := S.contents) :
     Irmin_graphql.Server.S
       with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t

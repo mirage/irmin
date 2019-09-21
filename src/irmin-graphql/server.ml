@@ -85,6 +85,20 @@ module Default_presentation (S : Irmin.S) = struct
   module Metadata = Default_presenter (S.Metadata)
 end
 
+module type INPUT = sig
+  type contents
+
+  val arg_typ : contents option Schema.Arg.arg_typ
+end
+
+module Default_input (T : Irmin.Type.S) = struct
+  let coerce = function
+    | `String s -> of_irmin_result (Irmin.Type.of_string T.t s)
+    | _ -> Error "invalid value encoding"
+
+  let arg_typ = Schema.Arg.scalar "Value" ~coerce
+end
+
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
@@ -93,7 +107,9 @@ module Make_ext
                       with type contents := Store.contents
                        and type metadata := Store.metadata
                        and type tree := Store.tree
-                       and type key := Store.key) =
+                       and type key := Store.key)
+    (Input : INPUT
+               with type contents := Store.contents) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
@@ -156,10 +172,6 @@ struct
       | `String s -> of_irmin_result (Irmin.Type.of_string Store.key_t s)
       | _ -> Error "invalid key encoding"
 
-    let coerce_value = function
-      | `String s -> of_irmin_result (Irmin.Type.of_string Store.contents_t s)
-      | _ -> Error "invalid value encoding"
-
     let coerce_metadata = function
       | `String s -> of_irmin_result (Irmin.Type.of_string Store.metadata_t s)
       | _ -> Error "invalid metadata encoding"
@@ -187,7 +199,7 @@ struct
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
 
-    let value = Schema.Arg.(scalar "Value" ~coerce:coerce_value)
+    let value = Input.arg_typ
 
     let metadata = Schema.Arg.(scalar "Metadata" ~coerce:coerce_metadata)
 
@@ -798,5 +810,6 @@ end
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) =
 struct
   module Presentation = Default_presentation (Store)
-  include Make_ext (Server) (Config) (Store) (Presentation)
+  module Input' = Default_input (Store.Contents)
+  include Make_ext (Server) (Config) (Store) (Presentation) (Input')
 end

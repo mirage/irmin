@@ -13,7 +13,9 @@ module Server = struct
              with type contents := S.contents
               and type metadata := S.metadata
               and type tree := S.tree
-              and type key := S.key) =
+              and type key := S.key)
+      (I : Irmin_graphql.Server.INPUT
+             with type contents := S.contents) =
     Irmin_graphql.Server.Make_ext
       (Cohttp_lwt_unix.Server)
       (struct
@@ -23,6 +25,7 @@ module Server = struct
       end)
       (S)
       (P)
+      (I)
 
   module Make
       (S : Irmin.S) (Remote : sig

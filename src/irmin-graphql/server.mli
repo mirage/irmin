@@ -66,6 +66,15 @@ module Default_presentation (S : Irmin.S) :
      and type tree := S.tree
      and type key := S.key
 
+module type INPUT = sig
+  type contents
+
+  val arg_typ : contents option Schema.Arg.arg_typ
+end
+
+module Default_input (T : Irmin.Type.S) :
+  INPUT with type contents := T.t
+
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) :
   S with type repo = Store.repo and type server = Server.t
 
@@ -77,5 +86,7 @@ module Make_ext
                       with type contents := Store.contents
                        and type metadata := Store.metadata
                        and type tree := Store.tree
-                       and type key := Store.key) :
+                       and type key := Store.key)
+    (Input : INPUT
+               with type contents := Store.contents) :
   S with type repo = Store.repo and type server = Server.t
