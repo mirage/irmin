@@ -1,2 +1,0 @@
-File "unsupported_type_polyvariant.ml", line 1, characters 0-42:
-Error: ppx_irmin: polymorphic variant [ `On  | `Off ] encountered. Polymorphic variants are not Irmin-serialisable.

@@ -53,8 +53,9 @@ an Irmin type witness with the same name.
 ## Specifics
 
 `ppx_irmin` supports all of the type combinators exposed in the
-[Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic types, variants,
-records, recursive types etc.). Irmin types must fully grounded (no polymorphic type variables).
+[Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic types, records,
+variants (plain and closed polymorphic), recursive types etc.). Irmin types must fully grounded (no
+polymorphic type variables).
 
 ### Naming scheme
 The generated witness will be called `<type-name>_t`, unless the type-name is `t`, in which case the

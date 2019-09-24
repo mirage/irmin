@@ -1,7 +1,6 @@
 open Ppxlib
 module SSet = Set.Make (String)
 
-(* TODO: get this list dynamically? *)
 let irmin_types =
   SSet.of_list
     [ "unit";
@@ -37,15 +36,6 @@ module Located (A : Ast_builder.S) : S = struct
 
   let ( >|= ) x f = List.map f x
 
-  let seal sealer e =
-    pexp_apply
-      (pexp_ident @@ Located.lident "|>")
-      ([ e; pexp_ident @@ Located.lident sealer ] >|= unlabelled)
-
-  let sealv = seal "sealv"
-
-  let sealr = seal "sealr"
-
   let open_module =
     pexp_open
       {
@@ -54,8 +44,6 @@ module Located (A : Ast_builder.S) : S = struct
         popen_loc = A.loc;
         popen_attributes = [];
       }
-
-  let lambda fparam = Located.mk fparam |> ppat_var |> pexp_fun Nolabel None
 
   let recursive fparam e =
     pexp_apply
@@ -101,9 +89,10 @@ module Located (A : Ast_builder.S) : S = struct
               >|= unlabelled
             in
             pexp_apply (pexp_ident lident) cons_args )
-    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_polyvar ~loc typ
-    | Ptyp_variant (_rowfields, Closed, _labellist) ->
-        Raise.unsupported_type_polyvar ~loc typ
+    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_open_polyvar ~loc typ
+    | Ptyp_variant (rowfields, Closed, _labellist) ->
+        derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected
+          type_name rowfields
     | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
     | Ptyp_tuple args ->
         derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
@@ -132,7 +121,7 @@ module Located (A : Ast_builder.S) : S = struct
         |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
 
   and derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls =
-    let rfield_of_ldecl label_decl e =
+    let accessor label_decl e =
       let name = label_decl.pld_name.txt in
       let field_type =
         derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
@@ -140,49 +129,46 @@ module Located (A : Ast_builder.S) : S = struct
       in
       Utils.record_field ~name ~field_type e
     in
-    let accessor =
-      let fields =
-        ls >|= fun l ->
-        l.pld_name.txt
-      in
-      Utils.record_accessor ~fields
-    in
-    let cases = Utils.compose_all (List.rev ls >|= rfield_of_ldecl) in
-    pexp_apply
-      (pexp_ident @@ Located.lident "record")
-      ([ estring type_name; accessor ] >|= unlabelled)
-    |> cases |> sealr
+    Utils.function_encode ~constructor:Utils.record_constructor ~accessor
+      ~combinator_name:"record" ~sealer_name:"sealr" ~type_name ls
 
   and derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected name cs =
-    let fparam_of_cdecl c = c.pcd_name.txt |> String.lowercase_ascii in
-    let variant_case_of_cdecl c =
+    let accessor c =
       let cons_name = c.pcd_name.txt in
       let component_type =
         match c.pcd_args with
-        | Pcstr_record _ -> invalid_arg "inline record types unsupported"
+        | Pcstr_record _ -> invalid_arg "Inline record types unsupported"
         | Pcstr_tuple [] -> None
         | Pcstr_tuple cs ->
             Some
               ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected cs,
                 List.length cs )
       in
-      (cons_name, component_type)
+      Utils.variant_case ~polymorphic:false ~cons_name ?component_type
     in
-    let cases =
-      let case_wrappers =
-        cs >|= variant_case_of_cdecl >|= fun (cons_name, component_type) ->
-        Utils.variant_case ~cons_name ?component_type
+    Utils.function_encode ~constructor:Utils.variant_constructor ~accessor
+      ~combinator_name:"variant" ~sealer_name:"sealv" ~type_name:name cs
+
+  and derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected name
+      rowfields =
+    let accessor f =
+      let cons_name, component_type =
+        match f.prf_desc with
+        | Rtag (label, _, []) -> (label.txt, None)
+        | Rtag (label, _, typs) ->
+            let component_type =
+              Some
+                ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected
+                    typs,
+                  List.length typs )
+            in
+            (label.txt, component_type)
+        | Rinherit _ -> assert false
       in
-      Utils.compose_all (List.rev case_wrappers)
+      Utils.variant_case ~polymorphic:true ~cons_name ?component_type
     in
-    let variant_accessor =
-      cs >|= Utils.variant_pattern |> pexp_function
-      |> Utils.compose_all (cs >|= fparam_of_cdecl >|= lambda)
-    in
-    pexp_apply
-      (pexp_ident @@ Located.lident "variant")
-      ([ estring name; variant_accessor ] >|= unlabelled)
-    |> cases |> sealv
+    Utils.function_encode ~constructor:Utils.polyvariant_constructor ~accessor
+      ~combinator_name:"variant" ~sealer_name:"sealv" ~type_name:name rowfields
 
   let derive_sig ?name input_ast =
     match input_ast with

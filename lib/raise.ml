@@ -26,10 +26,10 @@ let unsupported_type_poly ~loc ctyp =
      grounded."
     name Pprintast.core_type ctyp
 
-let unsupported_type_polyvar ~loc ctyp =
+let unsupported_type_open_polyvar ~loc ctyp =
   Location.raise_errorf ~loc
-    "%s: polymorphic variant %a encountered. Polymorphic variants are not \
-     Irmin-serialisable."
+    "%s: open polymorphic variant %a encountered. Polymorphic variants must be \
+     closed."
     name Pprintast.core_type ctyp
 
 let unsupported_type_package ~loc ctyp =

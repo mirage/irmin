@@ -1,0 +1,2 @@
+File "unsupported_type_open_polyvariant.ml", line 1, characters 0-43:
+Error: ppx_irmin: open polymorphic variant [> `On  | `Off ] encountered. Polymorphic variants must be closed.
