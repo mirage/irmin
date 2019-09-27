@@ -1,0 +1,6 @@
+type test_result = (int, string) result[@@deriving irmin]
+let test_result_t = let open Irmin.Type in result int string
+type t_alias = test_result[@@deriving irmin]
+let t_alias_t = test_result_t
+type t = t_alias[@@deriving irmin]
+let t = t_alias_t
