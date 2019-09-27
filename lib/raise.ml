@@ -28,8 +28,8 @@ let unsupported_type_poly ~loc ctyp =
 
 let unsupported_type_open_polyvar ~loc ctyp =
   Location.raise_errorf ~loc
-    "%s: open polymorphic variant %a encountered. Polymorphic variants must be \
-     closed."
+    "%s: open polymorphic variant %a encountered. Polymorphic variants must \
+     be closed."
     name Pprintast.core_type ctyp
 
 let unsupported_type_package ~loc ctyp =

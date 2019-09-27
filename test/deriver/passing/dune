@@ -12,7 +12,7 @@
  (action
   (with-stdout-to
    %{targets}
-   (run ../gen_dune_rules.exe --expect-failure))))
+   (run ../gen_dune_rules.exe))))
 
 (alias
  (name runtest)
