@@ -65,11 +65,12 @@ module Located (A : Ast_builder.S) : S = struct
     in
     pexp_apply
       (pexp_ident @@ Located.lident "|~")
-      ( [ e;
+      ( [
+          e;
           pexp_apply
             (pexp_ident @@ Located.lident "case0")
             ( [ pexp_constant @@ Pconst_string (cons_name, None); fnbody ]
-            >|= unlabelled )
+            >|= unlabelled );
         ]
       >|= unlabelled )
 
@@ -86,14 +87,16 @@ module Located (A : Ast_builder.S) : S = struct
     in
     pexp_apply
       (pexp_ident @@ Located.lident "|~")
-      ( [ e;
+      ( [
+          e;
           pexp_apply
             (pexp_ident @@ Located.lident "case1")
-            ( [ pexp_constant @@ Pconst_string (cons_name, None);
+            ( [
+                pexp_constant @@ Pconst_string (cons_name, None);
                 component_type;
-                constructor
+                constructor;
               ]
-            >|= unlabelled )
+            >|= unlabelled );
         ]
       >|= unlabelled )
 
@@ -130,32 +133,30 @@ module Located (A : Ast_builder.S) : S = struct
   let record_field ~name ~field_type e =
     pexp_apply
       (pexp_ident @@ Located.lident "|+")
-      ( [ e;
+      ( [
+          e;
           pexp_apply
             (pexp_ident @@ Located.lident "field")
-            ( [ pexp_constant @@ Pconst_string (name, None);
+            ( [
+                pexp_constant @@ Pconst_string (name, None);
                 field_type;
                 pexp_fun Nolabel None
                   (ppat_var @@ Located.mk "t")
                   (pexp_field
                      (pexp_ident @@ Located.lident "t")
-                     (Located.lident name))
+                     (Located.lident name));
               ]
-            >|= unlabelled )
+            >|= unlabelled );
         ]
       >|= unlabelled )
 
   (* fun field1 field2 ... fieldN -> { field1; field2; ...; fieldN }) *)
   let record_constructor fields =
-    let fields =
-      fields >|= fun l ->
-      l.pld_name.txt
-    in
+    let fields = fields >|= fun l -> l.pld_name.txt in
     let lambda_wrapper = compose_all (fields >|= lambda) in
     let record =
       let rfields =
-        fields >|= fun s ->
-        (Located.lident s, pexp_ident @@ Located.lident s)
+        fields >|= fun s -> (Located.lident s, pexp_ident @@ Located.lident s)
       in
       pexp_record rfields None
     in

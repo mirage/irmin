@@ -3,7 +3,8 @@ module SSet = Set.Make (String)
 
 let irmin_types =
   SSet.of_list
-    [ "unit";
+    [
+      "unit";
       "bool";
       "char";
       "int";
@@ -17,7 +18,7 @@ let irmin_types =
       "option";
       "pair";
       "triple";
-      "result"
+      "result";
     ]
 
 module type S = sig
