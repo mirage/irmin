@@ -3,17 +3,19 @@
 **irmin-unix**
 
 - Add `Cli` module to expose some methods to simplify building command-line
-  interfaces using Irmin. (517, @zshipko)
+  interfaces using Irmin. (#517, @zshipko)
 
 - Switch from custom configuration format to YAML. (#504, @zshipko)
 
-- Add global config file. (`~/.irmin/config.yml`)
+- Add global config file `$HOME/.irmin/config.yml` which may be overridden by
+  either `$PWD/irmin.yml` or by passing `--config <PATH>`. See `irmin help
+  irmin.yml` for details. (#513, @zshipko)
 
 - Fix parsing of commit hashes in `revert` command. (#496, @zshipko)
 
 **irmin-git**
 
-- Support `ocaml-git` 2.0. (#545, @samoht)
+- Require `ocaml-git >= 2.0`. (#545, @samoht)
 
 - Cleanup handling of remote stores. (#552, @samoht)
 
