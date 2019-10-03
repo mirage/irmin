@@ -996,6 +996,8 @@ module No_sync (G : Git.S) = struct
   type error = unit
 
   let pp_error _ _ = assert false
+  let pp_fetch_one _ _ = assert false
+  let pp_update_and_create _ _ = assert false
 
   type command =
     [ `Create of Store.Hash.t * Store.Reference.t
