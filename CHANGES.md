@@ -2,14 +2,17 @@
 
 **irmin-unix**
 
+- Rename `irmin read` to `irmin get` and `irmin write` to `irmin set`.
+  (@zshipko, #501)
+
 - Add `Cli` module to expose some methods to simplify building command-line
   interfaces using Irmin. (#517, @zshipko)
 
-- Switch from custom configuration format to YAML. (#504, @zshipko)
-
 - Add global config file `$HOME/.irmin/config.yml` which may be overridden by
-  either `$PWD/irmin.yml` or by passing `--config <PATH>`. See `irmin help
+  either `$PWD/.irmin.yml` or by passing `--config <PATH>`. See `irmin help
   irmin.yml` for details. (#513, @zshipko)
+
+- Switch from custom configuration format to YAML. (#504, @zshipko)
 
 - Fix parsing of commit hashes in `revert` command. (#496, @zshipko)
 
@@ -44,6 +47,12 @@ for starting `irmin-graphql` servers. (#558, @andreas, @zshipko)
 - Expose a `/trees/merge` route for server-side merge operations. (#714,
   @samoht)
 
+**irmin-mirage**
+
+- Split `irmin-mirage` into `irmin-{mirage,mirage-git,mirage-graphql}` to allow
+  for more granular dependency selection. Any instances of `Irmin_mirage.Git`
+  should be replaced with `Irmin_mirage_git`. (#686, @zshipko)
+
 **irmin-test**
 
 Added a new package: `irmin-test`, which allows for packages to access the Irmin
@@ -73,23 +82,35 @@ backends are tested against. (#508, @zshipko)
   - Change `Irmin.Type` to use _incremental_ hash functions (functions of type
     `'a -> (string -> unit) -> unit`) for performance reasons. (#751, @samoht)
 
-  - Remove `Bytes` content type. (#708, @samoht)
-
-  - Remove `Cstruct` dependency and content type. (#544, @samoht)
+  - Simplify the `Irmin.Type.like` constructor and add a new `Irmin.Type.map`
+    with the previous behaviour.
 
   - Remove `pp` and `of_string` functions from `Irmin.Contents.S` in favour of
     `Irmin.Type.to_string` and `Irmin.Type.of_string`.
+
+  - Remove `Bytes` content type. (#708, @samoht)
+
+  - Remove `Cstruct` dependency and content type. If possible, switch to
+    `Irmin.Contents.String` or else use `Irmin.Type.map` to wrap the Cstruct
+    type. (#544, @samoht)
 
   - Improvements to `Irmin.Type` combinators. (#550 #538 #652 #653 #655 #656
     #688, @samoht)
     
 - **Stores**
 
+  - Modify `Store.set` to return a result type and create a new `Store.set_exn`
+    with the previous exception-raising behaviour. (#572, @samoht)
+
   - Add `Store.last_modified` function, which provides a list of commits where
     the given key was modified last. (#617, @pascutto)
 
-  - Replace `Irmin.AO` with `Irmin.CONTENT_ADDRESSABLE_STORE` and `Irmin.RW`
-    with `Irmin.ATOMIC_WRITE_STORE`.
+  - Rename store module types to be more descriptive:
+     - replace `Irmin.AO` with `Irmin.CONTENT_ADDRESSABLE_STORE`;
+     - replace `Irmin.AO_MAKER` with `Irmin.CONTENT_ADDRESSABLE_STORE_MAKER`;
+     - replace `Irmin.RW` with `Irmin.ATOMIC_WRITE_STORE`;
+     - replace `Irmin.RW_MAKER` with `Irmin.ATOMIC_WRITE_STORE_MAKER`. (#601,
+       @samoht)
 
   - Add a `Content_addressable.unsafe_add` function allowing the key of the new
     value to be specified explicitly (for performance reasons). (#783, @samoht)
@@ -107,6 +128,9 @@ backends are tested against. (#508, @zshipko)
     exactly one commit. (#865, @pascutto)
 
 - **Remote synchronisation:**
+
+  - Move `Irmin.remote_uri` to `Store.remote`, for stores that support remote
+    operations. (#552, @samoht)
 
   - Simplify the error cases of fetch/pull/push operations. (#684, @zshipko)
 
