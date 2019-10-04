@@ -2,18 +2,22 @@
 
 #### Added
 
+- **irmin-pack** (_new_):
+  - Created a new Irmin backend, `irmin-pack`, which uses a space-optimised
+    on-disk format.
+
 - **irmin-graphql** (_new_):
-  - Created new package which provides a GraphQL server implementation that can
-    be used with both the MirageOS and Unix backends. Additionally, a `graphql`
-    command has been added to the command-line interface for starting
-    `irmin-graphql` servers. (#558, @andreas, @zshipko)
+  - Created a new package, `irmin-graphql`, which provides a GraphQL server
+    implementation that can be used with both the MirageOS and Unix backends.
+    Additionally, a `graphql` command has been added to the command-line
+    interface for starting `irmin-graphql` servers. (#558, @andreas, @zshipko)
 
   - Contents can now be queried directly using `irmin-graphql` with
     `Irmin_graphql.Server.Make_ext` and the `Irmin_graphql.Server.PRESENTER`
     interface. (#643, @andreas)
 
 - **irmin-test** (_new_):
-  - Added a new package: `irmin-test`, which allows for packages to access the
+  - Added a new package, `irmin-test`, which allows for packages to access the
     Irmin test-suite. This package can now be used for new packages that
     implement custom backends to test their implementations against the same
     tests that the core backends are tested against. (#508, @zshipko)
