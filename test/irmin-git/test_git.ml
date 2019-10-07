@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-let test_db = "test_db_git"
+let test_db = Filename.concat "_build" "test-db-git"
 
 let config =
   let head = Git.Reference.of_string "refs/heads/test" in
