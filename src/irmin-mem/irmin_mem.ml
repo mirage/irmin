@@ -38,6 +38,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let v _config = Lwt.return map
 
   let close t =
+    Log.debug (fun f -> f "close");
     t.t <- KMap.empty;
     Lwt.return_unit
 

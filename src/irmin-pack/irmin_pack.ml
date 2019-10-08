@@ -376,10 +376,8 @@ end
 module AW_check_closed
     (K : Irmin.Type.S)
     (V : Irmin.Hash.S)
-    (AW : AW with type key = K.t and type value = V.t) =
+    (S : AW with type key = K.t and type value = V.t) =
 struct
-  module S = AW
-
   type t = { closed : bool ref; t : S.t }
 
   type key = S.key

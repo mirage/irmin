@@ -112,7 +112,58 @@ let of_json = Irmin.Type.of_json_string
 
 let to_json = Irmin.Type.to_json_string
 
-module Helper (Client : Cohttp_lwt.S.Client) = struct
+module type HELPER = sig
+  type ctx
+
+  val err_bad_version : string option -> 'a Lwt.t
+
+  val check_version : Cohttp.Response.t -> unit Lwt.t
+
+  val is_success : Cohttp.Response.t -> bool
+
+  val map_string_response :
+    (string -> ('a, [< `Msg of string ]) result) ->
+    Cohttp.Response.t * Cohttp_lwt.Body.t ->
+    'a Lwt.t
+
+  val map_stream_response :
+    'a T.t -> Cohttp.Response.t * Cohttp_lwt.Body.t -> 'a Lwt_stream.t Lwt.t
+
+  val headers : keep_alive:bool -> unit -> Cohttp.Header.t
+
+  val map_call :
+    Cohttp.Code.meth ->
+    Uri.t ->
+    ctx option ->
+    keep_alive:bool ->
+    ?body:string ->
+    string list ->
+    (Cohttp.Response.t * Cohttp_lwt.Body.t -> 'a Lwt.t) ->
+    'a Lwt.t
+
+  val call :
+    Cohttp.Code.meth ->
+    Uri.t ->
+    ctx option ->
+    ?body:string ->
+    string list ->
+    (string -> ('a, [< `Msg of string ]) result) ->
+    'a Lwt.t
+
+  val call_stream :
+    Cohttp.Code.meth ->
+    Uri.t ->
+    ctx option ->
+    ?body:string ->
+    string list ->
+    'a T.t ->
+    'a Lwt_stream.t Lwt.t
+end
+
+module Helper (Client : Cohttp_lwt.S.Client) :
+  HELPER with type ctx = Client.ctx = struct
+  type ctx = Client.ctx
+
   let err_bad_version v =
     invalid_arg "bad server version: expecting %s, but got %s" Irmin.version
       (match v with None -> "<none>" | Some v -> v)
@@ -184,8 +235,43 @@ module Helper (Client : Cohttp_lwt.S.Client) = struct
     map_call meth t ctx ~keep_alive:true ?body path (map_stream_response parse)
 end
 
-module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =
+module type Read_only = sig
+  type ctx
+
+  type 'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
+
+  type key
+
+  type value
+
+  module HTTP : HELPER with type ctx = ctx
+
+  val uri : 'a t -> Uri.t
+
+  val item : 'a t -> string
+
+  val items : 'a t -> string
+
+  val key_str : key -> string
+
+  val val_of_str : value T.of_string
+
+  val find : 'a t -> key -> value option Lwt.t
+
+  val mem : 'a t -> key -> bool Lwt.t
+
+  val cast : 'a t -> [ `Read | `Write ] t
+
+  val batch : 'a t -> ([ `Read | `Write ] t -> 'b) -> 'b
+
+  val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+end
+
+module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
+  Read_only with type ctx = Client.ctx and type key = K.t and type value = V.t =
 struct
+  type ctx = Client.ctx
+
   module HTTP = Helper (Client)
 
   type 'a t = {
@@ -230,6 +316,32 @@ struct
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
 end
 
+module type Append_only_store = functor
+  (Client : Cohttp_lwt.S.Client)
+  (K : Irmin.Hash.S)
+  (V : Irmin.Type.S)
+  -> sig
+  type 'a t
+
+  type key = K.t
+
+  type value = V.t
+
+  val mem : [> `Read ] t -> key -> bool Lwt.t
+
+  val find : [> `Read ] t -> key -> value option Lwt.t
+
+  val add : 'a t -> value -> key Lwt.t
+
+  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+
+  val v : ?ctx:Client.ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+
+  val close : 'a t -> unit Lwt.t
+
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+end
+
 module AO (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
 struct
   include RO (Client) (K) (V)
@@ -244,148 +356,285 @@ struct
       [ "unsafe"; t.items; key_str key ]
       ~body
       Irmin.Type.(of_string unit)
+
+  let close _ = Lwt.return_unit
 end
 
-module RW (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =
+module AO_check_closed
+    (AO : Append_only_store)
+    (Client : Cohttp_lwt.S.Client)
+    (K : Irmin.Hash.S)
+    (V : Irmin.Type.S) =
 struct
-  module RO = RO (Client) (K) (V)
-  module HTTP = RO.HTTP
-  module W = Irmin.Private.Watch.Make (K) (V)
+  module S = AO (Client) (K) (V)
 
-  type key = RO.key
+  type 'a t = { closed : bool ref; t : 'a S.t }
 
-  type value = RO.value
+  type key = S.key
 
-  type watch = W.watch
+  type value = S.value
 
-  (* cache the stream connections to the server: we open only one
-     connection per stream kind. *)
-  type cache = { mutable stop : unit -> unit }
+  let check_closed t = if !(t.closed) then raise Irmin.Closed
 
-  let empty_cache () = { stop = (fun () -> ()) }
+  let mem t k =
+    check_closed t;
+    S.mem t.t k
 
-  type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
+  let find t k =
+    check_closed t;
+    S.find t.t k
 
-  let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
+  let add t v =
+    check_closed t;
+    S.add t.t v
 
-  let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
-
-  let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
-
-  let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
+  let unsafe_add t k v =
+    check_closed t;
+    S.unsafe_add t.t k v
 
   let v ?ctx uri item items =
-    RO.v ?ctx uri item items >>= fun t ->
-    let w = W.v () in
-    let keys = empty_cache () in
-    let glob = empty_cache () in
-    Lwt.return { t; w; keys; glob }
+    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
 
-  let find t = RO.find t.t
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t )
 
-  let mem t = RO.mem t.t
+  let batch t f =
+    check_closed t;
+    S.batch t.t (fun w -> f { t = w; closed = t.closed })
+end
 
-  let key_str = Irmin.Type.to_string K.t
+module type AW = functor
+  (Client : Cohttp_lwt.S.Client)
+  (K : Irmin.Branch.S)
+  (V : Irmin.Hash.S)
+  -> sig
+  module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
 
-  let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
+  module RO : Read_only
 
-  let set t key value =
-    let value = { v = Some value; set = None; test = None } in
-    let body = to_json (set_t V.t) value in
-    put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-    | "ok" -> Lwt.return_unit
-    | e -> Lwt.fail_with e
+  module HTTP = RO.HTTP
 
-  let test_and_set t key ~test ~set =
-    let value = { v = None; set; test } in
-    let body = to_json (set_t V.t) value in
-    put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-    | "true" -> Lwt.return_true
-    | "false" -> Lwt.return_false
-    | e -> Lwt.fail_with e
+  include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  let remove t key =
-    HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
-      [ RO.item t.t; key_str key ] (fun (r, b) ->
-        match Cohttp.Response.status r with
-        | `Not_found | `OK -> Lwt.return_unit
-        | _ ->
-            Cohttp_lwt.Body.to_string b >>= fun b ->
-            Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" (Irmin.Type.pp K.t)
-              key b)
+  val v : ?ctx:Client.ctx -> Uri.t -> string -> string -> t Lwt.t
 
-  let nb_keys t = fst (W.stats t.w)
+  val close : 'a -> unit Lwt.t
+end
 
-  let nb_glob t = snd (W.stats t.w)
+module RW : AW =
+functor
+  (Client : Cohttp_lwt.S.Client)
+  (K : Irmin.Type.S)
+  (V : Irmin.Type.S)
+  ->
+  struct
+    module RO = RO (Client) (K) (V)
+    module HTTP = RO.HTTP
+    module W = Irmin.Private.Watch.Make (K) (V)
 
-  (* run [t] and returns an handler to stop the task. *)
-  let stoppable t =
-    let s, u = Lwt.task () in
-    Lwt.async (fun () -> Lwt.pick [ s; t () ]);
-    function () -> Lwt.wakeup u ()
+    type key = RO.key
 
-  let watch_key t key ?init f =
-    let key_str = Irmin.Type.to_string K.t key in
-    let init_stream () =
-      if nb_keys t <> 0 then Lwt.return_unit
-      else
-        ( match init with
-        | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
-        | Some init ->
-            let body = to_json V.t init in
-            post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t) )
-        >>= fun s ->
-        let stop () =
-          Lwt_stream.iter_s
-            (fun (_, v) ->
-              let v =
-                match v with
-                | `Removed _ -> None
-                | `Added v | `Updated (_, v) -> Some v
-              in
-              W.notify t.w key v)
-            s
-        in
-        t.keys.stop <- stoppable stop;
-        Lwt.return_unit
-    in
-    init_stream () >>= fun () -> W.watch_key t.w key ?init f
+    type value = RO.value
+
+    type watch = W.watch
+
+    (* cache the stream connections to the server: we open only one
+     connection per stream kind. *)
+    type cache = { mutable stop : unit -> unit }
+
+    let empty_cache () = { stop = (fun () -> ()) }
+
+    type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
+
+    let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
+
+    let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
+
+    let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
+
+    let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
+
+    let v ?ctx uri item items =
+      RO.v ?ctx uri item items >>= fun t ->
+      let w = W.v () in
+      let keys = empty_cache () in
+      let glob = empty_cache () in
+      Lwt.return { t; w; keys; glob }
+
+    let find t = RO.find t.t
+
+    let mem t = RO.mem t.t
+
+    let key_str = Irmin.Type.to_string K.t
+
+    let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
+
+    let set t key value =
+      let value = { v = Some value; set = None; test = None } in
+      let body = to_json (set_t V.t) value in
+      put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
+      | "ok" -> Lwt.return_unit
+      | e -> Lwt.fail_with e
+
+    let test_and_set t key ~test ~set =
+      let value = { v = None; set; test } in
+      let body = to_json (set_t V.t) value in
+      put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
+      | "true" -> Lwt.return_true
+      | "false" -> Lwt.return_false
+      | e -> Lwt.fail_with e
+
+    let remove t key =
+      HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
+        [ RO.item t.t; key_str key ] (fun (r, b) ->
+          match Cohttp.Response.status r with
+          | `Not_found | `OK -> Lwt.return_unit
+          | _ ->
+              Cohttp_lwt.Body.to_string b >>= fun b ->
+              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s"
+                (Irmin.Type.pp K.t) key b)
+
+    let nb_keys t = fst (W.stats t.w)
+
+    let nb_glob t = snd (W.stats t.w)
+
+    (* run [t] and returns an handler to stop the task. *)
+    let stoppable t =
+      let s, u = Lwt.task () in
+      Lwt.async (fun () -> Lwt.pick [ s; t () ]);
+      function () -> Lwt.wakeup u ()
+
+    let watch_key t key ?init f =
+      let key_str = Irmin.Type.to_string K.t key in
+      let init_stream () =
+        if nb_keys t <> 0 then Lwt.return_unit
+        else
+          ( match init with
+          | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
+          | Some init ->
+              let body = to_json V.t init in
+              post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t) )
+          >>= fun s ->
+          let stop () =
+            Lwt_stream.iter_s
+              (fun (_, v) ->
+                let v =
+                  match v with
+                  | `Removed _ -> None
+                  | `Added v | `Updated (_, v) -> Some v
+                in
+                W.notify t.w key v)
+              s
+          in
+          t.keys.stop <- stoppable stop;
+          Lwt.return_unit
+      in
+      init_stream () >>= fun () -> W.watch_key t.w key ?init f
+
+    let watch t ?init f =
+      let init_stream () =
+        if nb_glob t <> 0 then Lwt.return_unit
+        else
+          ( match init with
+          | None -> get_stream t [ "watches" ] (event_t K.t V.t)
+          | Some init ->
+              let body = to_json T.(list (init_t K.t V.t)) init in
+              post_stream t [ "watches" ] ~body (event_t K.t V.t) )
+          >>= fun s ->
+          let stop () =
+            Lwt_stream.iter_s
+              (fun (k, v) ->
+                let v =
+                  match v with
+                  | `Removed _ -> None
+                  | `Added v | `Updated (_, v) -> Some v
+                in
+                W.notify t.w k v)
+              s
+          in
+          t.glob.stop <- stoppable stop;
+          Lwt.return_unit
+      in
+      init_stream () >>= fun () -> W.watch t.w ?init f
+
+    let stop x =
+      let () = try x.stop () with _e -> () in
+      x.stop <- (fun () -> ())
+
+    let unwatch t id =
+      W.unwatch t.w id >>= fun () ->
+      if nb_keys t = 0 then stop t.keys;
+      if nb_glob t = 0 then stop t.glob;
+      Lwt.return_unit
+
+    let close _ = Lwt.return_unit
+  end
+
+module AW_check_closed
+    (AW : AW)
+    (Client : Cohttp_lwt.S.Client)
+    (K : Irmin.Branch.S)
+    (V : Irmin.Hash.S) =
+struct
+  module S = AW (Client) (K) (V)
+
+  type t = { closed : bool ref; t : S.t }
+
+  type key = S.key
+
+  type value = S.value
+
+  let check_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let mem t k =
+    check_closed t;
+    S.mem t.t k
+
+  let find t k =
+    check_closed t;
+    S.find t.t k
+
+  let set t k v =
+    check_closed t;
+    S.set t.t k v
+
+  let test_and_set t k ~test ~set =
+    check_closed t;
+    S.test_and_set t.t k ~test ~set
+
+  let remove t k =
+    check_closed t;
+    S.remove t.t k
+
+  let list t =
+    check_closed t;
+    S.list t.t
+
+  type watch = S.watch
 
   let watch t ?init f =
-    let init_stream () =
-      if nb_glob t <> 0 then Lwt.return_unit
-      else
-        ( match init with
-        | None -> get_stream t [ "watches" ] (event_t K.t V.t)
-        | Some init ->
-            let body = to_json T.(list (init_t K.t V.t)) init in
-            post_stream t [ "watches" ] ~body (event_t K.t V.t) )
-        >>= fun s ->
-        let stop () =
-          Lwt_stream.iter_s
-            (fun (k, v) ->
-              let v =
-                match v with
-                | `Removed _ -> None
-                | `Added v | `Updated (_, v) -> Some v
-              in
-              W.notify t.w k v)
-            s
-        in
-        t.glob.stop <- stoppable stop;
-        Lwt.return_unit
-    in
-    init_stream () >>= fun () -> W.watch t.w ?init f
+    check_closed t;
+    S.watch t.t ?init f
 
-  let stop x =
-    let () = try x.stop () with _e -> () in
-    x.stop <- (fun () -> ())
+  let watch_key t k ?init f =
+    check_closed t;
+    S.watch_key t.t k ?init f
 
-  let unwatch t id =
-    W.unwatch t.w id >>= fun () ->
-    if nb_keys t = 0 then stop t.keys;
-    if nb_glob t = 0 then stop t.glob;
-    Lwt.return_unit
+  let unwatch t w =
+    check_closed t;
+    S.unwatch t.t w
+
+  let v ?ctx uri item items =
+    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t )
 end
 
 module type HTTP_CLIENT = sig
@@ -402,7 +651,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Contents
-        include AO (Client) (Key) (Val)
+        module A = AO (Client) (Key) (Val)
+        module Check_closed_AO = AO_check_closed (AO) (Client) (Key) (Val)
+        include Check_closed_AO
       end
 
       include Irmin.Contents.Store (X)
@@ -442,7 +693,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
-        include AO (Client) (Key) (Val)
+        module A = AO (Client) (Key) (Val)
+        module Check_closed_AO = AO_check_closed (AO) (Client) (Key) (Val)
+        include Check_closed_AO
       end
 
       include Irmin.Private.Commit.Store (Node) (X)
@@ -456,7 +709,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Branch = struct
       module Key = S.Branch
       module Val = S.Hash
-      include RW (Client) (Key) (Val)
+      module R = RW (Client) (Key) (Val)
+      module RA = AW_check_closed (RW) (Client) (Key) (Val)
+      include RA
 
       let v ?ctx config = v ?ctx config "branch" "branches"
     end
@@ -495,7 +750,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
 
-      let close _ = Lwt.return_unit
+      let close t =
+        Contents.X.close t.contents >>= fun () ->
+        Branch.close t.branch >>= fun () -> Commit.X.close (snd t.commit)
     end
   end
 
