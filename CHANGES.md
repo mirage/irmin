@@ -1,48 +1,163 @@
-### 2.0.0
+### unreleased
 
-**irmin-unix**
+#### Added
 
-- Added `Cli` module to expose some methods to simplify building command-line
-  interfaces using Irmin (517, @zshipko)
-- Switched from custom configuration format to YAML (#504, @zshipko)
-- Added global config file (`~/.irmin/config.yml`)
-- Fixed parsing of commit hashes in `revert` command (#496, @zshipko)
+- **irmin-pack** (_new_):
+  - Created a new Irmin backend, `irmin-pack`, which uses a space-optimised
+    on-disk format.
 
-**irmin-git**
+- **irmin-graphql** (_new_):
+  - Created a new package, `irmin-graphql`, which provides a GraphQL server
+    implementation that can be used with both the MirageOS and Unix backends.
+    Additionally, a `graphql` command has been added to the command-line
+    interface for starting `irmin-graphql` servers. (#558, @andreas, @zshipko)
 
-- Support `ocaml-git` 2.0 (#545, @samoht)
-- Cleanup handling of remote stores (#552, @samoht)
-- Allow import/export of Git repositories using Irmin slices (#561, @samoht)
+  - Contents can now be queried directly using `irmin-graphql` with
+    `Irmin_graphql.Server.Make_ext` and the `Irmin_graphql.Server.PRESENTER`
+    interface. (#643, @andreas)
 
-**irmin-graphql**
+- **irmin-test** (_new_):
+  - Added a new package, `irmin-test`, which allows for packages to access the
+    Irmin test-suite. This package can now be used for new packages that
+    implement custom backends to test their implementations against the same
+    tests that the core backends are tested against. (#508, @zshipko)
 
-Added a new package: `irmin-graphql`, which provides a GraphQL server implementation
-that can be used with both the MirageOS and Unix backends. Additionally, a `graphql`
-command has been added to the command-line interface for starting `irmin-graphql`
-servers. (#558, @andreas, @zshipko)
+- **irmin-unix**:
+  - Add `Cli` module to expose some methods to simplify building command-line
+    interfaces using Irmin. (#517, @zshipko)
 
-- Contents can now be queried directly using `irmin-graphql` with `Irmin_graphql.Server.Make_ext`
-  and the `Irmin_graphql.Server.PRESENTER` interface. (#643, @andreas)
+  - Add global config file `$HOME/.irmin/config.yml` which may be overridden by
+    either `$PWD/.irmin.yml` or by passing `--config <PATH>`. See `irmin help
+    irmin.yml` for details. (#513, @zshipko)
 
-**irmin-test**
+- **irmin-git**:
+  - Allow import/export of Git repositories using Irmin slices. (#561, @samoht)
 
-Added a new package: `irmin-test`, which allows for packages to access the Irmin test-suite.
-This package can now be used for new packages that implement custom backends to test their
-implementations against the same tests that the core backends are tested against. (#508, @zshipko)
+- **irmin-http**:
+  - Expose a `/trees/merge` route for server-side merge operations. (#714,
+    @samoht)
 
-**irmin**
+- **irmin**:
+  - Add `Json_value` and `Json` content types. (#516 #694, @zshipko)
 
-- Added `Json_value` and `Json` content types (#516, @zshipko)
-- Removed `Cstruct` dependency and content type (#544, @samoht)
-- Improvements to `Irmin.Type` combinators (#550 and #538, @samoht)
-- Update to use dune (#534, @samoht) and opam 2.0 (#583, @samoht)
-- Replaced `Irmin.Contents.S0` with `Irmin.Type.S`
-- Removed `pp` and `of_string` functions from `Irmin.Contents.S` in favor of `Irmin.Type.to_string`
-  and `Irmin.Type.of_string`
-- Added `Store.last_modified` function, which provides a list of commits where the given key was
-  modified last. (#617, @pascutto)
-- `Irmin.AO` has been replaced with `Irmin.CONTENT_ADDRESSABLE_STORE` and `Irmin.RW` has been replaced with `Irmin.ATOMIC_WRITE_STORE`
-- A `batch` function has been added to the backend definition to allow for better control over how groups of operations are processed. (#609, @samoht)
+  - Add optional seed parameter to the `Irmin.Type` generic hash functions.
+    (#712, @samoht)
+
+  - Add `V1` submodules in `Commit`, `Contents` and `Hash` to provide
+    compatibility with 1.x serialisation formats. (#644 #666, @samoht)
+
+  - Add `Store.last_modified` function, which provides a list of commits where
+    the given key was modified last. (#617, @pascutto)
+
+  - Add a `Content_addressable.unsafe_add` function allowing the key of the new
+    value to be specified explicitly (for performance reasons). (#783, @samoht)
+
+  - Add `save_contents` function for saving contents to the database. (#689,
+    @samoht)
+
+  - Add pretty-printers for the results of Sync operations. (#789, @craigfe)
+
+  - `Private.Lock` now exposes a `stats` function returning the number of held
+    locks. (#704, @samoht)
+
+#### Changed
+
+- **irmin-unix**:
+  - Rename `irmin read` to `irmin get` and `irmin write` to `irmin set`. (#501,
+  @zshipko)
+
+  - Switch from custom configuration format to YAML. (#504, @zshipko)
+
+- **irmin-git**:
+  - Require `ocaml-git >= 2.0`. (#545, @samoht)
+
+  - Cleanup handling of remote stores. (#552, @samoht)
+
+- **irmin-http**:
+  - Rename `CLIENT` to `HTTP_CLIENT` and simplify the signatures necessary to
+    construct HTTP clients and servers. (#701, @samoht)
+
+- **irmin-mirage**
+  - Split `irmin-mirage` into `irmin-{mirage,mirage-git,mirage-graphql}` to
+    allow for more granular dependency selection. Any instances of
+    `Irmin_mirage.Git` should be replaced with `Irmin_mirage_git`. (#686,
+    @zshipko)
+
+- **irmin**:
+  - Update to use dune (#534, @samoht) and opam 2.0. (#583, @samoht)
+
+  - Replace `Irmin.Contents.S0` with `Irmin.Type.S`.
+
+  - Rename `Type.pre_digest` -> `Type.pre_hash` and `Type.hash` ->
+    `Type.short_hash`. (#720, @samoht)
+
+  - Change `Irmin.Type` to use _incremental_ hash functions (functions of type
+    `'a -> (string -> unit) -> unit`) for performance reasons. (#751, @samoht)
+
+  - Simplify the `Irmin.Type.like` constructor and add a new `Irmin.Type.map`
+    with the previous behaviour.
+
+  - Improvements to `Irmin.Type` combinators. (#550 #538 #652 #653 #655 #656
+    #688, @samoht)
+
+  - Modify `Store.set` to return a result type and create a new `Store.set_exn`
+    with the previous exception-raising behaviour. (#572, @samoht)
+
+  - Rename store module types to be more descriptive:
+     - replace `Irmin.AO` with `Irmin.CONTENT_ADDRESSABLE_STORE`;
+     - replace `Irmin.AO_MAKER` with `Irmin.CONTENT_ADDRESSABLE_STORE_MAKER`;
+     - replace `Irmin.RW` with `Irmin.ATOMIC_WRITE_STORE`;
+     - replace `Irmin.RW_MAKER` with `Irmin.ATOMIC_WRITE_STORE_MAKER`. (#601,
+       @samoht)
+
+  - Rename `export_tree` to `save_tree` (#689, @samoht) and add an option to
+    conditionally clear the tree cache (#702 #725, @samoht).
+
+  - Change hash function for `Irmin_{fs,mem,unix}.KV` to BLAKE2b rather than
+    SHA1 for security reasons. (#811, @craigfe)
+
+  - Move `Irmin.remote_uri` to `Store.remote`, for stores that support remote
+    operations. (#552, @samoht)
+
+  - Simplify the error cases of fetch/pull/push operations. (#684, @zshipko)
+  
+  - A `batch` function has been added to the backend definition to allow for
+    better control over how groups of operations are processed. (#609, @samoht)
+
+  - A `close` function has been added to allow backends to close any held
+    resources (e.g. file descriptors for the `FS` backend). (#845, @samoht)
+
+  - Simplify `Private.Node.Make` parameters to use a simpler notion of 'path' in
+    terms of a list of steps. (#645, @samoht)
+
+  - Rename `Node.update` to `Node.add`. (#713, @samoht)
+
+#### Fixed
+
+- **irmin-unix**:
+   - Fix parsing of commit hashes in `revert` command. (#496, @zshipko)
+
+- **irmin-git**:
+  - Fix `Node.add` to preserve sharing. (#802, @samoht)
+
+- **irmin-http**:
+  - Respond with a 404 if a non-existent resource is requested. (#706, @samoht)
+
+- **irmin**:
+  - Fix a bug whereby `S.History.is_empty` would return `true` for a store with
+    exactly one commit. (#865, @pascutto)
+
+#### Removed
+
+- **irmin**:
+  - Remove `pp` and `of_string` functions from `Irmin.Contents.S` in favour of
+    `Irmin.Type.to_string` and `Irmin.Type.of_string`.
+
+  - Remove `Bytes` content type. (#708, @samoht)
+
+  - Remove `Cstruct` dependency and content type. If possible, switch to
+    `Irmin.Contents.String` or else use `Irmin.Type.map` to wrap the Cstruct
+    type. (#544, @samoht)
 
 ### 1.4.0 (2018-06-06)
 
