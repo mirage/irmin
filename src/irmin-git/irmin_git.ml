@@ -124,7 +124,11 @@ struct
 
   module type CA_MAKER = functor (V : V) -> CA with type value = V.t
 
-  module CA_check_closed (C : CA_MAKER) (V : V) = struct
+  module CA_check_closed (C : CA_MAKER) (V : V) : sig
+    include module type of C (V)
+
+    val v : bool -> 'a t -> 'a t
+  end = struct
     module S = C (V)
 
     type 'a t = 'a S.t
