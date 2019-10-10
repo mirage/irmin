@@ -18,11 +18,11 @@ depends: [
   "ocaml"      {>= "4.02.3"}
   "dune"       {>= "1.1.0"}
   "irmin"      {= version}
-  "git"        {>= "2.1.0"}
+  "git"        {>= "2.1.1"}
   "digestif"   {>= "0.7.3"}
   "irmin-test" {with-test & =version}
   "irmin-mem"  {with-test & =version}
-  "git-unix"   {with-test & >= "2.1.0"}
+  "git-unix"   {with-test & >= "2.1.1"}
   "mtime"      {with-test & >= "1.0.0"}
 ]
 
