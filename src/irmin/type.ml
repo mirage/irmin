@@ -1443,10 +1443,11 @@ module Decode_bin = struct
     | `Int64 -> int64 buf ofs >|= Int64.to_int
     | `Fixed n -> ok ofs n
 
-  let has_fixed_size = function `Fixed _ -> true | _ -> false
+  let fixed_size = function `Fixed n -> n | _ -> -1
 
   let string ?(headers = true) n buf ofs =
-    if (not headers) && not (has_fixed_size n) then ok (String.length buf) buf
+    let f = fixed_size n in
+    if (not headers) && f = String.length buf then ok f buf
     else
       len buf ofs n >>= fun (ofs, len) ->
       let str = Bytes.create len in
@@ -1454,8 +1455,8 @@ module Decode_bin = struct
       ok (ofs + len) (Bytes.unsafe_to_string str)
 
   let bytes ?(headers = true) n buf ofs =
-    if (not headers) && not (has_fixed_size n) then
-      ok (String.length buf) (Bytes.of_string buf)
+    let f = fixed_size n in
+    if (not headers) && f = String.length buf then ok f (Bytes.of_string buf)
     else
       len buf ofs n >>= fun (ofs, len) ->
       let str = Bytes.create len in
