@@ -352,7 +352,7 @@ struct
           let magic _ = magic
         end)
 
-        include Check_closed.Pack (CA_Pack)
+        include Closeable.Pack (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -388,7 +388,7 @@ struct
           let magic _ = magic
         end)
 
-        include Check_closed.Pack (CA_Pack)
+        include Closeable.Pack (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -398,7 +398,7 @@ struct
       module Key = B
       module Val = H
       module AW = Atomic_write (Key) (Val)
-      include Check_closed.Atomic_write (AW)
+      include Closeable.Atomic_write (AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
