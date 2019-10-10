@@ -21,26 +21,26 @@ module Pack (S : Pack.S) = struct
 
   type index = S.index
 
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
   let mem t k =
-    check_closed t;
+    check_not_closed t;
     S.mem t.t k
 
   let find t k =
-    check_closed t;
+    check_not_closed t;
     S.find t.t k
 
   let add t v =
-    check_closed t;
+    check_not_closed t;
     S.add t.t v
 
   let unsafe_add t k v =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_add t.t k v
 
   let batch t f =
-    check_closed t;
+    check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
   let v ?fresh ?readonly ?lru_size ~index root =
@@ -54,23 +54,23 @@ module Pack (S : Pack.S) = struct
       S.close t.t )
 
   let unsafe_append t k v =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_append t.t k v
 
   let unsafe_mem t k =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_mem t.t k
 
   let unsafe_find t k =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_find t.t k
 
   let sync t =
-    check_closed t;
+    check_not_closed t;
     S.sync t.t
 
   let integrity_check ~offset ~length k t =
-    check_closed t;
+    check_not_closed t;
     S.integrity_check ~offset ~length k t.t
 end
 
@@ -81,44 +81,44 @@ module Atomic_write (AW : S.AW) = struct
 
   type value = AW.value
 
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
   let mem t k =
-    check_closed t;
+    check_not_closed t;
     AW.mem t.t k
 
   let find t k =
-    check_closed t;
+    check_not_closed t;
     AW.find t.t k
 
   let set t k v =
-    check_closed t;
+    check_not_closed t;
     AW.set t.t k v
 
   let test_and_set t k ~test ~set =
-    check_closed t;
+    check_not_closed t;
     AW.test_and_set t.t k ~test ~set
 
   let remove t k =
-    check_closed t;
+    check_not_closed t;
     AW.remove t.t k
 
   let list t =
-    check_closed t;
+    check_not_closed t;
     AW.list t.t
 
   type watch = AW.watch
 
   let watch t ?init f =
-    check_closed t;
+    check_not_closed t;
     AW.watch t.t ?init f
 
   let watch_key t k ?init f =
-    check_closed t;
+    check_not_closed t;
     AW.watch_key t.t k ?init f
 
   let unwatch t w =
-    check_closed t;
+    check_not_closed t;
     AW.unwatch t.t w
 
   let v ?fresh ?readonly root =

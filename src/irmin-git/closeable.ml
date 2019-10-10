@@ -23,22 +23,22 @@ module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) = struct
 
   let closed = ref false
 
-  let check_closed _ = if !closed then raise Irmin.Closed
+  let check_not_closed _ = if !closed then raise Irmin.Closed
 
   let mem t k =
-    check_closed t;
+    check_not_closed t;
     S.mem t k
 
   let find t k =
-    check_closed t;
+    check_not_closed t;
     S.find t k
 
   let add t v =
-    check_closed t;
+    check_not_closed t;
     S.add t v
 
   let unsafe_add t k v =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_add t k v
 
   let v global_closed t =

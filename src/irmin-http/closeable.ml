@@ -25,22 +25,22 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
 
   type ctx = S.ctx
 
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
   let mem t k =
-    check_closed t;
+    check_not_closed t;
     S.mem t.t k
 
   let find t k =
-    check_closed t;
+    check_not_closed t;
     S.find t.t k
 
   let add t v =
-    check_closed t;
+    check_not_closed t;
     S.add t.t v
 
   let unsafe_add t k v =
-    check_closed t;
+    check_not_closed t;
     S.unsafe_add t.t k v
 
   let v ?ctx uri item items =
@@ -53,7 +53,7 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
       S.close t.t )
 
   let batch t f =
-    check_closed t;
+    check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 end
 
@@ -66,44 +66,44 @@ module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
 
   type ctx = S.ctx
 
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
   let mem t k =
-    check_closed t;
+    check_not_closed t;
     S.mem t.t k
 
   let find t k =
-    check_closed t;
+    check_not_closed t;
     S.find t.t k
 
   let set t k v =
-    check_closed t;
+    check_not_closed t;
     S.set t.t k v
 
   let test_and_set t k ~test ~set =
-    check_closed t;
+    check_not_closed t;
     S.test_and_set t.t k ~test ~set
 
   let remove t k =
-    check_closed t;
+    check_not_closed t;
     S.remove t.t k
 
   let list t =
-    check_closed t;
+    check_not_closed t;
     S.list t.t
 
   type watch = S.watch
 
   let watch t ?init f =
-    check_closed t;
+    check_not_closed t;
     S.watch t.t ?init f
 
   let watch_key t k ?init f =
-    check_closed t;
+    check_not_closed t;
     S.watch_key t.t k ?init f
 
   let unwatch t w =
-    check_closed t;
+    check_not_closed t;
     S.unwatch t.t w
 
   let v ?ctx uri item items =
