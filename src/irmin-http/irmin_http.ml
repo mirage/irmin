@@ -256,45 +256,6 @@ struct
   let close _ = Lwt.return_unit
 end
 
-module AO_check_closed (S : S.APPEND_ONLY_STORE) = struct
-  type 'a t = { closed : bool ref; t : 'a S.t }
-
-  type key = S.key
-
-  type value = S.value
-
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_closed t;
-    S.find t.t k
-
-  let add t v =
-    check_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_closed t;
-    S.unsafe_add t.t k v
-
-  let v ?ctx uri item items =
-    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t )
-
-  let batch t f =
-    check_closed t;
-    S.batch t.t (fun w -> f { t = w; closed = t.closed })
-end
-
 module RW : S.ATOMIC_WRITE_STORE_MAKER =
 functor
   (Client : Cohttp_lwt.S.Client)
@@ -446,63 +407,6 @@ functor
     let close _ = Lwt.return_unit
   end
 
-module AW_check_closed (S : S.ATOMIC_WRITE_STORE) = struct
-  type t = { closed : bool ref; t : S.t }
-
-  type key = S.key
-
-  type value = S.value
-
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_closed t;
-    S.find t.t k
-
-  let set t k v =
-    check_closed t;
-    S.set t.t k v
-
-  let test_and_set t k ~test ~set =
-    check_closed t;
-    S.test_and_set t.t k ~test ~set
-
-  let remove t k =
-    check_closed t;
-    S.remove t.t k
-
-  let list t =
-    check_closed t;
-    S.list t.t
-
-  type watch = S.watch
-
-  let watch t ?init f =
-    check_closed t;
-    S.watch t.t ?init f
-
-  let watch_key t k ?init f =
-    check_closed t;
-    S.watch_key t.t k ?init f
-
-  let unwatch t w =
-    check_closed t;
-    S.unwatch t.t w
-
-  let v ?ctx uri item items =
-    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t )
-end
-
 module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client
 
@@ -518,7 +422,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         module Key = S.Hash
         module Val = S.Contents
         module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = AO_check_closed (A)
+        module Check_closed_AO = Closeable.Append_only (A)
         include Check_closed_AO
       end
 
@@ -560,7 +464,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
         module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = AO_check_closed (A)
+        module Check_closed_AO = Closeable.Append_only (A)
         include Check_closed_AO
       end
 
@@ -576,7 +480,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module Key = S.Branch
       module Val = S.Hash
       module R = RW (Client) (Key) (Val)
-      module RA = AW_check_closed (R)
+      module RA = Closeable.Atomic_write (R)
       include RA
 
       let v ?ctx config = v ?ctx config "branch" "branches"

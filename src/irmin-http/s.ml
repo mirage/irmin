@@ -137,7 +137,7 @@ module type ATOMIC_WRITE_STORE = sig
 
   val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
 
-  val close : 'a -> unit Lwt.t
+  val close : t -> unit Lwt.t
 end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor
