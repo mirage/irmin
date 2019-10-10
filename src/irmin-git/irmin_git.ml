@@ -106,12 +106,12 @@ struct
     val of_git : G.Value.t -> t option
   end
 
-  module type CA = functor (V : V) -> sig
+  module type CA = sig
     type 'a t
 
     type key = H.t
 
-    type value = V.t
+    type value
 
     val mem : 'a t -> key -> bool Lwt.t
 
@@ -122,7 +122,9 @@ struct
     val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   end
 
-  module CA_check_closed (C : CA) (V : V) = struct
+  module type CA_MAKER = functor (V : V) -> CA with type value = V.t
+
+  module CA_check_closed (C : CA_MAKER) (V : V) = struct
     module S = C (V)
 
     type 'a t = 'a S.t
