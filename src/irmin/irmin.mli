@@ -2595,35 +2595,16 @@ module type S = sig
         subtrees with a depth higher than [depth]. If [depth] is not
         set, all the subtrees are cleared. *)
 
-    (** Global cache of key -> tree -- used for hash-consing and to
-        speed-up lookups. *)
-    module Cache : sig
-      val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
-
-      val clear : ?depth:int -> unit -> unit
-      (** [clear ?depth ()] clears the global cache. If [depth] is
-          set, only keep entries with depth greater than [depth] and
-          prune these so that their depth is [depth]. *)
-
-      val dump : unit Fmt.t
-    end
-
     (** {1 Performance counters} *)
 
     type counters = {
       mutable contents_hash : int;
       mutable contents_find : int;
       mutable contents_add : int;
-      mutable contents_cache_length : int;
-      mutable contents_cache_find : int;
-      mutable contents_cache_miss : int;
       mutable node_hash : int;
       mutable node_mem : int;
       mutable node_add : int;
       mutable node_find : int;
-      mutable node_cache_length : int;
-      mutable node_cache_find : int;
-      mutable node_cache_miss : int;
       mutable node_val_v : int;
       mutable node_val_find : int;
       mutable node_val_list : int;

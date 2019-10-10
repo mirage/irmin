@@ -125,7 +125,6 @@ module Make (S : S) = struct
     try
       Lwt_main.run
         ( x.init () >>= fun () ->
-          S.Tree.Cache.clear ();
           S.Repo.v x.config >>= fun repo -> test repo >>= x.clean )
     with e ->
       Lwt_main.run (x.clean ());
@@ -1199,45 +1198,9 @@ module Make (S : S) = struct
       Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:3" 0 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
-      let _ = v in
-      (* Testing hashconsing  *)
-      let v0 = S.Tree.empty in
-      S.Tree.add v0 [ "foo" ] "foo" >>= fun v0 ->
-      S.Tree.add v0 [ "bar" ] "foo" >>= fun v0 ->
-      save_tree repo v0 >>= fun () ->
-      S.Tree.get v0 [ "foo" ] >>= fun x ->
-      S.Tree.get v0 [ "bar" ] >>= fun y ->
-      Alcotest.(check bool) "hashconsing contents" true (x == y);
-      S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v1 ->
-      S.Tree.add_tree v0 [ "a"; "b"; "c" ] v0 >>= fun v2 ->
-      S.Tree.add_tree v0 [ "x"; "b"; "c" ] v0 >>= fun v3 ->
-      save_tree repo v1 >>= fun () ->
-      save_tree repo v2 >>= fun () ->
-      save_tree repo v3 >>= fun () ->
-      Alcotest.(check inspect) "inspect v1:1" (`Node `Hash) (S.Tree.inspect v1);
-      Alcotest.(check inspect) "inspect v2:1" (`Node `Hash) (S.Tree.inspect v2);
-      Alcotest.(check inspect) "inspect v3:1" (`Node `Hash) (S.Tree.inspect v3);
-      let k1 = S.Tree.hash v1 in
-      let k2 = S.Tree.hash v2 in
-      Alcotest.(check inspect) "inspect v1:2" (`Node `Hash) (S.Tree.inspect v1);
-      Alcotest.(check inspect) "inspect v2:2" (`Node `Hash) (S.Tree.inspect v2);
-      Alcotest.(check bool) "hashconsing tree hashes" true (k1 == k2);
-      S.Tree.get_tree v1 [ "a" ] >>= fun x ->
-      S.Tree.get_tree v2 [ "a" ] >>= fun y ->
-      S.Tree.get_tree v2 [ "a" ] >>= fun z ->
-      Alcotest.(check inspect) "inspect x" (`Node `Hash) (S.Tree.inspect x);
-      Alcotest.(check inspect) "inspect y" (`Node `Hash) (S.Tree.inspect y);
-      Alcotest.(check inspect) "inspect z" (`Node `Hash) (S.Tree.inspect z);
-      Alcotest.(check bool)
-        "hashconsing same tree" true
-        (get_node x == get_node y);
-      Alcotest.(check bool)
-        "hashconsing unrelated tree" true
-        (get_node x == get_node z);
 
       (* Test caching (makesure that no tree is lying in scope) *)
       let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo-x") in
-      S.Tree.Cache.clear ();
       S.Tree.reset_counters ();
       let foo = "foo-x" in
       S.Tree.add v0 [ "foo" ] foo >>= fun v0 ->
@@ -1248,12 +1211,10 @@ module Make (S : S) = struct
       let _ = S.Tree.hash v0 in
       S.Tree.add v0 [ "foo" ] foo >>= fun _v0 ->
       let _k = S.Tree.hash v0 in
-      S.Tree.Cache.clear ();
       let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar-x") in
       let xxx = "xxx" in
       let yyy = "yyy" in
       let zzz = "zzz" in
-      Fmt.epr "%a" S.Tree.Cache.dump ();
       S.Tree.add v0 [ "a" ] xxx >>= fun v0 ->
       S.set_tree_exn ~info t1 [] v0 >>= fun () ->
       S.get_tree t1 [] >>= fun v0 ->
@@ -1262,11 +1223,7 @@ module Make (S : S) = struct
       S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
       S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
       Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
-      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
-      S.Tree.Cache.clear ~depth:3 ();
-      S.Tree.Cache.clear ~depth:2 ();
-      S.Tree.Cache.clear ~depth:1 ();
-      Lwt.return_unit
+      S.set_tree_exn ~info t1 [] v0 >>= fun () -> Lwt.return_unit
     in
     run x test
 
