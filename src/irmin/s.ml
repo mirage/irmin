@@ -585,28 +585,14 @@ module type TREE = sig
 
   val clear : ?depth:int -> tree -> unit
 
-  module Cache : sig
-    val length : unit -> [ `Contents of int ] * [ `Nodes of int ]
-
-    val clear : ?depth:int -> unit -> unit
-
-    val dump : unit Fmt.t
-  end
-
   type counters = {
     mutable contents_hash : int;
     mutable contents_find : int;
     mutable contents_add : int;
-    mutable contents_cache_length : int;
-    mutable contents_cache_find : int;
-    mutable contents_cache_miss : int;
     mutable node_hash : int;
     mutable node_mem : int;
     mutable node_add : int;
     mutable node_find : int;
-    mutable node_cache_length : int;
-    mutable node_cache_find : int;
-    mutable node_cache_miss : int;
     mutable node_val_v : int;
     mutable node_val_find : int;
     mutable node_val_list : int;
