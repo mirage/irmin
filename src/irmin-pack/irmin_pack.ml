@@ -298,72 +298,6 @@ end
 
 module type CONFIG = Inode.CONFIG
 
-module CA_check_closed (S : Pack.S) :
-  Pack.S
-    with type key = S.key
-     and type value = S.value
-     and type index = S.index = struct
-  type 'a t = { closed : bool ref; t : 'a S.t }
-
-  type key = S.key
-
-  type value = S.value
-
-  type index = S.index
-
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_closed t;
-    S.find t.t k
-
-  let add t v =
-    check_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_closed t;
-    S.unsafe_add t.t k v
-
-  let batch t f =
-    check_closed t;
-    S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-  let v ?fresh ?readonly ?lru_size ~index root =
-    S.v ?fresh ?readonly ?lru_size ~index root >|= fun t ->
-    { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t )
-
-  let unsafe_append t k v =
-    check_closed t;
-    S.unsafe_append t.t k v
-
-  let unsafe_mem t k =
-    check_closed t;
-    S.unsafe_mem t.t k
-
-  let unsafe_find t k =
-    check_closed t;
-    S.unsafe_find t.t k
-
-  let sync t =
-    check_closed t;
-    S.sync t.t
-
-  let integrity_check ~offset ~length k t =
-    check_closed t;
-    S.integrity_check ~offset ~length k t.t
-end
-
 module type AW = sig
   include Irmin.ATOMIC_WRITE_STORE
 
@@ -487,7 +421,7 @@ struct
           let magic _ = magic
         end)
 
-        include CA_check_closed (CA_Pack)
+        include Check_closed.Pack (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -523,7 +457,7 @@ struct
           let magic _ = magic
         end)
 
-        include CA_check_closed (CA_Pack)
+        include Check_closed.Pack (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
