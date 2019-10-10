@@ -235,7 +235,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
     map_call meth t ctx ~keep_alive:true ?body path (map_stream_response parse)
 end
 
-module type Read_only = sig
+module type READ_ONLY_STORE = sig
   type ctx
 
   type 'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
@@ -268,8 +268,10 @@ module type Read_only = sig
 end
 
 module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
-  Read_only with type ctx = Client.ctx and type key = K.t and type value = V.t =
-struct
+  READ_ONLY_STORE
+    with type ctx = Client.ctx
+     and type key = K.t
+     and type value = V.t = struct
   type ctx = Client.ctx
 
   module HTTP = Helper (Client)
@@ -316,16 +318,14 @@ struct
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
 end
 
-module type Append_only_store = functor
-  (Client : Cohttp_lwt.S.Client)
-  (K : Irmin.Hash.S)
-  (V : Irmin.Type.S)
-  -> sig
+module type APPEND_ONLY_STORE = sig
   type 'a t
 
-  type key = K.t
+  type key
 
-  type value = V.t
+  type value
+
+  type ctx
 
   val mem : [> `Read ] t -> key -> bool Lwt.t
 
@@ -335,12 +335,22 @@ module type Append_only_store = functor
 
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
 
-  val v : ?ctx:Client.ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+  val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
   val close : 'a t -> unit Lwt.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 end
+
+module type APPEND_ONLY_STORE_MAKER = functor
+  (Client : Cohttp_lwt.S.Client)
+  (K : Irmin.Hash.S)
+  (V : Irmin.Type.S)
+  ->
+  APPEND_ONLY_STORE
+    with type key = K.t
+     and type value = V.t
+     and type ctx = Client.ctx
 
 module AO (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
 struct
@@ -406,25 +416,35 @@ struct
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 end
 
-module type AW = functor
+module type ATOMIC_WRITE_STORE = sig
+  include Irmin.ATOMIC_WRITE_STORE
+
+  type ctx
+
+  val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
+
+  val close : 'a -> unit Lwt.t
+end
+
+module type ATOMIC_WRITE_STORE_MAKER = functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Branch.S)
   (V : Irmin.Hash.S)
   -> sig
   module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
 
-  module RO : Read_only
+  module RO : READ_ONLY_STORE
 
   module HTTP = RO.HTTP
 
-  include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-
-  val v : ?ctx:Client.ctx -> Uri.t -> string -> string -> t Lwt.t
-
-  val close : 'a -> unit Lwt.t
+  include
+    ATOMIC_WRITE_STORE
+      with type key = K.t
+       and type value = V.t
+       and type ctx = Client.ctx
 end
 
-module RW : AW =
+module RW : ATOMIC_WRITE_STORE_MAKER =
 functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Type.S)
@@ -440,6 +460,8 @@ functor
     type value = RO.value
 
     type watch = W.watch
+
+    type ctx = Client.ctx
 
     (* cache the stream connections to the server: we open only one
      connection per stream kind. *)
@@ -574,7 +596,7 @@ functor
   end
 
 module AW_check_closed
-    (AW : AW)
+    (AW : ATOMIC_WRITE_STORE_MAKER)
     (Client : Cohttp_lwt.S.Client)
     (K : Irmin.Branch.S)
     (V : Irmin.Hash.S) =
