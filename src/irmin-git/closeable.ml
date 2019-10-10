@@ -15,33 +15,27 @@
  *)
 
 module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) = struct
-  type 'a t = 'a S.t
+  type 'a t = bool ref * 'a S.t
 
   type key = S.key
 
   type value = S.value
 
-  let closed = ref false
-
-  let check_not_closed _ = if !closed then raise Irmin.Closed
+  let check_not_closed t = if !(fst t) then raise Irmin.Closed
 
   let mem t k =
     check_not_closed t;
-    S.mem t k
+    S.mem (snd t) k
 
   let find t k =
     check_not_closed t;
-    S.find t k
+    S.find (snd t) k
 
   let add t v =
     check_not_closed t;
-    S.add t v
+    S.add (snd t) v
 
   let unsafe_add t k v =
     check_not_closed t;
-    S.unsafe_add t k v
-
-  let v global_closed t =
-    closed := global_closed;
-    t
+    S.unsafe_add (snd t) k v
 end

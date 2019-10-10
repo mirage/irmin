@@ -949,6 +949,10 @@ module type ATOMIC_WRITE_STORE = sig
 
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
+
+  val close : t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise {!Closed}. *)
 end
 
 (** {1 User-Defined Contents} *)
@@ -3652,10 +3656,6 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   val v : config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
-
-  val close : t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise {!Closed}. *)
 end
 
 module Make

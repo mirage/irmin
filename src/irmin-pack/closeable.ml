@@ -74,7 +74,7 @@ module Pack (S : Pack.S) = struct
     S.integrity_check ~offset ~length k t.t
 end
 
-module Atomic_write (AW : S.AW) = struct
+module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   type t = { closed : bool ref; t : AW.t }
 
   type key = AW.key

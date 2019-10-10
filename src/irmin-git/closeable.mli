@@ -19,9 +19,7 @@
 module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) : sig
   include
     Irmin.CONTENT_ADDRESSABLE_STORE
-      with type 'a t = 'a S.t
+      with type 'a t = bool ref * 'a S.t
        and type key = S.key
        and type value = S.value
-
-  val v : bool -> 'a t -> 'a t
 end

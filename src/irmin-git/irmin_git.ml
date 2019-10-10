@@ -170,8 +170,7 @@ struct
         G.Value.blob (G.Value.Blob.of_string str)
     end
 
-    module Contents = Content_addressable (GitContents)
-    include Contents
+    include Content_addressable (GitContents)
 
     module Val = struct
       include C
@@ -203,11 +202,7 @@ struct
     module Key = H
   end
 
-  module Contents = struct
-    include Irmin.Contents.Store (XContents)
-
-    let v close t = XContents.v close t
-  end
+  module Contents = Irmin.Contents.Store (XContents)
 
   module XNode = struct
     module Key = H
@@ -367,7 +362,7 @@ struct
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
     end
 
-    module Check_closed_node = Content_addressable (struct
+    include Content_addressable (struct
       type t = Val.t
 
       let type_eq = function `Tree -> true | _ -> false
@@ -376,15 +371,9 @@ struct
 
       let of_git = function G.Value.Tree t -> Some t | _ -> None
     end)
-
-    include Check_closed_node
   end
 
-  module Node = struct
-    include Irmin.Private.Node.Store (Contents) (P) (Metadata) (XNode)
-
-    let v close t = XNode.v close t
-  end
+  module Node = Irmin.Private.Node.Store (Contents) (P) (Metadata) (XNode)
 
   module XCommit = struct
     module Val = struct
@@ -490,7 +479,7 @@ struct
 
     module Key = H
 
-    module Check_closed_commit = Content_addressable (struct
+    include Content_addressable (struct
       type t = Val.t
 
       let type_eq = function `Commit -> true | _ -> false
@@ -499,15 +488,9 @@ struct
 
       let to_git c = G.Value.commit c
     end)
-
-    include Check_closed_commit
   end
 
-  module Commit = struct
-    include Irmin.Private.Commit.Store (Node) (XCommit)
-
-    let v close t = XCommit.v close t
-  end
+  module Commit = Irmin.Private.Commit.Store (Node) (XCommit)
 end
 
 module type BRANCH = sig
@@ -533,7 +516,7 @@ module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
 end
 
-module type AW = functor (G : Git.S) (B : BRANCH) -> sig
+module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
   module Key : BRANCH with type t = B.t
 
   module Val : Irmin.Hash.S with type t = G.Hash.t
@@ -549,11 +532,9 @@ module type AW = functor (G : Git.S) (B : BRANCH) -> sig
     bare:bool ->
     G.t ->
     t Lwt.t
-
-  val close : t -> unit Lwt.t
 end
 
-module Irmin_branch_store : AW =
+module Irmin_branch_store : ATOMIC_WRITE_STORE =
 functor
   (G : Git.S)
   (B : BRANCH)
@@ -900,7 +881,7 @@ module type G = sig
     (t, error) result Lwt.t
 end
 
-module AW_check_closed (AW : AW) : AW =
+module AW_check_closed (AW : ATOMIC_WRITE_STORE) : ATOMIC_WRITE_STORE =
 functor
   (G : Git.S)
   (B : BRANCH)
@@ -974,8 +955,7 @@ module Make_ext
     (P : Irmin.Path.S)
     (B : BRANCH) =
 struct
-  module AW = AW_check_closed (Irmin_branch_store)
-  module R = AW (G) (B)
+  module R = AW_check_closed (Irmin_branch_store) (G) (B)
 
   type r = { config : Irmin.config; closed : bool ref; g : G.t; b : R.t }
 
@@ -998,11 +978,11 @@ struct
 
       let branch_t t = t.b
 
-      let contents_t t : 'a Contents.t = Contents.v !(t.closed) t.g
+      let contents_t t : 'a Contents.t = (t.closed, t.g)
 
-      let node_t t : 'a Node.t = (contents_t t, Node.v !(t.closed) t.g)
+      let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
 
-      let commit_t t : 'a Commit.t = (node_t t, Commit.v !(t.closed) t.g)
+      let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
 
       let batch t f = f (contents_t t) (node_t t) (commit_t t)
 
@@ -1157,9 +1137,9 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
     Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
   module X = M.Private.Contents
 
-  let state t = M.repo_of_git t >|= fun r -> M.Private.Repo.contents_t r
+  let state t = M.repo_of_git (snd t) >|= fun r -> M.Private.Repo.contents_t r
 
-  type 'a t = G.t
+  type 'a t = bool ref * G.t
 
   type key = X.key
 
@@ -1194,9 +1174,7 @@ module Atomic_write (G : Git.S) (K : Irmin.Branch.S) = struct
       | Error (`Msg e) -> failwith e
   end
 
-  module B = Branch (K)
-  module AW = AW_check_closed (Irmin_branch_store)
-  include AW (G) (B)
+  include AW_check_closed (Irmin_branch_store) (G) (Branch (K))
 end
 
 module KV

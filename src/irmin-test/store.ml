@@ -194,10 +194,11 @@ module Make (S : S) = struct
       P.Contents.find t kv2 >>= fun v2' ->
       check_val "v2" (Some v2) v2';
       P.Repo.close repo >>= fun () ->
-      try
-        ignore (with_contents repo (fun t -> P.Contents.add t v2));
-        Alcotest.fail "Add after close should not be allowed"
-      with Irmin.Closed -> Lwt.return_unit
+      Lwt.catch
+        (fun () ->
+          with_contents repo (fun t -> P.Contents.add t v2) >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -347,12 +348,12 @@ module Make (S : S) = struct
       >>= fun n3 ->
       assert_no_duplicates "4" n3 >>= fun () ->
       S.Repo.close repo >>= fun () ->
-      try
-        ignore
-          ( with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
-            with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) );
-        Alcotest.fail "Add after close should not be allowed"
-      with Irmin.Closed -> Lwt.return_unit
+      Lwt.catch
+        (fun () ->
+          with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
+          with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0))
+          >>= fun _ -> Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -396,10 +397,11 @@ module Make (S : S) = struct
              (Irmin.Info.author (S.Commit.info c)))
       >>= fun () ->
       S.Repo.close repo >>= fun () ->
-      try
-        ignore (with_info 3 (History.v ~node:kt1 ~parents:[]));
-        Alcotest.fail "Add after close should not be allowed"
-      with Irmin.Closed -> Lwt.return_unit
+      Lwt.catch
+        (fun () ->
+          with_info 3 (History.v ~node:kt1 ~parents:[]) >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -428,10 +430,11 @@ module Make (S : S) = struct
       S.Branch.list repo >>= fun b2' ->
       check_keys "all-after-remove" [ b2 ] b2';
       S.Repo.close repo >>= fun () ->
-      try
-        ignore (S.Branch.set repo b1 kv1);
-        Alcotest.fail "Add after close should not be allowed"
-      with Irmin.Closed -> Lwt.return_unit
+      Lwt.catch
+        (fun () ->
+          S.Branch.set repo b1 kv1 >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -1176,10 +1179,11 @@ module Make (S : S) = struct
       check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
       S.master repo >>= fun t ->
       S.Repo.close repo >>= fun () ->
-      try
-        ignore (S.set_exn t ~info:(infof "add after close") [ "a" ] "bar");
-        Alcotest.fail "Add after close should not be allowed"
-      with Irmin.Closed -> Lwt.return_unit
+      Lwt.catch
+        (fun () ->
+          S.set_exn t ~info:(infof "add after close") [ "a" ] "bar"
+          >|= fun _ -> Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 

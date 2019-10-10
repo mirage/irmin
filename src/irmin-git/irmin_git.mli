@@ -40,7 +40,7 @@ val dot_git : string option Irmin.Private.Conf.key
 
 module Content_addressable (G : Git.S) (V : Irmin.Type.S) :
   Irmin.CONTENT_ADDRESSABLE_STORE
-    with type 'a t = G.t
+    with type 'a t = bool ref * G.t
      and type key = G.Hash.t
      and type value = V.t
 

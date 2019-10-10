@@ -421,9 +421,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Contents
-        module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = Closeable.Append_only (A)
-        include Check_closed_AO
+        include Closeable.Append_only (AO (Client) (Key) (Val))
       end
 
       include Irmin.Contents.Store (X)
@@ -463,9 +461,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
-        module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = Closeable.Append_only (A)
-        include Check_closed_AO
+        include Closeable.Append_only (AO (Client) (Key) (Val))
       end
 
       include Irmin.Private.Commit.Store (Node) (X)
@@ -479,9 +475,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Branch = struct
       module Key = S.Branch
       module Val = S.Hash
-      module R = RW (Client) (Key) (Val)
-      module RA = Closeable.Atomic_write (R)
-      include RA
+      include Closeable.Atomic_write (RW (Client) (Key) (Val))
 
       let v ?ctx config = v ?ctx config "branch" "branches"
     end

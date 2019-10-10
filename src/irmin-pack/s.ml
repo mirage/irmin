@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type AW = sig
+module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t

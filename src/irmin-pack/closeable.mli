@@ -18,8 +18,8 @@ module Pack (S : Pack.S) :
      and type value = S.value
      and type index = S.index
 
-module Atomic_write (AW : S.AW) :
-  S.AW
+module Atomic_write (AW : S.ATOMIC_WRITE_STORE) :
+  S.ATOMIC_WRITE_STORE
     with type key = AW.key
      and type value = AW.value
      and type watch = AW.watch

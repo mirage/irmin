@@ -401,14 +401,14 @@ module type ATOMIC_WRITE_STORE = sig
     t -> key -> ?init:value -> (value Diff.t -> unit Lwt.t) -> watch Lwt.t
 
   val unwatch : t -> watch -> unit Lwt.t
+
+  val close : t -> unit Lwt.t
 end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : Conf.t -> t Lwt.t
-
-  val close : t -> unit Lwt.t
 end
 
 module type BRANCH_STORE = sig
