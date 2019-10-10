@@ -263,7 +263,7 @@ struct
   module Contents = struct
     include Irmin.Contents.Store (XContents)
 
-    let v close t = XContents.Check_closed_contents.v close t
+    let v close t = XContents.v close t
   end
 
   module XNode = struct
@@ -440,7 +440,7 @@ struct
   module Node = struct
     include Irmin.Private.Node.Store (Contents) (P) (Metadata) (XNode)
 
-    let v close t = XNode.Check_closed_node.v close t
+    let v close t = XNode.v close t
   end
 
   module XCommit = struct
@@ -563,7 +563,7 @@ struct
   module Commit = struct
     include Irmin.Private.Commit.Store (Node) (XCommit)
 
-    let v close t = XCommit.Check_closed_commit.v close t
+    let v close t = XCommit.v close t
   end
 end
 
