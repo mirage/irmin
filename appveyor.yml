@@ -6,7 +6,7 @@ environment:
     FORK_USER: ocaml
     FORK_BRANCH: master
     CYG_ROOT: C:\cygwin64
-    OPAM_SWITCH: 4.06.1+mingw64c
+    OPAM_SWITCH: 4.07.0+mingw64c
     PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
   matrix:
     - PACKAGE: "irmin-mirage.dev"
