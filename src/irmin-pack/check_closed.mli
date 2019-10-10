@@ -10,8 +10,16 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
+(** Augments primitive store modules with close semantics *)
+
 module Pack (S : Pack.S) :
   Pack.S
     with type key = S.key
      and type value = S.value
      and type index = S.index
+
+module Atomic_write (AW : S.AW) :
+  S.AW
+    with type key = AW.key
+     and type value = AW.value
+     and type watch = AW.watch

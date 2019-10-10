@@ -298,63 +298,6 @@ end
 
 module type CONFIG = Inode.CONFIG
 
-module AW_check_closed (S : S.AW) = struct
-  type t = { closed : bool ref; t : S.t }
-
-  type key = S.key
-
-  type value = S.value
-
-  let check_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_closed t;
-    S.find t.t k
-
-  let set t k v =
-    check_closed t;
-    S.set t.t k v
-
-  let test_and_set t k ~test ~set =
-    check_closed t;
-    S.test_and_set t.t k ~test ~set
-
-  let remove t k =
-    check_closed t;
-    S.remove t.t k
-
-  let list t =
-    check_closed t;
-    S.list t.t
-
-  type watch = S.watch
-
-  let watch t ?init f =
-    check_closed t;
-    S.watch t.t ?init f
-
-  let watch_key t k ?init f =
-    check_closed t;
-    S.watch_key t.t k ?init f
-
-  let unwatch t w =
-    check_closed t;
-    S.unwatch t.t w
-
-  let v ?fresh ?readonly root =
-    S.v ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t )
-end
-
 module Make_ext
     (Config : CONFIG)
     (M : Irmin.Metadata.S)
@@ -455,7 +398,7 @@ struct
       module Key = B
       module Val = H
       module AW = Atomic_write (Key) (Val)
-      include AW_check_closed (AW)
+      include Check_closed.Atomic_write (AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
