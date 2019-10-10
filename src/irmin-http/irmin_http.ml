@@ -370,14 +370,7 @@ struct
   let close _ = Lwt.return_unit
 end
 
-module AO_check_closed
-    (AO : Append_only_store)
-    (Client : Cohttp_lwt.S.Client)
-    (K : Irmin.Hash.S)
-    (V : Irmin.Type.S) =
-struct
-  module S = AO (Client) (K) (V)
-
+module AO_check_closed (S : APPEND_ONLY_STORE) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
 
   type key = S.key
@@ -674,7 +667,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         module Key = S.Hash
         module Val = S.Contents
         module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = AO_check_closed (AO) (Client) (Key) (Val)
+        module Check_closed_AO = AO_check_closed (A)
         include Check_closed_AO
       end
 
@@ -716,7 +709,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
         module A = AO (Client) (Key) (Val)
-        module Check_closed_AO = AO_check_closed (AO) (Client) (Key) (Val)
+        module Check_closed_AO = AO_check_closed (A)
         include Check_closed_AO
       end
 
