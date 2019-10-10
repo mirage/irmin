@@ -122,14 +122,13 @@ struct
     val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   end
 
-  module type CA_MAKER = functor (V : V) -> CA with type value = V.t
-
-  module CA_check_closed (C : CA_MAKER) (V : V) : sig
-    include module type of C (V)
+  module CA_check_closed (C : CA) : sig
+    include
+      CA with type 'a t = 'a C.t and type key = C.key and type value = C.value
 
     val v : bool -> 'a t -> 'a t
   end = struct
-    module S = C (V)
+    module S = C
 
     type 'a t = 'a S.t
 
@@ -162,7 +161,7 @@ struct
       t
   end
 
-  module Content_addressable_store (V : V) = struct
+  module Content_addressable (V : V) = CA_check_closed (struct
     type 'a t = G.t
 
     type key = H.t
@@ -203,9 +202,8 @@ struct
         Fmt.failwith
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
           pp_key k pp_key k'
-  end
+  end)
 
-  module Content_addressable = CA_check_closed (Content_addressable_store)
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
 
   module XContents = struct
@@ -227,8 +225,8 @@ struct
         G.Value.blob (G.Value.Blob.of_string str)
     end
 
-    module Check_closed_contents = Content_addressable (GitContents)
-    include Check_closed_contents
+    module Contents = Content_addressable (GitContents)
+    include Contents
 
     module Val = struct
       include C
