@@ -106,62 +106,7 @@ struct
     val of_git : G.Value.t -> t option
   end
 
-  module type CA = sig
-    type 'a t
-
-    type key = H.t
-
-    type value
-
-    val mem : 'a t -> key -> bool Lwt.t
-
-    val find : 'a t -> key -> value option Lwt.t
-
-    val add : 'a t -> value -> key Lwt.t
-
-    val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-  end
-
-  module CA_check_closed (C : CA) : sig
-    include
-      CA with type 'a t = 'a C.t and type key = C.key and type value = C.value
-
-    val v : bool -> 'a t -> 'a t
-  end = struct
-    module S = C
-
-    type 'a t = 'a S.t
-
-    type key = S.key
-
-    type value = S.value
-
-    let closed = ref false
-
-    let check_closed _ = if !closed then raise Irmin.Closed
-
-    let mem t k =
-      check_closed t;
-      S.mem t k
-
-    let find t k =
-      check_closed t;
-      S.find t k
-
-    let add t v =
-      check_closed t;
-      S.add t v
-
-    let unsafe_add t k v =
-      check_closed t;
-      S.unsafe_add t k v
-
-    let v global_closed t =
-      closed := global_closed;
-      t
-  end
-
-  module Content_addressable (V : V) = CA_check_closed (struct
+  module Content_addressable (V : V) = Closeable.Content_addressable (struct
     type 'a t = G.t
 
     type key = H.t
