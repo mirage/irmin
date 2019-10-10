@@ -298,12 +298,11 @@ end
 
 module type CONFIG = Inode.CONFIG
 
-module CA_check_closed
-    (S : Pack.S)
-    (H : Irmin.Hash.S with type t = S.key)
-    (C : Irmin.Type.S with type t = S.value) :
-  Pack.S with type key = H.t and type value = C.t and type index = S.index =
-struct
+module CA_check_closed (S : Pack.S) :
+  Pack.S
+    with type key = S.key
+     and type value = S.value
+     and type index = S.index = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
 
   type key = S.key
@@ -488,7 +487,7 @@ struct
           let magic _ = magic
         end)
 
-        include CA_check_closed (CA_Pack) (H) (C)
+        include CA_check_closed (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -524,7 +523,7 @@ struct
           let magic _ = magic
         end)
 
-        include CA_check_closed (CA_Pack) (H) (Commit)
+        include CA_check_closed (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
