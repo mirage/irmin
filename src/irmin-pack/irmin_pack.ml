@@ -298,15 +298,7 @@ end
 
 module type CONFIG = Inode.CONFIG
 
-module type AW = sig
-  include Irmin.ATOMIC_WRITE_STORE
-
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-
-  val close : t -> unit Lwt.t
-end
-
-module AW_check_closed (S : AW) = struct
+module AW_check_closed (S : S.AW) = struct
   type t = { closed : bool ref; t : S.t }
 
   type key = S.key
