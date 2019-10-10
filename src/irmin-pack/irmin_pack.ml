@@ -306,11 +306,7 @@ module type AW = sig
   val close : t -> unit Lwt.t
 end
 
-module AW_check_closed
-    (K : Irmin.Type.S)
-    (V : Irmin.Hash.S)
-    (S : AW with type key = K.t and type value = V.t) =
-struct
+module AW_check_closed (S : AW) = struct
   type t = { closed : bool ref; t : S.t }
 
   type key = S.key
@@ -467,7 +463,7 @@ struct
       module Key = B
       module Val = H
       module AW = Atomic_write (Key) (Val)
-      include AW_check_closed (Key) (Val) (AW)
+      include AW_check_closed (AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
