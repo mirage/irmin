@@ -588,14 +588,7 @@ functor
     let close _ = Lwt.return_unit
   end
 
-module AW_check_closed
-    (AW : ATOMIC_WRITE_STORE_MAKER)
-    (Client : Cohttp_lwt.S.Client)
-    (K : Irmin.Branch.S)
-    (V : Irmin.Hash.S) =
-struct
-  module S = AW (Client) (K) (V)
-
+module AW_check_closed (S : ATOMIC_WRITE_STORE) = struct
   type t = { closed : bool ref; t : S.t }
 
   type key = S.key
@@ -725,7 +718,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module Key = S.Branch
       module Val = S.Hash
       module R = RW (Client) (Key) (Val)
-      module RA = AW_check_closed (RW) (Client) (Key) (Val)
+      module RA = AW_check_closed (R)
       include RA
 
       let v ?ctx config = v ?ctx config "branch" "branches"
