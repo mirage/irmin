@@ -172,6 +172,18 @@ module Make (S : S) = struct
 
   let old k () = Lwt.return_ok (Some k)
 
+  let test_two_close x () =
+    try
+      Lwt_main.run
+        ( x.init () >>= fun () ->
+          S.Repo.v x.config >>= fun repo1 ->
+          S.Repo.v x.config >>= fun repo2 ->
+          S.Repo.close repo1 >>= fun () ->
+          kv1 ~repo:repo2 >>= fun _ -> x.clean () )
+    with e ->
+      Lwt_main.run (x.clean ());
+      raise e
+
   let test_contents x () =
     let test repo =
       let t = P.Repo.contents_t repo in
@@ -1892,6 +1904,7 @@ let suite (speed, x) =
       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
       ("Concurrent merges", speed, T.test_concurrent_merges x);
       ("Shallow objects", speed, T.test_shallow_objects x);
+      ("Close a repo, keep another open", speed, T.test_two_close x);
     ] )
 
 let run name ~misc tl =
