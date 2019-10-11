@@ -722,9 +722,6 @@ struct
     (* FIXME: need to be exposed in the Git API *)
     let reference = git_of_branch br in
     let result refs =
-      (* FIXME: need pp_result *)
-      Log.debug (fun f ->
-          f "fetch result: XXX" (* Git.Sync.Result.pp_fetch r *));
       let key =
         try Some (G.Reference.Map.find reference refs) with Not_found -> None
       in
@@ -742,16 +739,15 @@ struct
     in
     S.fetch_one t e ~reference:references >|= function
     | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
-    | Ok (`Sync refs) -> result refs
-    | Ok `AlreadySync -> Ok None
+    | Ok res -> (
+        Log.debug (fun f -> f "fetch result: %a" S.pp_fetch_one res);
+        match res with `Sync refs -> result refs | `AlreadySync -> Ok None )
 
   let push t ?depth:_ e br =
     let uri = S.Endpoint.uri e in
     Log.debug (fun f -> f "push %a" Uri.pp_hum uri);
     let reference = git_of_branch br in
     let result refs =
-      (* FIXME: needs pp_push *)
-      Log.debug (fun f -> f "push result: XX" (*Git.Sync.Result.pp_push r*));
       let errors = ref [] in
       List.iter
         (function
@@ -773,7 +769,9 @@ struct
     in
     S.update_and_create t ~references e >|= function
     | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
-    | Ok r -> result r
+    | Ok r ->
+        Log.debug (fun f -> f "push result: %a" S.pp_update_and_create r);
+        result r
 end
 
 type reference =
@@ -1003,6 +1001,10 @@ module No_sync (G : Git.S) = struct
     | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t ]
 
   let pp_command _ _ = assert false
+
+  let pp_fetch_one _ _ = assert false
+
+  let pp_update_and_create _ _ = assert false
 
   let push _ = assert false
 
