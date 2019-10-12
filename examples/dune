@@ -1,11 +1,11 @@
 (executables
-  (names readme trees sync process deploy irmin_git_store custom_merge push)
+  (names readme trees sync process deploy irmin_git_store custom_merge push custom_graphql)
   (libraries checkseum.c digestif.c irmin irmin-unix))
 
 (alias
  (name examples)
  (deps readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
-       irmin_git_store.exe custom_merge.exe))
+       irmin_git_store.exe custom_merge.exe custom_graphql))
 
 (alias
  (name    runtest)
