@@ -25,6 +25,7 @@ module S = struct
 end
 
 module H = Irmin.Hash.SHA1
+module I = Index
 module Index = Irmin_pack.Index.Make (H)
 module P = Irmin_pack.Pack.File (Index) (H)
 module Pack = P.Make (S)

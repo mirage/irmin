@@ -273,9 +273,11 @@ module Pack = struct
     (*close index while in use*)
     t.clone_index_pack ~readonly:false >>= fun (i, r) ->
     Index.close i;
-    Pack.find r h1 >>= fun y1 ->
-    Alcotest.(check (option string)) "x1" None y1;
-    Pack.close r
+    Lwt.catch
+      (fun () ->
+        Pack.find r h1 >>= fun _ ->
+        Alcotest.fail "Add after closing the index should not be allowed")
+      (function I.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
 
   let tests =
     [
