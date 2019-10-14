@@ -101,6 +101,9 @@ let test_bin () =
     (T.size_of l [ "foo"; "bar" ]);
   let s = T.of_bin_string l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok [ "foo"; "bar" ]) s;
+  Alcotest.check_raises "decode error"
+    (Assert_failure ("src/irmin/type.ml", 1555, 2))
+    (fun () -> ignore (T.of_bin_string l "foobarbar"));
   let buf = Buffer.create 10 in
   T.encode_bin ~headers:true T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo";
