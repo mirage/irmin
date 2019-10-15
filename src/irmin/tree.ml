@@ -310,7 +310,6 @@ module Make (P : S.PRIVATE) = struct
       mutable value : value option;
       mutable map : map option;
       mutable hash : hash option;
-      mutable color : [ `White | `Black ];
       mutable findv_cache : map option;
     }
 
@@ -365,9 +364,8 @@ module Make (P : S.PRIVATE) = struct
         | Value (_, v, None) -> (None, None, Some v)
         | Value _ -> (None, None, None)
       in
-      let color = `White in
       let findv_cache = None in
-      let info = { hash; map; value; color; findv_cache } in
+      let info = { hash; map; value; findv_cache } in
       { v; info }
 
     let t node = Type.map node of_v (fun t -> t.v)
@@ -390,27 +388,25 @@ module Make (P : S.PRIVATE) = struct
         m
 
     and clear_info ~max_depth ?v depth i =
-      if i.color = `White then (
-        let added =
-          match v with
-          | Some (Value (_, _, Some m)) -> StepMap.bindings m
-          | _ -> []
-        in
-        let map =
-          match (v, i.map) with
-          | Some (Map m), _ | _, Some m -> StepMap.bindings m
-          | _ -> []
-        in
-        let findv =
-          match i.findv_cache with Some m -> StepMap.bindings m | None -> []
-        in
-        if depth >= max_depth && not (info_is_empty i) then (
-          i.color <- `Black;
-          i.value <- None;
-          i.map <- None;
-          i.hash <- None;
-          i.findv_cache <- None );
-        (clear_map [@tailcall]) ~max_depth depth (map @ added @ findv) )
+      let added =
+        match v with
+        | Some (Value (_, _, Some m)) -> StepMap.bindings m
+        | _ -> []
+      in
+      let map =
+        match (v, i.map) with
+        | Some (Map m), _ | _, Some m -> StepMap.bindings m
+        | _ -> []
+      in
+      let findv =
+        match i.findv_cache with Some m -> StepMap.bindings m | None -> []
+      in
+      if depth >= max_depth && not (info_is_empty i) then (
+        i.value <- None;
+        i.map <- None;
+        i.hash <- None;
+        i.findv_cache <- None );
+      (clear_map [@tailcall]) ~max_depth depth (map @ added @ findv)
 
     and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
