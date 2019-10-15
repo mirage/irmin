@@ -172,6 +172,18 @@ module Make (S : S) = struct
 
   let old k () = Lwt.return_ok (Some k)
 
+  let test_two_close x () =
+    try
+      Lwt_main.run
+        ( x.init () >>= fun () ->
+          S.Repo.v x.config >>= fun repo1 ->
+          S.Repo.v x.config >>= fun repo2 ->
+          S.Repo.close repo1 >>= fun () ->
+          kv1 ~repo:repo2 >>= fun _ -> x.clean () )
+    with e ->
+      Lwt_main.run (x.clean ());
+      raise e
+
   let test_contents x () =
     let test repo =
       let t = P.Repo.contents_t repo in
@@ -193,7 +205,12 @@ module Make (S : S) = struct
       check_val "v1" (Some v1) v1';
       P.Contents.find t kv2 >>= fun v2' ->
       check_val "v2" (Some v2) v2';
-      P.Repo.close repo
+      P.Repo.close repo >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          with_contents repo (fun t -> P.Contents.add t v2) >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -341,7 +358,14 @@ module Make (S : S) = struct
       >>= fun n2 ->
       with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1))
       >>= fun n3 ->
-      assert_no_duplicates "4" n3 >>= fun () -> Lwt.return_unit
+      assert_no_duplicates "4" n3 >>= fun () ->
+      S.Repo.close repo >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          with_node repo (fun g -> Graph.v g []) >>= fun n0 ->
+          with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0))
+          >>= fun _ -> Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -377,12 +401,19 @@ module Make (S : S) = struct
       check_keys "g1" [ kr1 ] kr1s;
       History.closure h ~min:[] ~max:[ kr2 ] >>= fun kr2s ->
       check_keys "g2" [ kr1; kr2 ] kr2s;
-      S.Commit.of_hash repo kr1 >|= function
-      | None -> Alcotest.fail "Cannot read commit hash"
-      | Some c ->
-          Alcotest.(check string)
-            "author" "test"
-            (Irmin.Info.author (S.Commit.info c))
+      (S.Commit.of_hash repo kr1 >|= function
+       | None -> Alcotest.fail "Cannot read commit hash"
+       | Some c ->
+           Alcotest.(check string)
+             "author" "test"
+             (Irmin.Info.author (S.Commit.info c)))
+      >>= fun () ->
+      S.Repo.close repo >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          with_info 3 (History.v ~node:kt1 ~parents:[]) >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -410,7 +441,12 @@ module Make (S : S) = struct
       check_val "empty" None empty;
       S.Branch.list repo >>= fun b2' ->
       check_keys "all-after-remove" [ b2 ] b2';
-      Lwt.return_unit
+      S.Repo.close repo >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          S.Branch.set repo b1 kv1 >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -1153,7 +1189,13 @@ module Make (S : S) = struct
       S.status ty |> fun tagy' ->
       check (S.Status.t repo) "tagx" (`Branch tagx) tagx';
       check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
-      Lwt.return_unit
+      S.master repo >>= fun t ->
+      S.Repo.close repo >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          S.set_exn t ~info:(infof "add after close") [ "a" ] "bar"
+          >|= fun _ -> Alcotest.fail "Add after close should not be allowed")
+        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
 
@@ -1862,6 +1904,7 @@ let suite (speed, x) =
       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
       ("Concurrent merges", speed, T.test_concurrent_merges x);
       ("Shallow objects", speed, T.test_shallow_objects x);
+      ("Close a repo, keep another open", speed, T.test_two_close x);
     ] )
 
 let run name ~misc tl =

@@ -332,7 +332,7 @@ struct
         module Key = H
         module Val = C
 
-        include Pack.Make (struct
+        module CA_Pack = Pack.Make (struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -351,6 +351,8 @@ struct
 
           let magic _ = magic
         end)
+
+        include Closeable.Pack (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -366,7 +368,7 @@ struct
         module Key = H
         module Val = Commit
 
-        include Pack.Make (struct
+        module CA_Pack = Pack.Make (struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -385,6 +387,8 @@ struct
 
           let magic _ = magic
         end)
+
+        include Closeable.Pack (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -393,7 +397,8 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include Atomic_write (Key) (Val)
+      module AW = Atomic_write (Key) (Val)
+      include Closeable.Atomic_write (AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)

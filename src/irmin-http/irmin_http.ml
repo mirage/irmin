@@ -112,7 +112,10 @@ let of_json = Irmin.Type.of_json_string
 
 let to_json = Irmin.Type.to_json_string
 
-module Helper (Client : Cohttp_lwt.S.Client) = struct
+module Helper (Client : Cohttp_lwt.S.Client) :
+  S.HELPER with type ctx = Client.ctx = struct
+  type ctx = Client.ctx
+
   let err_bad_version v =
     invalid_arg "bad server version: expecting %s, but got %s" Irmin.version
       (match v with None -> "<none>" | Some v -> v)
@@ -184,8 +187,13 @@ module Helper (Client : Cohttp_lwt.S.Client) = struct
     map_call meth t ctx ~keep_alive:true ?body path (map_stream_response parse)
 end
 
-module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =
-struct
+module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
+  S.READ_ONLY_STORE
+    with type ctx = Client.ctx
+     and type key = K.t
+     and type value = V.t = struct
+  type ctx = Client.ctx
+
   module HTTP = Helper (Client)
 
   type 'a t = {
@@ -244,149 +252,160 @@ struct
       [ "unsafe"; t.items; key_str key ]
       ~body
       Irmin.Type.(of_string unit)
+
+  let close _ = Lwt.return_unit
 end
 
-module RW (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) =
-struct
-  module RO = RO (Client) (K) (V)
-  module HTTP = RO.HTTP
-  module W = Irmin.Private.Watch.Make (K) (V)
+module RW : S.ATOMIC_WRITE_STORE_MAKER =
+functor
+  (Client : Cohttp_lwt.S.Client)
+  (K : Irmin.Type.S)
+  (V : Irmin.Type.S)
+  ->
+  struct
+    module RO = RO (Client) (K) (V)
+    module HTTP = RO.HTTP
+    module W = Irmin.Private.Watch.Make (K) (V)
 
-  type key = RO.key
+    type key = RO.key
 
-  type value = RO.value
+    type value = RO.value
 
-  type watch = W.watch
+    type watch = W.watch
 
-  (* cache the stream connections to the server: we open only one
+    type ctx = Client.ctx
+
+    (* cache the stream connections to the server: we open only one
      connection per stream kind. *)
-  type cache = { mutable stop : unit -> unit }
+    type cache = { mutable stop : unit -> unit }
 
-  let empty_cache () = { stop = (fun () -> ()) }
+    let empty_cache () = { stop = (fun () -> ()) }
 
-  type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
+    type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
 
-  let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
+    let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
 
-  let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
+    let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
 
-  let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
+    let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
 
-  let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
+    let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
 
-  let v ?ctx uri item items =
-    RO.v ?ctx uri item items >>= fun t ->
-    let w = W.v () in
-    let keys = empty_cache () in
-    let glob = empty_cache () in
-    Lwt.return { t; w; keys; glob }
+    let v ?ctx uri item items =
+      RO.v ?ctx uri item items >>= fun t ->
+      let w = W.v () in
+      let keys = empty_cache () in
+      let glob = empty_cache () in
+      Lwt.return { t; w; keys; glob }
 
-  let find t = RO.find t.t
+    let find t = RO.find t.t
 
-  let mem t = RO.mem t.t
+    let mem t = RO.mem t.t
 
-  let key_str = Irmin.Type.to_string K.t
+    let key_str = Irmin.Type.to_string K.t
 
-  let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
+    let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
 
-  let set t key value =
-    let value = { v = Some value; set = None; test = None } in
-    let body = to_json (set_t V.t) value in
-    put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-    | "ok" -> Lwt.return_unit
-    | e -> Lwt.fail_with e
+    let set t key value =
+      let value = { v = Some value; set = None; test = None } in
+      let body = to_json (set_t V.t) value in
+      put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
+      | "ok" -> Lwt.return_unit
+      | e -> Lwt.fail_with e
 
-  let test_and_set t key ~test ~set =
-    let value = { v = None; set; test } in
-    let body = to_json (set_t V.t) value in
-    put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-    | "true" -> Lwt.return_true
-    | "false" -> Lwt.return_false
-    | e -> Lwt.fail_with e
+    let test_and_set t key ~test ~set =
+      let value = { v = None; set; test } in
+      let body = to_json (set_t V.t) value in
+      put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
+      | "true" -> Lwt.return_true
+      | "false" -> Lwt.return_false
+      | e -> Lwt.fail_with e
 
-  let remove t key =
-    HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
-      [ RO.item t.t; key_str key ] (fun (r, b) ->
-        match Cohttp.Response.status r with
-        | `Not_found | `OK -> Lwt.return_unit
-        | _ ->
-            Cohttp_lwt.Body.to_string b >>= fun b ->
-            Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" (Irmin.Type.pp K.t)
-              key b)
+    let remove t key =
+      HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
+        [ RO.item t.t; key_str key ] (fun (r, b) ->
+          match Cohttp.Response.status r with
+          | `Not_found | `OK -> Lwt.return_unit
+          | _ ->
+              Cohttp_lwt.Body.to_string b >>= fun b ->
+              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s"
+                (Irmin.Type.pp K.t) key b)
 
-  let nb_keys t = fst (W.stats t.w)
+    let nb_keys t = fst (W.stats t.w)
 
-  let nb_glob t = snd (W.stats t.w)
+    let nb_glob t = snd (W.stats t.w)
 
-  (* run [t] and returns an handler to stop the task. *)
-  let stoppable t =
-    let s, u = Lwt.task () in
-    Lwt.async (fun () -> Lwt.pick [ s; t () ]);
-    function () -> Lwt.wakeup u ()
+    (* run [t] and returns an handler to stop the task. *)
+    let stoppable t =
+      let s, u = Lwt.task () in
+      Lwt.async (fun () -> Lwt.pick [ s; t () ]);
+      function () -> Lwt.wakeup u ()
 
-  let watch_key t key ?init f =
-    let key_str = Irmin.Type.to_string K.t key in
-    let init_stream () =
-      if nb_keys t <> 0 then Lwt.return_unit
-      else
-        ( match init with
-        | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
-        | Some init ->
-            let body = to_json V.t init in
-            post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t) )
-        >>= fun s ->
-        let stop () =
-          Lwt_stream.iter_s
-            (fun (_, v) ->
-              let v =
-                match v with
-                | `Removed _ -> None
-                | `Added v | `Updated (_, v) -> Some v
-              in
-              W.notify t.w key v)
-            s
-        in
-        t.keys.stop <- stoppable stop;
-        Lwt.return_unit
-    in
-    init_stream () >>= fun () -> W.watch_key t.w key ?init f
+    let watch_key t key ?init f =
+      let key_str = Irmin.Type.to_string K.t key in
+      let init_stream () =
+        if nb_keys t <> 0 then Lwt.return_unit
+        else
+          ( match init with
+          | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
+          | Some init ->
+              let body = to_json V.t init in
+              post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t) )
+          >>= fun s ->
+          let stop () =
+            Lwt_stream.iter_s
+              (fun (_, v) ->
+                let v =
+                  match v with
+                  | `Removed _ -> None
+                  | `Added v | `Updated (_, v) -> Some v
+                in
+                W.notify t.w key v)
+              s
+          in
+          t.keys.stop <- stoppable stop;
+          Lwt.return_unit
+      in
+      init_stream () >>= fun () -> W.watch_key t.w key ?init f
 
-  let watch t ?init f =
-    let init_stream () =
-      if nb_glob t <> 0 then Lwt.return_unit
-      else
-        ( match init with
-        | None -> get_stream t [ "watches" ] (event_t K.t V.t)
-        | Some init ->
-            let body = to_json T.(list (init_t K.t V.t)) init in
-            post_stream t [ "watches" ] ~body (event_t K.t V.t) )
-        >>= fun s ->
-        let stop () =
-          Lwt_stream.iter_s
-            (fun (k, v) ->
-              let v =
-                match v with
-                | `Removed _ -> None
-                | `Added v | `Updated (_, v) -> Some v
-              in
-              W.notify t.w k v)
-            s
-        in
-        t.glob.stop <- stoppable stop;
-        Lwt.return_unit
-    in
-    init_stream () >>= fun () -> W.watch t.w ?init f
+    let watch t ?init f =
+      let init_stream () =
+        if nb_glob t <> 0 then Lwt.return_unit
+        else
+          ( match init with
+          | None -> get_stream t [ "watches" ] (event_t K.t V.t)
+          | Some init ->
+              let body = to_json T.(list (init_t K.t V.t)) init in
+              post_stream t [ "watches" ] ~body (event_t K.t V.t) )
+          >>= fun s ->
+          let stop () =
+            Lwt_stream.iter_s
+              (fun (k, v) ->
+                let v =
+                  match v with
+                  | `Removed _ -> None
+                  | `Added v | `Updated (_, v) -> Some v
+                in
+                W.notify t.w k v)
+              s
+          in
+          t.glob.stop <- stoppable stop;
+          Lwt.return_unit
+      in
+      init_stream () >>= fun () -> W.watch t.w ?init f
 
-  let stop x =
-    let () = try x.stop () with _e -> () in
-    x.stop <- (fun () -> ())
+    let stop x =
+      let () = try x.stop () with _e -> () in
+      x.stop <- (fun () -> ())
 
-  let unwatch t id =
-    W.unwatch t.w id >>= fun () ->
-    if nb_keys t = 0 then stop t.keys;
-    if nb_glob t = 0 then stop t.glob;
-    Lwt.return_unit
-end
+    let unwatch t id =
+      W.unwatch t.w id >>= fun () ->
+      if nb_keys t = 0 then stop t.keys;
+      if nb_glob t = 0 then stop t.glob;
+      Lwt.return_unit
+
+    let close _ = Lwt.return_unit
+  end
 
 module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client
@@ -402,7 +421,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Contents
-        include AO (Client) (Key) (Val)
+        include Closeable.Append_only (AO (Client) (Key) (Val))
       end
 
       include Irmin.Contents.Store (X)
@@ -442,7 +461,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
-        include AO (Client) (Key) (Val)
+        include Closeable.Append_only (AO (Client) (Key) (Val))
       end
 
       include Irmin.Private.Commit.Store (Node) (X)
@@ -456,7 +475,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Branch = struct
       module Key = S.Branch
       module Val = S.Hash
-      include RW (Client) (Key) (Val)
+      include Closeable.Atomic_write (RW (Client) (Key) (Val))
 
       let v ?ctx config = v ?ctx config "branch" "branches"
     end
@@ -495,7 +514,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
 
-      let close _ = Lwt.return_unit
+      let close t =
+        Contents.X.close t.contents >>= fun () ->
+        Branch.close t.branch >>= fun () -> Commit.X.close (snd t.commit)
     end
   end
 

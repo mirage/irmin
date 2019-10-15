@@ -949,6 +949,10 @@ module type ATOMIC_WRITE_STORE = sig
 
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
+
+  val close : t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any
+      operations run on a closed store will raise {!Closed}. *)
 end
 
 (** {1 User-Defined Contents} *)
@@ -2131,6 +2135,10 @@ end
     }
 *)
 
+exception Closed
+(** The exception raised when any operation is attempted on a closed store,
+    except for {!S.close}, which is idempotent. *)
+
 (** Irmin stores. *)
 module type S = sig
   (** {1 Irmin stores}
@@ -2210,7 +2218,7 @@ module type S = sig
 
     val close : t -> unit Lwt.t
     (** [close t] frees up all resources associated with [t]. Any
-        operations run on a closed repository will raise [Closed]. *)
+        operations run on a closed repository will raise {!Closed}. *)
 
     val heads : t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -3591,7 +3599,7 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
 
   val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise [Closed].*)
+      operations run on a closed store will raise {!Closed}. *)
 end
 
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
@@ -3613,7 +3621,7 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
 
   val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise [Closed].*)
+      operations run on a closed store will raise {!Closed}. *)
 end
 
 module Content_addressable
@@ -3636,7 +3644,7 @@ module Content_addressable
 
   val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise [Closed]. *)
+      operations run on a closed store will raise {!Closed}. *)
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write
@@ -3648,10 +3656,6 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   val v : config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
-
-  val close : t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise [Closed]. *)
 end
 
 module Make

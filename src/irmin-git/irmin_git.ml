@@ -106,7 +106,7 @@ struct
     val of_git : G.Value.t -> t option
   end
 
-  module Content_addressable (V : V) = struct
+  module Content_addressable (V : V) = Closeable.Content_addressable (struct
     type 'a t = G.t
 
     type key = H.t
@@ -147,7 +147,7 @@ struct
         Fmt.failwith
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
           pp_key k pp_key k'
-  end
+  end)
 
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
 
@@ -516,183 +516,211 @@ module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
 end
 
-module Irmin_branch_store (G : Git.S) (B : BRANCH) = struct
-  module Key = B
-  module Val = Irmin.Hash.Make (G.Hash)
-  module W = Irmin.Private.Watch.Make (Key) (Val)
+module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
+  module Key : BRANCH with type t = B.t
 
-  type t = {
-    bare : bool;
-    dot_git : Fpath.t;
-    git_head : G.Reference.head_contents;
-    t : G.t;
-    w : W.t;
-    m : Lwt_mutex.t;
-  }
+  module Val : Irmin.Hash.S with type t = G.Hash.t
 
-  let watches = Hashtbl.create 10
+  module W : Irmin.Private.Watch.S with type key = Key.t and type value = Val.t
 
-  type key = Key.t
+  include
+    Irmin.ATOMIC_WRITE_STORE with type key = Key.t and type value = W.value
 
-  type value = Val.t
+  val v :
+    ?lock:Lwt_mutex.t ->
+    head:G.Reference.t option ->
+    bare:bool ->
+    G.t ->
+    t Lwt.t
+end
 
-  type watch = W.watch * (unit -> unit Lwt.t)
+module Irmin_branch_store : ATOMIC_WRITE_STORE =
+functor
+  (G : Git.S)
+  (B : BRANCH)
+  ->
+  struct
+    module Key = B
+    module Val = Irmin.Hash.Make (G.Hash)
+    module W = Irmin.Private.Watch.Make (Key) (Val)
 
-  let branch_of_git r =
-    let str = String.trim @@ G.Reference.to_string r in
-    match B.of_ref str with Ok r -> Some r | Error (`Msg _) -> None
+    type t = {
+      bare : bool;
+      dot_git : Fpath.t;
+      git_head : G.Reference.head_contents;
+      t : G.t;
+      w : W.t;
+      m : Lwt_mutex.t;
+    }
 
-  let git_of_branch r = G.Reference.of_string (Fmt.to_to_string B.pp_ref r)
+    let watches = Hashtbl.create 10
 
-  let pp_key = Irmin.Type.pp Key.t
+    type key = Key.t
 
-  let mem { t; _ } r =
-    Log.debug (fun l -> l "mem %a" pp_key r);
-    G.Ref.mem t (git_of_branch r)
+    type value = Val.t
 
-  let find { t; _ } r =
-    Log.debug (fun l -> l "find %a" pp_key r);
-    G.Ref.resolve t (git_of_branch r) >>= function
-    | Error `Not_found -> Lwt.return_none
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    | Ok k -> Lwt.return_some k
+    type watch = W.watch * (unit -> unit Lwt.t)
 
-  let listen_dir t =
-    let ( / ) = Filename.concat in
-    if G.has_global_watches then
-      let dir = Fpath.(to_string @@ (t.dot_git / "refs")) in
-      let key file =
-        match B.of_ref ("refs" / file) with
-        | Ok x -> Some x
-        | Error (`Msg e) ->
-            Log.err (fun l -> l "listen: file %s: %s" file e);
-            None
-      in
-      W.listen_dir t.w dir ~key ~value:(find t)
-    else Lwt.return (fun () -> Lwt.return_unit)
+    let branch_of_git r =
+      let str = String.trim @@ G.Reference.to_string r in
+      match B.of_ref str with Ok r -> Some r | Error (`Msg _) -> None
 
-  let watch_key t key ?init f =
-    Log.debug (fun l -> l "watch_key %a" pp_key key);
-    listen_dir t >>= fun stop ->
-    W.watch_key t.w key ?init f >|= fun w -> (w, stop)
+    let git_of_branch r = G.Reference.of_string (Fmt.to_to_string B.pp_ref r)
 
-  let watch t ?init f =
-    Log.debug (fun l -> l "watch");
-    listen_dir t >>= fun stop ->
-    W.watch t.w ?init f >|= fun w -> (w, stop)
+    let pp_key = Irmin.Type.pp Key.t
 
-  let unwatch t (w, stop) = stop () >>= fun () -> W.unwatch t.w w
+    let mem { t; _ } r =
+      Log.debug (fun l -> l "mem %a" pp_key r);
+      G.Ref.mem t (git_of_branch r)
 
-  let v ?lock ~head ~bare t =
-    let m = match lock with None -> Lwt_mutex.create () | Some l -> l in
-    let dot_git = G.dotgit t in
-    let write_head head =
-      let head = G.Reference.Ref head in
-      (( if G.has_global_checkout then
-         Lwt_mutex.with_lock m (fun () -> G.Ref.write t G.Reference.head head)
-       else Lwt.return_ok () )
-       >|= function
-       | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
-       | Ok () -> ())
-      >|= fun () -> head
-    in
-    ( match head with
-    | Some h -> write_head h
-    | None -> (
-        G.Ref.read t G.Reference.head >>= function
-        | Error `Not_found -> write_head (git_of_branch B.master)
-        | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-        | Ok r -> Lwt.return r ) )
-    >|= fun git_head ->
-    let w =
-      try Hashtbl.find watches (G.dotgit t)
-      with Not_found ->
-        let w = W.v () in
-        Hashtbl.add watches (G.dotgit t) w;
-        w
-    in
-    { git_head; bare; t; w; dot_git; m }
-
-  let list { t; _ } =
-    Log.debug (fun l -> l "list");
-    G.Ref.list t >|= fun refs ->
-    List.fold_left
-      (fun acc (r, _) ->
-        match branch_of_git r with None -> acc | Some r -> r :: acc)
-      [] refs
-
-  let write_index t gr gk =
-    Log.debug (fun l -> l "write_index");
-    if G.has_global_checkout then Log.debug (fun f -> f "write_index");
-    let git_head = G.Reference.Ref gr in
-    Log.debug (fun f ->
-        f "write_index/if bare=%b head=%a" t.bare G.Reference.pp gr);
-    if (not t.bare) && git_head = t.git_head then (
-      Log.debug (fun f -> f "write cache (%a)" G.Reference.pp gr);
-
-      (* FIXME G.write_index t.t gk *)
-      let _ = gk in
-      Lwt.return_unit )
-    else Lwt.return_unit
-
-  let pp_branch = Irmin.Type.pp B.t
-
-  let set t r k =
-    Log.debug (fun f -> f "set %a" pp_branch r);
-    let gr = git_of_branch r in
-    Lwt_mutex.with_lock t.m (fun () -> G.Ref.write t.t gr (G.Reference.Hash k))
-    >>= function
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    | Ok () -> W.notify t.w r (Some k) >>= fun () -> write_index t gr k
-
-  let remove t r =
-    Log.debug (fun f -> f "remove %a" pp_branch r);
-    Lwt_mutex.with_lock t.m (fun () -> G.Ref.remove t.t (git_of_branch r))
-    >>= function
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    | Ok () -> W.notify t.w r None
-
-  let eq_head_contents_opt x y =
-    match (x, y) with
-    | None, None -> true
-    | Some x, Some y -> G.Reference.equal_head_contents x y
-    | _ -> false
-
-  let test_and_set t r ~test ~set =
-    Log.debug (fun f -> f "test_and_set %a" pp_branch r);
-    let gr = git_of_branch r in
-    let c = function None -> None | Some h -> Some (G.Reference.Hash h) in
-    let ok = function
-      | Ok () -> Lwt.return_true
+    let find { t; _ } r =
+      Log.debug (fun l -> l "find %a" pp_key r);
+      G.Ref.resolve t (git_of_branch r) >>= function
+      | Error `Not_found -> Lwt.return_none
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-    in
-    Lwt_mutex.with_lock t.m (fun () ->
-        (G.Ref.read t.t gr >>= function
-         | Error `Not_found -> Lwt.return_none
-         | Ok x -> Lwt.return_some x
-         | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e)
-        >>= fun x ->
-        ( if not (eq_head_contents_opt x (c test)) then Lwt.return_false
-        else
-          match c set with
-          | None -> G.Ref.remove t.t gr >>= ok
-          | Some h -> G.Ref.write t.t gr h >>= ok )
-        >>= fun b ->
-        (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
-        ( if
-          (* We do not protect [write_index] because it can take a long
+      | Ok k -> Lwt.return_some k
+
+    let listen_dir t =
+      let ( / ) = Filename.concat in
+      if G.has_global_watches then
+        let dir = Fpath.(to_string @@ (t.dot_git / "refs")) in
+        let key file =
+          match B.of_ref ("refs" / file) with
+          | Ok x -> Some x
+          | Error (`Msg e) ->
+              Log.err (fun l -> l "listen: file %s: %s" file e);
+              None
+        in
+        W.listen_dir t.w dir ~key ~value:(find t)
+      else Lwt.return (fun () -> Lwt.return_unit)
+
+    let watch_key t key ?init f =
+      Log.debug (fun l -> l "watch_key %a" pp_key key);
+      listen_dir t >>= fun stop ->
+      W.watch_key t.w key ?init f >|= fun w -> (w, stop)
+
+    let watch t ?init f =
+      Log.debug (fun l -> l "watch");
+      listen_dir t >>= fun stop ->
+      W.watch t.w ?init f >|= fun w -> (w, stop)
+
+    let unwatch t (w, stop) = stop () >>= fun () -> W.unwatch t.w w
+
+    let v ?lock ~head ~bare t =
+      let m = match lock with None -> Lwt_mutex.create () | Some l -> l in
+      let dot_git = G.dotgit t in
+      let write_head head =
+        let head = G.Reference.Ref head in
+        (( if G.has_global_checkout then
+           Lwt_mutex.with_lock m (fun () ->
+               G.Ref.write t G.Reference.head head)
+         else Lwt.return_ok () )
+         >|= function
+         | Error e ->
+             Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
+         | Ok () -> ())
+        >|= fun () -> head
+      in
+      ( match head with
+      | Some h -> write_head h
+      | None -> (
+          G.Ref.read t G.Reference.head >>= function
+          | Error `Not_found -> write_head (git_of_branch B.master)
+          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+          | Ok r -> Lwt.return r ) )
+      >|= fun git_head ->
+      let w =
+        try Hashtbl.find watches (G.dotgit t)
+        with Not_found ->
+          let w = W.v () in
+          Hashtbl.add watches (G.dotgit t) w;
+          w
+      in
+      { git_head; bare; t; w; dot_git; m }
+
+    let list { t; _ } =
+      Log.debug (fun l -> l "list");
+      G.Ref.list t >|= fun refs ->
+      List.fold_left
+        (fun acc (r, _) ->
+          match branch_of_git r with None -> acc | Some r -> r :: acc)
+        [] refs
+
+    let write_index t gr gk =
+      Log.debug (fun l -> l "write_index");
+      if G.has_global_checkout then Log.debug (fun f -> f "write_index");
+      let git_head = G.Reference.Ref gr in
+      Log.debug (fun f ->
+          f "write_index/if bare=%b head=%a" t.bare G.Reference.pp gr);
+      if (not t.bare) && git_head = t.git_head then (
+        Log.debug (fun f -> f "write cache (%a)" G.Reference.pp gr);
+
+        (* FIXME G.write_index t.t gk *)
+        let _ = gk in
+        Lwt.return_unit )
+      else Lwt.return_unit
+
+    let pp_branch = Irmin.Type.pp B.t
+
+    let set t r k =
+      Log.debug (fun f -> f "set %a" pp_branch r);
+      let gr = git_of_branch r in
+      Lwt_mutex.with_lock t.m (fun () ->
+          G.Ref.write t.t gr (G.Reference.Hash k))
+      >>= function
+      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Ok () -> W.notify t.w r (Some k) >>= fun () -> write_index t gr k
+
+    let remove t r =
+      Log.debug (fun f -> f "remove %a" pp_branch r);
+      Lwt_mutex.with_lock t.m (fun () -> G.Ref.remove t.t (git_of_branch r))
+      >>= function
+      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Ok () -> W.notify t.w r None
+
+    let eq_head_contents_opt x y =
+      match (x, y) with
+      | None, None -> true
+      | Some x, Some y -> G.Reference.equal_head_contents x y
+      | _ -> false
+
+    let test_and_set t r ~test ~set =
+      Log.debug (fun f -> f "test_and_set %a" pp_branch r);
+      let gr = git_of_branch r in
+      let c = function None -> None | Some h -> Some (G.Reference.Hash h) in
+      let ok = function
+        | Ok () -> Lwt.return_true
+        | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      in
+      Lwt_mutex.with_lock t.m (fun () ->
+          (G.Ref.read t.t gr >>= function
+           | Error `Not_found -> Lwt.return_none
+           | Ok x -> Lwt.return_some x
+           | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e)
+          >>= fun x ->
+          ( if not (eq_head_contents_opt x (c test)) then Lwt.return_false
+          else
+            match c set with
+            | None -> G.Ref.remove t.t gr >>= ok
+            | Some h -> G.Ref.write t.t gr h >>= ok )
+          >>= fun b ->
+          (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
+          ( if
+            (* We do not protect [write_index] because it can take a long
              time and we don't want to hold the lock for too long. Would
              be safer to grab a lock, although the expanded filesystem
              is not critical for Irmin consistency (it's only a
              convenience for the user). *)
-          b
-        then
-          match set with
-          | None -> Lwt.return_unit
-          | Some v -> write_index t gr v
-        else Lwt.return_unit )
-        >|= fun () -> b)
-end
+            b
+          then
+            match set with
+            | None -> Lwt.return_unit
+            | Some v -> write_index t gr v
+          else Lwt.return_unit )
+          >|= fun () -> b)
+
+    let close _ = Lwt.return_unit
+  end
 
 module Irmin_sync_store
     (G : Git.S)
@@ -853,6 +881,73 @@ module type G = sig
     (t, error) result Lwt.t
 end
 
+module AW_check_closed (AW : ATOMIC_WRITE_STORE) : ATOMIC_WRITE_STORE =
+functor
+  (G : Git.S)
+  (B : BRANCH)
+  ->
+  struct
+    module Key = B
+    module Val = Irmin.Hash.Make (G.Hash)
+    module W = Irmin.Private.Watch.Make (Key) (Val)
+    module S = AW (G) (B)
+
+    type t = { closed : bool ref; t : S.t }
+
+    type key = S.key
+
+    type value = S.value
+
+    let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+
+    let mem t k =
+      check_not_closed t;
+      S.mem t.t k
+
+    let find t k =
+      check_not_closed t;
+      S.find t.t k
+
+    let set t k v =
+      check_not_closed t;
+      S.set t.t k v
+
+    let test_and_set t k ~test ~set =
+      check_not_closed t;
+      S.test_and_set t.t k ~test ~set
+
+    let remove t k =
+      check_not_closed t;
+      S.remove t.t k
+
+    let list t =
+      check_not_closed t;
+      S.list t.t
+
+    type watch = S.watch
+
+    let watch t ?init f =
+      check_not_closed t;
+      S.watch t.t ?init f
+
+    let watch_key t k ?init f =
+      check_not_closed t;
+      S.watch_key t.t k ?init f
+
+    let unwatch t w =
+      check_not_closed t;
+      S.unwatch t.t w
+
+    let v ?lock ~head ~bare t =
+      S.v ?lock ~head ~bare t >|= fun t -> { closed = ref false; t }
+
+    let close t =
+      if !(t.closed) then Lwt.return_unit
+      else (
+        t.closed := true;
+        S.close t.t )
+  end
+
 module Make_ext
     (G : G)
     (S : Git.Sync.S with module Store := G)
@@ -860,9 +955,9 @@ module Make_ext
     (P : Irmin.Path.S)
     (B : BRANCH) =
 struct
-  module R = Irmin_branch_store (G) (B)
+  module R = AW_check_closed (Irmin_branch_store) (G) (B)
 
-  type r = { config : Irmin.config; g : G.t; b : R.t }
+  type r = { config : Irmin.config; closed : bool ref; g : G.t; b : R.t }
 
   module P = struct
     module Hash = Irmin.Hash.Make (G.Hash)
@@ -883,11 +978,11 @@ struct
 
       let branch_t t = t.b
 
-      let contents_t t = t.g
+      let contents_t t : 'a Contents.t = (t.closed, t.g)
 
-      let node_t t = (contents_t t, t.g)
+      let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
 
-      let commit_t t = (node_t t, t.g)
+      let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
 
       let batch t f = f (contents_t t) (node_t t) (commit_t t)
 
@@ -926,9 +1021,11 @@ struct
         in
         G.v ?dotgit ?compression:level ?buffers root >>= function
         | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-        | Ok g -> R.v ~head ~bare g >|= fun b -> { g; b; config = conf }
+        | Ok g ->
+            R.v ~head ~bare g >|= fun b ->
+            { g; b; closed = ref false; config = conf }
 
-      let close _ = Lwt.return_unit
+      let close t = R.close t.b >|= fun () -> t.closed := true
     end
   end
 
@@ -946,7 +1043,7 @@ struct
 
   let repo_of_git ?head ?(bare = true) ?lock g =
     R.v ?lock ~head ~bare g >|= fun b ->
-    { config = Irmin.Private.Conf.empty; g; b }
+    { config = Irmin.Private.Conf.empty; closed = ref false; g; b }
 end
 
 module Mem = struct
@@ -1040,9 +1137,9 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
     Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
   module X = M.Private.Contents
 
-  let state t = M.repo_of_git t >|= fun r -> M.Private.Repo.contents_t r
+  let state t = M.repo_of_git (snd t) >|= fun r -> M.Private.Repo.contents_t r
 
-  type 'a t = G.t
+  type 'a t = bool ref * G.t
 
   type key = X.key
 
@@ -1077,8 +1174,7 @@ module Atomic_write (G : Git.S) (K : Irmin.Branch.S) = struct
       | Error (`Msg e) -> failwith e
   end
 
-  module B = Branch (K)
-  include Irmin_branch_store (G) (B)
+  include AW_check_closed (Irmin_branch_store) (G) (Branch (K))
 end
 
 module KV
