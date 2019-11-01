@@ -15,10 +15,10 @@
  *)
 
 module Info (C : Mirage_clock.PCLOCK) = struct
-  let f ~author c fmt =
+  let f ~author fmt =
     Fmt.kstrf
       (fun msg () ->
-        C.now_d_ps c |> Ptime.v |> Ptime.to_float_s |> Int64.of_float
+        C.now_d_ps () |> Ptime.v |> Ptime.to_float_s |> Int64.of_float
         |> fun date -> Irmin.Info.v ~date ~author msg)
       fmt
 end

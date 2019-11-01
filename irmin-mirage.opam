@@ -18,7 +18,7 @@ depends: [
   "irmin"      {=version}
   "irmin-mem"  {=version}
   "ptime"
-  "mirage-clock" {>= "2.0.0"}
+  "mirage-clock" {>= "3.0.0"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
