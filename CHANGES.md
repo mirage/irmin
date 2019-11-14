@@ -1,4 +1,4 @@
-### unreleased
+### 2.0.0
 
 #### Added
 
@@ -120,7 +120,7 @@
     operations. (#552, @samoht)
 
   - Simplify the error cases of fetch/pull/push operations. (#684, @zshipko)
-  
+
   - A `batch` function has been added to the backend definition to allow for
     better control over how groups of operations are processed. (#609, @samoht)
 
