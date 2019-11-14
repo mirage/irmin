@@ -16,10 +16,10 @@ build: [
 depends: [
   "ocaml"      {>= "4.02.3"}
   "dune"       {>= "1.1.0"}
-  "irmin"      {=version}
+  "irmin"      {>= "2.0.0"}
   "lwt"
-  "irmin-mem"  {with-test & =version}
-  "irmin-test" {with-test & =version}
+  "irmin-mem"  {with-test & >= "2.0.0"}
+  "irmin-test" {with-test & >= "2.0.0"}
 ]
 
 synopsis: "Irmin backend which allow to store values into chunks"
