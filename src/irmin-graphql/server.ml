@@ -42,58 +42,96 @@ module type CONFIG = sig
     ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 
-module type PRESENTER = sig
+module type CUSTOM_TYPE = sig
   type t
 
-  type key
+  val schema_typ : (unit, t option) Schema.typ
 
-  type tree
-
-  type src
-
-  val to_src : tree -> key -> t -> src
-
-  val schema_typ : (unit, src option) Schema.typ
+  val arg_typ : t option Schema.Arg.arg_typ
 end
 
-module type PRESENTATION = sig
-  type tree
-
+module type CUSTOM_TYPES = sig
   type key
-
-  type contents
 
   type metadata
 
-  module Contents :
-    PRESENTER with type tree := tree and type key := key and type t := contents
+  type contents
 
-  module Metadata :
-    PRESENTER with type tree := tree and type key := key and type t := metadata
+  type hash
+
+  type branch
+
+  module Key : CUSTOM_TYPE with type t := key
+
+  module Metadata : CUSTOM_TYPE with type t := metadata
+
+  module Contents : CUSTOM_TYPE with type t := contents
+
+  module Hash : CUSTOM_TYPE with type t := hash
+
+  module Branch : CUSTOM_TYPE with type t := branch
 end
 
-module Default_presenter (T : Irmin.Type.S) = struct
-  type src = string
+module Default_type (T : sig
+  include Irmin.Type.S
 
-  let to_src _tree _key = Irmin.Type.to_string T.t
+  val name : string
+end) =
+struct
+  let schema_typ =
+    let coerce t = `String (Irmin.Type.to_string T.t t) in
+    Schema.scalar T.name ~coerce
 
-  let schema_typ = Schema.string
+  let arg_typ =
+    let coerce = function
+      | `String s -> of_irmin_result (Irmin.Type.of_string T.t s)
+      | _ -> Error "Invalid input value"
+    in
+    Schema.Arg.scalar T.name ~coerce
 end
 
-module Default_presentation (S : Irmin.S) = struct
-  module Contents = Default_presenter (S.Contents)
-  module Metadata = Default_presenter (S.Metadata)
+module Default_types (S : Irmin.S) = struct
+  module Key = Default_type (struct
+    include S.Key
+
+    let name = "Key"
+  end)
+
+  module Metadata = Default_type (struct
+    include S.Metadata
+
+    let name = "Metadata"
+  end)
+
+  module Contents = Default_type (struct
+    include S.Contents
+
+    let name = "Contents"
+  end)
+
+  module Hash = Default_type (struct
+    include S.Hash
+
+    let name = "Hash"
+  end)
+
+  module Branch = Default_type (struct
+    include S.Branch
+
+    let name = "Branch"
+  end)
 end
 
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.S)
-    (Presentation : PRESENTATION
-                      with type contents := Store.contents
-                       and type metadata := Store.metadata
-                       and type tree := Store.tree
-                       and type key := Store.key) =
+    (Types : CUSTOM_TYPES
+               with type key := Store.key
+                and type metadata := Store.metadata
+                and type contents := Store.contents
+                and type hash := Store.hash
+                and type branch := Store.branch) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync (Store)
@@ -152,44 +190,24 @@ struct
     | Some (step, key'') -> concat_key (Store.Key.cons step key) key''
 
   module Input = struct
-    let coerce_key = function
-      | `String s -> of_irmin_result (Irmin.Type.of_string Store.key_t s)
-      | _ -> Error "invalid key encoding"
-
-    let coerce_value = function
-      | `String s -> of_irmin_result (Irmin.Type.of_string Store.contents_t s)
-      | _ -> Error "invalid value encoding"
-
-    let coerce_metadata = function
-      | `String s -> of_irmin_result (Irmin.Type.of_string Store.metadata_t s)
-      | _ -> Error "invalid metadata encoding"
-
-    let coerce_branch = function
-      | `String s -> of_irmin_result @@ Irmin.Type.of_string Store.branch_t s
-      | _ -> Error "invalid branch encoding"
-
     let coerce_remote = function
       | `String s -> (
           match Config.remote with
           | Some remote -> Ok (remote s)
           | None -> Error "sync is not available" )
-      | _ -> Error "invalid remote encoding"
-
-    let coerce_hash = function
-      | `String s -> of_irmin_result @@ Irmin.Type.of_string Store.Hash.t s
-      | _ -> Error "invalid hash encoding"
-
-    let key = Schema.Arg.(scalar "Key" ~coerce:coerce_key)
-
-    let commit_hash = Schema.Arg.(scalar "CommitHash" ~coerce:coerce_hash)
-
-    let branch = Schema.Arg.(scalar "BranchName" ~coerce:coerce_branch)
+      | _ -> Error "Invalid input value"
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
 
-    let value = Schema.Arg.(scalar "Value" ~coerce:coerce_value)
+    let key = Types.Key.arg_typ
 
-    let metadata = Schema.Arg.(scalar "Metadata" ~coerce:coerce_metadata)
+    let commit_hash = Types.Hash.arg_typ
+
+    let branch = Types.Branch.arg_typ
+
+    let value = Types.Contents.arg_typ
+
+    let metadata = Types.Metadata.arg_typ
 
     let info =
       Schema.Arg.(
@@ -229,17 +247,15 @@ struct
                 ~args:[]
                 ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Key.empty));
               field "parents"
-                ~typ:(non_null (list (non_null string)))
+                ~typ:(non_null (list (non_null Types.Hash.schema_typ)))
                 ~args:[]
-                ~resolve:(fun _ c ->
-                  let parents = Store.Commit.parents c in
-                  List.map (Irmin.Type.to_string Store.Hash.t) parents);
+                ~resolve:(fun _ c -> Store.Commit.parents c);
               field "info"
                 ~typ:(non_null Lazy.(force info))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.info c);
-              field "hash" ~typ:(non_null string) ~args:[] ~resolve:(fun _ c ->
-                  Irmin.Type.to_string Store.Hash.t (Store.Commit.hash c));
+              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                ~resolve:(fun _ c -> Store.Commit.hash c);
             ]))
 
   and info : ('ctx, Irmin.Info.t option) Schema.typ Lazy.t =
@@ -260,16 +276,13 @@ struct
       Schema.(
         obj "Tree" ~fields:(fun _ ->
             [
-              field "key" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (_, key) ->
-                  Irmin.Type.to_string Store.key_t key);
+              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+                ~resolve:(fun _ (_, key) -> key);
               io_field "get"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
-                ~typ:Presentation.Contents.schema_typ
+                ~typ:Types.Contents.schema_typ
                 ~resolve:(fun _ (tree, _) key ->
-                  Store.Tree.find tree key
-                  >|= Option.map (Presentation.Contents.to_src tree key)
-                  >|= Result.ok);
+                  Store.Tree.find tree key >|= Result.ok);
               io_field "get_contents"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
                 ~typ:Lazy.(force contents)
@@ -277,7 +290,7 @@ struct
                   Store.Tree.find_all tree key
                   >|= Option.map (fun (c, m) ->
                           let key' = concat_key tree_key key in
-                          (tree, c, m, key'))
+                          (c, m, key'))
                   >|= Result.ok);
               io_field "get_tree"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
@@ -293,7 +306,7 @@ struct
                 ~resolve:(fun _ (tree, key) ->
                   let rec tree_list ?(acc = []) concrete_tree key =
                     match concrete_tree with
-                    | `Contents (c, m) -> (tree, c, m, key) :: acc
+                    | `Contents (c, m) -> (c, m, key) :: acc
                     | `Tree l ->
                         List.fold_left
                           (fun acc (step, t) ->
@@ -304,10 +317,8 @@ struct
                   in
                   Store.Tree.to_concrete tree >|= fun concrete_tree ->
                   Ok (tree_list concrete_tree key));
-              field "hash" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (tree, _) ->
-                  let hash = Store.Tree.hash tree in
-                  Irmin.Type.to_string Store.Hash.t hash);
+              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
               io_field "list"
                 ~typ:(non_null (list (non_null node)))
                 ~args:[]
@@ -321,8 +332,7 @@ struct
                               Store.Tree.get_all tree relative_key
                               >|= fun (c, m) ->
                               Lazy.(
-                                force contents_as_node
-                                  (tree, c, m, absolute_key))
+                                force contents_as_node (c, m, absolute_key))
                           | `Node ->
                               Store.Tree.get_tree tree relative_key
                               >|= fun t ->
@@ -335,9 +345,8 @@ struct
       Schema.(
         obj "Branch" ~fields:(fun _branch ->
             [
-              field "name" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (_, b) ->
-                  Irmin.Type.to_string Store.branch_t b);
+              field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
+                ~resolve:(fun _ (_, b) -> b);
               io_field "head" ~args:[] ~typ:(Lazy.force commit)
                 ~resolve:(fun _ (t, _) -> Store.Head.find t >>= Lwt.return_ok);
               io_field "tree" ~args:[]
@@ -360,27 +369,21 @@ struct
             ]))
 
   and contents :
-      ( 'ctx,
-        (Store.tree * Store.contents * Store.metadata * Store.key) option )
-      Schema.typ
+      ('ctx, (Store.contents * Store.metadata * Store.key) option) Schema.typ
       Lazy.t =
     lazy
       Schema.(
         obj "Contents" ~fields:(fun _contents ->
             [
-              field "key" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (_, _, _, key) ->
-                  Irmin.Type.to_string Store.key_t key);
-              field "metadata" ~typ:(non_null Presentation.Metadata.schema_typ)
-                ~args:[] ~resolve:(fun _ (tree, _, metadata, key) ->
-                  Presentation.Metadata.to_src tree key metadata);
-              field "value" ~typ:(non_null Presentation.Contents.schema_typ)
-                ~args:[] ~resolve:(fun _ (tree, contents, _, key) ->
-                  Presentation.Contents.to_src tree key contents);
-              field "hash" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ (_, contents, _, _) ->
-                  let hash = Store.Contents.hash contents in
-                  Irmin.Type.to_string Store.Hash.t hash);
+              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+                ~resolve:(fun _ (_, _, key) -> key);
+              field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
+                ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
+              field "value" ~typ:(non_null Types.Contents.schema_typ) ~args:[]
+                ~resolve:(fun _ (contents, _, _) -> contents);
+              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                ~resolve:(fun _ (contents, _, _) ->
+                  Store.Contents.hash contents);
             ]))
 
   and node = Schema.union "Node"
@@ -601,7 +604,7 @@ struct
             >>= function
             | Ok () -> Store.Head.find t >>= Lwt.return_ok
             | Error e -> err_write e);
-        io_field "merge" ~typ:string
+        io_field "merge" ~typ:Types.Hash.schema_typ
           ~args:
             Arg.
               [
@@ -616,14 +619,7 @@ struct
             txn_args s info >>= fun (info, retries, allow_empty, parents) ->
             Store.merge t key ~info ?retries ?allow_empty ?parents ~old value
             >>= function
-            | Ok _ ->
-                Store.hash t key
-                >>= (function
-                      | Some hash ->
-                          Lwt.return_some
-                            (Irmin.Type.to_string Store.Hash.t hash)
-                      | None -> Lwt.return_none)
-                >>= Lwt.return_ok
+            | Ok _ -> Store.hash t key >>= Lwt.return_ok
             | Error e ->
                 Lwt.return_error (Irmin.Type.to_string Store.write_error_t e));
         io_field "merge_tree" ~typ:(Lazy.force commit)
@@ -797,6 +793,6 @@ end
 
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) =
 struct
-  module Presentation = Default_presentation (Store)
-  include Make_ext (Server) (Config) (Store) (Presentation)
+  module Types = Default_types (Store)
+  include Make_ext (Server) (Config) (Store) (Types)
 end

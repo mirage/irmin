@@ -1,5 +1,6 @@
 module Schema = Graphql_lwt.Schema
 
+(** GraphQL server *)
 module type S = sig
   module IO : Cohttp_lwt.S.IO
 
@@ -22,6 +23,7 @@ module type S = sig
   val v : repo -> server
 end
 
+(** GraphQL server config *)
 module type CONFIG = sig
   val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
 
@@ -29,53 +31,60 @@ module type CONFIG = sig
     ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 end
 
-module type PRESENTER = sig
+(** Custom GraphQL schema type and argument type for [type t]. *)
+module type CUSTOM_TYPE = sig
   type t
 
-  type key
+  val schema_typ : (unit, t option) Schema.typ
 
-  type tree
-
-  type src
-
-  val to_src : tree -> key -> t -> src
-
-  val schema_typ : (unit, src option) Schema.typ
+  val arg_typ : t option Schema.Arg.arg_typ
 end
 
-module type PRESENTATION = sig
-  type tree
-
+(** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch). *)
+module type CUSTOM_TYPES = sig
   type key
-
-  type contents
 
   type metadata
 
-  module Contents :
-    PRESENTER with type tree := tree and type key := key and type t := contents
+  type contents
 
-  module Metadata :
-    PRESENTER with type tree := tree and type key := key and type t := metadata
+  type hash
+
+  type branch
+
+  module Key : CUSTOM_TYPE with type t := key
+
+  module Metadata : CUSTOM_TYPE with type t := metadata
+
+  module Contents : CUSTOM_TYPE with type t := contents
+
+  module Hash : CUSTOM_TYPE with type t := hash
+
+  module Branch : CUSTOM_TYPE with type t := branch
 end
 
-module Default_presentation (S : Irmin.S) :
-  PRESENTATION
-    with type contents := S.contents
+(** Default GraphQL types for the Irmin store [S]. *)
+module Default_types (S : Irmin.S) :
+  CUSTOM_TYPES
+    with type key := S.key
      and type metadata := S.metadata
-     and type tree := S.tree
-     and type key := S.key
+     and type contents := S.contents
+     and type hash := S.hash
+     and type branch := S.branch
 
+(** Create a GraphQL server with default GraphQL types for [S]. *)
 module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) :
   S with type repo = Store.repo and type server = Server.t
 
+(** Create a GraphQL server with custom GraphQL types. *)
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.S)
-    (Presentation : PRESENTATION
-                      with type contents := Store.contents
-                       and type metadata := Store.metadata
-                       and type tree := Store.tree
-                       and type key := Store.key) :
+    (Types : CUSTOM_TYPES
+               with type key := Store.key
+                and type metadata := Store.metadata
+                and type contents := Store.contents
+                and type hash := Store.hash
+                and type branch := Store.branch) :
   S with type repo = Store.repo and type server = Server.t
