@@ -99,10 +99,10 @@ module type KV_RW = sig
         the kind of operations performed. *)
 end
 
-(** Functor to create a MirageOS' KV_RW store from a Git
-    repository. *)
 module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
   KV_RW with type git := G.t
+(** Functor to create a MirageOS' KV_RW store from a Git
+    repository. *)
 
 (** Embed an Irmin store into an in-memory Git repository. *)
 module Mem : sig
@@ -136,6 +136,5 @@ module Mem : sig
 
   module KV_RO : KV_RO with type git := G.t
 
-  module KV_RW (C : Mirage_clock.PCLOCK) :
-    KV_RW with type git := G.t
+  module KV_RW (C : Mirage_clock.PCLOCK) : KV_RW with type git := G.t
 end
