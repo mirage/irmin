@@ -48,7 +48,7 @@ module Ref : REF_MAKER
 module type KV_RO = sig
   type git
 
-  include Mirage_kv_lwt.RO
+  include Mirage_kv.RO
 
   val connect :
     ?depth:int ->
@@ -74,9 +74,7 @@ module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
 module type KV_RW = sig
   type git
 
-  type clock
-
-  include Mirage_kv_lwt.RW
+  include Mirage_kv.RW
 
   val connect :
     ?depth:int ->
@@ -88,7 +86,6 @@ module type KV_RW = sig
     ?author:string ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
     git ->
-    clock ->
     string ->
     t Lwt.t
   (** [connect ?depth ?branch ?path ?author ?msg g c uri] clones
@@ -105,7 +102,7 @@ end
 (** Functor to create a MirageOS' KV_RW store from a Git
     repository. *)
 module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
-  KV_RW with type git := G.t and type clock = C.t
+  KV_RW with type git := G.t
 
 (** Embed an Irmin store into an in-memory Git repository. *)
 module Mem : sig
@@ -140,5 +137,5 @@ module Mem : sig
   module KV_RO : KV_RO with type git := G.t
 
   module KV_RW (C : Mirage_clock.PCLOCK) :
-    KV_RW with type git := G.t and type clock := C.t
+    KV_RW with type git := G.t
 end

@@ -79,7 +79,7 @@ end
 module type KV_RO = sig
   type git
 
-  include Mirage_kv_lwt.RO
+  include Mirage_kv.RO
 
   val connect :
     ?depth:int ->
@@ -98,8 +98,6 @@ module KV_RO (G : Git.S) = struct
 
   type key = Key.t
 
-  type value = string
-
   module G = struct
     include G
 
@@ -108,8 +106,6 @@ module KV_RO (G : Git.S) = struct
 
   module S = KV (G) (Irmin.Contents.String)
   module Sync = Irmin.Sync (S)
-
-  type 'a io = 'a Lwt.t
 
   let disconnect _ = Lwt.return_unit
 
@@ -211,9 +207,7 @@ end
 module type KV_RW = sig
   type git
 
-  type clock
-
-  include Mirage_kv_lwt.RW
+  include Mirage_kv.RW
 
   val connect :
     ?depth:int ->
@@ -225,7 +219,6 @@ module type KV_RW = sig
     ?author:string ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
     git ->
-    clock ->
     string ->
     t Lwt.t
 end
@@ -235,8 +228,6 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
        large objects are stored for too long... Might be worth having
        a clever LRU, which pushes larges objects to the underlying
        layer when needed.  *)
-
-  type clock = C.t
 
   module Info = Irmin_mirage.Info (C)
   module RO = KV_RO (G)
@@ -250,20 +241,15 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   and t = {
     store : store;
     author : string;
-    clock : C.t;
     msg : [ `Set of RO.key | `Remove of RO.key | `Batch ] -> string;
     remote : Irmin.remote;
   }
 
   type key = RO.key
 
-  type value = RO.value
-
   type error = RO.error
 
   let pp_error = RO.pp_error
-
-  type 'a io = 'a RO.io
 
   let default_author = "irmin <irmin@mirage.io>"
 
@@ -273,11 +259,11 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | `Batch -> "Commmiting batch operation"
 
   let connect ?depth ?branch ?root ?conduit ?resolver ?headers
-      ?(author = default_author) ?(msg = default_msg) git clock uri =
+      ?(author = default_author) ?(msg = default_msg) git uri =
     RO.connect ?depth ?branch ?root ?conduit ?resolver ?headers git uri
     >|= fun t ->
     let remote = S.remote ?conduit ?resolver ?headers uri in
-    { store = Store t; author; clock; msg; remote }
+    { store = Store t; author; msg; remote }
 
   let disconnect t =
     match t.store with
@@ -319,7 +305,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | #RO.Sync.push_error as e -> RO.Sync.pp_push_error ppf e
     | #Mirage_kv.write_error as e -> Mirage_kv.pp_write_error ppf e
 
-  let info t op = Info.f ~author:t.author t.clock "%s" (t.msg op)
+  let info t op = Info.f ~author:t.author "%s" (t.msg op)
 
   let path = RO.path
 

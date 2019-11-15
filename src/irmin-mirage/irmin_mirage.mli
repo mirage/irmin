@@ -23,10 +23,9 @@ module Info (C : Mirage_clock.PCLOCK) : sig
 
   val f :
     author:string ->
-    C.t ->
     ('a, Format.formatter, unit, Irmin.Info.f) format4 ->
     'a
-  (** [f c ~author msg] is a new commit info with [author] as commit
-      author, [C.now_d_ps c] as commit date and [msg] as commit
+  (** [f ~author msg] is a new commit info with [author] as commit
+      author, [C.now_d_ps ()] as commit date and [msg] as commit
       message.*)
 end
