@@ -509,6 +509,40 @@ module Type : sig
 
     val t : t ty
   end
+
+  module type MAPPER = sig
+    type 'a t
+    type 'a field
+    type 'a case
+
+    val unit : unit -> unit t
+    val bool : unit -> bool t
+    val char : unit -> char t
+    val int : unit -> int t
+    val int32 : unit -> int32 t
+    val int64 : unit -> int64 t
+    val float : unit -> float t
+    val string : len -> string t
+    val bytes : len -> bytes t
+
+    val map : 'a t -> ('b -> 'a) -> 'b t
+    val list : 'a t -> len -> 'a list t
+    val array : 'a t -> len -> 'a array t
+    val pair : 'a t -> 'b t -> ('a * 'b) t
+    val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
+    val option : 'a t -> 'a option t
+
+    val record_field : string -> 'a t -> ('b -> 'a) -> 'b field
+    val record : string -> 'a field list -> 'a t
+
+    val variant_case0 : string -> 'a -> 'a case
+    val variant_case1 : string -> 'b t -> ('b -> 'a) -> 'a case
+    val variant : string -> 'a case list -> 'a t
+  end
+
+  module Mapper (M : MAPPER) : sig
+    val map : 'a t -> 'a M.t
+  end
 end
 
 (** Commit info are used to keep track of the origin of write

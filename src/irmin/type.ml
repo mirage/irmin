@@ -1674,3 +1674,66 @@ module type S = sig
 
   val t : t ty
 end
+
+module type MAPPER = sig
+  type 'a t
+  type 'a field
+  type 'a case
+
+  val unit : unit -> unit t
+  val bool : unit -> bool t
+  val char : unit -> char t
+  val int : unit -> int t
+  val int32 : unit -> int32 t
+  val int64 : unit -> int64 t
+  val float : unit -> float t
+  val string : len -> string t
+  val bytes : len -> bytes t
+
+  val map : 'a t -> ('b -> 'a) -> 'b t
+  val list : 'a t -> len -> 'a list t
+  val array : 'a t -> len -> 'a array t
+  val pair : 'a t -> 'b t -> ('a * 'b) t
+  val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
+  val option : 'a t -> 'a option t
+
+  val record_field : string -> 'a t -> ('b -> 'a) -> 'b field
+  val record : string -> 'a field list -> 'a t
+
+  val variant_case0 : string -> 'a -> 'a case
+  val variant_case1 : string -> 'b t -> ('b -> 'a) -> 'a case
+  val variant : string -> 'a case list -> 'a t
+end
+
+module Mapper (M : MAPPER) = struct
+  let rec map : type a. a ty -> a M.t = fun t ->
+    match t with
+    | Self s -> map s.self
+    | Custom _c -> failwith "map: Custom not implemented" (* omitted for brevity *)
+    | Map m ->  M.map (map m.x) m.g
+    | Prim Unit -> M.unit ()
+    | Prim Bool -> M.bool ()
+    | Prim Char -> M.char ()
+    | Prim Int -> M.int ()
+    | Prim Int32 -> M.int32 ()
+    | Prim Int64 -> M.int64 ()
+    | Prim Float -> M.float ()
+    | Prim (String len) -> M.string len
+    | Prim (Bytes len) -> M.bytes len
+    | List l -> M.list (map l.v) l.len
+    | Array a -> M.array (map a.v) a.len
+    | Tuple (Pair (a, b)) -> M.pair (map a) (map b)
+    | Tuple (Triple (a, b, c)) -> M.triple (map a) (map b) (map c)
+    | Option t -> M.option (map t)
+    | Record r ->
+      let record_fields = List.map (fun (Field f) ->
+        M.record_field f.fname (map f.ftype) f.fget
+      ) (fields r) in
+      M.record r.rname record_fields
+    | Variant v ->
+      let cases = List.map (function
+        | C0 c -> M.variant_case0 c.cname0 c.c0
+        | C1 c -> M.variant_case1 c.cname1 (map c.ctype1) c.c1
+      ) (Array.to_list v.vcases) in
+      M.variant v.vname cases
+end
