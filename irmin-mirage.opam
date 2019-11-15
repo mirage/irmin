@@ -15,8 +15,8 @@ build: [
 
 depends: [
   "dune"       {>= "1.1.0"}
-  "irmin"      {=version}
-  "irmin-mem"  {=version}
+  "irmin"      {>= "2.0.0"}
+  "irmin-mem"  {>= "2.0.0"}
   "ptime"
   "mirage-clock" {>= "2.0.0"}
 ]

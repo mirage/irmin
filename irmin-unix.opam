@@ -17,17 +17,17 @@ build: [
 depends: [
   "ocaml"         {>= "4.01.0"}
   "dune"          {>= "1.1.0"}
-  "irmin"         {=version}
-  "irmin-mem"     {=version}
-  "irmin-git"     {=version}
-  "irmin-http"    {=version}
-  "irmin-fs"      {=version}
+  "irmin"         {>= "2.0.0"}
+  "irmin-mem"     {>= "2.0.0"}
+  "irmin-git"     {>= "2.0.0"}
+  "irmin-http"    {>= "2.0.0"}
+  "irmin-fs"      {>= "2.0.0"}
   "irmin-graphql"
   "git-unix"      {>= "1.11.4"}
   "digestif"      {>= "0.6.1"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
-  "irmin-test"    {with-test & =version}
+  "irmin-test"    {with-test & >= "2.0.0"}
 ]
 
 synopsis: "Unix backends for Irmin"
