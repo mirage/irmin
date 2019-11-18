@@ -18,7 +18,7 @@ depends: [
   "irmin-mirage"
   "git-mirage" {>= "2.1.1"}
   "irmin-graphql"
-  "mirage-clock-lwt"
+  "mirage-clock"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"

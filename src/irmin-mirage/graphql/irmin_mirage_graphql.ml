@@ -1,33 +1,29 @@
 module Server = struct
   module type S = sig
-    module Pclock : Mirage_clock_lwt.PCLOCK
+    module Pclock : Mirage_clock.PCLOCK
 
     module Http : Cohttp_lwt.S.Server
 
     module Store :
       Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
-    val start :
-      pclock:Pclock.t ->
-      http:(Http.t -> unit Lwt.t) ->
-      Store.repo ->
-      unit Lwt.t
+    val start : http:(Http.t -> unit Lwt.t) -> Store.repo -> unit Lwt.t
   end
 
   module Make
       (Http : Cohttp_lwt.S.Server)
       (Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint)
-      (Pclock : Mirage_clock_lwt.PCLOCK) =
+      (Pclock : Mirage_clock.PCLOCK) =
   struct
     module Store = Store
     module Pclock = Pclock
     module Http = Http
 
-    let init p =
+    let init () =
       let module Config = struct
         let info ?(author = "irmin-graphql") fmt =
           let module I = Irmin_mirage.Info (Pclock) in
-          I.f ~author p fmt
+          I.f ~author fmt
 
         let remote =
           Some
@@ -40,8 +36,8 @@ module Server = struct
         with type server = Http.t
          and type repo = Store.repo )
 
-    let start ~pclock ~http store =
-      let (module G) = init pclock in
+    let start ~http store =
+      let (module G) = init () in
       let server = G.v store in
       http server
   end
