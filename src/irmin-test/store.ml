@@ -503,7 +503,7 @@ module Make (S : S) = struct
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
       Alcotest.(check unit) "ok!" () ();
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -731,7 +731,7 @@ module Make (S : S) = struct
       S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) >>= fun u ->
       update true (0, 0, 0) 10 ~first:true >>= fun () ->
       S.unwatch u >>= fun () ->
-      update false (0, 10, 0) 10 >>= fun () -> Lwt.return_unit
+      update false (0, 10, 0) 10 >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -839,7 +839,7 @@ module Make (S : S) = struct
       P.Commit.find c kr3' >>= fun r3' ->
       check T.(option P.Commit.Val.t) "r3" r3 r3';
       check S.Hash.t "kr3" kr3 kr3';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1043,7 +1043,7 @@ module Make (S : S) = struct
       Alcotest.(check ff) "ff 2.2" (Ok ()) b3;
       S.Head.get t12 >>= fun c14' ->
       check (S.commit_t repo) "ff 2.3" c14 c14';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1056,7 +1056,7 @@ module Make (S : S) = struct
       S.set_exn t ~info:Irmin.Info.none [ "b"; "x" ] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1075,7 +1075,7 @@ module Make (S : S) = struct
         | Error (`Msg e) -> Alcotest.failf "decoding error: %s" e
       in
       check P.Slice.t "slices" slice slice';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1102,7 +1102,7 @@ module Make (S : S) = struct
       check_val "vy after merge" (Some vy) vy';
       S.find t [ "u"; "x"; "z" ] >>= fun vx' ->
       check_val "vx after merge" (Some vx) vx';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1265,7 +1265,7 @@ module Make (S : S) = struct
       S.Tree.add v0 [ "c"; "d" ] yyy >>= fun v0 ->
       S.Tree.add v0 [ "c"; "e"; "f" ] zzz >>= fun v0 ->
       Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
-      S.set_tree_exn ~info t1 [] v0 >>= fun () -> Lwt.return_unit
+      S.set_tree_exn ~info t1 [] v0 >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -1473,7 +1473,7 @@ module Make (S : S) = struct
       >>= fun () ->
       S.find_all t [ "a" ] >>= fun vx' ->
       check_val "update file as tree" (normal vx) vx';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1522,7 +1522,7 @@ module Make (S : S) = struct
       S.Head.set t2 r2 >>= fun () ->
       S.mem t2 [ "a"; "d" ] >>= fun b4 ->
       Alcotest.(check bool) "mem-ad" false b4;
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1571,7 +1571,7 @@ module Make (S : S) = struct
       check S.contents_t "v1" v1 v1';
       check S.contents_t "v2" v2 v2';
       check S.contents_t "v3" v3 v3';
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 
@@ -1584,6 +1584,7 @@ module Make (S : S) = struct
     S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
     S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
     >>= merge_exn "merge unrelated"
+    >>= fun _ -> P.Repo.close repo
 
   let rec write fn = function
     | 0 -> []
@@ -1625,7 +1626,9 @@ module Make (S : S) = struct
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
     in
-    run x (fun repo -> Lwt.choose [ test_branches repo; test_contents repo ])
+    run x (fun repo ->
+        Lwt.choose [ test_branches repo; test_contents repo ] >>= fun () ->
+        P.Repo.close repo)
 
   let test_concurrent_updates x () =
     let test_one repo =
@@ -1661,7 +1664,7 @@ module Make (S : S) = struct
     in
     run x (fun repo ->
         test_one repo >>= fun () ->
-        test_multi repo >>= fun () -> Lwt.return_unit)
+        test_multi repo >>= fun () -> P.Repo.close repo)
 
   let test_concurrent_merges x () =
     let test repo =
@@ -1685,7 +1688,7 @@ module Make (S : S) = struct
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
-      perform (read t1 10)
+      perform (read t1 10) >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -1801,7 +1804,7 @@ module Make (S : S) = struct
               Alcotest.(check string) "merge z" a "4" );
           ]
       in
-      set () >>= test_and_set >>= merge
+      set () >>= test_and_set >>= merge >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -1840,7 +1843,8 @@ module Make (S : S) = struct
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
-      perform (write t1 1 5 @ write t2 2 5) >>= fun () -> perform (read t1 5)
+      perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
+      perform (read t1 5) >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -1871,7 +1875,7 @@ module Make (S : S) = struct
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
       S.find_tree t [ "1" ] >>= fun t1 ->
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
-      Lwt.return_unit
+      P.Repo.close repo
     in
     run x test
 end
