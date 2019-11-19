@@ -63,7 +63,7 @@ module Unix : S = struct
     let really_write fd buf =
       let rec aux off len =
         let w = Unix.write fd buf off len in
-        if w = 0 then () else (aux [@tailcall]) (off + w) (len - w)
+        if w = 0 || w = len then () else (aux [@tailcall]) (off + w) (len - w)
       in
       (aux [@tailcall]) 0 (Bytes.length buf)
 
