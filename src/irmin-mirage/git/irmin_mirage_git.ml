@@ -216,7 +216,7 @@ module type KV_RW = sig
     ?conduit:Conduit_mirage.t ->
     ?resolver:Resolver_lwt.t ->
     ?headers:Cohttp.Header.t ->
-    ?author:string ->
+    ?author:(unit -> string) ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
     git ->
     string ->
@@ -240,7 +240,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   and t = {
     store : store;
-    author : string;
+    author : unit -> string;
     msg : [ `Set of RO.key | `Remove of RO.key | `Batch ] -> string;
     remote : Irmin.remote;
   }
@@ -251,7 +251,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   let pp_error = RO.pp_error
 
-  let default_author = "irmin <irmin@mirage.io>"
+  let default_author () = "irmin <irmin@mirage.io>"
 
   let default_msg = function
     | `Set k -> Fmt.strf "Updating %a" Mirage_kv.Key.pp k
@@ -305,7 +305,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | #RO.Sync.push_error as e -> RO.Sync.pp_push_error ppf e
     | #Mirage_kv.write_error as e -> Mirage_kv.pp_write_error ppf e
 
-  let info t op = Info.f ~author:t.author "%s" (t.msg op)
+  let info t op = Info.f ~author:(t.author ()) "%s" (t.msg op)
 
   let path = RO.path
 

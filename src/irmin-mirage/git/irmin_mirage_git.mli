@@ -83,7 +83,7 @@ module type KV_RW = sig
     ?conduit:Conduit_mirage.t ->
     ?resolver:Resolver_lwt.t ->
     ?headers:Cohttp.Header.t ->
-    ?author:string ->
+    ?author:(unit -> string) ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
     git ->
     string ->
@@ -94,7 +94,7 @@ module type KV_RW = sig
         [branch] is master, [depth] is [1] and [path] is empty,
         ie. reads will be relative to the root of the repository.
         [author], [msg] and [c] are used to create new commit info
-        values on every update.  By defaut [author] is ["irmin"
+        values on every update.  By defaut [author] is [fun () -> "irmin"
         <irmin@mirage.io>] and [msg] returns basic information about
         the kind of operations performed. *)
 end
