@@ -142,6 +142,14 @@ module Store = struct
 
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
+  module Inode_config = struct
+    let entries = 32
+
+    let stable_hash = 256
+  end
+
+  let pack = create (module Irmin_pack.Make (Inode_config))
+
   let all =
     ref
       [
@@ -151,6 +159,7 @@ module Store = struct
         ("mem", mem);
         ("http", fun c -> http (mem c));
         ("http.git", fun c -> http (git c));
+        ("pack", pack);
       ]
 
   let default = ref git
