@@ -52,7 +52,7 @@ let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config_path_key =
   Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
-    ~doc:"Allows configuration file to be specified on the command-line"
+    ~doc:"Allows configuration file to be specified on the command-line."
     "config" Irmin.Private.Conf.string "irmin.yml"
 
 let ( / ) = Filename.concat
@@ -75,11 +75,11 @@ module Contents = struct
         ("json_value", (module Irmin.Contents.Json_value));
       ]
 
-  let default = ref (module Irmin.Contents.String : Irmin.Contents.S)
+  let default = "string" |> fun n -> ref (n, List.assoc n !all)
 
   let add name ?default:(x = false) m =
     all := (name, m) :: !all;
-    if x then default := m
+    if x then default := (name, m)
 
   let find name =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
@@ -93,12 +93,17 @@ module Contents = struct
         failwith msg
 
   let term =
+    let content_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let kind =
       let doc =
-        Arg.info ~doc:"The type of user-defined contents."
-          ~docs:global_option_section [ "contents"; "c" ]
+        Fmt.strf "The type of user-defined contents (%s). Default is `%s'."
+          (Arg.doc_alts_enum content_types)
+          (fst !default)
       in
-      Arg.(value & opt (some string) None & doc)
+      let arg_info =
+        Arg.info ~doc ~docs:global_option_section [ "contents"; "c" ]
+      in
+      Arg.(value & opt (some string) None & arg_info)
     in
     let create kind = kind in
     Term.(const create $ kind)
@@ -106,12 +111,149 @@ end
 
 type contents = Contents.t
 
+module Hash = struct
+  type t = (module Irmin.Hash.S)
+
+  type hash_function = Fixed of t | Variable_size of (int option -> t)
+
+  module type SIZEABLE = functor
+    (S : sig
+       val digest_size : int
+     end)
+    -> Irmin.Hash.S
+
+  let variable_size (module Make : SIZEABLE) (module Default : Irmin.Hash.S) =
+    Variable_size
+      (function
+      | Some s ->
+          ( module struct
+            include Make (struct
+              let digest_size = s
+            end)
+          end : Irmin.Hash.S )
+      | None -> (module Default))
+
+  let all =
+    ref
+      [
+        ( "blake2b",
+          variable_size
+            (module Irmin.Hash.Make_BLAKE2B : SIZEABLE)
+            (module Irmin.Hash.BLAKE2B : Irmin.Hash.S) );
+        ( "blake2s",
+          variable_size
+            (module Irmin.Hash.Make_BLAKE2S : SIZEABLE)
+            (module Irmin.Hash.BLAKE2S : Irmin.Hash.S) );
+        ("rmd160", Fixed (module Irmin.Hash.RMD160 : Irmin.Hash.S));
+        ("sha1", Fixed (module Irmin.Hash.SHA1 : Irmin.Hash.S));
+        ("sha224", Fixed (module Irmin.Hash.SHA224 : Irmin.Hash.S));
+        ("sha256", Fixed (module Irmin.Hash.SHA256 : Irmin.Hash.S));
+        ("sha384", Fixed (module Irmin.Hash.SHA384 : Irmin.Hash.S));
+        ("sha512", Fixed (module Irmin.Hash.SHA512 : Irmin.Hash.S));
+      ]
+
+  let default = ref ("blake2b", (module Irmin.Hash.BLAKE2B : Irmin.Hash.S))
+
+  let add name ?default:(x = false) m =
+    all := (name, Fixed m) :: !all;
+    if x then default := (name, m)
+
+  let find_hashfn name =
+    match List.assoc_opt (String.Ascii.lowercase name) !all with
+    | Some c -> c
+    | None ->
+        let valid = String.concat ~sep:", " (List.split !all |> fst) in
+        let msg =
+          Printf.sprintf "Invalid hash function: %s. Expected one of: %s." name
+            valid
+        in
+        failwith msg
+
+  let of_specifier hashname =
+    let ( >>= ) x f = match x with Ok x -> f x | Error _ as e -> e in
+    ( match String.cut ~rev:true ~sep:"/" hashname with
+    | Some (hashname, size) -> (
+        match int_of_string_opt size with
+        | Some size -> Ok (hashname, Some size)
+        | None ->
+            Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size)) )
+    | None -> Ok (hashname, None) )
+    >>= fun (hashname, size_opt) ->
+    match (find_hashfn hashname, size_opt) with
+    | Variable_size hashfn, size_opt -> Ok (hashfn size_opt)
+    | Fixed hashfn, None -> Ok hashfn
+    | Fixed _, Some size ->
+        Error
+          (`Msg
+            (Fmt.strf
+               "Cannot specify a size for hash function `%s' (%d passed)."
+               hashname size))
+
+  let find h =
+    of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e
+
+  let hash_function_conv : t Cmdliner.Arg.conv =
+    Arg.conv (of_specifier, Fmt.nop)
+
+  let term =
+    let kind =
+      let quote s = Fmt.strf "`%s'" s in
+      let hash_types = !all |> List.map (fun (name, _) -> (name, name)) in
+      let variable_size_types =
+        !all
+        |> List.filter (function
+             | _, Variable_size _ -> true
+             | _, Fixed _ -> false)
+        |> List.map fst
+      in
+      let pp_prose_list =
+        Fmt.of_to_string (function
+          | [] -> ""
+          | [ h ] -> quote h
+          | hs ->
+              let rev_hs = List.rev hs in
+              Fmt.strf "%s and %s"
+                (String.concat ~sep:", " (List.rev_map quote (List.tl rev_hs)))
+                (quote (List.hd rev_hs)))
+      in
+      let pp_plural =
+        Fmt.of_to_string (function _ :: _ :: _ -> "s" | _ -> "")
+      in
+      let pp_variable_size_doc ppf = function
+        | [] -> ()
+        | _ :: _ as hs ->
+            Fmt.pf ppf
+              "\n\
+               The bit-length of the hash function%a %a may optionally be set \
+               with a trailing slash (e.g. `%s/16')."
+              pp_plural hs pp_prose_list hs (List.hd hs)
+      in
+      let doc =
+        Fmt.strf "The hash function (%s). Default is `%s'.%a"
+          (Arg.doc_alts_enum hash_types)
+          (fst !default) pp_variable_size_doc variable_size_types
+      in
+      let arg_info =
+        Arg.info ~doc ~docs:global_option_section [ "hash"; "h" ]
+      in
+      Arg.(value & opt (some hash_function_conv) None & arg_info)
+    in
+    let create kind = kind in
+    Term.(const create $ kind)
+end
+
+type hash = Hash.t
+
 (* Store *)
 
 module Store = struct
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
   type t = T : (module Irmin.S) * remote_fn option -> t
+
+  type store_functor =
+    | Fixed_hash of (contents -> t)
+    | Variable_hash of (hash -> contents -> t)
 
   module type G = sig
     include Irmin.S
@@ -123,12 +265,12 @@ module Store = struct
 
   let v_git (module S : G) = v (module S) ~remote:S.remote
 
-  let create : (module Irmin.S_MAKER) -> contents -> t =
-   fun (module S) (module C) ->
+  let create : (module Irmin.S_MAKER) -> hash -> contents -> t =
+   fun (module S) (module H) (module C) ->
     let module S =
       S (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
         (Irmin.Branch.String)
-        (Irmin.Hash.BLAKE2B)
+        (H)
     in
     T ((module S), None)
 
@@ -153,20 +295,20 @@ module Store = struct
   let all =
     ref
       [
-        ("git", git);
-        ("git-mem", git_mem);
-        ("irf", irf);
-        ("mem", mem);
-        ("http", fun c -> http (mem c));
-        ("http.git", fun c -> http (git c));
-        ("pack", pack);
+        ("git", Fixed_hash git);
+        ("git-mem", Fixed_hash git_mem);
+        ("irf", Variable_hash irf);
+        ("mem", Variable_hash mem);
+        ("http", Variable_hash (fun h c -> http (mem h c)));
+        ("http.git", Fixed_hash (fun c -> http (git c)));
+        ("pack", Variable_hash pack);
       ]
 
-  let default = ref git
+  let default = "git" |> fun n -> ref (n, List.assoc n !all)
 
   let add name ?default:(x = false) m =
     all := (name, m) :: !all;
-    if x then default := m
+    if x then default := (name, m)
 
   let find name =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
@@ -181,14 +323,19 @@ module Store = struct
 
   let term =
     let store =
+      let store_types = !all |> List.map (fun (name, _) -> (name, name)) in
       let doc =
-        Arg.info ~doc:"The storage backend." ~docs:global_option_section
-          [ "s"; "store" ]
+        Fmt.strf "The storage backend (%s). Default is `%s'."
+          (Arg.doc_alts_enum store_types)
+          (fst !default)
       in
-      Arg.(value & opt (some string) None & doc)
+      let arg_info =
+        Arg.info ~doc ~docs:global_option_section [ "s"; "store" ]
+      in
+      Arg.(value & opt (some (enum store_types)) None & arg_info)
     in
-    let create store contents = (store, contents) in
-    Term.(const create $ store $ Contents.term)
+    let create store hash contents = (store, hash, contents) in
+    Term.(const create $ store $ Hash.term $ Contents.term)
 end
 
 (* Config *)
@@ -227,31 +374,40 @@ type store =
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
       -> store
 
-let from_config_file_with_defaults path (store, contents) config branch : store
-    =
+let from_config_file_with_defaults path (store, hash, contents) config branch :
+    store =
+  let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
   let string_value = function `String s -> s | _ -> raise Not_found in
   let assoc name fn =
     try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
   in
   let store =
-    let contents =
-      match contents with
-      | None -> (
-          match assoc "contents" Contents.find with
-          | None -> !Contents.default
-          | Some c -> c )
-      | Some c -> Contents.find c
-    in
     let store =
       match store with
-      | None -> (
-          match assoc "store" Store.find with
-          | None -> !Store.default
-          | Some s -> s )
       | Some s -> Store.find s
+      | None -> assoc "store" Store.find >>? fun () -> snd !Store.default
     in
-    store contents
+    let contents =
+      match contents with
+      | Some c -> Contents.find c
+      | None ->
+          assoc "contents" Contents.find >>? fun () -> snd !Contents.default
+    in
+    match store with
+    | Variable_hash s ->
+        let hash : hash =
+          hash >>? fun () ->
+          assoc "hash" Hash.find >>? fun () -> snd !Hash.default
+        in
+        s hash contents
+    | Fixed_hash s -> (
+        (* error if a hash function has been passed *)
+        match (hash, assoc "hash" Hash.find) with
+        | None, None -> s contents
+        | _ ->
+            Fmt.failwith
+              "Cannot customize the hash function for the given store" )
   in
   let config =
     let root = assoc "root" (fun x -> x) in
@@ -326,14 +482,17 @@ type Irmin.remote += R of Cohttp.Header.t option * string
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote contents headers str =
+let infer_remote hash contents headers str =
+  let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
-    match contents with None -> !Contents.default | Some c -> Contents.find c
+    match contents with
+    | None -> snd !Contents.default
+    | Some c -> Contents.find c
   in
   if Sys.file_exists str then
     let r =
       if Sys.file_exists (str / ".git") then Store.git contents
-      else Store.irf contents
+      else Store.irf hash contents
     in
     match r with
     | Store.T ((module R), _) ->
@@ -358,4 +517,4 @@ let remote =
     in
     Arg.(required & pos 0 (some string) None & doc)
   in
-  Term.(const infer_remote $ Contents.term $ headers $ repo)
+  Term.(const infer_remote $ Hash.term $ Contents.term $ headers $ repo)

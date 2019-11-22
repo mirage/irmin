@@ -18,6 +18,14 @@
 
 module Make (H : Digestif.S) : S.HASH with type t = H.t
 
+module Make_BLAKE2B (D : sig
+  val digest_size : int
+end) : S.HASH
+
+module Make_BLAKE2S (D : sig
+  val digest_size : int
+end) : S.HASH
+
 module SHA1 : S.HASH
 
 module RMD160 : S.HASH
