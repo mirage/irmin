@@ -1,3 +1,19 @@
+
+
+### Unreleased
+
+#### Added
+
+- **irmin-unix**:
+  - Added a `--hash` parameter to the command-line interface, allowing the hash
+    function to be specified. For BLAKE2b and BLAKE2s, the bit-length may be
+    specified with a trailing slash, as in `--hash=blake2b/16`. The `hash`
+    function may also be specified in the configuration file. (#898, @craigfe)
+ 
+- **irmin**:
+  - Added `Irmin.Hash.Make_BLAKE2B` and `Irmin.Hash.Make_BLAKE2S` functors for
+    customizing the bit-length of these hash functions. (#898, @craigfe)
+
 ### 2.0.0
 
 #### Added
