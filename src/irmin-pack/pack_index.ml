@@ -28,7 +28,7 @@ module Make (K : Irmin.Hash.S) = struct
 
     let hash t = Irmin.Type.short_hash K.t t
 
-    let hash_size = 60
+    let hash_size = 30
 
     let equal x y = Irmin.Type.equal K.t x y
 
