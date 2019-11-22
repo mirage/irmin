@@ -20,6 +20,19 @@ val global_option_section : string
 
 val branch : string option Cmdliner.Term.t
 
+(** {1 Hash} *)
+module Hash : sig
+  type t = (module Irmin.Hash.S)
+
+  val add : string -> ?default:bool -> (module Irmin.Hash.S) -> unit
+
+  val find : string -> t
+
+  val term : string option Cmdliner.Term.t
+end
+
+type hash = Hash.t
+
 (** {1 Contents} *)
 module Contents : sig
   type t = (module Irmin.Contents.S)
@@ -45,17 +58,17 @@ module Store : sig
 
   val v : ?remote:remote_fn -> (module Irmin.S) -> t
 
-  val mem : contents -> t
+  val mem : hash -> contents -> t
 
-  val irf : contents -> t
+  val irf : hash -> contents -> t
 
   val http : t -> t
 
   val git : contents -> t
 
-  val find : string -> contents -> t
+  val find : string -> hash -> contents -> t
 
-  val add : string -> ?default:bool -> (contents -> t) -> unit
+  val add : string -> ?default:bool -> (hash -> contents -> t) -> unit
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
