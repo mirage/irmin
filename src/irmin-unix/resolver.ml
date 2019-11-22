@@ -52,7 +52,7 @@ let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config_path_key =
   Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
-    ~doc:"Allows configuration file to be specified on the command-line"
+    ~doc:"Allows configuration file to be specified on the command-line."
     "config" Irmin.Private.Conf.string "irmin.yml"
 
 let ( / ) = Filename.concat
@@ -75,11 +75,11 @@ module Contents = struct
         ("json_value", (module Irmin.Contents.Json_value));
       ]
 
-  let default = ref (module Irmin.Contents.String : Irmin.Contents.S)
+  let default = "string" |> fun n -> ref (n, List.assoc n !all)
 
   let add name ?default:(x = false) m =
     all := (name, m) :: !all;
-    if x then default := m
+    if x then default := (name, m)
 
   let find name =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
@@ -93,12 +93,17 @@ module Contents = struct
         failwith msg
 
   let term =
+    let content_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let kind =
       let doc =
-        Arg.info ~doc:"The type of user-defined contents."
-          ~docs:global_option_section [ "contents"; "c" ]
+        Fmt.strf "The type of user-defined contents (%s). Default is `%s'."
+          (Arg.doc_alts_enum content_types)
+          (fst !default)
       in
-      Arg.(value & opt (some string) None & doc)
+      let arg_info =
+        Arg.info ~doc ~docs:global_option_section [ "contents"; "c" ]
+      in
+      Arg.(value & opt (some string) None & arg_info)
     in
     let create kind = kind in
     Term.(const create $ kind)
@@ -162,11 +167,11 @@ module Store = struct
         ("pack", pack);
       ]
 
-  let default = ref git
+  let default = "git" |> fun n -> ref (n, List.assoc n !all)
 
   let add name ?default:(x = false) m =
     all := (name, m) :: !all;
-    if x then default := m
+    if x then default := (name, m)
 
   let find name =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
@@ -180,12 +185,17 @@ module Store = struct
         failwith msg
 
   let term =
+    let store_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let store =
       let doc =
-        Arg.info ~doc:"The storage backend." ~docs:global_option_section
-          [ "s"; "store" ]
+        Fmt.strf "The storage backend (%s). Default is `%s'."
+          (Arg.doc_alts_enum store_types)
+          (fst !default)
       in
-      Arg.(value & opt (some string) None & doc)
+      let arg_info =
+        Arg.info ~doc ~docs:global_option_section [ "s"; "store" ]
+      in
+      Arg.(value & opt (some (enum store_types)) None & arg_info)
     in
     let create store contents = (store, contents) in
     Term.(const create $ store $ Contents.term)
@@ -239,7 +249,7 @@ let from_config_file_with_defaults path (store, contents) config branch : store
       match contents with
       | None -> (
           match assoc "contents" Contents.find with
-          | None -> !Contents.default
+          | None -> snd !Contents.default
           | Some c -> c )
       | Some c -> Contents.find c
     in
@@ -247,7 +257,7 @@ let from_config_file_with_defaults path (store, contents) config branch : store
       match store with
       | None -> (
           match assoc "store" Store.find with
-          | None -> !Store.default
+          | None -> snd !Store.default
           | Some s -> s )
       | Some s -> Store.find s
     in
@@ -328,7 +338,9 @@ type Irmin.remote += R of Cohttp.Header.t option * string
    alias. *)
 let infer_remote contents headers str =
   let contents =
-    match contents with None -> !Contents.default | Some c -> Contents.find c
+    match contents with
+    | None -> snd !Contents.default
+    | Some c -> Contents.find c
   in
   if Sys.file_exists str then
     let r =
