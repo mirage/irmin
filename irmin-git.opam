@@ -6,7 +6,6 @@ homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "git+https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
-version:      "dev"
 
 build: [
  ["dune" "subst"] {pinned}
