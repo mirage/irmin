@@ -5,7 +5,6 @@ license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "git+https://github.com/mirage/irmin.git"
-version:      "dev"
 
 build: [
  ["dune" "subst"] {pinned}
