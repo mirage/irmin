@@ -38,6 +38,14 @@ module Make (H : Digestif.S) = struct
   let hash s = H.digesti_string s
 end
 
+module Make_BLAKE2B (D : sig
+  val digest_size : int
+end) =
+  Make (Digestif.Make_BLAKE2B (D))
+module Make_BLAKE2S (D : sig
+  val digest_size : int
+end) =
+  Make (Digestif.Make_BLAKE2S (D))
 module SHA1 = Make (Digestif.SHA1)
 module RMD160 = Make (Digestif.RMD160)
 module SHA224 = Make (Digestif.SHA224)
