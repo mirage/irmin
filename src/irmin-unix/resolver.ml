@@ -251,6 +251,10 @@ module Store = struct
 
   type t = T : (module Irmin.S) * remote_fn option -> t
 
+  type store_functor =
+    | Fixed_hash of (contents -> t)
+    | Variable_hash of (hash -> contents -> t)
+
   module type G = sig
     include Irmin.S
 
@@ -291,14 +295,13 @@ module Store = struct
   let all =
     ref
       [
-        (* TODO: error when passing a hash param to a Git backend *)
-          ("git", fun (_ : hash) -> git);
-        ("git-mem", fun (_ : hash) -> git_mem);
-        ("irf", irf);
-        ("mem", mem);
-        ("http", fun h c -> http (mem h c));
-        ("http.git", fun (_ : hash) c -> http (git c));
-        ("pack", pack);
+        ("git", Fixed_hash git);
+        ("git-mem", Fixed_hash git_mem);
+        ("irf", Variable_hash irf);
+        ("mem", Variable_hash mem);
+        ("http", Variable_hash (fun h c -> http (mem h c)));
+        ("http.git", Fixed_hash (fun c -> http (git c)));
+        ("pack", Variable_hash pack);
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -373,37 +376,38 @@ type store =
 
 let from_config_file_with_defaults path (store, hash, contents) config branch :
     store =
+  let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
   let string_value = function `String s -> s | _ -> raise Not_found in
   let assoc name fn =
     try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
   in
   let store =
-    let hash : hash =
-      match hash with
-      | None -> (
-          match assoc "hash" Hash.find with
-          | None -> snd !Hash.default
-          | Some h -> h )
-      | Some h -> h
+    let store =
+      match store with
+      | Some s -> Store.find s
+      | None -> assoc "store" Store.find >>? fun () -> snd !Store.default
     in
     let contents =
       match contents with
-      | None -> (
-          match assoc "contents" Contents.find with
-          | None -> snd !Contents.default
-          | Some c -> c )
       | Some c -> Contents.find c
+      | None ->
+          assoc "contents" Contents.find >>? fun () -> snd !Contents.default
     in
-    let store =
-      match store with
-      | None -> (
-          match assoc "store" Store.find with
-          | None -> snd !Store.default
-          | Some s -> s )
-      | Some s -> Store.find s
-    in
-    store hash contents
+    match store with
+    | Variable_hash s ->
+        let hash : hash =
+          hash >>? fun () ->
+          assoc "hash" Hash.find >>? fun () -> snd !Hash.default
+        in
+        s hash contents
+    | Fixed_hash s -> (
+        (* error if a hash function has been passed *)
+        match (hash, assoc "hash" Hash.find) with
+        | None, None -> s contents
+        | _ ->
+            Fmt.failwith
+              "Cannot customize the hash function for the given store" )
   in
   let config =
     let root = assoc "root" (fun x -> x) in

@@ -54,6 +54,12 @@ module Store : sig
      contains: the store implementation a creator of store's state and
      endpoint. *)
 
+  (** The type of constructors of a store configuration. Depending on the
+      backend, a store may require a hash function. *)
+  type store_functor =
+    | Fixed_hash of (contents -> t)
+    | Variable_hash of (hash -> contents -> t)
+
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
   val v : ?remote:remote_fn -> (module Irmin.S) -> t
@@ -66,9 +72,9 @@ module Store : sig
 
   val git : contents -> t
 
-  val find : string -> hash -> contents -> t
+  val find : string -> store_functor
 
-  val add : string -> ?default:bool -> (hash -> contents -> t) -> unit
+  val add : string -> ?default:bool -> store_functor -> unit
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
