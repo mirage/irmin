@@ -28,7 +28,7 @@ module Hash : sig
 
   val find : string -> t
 
-  val term : string option Cmdliner.Term.t
+  val term : t option Cmdliner.Term.t
 end
 
 type hash = Hash.t

@@ -114,26 +114,51 @@ type contents = Contents.t
 module Hash = struct
   type t = (module Irmin.Hash.S)
 
+  type hash_function = Fixed of t | Variable_size of (int option -> t)
+
+  module type SIZEABLE = functor
+    (S : sig
+       val digest_size : int
+     end)
+    -> Irmin.Hash.S
+
+  let variable_size (module Make : SIZEABLE) (module Default : Irmin.Hash.S) =
+    Variable_size
+      (function
+      | Some s ->
+          ( module struct
+            include Make (struct
+              let digest_size = s
+            end)
+          end : Irmin.Hash.S )
+      | None -> (module Default))
+
   let all =
     ref
       [
-        ("blake2b", (module Irmin.Hash.BLAKE2B : Irmin.Hash.S));
-        ("blake2s", (module Irmin.Hash.BLAKE2S : Irmin.Hash.S));
-        ("rmd160", (module Irmin.Hash.RMD160 : Irmin.Hash.S));
-        ("sha1", (module Irmin.Hash.SHA1 : Irmin.Hash.S));
-        ("sha224", (module Irmin.Hash.SHA224 : Irmin.Hash.S));
-        ("sha256", (module Irmin.Hash.SHA256 : Irmin.Hash.S));
-        ("sha384", (module Irmin.Hash.SHA384 : Irmin.Hash.S));
-        ("sha512", (module Irmin.Hash.SHA512 : Irmin.Hash.S));
+        ( "blake2b",
+          variable_size
+            (module Irmin.Hash.Make_BLAKE2B : SIZEABLE)
+            (module Irmin.Hash.BLAKE2B : Irmin.Hash.S) );
+        ( "blake2s",
+          variable_size
+            (module Irmin.Hash.Make_BLAKE2S : SIZEABLE)
+            (module Irmin.Hash.BLAKE2S : Irmin.Hash.S) );
+        ("rmd160", Fixed (module Irmin.Hash.RMD160 : Irmin.Hash.S));
+        ("sha1", Fixed (module Irmin.Hash.SHA1 : Irmin.Hash.S));
+        ("sha224", Fixed (module Irmin.Hash.SHA224 : Irmin.Hash.S));
+        ("sha256", Fixed (module Irmin.Hash.SHA256 : Irmin.Hash.S));
+        ("sha384", Fixed (module Irmin.Hash.SHA384 : Irmin.Hash.S));
+        ("sha512", Fixed (module Irmin.Hash.SHA512 : Irmin.Hash.S));
       ]
 
-  let default = "blake2b" |> fun n -> ref (n, List.assoc n !all)
+  let default = ref ("blake2b", (module Irmin.Hash.BLAKE2B : Irmin.Hash.S))
 
   let add name ?default:(x = false) m =
-    all := (name, m) :: !all;
+    all := (name, Fixed m) :: !all;
     if x then default := (name, m)
 
-  let find name =
+  let find_hashfn name =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
     | Some c -> c
     | None ->
@@ -144,18 +169,74 @@ module Hash = struct
         in
         failwith msg
 
+  let of_specifier hashname =
+    let ( >>= ) x f = match x with Ok x -> f x | Error _ as e -> e in
+    ( match String.cut ~rev:true ~sep:"/" hashname with
+    | Some (hashname, size) -> (
+        match int_of_string_opt size with
+        | Some size -> Ok (hashname, Some size)
+        | None ->
+            Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size)) )
+    | None -> Ok (hashname, None) )
+    >>= fun (hashname, size_opt) ->
+    match (find_hashfn hashname, size_opt) with
+    | Variable_size hashfn, size_opt -> Ok (hashfn size_opt)
+    | Fixed hashfn, None -> Ok hashfn
+    | Fixed _, Some size ->
+        Error
+          (`Msg
+            (Fmt.strf
+               "Cannot specify a size for hash function `%s' (%d passed)."
+               hashname size))
+
+  let find h =
+    of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e
+
+  let hash_function_conv : t Cmdliner.Arg.conv =
+    Arg.conv (of_specifier, Fmt.nop)
+
   let term =
-    let hash_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let kind =
+      let quote s = Fmt.strf "`%s'" s in
+      let hash_types = !all |> List.map (fun (name, _) -> (name, name)) in
+      let variable_size_types =
+        !all
+        |> List.filter (function
+             | _, Variable_size _ -> true
+             | _, Fixed _ -> false)
+        |> List.map fst
+      in
+      let pp_prose_list =
+        Fmt.of_to_string (function
+          | [] -> ""
+          | [ h ] -> quote h
+          | hs ->
+              let rev_hs = List.rev hs in
+              Fmt.strf "%s and %s"
+                (String.concat ~sep:", " (List.rev_map quote (List.tl rev_hs)))
+                (quote (List.hd rev_hs)))
+      in
+      let pp_plural =
+        Fmt.of_to_string (function _ :: _ :: _ -> "s" | _ -> "")
+      in
+      let pp_variable_size_doc ppf = function
+        | [] -> ()
+        | _ :: _ as hs ->
+            Fmt.pf ppf
+              "\n\
+               The bit-length of the hash function%a %a may optionally be set \
+               with a trailing slash (e.g. `%s/16')."
+              pp_plural hs pp_prose_list hs (List.hd hs)
+      in
       let doc =
-        Fmt.strf "The hash function (%s). Default is `%s'."
+        Fmt.strf "The hash function (%s). Default is `%s'.%a"
           (Arg.doc_alts_enum hash_types)
-          (fst !default)
+          (fst !default) pp_variable_size_doc variable_size_types
       in
       let arg_info =
         Arg.info ~doc ~docs:global_option_section [ "hash"; "h" ]
       in
-      Arg.(value & opt (some string) None & arg_info)
+      Arg.(value & opt (some hash_function_conv) None & arg_info)
     in
     let create kind = kind in
     Term.(const create $ kind)
@@ -298,13 +379,13 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
     try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
   in
   let store =
-    let hash =
+    let hash : hash =
       match hash with
       | None -> (
           match assoc "hash" Hash.find with
           | None -> snd !Hash.default
-          | Some c -> c )
-      | Some c -> Hash.find c
+          | Some h -> h )
+      | Some h -> h
     in
     let contents =
       match contents with
@@ -398,9 +479,7 @@ type Irmin.remote += R of Cohttp.Header.t option * string
    kind. Would be better to read the config file and look for remote
    alias. *)
 let infer_remote hash contents headers str =
-  let hash =
-    match hash with None -> snd !Hash.default | Some c -> Hash.find c
-  in
+  let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
     match contents with
     | None -> snd !Contents.default
