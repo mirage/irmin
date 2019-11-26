@@ -47,7 +47,7 @@ module Make (IO : IO.S) : S = struct
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
     io : IO.t;
-    mutable counter : int;
+    mutable open_instances : int;
   }
 
   let append_string t v =
@@ -109,21 +109,21 @@ module Make (IO : IO.S) : S = struct
     let io = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
-    let t = { capacity; index; cache; io; counter = 1 } in
+    let t = { capacity; index; cache; io; open_instances = 1 } in
     refill ~from:0L t;
     t
 
   let close t =
-    t.counter <- t.counter - 1;
-    if t.counter = 0 then (
+    t.open_instances <- t.open_instances - 1;
+    if t.open_instances = 0 then (
       if not (IO.readonly t.io) then sync t;
       IO.close t.io;
       Hashtbl.reset t.cache;
       Hashtbl.reset t.index )
 
   let valid t =
-    if t.counter <> 0 then (
-      t.counter <- t.counter + 1;
+    if t.open_instances <> 0 then (
+      t.open_instances <- t.open_instances + 1;
       true )
     else false
 end

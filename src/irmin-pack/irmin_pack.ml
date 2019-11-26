@@ -110,7 +110,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     block : IO.t;
     lock : Lwt_mutex.t;
     w : W.t;
-    mutable counter : int;
+    mutable open_instances : int;
   }
 
   let read_length32 ~off block =
@@ -206,8 +206,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let watches = W.v ()
 
   let valid t =
-    if t.counter <> 0 then (
-      t.counter <- t.counter + 1;
+    if t.open_instances <> 0 then (
+      t.open_instances <- t.open_instances + 1;
       true )
     else false
 
@@ -222,7 +222,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         block;
         w = watches;
         lock = Lwt_mutex.create ();
-        counter = 1;
+        open_instances = 1;
       }
     in
     refill t ~from:0L;
@@ -284,8 +284,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let unwatch t = W.unwatch t.w
 
   let unsafe_close t =
-    t.counter <- t.counter - 1;
-    if t.counter = 0 then (
+    t.open_instances <- t.open_instances - 1;
+    if t.open_instances = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
       if not (IO.readonly t.block) then IO.sync t.block;
