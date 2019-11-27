@@ -77,6 +77,11 @@ module Generic (C : Irmin.Contents.S) = struct
   let init () =
     Repo.v config >>= fun repo ->
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo)
+
+  let clean () =
+    Repo.v config >>= fun repo ->
+    Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo) >>= fun () ->
+    Repo.close repo
 end
 
 let suite =
@@ -90,7 +95,7 @@ let suite =
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
   let store = (module S : Irmin_test.S) in
-  let clean () = S.init () in
+  let clean () = S.clean () in
   let init () = S.init () in
   let stats = None in
   { Irmin_test.name = "GIT.generic"; clean; init; store; stats; config }
@@ -209,7 +214,7 @@ let test_import_export (module S : S) =
   let module Generic = Generic (Irmin.Contents.String) in
   let module Sync = Irmin.Sync (Generic) in
   S.init () >>= fun () ->
-  Generic.init () >>= fun () ->
+  Generic.init () >>= fun _ ->
   S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
   S.master repo >>= fun t ->
   S.set_exn t ~info:Irmin.Info.none [ "test" ] "toto" >>= fun () ->

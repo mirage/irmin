@@ -45,6 +45,7 @@ let suite =
     let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
     S.Repo.v config >>= fun repo ->
     S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+    >>= fun () -> S.Repo.close repo
   in
   let stats = None in
   { Irmin_test.name = "PACK"; init; clean; config; store; stats }
