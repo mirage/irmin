@@ -170,8 +170,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
     if IO.readonly t.block then sync_offset t;
-    try Lwt.return_some (Tbl.find t.cache k)
-    with Not_found -> Lwt.return_none
+    try Lwt.return_some (Tbl.find t.cache k) with Not_found -> Lwt.return_none
 
   let find t k = Lwt_mutex.with_lock t.lock (fun () -> unsafe_find t k)
 
@@ -438,8 +437,7 @@ struct
         let readonly = readonly config in
         let log_size = index_log_size config in
         let index = Index.v ~fresh ~readonly ~log_size root in
-        Contents.CA.v ~fresh ~readonly ~lru_size ~index root
-        >>= fun contents ->
+        Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
         Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
         Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->

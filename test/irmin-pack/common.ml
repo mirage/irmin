@@ -18,9 +18,7 @@ module S = struct
     Irmin.Type.(encode_bin ~headers:false (pair H.t t) (k, x))
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    let _, (_, v) =
-      Irmin.Type.(decode_bin ~headers:false (pair H.t t) x off)
-    in
+    let _, (_, v) = Irmin.Type.(decode_bin ~headers:false (pair H.t t) x off) in
     v
 end
 

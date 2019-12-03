@@ -71,15 +71,14 @@ module Conf = struct
 
   let dot_git =
     Irmin.Private.Conf.key
-      ~doc:
-        "The location of the .git directory. By default set to [$root/.git]."
+      ~doc:"The location of the .git directory. By default set to [$root/.git]."
       "dot-git"
       Irmin.Private.Conf.(some string)
       None
 end
 
-let config ?(config = Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git
-    root =
+let config ?(config = Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root
+    =
   let module C = Irmin.Private.Conf in
   let config = C.add config Conf.root (Some root) in
   let config =
@@ -298,8 +297,7 @@ struct
 
       let empty = G.Value.Tree.of_list []
 
-      let to_git perm (name, node) =
-        G.Value.Tree.entry (of_step name) perm node
+      let to_git perm (name, node) = G.Value.Tree.entry (of_step name) perm node
 
       let v alist =
         let alist =
@@ -612,12 +610,10 @@ functor
       let write_head head =
         let head = G.Reference.Ref head in
         (( if G.has_global_checkout then
-           Lwt_mutex.with_lock m (fun () ->
-               G.Ref.write t G.Reference.head head)
+           Lwt_mutex.with_lock m (fun () -> G.Ref.write t G.Reference.head head)
          else Lwt.return_ok () )
          >|= function
-         | Error e ->
-             Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
+         | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
          | Ok () -> ())
         >|= fun () -> head
       in
@@ -792,8 +788,7 @@ struct
           !errors
     in
     let references =
-      G.Reference.Map.singleton (* local *) reference
-        (* remote *) [ reference ]
+      G.Reference.Map.singleton (* local *) reference (* remote *) [ reference ]
     in
     S.update_and_create t ~references e >|= function
     | Error e -> Fmt.kstrf (fun e -> Error (`Msg e)) "%a" S.pp_error e
@@ -809,10 +804,7 @@ module Reference : BRANCH with type t = reference = struct
   open Astring
 
   type t =
-    [ `Branch of string
-    | `Remote of string
-    | `Tag of string
-    | `Other of string ]
+    [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
 
   let pp_ref ppf = function
     | `Branch b -> Fmt.pf ppf "refs/heads/%s" b
@@ -1133,8 +1125,7 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
   end
 
-  module M =
-    Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
+  module M = Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
   module X = M.Private.Contents
 
   let state t = M.repo_of_git (snd t) >|= fun r -> M.Private.Repo.contents_t r
@@ -1177,10 +1168,7 @@ module Atomic_write (G : Git.S) (K : Irmin.Branch.S) = struct
   include AW_check_closed (Irmin_branch_store) (G) (Branch (K))
 end
 
-module KV
-    (G : G)
-    (S : Git.Sync.S with module Store := G)
-    (C : Irmin.Contents.S) =
+module KV (G : G) (S : Git.Sync.S with module Store := G) (C : Irmin.Contents.S) =
   Make (G) (S) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
 module Ref
     (G : G)

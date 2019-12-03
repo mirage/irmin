@@ -81,9 +81,7 @@ let test_json () =
     (Ok "\128\129a")
 
 let l =
-  let hex =
-    T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id
-  in
+  let hex = T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
   T.list ~len:(`Fixed 2) hex
 
 let tl = Alcotest.testable (T.pp l) (T.equal l)
@@ -145,10 +143,7 @@ let test_equal () =
   let b =
     `O [ ("a", `Bool true); ("b", `Float 2.); ("c", `A [ `String "test" ]) ]
   in
-  Alcotest.(check bool)
-    "json eq"
-    (T.equal Irmin.Contents.Json_value.t a b)
-    true
+  Alcotest.(check bool) "json eq" (T.equal Irmin.Contents.Json_value.t a b) true
 
 let test_int () =
   let test dx x =

@@ -4,8 +4,7 @@ module Server = struct
 
     module Http : Cohttp_lwt.S.Server
 
-    module Store :
-      Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
+    module Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
     val start : http:(Http.t -> unit Lwt.t) -> Store.repo -> unit Lwt.t
   end

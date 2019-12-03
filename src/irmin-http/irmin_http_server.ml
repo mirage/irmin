@@ -215,8 +215,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
                       let rd = { rd with Wm.Rd.resp_body } in
                       Wm.continue true rd
                   | None ->
-                      S.test_and_set db key ~test:v.test ~set:v.set
-                      >>= fun b ->
+                      S.test_and_set db key ~test:v.test ~set:v.set >>= fun b ->
                       let resp_body =
                         `String (to_json status_t (string_of_bool b))
                       in

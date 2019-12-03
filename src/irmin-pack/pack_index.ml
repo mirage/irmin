@@ -64,6 +64,5 @@ module Make (K : Irmin.Hash.S) = struct
 
   let add t k v = replace t k v
 
-  let find t k =
-    match find t k with exception Not_found -> None | h -> Some h
+  let find t k = match find t k with exception Not_found -> None | h -> Some h
 end

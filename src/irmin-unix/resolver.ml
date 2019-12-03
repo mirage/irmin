@@ -175,8 +175,8 @@ module Hash = struct
     | Some (hashname, size) -> (
         match int_of_string_opt size with
         | Some size -> Ok (hashname, Some size)
-        | None ->
-            Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size)) )
+        | None -> Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size))
+        )
     | None -> Ok (hashname, None) )
     >>= fun (hashname, size_opt) ->
     match (find_hashfn hashname, size_opt) with
@@ -192,8 +192,7 @@ module Hash = struct
   let find h =
     of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e
 
-  let hash_function_conv : t Cmdliner.Arg.conv =
-    Arg.conv (of_specifier, Fmt.nop)
+  let hash_function_conv : t Cmdliner.Arg.conv = Arg.conv (of_specifier, Fmt.nop)
 
   let term =
     let kind =
@@ -268,8 +267,7 @@ module Store = struct
   let create : (module Irmin.S_MAKER) -> hash -> contents -> t =
    fun (module S) (module H) (module C) ->
     let module S =
-      S (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-        (Irmin.Branch.String)
+      S (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
         (H)
     in
     T ((module S), None)
@@ -365,9 +363,8 @@ let config_term =
   Term.(
     const create
     $ opt_key Irmin.Private.Conf.root
-    $ flag_key Irmin_git.bare $ opt_key Irmin_git.head
-    $ opt_key Irmin_git.level $ opt_key Irmin_http.uri
-    $ opt_key config_path_key)
+    $ flag_key Irmin_git.bare $ opt_key Irmin_git.head $ opt_key Irmin_git.level
+    $ opt_key Irmin_http.uri $ opt_key config_path_key)
 
 type store =
   | S :

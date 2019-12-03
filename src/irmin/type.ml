@@ -118,12 +118,7 @@ and 'a custom = {
   equal : 'a equal;
 }
 
-and ('a, 'b) map = {
-  x : 'a t;
-  f : 'a -> 'b;
-  g : 'b -> 'a;
-  mwit : 'b Witness.t;
-}
+and ('a, 'b) map = { x : 'a t; f : 'a -> 'b; g : 'b -> 'a; mwit : 'b Witness.t }
 
 and 'a self = { mutable self : 'a t }
 
@@ -348,8 +343,7 @@ let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
 
 (* records *)
 
-type ('a, 'b, 'c) open_record =
-  ('a, 'c) fields -> string * 'b * ('a, 'b) fields
+type ('a, 'b, 'c) open_record = ('a, 'c) fields -> string * 'b * ('a, 'b) fields
 
 let field fname ftype fget = { fname; ftype; fget }
 
@@ -848,8 +842,7 @@ module Decode_json = struct
     Error
       (`Msg
         (Fmt.strf
-           "line %d, character %d:\n\
-            Found lexeme %a, but lexeme %s was expected"
+           "line %d, character %d:\nFound lexeme %a, but lexeme %s was expected"
            l c Jsonm.pp_lexeme got expected))
 
   let expect_lexeme e expected =
@@ -1000,8 +993,8 @@ module Decode_json = struct
       | l -> error e l "`Record-contents"
     in
     soup [] >>= fun soup ->
-    let rec aux :
-        type a b. (a, b) fields -> b -> (a, [ `Msg of string ]) result =
+    let rec aux : type a b. (a, b) fields -> b -> (a, [ `Msg of string ]) result
+        =
      fun f c ->
       match f with
       | F0 -> Ok c

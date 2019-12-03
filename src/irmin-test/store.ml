@@ -497,8 +497,7 @@ module Make (S : S) = struct
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
-      >>= fun () ->
+      retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r) >>= fun () ->
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
@@ -897,6 +896,7 @@ module Make (S : S) = struct
       let k0 = random_path ~label:8 ~path:5 in
       let k1 = random_path ~label:8 ~path:4 in
       let k2 = random_path ~label:8 ~path:6 in
+
       (* test that we don't compute too many lcas
 
          0(k0, k1) -> 1(k1) -> 2(k0) -> 3(k1, k0) -> 4(k1)
@@ -932,8 +932,7 @@ module Make (S : S) = struct
       >>= fun () ->
       assert_last_modified "line last_modified 4" ~depth:1 ~n:3 store k0 [ c3 ]
       >>= fun () ->
-      assert_last_modified "line last_modified 5" ~n:1 store k2 []
-      >>= fun () ->
+      assert_last_modified "line last_modified 5" ~n:1 store k2 [] >>= fun () ->
       assert_last_modified "line last_modified 5" ~depth:0 ~n:2 store k0 []
       >>= fun () ->
       (* test for multiple lca
@@ -1193,8 +1192,8 @@ module Make (S : S) = struct
       S.Repo.close repo >>= fun () ->
       Lwt.catch
         (fun () ->
-          S.set_exn t ~info:(infof "add after close") [ "a" ] "bar"
-          >|= fun _ -> Alcotest.fail "Add after close should not be allowed")
+          S.set_exn t ~info:(infof "add after close") [ "a" ] "bar" >|= fun _ ->
+          Alcotest.fail "Add after close should not be allowed")
         (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
     run x test
@@ -1366,9 +1365,7 @@ module Make (S : S) = struct
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->
       S.Tree.to_concrete v0 >>= fun c ->
-      ( match c with
-      | `Tree [] -> ()
-      | _ -> Alcotest.fail "Excpected empty tree" );
+      (match c with `Tree [] -> () | _ -> Alcotest.fail "Excpected empty tree");
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
       check_val "read /" (normal foo1) foo1';
@@ -1700,8 +1697,7 @@ module Make (S : S) = struct
     let test repo =
       S.master repo >>= fun t ->
       let update ?retries key strategy r w =
-        S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key
-          (fun _ ->
+        S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key (fun _ ->
             Lwt_mvar.take r >|= fun v ->
             Some (`Contents (v, S.Metadata.default)))
         >>= Lwt_mvar.put w
@@ -1739,8 +1735,8 @@ module Make (S : S) = struct
               Alcotest.(check string) "set x" "1" a;
               Lwt_mvar.put ry "2" >>= fun () ->
               Lwt_mvar.take wy >|= check_ok >>= fun () ->
-              S.get t [ "a" ] >|= fun a ->
-              Alcotest.(check string) "set y" "2" a );
+              S.get t [ "a" ] >|= fun a -> Alcotest.(check string) "set y" "2" a
+            );
           ]
       in
       let test_and_set () =
@@ -1834,8 +1830,7 @@ module Make (S : S) = struct
                 S.clone ~src:t ~dst:tag >>= fun m ->
                 S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
                 S.Head.find m >>= fun set ->
-                Lwt_unix.yield () >>= fun () ->
-                S.Head.test_and_set t ~test ~set))
+                Lwt_unix.yield () >>= fun () -> S.Head.test_and_set t ~test ~set))
       in
       let read t =
         read
@@ -1857,8 +1852,7 @@ module Make (S : S) = struct
       let node_3 =
         S.Private.Node.Val.v
           [
-            ("foo", `Contents (foo_k, S.Metadata.default));
-            ("bar", `Node bar_k);
+            ("foo", `Contents (foo_k, S.Metadata.default)); ("bar", `Node bar_k);
           ]
       in
       let tree_3 = `Node (S.of_private_node repo node_3) in

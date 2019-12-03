@@ -32,8 +32,7 @@ let uri =
 
 module Conf = Irmin.Private.Conf
 
-let config ?(config = Irmin.Private.Conf.empty) x =
-  Conf.add config uri (Some x)
+let config ?(config = Irmin.Private.Conf.empty) x = Conf.add config uri (Some x)
 
 let uri_append t path =
   match Uri.path t :: path with
@@ -124,8 +123,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
     match Cohttp.Header.get (Cohttp.Response.headers r) irmin_version with
     | None -> err_bad_version None
     | Some v ->
-        if v <> Irmin.version then err_bad_version (Some v)
-        else Lwt.return_unit
+        if v <> Irmin.version then err_bad_version (Some v) else Lwt.return_unit
 
   let is_success r =
     match Cohttp.Response.status r with `OK -> true | _ -> false
@@ -180,8 +178,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
         Lwt.fail e)
 
   let call meth t ctx ?body path parse =
-    map_call meth t ctx ~keep_alive:false ?body path
-      (map_string_response parse)
+    map_call meth t ctx ~keep_alive:false ?body path (map_string_response parse)
 
   let call_stream meth t ctx ?body path parse =
     map_call meth t ctx ~keep_alive:true ?body path (map_stream_response parse)
@@ -328,8 +325,8 @@ functor
           | `Not_found | `OK -> Lwt.return_unit
           | _ ->
               Cohttp_lwt.Body.to_string b >>= fun b ->
-              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s"
-                (Irmin.Type.pp K.t) key b)
+              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" (Irmin.Type.pp K.t)
+                key b)
 
     let nb_keys t = fst (W.stats t.w)
 
@@ -445,8 +442,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
            | Error _ -> None)
           >>= fun old ->
           let body =
-            Irmin.Type.(to_string (merge_t (option Key.t)))
-              { old; left; right }
+            Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
           let result = Irmin.Merge.result_t (Irmin.Type.option Key.t) in
           HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body

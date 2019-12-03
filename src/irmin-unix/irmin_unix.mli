@@ -60,16 +60,15 @@ module FS : sig
   (** Irmin store make, where only the Contents have to be specified:
       branches are strings and paths are string lists. *)
 
-  module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
   (** Append-only store maker, with control over the filenames shapes. *)
+  module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
 
-  module Atomic_write_ext (C : Irmin_fs.Config) :
-    Irmin.ATOMIC_WRITE_STORE_MAKER
   (** Read-write store maker, with control over the filename shapes. *)
+  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
 
+  (** Irmin store maker, with control over the filename shapes. *)
   module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) :
     Irmin.S_MAKER
-  (** Irmin store maker, with control over the filename shapes. *)
 end
 
 (** Bidirectional Git backends. *)

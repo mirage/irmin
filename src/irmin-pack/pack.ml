@@ -259,8 +259,8 @@ struct
       let k' = V.hash v in
       if Irmin.Type.equal K.t k k' then ()
       else
-        Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash k'
-          pp_hash k
+        Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash k' pp_hash
+          k
 
     let io_read_and_decode ~off ~len t =
       if not (IO.readonly t.pack.block) then
