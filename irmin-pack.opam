@@ -17,14 +17,10 @@ depends: [
   "ocaml"      {>= "4.02.3"}
   "dune"       {>= "1.1.0"}
   "irmin"      {>= "2.0.0"}
-  "index"      {>= "1.0.0"}
+  "index"      {>= "1.0.1"}
   "lwt"
   "irmin-test" {with-test & >= "2.0.0"}
   "alcotest-lwt" {with-test}
-]
-
-pin-depends: [
-  ["index.dev" "git+https://github.com/mirage/index.git"]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
