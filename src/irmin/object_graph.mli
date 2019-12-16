@@ -74,6 +74,7 @@ module type S = sig
   (** The base functions over graph internals. *)
 end
 
+(** Build a graph. *)
 module Make
     (Contents : Type.S)
     (Metadata : Type.S)
@@ -86,4 +87,3 @@ module Make
           | `Node of Node.t
           | `Commit of Commit.t
           | `Branch of Branch.t ]
-(** Build a graph. *)

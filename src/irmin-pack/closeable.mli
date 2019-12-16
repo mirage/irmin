@@ -13,10 +13,7 @@
 (** Augments primitive store modules with close semantics *)
 
 module Pack (S : Pack.S) :
-  Pack.S
-    with type key = S.key
-     and type value = S.value
-     and type index = S.index
+  Pack.S with type key = S.key and type value = S.value and type index = S.index
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) :
   S.ATOMIC_WRITE_STORE

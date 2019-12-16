@@ -396,9 +396,7 @@ module IO_mem = struct
 
   let test_and_set_file ?temp_dir:_ ~lock file ~test ~set =
     let f () =
-      let old =
-        try Some (Hashtbl.find t.files file) with Not_found -> None
-      in
+      let old = try Some (Hashtbl.find t.files file) with Not_found -> None in
       let b =
         if not (equal old test) then false
         else

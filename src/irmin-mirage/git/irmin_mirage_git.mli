@@ -67,9 +67,9 @@ module type KV_RO = sig
       the root of the repository. *)
 end
 
-module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
 (** Functor to create a MirageOS' KV_RO store from a Git
    repository. The key ["/HEAD"] always shows the current HEAD. *)
+module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
 
 module type KV_RW = sig
   type git
@@ -99,10 +99,10 @@ module type KV_RW = sig
         the kind of operations performed. *)
 end
 
-module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
-  KV_RW with type git := G.t
 (** Functor to create a MirageOS' KV_RW store from a Git
     repository. *)
+module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
+  KV_RW with type git := G.t
 
 (** Embed an Irmin store into an in-memory Git repository. *)
 module Mem : sig

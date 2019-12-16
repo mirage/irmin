@@ -99,8 +99,7 @@ end
 
 val like : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 
-val like_lwt :
-  'a Type.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
+val like_lwt : 'a Type.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
 
 val with_conflict : (string -> string) -> 'a t -> 'a t
 

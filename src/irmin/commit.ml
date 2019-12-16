@@ -111,8 +111,7 @@ struct
           match old with
           | None -> Merge.ok None
           | Some old ->
-              get t old >>= fun vold ->
-              Merge.ok (Some (Some (S.Val.node vold)))
+              get t old >>= fun vold -> Merge.ok (Some (Some (S.Val.node vold)))
         in
         merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
@@ -306,8 +305,7 @@ module History (S : S.COMMIT_STORE) = struct
 
   let set_mark t elt mark = KHashtbl.replace t.marks elt mark
 
-  let get_layer t d =
-    try Hashtbl.find t.layers d with Not_found -> KSet.empty
+  let get_layer t d = try Hashtbl.find t.layers d with Not_found -> KSet.empty
 
   let add_to_layer t d k =
     Hashtbl.replace t.layers d (KSet.add k (get_layer t d))

@@ -530,9 +530,7 @@ module Make (P : S.PRIVATE) = struct
       | `Contents (c, m) -> `Contents (Contents.to_hash c, m)
       | `Node n ->
           let h =
-            to_hash
-              ~value_of_map:(value_of_map ~value_of_adds)
-              ~value_of_adds n
+            to_hash ~value_of_map:(value_of_map ~value_of_adds) ~value_of_adds n
           in
           `Node h
 
@@ -772,8 +770,7 @@ module Make (P : S.PRIVATE) = struct
       to_map t >|= function
       | None -> t
       | Some n ->
-          if not (StepMap.mem step n) then t
-          else of_map (StepMap.remove step n)
+          if not (StepMap.mem step n) then t else of_map (StepMap.remove step n)
 
     let add t step v =
       let v =
@@ -884,8 +881,7 @@ module Make (P : S.PRIVATE) = struct
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n
-    | `Contents (c, _) ->
-        Fmt.pf ppf "contents: %a" (Type.pp P.Contents.Val.t) c
+    | `Contents (c, _) -> Fmt.pf ppf "contents: %a" (Type.pp P.Contents.Val.t) c
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
@@ -1057,8 +1053,7 @@ module Make (P : S.PRIVATE) = struct
                     | None -> k None
                     | Some child' -> (
                         (* remove empty dirs *)
-                        Node.is_empty child'
-                        >>= function
+                        Node.is_empty child' >>= function
                         | true -> may_remove view h >>= k
                         | false -> Node.add view h (`Node child') >>= some )) )
         in
@@ -1312,8 +1307,7 @@ module Make (P : S.PRIVATE) = struct
                     removed !acc (path, x) >|= fun x -> acc := x
                 | `Left (`Node x) ->
                     entries path x >>= fun xs ->
-                    Lwt_list.fold_left_s removed !acc xs >|= fun xs ->
-                    acc := xs
+                    Lwt_list.fold_left_s removed !acc xs >|= fun xs -> acc := xs
                 (* Right *)
                 | `Right (`Contents y) ->
                     added !acc (path, y) >|= fun y -> acc := y

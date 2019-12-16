@@ -331,11 +331,9 @@ struct
                           | `Contents ->
                               Store.Tree.get_all tree relative_key
                               >|= fun (c, m) ->
-                              Lazy.(
-                                force contents_as_node (c, m, absolute_key))
+                              Lazy.(force contents_as_node (c, m, absolute_key))
                           | `Node ->
-                              Store.Tree.get_tree tree relative_key
-                              >|= fun t ->
+                              Store.Tree.get_tree tree relative_key >|= fun t ->
                               Lazy.(force tree_as_node (t, absolute_key)))
                   >>= Lwt.return_ok);
             ]))
@@ -600,8 +598,7 @@ struct
           ~resolve:(fun _ _src branch key i ->
             mk_branch s branch >>= fun t ->
             txn_args s i >>= fun (info, retries, allow_empty, parents) ->
-            Store.remove t ?retries ?allow_empty ?parents key ~info
-            >>= function
+            Store.remove t ?retries ?allow_empty ?parents key ~info >>= function
             | Ok () -> Store.Head.find t >>= Lwt.return_ok
             | Error e -> err_write e);
         io_field "merge" ~typ:Types.Hash.schema_typ
@@ -726,8 +723,7 @@ struct
     Schema.
       [
         subscription_field "watch" ~typ:(non_null diff)
-          ~args:
-            Arg.[ arg "branch" ~typ:Input.branch; arg "key" ~typ:Input.key ]
+          ~args:Arg.[ arg "branch" ~typ:Input.branch; arg "key" ~typ:Input.key ]
           ~resolve:(fun _ctx branch key ->
             mk_branch s branch >>= fun t ->
             let stream, push = Lwt_stream.create () in

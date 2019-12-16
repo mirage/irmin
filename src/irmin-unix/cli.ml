@@ -539,8 +539,8 @@ let dot =
          let doc =
            Arg.info
              ~doc:
-               "Show the full graph of objects, including the filesystem \
-                nodes and the content blobs."
+               "Show the full graph of objects, including the filesystem nodes \
+                and the content blobs."
              [ "full" ]
          in
          Arg.(value & flag & doc)
@@ -627,9 +627,7 @@ let help =
       [ `P "Use `$(mname) help topics' to get the full list of help topics." ];
     term =
       (let topic =
-         let doc =
-           Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on."
-         in
+         let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
          Arg.(value & pos 0 (some string) None & doc)
        in
        let help man_format cmds topic =

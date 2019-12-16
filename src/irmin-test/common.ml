@@ -74,8 +74,7 @@ let line msg =
 let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
   let module S =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
   in
   (module S)

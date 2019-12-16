@@ -41,8 +41,8 @@ struct
         let k' = hash v in
         if Type.equal K.t k k' then Lwt.return r
         else
-          Fmt.kstrf Lwt.fail_invalid_arg
-            "corrupted value: got %a, expecting %a" pp_key k' pp_key k
+          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+            pp_key k' pp_key k
 
   let unsafe_add t k v = add t k v
 
@@ -124,8 +124,7 @@ module Make (P : S.PRIVATE) = struct
       P.Repo.batch r @@ fun contents_t node_t commit_t ->
       ( match tree with
       | `Node n -> Tree.export r contents_t node_t n
-      | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root"
-      )
+      | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root" )
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
       P.Commit.add commit_t v >|= fun h -> { r; h; v }
@@ -655,8 +654,7 @@ module Make (P : S.PRIVATE) = struct
   let snapshot t key =
     tree_and_head t >>= function
     | None ->
-        Lwt.return
-          { head = None; root = Tree.empty; tree = None; parents = [] }
+        Lwt.return { head = None; root = Tree.empty; tree = None; parents = [] }
     | Some (c, root) ->
         let root = (root :> tree) in
         Tree.find_tree root key >|= fun tree ->
@@ -728,8 +726,7 @@ module Make (P : S.PRIVATE) = struct
     | None, None -> set_tree_once root key ~new_tree ~current_tree
     | None, _ | _, None -> err_test current_tree
     | Some test, Some v ->
-        if Tree.equal test v then
-          set_tree_once root key ~new_tree ~current_tree
+        if Tree.equal test v then set_tree_once root key ~new_tree ~current_tree
         else err_test current_tree
 
   let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
@@ -994,8 +991,7 @@ module Make (P : S.PRIVATE) = struct
 
   let last_modified ?depth ?(n = 1) t key =
     Log.debug (fun l ->
-        l "last_modified depth=%a number=%d key=%a" pp_option depth n pp_key
-          key);
+        l "last_modified depth=%a number=%d key=%a" pp_option depth n pp_key key);
     Head.get t >>= fun commit ->
     let heap = Heap.create 5 in
     let () = Heap.add heap (commit, 0) in
@@ -1031,8 +1027,7 @@ module Make (P : S.PRIVATE) = struct
                   | _, _ -> false )
               | None -> Lwt.return_false)
             parents
-          >>= fun found ->
-          if found then search (current :: acc) else search acc
+          >>= fun found -> if found then search (current :: acc) else search acc
     in
     search []
 

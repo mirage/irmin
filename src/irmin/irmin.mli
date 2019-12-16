@@ -150,9 +150,7 @@ module Type : sig
   *)
 
   val ( |+ ) :
-    ('a, 'b, 'c -> 'd) open_record ->
-    ('a, 'c) field ->
-    ('a, 'b, 'd) open_record
+    ('a, 'b, 'c -> 'd) open_record -> ('a, 'c) field -> ('a, 'b, 'd) open_record
   (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
   val sealr : ('a, 'b, 'a) open_record -> 'a t
@@ -1073,8 +1071,8 @@ module Hash : sig
     (** [t] is the value type for {!t}. *)
   end
 
-  module Make (H : Digestif.S) : S with type t = H.t
   (** Digestif hashes. *)
+  module Make (H : Digestif.S) : S with type t = H.t
 
   module Make_BLAKE2B (D : sig
     val digest_size : int
@@ -1100,8 +1098,8 @@ module Hash : sig
 
   module BLAKE2S : S
 
-  module V1 (H : S) : S with type t = H.t
   (** v1 serialisation *)
+  module V1 (H : S) : S with type t = H.t
 
   (** Typed hashes. *)
 
@@ -1519,8 +1517,8 @@ module Private : sig
       val stats : t -> int
     end
 
-    module Make (K : Type.S) : S with type key = K.t
     (** Create a lock manager implementation. *)
+    module Make (K : Type.S) : S with type key = K.t
   end
 
   (** [Node] provides functions to describe the graph-like structured
@@ -1813,9 +1811,9 @@ module Private : sig
       (** [hash_t] is the value type for {!hash}. *)
     end
 
-    module Make (K : Type.S) : S with type hash = K.t
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit and node keys [K]. *)
+    module Make (K : Type.S) : S with type hash = K.t
 
     (** V1 serialisation. *)
     module V1 (S : S) : sig
@@ -3249,9 +3247,9 @@ module type S_MAKER = functor
 module type KV =
   S with type key = string list and type step = string and type branch = string
 
-module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 (** [KV_MAKER] is like {!S_MAKER} but where everything except the
     contents is replaced by sensible default implementations. *)
+module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
@@ -3666,11 +3664,11 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
       configuration [config], which is provided by the backend. *)
 end
 
+(** Simple store creator. Use the same type of all of the internal
+    keys and store all the values in the same store. *)
 module Make
     (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : ATOMIC_WRITE_STORE_MAKER) : S_MAKER
-(** Simple store creator. Use the same type of all of the internal
-    keys and store all the values in the same store. *)
 
 module Make_ext
     (CA : CONTENT_ADDRESSABLE_STORE_MAKER)

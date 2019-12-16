@@ -266,9 +266,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     { store = Store t; author; msg; remote }
 
   let disconnect t =
-    match t.store with
-    | Store t -> RO.disconnect t
-    | Batch _ -> Lwt.return_unit
+    match t.store with Store t -> RO.disconnect t | Batch _ -> Lwt.return_unit
 
   (* XXX(samoht): always return the 'last modified' on the
        underlying storage layer, not for the current batch. *)

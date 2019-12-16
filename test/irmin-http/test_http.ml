@@ -65,8 +65,7 @@ let mkdir d =
   Lwt.catch
     (fun () -> Lwt_unix.mkdir d 0o755)
     (function
-      | Unix.Unix_error (Unix.EEXIST, _, _) -> Lwt.return_unit
-      | e -> Lwt.fail e)
+      | Unix.Unix_error (Unix.EEXIST, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
 let rec lock () =
   Lwt_unix.openfile pid_file [ Unix.O_CREAT; Unix.O_RDWR ] 0o600 >>= fun fd ->
@@ -132,8 +131,7 @@ let suite i server =
           if Filename.basename pwd = "default" then ".." / ".." / "" else ""
         in
         let cmd =
-          root
-          ^ ("_build" / "default" / Fmt.strf "%s serve %d &" Sys.argv.(0) i)
+          root ^ ("_build" / "default" / Fmt.strf "%s serve %d &" Sys.argv.(0) i)
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in

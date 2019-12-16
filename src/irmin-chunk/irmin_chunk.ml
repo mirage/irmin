@@ -41,9 +41,7 @@ module Conf = struct
       | e ->
           Error
             (`Msg
-              ( e
-              ^ " is not a valid chunking algorithm. Use 'max' or 'best-fit'"
-              ))
+              (e ^ " is not a valid chunking algorithm. Use 'max' or 'best-fit'"))
     in
     Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking" (of_string, pp)
       `Best_fit
@@ -187,8 +185,7 @@ struct
             in
             match list_partition n l with
             | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
-            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux
-            )
+            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux )
       in
       aux l
   end

@@ -1,8 +1,7 @@
 let what =
   "This example demonstrates custom merges on Irmin datastructures.\n\n\
    It models log files as a sequence of lines, ordered by timestamps.\n\n\
-   The log files of `branch 1` and `branch 2` are merged by using the \
-   following \n\
+   The log files of `branch 1` and `branch 2` are merged by using the following \n\
    strategy:\n\
   \  - find the log file corresponding the lowest common ancestor: `lca`\n\
   \  - remove the prefix `lca` from `branch 1`; this gives `l1`;\n\

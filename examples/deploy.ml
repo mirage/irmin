@@ -22,9 +22,7 @@ let provision repo =
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT \
      [...]"
   >>= fun v ->
-  Store.set_tree_exn t
-    ~info:(provision "Cloning Ubuntu 14.04 Gold Image.")
-    [] v
+  Store.set_tree_exn t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
 let sysadmin = info ~user:"Bob the sysadmin"
@@ -64,8 +62,7 @@ let revert repo =
   Store.Head.get dev >>= fun h2 ->
   if h1 <> h2 then (
     Printf.printf
-      "WARNING: the filesystem is different in dev and prod, intrusion \
-       detected!\n\
+      "WARNING: the filesystem is different in dev and prod, intrusion detected!\n\
        Reverting the production system to the dev environment.\n\
        %!";
     Lwt_unix.sleep 2. >>= fun () -> Store.Head.set prod h2 )
@@ -98,8 +95,7 @@ let () =
     | "provision" ->
         Lwt_main.run (Store.Repo.v config >>= provision);
         Printf.printf
-          "The VM is now provisioned. Run `%s configure` to simulate a \
-           sysadmin \n\
+          "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
           cmd
     | "configure" ->
@@ -112,8 +108,8 @@ let () =
     | "attack" ->
         Lwt_main.run (Store.Repo.v config >>= attack);
         Printf.printf
-          "The VM has been attacked. Run `%s revert` to revert the VM state \
-           to a safe one.\n"
+          "The VM has been attacked. Run `%s revert` to revert the VM state to \
+           a safe one.\n"
           cmd
     | "revert" -> Lwt_main.run (Store.Repo.v config >>= revert)
     | _ -> help ()

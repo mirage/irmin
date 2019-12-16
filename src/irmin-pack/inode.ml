@@ -241,8 +241,8 @@ struct
           | Node (Direct n, Direct h) -> node_dd (n, h))
         |~ case1 "contents-ii" (pair int int64) (fun (n, i) ->
                Contents (Indirect n, Indirect i, T.default))
-        |~ case1 "contents-x-ii" (triple int int64 metadata_t)
-             (fun (n, i, m) -> Contents (Indirect n, Indirect i, m))
+        |~ case1 "contents-x-ii" (triple int int64 metadata_t) (fun (n, i, m) ->
+               Contents (Indirect n, Indirect i, m))
         |~ case1 "node-ii" (pair int int64) (fun (n, i) ->
                Node (Indirect n, Indirect i))
         |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
@@ -777,8 +777,8 @@ struct
   let check_hash expected got =
     if Irmin.Type.equal H.t expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" T.pp_hash
-        expected T.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" T.pp_hash expected
+        T.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);

@@ -145,9 +145,7 @@ module IO = struct
     else Lwt.return_nil
 
   let directories dir =
-    list_files
-      (fun f -> try Sys.is_directory f with Sys_error _ -> false)
-      dir
+    list_files (fun f -> try Sys.is_directory f with Sys_error _ -> false) dir
 
   let files dir =
     list_files
@@ -161,9 +159,7 @@ module IO = struct
       else if n < len then rwrite fd buf (ofs + n) (len - n)
       else Lwt.return_unit
     in
-    match String.length b with
-    | 0 -> Lwt.return_unit
-    | len -> rwrite fd b 0 len
+    match String.length b with 0 -> Lwt.return_unit | len -> rwrite fd b 0 len
 
   let delays = Array.init 20 (fun i -> 0.1 *. (float i ** 2.))
 
@@ -226,8 +222,7 @@ module IO = struct
     let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
     Lwt_pool.use openfile_pool (fun () ->
         Log.debug (fun l -> l "Writing %s (%s)" file tmp);
-        Lwt_unix.(
-          openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644)
+        Lwt_unix.(openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644)
         >>= fun fd ->
         Lwt.finalize (fun () -> protect fn fd) (fun () -> Lwt_unix.close fd)
         >>= fun () -> rename tmp file)
