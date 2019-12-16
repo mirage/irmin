@@ -8,3 +8,4 @@ vendors/
 \#*
 .#*
 .*.swp
+**/.DS_Store
