@@ -18,6 +18,8 @@ module type S = sig
   val add : t -> key -> value -> unit
 
   val close : t -> unit
+
+  val iter : (key -> value -> unit) -> t -> unit
 end
 
 module Make (K : Irmin.Hash.S) : S with type key = K.t

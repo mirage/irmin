@@ -18,6 +18,8 @@ module type S = sig
   val add : t -> key -> value -> unit
 
   val close : t -> unit
+
+  val iter : (key -> value -> unit) -> t -> unit
 end
 
 module Make (K : Irmin.Hash.S) = struct
@@ -59,7 +61,7 @@ module Make (K : Irmin.Hash.S) = struct
     let encoded_size = (64 / 8) + (32 / 8) + 1
   end
 
-  module Index = Index_unix.Make (Key) (Val)
+  module Index = Index_unix.Private.Make (Key) (Val)
   include Index
 
   let add t k v = replace t k v
