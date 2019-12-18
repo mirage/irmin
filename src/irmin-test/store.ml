@@ -417,6 +417,113 @@ module Make (S : S) = struct
     in
     run x test
 
+  let test_closure x () =
+    let test repo =
+      let info date =
+        let msg = Fmt.strf "Test commit: %d" date in
+        Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
+      in
+      let check_keys = checks P.Commit.Key.t in
+      let h = h repo in
+      let initialise_nodes =
+        Lwt_list.map_p
+          (fun i ->
+            with_contents repo (fun t -> P.Contents.add t (string_of_int i))
+            >>= fun kv ->
+            with_node repo (fun g -> Graph.v g [ (string_of_int i, normal kv) ]))
+          [ 0; 1; 2; 3; 4; 5; 6; 7; 8 ]
+      in
+      let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
+      let initialise_graph nodes =
+        match nodes with
+        | [] -> assert false
+        | node :: rest ->
+            with_info 0 (History.v ~node ~parents:[]) >>= fun (kr0, _) ->
+            let commits = Array.make 9 kr0 in
+            let commit ~node ~parents i =
+              with_info i (History.v ~node ~parents) >|= fun (kr1, _) ->
+              commits.(i) <- kr1;
+              i + 1
+            in
+            Lwt_list.fold_left_s
+              (fun i node ->
+                match i with
+                | 1 -> commit ~node ~parents:[ commits.(0) ] 1
+                | 2 -> commit ~node ~parents:[] 2
+                | 3 -> commit ~node ~parents:[ commits.(1) ] 3
+                | 4 -> commit ~node ~parents:[ commits.(1); commits.(2) ] 4
+                | 5 -> commit ~node ~parents:[ commits.(3); commits.(4) ] 5
+                | 6 -> commit ~node ~parents:[ commits.(4) ] 6
+                | 7 -> commit ~node ~parents:[] 7
+                | 8 -> commit ~node ~parents:[ commits.(7) ] 8
+                | _ -> assert false)
+              1 rest
+            >|= fun _ -> commits
+      in
+      (* initialise_graph creates the following graph of commits:
+            0 <- 1 <- 3 <- 5   and   7 <- 8
+                  \   /
+             2 <-- 4 <- 6 *)
+      initialise_nodes >>= initialise_graph >>= fun commits ->
+      History.closure h ~min:[ commits.(1) ] ~max:[ commits.(5) ] >>= fun krs ->
+      check_keys "commits between 1 and 5"
+        [ commits.(1); commits.(2); commits.(3); commits.(4); commits.(5) ]
+        krs;
+      History.closure h ~min:[] ~max:[ commits.(5) ] >>= fun krs ->
+      check_keys "all commits under 5"
+        [
+          commits.(0);
+          commits.(1);
+          commits.(2);
+          commits.(3);
+          commits.(4);
+          commits.(5);
+        ]
+        krs;
+      History.closure h
+        ~min:[ commits.(1); commits.(2) ]
+        ~max:[ commits.(5); commits.(6) ]
+      >>= fun krs ->
+      check_keys "disconnected max and min returns a connected graph"
+        [
+          commits.(1);
+          commits.(2);
+          commits.(3);
+          commits.(4);
+          commits.(5);
+          commits.(6);
+        ]
+        krs;
+      History.closure h
+        ~min:[ commits.(1); commits.(7) ]
+        ~max:[ commits.(4); commits.(8) ]
+      >>= fun krs ->
+      check_keys "disconnected min and max returns a disconnected graph"
+        [ commits.(1); commits.(2); commits.(7); commits.(4); commits.(8) ]
+        krs;
+      (History.closure h ~min:[ commits.(7) ] ~max:[] >|= function
+       | [] -> ()
+       | _ -> Alcotest.fail "expected empty list")
+      >>= fun () ->
+      ( History.closure h ~min:[ commits.(7) ] ~max:[ commits.(6) ] >|= fun ls ->
+        if List.mem commits.(7) ls then
+          Alcotest.fail "disconnected node should not be in closure" )
+      >>= fun () ->
+      History.closure h ~min:[ commits.(4) ] ~max:[ commits.(4); commits.(6) ]
+      >>= fun krs ->
+      check_keys "min and max have the same commit"
+        [ commits.(6); commits.(4) ]
+        krs;
+      ( History.closure h
+          ~min:[ commits.(4); commits.(0) ]
+          ~max:[ commits.(4); commits.(6) ]
+      >|= fun ls ->
+        if List.mem commits.(0) ls then
+          Alcotest.fail "disconnected node should not be in closure" )
+      >>= fun () -> S.Repo.close repo
+    in
+    run x test
+
   let test_branches x () =
     let test repo =
       let check_keys = checks S.Branch.t in
@@ -1986,6 +2093,7 @@ let suite (speed, x) =
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Close a repo, keep another open", speed, T.test_two_close x);
       ("Test iter", speed, T.test_iter x);
+      ("Closure with disconnected commits", speed, T.test_closure x);
     ] )
 
 let run name ~misc tl =

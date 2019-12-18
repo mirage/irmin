@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 let src = Logs.Src.create "irmin.graph" ~doc:"Irmin graph support"
 
@@ -167,11 +167,11 @@ struct
       visit ()
     and visit () =
       match Stack.top todo with
-      | exception Stack.Empty -> return_unit
+      | exception Stack.Empty -> Lwt.return_unit
       | key, level -> (
           if level >= depth then pop key level
           else if has_mark key then (
-            (if rev then treat key else return_unit) >>= fun () ->
+            (if rev then treat key else Lwt.return_unit) >>= fun () ->
             ignore (Stack.pop todo);
             visit () )
           else
@@ -179,7 +179,7 @@ struct
             | true -> pop key level
             | false ->
                 Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-                (if not rev then treat key else return_unit) >>= fun () ->
+                (if not rev then treat key else Lwt.return_unit) >>= fun () ->
                 mark key level;
                 if List.mem key min then visit ()
                 else
