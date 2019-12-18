@@ -186,7 +186,7 @@ struct
     let default_edge_attributes _ = []
 
     let vertex_name k =
-      let str t v = Type.to_string t v in
+      let str t v = "\"" ^ Type.to_string t v ^ "\"" in
       match k with
       | `Node n -> str Node.t n
       | `Commit c -> str Commit.t c
