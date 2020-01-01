@@ -55,15 +55,19 @@ module Irmin_value_store
   module Contents: Irmin.Contents.STORE
     with type key = Irmin.Hash.SHA1.t
      and type value = C.t
+     and type t = G.t
 
   module Node: Irmin.Private.Node.STORE
     with type key = Irmin.Hash.SHA1.t
      and type Val.contents = Contents.key
+     and type t = Contents.t * G.t
      and module Metadata = Metadata
+     and module Path = P
 
   module Commit: Irmin.Private.Commit.STORE
     with type key = Irmin.Hash.SHA1.t
      and type Val.node = Node.key
+     and type t = Node.t * G.t
 end
 
 module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) : Irmin.AO
