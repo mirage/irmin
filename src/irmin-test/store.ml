@@ -1573,6 +1573,47 @@ module Make (S : S) = struct
     in
     run x test
 
+  (* in this test an outdated reference to a tree is used by a commit: [tree] is
+  the tree with root [x] created by [c1] and modified by [c2]. [c3] reuse [tree]
+  which implicitly deletes the changes of [c2]. *)
+  let test_merge_outdated_tree x () =
+    let check_val = check T.(option S.contents_t) in
+    let none_fail f msg =
+      f >>= function None -> Alcotest.fail msg | Some c -> Lwt.return c
+    in
+    let test repo =
+      let vx = "VX" in
+      let vy = "VY" in
+      let old () = Lwt.return_ok None in
+      S.master repo >>= fun t ->
+      S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
+      none_fail (S.Head.find t) "head not found" >>= fun _c1 ->
+      S.get_tree t [ "x" ] >>= fun tree ->
+      S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy >>= fun () ->
+      none_fail (S.Head.find t) "head not found" >>= fun c2 ->
+      S.Tree.add tree [ "x"; "z" ] vx >>= fun tree3 ->
+      S.set_tree_exn t ~info:(infof "update") [ "u" ] tree3 >>= fun () ->
+      none_fail (S.Head.find t) "head not found" >>= fun c3 ->
+      let info () = S.Commit.info c3 in
+      with_commit repo (fun commit_t ->
+          Irmin.Merge.f
+            (P.Commit.merge commit_t ~info)
+            ~old
+            (Some (S.Commit.hash c3))
+            (Some (S.Commit.hash c2)))
+      >>= merge_exn "commit"
+      >>= function
+      | None -> Lwt.return_unit
+      | Some c4 ->
+          none_fail (S.Commit.of_hash repo c4) "of hash" >>= fun k ->
+          S.Branch.set repo "foo" k >>= fun () ->
+          S.of_branch repo "foo" >>= fun t ->
+          S.find t [ "u"; "x"; "y" ] >>= fun vy' ->
+          check_val "vy after merge" None vy';
+          P.Repo.close repo
+    in
+    run x test
+
   let test_merge_unrelated x () =
     run x @@ fun repo ->
     let v1 = "X1" in
@@ -1969,6 +2010,7 @@ let suite (speed, x) =
       ("Basic operations on watches", speed, T.test_watches x);
       ("Basic merge operations", speed, T.test_simple_merges x);
       ("Basic operations on slices", speed, T.test_slice x);
+      ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
       ("Tree caches and hashconsing", speed, T.test_tree_caches x);
       ("Complex histories", speed, T.test_history x);
       ("Empty stores", speed, T.test_empty x);
