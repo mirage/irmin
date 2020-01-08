@@ -958,6 +958,15 @@ module type STORE = sig
       slice Lwt.t
 
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
+
+    val copy :
+      src:t ->
+      dst:t ->
+      ?squash:bool ->
+      ?min:commit list ->
+      ?max:commit list ->
+      unit ->
+      (unit, [ `Msg of string ]) result Lwt.t
   end
 
   val empty : Repo.t -> t Lwt.t

@@ -286,17 +286,17 @@ module Make (P : S.PRIVATE) = struct
 
     let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
 
+    let import_add name add dk (k, v) =
+      add v >>= fun k' ->
+      if not (Type.equal dk k k') then
+        import_error "%s import error: expected %a, got %a" name
+          Type.(pp dk)
+          k
+          Type.(pp dk)
+          k'
+      else Lwt.return_unit
+
     let import t s =
-      let aux name add dk (k, v) =
-        add v >>= fun k' ->
-        if not (Type.equal dk k k') then
-          import_error "%s import error: expected %a, got %a" name
-            Type.(pp dk)
-            k
-            Type.(pp dk)
-            k'
-        else Lwt.return_unit
-      in
       let contents = ref [] in
       let nodes = ref [] in
       let commits = ref [] in
@@ -315,18 +315,102 @@ module Make (P : S.PRIVATE) = struct
       Lwt.catch
         (fun () ->
           Lwt_list.iter_p
-            (aux "Contents" (P.Contents.add contents_t) P.Contents.Key.t)
+            (import_add "Contents" (P.Contents.add contents_t) P.Contents.Key.t)
             !contents
           >>= fun () ->
-          Lwt_list.iter_p (aux "Node" (P.Node.add node_t) P.Node.Key.t) !nodes
+          Lwt_list.iter_p
+            (import_add "Node" (P.Node.add node_t) P.Node.Key.t)
+            !nodes
           >>= fun () ->
           Lwt_list.iter_p
-            (aux "Commit" (P.Commit.add commit_t) P.Commit.Key.t)
+            (import_add "Commit" (P.Commit.add commit_t) P.Commit.Key.t)
             !commits
           >|= fun () -> Ok ())
         (function
           | Import_error e -> Lwt.return_error (`Msg e)
-          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+          | e -> Fmt.kstrf Lwt.fail_invalid_arg "import error: %a" Fmt.exn e)
+
+    module type GEN_S = sig
+      include S.CONTENT_ADDRESSABLE_STORE
+
+      module Key : S.TYPED_HASH with type t = key and type value = value
+    end
+
+    module Copy (M : GEN_S with type key = hash) = struct
+      let already_in_dst dst k add =
+        M.mem dst k >>= function true -> Lwt.return_unit | false -> add
+
+      let copy ~src ~dst aux str k =
+        Log.debug (fun l -> l "copy %s %a" str (Type.pp Hash.t) k);
+        M.find src k >>= function
+        | None -> Lwt.return_unit
+        | Some v -> aux v >>= fun () -> import_add str (M.add dst) M.Key.t (k, v)
+
+      let check_and_copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+        already_in_dst dst k (copy ~src ~dst aux str k)
+    end
+
+    let copy_contents ~src ~dst k =
+      let module C = Copy (P.Contents) in
+      C.check_and_copy ~src ~dst "Contents" k
+
+    let copy_nodes t dst_nodes dst_contents root =
+      let module C = Copy (P.Node) in
+      C.already_in_dst dst_nodes root
+        (let aux v =
+           Lwt_list.iter_p
+             (function
+               | _, `Contents (k, _) ->
+                   copy_contents ~src:(contents_t t) ~dst:dst_contents k
+               | _ -> Lwt.return_unit)
+             (P.Node.Val.list v)
+         in
+         let node k = C.copy ~src:(node_t t) ~dst:dst_nodes aux "Node" k in
+         let skip k = P.Node.mem dst_nodes k in
+         Graph.iter (graph_t t) ~min:[] ~max:[ root ] ~node ~skip ())
+
+    let copy_branches src dst =
+      branches src >>= fun branches ->
+      Lwt_list.iter_p
+        (fun branch ->
+          P.Branch.find (branch_t src) branch >>= function
+          | None -> assert false
+          | Some hash -> (
+              P.Commit.mem (commit_t dst) hash >>= function
+              | true -> P.Branch.set (branch_t dst) branch hash
+              | false -> Lwt.return_unit ))
+        branches
+
+    let copy_commit t contents nodes commits k =
+      let module C = Copy (P.Commit) in
+      let aux c = copy_nodes t nodes contents (P.Commit.Val.node c) in
+      C.check_and_copy ~src:(commit_t t) ~dst:commits "Commit" k ~aux
+
+    let copy ~src ~dst ?(squash = false) ?(min = []) ?(max = []) () =
+      Log.debug (fun f -> f "copy");
+      (match max with [] -> heads src | m -> Lwt.return m) >>= fun max ->
+      Lwt.catch
+        (fun () ->
+          (* If squash then copy only the commits in [max]. Otherwise copy each
+             commit individually. *)
+          ( if squash then
+            Lwt_list.iter_p
+              (fun k ->
+                P.Repo.batch dst (fun contents nodes commits ->
+                    copy_commit src contents nodes commits (Commit.hash k)))
+              max
+          else
+            export ~full:false ~min ~max src >>= fun slice ->
+            P.Repo.batch dst (fun contents nodes commits ->
+                P.Slice.iter slice (function
+                  | `Commit (k, _) -> copy_commit src contents nodes commits k
+                  | _ -> Lwt.return_unit)) )
+          >>= fun () ->
+          (* Do not copy branches that point to commits not copied. *)
+          copy_branches src dst >|= fun () -> Ok ())
+        (function
+          | Import_error e -> Lwt.return_error (`Msg e)
+          | e -> Fmt.kstrf Lwt.fail_invalid_arg "copy error: %a" Fmt.exn e)
   end
 
   type t = {

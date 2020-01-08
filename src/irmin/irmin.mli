@@ -690,6 +690,20 @@ module type S = sig
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
     (** [import t s] imports the contents of the slice [s] in [t]. Does not
         modify branches. *)
+
+    val copy :
+      src:t ->
+      dst:t ->
+      ?squash:bool ->
+      ?min:commit list ->
+      ?max:commit list ->
+      unit ->
+      (unit, [ `Msg of string ]) result Lwt.t
+    (** [copy ~src ~dst ~squash ~min ~max ()] copies the minimal store in the
+        range of commits ([min], [max]) from [src] to [dst]. The commits are
+        exported from [src] and imported in [dst] using a slice, while the nodes
+        and the contents are copied directly from [src] to [dst]. If [squash]
+        then only the [max] nodes are copied. *)
   end
 
   val empty : repo -> t Lwt.t
