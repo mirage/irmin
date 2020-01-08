@@ -1740,6 +1740,17 @@ module Private : sig
 
           {b Note:} Both [min] and [max] are subsets of [c].*)
 
+      val iter_on_closure :
+        [> `Read ] t ->
+        min:node list ->
+        max:node list ->
+        f_nodes:(node -> unit Lwt.t) ->
+        f_edges:(node -> node list -> unit Lwt.t) ->
+        unit Lwt.t
+      (** [iter_on_closure min max pred f_nodes f_edges ()] is the same as
+          closure except that it applies [f_nodes] on the nodes and [f_edges] on
+          the edges of the closure graph while traversing it. *)
+
       (** {1 Value Types} *)
 
       val metadata_t : metadata Type.t

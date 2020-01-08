@@ -45,6 +45,19 @@ module type S = sig
       using the precedence relation [pred]. The closure will not
       contain any keys before the the one specified in [min]. *)
 
+  val iter_on_closure :
+    ?depth:int ->
+    pred:(vertex -> vertex list Lwt.t) ->
+    min:vertex list ->
+    max:vertex list ->
+    f_nodes:(vertex -> unit Lwt.t) ->
+    f_edges:(vertex -> vertex list -> unit Lwt.t) ->
+    unit ->
+    unit Lwt.t
+  (** [iter_on_closure min max pred f_nodes f_edges ()] is the same as closure
+      except that it applies [f_nodes] on the nodes and [f_edges] on the edges
+      of the closure graph *)
+
   val output :
     Format.formatter ->
     (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->

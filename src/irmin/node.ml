@@ -291,21 +291,40 @@ module Graph (S : S.NODE_STORE) = struct
 
   let pp_path = Type.pp S.Path.t
 
+  let pred t = function
+    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
+    | _ -> Lwt.return_nil
+
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
-    let pred = function
-      | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
-      | _ -> Lwt.return_nil
-    in
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    Graph.closure ~pred ~min ~max () >>= fun g ->
+    Graph.closure ~pred:(pred t) ~min ~max () >>= fun g ->
     let keys =
       List.fold_left
         (fun acc -> function `Node x -> x :: acc | _ -> acc)
         [] (Graph.vertex g)
     in
     Lwt.return keys
+
+  let iter_on_closure t ~min ~max ~f_nodes ~f_edges =
+    Log.debug (fun f ->
+        f "iter on closure min=%a max=%a" pp_keys min pp_keys max);
+    let min = List.rev_map (fun x -> `Node x) min in
+    let max = List.rev_map (fun x -> `Node x) max in
+    let f_nodes = function `Node x -> f_nodes x | _ -> Lwt.return_unit in
+    let f_edges n nls =
+      match n with
+      | `Node x ->
+          let ls =
+            List.fold_left
+              (fun acc -> function `Node x -> x :: acc | _ -> acc)
+              [] nls
+          in
+          f_edges x ls
+      | _ -> Lwt.return_unit
+    in
+    Graph.iter_on_closure ~pred:(pred t) ~min ~max ~f_nodes ~f_edges ()
 
   let v t xs = S.add t (S.Val.v xs)
 
