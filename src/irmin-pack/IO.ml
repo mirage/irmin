@@ -22,24 +22,39 @@ let ( // ) = Filename.concat
 
 (* For every new version, update the [version] type and [versions]
    headers. *)
-type version = [ `V1 | `V2 ]
 
-let versions = [ (`V1, "00000001"); (`V2, "00000002") ]
+module Version = struct
+  type t = [ `V1 | `V2 ]
 
-let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+  let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
 
-let bin_of_version v = List.assoc v versions
+  let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 
-let version_of_bin b =
-  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
-  with Not_found -> None
+  let to_bin v = List.assoc v enum
+
+  let raise_invalid v =
+    let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in
+    Fmt.failwith "invalid version: got %S, expecting %a" v
+      Fmt.(Dump.list pp_full_version)
+      (List.map fst enum)
+
+  let of_bin b =
+    try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
+    with Not_found -> None
+end
+
+type version = Version.t
+
+let pp_version = Version.pp
+
+type path = string
 
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
+  val v : version:version -> fresh:bool -> readonly:bool -> path -> t
 
   val name : t -> string
 
@@ -63,9 +78,17 @@ module type S = sig
 
   val version : t -> version
 
+  val force_version : t -> version
+
   val flush : t -> unit
 
   val close : t -> unit
+
+  val upgrade :
+    src:t ->
+    dst:path * version ->
+    progress:(written:int64 -> unit) ->
+    (unit, [> `Msg of string ]) result
 end
 
 let ( ++ ) = Int64.add
@@ -103,6 +126,7 @@ module Unix : S = struct
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.Offset.set t.raw offset;
+
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       let h = header t.version in
@@ -133,9 +157,11 @@ module Unix : S = struct
       off <= t.flushed)
 
   let read t ~off buf =
-    let off = header t.version ++ off in
-    assert (if not t.readonly then off <= t.flushed else true);
-    Raw.unsafe_read t.raw ~off ~len:(Bytes.length buf) buf
+    assert (
+      if not t.readonly then header t.version ++ off <= t.flushed else true);
+    Raw.unsafe_read t.raw
+      ~off:(header t.version ++ off)
+      ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 
@@ -149,7 +175,23 @@ module Unix : S = struct
     t.generation <- Raw.Generation.get t.raw;
     t.generation
 
-  let version t = t.version
+  let version t =
+    Log.debug (fun l ->
+        l "[%s] version %a" (Filename.basename t.file) pp_version t.version);
+    t.version
+
+  let force_version t =
+    let v = Raw.Version.get t.raw in
+    let v =
+      match Version.of_bin v with
+      | None -> Version.raise_invalid v
+      | Some v -> v
+    in
+    Log.debug (fun l ->
+        l "[%s] force_version: %a ↦ %a" (Filename.basename t.file) pp_version
+          t.version pp_version v);
+    t.version <- v;
+    t.version
 
   let readonly t = t.readonly
 
@@ -176,11 +218,11 @@ module Unix : S = struct
     in
     aux dirname (fun () -> ())
 
-  let raw ~mode ~version ~generation file =
-    let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
+  let raw ~flags ~version ~offset ~generation file =
+    let x = Unix.openfile file flags 0o644 in
     let raw = Raw.v x in
     let header =
-      { Raw.Header.version = bin_of_version version; offset = 0L; generation }
+      { Raw.Header.version = Version.to_bin version; offset; generation }
     in
     Raw.Header.set raw header;
     raw
@@ -190,7 +232,7 @@ module Unix : S = struct
     Log.debug (fun l -> l "clear %s" t.file);
     Buffer.clear t.buf;
     (* no-op if the file is already empty; this is to avoid bumping
-       the version  number when this is not necessary. *)
+       the version number when this is not necessary. *)
     if t.offset = 0L then ()
     else (
       t.offset <- 0L;
@@ -204,7 +246,9 @@ module Unix : S = struct
       Unix.unlink t.file;
       (* and re-open a fresh instance. *)
       t.raw <-
-        raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file)
+        raw ~version:t.version ~generation:t.generation ~offset:0L
+          ~flags:Unix.[ O_CREAT; O_RDWR; O_CLOEXEC ]
+          t.file)
 
   let clear t =
     match t.version with
@@ -228,7 +272,11 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let raw = raw ~mode ~version:current_version ~generation:0L file in
+        let raw =
+          raw
+            ~flags:[ O_CREAT; mode; O_CLOEXEC ]
+            ~version:current_version ~offset:0L ~generation:0L file
+        in
         v ~offset:0L ~version:current_version ~generation:0L raw
     | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
@@ -236,7 +284,7 @@ module Unix : S = struct
         if fresh then (
           let header =
             {
-              Raw.Header.version = bin_of_version current_version;
+              Raw.Header.version = Version.to_bin current_version;
               offset = 0L;
               generation = 0L;
             }
@@ -245,7 +293,7 @@ module Unix : S = struct
           v ~offset:0L ~version:current_version ~generation:0L raw)
         else
           let version = Raw.Version.get raw in
-          match version_of_bin version with
+          match Version.of_bin version with
           | Some `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
               let offset = Raw.Offset.get raw in
@@ -253,15 +301,59 @@ module Unix : S = struct
           | Some `V2 ->
               let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
               v ~offset ~version:`V2 ~generation raw
-          | None ->
-              let pp_full_version ppf v =
-                Fmt.pf ppf "%a (%S)" pp_version v (bin_of_version v)
-              in
-              Fmt.failwith "invalid version: got %S, expecting %a" version
-                (Fmt.Dump.list pp_full_version)
-                (List.map fst versions))
+          | None -> Version.raise_invalid version)
 
   let close t = Raw.close t.raw
+
+  (* From a given offset in [src], transfer all data to [dst] (starting at [dst_off]). *)
+  let transfer_all ~progress:_ ~src ~src_off ~dst ~dst_off =
+    let ( + ) a b = Int64.(add a (of_int b)) in
+    let buf_len = 4096 in
+    let buf = Bytes.create buf_len in
+    let rec inner ~src_off ~dst_off =
+      match Raw.unsafe_read src ~off:src_off ~len:buf_len buf with
+      | 0 -> ()
+      | read ->
+          assert (read <= buf_len);
+          let to_write = if read < buf_len then Bytes.sub buf 0 read else buf in
+          let () =
+            Raw.unsafe_write dst ~off:dst_off (Bytes.unsafe_to_string to_write)
+          in
+          (inner [@tailcall]) ~src_off:(src_off + read) ~dst_off:(dst_off + read)
+    in
+    inner ~src_off ~dst_off
+
+  let upgrade ~src ~dst:(dst_path, dst_v) ~progress =
+    let src_v =
+      let v_bin = Raw.Version.get src.raw in
+      match Version.of_bin v_bin with
+      | None -> Fmt.failwith "Could not parse version string `%s'" v_bin
+      | Some v -> v
+    in
+    let src_offset = Raw.Offset.get src.raw in
+    match (src_v, dst_v) with
+    | `V1, `V2 ->
+        Log.debug (fun m ->
+            m "[%s] Performing migration: %a → %a"
+              (Filename.basename src.file)
+              pp_version `V1 pp_version `V2);
+        let dst =
+          (* Note: all V1 files implicitly have [generation = 0], since it
+             is not possible to [clear] them. *)
+          raw dst_path
+            ~flags:[ Unix.O_CREAT; O_WRONLY; O_APPEND ]
+            ~version:`V2 ~offset:src_offset ~generation:0L
+        in
+        transfer_all ~src:src.raw ~progress
+          ~src_off:(header `V1)
+          ~dst
+          ~dst_off:(header `V2);
+        Raw.close dst;
+        Ok ()
+    | _, _ ->
+        Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
+          (Filename.basename src.file)
+          pp_version src_v pp_version dst_v
 end
 
 let with_cache ~v ~clear ~valid file =

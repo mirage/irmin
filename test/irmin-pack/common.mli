@@ -2,6 +2,18 @@ module Dict = Irmin_pack.Dict
 module H = Irmin.Hash.SHA1
 module I = Index
 
+module Alcotest : sig
+  include module type of Alcotest
+
+  val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
+end
+
+module Conf : sig
+  val entries : int
+
+  val stable_hash : int
+end
+
 module Index : Irmin_pack.Index.S with type key = H.t
 
 module Pack :

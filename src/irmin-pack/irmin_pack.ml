@@ -20,6 +20,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
 
+let ( // ) = Filename.concat
+
 module Default = struct
   let fresh = false
 
@@ -111,11 +113,18 @@ open Lwt.Infix
 module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
+
+exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
+
+exception Unsupported_version of IO.version
+
+let () =
+  Printexc.register_printer (function
+    | Unsupported_version v ->
+        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" IO.pp_version v)
+    | _ -> None)
+
 module IO = IO.Unix
-
-exception RO_Not_Allowed = IO.RO_Not_Allowed
-
-exception Unsupported_version of string
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -366,6 +375,8 @@ module type Stores_extra = sig
   val sync : repo -> unit
 
   val clear : repo -> unit Lwt.t
+
+  val migrate : Irmin.config -> unit Lwt.t
 end
 
 module Make_ext
@@ -543,9 +554,12 @@ struct
       let v config =
         unsafe_v config >>= fun t ->
         match Contents.CA.version (contents_t t) with
-        | `V1 ->
+        | `V1 as v ->
             close t >>= fun () ->
-            Lwt.fail (Unsupported_version (Fmt.str "%a" pp_version `V1))
+            Log.err (fun m ->
+                m "[%s] Attempted to open store of unsupported version %a"
+                  (root config) pp_version v);
+            Lwt.fail (Unsupported_version v)
         | `V2 -> Lwt.return t
 
       (** Stores share instances in memory, one sync is enough. However each
@@ -557,8 +571,48 @@ struct
         in
         Contents.CA.sync ~on_generation_change (contents_t t)
 
-      (** Storea share instances so one clear is enough. *)
+      (** Stores share instances so one clear is enough. *)
       let clear t = Contents.CA.clear (contents_t t)
+
+      let migrate config =
+        if readonly config then Lwt.fail RO_Not_Allowed
+        else
+          let config = Irmin.Private.Conf.add config readonly_key true in
+          Log.info (fun l -> l "[%s] migrate" (root config));
+          unsafe_v config >>= fun t ->
+          match Contents.CA.version (contents_t t) with
+          | `V2 as v ->
+              Log.app (fun l ->
+                  l "Store at %s is already in current version (%a)"
+                    (root config) pp_version v);
+              close t
+          | `V1 ->
+              let root_old = root config in
+              let root_tmp =
+                let rand =
+                  Random.State.(bits (make_self_init ())) land 0xFFFFFF
+                in
+                root_old // Fmt.str "tmp-migrate-%06x" rand
+              in
+              Log.info (fun l ->
+                  l "Creating temporary directory `%s' for the migrated store"
+                    root_tmp);
+              Unix.mkdir root_tmp 0o777;
+              let migrate_io name =
+                let old, tmp = (root_old // name, root_tmp // name) in
+                let src = IO.v ~version:`V1 ~fresh:false ~readonly:true old in
+                IO.upgrade ~progress:(fun ~written:_ -> ()) ~src ~dst:(tmp, `V2)
+                |> function
+                | Ok () ->
+                    Unix.unlink old;
+                    Unix.rename tmp old;
+                    IO.close src;
+                    ()
+                | Error (`Msg s) -> invalid_arg s
+              in
+              List.iter migrate_io
+                [ "store.pack"; "store.branches"; "store.dict" ];
+              Lwt.return_unit
     end
   end
 
@@ -632,6 +686,8 @@ struct
   let sync = X.Repo.sync
 
   let clear = X.Repo.clear
+
+  let migrate = X.Repo.migrate
 end
 
 module Hash = Irmin.Hash.BLAKE2B

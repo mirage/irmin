@@ -22,6 +22,7 @@ depends: [
   "lwt"
   "irmin-test" {with-test & >= "2.2.0"}
   "alcotest-lwt" {with-test}
+  "fpath" {with-test}
 ]
 
 pin-depends: [
