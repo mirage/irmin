@@ -1954,6 +1954,92 @@ module Make (S : S) = struct
       P.Repo.close repo
     in
     run x test
+
+  let test_copy x () =
+    let check_val = check T.(option S.contents_t) in
+    let module C = Irmin.Private.Conf in
+    match C.get x.config C.root with
+    | None -> () (* do not run test *)
+    | Some root ->
+        let new_config = C.add x.config C.root (Some (root ^ "1")) in
+        let v1 = "X1" in
+        let v2 = "X2" in
+        let setup repo =
+          S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 >>= fun tree1 ->
+          S.Tree.add S.Tree.empty [ "a"; "b"; "d" ] v2 >>= fun tree2 ->
+          S.of_branch repo "foo" >>= fun foo ->
+          S.set_tree_exn ~parents:[]
+            ~info:(fun () -> Irmin.Info.empty)
+            foo [] tree1
+          >>= fun () ->
+          S.Head.get foo >>= fun c1 ->
+          S.master repo >>= fun t ->
+          S.set_tree_exn ~parents:[]
+            ~info:(fun () -> Irmin.Info.empty)
+            t [] tree2
+          >>= fun () ->
+          S.Head.get t >|= fun c2 -> (c1, c2)
+        in
+        let test repo =
+          setup repo >>= fun (c1, c2) ->
+          S.Repo.v new_config >>= fun dst ->
+          (S.Repo.copy ~src:repo ~dst ~squash:true ~max:[ c1; c2 ] ()
+           >|= function
+           | Ok () -> ()
+           | Error (`Msg e) -> Alcotest.failf "copy error %s" e)
+          >>= fun () ->
+          (P.Commit.mem (ct dst) (S.Commit.hash c1) >|= function
+           | true -> ()
+           | false ->
+               Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash
+                 c1)
+          >>= fun () ->
+          (P.Commit.mem (ct dst) (S.Commit.hash c2) >|= function
+           | true -> ()
+           | false ->
+               Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash
+                 c2)
+          >>= fun () ->
+          S.of_branch dst "foo" >>= fun foo ->
+          S.find foo [ "a"; "b"; "c" ] >>= fun v1' ->
+          check_val "copy v1 to dst" (Some v1) v1';
+          S.master dst >>= fun t ->
+          S.find t [ "a"; "b"; "d" ] >>= fun v2' ->
+          check_val "copy v2 to dst" (Some v2) v2';
+          P.Repo.close repo >>= fun () -> P.Repo.close dst
+        in
+        let new_config = C.add x.config C.root (Some (root ^ "2")) in
+        let test_squash repo =
+          setup repo >>= fun (c1, c2) ->
+          S.Repo.v new_config >>= fun dst ->
+          (S.Repo.copy ~src:repo ~dst ~squash:true ~max:[ c2 ] () >|= function
+           | Ok () -> ()
+           | Error (`Msg e) -> Alcotest.failf "copy error %s" e)
+          >>= fun () ->
+          (P.Commit.mem (ct dst) (S.Commit.hash c1) >|= function
+           | true ->
+               Alcotest.failf "should not copy commit %a to dst"
+                 S.Commit.pp_hash c1
+           | false -> ())
+          >>= fun () ->
+          (P.Commit.mem (ct dst) (S.Commit.hash c2) >|= function
+           | true -> ()
+           | false ->
+               Alcotest.failf "should copy commit %a to dst" S.Commit.pp_hash c2)
+          >>= fun () ->
+          S.master dst >>= fun t ->
+          S.find t [ "a"; "b"; "c" ] >>= fun v1' ->
+          check_val "copy v1 to dst" None v1';
+          S.find t [ "a"; "b"; "d" ] >>= fun v2' ->
+          check_val "copy v2 to dst" (Some v2) v2';
+          (S.Branch.find dst "foo" >|= function
+           | None -> ()
+           | Some _ -> Alcotest.failf "should not find branch foo in dst")
+          >>= fun () ->
+          P.Repo.close repo >>= fun () -> P.Repo.close dst
+        in
+        run x test;
+        run x test_squash
 end
 
 let suite (speed, x) =
@@ -1986,6 +2072,7 @@ let suite (speed, x) =
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Close a repo, keep another open", speed, T.test_two_close x);
       ("Test iter", speed, T.test_iter x);
+      ("Copy stores", speed, T.test_copy x);
     ] )
 
 let run name ~misc tl =

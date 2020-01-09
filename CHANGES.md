@@ -19,6 +19,7 @@
   - Added `Type.pp_ty` for pretty-printing Irmin generics. (#926, @craigfe)
   - Added `Merge.with_conflict` for modifying the conflict error message of a
     merge function. (#926, @craigfe)
+  - Added `copy` from one store to another (#916, @ioana)
 
 #### Changed
 
