@@ -38,4 +38,8 @@ module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) = struct
   let unsafe_add t k v =
     check_not_closed t;
     S.unsafe_add (snd t) k v
+
+  let clear t =
+    check_not_closed t;
+    S.clear (snd t)
 end

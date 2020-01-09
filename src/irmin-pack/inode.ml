@@ -821,4 +821,6 @@ struct
   let close = Inode.close
 
   let sync = Inode.sync
+
+  let clear = Inode.clear
 end

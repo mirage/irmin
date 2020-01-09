@@ -95,6 +95,12 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           let resp_body = `String "" in
           Wm.continue true { rd with Wm.Rd.resp_body }
 
+    let clear rd repo =
+      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun _ ->
+      S.clear repo >>= fun () ->
+      let resp_body = `String "" in
+      Wm.continue true { rd with Wm.Rd.resp_body }
+
     class items repo =
       object
         inherit resource
@@ -168,6 +174,20 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#to_json) ] rd
+      end
+
+    class clear repo =
+      object
+        inherit resource
+
+        method! allowed_methods rd = Wm.continue [ `POST ] rd
+
+        method content_types_provided rd =
+          Wm.continue [ ("application/json", fun _ -> assert false) ] rd
+
+        method content_types_accepted rd = Wm.continue [] rd
+
+        method! process_post rd = clear rd repo
       end
   end
 
@@ -322,6 +342,26 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#of_json) ] rd
       end
+
+    let clear rd repo =
+      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun _ ->
+      S.clear repo >>= fun () ->
+      let resp_body = `String "" in
+      Wm.continue true { rd with Wm.Rd.resp_body }
+
+    class clear repo =
+      object
+        inherit resource
+
+        method! allowed_methods rd = Wm.continue [ `POST ] rd
+
+        method content_types_accepted rd = Wm.continue [] rd
+
+        method! process_post rd = clear rd repo
+
+        method content_types_provided rd =
+          Wm.continue [ ("application/json", fun _ -> assert false) ] rd
+      end
   end
 
   module Blob =
@@ -381,6 +421,10 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         ("/branch/*", fun () -> new Branch.item branch);
         ("/watches", fun () -> new Branch.watches branch);
         ("/watch/*", fun () -> new Branch.watch branch);
+        ("/clear/blobs", fun () -> new Blob.clear blob);
+        ("/clear/trees", fun () -> new Tree.clear tree);
+        ("/clear/commits", fun () -> new Commit.clear commit);
+        ("/clear/branches", fun () -> new Branch.clear branch);
       ]
     in
     let pp_con = Fmt.of_to_string Cohttp.Connection.to_string in

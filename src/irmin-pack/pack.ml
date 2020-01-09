@@ -68,8 +68,6 @@ module type S = sig
 
   val sync : 'a t -> unit
 
-  val clear : 'a t -> unit
-
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
   val integrity_check :
@@ -174,7 +172,7 @@ struct
 
     type index = Index.t
 
-    let clear t =
+    let unsafe_clear t =
       clear t.pack;
       Tbl.clear t.staging;
       Lru.clear t.lru
@@ -209,14 +207,14 @@ struct
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
-          if fresh then clear t;
+          if fresh then unsafe_clear t;
           t)
         else (
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
-        if fresh then clear t;
+        if fresh then unsafe_clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
@@ -361,5 +359,10 @@ struct
     let sync t =
       Dict.sync t.pack.dict;
       Index.sync t.pack.index
+
+    let clear t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_clear t;
+          Lwt.return_unit)
   end
 end

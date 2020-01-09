@@ -100,6 +100,10 @@ functor
       else (
         t.closed := true;
         S.close t.t)
+
+    let clear t =
+      check_not_closed t;
+      S.clear t.t
   end
 
 module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
@@ -164,6 +168,10 @@ functor
       else (
         t.closed := true;
         S.close t.t)
+
+    let clear t =
+      check_not_closed t;
+      S.clear t.t
   end
 
 module Make_ext
