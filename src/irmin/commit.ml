@@ -72,6 +72,8 @@ struct
 
   let find (_, t) = S.find t
 
+  let clear (_, t) = S.clear t
+
   let merge_node (t, _) = Merge.f (N.merge t)
 
   let pp_key = Type.pp S.Key.t

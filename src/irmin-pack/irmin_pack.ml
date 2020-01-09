@@ -162,10 +162,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     in
     aux from
 
+  (* TODO : this is a temporary fix, as it could happen that after a clear the
+     two offsets coincide and that the new added values are missed. *)
   let sync_offset t =
     let former_log_offset = IO.offset t.block in
     let log_offset = IO.force_offset t.block in
-    if log_offset > former_log_offset then refill t ~from:former_log_offset
+    if log_offset <> former_log_offset then refill t ~from:former_log_offset
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
@@ -199,6 +201,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     IO.clear t.block;
     Tbl.clear t.cache;
     Tbl.clear t.index
+
+  let clear t =
+    Log.debug (fun l -> l "[branches] clear");
+    Lwt_mutex.with_lock t.lock (fun () ->
+        unsafe_clear t;
+        Lwt.return_unit)
 
   let create = Lwt_mutex.create ()
 
@@ -448,6 +456,12 @@ struct
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+
+      let clear t =
+        Index.clear t.index;
+        Contents.CA.clear (contents_t t) >>= fun () ->
+        Node.CA.clear (snd (node_t t)) >>= fun () ->
+        Commit.CA.clear (snd (commit_t t)) >>= fun () -> Branch.clear t.branch
     end
   end
 

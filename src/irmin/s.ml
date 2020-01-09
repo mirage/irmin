@@ -152,6 +152,9 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   (** Same as {!add} but allows to specify the key directly. The backend might
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
+
+  val clear : 'a t -> unit Lwt.t
+  (** Clear the store. *)
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
@@ -192,6 +195,9 @@ module type APPEND_ONLY_STORE = sig
 
   val add : [> `Write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
+
+  val clear : 'a t -> unit Lwt.t
+  (** Clear the store. *)
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
@@ -685,6 +691,9 @@ module type ATOMIC_WRITE_STORE = sig
   val close : t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any operations run
       on a closed store will raise {!Closed}. *)
+
+  val clear : t -> unit Lwt.t
+  (** [clear t] clear the store. *)
 end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
@@ -784,6 +793,8 @@ module type PRIVATE = sig
       [ `Read | `Write ] Commit.t ->
       'a Lwt.t) ->
       'a Lwt.t
+
+    val clear : t -> unit Lwt.t
   end
 
   module Sync : sig

@@ -2100,6 +2100,39 @@ module Make (S : S) = struct
       P.Repo.close repo
     in
     run x test
+
+  let test_clear x () =
+    let test repo =
+      let t = P.Repo.contents_t repo in
+      let b = P.Repo.branch_t repo in
+      let check_val = check (T.option S.contents_t) in
+      let check_commit = check (T.option @@ S.commit_t repo) in
+      kv2 ~repo >>= fun h2 ->
+      P.Contents.clear t >>= fun () ->
+      P.Contents.find t h2 >>= fun v2' ->
+      check_val "v2 after clear is not found" None v2';
+      kv2 ~repo >>= fun h2 ->
+      P.Contents.find t h2 >>= fun v2' ->
+      check_val "add v2 again after clear" (Some v2) v2';
+      r1 ~repo >>= fun h1 ->
+      S.Branch.set repo b1 h1 >>= fun () ->
+      S.Branch.find repo b1 >>= fun h1' ->
+      check_commit "r1 before clear is found" (Some h1) h1';
+      P.Branch.clear b >>= fun () ->
+      S.Branch.find repo b1 >>= fun k2' ->
+      check_commit "r1 after clear is not found" None k2';
+      kv2 ~repo >>= fun h2 ->
+      P.Repo.clear repo >>= fun () ->
+      P.Contents.find t h2 >>= fun v2' ->
+      check_val "v2 after clear is not found" None v2';
+      r1 ~repo >>= fun h1 ->
+      S.Branch.set repo b1 h1 >>= fun () ->
+      P.Repo.clear repo >>= fun () ->
+      S.Branch.find repo b1 >>= fun k2' ->
+      check_commit "cleared twice r1" None k2';
+      P.Repo.close repo
+    in
+    run x test
 end
 
 let suite (speed, x) =
@@ -2134,6 +2167,7 @@ let suite (speed, x) =
       ("Close a repo, keep another open", speed, T.test_two_close x);
       ("Test iter", speed, T.test_iter x);
       ("Closure with disconnected commits", speed, T.test_closure x);
+      ("Test clear", speed, T.test_clear x);
     ] )
 
 let run name ~misc tl =

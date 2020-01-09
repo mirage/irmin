@@ -94,6 +94,8 @@ module type READ_ONLY_STORE = sig
   val batch : 'a t -> ([ `Read | `Write ] t -> 'b) -> 'b
 
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+
+  val clear : 'a t -> unit Lwt.t
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -118,6 +120,8 @@ module type APPEND_ONLY_STORE = sig
   val close : 'a t -> unit Lwt.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+  val clear : 'a t -> unit Lwt.t
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor

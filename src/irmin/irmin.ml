@@ -100,6 +100,10 @@ functor
       else (
         t.closed := true;
         S.close t.t )
+
+    let clear t =
+      check_not_closed t;
+      S.clear t.t
   end
 
 module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
@@ -164,6 +168,10 @@ functor
       else (
         t.closed := true;
         S.close t.t )
+
+    let clear t =
+      check_not_closed t;
+      S.clear t.t
   end
 
 module Make_ext
@@ -264,6 +272,11 @@ struct
         Contents.CA.close t.contents >>= fun () ->
         Node.CA.close (snd t.nodes) >>= fun () ->
         Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+
+      let clear t =
+        Contents.CA.clear t.contents >>= fun () ->
+        Node.CA.clear (snd t.nodes) >>= fun () ->
+        Commit.CA.clear (snd t.commits) >>= fun () -> Branch.clear t.branch
     end
   end
 

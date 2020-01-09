@@ -37,9 +37,13 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let v _config = Lwt.return map
 
-  let close t =
-    Log.debug (fun f -> f "close");
+  let clear t =
+    Log.debug (fun f -> f "clear");
     t.t <- KMap.empty;
+    Lwt.return_unit
+
+  let close _ =
+    Log.debug (fun f -> f "close");
     Lwt.return_unit
 
   let cast t = (t :> [ `Read | `Write ] t)
@@ -130,6 +134,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     >>= fun updated ->
     (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
     Lwt.return updated
+
+  let clear t = W.clear t.w >>= fun () -> RO.clear t.t
 end
 
 let config () = Irmin.Private.Conf.empty

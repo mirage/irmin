@@ -468,6 +468,8 @@ module Private : sig
         [ `Read | `Write ] Commit.t ->
         'a Lwt.t) ->
         'a Lwt.t
+
+      val clear : t -> unit Lwt.t
     end
 
     (** URI-based low-level sync. *)
@@ -855,6 +857,9 @@ module Content_addressable
   val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any operations run
       on a closed store will raise {!Closed}. *)
+
+  val clear : 'a t -> unit Lwt.t
+  (** [clear t] clear the store. *)
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store

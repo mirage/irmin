@@ -23,8 +23,7 @@ let config = Irmin_mem.config ()
 let clean () =
   let (module S : Irmin_test.S) = store in
   S.Repo.v config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo) >>= fun () ->
-  S.Repo.close repo
+  S.Private.Repo.clear repo >>= fun () -> S.Repo.close repo
 
 let init () = Lwt.return_unit
 
