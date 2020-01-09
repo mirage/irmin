@@ -46,6 +46,8 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
+
+  val clear : 'a t -> unit Lwt.t
 end
 
 module type CONFIG = sig
@@ -800,4 +802,6 @@ struct
   let integrity_check = Inode.integrity_check
 
   let close = Inode.close
+
+  let clear = Inode.clear
 end

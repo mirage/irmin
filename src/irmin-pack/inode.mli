@@ -45,6 +45,8 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
+
+  val clear : 'a t -> unit Lwt.t
 end
 
 module Make
