@@ -30,12 +30,14 @@ module type S = sig
 end
 
 module Located (A : Ast_builder.S) : S = struct
-  module Utils = Utils.Located (A)
+  module Algebraic = Algebraic.Located (A)
   open A
 
   let unlabelled x = (Nolabel, x)
 
   let ( >|= ) x f = List.map f x
+
+  let lambda fparam = pvar fparam |> pexp_fun Nolabel None
 
   let open_module =
     pexp_open
@@ -47,10 +49,7 @@ module Located (A : Ast_builder.S) : S = struct
       }
 
   let recursive fparam e =
-    pexp_apply
-      (pexp_ident @@ Located.lident "Irmin.Type.mu")
-      ( [ pexp_fun Nolabel None (ppat_var @@ Located.mk fparam) e ]
-      >|= unlabelled )
+    pexp_apply (evar "Irmin.Type.mu") ([ lambda fparam e ] >|= unlabelled)
 
   let witness_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
@@ -64,15 +63,17 @@ module Located (A : Ast_builder.S) : S = struct
               match const_name with
               | Lident const_name ->
                   let name =
-                    (* If this type is the one we are deriving and the 'nonrec' keyword hasn't been used,
-                  replace with the witness name *)
+                    (* If this type is the one we are deriving and the 'nonrec'
+                       keyword hasn't been used, replace with the witness
+                       name *)
                     if
                       rec_flag <> Nonrecursive
                       && String.equal const_name type_name
                     then (
                       rec_detected := true;
                       witness_name
-                      (* If not a base type, assume a composite witness with the same naming convention *)
+                      (* If not a base type, assume a composite witness with the
+                         same naming convention *)
                       )
                     else if not @@ SSet.mem const_name irmin_types then
                       witness_name_of_type_name const_name
@@ -90,18 +91,18 @@ module Located (A : Ast_builder.S) : S = struct
               >|= unlabelled
             in
             pexp_apply (pexp_ident lident) cons_args )
-    | Ptyp_variant (_, Open, _) -> Raise.unsupported_type_open_polyvar ~loc typ
+    | Ptyp_variant (_, Open, _) -> Raise.Unsupported.type_open_polyvar ~loc typ
     | Ptyp_variant (rowfields, Closed, _labellist) ->
         derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected
           type_name rowfields
-    | Ptyp_poly _ -> Raise.unsupported_type_poly ~loc typ
+    | Ptyp_poly _ -> Raise.Unsupported.type_poly ~loc typ
     | Ptyp_tuple args ->
         derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
-    | Ptyp_arrow _ -> Raise.unsupported_type_arrow ~loc typ
-    | Ptyp_var v -> Raise.unsupported_type_var ~loc v
-    | Ptyp_package _ -> Raise.unsupported_type_package ~loc typ
-    | Ptyp_extension _ -> Raise.unsupported_type_extension ~loc typ
-    | Ptyp_alias _ -> Raise.unsupported_type_alias ~loc typ
+    | Ptyp_arrow _ -> Raise.Unsupported.type_arrow ~loc typ
+    | Ptyp_var v -> Raise.Unsupported.type_var ~loc v
+    | Ptyp_package _ -> Raise.Unsupported.type_package ~loc typ
+    | Ptyp_extension _ -> Raise.Unsupported.type_extension ~loc typ
+    | Ptyp_alias _ -> Raise.Unsupported.type_alias ~loc typ
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
@@ -114,7 +115,7 @@ module Located (A : Ast_builder.S) : S = struct
           match List.length args with
           | 2 -> "pair"
           | 3 -> "triple"
-          | n -> Raise.unsupported_tuple_size ~loc n
+          | n -> Raise.Unsupported.tuple_size ~loc n
         in
         args
         >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
@@ -128,10 +129,9 @@ module Located (A : Ast_builder.S) : S = struct
         derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
           label_decl.pld_type
       in
-      Utils.record_field ~name ~field_type e
+      Algebraic.record_field ~name ~field_type e
     in
-    Utils.function_encode ~constructor:Utils.record_constructor ~accessor
-      ~combinator_name:"record" ~sealer_name:"sealr" ~type_name ls
+    Algebraic.function_encode ~typ:Algebraic.Record ~accessor ~type_name ls
 
   and derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected name cs =
     let accessor c =
@@ -145,10 +145,10 @@ module Located (A : Ast_builder.S) : S = struct
               ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected cs,
                 List.length cs )
       in
-      Utils.variant_case ~polymorphic:false ~cons_name ?component_type
+      Algebraic.variant_case ~polymorphic:false ~cons_name ?component_type
     in
-    Utils.function_encode ~constructor:Utils.variant_constructor ~accessor
-      ~combinator_name:"variant" ~sealer_name:"sealv" ~type_name:name cs
+    Algebraic.function_encode ~typ:Algebraic.Variant ~accessor ~type_name:name
+      cs
 
   and derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected name
       rowfields =
@@ -166,10 +166,10 @@ module Located (A : Ast_builder.S) : S = struct
             (label.txt, component_type)
         | Rinherit _ -> assert false
       in
-      Utils.variant_case ~polymorphic:true ~cons_name ?component_type
+      Algebraic.variant_case ~polymorphic:true ~cons_name ?component_type
     in
-    Utils.function_encode ~constructor:Utils.polyvariant_constructor ~accessor
-      ~combinator_name:"variant" ~sealer_name:"sealv" ~type_name:name rowfields
+    Algebraic.function_encode ~typ:Algebraic.Polyvariant ~accessor
+      ~type_name:name rowfields
 
   let derive_sig ?name input_ast =
     match input_ast with
@@ -215,13 +215,11 @@ module Located (A : Ast_builder.S) : S = struct
                           match txt with
                           | Lident cons_name ->
                               if SSet.mem cons_name irmin_types then
-                                pexp_ident
-                                  (Located.lident @@ "Irmin.Type." ^ cons_name)
+                                evar ("Irmin.Type." ^ cons_name)
                               else
-                                (* If not a basic type, assume a composite witness /w same naming convention *)
-                                pexp_ident
-                                  ( Located.lident
-                                  @@ witness_name_of_type_name cons_name )
+                                (* If not a basic type, assume a composite
+                                   witness /w same naming convention *)
+                                evar (witness_name_of_type_name cons_name)
                           | Ldot (lident, cons_name) ->
                               pexp_ident
                                 ( Located.mk
@@ -242,16 +240,17 @@ module Located (A : Ast_builder.S) : S = struct
           | Ptype_record ls ->
               derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls
               |> open_module
-          | Ptype_open -> Raise.unsupported_type_open ~loc
+          | Ptype_open -> Raise.Unsupported.type_open ~loc
         in
-        (* If the type is syntactically self-referential and the user has not asserted 'nonrec' in the type
-           declaration, wrap in a 'mu' combinator *)
+        (* If the type is syntactically self-referential and the user has not
+           asserted 'nonrec' in the type declaration, wrap in a 'mu'
+           combinator *)
         let expr =
           if !rec_detected && not (rec_flag == Nonrecursive) then
             recursive witness_name expr
           else expr
         in
-        let pat = ppat_var @@ Located.mk @@ witness_name in
+        let pat = pvar witness_name in
         [ pstr_value Nonrecursive [ value_binding ~pat ~expr ] ]
     | _ -> invalid_arg "Multiple type declarations not supported"
 end
