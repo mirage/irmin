@@ -1,3 +1,7 @@
+type t = unit
+
+type t_alias = unit
+
 (* Ensure that 'nonrec' assertions are respected *)
 module S1 : sig
   type nonrec t = t list [@@deriving irmin]

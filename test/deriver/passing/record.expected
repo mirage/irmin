@@ -1,14 +1,14 @@
 type test_record1 = {
   alpha: string ;
   beta: int64 list ;
-  gamma: test_variant5 }[@@deriving irmin]
+  gamma: unit }[@@deriving irmin]
 let test_record1_t =
   let open Irmin.Type in
     ((((record "test_record1"
           (fun alpha -> fun beta -> fun gamma -> { alpha; beta; gamma }))
          |+ (field "alpha" string (fun t -> t.alpha)))
         |+ (field "beta" (list int64) (fun t -> t.beta)))
-       |+ (field "gamma" test_variant5_t (fun t -> t.gamma)))
+       |+ (field "gamma" unit (fun t -> t.gamma)))
       |> sealr
 type test_record2 =
   {

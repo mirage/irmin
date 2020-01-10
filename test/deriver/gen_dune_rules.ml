@@ -10,7 +10,9 @@ let global_stanzas () =
 let output_stanzas ~expect_failure filename =
   let base = Filename.remove_extension filename in
   let pp_library ppf base =
-    Fmt.pf ppf "@[<v 1>(library@ (name %s)@ (modules %s))@]" base base
+    if not expect_failure then
+      Fmt.pf ppf "@[<v 1>(library@ (name %s)@ (modules %s))@]" base base
+    else ()
   in
   let pp_rule ppf base =
     let pp_action ppf expect_failure =
@@ -57,7 +59,9 @@ let () =
     | _ -> false
   in
   global_stanzas ();
-  Sys.readdir "." |> Array.to_list |> List.sort String.compare
+  Sys.readdir "."
+  |> Array.to_list
+  |> List.sort String.compare
   |> List.filter is_error_test
   |> List.iter (output_stanzas ~expect_failure);
   Fmt.pr "\n%!"

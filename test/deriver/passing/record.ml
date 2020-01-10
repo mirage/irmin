@@ -1,9 +1,5 @@
 (* Records *)
-type test_record1 = {
-  alpha : string;
-  beta : int64 list;
-  gamma : test_variant5;
-}
+type test_record1 = { alpha : string; beta : int64 list; gamma : unit }
 [@@deriving irmin]
 
 type test_record2 = {
