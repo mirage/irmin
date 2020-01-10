@@ -1,209 +1,193 @@
+(env
+ (_
+  (env-vars
+   (OCAML_ERROR_STYLE "short")
+   (OCAML_COLOR "never"))))
 
 (library
-  (name alias)
-  (modules alias)
-  (preprocess (pps ppx_yojson))
-)
+ (name alias)
+ (modules alias))
 
 (rule
-  (targets alias.actual)
-  (deps (:pp pp.exe) (:input alias.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets alias.actual)
+ (deps
+  (:pp pp.exe)
+  (:input alias.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff alias.expected alias.actual))
-)
+ (name runtest)
+ (action
+  (diff alias.expected alias.actual)))
 
 (library
-  (name arguments)
-  (modules arguments)
-  (preprocess (pps ppx_yojson))
-)
+ (name arguments)
+ (modules arguments))
 
 (rule
-  (targets arguments.actual)
-  (deps (:pp pp.exe) (:input arguments.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets arguments.actual)
+ (deps
+  (:pp pp.exe)
+  (:input arguments.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff arguments.expected arguments.actual))
-)
+ (name runtest)
+ (action
+  (diff arguments.expected arguments.actual)))
 
 (library
-  (name basic)
-  (modules basic)
-  (preprocess (pps ppx_yojson))
-)
+ (name basic)
+ (modules basic))
 
 (rule
-  (targets basic.actual)
-  (deps (:pp pp.exe) (:input basic.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets basic.actual)
+ (deps
+  (:pp pp.exe)
+  (:input basic.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff basic.expected basic.actual))
-)
+ (name runtest)
+ (action
+  (diff basic.expected basic.actual)))
 
 (library
-  (name composite)
-  (modules composite)
-  (preprocess (pps ppx_yojson))
-)
+ (name composite)
+ (modules composite))
 
 (rule
-  (targets composite.actual)
-  (deps (:pp pp.exe) (:input composite.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets composite.actual)
+ (deps
+  (:pp pp.exe)
+  (:input composite.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff composite.expected composite.actual))
-)
+ (name runtest)
+ (action
+  (diff composite.expected composite.actual)))
 
 (library
-  (name module)
-  (modules module)
-  (preprocess (pps ppx_yojson))
-)
+ (name module)
+ (modules module))
 
 (rule
-  (targets module.actual)
-  (deps (:pp pp.exe) (:input module.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets module.actual)
+ (deps
+  (:pp pp.exe)
+  (:input module.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff module.expected module.actual))
-)
+ (name runtest)
+ (action
+  (diff module.expected module.actual)))
 
 (library
-  (name nonrec)
-  (modules nonrec)
-  (preprocess (pps ppx_yojson))
-)
+ (name nonrec)
+ (modules nonrec))
 
 (rule
-  (targets nonrec.actual)
-  (deps (:pp pp.exe) (:input nonrec.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets nonrec.actual)
+ (deps
+  (:pp pp.exe)
+  (:input nonrec.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff nonrec.expected nonrec.actual))
-)
+ (name runtest)
+ (action
+  (diff nonrec.expected nonrec.actual)))
 
 (library
-  (name polyvariant)
-  (modules polyvariant)
-  (preprocess (pps ppx_yojson))
-)
+ (name polyvariant)
+ (modules polyvariant))
 
 (rule
-  (targets polyvariant.actual)
-  (deps (:pp pp.exe) (:input polyvariant.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets polyvariant.actual)
+ (deps
+  (:pp pp.exe)
+  (:input polyvariant.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff polyvariant.expected polyvariant.actual))
-)
+ (name runtest)
+ (action
+  (diff polyvariant.expected polyvariant.actual)))
 
 (library
-  (name record)
-  (modules record)
-  (preprocess (pps ppx_yojson))
-)
+ (name record)
+ (modules record))
 
 (rule
-  (targets record.actual)
-  (deps (:pp pp.exe) (:input record.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets record.actual)
+ (deps
+  (:pp pp.exe)
+  (:input record.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff record.expected record.actual))
-)
+ (name runtest)
+ (action
+  (diff record.expected record.actual)))
 
 (library
-  (name signature)
-  (modules signature)
-  (preprocess (pps ppx_yojson))
-)
+ (name signature)
+ (modules signature))
 
 (rule
-  (targets signature.actual)
-  (deps (:pp pp.exe) (:input signature.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets signature.actual)
+ (deps
+  (:pp pp.exe)
+  (:input signature.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff signature.expected signature.actual))
-)
+ (name runtest)
+ (action
+  (diff signature.expected signature.actual)))
 
 (library
-  (name tuple_deep)
-  (modules tuple_deep)
-  (preprocess (pps ppx_yojson))
-)
+ (name tuple_deep)
+ (modules tuple_deep))
 
 (rule
-  (targets tuple_deep.actual)
-  (deps (:pp pp.exe) (:input tuple_deep.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets tuple_deep.actual)
+ (deps
+  (:pp pp.exe)
+  (:input tuple_deep.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff tuple_deep.expected tuple_deep.actual))
-)
+ (name runtest)
+ (action
+  (diff tuple_deep.expected tuple_deep.actual)))
 
 (library
-  (name variant)
-  (modules variant)
-  (preprocess (pps ppx_yojson))
-)
+ (name variant)
+ (modules variant))
 
 (rule
-  (targets variant.actual)
-  (deps (:pp pp.exe) (:input variant.ml))
-  (action
-    (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})
-  )
-)
+ (targets variant.actual)
+ (deps
+  (:pp pp.exe)
+  (:input variant.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 (alias
-  (name runtest)
-  (action (diff variant.expected variant.actual))
-)
+ (name runtest)
+ (action
+  (diff variant.expected variant.actual)))
+
