@@ -889,7 +889,8 @@ module Make (S : S) = struct
       in
       let assert_history_empty msg c expected =
         S.of_commit c >>= fun t ->
-        S.history t >|= S.History.is_empty
+        S.history t
+        >|= S.History.is_empty
         >|= Alcotest.(check bool) msg expected
       in
       let tree = S.Tree.empty in

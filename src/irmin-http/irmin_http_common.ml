@@ -40,7 +40,9 @@ let event_t k x =
 let init_t k x =
   let open Irmin.Type in
   record "init" (fun k v -> (k, v))
-  |+ field "branch" k fst |+ field "commit" x snd |> sealr
+  |+ field "branch" k fst
+  |+ field "commit" x snd
+  |> sealr
 
 type 'a merge = { old : 'a; left : 'a; right : 'a }
 

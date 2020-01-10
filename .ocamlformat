@@ -1,2 +1,3 @@
 version = 0.12
 profile = conventional
+break-infix = fit-or-vertical

@@ -539,5 +539,6 @@ module V1 (C : S.COMMIT) = struct
     record "commit" (fun node parents info -> make ~info ~node ~parents)
     |+ field "node" K.t node
     |+ field "parents" (list ~len:`Int64 K.t) parents
-    |+ field "info" info_t info |> sealr
+    |+ field "info" info_t info
+    |> sealr
 end
