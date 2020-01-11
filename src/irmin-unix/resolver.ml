@@ -363,8 +363,11 @@ let config_term =
   Term.(
     const create
     $ opt_key Irmin.Private.Conf.root
-    $ flag_key Irmin_git.bare $ opt_key Irmin_git.head $ opt_key Irmin_git.level
-    $ opt_key Irmin_http.uri $ opt_key config_path_key)
+    $ flag_key Irmin_git.bare
+    $ opt_key Irmin_git.head
+    $ opt_key Irmin_git.level
+    $ opt_key Irmin_http.uri
+    $ opt_key config_path_key)
 
 type store =
   | S :

@@ -286,7 +286,8 @@ struct
         | e ->
             let equal x y =
               x.G.Value.Tree.perm = y.G.Value.Tree.perm
-              && x.name = y.name && G.Hash.equal x.node y.node
+              && x.name = y.name
+              && G.Hash.equal x.node y.node
             in
             if equal e entry then t
             else

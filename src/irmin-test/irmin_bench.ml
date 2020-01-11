@@ -125,7 +125,13 @@ let t =
   Term.(
     const (fun () ncommits depth tree_add display clear gc ->
         { ncommits; depth; tree_add; display; root = "."; clear; gc })
-    $ log $ ncommits $ depth $ tree_add $ display $ clear $ gc)
+    $ log
+    $ ncommits
+    $ depth
+    $ tree_add
+    $ display
+    $ clear
+    $ gc)
 
 module Make (Store : Irmin.KV with type contents = string) = struct
   let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"

@@ -155,7 +155,8 @@ struct
         |+ field "hash" H.t (fun t -> Lazy.force t.hash)
         |+ field "stable" bool (fun t -> t.stable)
         |+ field "v" v_t (fun t -> t.v)
-        |> sealr |> like ~pre_hash
+        |> sealr
+        |> like ~pre_hash
 
       let node ~hash v = { stable = true; hash; v }
 
@@ -322,7 +323,8 @@ struct
         record "Node.inode" (fun hash tree -> { i_hash = lazy hash; tree })
         |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
         |+ field "tree" (option t) (fun t -> t.tree)
-        |> sealr |> like ~equal:same_hash
+        |> sealr
+        |> like ~equal:same_hash
 
       let entry_t inode : entry Irmin.Type.t =
         let open Irmin.Type in
@@ -441,7 +443,8 @@ struct
           function Values v -> values v | Inodes i -> inodes i)
         |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
         |~ case1 "Inodes" (inodes entry) (fun t -> Inodes t)
-        |> sealv |> like ~pre_hash
+        |> sealv
+        |> like ~pre_hash
 
       let t : t Irmin.Type.t =
         let open Irmin.Type in
