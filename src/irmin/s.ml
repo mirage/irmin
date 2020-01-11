@@ -213,6 +213,14 @@ module type NODE_GRAPH = sig
   val closure :
     [> `Read ] t -> min:node list -> max:node list -> node list Lwt.t
 
+  val iter_on_closure :
+    [> `Read ] t ->
+    min:node list ->
+    max:node list ->
+    f_nodes:(node -> unit Lwt.t) ->
+    f_edges:(node -> node list -> unit Lwt.t) ->
+    unit Lwt.t
+
   val metadata_t : metadata Type.t
 
   val contents_t : contents Type.t
