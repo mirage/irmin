@@ -1,0 +1,14 @@
+type test_list1 = string list[@@deriving irmin]
+let test_list1_t = let open Irmin.Type in list string
+type test_list2 = int32 list list list[@@deriving irmin]
+let test_list2_t = let open Irmin.Type in list (list (list int32))
+type test_array = bool array[@@deriving irmin]
+let test_array_t = let open Irmin.Type in array bool
+type test_option = unit option[@@deriving irmin]
+let test_option_t = let open Irmin.Type in option unit
+type test_pair = (string * int32)[@@deriving irmin]
+let test_pair_t = let open Irmin.Type in pair string int32
+type test_triple = (string * int32 * bool)[@@deriving irmin]
+let test_triple_t = let open Irmin.Type in triple string int32 bool
+type test_result = (int32, string) result[@@deriving irmin]
+let test_result_t = let open Irmin.Type in result int32 string

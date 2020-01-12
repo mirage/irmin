@@ -1,0 +1,2 @@
+File "unsupported_tuple_size.ml", line 1, characters 0-53:
+Error: ppx_irmin: tuple types must have 2 or 3 components. Found 4.

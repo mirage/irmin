@@ -1,0 +1,2 @@
+File "unsupported_type_poly.ml", line 1, characters 0-42:
+Error: ppx_irmin: universally-quantified type 'a . 'a encountered. Irmin types must be grounded.
