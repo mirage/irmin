@@ -13,7 +13,7 @@ build: [
 ]
 
 depends: [
-  "dune"       {>= "1.1.0"}
+  "dune"       {>= "1.8.0"}
   "irmin"      {>= "2.0.0"}
   "irmin-mem"  {>= "2.0.0"}
   "ptime"
