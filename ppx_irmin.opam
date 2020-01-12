@@ -18,11 +18,6 @@ depends: [
   "dune"
   "ocaml" {>= "4.06.0"}
   "ppxlib" {= "0.9.0"}
-  "irmin"
-]
-
-pin-depends: [
-  ["irmin.dev" "git+https://github.com/mirage/irmin.git"]
 ]
 
 synopsis: "PPX deriver for Irmin generics"
