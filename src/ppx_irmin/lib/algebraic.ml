@@ -254,7 +254,10 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     let seal name e =
       pexp_apply (evar "|>") ([ e; evar name ] >|= unlabelled)
     in
-    function Record -> seal "sealr" | Variant | Polyvariant -> seal "sealv"
+    function
+    | Record -> seal "sealr"
+    | Variant -> seal "sealv"
+    | Polyvariant -> seal "sealv"
 
   let encode :
       type a b.
