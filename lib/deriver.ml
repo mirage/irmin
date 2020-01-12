@@ -46,7 +46,17 @@ module type S = sig
 end
 
 module Located (A : Ast_builder.S) : S = struct
-  module Algebraic = Algebraic.Located (A)
+  module State = struct
+    type t = {
+      rec_flag : rec_flag;
+      type_name : string;
+      witness_name : string;
+      rec_detected : bool ref;
+    }
+  end
+
+  module Reader = Monad.Reader (State)
+  module Algebraic = Algebraic.Located (A) (Reader)
   open A
 
   let unlabelled x = (Nolabel, x)
@@ -69,11 +79,15 @@ module Located (A : Ast_builder.S) : S = struct
 
   let witness_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
-  let rec derive_core ~rec_flag ~type_name ~witness_name ~rec_detected typ =
+  open Reader.Syntax
+  open Reader
+
+  let rec derive_core typ =
+    let* { rec_flag; type_name; witness_name; rec_detected } = ask in
     match typ.ptyp_desc with
     | Ptyp_constr ({ txt = const_name; _ }, args) -> (
         match Attribute.get Attributes.witness typ with
-        | Some e -> e
+        | Some e -> return e
         | None ->
             let lident =
               match const_name with
@@ -101,19 +115,15 @@ module Located (A : Ast_builder.S) : S = struct
                   Located.mk @@ Ldot (lident, name)
               | Lapply _ -> invalid_arg "Lident.Lapply not supported"
             in
-            let cons_args =
-              args
-              >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-              >|= unlabelled
+            let+ cons_args =
+              args >|= derive_core |> sequence |> map (List.map unlabelled)
             in
             pexp_apply (pexp_ident lident) cons_args )
     | Ptyp_variant (_, Open, _) -> Raise.Unsupported.type_open_polyvar ~loc typ
     | Ptyp_variant (rowfields, Closed, _labellist) ->
-        derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected
-          type_name rowfields
+        derive_polyvariant type_name rowfields
     | Ptyp_poly _ -> Raise.Unsupported.type_poly ~loc typ
-    | Ptyp_tuple args ->
-        derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args
+    | Ptyp_tuple args -> derive_tuple args
     | Ptyp_arrow _ -> Raise.Unsupported.type_arrow ~loc typ
     | Ptyp_var v -> Raise.Unsupported.type_var ~loc v
     | Ptyp_package _ -> Raise.Unsupported.type_package ~loc typ
@@ -121,11 +131,11 @@ module Located (A : Ast_builder.S) : S = struct
     | Ptyp_alias _ -> Raise.Unsupported.type_alias ~loc typ
     | _ -> invalid_arg "unsupported"
 
-  and derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected args =
+  and derive_tuple args =
     match args with
     | [ t ] ->
         (* This case can occur when the tuple type is nested inside a variant *)
-        derive_core ~rec_flag ~type_name ~witness_name ~rec_detected t
+        derive_core t
     | _ ->
         let tuple_type =
           match List.length args with
@@ -134,52 +144,44 @@ module Located (A : Ast_builder.S) : S = struct
           | n -> Raise.Unsupported.tuple_size ~loc n
         in
         args
-        >|= derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-        >|= unlabelled
-        |> pexp_apply (pexp_ident @@ Located.lident tuple_type)
+        >|= derive_core
+        |> sequence
+        |> map (List.map unlabelled)
+        |> map (pexp_apply (evar tuple_type))
 
-  and derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls =
-    let accessor label_decl e =
+  and derive_record ls =
+    let* State.{ type_name; _ } = ask in
+    let accessor label_decl =
       let name = label_decl.pld_name.txt in
-      let field_type =
-        derive_core ~rec_flag ~type_name ~witness_name ~rec_detected
-          label_decl.pld_type
-      in
-      Algebraic.record_field ~name ~field_type e
+      let+ field_type = derive_core label_decl.pld_type in
+      Algebraic.record_field ~name ~field_type
     in
     Algebraic.function_encode ~typ:Algebraic.Record ~accessor ~type_name ls
 
-  and derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected name cs =
+  and derive_variant cs =
+    let* { type_name; _ } = ask in
     let accessor c =
       let cons_name = c.pcd_name.txt in
-      let component_type =
+      let+ component_type =
         match c.pcd_args with
         | Pcstr_record _ -> invalid_arg "Inline record types unsupported"
-        | Pcstr_tuple [] -> None
+        | Pcstr_tuple [] -> return None
         | Pcstr_tuple cs ->
-            Some
-              ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected cs,
-                List.length cs )
+            let+ tuple_typ = derive_tuple cs in
+            Some (tuple_typ, List.length cs)
       in
       Algebraic.variant_case ~polymorphic:false ~cons_name ?component_type
     in
-    Algebraic.function_encode ~typ:Algebraic.Variant ~accessor ~type_name:name
-      cs
+    Algebraic.function_encode ~typ:Algebraic.Variant ~accessor ~type_name cs
 
-  and derive_polyvariant ~rec_flag ~type_name ~witness_name ~rec_detected name
-      rowfields =
+  and derive_polyvariant name rowfields =
     let accessor f =
-      let cons_name, component_type =
+      let+ cons_name, component_type =
         match f.prf_desc with
-        | Rtag (label, _, []) -> (label.txt, None)
+        | Rtag (label, _, []) -> return (label.txt, None)
         | Rtag (label, _, typs) ->
-            let component_type =
-              Some
-                ( derive_tuple ~rec_flag ~type_name ~witness_name ~rec_detected
-                    typs,
-                  List.length typs )
-            in
-            (label.txt, component_type)
+            let+ tuple_typ = derive_tuple typs in
+            (label.txt, Some (tuple_typ, List.length typs))
         | Rinherit _ -> assert false
       in
       Algebraic.variant_case ~polymorphic:true ~cons_name ?component_type
@@ -208,16 +210,18 @@ module Located (A : Ast_builder.S) : S = struct
   let derive_str ?name input_ast =
     match input_ast with
     | rec_flag, [ typ ] ->
-        let type_name = typ.ptype_name.txt in
-        let witness_name =
-          match name with
-          | Some s -> s
-          | None -> witness_name_of_type_name type_name
+        let env =
+          let type_name = typ.ptype_name.txt in
+          let witness_name =
+            match name with
+            | Some s -> s
+            | None -> witness_name_of_type_name type_name
+          in
+          let rec_detected = ref false in
+          State.{ rec_flag; type_name; witness_name; rec_detected }
         in
-        let kind = typ.ptype_kind in
-        let rec_detected = ref false in
         let expr =
-          match kind with
+          match typ.ptype_kind with
           | Ptype_abstract -> (
               match typ.ptype_manifest with
               | None -> invalid_arg "No manifest"
@@ -245,28 +249,20 @@ module Located (A : Ast_builder.S) : S = struct
                           | Lapply _ ->
                               invalid_arg "Lident.Lapply not supported" ) )
                   (* Type constructor: list, tuple, etc. *)
-                  | _ ->
-                      derive_core ~rec_flag ~type_name ~witness_name
-                        ~rec_detected c
-                      |> open_module ) )
-          | Ptype_variant cs ->
-              derive_variant ~rec_flag ~type_name ~witness_name ~rec_detected
-                type_name cs
-              |> open_module
-          | Ptype_record ls ->
-              derive_record ~rec_flag ~type_name ~witness_name ~rec_detected ls
-              |> open_module
+                  | _ -> run (derive_core c) env |> open_module ) )
+          | Ptype_variant cs -> run (derive_variant cs) env |> open_module
+          | Ptype_record ls -> run (derive_record ls) env |> open_module
           | Ptype_open -> Raise.Unsupported.type_open ~loc
         in
         (* If the type is syntactically self-referential and the user has not
            asserted 'nonrec' in the type declaration, wrap in a 'mu'
            combinator *)
         let expr =
-          if !rec_detected && not (rec_flag == Nonrecursive) then
-            recursive witness_name expr
+          if !(env.rec_detected) && rec_flag == Recursive then
+            recursive env.witness_name expr
           else expr
         in
-        let pat = pvar witness_name in
+        let pat = pvar env.witness_name in
         [ pstr_value Nonrecursive [ value_binding ~pat ~expr ] ]
     | _ -> invalid_arg "Multiple type declarations not supported"
 end

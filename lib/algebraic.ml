@@ -24,8 +24,6 @@ module type S = sig
     expression ->
     expression
 
-  val variant_pattern : string -> (pattern option -> pattern) -> int -> case
-
   val record_field :
     name:label -> field_type:expression -> expression -> expression
 
@@ -34,15 +32,18 @@ module type S = sig
     | Variant : constructor_declaration typ
     | Polyvariant : row_field typ
 
+  module M : Monad.S
+
   val function_encode :
     typ:'a typ ->
-    accessor:('a -> expression -> expression) ->
+    accessor:('a -> (expression -> expression) M.t) ->
     type_name:string ->
     'a list ->
-    expression
+    expression M.t
 end
 
-module Located (A : Ast_builder.S) : S = struct
+module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
+  module M = M
   open A
 
   let ( >|= ) x f = List.map f x
@@ -199,18 +200,21 @@ module Located (A : Ast_builder.S) : S = struct
   let function_encode :
       type a.
       typ:a typ ->
-      accessor:(a -> expression -> expression) ->
+      accessor:(a -> (expression -> expression) M.t) ->
       type_name:string ->
       a list ->
-      expression =
+      expression M.t =
    fun ~typ ~accessor ~type_name ts ->
+    let open M.Syntax in
     let composite =
       match typ with
       | Record -> record_composite ts
       | Variant -> variant_composite ts
       | Polyvariant -> polyvariant_composite ts
     in
-    let cases = ts >|= accessor |> List.rev |> compose_all in
+    let+ cases =
+      ts >|= accessor |> M.sequence |> M.map List.rev |> M.map compose_all
+    in
     pexp_apply
       (evar (combinator_of_typ typ))
       ([ estring type_name; composite ] >|= unlabelled)
