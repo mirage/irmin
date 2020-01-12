@@ -41,8 +41,7 @@ let output_stanzas ~expect_failure filename =
        (name runtest)@,\
        (package ppx_irmin)@,\
        @[<v 1>(action@,\
-       @[<hov 2>(diff@ %s.expected@ %s.actual)@])@])@]"
-      base base
+       @[<hov 2>(diff@ %s.expected@ %s.actual)@])@])@]" base base
   in
   Format.set_margin 80;
   Fmt.pr "@[<v 0>@,%a@,@,%a@,@,%a@]@." pp_library base pp_rule base pp_alias

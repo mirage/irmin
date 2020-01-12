@@ -240,8 +240,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     | Variant -> variant_case ~polymorphic:false
     | Polyvariant -> variant_case ~polymorphic:true
 
-  let composite_of_typ : type a b. (a, b) typ -> a list -> expression =
-    function
+  let composite_of_typ : type a b. (a, b) typ -> a list -> expression = function
     | Record -> record_composite
     | Variant -> variant_composite
     | Polyvariant -> polyvariant_composite
