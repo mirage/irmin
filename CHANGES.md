@@ -2,6 +2,10 @@
 
 #### Added
 
+- **ppx_irmin** (_new_):
+  - Created a new package, `ppx_irmin`, which provides a PPX deriving plugin
+    for generating Irmin generics.
+
 - **irmin-unix**:
   - Added a `--hash` parameter to the command-line interface, allowing the hash
     function to be specified. For BLAKE2b and BLAKE2s, the bit-length may be
