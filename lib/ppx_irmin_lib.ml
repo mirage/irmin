@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val irmin : Ppxlib.Deriving.t
-(** [Ppx_deriving] plugin for Irmin generics. *)
+module Attributes = Attributes
+module Deriver = Deriver

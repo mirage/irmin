@@ -19,3 +19,5 @@ open Ppxlib
 val witness : (core_type, expression) Attribute.t
 
 val all : Attribute.packed list
+
+(* Boxed list of all of the attributes required by [ppx_irmin]. *)

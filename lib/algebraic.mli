@@ -14,53 +14,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Helper functions for deriving generic encodings of algebraic data types. *)
+
 open Ppxlib
 
 module type S = sig
-  val variant_case :
-    polymorphic:bool ->
-    cons_name:label ->
-    ?component_type:expression * int ->
-    expression ->
-    expression
+  type nonrec record_field_repr = {
+    field_name : string;
+    field_generic : expression;
+  }
 
-  val variant_pattern : string -> (pattern option -> pattern) -> int -> case
+  and variant_case_repr = {
+    case_name : string;
+    case_cons : (expression * int) option;
+  }
 
-  val record_field :
-    name:label -> field_type:expression -> expression -> expression
+  (** The algebraic datatypes supported by this module, parameterised by:
 
-  type _ typ =
-    | Record : label_declaration typ
-    | Variant : constructor_declaration typ
-    | Polyvariant : row_field typ
+      - ['a]: the subcomponent type of the algebraic type
+      - ['b]: a generic representation of the subcomponent type necessary to
+        derive the {i composite} generic *)
+  type (_, _) typ =
+    | Record : (label_declaration, record_field_repr) typ
+    | Variant : (constructor_declaration, variant_case_repr) typ
+    | Polyvariant : (row_field, variant_case_repr) typ
 
   module M : Monad.S
 
-  val function_encode :
-    typ:'a typ ->
-    accessor:('a -> (expression -> expression) M.t) ->
+  val encode :
+    ('a, 'b) typ ->
+    subderive:('a -> 'b M.t) ->
     type_name:string ->
     'a list ->
     expression M.t
   (** Build the functional encoding of a composite type. Combine the various
-      elements necessary for a functional encoding of a composite type. *)
+      elements necessary for a functional encoding of a composite type
+      [('a, 'b) {!typ}], in terms its components of type ['a list] and the name
+      of the composite type [type_name].
 
-  (** Record composites are encoded as a constructor function
-
-      {[ fun field1 field2 ... fieldN -> { field1; field2; ...; fieldN }) ]} *)
-
-  (** Variant composites are encoded as a destructor function:
-
-      {[
-        fun case1 case2 ... caseN -> function
-           | Case1 x -> case1 c
-           | Case2 (x1, x2) -> case2 x1 x2
-            ...
-           | CaseN -> casen
-      ]} *)
-
-  (** Same as {!variant_composite} but gives the destructor for a
-      {i polymorphic} variant *)
+      This requires a function [subderive] for deriving the generic
+      representation of the subcomponents, which may run in a monadic context
+      [M.t]. *)
 end
 
 module Located (S : Ast_builder.S) (M : Monad.S) : S with module M = M

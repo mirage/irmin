@@ -151,18 +151,18 @@ module Located (A : Ast_builder.S) : S = struct
 
   and derive_record ls =
     let* State.{ type_name; _ } = ask in
-    let accessor label_decl =
-      let name = label_decl.pld_name.txt in
-      let+ field_type = derive_core label_decl.pld_type in
-      Algebraic.record_field ~name ~field_type
+    let subderive label_decl =
+      let field_name = label_decl.pld_name.txt in
+      let+ field_generic = derive_core label_decl.pld_type in
+      Algebraic.{ field_name; field_generic }
     in
-    Algebraic.function_encode ~typ:Algebraic.Record ~accessor ~type_name ls
+    Algebraic.(encode Record) ~subderive ~type_name ls
 
   and derive_variant cs =
     let* { type_name; _ } = ask in
-    let accessor c =
-      let cons_name = c.pcd_name.txt in
-      let+ component_type =
+    let subderive c =
+      let case_name = c.pcd_name.txt in
+      let+ case_cons =
         match c.pcd_args with
         | Pcstr_record _ -> invalid_arg "Inline record types unsupported"
         | Pcstr_tuple [] -> return None
@@ -170,13 +170,13 @@ module Located (A : Ast_builder.S) : S = struct
             let+ tuple_typ = derive_tuple cs in
             Some (tuple_typ, List.length cs)
       in
-      Algebraic.variant_case ~polymorphic:false ~cons_name ?component_type
+      Algebraic.{ case_name; case_cons }
     in
-    Algebraic.function_encode ~typ:Algebraic.Variant ~accessor ~type_name cs
+    Algebraic.(encode Variant) ~subderive ~type_name cs
 
   and derive_polyvariant name rowfields =
-    let accessor f =
-      let+ cons_name, component_type =
+    let subderive f =
+      let+ case_name, case_cons =
         match f.prf_desc with
         | Rtag (label, _, []) -> return (label.txt, None)
         | Rtag (label, _, typs) ->
@@ -184,10 +184,9 @@ module Located (A : Ast_builder.S) : S = struct
             (label.txt, Some (tuple_typ, List.length typs))
         | Rinherit _ -> assert false
       in
-      Algebraic.variant_case ~polymorphic:true ~cons_name ?component_type
+      Algebraic.{ case_name; case_cons }
     in
-    Algebraic.function_encode ~typ:Algebraic.Polyvariant ~accessor
-      ~type_name:name rowfields
+    Algebraic.(encode Polyvariant) ~subderive ~type_name:name rowfields
 
   let derive_sig ?name input_ast =
     match input_ast with

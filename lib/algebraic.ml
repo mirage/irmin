@@ -17,26 +17,26 @@
 open Ppxlib
 
 module type S = sig
-  val variant_case :
-    polymorphic:bool ->
-    cons_name:label ->
-    ?component_type:expression * int ->
-    expression ->
-    expression
+  type nonrec record_field_repr = {
+    field_name : string;
+    field_generic : expression;
+  }
 
-  val record_field :
-    name:label -> field_type:expression -> expression -> expression
+  and variant_case_repr = {
+    case_name : string;
+    case_cons : (expression * int) option;
+  }
 
-  type _ typ =
-    | Record : label_declaration typ
-    | Variant : constructor_declaration typ
-    | Polyvariant : row_field typ
+  type (_, _) typ =
+    | Record : (label_declaration, record_field_repr) typ
+    | Variant : (constructor_declaration, variant_case_repr) typ
+    | Polyvariant : (row_field, variant_case_repr) typ
 
   module M : Monad.S
 
-  val function_encode :
-    typ:'a typ ->
-    accessor:('a -> (expression -> expression) M.t) ->
+  val encode :
+    ('a, 'b) typ ->
+    subderive:('a -> 'b M.t) ->
     type_name:string ->
     'a list ->
     expression M.t
@@ -56,10 +56,27 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
   let generate_identifiers n =
     List.init n (fun i -> Printf.sprintf "x%d" (i + 1))
 
-  (* [lambda "x" e] is [fun x -> e] *)
+  (** [lambda "x" e] is [fun x -> e] *)
   let lambda fparam = pvar fparam |> pexp_fun Nolabel None
 
-  (* |~ case0 "cons_name" [`]Cons_name *)
+  type nonrec record_field_repr = {
+    field_name : string;
+    field_generic : expression;
+  }
+
+  and variant_case_repr = {
+    case_name : string;
+    case_cons : (expression * int) option;
+  }
+
+  type (_, _) typ =
+    | Record : (label_declaration, record_field_repr) typ
+    | Variant : (constructor_declaration, variant_case_repr) typ
+    | Polyvariant : (row_field, variant_case_repr) typ
+
+  (** {1 Helper functions for various subfragments} *)
+
+  (** {[ |~ case0 "cons_name" (`)Cons_name ]} *)
   let variant_case0 ~polymorphic ~cons_name e =
     let fnbody =
       if polymorphic then pexp_variant cons_name None
@@ -74,7 +91,9 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         ]
       >|= unlabelled )
 
-  (* |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> [`]Cons_name (x1, ..., xN)) *)
+  (** {[
+        |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> (`)Cons_name (x1, ..., xN))
+      ]} *)
   let variant_case1 ~polymorphic ~cons_name ~component_type ~idents e =
     let constructor =
       let tuple_pat = idents >|= Located.mk >|= ppat_var |> ppat_tuple in
@@ -98,14 +117,42 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         ]
       >|= unlabelled )
 
-  let variant_case ~polymorphic ~cons_name ?component_type =
-    match component_type with
-    | None -> variant_case0 ~polymorphic ~cons_name
+  (** Wrapper for {!variant_case0} and {!variant_case1} *)
+  let variant_case ~polymorphic { case_name; case_cons } =
+    match case_cons with
+    | None -> variant_case0 ~polymorphic ~cons_name:case_name
     | Some (component_type, n) ->
         let idents = generate_identifiers n in
-        variant_case1 ~cons_name ~polymorphic ~component_type ~idents
+        variant_case1 ~polymorphic ~cons_name:case_name ~component_type ~idents
 
-  (* | Cons_name (x1, x2, x3) -> cons_name x1 x2 x3 *)
+  (** [|+ field "field_name" (field_type) (fun t -> t.field_name)] *)
+  let record_field { field_name; field_generic } e =
+    pexp_apply (evar "|+")
+      ( [
+          e;
+          pexp_apply (evar "field")
+            ( [
+                pexp_constant @@ Pconst_string (field_name, None);
+                field_generic;
+                lambda "t" (pexp_field (evar "t") (Located.lident field_name));
+              ]
+            >|= unlabelled );
+        ]
+      >|= unlabelled )
+
+  (** Record composites are encoded as a constructor function
+
+      {[ fun field1 field2 ... fieldN -> { field1; field2; ...; fieldN }) ]} *)
+  let record_composite fields =
+    let fields = fields >|= fun l -> l.pld_name.txt in
+    let lambda_wrapper = compose_all (fields >|= lambda) in
+    let record =
+      let rfields = fields >|= fun s -> (Located.lident s, evar s) in
+      pexp_record rfields None
+    in
+    lambda_wrapper record
+
+  (** {[ | Cons_name (x1, x2, x3) -> cons_name x1 x2 x3 ] ]} *)
   let variant_pattern cons_name pattern n =
     let fparam_of_name name = String.lowercase_ascii name in
     match n with
@@ -122,46 +169,15 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         in
         case ~lhs ~guard:None ~rhs
 
-  (* |+ field "field_name" (field_type) (fun t -> t.field_name) *)
-  let record_field ~name ~field_type e =
-    pexp_apply (evar "|+")
-      ( [
-          e;
-          pexp_apply (evar "field")
-            ( [
-                pexp_constant @@ Pconst_string (name, None);
-                field_type;
-                lambda "t" (pexp_field (evar "t") (Located.lident name));
-              ]
-            >|= unlabelled );
-        ]
-      >|= unlabelled )
+  (** Variant composites are encoded as a destructor function:
 
-  type _ typ =
-    | Record : label_declaration typ
-    | Variant : constructor_declaration typ
-    | Polyvariant : row_field typ
-
-  let combinator_of_typ : type a. a typ -> string = function
-    | Record -> "record"
-    | Variant -> "variant"
-    | Polyvariant -> "variant"
-
-  let sealer_of_typ : type a. a typ -> expression -> expression =
-    let seal name e =
-      pexp_apply (evar "|>") ([ e; evar name ] >|= unlabelled)
-    in
-    function Record -> seal "sealr" | Variant | Polyvariant -> seal "sealv"
-
-  let record_composite fields =
-    let fields = fields >|= fun l -> l.pld_name.txt in
-    let lambda_wrapper = compose_all (fields >|= lambda) in
-    let record =
-      let rfields = fields >|= fun s -> (Located.lident s, evar s) in
-      pexp_record rfields None
-    in
-    lambda_wrapper record
-
+      {[
+        fun case1 case2 ... caseN -> function
+           | Case1 x -> case1 c
+           | Case2 (x1, x2) -> case2 x1 x2
+            ...
+           | CaseN -> casen
+      ]} *)
   let variant_composite cs =
     let fparam_of_cdecl c = c.pcd_name.txt |> String.lowercase_ascii in
     let pattern_of_cdecl c =
@@ -178,6 +194,8 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     |> pexp_function
     |> compose_all (cs >|= fparam_of_cdecl >|= lambda)
 
+  (** Analogous to {!variant_composite} but using AST fragments for polymorphic
+      variants. *)
   let polyvariant_composite fs =
     let fparam_of_rowfield f =
       match f.prf_desc with
@@ -197,27 +215,69 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     |> pexp_function
     |> compose_all (fs >|= fparam_of_rowfield >|= lambda)
 
-  let function_encode :
-      type a.
-      typ:a typ ->
-      accessor:(a -> (expression -> expression) M.t) ->
+  (** {1 Functional encodings of composite types}
+
+      The functional encodings have a standard form:
+
+      {[
+        <combinator> <type_name> <composite>
+        |> <augment> <subcomponent_1>
+        |> <augment> <subcomponent_2>
+        |> <augment> <subcomponent_3>
+        |> <sealer>
+      ]}
+
+      That is, they initially construct an 'open' representation of the
+      composite, then add each of the subcomponents to the open representation
+      using an 'augmenter', and finally 'seal' the representation.
+
+      The following functions provide each part of the encoding for each
+      composite type. *)
+
+  let augment_of_typ : type a b. (a, b) typ -> b -> expression -> expression =
+    function
+    | Record -> record_field
+    | Variant -> variant_case ~polymorphic:false
+    | Polyvariant -> variant_case ~polymorphic:true
+
+  let composite_of_typ : type a b. (a, b) typ -> a list -> expression =
+    function
+    | Record -> record_composite
+    | Variant -> variant_composite
+    | Polyvariant -> polyvariant_composite
+
+  let combinator_of_typ : type a b. (a, b) typ -> string = function
+    | Record -> "record"
+    | Variant -> "variant"
+    | Polyvariant -> "variant"
+
+  let sealer_of_typ : type a b. (a, b) typ -> expression -> expression =
+    let seal name e =
+      pexp_apply (evar "|>") ([ e; evar name ] >|= unlabelled)
+    in
+    function Record -> seal "sealr" | Variant | Polyvariant -> seal "sealv"
+
+  let encode :
+      type a b.
+      (a, b) typ ->
+      subderive:(a -> b M.t) ->
       type_name:string ->
       a list ->
       expression M.t =
-   fun ~typ ~accessor ~type_name ts ->
+   fun typ ~subderive ~type_name ts ->
     let open M.Syntax in
-    let composite =
-      match typ with
-      | Record -> record_composite ts
-      | Variant -> variant_composite ts
-      | Polyvariant -> polyvariant_composite ts
-    in
-    let+ cases =
-      ts >|= accessor |> M.sequence |> M.map List.rev |> M.map compose_all
+    let composite = composite_of_typ typ ts in
+    let+ apply_augments =
+      ts
+      >|= subderive
+      >|= M.map (augment_of_typ typ)
+      |> M.sequence
+      |> M.map List.rev
+      |> M.map compose_all
     in
     pexp_apply
       (evar (combinator_of_typ typ))
       ([ estring type_name; composite ] >|= unlabelled)
-    |> cases
+    |> apply_augments
     |> sealer_of_typ typ
 end
