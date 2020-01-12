@@ -18,6 +18,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_tuple_size.expected unsupported_tuple_size.actual)))
 
@@ -35,6 +36,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_arrow.expected unsupported_type_arrow.actual)))
 
@@ -52,6 +54,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_extension.expected unsupported_type_extension.actual)))
 
@@ -69,6 +72,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_open.expected unsupported_type_open.actual)))
 
@@ -86,6 +90,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_open_polyvariant.expected
     unsupported_type_open_polyvariant.actual)))
@@ -104,6 +109,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_package.expected unsupported_type_package.actual)))
 
@@ -121,6 +127,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_poly.expected unsupported_type_poly.actual)))
 
@@ -138,6 +145,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff unsupported_type_variable.expected unsupported_type_variable.actual)))
 

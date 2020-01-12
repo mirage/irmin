@@ -39,6 +39,7 @@ let output_stanzas ~expect_failure filename =
     Fmt.pf ppf
       "@[<v 1>(alias@,\
        (name runtest)@,\
+       (package ppx_irmin)@,\
        @[<v 1>(action@,\
        @[<hov 2>(diff@ %s.expected@ %s.actual)@])@])@]"
       base base

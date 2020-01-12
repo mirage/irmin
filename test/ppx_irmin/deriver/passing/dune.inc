@@ -18,6 +18,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff alias.expected alias.actual)))
 
@@ -35,6 +36,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff arguments.expected arguments.actual)))
 
@@ -52,6 +54,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff basic.expected basic.actual)))
 
@@ -69,6 +72,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff composite.expected composite.actual)))
 
@@ -86,6 +90,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff module.expected module.actual)))
 
@@ -103,6 +108,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff nonrec.expected nonrec.actual)))
 
@@ -120,6 +126,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff polyvariant.expected polyvariant.actual)))
 
@@ -137,6 +144,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff record.expected record.actual)))
 
@@ -154,6 +162,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff signature.expected signature.actual)))
 
@@ -171,6 +180,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff tuple_deep.expected tuple_deep.actual)))
 
@@ -188,6 +198,7 @@
 
 (alias
  (name runtest)
+ (package ppx_irmin)
  (action
   (diff variant.expected variant.actual)))
 
