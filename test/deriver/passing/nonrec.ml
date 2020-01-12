@@ -15,11 +15,11 @@ end
 
 (* Now test the interaction of 'nonrec' with custom naming *)
 module S2 : sig
-  type nonrec t = t list [@@deriving irmin { name = "t_witness" }]
+  type nonrec t = t list [@@deriving irmin { name = "t_generic" }]
 
-  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_witness" }]
+  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_generic" }]
 end = struct
-  type nonrec t = t list [@@deriving irmin { name = "t_witness" }]
+  type nonrec t = t list [@@deriving irmin { name = "t_generic" }]
 
-  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_witness" }]
+  type nonrec t_alias = t_alias list [@@deriving irmin { name = "t_generic" }]
 end

@@ -25,4 +25,4 @@ pin-depends: [
   ["irmin.dev" "git+https://github.com/mirage/irmin.git"]
 ]
 
-synopsis: "PPX deriver for Irmin type witnesses"
+synopsis: "PPX deriver for Irmin generics"

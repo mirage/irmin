@@ -18,11 +18,11 @@ open Ppxlib
 
 let namespace = "ppx_irmin"
 
-let witness =
+let generic =
   Attribute.declare
-    (String.concat "." [ namespace; "witness" ])
+    (String.concat "." [ namespace; "generic" ])
     Attribute.Context.Core_type
     Ast_pattern.(single_expr_payload __)
     (fun e -> e)
 
-let all = Attribute.[ T witness ]
+let all = Attribute.[ T generic ]

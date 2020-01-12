@@ -50,7 +50,7 @@ module Located (A : Ast_builder.S) : S = struct
     type t = {
       rec_flag : rec_flag;
       type_name : string;
-      witness_name : string;
+      generic_name : string;
       rec_detected : bool ref;
     }
   end
@@ -77,16 +77,16 @@ module Located (A : Ast_builder.S) : S = struct
   let recursive fparam e =
     pexp_apply (evar "Irmin.Type.mu") ([ lambda fparam e ] >|= unlabelled)
 
-  let witness_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
+  let generic_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
   open Reader.Syntax
   open Reader
 
   let rec derive_core typ =
-    let* { rec_flag; type_name; witness_name; rec_detected } = ask in
+    let* { rec_flag; type_name; generic_name; rec_detected } = ask in
     match typ.ptyp_desc with
     | Ptyp_constr ({ txt = const_name; _ }, args) -> (
-        match Attribute.get Attributes.witness typ with
+        match Attribute.get Attributes.generic typ with
         | Some e -> return e
         | None ->
             let lident =
@@ -94,24 +94,24 @@ module Located (A : Ast_builder.S) : S = struct
               | Lident const_name ->
                   let name =
                     (* If this type is the one we are deriving and the 'nonrec'
-                       keyword hasn't been used, replace with the witness
+                       keyword hasn't been used, replace with the generic
                        name *)
                     if
                       rec_flag <> Nonrecursive
                       && String.equal const_name type_name
                     then (
                       rec_detected := true;
-                      witness_name
-                      (* If not a base type, assume a composite witness with the
+                      generic_name
+                      (* If not a base type, assume a composite generic with the
                          same naming convention *)
                       )
                     else if not @@ SSet.mem const_name irmin_types then
-                      witness_name_of_type_name const_name
+                      generic_name_of_type_name const_name
                     else const_name
                   in
                   Located.lident name
               | Ldot (lident, name) ->
-                  let name = witness_name_of_type_name name in
+                  let name = generic_name_of_type_name name in
                   Located.mk @@ Ldot (lident, name)
               | Lapply _ -> invalid_arg "Lident.Lapply not supported"
             in
@@ -196,7 +196,7 @@ module Located (A : Ast_builder.S) : S = struct
           Located.mk
             ( match name with
             | Some n -> n
-            | None -> witness_name_of_type_name type_name )
+            | None -> generic_name_of_type_name type_name )
         in
         let type_ =
           ptyp_constr
@@ -211,13 +211,13 @@ module Located (A : Ast_builder.S) : S = struct
     | rec_flag, [ typ ] ->
         let env =
           let type_name = typ.ptype_name.txt in
-          let witness_name =
+          let generic_name =
             match name with
             | Some s -> s
-            | None -> witness_name_of_type_name type_name
+            | None -> generic_name_of_type_name type_name
           in
           let rec_detected = ref false in
-          State.{ rec_flag; type_name; witness_name; rec_detected }
+          State.{ rec_flag; type_name; generic_name; rec_detected }
         in
         let expr =
           match typ.ptype_kind with
@@ -228,7 +228,7 @@ module Located (A : Ast_builder.S) : S = struct
                   match c.ptyp_desc with
                   (* No need to open Irmin.Type module *)
                   | Ptyp_constr ({ txt; loc = _ }, []) -> (
-                      match Attribute.get Attributes.witness c with
+                      match Attribute.get Attributes.generic c with
                       | Some e -> e
                       | None -> (
                           match txt with
@@ -237,14 +237,14 @@ module Located (A : Ast_builder.S) : S = struct
                                 evar ("Irmin.Type." ^ cons_name)
                               else
                                 (* If not a basic type, assume a composite
-                                   witness /w same naming convention *)
-                                evar (witness_name_of_type_name cons_name)
+                                   generic /w same naming convention *)
+                                evar (generic_name_of_type_name cons_name)
                           | Ldot (lident, cons_name) ->
                               pexp_ident
                                 ( Located.mk
                                 @@ Ldot
                                      ( lident,
-                                       witness_name_of_type_name cons_name ) )
+                                       generic_name_of_type_name cons_name ) )
                           | Lapply _ ->
                               invalid_arg "Lident.Lapply not supported" ) )
                   (* Type constructor: list, tuple, etc. *)
@@ -258,10 +258,10 @@ module Located (A : Ast_builder.S) : S = struct
            combinator *)
         let expr =
           if !(env.rec_detected) && rec_flag == Recursive then
-            recursive env.witness_name expr
+            recursive env.generic_name expr
           else expr
         in
-        let pat = pvar env.witness_name in
+        let pat = pvar env.generic_name in
         [ pstr_value Nonrecursive [ value_binding ~pat ~expr ] ]
     | _ -> invalid_arg "Multiple type declarations not supported"
 end

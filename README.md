@@ -1,11 +1,11 @@
 # ppx_irmin
 
-PPX extension for automatically generating Irmin type witnesses.
+PPX extension for automatically generating Irmin generics.
 
 [![Build Status](https://travis-ci.com/CraigFe/ppx_irmin.svg?branch=master)](https://travis-ci.com/CraigFe/ppx_irmin)
 ## Overview
 
-`ppx_irmin` automatically generates Irmin type witnesses (values of type `_ Irmin.Type.t`)
+`ppx_irmin` automatically generates Irmin generics (values of type `_ Irmin.Type.t`)
 corresponding to type declarations in your code. For example:
 
 ```ocaml
@@ -47,7 +47,7 @@ your `library`, `executable` or `test` stanza:
 ```
 
 You can now use `[@@deriving irmin]` after a type declaration in your code to automatically derive
-an Irmin type witness with the same name.
+an Irmin generic with the same name.
 
 
 ## Specifics
@@ -58,24 +58,24 @@ variants (plain and closed polymorphic), recursive types etc.). Irmin types must
 polymorphic type variables).
 
 ### Naming scheme
-The generated witness will be called `<type-name>_t`, unless the type-name is `t`, in which case the
-witness is simply `t`. This behaviour can be overridden using the `name` argument, as in:
+The generated generics will be called `<type-name>_t`, unless the type-name is `t`, in which case the
+generic is simply `t`. This behaviour can be overridden using the `name` argument, as in:
 
 ```ocaml
-type foo = string list * int32 [@@deriving irmin { name = "foo_witness" }]
+type foo = string list * int32 [@@deriving irmin { name = "foo_generic" }]
 
 (* generates the value *)
-val foo_witness = Irmin.Type.(pair (list string) int32)
+val foo_generic = Irmin.Type.(pair (list string) int32)
 ```
 
-If the type references another user-defined type, `ppx_irmin` will expect the witness for that type
-to use the standard naming scheme. This can be overridden using the `[@witness ...]` attribute, as in:
+If the type references another user-defined type, `ppx_irmin` will expect the generic for that type
+to use the standard naming scheme. This can be overridden using the `[@generic ...]` attribute, as in:
 
 ```ocaml
-type bar = (foo [@witness foo_witness], string) result [@@deriving irmin]
+type bar = (foo [@generic foo_generic], string) result [@@deriving irmin]
 
 (* generates the value *)
-val bar_t = Irmin.Type.(result foo_witness string)
+val bar_t = Irmin.Type.(result foo_generic string)
 ```
 
 ### Signature type definitions
@@ -86,13 +86,13 @@ The `ppx_irmin` deriver can also be used in signatures to expose the auto-genera
 module Contents : sig
   type t = int32 [@@deriving irmin]
 
-  (* exposes witness in signature *)
+  (* exposes generic in signature *)
   val t : t Irmin.Type.t
 
 end = struct
   type t = int32 [@@deriving irmin]
 
-  (* generates witness value *)
+  (* generates generic value *)
   val t = Irmin.Type.int32
 end
 

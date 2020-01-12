@@ -15,16 +15,16 @@ module S1 :
   end 
 module S2 :
   sig
-    type nonrec t = t list[@@deriving irmin { name = "t_witness" }]
-    val t_witness : t Irmin.Type.t
+    type nonrec t = t list[@@deriving irmin { name = "t_generic" }]
+    val t_generic : t Irmin.Type.t
     type nonrec t_alias = t_alias list[@@deriving
-                                        irmin { name = "t_witness" }]
-    val t_witness : t_alias Irmin.Type.t
+                                        irmin { name = "t_generic" }]
+    val t_generic : t_alias Irmin.Type.t
   end =
   struct
-    type nonrec t = t list[@@deriving irmin { name = "t_witness" }]
-    let t_witness = let open Irmin.Type in list t
+    type nonrec t = t list[@@deriving irmin { name = "t_generic" }]
+    let t_generic = let open Irmin.Type in list t
     type nonrec t_alias = t_alias list[@@deriving
-                                        irmin { name = "t_witness" }]
-    let t_witness = let open Irmin.Type in list t_alias_t
+                                        irmin { name = "t_generic" }]
+    let t_generic = let open Irmin.Type in list t_alias_t
   end 

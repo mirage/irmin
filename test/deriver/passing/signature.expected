@@ -2,8 +2,8 @@ module SigTests :
   sig
     type t = string[@@deriving irmin]
     val t : t Irmin.Type.t
-    type foo = unit[@@deriving irmin { name = "foo_witness" }]
-    val foo_witness : foo Irmin.Type.t
+    type foo = unit[@@deriving irmin { name = "foo_generic" }]
+    val foo_generic : foo Irmin.Type.t
     type my_int = (int32 * t)[@@deriving irmin]
     val my_int_t : my_int Irmin.Type.t
     type my_variant =
@@ -15,8 +15,8 @@ module SigTests :
   struct
     type t = string[@@deriving irmin]
     let t = Irmin.Type.string
-    type foo = unit[@@deriving irmin { name = "foo_witness" }]
-    let foo_witness = Irmin.Type.unit
+    type foo = unit[@@deriving irmin { name = "foo_generic" }]
+    let foo_generic = Irmin.Type.unit
     type my_int = (int32 * t)[@@deriving irmin]
     let my_int_t = let open Irmin.Type in pair int32 t
     type my_variant =
