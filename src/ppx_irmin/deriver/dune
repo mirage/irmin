@@ -1,0 +1,4 @@
+(library
+ (public_name ppx_irmin)
+ (kind ppx_deriver)
+ (libraries ppx_irmin_lib ppxlib))

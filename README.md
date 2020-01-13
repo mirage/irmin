@@ -7,7 +7,7 @@ Irmin is an OCaml library for building mergeable, branchable distributed data st
 ### Features
 - **Built-in snapshotting** - backup and restore
 - **Storage agnostic** - you can use Irmin on top of your own storage layer
-- **Custom datatypes** - (de)serialization for custom data types
+- **Custom datatypes** - (de)serialization for custom data types, derivable via [`ppx_irmin`][ppx_irmin-readme]
 - **Highly portable** - runs anywhere from Linux to web browsers and Xen unikernels
 - **Git compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
 - **Dynamic behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
@@ -42,8 +42,9 @@ The following packages have been made available on `opam`:
 - `irmin-mirage-graphql` - mirage compatible GraphQL server
 - `irmin-unix` - unix compatibility
 - `irmin-pack` - compressed, on-disk, posix backend
+- `ppx_irmin` - PPX deriver for Irmin content types (see [README_PPX.md][ppx_irmin-readme])
 
-For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin)
+For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin).
 
 ### Examples
 Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
@@ -114,3 +115,5 @@ See the [LICENSE file](./LICENSE.md).
 ### Acknowledgements
 
 Development of Irmin was supported in part by the EU FP7 User-Centric Networking project, Grant No. 611001.
+
+[ppx_irmin-readme]: ./README_PPX.md

@@ -1,0 +1,36 @@
+type c = string[@@deriving irmin { name = "c_wit" }]
+let c_wit = Irmin.Type.string
+type d = int[@@deriving irmin { name = "generic_for_d" }]
+let generic_for_d = Irmin.Type.int
+type point_elsewhere1 = ((c)[@generic c_wit])[@@deriving irmin]
+let point_elsewhere1_t = c_wit
+type point_elsewhere2 = (int * ((c)[@generic c_wit]))[@@deriving irmin]
+let point_elsewhere2_t = let open Irmin.Type in pair int c_wit
+type point_elsewhere3 =
+  | A of int * ((c)[@generic c_wit]) 
+  | B of ((c)[@generic c_wit]) [@@deriving irmin]
+let point_elsewhere3_t =
+  let open Irmin.Type in
+    (((variant "point_elsewhere3"
+         (fun a ->
+            fun b -> function | A (x1, x2) -> a (x1, x2) | B x1 -> b x1))
+        |~ (case1 "A" (pair int c_wit) (fun (x1, x2) -> A (x1, x2))))
+       |~ (case1 "B" c_wit (fun x1 -> B x1)))
+      |> sealv
+type point_elsewhere4 =
+  {
+  lorem: string ;
+  ipsum: ((c)[@generic c_wit]) ;
+  dolor: int ;
+  sit: ((d)[@generic generic_for_d]) }[@@deriving irmin]
+let point_elsewhere4_t =
+  let open Irmin.Type in
+    (((((record "point_elsewhere4"
+           (fun lorem ->
+              fun ipsum ->
+                fun dolor -> fun sit -> { lorem; ipsum; dolor; sit }))
+          |+ (field "lorem" string (fun t -> t.lorem)))
+         |+ (field "ipsum" c_wit (fun t -> t.ipsum)))
+        |+ (field "dolor" int (fun t -> t.dolor)))
+       |+ (field "sit" generic_for_d (fun t -> t.sit)))
+      |> sealr

@@ -1,0 +1,5 @@
+(library
+ (name ppx_irmin_lib)
+ (public_name ppx_irmin._lib)
+ (preprocess future_syntax)
+ (libraries ppxlib))
