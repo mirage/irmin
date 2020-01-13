@@ -149,6 +149,7 @@ let suite i server =
         with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit);
     config = Irmin_http.config uri;
     store = http_store server.store;
+    layered_store = None;
   }
 
 let suites servers =

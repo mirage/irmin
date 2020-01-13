@@ -47,7 +47,15 @@ let suite =
     S.Private.Repo.clear repo >>= fun () -> S.Repo.close repo
   in
   let stats = None in
-  { Irmin_test.name = "PACK"; init; clean; config; store; stats }
+  {
+    Irmin_test.name = "PACK";
+    init;
+    clean;
+    config;
+    store;
+    stats;
+    layered_store = None;
+  }
 
 module Context = Make_context (struct
   let root = test_dir

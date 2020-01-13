@@ -5,6 +5,13 @@ module type S =
      and type contents = string
      and type branch = string
 
+module type LAYERED_STORE =
+  Irmin_layers.STORE
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
+
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
 type t = {
@@ -13,12 +20,18 @@ type t = {
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
+  layered_store : (module LAYERED_STORE) option;
   stats : (unit -> int * int) option;
 }
 
 val line : string -> unit
 
 val store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S)
+
+val layered_store :
+  (module Irmin_layers.L_MAKER) ->
+  (module Irmin.Metadata.S) ->
+  (module LAYERED_STORE)
 
 val testable : 'a Irmin.Type.t -> 'a Alcotest.testable
 

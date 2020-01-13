@@ -21,36 +21,6 @@ let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module T = Irmin.Type
-
-let merge_exn msg x =
-  match x with
-  | Ok x -> Lwt.return x
-  | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
-
-let info msg =
-  let date = Int64.of_float (Unix.gettimeofday ()) in
-  let author = Printf.sprintf "TESTS" in
-  Irmin.Info.v ~date ~author msg
-
-let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
-
-let () = Random.self_init ()
-
-let random_char () = char_of_int (Random.int 256)
-
-let random_ascii () =
-  let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in
-  chars.[Random.int @@ String.length chars]
-
-let random_string n = String.init n (fun _i -> random_char ())
-
-let long_random_string = random_string (* 1024_000 *) 10
-
-let random_ascii_string n = String.init n (fun _i -> random_ascii ())
-
-let long_random_ascii_string = random_ascii_string 1024_000
-
 module Make (S : S) = struct
   module P = S.Private
   module Graph = Irmin.Private.Node.Graph (P.Node)
@@ -171,6 +141,38 @@ module Make (S : S) = struct
     aux 0
 
   let old k () = Lwt.return_ok (Some k)
+
+  let may repo commits = function
+    | None -> Lwt.return_unit
+    | Some f -> f repo commits
+
+  let may_get_hashes repo hashes = function
+    | None -> Lwt.return_unit
+    | Some f ->
+        Lwt_list.map_p
+          (fun hash ->
+            S.Commit.of_hash repo hash >|= function
+            | None -> Alcotest.fail "Cannot read commit hash"
+            | Some c -> c)
+          hashes
+        >>= fun commits -> f repo commits
+
+  let may_get_head head repo = function
+    | None -> Lwt.return_unit
+    | Some f -> (
+        match head with
+        | None -> Alcotest.fail "Cannot read head"
+        | Some head -> f repo [ head ] )
+
+  let may_with_branch branches repo hook =
+    Lwt_list.map_p
+      (fun branch ->
+        S.Head.find branch >|= fun h ->
+        match h with
+        | None -> Alcotest.fail "Cannot read head"
+        | Some head -> head)
+      branches
+    >>= fun heads -> may repo heads hook
 
   let test_two_close x () =
     try
@@ -524,7 +526,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_branches x () =
+  let test_branches ?hook x () =
     let test repo =
       let check_keys = checks S.Branch.t in
       let check_val = check (T.option @@ S.commit_t repo) in
@@ -532,6 +534,7 @@ module Make (S : S) = struct
       r2 ~repo >>= fun kv2 ->
       line "pre-update";
       S.Branch.set repo b1 kv1 >>= fun () ->
+      may repo [ kv2 ] hook >>= fun () ->
       line "post-update";
       S.Branch.find repo b1 >>= fun k1' ->
       check_val "r1" (Some kv1) k1';
@@ -557,7 +560,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_watch_exn x () =
+  let test_watch_exn ?hook x () =
     let test repo =
       S.master repo >>= fun t ->
       S.Head.find t >>= fun h ->
@@ -581,6 +584,7 @@ module Make (S : S) = struct
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
       S.Head.find t >>= fun h ->
+      may_get_head h repo hook >>= fun () ->
       old_head := h;
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r) >>= fun () ->
@@ -588,6 +592,7 @@ module Make (S : S) = struct
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
       S.Head.get t >>= fun h ->
+      may repo [ h ] hook >>= fun () ->
       old_head := Some h;
       S.watch_key ~init:h t key (fun _ ->
           incr r;
@@ -723,8 +728,8 @@ module Make (S : S) = struct
         in
         aux s n
     end in
-    let test repo =
-      S.master repo >>= fun t1 ->
+    let test repo1 =
+      S.master repo1 >>= fun t1 ->
       S.Repo.v x.config >>= fun repo ->
       S.master repo >>= fun t2 ->
       Log.debug (fun f -> f "WATCH");
@@ -745,7 +750,7 @@ module Make (S : S) = struct
       let v1 = "X1" in
       let v2 = "X2" in
       S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      S.Branch.remove repo S.Branch.master >>= fun () ->
+      S.Branch.remove repo1 S.Branch.master >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
       watch 100 >>= fun () ->
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
@@ -841,7 +846,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_simple_merges x () =
+  let test_simple_merges ?hook x () =
     (* simple merges *)
     let check_merge () =
       let ok = Irmin.Merge.ok in
@@ -919,12 +924,14 @@ module Make (S : S) = struct
       with_info 0 (History.v ~node:k0 ~parents:[]) >>= fun (kr0, _) ->
       with_info 1 (History.v ~node:k2 ~parents:[ kr0 ]) >>= fun (kr1, _) ->
       with_info 2 (History.v ~node:k3 ~parents:[ kr0 ]) >>= fun (kr2, _) ->
+      may_get_hashes repo [ kr1; kr2 ] hook >>= fun () ->
       with_info 3 (fun h ~info ->
           Irmin.Merge.f
             (History.merge h ~info:(fun () -> info))
             ~old:(old kr0) kr1 kr2)
       >>= fun kr3 ->
       merge_exn "kr3" kr3 >>= fun kr3 ->
+      may_get_hashes repo [ kr3 ] hook >>= fun () ->
       with_info 4 (fun h ~info ->
           Irmin.Merge.f
             (History.merge h ~info:(fun () -> info))
@@ -949,7 +956,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_history x () =
+  let test_history ?hook x () =
     let test repo =
       let info date =
         let i = Int64.of_int date in
@@ -1012,6 +1019,7 @@ module Make (S : S) = struct
       S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 0) ~parents:[] tree >>= fun c0 ->
+      may repo [ c0 ] hook >>= fun () ->
       assert_history_empty "nonempty 1 commit" c0 false >>= fun () ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 1) ~parents:[ S.Commit.hash c0 ] tree
@@ -1024,6 +1032,7 @@ module Make (S : S) = struct
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 3) ~parents:[ S.Commit.hash c2 ] tree
       >>= fun c3 ->
+      may repo [ c3 ] hook >>= fun () ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 4) ~parents:[ S.Commit.hash c3 ] tree
       >>= fun c4 ->
@@ -1152,12 +1161,13 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_empty x () =
+  let test_empty ?hook x () =
     let test repo =
       S.empty repo >>= fun t ->
       S.Head.find t >>= fun h ->
       check T.(option @@ S.commit_t repo) "empty" None h;
       r1 ~repo >>= fun r1 ->
+      may repo [ r1 ] hook >>= fun () ->
       S.set_exn t ~info:Irmin.Info.none [ "b"; "x" ] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
@@ -1165,13 +1175,14 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_slice x () =
+  let test_slice ?hook x () =
     let test repo =
       S.master repo >>= fun t ->
       let a = "" in
       let b = "haha" in
       S.set_exn t ~info:(infof "slice") [ "x"; "a" ] a >>= fun () ->
       S.set_exn t ~info:(infof "slice") [ "x"; "b" ] b >>= fun () ->
+      may_with_branch [ t ] repo hook >>= fun () ->
       S.Repo.export repo >>= fun slice ->
       let str = T.to_json_string P.Slice.t slice in
       let slice' =
@@ -1184,7 +1195,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_private_nodes x () =
+  let test_private_nodes ?hook x () =
     let test repo =
       let check_val = check T.(option S.contents_t) in
       let vx = "VX" in
@@ -1197,6 +1208,7 @@ module Make (S : S) = struct
       check_val "vx" (Some vx) vx';
       S.get_tree t [ "u" ] >>= fun tree1 ->
       S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy >>= fun () ->
+      may_with_branch [ t ] repo hook >>= fun () ->
       S.get_tree t [ "u" ] >>= fun tree2 ->
       S.Tree.add tree [ "x"; "z" ] vx >>= fun tree3 ->
       Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise tree1) tree2 tree3
@@ -1643,7 +1655,7 @@ module Make (S : S) = struct
     close_out oc;
     Lwt.return_unit
 
-  let test_merge x () =
+  let test_merge ?hook x () =
     let test repo =
       let v1 = "X1" in
       let v2 = "X2" in
@@ -1667,6 +1679,7 @@ module Make (S : S) = struct
       S.merge_into ~info:(infof "merge test into master") t2 ~into:t1
       >>= fun m ->
       merge_exn "m" m >>= fun () ->
+      may_with_branch [ t1 ] repo hook >>= fun () ->
       output_file t1 "after" >>= fun () ->
       S.get t1 [ "a"; "b"; "c" ] >>= fun v1' ->
       S.get t2 [ "a"; "b"; "b" ] >>= fun v2' ->
@@ -1719,13 +1732,14 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_merge_unrelated x () =
+  let test_merge_unrelated ?hook x () =
     run x @@ fun repo ->
     let v1 = "X1" in
     S.of_branch repo "foo" >>= fun foo ->
     S.of_branch repo "bar" >>= fun bar ->
     S.set_exn foo ~info:(infof "update foo:a") [ "a" ] v1 >>= fun () ->
     S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
+    may_with_branch [ foo; bar ] repo hook >>= fun () ->
     S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
     >>= merge_exn "merge unrelated"
     >>= fun _ -> P.Repo.close repo
@@ -2170,6 +2184,37 @@ let suite (speed, x) =
       ("Test clear", speed, T.test_clear x);
     ] )
 
+let layered_suite (speed, x) =
+  ( "LAYERED_" ^ x.name,
+    match x.layered_store with
+    | None -> []
+    | Some layered_store ->
+        let (module S) = layered_store in
+        let module T = Make (S) in
+        let module TL = Layered_store.Make_Layered (S) in
+        let hook repo max = S.freeze repo ~max >|= fun () -> () in
+        [
+          ("Basic operations on branches", speed, T.test_branches ~hook x);
+          ("Watch callbacks and exceptions", speed, T.test_watch_exn ~hook x);
+          ("Basic merge operations", speed, T.test_simple_merges ~hook x);
+          ("Complex histories", speed, T.test_history ~hook x);
+          ("Empty stores", speed, T.test_empty ~hook x);
+          ("Basic operations on slices", speed, T.test_slice ~hook x);
+          ("Private node manipulation", speed, T.test_private_nodes ~hook x);
+          ("High-level store merges", speed, T.test_merge ~hook x);
+          ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
+          ("Test commits and graphs", speed, TL.test_graph_and_history x);
+          ("Update branches after freeze", speed, TL.test_fail_branch x);
+          ("Test operations on set", speed, TL.test_set x);
+          ("Test operations on set tree", speed, TL.test_set_tree x);
+          ("Gc and tree operations", speed, TL.test_gc x);
+          ("Merge and gc", speed, TL.test_merge_unrelated x);
+          ("Freeze with squash", speed, TL.test_squash x);
+          ("Branches with squash", speed, TL.test_branch_squash x);
+          ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
+        ] )
+
 let run name ~misc tl =
-  let tl = List.map suite tl in
-  Alcotest.run name (tl @ misc)
+  let tl1 = List.map suite tl in
+  let tl2 = List.map layered_suite tl in
+  Alcotest.run name (tl1 @ tl2 @ misc)
