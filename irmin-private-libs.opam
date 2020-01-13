@@ -1,0 +1,33 @@
+opam-version: "2.0"
+maintainer:   "Tarides <contact@tarides.com>"
+authors:      ["Tarides <contact@tarides.com>"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
+]
+
+depends: [
+  "ocaml"   {>= "4.06.0"}
+  "dune"    {>= "1.8.0"}
+  "base64"  {>= "2.0.0"}
+  "fmt"     {>= "0.8.0"}
+  "jsonm"   {>= "1.0.0"}
+]
+
+synopsis: "Private libraries of Irmin"
+description: """
+!!!!!!!!!!!!!!!!!!!!!!
+!!!!! DO NOT USE !!!!!
+!!!!!!!!!!!!!!!!!!!!!!
+
+This package contains code that is shared between various Irmin
+packages. However, it is not meant for public consumption and provides
+no stability guarantee.
+"""
