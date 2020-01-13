@@ -15,6 +15,7 @@
 - **irmin**:
   - Added `Irmin.Hash.Make_BLAKE2B` and `Irmin.Hash.Make_BLAKE2S` functors for
     customizing the bit-length of these hash functions. (#898, @craigfe)
+  - Added `iter` function over a closure graph (#912, @ioana)
 
 #### Changed
 

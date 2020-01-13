@@ -45,18 +45,20 @@ module type S = sig
       using the precedence relation [pred]. The closure will not
       contain any keys before the the one specified in [min]. *)
 
-  val iter_on_closure :
+  val iter :
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
     min:vertex list ->
     max:vertex list ->
-    f_nodes:(vertex -> unit Lwt.t) ->
-    f_edges:(vertex -> vertex list -> unit Lwt.t) ->
+    node:(vertex -> unit Lwt.t) ->
+    edge:(vertex -> vertex -> unit Lwt.t) ->
+    skip:(vertex -> bool Lwt.t) ->
     unit ->
     unit Lwt.t
-  (** [iter_on_closure min max pred f_nodes f_edges ()] is the same as closure
-      except that it applies [f_nodes] on the nodes and [f_edges] on the edges
-      of the closure graph *)
+  (** [iter depth min max pred node edge skip] is the same as closure except
+      that it applies three functions while traversing the closure graph: [node]
+      on the nodes of the graph; [edge node predecessor] on the directed edges
+      of the graph and [skip] to not visit a node. *)
 
   val output :
     Format.formatter ->
