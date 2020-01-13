@@ -14,10 +14,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
+
+let () = Random.self_init ()
+
+let random_char () = char_of_int (Random.int 256)
+
+let random_ascii () =
+  let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in
+  chars.[Random.int @@ String.length chars]
+
+let random_string n = String.init n (fun _i -> random_char ())
+
+let long_random_string = random_string (* 1024_000 *) 10
+
+let random_ascii_string n = String.init n (fun _i -> random_ascii ())
+
+let long_random_ascii_string = random_ascii_string 1024_000
+
+let merge_exn msg x =
+  match x with
+  | Ok x -> Lwt.return x
+  | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
+
+let info msg =
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let author = Printf.sprintf "TESTS" in
+  Irmin.Info.v ~date ~author msg
+
+let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+
 open Astring
 
 module type S =
   Irmin.S
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
+
+module type LAYERED_STORE =
+  Irmin_layers.S
     with type step = string
      and type key = string list
      and type contents = string
@@ -85,12 +122,24 @@ let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
   in
   (module S)
 
+let layered_store :
+    (module Irmin_layers.S_MAKER) ->
+    (module Irmin.Metadata.S) ->
+    (module LAYERED_STORE) =
+ fun (module B) (module M) ->
+  let module LAYERED_STORE =
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
+  in
+  (module LAYERED_STORE)
+
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
+  layered_store : (module LAYERED_STORE) option;
   stats : (unit -> int * int) option;
 }
 
@@ -103,3 +152,20 @@ let check t = Alcotest.check (testable t)
 let checks t =
   let t = Alcotest.slist (testable t) Irmin.Type.(compare t) in
   Alcotest.check t
+
+(* also in test/irmin-pack/common.ml *)
+let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
+  Lwt.catch
+    (fun x ->
+      f x >>= fun (_ : a) ->
+      Alcotest.failf
+        "Fail %s: expected function to raise %s, but it returned instead." msg
+        (Printexc.to_string exn))
+    (function
+      | e when e = exn -> Lwt.return_unit
+      | e ->
+          Alcotest.failf
+            "Fail %s: expected function to raise %s, but it raised %s instead."
+            msg (Printexc.to_string exn) (Printexc.to_string e))
+
+module T = Irmin.Type

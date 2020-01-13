@@ -101,4 +101,15 @@ module Private : sig
   module Utils = Utils
 end
 
-module Make_layered = Irmin_pack_layers.Make_ext
+val config_layers :
+  ?conf:Irmin.config ->
+  ?lower_root:string ->
+  ?upper_root1:string ->
+  ?upper_root0:string ->
+  ?copy_in_upper:bool ->
+  ?with_lower:bool ->
+  unit ->
+  Irmin.config
+
+module Make_ext_layered = Irmin_pack_layers.Make_ext
+module Make_layered = Irmin_pack_layers.Make

@@ -49,3 +49,22 @@ module Make_ext
 
   include Store.S with type repo := repo
 end
+
+module Make
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) : sig
+  include
+    Irmin_layers.S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+
+  include Store.S with type repo := repo
+end

@@ -44,7 +44,16 @@ module FS = struct
     Irmin.Private.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
-  let suite = { Irmin_test.name = "FS"; clean; init; store; stats; config }
+  let suite =
+    {
+      Irmin_test.name = "FS";
+      clean;
+      init;
+      store;
+      stats;
+      config;
+      layered_store = None;
+    }
 end
 
 (* GIT *)
@@ -80,7 +89,15 @@ module Git = struct
 
   let suite =
     let store = (module S : Irmin_test.S) in
-    { Irmin_test.name = "GIT"; clean; init; store; stats; config }
+    {
+      Irmin_test.name = "GIT";
+      clean;
+      init;
+      store;
+      stats;
+      config;
+      layered_store = None;
+    }
 
   let test_non_bare () =
     init () >>= fun () ->

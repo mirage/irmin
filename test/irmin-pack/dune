@@ -1,6 +1,6 @@
 (library
  (name test_pack)
- (modules test_pack multiple_instances migration)
+ (modules test_pack multiple_instances migration layered)
  (libraries alcotest fmt common index irmin irmin-test irmin-pack logs lwt
    lwt.unix fpath concurrent))
 
@@ -31,6 +31,7 @@
  (libraries irmin-pack alcotest alcotest-lwt fmt logs logs.fmt common))
 
 (executable
- (name      bench_layers)
- (modules   bench_layers)
- (libraries irmin-pack metrics metrics-unix metrics-lwt common logs concurrent))
+ (name bench_layers)
+ (modules bench_layers)
+ (libraries irmin-pack metrics metrics-unix metrics-lwt common logs
+   concurrent))

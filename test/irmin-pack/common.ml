@@ -16,6 +16,12 @@ let rm_dir root =
 
 let index_log_size = Some 1_000
 
+let () = Random.self_init ()
+
+let random_char () = char_of_int (Random.int 256)
+
+let random_string n = String.init n (fun _i -> random_char ())
+
 module Conf = struct
   let entries = 32
 
