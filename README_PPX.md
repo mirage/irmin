@@ -52,7 +52,7 @@ an Irmin generic with the same name.
 
 `ppx_irmin` supports all of the type combinators exposed in the
 [Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic types, records,
-variants (plain and closed polymorphic), recursive types etc.). Irmin types must fully grounded (no
+variants (plain and closed polymorphic), recursive types etc.). Irmin does not currently support higher-kinded generics: all Irmin types must fully grounded (no
 polymorphic type variables).
 
 #### Naming scheme
