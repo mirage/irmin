@@ -1,5 +1,5 @@
 (library
- (name irmin_generics)
- (public_name irmin.generics)
+ (name irmin_type)
+ (public_name irmin.type)
  (synopsis "[Internal] Generics library")
  (libraries base64 fmt jsonm))
