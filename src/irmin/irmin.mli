@@ -1740,16 +1740,19 @@ module Private : sig
 
           {b Note:} Both [min] and [max] are subsets of [c].*)
 
-      val iter_on_closure :
+      val iter :
         [> `Read ] t ->
         min:node list ->
         max:node list ->
-        f_nodes:(node -> unit Lwt.t) ->
-        f_edges:(node -> node list -> unit Lwt.t) ->
+        ?node:(node -> unit Lwt.t) ->
+        ?edge:(node -> node -> unit Lwt.t) ->
+        ?skip:(node -> bool Lwt.t) ->
+        unit ->
         unit Lwt.t
-      (** [iter_on_closure min max pred f_nodes f_edges ()] is the same as
-          closure except that it applies [f_nodes] on the nodes and [f_edges] on
-          the edges of the closure graph while traversing it. *)
+      (** [iter min max node edge skip ()] is the same as closure except that it
+          applies three functions while traversing the closure graph: [node] on
+          the nodes of the graph; [edge node predecessor] on the directed edges
+          of the graph and [skip] to not visit a node. *)
 
       (** {1 Value Types} *)
 

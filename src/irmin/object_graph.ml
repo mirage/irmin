@@ -51,13 +51,14 @@ module type S = sig
     unit ->
     t Lwt.t
 
-  val iter_on_closure :
+  val iter :
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
     min:vertex list ->
     max:vertex list ->
-    f_nodes:(vertex -> unit Lwt.t) ->
-    f_edges:(vertex -> vertex list -> unit Lwt.t) ->
+    node:(vertex -> unit Lwt.t) ->
+    edge:(vertex -> vertex -> unit Lwt.t) ->
+    skip:(vertex -> bool Lwt.t) ->
     unit ->
     unit Lwt.t
 
@@ -144,7 +145,7 @@ struct
 
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
 
-  let iter_on_closure ?(depth = max_int) ~pred ~min ~max ~f_nodes ~f_edges () =
+  let iter ?(depth = max_int) ~pred ~min ~max ~node ~edge ~skip () =
     Log.debug (fun f ->
         f "iter on closure depth=%d (%d elements)" depth (List.length max));
     let marks = Table.create 1024 in
@@ -156,16 +157,20 @@ struct
     let rec visit () =
       match Queue.pop todo with
       | exception Queue.Empty -> return_unit
-      | key, level ->
+      | key, level -> (
           if level >= depth then visit ()
           else if has_mark key then visit ()
-          else (
-            mark key level;
-            Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-            f_nodes key >>= fun () ->
-            pred key >>= fun keys ->
-            List.iter (fun k -> Queue.push (k, level + 1) todo) keys;
-            f_edges key keys >>= fun () -> visit () )
+          else
+            skip key >>= function
+            | true -> visit ()
+            | false ->
+                mark key level;
+                Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
+                node key >>= fun () ->
+                pred key >>= fun keys ->
+                List.iter (fun k -> Queue.push (k, level + 1) todo) keys;
+                Lwt_list.iter_p (fun k -> edge key k) keys >>= fun () ->
+                visit () )
     in
     visit ()
 
@@ -173,15 +178,16 @@ struct
     Log.debug (fun f ->
         f "closure depth=%d (%d elements)" depth (List.length max));
     let g = G.create ~size:1024 () in
-    let f_nodes key =
+    let node key =
       if not (G.mem_vertex g key) then G.add_vertex g key else ();
       Lwt.return_unit
     in
-    let f_edges node neighbours =
-      List.iter (fun k -> G.add_edge g k node) neighbours;
+    let edge node pred =
+      G.add_edge g pred node;
       Lwt.return_unit
     in
-    iter_on_closure ~depth ~pred ~min ~max ~f_nodes ~f_edges () >|= fun () -> g
+    let skip _ = Lwt.return_false in
+    iter ~depth ~pred ~min ~max ~node ~edge ~skip () >|= fun () -> g
 
   let min g =
     G.fold_vertex

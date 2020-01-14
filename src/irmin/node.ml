@@ -307,24 +307,22 @@ module Graph (S : S.NODE_STORE) = struct
     in
     Lwt.return keys
 
-  let iter_on_closure t ~min ~max ~f_nodes ~f_edges =
+  let ignore_lwt _ = Lwt.return_unit
+
+  let iter t ~min ~max ?(node = ignore_lwt) ?(edge = fun _ -> ignore_lwt)
+      ?(skip = fun _ -> Lwt.return_false) () =
     Log.debug (fun f ->
         f "iter on closure min=%a max=%a" pp_keys min pp_keys max);
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    let f_nodes = function `Node x -> f_nodes x | _ -> Lwt.return_unit in
-    let f_edges n nls =
-      match n with
-      | `Node x ->
-          let ls =
-            List.fold_left
-              (fun acc -> function `Node x -> x :: acc | _ -> acc)
-              [] nls
-          in
-          f_edges x ls
+    let node = function `Node x -> node x | _ -> Lwt.return_unit in
+    let edge n pred =
+      match (n, pred) with
+      | `Node src, `Node dst -> edge src dst
       | _ -> Lwt.return_unit
     in
-    Graph.iter_on_closure ~pred:(pred t) ~min ~max ~f_nodes ~f_edges ()
+    let skip = function `Node x -> skip x | _ -> Lwt.return_false in
+    Graph.iter ~pred:(pred t) ~min ~max ~node ~edge ~skip ()
 
   let v t xs = S.add t (S.Val.v xs)
 
