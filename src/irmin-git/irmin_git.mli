@@ -58,7 +58,7 @@ module type G = sig
     (t, error) result Lwt.t
 end
 
-module Mem : G
+module Mem : G with type Hash.t = Digestif.SHA1.t
 (** In-memory Git store. *)
 
 module type S = sig
@@ -171,7 +171,13 @@ module Generic
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) :
-  Irmin.S with type contents = C.t and type key = P.t and type branch = B.t
+  Irmin.S
+    with type contents = C.t
+     and type key = P.t
+     and type branch = B.t
+     and type step = P.step
+     and type metadata = Metadata.t
+     and type hash = Digestif.SHA1.t
 
 module Generic_KV
     (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
