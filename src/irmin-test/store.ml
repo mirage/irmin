@@ -1873,6 +1873,51 @@ module Make (S : S) = struct
       P.Repo.close repo
     in
     run x test
+
+  let test_iter x () =
+    let test repo =
+      let n = n repo in
+      let check_key = check P.Node.Key.t in
+      let check_val = check Graph.value_t in
+      let foo = normal (P.Contents.Key.hash "foo") in
+      let v = P.Node.Val.add P.Node.Val.empty "b" foo in
+      with_node repo (fun n -> P.Node.add n v) >>= fun k1 ->
+      with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) >>= fun k2 ->
+      with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) >>= fun k3 ->
+      let visited = ref [] in
+      let check_mem step h1 h2 v1 v2 =
+        check_key "find key" h1 h2;
+        check_val "find value" v1 v2;
+        if List.mem step !visited then
+          Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Hash.t) h1;
+        visited := step :: !visited
+      in
+      let skipped = ref [] in
+      let check_skip step h1 _ _ _ =
+        if List.mem step !skipped then
+          Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
+        skipped := step :: !skipped
+      in
+      let mem hash value check_node =
+        match P.Node.Val.find value "a" with
+        | Some k -> check_node "a" hash k2 k (`Node k1)
+        | None -> (
+            match P.Node.Val.find value "c" with
+            | Some k -> check_node "c" hash k3 k (`Node k1)
+            | None -> (
+                match P.Node.Val.find value "b" with
+                | Some k -> check_node "b" hash k1 k foo
+                | None -> Alcotest.fail "unexpected node" ) )
+      in
+      let node k = P.Node.find n k >|= fun t -> mem k (get t) check_mem in
+      let skip k =
+        P.Node.find n k >|= fun t ->
+        mem k (get t) check_skip;
+        if List.mem "b" !skipped then true else false
+      in
+      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip ()
+    in
+    run x test
 end
 
 let suite (speed, x) =
@@ -1904,6 +1949,7 @@ let suite (speed, x) =
       ("Concurrent merges", speed, T.test_concurrent_merges x);
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Close a repo, keep another open", speed, T.test_two_close x);
+      ("Test iter", speed, T.test_iter x);
     ] )
 
 let run name ~misc tl =

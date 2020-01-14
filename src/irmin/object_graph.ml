@@ -157,14 +157,14 @@ struct
     let rec visit () =
       match Queue.pop todo with
       | exception Queue.Empty -> return_unit
-      | key, level -> (
+      | key, level ->
           if level >= depth then visit ()
           else if has_mark key then visit ()
-          else
+          else (
+            mark key level;
             skip key >>= function
             | true -> visit ()
             | false ->
-                mark key level;
                 Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
                 node key >>= fun () ->
                 pred key >>= fun keys ->
