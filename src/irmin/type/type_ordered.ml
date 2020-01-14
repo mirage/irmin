@@ -171,7 +171,9 @@ module Equal = struct
 
   and eq : type a b. a t * a -> b t * b -> bool =
    fun (tx, x) (ty, y) ->
-    match Refl.t tx ty with Some Refl -> t tx x y | None -> assert false
+    match Refl.t tx ty with
+    | Some Witness.Refl -> t tx x y
+    | None -> assert false
 
   (* this should never happen *)
 end
@@ -301,7 +303,9 @@ module Compare = struct
 
   and compare : type a b. a t * a -> b t * b -> int =
    fun (tx, x) (ty, y) ->
-    match Refl.t tx ty with Some Refl -> t tx x y | None -> assert false
+    match Refl.t tx ty with
+    | Some Witness.Refl -> t tx x y
+    | None -> assert false
 
   (* this should never happen *)
 end
