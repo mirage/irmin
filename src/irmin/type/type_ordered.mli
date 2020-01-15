@@ -14,4 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_type
+open Type_core
+
+val equal : 'a t -> 'a equal
+
+val compare : 'a t -> 'a compare

@@ -14,4 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_type
+open Type_core
+
+val encode_bin : 'a t -> 'a encode_bin
+
+val decode_bin : 'a t -> 'a decode_bin
+
+val to_bin_string : 'a t -> 'a to_string
+
+val of_bin_string : 'a t -> 'a of_string
