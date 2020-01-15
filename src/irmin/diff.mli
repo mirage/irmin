@@ -15,5 +15,9 @@
  *)
 
 type 'a t = [ `Updated of 'a * 'a | `Removed of 'a | `Added of 'a ]
+(** The type for representing differences betwen values. *)
+
+(** {1 Value Types} *)
 
 val t : 'a Type.t -> 'a t Type.t
+(** [t typ] is the value type for differences between values of type [typ]. *)

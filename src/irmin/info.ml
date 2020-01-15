@@ -28,8 +28,6 @@ type f = unit -> t
 
 let create ~date ~author message = { date; message; author }
 
-let with_message t message = { t with message }
-
 let empty = { date = 0L; author = ""; message = "" }
 
 let v ~date ~author message =

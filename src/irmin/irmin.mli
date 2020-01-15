@@ -41,769 +41,20 @@ val version : string
 
 (** {1 Preliminaries} *)
 
+module Type = Type
 (** Dynamic types for Irmin values. *)
-module Type : sig
-  (** Yet-an-other type combinator library
 
-      [Type] provides type combinators to define runtime
-      representation for OCaml types and {{!generics}generic
-      operations} to manipulate values with a runtime type
-      representation.
-
-      The type combinators supports all the usual {{!primitives}type
-      primitives} but also compact definitions of {{!records}records}
-      and {{!variants}variants}. It also allows the definition of
-      run-time representations of {{!recursive}recursive types}. *)
-
-  (** {1 Type Combinators} *)
-
-  type 'a t
-  (** The type for runtime representation of values of type ['a]. *)
-
-  type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
-  (** The type of integer used to store buffers, list or array
-     lengths. *)
-
-  (** {1:primitives Primitives} *)
-
-  val unit : unit t
-  (** [unit] is a representation of the unit type. *)
-
-  val bool : bool t
-  (** [bool] is a representation of the boolean type. *)
-
-  val char : char t
-  (** [char] is a representation of the character type. *)
-
-  val int : int t
-  (** [int] is a representation of integers. Binary serialization uses
-      a varying-width representation. *)
-
-  val int32 : int32 t
-  (** [int32] is a representation of the 32-bit integer type. *)
-
-  val int64 : int64 t
-  (** [int64] is a representation of the 64-bit integer type. *)
-
-  val float : float t
-  (** [float] is a representation of the [float] type. *)
-
-  val string : string t
-  (** [string] is a representation of the [string] type. *)
-
-  val bytes : bytes t
-  (** [bytes] is a representation of the [bytes] type. *)
-
-  val string_of : len -> string t
-  (** Like {!string} but with a given fixed size. *)
-
-  val bytes_of : len -> bytes t
-  (** Like {!bytes} but with a given fixed size. *)
-
-  val list : ?len:len -> 'a t -> 'a list t
-  (** [list t] is a representation of lists of values of type [t]. *)
-
-  val array : ?len:len -> 'a t -> 'a array t
-  (** [array t] is a representation of arrays of values of type [t]. *)
-
-  val option : 'a t -> 'a option t
-  (** [option t] is a representation of values of type [t option]. *)
-
-  val pair : 'a t -> 'b t -> ('a * 'b) t
-  (** [pair x y] is a representation of values of type [x * y]. *)
-
-  val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
-  (** [triple x y z] is a representation of values of type
-      [x * y * z]. *)
-
-  val result : 'a t -> 'b t -> ('a, 'b) result t
-  (** [result a b] is a representation of values of type
-      [(a, b) result]. *)
-
-  (** {1:records Records} *)
-
-  type ('a, 'b, 'c) open_record
-  (** The type for representing open records of type ['a] with a constructor
-      of type ['b]. ['c] represents the remaining fields to be described using
-      the {!(|+)} operator. An open record initially satisfies ['c = 'b] and
-      can be {{!sealr}sealed} once ['c = 'a]. *)
-
-  val record : string -> 'b -> ('a, 'b, 'b) open_record
-  (** [record n f] is an incomplete representation of the record called [n] of
-      type ['a] with constructor [f]. To complete the representation, add fields
-      with {!(|+)} and then seal the record with {!sealr}. *)
-
-  type ('a, 'b) field
-  (** The type for fields holding values of type ['b] and belonging to a
-      record of type ['a]. *)
-
-  val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
-  (** [field n t g] is the representation of the field [n] of type [t]
-      with getter [g].
-
-      For instance:
-
-      {[
-        type manuscript = { title : string option }
-
-        let manuscript = field "title" (option string) (fun t -> t.title)]}
-  *)
-
-  val ( |+ ) :
-    ('a, 'b, 'c -> 'd) open_record -> ('a, 'c) field -> ('a, 'b, 'd) open_record
-  (** [r |+ f] is the open record [r] augmented with the field [f]. *)
-
-  val sealr : ('a, 'b, 'a) open_record -> 'a t
-  (** [sealr r] seals the open record [r]. *)
-
-  (** Putting all together:
-
-      {[
-        type menu = { restaurant: string; items: (string * int32) list; }
-
-        let t =
-          record "t" (fun restaurant items -> {restaurant; items})
-          |+ field "restaurant" string (fun t -> t.restaurant)
-          |+ field "items" (list (pair string int32)) (fun t -> t.items)
-          |> sealr]}
-  *)
-
-  (** {1:variants Variants} *)
-
-  type ('a, 'b, 'c) open_variant
-  (** The type for representing open variants of type ['a] with pattern
-      matching of type ['b]. ['c] represents the remaining constructors to
-      be described using the {!(|~)} operator. An open variant initially
-      satisfies [c' = 'b] and can be {{!sealv}sealed} once ['c = 'a]. *)
-
-  val variant : string -> 'b -> ('a, 'b, 'b) open_variant
-  (** [variant n p] is an incomplete representation of the variant type
-      called [n] of type ['a] using [p] to deconstruct values. To complete
-      the representation, add cases with {!(|~)} and then seal the variant
-      with {!sealv}. *)
-
-  type ('a, 'b) case
-  (** The type for representing variant cases of type ['a] with
-      patterns of type ['b]. *)
-
-  type 'a case_p
-  (** The type for representing patterns for a variant of type ['a]. *)
-
-  val case0 : string -> 'a -> ('a, 'a case_p) case
-  (** [case0 n v] is a representation of a variant constructor [v] with no
-      arguments and name [n]. e.g.
-
-      {[
-        type t = Foo
-
-        let foo = case0 "Foo" Foo]}
-  *)
-
-  val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
-  (** [case1 n t c] is a representation of a variant constructor [c] with an
-      argument of type [t] and name [n]. e.g.
-
-      {[
-        type t = Foo of string
-
-        let foo = case1 "Foo" string (fun s -> Foo s)]}
-  *)
-
-  val ( |~ ) :
-    ('a, 'b, 'c -> 'd) open_variant ->
-    ('a, 'c) case ->
-    ('a, 'b, 'd) open_variant
-  (** [v |~ c] is the open variant [v] augmented with the case [c]. *)
-
-  val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
-  (** [sealv v] seals the open variant [v]. *)
-
-  (** Putting all together:
-      {[
-        type t = Foo | Bar of string
-
-        let t =
-          variant "t" (fun foo bar -> function
-              | Foo   -> foo
-              | Bar s -> bar s)
-          |~ case0 "Foo" Foo
-          |~ case1 "Bar" string (fun x -> Bar x)
-          |> sealv]}
-  *)
-
-  val enum : string -> (string * 'a) list -> 'a t
-  (** [enum n cs] is a representation of the variant type called [n]
-      with singleton cases [cs]. e.g.
-
-      {[
-        type t = Foo | Bar | Toto
-
-        let t = enum "t" ["Foo", Foo; "Bar", Bar; "Toto", Toto]]}
-  *)
-
-  (** {1:recursive Recursive definitions}
-
-      [Type] allows a limited description of recursive records and
-      variants.
-
-      {b TODO}: describe the limitations, e.g. only regular recursion
-      and no use of the generics inside the [mu*] functions and the
-      usual caveats with recursive values (such as infinite loops on
-      most of the generics which don't check sharing).
-
-  *)
-
-  val mu : ('a t -> 'a t) -> 'a t
-  (** [mu f] is the representation [r] such that [r = mu r].
-
-      For instance:
-
-      {[
-        type x = { x: x option }
-
-        let x = mu (fun x ->
-            record "x" (fun x -> { x })
-            |+ field "x" x (fun x -> x.x)
-            |> sealr)]}
-  *)
-
-  val mu2 : ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
-  (** [mu2 f] is the representations [r] and [s] such that
-      [r, s = mu2 r s].
-
-      For instance:
-
-      {[
-        type r = { foo: int; bar: string list; z: z option }
-        and z = { x: int; r: r list }
-
-        (* Build the representation of [r] knowing [z]'s. *)
-        let mkr z =
-          record "r" (fun foo bar z -> { foo; bar; z })
-          |+ field "foo" int (fun t -> t.foo)
-          |+ field "bar" (list string) (fun t -> t.bar)
-          |+ field "z" (option z) (fun t -> t.z)
-          |> sealr
-
-        (* And the representation of [z] knowing [r]'s. *)
-        let mkz r =
-          record "z" (fun x r -> { x; r })
-          |+ field "x" int (fun t -> t.x)
-          |+ field "r" (list r) (fun t -> t.r)
-          |> sealr
-
-        (* Tie the loop. *)
-        let r, z = mu2 (fun r z -> mkr z, mkz y)]}
-  *)
-
-  (** {1:generics Generic Operations}
-
-      Given a value ['a t], it is possible to define generic operations
-      on value of type ['a] such as pretty-printing, parsing and
-      unparsing.
-  *)
-
-  val equal : 'a t -> 'a -> 'a -> bool
-  (** [equal t] is the equality function between values of type [t]. *)
-
-  val compare : 'a t -> 'a -> 'a -> int
-  (** [compare t] compares values of type [t]. *)
-
-  val short_hash : 'a t -> ?seed:int -> 'a -> int
-  (** [hash t x] is a short hash of [x] of type [t]. *)
-
-  type 'a pp = 'a Fmt.t
-  (** The type for pretty-printers. *)
-
-  type 'a of_string = string -> ('a, [ `Msg of string ]) result
-  (** The type for parsers. *)
-
-  val pp : 'a t -> 'a pp
-  (** [pp t] is the pretty-printer for values of type [t]. *)
-
-  val to_string : 'a t -> 'a -> string
-  (** [to_string t] is [Fmt.to_to_string (pp t)]. *)
-
-  val of_string : 'a t -> 'a of_string
-  (** [of_string t] parses values of type [t]. *)
-
-  (** {2 JSON converters} *)
-
-  module Json : sig
-    (** Overlay on top of Jsonm to work with rewindable streams. *)
-
-    type decoder
-    (** The type for JSON decoder. *)
-
-    val decoder : ?encoding:[< Jsonm.encoding ] -> [< Jsonm.src ] -> decoder
-    (** Same as {!Jsonm.decoder}. *)
-
-    val decode :
-      decoder ->
-      [> `Await | `End | `Error of Jsonm.error | `Lexeme of Jsonm.lexeme ]
-    (** Same as {!Jsonm.decode}. *)
-
-    val rewind : decoder -> Jsonm.lexeme -> unit
-    (** [rewind d l] rewinds [l] on top of the current state of
-        [d]. This allows to put back lexemes already seen. *)
-  end
-
-  type 'a encode_json = Jsonm.encoder -> 'a -> unit
-  (** The type for JSON encoders. *)
-
-  type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
-  (** The type for JSON decoders. *)
-
-  val pp_json : ?minify:bool -> 'a t -> 'a Fmt.t
-  (** Similar to {!dump} but pretty-prints the JSON representation instead
-      of the OCaml one. See {!encode_json} for details about the encoding.
-
-      For instance:
-
-      {[
-        type t = { foo: int option; bar: string list };;
-
-        let t =
-          record "r" (fun foo bar -> { foo; bar })
-          |+ field "foo" (option int) (fun t -> t.foo)
-          |+ field "bar" (list string) (fun t -> t.bar)
-          |> sealr
-
-        let s = Fmt.strf "%a\n" (pp t) { foo = None; bar = ["foo"] }
-        (* s is "{ foo = None; bar = [\"foo\"]; }" *)
-
-        let j = Fmt.strf "%a\n" (pp_json t) { foo = None; bar = ["foo"] }
-        (* j is "{ \"bar\":[\"foo\"] }" *)]}
-
-      {b NOTE:} this will automatically convert JSON fragments to valid
-      JSON objects by adding an enclosing array if necessary. *)
-
-  val encode_json : 'a t -> Jsonm.encoder -> 'a -> unit
-  (** [encode_json t e] encodes [t] into the
-      {{:http://erratique.ch/software/jsonm}jsonm} encoder [e]. The
-      encoding is a relatively straightforward translation of the OCaml
-      structure into JSON. The main highlights are:
-
-      {ul
-      {- OCaml [ints] are translated into JSON floats.}
-      {- OCaml strings are translated into JSON strings. You must then
-         ensure that the OCaml strings contains only valid UTF-8
-         characters.}
-      {- OCaml record fields of type ['a option] are automatically
-         unboxed in their JSON representation. If the value if [None],
-         the field is removed from the JSON object.}
-      {- variant cases built using {!case0} are represented as strings.}
-      {- variant cases built using {!case1} are represented as a record
-         with one field; the field name is the name of the variant.}
-      }
-
-      {b NOTE:} this can be used to encode JSON fragments. It's the
-      responsibility of the caller to ensure that the encoded JSON
-      fragment fits properly into a well-formed JSON object. *)
-
-  val decode_json : 'a t -> Jsonm.decoder -> ('a, [ `Msg of string ]) result
-  (** [decode_json t e] decodes values of type [t] from the
-      {{:http://erratique.ch/software/jsonm}jsonm} decoder [e]. *)
-
-  val decode_json_lexemes :
-    'a t -> Jsonm.lexeme list -> ('a, [ `Msg of string ]) result
-  (** [decode_json_lexemes] is similar to {!decode_json} but uses an
-      already decoded list of JSON lexemes instead of a decoder. *)
-
-  val to_json_string : ?minify:bool -> 'a t -> 'a -> string
-  (** [to_json_string] is {!encode_json} with a string encoder. *)
-
-  val of_json_string : 'a t -> string -> ('a, [ `Msg of string ]) result
-  (** [of_json_string] is {!decode_json} with a string decoder .*)
-
-  (** {2 Binary Converters} *)
-
-  type 'a bin_seq = 'a -> (string -> unit) -> unit
-
-  type 'a encode_bin = ?headers:bool -> 'a bin_seq
-  (** The type for binary encoders. If [headers] is not set, do not
-     output extra length headers for buffers. *)
-
-  type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
-  (** The type for binary decoders. IF [headers] is not set, do not
-     read extra length header for buffers and consider the whole
-     buffer instead. *)
-
-  type 'a size_of = ?headers:bool -> 'a -> int option
-  (** The type for size function related to binary encoder/decoders. *)
-
-  val pre_hash : 'a t -> 'a bin_seq
-  (** [pre_hash t x] is the string representation of [x], of type
-      [t], which will be used to compute the digest of the value. By
-      default it's [to_bin_string t x] but it can be overriden by {!v},
-      {!like} and {!map} operators. *)
-
-  val encode_bin : 'a t -> 'a encode_bin
-  (** [encode_bin t] is the binary encoder for values of type [t]. *)
-
-  val decode_bin : 'a t -> 'a decode_bin
-  (** [decode_bin t] is the binary decoder for values of type [t]. *)
-
-  val to_bin_string : 'a t -> 'a -> string
-  (** [to_bin_string t x] use {!encode_bin} to convert [x], of type
-     [t], to a string.
-
-      {b NOTE:} When [t] is {!Type.string} or {!Type.bytes}, the
-     original buffer [x] is not prefixed by its size as {!encode_bin}
-     would do. If [t] is {!Type.string}, the result is [x] (without
-     copy). *)
-
-  val of_bin_string : 'a t -> string -> ('a, [ `Msg of string ]) result
-  (** [of_bin_string t s] is [v] such that [s = to_bin_string t v].
-
-      {b NOTE:} When [t] is {!Type.string}, the result is [s] (without
-     copy). *)
-
-  val size_of : 'a t -> 'a size_of
-  (** [size_of t x] is either the size of [encode_bin t x] or the
-     binary encoding of [x], if the backend is not able to pre-compute
-     serialisation lengths. *)
-
-  (** {1 Customs converters} *)
-
-  val v :
-    cli:'a pp * 'a of_string ->
-    json:'a encode_json * 'a decode_json ->
-    bin:'a encode_bin * 'a decode_bin * 'a size_of ->
-    equal:('a -> 'a -> bool) ->
-    compare:('a -> 'a -> int) ->
-    short_hash:(?seed:int -> 'a -> int) ->
-    pre_hash:'a bin_seq ->
-    'a t
-
-  val like :
-    ?cli:'a pp * 'a of_string ->
-    ?json:'a encode_json * 'a decode_json ->
-    ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
-    ?equal:('a -> 'a -> bool) ->
-    ?compare:('a -> 'a -> int) ->
-    ?short_hash:('a -> int) ->
-    ?pre_hash:'a bin_seq ->
-    'a t ->
-    'a t
-
-  val map :
-    ?cli:'a pp * 'a of_string ->
-    ?json:'a encode_json * 'a decode_json ->
-    ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
-    ?equal:('a -> 'a -> bool) ->
-    ?compare:('a -> 'a -> int) ->
-    ?short_hash:('a -> int) ->
-    ?pre_hash:'a bin_seq ->
-    'b t ->
-    ('b -> 'a) ->
-    ('a -> 'b) ->
-    'a t
-
-  type 'a ty = 'a t
-
-  module type S = sig
-    type t
-
-    val t : t ty
-  end
-end
-
+module Info = Info
 (** Commit info are used to keep track of the origin of write
     operations in the stores. [Info] models the metadata associated
     with commit objects in Git. *)
-module Info : sig
-  (** {1 Commit Info} *)
 
-  type t
-  (** The type for commit info. *)
-
-  val v : date:int64 -> author:string -> string -> t
-  (** Create a new commit info. *)
-
-  val date : t -> int64
-  (** [date t] is [t]'s commit date.
-
-      The date provided by the user when calling the {{!Info.v}create}
-      function. Rounding [Unix.gettimeofday ()] (when available) is a
-      good value for such date. On more esoteric platforms, any
-      monotonic counter is a fine value as well. On the Git backend,
-      the date is translated into the commit {e Date} field and is
-      expected to be the number of POSIX seconds (thus not counting
-      leap seconds) since the Epoch. *)
-
-  val author : t -> string
-  (** [author t] is [t]'s commit author.
-
-      The author identifies the entity (human, unikernel, process,
-      thread, etc) performing an operation. For the Git backend, this
-      will be directly translated into the {e Author} field. *)
-
-  val message : t -> string
-  (** [message t] is [t]'s commit message. *)
-
-  val empty : t
-  (** The empty commit info. *)
-
-  (** {1 Info Functions} *)
-
-  type f = unit -> t
-  (** Alias for functions which can build commit info. *)
-
-  val none : f
-  (** The empty info function. [none ()] is [empty] *)
-
-  (** {1 Value Types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-end
-
+module Merge = Merge
 (** [Merge] provides functions to build custom 3-way merge operators
     for various user-defined contents. *)
-module Merge : sig
-  type conflict = [ `Conflict of string ]
-  (** The type for merge errors. *)
 
-  val ok : 'a -> ('a, conflict) result Lwt.t
-  (** Return [Ok x]. *)
-
-  val conflict : ('a, unit, string, ('b, conflict) result Lwt.t) format4 -> 'a
-  (** Return [Error (Conflict str)]. *)
-
-  val bind :
-    ('a, 'b) result Lwt.t ->
-    ('a -> ('c, 'b) result Lwt.t) ->
-    ('c, 'b) result Lwt.t
-  (** [bind r f] is the merge result which behaves as of the
-      application of the function [f] to the return value of [r]. If
-      [r] fails, [bind r f] also fails, with the same conflict. *)
-
-  val map : ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
-  (** [map f m] maps the result of a merge. This is the same as
-      [bind m (fun x -> ok (f x))]. *)
-
-  (** {1 Merge Combinators} *)
-
-  type 'a promise = unit -> ('a option, conflict) result Lwt.t
-  (** An ['a] promise is a function which, when called, will
-      eventually return a value type of ['a]. A promise is an
-      optional, lazy and non-blocking value. *)
-
-  val promise : 'a -> 'a promise
-  (** [promise a] is the promise containing [a]. *)
-
-  val map_promise : ('a -> 'b) -> 'a promise -> 'b promise
-  (** [map_promise f a] is the promise containing [f] applied to what
-      is promised by [a]. *)
-
-  val bind_promise : 'a promise -> ('a -> 'b promise) -> 'b promise
-  (** [bind_promise a f] is the promise returned by [f] applied to
-      what is promised by [a]. *)
-
-  type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
-  (** Signature of a merge function. [old] is the value of the
-      least-common ancestor.
-
-      {v
-              /----> t1 ----\
-      ----> old              |--> result
-              \----> t2 ----/
-      v}
-  *)
-
-  type 'a t
-  (** The type for merge combinators. *)
-
-  val v : 'a Type.t -> 'a f -> 'a t
-  (** [v dt f] create a merge combinator. *)
-
-  val f : 'a t -> 'a f
-  (** [f m] is [m]'s merge function. *)
-
-  val seq : 'a t list -> 'a t
-  (** Call the merge functions in sequence. Stop as soon as one is {e
-      not} returning a conflict. *)
-
-  val like : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
-  (** Use the merge function defined in another domain. If the
-      converting functions raise any exception the merge is a
-      conflict. *)
-
-  val like_lwt :
-    'a Type.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
-  (** Same as {{!Merge.biject}biject} but with blocking domain
-      converting functions. *)
-
-  (** {1 Basic Merges} *)
-
-  val default : 'a Type.t -> 'a t
-  (** [default t] is the default merge function for values of type
-      [t]. This is a simple merge function which supports changes in
-      one branch at a time:
-
-      {ul
-        {- if [t1=old] then the result of the merge is [OK t2];}
-        {- if [t2=old] then return [OK t1];}
-        {- otherwise the result is [Conflict].}
-      }
-  *)
-
-  val idempotent : 'a Type.t -> 'a t
-  (** [idempotent t] is the default merge function for values of type
-      [t] using idempotent operations. It follows the same rules as
-      the {!default} merge function but also adds:
-
-      {ul
-        {- if [t1=t2] then the result of the merge is [OK t1].}
-      }
-  *)
-
-  val unit : unit t
-  (** [unit] is the default merge function for unit values. *)
-
-  val bool : bool t
-  (** [bool] is the default merge function for booleans. *)
-
-  val char : char t
-  (** [char] is the default merge function for characters. *)
-
-  val int32 : int32 t
-  (** [int32] is the default merge function for 32-bits integers. *)
-
-  val int64 : int64 t
-  (** [int64] the default merge function for 64-bit integers. *)
-
-  val float : float t
-  (** [float] is the default merge function for floating point
-      numbers. *)
-
-  val string : string t
-  (** The default string merge function. Do not do anything clever, just
-      compare the strings using the [default] merge function. *)
-
-  val option : 'a t -> 'a option t
-  (** Lift a merge function to optional values of the same type. If all
-      the provided values are inhabited, then call the provided merge
-      function, otherwise use the same behavior as {!default}. *)
-
-  val pair : 'a t -> 'b t -> ('a * 'b) t
-  (** Lift merge functions to pairs of elements. *)
-
-  val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
-  (** Lift merge functions to triples of elements. *)
-
-  (** {1 Counters and Multisets} *)
-
-  type counter = int64
-  (** The type for counter values. It is expected that the only valid
-      operations on counters are {e increment} and {e decrement}. The
-      following merge functions ensure that the counter semantics are
-      preserved: {e i.e.} it ensures that the number of increments and
-      decrements is preserved. *)
-
-  val counter : counter t
-  (** The merge function for mergeable counters. *)
-
-  (** Multi-sets. *)
-  module MultiSet (K : sig
-    include Set.OrderedType
-
-    val t : t Type.t
-  end) : sig
-    val merge : counter Map.Make(K).t t
-  end
-
-  (** {1 Maps and Association Lists} *)
-
-  (** We consider the only valid operations for maps and
-      association lists to be:
-
-      {ul
-      {- Adding a new bindings to the map.}
-      {- Removing a binding from the map.}
-      {- Replacing an existing binding with a different value.}
-      {- {e Trying to add an already existing binding is a no-op}.}
-      }
-
-      We thus assume that no operation on maps is modifying the {e
-      key} names. So the following merge functions ensures that {e
-      (i)} new bindings are preserved {e (ii)} removed bindings stay
-      removed and {e (iii)} modified bindings are merged using the
-      merge function of values.
-
-      {b Note:} We only consider sets of bindings, instead of
-      multisets. Application developers should take care of concurrent
-      addition and removal of similar bindings themselves, by using the
-      appropriate {{!Merge.MSet}multi-sets}. *)
-
-  (** Lift merge functions to sets. *)
-  module Set (E : sig
-    include Set.OrderedType
-
-    val t : t Type.t
-  end) : sig
-    val merge : Set.Make(E).t t
-  end
-
-  val alist : 'a Type.t -> 'b Type.t -> ('a -> 'b option t) -> ('a * 'b) list t
-  (** Lift the merge functions to association lists. *)
-
-  (** Lift the merge functions to maps. *)
-
-  module Map (K : sig
-    include Map.OrderedType
-
-    val t : t Type.t
-  end) : sig
-    val merge : 'a Type.t -> (K.t -> 'a option t) -> 'a Map.Make(K).t t
-  end
-
-  (** Infix operators for manipulating merge results and {!promise}s.
-
-      [open Irmin.Merge.Infix] at the top of your file to use them. *)
-  module Infix : sig
-    (** {1 Merge Result Combinators} *)
-
-    val ( >>=* ) :
-      ('a, conflict) result Lwt.t ->
-      ('a -> ('b, conflict) result Lwt.t) ->
-      ('b, conflict) result Lwt.t
-    (** [>>=*] is {!bind}. *)
-
-    val ( >|=* ) :
-      ('a, conflict) result Lwt.t -> ('a -> 'b) -> ('b, conflict) result Lwt.t
-    (** [>|=*] is {!map}. *)
-
-    (** {1 Promise Combinators}
-
-        This is useful to manipulate lca results. *)
-
-    val ( >>=? ) : 'a promise -> ('a -> 'b promise) -> 'b promise
-    (** [>>=?] is {!bind_promise}. *)
-
-    val ( >|=? ) : 'a promise -> ('a -> 'b) -> 'b promise
-    (** [>|=?] is {!map_promise}. *)
-  end
-  (** {1 Value Types} *)
-
-  val conflict_t : conflict Type.t
-  (** [conflict_t] is the value type for {!conflict}. *)
-
-  val result_t : 'a Type.t -> ('a, conflict) result Type.t
-  (** [result_t] is the value type for merge results. *)
-end
-
+module Diff = Diff
 (** Differences between values. *)
-module Diff : sig
-  type 'a t = [ `Updated of 'a * 'a | `Removed of 'a | `Added of 'a ]
-  (** The type for representing differences betwen values. *)
-
-  (** {1 Value Types} *)
-
-  val t : 'a Type.t -> 'a t Type.t
-  (** [t typ] is the value type for differences between values of type [typ]. *)
-end
 
 type 'a diff = 'a Diff.t
 (** The type for representing differences betwen values. *)
@@ -817,141 +68,14 @@ type 'a diff = 'a Diff.t
     are provided
     by various backends. *)
 
+module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
 (** Content-addressable backend store. *)
-module type CONTENT_ADDRESSABLE_STORE = sig
-  (** {1 Content-addressable stores}
 
-      Content-addressable stores are store where it is possible to read
-      and add new values. Keys are derived from the values raw contents
-      and hence are deterministic. *)
-
-  type 'a t
-  (** The type for content-addressable backend stores. The ['a]
-      phantom type carries information about the store mutability. *)
-
-  type key
-  (** The type for keys. *)
-
-  type value
-  (** The type for raw values. *)
-
-  val mem : [> `Read ] t -> key -> bool Lwt.t
-  (** [mem t k] is true iff [k] is present in [t]. *)
-
-  val find : [> `Read ] t -> key -> value option Lwt.t
-  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
-      [None] is [k] is not present in [t]. *)
-
-  val add : [> `Write ] t -> value -> key Lwt.t
-  (** Write the contents of a value to the store. It's the
-      responsibility of the content-addressable store to generate a
-      consistent key. *)
-
-  val unsafe_add : [> `Write ] t -> key -> value -> unit Lwt.t
-  (** Same as {!add} but allows to specify the key directly. The
-      backend might choose to discared that key and/or can be corrupt
-      if the key scheme is not consistent. *)
-end
-
+module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
 (** Append-only backend store. *)
-module type APPEND_ONLY_STORE = sig
-  (** {1 Append-only stores}
 
-      Append-onlye stores are store where it is possible to read
-      and add new values. *)
-
-  type 'a t
-  (** The type for append-only backend stores. The ['a]
-     phantom type carries information about the store mutability. *)
-
-  type key
-  (** The type for keys. *)
-
-  type value
-  (** The type for raw values. *)
-
-  val mem : [> `Read ] t -> key -> bool Lwt.t
-  (** [mem t k] is true iff [k] is present in [t]. *)
-
-  val find : [> `Read ] t -> key -> value option Lwt.t
-  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
-      [None] is [k] is not present in [t]. *)
-
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
-  (** Write the contents of a value to the store. *)
-end
-
+module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 (** Atomic-write stores. *)
-module type ATOMIC_WRITE_STORE = sig
-  (** {1 Atomic write stores}
-
-      Atomic-write stores are stores where it is possible to read,
-      update and remove elements, with atomically guarantees. *)
-
-  type t
-  (** The type for atomic-write backend stores.  *)
-
-  type key
-  (** The type for keys. *)
-
-  type value
-  (** The type for raw values. *)
-
-  val mem : t -> key -> bool Lwt.t
-  (** [mem t k] is true iff [k] is present in [t]. *)
-
-  val find : t -> key -> value option Lwt.t
-  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and
-      [None] is [k] is not present in [t]. *)
-
-  val set : t -> key -> value -> unit Lwt.t
-  (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k]
-      is not already defined in [t], create a fresh binding.  Raise
-      [Invalid_argument] if [k] is the {{!Path.empty}empty path}. *)
-
-  val test_and_set :
-    t -> key -> test:value option -> set:value option -> bool Lwt.t
-  (** [test_and_set t key ~test ~set] sets [key] to [set] only if
-      the current value of [key] is [test] and in that case returns
-      [true]. If the current value of [key] is different, it returns
-      [false]. [None] means that the value does not have to exist or
-      is removed.
-
-      {b Note:} The operation is guaranteed to be atomic. *)
-
-  val remove : t -> key -> unit Lwt.t
-  (** [remove t k] remove the key [k] in [t]. *)
-
-  val list : t -> key list Lwt.t
-  (** [list t] it the list of keys in [t]. *)
-
-  type watch
-  (** The type of watch handlers. *)
-
-  val watch :
-    t ->
-    ?init:(key * value) list ->
-    (key -> value diff -> unit Lwt.t) ->
-    watch Lwt.t
-  (** [watch t ?init f] adds [f] to the list of [t]'s watch handlers
-      and returns the watch handler to be used with {!unwatch}. [init]
-      is the optional initial values. It is more efficient to use
-      {!watch_key} to watch only a single given key.*)
-
-  val watch_key :
-    t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
-  (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch
-      handlers for the key [k] and returns the watch handler to be
-      used with {!unwatch}. [init] is the optional initial value of
-      the key. *)
-
-  val unwatch : t -> watch -> unit Lwt.t
-  (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
-
-  val close : t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise {!Closed}. *)
-end
 
 (** {1 User-Defined Contents} *)
 
@@ -964,50 +88,8 @@ end
 module Path : sig
   (** {1 Path} *)
 
+  module type S = S.PATH
   (** Signature for path implementations.*)
-  module type S = sig
-    (** {1 Path} *)
-
-    type t
-    (** The type for path values. *)
-
-    type step
-    (** Type type for path's steps. *)
-
-    val empty : t
-    (** The empty path. *)
-
-    val v : step list -> t
-    (** Create a path from a list of steps. *)
-
-    val is_empty : t -> bool
-    (** Check if the path is empty. *)
-
-    val cons : step -> t -> t
-    (** Prepend a step to the path. *)
-
-    val rcons : t -> step -> t
-    (** Append a step to the path. *)
-
-    val decons : t -> (step * t) option
-    (** Deconstruct the first element of the path. Return [None] if
-        the path is empty. *)
-
-    val rdecons : t -> (t * step) option
-    (** Deconstruct the last element of the path. Return [None] if the
-        path is empty. *)
-
-    val map : t -> (step -> 'a) -> 'a list
-    (** [map t f] maps [f] over all steps of [t]. *)
-
-    (** {1 Value Types} *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val step_t : step Type.t
-    (** [step_t] is the value type for {!step}. *)
-  end
 
   (** An implementation of paths as string lists. *)
   module String_list : S with type step = string and type t = string list
@@ -1025,106 +107,21 @@ end
 module Hash : sig
   (** {1 Contents Hashing} *)
 
+  module type S = S.HASH
   (** Signature for hash values. *)
-  module type S = sig
-    (** Signature for digest hashes, inspired by Digestif. *)
 
-    type t
-    (** The type for digest hashes. *)
-
-    val hash : ((string -> unit) -> unit) -> t
-    (** Compute a deterministic store key from a sequence of strings. *)
-
-    val short_hash : t -> int
-    (** [short_hash h] is a small hash of [h], to be used for instance as
-       the `hash` function of an OCaml [Hashtbl]. *)
-
-    val hash_size : int
-    (** [hash_size] is the size of hash results, in bytes. *)
-
-    (** {1 Value Types} *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-  end
-
+  module type TYPED = S.TYPED_HASH
   (** Signature for typed hashes, where [hash] directly takes a value
       as argument and incremental hashing is not possible. *)
-  module type TYPED = sig
-    type t
 
-    type value
-
-    val hash : value -> t
-    (** Compute a deterministic store key from a string. *)
-
-    val short_hash : t -> int
-    (** [short_hash h] is a small hash of [h], to be used for instance as
-       the `hash` function of an OCaml [Hashtbl]. *)
-
-    val hash_size : int
-    (** [hash_size] is the size of hash results, in bytes. *)
-
-    (** {1 Value Types} *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-  end
-
-  (** Digestif hashes. *)
-  module Make (H : Digestif.S) : S with type t = H.t
-
-  module Make_BLAKE2B (D : sig
-    val digest_size : int
-  end) : S
-
-  module Make_BLAKE2S (D : sig
-    val digest_size : int
-  end) : S
-
-  module SHA1 : S
-
-  module RMD160 : S
-
-  module SHA224 : S
-
-  module SHA256 : S
-
-  module SHA384 : S
-
-  module SHA512 : S
-
-  module BLAKE2B : S
-
-  module BLAKE2S : S
-
-  (** v1 serialisation *)
-  module V1 (H : S) : S with type t = H.t
-
-  (** Typed hashes. *)
-
-  module Typed (K : S) (E : Type.S) :
-    TYPED with type t = K.t and type value = E.t
+  include module type of Hash
 end
 
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. The Git backend uses this to indicate the type of file (normal,
     executable or symlink). *)
 module Metadata : sig
-  module type S = sig
-    type t
-    (** The type for metadata. *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val merge : t Merge.t
-    (** [merge] is the merge function for metadata. *)
-
-    val default : t
-    (** The default metadata to attach, for APIs that don't
-        care about metadata. *)
-  end
+  module type S = S.METADATA
 
   module None : S with type t = unit
   (** A metadata definition for systems that don't use metadata. *)
@@ -1145,23 +142,7 @@ end
     Default implementations for {{!Contents.String}idempotent string}
     and {{!Contents.Json}JSON} contents are provided. *)
 module Contents : sig
-  module type S = sig
-    (** {1 Signature for store contents} *)
-
-    type t
-    (** The type for user-defined contents. *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val merge : t option Merge.t
-    (** Merge function. Evaluates to [`Conflict msg] if the values
-        cannot be merged properly. The arguments of the merge function
-        can take [None] to mean that the key does not exists for
-        either the least-common ancestor or one of the two merging
-        points. The merge function returns [None] when the key's value
-        should be deleted. *)
-  end
+  module type S = S.CONTENTS
 
   module String : S with type t = string
   (** Contents of type [string], with the {{!Irmin.Merge.default}default}
@@ -1190,26 +171,8 @@ module Contents : sig
     (** Same as {!String} but use v1 serialisation format. *)
   end
 
+  module type STORE = S.CONTENTS_STORE
   (** Contents store. *)
-  module type STORE = sig
-    include CONTENT_ADDRESSABLE_STORE
-
-    val merge : [ `Read | `Write ] t -> key option Merge.t
-    (** [merge t] lifts the merge functions defined on contents values
-        to contents key. The merge function will: {e (i)} read the
-        values associated with the given keys, {e (ii)} use the merge
-        function defined on values and {e (iii)} write the resulting
-        values into the store to get the resulting key. See
-        {!Contents.S.merge}.
-
-        If any of these operations fail, return [`Conflict]. *)
-
-    (** [Key] provides base functions for user-defined contents keys. *)
-    module Key : Hash.TYPED with type t = key and type value = value
-
-    module Val : S with type t = value
-    (** [Val] provides base functions for user-defined contents values. *)
-  end
 
   (** [Store] creates a contents store. *)
   module Store (S : sig
@@ -1226,25 +189,11 @@ end
 module Branch : sig
   (** {1 Branches} *)
 
+  module type S = S.BRANCH
   (** The signature for branches. Irmin branches are similar to Git
       branches: they are used to associated user-defined names to head
       commits. Branches have a default value: the
       {{!Branch.S.master}master} branch. *)
-  module type S = sig
-    (** {1 Signature for Branches} *)
-
-    type t
-    (** The type for branches. *)
-
-    val t : t Type.t
-    (** [t] is the value type for {!t}. *)
-
-    val master : t
-    (** The name of the master branch. *)
-
-    val is_valid : t -> bool
-    (** Check if the branch is valid. *)
-  end
 
   module String : S with type t = string
   (** [String] is an implementation of {{!Branch.S}S} where branches
@@ -1252,25 +201,15 @@ module Branch : sig
       names contain only alpha-numeric characters, [-], [_], [.], and
       [/]. *)
 
+  module type STORE = S.BRANCH_STORE
   (** [STORE] specifies the signature for branch stores.
 
       A {i branch store} is a mutable and reactive key / value store,
       where keys are branch names created by users and values are keys
       are head commmits. *)
-  module type STORE = sig
-    (** {1 Branch Store} *)
-
-    include ATOMIC_WRITE_STORE
-
-    module Key : S with type t = key
-    (** Base functions on keys. *)
-
-    module Val : Hash.S with type t = value
-    (** Base functions on values. *)
-  end
 end
 
-type remote = ..
+type remote = S.remote = ..
 (** The type for remote stores. *)
 
 type config
@@ -1412,114 +351,11 @@ module Private : sig
     (** [string] converts values with the identity function. *)
   end
 
+  module Watch = Watch
   (** [Watch] provides helpers to register event notifications on
       read-write stores. *)
-  module Watch : sig
-    (** {1 Watch Helpers} *)
 
-    (** The signature for watch helpers. *)
-    module type S = sig
-      (** {1 Watch Helpers} *)
-
-      type key
-      (** The type for store keys. *)
-
-      type value
-      (** The type for store values. *)
-
-      type watch
-      (** The type for watch handlers. *)
-
-      type t
-      (** The type for watch state. *)
-
-      val stats : t -> int * int
-      (** [stats t] is a tuple [(k,a)] represeting watch stats. [k] is
-          the number of single key watchers for the store [t] and [a] the
-          number of global watchers for [t]. *)
-
-      val notify : t -> key -> value option -> unit Lwt.t
-      (** Notify all listeners in the given watch state that a key has
-          changed, with the new value associated to this key. [None]
-          means the key has been removed. *)
-
-      val v : unit -> t
-      (** Create a watch state. *)
-
-      val clear : t -> unit Lwt.t
-      (** Clear all register listeners in the given watch state. *)
-
-      val watch_key :
-        t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
-      (** Watch a given key for changes. More efficient than {!watch}. *)
-
-      val watch :
-        t ->
-        ?init:(key * value) list ->
-        (key -> value diff -> unit Lwt.t) ->
-        watch Lwt.t
-      (** Add a watch handler. To watch a specific key, use
-          {!watch_key} which is more efficient. *)
-
-      val unwatch : t -> watch -> unit Lwt.t
-      (** Remove a watch handler. *)
-
-      val listen_dir :
-        t ->
-        string ->
-        key:(string -> key option) ->
-        value:(key -> value option Lwt.t) ->
-        (unit -> unit Lwt.t) Lwt.t
-      (** Register a thread looking for changes in the given directory
-          and return a function to stop watching and free up
-          resources. *)
-    end
-
-    val workers : unit -> int
-    (** [workers ()] is the number of background worker threads
-        managing event notification currently active. *)
-
-    type hook =
-      int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-    (** The type for watch hooks. *)
-
-    val none : hook
-    (** [none] is the hooks which asserts false. *)
-
-    val set_listen_dir_hook : hook -> unit
-    (** Register a function which looks for file changes in a
-        directory and return a function to stop watching. It is
-        probably best to use {!Irmin_watcher.hook} there. By default,
-        it uses {!none}. *)
-
-    (** [Make] builds an implementation of watch helpers. *)
-    module Make (K : Type.S) (V : Type.S) :
-      S with type key = K.t and type value = V.t
-  end
-
-  module Lock : sig
-    (** {1 Process locking helpers} *)
-
-    module type S = sig
-      type t
-      (** The type for lock manager. *)
-
-      type key
-      (** The type for key to be locked. *)
-
-      val v : unit -> t
-      (** Create a lock manager. *)
-
-      val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-      (** [with_lock t k f] executes [f ()] while holding the exclusive
-          lock associated to the key [k]. *)
-
-      val stats : t -> int
-    end
-
-    (** Create a lock manager implementation. *)
-    module Make (K : Type.S) : S with type key = K.t
-  end
+  module Lock = Lock
 
   (** [Node] provides functions to describe the graph-like structured
       values.
@@ -1531,72 +367,7 @@ module Private : sig
       Each node can point to user-defined {{!Contents.S}contents}
       values. *)
   module Node : sig
-    module type S = sig
-      (** {1 Node values} *)
-
-      type t
-      (** The type for node values. *)
-
-      type metadata
-      (** The type for node metadata. *)
-
-      type hash
-      (** The type for keys. *)
-
-      type step
-      (** The type for steps between nodes. *)
-
-      type value = [ `Node of hash | `Contents of hash * metadata ]
-      (** The type for either (node) keys or (contents) keys combined with
-          their metadata. *)
-
-      val v : (step * value) list -> t
-      (** [create l] is a new node. *)
-
-      val list : t -> (step * value) list
-      (** [list t] is the contents of [t]. *)
-
-      val empty : t
-      (** [empty] is the empty node. *)
-
-      val is_empty : t -> bool
-      (** [is_empty t] is true iff [t] is {!empty}. *)
-
-      val find : t -> step -> value option
-      (** [find t s] is the value associated with [s] in [t].
-
-          A node can point to user-defined
-          {{!Node.S.contents}contents}. The edge between the node and
-          the contents is labeled by a {{!Node.S.step}step}. *)
-
-      val add : t -> step -> value -> t
-      (** [add t s v] is the node where [find t v] is [Some s] but
-          is similar to [t] otherwise. *)
-
-      val remove : t -> step -> t
-      (** [remove t s] is the node where [find t s] is [None] but is
-          similar to [t] otherwise. *)
-
-      (** {1 Value types} *)
-
-      val t : t Type.t
-      (** [t] is the value type for {!t}. *)
-
-      val default : metadata
-      (** [default] is the default metadata value. *)
-
-      val metadata_t : metadata Type.t
-      (** [metadata_t] is the value type for {!metadata}. *)
-
-      val hash_t : hash Type.t
-      (** [hash_t] is the value type for {!hash}. *)
-
-      val step_t : step Type.t
-      (** [step_t] is the value type for {!step}. *)
-
-      val value_t : value Type.t
-      (** [value_t] is the value type for {!value}. *)
-    end
+    module type S = S.NODE
 
     (** [Make] provides a simple node implementation, parameterized by
         the contents and notes keys [K], paths [P] and metadata [M]. *)
@@ -1622,33 +393,8 @@ module Private : sig
       val export : t -> S.t
     end
 
+    module type STORE = S.NODE_STORE
     (** [STORE] specifies the signature for node stores. *)
-    module type STORE = sig
-      include CONTENT_ADDRESSABLE_STORE
-
-      module Path : Path.S
-      (** [Path] provides base functions on node paths. *)
-
-      val merge : [ `Read | `Write ] t -> key option Merge.t
-      (** [merge] is the 3-way merge function for nodes keys. *)
-
-      (** [Key] provides base functions for node keys. *)
-      module Key : Hash.TYPED with type t = key and type value = value
-
-      module Metadata : Metadata.S
-      (** [Metadata] provides base functions for node metadata. *)
-
-      (** [Val] provides base functions for node values. *)
-      module Val :
-        S
-          with type t = value
-           and type hash = key
-           and type metadata = Metadata.t
-           and type step = Path.step
-
-      module Contents : Contents.STORE with type key = Val.hash
-      (** [Contents] is the underlying contents store. *)
-    end
 
     (** [Store] creates node stores. *)
     module Store
@@ -1675,105 +421,9 @@ module Private : sig
          and type Key.t = S.Key.t
          and module Val = S.Val
 
+    module type GRAPH = S.NODE_GRAPH
     (** [Graph] specifies the signature for node graphs. A node graph
         is a deterministic DAG, labeled by steps. *)
-    module type GRAPH = sig
-      (** {1 Node Graphs} *)
-
-      type 'a t
-      (** The type for store handles. *)
-
-      type metadata
-      (** The type for node metadata. *)
-
-      type contents
-      (** The type of user-defined contents. *)
-
-      type node
-      (** The type for node values. *)
-
-      type step
-      (** The type of steps. A step is used to pass from one node to
-          another. *)
-
-      type path
-      (** The type of store paths. A path is composed of
-          {{!step}steps}. *)
-
-      type value = [ `Node of node | `Contents of contents * metadata ]
-      (** The type for store values. *)
-
-      val empty : [> `Write ] t -> node Lwt.t
-      (** The empty node. *)
-
-      val v : [> `Write ] t -> (step * value) list -> node Lwt.t
-      (** [v t n] is a new node containing [n]. *)
-
-      val list : [> `Read ] t -> node -> (step * value) list Lwt.t
-      (** [list t n] is the contents of the node [n]. *)
-
-      val find : [> `Read ] t -> node -> path -> value option Lwt.t
-      (** [find t n p] is the contents of the path [p] starting form
-          [n]. *)
-
-      val add : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
-      (** [add t n p v] is the node [x] such that [find t x p] is
-          [Some v] and it behaves the same [n] for other
-          operations. *)
-
-      val remove : [ `Read | `Write ] t -> node -> path -> node Lwt.t
-      (** [remove t n path] is the node [x] such that [find t x] is
-          [None] and it behhaves then same as [n] for other
-          operations. *)
-
-      val closure :
-        [> `Read ] t -> min:node list -> max:node list -> node list Lwt.t
-      (** [closure t ~min ~max] is the transitive closure [c] of [t]'s
-          nodes such that:
-
-          {ul
-          {- There is a path in [t] from any nodes in [min] to nodes
-          in [c]. If [min] is empty, that condition is always true.}
-          {- There is a path in [t] from any nodes in [c] to nodes in
-          [max]. If [max] is empty, that condition is always false.}
-          }
-
-          {b Note:} Both [min] and [max] are subsets of [c].*)
-
-      val iter :
-        [> `Read ] t ->
-        min:node list ->
-        max:node list ->
-        ?node:(node -> unit Lwt.t) ->
-        ?edge:(node -> node -> unit Lwt.t) ->
-        ?skip:(node -> bool Lwt.t) ->
-        unit ->
-        unit Lwt.t
-      (** [iter min max node edge skip ()] is the same as closure except that it
-          applies three functions while traversing the closure graph: [node] on
-          the nodes of the graph; [edge node predecessor] on the directed edges
-          of the graph and [skip] to not visit a node. *)
-
-      (** {1 Value Types} *)
-
-      val metadata_t : metadata Type.t
-      (** [metadat_t] is the value type for {!metadata}. *)
-
-      val contents_t : contents Type.t
-      (** [contents_t] is the value type for {!contents}. *)
-
-      val node_t : node Type.t
-      (** [node_t] is the value type for {!node}. *)
-
-      val step_t : step Type.t
-      (** [step_t] is the value type for {!step}. *)
-
-      val path_t : path Type.t
-      (** [path_t] is the value type for {!path}. *)
-
-      val value_t : value Type.t
-      (** [value_t] is the value type for {!value}. *)
-    end
 
     module Graph (S : STORE) :
       GRAPH
@@ -1795,35 +445,7 @@ module Private : sig
       {{!Private.Node.STORE}Node} signature for more details on node
       values. *)
   module Commit : sig
-    module type S = sig
-      (** {1 Commit values} *)
-
-      type t
-      (** The type for commit values. *)
-
-      type hash
-      (** Type for keys. *)
-
-      val v : info:Info.t -> node:hash -> parents:hash list -> t
-      (** Create a commit. *)
-
-      val node : t -> hash
-      (** The underlying node. *)
-
-      val parents : t -> hash list
-      (** The commit parents. *)
-
-      val info : t -> Info.t
-      (** The commit info. *)
-
-      (** {1 Value Types} *)
-
-      val t : t Type.t
-      (** [t] is the value type for {!t}. *)
-
-      val hash_t : hash Type.t
-      (** [hash_t] is the value type for {!hash}. *)
-    end
+    module type S = S.COMMIT
 
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit and node keys [K]. *)
@@ -1838,24 +460,8 @@ module Private : sig
       val export : t -> S.t
     end
 
+    module type STORE = S.COMMIT_STORE
     (** [STORE] specifies the signature for commit stores. *)
-    module type STORE = sig
-      (** {1 Commit Store} *)
-
-      include CONTENT_ADDRESSABLE_STORE
-
-      val merge : [ `Read | `Write ] t -> info:Info.f -> key option Merge.t
-      (** [merge] is the 3-way merge function for commit keys. *)
-
-      (** [Key] provides base functions for commit keys. *)
-      module Key : Hash.TYPED with type t = key and type value = value
-
-      (** [Val] provides functions for commit values. *)
-      module Val : S with type t = value and type hash = key
-
-      module Node : Node.STORE with type key = Val.hash
-      (** [Node] is the underlying node store. *)
-    end
 
     (** [Store] creates a new commit store. *)
     module Store
@@ -1873,93 +479,13 @@ module Private : sig
          and type Key.t = S.Key.t
          and module Val = S.Val
 
+    module type HISTORY = S.COMMIT_HISTORY
     (** [History] specifies the signature for commit history. The
         history is represented as a partial-order of commits and basic
         functions to search through that history are provided.
 
         Every commit can point to an entry point in a node graph, where
         user-defined contents are stored. *)
-    module type HISTORY = sig
-      (** {1 Commit History} *)
-
-      type 'a t
-      (** The type for store handles. *)
-
-      type node
-      (** The type for node values. *)
-
-      type commit
-      (** The type for commit values. *)
-
-      type v
-      (** The type for commit objects. *)
-
-      val v :
-        [> `Write ] t ->
-        node:node ->
-        parents:commit list ->
-        info:Info.t ->
-        (commit * v) Lwt.t
-      (** Create a new commit. *)
-
-      val parents : [> `Read ] t -> commit -> commit list Lwt.t
-      (** Get the commit parents.
-
-          Commits form a append-only, fully functional, partial-order
-          data-structure: every commit carries the list of its
-          immediate predecessors. *)
-
-      val merge : [ `Read | `Write ] t -> info:Info.f -> commit Merge.t
-      (** [merge t] is the 3-way merge function for commit.  *)
-
-      val lcas :
-        [> `Read ] t ->
-        ?max_depth:int ->
-        ?n:int ->
-        commit ->
-        commit ->
-        (commit list, [ `Max_depth_reached | `Too_many_lcas ]) result Lwt.t
-      (** Find the lowest common ancestors
-          {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
-          between two commits. *)
-
-      val lca :
-        [ `Read | `Write ] t ->
-        info:Info.f ->
-        ?max_depth:int ->
-        ?n:int ->
-        commit list ->
-        (commit option, Merge.conflict) result Lwt.t
-      (** Compute the lowest common ancestors ancestor of a list of
-          commits by recursively calling {!lcas} and merging the
-          results.
-
-          If one of the merges results in a conflict, or if a call to
-          {!lcas} returns either [Error `Max_depth_reached] or
-          [Error `Too_many_lcas] then the function returns the same
-          error. *)
-
-      val three_way_merge :
-        [ `Read | `Write ] t ->
-        info:Info.f ->
-        ?max_depth:int ->
-        ?n:int ->
-        commit ->
-        commit ->
-        (commit, Merge.conflict) result Lwt.t
-      (** Compute the {!lcas} of the two commit and 3-way merge the
-          result. *)
-
-      val closure :
-        [> `Read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
-      (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
-          the history graph. *)
-
-      (** {1 Value Types} *)
-
-      val commit_t : commit Type.t
-      (** [commit_t] is the value type for {!commit}. *)
-    end
 
     (** Build a commit history. *)
     module History (S : STORE) :
@@ -1971,50 +497,7 @@ module Private : sig
 
   (** The signature for slices. *)
   module Slice : sig
-    module type S = sig
-      (** {1 Slices} *)
-
-      type t
-      (** The type for slices. *)
-
-      type contents
-      (** The type for exported contents. *)
-
-      type node
-      (** The type for exported nodes. *)
-
-      type commit
-      (** The type for exported commits. *)
-
-      type value = [ `Contents of contents | `Node of node | `Commit of commit ]
-      (** The type for exported values. *)
-
-      val empty : unit -> t Lwt.t
-      (** Create a new empty slice. *)
-
-      val add : t -> value -> unit Lwt.t
-      (** [add t v] adds [v] to [t]. *)
-
-      val iter : t -> (value -> unit Lwt.t) -> unit Lwt.t
-      (** [iter t f] calls [f] on all values of [t]. *)
-
-      (** {1 Value Types} *)
-
-      val t : t Type.t
-      (** [t] is the value type for {!t}. *)
-
-      val contents_t : contents Type.t
-      (** [content_t] is the value type for {!contents}. *)
-
-      val node_t : node Type.t
-      (** [node_t] is the value type for {!node}. *)
-
-      val commit_t : commit Type.t
-      (** [commit_t] is the value type for {!commit}. *)
-
-      val value_t : value Type.t
-      (** [value_t] is the value type for {!value}. *)
-    end
+    module type S = S.SLICE
 
     (** Build simple slices. *)
     module Make (C : Contents.STORE) (N : Node.STORE) (H : Commit.STORE) :
@@ -2025,41 +508,7 @@ module Private : sig
   end
 
   module Sync : sig
-    module type S = sig
-      (** {1 Remote synchronization} *)
-
-      type t
-      (** The type for store handles. *)
-
-      type commit
-      (** The type for store heads. *)
-
-      type branch
-      (** The type for branch IDs. *)
-
-      type endpoint
-      (** The type for sync endpoints. *)
-
-      val fetch :
-        t ->
-        ?depth:int ->
-        endpoint ->
-        branch ->
-        (commit option, [ `Msg of string ]) result Lwt.t
-      (** [fetch t uri] fetches the contents of the remote store
-          located at [uri] into the local store [t]. Return the head
-          of the remote branch with the same name, which is now in the
-          local store. [No_head] means no such branch exists. *)
-
-      val push :
-        t ->
-        ?depth:int ->
-        endpoint ->
-        branch ->
-        (unit, [ `Msg of string | `Detached_head ]) result Lwt.t
-      (** [push t uri] pushes the contents of the local store [t] into
-          the remote store located at [uri]. *)
-    end
+    module type S = S.SYNC
 
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
@@ -3274,80 +1723,9 @@ val remote_store : (module S with type t = 'a) -> 'a -> remote
     synchronization using {!Store.remote} but it works for all
     backends. *)
 
+module type SYNC = S.SYNC_STORE
 (** [SYNC] provides functions to synchronize an Irmin store with local
     and remote Irmin stores. *)
-module type SYNC = sig
-  (** {1 Native Synchronization} *)
-
-  type db
-  (** Type type for store handles. *)
-
-  type commit
-  (** The type for store heads. *)
-
-  type status = [ `Empty | `Head of commit ]
-  (** The type for remote status. *)
-
-  val status_t : db -> status Type.t
-  (** [status_t db] is the value type for {!status} of remote [db]. *)
-
-  val pp_status : status Fmt.t
-  (** [pp_status] pretty-prints return statuses. *)
-
-  val fetch :
-    db -> ?depth:int -> remote -> (status, [ `Msg of string ]) result Lwt.t
-  (** [fetch t ?depth r] populate the local store [t] with objects for
-      the remote store [r], using [t]'s current branch. The [depth]
-      parameter limits the history depth. Return [`Empty] if either the
-      local or remote store do not have a valid head. *)
-
-  val fetch_exn : db -> ?depth:int -> remote -> status Lwt.t
-  (** Same as {!fetch} but raise [Invalid_argument] if either the
-      local or remote store do not have a valid head. *)
-
-  type pull_error = [ `Msg of string | Merge.conflict ]
-  (** The type for pull errors. *)
-
-  val pp_pull_error : pull_error Fmt.t
-  (** [pp_push_error] pretty-prints pull errors. *)
-
-  val pull :
-    db ->
-    ?depth:int ->
-    remote ->
-    [ `Merge of Info.f | `Set ] ->
-    (status, pull_error) result Lwt.t
-  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
-      also updates [t]'s current branch. [s] is the update strategy:
-
-      {ul
-      {- [`Merge] uses [Head.merge]. Can return a conflict.}
-      {- [`Set] uses [S.Head.set].}
-      } *)
-
-  val pull_exn :
-    db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> status Lwt.t
-  (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
-
-  type push_error = [ `Msg of string | `Detached_head ]
-  (** The type for push errors. *)
-
-  val pp_push_error : push_error Fmt.t
-  (** [pp_push_error] pretty-prints push errors. *)
-
-  val push : db -> ?depth:int -> remote -> (status, push_error) result Lwt.t
-  (** [push t ?depth r] populates the remote store [r] with objects
-      from the current store [t], using [t]'s current branch. If [b]
-      is [t]'s current branch, [push] also updates the head of [b] in
-      [r] to be the same as in [t].
-
-      {b Note:} {e Git} semantics is to update [b] only if the new
-      head if more recent. This is not the case in {e Irmin}. *)
-
-  val push_exn : db -> ?depth:int -> remote -> status Lwt.t
-  (** Same as {!push} but raise [Invalid_argument] if an error
-      happens. *)
-end
 
 (** The default [Sync] implementation. *)
 module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
@@ -3558,29 +1936,7 @@ end ]}
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
-module Dot (S : S) : sig
-  (** {1 Dot Export} *)
-
-  val output_buffer :
-    S.t ->
-    ?html:bool ->
-    ?depth:int ->
-    ?full:bool ->
-    date:(int64 -> string) ->
-    Buffer.t ->
-    unit Lwt.t
-  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
-        representation of [t] in the buffer [buf].
-
-        [html] (default is false) enables HTML labels.
-
-        [depth] is used to limit the depth of the commit history. [None]
-        here means no limitation.
-
-        If [full] is set (default is not) the full graph, including the
-        commits, nodes and contents, is exported, otherwise it is the
-        commit history graph only. *)
-end
+module Dot (S : S) : Dot.S with type db = S.t
 
 (** {1:backend Backends}
 
