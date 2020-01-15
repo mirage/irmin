@@ -53,12 +53,21 @@ module type S = sig
     node:(vertex -> unit Lwt.t) ->
     edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
+    rev:bool ->
     unit ->
     unit Lwt.t
-  (** [iter depth min max pred node edge skip] is the same as closure except
-      that it applies three functions while traversing the closure graph: [node]
-      on the nodes of the graph; [edge node predecessor] on the directed edges
-      of the graph and [skip] to not visit a node. *)
+  (** [iter depth min max node edge skip rev ()] iterates in topological order
+      over the closure graph starting with the [max] nodes and bounded by the
+      [min] nodes and by [depth].
+
+      It applies three functions while traversing the graph: [node] on the
+      nodes; [edge n predecessor_of_n] on the directed edges and [skip n] to not
+      include a node [n], its predecessors and the outgoing edges of [n].
+
+      If [rev] is true (the default) then the graph is traversed in the reverse
+      order: [node n] is applied only after it was applied on all its
+      predecessors; [edge n p] is applied after [node n]. Note that [edge n p]
+      is applied even if [p] is skipped. *)
 
   val output :
     Format.formatter ->

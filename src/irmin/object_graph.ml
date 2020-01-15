@@ -59,6 +59,7 @@ module type S = sig
     node:(vertex -> unit Lwt.t) ->
     edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
+    rev:bool ->
     unit ->
     unit Lwt.t
 
@@ -145,32 +146,49 @@ struct
 
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
 
-  let iter ?(depth = max_int) ~pred ~min ~max ~node ~edge ~skip () =
+  let iter ?(depth = max_int) ~pred ~min ~max ~node ~edge ~skip ~rev () =
     Log.debug (fun f ->
         f "iter on closure depth=%d (%d elements)" depth (List.length max));
     let marks = Table.create 1024 in
     let mark key level = Table.add marks key level in
     let has_mark key = Table.mem marks key in
-    List.iter (fun k -> mark k max_int) min;
-    let todo = Queue.create () in
-    List.iter (fun k -> Queue.push (k, 0) todo) max;
-    let rec visit () =
-      match Queue.pop todo with
-      | exception Queue.Empty -> return_unit
-      | key, level ->
-          if level >= depth then visit ()
-          else if has_mark key then visit ()
-          else (
-            mark key level;
+    let todo = Stack.create () in
+    List.iter (fun k -> Stack.push (k, 0) todo) max;
+    let treat key =
+      Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
+      node key >>= fun () ->
+      if not (List.mem key min) then
+        pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
+      else Lwt.return_unit
+    in
+    let rec pop key level =
+      ignore (Stack.pop todo);
+      mark key level;
+      visit ()
+    and visit () =
+      match Stack.top todo with
+      | exception Stack.Empty -> return_unit
+      | key, level -> (
+          if level >= depth then pop key level
+          else if has_mark key then (
+            (if rev then treat key else return_unit) >>= fun () ->
+            ignore (Stack.pop todo);
+            visit () )
+          else
             skip key >>= function
-            | true -> visit ()
+            | true -> pop key level
             | false ->
                 Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-                node key >>= fun () ->
-                pred key >>= fun keys ->
-                List.iter (fun k -> Queue.push (k, level + 1) todo) keys;
-                Lwt_list.iter_p (fun k -> edge key k) keys >>= fun () ->
-                visit () )
+                (if not rev then treat key else return_unit) >>= fun () ->
+                mark key level;
+                if List.mem key min then visit ()
+                else
+                  pred key >>= fun keys ->
+                  List.iter
+                    (fun k ->
+                      if not (has_mark k) then Stack.push (k, level + 1) todo)
+                    keys;
+                  visit () )
     in
     visit ()
 
@@ -178,6 +196,7 @@ struct
     Log.debug (fun f ->
         f "closure depth=%d (%d elements)" depth (List.length max));
     let g = G.create ~size:1024 () in
+    List.iter (G.add_vertex g) max;
     let node key =
       if not (G.mem_vertex g key) then G.add_vertex g key else ();
       Lwt.return_unit
@@ -187,7 +206,7 @@ struct
       Lwt.return_unit
     in
     let skip _ = Lwt.return_false in
-    iter ~depth ~pred ~min ~max ~node ~edge ~skip () >|= fun () -> g
+    iter ~depth ~pred ~min ~max ~node ~edge ~skip ~rev:false () >|= fun () -> g
 
   let min g =
     G.fold_vertex
