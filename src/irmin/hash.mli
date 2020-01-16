@@ -45,6 +45,5 @@ module BLAKE2S : S.HASH
 module V1 (H : S.HASH) : S.HASH with type t = H.t
 
 (** Typed hashes. *)
-
 module Typed (K : S.HASH) (V : Type.S) :
   S.TYPED_HASH with type t = K.t and type value = V.t
