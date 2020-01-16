@@ -17,6 +17,8 @@
 (** Store dumps. *)
 
 module type S = sig
+  (** {1 Dot Export} *)
+
   type db
 
   val output_buffer :
@@ -27,6 +29,17 @@ module type S = sig
     date:(int64 -> string) ->
     Buffer.t ->
     unit Lwt.t
+  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+      representation of [t] in the buffer [buf].
+
+      [html] (default is false) enables HTML labels.
+
+      [depth] is used to limit the depth of the commit history. [None] here
+      means no limitation.
+
+      If [full] is set (default is not) the full graph, including the commits,
+      nodes and contents, is exported, otherwise it is the commit history graph
+      only. *)
 end
 
 module Make (S : S.STORE) : S with type db = S.t

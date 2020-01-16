@@ -14,24 +14,46 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
+(** {1 Commit Info} *)
 
 type t
-
-val t : t Type.t
+(** The type for commit info. *)
 
 val v : date:int64 -> author:string -> string -> t
+(** Create a new commit info. *)
 
 val date : t -> int64
+(** [date t] is [t]'s commit date.
+
+    The date provided by the user when calling the {{!Info.v} create} function.
+    Rounding [Unix.gettimeofday ()] (when available) is a good value for such
+    date. On more esoteric platforms, any monotonic counter is a fine value as
+    well. On the Git backend, the date is translated into the commit {e Date}
+    field and is expected to be the number of POSIX seconds (thus not counting
+    leap seconds) since the Epoch. *)
 
 val author : t -> string
+(** [author t] is [t]'s commit author.
+
+    The author identifies the entity (human, unikernel, process, thread, etc)
+    performing an operation. For the Git backend, this will be directly
+    translated into the {e Author} field. *)
 
 val message : t -> string
-
-val with_message : t -> string -> t
+(** [message t] is [t]'s commit message. *)
 
 val empty : t
+(** The empty commit info. *)
+
+(** {1 Info Functions} *)
 
 type f = unit -> t
+(** Alias for functions which can build commit info. *)
 
 val none : f
+(** The empty info function. [none ()] is [empty] *)
+
+(** {1 Value Types} *)
+
+val t : t Type.t
+(** [t] is the value type for {!t}. *)

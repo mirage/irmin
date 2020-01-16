@@ -16,6 +16,9 @@
   - Added `Irmin.Hash.Make_BLAKE2B` and `Irmin.Hash.Make_BLAKE2S` functors for
     customizing the bit-length of these hash functions. (#898, @craigfe)
   - Added `iter` function over a closure graph (#912, @ioana)
+  - Added `Type.pp_ty` for pretty-printing Irmin generics. (#926, @craigfe)
+  - Added `Merge.with_conflict` for modifying the conflict error message of a
+    merge function. (#926, @craigfe)
 
 #### Changed
 
