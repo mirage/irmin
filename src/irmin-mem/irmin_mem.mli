@@ -16,10 +16,9 @@
 
 (** In-memory store.
 
-    A simple in-memory store, using hash tables. Once one of the
-    functors below is instantiated to a module [M], it has a unique
-    shared hash-table: multiple invocation of [M.create] will see and
-    manipulate the same contents. *)
+    A simple in-memory store, using hash tables. Once one of the functors below
+    is instantiated to a module [M], it has a unique shared hash-table: multiple
+    invocation of [M.create] will see and manipulate the same contents. *)
 
 val config : unit -> Irmin.config
 (** Configuration values. *)

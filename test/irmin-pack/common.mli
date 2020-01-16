@@ -30,7 +30,8 @@ end) : sig
   }
 
   val get_pack : unit -> t Lwt.t
-  (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the same location, [clone_index_pack] opens a clone of the index and the pack. *)
+  (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
+      same location, [clone_index_pack] opens a clone of the index and the pack. *)
 
   val close : Index.t -> [ `Read ] Pack.t -> unit Lwt.t
 end

@@ -17,9 +17,9 @@
 (** Disk persistence. *)
 
 val config : ?config:Irmin.config -> string -> Irmin.config
-(** [config ?config root] is the configuration [config] augmented with
-    the key {!Irmin.Config.root} set to [root]. If not specified,
-    [config] is {!Irmin.Config.empty}. *)
+(** [config ?config root] is the configuration [config] augmented with the key
+    {!Irmin.Config.root} set to [root]. If not specified, [config] is
+    {!Irmin.Config.empty}. *)
 
 module type IO = sig
   (** {1 File-system abstractions} *)
@@ -30,9 +30,8 @@ module type IO = sig
   (** {2 Read operations} *)
 
   val rec_files : path -> string list Lwt.t
-  (** [rec_files dir] is the list of files recursively present in
-      [dir] and all of its sub-directories. Return filenames prefixed
-      by [dir].  *)
+  (** [rec_files dir] is the list of files recursively present in [dir] and all
+      of its sub-directories. Return filenames prefixed by [dir]. *)
 
   val file_exists : path -> bool Lwt.t
   (** [file_exist f] is true if [f] exists. *)
@@ -78,8 +77,7 @@ module KV (IO : IO) : Irmin.KV_MAKER
 (** {2 Advanced configuration} *)
 
 module type Config = sig
-  (** Same as [Config] but gives more control on the file
-      hierarchy. *)
+  (** Same as [Config] but gives more control on the file hierarchy. *)
 
   val dir : string -> string
   (** [dir root] is the sub-directory to look for the keys. *)

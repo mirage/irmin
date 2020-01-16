@@ -46,13 +46,11 @@ module type SERVER = sig
   (** The type for HTTP configuration. *)
 
   val v : ?strict:bool -> repo -> t
-  (** [v repo] returns the configuration for a server serving the
-      contents of [repo]. If [strict] is set, incoming connections
-      will fail if they do not have the right {i X-IrminVersion}
-      headers. *)
+  (** [v repo] returns the configuration for a server serving the contents of
+      [repo]. If [strict] is set, incoming connections will fail if they do not
+      have the right {i X-IrminVersion} headers. *)
 end
 
-(** Create an HTTP server, serving the contents of an Irmin
-   database. *)
+(** Create an HTTP server, serving the contents of an Irmin database. *)
 module Server (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) :
   SERVER with type repo = S.Repo.t and type t = HTTP.t

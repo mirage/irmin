@@ -50,9 +50,8 @@ type contents = Contents.t
 
 module Store : sig
   type t
-  (** The type for store configurations. A configuration value
-     contains: the store implementation a creator of store's state and
-     endpoint. *)
+  (** The type for store configurations. A configuration value contains: the
+      store implementation a creator of store's state and endpoint. *)
 
   (** The type of constructors of a store configuration. Depending on the
       backend, a store may require a hash function. *)
