@@ -1885,18 +1885,13 @@ module Make (S : S) = struct
       with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) >>= fun k2 ->
       with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) >>= fun k3 ->
       let visited = ref [] in
-      let check_mem step h1 h2 v1 v2 =
+      let check_mem order_test step h1 h2 v1 v2 =
         check_key "find key" h1 h2;
         check_val "find value" v1 v2;
         if List.mem step !visited then
           Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Hash.t) h1;
+        order_test step;
         visited := step :: !visited
-      in
-      let skipped = ref [] in
-      let check_skip step h1 _ _ _ =
-        if List.mem step !skipped then
-          Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
-        skipped := step :: !skipped
       in
       let mem hash value check_node =
         match P.Node.Val.find value "a" with
@@ -1909,13 +1904,54 @@ module Make (S : S) = struct
                 | Some k -> check_node "b" hash k1 k foo
                 | None -> Alcotest.fail "unexpected node" ) )
       in
-      let node k = P.Node.find n k >|= fun t -> mem k (get t) check_mem in
+      let rev_order step =
+        if !visited = [] && step <> "b" then
+          Alcotest.fail "traversal should start with oldest node"
+      in
+      let node k =
+        P.Node.find n k >|= fun t -> mem k (get t) (check_mem rev_order)
+      in
+      let skip _ = Lwt.return_false in
+      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip ~rev:true ()
+      >>= fun () ->
+      let inorder step =
+        if !visited = [] && step = "b" then
+          Alcotest.fail "traversal should start with newest nodes"
+      in
+      let node k =
+        P.Node.find n k >|= fun t -> mem k (get t) (check_mem inorder)
+      in
+      let skipped = ref [] in
+      let check_skip step h1 _ _ _ =
+        if List.mem step !skipped then
+          Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
+        skipped := step :: !skipped
+      in
       let skip k =
         P.Node.find n k >|= fun t ->
         mem k (get t) check_skip;
         if List.mem "b" !skipped then true else false
       in
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip ()
+      visited := [];
+      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip ~rev:false ()
+      >>= fun () ->
+      if List.mem "b" !visited then Alcotest.fail "b should be skipped";
+      visited := [];
+      let node k =
+        P.Node.find n k >|= fun t -> mem k (get t) (check_mem inorder)
+      in
+      Graph.iter (g repo) ~min:[ k1 ] ~max:[ k2 ] ~node ~rev:false ()
+      >>= fun () ->
+      if not (List.mem "b" !visited) then
+        Alcotest.fail "k1 should have been visited";
+      if List.mem "c" !visited then
+        Alcotest.fail "k3 shouldn't have been visited";
+      visited := [];
+      Graph.iter (g repo) ~min:[ k2; k3 ] ~max:[ k2; k3 ] ~node ~rev:false ()
+      >>= fun () ->
+      if (not (List.mem "a" !visited)) || not (List.mem "c" !visited) then
+        Alcotest.fail "k1, k2 should have been visited";
+      P.Repo.close repo
     in
     run x test
 end
