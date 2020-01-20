@@ -122,6 +122,20 @@ module type S = sig
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
     (** [import t s] imports the contents of the slice [s] in [t]. Does not
         modify branches. *)
+
+    val iter :
+      t ->
+      min:hash list ->
+      max:hash list ->
+      node:(hash -> unit Lwt.t) ->
+      skip:(hash -> bool Lwt.t) ->
+      unit Lwt.t
+    (** [iter t ~min ~max ~node ~skip ()] iterates in topological order over the
+        closure graph of [t] starting with the [max] commits and bounded by the
+        [min] commits.
+
+        It applies two functions while traversing the graph: [node] on the
+        commits and [skip n] to not visit a commit [n]. *)
   end
 
   val empty : repo -> t Lwt.t

@@ -331,6 +331,9 @@ module Make (P : S.PRIVATE) = struct
         (function
           | Import_error e -> Lwt.return_error (`Msg e)
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+
+    let iter t ~min ~max ~node ~skip =
+      Graph.iter (graph_t t) ~min ~max ~node ~skip ()
   end
 
   type t = {
