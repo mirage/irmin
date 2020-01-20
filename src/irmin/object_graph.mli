@@ -41,9 +41,9 @@ module type S = sig
     max:vertex list ->
     unit ->
     t Lwt.t
-  (** [closure min max pred] creates the clansitive closure of [max]
-      using the precedence relation [pred]. The closure will not
-      contain any keys before the the one specified in [min]. *)
+  (** [closure min max pred] creates the clansitive closure of [max] using the
+      precedence relation [pred]. The closure will not contain any keys before
+      the the one specified in [min]. *)
 
   val iter :
     ?depth:int ->
@@ -75,9 +75,9 @@ module type S = sig
     (vertex * Graph.Graphviz.DotAttributes.edge list * vertex) list ->
     string ->
     unit
-  (** [output ppf vertex edges name] create aand dumps the graph
-      contents on [ppf]. The graph is defined by its [vertex] and
-      [edges]. [name] is the name of the output graph.*)
+  (** [output ppf vertex edges name] create aand dumps the graph contents on
+      [ppf]. The graph is defined by its [vertex] and [edges]. [name] is the
+      name of the output graph.*)
 
   val min : t -> vertex list
   (** Compute the minimum vertex. *)

@@ -68,9 +68,8 @@ module type MAKER = sig
 
   type index
 
-  (** Save multiple kind of values in the same pack file. Values will
-      be distinguished using [V.magic], so they have to all be
-      different. *)
+  (** Save multiple kind of values in the same pack file. Values will be
+      distinguished using [V.magic], so they have to all be different. *)
   module Make (V : ELT with type hash := key) :
     S with type key = key and type value = V.t and type index = index
 end

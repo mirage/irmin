@@ -15,8 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Nodes represent structured values serialized in the block
-    store. *)
+(** Nodes represent structured values serialized in the block store. *)
 
 module No_metadata : S.METADATA with type t = unit
 

@@ -64,9 +64,8 @@ module Mem : G with type Hash.t = Digestif.SHA1.t
 module type S = sig
   (** The Git backend specializes a few types:
 
-      {ul
-      {- the allowed metadata are {!Metadata.t}.}
-      {- the hash algorithm is SHA1.}} *)
+      - the allowed metadata are {!Metadata.t}.
+      - the hash algorithm is SHA1. *)
 
   module Git : Git.S
   (** Access to the underlying Git store. *)
@@ -74,8 +73,8 @@ module type S = sig
   include Irmin.S with type metadata = Metadata.t and type hash = Git.Hash.t
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
-  (** [git_commit repo h] is the commit corresponding to [h] in the
-      repository [repo]. *)
+  (** [git_commit repo h] is the commit corresponding to [h] in the repository
+      [repo]. *)
 
   val git_of_repo : Repo.t -> Git.t
   (** [of_repo r] is the Git store associated to [r]. *)

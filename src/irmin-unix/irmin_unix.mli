@@ -16,34 +16,29 @@
 
 (** {1 Unix backends}
 
-    This module provides Irmin backends for Unix applications. The
-    currently supported backends are:
+    This module provides Irmin backends for Unix applications. The currently
+    supported backends are:
 
-    {ul
-    {- An {{!Irmin_mem}in-memory} store, internally using hash tables. }
-    {- A {{!Irmin_fs}file-system} backend, using
-    {{:https://github.com/janestreet/bin_prot}bin_prot} to serialize
-    internal structures.}
-    {- A fully compatible, bidirectional encoding of Irmin into
-    {{!Irmin_git}Git}. You can view and edit your store using both the
-    library and your usual Git tools. }
-    {- The HTTP {{!module:Irmin_http}clients} and
-    {{!module:Http.Server}servers} provides a high-level REST API, with
-    1 RTT for the {{!Irmin.S.Private}private} and {{!Irmin.S}public}
-    functions.}
-    }
-
-*)
+    - An {{!Irmin_mem} in-memory} store, internally using hash tables.
+    - A {{!Irmin_fs} file-system} backend, using
+      {{:https://github.com/janestreet/bin_prot} bin_prot} to serialize internal
+      structures.
+    - A fully compatible, bidirectional encoding of Irmin into {{!Irmin_git}
+      Git}. You can view and edit your store using both the library and your
+      usual Git tools.
+    - The HTTP {{!module:Irmin_http} clients} and {{!module:Http.Server}
+      servers} provides a high-level REST API, with 1 RTT for the
+      {{!Irmin.S.Private} private} and {{!Irmin.S} public} functions. *)
 
 val info :
   ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
-(** [info fmt ()] creates a fresh commit info, with the
-    {{!Irmin.Info.date}date} set to [Unix.gettimeoday ()] and the
-    {{!Irmin.Info.author}author} built using [Unix.gethostname()] and
-    [Unix.getpid()] if [author] is not provided.  *)
+(** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.date}
+    date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.author} author}
+    built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
+    provided. *)
 
-(** File system backends, using
-    {{:https://github.com/janestreet/bin_prot}bin_prot}. *)
+(** File system backends, using {{:https://github.com/janestreet/bin_prot}
+    bin_prot}. *)
 module FS : sig
   (** {1 File-system Store} *)
 
@@ -57,8 +52,8 @@ module FS : sig
   (** Irmin store maker. *)
 
   module KV : Irmin.KV_MAKER
-  (** Irmin store make, where only the Contents have to be specified:
-      branches are strings and paths are string lists. *)
+  (** Irmin store make, where only the Contents have to be specified: branches
+      are strings and paths are string lists. *)
 
   (** Append-only store maker, with control over the filenames shapes. *)
   module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
@@ -179,10 +174,9 @@ module Http : sig
 
   (** [Make] provides bindings to the remote HTTP server.
 
-      Only the {{!Irmin.S.Private}low-level operations} are forwarded
-      to the server, all the high-level logic is done on the
-      client. Hence a high-level operation might take multiple
-      RTTs. *)
+      Only the {{!Irmin.S.Private} low-level operations} are forwarded to the
+      server, all the high-level logic is done on the client. Hence a high-level
+      operation might take multiple RTTs. *)
   module Client (S : Irmin.S) :
     Irmin.S
       with type key = S.key
@@ -203,8 +197,8 @@ module Http : sig
 end
 
 val set_listen_dir_hook : unit -> unit
-(** Install {!Irmin_watcher.hook} as the listen hook for watching
-    changes in directories. *)
+(** Install {!Irmin_watcher.hook} as the listen hook for watching changes in
+    directories. *)
 
 module Graphql = Graphql
 module Cli = Cli

@@ -15,22 +15,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(**
-    This package provides an Irmin backend to cut raw contents into blocks
-    of the same size, while preserving the keys used in the store. It can
-    be used to optimize space usage when dealing with large files or as an
-    intermediate layer for a raw block device backend.
-*)
+(** This package provides an Irmin backend to cut raw contents into blocks of
+    the same size, while preserving the keys used in the store. It can be used
+    to optimize space usage when dealing with large files or as an intermediate
+    layer for a raw block device backend. *)
 
-(** {1 Managing Chunks }
+(** {1 Managing Chunks}
 
-    This module exposes functors to store raw contents into
-    append-only stores as chunks of same size. It exposes the
-    {{!AO}AO} functor which split the raw contents into [Data] blocks,
-    addressed by [Node] blocks. That's the usual rope-like
-    representation of strings, but chunk trees are always built as
-    perfectly well-balanced and blocks are addressed by their hash (or
-    by the stable keys returned by the underlying store).
+    This module exposes functors to store raw contents into append-only stores
+    as chunks of same size. It exposes the {{!AO} AO} functor which split the
+    raw contents into [Data] blocks, addressed by [Node] blocks. That's the
+    usual rope-like representation of strings, but chunk trees are always built
+    as perfectly well-balanced and blocks are addressed by their hash (or by the
+    stable keys returned by the underlying store).
 
     A chunk has the following structure:
 
@@ -42,23 +39,20 @@
      ---------------------------     ---------------------------
      | key children[length]    |     | byte data[length]       |
      ---------------------------     ---------------------------
-v}
+    v}
 
-    [type] is either [Data] (0) or [Index] (1). If the chunk contains
-    data, [length] is the payload length. Otherwise it is the number
-    of children that the node has.
+    [type] is either [Data] (0) or [Index] (1). If the chunk contains data,
+    [length] is the payload length. Otherwise it is the number of children that
+    the node has.
 
-    It also exposes {{!AO_stable}AO_stable} which -- as {{!AO}AO} does
-    -- stores raw contents into chunks of same size. But it also
-    preserves the nice property that values are addressed by their
-    hash, instead of by the hash of the root chunk node as is the case
-    for {{!AO}AO}.
-*)
+    It also exposes {{!AO_stable} AO_stable} which -- as {{!AO} AO} does --
+    stores raw contents into chunks of same size. But it also preserves the nice
+    property that values are addressed by their hash, instead of by the hash of
+    the root chunk node as is the case for {{!AO} AO}. *)
 
 val chunk_size : int Irmin.Private.Conf.key
-(** [chunk_size] is the configuration key to configure chunk size.
-    By default, it is set to 4666, so that payload and metadata
-    can be stored in a 4K block. *)
+(** [chunk_size] is the configuration key to configure chunk size. By default,
+    it is set to 4666, so that payload and metadata can be stored in a 4K block. *)
 
 val config :
   ?config:Irmin.config ->
@@ -67,20 +61,18 @@ val config :
   ?chunking:[ `Max | `Best_fit ] ->
   unit ->
   Irmin.config
-(** [config ?config ?size ?min_size ()] is the configuration value
-    extending the optional [config] with bindings associating
-    {{!chunk_size}chunk_size} to [size].
+(** [config ?config ?size ?min_size ()] is the configuration value extending the
+    optional [config] with bindings associating {{!chunk_size} chunk_size} to
+    [size].
 
-    If [chunking] is [Best_fit] (the default), the size of new chunks
-    will be of maximum [max_size] but could be smaller if they don't
-    need to be chunked. If [chunking] is [Max], all the new chunks will
-    be of size [max_size].
+    If [chunking] is [Best_fit] (the default), the size of new chunks will be of
+    maximum [max_size] but could be smaller if they don't need to be chunked. If
+    [chunking] is [Max], all the new chunks will be of size [max_size].
 
     Fail with [Invalid_argument] if [size] is smaller than [min_size].
-    [min_size] is, by default, set to 4000 (to avoid hash collisions on
-    smaller sizes) but can be tweaked for testing purposes. {i Notes:}
-    the smaller [size] is, the bigger the risk of hash collisions, so
-    use reasonable values. *)
+    [min_size] is, by default, set to 4000 (to avoid hash collisions on smaller
+    sizes) but can be tweaked for testing purposes. {i Notes:} the smaller
+    [size] is, the bigger the risk of hash collisions, so use reasonable values. *)
 
 (** [Content_addressable(X)] is a content-addressable store which store values
     cut into chunks into the underlying store [X]. *)

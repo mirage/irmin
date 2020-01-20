@@ -16,25 +16,21 @@
 
 (** Irmin public API.
 
-    [Irmin] is a library to design and use persistent stores with
-    built-in snapshot, branching and reverting mechanisms. Irmin uses
-    concepts similar to {{:http://git-scm.com/}Git} but it exposes
-    them as a high level library instead of a complex command-line
-    frontend. It features a {e bidirectional} Git backend, where an
-    application can read and persist its state using the Git format,
-    fully-compatible with the usual Git tools and workflows.
+    [Irmin] is a library to design and use persistent stores with built-in
+    snapshot, branching and reverting mechanisms. Irmin uses concepts similar to
+    {{:http://git-scm.com/} Git} but it exposes them as a high level library
+    instead of a complex command-line frontend. It features a {e bidirectional}
+    Git backend, where an application can read and persist its state using the
+    Git format, fully-compatible with the usual Git tools and workflows.
 
-    Irmin is designed to use a large variety of backends. It is
-    written in pure OCaml and does not depend on external C stubs; it
-    is thus very portable and aims to run everywhere, from Linux to
-    browser and MirageOS unikernels.
+    Irmin is designed to use a large variety of backends. It is written in pure
+    OCaml and does not depend on external C stubs; it is thus very portable and
+    aims to run everywhere, from Linux to browser and MirageOS unikernels.
 
-    Consult the {!basics} and {!examples} of use for a quick
-    start. See also the {{!Irmin_unix}documentation} for the unix
-    backends.
+    Consult the {!basics} and {!examples} of use for a quick start. See also the
+    {{!Irmin_unix} documentation} for the unix backends.
 
-    {e Release %%VERSION%% - %%HOMEPAGE%% }
-*)
+    {e Release %%VERSION%% - %%HOMEPAGE%%} *)
 
 val version : string
 (** The version of the library. *)
@@ -45,13 +41,12 @@ module Type = Type
 (** Dynamic types for Irmin values. *)
 
 module Info = Info
-(** Commit info are used to keep track of the origin of write
-    operations in the stores. [Info] models the metadata associated
-    with commit objects in Git. *)
+(** Commit info are used to keep track of the origin of write operations in the
+    stores. [Info] models the metadata associated with commit objects in Git. *)
 
 module Merge = Merge
-(** [Merge] provides functions to build custom 3-way merge operators
-    for various user-defined contents. *)
+(** [Merge] provides functions to build custom 3-way merge operators for various
+    user-defined contents. *)
 
 module Diff = Diff
 (** Differences between values. *)
@@ -61,12 +56,10 @@ type 'a diff = 'a Diff.t
 
 (** {1 Low-level Stores} *)
 
-(** An Irmin store is automatically built from a number of lower-level
-    stores, each implementing fewer operations, such as
-    {{!CONTENT_ADDRESSABLE_STORE}content-addressable}
-    and {{!ATOMIC_WRITE_STORE}atomic-write} stores. These low-level stores
-    are provided
-    by various backends. *)
+(** An Irmin store is automatically built from a number of lower-level stores,
+    each implementing fewer operations, such as {{!CONTENT_ADDRESSABLE_STORE}
+    content-addressable} and {{!ATOMIC_WRITE_STORE} atomic-write} stores. These
+    low-level stores are provided by various backends. *)
 
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
 (** Content-addressable backend store. *)
@@ -81,10 +74,10 @@ module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 
 (** Store paths.
 
-    An Irmin {{!Irmin.S}store} binds {{!Path.S.t}paths} to
-    user-defined {{!Contents.S}contents}. Paths are composed by basic
-    elements, that we call {{!Path.S.step}steps}. The following [Path]
-    module provides functions to manipulate steps and paths. *)
+    An Irmin {{!Irmin.S} store} binds {{!Path.S.t} paths} to user-defined
+    {{!Contents.S} contents}. Paths are composed by basic elements, that we call
+    {{!Path.S.step} steps}. The following [Path] module provides functions to
+    manipulate steps and paths. *)
 module Path : sig
   (** {1 Path} *)
 
@@ -97,13 +90,12 @@ end
 
 (** Hashing functions.
 
-    [Hash] provides user-defined hash functions to digest serialized
-    contents. Some {{!backend}backends} might be parameterized by such
-    hash functions, others might work with a fixed one (for instance,
-    the Git format uses only {{!Hash.SHA1}SHA1}).
+    [Hash] provides user-defined hash functions to digest serialized contents.
+    Some {{!backend} backends} might be parameterized by such hash functions,
+    others might work with a fixed one (for instance, the Git format uses only
+    {{!Hash.SHA1} SHA1}).
 
-    A {{!Hash.SHA1}SHA1} implementation is available to pass to the
-    backends. *)
+    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
 module Hash : sig
   (** {1 Contents Hashing} *)
 
@@ -111,8 +103,8 @@ module Hash : sig
   (** Signature for hash values. *)
 
   module type TYPED = S.TYPED_HASH
-  (** Signature for typed hashes, where [hash] directly takes a value
-      as argument and incremental hashing is not possible. *)
+  (** Signature for typed hashes, where [hash] directly takes a value as
+      argument and incremental hashing is not possible. *)
 
   include module type of Hash
 end
@@ -127,27 +119,26 @@ module Metadata : sig
   (** A metadata definition for systems that don't use metadata. *)
 end
 
-(** [Contents] specifies how user-defined contents need to be {e
-    serializable} and {e mergeable}.
+(** [Contents] specifies how user-defined contents need to be {e serializable}
+    and {e mergeable}.
 
     The user needs to provide:
 
-    {ul
-    {- a type [t] to be used as store contents.}
-    {- a value type for [t] (built using the {{!Irmin.Type}Irmin.Type} combinators).}
-    {- a 3-way [merge] function, to handle conflicts between multiple
-    versions of the same contents.}
-    }
+    - a type [t] to be used as store contents.
+    - a value type for [t] (built using the {{!Irmin.Type} Irmin.Type}
+      combinators).
+    - a 3-way [merge] function, to handle conflicts between multiple versions of
+      the same contents.
 
-    Default implementations for {{!Contents.String}idempotent string}
-    and {{!Contents.Json}JSON} contents are provided. *)
+    Default implementations for {{!Contents.String} idempotent string} and
+    {{!Contents.Json} JSON} contents are provided. *)
 module Contents : sig
   module type S = S.CONTENTS
 
   module String : S with type t = string
-  (** Contents of type [string], with the {{!Irmin.Merge.default}default}
-      3-way merge strategy: assume that update operations are idempotent and
-      conflict iff values are modified concurrently. *)
+  (** Contents of type [string], with the {{!Irmin.Merge.default} default} 3-way
+      merge strategy: assume that update operations are idempotent and conflict
+      iff values are modified concurrently. *)
 
   type json =
     [ `Null
@@ -158,10 +149,9 @@ module Contents : sig
     | `A of json list ]
 
   module Json : S with type t = (string * json) list
-  (** [Json] contents are associations from strings to [json] values
-     stored as JSON encoded strings.  If the same JSON key has been
-     modified concurrently with different values then the [merge]
-     function conflicts. *)
+  (** [Json] contents are associations from strings to [json] values stored as
+      JSON encoded strings. If the same JSON key has been modified concurrently
+      with different values then the [merge] function conflicts. *)
 
   module Json_value : S with type t = json
   (** [Json_value] allows any kind of json value to be stored, not only objects. *)
@@ -190,23 +180,20 @@ module Branch : sig
   (** {1 Branches} *)
 
   module type S = S.BRANCH
-  (** The signature for branches. Irmin branches are similar to Git
-      branches: they are used to associated user-defined names to head
-      commits. Branches have a default value: the
-      {{!Branch.S.master}master} branch. *)
+  (** The signature for branches. Irmin branches are similar to Git branches:
+      they are used to associated user-defined names to head commits. Branches
+      have a default value: the {{!Branch.S.master} master} branch. *)
 
   module String : S with type t = string
-  (** [String] is an implementation of {{!Branch.S}S} where branches
-      are strings. The [master] branch is ["master"]. Valid branch
-      names contain only alpha-numeric characters, [-], [_], [.], and
-      [/]. *)
+  (** [String] is an implementation of {{!Branch.S} S} where branches are
+      strings. The [master] branch is ["master"]. Valid branch names contain
+      only alpha-numeric characters, [-], [_], [.], and [/]. *)
 
   module type STORE = S.BRANCH_STORE
   (** [STORE] specifies the signature for branch stores.
 
-      A {i branch store} is a mutable and reactive key / value store,
-      where keys are branch names created by users and values are keys
-      are head commmits. *)
+      A {i branch store} is a mutable and reactive key / value store, where keys
+      are branch names created by users and values are keys are head commmits. *)
 end
 
 type remote = S.remote = ..
@@ -215,23 +202,23 @@ type remote = S.remote = ..
 type config
 (** The type for backend-specific configuration values.
 
-    Every backend has different configuration options, which are kept
-    abstract to the user. *)
+    Every backend has different configuration options, which are kept abstract
+    to the user. *)
 
-(** [Private] defines functions only useful for creating new
-    backends. If you are just using the library (and not developing a
-    new backend), you should not use this module. *)
+(** [Private] defines functions only useful for creating new backends. If you
+    are just using the library (and not developing a new backend), you should
+    not use this module. *)
 module Private : sig
   (** Backend configuration.
 
-    A backend configuration is a set of {{!keys}keys} mapping to
-    typed values. Backends define their own keys. *)
+      A backend configuration is a set of {{!keys} keys} mapping to typed
+      values. Backends define their own keys. *)
   module Conf : sig
     (** {1 Configuration converters}
 
-        A configuration converter transforms a string value to an OCaml
-        value and vice-versa. There are a few
-        {{!builtin_converters}built-in converters}. *)
+        A configuration converter transforms a string value to an OCaml value
+        and vice-versa. There are a few {{!builtin_converters} built-in
+        converters}. *)
 
     type 'a parser = string -> ('a, [ `Msg of string ]) result
     (** The type for configuration converter parsers. *)
@@ -262,21 +249,20 @@ module Private : sig
       'a ->
       'a key
     (** [key ~docs ~docv ~doc name conv default] is a configuration key named
-        [name] that maps to value [default] by default. [conv] is
-        used to convert key values provided by end users.
+        [name] that maps to value [default] by default. [conv] is used to
+        convert key values provided by end users.
 
-        [docs] is the title of a documentation section under which the
-        key is documented. [doc] is a short documentation string for the
-        key, this should be a single sentence or paragraph starting with
-        a capital letter and ending with a dot.  [docv] is a
-        meta-variable for representing the values of the key
-        (e.g. ["BOOL"] for a boolean).
+        [docs] is the title of a documentation section under which the key is
+        documented. [doc] is a short documentation string for the key, this
+        should be a single sentence or paragraph starting with a capital letter
+        and ending with a dot. [docv] is a meta-variable for representing the
+        values of the key (e.g. ["BOOL"] for a boolean).
 
-        @raise Invalid_argument if the key name is not made of a
-        sequence of ASCII lowercase letter, digit, dash or underscore.
+        @raise Invalid_argument if the key name is not made of a sequence of
+        ASCII lowercase letter, digit, dash or underscore.
 
-        {b Warning.} No two keys should share the same [name] as this
-        may lead to difficulties in the UI. *)
+        {b Warning.} No two keys should share the same [name] as this may lead
+        to difficulties in the UI. *)
 
     val name : 'a key -> string
     (** The key name. *)
@@ -333,10 +319,10 @@ module Private : sig
 
         {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
-    (** {1:builtin_converters Built-in value converters}  *)
+    (** {1:builtin_converters Built-in value converters} *)
 
     val bool : bool converter
-    (** [bool] converts values with [bool_of_string].  *)
+    (** [bool] converts values with [bool_of_string]. *)
 
     val int : int converter
     (** [int] converts values with [int_of_string]. *)
@@ -352,25 +338,23 @@ module Private : sig
   end
 
   module Watch = Watch
-  (** [Watch] provides helpers to register event notifications on
-      read-write stores. *)
+  (** [Watch] provides helpers to register event notifications on read-write
+      stores. *)
 
   module Lock = Lock
 
-  (** [Node] provides functions to describe the graph-like structured
-      values.
+  (** [Node] provides functions to describe the graph-like structured values.
 
-      The node blocks form a labeled directed acyclic graph, labeled
-      by {{!Path.S.step}steps}: a list of steps defines a
-      unique path from one node to an other.
+      The node blocks form a labeled directed acyclic graph, labeled by
+      {{!Path.S.step} steps}: a list of steps defines a unique path from one
+      node to an other.
 
-      Each node can point to user-defined {{!Contents.S}contents}
-      values. *)
+      Each node can point to user-defined {{!Contents.S} contents} values. *)
   module Node : sig
     module type S = S.NODE
 
-    (** [Make] provides a simple node implementation, parameterized by
-        the contents and notes keys [K], paths [P] and metadata [M]. *)
+    (** [Make] provides a simple node implementation, parameterized by the
+        contents and notes keys [K], paths [P] and metadata [M]. *)
     module Make
         (K : Type.S) (P : sig
           type step
@@ -422,8 +406,8 @@ module Private : sig
          and module Val = S.Val
 
     module type GRAPH = S.NODE_GRAPH
-    (** [Graph] specifies the signature for node graphs. A node graph
-        is a deterministic DAG, labeled by steps. *)
+    (** [Graph] specifies the signature for node graphs. A node graph is a
+        deterministic DAG, labeled by steps. *)
 
     module Graph (S : STORE) :
       GRAPH
@@ -437,18 +421,17 @@ module Private : sig
 
   (** Commit values represent the store history.
 
-      Every commit contains a list of predecessor commits, and the
-      collection of commits form an acyclic directed graph.
+      Every commit contains a list of predecessor commits, and the collection of
+      commits form an acyclic directed graph.
 
       Every commit also can contain an optional key, pointing to a
-      {{!Private.Commit.STORE}node} value. See the
-      {{!Private.Node.STORE}Node} signature for more details on node
-      values. *)
+      {{!Private.Commit.STORE} node} value. See the {{!Private.Node.STORE} Node}
+      signature for more details on node values. *)
   module Commit : sig
     module type S = S.COMMIT
 
-    (** [Make] provides a simple implementation of commit values,
-        parameterized by the commit and node keys [K]. *)
+    (** [Make] provides a simple implementation of commit values, parameterized
+        by the commit and node keys [K]. *)
     module Make (K : Type.S) : S with type hash = K.t
 
     (** V1 serialisation. *)
@@ -480,9 +463,9 @@ module Private : sig
          and module Val = S.Val
 
     module type HISTORY = S.COMMIT_HISTORY
-    (** [History] specifies the signature for commit history. The
-        history is represented as a partial-order of commits and basic
-        functions to search through that history are provided.
+    (** [History] specifies the signature for commit history. The history is
+        represented as a partial-order of commits and basic functions to search
+        through that history are provided.
 
         Every commit can point to an entry point in a node graph, where
         user-defined contents are stored. *)
@@ -510,8 +493,7 @@ module Private : sig
   module Sync : sig
     module type S = S.SYNC
 
-    (** [None] is an implementation of {{!Private.Sync.S}S} which does
-        nothing. *)
+    (** [None] is an implementation of {{!Private.Sync.S} S} which does nothing. *)
     module None (H : Type.S) (B : Type.S) : sig
       include S with type commit = H.t and type branch = B.t
 
@@ -584,25 +566,19 @@ end
 
 (** {1 High-level Stores}
 
-    An Irmin store is a branch-consistent store where keys are lists
-    of steps.
+    An Irmin store is a branch-consistent store where keys are lists of steps.
 
-    An example is a Git repository where keys are filenames, {e i.e.}
-    lists of ['/']-separated strings. More complex examples are
-    structured values, where steps might contain first-class field
-    accessors and array offsets.
+    An example is a Git repository where keys are filenames, {e i.e.} lists of
+    ['/']-separated strings. More complex examples are structured values, where
+    steps might contain first-class field accessors and array offsets.
 
     Irmin provides the following features:
 
-    {ul
-    {- Support for fast clones, branches and merges, in a fashion very
-       similar to Git.}
-    {- Efficient staging areas for fast, transient, in-memory operations.}
-    {- Fast {{!Sync}synchronization} primitives between remote
-       stores, using native backend protocols (as the Git protocol)
-       when available.}
-    }
-*)
+    - Support for fast clones, branches and merges, in a fashion very similar to
+      Git.
+    - Efficient staging areas for fast, transient, in-memory operations.
+    - Fast {{!Sync} synchronization} primitives between remote stores, using
+      native backend protocols (as the Git protocol) when available. *)
 
 exception Closed
 (** The exception raised when any operation is attempted on a closed store,
@@ -612,20 +588,18 @@ exception Closed
 module type S = sig
   (** {1 Irmin stores}
 
-      Irmin stores are tree-like read-write stores with
-      extended capabilities. They allow an application (or a
-      collection of applications) to work with multiple local states,
-      which can be forked and merged programmatically, without having
-      to rely on a global state. In a way very similar to version
+      Irmin stores are tree-like read-write stores with extended capabilities.
+      They allow an application (or a collection of applications) to work with
+      multiple local states, which can be forked and merged programmatically,
+      without having to rely on a global state. In a way very similar to version
       control systems, Irmin local states are called {i branches}.
 
-      There are two kinds of store in Irmin: the ones based on
-      {{!persistent}persistent} named branches and the ones based
-      {{!temporary}temporary} detached heads. These exist relative to a
-      local, larger (and shared) store, and have some (shared)
-      contents. This is exactly the same as usual version control
-      systems, that the informed user can see as an implicit purely
-      functional data-structure. *)
+      There are two kinds of store in Irmin: the ones based on {{!persistent}
+      persistent} named branches and the ones based {{!temporary} temporary}
+      detached heads. These exist relative to a local, larger (and shared)
+      store, and have some (shared) contents. This is exactly the same as usual
+      version control systems, that the informed user can see as an implicit
+      purely functional data-structure. *)
 
   type repo
   (** The type for Irmin repositories. *)
@@ -658,16 +632,15 @@ module type S = sig
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
 
   type branch
-  (** Type for persistent branch names. Branches usually share a
-      common global namespace and it's the user's responsibility to
-      avoid name clashes. *)
+  (** Type for persistent branch names. Branches usually share a common global
+      namespace and it's the user's responsibility to avoid name clashes. *)
 
   type slice
   (** Type for store slices. *)
 
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
-  (** The type for errors associated with functions computing least
-      common ancestors *)
+  (** The type for errors associated with functions computing least common
+      ancestors *)
 
   type ff_error = [ `No_change | `Rejected | lca_error ]
   (** The type for errors for {!fast_forward}. *)
@@ -682,12 +655,11 @@ module type S = sig
     (** The type of repository handles. *)
 
     val v : config -> t Lwt.t
-    (** [v config] connects to a repository in a backend-specific
-        manner. *)
+    (** [v config] connects to a repository in a backend-specific manner. *)
 
     val close : t -> unit Lwt.t
-    (** [close t] frees up all resources associated with [t]. Any
-        operations run on a closed repository will raise {!Closed}. *)
+    (** [close t] frees up all resources associated with [t]. Any operations run
+        on a closed repository will raise {!Closed}. *)
 
     val heads : t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -702,57 +674,52 @@ module type S = sig
       ?max:commit list ->
       t ->
       slice Lwt.t
-    (** [export t ~depth ~min ~max] exports the store slice between
-        [min] and [max], using at most [depth] history depth (starting
-        from the max).
+    (** [export t ~depth ~min ~max] exports the store slice between [min] and
+        [max], using at most [depth] history depth (starting from the max).
 
-        If [max] is not specified, use the current [heads]. If [min] is
-        not specified, use an unbound past (but can still be limited by
-        [depth]).
+        If [max] is not specified, use the current [heads]. If [min] is not
+        specified, use an unbound past (but can still be limited by [depth]).
 
-        [depth] is used to limit the depth of the commit history. [None]
-        here means no limitation.
+        [depth] is used to limit the depth of the commit history. [None] here
+        means no limitation.
 
         If [full] is set (default is true), the full graph, including the
-        commits, nodes and contents, is exported, otherwise it is the
-        commit history graph only. *)
+        commits, nodes and contents, is exported, otherwise it is the commit
+        history graph only. *)
 
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
-    (** [import t s] imports the contents of the slice [s] in [t]. Does
-        not modify branches. *)
+    (** [import t s] imports the contents of the slice [s] in [t]. Does not
+        modify branches. *)
   end
 
   val empty : repo -> t Lwt.t
-  (** [empty repo] is a temporary, empty store. Becomes a normal
-      temporary store after the first update. *)
+  (** [empty repo] is a temporary, empty store. Becomes a normal temporary store
+      after the first update. *)
 
   val master : repo -> t Lwt.t
-  (** [master repo] is a persistent store based on [r]'s master
-      branch. This operation is cheap, can be repeated multiple
-      times. *)
+  (** [master repo] is a persistent store based on [r]'s master branch. This
+      operation is cheap, can be repeated multiple times. *)
 
   val of_branch : repo -> branch -> t Lwt.t
-  (** [of_branch r name] is a persistent store based on the branch
-      [name]. Similar to [master], but use [name] instead
-      {!Branch.S.master}. *)
+  (** [of_branch r name] is a persistent store based on the branch [name].
+      Similar to [master], but use [name] instead {!Branch.S.master}. *)
 
   val of_commit : commit -> t Lwt.t
   (** [of_commit c] is a temporary store, based on the commit [c].
 
-      Temporary stores do not have stable names: instead they can be
-      addressed using the hash of the current commit. Temporary stores
-      are similar to Git's detached heads. In a temporary store, all
-      the operations are performed relative to the current head and
-      update operations can modify the current head: the current
-      stores's head will automatically become the new head obtained
-      after performing the update. *)
+      Temporary stores do not have stable names: instead they can be addressed
+      using the hash of the current commit. Temporary stores are similar to
+      Git's detached heads. In a temporary store, all the operations are
+      performed relative to the current head and update operations can modify
+      the current head: the current stores's head will automatically become the
+      new head obtained after performing the update. *)
 
   val repo : t -> repo
   (** [repo t] is the repository containing [t]. *)
 
   val tree : t -> tree Lwt.t
-  (** [tree t] is [t]'s current tree. Contents is not allowed at the
-      root of the tree. *)
+  (** [tree t] is [t]'s current tree. Contents is not allowed at the root of the
+      tree. *)
 
   (** [Status] provides base functions for store statuses. *)
   module Status : sig
@@ -767,32 +734,30 @@ module type S = sig
   end
 
   val status : t -> Status.t
-  (** [status t] is [t]'s status. It can either be a branch, a commit
-      or empty. *)
+  (** [status t] is [t]'s status. It can either be a branch, a commit or empty. *)
 
   (** Managing the store's heads. *)
   module Head : sig
     val list : repo -> commit list Lwt.t
-    (** [list t] is the list of all the heads in local store. Similar
-        to [git rev-list --all]. *)
+    (** [list t] is the list of all the heads in local store. Similar to
+        [git rev-list --all]. *)
 
     val find : t -> commit option Lwt.t
-    (** [find t] is the current head of the store [t]. This works for
-        both persistent and temporary branches. In the case of a
-        persistent branch, this involves getting the the head
-        associated with the branch, so this may block. In the case of
-        a temporary store, it simply returns the current head. Returns
-        [None] if the store has no contents. Similar to
+    (** [find t] is the current head of the store [t]. This works for both
+        persistent and temporary branches. In the case of a persistent branch,
+        this involves getting the the head associated with the branch, so this
+        may block. In the case of a temporary store, it simply returns the
+        current head. Returns [None] if the store has no contents. Similar to
         [git rev-parse HEAD]. *)
 
     val get : t -> commit Lwt.t
-    (** Same as {!find} but raise [Invalid_argument] if the store does
-        not have any contents. *)
+    (** Same as {!find} but raise [Invalid_argument] if the store does not have
+        any contents. *)
 
     val set : t -> commit -> unit Lwt.t
-    (** [set t h] updates [t]'s contents with the contents of the
-        commit [h]. Can cause data loss as it discards the current
-        contents. Similar to [git reset --hard <hash>]. *)
+    (** [set t h] updates [t]'s contents with the contents of the commit [h].
+        Can cause data loss as it discards the current contents. Similar to
+        [git reset --hard <hash>]. *)
 
     val fast_forward :
       t ->
@@ -800,29 +765,24 @@ module type S = sig
       ?n:int ->
       commit ->
       (unit, [ `No_change | `Rejected | lca_error ]) result Lwt.t
-    (** [fast_forward t h] is similar to {!update} but the [t]'s head
-        is updated to [h] only if [h] is stricly in the future of
-        [t]'s current head. [max_depth] or [n] are used to limit the
-        search space of the lowest common ancestors (see {!lcas}).
+    (** [fast_forward t h] is similar to {!update} but the [t]'s head is updated
+        to [h] only if [h] is stricly in the future of [t]'s current head.
+        [max_depth] or [n] are used to limit the search space of the lowest
+        common ancestors (see {!lcas}).
 
         The result is:
-        {ul
-        {- [Ok ()] if the operation is succesfull;}
-        {- [Error `No_change] if [h] is already [t]'s head;}
-        {- [Error `Rejected] if [h] is not in the strict future of [t]'s head.}
-        {- [Error e] if the history exploration has been cut before
-           getting useful results. In that case. the operation can be
-           retried using different parameters of [n] and [max_depth]
-           to get better results.}
-        }
 
-    *)
+        - [Ok ()] if the operation is succesfull;
+        - [Error `No_change] if [h] is already [t]'s head;
+        - [Error `Rejected] if [h] is not in the strict future of [t]'s head.
+        - [Error e] if the history exploration has been cut before getting
+          useful results. In that case. the operation can be retried using
+          different parameters of [n] and [max_depth] to get better results. *)
 
     val test_and_set :
       t -> test:commit option -> set:commit option -> bool Lwt.t
     (** Same as {!update_head} but check that the value is [test] before
-        updating to [set]. Use {!update} or {!merge} instead if
-        possible. *)
+        updating to [set]. Use {!update} or {!merge} instead if possible. *)
 
     val merge :
       into:t ->
@@ -831,12 +791,11 @@ module type S = sig
       ?n:int ->
       commit ->
       (unit, Merge.conflict) result Lwt.t
-    (** [merge ~into:t ?max_head ?n commit] merges the contents of the
-        commit associated to [commit] into [t]. [max_depth] is the
-        maximal depth used for getting the lowest common ancestor. [n]
-        is the maximum number of lowest common ancestors. If present,
-        [max_depth] or [n] are used to limit the search space of the
-        lowest common ancestors (see {!lcas}). *)
+    (** [merge ~into:t ?max_head ?n commit] merges the contents of the commit
+        associated to [commit] into [t]. [max_depth] is the maximal depth used
+        for getting the lowest common ancestor. [n] is the maximum number of
+        lowest common ancestors. If present, [max_depth] or [n] are used to
+        limit the search space of the lowest common ancestors (see {!lcas}). *)
   end
 
   module Hash : Hash.S with type t = hash
@@ -851,16 +810,14 @@ module type S = sig
     (** [t] is the value type for {!t}. *)
 
     val pp_hash : t Fmt.t
-    (** [pp] is the pretty-printer for commit. Display only the
-        hash. *)
+    (** [pp] is the pretty-printer for commit. Display only the hash. *)
 
     val v : repo -> info:Info.t -> parents:hash list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
-        {ul
-        {- [info c = i]}
-        {- [parents c = p]}
-        {- [tree c = t]}}
-    *)
+
+        - [info c = i]
+        - [parents c = p]
+        - [tree c = t] *)
 
     val tree : commit -> tree
     (** [tree c] is [c]'s root tree. *)
@@ -877,8 +834,8 @@ module type S = sig
     (** [hash c] it [c]'s hash. *)
 
     val of_hash : repo -> hash -> commit option Lwt.t
-    (** [of_hash r h] is the the commit object in [r] having [h] as
-        hash, or [None] is no such commit object exists. *)
+    (** [of_hash r h] is the the commit object in [r] having [h] as hash, or
+        [None] is no such commit object exists. *)
   end
 
   (** [Contents] provides base functions for the store's contents. *)
@@ -891,29 +848,28 @@ module type S = sig
     (** [hash c] it [c]'s hash in the repository [r]. *)
 
     val of_hash : repo -> hash -> contents option Lwt.t
-    (** [of_hash r h] is the the contents object in [r] having [h] as
-        hash, or [None] is no such contents object exists. *)
+    (** [of_hash r h] is the the contents object in [r] having [h] as hash, or
+        [None] is no such contents object exists. *)
   end
 
   (** Managing store's trees. *)
 
   module Tree : sig
-    (** [Tree] provides immutable, in-memory partial mirror of the
-        store, with lazy reads and delayed writes.
+    (** [Tree] provides immutable, in-memory partial mirror of the store, with
+        lazy reads and delayed writes.
 
-        Trees are like staging area in Git: they are immutable
-        temporary non-persistent areas (they disappear if the host
-        crash), held in memory for efficiency, where reads are done
-        lazily and writes are done only when needed on commit: if you
-        modify a key twice, only the last change will be written to
-        the store when you commit. *)
+        Trees are like staging area in Git: they are immutable temporary
+        non-persistent areas (they disappear if the host crash), held in memory
+        for efficiency, where reads are done lazily and writes are done only
+        when needed on commit: if you modify a key twice, only the last change
+        will be written to the store when you commit. *)
 
     (** {1 Constructors} *)
 
     val empty : tree
-    (** [empty] is the empty tree. The empty tree does not have
-        associated backend configuration values, as they can perform
-        in-memory operation, independently of any given backend. *)
+    (** [empty] is the empty tree. The empty tree does not have associated
+        backend configuration values, as they can perform in-memory operation,
+        independently of any given backend. *)
 
     val of_contents : ?metadata:metadata -> contents -> tree
     (** [of_contents c] is the subtree built from the contents [c]. *)
@@ -922,13 +878,11 @@ module type S = sig
     (** [of_node n] is the subtree built from the node [n]. *)
 
     val kind : tree -> key -> [ `Contents | `Node ] option Lwt.t
-    (** [kind t k] is the type of [s] in [t]. It could either be a
-        tree node or some file contents. It is [None] if [k] is not
-        present in [t]. *)
+    (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
+        some file contents. It is [None] if [k] is not present in [t]. *)
 
     val list : tree -> key -> (step * [ `Contents | `Node ]) list Lwt.t
-    (** [list t key] is the list of files and sub-nodes stored under [k]
-        in [t]. *)
+    (** [list t key] is the list of files and sub-nodes stored under [k] in [t]. *)
 
     (** {1 Diffs} *)
 
@@ -938,31 +892,29 @@ module type S = sig
     (** {1 Manipulating Contents} *)
 
     val mem : tree -> key -> bool Lwt.t
-    (** [mem t k] is true iff [k] is associated to some contents in
-        [t]. *)
+    (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
     val find_all : tree -> key -> (contents * metadata) option Lwt.t
-    (** [find_all t k] is [Some (b, m)] if [k] is associated to the
-        contents [b] and metadata [m] in [t] and [None] if [k] is not
-        present in [t]. *)
+    (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
+        and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
     val find : tree -> key -> contents option Lwt.t
     (** [find] is similar to {!find_all} but it discards metadata. *)
 
     val get_all : tree -> key -> (contents * metadata) Lwt.t
-    (** Same as {!find_all} but raise [Invalid_arg] if [k] is not
-        present in [t]. *)
+    (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in
+        [t]. *)
 
     val get : tree -> key -> contents Lwt.t
     (** Same as {!get_all} but ignore the metadata. *)
 
     val add : tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
-    (** [add t k c] is the tree where the key [k] is bound to the
-        contents [c] but is similar to [t] for other bindings. *)
+    (** [add t k c] is the tree where the key [k] is bound to the contents [c]
+        but is similar to [t] for other bindings. *)
 
     val remove : tree -> key -> tree Lwt.t
-    (** [remove t k] is the tree where [k] bindings has been removed
-        but is similar to [t] for other bindings. *)
+    (** [remove t k] is the tree where [k] bindings has been removed but is
+        similar to [t] for other bindings. *)
 
     (** {1 Manipulating Subtrees} *)
 
@@ -970,16 +922,16 @@ module type S = sig
     (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
     val find_tree : tree -> key -> tree option Lwt.t
-    (** [find_tree t k] is [Some v] if [k] is associated to [v] in
-        [t]. It is [None] if [k] is not present in [t]. *)
+    (** [find_tree t k] is [Some v] if [k] is associated to [v] in [t]. It is
+        [None] if [k] is not present in [t]. *)
 
     val get_tree : tree -> key -> tree Lwt.t
-    (** [get_tree t k] is [v] if [k] is associated to [v] in [t].
-        Raise [Invalid_arg] if [k] is not present in [t].*)
+    (** [get_tree t k] is [v] if [k] is associated to [v] in [t]. Raise
+        [Invalid_arg] if [k] is not present in [t].*)
 
     val add_tree : tree -> key -> tree -> tree Lwt.t
-    (** [add_tree t k v] is the tree where the key [k] is bound to the
-        tree [v] but is similar to [t] for other bindings *)
+    (** [add_tree t k v] is the tree where the key [k] is bound to the tree [v]
+        but is similar to [t] for other bindings *)
 
     val merge : tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
@@ -993,16 +945,15 @@ module type S = sig
     (** [empty_marks ()] is an empty collection of marks. *)
 
     type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
-    (** The type for {!fold}'s [force] parameter. [`True] forces the
-        fold to read the objects of the lazy nodes. [`False f] is
-        applying [f] on every lazy node instead. *)
+    (** The type for {!fold}'s [force] parameter. [`True] forces the fold to
+        read the objects of the lazy nodes. [`False f] is applying [f] on every
+        lazy node instead. *)
 
     type uniq = [ `False | `True | `Marks of marks ]
-    (** The type for {!fold}'s [uniq] parameters. [`False] folds over
-        all the nodes. [`True] does not recurse on nodes already
-        seen. [`Marks m] uses the collection of marks [m] to store the
-        cache of keys: the fold will modify [m]. This can be used for
-        incremental folds.  *)
+    (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
+        nodes. [`True] does not recurse on nodes already seen. [`Marks m] uses
+        the collection of marks [m] to store the cache of keys: the fold will
+        modify [m]. This can be used for incremental folds. *)
 
     type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
     (** The type for {!fold}'s [pre] and [post] parameters. *)
@@ -1020,17 +971,15 @@ module type S = sig
 
         For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
 
-        {ul
-          {- Call [pre path n]. By default [pre] is the identity;}
-          {- Recursively call [fold] on each children, in lexicographic order;}
-          {- Call [post path n]; By default [post] is the identity.}}
+        - Call [pre path n]. By default [pre] is the identity;
+        - Recursively call [fold] on each children, in lexicographic order;
+        - Call [post path n]; By default [post] is the identity.
 
-        See {!force} for details about the [force] parameters. By default
-        it is [`True].
+        See {!force} for details about the [force] parameters. By default it is
+        [`True].
 
-        See {!uniq} for details about the [uniq] parameters. By default
-        it is [`False].
-    *)
+        See {!uniq} for details about the [uniq] parameters. By default it is
+        [`False]. *)
 
     (** {1 Stats} *)
 
@@ -1047,9 +996,8 @@ module type S = sig
     (** [pp_stats] is the pretty printer for tree statistics. *)
 
     val stats : ?force:bool -> tree -> stats Lwt.t
-    (** [stats ~force t] are [t]'s statistics. If [force] is true,
-        this will force the reading of lazy nodes. By default it is
-        [false]. *)
+    (** [stats ~force t] are [t]'s statistics. If [force] is true, this will
+        force the reading of lazy nodes. By default it is [false]. *)
 
     (** {1 Concrete Trees} *)
 
@@ -1058,19 +1006,17 @@ module type S = sig
     (** The type for concrete trees. *)
 
     val of_concrete : concrete -> tree
-    (** [of_concrete c] is the subtree equivalent to the concrete tree
-        [c]. *)
+    (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
 
     val to_concrete : tree -> concrete Lwt.t
-    (** [to_concrete t] is the concrete tree equivalent to the subtree
-        [t]. *)
+    (** [to_concrete t] is the concrete tree equivalent to the subtree [t]. *)
 
     (** {1 Caches} *)
 
     val clear : ?depth:int -> tree -> unit
-    (** [clear ?depth t] clears all the cache in the tree [t] for
-        subtrees with a depth higher than [depth]. If [depth] is not
-        set, all the subtrees are cleared. *)
+    (** [clear ?depth t] clears all the cache in the tree [t] for subtrees with
+        a depth higher than [depth]. If [depth] is not set, all the subtrees are
+        cleared. *)
 
     (** {1 Performance counters} *)
 
@@ -1101,12 +1047,12 @@ module type S = sig
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
     val of_hash : repo -> hash -> tree option Lwt.t
-    (** [of_hash r h] is the the tree object in [r] having [h] as
-        hash, or [None] is no such tree object exists. *)
+    (** [of_hash r h] is the the tree object in [r] having [h] as hash, or
+        [None] is no such tree object exists. *)
 
     val shallow : repo -> hash -> tree
-    (** [shallow r h] is the shallow tree object with the hash [h]. No
-        check is performed to verify if [h] actually exists in [r]. *)
+    (** [shallow r h] is the shallow tree object with the hash [h]. No check is
+        performed to verify if [h] actually exists in [r]. *)
   end
 
   (** {1 Reads} *)
@@ -1136,12 +1082,10 @@ module type S = sig
   (** [get t] is {!Tree.get} applied to [t]'s root tree. *)
 
   val find_tree : t -> key -> tree option Lwt.t
-  (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root
-      tree. *)
+  (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root tree. *)
 
   val get_tree : t -> key -> tree Lwt.t
-  (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root
-      tree. *)
+  (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root tree. *)
 
   val hash : t -> key -> hash option Lwt.t
   (** [hash t k] *)
@@ -1152,14 +1096,11 @@ module type S = sig
     [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
   (** The type for write errors.
 
-      {ul
-      {- Merge conflict. }
-      {- Concurrent transactions are competing to get the current
-         operation committed and too many attemps have been tried
-         (livelock). }
-      {- A "test and set" operation has failed and the current value
-         is [v] instead of the one we were waiting for. }}
-  *)
+      - Merge conflict.
+      - Concurrent transactions are competing to get the current operation
+        committed and too many attemps have been tried (livelock).
+      - A "test and set" operation has failed and the current value is [v]
+        instead of the one we were waiting for. *)
 
   val set :
     ?retries:int ->
@@ -1170,16 +1111,15 @@ module type S = sig
     key ->
     contents ->
     (unit, write_error) result Lwt.t
-  (** [set t k ~info v] sets [k] to the value [v] in [t]. Discard any
-     previous results but ensure that no operation is lost in the
-     history.
+  (** [set t k ~info v] sets [k] to the value [v] in [t]. Discard any previous
+      results but ensure that no operation is lost in the history.
 
-     This function always uses {!Metadata.default} as metadata.
-     Use {!set_tree} with `[Contents (c, m)] for different ones.
+      This function always uses {!Metadata.default} as metadata. Use {!set_tree}
+      with `[Contents (c, m)] for different ones.
 
-     The result is [Error `Too_many_retries] if the concurrent
-     operations do not allow the operation to commit to the underlying
-     storage layer (livelock).  *)
+      The result is [Error `Too_many_retries] if the concurrent operations do
+      not allow the operation to commit to the underlying storage layer
+      (livelock). *)
 
   val set_exn :
     ?retries:int ->
@@ -1190,8 +1130,8 @@ module type S = sig
     key ->
     contents ->
     unit Lwt.t
-  (** [set_exn] is like {!set} but raise [Failure _] instead
-      of using a result type. *)
+  (** [set_exn] is like {!set} but raise [Failure _] instead of using a result
+      type. *)
 
   val set_tree :
     ?retries:int ->
@@ -1225,9 +1165,9 @@ module type S = sig
     (unit, write_error) result Lwt.t
   (** [remove t ~info k] remove any bindings to [k] in [t].
 
-      The result is [Error `Too_many_retries] if the concurrent
-     operations do not allow the operation to commit to the underlying
-     storage layer (livelock). *)
+      The result is [Error `Too_many_retries] if the concurrent operations do
+      not allow the operation to commit to the underlying storage layer
+      (livelock). *)
 
   val remove_exn :
     ?retries:int ->
@@ -1237,8 +1177,8 @@ module type S = sig
     t ->
     key ->
     unit Lwt.t
-  (** [remove_exn] is like {!remove} but raise [Failure _] instead of
-     a using result type. *)
+  (** [remove_exn] is like {!remove} but raise [Failure _] instead of a using
+      result type. *)
 
   val test_and_set :
     ?retries:int ->
@@ -1250,18 +1190,18 @@ module type S = sig
     test:contents option ->
     set:contents option ->
     (unit, write_error) result Lwt.t
-  (** [test_and_set ~test ~set] is like {!set} but it atomically
-     checks that the tree is [test] before modifying it to [set].
+  (** [test_and_set ~test ~set] is like {!set} but it atomically checks that the
+      tree is [test] before modifying it to [set].
 
-     This function always uses {!Metadata.default} as metadata.
-     Use {!test_and_set_tree} with `[Contents (c, m)] for different ones.
+      This function always uses {!Metadata.default} as metadata. Use
+      {!test_and_set_tree} with `[Contents (c, m)] for different ones.
 
-     The result is [Error (`Test t)] if the current tree is [t]
-     instead of [test].
+      The result is [Error (`Test t)] if the current tree is [t] instead of
+      [test].
 
-     The result is [Error `Too_many_retries] if the concurrent
-     operations do not allow the operation to commit to the underlying
-     storage layer (livelock). *)
+      The result is [Error `Too_many_retries] if the concurrent operations do
+      not allow the operation to commit to the underlying storage layer
+      (livelock). *)
 
   val test_and_set_exn :
     ?retries:int ->
@@ -1273,8 +1213,8 @@ module type S = sig
     test:contents option ->
     set:contents option ->
     unit Lwt.t
-  (** [test_and_set_exn] is like {!test_and_set} but raise [Failure _]
-     instead of using a result type. *)
+  (** [test_and_set_exn] is like {!test_and_set} but raise [Failure _] instead
+      of using a result type. *)
 
   val test_and_set_tree :
     ?retries:int ->
@@ -1298,8 +1238,7 @@ module type S = sig
     test:tree option ->
     set:tree option ->
     unit Lwt.t
-  (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for
-     trees. *)
+  (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for trees. *)
 
   val merge :
     ?retries:int ->
@@ -1311,18 +1250,18 @@ module type S = sig
     key ->
     contents option ->
     (unit, write_error) result Lwt.t
-  (** [merge ~old] is like {!set} but merge the current tree
-     and the new tree using [old] as ancestor in case of conflicts.
+  (** [merge ~old] is like {!set} but merge the current tree and the new tree
+      using [old] as ancestor in case of conflicts.
 
-      This function always uses {!Metadata.default} as metadata.
-      Use {!merge_tree} with `[Contents (c, m)] for different ones.
+      This function always uses {!Metadata.default} as metadata. Use
+      {!merge_tree} with `[Contents (c, m)] for different ones.
 
-      The result is [Error (`Conflict c)] if the merge failed with the
-      conflict [c].
+      The result is [Error (`Conflict c)] if the merge failed with the conflict
+      [c].
 
-      The result is [Error `Too_many_retries] if the concurrent
-     operations do not allow the operation to commit to the underlying
-     storage layer (livelock). *)
+      The result is [Error `Too_many_retries] if the concurrent operations do
+      not allow the operation to commit to the underlying storage layer
+      (livelock). *)
 
   val merge_exn :
     ?retries:int ->
@@ -1334,8 +1273,8 @@ module type S = sig
     key ->
     contents option ->
     unit Lwt.t
-  (** [merge_exn] is like {!merge} but raise [Failure _] instead of
-     using a result type. *)
+  (** [merge_exn] is like {!merge} but raise [Failure _] instead of using a
+      result type. *)
 
   val merge_tree :
     ?retries:int ->
@@ -1371,31 +1310,28 @@ module type S = sig
     key ->
     (tree option -> tree option Lwt.t) ->
     (unit, write_error) result Lwt.t
-  (** [with_tree t k ~info f] replaces {i atomically} the subtree [v]
-      under [k] in the store [t] by the contents of the tree [f v],
-      using the commit info [info ()].
+  (** [with_tree t k ~info f] replaces {i atomically} the subtree [v] under [k]
+      in the store [t] by the contents of the tree [f v], using the commit info
+      [info ()].
 
-      If [v = f v] and [allow_empty] is unset (default) then, the
-      operation is a no-op.
+      If [v = f v] and [allow_empty] is unset (default) then, the operation is a
+      no-op.
 
-      If [v != f v] and no other changes happen concurrently, [f v]
-      becomes the new subtree under [k]. If other changes happen
-      concurrently to that operations, the semantics depend on the
-      value of [strategy]:
+      If [v != f v] and no other changes happen concurrently, [f v] becomes the
+      new subtree under [k]. If other changes happen concurrently to that
+      operations, the semantics depend on the value of [strategy]:
 
-      {ul
-      {- if [strategy = `Set], use {!set} and discard any concurrent
-         updates to [k]. }
-      {- if [strategy = `Test_and_set] (default), use {!test_and_set}
-         and ensure that no concurrent operations are updating [k]. }
-      {- if [strategy = `Merge], use {!merge} and ensure
-         that concurrent updates and merged with the values present
-         at the beginning of the transaction. }}
+      - if [strategy = `Set], use {!set} and discard any concurrent updates to
+        [k].
+      - if [strategy = `Test_and_set] (default), use {!test_and_set} and ensure
+        that no concurrent operations are updating [k].
+      - if [strategy = `Merge], use {!merge} and ensure that concurrent updates
+        and merged with the values present at the beginning of the transaction.
 
       {b Note:} Irmin transactions provides
-      {{:https://en.wikipedia.org/wiki/Snapshot_isolation}snapshot
-      isolation} guarantees: reads and writes are isolated in every
-      transaction, but only write conflicts are visible on commit. *)
+      {{:https://en.wikipedia.org/wiki/Snapshot_isolation} snapshot isolation}
+      guarantees: reads and writes are isolated in every transaction, but only
+      write conflicts are visible on commit. *)
 
   val with_tree_exn :
     ?retries:int ->
@@ -1407,15 +1343,14 @@ module type S = sig
     key ->
     (tree option -> tree option Lwt.t) ->
     unit Lwt.t
-  (** [with_tree_exn] is like {!with_tree} but raise [Failure _]
-     instead of using a return type. *)
+  (** [with_tree_exn] is like {!with_tree} but raise [Failure _] instead of
+      using a return type. *)
 
   (** {1 Clones} *)
 
   val clone : src:t -> dst:branch -> t Lwt.t
-  (** [clone ~src ~dst] makes [dst] points to [Head.get src]. [dst] is
-      created if needed. Remove the current contents en [dst] if [src]
-      is {!empty}. *)
+  (** [clone ~src ~dst] makes [dst] points to [Head.get src]. [dst] is created
+      if needed. Remove the current contents en [dst] if [src] is {!empty}. *)
 
   (** {1 Watches} *)
 
@@ -1423,13 +1358,11 @@ module type S = sig
   (** The type for store watches. *)
 
   val watch : t -> ?init:commit -> (commit diff -> unit Lwt.t) -> watch Lwt.t
-  (** [watch t f] calls [f] every time the contents of [t]'s head is
-      updated.
+  (** [watch t f] calls [f] every time the contents of [t]'s head is updated.
 
-      {b Note:} even if [f] might skip some head updates, it will
-      never be called concurrently: all consecutive calls to [f] are
-      done in sequence, so we ensure that the previous one ended
-      before calling the next one. *)
+      {b Note:} even if [f] might skip some head updates, it will never be
+      called concurrently: all consecutive calls to [f] are done in sequence, so
+      we ensure that the previous one ended before calling the next one. *)
 
   val watch_key :
     t ->
@@ -1437,13 +1370,12 @@ module type S = sig
     ?init:commit ->
     ((commit * tree) diff -> unit Lwt.t) ->
     watch Lwt.t
-  (** [watch_key t key f] calls [f] every time the [key]'s value is
-      added, removed or updated. If the current branch is deleted,
-      no signal is sent to the watcher. *)
+  (** [watch_key t key f] calls [f] every time the [key]'s value is added,
+      removed or updated. If the current branch is deleted, no signal is sent to
+      the watcher. *)
 
   val unwatch : watch -> unit Lwt.t
-  (** [unwatch w] disable [w]. Return once the [w] is fully
-      disabled. *)
+  (** [unwatch w] disable [w]. Return once the [w] is fully disabled. *)
 
   (** {1 Merges and Common Ancestors.} *)
 
@@ -1456,9 +1388,9 @@ module type S = sig
   (** The type for merge functions. *)
 
   val merge_into : into:t -> t merge
-  (** [merge_into ~into i t] merges [t]'s current branch into [x]'s
-      current branch using the info [i]. After that operation, the two
-      stores are still independent. Similar to [git merge <branch>]. *)
+  (** [merge_into ~into i t] merges [t]'s current branch into [x]'s current
+      branch using the info [i]. After that operation, the two stores are still
+      independent. Similar to [git merge <branch>]. *)
 
   val merge_with_branch : t -> branch merge
   (** Same as {!merge} but with a branch ID. *)
@@ -1468,18 +1400,14 @@ module type S = sig
 
   val lcas :
     ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result Lwt.t
-  (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
-      common ancestors between the heads of [t1] and [t2] branches.
+  (** [lca ?max_depth ?n msg t1 t2] returns the collection of least common
+      ancestors between the heads of [t1] and [t2] branches.
 
-      {ul
-      {- [max_depth] is the maximum depth of the exploration (default
-      is [max_int]). Return [Error `Max_depth_reached] if this depth
-      is exceeded.}
-      {- [n] is the maximum expected number of lcas. Stop the
-      exploration as soon as [n] lcas are found. Return
-      [Error `Too_many_lcas] if more [lcas] are found. }
-      }
-  *)
+      - [max_depth] is the maximum depth of the exploration (default is
+        [max_int]). Return [Error `Max_depth_reached] if this depth is exceeded.
+      - [n] is the maximum expected number of lcas. Stop the exploration as soon
+        as [n] lcas are found. Return [Error `Too_many_lcas] if more [lcas] are
+        found. *)
 
   val lcas_with_branch :
     t ->
@@ -1504,34 +1432,33 @@ module type S = sig
 
   val history :
     ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t Lwt.t
-  (** [history ?depth ?min ?max t] is a view of the history of the
-      store [t], of depth at most [depth], starting from the [max]
-      (or from the [t]'s head if the list of heads is empty) and
-      stopping at [min] if specified. *)
+  (** [history ?depth ?min ?max t] is a view of the history of the store [t], of
+      depth at most [depth], starting from the [max] (or from the [t]'s head if
+      the list of heads is empty) and stopping at [min] if specified. *)
 
   val last_modified : ?depth:int -> ?n:int -> t -> key -> commit list Lwt.t
-  (** [last_modified ?number c k] is the list of the last [number] commits
-      that modified [key], in ascending order of date. [depth] is the maximum
-      depth to be explored in the commit graph, if any. Default value for
-      [number] is 1. *)
+  (** [last_modified ?number c k] is the list of the last [number] commits that
+      modified [key], in ascending order of date. [depth] is the maximum depth
+      to be explored in the commit graph, if any. Default value for [number] is
+      1. *)
 
   (** Manipulate branches. *)
   module Branch : sig
     (** {1 Branch Store}
 
-        Manipulate relations between {{!branch}branches} and
-        {{!commit}commits}. *)
+        Manipulate relations between {{!branch} branches} and {{!commit}
+        commits}. *)
 
     val mem : repo -> branch -> bool Lwt.t
     (** [mem r b] is true iff [b] is present in [r]. *)
 
     val find : repo -> branch -> commit option Lwt.t
-    (** [find r b] is [Some c] iff [c] is bound to [b] in [t]. It is
-        [None] if [b] is not present in [t]. *)
+    (** [find r b] is [Some c] iff [c] is bound to [b] in [t]. It is [None] if
+        [b] is not present in [t]. *)
 
     val get : repo -> branch -> commit Lwt.t
-    (** [get t b] is similar to {!find} but raise [Invalid_argument]
-        if [b] is not present in [t]. *)
+    (** [get t b] is similar to {!find} but raise [Invalid_argument] if [b] is
+        not present in [t]. *)
 
     val set : repo -> branch -> commit -> unit Lwt.t
     (** [set t b c] bounds [c] to [b] in [t]. *)
@@ -1555,8 +1482,8 @@ module type S = sig
       ?init:(branch * commit) list ->
       (branch -> commit diff -> unit Lwt.t) ->
       watch Lwt.t
-    (** [watch_all t f] calls [f] on every branch-related change in
-        [t], including creation/deletion events. *)
+    (** [watch_all t f] calls [f] on every branch-related change in [t],
+        including creation/deletion events. *)
 
     include Branch.S with type t = branch
     (** Base functions for branches. *)
@@ -1629,22 +1556,21 @@ module type S = sig
   (** {2 Converters to private types} *)
 
   val to_private_node : node -> Private.Node.value option Lwt.t
-  (** [to_private_node n] is the private node objects built using [n].
-     The operation can fetch the database to read an object as [n]
-     could be represented as a hash. The result is [None] iff that
-     hash doesn't exist in the database. *)
+  (** [to_private_node n] is the private node objects built using [n]. The
+      operation can fetch the database to read an object as [n] could be
+      represented as a hash. The result is [None] iff that hash doesn't exist in
+      the database. *)
 
   val of_private_node : repo -> Private.Node.value -> node
-  (** [of_private_node r n] is the node build from the private node
-     object [n]. *)
+  (** [of_private_node r n] is the node build from the private node object [n]. *)
 
   val to_private_commit : commit -> Private.Commit.value
-  (** [to_private_commit c] is the private commit object associated
-     with the commit [c]. *)
+  (** [to_private_commit c] is the private commit object associated with the
+      commit [c]. *)
 
   val of_private_commit : repo -> Private.Commit.value -> commit
-  (** [of_private_commit r c] is the commit associated with the
-     private commit object [c]. *)
+  (** [of_private_commit r c] is the commit associated with the private commit
+      object [c]. *)
 
   val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
   (** Save a content into the database *)
@@ -1656,14 +1582,13 @@ module type S = sig
     [ `Read | `Write ] Private.Node.t ->
     tree ->
     hash Lwt.t
-  (** Save a tree into the database. Does not do any reads. If
-        [clear] is set (it is by default), the tree cache will be
-        cleared after the save. *)
+  (** Save a tree into the database. Does not do any reads. If [clear] is set
+      (it is by default), the tree cache will be cleared after the save. *)
 end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire
     object being stored under one key, it is split across several keys starting
-    at the specified root key.  *)
+    at the specified root key. *)
 module Json_tree (Store : S with type contents = Contents.json) : sig
   include Contents.S with type t = Contents.json
 
@@ -1685,11 +1610,10 @@ module Json_tree (Store : S with type contents = Contents.json) : sig
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
-    implementations. [M] is the implementation of user-defined
-    metadata, [C] is the one for user-defined contents, [B] is the
-    implementation for branches and [H] is the implementation for
-    object (blobs, trees, commits) hashes. It does not use any native
-    synchronization primitives. *)
+    implementations. [M] is the implementation of user-defined metadata, [C] is
+    the one for user-defined contents, [B] is the implementation for branches
+    and [H] is the implementation for object (blobs, trees, commits) hashes. It
+    does not use any native synchronization primitives. *)
 module type S_MAKER = functor
   (M : Metadata.S)
   (C : Contents.S)
@@ -1705,282 +1629,270 @@ module type S_MAKER = functor
      and type branch = B.t
      and type hash = H.t
 
-(** [KV] is similar to {!S} but chooses sensible implementations for
-    path and branch. *)
+(** [KV] is similar to {!S} but chooses sensible implementations for path and
+    branch. *)
 module type KV =
   S with type key = string list and type step = string and type branch = string
 
-(** [KV_MAKER] is like {!S_MAKER} but where everything except the
-    contents is replaced by sensible default implementations. *)
+(** [KV_MAKER] is like {!S_MAKER} but where everything except the contents is
+    replaced by sensible default implementations. *)
 module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
 val remote_store : (module S with type t = 'a) -> 'a -> remote
-(** [remote_store t] is the remote corresponding to the local store
-    [t]. Synchronization is done by importing and exporting store
-    {{!BC.slice}slices}, so this is usually much slower than native
-    synchronization using {!Store.remote} but it works for all
-    backends. *)
+(** [remote_store t] is the remote corresponding to the local store [t].
+    Synchronization is done by importing and exporting store {{!BC.slice}
+    slices}, so this is usually much slower than native synchronization using
+    {!Store.remote} but it works for all backends. *)
 
 module type SYNC = S.SYNC_STORE
-(** [SYNC] provides functions to synchronize an Irmin store with local
-    and remote Irmin stores. *)
+(** [SYNC] provides functions to synchronize an Irmin store with local and
+    remote Irmin stores. *)
 
 (** The default [Sync] implementation. *)
 module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
 (** {1:examples Examples}
 
-    These examples are in the [examples] directory of the
-    distribution.
+    These examples are in the [examples] directory of the distribution.
 
     {3 Syncing with a remote}
 
-    A simple synchronization example, using the
-    {{!Irmin_unix.Git}Git} backend and the {!Sync} helpers. The
-    code clones a fresh repository if the repository does not exist
-    locally, otherwise it performs a fetch: in this case, only
-    the missing contents are downloaded.
+    A simple synchronization example, using the {{!Irmin_unix.Git} Git} backend
+    and the {!Sync} helpers. The code clones a fresh repository if the
+    repository does not exist locally, otherwise it performs a fetch: in this
+    case, only the missing contents are downloaded.
 
-{[
-open Lwt.Infix
+    {[
+      open Lwt.Infix
+      module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+      module Sync = Irmin.Sync (S)
 
-module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
-module Sync = Irmin.Sync(S)
-let config = Irmin_git.config "/tmp/test"
+      let config = Irmin_git.config "/tmp/test"
 
-let upstream =
-  if Array.length Sys.argv = 2 then (Uri.of_string (Store.remote Sys.argv.(1)))
-  else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
+      let upstream =
+        if Array.length Sys.argv = 2 then
+          Uri.of_string (Store.remote Sys.argv.(1))
+        else (
+          Printf.eprintf "Usage: sync [uri]\n%!";
+          exit 1 )
 
-let test () =
-  S.Repo.v config >>= S.master
-  >>= fun t  -> Sync.pull_exn t upstream `Set
-  >>= fun () -> S.get t ["README.md"]
-  >|= fun r  -> Printf.printf "%s\n%!" r
+      let test () =
+        S.Repo.v config >>= S.master >>= fun t ->
+        Sync.pull_exn t upstream `Set >>= fun () ->
+        S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
 
-let () = Lwt_main.run (test ())
-]}
+      let () = Lwt_main.run (test ())
+    ]}
 
     {3 Mergeable logs}
 
-    We will demonstrate the use of custom merge operators by
-    defining mergeable debug log files. We first define a log entry
-    as a pair of a timestamp and a message, using the combinator
-    exposed by {!Irmin.Type}:
+    We will demonstrate the use of custom merge operators by defining mergeable
+    debug log files. We first define a log entry as a pair of a timestamp and a
+    message, using the combinator exposed by {!Irmin.Type}:
 
-{[
-module Entry : sig
-  include Irmin.Type.S
-  val v: string -> t
-  val timestamp: t -> int
-end = struct
+    {[
+      module Entry : sig
+        include Irmin.Type.S
 
-  type t = { timestamp: int; message : string; }
+        val v : string -> t
 
-  let compare x y = compare x.timestamp y.timestamp
+        val timestamp : t -> int
+      end = struct
+        type t = { timestamp : int; message : string }
 
-  let time = ref 0
+        let compare x y = compare x.timestamp y.timestamp
 
-  let v message =
-    incr time;
-    { timestamp = !time; message }
+        let time = ref 0
 
-  let timestamp t = t.timestamp
+        let v message =
+          incr time;
+          { timestamp = !time; message }
 
-  let pp ppf { timestamp; message } =
-    Fmt.pf ppf "%04d: %s" timestamp message
+        let timestamp t = t.timestamp
 
-  let of_string str =
-    match String.split_on_char '\t' str with
-    | [] -> Error (`Msg ("invalid entry: " ^ str))
-    | ts :: msg_sects ->
-      let message = String.concat "\t" msg_sects in
-      try Ok { timestamp = int_of_string ts; message }
-      with Failure e -> Error (`Msg e)
+        let pp ppf { timestamp; message } =
+          Fmt.pf ppf "%04d: %s" timestamp message
 
-  let t =
-    let open Irmin.Type in
-    record "entry" (fun t32 message -> { timestamp = Int32.to_int t32; message })
-    |+ field "timestamp" int32  (fun t -> Int32.of_int t.timestamp)
-    |+ field "message"   string (fun t -> t.message)
-    |> sealr
+        let of_string str =
+          match String.split_on_char '\t' str with
+          | [] -> Error (`Msg ("invalid entry: " ^ str))
+          | ts :: msg_sects -> (
+              let message = String.concat "\t" msg_sects in
+              try Ok { timestamp = int_of_string ts; message }
+              with Failure e -> Error (`Msg e) )
 
-  let t = Irmin.Type.like ~cli:(pp, of_string) ~compare t
+        let t =
+          let open Irmin.Type in
+          record "entry" (fun t32 message ->
+              { timestamp = Int32.to_int t32; message })
+          |+ field "timestamp" int32 (fun t -> Int32.of_int t.timestamp)
+          |+ field "message" string (fun t -> t.message)
+          |> sealr
 
-end
-]}
+        let t = Irmin.Type.like ~cli:(pp, of_string) ~compare t
+      end
+    ]}
 
-    A log file is a list of entries (one per line), ordered by
-    decreasing order of timestamps. The 3-way [merge] operator for log
-    files concatenates and sorts the new entries and prepend them
-    to the common ancestor's ones.
+    A log file is a list of entries (one per line), ordered by decreasing order
+    of timestamps. The 3-way [merge] operator for log files concatenates and
+    sorts the new entries and prepend them to the common ancestor's ones.
 
-{[
-(* A log file *)
-module Log: sig
-  include Irmin.Contents.S
-  val add: t -> Entry.t -> t
-  val empty: t
-end = struct
+    {[
+      (* A log file *)
+      module Log : sig
+        include Irmin.Contents.S
 
-  type t = Entry.t list
+        val add : t -> Entry.t -> t
 
-  let empty = []
+        val empty : t
+      end = struct
+        type t = Entry.t list
 
-  let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp ) (List.rev l)
+        let empty = []
 
-  let of_string str =
-    let lines = String.cuts ~empty:false ~sep:"\n" str in
-    try
-      List.fold_left (fun acc l ->
-          match Entry.of_string l with
-          | Ok x           -> x :: acc
-          | Error (`Msg e) -> failwith e
-        ) [] lines
-      |> fun l -> Ok l
-    with Failure e ->
-      Error (`Msg e)
+        let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp) (List.rev l)
 
-  let t = Irmin.Type.(list Entry.t)
-  let t = Irmin.Type.like' ~cli:(pp, of_string) t
+        let of_string str =
+          let lines = String.cuts ~empty:false ~sep:"\n" str in
+          try
+            List.fold_left
+              (fun acc l ->
+                match Entry.of_string l with
+                | Ok x -> x :: acc
+                | Error (`Msg e) -> failwith e)
+              [] lines
+            |> fun l -> Ok l
+          with Failure e -> Error (`Msg e)
 
-  let timestamp = function
-    | [] -> 0
-    | e :: _ -> Entry.timestamp e
+        let t = Irmin.Type.(list Entry.t)
 
-  let newer_than timestamp file =
-    let rec aux acc = function
-      | [] -> List.rev acc
-      | h:: _ when Entry.timestamp h <= timestamp -> List.rev acc
-      | h::t -> aux (h::acc) t
-    in
-    aux [] file
+        let t = Irmin.Type.like' ~cli:(pp, of_string) t
 
-  let merge ~old t1 t2 =
-    let open Irmin.Merge.Infix in
-    old () >>=* fun old ->
-    let old = match old with None -> [] | Some o -> o in
-    let ts = timestamp old in
-    let t1 = newer_than ts t1 in
-    let t2 = newer_than ts t2 in
-    let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
-    Irmin.Merge.ok (List.rev_append t3 old)
+        let timestamp = function [] -> 0 | e :: _ -> Entry.timestamp e
 
-  let merge = Irmin.Merge.(option (v t merge))
+        let newer_than timestamp file =
+          let rec aux acc = function
+            | [] -> List.rev acc
+            | h :: _ when Entry.timestamp h <= timestamp -> List.rev acc
+            | h :: t -> aux (h :: acc) t
+          in
+          aux [] file
 
-  let add t e = e :: t
+        let merge ~old t1 t2 =
+          let open Irmin.Merge.Infix in
+          old () >>=* fun old ->
+          let old = match old with None -> [] | Some o -> o in
+          let ts = timestamp old in
+          let t1 = newer_than ts t1 in
+          let t2 = newer_than ts t2 in
+          let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
+          Irmin.Merge.ok (List.rev_append t3 old)
 
-end ]}
+        let merge = Irmin.Merge.(option (v t merge))
 
-    {b Note:} The serialisation primitives used in that example are
-    not very efficient in this case as they parse the file
-    every time. For real usage, you would write buffered versions of
-    [Log.pp] and [Log.of_string].
+        let add t e = e :: t
+      end
+    ]}
 
-    To persist the log file on disk, we need to choose a backend. We
-    show here how to use the on-disk [Git] backend on Unix.
+    {b Note:} The serialisation primitives used in that example are not very
+    efficient in this case as they parse the file every time. For real usage,
+    you would write buffered versions of [Log.pp] and [Log.of_string].
 
-{[
-  (* Build an Irmin store containing log files. *)
-  module S = Irmin_unix.Git.FS.KV(Log)
+    To persist the log file on disk, we need to choose a backend. We show here
+    how to use the on-disk [Git] backend on Unix.
 
-  (* Set-up the local configuration of the Git repository. *)
-  let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
+    {[
+      (* Build an Irmin store containing log files. *)
+      module S = Irmin_unix.Git.FS.KV (Log)
 
-  (* Set-up the commit info function *)
-  let info fmt = Irmin_unix.info ~author:"logger" fmt
-]}
+      (* Set-up the local configuration of the Git repository. *)
+      let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
 
-  We can now define a toy example to use our mergeable log files.
+      (* Set-up the commit info function *)
+      let info fmt = Irmin_unix.info ~author:"logger" fmt
+    ]}
 
-{[
-  open Lwt.Infix
+    We can now define a toy example to use our mergeable log files.
 
-  (* Name of the log file. *)
-  let file = [ "local"; "debug" ]
+    {[
+      open Lwt.Infix
 
-  (* Read the entire log file. *)
-  let read_file t =
-    S.find t file >|= function
-    | None   -> []
-    | Some l -> l
+      (* Name of the log file. *)
+      let file = [ "local"; "debug" ]
 
-  (* Persist a new entry in the log. *)
-  let log t fmt =
-    Fmt.kstrf (fun message ->
-        read_file t >>= fun logs ->
-        let logs = Log.add logs (Entry.v message) in
-        S.set t (info "Adding a new entry") file logs
-      ) fmt
+      (* Read the entire log file. *)
+      let read_file t = S.find t file >|= function None -> [] | Some l -> l
 
-  let () =
-    Lwt_main.run begin
-      S.Repo.v config >>= S.master
-      >>= fun t  -> log t "Adding a new log entry"
-      >>= fun () -> Irmin.clone_force ~src:t ~dst:"x"
-      >>= fun x  -> log x "Adding new stuff to x"
-      >>= fun () -> log x "Adding more stuff to x"
-      >>= fun () -> log x "More. Stuff. To x."
-      >>= fun () -> log t "I can add stuff on t also"
-      >>= fun () -> log t "Yes. On t!"
-      >>= fun () -> S.merge (info "Merging x into t") x ~into:t
-      >|= function Ok () -> () | Error _ -> failwith "merge conflict!"
-    end
-]}
+      (* Persist a new entry in the log. *)
+      let log t fmt =
+        Fmt.kstrf
+          (fun message ->
+            read_file t >>= fun logs ->
+            let logs = Log.add logs (Entry.v message) in
+            S.set t (info "Adding a new entry") file logs)
+          fmt
 
-*)
+      let () =
+        Lwt_main.run
+          ( S.Repo.v config >>= S.master >>= fun t ->
+            log t "Adding a new log entry" >>= fun () ->
+            Irmin.clone_force ~src:t ~dst:"x" >>= fun x ->
+            log x "Adding new stuff to x" >>= fun () ->
+            log x "Adding more stuff to x" >>= fun () ->
+            log x "More. Stuff. To x." >>= fun () ->
+            log t "I can add stuff on t also" >>= fun () ->
+            log t "Yes. On t!" >>= fun () ->
+            S.merge (info "Merging x into t") x ~into:t >|= function
+            | Ok () -> ()
+            | Error _ -> failwith "merge conflict!" )
+    ]} *)
 
 (** {1 Helpers} *)
 
-(** [Dot] provides functions to export a store to the Graphviz `dot`
-    format. *)
+(** [Dot] provides functions to export a store to the Graphviz `dot` format. *)
 module Dot (S : S) : Dot.S with type db = S.t
 
 (** {1:backend Backends}
 
-    API to create new Irmin backends. A backend is an implementation
-    exposing either a concrete implementation of {!S} or a functor
-    providing {!S} once applied.
+    API to create new Irmin backends. A backend is an implementation exposing
+    either a concrete implementation of {!S} or a functor providing {!S} once
+    applied.
 
     There are two ways to create a concrete {!Irmin.S} implementation:
 
-    {ul
-    {- {!Make} creates a store where all the objects are stored in the
-    same store, using the same internal keys format and a custom binary
-    format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
-    with no native synchronization primitives: it is usually what is
-    needed to quickly create a new backend.}
-    {- {!Make_ext} creates a store with a {e deep} embedding of each
-    of the internal stores into separate store, with total control over
-    the binary format and using the native synchronization protocols
-    when available.}
-    }
-*)
+    - {!Make} creates a store where all the objects are stored in the same
+      store, using the same internal keys format and a custom binary format
+      based on {{:https://github.com/janestreet/bin_prot} bin_prot}, with no
+      native synchronization primitives: it is usually what is needed to quickly
+      create a new backend.
+    - {!Make_ext} creates a store with a {e deep} embedding of each of the
+      internal stores into separate store, with total control over the binary
+      format and using the native synchronization protocols when available. *)
 
-(** [APPEND_ONLY_STORE_MAKER] is the signature exposed by
-    append-only store backends. [K] is the implementation of keys
-    and [V] is the implementation of values. *)
+(** [APPEND_ONLY_STORE_MAKER] is the signature exposed by append-only store
+    backends. [K] is the implementation of keys and [V] is the implementation of
+    values. *)
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The
-     exact guarantees depends on the backends. *)
+  (** [batch t f] applies the writes in [f] in a separate batch. The exact
+      guarantees depends on the backends. *)
 
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 
   val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise {!Closed}. *)
+  (** [close t] frees up all the resources associated to [t]. Any operations run
+      on a closed store will raise {!Closed}. *)
 end
 
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
-    content-addressable store backends. [K] is the implementation of keys
-    and [V] is the implementation of values. *)
+    content-addressable store backends. [K] is the implementation of keys and
+    [V] is the implementation of values. *)
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (K : Hash.S)
   (V : Type.S)
@@ -1988,16 +1900,16 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The
-     exact guarantees depends on the backends. *)
+  (** [batch t f] applies the writes in [f] in a separate batch. The exact
+      guarantees depends on the backends. *)
 
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 
   val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise {!Closed}. *)
+  (** [close t] frees up all the resources associated to [t]. Any operations run
+      on a closed store will raise {!Closed}. *)
 end
 
 module Content_addressable
@@ -2011,21 +1923,21 @@ module Content_addressable
        and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The
-      exact guarantees depends on the backends. *)
+  (** [batch t f] applies the writes in [f] in a separate batch. The exact
+      guarantees depends on the backends. *)
 
   val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 
   val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any
-      operations run on a closed store will raise {!Closed}. *)
+  (** [close t] frees up all the resources associated to [t]. Any operations run
+      on a closed store will raise {!Closed}. *)
 end
 
-(** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write
-    store backends. [K] is the implementation of keys and [V] is the
-    implementation of values.*)
+(** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store
+    backends. [K] is the implementation of keys and [V] is the implementation of
+    values.*)
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
@@ -2034,8 +1946,8 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
       configuration [config], which is provided by the backend. *)
 end
 
-(** Simple store creator. Use the same type of all of the internal
-    keys and store all the values in the same store. *)
+(** Simple store creator. Use the same type of all of the internal keys and
+    store all the values in the same store. *)
 module Make
     (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : ATOMIC_WRITE_STORE_MAKER) : S_MAKER
