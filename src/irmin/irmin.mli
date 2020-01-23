@@ -515,6 +515,8 @@ module Type : sig
     type 'a field
     type 'a case
 
+    val exception_handler : 'a ty -> exn -> 'a t
+
     val unit : unit -> unit t
     val bool : unit -> bool t
     val char : unit -> char t
@@ -525,6 +527,7 @@ module Type : sig
     val string : len -> string t
     val bytes : len -> bytes t
 
+    val custom : 'a ty -> 'a t
     val map : 'a t -> ('b -> 'a) -> 'b t
     val list : 'a t -> len -> 'a list t
     val array : 'a t -> len -> 'a array t
@@ -536,7 +539,7 @@ module Type : sig
     val record : string -> 'a field list -> 'a t
 
     val variant_case0 : string -> 'a -> 'a case
-    val variant_case1 : string -> 'b t -> ('b -> 'a) -> 'a case
+    val variant_case1 : string -> 'b t -> ('a -> 'b option) -> 'a case
     val variant : string -> 'a case list -> 'a t
   end
 

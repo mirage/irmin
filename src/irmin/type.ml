@@ -173,6 +173,7 @@ and 'a case_v =
 and 'a case0 = { ctag0 : int; cname0 : string; c0 : 'a }
 
 and ('a, 'b) case1 = {
+  c1wit : 'b Witness.t;
   ctag1 : int;
   cname1 : string;
   ctype1 : 'b t;
@@ -381,7 +382,8 @@ let case0 cname0 c0 ctag0 =
   (C0 c, CV0 c)
 
 let case1 cname1 ctype1 c1 ctag1 =
-  let c = { ctag1; cname1; ctype1; c1 } in
+  let c1wit = Witness.make () in
+  let c = { c1wit; ctag1; cname1; ctype1; c1 } in
   (C1 c, fun v -> CV1 (c, v))
 
 type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
@@ -1680,6 +1682,8 @@ module type MAPPER = sig
   type 'a field
   type 'a case
 
+  val exception_handler : 'a ty -> exn -> 'a t
+
   val unit : unit -> unit t
   val bool : unit -> bool t
   val char : unit -> char t
@@ -1690,6 +1694,7 @@ module type MAPPER = sig
   val string : len -> string t
   val bytes : len -> bytes t
 
+  val custom : 'a ty -> 'a t
   val map : 'a t -> ('b -> 'a) -> 'b t
   val list : 'a t -> len -> 'a list t
   val array : 'a t -> len -> 'a array t
@@ -1701,39 +1706,56 @@ module type MAPPER = sig
   val record : string -> 'a field list -> 'a t
 
   val variant_case0 : string -> 'a -> 'a case
-  val variant_case1 : string -> 'b t -> ('b -> 'a) -> 'a case
+  val variant_case1 : string -> 'b t -> ('a -> 'b option) -> 'a case
   val variant : string -> 'a case list -> 'a t
 end
 
 module Mapper (M : MAPPER) = struct
   let rec map : type a. a ty -> a M.t = fun t ->
-    match t with
-    | Self s -> map s.self
-    | Custom _c -> failwith "map: Custom not implemented" (* omitted for brevity *)
-    | Map m ->  M.map (map m.x) m.g
-    | Prim Unit -> M.unit ()
-    | Prim Bool -> M.bool ()
-    | Prim Char -> M.char ()
-    | Prim Int -> M.int ()
-    | Prim Int32 -> M.int32 ()
-    | Prim Int64 -> M.int64 ()
-    | Prim Float -> M.float ()
-    | Prim (String len) -> M.string len
-    | Prim (Bytes len) -> M.bytes len
-    | List l -> M.list (map l.v) l.len
-    | Array a -> M.array (map a.v) a.len
-    | Tuple (Pair (a, b)) -> M.pair (map a) (map b)
-    | Tuple (Triple (a, b, c)) -> M.triple (map a) (map b) (map c)
-    | Option t -> M.option (map t)
-    | Record r ->
-      let record_fields = List.map (fun (Field f) ->
-        M.record_field f.fname (map f.ftype) f.fget
-      ) (fields r) in
-      M.record r.rname record_fields
-    | Variant v ->
-      let cases = List.map (function
-        | C0 c -> M.variant_case0 c.cname0 c.c0
-        | C1 c -> M.variant_case1 c.cname1 (map c.ctype1) c.c1
-      ) (Array.to_list v.vcases) in
-      M.variant v.vname cases
+    try
+      match t with
+      | Self s -> map s.self
+      | Custom _ as c -> M.custom c
+      | Map m ->  M.map (map m.x) m.g
+      | Prim Unit -> M.unit ()
+      | Prim Bool -> M.bool ()
+      | Prim Char -> M.char ()
+      | Prim Int -> M.int ()
+      | Prim Int32 -> M.int32 ()
+      | Prim Int64 -> M.int64 ()
+      | Prim Float -> M.float ()
+      | Prim (String len) -> M.string len
+      | Prim (Bytes len) -> M.bytes len
+      | List l -> M.list (map l.v) l.len
+      | Array a -> M.array (map a.v) a.len
+      | Tuple (Pair (a, b)) -> M.pair (map a) (map b)
+      | Tuple (Triple (a, b, c)) -> M.triple (map a) (map b) (map c)
+      | Option t -> M.option (map t)
+      | Record r ->
+        let record_fields = List.map (fun (Field f) ->
+          M.record_field f.fname (map f.ftype) f.fget
+        ) (fields r) in
+        M.record r.rname record_fields
+      | Variant v ->
+        let get_case : type a b. a case_v -> b Witness.t -> b option =
+          fun c wit ->
+            match c with
+            | CV0 _ -> None
+            | CV1 (cv1, x) ->
+              match Witness.eq cv1.c1wit wit with
+              | Some Refl -> Some x
+              | None -> None
+        in
+        let cases = List.map (function
+          | C0 c -> M.variant_case0 c.cname0 c.c0
+          | C1 c ->
+              let f x =
+                let c' = v.vget x in
+                get_case c' c.c1wit
+              in
+              M.variant_case1 c.cname1 (map c.ctype1) f
+        ) (Array.to_list v.vcases) in
+        M.variant v.vname cases
+   with exn ->
+     M.exception_handler t exn
 end

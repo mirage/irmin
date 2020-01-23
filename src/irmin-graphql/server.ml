@@ -92,12 +92,12 @@ module Graphql_mapper = struct
   type 'a field = (unit, 'a) Schema.field
 
   type 'a enum_case = string * 'a
-  type 'a obj_case = O : string * 'b t * ('b -> 'a) -> 'a obj_case
+  type 'a obj_case = O : string * 'b t * ('a -> 'b option) -> 'a obj_case
   type 'a case =
     | EnumCase of 'a enum_case
     | ObjCase of 'a obj_case
 
-  let unit () = failwith "Graphql_mapper: cannot convert unit type"
+  let unit () = NonNull Schema.(scalar "Unit" ~coerce:(fun () -> `Null))
   let bool () = NonNull Schema.bool
   let char () = NonNull Schema.(scalar "Char" ~coerce:(fun c -> `String (Char.escaped c)))
   let int () = NonNull Schema.int
@@ -112,12 +112,18 @@ module Graphql_mapper = struct
     | NonNull typ -> Schema.non_null typ
     | Nullable typ -> typ
 
-  let map _t _f = failwith "Graphql_mapper: cannot convert map type"
+  let exception_handler t _exn =
+    NonNull Schema.(scalar "String" ~coerce:(fun x -> `String (Irmin.Type.to_string t x)))
+
+  let custom _typ = failwith "Grapqhl_mapper: custom type not supported"
+  let map _t _f = failwith "Graphql_mapper: map type not supported"
+
   let list t _len =
-    let typ  = unwrap t in
+    let typ = unwrap t in
     NonNull Schema.(list typ)
 
-  let array _t _len = failwith "Graphql_mapper: Array type not done yet"
+  let array _t _len = failwith "Graphql_mapper: array type not supported"
+
   let pair t t' =
     NonNull (Schema.(obj "Pair"
       ~fields:(fun _ -> [
@@ -154,9 +160,9 @@ module Graphql_mapper = struct
       ])
     ))
 
-  let option (type a) (t : a t) =
+  let option (type a) (t : a t) : a option t =
     match t with
-    | Nullable _t -> failwith "Graphql_mapper: cannot convert option option type"
+    | Nullable _typ -> failwith "Graphql_mapper: option option type not supported"
     | NonNull typ -> Nullable typ
 
   let record_field name t f =
@@ -173,28 +179,38 @@ module Graphql_mapper = struct
     let objs = List.filter_map (function ObjCase x -> Some x | EnumCase _ -> None) cases in
     match enums, objs with
     | [], [] ->
-        failwith "Graphql_mapper: Variant with no cases"
+        failwith "Graphql_mapper: variant type with no cases not supported"
     | enums, [] ->
         let values = List.map (fun (name, value) ->
           Schema.enum_value name ~value
         ) enums in
         NonNull (Schema.enum name ~values)
-    | [], _objs ->
-        failwith "Graphql_mapper: Variant with only C1 not implemented yet"
+    | [], objs ->
+        let fields = List.map (fun (O (variant_name, t, f)) ->
+          match t with
+          | NonNull typ ->
+              Schema.field variant_name
+                ~typ
+                ~args:[]
+                ~resolve:(fun _ x -> f x
+                )
+          | Nullable typ ->
+              failwith "Graphql_mapper: nullable variant type not supported"
+        ) objs
+        in NonNull (Schema.obj name ~fields:(fun _ -> fields))
     | _, _ ->
-        failwith "Graphql_mapper: Cannot convert variant type with mixed C0 and C1"
+        failwith "Graphql_mapper: cannot convert variant type with mixed C0 and C1"
 end
-module Graphql_mapper = Irmin.Type.Mapper (Graphql_mapper)
+module Map_graphql = Irmin.Type.Mapper (Graphql_mapper)
 
 module Default_presenter (T : Irmin.Type.S) = struct
-  type t = T.t
   type src = T.t
   let to_src _tree _key t = t
 
   let schema_typ =
-    match Graphql_mapper.map (T.t) with
+    match Map_graphql.map (T.t) with
+    | Nullable _typ -> failwith "Graphql_mapper: top-level type cannot be optional"
     | NonNull typ -> typ
-    | Nullable _typ -> failwith "Graphql_mapper: Top-level type cannot be optional"
 end
 
 module Default_presentation (S : Irmin.S) = struct
