@@ -369,9 +369,8 @@ module type NODE_GRAPH = sig
     ?rev:bool ->
     unit ->
     unit Lwt.t
-  (** [iter min max node edge skip rev ()] iterates in topological order
-      over the closure graph from the [max] nodes and bounded by the [min]
-      nodes.
+  (** [iter min max node edge skip rev ()] iterates in topological order over
+      the closure graph from the [max] nodes and bounded by the [min] nodes.
 
       It applies three functions while traversing the graph: [node] on the
       nodes; [edge n predecessor_of_n] on the directed edges and [skip n] to not
