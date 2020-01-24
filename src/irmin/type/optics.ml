@@ -181,7 +181,7 @@ module Optional (F : S.MONAD) = struct
 
   type ('s, 't, 'a, 'b) ty = ('s, 't, 'a, 'b) t
 
-  let modify { modify; _ } f = modify (fun x -> f x >|= (fun a -> Some a))
+  let modify { modify; _ } f = modify (f >=| fun a -> Some a)
 
   let of_lens : type s t a b. (s, t, a, b) Lens.t -> (s, t, a, b) ty =
    fun { Lens.op } ->

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Lens = Optics.Lens (Monad.Identity)
+
 module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
 
@@ -112,11 +114,51 @@ and 'a record = {
 }
 
 and 'a fields_and_constr =
-  | Fields : ('a, 'b) fields * 'b -> 'a fields_and_constr
+  | Fields : ('a, 'b, _, _) fields * 'b -> 'a fields_and_constr
 
-and ('a, 'b) fields =
-  | F0 : ('a, 'a) fields
-  | F1 : ('a, 'b) field * ('a, 'c) fields -> ('a, 'b -> 'c) fields
+(** We need to maintain two kinds of type-level difference list. The type
+    parameters [('record, 'constr, 'lens, 'lens_nil)] have the following
+    meanings:
+
+    - ['record] : the type of the record under construction.
+
+    - ['constr] : function type consuming the fields that have been described so
+      far and returning ['record] (that is, a list with [(::) = (->)] and
+      [(\[\]) = 'record]). This gradually builds the type of the constructor
+      function, such that the variant may be sealed when ['constr] is equal to
+      the supplied constructor type.
+
+    - ['lens] : list of lenses for the fields passed so far with [(::) = ( * )]
+      and [(\[\]) = 'lens_nil].
+
+    - ['lens_nil] : the nil-variable of ['lens].
+
+    For example, given a record of type [foo] with fields of type [int],
+    [string] and [bool] (two of which have been passed) the type parameters are
+    as follows:
+
+    {[
+      ('a, 'b, 'c, 'd)  =  (foo,     ->         ,          *      , 'd)
+                                    /  \                 /   \
+                                   /    \               /     \
+                                  /      \             /       \
+                                int      ->     (foo, int)      *
+                                        /  \     Lens.mono    /   \
+                                       /    \                /     \
+                                      /      \              /       \
+                                   string    foo     (foo, string)  'd
+                                                       Lens.mono
+    ]} *)
+
+and ('record, 'constr, 'lenses, 'lens_nil) fields =
+  | F0 : ('record, 'record, 'lens_nil, 'lens_nil) fields
+  | F1 :
+      ('record, 'field) field * ('record, 'constr, 'lenses, 'lens_nil) fields
+      -> ( 'record,
+           'field -> 'constr,
+           ('record, 'field) Lens.mono * 'lenses,
+           'lens_nil )
+         fields
 
 and ('a, 'b) field = { fname : string; ftype : 'b t; fget : 'a -> 'b }
 
@@ -146,7 +188,8 @@ type 'a ty = 'a t
 
 type _ a_field = Field : ('a, 'b) field -> 'a a_field
 
-let rec fields_aux : type a b. (a, b) fields -> a a_field list = function
+let rec fields_aux : type a b c d. (a, b, c, d) fields -> a a_field list =
+  function
   | F0 -> []
   | F1 (h, t) -> Field h :: fields_aux t
 

@@ -320,7 +320,7 @@ module Decode = struct
    fun r ?headers:_ buf ofs ->
     match r.rfields with
     | Fields (fs, c) ->
-        let rec aux : type b. int -> b -> (a, b) fields -> a res =
+        let rec aux : type b l1 l2. int -> b -> (a, b, l1, l2) fields -> a res =
          fun ofs f -> function
           | F0 -> ok ofs f
           | F1 (h, t) -> field h buf ofs >>= fun (ofs, x) -> aux ofs (f x) t

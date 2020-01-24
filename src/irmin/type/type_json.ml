@@ -314,8 +314,9 @@ module Decode = struct
       | l -> error e l "`Record-contents"
     in
     soup [] >>= fun soup ->
-    let rec aux : type a b. (a, b) fields -> b -> (a, [ `Msg of string ]) result
-        =
+    let rec aux :
+        type a b l1 l2.
+        (a, b, l1, l2) fields -> b -> (a, [ `Msg of string ]) result =
      fun f c ->
       match f with
       | F0 -> Ok c

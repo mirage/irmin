@@ -89,13 +89,15 @@ val result : 'a t -> 'b t -> ('a, 'b) result t
 
 (** {1:records Records} *)
 
-type ('a, 'b, 'c) open_record
-(** The type for representing open records of type ['a] with a constructor of
-    type ['b]. ['c] represents the remaining fields to be described using the
-    {!(|+)} operator. An open record initially satisfies ['c = 'b] and can be
-    {{!sealr} sealed} once ['c = 'a]. *)
+type ('record, 'cons, 'remaning, 'lenses, 'lens_nil) open_record
+(** The type for representing open records of type ['record] with a constructor
+    of type ['cons]. ['remaining] represents the remaining fields to be
+    described using the {!(|+)} operator. An open record initially satisfies
+    ['remaining = 'cons] and can be {{!sealr} sealed} once
+    ['remaining = 'record]. *)
 
-val record : string -> 'b -> ('a, 'b, 'b) open_record
+val record :
+  string -> 'cons -> ('a, 'cons, 'cons, 'lens_nil, 'lens_nil) open_record
 (** [record n f] is an incomplete representation of the record called [n] of
     type ['a] with constructor [f]. To complete the representation, add fields
     with {!(|+)} and then seal the record with {!sealr}. *)
@@ -116,12 +118,27 @@ val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
       let manuscript = field "title" (option string) (fun t -> t.title)
     ]} *)
 
+module Lens : module type of Optics.Lens (Monad.Identity)
+
 val ( |+ ) :
-  ('a, 'b, 'c -> 'd) open_record -> ('a, 'c) field -> ('a, 'b, 'd) open_record
+  ( 'record,
+    'cons,
+    'field -> 'remaining_fields,
+    'lens,
+    ('record, 'field) Lens.mono * 'lens_nil )
+  open_record ->
+  ('record, 'field) field ->
+  ('record, 'cons, 'remaining_fields, 'lens, 'lens_nil) open_record
 (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
-val sealr : ('a, 'b, 'a) open_record -> 'a t
+val sealr : ('record, 'cons, 'record, 'lens, unit) open_record -> 'record t
 (** [sealr r] seals the open record [r]. *)
+
+val sealr_with_optics :
+  ('record, 'cons, 'record, 'lens, unit) open_record ->
+  'record t * 'lens Lens.t_list
+(** [sealr_with_optics r] seals the open record [r] and returns lenses to be
+    used for the fields. *)
 
 (** Putting all together:
 

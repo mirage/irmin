@@ -110,24 +110,59 @@ let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
 
 (* records *)
 
-type ('a, 'b, 'c) open_record = ('a, 'c) fields -> string * 'b * ('a, 'b) fields
+type ('record, 'constr, 'remaining, 'lenses, 'lens_nil) open_record = {
+  open_record :
+    'hole. ('record, 'remaining, 'lens_nil, 'hole) fields ->
+    (* Append the two lens lists at the type level *)
+    string * 'constr * ('record, 'constr, 'lenses, 'hole) fields;
+}
 
 let field fname ftype fget = { fname; ftype; fget }
 
-let record : string -> 'b -> ('a, 'b, 'b) open_record = fun n c fs -> (n, c, fs)
+let record : type r. string -> r -> ('a, r, r, 'lens_nil, 'lens_nil) open_record
+    =
+ fun n r ->
+  let open_record fs = (n, r, fs) in
+  { open_record }
 
 let app :
-    type a b c d.
-    (a, b, c -> d) open_record -> (a, c) field -> (a, b, d) open_record =
- fun r f fs ->
-  let n, c, fs = r (F1 (f, fs)) in
-  (n, c, fs)
+    type r c ft rem lens lens_nil.
+    (r, c, ft -> rem, lens, (r, ft) Lens.mono * lens_nil) open_record ->
+    (r, ft) field ->
+    (r, c, rem, lens, lens_nil) open_record =
+ fun { open_record = previous } field ->
+  let open_record' :
+      type hole.
+      (r, rem, lens_nil, hole) fields -> string * c * (r, c, lens, hole) fields
+      =
+   fun fs -> previous (F1 (field, fs))
+  in
+  { open_record = open_record' }
 
-let sealr : type a b. (a, b, a) open_record -> a t =
- fun r ->
-  let rname, c, fs = r F0 in
+(* Ground constructor difference list with [record] and lens list with [unit] *)
+let sealr_with_optics :
+    type record cons lens.
+    (record, cons, record, lens, unit) open_record ->
+    record t * lens Lens.t_list =
+ fun { open_record = r } ->
+  let name, cons, fields = r F0 in
   let rwit = Witness.make () in
-  Record { rwit; rname; rfields = Fields (fs, c) }
+  let lenses =
+    let open Lens in
+    let rec inner : type a l. (record, a, l, unit) fields -> l Lens.t_list =
+      function
+      | F0 -> []
+      | F1 ({ fget; _ }, fs) ->
+          (* TODO: build mutator from the accessors and constructor *)
+          let ml = Lens.v fget (fun _ _ -> assert false) in
+          ml :: inner fs
+    in
+    inner fields
+  in
+  (Record { rwit; rname = name; rfields = Fields (fields, cons) }, lenses)
+
+let sealr : type a b. (a, b, a, _, _) open_record -> a t =
+ fun r -> sealr_with_optics r |> fst
 
 let ( |+ ) = app
 

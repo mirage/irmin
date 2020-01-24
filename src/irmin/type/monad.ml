@@ -1,3 +1,35 @@
+let ( >> ) f g x = g (f x)
+
+module Identity = struct
+  type 'a t = 'a
+
+  let id x = x
+
+  let map = id
+
+  let return = id
+
+  let lift_bin = id
+
+  let bind = id
+
+  module Infix = struct
+    let ( >|= ) = ( |> )
+
+    let ( >=| ) = ( >> )
+
+    let ( >>= ) = ( |> )
+
+    let ( >=> ) = ( >> )
+  end
+
+  module Syntax = struct
+    let ( let+ ) = ( |> )
+
+    let ( let* ) = ( |> )
+  end
+end
+
 module Option = struct
   type 'a t = 'a option
 
@@ -12,6 +44,8 @@ module Option = struct
 
   module Infix = struct
     let ( >|= ) x f = map f x
+
+    let ( >=| ) f g x = map g (f x)
 
     let ( >>= ) x f = bind f x
 

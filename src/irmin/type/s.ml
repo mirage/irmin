@@ -5,10 +5,15 @@ module type FUNCTOR = sig
 
   module Infix : sig
     val ( >|= ) : 'a t -> ('a -> 'b) -> 'b t
+    (** Infix alias for {!map}. *)
+
+    val ( >=| ) : ('a -> 'b t) -> ('b -> 'c) -> 'a -> 'c t
+    (** Lift {!map} over functions *)
   end
 
   module Syntax : sig
     val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
+    (** Syntactic sugar for {!map}. *)
   end
 end
 
@@ -30,6 +35,9 @@ module type MONAD = sig
   module Infix : sig
     val ( >|= ) : 'a t -> ('a -> 'b) -> 'b t
     (** Infix alias for {!map}. *)
+
+    val ( >=| ) : ('a -> 'b t) -> ('b -> 'c) -> 'a -> 'c t
+    (** Lift {!map} over functions *)
 
     val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
     (** Infix alias for {!bind}. *)
