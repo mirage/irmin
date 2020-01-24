@@ -33,9 +33,24 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   type 'a t = { mutable t : value KMap.t }
 
-  let map = { t = KMap.empty }
+  let map () = Lwt.return { t = KMap.empty }
 
-  let v _config = Lwt.return map
+  let with_cache =
+    let roots = Hashtbl.create 3 in
+    let module C = Irmin.Private.Conf in
+    let f conf =
+      let root = C.get conf C.root in
+      try
+        let t = Hashtbl.find roots root in
+        t
+      with Not_found ->
+        let t = map () in
+        Hashtbl.add roots root t;
+        t
+    in
+    `Staged f
+
+  let (`Staged v) = with_cache
 
   let clear t =
     Log.debug (fun f -> f "clear");

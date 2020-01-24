@@ -1,7 +1,7 @@
 (library
  (name test_mem)
  (modules test_mem)
- (libraries irmin-test irmin-mem))
+ (libraries irmin-test irmin-mem irmin-layers))
 
 (executable
  (name test)

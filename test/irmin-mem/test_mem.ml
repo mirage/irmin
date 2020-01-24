@@ -18,10 +18,19 @@ open Lwt.Infix
 
 let store = Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)
 
+module Make_layered = Irmin_layers.Make (Irmin_mem.Make)
+
+let layered_store =
+  Irmin_test.layered_store (module Make_layered) (module Irmin.Metadata.None)
+
 let config = Irmin_mem.config ()
 
 let clean () =
   let (module S : Irmin_test.S) = store in
+  S.Repo.v config >>= fun repo ->
+  S.Private.Repo.clear repo >>= fun () ->
+  S.Repo.close repo >>= fun () ->
+  let (module S : Irmin_test.LAYERED_STORE) = layered_store in
   S.Repo.v config >>= fun repo ->
   S.Private.Repo.clear repo >>= fun () -> S.Repo.close repo
 
@@ -39,5 +48,5 @@ let suite =
     config;
     store;
     stats;
-    layered_store = None;
+    layered_store = Some layered_store;
   }
