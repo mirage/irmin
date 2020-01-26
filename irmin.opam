@@ -25,6 +25,7 @@ depends: [
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
   "astring"
+  "ocaml-syntax-shims"
   "hex"      {with-test}
   "alcotest" {with-test}
 ]
