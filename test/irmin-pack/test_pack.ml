@@ -31,7 +31,12 @@ let suite =
       (module Irmin_pack.Make (Config))
       (module Irmin.Metadata.None)
   in
-  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let layered_store =
+    Irmin_test.layered_store
+      (module Irmin_pack.Make_layered (Config))
+      (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
   let init () =
     if Sys.file_exists test_dir then (
       let cmd = Printf.sprintf "rm -rf %s" test_dir in
@@ -44,6 +49,11 @@ let suite =
     let (module S : Irmin_test.S) = store in
     let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
     S.Repo.v config >>= fun repo ->
+    S.Private.Repo.clear repo >>= fun () ->
+    S.Repo.close repo >>= fun () ->
+    let (module S : Irmin_test.LAYERED_STORE) = layered_store in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
     S.Private.Repo.clear repo >>= fun () -> S.Repo.close repo
   in
   let stats = None in
@@ -54,7 +64,7 @@ let suite =
     config;
     store;
     stats;
-    layered_store = None;
+    layered_store = Some layered_store;
   }
 
 module Context = Make_context (struct
@@ -385,4 +395,4 @@ module Branch = struct
 end
 
 let misc =
-  ("misc", Dict.tests @ Pack.tests @ Branch.tests @ Multiple_instances.tests)
+  ("misc", Dict.tests @ Pack.tests @ Branch.tests @ Multiple_instances.tests @ Layered.tests)

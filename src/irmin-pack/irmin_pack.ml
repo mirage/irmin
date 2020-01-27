@@ -551,4 +551,17 @@ end
 
 module KV (Config : CONFIG) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+
+module Make_layered
+    (Config : CONFIG)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
+struct
+  module Make = Make (Config)
+  include Irmin_layers.Make (Make) (M) (C) (P) (B) (H)
+end
+
 module Stats = Stats

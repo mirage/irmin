@@ -98,6 +98,21 @@ module Make
       entries. *)
 end
 
+module Make_layered
+    (Config : CONFIG)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) :
+  Irmin_layers.STORE
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
+
 module KV (Config : CONFIG) : Irmin.KV_MAKER
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
