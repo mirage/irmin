@@ -135,24 +135,24 @@ let app :
       type hole.
       (r, rem, lens_nil, hole) fields -> string * c * (r, c, lens, hole) fields
       =
-   fun fs -> previous (F1 (field, fs))
+   fun fs -> previous (Fields_cons (field, fs))
   in
   { open_record = open_record' }
 
-(* Ground constructor difference list with [record] and lens list with [unit] *)
+(* Ground lens list with [unit] *)
 let sealr_with_optics :
     type record cons lens.
     (record, cons, record, lens, unit) open_record ->
     record t * lens Lens.t_list =
  fun { open_record = r } ->
-  let name, cons, fields = r F0 in
+  let name, cons, fields = r Fields_nil in
   let rwit = Witness.make () in
   let lenses =
     let open Lens in
     let rec inner : type a l. (record, a, l, unit) fields -> l Lens.t_list =
       function
-      | F0 -> []
-      | F1 ({ fget; _ }, fs) ->
+      | Fields_nil -> []
+      | Fields_cons ({ fget; _ }, fs) ->
           (* TODO: build mutator from the accessors and constructor *)
           let ml = Lens.v fget (fun _ _ -> assert false) in
           ml :: inner fs
@@ -168,34 +168,103 @@ let ( |+ ) = app
 
 (* variants *)
 
+type ('v, 'pat, 'rem, 'rem_nil, 'prism, 'prism_nil) open_variant = {
+  open_variant :
+    'hole1 'hole2. ('v, 'rem_nil, 'hole1, 'prism_nil, 'hole2) cases ->
+    string * 'hole1 * ('v, 'rem, 'hole1, 'prism, 'hole2) cases;
+  next_tag : int;
+}
+
+let variant : string -> 'p -> ('v, 'p, 'r, 'r, 'opt, 'opt) open_variant =
+ fun n p ->
+  let open_variant cs =
+    let rec inner :
+        type v pat pat_nil opt opt_nil.
+        pat -> (v, pat, pat_nil, opt, opt_nil) cases -> pat_nil =
+     fun p -> function
+      | Cases_nil -> p
+      | Cases_cons (C0 case, cs) -> inner (p (CV0 case)) cs
+      | Cases_cons (C1 case1, cs) -> inner (p (fun v -> CV1 (case1, v))) cs
+    in
+    (n, inner p cs, cs)
+  in
+  { open_variant; next_tag = 0 }
+
+let app :
+    type v c constr pat rem rem_nil opt opt_nil.
+    ( v,
+      pat,
+      rem,
+      constr -> rem_nil,
+      opt,
+      (v, c) Prism.mono * opt_nil )
+    open_variant ->
+    (v, c, constr) case ->
+    (v, pat, rem, rem_nil, opt, opt_nil) open_variant =
+ fun { open_variant = previous; next_tag } case ->
+  let open_variant' cs = previous (Cases_cons (case next_tag, cs)) in
+  { open_variant = open_variant'; next_tag = next_tag + 1 }
+
+let array_of_case_list cases =
+  let rec inner :
+      type variant pat pat_nil pri pri_nil.
+      (variant, pat, pat_nil, pri, pri_nil) cases -> variant a_case list =
+    function
+    | Cases_nil -> []
+    | Cases_cons (C0 c, cs) -> CP0 c :: inner cs
+    | Cases_cons (C1 c, cs) -> CP1 c :: inner cs
+  in
+  inner cases |> Array.of_list
+
+let sealv_with_optics :
+    type variant pat prisms.
+    (variant, pat, pat, variant -> variant case_v, prisms, unit) open_variant ->
+    variant t * prisms Prism.t_list =
+ fun { open_variant = v; _ } ->
+  let vname, (vget : variant -> variant case_v), cases = v Cases_nil in
+  let vwit = Witness.make () in
+  let vcases = array_of_case_list cases in
+  let prisms =
+    let open Prism in
+    let rec inner : type p a b. (variant, a, b, p, unit) cases -> p Prism.t_list
+        = function
+      | Cases_nil -> []
+      | Cases_cons (C0 { c0; ctag0 = tag_expected; _ }, cs) ->
+          let review () = c0 in
+          let preview v =
+            match vget v with
+            | CV0 { ctag0 = tag_actual; _ } ->
+                if tag_actual = tag_expected then Some () else None
+            | CV1 _ -> None
+          in
+          Prism.v review preview :: inner cs
+      | Cases_cons (C1 { c1; ctag1 = tag_expected; _ }, cs) ->
+          let review = c1 in
+          let preview v =
+            match vget v with
+            | CV1 ({ ctag1 = tag_actual; _ }, elt) ->
+                if tag_actual = tag_expected then Some (Obj.magic elt) else None
+            | CV0 _ -> None
+          in
+          Prism.v review preview :: inner cs
+    in
+    inner cases
+  in
+  (Variant { vwit; vname; vcases; vget }, prisms)
+
 type 'a case_p = 'a case_v
 
-type ('a, 'b) case = int -> 'a a_case * 'b
-
-let case0 cname0 c0 ctag0 =
-  let c = { ctag0; cname0; c0 } in
-  (C0 c, CV0 c)
-
-let case1 cname1 ctype1 c1 ctag1 =
-  let c = { ctag1; cname1; ctype1; c1 } in
-  (C1 c, fun v -> CV1 (c, v))
-
-type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
-
-let variant n c vs = (n, c, vs)
-
-let app v c cs =
-  let n, fc, cs = v cs in
-  let c, f = c (List.length cs) in
-  (n, fc f, c :: cs)
-
-let sealv v =
-  let vname, vget, vcases = v [] in
-  let vwit = Witness.make () in
-  let vcases = Array.of_list (List.rev vcases) in
-  Variant { vwit; vname; vcases; vget }
+let sealv :
+    type a b opt. (a, b, b, a -> a case_v, opt, unit) open_variant -> a t =
+ fun v -> sealv_with_optics v |> fst
 
 let ( |~ ) = app
+
+type ('var, 'case, 'constr) case = int -> ('var, 'case, 'constr) case_with_tag
+
+let case0 cname0 c0 ctag0 = C0 { ctag0; cname0; c0 }
+
+let case1 cname1 ctype1 c1 ctag1 = C1 { ctag1; cname1; ctype1; c1 }
 
 let enum vname l =
   let vwit = Witness.make () in
@@ -203,7 +272,7 @@ let enum vname l =
     List.fold_left
       (fun (ctag0, cases, mk) (n, v) ->
         let c = { ctag0; cname0 = n; c0 = v } in
-        (ctag0 + 1, C0 c :: cases, (v, CV0 c) :: mk))
+        (ctag0 + 1, CP0 c :: cases, (v, CV0 c) :: mk))
       (0, [], []) l
   in
   let vcases = Array.of_list (List.rev vcases) in

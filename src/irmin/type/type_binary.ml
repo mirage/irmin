@@ -322,8 +322,9 @@ module Decode = struct
     | Fields (fs, c) ->
         let rec aux : type b l1 l2. int -> b -> (a, b, l1, l2) fields -> a res =
          fun ofs f -> function
-          | F0 -> ok ofs f
-          | F1 (h, t) -> field h buf ofs >>= fun (ofs, x) -> aux ofs (f x) t
+          | Fields_nil -> ok ofs f
+          | Fields_cons (h, t) ->
+              field h buf ofs >>= fun (ofs, x) -> aux ofs (f x) t
         in
         aux ofs c fs
 
@@ -335,7 +336,7 @@ module Decode = struct
 
   and case : type a. a a_case -> a decode_bin =
    fun c ?headers:_ buf ofs ->
-    match c with C0 c -> ok ofs c.c0 | C1 c -> t c.ctype1 buf ofs >|= c.c1
+    match c with CP0 c -> ok ofs c.c0 | CP1 c -> t c.ctype1 buf ofs >|= c.c1
 end
 
 let encode_bin = Encode.t

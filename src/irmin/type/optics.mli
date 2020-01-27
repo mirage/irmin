@@ -67,12 +67,19 @@ end
 
 (** First-class sum components with monadic access. *)
 module Prism (F : S.MONAD) : sig
-  type (-'s, +'t, +'a, -'b) t
+  type (-'s, +'t, +'a, -'b) t = private {
+    review : 'b -> 't F.t;
+    preview : 's -> 'a option F.t;
+  }
   (** The type of prisms.
 
       The prism is the categorical dual of the lens (it operates on sum types
       where lenses operate on product types). As such, the access function is
-      non-total *)
+      non-total.
+
+      N.B. Without a way to assert that {t} is not bivariant in its second
+      argument, it is impossible to construct a phantom heterogeneous list of
+      these prisms. As a compromise, we make the type concrete but [private]. *)
 
   type ('s, 'a) mono = ('s, 's, 'a, 'a) t
 

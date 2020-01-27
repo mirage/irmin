@@ -15,6 +15,7 @@
  *)
 
 module Lens = Optics.Lens (Monad.Identity)
+module Prism = Optics.Prism (Monad.Identity)
 
 module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
@@ -151,8 +152,8 @@ and 'a fields_and_constr =
     ]} *)
 
 and ('record, 'constr, 'lenses, 'lens_nil) fields =
-  | F0 : ('record, 'record, 'lens_nil, 'lens_nil) fields
-  | F1 :
+  | Fields_nil : ('record, 'record, 'lens_nil, 'lens_nil) fields
+  | Fields_cons :
       ('record, 'field) field * ('record, 'constr, 'lenses, 'lens_nil) fields
       -> ( 'record,
            'field -> 'constr,
@@ -169,11 +170,23 @@ and 'a variant = {
   vget : 'a -> 'a case_v;
 }
 
-and 'a a_case = C0 : 'a case0 -> 'a a_case | C1 : ('a, 'b) case1 -> 'a a_case
+(* Cases are built without knowing what the tags are *)
+and ('v, 'case, 'constr) case = int -> ('v, 'case, 'constr) case_with_tag
 
-and 'a case_v =
-  | CV0 : 'a case0 -> 'a case_v
-  | CV1 : ('a, 'b) case1 * 'b -> 'a case_v
+(* | C0_tagless : (int -> 'v case0) -> ('v, unit) case
+ * | C1_tagless : (int -> ('v, 'case) case1) -> ('v, 'case) case *)
+and ('v, 'case, 'constr) case_with_tag =
+  | C0 : 'v case0 -> ('v, unit, 'v case_v) case_with_tag
+  | C1 : ('v, 'case) case1 -> ('v, 'case, 'case -> 'v case_v) case_with_tag
+
+(** {!case_with_tag} without the ['case] parameter *)
+and 'v a_case =
+  | CP0 : 'v case0 -> 'v a_case
+  | CP1 : ('v, 'case) case1 -> 'v a_case
+
+and 'v case_v =
+  | CV0 : 'v case0 -> 'v case_v
+  | CV1 : ('v, 'case) case1 * 'case -> 'v case_v
 
 and 'a case0 = { ctag0 : int; cname0 : string; c0 : 'a }
 
@@ -184,13 +197,25 @@ and ('a, 'b) case1 = {
   c1 : 'b -> 'a;
 }
 
+and ('variant, 'pat, 'pat_nil, 'prisms, 'prism_nil) cases =
+  | Cases_nil : ('variant, 'pat_nil, 'pat_nil, 'prism_nil, 'prism_nil) cases
+  | Cases_cons :
+      ('variant, 'case, 'constr) case_with_tag
+      * ('variant, 'remaining, 'pat_nil, 'prisms, 'prism_nil) cases
+      -> ( 'variant,
+           'constr -> 'remaining,
+           'pat_nil,
+           ('variant, 'case) Prism.mono * 'prisms,
+           'prism_nil )
+         cases
+
 type 'a ty = 'a t
 
 type _ a_field = Field : ('a, 'b) field -> 'a a_field
 
 let rec fields_aux : type a b c d. (a, b, c, d) fields -> a a_field list =
   function
-  | F0 -> []
-  | F1 (h, t) -> Field h :: fields_aux t
+  | Fields_nil -> []
+  | Fields_cons (h, t) -> Field h :: fields_aux t
 
 let fields r = match r.rfields with Fields (f, _) -> fields_aux f

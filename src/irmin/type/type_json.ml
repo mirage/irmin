@@ -319,8 +319,8 @@ module Decode = struct
         (a, b, l1, l2) fields -> b -> (a, [ `Msg of string ]) result =
      fun f c ->
       match f with
-      | F0 -> Ok c
-      | F1 (h, f) -> (
+      | Fields_nil -> Ok c
+      | Fields_cons (h, f) -> (
           let v =
             try
               let s = List.assoc h.fname soup in
@@ -350,7 +350,7 @@ module Decode = struct
    fun s v _e ->
     let rec aux i =
       match v.vcases.(i) with
-      | C0 c when String.compare c.cname0 s = 0 -> Ok c.c0
+      | CP0 c when String.compare c.cname0 s = 0 -> Ok c.c0
       | _ ->
           if i < Array.length v.vcases then aux (i + 1)
           else Error (`Msg "variant")
@@ -363,7 +363,7 @@ module Decode = struct
     | `Name s ->
         let rec aux i =
           match v.vcases.(i) with
-          | C1 c when String.compare c.cname1 s = 0 -> t c.ctype1 e >|= c.c1
+          | CP1 c when String.compare c.cname1 s = 0 -> t c.ctype1 e >|= c.c1
           | _ ->
               if i < Array.length v.vcases then aux (i + 1)
               else Error (`Msg "variant")

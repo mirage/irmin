@@ -97,7 +97,7 @@ type ('record, 'cons, 'remaning, 'lenses, 'lens_nil) open_record
     ['remaining = 'record]. *)
 
 val record :
-  string -> 'cons -> ('a, 'cons, 'cons, 'lens_nil, 'lens_nil) open_record
+  string -> 'cons -> ('record, 'cons, 'cons, 'lens_nil, 'lens_nil) open_record
 (** [record n f] is an incomplete representation of the record called [n] of
     type ['a] with constructor [f]. To complete the representation, add fields
     with {!(|+)} and then seal the record with {!sealr}. *)
@@ -124,19 +124,19 @@ val ( |+ ) :
   ( 'record,
     'cons,
     'field -> 'remaining_fields,
-    'lens,
+    'lenses,
     ('record, 'field) Lens.mono * 'lens_nil )
   open_record ->
   ('record, 'field) field ->
-  ('record, 'cons, 'remaining_fields, 'lens, 'lens_nil) open_record
+  ('record, 'cons, 'remaining_fields, 'lenses, 'lens_nil) open_record
 (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
-val sealr : ('record, 'cons, 'record, 'lens, unit) open_record -> 'record t
+val sealr : ('record, 'cons, 'record, 'lenses, unit) open_record -> 'record t
 (** [sealr r] seals the open record [r]. *)
 
 val sealr_with_optics :
-  ('record, 'cons, 'record, 'lens, unit) open_record ->
-  'record t * 'lens Lens.t_list
+  ('record, 'cons, 'record, 'lenses, unit) open_record ->
+  'record t * 'lenses Lens.t_list
 (** [sealr_with_optics r] seals the open record [r] and returns lenses to be
     used for the fields. *)
 
@@ -154,26 +154,36 @@ val sealr_with_optics :
 
 (** {1:variants Variants} *)
 
-type ('a, 'b, 'c) open_variant
-(** The type for representing open variants of type ['a] with pattern matching
-    of type ['b]. ['c] represents the remaining constructors to be described
-    using the {!(|~)} operator. An open variant initially satisfies [c' = 'b]
-    and can be {{!sealv} sealed} once ['c = 'a]. *)
+type ( 'variant,
+       'pat,
+       'remaning,
+       'remaining_nil,
+       'prisms,
+       'prism_nil )
+     open_variant
+(** The type for representing open variants of type ['variant] with pattern
+    matching of type ['pat]. ['remaining] represents the remaining constructors
+    to be described using the {!(|~)} operator. An open variant initially
+    satisfies ['remaining = 'pat] and can be {{!sealv} sealed} once
+    ['remaining = 'variant]. *)
 
-val variant : string -> 'b -> ('a, 'b, 'b) open_variant
+val variant :
+  string ->
+  'pat ->
+  ('variant, 'pat, 'pat, 'pat, 'prism_nil, 'prism_nil) open_variant
 (** [variant n p] is an incomplete representation of the variant type called [n]
     of type ['a] using [p] to deconstruct values. To complete the
     representation, add cases with {!(|~)} and then seal the variant with
     {!sealv}. *)
 
-type ('a, 'b) case
+type ('a, 'b, 'c) case
 (** The type for representing variant cases of type ['a] with patterns of type
     ['b]. *)
 
 type 'a case_p
 (** The type for representing patterns for a variant of type ['a]. *)
 
-val case0 : string -> 'a -> ('a, 'a case_p) case
+val case0 : string -> 'a -> ('a, unit, 'a case_p) case
 (** [case0 n v] is a representation of a variant constructor [v] with no
     arguments and name [n]. e.g.
 
@@ -183,7 +193,7 @@ val case0 : string -> 'a -> ('a, 'a case_p) case
       let foo = case0 "Foo" Foo
     ]} *)
 
-val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
+val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b, 'b -> 'a case_p) case
 (** [case1 n t c] is a representation of a variant constructor [c] with an
     argument of type [t] and name [n]. e.g.
 
@@ -193,12 +203,42 @@ val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
       let foo = case1 "Foo" string (fun s -> Foo s)
     ]} *)
 
+module Prism : module type of Optics.Prism (Monad.Identity)
+
 val ( |~ ) :
-  ('a, 'b, 'c -> 'd) open_variant -> ('a, 'c) case -> ('a, 'b, 'd) open_variant
+  ( 'variant,
+    'pat,
+    'rem,
+    'constr -> 'rem_nil,
+    'prisms,
+    ('variant, 'case) Prism.mono * 'prism_nil )
+  open_variant ->
+  ('variant, 'case, 'constr) case ->
+  ('variant, 'pat, 'rem, 'rem_nil, 'prisms, 'prism_nil) open_variant
 (** [v |~ c] is the open variant [v] augmented with the case [c]. *)
 
-val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
+val sealv :
+  ( 'variant,
+    'pat,
+    'pat,
+    'variant -> 'variant case_p,
+    'prisms,
+    unit )
+  open_variant ->
+  'variant t
 (** [sealv v] seals the open variant [v]. *)
+
+val sealv_with_optics :
+  ( 'variant,
+    'pat,
+    'pat,
+    'variant -> 'variant case_p,
+    'prisms,
+    unit )
+  open_variant ->
+  'variant t * 'prisms Prism.t_list
+(** [sealv_with_optics v] seals the open variant [v] and returns prisms to be
+    used for the cases. *)
 
 (** Putting all together:
 
