@@ -199,7 +199,7 @@ end
 type remote = S.remote = ..
 (** The type for remote stores. *)
 
-type config
+type config = S.config
 (** The type for backend-specific configuration values.
 
     Every backend has different configuration options, which are kept abstract
