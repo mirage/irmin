@@ -77,7 +77,7 @@ module Prism (F : S.MONAD) : sig
       where lenses operate on product types). As such, the access function is
       non-total.
 
-      N.B. Without a way to assert that {t} is not bivariant in its second
+      N.B. Without a way to assert that {!t} is not bivariant in its second
       argument, it is impossible to construct a phantom heterogeneous list of
       these prisms. As a compromise, we make the type concrete but [private]. *)
 
