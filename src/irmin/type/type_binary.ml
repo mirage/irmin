@@ -16,6 +16,8 @@
 
 open Type_core
 
+open Type_core.Make (Monad.Identity)
+
 module B = struct
   external get_16 : string -> int -> int = "%caml_string_get16"
 

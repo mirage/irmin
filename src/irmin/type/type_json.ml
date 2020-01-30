@@ -16,6 +16,8 @@
 
 open Type_core
 
+open Type_core.Make (Monad.Identity)
+
 exception Not_utf8
 
 let is_valid_utf8 str =

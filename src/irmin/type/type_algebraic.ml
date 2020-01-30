@@ -1,8 +1,8 @@
-open Type_core
-module Lens = Optics.Lens (Monad.Identity)
-module Prism = Optics.Prism (Monad.Identity)
+module Record (M : S.MONAD) = struct
+  module Lens = Optics.Lens (M)
 
-module Record = struct
+  open Type_core.Make (M)
+
   type ('record, 'constr, 'remaining, 'lenses, 'lens_nil) open_record = {
     open_record :
       'hole. ('record, 'remaining, 'lens_nil, 'hole) fields ->
@@ -62,7 +62,12 @@ module Record = struct
   let ( |+ ) = app
 end
 
-module Variant = struct
+module Variant (M : S.MONAD) = struct
+  open Type_core.Make (M)
+
+  open M.Infix
+  module Prism = Optics.Prism (M)
+
   type ('v, 'pat, 'rem, 'rem_nil, 'prism, 'prism_nil) open_variant = {
     open_variant :
       'hole1 'hole2. ('v, 'rem_nil, 'hole1, 'prism_nil, 'hole2) cases ->
@@ -128,7 +133,7 @@ module Variant = struct
         | Cases_cons (C0 { c0; ctag0 = tag_expected; _ }, cs) ->
             let review () = c0 in
             let preview v =
-              match vget v with
+              vget v >|= function
               | CV0 { ctag0 = tag_actual; _ } ->
                   if tag_actual = tag_expected then Some () else None
               | CV1 _ -> None
@@ -152,7 +157,8 @@ module Variant = struct
   type 'a case_p = 'a case_v
 
   let sealv :
-      type a b opt. (a, b, b, a -> a case_v, opt, unit) open_variant -> a t =
+      type a b opt. (a, b, b, a -> a case_v M.t, opt, unit) open_variant -> a t
+      =
    fun v -> sealv_with_optics v |> fst
 
   let ( |~ ) = app

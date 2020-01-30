@@ -16,6 +16,8 @@
 
 open Type_core
 
+open Type_core.Make (Monad.Identity)
+
 module Refl = struct
   open Witness
 

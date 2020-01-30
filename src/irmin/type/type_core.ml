@@ -14,9 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Lens = Optics.Lens (Monad.Identity)
-module Prism = Optics.Prism (Monad.Identity)
-
 module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
 
@@ -60,162 +57,171 @@ type 'a equal = 'a -> 'a -> bool
 
 type 'a short_hash = ?seed:int -> 'a -> int
 
-type 'a t =
-  | Self : 'a self -> 'a t
-  | Custom : 'a custom -> 'a t
-  | Map : ('a, 'b) map -> 'b t
-  | Prim : 'a prim -> 'a t
-  | List : 'a len_v -> 'a list t
-  | Array : 'a len_v -> 'a array t
-  | Tuple : 'a tuple -> 'a t
-  | Option : 'a t -> 'a option t
-  | Record : 'a record -> 'a t
-  | Variant : 'a variant -> 'a t
+module Make (M : S.MONAD) = struct
+  module Lens = Optics.Lens (M)
+  module Prism = Optics.Prism (M)
 
-and 'a len_v = { len : len; v : 'a t }
+  type 'a t =
+    | Self : 'a self -> 'a t
+    | Custom : 'a custom -> 'a t
+    | Map : ('a, 'b) map -> 'b t
+    | Prim : 'a prim -> 'a t
+    | List : 'a len_v -> 'a list t
+    | Array : 'a len_v -> 'a array t
+    | Tuple : 'a tuple -> 'a t
+    | Option : 'a t -> 'a option t
+    | Record : 'a record -> 'a t
+    | Variant : 'a variant -> 'a t
 
-and 'a custom = {
-  cwit : [ `Type of 'a t | `Witness of 'a Witness.t ];
-  pp : 'a pp;
-  of_string : 'a of_string;
-  encode_json : 'a encode_json;
-  decode_json : 'a decode_json;
-  encode_bin : 'a encode_bin;
-  decode_bin : 'a decode_bin;
-  short_hash : 'a short_hash;
-  pre_hash : 'a bin_seq;
-  size_of : 'a size_of;
-  compare : 'a compare;
-  equal : 'a equal;
-}
+  and 'a len_v = { len : len; v : 'a t }
 
-and ('a, 'b) map = { x : 'a t; f : 'a -> 'b; g : 'b -> 'a; mwit : 'b Witness.t }
+  and 'a custom = {
+    cwit : [ `Type of 'a t | `Witness of 'a Witness.t ];
+    pp : 'a pp;
+    of_string : 'a of_string;
+    encode_json : 'a encode_json;
+    decode_json : 'a decode_json;
+    encode_bin : 'a encode_bin;
+    decode_bin : 'a decode_bin;
+    short_hash : 'a short_hash;
+    pre_hash : 'a bin_seq;
+    size_of : 'a size_of;
+    compare : 'a compare;
+    equal : 'a equal;
+  }
 
-and 'a self = { mutable self : 'a t }
+  and ('a, 'b) map = {
+    x : 'a t;
+    f : 'a -> 'b;
+    g : 'b -> 'a;
+    mwit : 'b Witness.t;
+  }
 
-and 'a prim =
-  | Unit : unit prim
-  | Bool : bool prim
-  | Char : char prim
-  | Int : int prim
-  | Int32 : int32 prim
-  | Int64 : int64 prim
-  | Float : float prim
-  | String : len -> string prim
-  | Bytes : len -> bytes prim
+  and 'a self = { mutable self : 'a t }
 
-and 'a tuple =
-  | Pair : 'a t * 'b t -> ('a * 'b) tuple
-  | Triple : 'a t * 'b t * 'c t -> ('a * 'b * 'c) tuple
+  and 'a prim =
+    | Unit : unit prim
+    | Bool : bool prim
+    | Char : char prim
+    | Int : int prim
+    | Int32 : int32 prim
+    | Int64 : int64 prim
+    | Float : float prim
+    | String : len -> string prim
+    | Bytes : len -> bytes prim
 
-and 'a record = {
-  rwit : 'a Witness.t;
-  rname : string;
-  rfields : 'a fields_and_constr;
-}
+  and 'a tuple =
+    | Pair : 'a t * 'b t -> ('a * 'b) tuple
+    | Triple : 'a t * 'b t * 'c t -> ('a * 'b * 'c) tuple
 
-and 'a fields_and_constr =
-  | Fields : ('a, 'b, _, _) fields * 'b -> 'a fields_and_constr
+  and 'a record = {
+    rwit : 'a Witness.t;
+    rname : string;
+    rfields : 'a fields_and_constr;
+  }
 
-(** We need to maintain two kinds of type-level difference list. The type
-    parameters [('record, 'constr, 'lens, 'lens_nil)] have the following
-    meanings:
+  and 'a fields_and_constr =
+    | Fields : ('a, 'b, _, _) fields * 'b -> 'a fields_and_constr
 
-    - ['record] : the type of the record under construction.
+  (** We need to maintain two kinds of type-level difference list. The type
+      parameters [('record, 'constr, 'lens, 'lens_nil)] have the following
+      meanings:
 
-    - ['constr] : function type consuming the fields that have been described so
-      far and returning ['record] (that is, a list with [(::) = (->)] and
-      [(\[\]) = 'record]). This gradually builds the type of the constructor
-      function, such that the variant may be sealed when ['constr] is equal to
-      the supplied constructor type.
+      - ['record] : the type of the record under construction.
 
-    - ['lens] : list of lenses for the fields passed so far with [(::) = ( * )]
-      and [(\[\]) = 'lens_nil].
+      - ['constr] : function type consuming the fields that have been described
+        so far and returning ['record] (that is, a list with [(::) = (->)] and
+        [(\[\]) = 'record]). This gradually builds the type of the constructor
+        function, such that the variant may be sealed when ['constr] is equal to
+        the supplied constructor type.
 
-    - ['lens_nil] : the nil-variable of ['lens].
+      - ['lens] : list of lenses for the fields passed so far with
+        [(::) = ( * )] and [(\[\]) = 'lens_nil].
 
-    For example, given a record of type [foo] with fields of type [int],
-    [string] and [bool] (two of which have been passed) the type parameters are
-    as follows:
+      - ['lens_nil] : the nil-variable of ['lens].
 
-    {[
-      ('a, 'b, 'c, 'd)  =  (foo,     ->         ,          *      , 'd)
-                                    /  \                 /   \
-                                   /    \               /     \
-                                  /      \             /       \
-                                int      ->     (foo, int)      *
-                                        /  \     Lens.mono    /   \
-                                       /    \                /     \
-                                      /      \              /       \
-                                   string    foo     (foo, string)  'd
-                                                       Lens.mono
-    ]} *)
+      For example, given a record of type [foo] with fields of type [int],
+      [string] and [bool] (two of which have been passed) the type parameters
+      are as follows:
 
-and ('record, 'constr, 'lenses, 'lens_nil) fields =
-  | Fields_nil : ('record, 'record, 'lens_nil, 'lens_nil) fields
-  | Fields_cons :
-      ('record, 'field) field * ('record, 'constr, 'lenses, 'lens_nil) fields
-      -> ( 'record,
-           'field -> 'constr,
-           ('record, 'field) Lens.mono * 'lenses,
-           'lens_nil )
-         fields
+      {[
+        ('a, 'b, 'c, 'd)  =  (foo,     ->         ,          *      , 'd)
+                                      /  \                 /   \
+                                     /    \               /     \
+                                    /      \             /       \
+                                  int      ->     (foo, int)      *
+                                          /  \     Lens.mono    /   \
+                                         /    \                /     \
+                                        /      \              /       \
+                                    string    foo     (foo, string)  'd
+                                                        Lens.mono
+      ]} *)
 
-and ('a, 'b) field = { fname : string; ftype : 'b t; fget : 'a -> 'b }
+  and ('record, 'constr, 'lenses, 'lens_nil) fields =
+    | Fields_nil : ('record, 'record, 'lens_nil, 'lens_nil) fields
+    | Fields_cons :
+        ('record, 'field) field * ('record, 'constr, 'lenses, 'lens_nil) fields
+        -> ( 'record,
+             'field -> 'constr,
+             ('record, 'field) Lens.mono * 'lenses,
+             'lens_nil )
+           fields
 
-and 'a variant = {
-  vwit : 'a Witness.t;
-  vname : string;
-  vcases : 'a a_case array;
-  vget : 'a -> 'a case_v;
-}
+  and ('a, 'b) field = { fname : string; ftype : 'b t; fget : 'a -> 'b M.t }
 
-(* Cases are built without knowing what the tags are *)
-and ('v, 'case, 'constr) case = int -> ('v, 'case, 'constr) case_with_tag
+  and 'a variant = {
+    vwit : 'a Witness.t;
+    vname : string;
+    vcases : 'a a_case array;
+    vget : 'a -> 'a case_v M.t;
+  }
 
-(* | C0_tagless : (int -> 'v case0) -> ('v, unit) case
- * | C1_tagless : (int -> ('v, 'case) case1) -> ('v, 'case) case *)
-and ('v, 'case, 'constr) case_with_tag =
-  | C0 : 'v case0 -> ('v, unit, 'v case_v) case_with_tag
-  | C1 : ('v, 'case) case1 -> ('v, 'case, 'case -> 'v case_v) case_with_tag
+  (* Cases are built without knowing what the tags are *)
+  and ('v, 'case, 'constr) case = int -> ('v, 'case, 'constr) case_with_tag
 
-(** {!case_with_tag} without the ['case] parameter *)
-and 'v a_case =
-  | CP0 : 'v case0 -> 'v a_case
-  | CP1 : ('v, 'case) case1 -> 'v a_case
+  and ('v, 'case, 'constr) case_with_tag =
+    | C0 : 'v case0 -> ('v, unit, 'v case_v) case_with_tag
+    | C1 : ('v, 'case) case1 -> ('v, 'case, 'case -> 'v case_v) case_with_tag
 
-and 'v case_v =
-  | CV0 : 'v case0 -> 'v case_v
-  | CV1 : ('v, 'case) case1 * 'case -> 'v case_v
+  (** {!case_with_tag} without the ['case] parameter *)
+  and 'v a_case =
+    | CP0 : 'v case0 -> 'v a_case
+    | CP1 : ('v, 'case) case1 -> 'v a_case
 
-and 'a case0 = { ctag0 : int; cname0 : string; c0 : 'a }
+  and 'v case_v =
+    | CV0 : 'v case0 -> 'v case_v
+    | CV1 : ('v, 'case) case1 * 'case -> 'v case_v
 
-and ('a, 'b) case1 = {
-  ctag1 : int;
-  cname1 : string;
-  ctype1 : 'b t;
-  c1 : 'b -> 'a;
-}
+  and 'a case0 = { ctag0 : int; cname0 : string; c0 : 'a M.t }
 
-and ('variant, 'pat, 'pat_nil, 'prisms, 'prism_nil) cases =
-  | Cases_nil : ('variant, 'pat_nil, 'pat_nil, 'prism_nil, 'prism_nil) cases
-  | Cases_cons :
-      ('variant, 'case, 'constr) case_with_tag
-      * ('variant, 'remaining, 'pat_nil, 'prisms, 'prism_nil) cases
-      -> ( 'variant,
-           'constr -> 'remaining,
-           'pat_nil,
-           ('variant, 'case) Prism.mono * 'prisms,
-           'prism_nil )
-         cases
+  and ('a, 'b) case1 = {
+    ctag1 : int;
+    cname1 : string;
+    ctype1 : 'b t;
+    c1 : 'b -> 'a M.t;
+    c1_witness : 'b Witness.t;
+  }
 
-type 'a ty = 'a t
+  and ('variant, 'pat, 'pat_nil, 'prisms, 'prism_nil) cases =
+    | Cases_nil : ('variant, 'pat_nil, 'pat_nil, 'prism_nil, 'prism_nil) cases
+    | Cases_cons :
+        ('variant, 'case, 'constr) case_with_tag
+        * ('variant, 'remaining, 'pat_nil, 'prisms, 'prism_nil) cases
+        -> ( 'variant,
+             'constr -> 'remaining,
+             'pat_nil,
+             ('variant, 'case) Prism.mono * 'prisms,
+             'prism_nil )
+           cases
 
-type _ a_field = Field : ('a, 'b) field -> 'a a_field
+  type 'a ty = 'a t
 
-let rec fields_aux : type a b c d. (a, b, c, d) fields -> a a_field list =
-  function
-  | Fields_nil -> []
-  | Fields_cons (h, t) -> Field h :: fields_aux t
+  type _ a_field = Field : ('a, 'b) field -> 'a a_field
 
-let fields r = match r.rfields with Fields (f, _) -> fields_aux f
+  let rec fields_aux : type a b c d. (a, b, c, d) fields -> a a_field list =
+    function
+    | Fields_nil -> []
+    | Fields_cons (h, t) -> Field h :: fields_aux t
+
+  let fields r = match r.rfields with Fields (f, _) -> fields_aux f
+end

@@ -15,6 +15,7 @@
  *)
 
 open Type_core
+open Type_core.Make(Monad.Identity)
 
 val encode_bin : 'a t -> 'a encode_bin
 

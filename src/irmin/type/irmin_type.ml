@@ -15,6 +15,7 @@
  *)
 
 include Type_core
+include Type_core.Make (Monad.Identity)
 
 let pre_hash t x =
   let rec aux : type a. a t -> a bin_seq =
@@ -108,8 +109,8 @@ let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
   fake_y.self <- real_y;
   (real_x, real_y)
 
-include Type_algebraic.Record
-include Type_algebraic.Variant
+include Type_algebraic.Record (Monad.Identity)
+include Type_algebraic.Variant (Monad.Identity)
 
 let enum vname l =
   let vwit = Witness.make () in

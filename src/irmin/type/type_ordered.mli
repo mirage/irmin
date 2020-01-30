@@ -15,6 +15,7 @@
  *)
 
 open Type_core
+open Type_core.Make(Monad.Identity)
 
 val equal : 'a t -> 'a equal
 
