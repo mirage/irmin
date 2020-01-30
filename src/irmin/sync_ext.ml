@@ -94,7 +94,8 @@ module Make (S : S.STORE) = struct
         R.Head.find r >>= function
         | None -> Lwt.return_ok `Empty
         | Some h -> (
-            R.Repo.export (R.repo r) ?depth ~min ~max:[ h ] >>= fun r_slice ->
+            R.Repo.export (R.repo r) ?depth ~min ~max:(`Max [ h ])
+            >>= fun r_slice ->
             convert_slice (module R.Private) (module S.Private) r_slice
             >>= fun s_slice ->
             S.Repo.import s_repo s_slice >|= function

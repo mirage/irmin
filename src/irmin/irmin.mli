@@ -671,14 +671,15 @@ module type S = sig
       ?full:bool ->
       ?depth:int ->
       ?min:commit list ->
-      ?max:commit list ->
+      ?max:[ `Head | `Max of commit list ] ->
       t ->
       slice Lwt.t
-    (** [export t ~depth ~min ~max] exports the store slice between [min] and
-        [max], using at most [depth] history depth (starting from the max).
+    (** [export t ~full ~depth ~min ~max] exports the store slice between [min]
+        and [max], using at most [depth] history depth (starting from the max).
 
-        If [max] is not specified, use the current [heads]. If [min] is not
-        specified, use an unbound past (but can still be limited by [depth]).
+        If [max] is `Head (also the default value), use the current [heads]. If
+        [min] is not specified, use an unbound past (but can still be limited by
+        [depth]).
 
         [depth] is used to limit the depth of the commit history. [None] here
         means no limitation.
@@ -1433,8 +1434,8 @@ module type S = sig
   val history :
     ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t Lwt.t
   (** [history ?depth ?min ?max t] is a view of the history of the store [t], of
-      depth at most [depth], starting from the [max] (or from the [t]'s head if
-      the list of heads is empty) and stopping at [min] if specified. *)
+      depth at most [depth], starting from the [t]'s head (or from [max] if the
+      head is not set) and stopping at [min] if specified. *)
 
   val last_modified : ?depth:int -> ?n:int -> t -> key -> commit list Lwt.t
   (** [last_modified ?number c k] is the list of the last [number] commits that

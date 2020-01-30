@@ -220,12 +220,16 @@ module Make (P : S.PRIVATE) = struct
               | Some h -> h :: acc ))
         [] bs
 
-    let export ?(full = true) ?depth ?(min = []) ?(max = []) t =
+    let export ?(full = true) ?depth ?(min = []) ?(max = `Head) t =
       Log.debug (fun f ->
-          f "export depth=%s full=%b min=%d max=%d"
+          f "export depth=%s full=%b min=%d max=%s"
             (match depth with None -> "<none>" | Some d -> string_of_int d)
-            full (List.length min) (List.length max));
-      (match max with [] -> heads t | m -> Lwt.return m) >>= fun max ->
+            full (List.length min)
+            ( match max with
+            | `Head -> "heads"
+            | `Max m -> string_of_int (List.length m) ));
+      (match max with `Head -> heads t | `Max m -> Lwt.return m)
+      >>= fun max ->
       P.Slice.empty () >>= fun slice ->
       let max = List.map (fun x -> `Commit x.Commit.h) max in
       let min = List.map (fun x -> `Commit x.Commit.h) min in
@@ -967,10 +971,7 @@ module Make (P : S.PRIVATE) = struct
           >|= fun parents -> List.map (fun x -> `Commit x.Commit.h) parents
       | _ -> Lwt.return_nil
     in
-    (Head.find t >>= function
-     | Some h -> Lwt.return [ h ]
-     | None -> Lwt.return max)
-    >>= fun max ->
+    (Head.find t >|= function Some h -> [ h ] | None -> max) >>= fun max ->
     let max = List.map (fun k -> `Commit k.Commit.h) max in
     let min = List.map (fun k -> `Commit k.Commit.h) min in
     Gmap.Src.closure ?depth ~min ~max ~pred () >>= fun g ->

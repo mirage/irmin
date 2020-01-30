@@ -23,7 +23,7 @@ module type S = sig
   include Graph.Oper.S with type g := t
   (** Basic operations. *)
 
-  (** Topoogical traversal *)
+  (** Topological traversal *)
   module Topological : sig
     val fold : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   end
@@ -41,9 +41,11 @@ module type S = sig
     max:vertex list ->
     unit ->
     t Lwt.t
-  (** [closure min max pred] creates the clansitive closure of [max] using the
-      precedence relation [pred]. The closure will not contain any keys before
-      the the one specified in [min]. *)
+  (** [closure depth pred min max ()] creates the transitive closure graph of
+      [max] using the predecessor relation [pred]. The graph is bounded by the
+      [min] nodes and by [depth].
+
+      {b Note:} Both [min] and [max] are subsets of [n]. *)
 
   val iter :
     ?depth:int ->

@@ -299,13 +299,10 @@ module Graph (S : S.NODE_STORE) = struct
     Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    Graph.closure ~pred:(pred t) ~min ~max () >>= fun g ->
-    let keys =
-      List.fold_left
-        (fun acc -> function `Node x -> x :: acc | _ -> acc)
-        [] (Graph.vertex g)
-    in
-    Lwt.return keys
+    Graph.closure ~pred:(pred t) ~min ~max () >|= fun g ->
+    List.fold_left
+      (fun acc -> function `Node x -> x :: acc | _ -> acc)
+      [] (Graph.vertex g)
 
   let ignore_lwt _ = Lwt.return_unit
 

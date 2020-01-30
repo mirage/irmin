@@ -349,15 +349,11 @@ module type NODE_GRAPH = sig
 
   val closure :
     [> `Read ] t -> min:node list -> max:node list -> node list Lwt.t
-  (** [closure t ~min ~max] is the transitive closure [c] of [t]'s nodes such
-      that:
+  (** [closure t min max] is the unordered list of nodes [n] reachable from a
+      node of [max] along a path which: (i) either contains no [min] or (ii) it
+      ends with a [min].
 
-      - There is a path in [t] from any nodes in [min] to nodes in [c]. If [min]
-        is empty, that condition is always true.
-      - There is a path in [t] from any nodes in [c] to nodes in [max]. If [max]
-        is empty, that condition is always false.
-
-      {b Note:} Both [min] and [max] are subsets of [c].*)
+      {b Note:} Both [min] and [max] are subsets of [n]. *)
 
   val iter :
     [> `Read ] t ->
@@ -370,7 +366,8 @@ module type NODE_GRAPH = sig
     unit ->
     unit Lwt.t
   (** [iter min max node edge skip rev ()] iterates in topological order over
-      the closure graph from the [max] nodes and bounded by the [min] nodes.
+      the closure of [t] as specified by {{!Private.Node.GRAPH.closure}
+      GRAPH.closure}.
 
       It applies three functions while traversing the graph: [node] on the
       nodes; [edge n predecessor_of_n] on the directed edges and [skip n] to not
@@ -952,7 +949,7 @@ module type STORE = sig
       ?full:bool ->
       ?depth:int ->
       ?min:commit list ->
-      ?max:commit list ->
+      ?max:[ `Head | `Max of commit list ] ->
       t ->
       slice Lwt.t
 
