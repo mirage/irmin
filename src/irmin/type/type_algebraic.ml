@@ -116,12 +116,28 @@ module Variant (M : S.MONAD) = struct
     in
     inner cases |> Array.of_list
 
+  let preview :
+      type v c. (v -> v case_v M.t) -> c Witness.t -> int -> v -> c option M.t =
+   fun vget type_expected tag_expected v ->
+    vget v >|= function
+    | CV1 ({ ctag1 = tag_actual; c1_witness = type_actual; _ }, elt) ->
+        if tag_actual = tag_expected then
+          Witness.cast type_actual type_expected elt
+        else None
+    | CV0 _ -> None
+
   let sealv_with_optics :
       type variant pat prisms.
-      (variant, pat, pat, variant -> variant case_v, prisms, unit) open_variant ->
+      ( variant,
+        pat,
+        pat,
+        variant -> variant case_v M.t,
+        prisms,
+        unit )
+      open_variant ->
       variant t * prisms Prism.t_list =
    fun { open_variant = v; _ } ->
-    let vname, (vget : variant -> variant case_v), cases = v Cases_nil in
+    let vname, vget, cases = v Cases_nil in
     let vwit = Witness.make () in
     let vcases = array_of_case_list cases in
     let prisms =
@@ -139,15 +155,11 @@ module Variant (M : S.MONAD) = struct
               | CV1 _ -> None
             in
             Prism.v review preview :: inner cs
-        | Cases_cons (C1 { c1; ctag1 = tag_expected; _ }, cs) ->
+        | Cases_cons
+            (C1 { c1; ctag1 = tag_expected; c1_witness = type_expected; _ }, cs)
+          ->
             let review = c1 in
-            let preview v =
-              match vget v with
-              | CV1 ({ ctag1 = tag_actual; _ }, elt) ->
-                  if tag_actual = tag_expected then Some (Obj.magic elt)
-                  else None
-              | CV0 _ -> None
-            in
+            let preview = preview vget type_expected tag_expected in
             Prism.v review preview :: inner cs
       in
       inner cases
@@ -167,5 +179,6 @@ module Variant (M : S.MONAD) = struct
 
   let case0 cname0 c0 ctag0 = C0 { ctag0; cname0; c0 }
 
-  let case1 cname1 ctype1 c1 ctag1 = C1 { ctag1; cname1; ctype1; c1 }
+  let case1 cname1 ctype1 c1 ctag1 =
+    C1 { ctag1; cname1; ctype1; c1; c1_witness = Witness.make () }
 end
