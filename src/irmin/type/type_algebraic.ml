@@ -3,11 +3,19 @@ module Record (M : S.MONAD) = struct
 
   open Type_core.Make (M)
 
+  module Unwitnessed = struct
+    type ('record, 'cons, 'lens, 'lens_nil) t = {
+      name : string;
+      cons : 'cons;
+      fields : ('record, 'cons, 'lens, 'lens_nil) fields;
+    }
+  end
+
   type ('record, 'constr, 'remaining, 'lenses, 'lens_nil) open_record = {
     open_record :
       'hole. ('record, 'remaining, 'lens_nil, 'hole) fields ->
       (* Append the two lens lists at the type level *)
-      string * 'constr * ('record, 'constr, 'lenses, 'hole) fields;
+      ('record, 'constr, 'lenses, 'hole) Unwitnessed.t;
   }
 
   type nonrec ('a, 'b) field = ('a, 'b) field
@@ -16,8 +24,8 @@ module Record (M : S.MONAD) = struct
 
   let record :
       type r. string -> r -> ('a, r, r, 'lens_nil, 'lens_nil) open_record =
-   fun n r ->
-    let open_record fs = (n, r, fs) in
+   fun name cons ->
+    let open_record fields = Unwitnessed.{ name; cons; fields } in
     { open_record }
 
   let app :
@@ -28,8 +36,7 @@ module Record (M : S.MONAD) = struct
    fun { open_record = previous } field ->
     let open_record' :
         type hole.
-        (r, rem, lens_nil, hole) fields ->
-        string * c * (r, c, lens, hole) fields =
+        (r, rem, lens_nil, hole) fields -> (r, c, lens, hole) Unwitnessed.t =
      fun fs -> previous (Fields_cons (field, fs))
     in
     { open_record = open_record' }
@@ -40,7 +47,7 @@ module Record (M : S.MONAD) = struct
       (record, cons, record, lens, unit) open_record ->
       record t * lens Lens.t_list =
    fun { open_record = r } ->
-    let name, cons, fields = r Fields_nil in
+    let Unwitnessed.{ name; cons; fields } = r Fields_nil in
     let rwit = Witness.make () in
     let lenses =
       let open Lens in
@@ -75,19 +82,18 @@ module Variant (M : S.MONAD) = struct
     next_tag : int;
   }
 
+  let rec add_cases_to_destructor :
+      type v pat pat_nil opt opt_nil.
+      pat -> (v, pat, pat_nil, opt, opt_nil) cases -> pat_nil =
+   fun p -> function
+    | Cases_nil -> p
+    | Cases_cons (C0 case, cs) -> add_cases_to_destructor (p (CV0 case)) cs
+    | Cases_cons (C1 case1, cs) ->
+        add_cases_to_destructor (p (fun v -> CV1 (case1, v))) cs
+
   let variant : string -> 'p -> ('v, 'p, 'r, 'r, 'opt, 'opt) open_variant =
    fun n p ->
-    let open_variant cs =
-      let rec inner :
-          type v pat pat_nil opt opt_nil.
-          pat -> (v, pat, pat_nil, opt, opt_nil) cases -> pat_nil =
-       fun p -> function
-        | Cases_nil -> p
-        | Cases_cons (C0 case, cs) -> inner (p (CV0 case)) cs
-        | Cases_cons (C1 case1, cs) -> inner (p (fun v -> CV1 (case1, v))) cs
-      in
-      (n, inner p cs, cs)
-    in
+    let open_variant cs = (n, add_cases_to_destructor p cs, cs) in
     { open_variant; next_tag = 0 }
 
   let app :
