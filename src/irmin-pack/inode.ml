@@ -364,7 +364,11 @@ struct
 
       let rec list_entry ~find acc = function
         | Empty -> acc
-        | Inode i -> list_values ~find acc (get_tree ~find i)
+        | Inode i -> (
+            try
+              let x = get_tree ~find i in
+              list_values ~find acc x
+            with Failure _ -> acc )
 
       and list_inodes ~find acc t =
         Array.fold_left (list_entry ~find) acc t.entries
