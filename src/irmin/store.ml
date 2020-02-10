@@ -992,7 +992,8 @@ module Make (P : S.PRIVATE) = struct
 
   let last_modified ?depth ?(n = 1) t key =
     Log.debug (fun l ->
-        l "last_modified depth=%a number=%d key=%a" pp_option depth n pp_key key);
+        l "last_modified depth=%a n=%d key=%a" pp_option depth n pp_key key);
+    let repo = repo t in
     Head.get t >>= fun commit ->
     let heap = Heap.create 5 in
     let () = Heap.add heap (commit, 0) in
@@ -1001,8 +1002,8 @@ module Make (P : S.PRIVATE) = struct
       else
         let current, current_depth = Heap.pop_maximum heap in
         let parents = Commit.parents current in
-        of_commit current >>= fun store ->
-        find store key >>= fun current_value ->
+        let tree = Commit.tree current in
+        Tree.find tree key >>= fun current_value ->
         if List.length parents = 0 then
           if current_value <> None then Lwt.return (current :: acc)
           else Lwt.return acc
@@ -1014,14 +1015,14 @@ module Make (P : S.PRIVATE) = struct
           in
           Lwt_list.for_all_p
             (fun hash ->
-              Commit.of_hash (repo store) hash >>= function
+              Commit.of_hash repo hash >>= function
               | Some commit -> (
                   let () =
                     if not max_depth then
                       Heap.add heap (commit, current_depth + 1)
                   in
-                  of_commit commit >>= fun store ->
-                  find store key >|= fun e ->
+                  let tree = Commit.tree commit in
+                  Tree.find tree key >|= fun e ->
                   match (e, current_value) with
                   | Some x, Some y -> not (Type.equal Contents.t x y)
                   | Some _, None -> true
