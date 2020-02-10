@@ -2192,7 +2192,7 @@ let layered_suite (speed, x) =
         let (module S) = layered_store in
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
-        let hook repo max = S.freeze repo ~max >|= fun () -> () in
+        let hook repo max = S.freeze repo ~max in
         [
           ("Basic operations on branches", speed, T.test_branches ~hook x);
           ("Watch callbacks and exceptions", speed, T.test_watch_exn ~hook x);

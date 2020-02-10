@@ -18,7 +18,8 @@
 val config :
   ?conf:Irmin.config ->
   ?lower_root:string ->
-  ?upper_root:string ->
+  ?upper_root1:string ->
+  ?upper_root0:string ->
   string ->
   Irmin.config
 (** Setting up the configuration for a layered store. *)
@@ -46,6 +47,27 @@ module type STORE = sig
   val layer_id : repo -> store_handle -> string Lwt.t
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
+
+  val async_freeze : unit -> bool
+  (** [async_freeze t] returns true if there is an ongoing freeze. To be used
+      with caution, as a freeze can start (or stop) just after the test. It is
+      helpful when a single freeze is called, to check whether it completed or
+      not. *)
+
+  val upper_in_use : repo -> string
+  (** [upper_in_use t] returns the name of the upper currently used. *)
+
+  (** These modules should not be used. They are exposed purely for testing
+      purposes. *)
+  module PrivateLayer : sig
+    module Hook : sig
+      type 'a t
+
+      val v : ('a -> unit) -> 'a t
+    end
+
+    val wait_for_freeze : unit -> unit Lwt.t
+  end
 end
 
 module Make_ext

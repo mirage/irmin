@@ -86,8 +86,12 @@ module Tezos_Usecase = struct
     let ctxt = { index; tree; parents = [] } in
     Lwt.return ctxt
 
+  let close c =
+    Store.Private.Repo.clear c.index.repo >>= fun () ->
+    Store.Repo.close c.index.repo
+
   let gc index commit =
-    Store.freeze index.repo ~max:[ commit ] >>= fun _ ->
+    Store.freeze index.repo ~max:[ commit ] >>= fun () ->
     let tree = Store.Tree.empty in
     let ctxt = { index; tree; parents = [] } in
     Lwt.return ctxt
@@ -95,15 +99,18 @@ module Tezos_Usecase = struct
   let create_block1 ctxt =
     set ctxt [ "a"; "b" ] "Novembre" >>= fun ctxt ->
     set ctxt [ "a"; "c" ] "Juin" >>= fun ctxt ->
-    set ctxt [ "version" ] "0.0" >>= fun ctxt -> commit ctxt
+    set ctxt [ "version" ] "0.0" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
 
   let create_block1a ctxt =
     del ctxt [ "a"; "b" ] >>= fun ctxt ->
-    set ctxt [ "a"; "d" ] "Mars" >>= fun ctxt -> commit ctxt
+    set ctxt [ "a"; "d" ] "Mars" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
 
   let create_block1b ctxt =
     del ctxt [ "a"; "c" ] >>= fun ctxt ->
-    set ctxt [ "a"; "d" ] "Février" >>= fun ctxt -> commit ctxt
+    set ctxt [ "a"; "d" ] "Février" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
 
   let checkout_and_create idx block create =
     checkout idx block >>= function
@@ -118,12 +125,13 @@ module Tezos_Usecase = struct
           let k1 = random_string 5 in
           let k2 = random_string 5 in
           let v = random_string 5 in
-          loop (i + 1) (([ k1; k2 ], v) :: aux)
+          loop (i + 1) (([ "a"; k1; k2 ], v) :: aux)
       in
       loop 0 []
     in
     Lwt_list.fold_left_s (fun ctxt (k, v) -> set ctxt k v) ctxt large_list
-    >>= fun ctxt -> commit ctxt
+    >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
 
   let commit_large_trees ctxt =
     let small_list =
@@ -139,7 +147,7 @@ module Tezos_Usecase = struct
     in
     Lwt_list.fold_left_s
       (fun (ctxt, commits) (k, v) ->
-        create_large_tree ctxt (k, v) >>= fun block ->
+        create_large_tree ctxt (k, v) >>= fun (ctxt, block) ->
         checkout ctxt.index block >>= function
         | None -> failwith "checkout block"
         | Some ctxt -> Lwt.return (ctxt, (k, v, block) :: commits))
@@ -147,27 +155,29 @@ module Tezos_Usecase = struct
 
   let test_simple_gc () =
     let store_name = fresh_name () in
-    init (Filename.concat store_name "A") >>= fun c ->
-    create_block1 c >>= fun block1 ->
-    checkout_and_create c.index block1 create_block1a >>= fun block1a ->
-    checkout_and_create c.index block1 create_block1b >>= fun block1b ->
-    gc c.index block1a >>= fun c ->
-    checkout c.index block1 >>= function
+    init store_name >>= fun ctxt ->
+    create_block1 ctxt >>= fun (ctxt, block1) ->
+    checkout_and_create ctxt.index block1 create_block1a
+    >>= fun (ctxt, block1a) ->
+    checkout_and_create ctxt.index block1 create_block1b
+    >>= fun (ctxt, block1b) ->
+    gc ctxt.index block1a >>= fun ctxt ->
+    checkout ctxt.index block1 >>= function
     | None -> Alcotest.fail "checkout block1"
     | Some ctxt -> (
-        ( get ctxt [ "version" ] >>= fun version ->
-          Alcotest.(check (option string)) "version.1" version (Some "0.0");
-          get ctxt [ "a"; "b" ] >>= fun novembre ->
-          Alcotest.(check (option string)) "nov" (Some "Novembre") novembre;
-          get ctxt [ "a"; "c" ] >>= fun juin ->
-          Alcotest.(check (option string)) "juin" (Some "Juin") juin;
-          Lwt.return_unit )
+        get ctxt [ "version" ] >>= fun version ->
+        Alcotest.(check (option string)) "version.1" version (Some "0.0");
+        get ctxt [ "a"; "b" ] >>= fun novembre ->
+        Alcotest.(check (option string)) "nov" (Some "Novembre") novembre;
+        get ctxt [ "a"; "c" ] >>= fun juin ->
+        Alcotest.(check (option string)) "juin" (Some "Juin") juin;
+        ( if not (Store.async_freeze ()) then
+          checkout ctxt.index block1b >>= function
+          | None -> Lwt.return_unit
+          | Some _ -> Alcotest.fail "should not find block1b"
+        else Lwt.return_unit )
         >>= fun () ->
-        (checkout c.index block1b >>= function
-         | None -> Lwt.return_unit
-         | Some _ -> Alcotest.fail "should not find block1b")
-        >>= fun () ->
-        checkout c.index block1a >>= function
+        checkout ctxt.index block1a >>= function
         | None -> Alcotest.fail "checkout block1a"
         | Some ctxt ->
             get ctxt [ "version" ] >>= fun version ->
@@ -176,7 +186,7 @@ module Tezos_Usecase = struct
             Alcotest.(check (option string)) "mars" (Some "Mars") mars;
             get ctxt [ "a"; "c" ] >>= fun juin ->
             Alcotest.(check (option string)) "juin" (Some "Juin") juin;
-            Lwt.return_unit )
+            Lwt.return_unit >>= fun () -> close ctxt )
 
   let test_large_commit () =
     let check_large_blocks index block k v =
@@ -188,53 +198,157 @@ module Tezos_Usecase = struct
           Lwt.return_unit
     in
     let store_name = fresh_name () in
-    init (Filename.concat store_name "A") >>= fun c ->
-    commit_large_trees c >>= fun (c, blocks) ->
-    Printf.printf "commited many large lists\n %!";
+    init store_name >>= fun ctxt ->
+    commit_large_trees ctxt >>= fun (ctxt, blocks) ->
     let _, _, block = List.hd blocks in
     let create1 ctxt =
-      set ctxt [ "a"; "d" ] "Mars" >>= fun ctxt -> commit ctxt
+      set ctxt [ "a"; "d" ] "Mars" >>= fun ctxt ->
+      commit ctxt >|= fun h -> (ctxt, h)
     in
     let create2 ctxt =
-      set ctxt [ "a"; "d" ] "Février" >>= fun ctxt -> commit ctxt
+      set ctxt [ "a"; "d" ] "Février" >>= fun ctxt ->
+      commit ctxt >|= fun h -> (ctxt, h)
     in
-    checkout_and_create c.index block create1 >>= fun block1a ->
-    checkout_and_create c.index block create2 >>= fun block1b ->
-    Printf.printf "gc - keep only block1a \n %!";
-    gc c.index block1a >>= fun c ->
-    Printf.printf "after gc \n %!";
-    checkout c.index block1a >>= function
-    | None -> Alcotest.fail "checkout block11"
+    let create3 ctxt =
+      set ctxt [ "a"; "b" ] "Février" >>= fun ctxt ->
+      commit ctxt >|= fun h -> (ctxt, h)
+    in
+    checkout_and_create ctxt.index block create1 >>= fun (ctxt, block1a) ->
+    checkout_and_create ctxt.index block create2 >>= fun (ctxt, block1b) ->
+    gc ctxt.index block1a >>= fun ctxt ->
+    checkout_and_create ctxt.index block create3 >>= fun (ctxt, block1c) ->
+    checkout ctxt.index block1a >>= function
+    | None -> Alcotest.fail "checkout block1a"
     | Some ctxt -> (
-        Printf.printf "got ctxt on large list\n %!";
         get ctxt [ "a"; "d" ] >>= fun mars ->
         Alcotest.(check (option string)) "mars" (Some "Mars") mars;
-        Lwt.return_unit >>= fun () ->
-        (checkout c.index block1b >>= function
-         | None -> Lwt.return_unit
-         | Some _ -> Alcotest.fail "should not find block1b")
-        >>= function
-        | () ->
+        checkout ctxt.index block1c >>= function
+        | None -> Alcotest.fail "checkout block1c"
+        | Some ctxt ->
+            get ctxt [ "a"; "b" ] >>= fun fevr ->
+            Alcotest.(check (option string)) "fevrier" (Some "Février") fevr;
+            ( if not (Store.async_freeze ()) then
+              checkout ctxt.index block1b >|= function
+              | None -> ()
+              | Some _ -> Alcotest.fail "should not find block1b"
+            else Lwt.return_unit )
+            >>= fun () ->
             Lwt_list.iter_s
-              (fun (k, v, block) -> check_large_blocks c.index block k v)
-              blocks )
+              (fun (k, v, block) -> check_large_blocks ctxt.index block k v)
+              blocks
+            >>= fun () -> close ctxt )
 
   let test_open_lower () =
     let store_name = fresh_name () in
-    init store_name >>= fun c ->
-    create_block1 c >>= fun block1 ->
-    gc c.index block1 >>= fun c2 ->
+    init store_name >>= fun ctxt ->
     StoreSimple.Repo.v
-      (config ~fresh:false (Filename.concat store_name Conf.lower_root))
-    >>= fun c3 ->
-    StoreSimple.Commit.of_hash c3 (Store.Commit.hash block1) >>= function
-    | None -> Alcotest.fail "checkout block1"
+      (config ~fresh:false ~readonly:true
+         (Filename.concat store_name Conf.lower_root))
+    >>= fun repo ->
+    create_block1 ctxt >>= fun (ctxt, block1) ->
+    gc ctxt.index block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    let hash1 = Store.Commit.hash block1 in
+    (StoreSimple.Commit.of_hash repo hash1 >>= function
+     | None -> Alcotest.fail "checkout block1"
+     | Some commit ->
+         let tree = StoreSimple.Commit.tree commit in
+         StoreSimple.Tree.find tree [ "version" ] >>= fun version ->
+         Alcotest.(check (option string)) "version" version (Some "0.0");
+         Lwt.return_unit)
+    >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () -> StoreSimple.Repo.close repo
+
+  let test_two_rw_instances () =
+    let store_name = fresh_name () in
+    init store_name >>= fun ctxt ->
+    Store.Repo.v (config ~readonly:false ~fresh:false store_name)
+    >>= fun repo ->
+    create_block1 ctxt >>= fun (ctxt, block1) ->
+    gc ctxt.index block1 >>= fun ctxt ->
+    (Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+     | None -> Alcotest.fail "no hash found in repo"
+     | Some commit ->
+         let tree = Store.Commit.tree commit in
+         Store.Tree.find tree [ "a"; "b" ] >|= fun novembre ->
+         Alcotest.(check (option string)) "nov" (Some "Novembre") novembre)
+    >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    (Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+     | None -> Alcotest.fail "no hash found in repo"
+     | Some commit ->
+         let tree = Store.Commit.tree commit in
+         Store.Tree.find tree [ "a"; "b" ] >|= fun novembre ->
+         Alcotest.(check (option string)) "nov" (Some "Novembre") novembre)
+    >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () -> Store.Repo.close repo
+
+  let test_rw_ro_instances () =
+    let store_name = fresh_name () in
+    init store_name >>= fun ctxt ->
+    Store.Repo.v (config ~readonly:true ~fresh:false store_name) >>= fun repo ->
+    create_block1 ctxt >>= fun (ctxt, block1) ->
+    let check_block =
+      Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+      | None -> Alcotest.fail "no hash found in repo"
+      | Some commit ->
+          let tree = Store.Commit.tree commit in
+          Store.Tree.find tree [ "a"; "b" ] >|= fun novembre ->
+          Alcotest.(check (option string)) "nov" (Some "Novembre") novembre
+    in
+    check_block >>= fun () ->
+    gc ctxt.index block1 >>= fun ctxt ->
+    check_block >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_block >>= fun () ->
+    checkout_and_create ctxt.index block1 create_block1a
+    >>= fun (ctxt, block1a) ->
+    let check_block1a =
+      Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+      | None -> Alcotest.fail "no hash found in repo"
+      | Some commit ->
+          let tree = Store.Commit.tree commit in
+          Store.Tree.find tree [ "a"; "d" ] >|= fun mars ->
+          Alcotest.(check (option string)) "mars" (Some "Mars") mars
+    in
+    check_block1a >>= fun () ->
+    gc ctxt.index block1a >>= fun ctxt ->
+    checkout_and_create ctxt.index block1 create_block1b
+    >>= fun (ctxt, block1b) ->
+    (Store.Commit.of_hash repo (Store.Commit.hash block1b) >>= function
+     | None -> Alcotest.fail "no hash found in repo"
+     | Some commit ->
+         let tree = Store.Commit.tree commit in
+         Store.Tree.find tree [ "a"; "d" ] >|= fun fevrier ->
+         Alcotest.(check (option string)) "fevrier" (Some "Février") fevrier)
+    >>= fun () ->
+    check_block1a >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () -> Store.Repo.close repo
+
+  let _test_close_and_reopen () =
+    let store_name = fresh_name () in
+    init store_name >>= fun ctxt ->
+    create_block1 ctxt >>= fun (ctxt, block1) ->
+    gc ctxt.index block1 >>= fun ctxt ->
+    checkout_and_create ctxt.index block1 create_block1a
+    >>= fun (ctxt, block1a) ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.v (config ~readonly:false ~fresh:false store_name)
+    >>= fun repo ->
+    (Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+     | None -> Alcotest.fail "no hash found in repo"
+     | Some commit ->
+         let tree = Store.Commit.tree commit in
+         Store.Tree.find tree [ "a"; "b" ] >|= fun novembre ->
+         Alcotest.(check (option string)) "nov" (Some "Novembre") novembre)
+    >>= fun () ->
+    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
-        let tree = StoreSimple.Commit.tree commit in
-        StoreSimple.Tree.find tree [ "version" ] >>= fun version ->
-        Alcotest.(check (option string)) "version" version (Some "0.0");
-        Lwt.return_unit >>= fun () ->
-        Store.Repo.close c2.index.repo >>= fun () -> StoreSimple.Repo.close c3
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "d" ] >|= fun mars ->
+        Alcotest.(check (option string)) "mars" (Some "Mars") mars
 
   let tests =
     [
@@ -244,6 +358,12 @@ module Tezos_Usecase = struct
           Lwt_main.run (test_large_commit ()));
       Alcotest.test_case "Test open lower" `Quick (fun () ->
           Lwt_main.run (test_open_lower ()));
+      Alcotest.test_case "Test two rw instances" `Quick (fun () ->
+          Lwt_main.run (test_two_rw_instances ()));
+      Alcotest.test_case "Test rw and ro instances" `Quick (fun () ->
+          Lwt_main.run (test_rw_ro_instances ()));
+      (*Alcotest.test_case "Test close and reopen a store" `Quick (fun () ->
+          Lwt_main.run (test_close_and_reopen ()));*)
     ]
 end
 

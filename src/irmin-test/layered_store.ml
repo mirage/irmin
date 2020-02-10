@@ -95,7 +95,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
         (Some (`Node kt1))
         kt1';
       Graph.find (n repo) kt3 [ "b" ] >>= fun kt2' ->
-      check (T.option Graph.value_t) "kt3 -b-> kt2 deleted by freeze" None kt2';
+      if not (S.async_freeze ()) then
+        check (T.option Graph.value_t) "kt3 -b-> kt2 deleted by freeze" None
+          kt2';
       with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) >>= fun kt3 ->
       with_info repo "commit kt3" (History.v ~node:kt3 ~parents:[ kr1 ])
       >>= fun (kr2', _) ->
@@ -120,7 +122,6 @@ module Make_Layered (S : LAYERED_STORE) = struct
       check (T.option Graph.value_t) "kt3 -b-> kt2 before and after snd freeze"
         (Some (`Node kt2))
         kt2';
-
       S.Repo.close repo
     in
     run x test
@@ -169,19 +170,22 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.freeze repo ~max:[ c2 ] >>= fun () ->
       P.Commit.find (h repo) (S.Commit.hash c2) >>= fun t2' ->
       check_val "c2" t2 t2';
-      P.Commit.find (h repo) (S.Commit.hash c3) >>= fun t3 ->
-      check_val "c3" None t3;
       let tree = S.Commit.tree c2 in
       S.Tree.find tree [ "c"; "b"; "a1" ] >>= fun x1 ->
       Alcotest.(check (option string)) "x1" (Some "x1") x1;
-      S.Tree.find tree [ "c"; "b"; "a3" ] >>= fun x3 ->
-      Alcotest.(check (option string)) "x3" None x3;
       S.of_commit c2 >>= fun a ->
       S.tree a >>= fun tree_a ->
       S.Tree.find tree_a [ "c"; "b"; "a2" ] >>= fun x2 ->
       Alcotest.(check (option string)) "x2" (Some "x2") x2;
-      S.Tree.find tree_a [ "c"; "b"; "a3" ] >>= fun x3 ->
-      Alcotest.(check (option string)) "x3" None x3;
+      ( if not (S.async_freeze ()) then (
+        P.Commit.find (h repo) (S.Commit.hash c3) >>= fun t3 ->
+        check_val "c3" None t3;
+        S.Tree.find tree [ "c"; "b"; "a3" ] >>= fun x3 ->
+        Alcotest.(check (option string)) "x3" None x3;
+        S.Tree.find tree_a [ "c"; "b"; "a3" ] >|= fun x3 ->
+        Alcotest.(check (option string)) "x3" None x3 )
+      else Lwt.return_unit )
+      >>= fun () ->
       tree2 repo >>= fun (c4, c5, c7, c8) ->
       P.Commit.find (h repo) (S.Commit.hash c5) >>= fun t5 ->
       P.Commit.find (h repo) (S.Commit.hash c7) >>= fun t7 ->
@@ -190,20 +194,21 @@ module Make_Layered (S : LAYERED_STORE) = struct
       check_val "c5" t5 t5';
       P.Commit.find (h repo) (S.Commit.hash c7) >>= fun t7' ->
       check_val "c7" t7 t7';
-      P.Commit.find (h repo) (S.Commit.hash c4) >>= fun t4 ->
-      check_val "c4" None t4;
-      P.Commit.find (h repo) (S.Commit.hash c8) >>= fun t8 ->
-      check_val "c8" None t8;
-      (S.Commit.of_hash repo (S.Commit.hash c8) >>= function
-       | None -> Lwt.return_unit
-       | Some _ -> Alcotest.fail "should not find c6")
-      >>= fun () ->
       fail_with_none (S.Commit.of_hash repo (S.Commit.hash c7)) "of_hash commit"
       >>= fun c7 ->
       let tree = S.Commit.tree c7 in
       S.Tree.find tree [ "c"; "e" ] >>= fun x7 ->
       Alcotest.(check (option string)) "x7" (Some "x7") x7;
-      S.Repo.close repo
+      ( if not (S.async_freeze ()) then (
+        P.Commit.find (h repo) (S.Commit.hash c4) >>= fun t4 ->
+        check_val "c4" None t4;
+        P.Commit.find (h repo) (S.Commit.hash c8) >>= fun t8 ->
+        check_val "c8" None t8;
+        S.Commit.of_hash repo (S.Commit.hash c8) >>= function
+        | None -> Lwt.return_unit
+        | Some _ -> Alcotest.fail "should not find c8" )
+      else Lwt.return_unit )
+      >>= fun () -> S.Repo.close repo
     in
     run x test
 
@@ -219,7 +224,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.Branch.find repo b1 >>= fun k1' ->
       check_val repo "r1 after freeze" (Some kv1) k1';
       S.Branch.find repo b2 >>= fun k2' ->
-      check_val repo "r2 deleted by freeze" None k2';
+      if not (S.async_freeze ()) then
+        check_val repo "r2 deleted by freeze" None k2';
       S.Repo.close repo
     in
     run x test
@@ -232,15 +238,18 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.set_exn t [ "a"; "b"; "c" ] v1 ~info:(infof "commit 1") >>= fun () ->
       S.Head.get t >>= fun c1 ->
       S.freeze repo ~max:[ c1 ] >>= fun () ->
-      S.layer_id repo (S.Commit_t (S.Commit.hash c1)) >>= fun s ->
-      Alcotest.(check string) "layer id of commit 1" s "lower";
       S.set_exn t [ "a"; "d" ] v2 ~info:(infof "commit 2") >>= fun () ->
       S.list t [ "a" ] >>= fun ks ->
       (* list sees a merged tree from lower and upper layers *)
       check_list "path" [ ("d", `Contents); ("b", `Node) ] ks;
+      ( if not (S.async_freeze ()) then
+        S.layer_id repo (S.Commit_t (S.Commit.hash c1)) >|= fun s ->
+        Alcotest.(check string) "layer id of commit 1" s "lower"
+      else Lwt.return_unit )
+      >>= fun () ->
       S.Head.get t >>= fun c2 ->
       S.layer_id repo (S.Commit_t (S.Commit.hash c2)) >>= fun s ->
-      Alcotest.(check string) "layer_id commit 2" s "upper";
+      Alcotest.(check string) "layer_id commit 2" s "upper0";
       let parents = S.Commit.parents c2 in
       check_parents "parents of c2" [ S.Commit.hash c1 ] parents;
       S.get t [ "a"; "b"; "c" ] >>= fun s ->
@@ -296,6 +305,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
       S.Head.get foo >>= fun c ->
       S.freeze repo ~max:[ c ] >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
       Lwt.catch
         (fun () ->
           S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
@@ -314,6 +324,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
       S.Head.get bar >>= fun c ->
       S.freeze repo ~max:[ c ] >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
       S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
       >>= merge_exn "merge unrelated"
       >>= fun () ->
@@ -366,21 +377,23 @@ module Make_Layered (S : LAYERED_STORE) = struct
              %d, skips = %d"
             s.nodes s.leafs s.depth s.width s.skips);
       Log.debug (fun l -> l "counters = %a" S.Tree.dump_counters ());
-      (S.Commit.of_hash repo (S.Commit.hash c) >>= function
-       | None -> Lwt.return_unit
-       | Some _ -> Alcotest.fail "should not find c")
-      >>= fun () ->
-      (S.Commit.of_hash repo (S.Commit.hash c1) >>= function
-       | None -> Lwt.return_unit
-       | Some _ -> Alcotest.fail "should not find c1")
-      >>= fun () ->
-      (S.Commit.of_hash repo (S.Commit.hash c2) >>= function
-       | None -> Lwt.return_unit
-       | Some _ -> Alcotest.fail "should not find c2")
-      >>= fun () ->
-      (S.Commit.of_hash repo (S.Commit.hash c3) >>= function
-       | None -> Alcotest.fail "should not find c3"
-       | Some _ -> Lwt.return_unit)
+      ( if not (S.async_freeze ()) then
+        (S.Commit.of_hash repo (S.Commit.hash c) >>= function
+         | None -> Lwt.return_unit
+         | Some _ -> Alcotest.fail "should not find c")
+        >>= fun () ->
+        (S.Commit.of_hash repo (S.Commit.hash c1) >>= function
+         | None -> Lwt.return_unit
+         | Some _ -> Alcotest.fail "should not find c1")
+        >>= fun () ->
+        (S.Commit.of_hash repo (S.Commit.hash c2) >>= function
+         | None -> Lwt.return_unit
+         | Some _ -> Alcotest.fail "should not find c2")
+        >>= fun () ->
+        S.Commit.of_hash repo (S.Commit.hash c3) >>= function
+        | None -> Alcotest.fail "should not find c3"
+        | Some _ -> Lwt.return_unit
+      else Lwt.return_unit )
       >>= fun () ->
       S.find t [ "x"; "y"; "z" ] >>= fun v1' ->
       check_val "x/y/z after merge" (Some v1) v1';
@@ -388,9 +401,11 @@ module Make_Layered (S : LAYERED_STORE) = struct
       check_val "u/x/z after merge" (Some v1) v1';
       S.find t [ "u"; "y"; "z" ] >>= fun v1' ->
       check_val "u/y/z after merge" (Some v1) v1';
-      S.find t [ "u"; "x"; "y" ] >>= fun v2' ->
-      check_val "vy after merge" None v2';
-      P.Repo.close repo
+      ( if not (S.async_freeze ()) then
+        S.find t [ "u"; "x"; "y" ] >|= fun v2' ->
+        check_val "vy after merge" None v2'
+      else Lwt.return_unit )
+      >>= fun () -> P.Repo.close repo
     in
     run x test
 
@@ -412,15 +427,19 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.freeze repo ~squash:true >>= fun () ->
       (P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >>= function
        | true ->
-           S.layer_id repo (S.Commit_t (S.Commit.hash c1)) >|= fun s ->
-           Alcotest.(check string) "layer_id commit 1" s "lower"
+           if not (S.async_freeze ()) then
+             S.layer_id repo (S.Commit_t (S.Commit.hash c1)) >|= fun s ->
+             Alcotest.(check string) "layer_id commit 1" s "lower"
+           else Lwt.return_unit
        | false ->
            Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash c1)
       >>= fun () ->
       (P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c2) >>= function
        | true ->
-           S.layer_id repo (S.Commit_t (S.Commit.hash c2)) >|= fun s ->
-           Alcotest.(check string) "layer_id commit 2" s "lower"
+           if not (S.async_freeze ()) then
+             S.layer_id repo (S.Commit_t (S.Commit.hash c2)) >|= fun s ->
+             Alcotest.(check string) "layer_id commit 2" s "lower"
+           else Lwt.return_unit
        | false ->
            Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash c2)
       >>= fun () ->
@@ -435,6 +454,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let test_squash repo =
       setup repo >>= fun (c1, c2) ->
       S.freeze repo ~squash:true ~max:[ c2 ] >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
       (P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >|= function
        | true ->
            Alcotest.failf "should not copy commit %a to dst" S.Commit.pp_hash c1
@@ -448,13 +468,13 @@ module Make_Layered (S : LAYERED_STORE) = struct
            Alcotest.failf "should copy commit %a to dst" S.Commit.pp_hash c2)
       >>= fun () ->
       S.master repo >>= fun t ->
-      S.find t [ "a"; "b"; "c" ] >>= fun v1' ->
-      check_val "copy v1 to dst" None v1';
       S.find t [ "a"; "b"; "d" ] >>= fun v2' ->
       check_val "copy v2 to dst" (Some v2) v2';
-      (S.Branch.find repo "foo" >|= function
-       | None -> ()
-       | Some _ -> Alcotest.failf "should not find branch foo in dst")
+      ( S.find t [ "a"; "b"; "c" ] >>= fun v1' ->
+        check_val "copy v1 to dst" None v1';
+        S.Branch.find repo "foo" >|= function
+        | None -> ()
+        | Some _ -> Alcotest.failf "should not find branch foo in dst" )
       >>= fun () -> P.Repo.close repo
     in
     run x test;
@@ -475,7 +495,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
           Log.debug (fun l -> l "commit %s" y);
           S.Commit.v repo ~info ~parents:[] tree >>= fun c ->
           S.Branch.set repo b c >>= fun () ->
-          S.freeze repo ~max:[ c ] >>= fun () -> commits tree (c :: acc) (i + 1)
+          S.freeze repo ~max:[ c ] >>= fun () ->
+          S.PrivateLayer.wait_for_freeze () >>= fun () ->
+          commits tree (c :: acc) (i + 1)
       in
       let tests c i =
         let tree = S.Commit.tree c in
@@ -485,8 +507,11 @@ module Make_Layered (S : LAYERED_STORE) = struct
         Log.debug (fun l -> l "test %s" y);
         S.Tree.find tree [ "c"; "b"; a ] >>= fun y' ->
         Alcotest.(check (option string)) "commit" (Some y) y';
-        S.layer_id repo (S.Commit_t (S.Commit.hash c)) >>= fun s ->
-        Alcotest.(check string) "layer id of commit" s "lower";
+        ( if not (S.async_freeze ()) then
+          S.layer_id repo (S.Commit_t (S.Commit.hash c)) >|= fun s ->
+          Alcotest.(check string) "layer id of commit" s "lower"
+        else Lwt.return_unit )
+        >>= fun () ->
         S.Branch.find repo b >|= fun c' -> check_val repo "branch" (Some c) c'
       in
       commits tree [] 0 >>= fun commits ->
