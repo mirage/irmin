@@ -612,9 +612,7 @@ let config_man =
          store. This $(b,irmin.yml) prevents the user from having to specify \
          the $(b,store) and $(b,uri) options for every command.";
       `Pre
-        "    \\$ cat irmin.yml\n\
-        \    store: http\n\
-        \    uri: http://127.0.0.1:8080";
+        "    \\$ cat irmin.yml\n    store: http\n    uri: http://127.0.0.1:8080";
     ]
     @ help_sections )
 

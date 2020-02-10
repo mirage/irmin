@@ -227,7 +227,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   (* XXX(samoht): batches are stored in memory. This could be bad if
        large objects are stored for too long... Might be worth having
        a clever LRU, which pushes larges objects to the underlying
-       layer when needed.  *)
+       layer when needed. *)
 
   module Info = Irmin_mirage.Info (C)
   module RO = KV_RO (G)
