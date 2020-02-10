@@ -135,7 +135,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
     Lwt.return updated
 
-  let clear t = W.clear t.w >>= fun () -> RO.clear t.t
+  let clear t = RO.clear t.t
 end
 
 let config () = Irmin.Private.Conf.empty

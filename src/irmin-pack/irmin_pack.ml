@@ -197,7 +197,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     >>= fun () -> W.notify t.w k None
 
   let unsafe_clear t =
-    Lwt.async (fun () -> W.clear t.w);
     IO.clear t.block;
     Tbl.clear t.cache;
     Tbl.clear t.index
