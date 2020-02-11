@@ -1,23 +1,35 @@
-module Record (M : S.MONAD) : sig
+open Overture
+open Higher
+module Lens = Optics.Effectful.Lens
+module Prism = Optics.Effectful.Prism
+
+module Record (M : sig
+  type t
+
+  val v : < t monad ; t functor_ >
+end) : sig
   open Type_core.Make(M)
 
   type ('record, 'cons, 'remaning, 'lenses, 'lens_nil) open_record
-
-  module Lens : module type of Optics.Lens (M)
 
   val record :
     string -> 'cons -> ('record, 'cons, 'cons, 'lens_nil, 'lens_nil) open_record
 
   type ('a, 'b) field
 
-  val field : string -> 'a t -> ('b -> 'a M.t) -> ('b, 'a) field
+  val field :
+    string ->
+    'a t ->
+    ?set:('b -> 'a -> ('b, M.t) app) ->
+    ('b -> ('a, M.t) app) ->
+    ('b, 'a) field
 
   val ( |+ ) :
     ( 'record,
       'cons,
       'field -> 'remaining_fields,
       'lenses,
-      ('record, 'field) Lens.mono * 'lens_nil )
+      ('record, 'field, M.t) Lens.mono * 'lens_nil )
     open_record ->
     ('record, 'field) field ->
     ('record, 'cons, 'remaining_fields, 'lenses, 'lens_nil) open_record
@@ -29,10 +41,12 @@ module Record (M : S.MONAD) : sig
     'record t * 'lenses Lens.t_list
 end
 
-module Variant (M : S.MONAD) : sig
-  open Type_core.Make(M)
+module Variant (M : sig
+  type t
 
-  module Prism : module type of Optics.Prism (M)
+  val v : < t monad ; t functor_ >
+end) : sig
+  open Type_core.Make(M)
 
   type ( 'variant,
          'pat,
@@ -51,9 +65,10 @@ module Variant (M : S.MONAD) : sig
 
   type 'a case_p
 
-  val case0 : string -> 'a M.t -> ('a, unit, 'a case_p) case
+  val case0 : string -> ('a, M.t) app -> ('a, unit, 'a case_p) case
 
-  val case1 : string -> 'b t -> ('b -> 'a M.t) -> ('a, 'b, 'b -> 'a case_p) case
+  val case1 :
+    string -> 'b t -> ('b -> ('a, M.t) app) -> ('a, 'b, 'b -> 'a case_p) case
 
   val ( |~ ) :
     ( 'variant,
@@ -61,28 +76,17 @@ module Variant (M : S.MONAD) : sig
       'rem,
       'constr -> 'rem_nil,
       'prisms,
-      ('variant, 'case) Prism.mono * 'prism_nil )
+      ('variant, 'case, M.t) Prism.mono * 'prism_nil )
     open_variant ->
     ('variant, 'case, 'constr) case ->
     ('variant, 'pat, 'rem, 'rem_nil, 'prisms, 'prism_nil) open_variant
 
-  val sealv :
-    ( 'variant,
-      'pat,
-      'pat,
-      'variant -> 'variant case_p M.t,
-      'prisms,
-      unit )
-    open_variant ->
-    'variant t
+  type ('variant, 'inj) sealer = {
+    sealer :
+      'pat 'prisms.
+      ('variant, 'pat, 'pat, 'variant -> 'inj, 'prisms, unit) open_variant ->
+      'variant t * 'prisms Prism.t_list;
+  }
 
-  val sealv_with_optics :
-    ( 'variant,
-      'pat,
-      'pat,
-      'variant -> 'variant case_p M.t,
-      'prisms,
-      unit )
-    open_variant ->
-    'variant t * 'prisms Prism.t_list
+  val sealv : ('inj -> ('variant case_p, M.t) app) -> ('variant, 'inj) sealer
 end

@@ -27,6 +27,8 @@
 
 (** {1 Type Combinators} *)
 
+open Overture
+
 type 'a t
 (** The type for runtime representation of values of type ['a]. *)
 
@@ -106,7 +108,8 @@ type ('a, 'b) field
 (** The type for fields holding values of type ['b] and belonging to a record of
     type ['a]. *)
 
-val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
+val field :
+  string -> 'a t -> ?set:('b -> 'a -> 'b) -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
     [g].
 
@@ -118,14 +121,14 @@ val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
       let manuscript = field "title" (option string) (fun t -> t.title)
     ]} *)
 
-module Lens : module type of Optics.Lens (Monad.Identity)
+module Lens : module type of Optics.Effectful.Lens
 
 val ( |+ ) :
   ( 'record,
     'cons,
     'field -> 'remaining_fields,
     'lenses,
-    ('record, 'field) Lens.mono * 'lens_nil )
+    ('record, 'field, Identity.t) Lens.mono * 'lens_nil )
   open_record ->
   ('record, 'field) field ->
   ('record, 'cons, 'remaining_fields, 'lenses, 'lens_nil) open_record
@@ -203,7 +206,7 @@ val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b, 'b -> 'a case_p) case
       let foo = case1 "Foo" string (fun s -> Foo s)
     ]} *)
 
-module Prism : module type of Optics.Prism (Monad.Identity)
+module Prism : module type of Optics.Effectful.Prism
 
 val ( |~ ) :
   ( 'variant,
@@ -211,7 +214,7 @@ val ( |~ ) :
     'rem,
     'constr -> 'rem_nil,
     'prisms,
-    ('variant, 'case) Prism.mono * 'prism_nil )
+    ('variant, 'case, Identity.t) Prism.mono * 'prism_nil )
   open_variant ->
   ('variant, 'case, 'constr) case ->
   ('variant, 'pat, 'rem, 'rem_nil, 'prisms, 'prism_nil) open_variant

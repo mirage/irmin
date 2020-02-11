@@ -14,208 +14,286 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let undefined _ =
-  let exception Undefined in
-  raise Undefined
+open Overture
+open Higher
 
-let ( >> ) f g x = g (f x)
+let kliesli :
+    < bind : 'a 'b. ('a -> ('b, 'm) app) -> ('a, 'm) app -> ('b, 'm) app ; .. > ->
+    ('a -> ('b, 'm) app) ->
+    ('b -> ('c, 'm) app) ->
+    'a ->
+    ('c, 'm) app =
+ fun monad f g x -> monad#bind g (f x)
 
-module Lens (F : S.MONAD) = struct
-  open F
-  open F.Infix
+(* A 'getter' describes how to retrieve a single value. *)
+(* type ('m, 's, 'a) getter = {
+ *   getter :
+ *     'mm 'c 'cc 'f 'ff. ('m #monad as 'mm) -> ('c #contravariant as 'cc) ->
+ *     ('f #functor_ as 'ff) -> ('a -> ('a, 'f) app) -> 's ->
+ *     (('s, 'f) app, 'm) app;
+ * } *)
 
-  type (-'s, +'t, +'a, -'b) t = {
-    op :
-      'r. ('a F.t -> ('b -> 'r F.t) -> 'r F.t) -> 's -> ('t -> 'r F.t) -> 'r F.t;
-        (** Internally, we allow modification to run inside the {!F} monad, in
-            order to be able to compose lenses; this isn't exposed to the user.*)
-  }
-  (** We use an optic representation very similar to the standard 'van
-      Laarhoven' encoding (based on CPS):
+(* instance Functor (Const a) *)
 
-      {[
-        type (-'s, +'t, +'a, -'b) t = {
-          op : 'r. ('a -> ('b -> 'r) -> 'r) -> 's -> ('t -> 'r) -> 'r;
-        }
-      ]}
+module Effectful = struct
+  module Lens = struct
+    (* type ('s, 't, 'a, 'b, 'm) t = {
+     *   monad : 'm monad;
+     *   lens :
+     *     'f 'ff. ('f #functor_ as 'ff) -> ('a -> (('b, 'f) app, 'm) app) -> 's ->
+     *     (('t, 'f) app, 'm) app;
+     *       (\** Internally, we allow modification to run inside the {!F} monad, in
+     *           order to be able to compose lenses; this isn't exposed to the user.*\)
+     * } *)
 
-      However, the above quickly breaks down when used in practice, because of
-      the value restriction. In particular, the corresponding definition of
-      [lens] is:
+    (* let v :
+     *   type s t a b m.
+     *   m #monad ->
+     *   (s -> (a, m) app) ->
+     *   (s -> b -> (t, m) app) ->
+     *   (s, t, a, b, m) ty =
+     *   fun monad sa sbt ->
+     *     let lens : type f. f #functor_ -> (a -> ((b, f) app, m) app) -> s -> ((t, f) app, m) app
+     * 
+     *         funct afb s =
+     *       let ( >>| ) x f = funct#fmap f x in
+     *       let bt = sbt s in
+     *       s |> sa |> afb >>| bt
+     *     in
+     *     { lens; monad } *)
 
-      {[
-        let lens : type s t a b. (s -> a) -> (s -> b -> t) -> (s, t, a, b) lens
-            =
-         fun get set ->
-          let op k this read = k (get this) (fun b -> read (set this b)) in
-          { op }
-      ]}
-
-      See
-      <https://stackoverflow.com/questions/29187287/sneaking-lenses-and-cps-past-the-value-restriction#comment4663665529187287> *)
-
-  type (-'s, +'t, +'a, -'b) ty = ('s, 't, 'a, 'b) t
-
-  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
-
-  let v get set =
-    let op k this read = k (get this) (fun b -> set this b >>= read) in
-    { op }
-
-  let view { op } s = op (fun a _ -> a) s undefined
-
-  let modify : type s t a b. (s, t, a, b) ty -> (a -> b) -> s -> t F.t =
-   fun { op } f s -> op (fun aM rf -> aM >>= (f >> return >> bind rf)) s return
-
-  let update l b = modify l (fun _ -> b)
-
-  let ( >> ) :
-      type a b c d e f. (a, b, c, d) ty -> (c, d, e, f) ty -> (a, b, e, f) ty =
-   fun { op = f } { op = g } ->
-    let op z = f (fun cM rf -> cM >>= fun c -> (g z) c rf) in
-    { op }
-
-  (* Provided lenses *)
-  let id = { op = (fun _ s rf -> rf s) }
-
-  let fst = { op = (fun k (a, x) read -> k (return a) (fun b -> read (b, x))) }
-
-  let snd = { op = (fun k (x, b) read -> k (return b) (fun a -> read (x, a))) }
-
-  let head =
-    {
-      op =
-        (fun k list read ->
-          let x, xs = (List.hd list, List.tl list) in
-          k (return x) (fun b -> read (b :: xs)));
+    type ('s, 't, 'a, 'b, 'm) t = {
+      monad : 'm monad;
+      view : 's -> ('a, 'm) app;
+      modify : ('a -> ('b, 'm) app) -> 's -> ('t, 'm) app;
     }
 
-  type _ t_list =
-    | ( :: ) :
-        ('s, 't, 'a, 'b) t * 'l t_list
-        -> (('s, 't, 'a, 'b) t * 'l) t_list
-    | [] : unit t_list
-end
+    type ('s, 't, 'a, 'b, 'm) ty = ('s, 't, 'a, 'b, 'm) t
 
-module Prism (F : S.MONAD) = struct
-  open F
-  open F.Infix
+    type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
 
-  type (-'s, +'t, +'a, -'b) t = {
-    review : 'b -> 't F.t;
-    preview : 's -> 'a option F.t;
-  }
+    let v monad view modify = { monad; view; modify }
 
-  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
+    let modify { modify; _ } = modify
 
-  let v review preview = { review; preview }
+    let update { modify; _ } b = modify (fun _ -> b)
 
-  let ( >> ) :
-      type a b c d e f. (a, b, c, d) t -> (c, d, e, f) t -> (a, b, e, f) t =
-   fun f g ->
-    {
-      review = g.review >=> f.review;
-      preview =
-        (f.preview >=> function Some a -> g.preview a | None -> return None);
+    let view { view; _ } = view
+
+    let ( >> ) l1 l2 =
+      let ( >=> ) = kliesli l1.monad in
+      {
+        monad = l1.monad;
+        modify = l2.modify >>> l1.modify;
+        view = l1.view >=> l2.view;
+      }
+
+    type _ t_list =
+      | ( :: ) :
+          ('s, 't, 'a, 'b, 'm) ty * 'l t_list
+          -> (('s, 't, 'a, 'b, 'm) ty * 'l) t_list
+      | [] : unit t_list
+  end
+
+  module Prism = struct
+    type ('s, 't, 'a, 'b, 'm) t = {
+      monad : 'm monad;
+      review : 'b -> ('t, 'm) app;
+      preview : 's -> ('a option, 'm) app;
     }
 
-  (* Provided prisms *)
+    type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
 
-  let some =
-    { review = (fun b -> return (Some b)); preview = (fun s -> return s) }
+    let v monad review preview = { monad; review; preview }
 
-  let none =
-    let review () = return None in
-    let preview = function None -> return (Some ()) | Some _ -> return None in
-    { review; preview }
+    let review { review; _ } = review
 
-  let ok =
-    let review b = return (Ok b) in
-    let preview = function Ok a -> return (Some a) | Error _ -> return None in
-    { review; preview }
+    let preview { preview; _ } = preview
 
-  let error =
-    let review b = return (Error b) in
-    let preview = function Error a -> return (Some a) | Ok _ -> return None in
-    { review; preview }
+    let ( >> ) :
+        type m a b c d e f.
+        (a, b, c, d, m) t -> (c, d, e, f, m) t -> (a, b, e, f, m) t =
+     fun f g ->
+      let ( >=> ) = kliesli f.monad in
+      {
+        monad = f.monad;
+        review = g.review >=> f.review;
+        preview =
+          (fun x ->
+            f.preview x
+            |> f.monad#bind (function
+                 | Some a -> g.preview a
+                 | None -> f.monad#return None));
+      }
 
-  let head =
-    let review b = return [ b ] in
-    let preview = function a :: _ -> return (Some a) | [] -> return None in
-    { review; preview }
+    type _ t_list =
+      | ( :: ) :
+          ('s, 't, 'a, 'b, 'm) t * 'l t_list
+          -> (('s, 't, 'a, 'b, 'm) t * 'l) t_list
+      | [] : unit t_list
+  end
 
-  let nil =
-    let review () = return [] in
-    let preview = function [] -> return (Some ()) | _ :: _ -> return None in
-    { review; preview }
+  module Getter (In : S.APPLICATIVE) (Out : S.MONAD) = struct
+    type ('s, 'a) t = 's In.t -> 'a Out.t
 
-  type _ t_list =
-    | ( :: ) :
-        ('s, 't, 'a, 'b) t * 'l t_list
-        -> (('s, 't, 'a, 'b) t * 'l) t_list
-    | [] : unit t_list
+    let ( >> ) f g = f >>> Out.bind (In.return >>> g)
+
+    let v f = f
+
+    let ( ^. ) = ( |> )
+  end
+
+  module Optional = struct
+    type ('s, 't, 'a, 'b, 'm) t = {
+      monad : 'm monad;
+      modify : ('a -> ('b option, 'm) app) -> 's -> ('t option, 'm) app;
+      preview : 's -> ('a option, 'm) app;
+    }
+
+    type ('s, 't, 'a, 'b, 'm) ty = ('s, 't, 'a, 'b, 'm) t
+
+    let of_lens : type s t a b m. (s, t, a, b, m) Lens.t -> (s, t, a, b, m) ty =
+     fun ({ monad; view; modify } as lens) ->
+      let ( >>= ) x f = monad#bind f x in
+      let ( >>| ) x f = monad#fmap f x in
+      let modify f s =
+        (* Inefficient implementation because we can't have a partial modify inside the lens. *)
+        view s >>= fun a ->
+        f a >>= function
+        | Some b -> modify (fun _ -> monad#return b) s >>| some
+        | None -> monad#return None
+      in
+      let preview : s -> (a option, m) app = fun s -> lens.view s >>| some in
+      { monad; modify; preview }
+
+    let of_prism : type s t a b m. (s, t, a, b, m) Prism.t -> (s, t, a, b, m) ty
+        =
+     fun { monad; review; preview } ->
+      let ( >>= ) x f = monad#bind f x in
+      let ( >>| ) x f = monad#fmap f x in
+      let modify f x =
+        preview x >>= function
+        | Some a -> (
+            f a >>= function
+            | Some b -> review b >>| some
+            | None -> monad#return None )
+        | None -> monad#return None
+      in
+      { monad; modify; preview }
+
+    let get_opt { preview; _ } = preview
+
+    let modify { modify; _ } = modify
+
+    let ( >> ) :
+        type a b c d e f m.
+        (a, b, c, d, m) t -> (c, d, e, f, m) t -> (a, b, e, f, m) t =
+     fun f g ->
+      let ( >=> ) = kliesli f.monad in
+      {
+        monad = f.monad;
+        modify = g.modify >>> f.modify;
+        preview =
+          (f.preview >=> function
+           | Some a -> g.preview a
+           | None -> f.monad#return None);
+      }
+  end
 end
 
-module Getter (In : S.APPLICATIVE) (Out : S.MONAD) = struct
-  type ('s, 'a) t = 's In.t -> 'a Out.t
+(* Pre-supplied instantiations of the above without effects *)
 
-  let ( >> ) f g = f >> Out.bind (In.return >> g)
+module Lens = struct
+  module L = Effectful.Lens
 
-  let v f = f
+  let inj, prj = Identity.(inj, prj)
 
-  let ( ^. ) = ( |> )
-end
-
-module Optional (F : S.MONAD) = struct
-  open F
-  open F.Infix
-  module Lens = Lens (F)
-  module Prism = Prism (F)
-
-  type ('s, 't, 'a, 'b) t = {
-    modify : ('a -> 'b option F.t) -> 's -> 't option F.t;
-        (** We allow the modification function to be partial in order to ease
-            composition of Optionals. This is not exposed to the user. *)
-    preview : 's -> 'a option F.t;
-  }
+  type ('s, 't, 'a, 'b) t = ('s, 't, 'a, 'b, Identity.t) L.t
 
   type ('s, 't, 'a, 'b) ty = ('s, 't, 'a, 'b) t
 
-  let modify { modify; _ } f = modify (f >=| fun a -> Some a)
+  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
 
-  let of_lens : type s t a b. (s, t, a, b) Lens.t -> (s, t, a, b) ty =
-   fun { Lens.op } ->
-    let modify : (a -> b option F.t) -> s -> t option F.t =
-     fun f s ->
-      op
-        (fun aM rf ->
-          aM >>= (f >=> function Some b -> rf b | None -> return None))
-        s
-        (fun x -> return (Some x))
-    in
-    let preview s = op (fun a _ -> a) s undefined >|= fun a -> Some a in
-    { modify; preview }
+  let id = L.{ monad = Identity.v; view = inj; modify = (fun f x -> f x) }
 
-  let of_prism : type s t a b. (s, t, a, b) Prism.t -> (s, t, a, b) ty =
-   fun { review; preview } ->
-    let modify f =
-      preview >=> function
-      | Some a -> (
-          f a >>= function
-          | Some b -> review b >|= fun t -> Some t
-          | None -> return None )
-      | None -> return None
-    in
-    { modify; preview }
+  let fst : type a1 a2 b. (a1 * b, a2 * b, a1, a2) ty =
+    let view (a, _) = inj a in
+    let modify f (a, b) = (f a |> prj, b) |> inj in
+    { L.monad = Identity.v; view; modify }
 
-  let get_opt { preview; _ } = preview
+  let snd : type a b1 b2. (a * b1, a * b2, b1, b2) ty =
+    let view (_, b) = inj b in
+    let modify f (a, b) = (a, f b |> prj) |> inj in
+    { L.monad = Identity.v; view; modify }
 
-  let ( >> ) :
-      type a b c d e f. (a, b, c, d) t -> (c, d, e, f) t -> (a, b, e, f) t =
-   fun f g ->
-    {
-      modify = g.modify >> f.modify;
-      preview =
-        (f.preview >=> function Some a -> g.preview a | None -> return None);
-    }
+  let v : type s t a b. (s -> a) -> ((a -> b) -> s -> t) -> (s, t, a, b) ty =
+   fun view modify ->
+    let view = view >>> inj in
+    let modify f = modify (f >>> prj) >>> inj in
+    L.v Identity.v view modify
+
+  let ( >> ) = L.( >> )
+
+  let view l s = L.view l s |> prj
+
+  let modify l f = L.modify l (f >>> inj) >>> prj
+
+  let update l b = modify l (fun _ -> b)
+
+  let prj x = x
+end
+
+module Prism = struct
+  module P = Effectful.Prism
+
+  let inj, prj = Identity.(inj, prj)
+
+  type ('s, 't, 'a, 'b) t = ('s, 't, 'a, 'b, Identity.t) P.t
+
+  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
+
+  (* Provided prisms *)
+
+  let some : type a b. (a option, b option, a, b) t =
+    let review x = inj (Some x) in
+    let preview s = inj s in
+    { P.monad = Identity.v; review; preview }
+
+  let none : type a. (a option, a option, unit, unit) t =
+    let review () = inj None in
+    let preview = function None -> inj (Some ()) | Some _ -> inj None in
+    { P.monad = Identity.v; review; preview }
+
+  let ok : type a b c. ((a, c) result, (b, c) result, a, b) t =
+    let review b = inj (Ok b) in
+    let preview = function Ok a -> inj (Some a) | Error _ -> inj None in
+    { P.monad = Identity.v; review; preview }
+
+  let error : type a b c. ((a, b) result, (a, c) result, b, c) t =
+    let review b = inj (Error b) in
+    let preview = function Error a -> inj (Some a) | Ok _ -> inj None in
+    { P.monad = Identity.v; review; preview }
+
+  let head : type a. (a list, a list, a, a) t =
+    let review b = inj [ b ] in
+    let preview = function a :: _ -> inj (Some a) | [] -> inj None in
+    { P.monad = Identity.v; review; preview }
+
+  let nil : type a. (a list, a list, unit, unit) t =
+    let review () = inj [] in
+    let preview = function [] -> inj (Some ()) | _ :: _ -> inj None in
+    { P.monad = Identity.v; review; preview }
+
+  let v review preview =
+    let review b = review b |> inj in
+    let preview s = preview s |> inj in
+    { P.monad = Identity.v; review; preview }
+
+  let ( >> ) = P.( >> )
+
+  let review p b = P.review p b |> prj
+
+  let preview p s = P.preview p s |> prj
+
+  let prj x = x
 end

@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Higher
+module Lens = Optics.Effectful.Lens
+module Prism = Optics.Effectful.Prism
+
 module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
 
@@ -57,10 +61,10 @@ type 'a equal = 'a -> 'a -> bool
 
 type 'a short_hash = ?seed:int -> 'a -> int
 
-module Make (M : S.MONAD) = struct
-  module Lens = Optics.Lens (M)
-  module Prism = Optics.Prism (M)
-
+module Make (M : sig
+  type t
+end) =
+struct
   type 'a t =
     | Self : 'a self -> 'a t
     | Custom : 'a custom -> 'a t
@@ -150,9 +154,9 @@ module Make (M : S.MONAD) = struct
                                      /    \               /     \
                                     /      \             /       \
                                   int      ->     (foo, int)      *
-                                          /  \     Lens.mono    /   \
-                                         /    \                /     \
-                                        /      \              /       \
+                                          /  \     Lens.mono    /  \
+                                         /    \                /    \
+                                        /      \              /      \
                                     string    foo     (foo, string)  'd
                                                         Lens.mono
       ]} *)
@@ -163,17 +167,22 @@ module Make (M : S.MONAD) = struct
         ('record, 'field) field * ('record, 'constr, 'lenses, 'lens_nil) fields
         -> ( 'record,
              'field -> 'constr,
-             ('record, 'field) Lens.mono * 'lenses,
+             ('record, 'field, M.t) Lens.mono * 'lenses,
              'lens_nil )
            fields
 
-  and ('a, 'b) field = { fname : string; ftype : 'b t; fget : 'a -> 'b M.t }
+  and ('a, 'b) field = {
+    fname : string;
+    ftype : 'b t;
+    fget : 'a -> ('b, M.t) app;
+    fset : ('a -> 'b -> ('a, M.t) app) option;
+  }
 
   and 'a variant = {
     vwit : 'a Witness.t;
     vname : string;
     vcases : 'a a_case array;
-    vget : 'a -> 'a case_v M.t;
+    vget : 'a -> ('a case_v, M.t) app;
   }
 
   (* Cases are built without knowing what the tags are *)
@@ -192,13 +201,13 @@ module Make (M : S.MONAD) = struct
     | CV0 : 'v case0 -> 'v case_v
     | CV1 : ('v, 'case) case1 * 'case -> 'v case_v
 
-  and 'a case0 = { ctag0 : int; cname0 : string; c0 : 'a M.t }
+  and 'a case0 = { ctag0 : int; cname0 : string; c0 : ('a, M.t) app }
 
   and ('a, 'b) case1 = {
     ctag1 : int;
     cname1 : string;
     ctype1 : 'b t;
-    c1 : 'b -> 'a M.t;
+    c1 : 'b -> ('a, M.t) app;
     c1_witness : 'b Witness.t;
   }
 
@@ -210,7 +219,7 @@ module Make (M : S.MONAD) = struct
         -> ( 'variant,
              'constr -> 'remaining,
              'pat_nil,
-             ('variant, 'case) Prism.mono * 'prisms,
+             ('variant, 'case, M.t) Prism.mono * 'prisms,
              'prism_nil )
            cases
 

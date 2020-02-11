@@ -1,0 +1,4 @@
+(test
+ (name      test)
+ (package   irmin)
+ (libraries digestif.c irmin alcotest hex))
