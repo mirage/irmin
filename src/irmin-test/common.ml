@@ -65,8 +65,14 @@ let () =
   Logs.set_level (Some Logs.Debug);
   Logs.set_reporter (reporter ())
 
+let line ppf ?color c =
+  let line = String.v ~len:80 (fun _ -> c) in
+  match color with
+  | Some c -> Fmt.pf ppf "%a\n%!" Fmt.(styled c string) line
+  | None -> Fmt.pf ppf "%s\n%!" line
+
 let line msg =
-  let line () = Alcotest.line stderr ~color:`Yellow '-' in
+  let line () = line Fmt.stderr ~color:`Yellow '-' in
   line ();
   Logs.info (fun f -> f "ASSERT %s" msg);
   line ()
