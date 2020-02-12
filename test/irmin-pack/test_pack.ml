@@ -132,7 +132,7 @@ module Dict = struct
 end
 
 module Pack = struct
-  let test_pack _switch () =
+  let test_pack () =
     Context.get_pack () >>= fun t ->
     let x1 = "foo" in
     let x2 = "bar" in
@@ -163,7 +163,7 @@ module Pack = struct
     test pack2 >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Pack.close pack2
 
-  let test_readonly_pack _switch () =
+  let test_readonly_pack () =
     Context.get_pack () >>= fun t ->
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
     let test w =
@@ -193,7 +193,7 @@ module Pack = struct
     test t.pack >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
-  let test_reuse_index _switch () =
+  let test_reuse_index () =
     (* index and pack with different names. However, this behaviour is not exposed by irmin_pack.*)
     let index = Index.v ~log_size:4 ~fresh:true (Context.fresh_name "index") in
     Pack.v ~fresh:true ~index (Context.fresh_name "pack") >>= fun w1 ->
@@ -205,7 +205,7 @@ module Pack = struct
     Index.close index;
     Pack.close w1
 
-  let test_close_pack_more _switch () =
+  let test_close_pack_more () =
     (*open and close in rw*)
     Context.get_pack () >>= fun t ->
     let w = t.pack in
@@ -231,7 +231,7 @@ module Pack = struct
     Alcotest.(check string) "x1.3" x1 y1;
     Context.close i2 w2 >>= fun () -> Context.close i3 w3
 
-  let test_close_pack _switch () =
+  let test_close_pack () =
     Context.get_pack () >>= fun t ->
     let w = t.pack in
     let x1 = "foo" in
@@ -282,11 +282,15 @@ module Pack = struct
 
   let tests =
     [
-      Alcotest_lwt.test_case "pack" `Quick test_pack;
-      Alcotest_lwt.test_case "RO pack" `Quick test_readonly_pack;
-      Alcotest_lwt.test_case "index" `Quick test_reuse_index;
-      Alcotest_lwt.test_case "close" `Quick test_close_pack;
-      Alcotest_lwt.test_case "close readonly" `Quick test_close_pack_more;
+      Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
+      Alcotest.test_case "RO pack" `Quick (fun () ->
+          Lwt_main.run (test_readonly_pack ()));
+      Alcotest.test_case "index" `Quick (fun () ->
+          Lwt_main.run (test_reuse_index ()));
+      Alcotest.test_case "close" `Quick (fun () ->
+          Lwt_main.run (test_close_pack ()));
+      Alcotest.test_case "close readonly" `Quick (fun () ->
+          Lwt_main.run (test_close_pack_more ()));
     ]
 end
 
@@ -298,7 +302,7 @@ module Branch = struct
 
   let hash = Alcotest.testable pp_hash (Irmin.Type.equal Irmin.Hash.SHA1.t)
 
-  let test_branch _switch () =
+  let test_branch () =
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let test t =
       Lwt_list.iter_s (fun k -> Branch.set t k (sha1 k)) branches >>= fun () ->
@@ -332,7 +336,7 @@ module Branch = struct
       br;
     Lwt.return_unit
 
-  let test_close_branch _switch () =
+  let test_close_branch () =
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let add t =
       Lwt_list.iter_s
@@ -366,8 +370,10 @@ module Branch = struct
 
   let tests =
     [
-      Alcotest_lwt.test_case "branch" `Quick test_branch;
-      Alcotest_lwt.test_case "branch close" `Quick test_close_branch;
+      Alcotest.test_case "branch" `Quick (fun () ->
+          Lwt_main.run (test_branch ()));
+      Alcotest.test_case "branch close" `Quick (fun () ->
+          Lwt_main.run (test_close_branch ()));
     ]
 end
 
