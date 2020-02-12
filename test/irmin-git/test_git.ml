@@ -173,13 +173,13 @@ let test_list_refs (module S : G) =
     "filtered branches" [ "master"; "foo" ] bs;
 
   (* XXX: re-add
-  if S.Git.kind = `Disk then
-    let i = Fmt.kstrf Sys.command "cd %s && git gc" test_db in
-    if i <> 0 then Alcotest.fail "git gc failed";
-    S.Repo.branches repo >|= fun bs ->
-    Alcotest.(check (slist string String.compare)) "filtered branches"
-      ["master";"foo"] bs
-   else *)
+     if S.Git.kind = `Disk then
+       let i = Fmt.kstrf Sys.command "cd %s && git gc" test_db in
+       if i <> 0 then Alcotest.fail "git gc failed";
+       S.Repo.branches repo >|= fun bs ->
+       Alcotest.(check (slist string String.compare)) "filtered branches"
+         ["master";"foo"] bs
+      else *)
   Lwt.return_unit
 
 let bin_string = Alcotest.testable (Fmt.fmt "%S") ( = )

@@ -103,8 +103,7 @@ module Located (A : Ast_builder.S) : S = struct
                       rec_detected := true;
                       generic_name
                       (* If not a base type, assume a composite generic with the
-                         same naming convention *)
-                      )
+                         same naming convention *) )
                     else if not @@ SSet.mem const_name irmin_types then
                       generic_name_of_type_name const_name
                     else const_name

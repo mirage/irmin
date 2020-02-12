@@ -1176,7 +1176,7 @@ module Make (P : S.PRIVATE) = struct
                 match n.v with
                 | Hash _ | Value (_, _, None) ->
                     (* might happen if the node has already been added
-                     (while the thread was block on P.Node.mem *)
+                       (while the thread was block on P.Node.mem *)
                     k ()
                 | Map children | Value (_, _, Some children) ->
                     (* 1. convert partial values to total values *)

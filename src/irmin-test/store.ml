@@ -1008,7 +1008,6 @@ module Make (S : S) = struct
       (* test that we don't compute too many lcas
 
          0(k0, k1) -> 1(k1) -> 2(k0) -> 3(k1, k0) -> 4(k1)
-
       *)
       S.Tree.add tree k0 (random_value 1024) >>= fun tree ->
       S.Tree.add tree k1 (random_value 1024) >>= fun tree ->
@@ -1050,7 +1049,6 @@ module Make (S : S) = struct
                   |           _____________________/             \
                   |          /                                   \
                   \---> 12 (k0, k1) --> 14 (k2) --> 16 (k2) --> 17 (k0)
-
       *)
       S.Tree.add tree k2 (random_value 1024) >>= fun tree ->
       S.Commit.v repo ~info:(info 10) ~parents:[ S.Commit.hash c4 ] tree
@@ -1681,8 +1679,8 @@ module Make (S : S) = struct
     run x test
 
   (* in this test an outdated reference to a tree is used by a commit: [tree] is
-  the tree with root [x] created by [c1] and modified by [c2]. [c3] reuse [tree]
-  which implicitly deletes the changes of [c2]. *)
+     the tree with root [x] created by [c1] and modified by [c2]. [c3] reuse [tree]
+     which implicitly deletes the changes of [c2]. *)
   let test_merge_outdated_tree x () =
     let check_val = check T.(option S.contents_t) in
     let none_fail f msg =
@@ -1912,7 +1910,7 @@ module Make (S : S) = struct
               Alcotest.(check string) "test-and-set y" "1" a;
               Lwt_mvar.put rz "3" >>= fun () ->
               (* there's a conflict, the transaction is restarted so need to feed a
-              new value *)
+                 new value *)
               Lwt_mvar.put rz "4" >>= fun () ->
               Lwt_mvar.take wz >|= check_ok >>= fun () ->
               S.get t [ "a" ] >|= fun a ->
@@ -1942,7 +1940,7 @@ module Make (S : S) = struct
               Alcotest.(check string) "merge y" a "1";
               Lwt_mvar.put rz "3" >>= fun () ->
               (* there's a conflict, the transaction is restarted so need to feed a
-              new value *)
+                 new value *)
               Lwt_mvar.put rz "4" >>= fun () ->
               Lwt_mvar.take wz >|= check_ok >>= fun () ->
               S.get t [ "a" ] >|= fun a ->

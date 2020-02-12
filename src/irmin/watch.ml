@@ -91,7 +91,7 @@ let scheduler () =
         incr workers_r;
         Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
-             are at the back of the queue. *)
+               are at the back of the queue. *)
             Lwt_stream.iter_s (fun f -> f ()) stream);
         p := Some push;
         (c := fun () -> push None);

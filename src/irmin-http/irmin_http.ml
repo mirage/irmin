@@ -273,7 +273,7 @@ functor
     type ctx = Client.ctx
 
     (* cache the stream connections to the server: we open only one
-     connection per stream kind. *)
+       connection per stream kind. *)
     type cache = { mutable stop : unit -> unit }
 
     let empty_cache () = { stop = (fun () -> ()) }

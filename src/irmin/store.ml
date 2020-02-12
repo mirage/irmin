@@ -619,8 +619,8 @@ module Make (P : S.PRIVATE) = struct
               Lwt.return_true ))
     | `Branch name ->
         (* concurrent handlers and/or process can modify the
-         branch. Need to check that we are still working on the same
-         head. *)
+           branch. Need to check that we are still working on the same
+           head. *)
         let test =
           match old_head with None -> None | Some c -> Some (Commit.hash c)
         in
@@ -671,7 +671,7 @@ module Make (P : S.PRIVATE) = struct
     | Some x, Some y -> Tree.equal x y
 
   (* Update the store with a new commit. Ensure the no commit becomes orphan
-     in the process.  *)
+     in the process. *)
   let update ?(allow_empty = false) ~info ?parents t key merge_tree f =
     snapshot t key >>= fun s ->
     (* this might take a very long time *)

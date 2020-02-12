@@ -32,7 +32,7 @@ module IO = struct
      references, since these are mutable and can't be cached. Using
      mmap here leads to hitting the OS limit on the number of open
      files.  This threshold must be larger than the size of a
-     reference.  *)
+     reference. *)
 
   (* Pool of opened files *)
   let openfile_pool = Lwt_pool.create 200 (fun () -> Lwt.return_unit)
