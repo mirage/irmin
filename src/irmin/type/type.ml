@@ -101,6 +101,13 @@ let mu : type a. (a t -> a t) -> a t =
   fake_x.self <- real_x;
   real_x
 
+let mu_optics : type a opt. (a t -> a t * opt) -> a t * opt =
+ fun f ->
+  let rec fake_x = { self = Self fake_x } in
+  let real_x, optics = f (Self fake_x) in
+  fake_x.self <- real_x;
+  (real_x, optics)
+
 let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
  fun f ->
   let rec fake_x = { self = Self fake_x } in

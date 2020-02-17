@@ -287,6 +287,8 @@ val mu : ('a t -> 'a t) -> 'a t
             record "x" (fun x -> { x }) |+ field "x" x (fun x -> x.x) |> sealr)
     ]} *)
 
+val mu_optics : ('a t -> 'a t * 'opt) -> 'a t * 'opt
+
 val mu2 : ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
 (** [mu2 f] is the representations [r] and [s] such that [r, s = mu2 r s].
 
