@@ -106,7 +106,7 @@ module Default_types (S : Irmin.S) = struct
   module Contents = Default_type (struct
     include S.Contents
 
-    let name = "Contents"
+    let name = "Value"
   end)
 
   module Hash = Default_type (struct
@@ -118,7 +118,7 @@ module Default_types (S : Irmin.S) = struct
   module Branch = Default_type (struct
     include S.Branch
 
-    let name = "Branch"
+    let name = "BranchName"
   end)
 end
 
