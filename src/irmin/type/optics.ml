@@ -279,6 +279,11 @@ module Prism = struct
     let preview = function a :: _ -> inj (Some a) | [] -> inj None in
     { P.monad = Identity.v; review; preview }
 
+  let tail : type a. (a list, a list, a list, a list) t =
+    let review x = inj x in
+    let preview = function _ :: tl -> inj (Some tl) | [] -> inj None in
+    { P.monad = Identity.v; review; preview }
+
   let nil : type a. (a list, a list, unit, unit) t =
     let review () = inj [] in
     let preview = function [] -> inj (Some ()) | _ :: _ -> inj None in

@@ -228,5 +228,7 @@ module Prism : sig
 
   val head : ('a list, 'a) mono
 
+  val tail : ('a list, 'a list) mono
+
   val nil : ('a list, unit) mono
 end
