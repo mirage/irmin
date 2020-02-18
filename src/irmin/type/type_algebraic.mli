@@ -87,6 +87,7 @@ end) : sig
       ('variant, 'pat, 'pat, 'variant -> 'inj, 'prisms, unit) open_variant ->
       'variant t * 'prisms Prism.t_list;
   }
+  [@@unboxed]
 
   val sealv : ('inj -> ('variant case_p, M.t) app) -> ('variant, 'inj) sealer
 end

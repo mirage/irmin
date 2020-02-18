@@ -87,6 +87,13 @@ module Effectful : sig
         and the focusing function [preview], each of which runs with effect
         [monad]. *)
 
+    val natural_compose :
+      ('d -> (('d, 'n) app, 'm) app) ->
+      (('c, 'n) app -> ('c, 'm) app) ->
+      ('a, 'b, ('c, 'n) app, ('d, 'n) app, 'm) t ->
+      ('c, 'd, ('e, 'n) app, ('f, 'n) app, 'm) t ->
+      ('a, 'b, ('e, 'n) app, ('f, 'n) app, 'm) t
+
     val review : ('s, 't, 'a, 'b, 'm) t -> 'b -> ('t, 'm) app
     (** [review p] is a constructor for the sum case selected by prism [p]. *)
 

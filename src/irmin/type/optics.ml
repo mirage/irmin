@@ -25,43 +25,8 @@ let kliesli :
     ('c, 'm) app =
  fun monad f g x -> monad#bind g (f x)
 
-(* A 'getter' describes how to retrieve a single value. *)
-(* type ('m, 's, 'a) getter = {
- *   getter :
- *     'mm 'c 'cc 'f 'ff. ('m #monad as 'mm) -> ('c #contravariant as 'cc) ->
- *     ('f #functor_ as 'ff) -> ('a -> ('a, 'f) app) -> 's ->
- *     (('s, 'f) app, 'm) app;
- * } *)
-
-(* instance Functor (Const a) *)
-
 module Effectful = struct
   module Lens = struct
-    (* type ('s, 't, 'a, 'b, 'm) t = {
-     *   monad : 'm monad;
-     *   lens :
-     *     'f 'ff. ('f #functor_ as 'ff) -> ('a -> (('b, 'f) app, 'm) app) -> 's ->
-     *     (('t, 'f) app, 'm) app;
-     *       (\** Internally, we allow modification to run inside the {!F} monad, in
-     *           order to be able to compose lenses; this isn't exposed to the user.*\)
-     * } *)
-
-    (* let v :
-     *   type s t a b m.
-     *   m #monad ->
-     *   (s -> (a, m) app) ->
-     *   (s -> b -> (t, m) app) ->
-     *   (s, t, a, b, m) ty =
-     *   fun monad sa sbt ->
-     *     let lens : type f. f #functor_ -> (a -> ((b, f) app, m) app) -> s -> ((t, f) app, m) app
-     * 
-     *         funct afb s =
-     *       let ( >>| ) x f = funct#fmap f x in
-     *       let bt = sbt s in
-     *       s |> sa |> afb >>| bt
-     *     in
-     *     { lens; monad } *)
-
     type ('s, 't, 'a, 'b, 'm) t = {
       monad : 'm monad;
       view : 's -> ('a, 'm) app;
@@ -110,21 +75,39 @@ module Effectful = struct
 
     let preview { preview; _ } = preview
 
+    let natural_compose :
+        type m n a b c d e f.
+        (d -> ((d, n) app, m) app) ->
+        ((c, n) app -> (c, m) app) ->
+        (a, b, (c, n) app, (d, n) app, m) t ->
+        (c, d, (e, n) app, (f, n) app, m) t ->
+        (a, b, (e, n) app, (f, n) app, m) t =
+     fun pure nat p1 p2 ->
+      let ( >>= ) x fn = p1.monad#bind fn x in
+      let review f =
+        p2.review f >>= fun d ->
+        pure d >>= fun d -> p1.review d
+      in
+      let preview a =
+        p1.preview a >>= function
+        | Some c_addr -> nat c_addr >>= fun c -> p2.preview c
+        | None -> p1.monad#return None
+      in
+      { monad = p1.monad; review; preview }
+
     let ( >> ) :
         type m a b c d e f.
         (a, b, c, d, m) t -> (c, d, e, f, m) t -> (a, b, e, f, m) t =
      fun f g ->
       let ( >=> ) = kliesli f.monad in
-      {
-        monad = f.monad;
-        review = g.review >=> f.review;
-        preview =
-          (fun x ->
-            f.preview x
-            |> f.monad#bind (function
-                 | Some a -> g.preview a
-                 | None -> f.monad#return None));
-      }
+      let review = g.review >=> f.review in
+      let preview x =
+        f.preview x
+        |> f.monad#bind (function
+             | Some a -> g.preview a
+             | None -> f.monad#return None)
+      in
+      { monad = f.monad; review; preview }
 
     type _ t_list =
       | ( :: ) :

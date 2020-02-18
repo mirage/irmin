@@ -25,6 +25,7 @@ struct
       (* Append the two lens lists at the type level *)
       ('record, 'constr, 'lenses, 'hole) Unwitnessed.t;
   }
+  [@@unboxed]
 
   type nonrec ('a, 'b) field = ('a, 'b) field
 
@@ -163,6 +164,7 @@ struct
       ('variant, 'pat, 'pat, 'variant -> 'inj, 'prisms, unit) open_variant ->
       'variant t * 'prisms Prism.t_list;
   }
+  [@@unboxed]
 
   let sealv :
       type variant inj.

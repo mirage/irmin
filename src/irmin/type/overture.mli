@@ -23,6 +23,14 @@ val flip : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 
 val some : 'a -> 'a option
 
+module Pair : sig
+  type ('a, 'b) t = 'a * 'b
+
+  val first : ('a1 -> 'a2) -> 'a1 * 'b -> 'a2 * 'b
+
+  val second : ('b1 -> 'b2) -> 'a * 'b1 -> 'a * 'b2
+end
+
 module Either : sig
   type ('a, 'b) t = Left of 'a | Right of 'b
 
@@ -35,9 +43,16 @@ end
 
 type ('a, 'b) either = ('a, 'b) Either.t = Left of 'a | Right of 'b
 
+module Natural : sig
+  type ('m, 'n) t = { nat : 'a. ('a, 'm) app -> ('a, 'n) app } [@@unboxed]
+  (** The type of natural transformations from operator ['m] to operator ['n]. *)
+end
+
 (** Functor typeclass. *)
 class virtual ['f] functor_ :
   object
+    method virtual pure : 'a. 'a -> ('a, 'f) app
+
     method virtual fmap : 'a 'b. ('a -> 'b) -> ('a, 'f) app -> ('b, 'f) app
   end
 
@@ -59,10 +74,11 @@ module Identity : sig
     type 'a t = 'a
   end)
 
-  val v :
-    < bind : 'a 'b. ('a -> ('b, t) app) -> ('a, t) app -> ('b, t) app
-    ; fmap : 'a 'b. ('a -> 'b) -> ('a, t) app -> ('b, t) app
-    ; return : 'a. 'a -> ('a, t) app >
+  val v : t monad
+end
+
+module Monad : sig
+  val sequence : 'm monad -> ('a, 'm) app list -> ('a list, 'm) app
 end
 
 module Const : sig
@@ -80,3 +96,20 @@ module Const : sig
    *   ; return : 'a. 'a -> ('a, t) app
    *   ; get_const : 'a 'c. ('a, ('c, t) app) app -> 'c > *)
 end
+
+module State (S : sig
+  type t
+end) : sig
+  type state
+
+  include module type of Newtype1 (struct
+    type 'a t
+  end)
+
+  val t :
+    < t monad
+    ; get : (state, t) app
+    ; put : state -> (unit, t) app
+    ; run : 'a. ('a, t) app -> state -> 'a * state >
+end
+with type state = S.t
