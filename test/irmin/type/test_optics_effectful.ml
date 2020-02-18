@@ -27,60 +27,32 @@ module Blake2B = struct
       of_raw_string to_raw_string
 end
 
-(* Generic hash-consing library *)
-module Hash_constructor : sig
-  (* Hash of a value *)
-  type addr
+module Addr = Newtype1 (struct
+  type 'a t = Digestif.BLAKE2B.t
+end)
 
-  (* Heap effects *)
+type addr = Addr.t
+(** Hash of a value *)
+
+module Heap (Contents : sig
+  type t
+end) : sig
+  type contents
+
   type io
+  (** The brand of Heap effects ( - => - ) *)
 
-  val run : ('a, io) app -> 'a
+  val io : io monad
+  (** Effects are monadic. *)
 
-  val io_class : io monad
+  val put : contents -> ((contents, addr) app, io) app
 
-  type leaf = { foo : int }
-
-  type value = Branch of (value, addr) app list | Leaf of leaf
-
-  val pp_value : value Fmt.t
-
-  val addr : (value, addr) app Type.t
-
-  val pure : value -> ((value, addr) app, io) app
-
-  type value_prism =
-    (value, value, (value, addr) app, (value, addr) app, io) Prism.t
-
-  (* Augment prism composition with dereferencing *)
-  val ( / ) : value_prism -> value_prism -> value_prism
-end = struct
-  module Io = Identity
-
-  type io = Io.t
-
-  let run = Io.prj
-
-  let io_class = Identity.v
-
-  module Addr = Newtype1 (struct
-    type 'a t = Digestif.BLAKE2B.t
-  end)
-
-  type addr = Addr.t
-
-  type leaf = { foo : int }
-
-  type value = Branch of (value, Addr.t) app list | Leaf of leaf
-
-  let pp_value ppf = function
-    | Branch cs ->
-        Fmt.(brackets (list ~sep:(comma ++ cut) string))
-          ppf
-          (cs |> List.map (Addr.prj >>> Blake2B.to_hex))
-    | Leaf { foo = i } -> Fmt.pf ppf "{ foo : %d }" i
-
-  let addr : (value, addr) app Type.t = Type.map Blake2B.t Addr.inj Addr.prj
+  val run : ('a, io) app -> 'a * (string * contents) list
+  (** Run an effectful operation with an initially empty heap, returning the
+      final bindings in the heap. *)
+end
+with type contents = Contents.t = struct
+  type contents = Contents.t
 
   module M = Map.Make (struct
     include Digestif.BLAKE2B
@@ -88,32 +60,110 @@ end = struct
     let compare = unsafe_compare
   end)
 
-  let instance = ref M.empty
+  module Io = State (struct
+    type t = contents M.t
+  end)
 
-  let pure : value -> ((value, Addr.t) app, Io.t) app =
-   fun x ->
+  type io = Io.t
+
+  let io = Io.t
+
+  type addr = Addr.t
+
+  let ( let+ ) x f = io#fmap f x
+
+  let ( let* ) x f = io#bind f x
+
+  let run op =
+    let a, s = io#run op M.empty in
+    ( a,
+      M.bindings s
+      |> List.map
+           (Pair.first (Digestif.BLAKE2B.to_hex >>> fun s -> String.sub s 0 8))
+    )
+
+  let put : contents -> ((contents, addr) app, io) app =
+   fun v ->
+    let* instance = io#get in
     let hash =
-      let marshalled = Marshal.to_string x [] in
+      let marshalled = Marshal.to_string v [] in
       Digestif.BLAKE2B.digest_string marshalled
     in
-    instance := M.add hash x !instance;
-    Io.inj (Addr.inj hash)
+    let+ () = io#put (M.add hash v instance) in
+    Addr.inj hash
 
-  let deref : (value, Addr.t) app -> (value, Io.t) app =
-   fun hash -> Io.inj (M.find (Addr.prj hash) !instance)
+  (* Don't expose the state monad to the user *)
+  let io = (io :> io monad)
+end
 
-  type value_prism =
-    (value, value, (value, addr) app, (value, addr) app, io) Prism.t
+(* Generic hash-consing library *)
+module Hash_constructor = struct
+  type tree = [ `Tree of (string * tree) list | `Contents of int ]
+
+  type node = Tree_object of (string * (node, addr) app) list | Blob of int
+
+  module Heap = Heap (struct
+    type t = node
+  end)
+
+  type io = Heap.io
+
+  let io = Heap.io
+
+  let ( let+ ) x f = io#fmap f x
+
+  let ( let* ) x f = io#bind f x
+
+  let rec pure : tree -> ((node, addr) app, io) app = function
+    | `Contents c -> Heap.put (Blob c)
+    | `Tree children ->
+        (* Marshal the children *)
+        let* child_hashes =
+          children
+          |> List.map (fun (s, c) ->
+                 let+ addr = pure c in
+                 (s, addr))
+          |> Monad.sequence io
+        in
+        Heap.put (Tree_object child_hashes)
+
+  (* let deref : (node, Addr.t) app -> (node, io) app =
+   *  fun hash -> o.inj (Heap.find (Addr.prj hash) !instance) *)
+
+  (* type tree_prism = (tree, tree, (tree, addr) app, (node, addr) app, io) Prism.t *)
 
   (* Augment prism composition with dereferencing *)
-  let ( / ) : value_prism -> value_prism -> value_prism =
-    Prism.natural_compose pure deref
+  (* let ( / ) : tree_prism -> tree_prism -> node_prism =
+   *   Prism.natural_compose pure deref *)
+
+  let pp_key =
+    Fmt.string
+    |> Fmt.using (Digestif.BLAKE2B.to_hex >>> fun s -> String.sub s 0 8)
+
+  let pp_node ppf = function
+    | Tree_object cs ->
+        Fmt.Dump.(list (pair string (Fmt.using Addr.prj pp_key))) ppf cs
+    | Blob i -> Fmt.int ppf i
 end
+
+let dump_bindings =
+  let open Hash_constructor in
+  let open Fmt in
+  epr "@[<v>heap internals:@,@,%a@,@,@]@."
+    (Dump.list (Dump.pair (using (fun s -> String.sub s 0 8) string) pp_node))
 
 let test () =
   let open Hash_constructor in
-  let ( >>| ) x f = io_class#fmap f x in
-  let io = pure (Leaf { foo = 1 }) >>| fun _addr -> () in
-  run io
+  let ( >>| ) x f = io#fmap f x in
+  let ( >>= ) x f = io#bind f x in
+  let op =
+    pure (`Contents 1) >>= fun _addr ->
+    pure (`Contents 2) >>= fun _addr ->
+    pure (`Contents 1) >>= fun _addr ->
+    pure (`Tree [ ("foo", `Contents 1); ("bar", `Contents 2) ]) >>| fun _addr ->
+    ()
+  in
+  let (), bindings = Heap.run op in
+  dump_bindings bindings
 
 let suite = [ ("optics.effects", [ ("foo", `Quick, test) ]) ]
