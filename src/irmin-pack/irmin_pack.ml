@@ -451,38 +451,35 @@ struct
     end
   end
 
-  let integrity_check ppf (t : X.Repo.t) =
-    Fmt.pf ppf "running the integrity check\n%!";
-    let commits = ref 0 in
-    let contents = ref 0 in
-    let nodes = ref 0 in
-    let pp_stats ppf () =
-      Fmt.pf ppf "%4dk blobs / %4dk trees / %4dk commits" (!contents / 1000)
-        (!nodes / 1000) (!commits / 1000)
+  let integrity_check ?(ppf = Format.formatter_of_out_channel stdout)
+      (t : X.Repo.t) =
+    Fmt.pf ppf "Running the integrity check\n%!";
+    let nb_commits = ref 0 in
+    let nb_removals = ref 0 in
+    let pp_stats () =
+      Fmt.pf ppf "Treated %dk commits\n%!" (!nb_commits / 1000)
     in
-    let pr_stats () = Fmt.epr "\r%a%!" pp_stats () in
-    let count_increment count =
-      incr count;
-      if !count mod 100 = 0 then pr_stats ()
+    let count_increment () =
+      incr nb_commits;
+      if !nb_commits mod 1000 = 0 then pp_stats ()
     in
-    Index.iter
-      (fun k (offset, length, m) ->
-        match m with
-        | 'B' ->
-            let capability = X.Repo.contents_t t in
-            X.Contents.CA.integrity_check ~offset ~length k capability;
-            count_increment contents
-        | 'N' | 'I' ->
-            let _, capability = X.Repo.node_t t in
-            X.Node.CA.integrity_check ~offset ~length k capability;
-            count_increment nodes
-        | 'C' ->
-            let _, capability = X.Repo.commit_t t in
-            X.Commit.CA.integrity_check ~offset ~length k capability;
-            count_increment commits
-        | _ -> invalid_arg "unknown content type")
-      t.index;
-    pr_stats ()
+    let contents = X.Repo.contents_t t in
+    let nodes = X.Repo.node_t t |> snd in
+    let commits = X.Repo.commit_t t |> snd in
+    Index.filter t.index (fun (k, (offset, length, m)) ->
+        try
+          ( match m with
+          | 'B' -> X.Contents.CA.integrity_check ~offset ~length k contents
+          | 'N' | 'I' -> X.Node.CA.integrity_check ~offset ~length k nodes
+          | 'C' ->
+              count_increment ();
+              X.Commit.CA.integrity_check ~offset ~length k commits
+          | _ -> invalid_arg "unknown content type" );
+          true
+        with _ ->
+          incr nb_removals;
+          false);
+    Fmt.pf ppf "Integrity check terminated. Removed %d entries\n%!" !nb_removals
 
   include Irmin.Of_private (X)
 end

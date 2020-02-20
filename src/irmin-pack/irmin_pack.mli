@@ -56,7 +56,7 @@ module Make_ext
        and type metadata = Metadata.t
        and type Key.step = Path.step
 
-  val integrity_check : Format.formatter -> repo -> unit
+  val integrity_check : ?ppf:Format.formatter -> repo -> unit
 end
 
 module Make
@@ -75,7 +75,7 @@ module Make
        and type branch = B.t
        and type hash = H.t
 
-  val integrity_check : Format.formatter -> repo -> unit
+  val integrity_check : ?ppf:Format.formatter -> repo -> unit
 end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER
