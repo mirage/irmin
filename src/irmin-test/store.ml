@@ -616,6 +616,7 @@ module Make (S : S) = struct
       Alcotest.(check unit) "ok!" () ();
       P.Repo.close repo
     in
+
     run x test
 
   let test_watches x () =
@@ -2212,6 +2213,9 @@ let layered_suite (speed, x) =
           ("Freeze with squash", speed, TL.test_squash x);
           ("Branches with squash", speed, TL.test_branch_squash x);
           ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
+          ("Keep max in upper", speed, TL.test_keep_max x);
+          ("Keep max and copy from lower", speed, TL.test_keep_max x);
+          ("Keep max and heads after max", speed, TL.test_keep_heads x);
         ] )
 
 let run name ~misc tl =

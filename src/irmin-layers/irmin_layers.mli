@@ -20,6 +20,7 @@ val config :
   ?lower_root:string ->
   ?upper_root1:string ->
   ?upper_root0:string ->
+  ?keep_max:bool ->
   string ->
   Irmin.config
 (** Setting up the configuration for a layered store. *)
@@ -29,15 +30,24 @@ module type STORE = sig
   include Irmin.S
 
   val freeze :
-    ?min:commit list -> ?max:commit list -> ?squash:bool -> repo -> unit Lwt.t
-  (** [freeze ~min ~max ~squash t] copies the upper layer of [t] into the lower
-      layer and clears the upper.
+    ?min:commit list ->
+    ?max:commit list ->
+    ?squash:bool ->
+    ?keep_max:bool ->
+    ?heads:commit list ->
+    repo ->
+    unit Lwt.t
+  (** [freeze ~min ~max ~squash ~heads t] copies the upper layer of [t] into the
+      lower layer and clears the upper.
 
       If [squash] then copy the commits, nodes and contents of the [max]
       commits. Otherwise, copy the closure of commits, nodes and contents
       between the commits [min] and [max].
 
-      If [max] is empty then the current [heads] are used instead. *)
+      If [max] is empty then the current [heads] are used instead.
+
+      If [keep_max] then keep max (and its contents and nodes) as duplicates in
+      upper. *)
 
   type store_handle =
     | Commit_t : hash -> store_handle

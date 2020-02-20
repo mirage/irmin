@@ -45,12 +45,12 @@ struct
         k'
     else Lwt.return_unit
 
-  let already_in_dst ~dst k add =
-    DST.mem dst k >>= function
+  let already_in_dst ~dst k =
+    DST.mem dst k >|= function
     | true ->
         Log.debug (fun l -> l "already in dst %a" (Irmin.Type.pp DST.Key.t) k);
-        Lwt.return_unit
-    | false -> add k
+        true
+    | false -> false
 
   let copy ~src ~dst ~aux str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp DST.Key.t) k);
@@ -59,16 +59,16 @@ struct
     | Some v -> aux v >>= fun () -> add_to_dst str (DST.add dst) DST.Key.t (k, v)
 
   let check_and_copy ~src ~dst ~aux str k =
-    already_in_dst ~dst k (copy ~src ~dst ~aux str)
+    already_in_dst ~dst k >>= function
+    | true -> Lwt.return_unit
+    | false -> copy ~src ~dst ~aux str k
 end
 
 module Content_addressable
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S)
     (L : CA with type key = K.t and type value = V.t)
-    (U : Irmin.CONTENT_ADDRESSABLE_STORE
-           with type key = K.t
-            and type value = V.t) =
+    (U : CA with type key = K.t and type value = V.t) =
 struct
   type key = K.t
 
@@ -85,14 +85,37 @@ struct
 
   let previous_upper t = if t.flip then snd t.uppers else fst t.uppers
 
-  module Copy = Copy (U) (L)
+  module CopyUpper = Copy (U) (U)
+  module CopyLower = Copy (U) (L)
 
-  let already_in_dst = Copy.already_in_dst
+  type 'a layer_type =
+    | Upper : [ `Read | `Write ] U.t layer_type
+    | Lower : [ `Read | `Write ] L.t layer_type
 
-  let check_and_copy t ~dst ~aux str k =
-    Copy.check_and_copy ~src:(previous_upper t) ~dst ~aux str k
+  let already_in_dst : type l. l layer_type * l -> key -> bool Lwt.t =
+   fun (ltype, dst) ->
+    match ltype with
+    | Lower -> CopyLower.already_in_dst ~dst
+    | Upper -> CopyUpper.already_in_dst ~dst
 
-  let copy t ~dst ~aux str k = Copy.copy ~src:(previous_upper t) ~dst ~aux str k
+  let check_and_copy_to_lower t ~dst ~aux str k =
+    CopyLower.check_and_copy ~src:(previous_upper t) ~dst ~aux str k
+
+  let check_and_copy_to_current t ~dst ~aux str (k : key) =
+    CopyUpper.check_and_copy ~src:(previous_upper t) ~dst ~aux str k
+
+  let check_and_copy :
+      type l.
+      l layer_type * l ->
+      [ `Read ] t ->
+      aux:(value -> unit Lwt.t) ->
+      string ->
+      key ->
+      unit Lwt.t =
+   fun (ltype, dst) ->
+    match ltype with
+    | Lower -> check_and_copy_to_lower ~dst
+    | Upper -> check_and_copy_to_current ~dst
 
   let log_current_upper t = if t.flip then "upper1" else "upper0"
 
@@ -289,18 +312,28 @@ struct
   let v upper second_upper lower lock =
     { lower; flip = true; uppers = (upper, second_upper); lock }
 
-  let copy t commit_exists =
-    let upper = previous_upper t in
-    U.list upper >>= fun branches ->
+  (** Do not copy branches that point to commits not copied. *)
+  let copy t commit_exists_lower commit_exists_upper =
+    let previous = previous_upper t in
+    let current = current_upper t in
+    U.list previous >>= fun branches ->
     Lwt_list.iter_p
       (fun branch ->
-        U.find upper branch >>= function
-        | None -> failwith "branch not found in src"
+        U.find previous branch >>= function
+        | None -> Lwt.fail_with "branch not found in previous upper"
         | Some hash -> (
-            (* Do not copy branches that point to commits not copied. *)
-            commit_exists hash
-            >>= function
-            | true -> L.set t.lower branch hash
+            (commit_exists_lower hash >>= function
+             | true ->
+                 Log.debug (fun l ->
+                     l "[branches] copy to lower %a" (Irmin.Type.pp K.t) branch);
+                 L.set t.lower branch hash
+             | false -> Lwt.return_unit)
+            >>= fun () ->
+            commit_exists_upper hash >>= function
+            | true ->
+                Log.debug (fun l ->
+                    l "[branches] copy to current %a" (Irmin.Type.pp K.t) branch);
+                U.set current branch hash
             | false -> Lwt.return_unit ))
       branches
 

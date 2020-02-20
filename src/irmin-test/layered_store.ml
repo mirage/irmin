@@ -14,6 +14,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
 
   let v2 = "X2"
 
+  let v3 = "X3"
+
   let b1 = "foo"
 
   let b2 = "bar/toto"
@@ -517,6 +519,231 @@ module Make_Layered (S : LAYERED_STORE) = struct
       commits tree [] 0 >>= fun commits ->
       Lwt_list.iteri_s (fun i c -> tests c i) (List.rev commits) >>= fun () ->
       S.Repo.close repo
+    in
+    run x test
+
+  let test_keep_max x () =
+    let test repo =
+      with_contents repo (fun t -> P.Contents.add t v1) >>= fun kv1 ->
+      with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) >>= fun kt1 ->
+      with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) >>= fun kt2 ->
+      with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) >>= fun kt3 ->
+      with_info repo "commit kt3" (History.v ~node:kt3 ~parents:[])
+      >>= fun (kr1, _) ->
+      let test_commit1 name_commit name =
+        S.layer_id repo (S.Commit_t kr1) >>= fun s ->
+        Alcotest.(check string) "layer id of commit 1" s name_commit;
+        S.layer_id repo (S.Node_t kt1) >>= fun s ->
+        Alcotest.(check string) "layer id of node kt1" s name;
+        S.layer_id repo (S.Node_t kt2) >>= fun s ->
+        Alcotest.(check string) "layer id of node kt2" s name;
+        S.layer_id repo (S.Node_t kt3) >>= fun s ->
+        Alcotest.(check string) "layer id of node kt3" s name;
+        S.layer_id repo (S.Content_t kv1) >|= fun s ->
+        Alcotest.(check string) "layer id of node kv1" s name
+      in
+      (* Test that commit c1 and all its objects are preserved in upper after a
+         freeze. *)
+      fail_with_none (S.Commit.of_hash repo kr1) "of_hash commit" >>= fun c1 ->
+      S.freeze repo ~max:[ c1 ] ~keep_max:true >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      test_commit1 "upper0" "upper0" >>= fun () ->
+      with_contents repo (fun t -> P.Contents.add t v2) >>= fun kv2 ->
+      with_node repo (fun g -> Graph.v g [ ("d", normal kv2) ]) >>= fun kt1' ->
+      with_node repo (fun g -> Graph.v g [ ("a", `Node kt1') ]) >>= fun kt2' ->
+      with_info repo "commit kt2" (History.v ~node:kt2' ~parents:[ kr1 ])
+      >>= fun (kr2, _) ->
+      let test_commit2 name =
+        S.layer_id repo (S.Commit_t kr2) >>= fun s ->
+        Alcotest.(check string) "layer id of commit 2" s name;
+        S.layer_id repo (S.Node_t kt1') >>= fun s ->
+        Alcotest.(check string) "layer id of node kt1" s name;
+        S.layer_id repo (S.Node_t kt2') >>= fun s ->
+        Alcotest.(check string) "layer id of node kt2" s name;
+        S.layer_id repo (S.Content_t kv2) >|= fun s ->
+        Alcotest.(check string) "layer id of node kv2" s name
+      in
+      (* Test that commit c2 and all its objects are preserved in upper after a
+         freeze. *)
+      fail_with_none (S.Commit.of_hash repo kr2) "of_hash commit" >>= fun c2 ->
+      S.freeze repo ~max:[ c2 ] ~keep_max:true >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      test_commit1 "lower" "lower" >>= fun () ->
+      test_commit2 "upper1" >>= fun () -> S.Repo.close repo
+    in
+    run x test
+
+  let test_keep_max_set x () =
+    let check_layer msg s t =
+      let s = if s = "upper1" || s = "upper1" then "upper" else s in
+      Alcotest.(check string) msg s t
+    in
+    let test repo =
+      S.of_branch repo "foo" >>= fun foo ->
+      S.set_exn foo [ "a"; "b"; "c" ] v1 ~info:(infof "commit 1") >>= fun () ->
+      S.Head.get foo >>= fun c1 ->
+      (* Test that contents of commit c1 is preserved in upper during and after
+         a freeze. *)
+      S.freeze repo ~max:[ c1 ] ~keep_max:true >>= fun () ->
+      fail_with_none (S.hash foo [ "a"; "b"; "c" ]) "hash of v1'" >>= fun hv1 ->
+      S.layer_id repo (S.Content_t hv1) >>= fun s ->
+      check_layer "layer id of v1" s "upper";
+      S.set_exn foo [ "a"; "d" ] v2 ~info:(infof "commit 2") >>= fun () ->
+      S.Head.get foo >>= fun c2 ->
+      let hc2 = S.Commit.hash c2 in
+      S.layer_id repo (S.Commit_t hc2) >>= fun s ->
+      check_layer "layer_id commit 2" s "upper";
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      S.layer_id repo (S.Content_t hv1) >>= fun s ->
+      check_layer "layer id of v1" s "upper";
+      (* Test that commit c2 and all its objects are preserved in upper during
+         and after a freeze. *)
+      S.freeze repo ~max:[ c2 ] ~keep_max:true >>= fun () ->
+      S.layer_id repo (S.Commit_t hc2) >>= fun s ->
+      check_layer "layer_id commit 2" s "upper";
+      S.layer_id repo (S.Content_t hv1) >>= fun s ->
+      check_layer "layer id of v1" s "upper";
+      fail_with_none (S.hash foo [ "a"; "d" ]) "hash of v2'" >>= fun hv2 ->
+      S.layer_id repo (S.Content_t hv2) >>= fun s ->
+      check_layer "layer id of v2" s "upper";
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      let hc1 = S.Commit.hash c1 in
+      S.layer_id repo (S.Commit_t hc1) >>= fun s ->
+      check_layer "layer_id commit 1" s "lower";
+      S.layer_id repo (S.Commit_t hc2) >>= fun s ->
+      check_layer "layer_id commit 2" s "upper";
+      S.layer_id repo (S.Content_t hv1) >>= fun s ->
+      check_layer "layer id of v1" s "upper";
+      S.layer_id repo (S.Content_t hv2) >>= fun s ->
+      check_layer "layer id of v2" s "upper";
+      S.Repo.close repo
+    in
+    run x test
+
+  (* c0 <- c1 <- c2 "b2"
+              \- c3 <- c4
+                    \- c5 "b5"
+                    \- c6 "b6" *)
+  let test_keep_heads x () =
+    let check_layer msg s t =
+      let s = if s = "upper1" || s = "upper1" then "upper" else s in
+      Alcotest.(check string) msg s t
+    in
+    let info = info "keep_heads" in
+    let check_commit = check (T.option P.Commit.Val.t) in
+    let check_branch repo = check (T.option @@ S.commit_t repo) in
+    let test repo =
+      let tree = S.Tree.empty in
+      let rec setup i tree commits contents =
+        if i > 6 then Lwt.return (commits, List.rev contents)
+        else
+          let c = "c" ^ string_of_int i in
+          let x = "x" ^ string_of_int i in
+          let b = "b" ^ string_of_int i in
+          with_contents repo (fun t -> P.Contents.add t x) >>= fun hx ->
+          let contents = hx :: contents in
+          S.Tree.add tree [ "a"; "b"; c ] x >>= fun tree' ->
+          match i with
+          | 0 ->
+              S.Commit.v repo ~info ~parents:[] tree' >>= fun c0 ->
+              setup (i + 1) tree' [ c0 ] contents
+          | 1 ->
+              S.Commit.v repo ~info
+                ~parents:[ S.Commit.hash (List.nth commits 0) ]
+                tree'
+              >>= fun c1 -> setup (i + 1) tree' (commits @ [ c1 ]) contents
+          | 2 ->
+              S.Commit.v repo ~info
+                ~parents:[ S.Commit.hash (List.nth commits 1) ]
+                tree'
+              >>= fun c ->
+              S.Branch.set repo b c >>= fun () ->
+              setup (i + 1) tree (commits @ [ c ]) contents
+          | 3 ->
+              S.Commit.v repo ~info
+                ~parents:[ S.Commit.hash (List.nth commits 1) ]
+                tree'
+              >>= fun c ->
+              S.Branch.set repo b c >>= fun () ->
+              setup (i + 1) tree' (commits @ [ c ]) contents
+          | 4 ->
+              S.Commit.v repo ~info
+                ~parents:[ S.Commit.hash (List.nth commits 3) ]
+                tree'
+              >>= fun c -> setup (i + 1) tree (commits @ [ c ]) contents
+          | 5 | 6 ->
+              S.Commit.v repo ~info
+                ~parents:[ S.Commit.hash (List.nth commits 3) ]
+                tree'
+              >>= fun c ->
+              S.Branch.set repo b c >>= fun () ->
+              setup (i + 1) tree (commits @ [ c ]) contents
+          | _ -> assert false
+      in
+      setup 0 tree [] [] >>= fun (commits, contents) ->
+      S.freeze repo ~min:[ List.nth commits 1 ] ~max:[ List.nth commits 3 ]
+        ~keep_max:true
+      >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      S.freeze repo ~min:[ List.nth commits 1 ] ~max:[ List.nth commits 3 ]
+        ~keep_max:true
+      >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      Lwt_list.iter_p
+        (fun i ->
+          P.Commit.find (h repo) (S.Commit.hash (List.nth commits i))
+          >|= fun t -> check_commit "deleted commit" None t)
+        [ 0; 2; 4 ]
+      >>= fun () ->
+      S.Branch.find repo "b2" >>= fun c2' ->
+      check_branch repo "b2" None c2';
+      S.Branch.find repo "b3" >>= fun c3' ->
+      check_branch repo "b3" (Some (List.nth commits 3)) c3';
+      S.Branch.find repo "b5" >>= fun c5' ->
+      check_branch repo "b5" (Some (List.nth commits 5)) c5';
+      S.Branch.find repo "b6" >>= fun c6' ->
+      check_branch repo "b6" (Some (List.nth commits 6)) c6';
+      S.layer_id repo (S.Commit_t (S.Commit.hash (List.nth commits 1)))
+      >>= fun s ->
+      check_layer "layer id of c1" s "lower";
+      Lwt_list.iter_p
+        (fun i ->
+          S.layer_id repo (S.Commit_t (S.Commit.hash (List.nth commits i)))
+          >|= fun s -> check_layer ("layer id of c" ^ string_of_int i) s "upper")
+        [ 3; 5; 6 ]
+      >>= fun () ->
+      S.of_branch repo "b6" >>= fun t ->
+      S.get_tree t [] >>= fun tree ->
+      fail_with_none (S.Tree.find tree [ "a"; "b"; "c0" ]) "find x0"
+      >>= fun s ->
+      Alcotest.(check string) "x0" s "x0";
+      fail_with_none (S.Tree.find tree [ "a"; "b"; "c1" ]) "find x1"
+      >>= fun s ->
+      Alcotest.(check string) "x1" s "x1";
+      Lwt_list.iter_p
+        (fun i ->
+          S.layer_id repo (S.Content_t (List.nth contents i)) >|= fun s ->
+          check_layer ("layer id of x" ^ string_of_int i) s "upper")
+        [ 0; 1; 3 ]
+      >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          S.layer_id repo (S.Content_t (List.nth contents 2)) >|= fun _ ->
+          Alcotest.fail "Should not find x2")
+        (function Not_found -> Lwt.return_unit | exn -> Lwt.fail exn)
+      >>= fun () ->
+      Lwt.catch
+        (fun () ->
+          S.layer_id repo (S.Content_t (List.nth contents 4)) >|= fun _ ->
+          Alcotest.fail "Should not found x4")
+        (function Not_found -> Lwt.return_unit | exn -> Lwt.fail exn)
+      >>= fun () ->
+      Lwt_list.iter_p
+        (fun i ->
+          S.layer_id repo (S.Content_t (List.nth contents i)) >|= fun s ->
+          check_layer ("layer id of x" ^ string_of_int i) s "upper")
+        [ 3; 5; 6 ]
+      >>= fun () -> S.Repo.close repo
     in
     run x test
 end

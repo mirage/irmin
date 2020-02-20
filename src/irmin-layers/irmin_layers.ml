@@ -29,6 +29,8 @@ module Default = struct
   let upper_root1 = "upper1"
 
   let upper_root0 = "upper0"
+
+  let keep_max = false
 end
 
 let root_key = Conf.root
@@ -53,11 +55,18 @@ let upper_root0_key =
 
 let upper_root0 conf = Conf.get conf upper_root0_key
 
+let keep_max_key =
+  Conf.key ~doc:"Keep the max commits in upper after a freeze." "keep-max"
+    Conf.bool false
+
+let get_keep_max conf = Conf.get conf keep_max_key
+
 let config ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
     ?(upper_root1 = Default.upper_root1) ?(upper_root0 = Default.upper_root0)
-    root =
+    ?(keep_max = Default.keep_max) root =
   let config = Conf.add conf lower_root_key lower_root in
   let config = Conf.add config upper_root0_key upper_root0 in
+  let config = Conf.add config keep_max_key keep_max in
   let config = Conf.add config root_key (Some root) in
   let config = Conf.add config upper_root1_key upper_root1 in
   config
@@ -70,7 +79,13 @@ module type STORE = sig
   include Irmin.S
 
   val freeze :
-    ?min:commit list -> ?max:commit list -> ?squash:bool -> repo -> unit Lwt.t
+    ?min:commit list ->
+    ?max:commit list ->
+    ?squash:bool ->
+    ?keep_max:bool ->
+    ?heads:commit list ->
+    repo ->
+    unit Lwt.t
 
   type store_handle =
     | Commit_t : hash -> store_handle
@@ -203,6 +218,8 @@ module Make_ext
 
       let previous_upper t = if t.flip then snd t.uppers else fst t.uppers
 
+      let log_current_upper t = if t.flip then "upper1" else "upper0"
+
       let batch t f =
         U.batch (fst t.uppers) @@ fun b n c ->
         U.batch (snd t.uppers) @@ fun nb nn nc ->
@@ -227,7 +244,7 @@ module Make_ext
         let lower_name = Filename.concat (root conf) (lower_root conf) in
         let conf_lower = Conf.add conf Conf.root (Some lower_name) in
         L.v conf_lower >>= fun lower ->
-        let upper_name = root conf ^ upper_root0 conf in
+        let upper_name = Filename.concat (root conf) (upper_root0 conf) in
         let conf_upper = Conf.add conf Conf.root (Some upper_name) in
         U.v conf_upper >|= fun upper0 ->
         let contents =
@@ -284,66 +301,149 @@ module Make_ext
         Commit.CA.clear_upper t.commits >>= fun () ->
         Branch.clear_upper t.branch
 
-      let copy_contents t contents k =
-        Contents.CA.check_and_copy t.contents ~dst:contents
+      let copy_contents contents t k =
+        Contents.CA.check_and_copy contents t.contents
           ~aux:(fun _ -> Lwt.return_unit)
           "Contents" k
 
-      (* [root] is the root of the tree pointed by a commit *)
-      let copy_nodes t nodes contents root =
-        Node.CA.already_in_dst ~dst:nodes root (fun root ->
+      let copy_tree ?(skip = fun _ -> Lwt.return_false) nodes contents t root =
+        Node.CA.already_in_dst nodes root >>= function
+        | true -> Lwt.return_unit
+        | false ->
             let aux v =
               Lwt_list.iter_p
                 (function
-                  | _, `Contents (k, _) -> copy_contents t contents k
+                  | _, `Contents (k, _) -> copy_contents contents t k
                   | _ -> Lwt.return_unit)
                 (UP.Node.Val.list v)
             in
-            let node k = Node.CA.copy t.nodes ~dst:nodes ~aux "Node" k in
-            let skip k = LP.Node.mem nodes k in
-            Upper.Repo.iter (previous_upper t) ~min:[] ~max:[ root ] ~node ~skip)
+            let node k = Node.CA.check_and_copy nodes t.nodes ~aux "Node" k in
+            Upper.Repo.iter (previous_upper t) ~min:[] ~max:[ root ] ~node ~skip
 
-      let copy_branches t dst = Branch.copy t.branch (LP.Commit.mem dst)
+      let copy_commit ~copy_tree commits nodes contents t k =
+        let aux c = copy_tree nodes contents t (UP.Commit.Val.node c) in
+        Commit.CA.check_and_copy commits t.commits ~aux "Commit" k
 
-      let copy_commit t contents nodes commits k =
-        let aux c = copy_nodes t nodes contents (UP.Commit.Val.node c) in
-        Commit.CA.check_and_copy t.commits ~dst:commits ~aux "Commit" k
-        >>= fun () -> copy_branches t commits
+      let copy_branches t =
+        let commit_exists_lower = L.commit_t t.lower |> LP.Commit.mem in
+        let commit_exists_upper =
+          current_upper t |> U.commit_t |> UP.Commit.mem
+        in
+        Branch.copy t.branch commit_exists_lower commit_exists_upper
 
-      let copy t ?(squash = false) ?(min = []) ?(max = []) () =
-        Log.debug (fun f -> f "copy");
-        ( match max with
-        | [] -> Upper.Repo.heads (previous_upper t)
-        | m -> Lwt.return m )
-        >>= fun max ->
-        Lwt.catch
-          (fun () ->
-            (* If squash then copy only the commits in [max]. Otherwise copy each
-               commit individually. *)
-            ( if squash then
-              Lwt_list.iter_p
-                (fun k ->
-                  L.batch t.lower (fun contents nodes commits ->
-                      copy_commit t contents nodes commits (Upper.Commit.hash k)))
-                max
-            else
-              Upper.Repo.export ~full:false ~min ~max:(`Max max)
+      module CopyToLower = struct
+        let copy_tree nodes contents t root =
+          let skip k = LP.Node.mem (snd nodes) k in
+          copy_tree ~skip nodes contents t root
+
+        let copy_commit commits nodes contents t k =
+          copy_commit ~copy_tree commits nodes contents t k
+
+        let copy_max_commits t max =
+          Log.debug (fun f -> f "copy max commits to lower ");
+          Lwt_list.iter_p
+            (fun k ->
+              L.batch t.lower (fun contents nodes commits ->
+                  copy_commit (Commit.CA.Lower, commits) (Node.CA.Lower, nodes)
+                    (Contents.CA.Lower, contents)
+                    t (Upper.Commit.hash k)))
+            max
+
+        let copy_slice t slice =
+          L.batch t.lower (fun contents nodes commits ->
+              UP.Slice.iter slice (function
+                | `Commit (k, _) ->
+                    copy_commit (Commit.CA.Lower, commits) (Node.CA.Lower, nodes)
+                      (Contents.CA.Lower, contents)
+                      t k
+                | _ -> Lwt.return_unit))
+
+        let copy t ~min ~max () =
+          Log.debug (fun f -> f "copy to lower");
+          Upper.Repo.export ~full:false ~min ~max:(`Max max) (previous_upper t)
+          >>= copy_slice t
+      end
+
+      module CopyToUpper = struct
+        let copy_max_commits t max =
+          Log.debug (fun f ->
+              f "copy max commits to current %s" (log_current_upper t));
+          let upper = current_upper t in
+          Lwt_list.iter_p
+            (fun k ->
+              U.batch upper (fun contents nodes commits ->
+                  copy_commit ~copy_tree (Commit.CA.Upper, commits)
+                    (Node.CA.Upper, nodes)
+                    (Contents.CA.Upper, contents)
+                    t (Upper.Commit.hash k)))
+            max
+
+        let copy_slice t slice =
+          let upper = current_upper t in
+          UP.Slice.iter slice (function
+            | `Commit (k, _) ->
+                U.batch upper (fun contents nodes commits ->
+                    copy_commit ~copy_tree (Commit.CA.Upper, commits)
+                      (Node.CA.Upper, nodes)
+                      (Contents.CA.Upper, contents)
+                      t k)
+            | _ -> Lwt.return_unit)
+
+        let empty_intersection slice commits =
+          let ok = ref true in
+          let includes k =
+            List.exists (fun k' -> Irmin.Type.equal Hash.t k k') commits
+          in
+          UP.Slice.iter slice (function
+            | `Commit (k, _) ->
+                if includes k then ok := false;
+                Lwt.return_unit
+            | _ -> Lwt.return_unit)
+          >|= fun () -> !ok
+
+        (** Copy the heads that include a max commit *)
+        let copy_heads t max heads =
+          Log.debug (fun f ->
+              f "copy heads to current %s" (log_current_upper t));
+          Lwt_list.iter_p
+            (fun head ->
+              Upper.Repo.export ~full:false ~min:max
+                ~max:(`Max [ head ])
                 (previous_upper t)
               >>= fun slice ->
-              L.batch t.lower (fun contents nodes commits ->
-                  UP.Slice.iter slice (function
-                    | `Commit (k, _) -> copy_commit t contents nodes commits k
-                    | _ -> Lwt.return_unit)) )
-            >|= fun () -> Ok ())
-          (function
-            | Layered.Copy_error e -> Lwt.return_error (`Msg e)
-            | e -> Fmt.kstrf Lwt.fail_invalid_arg "copy error: %a" Fmt.exn e)
+              List.map (fun c -> Upper.Commit.hash c) max
+              |> empty_intersection slice
+              >>= function
+              | false -> copy_slice t slice
+              | true -> Lwt.return_unit)
+            heads
+      end
 
       let clear t =
         L.clear t.lower >>= fun () ->
         U.clear (fst t.uppers) >>= fun () -> U.clear (snd t.uppers)
 
       let pre_copy t = Lwt_mutex.with_lock reset_lock (fun () -> flip_upper t)
+
+      let copy t ~keep_max ~squash ~min ~max ~heads () =
+        Log.debug (fun f -> f "copy");
+        Lwt.catch
+          (fun () ->
+            (* Copy commits to lower: if squash then copy only the max commits *)
+            ( if squash then CopyToLower.copy_max_commits t max
+            else CopyToLower.copy t ~min ~max () )
+            >>= fun () ->
+            (* Copy max and heads after max to current_upper *)
+            ( if keep_max then
+              CopyToUpper.copy_max_commits t max >>= fun () ->
+              CopyToUpper.copy_heads t max heads
+            else Lwt.return_unit )
+            (* Copy branches to both lower and current_upper *)
+            >>= fun () ->
+            copy_branches t >|= fun () -> Ok ())
+          (function
+            | Layered.Copy_error e -> Lwt.return_error (`Msg e)
+            | e -> Fmt.kstrf Lwt.fail_invalid_arg "copy error: %a" Fmt.exn e)
 
       let post_copy t =
         clear_upper t >|= fun () ->
@@ -363,20 +463,23 @@ module Make_ext
     let hash = Commit.hash c in
     U.Commit.of_hash upper hash
 
-  let unsafe_freeze ~min ~max ~squash t =
+  let unsafe_freeze ~min ~max ~squash ~keep_max ~heads t =
     Log.debug (fun l -> l "unsafe_freeze");
     X.Repo.pre_copy t >|= fun () ->
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
-        X.Repo.copy t ~squash ~min ~max () >>= function
+        X.Repo.copy t ~keep_max ~squash ~min ~max ~heads () >>= function
         | Ok () -> X.Repo.post_copy t
         | Error (`Msg e) ->
             Fmt.kstrf Lwt.fail_with "[gc_store]: import error %s" e);
     Log.debug (fun l -> l "after async called to copy")
 
-  let freeze ?(min : commit list = []) ?(max : commit list = [])
-      ?(squash = false) t =
+  let freeze ?(min = []) ?(max = []) ?(squash = false) ?keep_max ?(heads = []) t
+      =
     let upper = X.Repo.current_upper t in
+    let keep_max =
+      match keep_max with None -> get_keep_max t.X.Repo.conf | Some b -> b
+    in
     let conv_commits =
       Lwt_list.fold_left_s
         (fun acc m ->
@@ -385,12 +488,17 @@ module Make_ext
     in
     conv_commits min >>= fun min ->
     conv_commits max >>= fun max ->
+    (match max with [] -> U.Repo.heads upper | m -> Lwt.return m)
+    >>= fun max ->
+    conv_commits heads >>= fun heads ->
+    (match heads with [] -> U.Repo.heads upper | m -> Lwt.return m)
+    >>= fun heads ->
     (* main thread takes the lock at the begining of freeze and async thread
        releases it at the end. This is to ensure that no two freezes can run
        simultaneously. *)
     Lwt_mutex.lock freeze_lock >>= fun () ->
     if t.closed then failwith "store is closed";
-    unsafe_freeze ~min ~max ~squash t
+    unsafe_freeze ~min ~max ~squash ~keep_max ~heads t
 
   let layer_id = X.Repo.layer_id
 

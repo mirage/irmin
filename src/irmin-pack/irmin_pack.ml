@@ -552,8 +552,14 @@ end
 module KV (Config : CONFIG) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 
+module type LAYERED_CONFIG = sig
+  include CONFIG
+
+  val keep_max : bool
+end
+
 module Make_layered
-    (Config : CONFIG)
+    (Config : LAYERED_CONFIG)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)

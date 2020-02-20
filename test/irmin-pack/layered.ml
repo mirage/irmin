@@ -20,6 +20,10 @@ module Conf = struct
   let stable_hash = 256
 
   let lower_root = "_lower"
+
+  let upper_root0 = "0"
+
+  let keep_max = true
 end
 
 module Hash = Irmin.Hash.SHA1
@@ -34,10 +38,10 @@ module StoreSimple =
     (Irmin.Branch.String)
     (Hash)
 
-let config ?(readonly = false) ?(fresh = true) ?(lower_root = Conf.lower_root)
-    root =
+let config ?(readonly = false) ?(fresh = true) ?(keep_max = Conf.keep_max)
+    ?(lower_root = Conf.lower_root) ?(upper_root0 = Conf.upper_root0) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
-  Irmin_layers.config ~conf ~lower_root root
+  Irmin_layers.config ~conf ~keep_max ~lower_root ~upper_root0 root
 
 let random_char () = char_of_int (33 + Random.int 94)
 

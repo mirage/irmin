@@ -27,9 +27,7 @@ module Content_addressable
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S)
     (L : CA with type key = K.t and type value = V.t)
-    (U : Irmin.CONTENT_ADDRESSABLE_STORE
-           with type key = K.t
-            and type value = V.t) : sig
+    (U : CA with type key = K.t and type value = V.t) : sig
   include
     Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
@@ -47,20 +45,15 @@ module Content_addressable
 
   val flip_upper : 'a t -> unit
 
-  val already_in_dst :
-    dst:[ `Read | `Write ] L.t -> key -> (key -> unit Lwt.t) -> unit Lwt.t
+  type 'a layer_type =
+    | Upper : [ `Read | `Write ] U.t layer_type
+    | Lower : [ `Read | `Write ] L.t layer_type
 
-  val copy :
-    [ `Read ] t ->
-    dst:[ `Read | `Write ] L.t ->
-    aux:(value -> unit Lwt.t) ->
-    string ->
-    key ->
-    unit Lwt.t
+  val already_in_dst : 'l layer_type * 'l -> key -> bool Lwt.t
 
   val check_and_copy :
+    'l layer_type * 'l ->
     [ `Read ] t ->
-    dst:[ `Read | `Write ] L.t ->
     aux:(value -> unit Lwt.t) ->
     string ->
     key ->
@@ -78,7 +71,7 @@ module Atomic_write
 
   val clear_upper : t -> unit Lwt.t
 
-  val copy : t -> (value -> bool Lwt.t) -> unit Lwt.t
+  val copy : t -> (value -> bool Lwt.t) -> (value -> bool Lwt.t) -> unit Lwt.t
 
   val flip_upper : t -> unit
 end
