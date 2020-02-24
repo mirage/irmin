@@ -26,6 +26,9 @@
   - Changed the bit-length of serialized hashes from 60 to 30. (#897,
     @icristescu)
 
+- **irmin-graphql**:
+  - Changed default GraphQL type names to ensure uniqueness. (#944, @andreas)
+
 ### 2.0.0
 
 #### Added
