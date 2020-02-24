@@ -14,12 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-
-open Type_core.Make (Identity)
-
-let prj = Identity.prj
 
 let ( >>= ) x f = match x with Some x -> f x | None -> None
 
@@ -134,10 +129,10 @@ and record : type a. a record -> a size_of =
     (Some 0) fields
 
 and field : type a b. (a, b) field -> a size_of =
- fun f ?headers:_ x -> t f.ftype (f.fget x |> prj)
+ fun f ?headers:_ x -> t f.ftype (f.fget x)
 
 and variant : type a. a variant -> a size_of =
  fun v ?headers:_ x ->
-  match v.vget x |> prj with
+  match v.vget x with
   | CV0 v -> Some (int v.ctag0)
   | CV1 (x, vx) -> t x.ctype1 vx >|= fun v -> int x.ctag1 + v

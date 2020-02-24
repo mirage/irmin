@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 include Type_core
-include Type_core.Make (Identity)
 
 let pre_hash t x =
   let rec aux : type a. a t -> a bin_seq =
@@ -119,40 +117,43 @@ let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
 
 (** Generics for standard algebraic types with no effects (and pre-supplied
     injection and projection from the higher encoded form). *)
+
 include struct
-  let inj = Identity.inj
+  include Type_algebraic.Record
+  include Type_algebraic.Variant
 
-  include Type_algebraic.Record (Identity)
-  include Type_algebraic.Variant (Identity)
+  (* let inj = Identity.inj
+   * 
+   * 
+   * let field record typ ?set get =
+   *   let set = Option.map (fun set r f -> set r f |> inj) set in
+   *   let get r = get r |> inj in
+   *   field record typ ?set get
+   * 
+   * let case0 name v = case0 name (inj v)
+   * *)
 
-  let field record typ ?set get =
-    let set = Option.map (fun set r f -> set r f |> inj) set in
-    let get r = get r |> inj in
-    field record typ ?set get
-
-  let case0 name v = case0 name (inj v)
-
-  let sealv_with_optics v = (sealv inj).sealer v
+  let sealv_with_optics v = sealv v
 
   let sealv :
-      type v p prisms.
-      (v, p, p, v -> v case_p, prisms, unit) open_variant -> v t =
-   fun v -> sealv_with_optics v |> fst
+      type v p prisms monad.
+      (v, p, p, v -> v case_p, prisms, unit, monad) open_variant -> v t =
+   fun v -> sealv v |> fst
 end
 
-let case1 s v f = case1 s v (fun a -> f a |> inj)
+let case1 s v f = case1 s v (fun a -> f a)
 
 let enum vname l =
   let vwit = Witness.make () in
   let _, vcases, mk =
     List.fold_left
       (fun (ctag0, cases, mk) (n, v) ->
-        let c = { ctag0; cname0 = n; c0 = v |> inj } in
+        let c = { ctag0; cname0 = n; c0 = v } in
         (ctag0 + 1, CP0 c :: cases, (v, CV0 c) :: mk))
       (0, [], []) l
   in
   let vcases = Array.of_list (List.rev vcases) in
-  Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk |> inj) }
+  Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk) }
 
 let result : type a b. a ty -> b ty -> (a, b) result ty =
  fun a b ->

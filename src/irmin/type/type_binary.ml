@@ -14,12 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-
-open Type_core.Make (Identity)
-
-let prj = Identity.prj
 
 module B = struct
   external get_16 : string -> int -> int = "%caml_string_get16"
@@ -185,10 +180,10 @@ module Encode = struct
   and record : type a. a record -> a encode_bin =
    fun r ?headers:_ x k ->
     let fields = fields r in
-    List.iter (fun (Field f) -> t f.ftype (f.fget x |> prj) k) fields
+    List.iter (fun (Field f) -> t f.ftype (f.fget x) k) fields
 
   and variant : type a. a variant -> a encode_bin =
-   fun v ?headers:_ x k -> case_v (v.vget x |> prj) k
+   fun v ?headers:_ x k -> case_v (v.vget x) k
 
   and case_v : type a. a case_v encode_bin =
    fun ?headers:_ c k ->
@@ -325,7 +320,8 @@ module Decode = struct
    fun r ?headers:_ buf ofs ->
     match r.rfields with
     | Fields (fs, c) ->
-        let rec aux : type b l1 l2. int -> b -> (a, b, l1, l2) fields -> a res =
+        let rec aux :
+            type b l1 l2 m. int -> b -> (a, b, l1, l2, m) fields -> a res =
          fun ofs f -> function
           | Fields_nil -> ok ofs f
           | Fields_cons (h, t) ->
@@ -341,9 +337,7 @@ module Decode = struct
 
   and case : type a. a a_case -> a decode_bin =
    fun c ?headers:_ buf ofs ->
-    match c with
-    | CP0 c -> ok ofs (c.c0 |> prj)
-    | CP1 c -> t c.ctype1 buf ofs >|= (c.c1 >>> prj)
+    match c with CP0 c -> ok ofs c.c0 | CP1 c -> t c.ctype1 buf ofs >|= c.c1
 end
 
 let encode_bin = Encode.t

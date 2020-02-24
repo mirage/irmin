@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-open Type_core.Make(Identity)
 
 val encode_bin : 'a t -> 'a encode_bin
 

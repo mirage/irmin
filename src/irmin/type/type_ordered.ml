@@ -14,12 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-
-open Type_core.Make (Identity)
-
-let prj = Identity.prj
 
 module Refl = struct
   open Witness
@@ -161,10 +156,10 @@ module Equal = struct
    fun r x y -> List.for_all (function Field f -> field f x y) (fields r)
 
   and field : type a b. (a, b) field -> a equal =
-   fun f x y -> t f.ftype (f.fget x |> prj) (f.fget y |> prj)
+   fun f x y -> t f.ftype (f.fget x) (f.fget y)
 
   and variant : type a. a variant -> a equal =
-   fun v x y -> case_v (v.vget x |> prj) (v.vget y |> prj)
+   fun v x y -> case_v (v.vget x) (v.vget y)
 
   and case_v : type a. a case_v equal =
    fun x y ->
@@ -290,10 +285,10 @@ module Compare = struct
     aux (fields r)
 
   and field : type a b. (a, b) field -> a compare =
-   fun f x y -> t f.ftype (f.fget x |> prj) (f.fget y |> prj)
+   fun f x y -> t f.ftype (f.fget x) (f.fget y)
 
   and variant : type a. a variant -> a compare =
-   fun v x y -> case_v (v.vget x |> prj) (v.vget y |> prj)
+   fun v x y -> case_v (v.vget x) (v.vget y)
 
   and case_v : type a. a case_v compare =
    fun x y ->

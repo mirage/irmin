@@ -96,11 +96,31 @@ with type contents = Contents.t = struct
   let io = (io :> io monad)
 end
 
-(* Generic hash-consing library *)
-module Hash_constructor = struct
-  type tree = [ `Tree of (string * tree) list | `Contents of int ]
+type 'a tree
 
-  type node = Tree_object of (string * (node, addr) app) list | Blob of int
+type product_repr
+
+type sum_repr
+
+type assoc_repr
+
+type tree_node =
+  | Product of product_repr
+  | Sum of sum_repr
+  | Assoc of assoc_repr
+
+(* Generic hash-consing library *)
+module Hash_constructor (Contents : sig
+  type t
+
+  val t : t Type.t
+end) =
+struct
+  type contents = Contents.t
+
+  type concrete = [ `Tree of (string * concrete) list | `Contents of contents ]
+
+  type node = Tree_object of (string * (node, addr) app) list | Blob of string
 
   module Heap = Heap (struct
     type t = node
@@ -114,7 +134,7 @@ module Hash_constructor = struct
 
   let ( let* ) x f = io#bind f x
 
-  let rec pure : tree -> ((node, addr) app, io) app = function
+  let rec pure : contents -> ((node, addr) app, io) app = function
     | `Contents c -> Heap.put (Blob c)
     | `Tree children ->
         (* Marshal the children *)
@@ -143,8 +163,26 @@ module Hash_constructor = struct
   let pp_node ppf = function
     | Tree_object cs ->
         Fmt.Dump.(list (pair string (Fmt.using Addr.prj pp_key))) ppf cs
-    | Blob i -> Fmt.int ppf i
+    | Blob s -> Fmt.string ppf s
 end
+
+(* Now define our store layout *)
+
+type my_store = { names : string tree; flags : bool tree; counts : int tree }
+
+let (my_record : my_store Type.t), ELens.[ name; flag; count ] =
+  let open Type in
+  record "my_record" (fun names flags counts -> { names; flags; counts })
+  |+ field "name" (tree string)
+       ~set:(fun s name -> { s with name })
+       (fun s -> s.names)
+  |+ field "flag" (tree bool)
+       ~set:(fun s flag -> { s with flag })
+       (fun s -> s.flags)
+  |+ field "count" (tree int)
+       ~set:(fun s count -> { s with count })
+       (fun s -> s.counts)
+  |> sealr_with_optics
 
 let dump_bindings =
   let open Hash_constructor in
@@ -157,11 +195,11 @@ let test () =
   let ( >>| ) x f = io#fmap f x in
   let ( >>= ) x f = io#bind f x in
   let op =
-    pure (`Contents 1) >>= fun _addr ->
-    pure (`Contents 2) >>= fun _addr ->
-    pure (`Contents 1) >>= fun _addr ->
-    pure (`Tree [ ("foo", `Contents 1); ("bar", `Contents 2) ]) >>| fun _addr ->
-    ()
+    pure (`Contents "1") >>= fun _addr ->
+    pure (`Contents "2") >>= fun _addr ->
+    pure (`Contents "1") >>= fun _addr ->
+    pure (`Tree [ ("foo", `Contents "1"); ("bar", `Contents "2") ])
+    >>| fun _addr -> ()
   in
   let (), bindings = Heap.run op in
   dump_bindings bindings

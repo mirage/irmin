@@ -14,10 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-
-open Type_core.Make (Identity)
 
 let t t =
   let rec aux : type a. a t -> a pp =

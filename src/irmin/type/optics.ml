@@ -53,11 +53,11 @@ module Effectful = struct
         view = l1.view >=> l2.view;
       }
 
-    type _ t_list =
+    type (_, 'm) t_list =
       | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) ty * 'l t_list
-          -> (('s, 't, 'a, 'b, 'm) ty * 'l) t_list
-      | [] : unit t_list
+          ('s, 't, 'a, 'b, 'm) ty * ('l, 'm) t_list
+          -> (('s, 't, 'a, 'b, 'm) ty * 'l, 'm) t_list
+      | [] : (unit, 'm) t_list
   end
 
   module Prism = struct
@@ -109,11 +109,18 @@ module Effectful = struct
       in
       { monad = f.monad; review; preview }
 
-    type _ t_list =
+    type (_, 'm) t_list =
       | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) t * 'l t_list
-          -> (('s, 't, 'a, 'b, 'm) t * 'l) t_list
-      | [] : unit t_list
+          ('s, 't, 'a, 'b, 'm) t * ('l, 'm) t_list
+          -> (('s, 't, 'a, 'b, 'm) t * 'l, 'm) t_list
+      | [] : (unit, 'm) t_list
+
+    let id monad =
+      {
+        monad;
+        review = monad#return;
+        preview = (fun s -> Some s |> monad#return);
+      }
   end
 
   module Getter (In : S.APPLICATIVE) (Out : S.MONAD) = struct

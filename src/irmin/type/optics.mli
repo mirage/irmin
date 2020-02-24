@@ -29,11 +29,11 @@ module Effectful : sig
 
     type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
 
-    type _ t_list =
+    type (_, 'm) t_list =
       | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) t * 'l t_list
-          -> (('s, 't, 'a, 'b, 'm) t * 'l) t_list
-      | [] : unit t_list
+          ('s, 't, 'a, 'b, 'm) t * ('l, 'm) t_list
+          -> (('s, 't, 'a, 'b, 'm) t * 'l, 'm) t_list
+      | [] : (unit, 'm) t_list
           (** Convenient syntax for a heterogeneous list of lenses. *)
 
     val v :
@@ -72,11 +72,11 @@ module Effectful : sig
 
     type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
 
-    type _ t_list =
+    type (_, 'm) t_list =
       | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) t * 'l t_list
-          -> (('s, 't, 'a, 'b, 'm) t * 'l) t_list
-      | [] : unit t_list
+          ('s, 't, 'a, 'b, 'm) t * ('l, 'm) t_list
+          -> (('s, 't, 'a, 'b, 'm) t * 'l, 'm) t_list
+      | [] : (unit, 'm) t_list
 
     val v :
       'm monad ->
@@ -103,6 +103,9 @@ module Effectful : sig
     val ( >> ) :
       ('a, 'b, 'c, 'd, 'm) t -> ('c, 'd, 'e, 'f, 'm) t -> ('a, 'b, 'e, 'f, 'm) t
     (** [l1 >> l2] is the composition of prisms l1 and l2. *)
+
+    val id : 'm monad -> ('a, 'a, 'm) mono
+    (** The identity prism. *)
   end
 
   (** Composable getter functions parameterised on applicative input and monadic

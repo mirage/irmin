@@ -14,10 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-
-open Type_core.Make (Identity)
 
 exception Not_utf8
 
@@ -124,7 +121,7 @@ module Encode = struct
     lexeme e `Os;
     List.iter
       (fun (Field f) ->
-        match (f.ftype, Identity.prj (f.fget x)) with
+        match (f.ftype, f.fget x) with
         | Option _, None -> ()
         | Option o, Some x ->
             lexeme e (`Name f.fname);
@@ -137,7 +134,7 @@ module Encode = struct
     lexeme e `Oe
 
   and variant : type a. a variant -> a encode_json =
-   fun v e x -> case_v e (Identity.prj (v.vget x))
+   fun v e x -> case_v e (v.vget x)
 
   and case_v : type a. a case_v encode_json =
    fun e c ->
@@ -318,8 +315,8 @@ module Decode = struct
     in
     soup [] >>= fun soup ->
     let rec aux :
-        type a b l1 l2.
-        (a, b, l1, l2) fields -> b -> (a, [ `Msg of string ]) result =
+        type a b l1 l2 m.
+        (a, b, l1, l2, m) fields -> b -> (a, [ `Msg of string ]) result =
      fun f c ->
       match f with
       | Fields_nil -> Ok c
@@ -353,7 +350,7 @@ module Decode = struct
    fun s v _e ->
     let rec aux i =
       match v.vcases.(i) with
-      | CP0 c when String.compare c.cname0 s = 0 -> Ok (Identity.prj c.c0)
+      | CP0 c when String.compare c.cname0 s = 0 -> Ok c.c0
       | _ ->
           if i < Array.length v.vcases then aux (i + 1)
           else Error (`Msg "variant")
@@ -366,8 +363,7 @@ module Decode = struct
     | `Name s ->
         let rec aux i =
           match v.vcases.(i) with
-          | CP1 c when String.compare c.cname1 s = 0 ->
-              t c.ctype1 e >|= (c.c1 >>> Identity.prj)
+          | CP1 c when String.compare c.cname1 s = 0 -> t c.ctype1 e >|= c.c1
           | _ ->
               if i < Array.length v.vcases then aux (i + 1)
               else Error (`Msg "variant")

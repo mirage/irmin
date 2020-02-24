@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Overture
 open Type_core
-open Type_core.Make(Identity)
 
 val t : 'a t -> 'a Fmt.t
 
