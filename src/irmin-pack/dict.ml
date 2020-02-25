@@ -56,7 +56,9 @@ module Make (IO : IO.S) : S = struct
     IO.append t.io buf
 
   let refill ~from t =
-    let len = Int64.to_int (IO.offset t.io -- from) in
+    let len = Int64.to_int (IO.force_offset t.io -- from) in
+    Log.debug (fun l ->
+        l "[dict] refill %d len=%d" (Hashtbl.length t.cache) len);
     let raw = Bytes.create len in
     let n = IO.read t.io ~off:from raw in
     assert (n = len);
@@ -73,10 +75,15 @@ module Make (IO : IO.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
+  (* TODO : this is a temporary fix *)
   let sync_offset t =
-    let former_log_offset = IO.offset t.io in
-    let log_offset = IO.force_offset t.io in
-    if log_offset > former_log_offset then refill ~from:former_log_offset t
+    (*let former_log_offset = IO.offset t.io in
+      let log_offset = IO.force_offset t.io in
+      if log_offset > former_log_offset then refill ~from:former_log_offset t*)
+    Hashtbl.clear t.cache;
+    Hashtbl.clear t.index;
+    refill ~from:0L t;
+    Log.debug (fun l -> l "[dict] after refill %d" (Hashtbl.length t.cache))
 
   let sync t = IO.sync t.io
 

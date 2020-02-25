@@ -162,12 +162,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     in
     aux from
 
-  (* TODO : this is a temporary fix, as it could happen that after a clear the
-     two offsets coincide and that the new added values are missed. *)
+  (* TODO : this is a temporary fix *)
   let sync_offset t =
-    let former_log_offset = IO.offset t.block in
-    let log_offset = IO.force_offset t.block in
-    if log_offset <> former_log_offset then refill t ~from:former_log_offset
+    (* let former_log_offset = IO.offset t.block in
+       let log_offset = IO.force_offset t.block in
+       if log_offset > former_log_offset then refill t ~from:former_log_offset*)
+    refill t ~from:0L
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
@@ -300,6 +300,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     else Lwt.return_unit
 
   let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
+
+  let sync t = IO.sync t.block
 end
 
 module type CONFIG = Inode.CONFIG
@@ -333,6 +335,8 @@ module Make_ext
     ( [> `Fixed of int | `No_error ],
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
+
+  val sync : repo -> unit
 end = struct
   module Index = Pack_index.Make (H)
   module Pack = Pack.File (Index) (H)
@@ -478,6 +482,11 @@ end = struct
         Contents.CA.clear (contents_t t) >>= fun () ->
         Node.CA.clear (snd (node_t t)) >>= fun () ->
         Commit.CA.clear (snd (commit_t t)) >>= fun () -> Branch.clear t.branch
+
+      let sync t =
+        Contents.CA.sync (contents_t t);
+        Commit.CA.sync (snd (commit_t t));
+        Branch.sync (branch_t t)
     end
   end
 
@@ -547,6 +556,8 @@ end = struct
       else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
 
   include Irmin.Of_private (X)
+
+  let sync (t : repo) = X.Repo.sync t
 end
 
 module Hash = Irmin.Hash.BLAKE2B
@@ -611,6 +622,12 @@ struct
     | Ok (`Fixed n), _, _ | _, Ok (`Fixed n), _ | _, _, Ok (`Fixed n) ->
         Ok (`Fixed n)
     | Ok `No_error, Ok `No_error, Ok `No_error -> Ok `No_error
+
+  let sync repo =
+    L.sync (lower_t repo);
+    let uppers = uppers_t repo in
+    U.sync (fst uppers);
+    U.sync (snd uppers)
 end
 
 module Make_layered

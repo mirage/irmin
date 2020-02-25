@@ -1,7 +1,7 @@
 (library
  (name test_pack)
  (modules test_pack multiple_instances)
- (libraries irmin-test irmin-pack alcotest-lwt common layered))
+ (libraries irmin-test irmin-pack alcotest-lwt common layered concurrent))
 
 (executable
  (name test)
@@ -33,3 +33,8 @@
  (name      layered)
  (modules   layered)
  (libraries irmin-pack alcotest alcotest-lwt fmt logs logs.fmt))
+
+(library
+ (name      concurrent)
+ (modules   concurrent)
+ (libraries irmin-pack alcotest alcotest-lwt fmt logs logs.fmt common))

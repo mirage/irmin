@@ -139,4 +139,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   let clear t =
     check_not_closed t;
     AW.clear t.t
+
+  let sync t =
+    check_not_closed t;
+    AW.sync t.t
 end

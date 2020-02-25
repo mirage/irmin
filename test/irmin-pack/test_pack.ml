@@ -397,4 +397,10 @@ module Branch = struct
 end
 
 let misc =
-  ("misc", Dict.tests @ Pack.tests @ Branch.tests @ Multiple_instances.tests @ Layered.tests)
+  ( "misc",
+    Dict.tests
+    @ Pack.tests
+    @ Branch.tests
+    @ Multiple_instances.tests
+    @ Layered.tests
+    @ Concurrent.tests )
