@@ -1,4 +1,4 @@
-open Overture
+open Irmin_root
 open Type_core
 
 module Record : sig
@@ -19,7 +19,7 @@ module Record : sig
       'cons,
       'field -> 'remaining_fields,
       'lenses,
-      ('record, 'field, 'monad) Optics.Effectful.Lens.mono * 'lens_nil,
+      ('record, 'field, 'monad) Irmin_optics.Effectful.Lens.mono * 'lens_nil,
       'monad )
     open_record ->
     ('record, 'field) field ->
@@ -30,7 +30,7 @@ module Record : sig
 
   val sealr_with_optics :
     ('record, 'cons, 'record, 'lenses, unit, 'm) open_record ->
-    'record t * ('m monad -> ('lenses, 'm) Optics.Effectful.Lens.t_list)
+    'record t * ('m monad -> ('lenses, 'm) Irmin_optics.Effectful.Lens.t_list)
 end
 
 module Variant : sig
@@ -62,7 +62,7 @@ module Variant : sig
       'rem,
       'constr -> 'rem_nil,
       'prisms,
-      ('variant, 'case, 'm) Optics.Effectful.Prism.mono * 'prism_nil,
+      ('variant, 'case, 'm) Irmin_optics.Effectful.Prism.mono * 'prism_nil,
       'm )
     open_variant ->
     ('variant, 'case, 'constr) case ->
@@ -77,5 +77,5 @@ module Variant : sig
       unit,
       'm )
     open_variant ->
-    'variant t * ('m monad -> ('prisms, 'm) Optics.Effectful.Prism.t_list)
+    'variant t * ('m monad -> ('prisms, 'm) Irmin_optics.Effectful.Prism.t_list)
 end

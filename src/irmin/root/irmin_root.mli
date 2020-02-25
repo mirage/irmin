@@ -24,21 +24,11 @@ val flip : ('a -> 'b -> 'c) -> 'b -> 'a -> 'c
 val some : 'a -> 'a option
 
 module Pair : sig
-  type ('a, 'b) t = 'a * 'b
-
-  val first : ('a1 -> 'a2) -> 'a1 * 'b -> 'a2 * 'b
-
-  val second : ('b1 -> 'b2) -> 'a * 'b1 -> 'a * 'b2
+  include module type of Pair
 end
 
 module Either : sig
-  type ('a, 'b) t = Left of 'a | Right of 'b
-
-  val map : ('a, 'b) t -> l:('a -> 'c) -> r:('b -> 'c) -> 'c
-
-  val left : 'a -> ('a, _) t
-
-  val right : 'b -> (_, 'b) t
+  include module type of Either
 end
 
 type ('a, 'b) either = ('a, 'b) Either.t = Left of 'a | Right of 'b
@@ -79,6 +69,13 @@ end
 
 module Monad : sig
   val sequence : 'm monad -> ('a, 'm) app list -> ('a list, 'm) app
+
+  val kliesli :
+    'm monad ->
+    ('a -> ('b, 'm) app) ->
+    ('b -> ('c, 'm) app) ->
+    'a ->
+    ('c, 'm) app
 end
 
 module Const : sig

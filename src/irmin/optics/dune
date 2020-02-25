@@ -1,0 +1,6 @@
+(library
+ (name irmin_optics)
+ (public_name irmin.optics)
+ (synopsis "[Internal] Optics library")
+ (preprocess future_syntax)
+ (libraries higher irmin_root))

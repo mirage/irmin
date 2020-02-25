@@ -27,7 +27,7 @@
 
 (** {1 Type Combinators} *)
 
-open Overture
+open Irmin_root
 
 type 'a t
 (** The type for runtime representation of values of type ['a]. *)
@@ -128,7 +128,7 @@ val ( |+ ) :
     'cons,
     'field -> 'remaining_fields,
     'lenses,
-    ('record, 'field, 'monad) Optics.Effectful.Lens.mono * 'lens_nil,
+    ('record, 'field, 'monad) Irmin_optics.Effectful.Lens.mono * 'lens_nil,
     'monad )
   open_record ->
   ('record, 'field) field ->
@@ -141,7 +141,7 @@ val sealr :
 
 val sealr_with_optics :
   ('record, 'cons, 'record, 'lenses, unit, 'm) open_record ->
-  'record t * ('m monad -> ('lenses, 'm) Optics.Effectful.Lens.t_list)
+  'record t * ('m monad -> ('lenses, 'm) Irmin_optics.Effectful.Lens.t_list)
 (** [sealr_with_optics r] seals the open record [r] and returns lenses to be
     used for the fields. *)
 
@@ -215,7 +215,7 @@ val ( |~ ) :
     'rem,
     'constr -> 'rem_nil,
     'prisms,
-    ('variant, 'case, 'monad) Optics.Effectful.Prism.mono * 'prism_nil,
+    ('variant, 'case, 'monad) Irmin_optics.Effectful.Prism.mono * 'prism_nil,
     'monad )
   open_variant ->
   ('variant, 'case, 'constr) case ->
@@ -243,7 +243,7 @@ val sealv_with_optics :
     unit,
     'm )
   open_variant ->
-  'variant t * ('m monad -> ('prisms, 'm) Optics.Effectful.Prism.t_list)
+  'variant t * ('m monad -> ('prisms, 'm) Irmin_optics.Effectful.Prism.t_list)
 (** [sealv_with_optics v] seals the open variant [v] and returns prisms to be
     used for the cases. *)
 

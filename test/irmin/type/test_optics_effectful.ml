@@ -1,9 +1,12 @@
 open Higher
+open Irmin_root
 open Irmin_type
-open Overture
-module Prism = Optics.Effectful.Prism
 
 [@@@warning "-32"]
+
+[@@@warning "-34"]
+
+[@@@warning "-37"]
 
 module Blake2B = struct
   include Digestif.BLAKE2B
@@ -27,12 +30,11 @@ module Blake2B = struct
       of_raw_string to_raw_string
 end
 
-module Addr = Newtype1 (struct
-  type 'a t = Digestif.BLAKE2B.t
-end)
-
-type addr = Addr.t
+type 'a addr = Digestif.BLAKE2B.t
 (** Hash of a value *)
+
+let addr : 'a Type.t -> 'a addr Type.t =
+ fun _ -> Type.(map string) Digestif.BLAKE2B.of_hex Digestif.BLAKE2B.to_hex
 
 module Heap (Contents : sig
   type t
@@ -45,7 +47,9 @@ end) : sig
   val io : io monad
   (** Effects are monadic. *)
 
-  val put : contents -> ((contents, addr) app, io) app
+  val put : contents -> (contents addr, io) app
+
+  val get : contents addr -> (contents option, io) app
 
   val run : ('a, io) app -> 'a * (string * contents) list
   (** Run an effectful operation with an initially empty heap, returning the
@@ -68,8 +72,6 @@ with type contents = Contents.t = struct
 
   let io = Io.t
 
-  type addr = Addr.t
-
   let ( let+ ) x f = io#fmap f x
 
   let ( let* ) x f = io#bind f x
@@ -82,7 +84,7 @@ with type contents = Contents.t = struct
            (Pair.first (Digestif.BLAKE2B.to_hex >>> fun s -> String.sub s 0 8))
     )
 
-  let put : contents -> ((contents, addr) app, io) app =
+  let put : contents -> (contents addr, io) app =
    fun v ->
     let* instance = io#get in
     let hash =
@@ -90,24 +92,16 @@ with type contents = Contents.t = struct
       Digestif.BLAKE2B.digest_string marshalled
     in
     let+ () = io#put (M.add hash v instance) in
-    Addr.inj hash
+    hash
+
+  let get : contents addr -> (contents option, io) app =
+   fun a ->
+    let+ instance = io#get in
+    M.find_opt a instance
 
   (* Don't expose the state monad to the user *)
   let io = (io :> io monad)
 end
-
-type 'a tree
-
-type product_repr
-
-type sum_repr
-
-type assoc_repr
-
-type tree_node =
-  | Product of product_repr
-  | Sum of sum_repr
-  | Assoc of assoc_repr
 
 (* Generic hash-consing library *)
 module Hash_constructor (Contents : sig
@@ -120,32 +114,30 @@ struct
 
   type concrete = [ `Tree of (string * concrete) list | `Contents of contents ]
 
-  type node = Tree_object of (string * (node, addr) app) list | Blob of string
+  type node = Tree_object of (string * node addr) list | Blob of string
 
   module Heap = Heap (struct
-    type t = node
+    type t = contents
   end)
 
   type io = Heap.io
 
   let io = Heap.io
 
+  let addr =
+    let open Heap in
+    Irmin_optics.Effectful.(Prism.v io put get |> Optional.of_prism)
+
   let ( let+ ) x f = io#fmap f x
 
   let ( let* ) x f = io#bind f x
 
-  let rec pure : contents -> ((node, addr) app, io) app = function
-    | `Contents c -> Heap.put (Blob c)
-    | `Tree children ->
-        (* Marshal the children *)
-        let* child_hashes =
-          children
-          |> List.map (fun (s, c) ->
-                 let+ addr = pure c in
-                 (s, addr))
-          |> Monad.sequence io
-        in
-        Heap.put (Tree_object child_hashes)
+  (* let set_opt :
+   *     ('contents, 'contents, 'a addr, 'b addr, io) Optics.Effectful.Optional.t ->
+   *     'b ->
+   *     ('t, io) app =
+   *  fun opt b ->
+   *   Optics.Effectful.Optional.modify opt (fun _ -> io#return @@ Some b) s *)
 
   (* let deref : (node, Addr.t) app -> (node, io) app =
    *  fun hash -> o.inj (Heap.find (Addr.prj hash) !instance) *)
@@ -161,47 +153,97 @@ struct
     |> Fmt.using (Digestif.BLAKE2B.to_hex >>> fun s -> String.sub s 0 8)
 
   let pp_node ppf = function
-    | Tree_object cs ->
-        Fmt.Dump.(list (pair string (Fmt.using Addr.prj pp_key))) ppf cs
+    | Tree_object cs -> Fmt.Dump.(list (pair string pp_key)) ppf cs
     | Blob s -> Fmt.string ppf s
 end
 
-(* Now define our store layout *)
+type 'a tree = Branch of (string * 'a tree) list | Leaf of 'a
 
-type my_store = { names : string tree; flags : bool tree; counts : int tree }
-
-let (my_record : my_store Type.t), ELens.[ name; flag; count ] =
+let tree t =
   let open Type in
-  record "my_record" (fun names flags counts -> { names; flags; counts })
-  |+ field "name" (tree string)
-       ~set:(fun s name -> { s with name })
-       (fun s -> s.names)
-  |+ field "flag" (tree bool)
-       ~set:(fun s flag -> { s with flag })
-       (fun s -> s.flags)
-  |+ field "count" (tree int)
-       ~set:(fun s count -> { s with count })
-       (fun s -> s.counts)
-  |> sealr_with_optics
+  mu_optics (fun tree ->
+      variant "tree" (fun branch leaf ->
+        function Branch b -> branch b | Leaf l -> leaf l)
+      |~ case1 "branch" (list (pair string tree)) (fun b -> Branch b)
+      |~ case1 "leaf" t (fun l -> Leaf l)
+      |> sealv_with_optics)
 
-let dump_bindings =
-  let open Hash_constructor in
-  let open Fmt in
-  epr "@[<v>heap internals:@,@,%a@,@,@]@."
-    (Dump.list (Dump.pair (using (fun s -> String.sub s 0 8) string) pp_node))
+let branch :
+    string -> ('a tree, 'a tree, Identity.t) Irmin_optics.Effectful.Prism.mono =
+ fun s ->
+  Irmin_optics.Effectful.Prism.v Identity.v
+    (fun b -> Branch [ (s, b) ] |> Identity.inj)
+    (function
+      | Leaf _ -> None |> Identity.inj
+      | Branch children -> Some (List.assoc s children) |> Identity.inj)
 
-let test () =
-  let open Hash_constructor in
-  let ( >>| ) x f = io#fmap f x in
-  let ( >>= ) x f = io#bind f x in
-  let op =
-    pure (`Contents "1") >>= fun _addr ->
-    pure (`Contents "2") >>= fun _addr ->
-    pure (`Contents "1") >>= fun _addr ->
-    pure (`Tree [ ("foo", `Contents "1"); ("bar", `Contents "2") ])
-    >>| fun _addr -> ()
-  in
-  let (), bindings = Heap.run op in
-  dump_bindings bindings
+let leaf : ('a tree, 'a, Identity.t) Irmin_optics.Effectful.Prism.mono =
+  Irmin_optics.Effectful.Prism.v Identity.v
+    (fun l -> Leaf l |> Identity.inj)
+    (function
+      | Branch _ -> None |> Identity.inj | Leaf l -> Some l |> Identity.inj)
 
-let suite = [ ("optics.effects", [ ("foo", `Quick, test) ]) ]
+let path : string list -> ('a tree, 'a, 'm) Irmin_optics.Effectful.Prism.mono =
+  let open Irmin_optics.Effectful.Prism in
+  fun ps -> List.map branch ps |> List.fold_left ( >> ) (id Identity.v) >> leaf
+
+type my_store = {
+  names : string tree addr;
+  flags : bool tree addr;
+  counts : int tree addr;
+}
+
+(* let ( (my_store : my_store Type.t),
+ *       Irmin_optics.Effectful.Lens.[ names; flags; counts ] ) =
+ *   let open Type in
+ *   record "my_record" (fun names flags counts -> { names; flags; counts })
+ *   |+ field "name"
+ *        (tree string |> fst |> addr)
+ *        ~set:(fun s names -> { s with names })
+ *        (fun { names; _ } -> names)
+ *   |+ field "flag"
+ *        (tree bool |> fst |> addr)
+ *        ~set:(fun s flags -> { s with flags })
+ *        (fun { flags; _ } -> flags)
+ *   |+ field "count"
+ *        (tree int |> fst |> addr)
+ *        ~set:(fun s counts -> { s with counts })
+ *        (fun { counts; _ } -> counts)
+ *   |> sealr_with_optics
+ * 
+ * module Optional = Irmin_optics.Effectful.Optional
+ * 
+ * let names, flags, counts =
+ *   (Optional.of_lens names, Optional.of_lens flags, Optional.of_lens counts)
+ * 
+ * let path s = Optional.of_prism (path s)
+ * 
+ * module H = Hash_constructor (struct
+ *   type t = my_store
+ * 
+ *   let t = my_store
+ * end)
+ * 
+ * let dump_bindings =
+ *   let open H in
+ *   let open Fmt in
+ *   epr "@[<v>heap internals:@,@,%a@,@,@]@."
+ *     (Dump.list (Dump.pair (using (fun s -> String.sub s 0 8) string) pp_node))
+ * 
+ * let test () =
+ *   let open H in
+ *   let op =
+ *     let ( >> ) = Optional.( >> ) in
+ *     Optional.modify (Optional.lift io names >> H.addr >> path [ "a"; "b" ])
+ *     (\* >>= fun _addr ->
+ *      * pure (`Contents "2") >>= fun _addr ->
+ *      * pure (`Contents "1") >>= fun _addr ->
+ *      * pure (`Tree [ ("foo", `Contents "1"); ("bar", `Contents "2") ])
+ *      * >>| fun _addr -> () *\)
+ *   in
+ * 
+ *   let (), bindings = Heap.run op in
+ *   dump_bindings bindings
+ * *)
+
+let suite = [ ("optics.effects", []) ]

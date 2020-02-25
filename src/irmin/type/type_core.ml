@@ -155,7 +155,7 @@ and ('record, 'constr, 'lenses, 'lens_nil, 'm) fields =
       * ('record, 'constr, 'lenses, 'lens_nil, 'm) fields
       -> ( 'record,
            'field -> 'constr,
-           ('record, 'field, 'm) Optics.Effectful.Lens.mono * 'lenses,
+           ('record, 'field, 'm) Irmin_optics.Effectful.Lens.mono * 'lenses,
            'lens_nil,
            'm )
          fields
@@ -208,7 +208,7 @@ and ('variant, 'pat, 'pat_nil, 'prisms, 'prism_nil, 'm) cases =
       -> ( 'variant,
            'constr -> 'remaining,
            'pat_nil,
-           ('variant, 'case, 'm) Optics.Effectful.Prism.mono * 'prisms,
+           ('variant, 'case, 'm) Irmin_optics.Effectful.Prism.mono * 'prisms,
            'prism_nil,
            'm )
          cases

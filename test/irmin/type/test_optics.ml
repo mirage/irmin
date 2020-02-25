@@ -1,8 +1,9 @@
+open Irmin_root
 module Type = Irmin_type.Type
-module Lens = Irmin_type.Optics.Lens
-module ELens = Irmin_type.Optics.Effectful.Lens
-module Prism = Irmin_type.Optics.Prism
-module EPrism = Irmin_type.Optics.Effectful.Prism
+module Lens = Irmin_optics.Lens
+module ELens = Irmin_optics.Effectful.Lens
+module Prism = Irmin_optics.Prism
+module EPrism = Irmin_optics.Effectful.Prism
 
 type my_record = { name : string; flag : bool; count : int }
 
@@ -51,6 +52,7 @@ let (_my_record : my_record Type.t), ELens.[ name; flag; count ] =
   |+ field "flag" bool ~set:(fun s flag -> { s with flag }) (fun s -> s.flag)
   |+ field "count" int ~set:(fun s count -> { s with count }) (fun s -> s.count)
   |> sealr_with_optics
+  |> Pair.second (fun x -> x Identity.v)
 
 let name, flag, count = (Lens.prj name, Lens.prj flag, Lens.prj count)
 
@@ -134,6 +136,7 @@ let (_my_variant : my_variant Type.t), EPrism.[ a; b; c; d ] =
       |~ case0 "c" C
       |~ case1 "d" v (fun x -> D x)
       |> sealv_with_optics)
+  |> Pair.second (fun x -> x Identity.v)
 
 let a, b, c, d = (Prism.prj a, Prism.prj b, Prism.prj c, Prism.prj d)
 

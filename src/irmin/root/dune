@@ -1,0 +1,6 @@
+(library
+ (name irmin_root)
+ (public_name irmin.root)
+ (synopsis "[Internal] Standard library")
+ (preprocess future_syntax)
+ (libraries higher))

@@ -1,7 +1,7 @@
-open Overture
+open Irmin_root
 open Type_core
-module Lens = Optics.Effectful.Lens
-module Prism = Optics.Effectful.Prism
+module Lens = Irmin_optics.Effectful.Lens
+module Prism = Irmin_optics.Effectful.Prism
 
 module Record = struct
   module Unwitnessed = struct
@@ -48,7 +48,7 @@ module Record = struct
   let sealr_with_optics :
       type record cons lens m.
       (record, cons, record, lens, unit, m) open_record ->
-      record t * (m monad -> (lens, m) Optics.Effectful.Lens.t_list) =
+      record t * (m monad -> (lens, m) Irmin_optics.Effectful.Lens.t_list) =
    fun { open_record = r } ->
     let Unwitnessed.{ name; cons; fields } = r Fields_nil in
     let rwit = Witness.make () in
@@ -70,7 +70,7 @@ module Record = struct
               | None -> fun _ _ -> assert false
             in
             let fget = fget >>> monad#return in
-            let ml = Optics.Effectful.Lens.v monad fget fset in
+            let ml = Irmin_optics.Effectful.Lens.v monad fget fset in
             ml :: inner fs
       in
       inner fields

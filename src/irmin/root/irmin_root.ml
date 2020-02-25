@@ -22,23 +22,8 @@ let flip f a b = f b a
 
 let some x = Some x
 
-module Pair = struct
-  type ('a, 'b) t = 'a * 'b
-
-  let first f (a, b) = (f a, b)
-
-  let second f (a, b) = (a, f b)
-end
-
-module Either = struct
-  type ('a, 'b) t = Left of 'a | Right of 'b
-
-  let map t ~l ~r = match t with Left x -> l x | Right x -> r x
-
-  let left x = Left x
-
-  let right x = Right x
-end
+module Pair = Pair
+module Either = Either
 
 type ('a, 'b) either = ('a, 'b) Either.t = Left of 'a | Right of 'b
 
@@ -77,6 +62,11 @@ module Monad = struct
         ms (monad#return [])
     in
     List.rev reversed
+
+  let kliesli :
+      type a b c m.
+      m monad -> (a -> (b, m) app) -> (b -> (c, m) app) -> a -> (c, m) app =
+   fun monad f g x -> monad#bind g (f x)
 end
 
 module Identity = struct

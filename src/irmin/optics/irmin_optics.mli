@@ -16,7 +16,7 @@
 
 (** Optics in OCaml *)
 
-open Overture
+open Irmin_root
 open Higher
 
 module Effectful : sig
@@ -106,18 +106,6 @@ module Effectful : sig
 
     val id : 'm monad -> ('a, 'a, 'm) mono
     (** The identity prism. *)
-  end
-
-  (** Composable getter functions parameterised on applicative input and monadic
-      output types. *)
-  module Getter (In : S.APPLICATIVE) (Out : S.MONAD) : sig
-    type ('s, 'a) t
-
-    val ( >> ) : ('a, 'b) t -> ('b, 'c) t -> ('a, 'c) t
-
-    val v : ('s In.t -> 'a Out.t) -> ('s, 'a) t
-
-    val ( ^. ) : 's In.t -> ('s, 'a) t -> 'a Out.t
   end
 
   (** Provides functions for _optional_ getting and setting, and is a common
