@@ -22,30 +22,6 @@ let current_version = "00000001"
 
 let ( -- ) = Int64.sub
 
-type all_stats = {
-  mutable pack_finds : int;
-  mutable pack_cache_misses : int;
-  mutable appended_hashes : int;
-  mutable appended_offsets : int;
-}
-
-let fresh_stats () =
-  {
-    pack_finds = 0;
-    pack_cache_misses = 0;
-    appended_hashes = 0;
-    appended_offsets = 0;
-  }
-
-let stats = fresh_stats ()
-
-let reset_stats () =
-  stats.pack_finds <- 0;
-  stats.pack_cache_misses <- 0;
-  stats.appended_hashes <- 0;
-  stats.appended_offsets <- 0;
-  ()
-
 module type ELT = sig
   include Irmin.Type.S
 
@@ -274,7 +250,7 @@ struct
 
     let unsafe_find t k =
       Log.debug (fun l -> l "[pack] find %a" pp_hash k);
-      stats.pack_finds <- succ stats.pack_finds;
+      Stats.incr_finds ();
       match Tbl.find t.staging k with
       | v ->
           Lru.add t.lru k v;
@@ -283,7 +259,7 @@ struct
           match Lru.find t.lru k with
           | v -> Some v
           | exception Not_found -> (
-              stats.pack_cache_misses <- succ stats.pack_cache_misses;
+              Stats.incr_cache_misses ();
               match Index.find t.pack.index k with
               | None -> None
               | Some (off, len, _) ->
@@ -326,10 +302,10 @@ struct
           let offset k =
             match Index.find t.pack.index k with
             | None ->
-                stats.appended_hashes <- stats.appended_hashes + 1;
+                Stats.incr_appended_hashes ();
                 None
             | Some (off, _, _) ->
-                stats.appended_offsets <- stats.appended_offsets + 1;
+                Stats.incr_appended_offsets ();
                 Some off
           in
           let dict = Dict.index t.pack.dict in
@@ -366,20 +342,3 @@ struct
           Lwt.return_unit)
   end
 end
-
-let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
-
-type stats = {
-  pack_cache_misses : float;
-  offset_ratio : float;
-  offset_significance : int;
-}
-
-let stats () =
-  {
-    pack_cache_misses = div_or_zero stats.pack_cache_misses stats.pack_finds;
-    offset_ratio =
-      div_or_zero stats.appended_offsets
-        (stats.appended_offsets + stats.appended_hashes);
-    offset_significance = stats.appended_offsets + stats.appended_hashes;
-  }

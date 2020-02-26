@@ -76,13 +76,3 @@ end
 
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   MAKER with type key = K.t and type index = Index.t
-
-type stats = {
-  pack_cache_misses : float;
-  offset_ratio : float;
-  offset_significance : int;
-}
-
-val reset_stats : unit -> unit
-
-val stats : unit -> stats
