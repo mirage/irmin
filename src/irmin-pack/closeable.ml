@@ -69,6 +69,8 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.sync t.t
 
+  type integrity_error = S.integrity_error
+
   let integrity_check ~offset ~length k t =
     check_not_closed t;
     S.integrity_check ~offset ~length k t.t

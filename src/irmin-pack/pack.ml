@@ -66,7 +66,10 @@ module type S = sig
 
   val sync : 'a t -> unit
 
-  val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
 end
@@ -233,17 +236,16 @@ struct
 
     let check_key k v =
       let k' = V.hash v in
-      if Irmin.Type.equal K.t k k' then ()
-      else
-        Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash k' pp_hash
-          k
+      if Irmin.Type.equal K.t k k' then Ok () else Error (k, k')
+
+    exception Invalid_read
 
     let io_read_and_decode ~off ~len t =
-      if not (IO.readonly t.pack.block) then
-        assert (off <= IO.offset t.pack.block);
+      if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
+        raise Invalid_read;
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
-      assert (n = len);
+      if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
       V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
@@ -264,7 +266,11 @@ struct
               | None -> None
               | Some (off, len, _) ->
                   let v = io_read_and_decode ~off ~len t in
-                  check_key k v;
+                  (check_key k v |> function
+                   | Ok () -> ()
+                   | Error (expected, got) ->
+                       Fmt.failwith "corrupted value: got %a, expecting %a."
+                         pp_hash got pp_hash expected);
                   Lru.add t.lru k v;
                   Some v ) )
 
@@ -281,9 +287,15 @@ struct
       Index.flush t.pack.index;
       Tbl.clear t.staging
 
+    type integrity_error = [ `Wrong_hash | `Absent_value ]
+
     let integrity_check ~offset ~length k t =
-      let value = io_read_and_decode ~off:offset ~len:length t in
-      check_key k value
+      try
+        let value = io_read_and_decode ~off:offset ~len:length t in
+        match check_key k value with
+        | Ok () -> Ok ()
+        | Error _ -> Error `Wrong_hash
+      with Invalid_read -> Error `Absent_value
 
     let batch t f =
       f (cast t) >>= fun r ->

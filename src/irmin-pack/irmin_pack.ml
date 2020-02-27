@@ -451,35 +451,70 @@ struct
     end
   end
 
-  let integrity_check ?(ppf = Format.formatter_of_out_channel stdout)
-      (t : X.Repo.t) =
-    Fmt.pf ppf "Running the integrity check\n%!";
+  let null =
+    match Sys.os_type with
+    | "Unix" | "Cygwin" -> "/dev/null"
+    | "Win32" -> "NUL"
+    | _ -> invalid_arg "invalid os type"
+
+  let integrity_check ?ppf ~auto_repair t =
+    let ppf =
+      match ppf with
+      | Some p -> p
+      | None -> open_out null |> Format.formatter_of_out_channel
+    in
+    Fmt.pf ppf "Running the integrity_check.\n%!";
     let nb_commits = ref 0 in
-    let nb_removals = ref 0 in
-    let pp_stats () =
-      Fmt.pf ppf "Treated %dk commits\n%!" (!nb_commits / 1000)
-    in
-    let count_increment () =
-      incr nb_commits;
-      if !nb_commits mod 1000 = 0 then pp_stats ()
-    in
+    let nb_nodes = ref 0 in
+    let nb_contents = ref 0 in
+    let nb_absent = ref 0 in
+    let nb_corrupted = ref 0 in
+    let exception Cannot_fix in
     let contents = X.Repo.contents_t t in
     let nodes = X.Repo.node_t t |> snd in
     let commits = X.Repo.commit_t t |> snd in
-    Index.filter t.index (fun (k, (offset, length, m)) ->
-        try
-          ( match m with
-          | 'B' -> X.Contents.CA.integrity_check ~offset ~length k contents
-          | 'N' | 'I' -> X.Node.CA.integrity_check ~offset ~length k nodes
-          | 'C' ->
-              count_increment ();
-              X.Commit.CA.integrity_check ~offset ~length k commits
-          | _ -> invalid_arg "unknown content type" );
-          true
-        with _ ->
-          incr nb_removals;
-          false);
-    Fmt.pf ppf "Integrity check terminated. Removed %d entries\n%!" !nb_removals
+    let pp_stats () =
+      Fmt.pf ppf "\t%dk contents / %dk nodes / %dk commits\n%!"
+        (!nb_contents / 1000) (!nb_nodes / 1000) (!nb_commits / 1000)
+    in
+    let count_increment count =
+      incr count;
+      if !count mod 1000 = 0 then pp_stats ()
+    in
+    let f (k, (offset, length, m)) =
+      match m with
+      | 'B' ->
+          count_increment nb_contents;
+          X.Contents.CA.integrity_check ~offset ~length k contents
+      | 'N' | 'I' ->
+          count_increment nb_nodes;
+          X.Node.CA.integrity_check ~offset ~length k nodes
+      | 'C' ->
+          count_increment nb_commits;
+          X.Commit.CA.integrity_check ~offset ~length k commits
+      | _ -> invalid_arg "unknown content type"
+    in
+    if auto_repair then
+      try
+        Index.filter t.index (fun binding ->
+            match f binding with
+            | Ok () -> true
+            | Error `Wrong_hash -> raise Cannot_fix
+            | Error `Absent_value ->
+                incr nb_absent;
+                false);
+        if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
+      with Cannot_fix -> Error (`Cannot_fix "Not implemented")
+    else (
+      Index.iter
+        (fun k v ->
+          match f (k, v) with
+          | Ok () -> ()
+          | Error `Wrong_hash -> incr nb_corrupted
+          | Error `Absent_value -> incr nb_absent)
+        t.index;
+      if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
+      else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
 
   include Irmin.Of_private (X)
 end

@@ -58,7 +58,10 @@ module type S = sig
 
   val sync : 'a t -> unit
 
-  val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
 end

@@ -40,7 +40,10 @@ module type S = sig
 
   module Val : Irmin.Private.Node.S with type t = value and type hash = key
 
-  val integrity_check : offset:int64 -> length:int -> key -> 'a t -> unit
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
 end
@@ -791,6 +794,8 @@ struct
   let batch = Inode.batch
 
   let v = Inode.v
+
+  type integrity_error = Inode.integrity_error
 
   let integrity_check = Inode.integrity_check
 
