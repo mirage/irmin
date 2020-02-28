@@ -56,7 +56,17 @@ module Make_ext
        and type metadata = Metadata.t
        and type Key.step = Path.step
 
-  val integrity_check : Format.formatter -> repo -> unit
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+  (** Checks the integrity of the repository. if [auto_repair] is [true], will
+      also try to fix the issues. [ppf] is a formatter for progressive
+      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
+      entries. *)
 end
 
 module Make
@@ -75,7 +85,17 @@ module Make
        and type branch = B.t
        and type hash = H.t
 
-  val integrity_check : Format.formatter -> repo -> unit
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+  (** Checks the integrity of the repository. if [auto_repair] is [true], will
+      also try to fix the issues. [ppf] is a formatter for progressive
+      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
+      entries. *)
 end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER

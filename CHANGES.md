@@ -25,6 +25,7 @@
 - **irmin-pack**:
   - Changed the bit-length of serialized hashes from 60 to 30. (#897,
     @icristescu)
+  - `integrity_check` can now try to repair corrupted values. (#947, @pascutto)
 
 - **irmin-graphql**:
   - Changed default GraphQL type names to ensure uniqueness. (#944, @andreas)
