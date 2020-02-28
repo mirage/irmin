@@ -48,6 +48,13 @@ let random_char () = char_of_int (33 + Random.int 94)
 let random_string string_size =
   String.init string_size (fun _i -> random_char ())
 
+let clean_dir root =
+  if Sys.file_exists root then (
+    let cmd = Printf.sprintf "rm -rf %s" root in
+    Fmt.epr "exec: %s\n%!" cmd;
+    let _ = Sys.command cmd in
+    () )
+
 module Tezos_Usecase = struct
   type index = { path : string; repo : Store.Repo.t }
 
@@ -159,6 +166,7 @@ module Tezos_Usecase = struct
 
   let test_simple_gc () =
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
     create_block1 ctxt >>= fun (ctxt, block1) ->
     checkout_and_create ctxt.index block1 create_block1a
@@ -202,6 +210,7 @@ module Tezos_Usecase = struct
           Lwt.return_unit
     in
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
     commit_large_trees ctxt >>= fun (ctxt, blocks) ->
     let _, _, block = List.hd blocks in
@@ -244,6 +253,7 @@ module Tezos_Usecase = struct
 
   let test_open_lower () =
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
     StoreSimple.Repo.v
       (config ~fresh:false ~readonly:true
@@ -266,6 +276,7 @@ module Tezos_Usecase = struct
 
   let test_two_rw_instances () =
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
     Store.Repo.v (config ~readonly:false ~fresh:false store_name)
     >>= fun repo ->
@@ -290,6 +301,7 @@ module Tezos_Usecase = struct
 
   let test_rw_ro_instances () =
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
     Store.Repo.v (config ~readonly:true ~fresh:false store_name) >>= fun repo ->
     create_block1 ctxt >>= fun (ctxt, block1) ->
@@ -330,16 +342,23 @@ module Tezos_Usecase = struct
     check_block1a >>= fun () ->
     Store.Repo.close ctxt.index.repo >>= fun () -> Store.Repo.close repo
 
-  let _test_close_and_reopen () =
+  let test_close_and_reopen () =
     let store_name = fresh_name () in
+    clean_dir store_name;
     init store_name >>= fun ctxt ->
+    let upper1 = Store.upper_in_use ctxt.index.repo in
+    Alcotest.(check string "upper1" "upper1" upper1);
     create_block1 ctxt >>= fun (ctxt, block1) ->
     gc ctxt.index block1 >>= fun ctxt ->
+    let upper0 = Store.upper_in_use ctxt.index.repo in
+    Alcotest.(check string "upper0.1" upper0 Conf.upper_root0);
     checkout_and_create ctxt.index block1 create_block1a
     >>= fun (ctxt, block1a) ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
     Store.Repo.v (config ~readonly:false ~fresh:false store_name)
     >>= fun repo ->
+    let upper0 = Store.upper_in_use repo in
+    Alcotest.(check string "upper0.2" upper0 Conf.upper_root0);
     (Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
      | None -> Alcotest.fail "no hash found in repo"
      | Some commit ->
@@ -347,12 +366,18 @@ module Tezos_Usecase = struct
          Store.Tree.find tree [ "a"; "b" ] >|= fun novembre ->
          Alcotest.(check (option string)) "nov" (Some "Novembre") novembre)
     >>= fun () ->
-    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
-    | None -> Alcotest.fail "no hash found in repo"
-    | Some commit ->
-        let tree = Store.Commit.tree commit in
-        Store.Tree.find tree [ "a"; "d" ] >|= fun mars ->
-        Alcotest.(check (option string)) "mars" (Some "Mars") mars
+    (Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+     | None -> Alcotest.fail "no hash found in repo"
+     | Some commit ->
+         let tree = Store.Commit.tree commit in
+         Store.Tree.find tree [ "a"; "d" ] >|= fun mars ->
+         Alcotest.(check (option string)) "mars" (Some "Mars") mars)
+    >>= fun () ->
+    Store.Repo.close repo >>= fun () ->
+    Store.Repo.v (config ~readonly:false ~fresh:false store_name)
+    >|= fun repo ->
+    let upper0 = Store.upper_in_use repo in
+    Alcotest.(check string "upper0.3" upper0 Conf.upper_root0)
 
   let tests =
     [
@@ -366,8 +391,8 @@ module Tezos_Usecase = struct
           Lwt_main.run (test_two_rw_instances ()));
       Alcotest.test_case "Test rw and ro instances" `Quick (fun () ->
           Lwt_main.run (test_rw_ro_instances ()));
-      (*Alcotest.test_case "Test close and reopen a store" `Quick (fun () ->
-          Lwt_main.run (test_close_and_reopen ()));*)
+      Alcotest.test_case "Test close and reopen a store" `Quick (fun () ->
+          Lwt_main.run (test_close_and_reopen ()));
     ]
 end
 

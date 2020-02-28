@@ -31,7 +31,7 @@ module Content_addressable
   include
     Irmin.CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
-  val v : 'a U.t -> 'a U.t -> [ `Read ] L.t -> Lwt_mutex.t -> 'a t
+  val v : 'a U.t -> 'a U.t -> [ `Read ] L.t -> bool -> Lwt_mutex.t -> 'a t
 
   val project :
     [ `Read | `Write ] U.t ->
@@ -67,7 +67,7 @@ module Atomic_write
     (U : Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : U.t -> U.t -> L.t -> Lwt_mutex.t -> t
+  val v : U.t -> U.t -> L.t -> bool -> Lwt_mutex.t -> t
 
   val clear_upper : t -> unit Lwt.t
 

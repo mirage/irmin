@@ -159,8 +159,8 @@ struct
         let upper = current_upper t in
         U.unsafe_add upper k v)
 
-  let v upper second_upper lower lock =
-    { lower; flip = true; uppers = (upper, second_upper); lock }
+  let v upper second_upper lower flip lock =
+    { lower; flip; uppers = (upper, second_upper); lock }
 
   let project upper second_upper t = { t with uppers = (upper, second_upper) }
 
@@ -309,8 +309,8 @@ struct
     U.clear (fst t.uppers) >>= fun () ->
     U.clear (snd t.uppers) >>= fun () -> L.clear t.lower
 
-  let v upper second_upper lower lock =
-    { lower; flip = true; uppers = (upper, second_upper); lock }
+  let v upper second_upper lower flip lock =
+    { lower; flip; uppers = (upper, second_upper); lock }
 
   (** Do not copy branches that point to commits not copied. *)
   let copy t commit_exists_lower commit_exists_upper =

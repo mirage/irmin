@@ -71,6 +71,8 @@ let config ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
   let config = Conf.add config upper_root1_key upper_root1 in
   config
 
+module IO = IO.Unix
+
 let reset_lock = Lwt_mutex.create ()
 
 let freeze_lock = Lwt_mutex.create ()
@@ -216,6 +218,7 @@ module Make_ext
         mutable flip : bool;
         mutable closed : bool;
         conf : Conf.t;
+        flip_file : IO.t;
       }
 
       let contents_t t : 'a Contents.t = t.contents
@@ -249,6 +252,18 @@ module Make_ext
 
       let close t = Lwt_mutex.with_lock freeze_lock (fun () -> unsafe_close t)
 
+      let read_flip_file file =
+        let buf = Bytes.create 1 in
+        IO.read file buf;
+        match Bytes.get buf 0 with
+        | '0' -> false
+        | '1' -> true
+        | _ -> failwith "corrupted flip file"
+
+      let write_flip_file t =
+        let buf = if t.flip then Bytes.make 1 '1' else Bytes.make 1 '0' in
+        IO.write t.flip_file buf
+
       let v conf =
         let upper_name = Filename.concat (root conf) (upper_root1 conf) in
         let conf_upper = Conf.add conf Conf.root (Some upper_name) in
@@ -259,21 +274,27 @@ module Make_ext
         let upper_name = Filename.concat (root conf) (upper_root0 conf) in
         let conf_upper = Conf.add conf Conf.root (Some upper_name) in
         U.v conf_upper >|= fun upper0 ->
+        let flip_file =
+          let file = Filename.concat (root conf) "flip" in
+          let init = Bytes.make 1 '1' in
+          IO.v file init
+        in
+        let flip = read_flip_file flip_file in
         let contents =
           Contents.CA.v (U.contents_t upper1) (U.contents_t upper0)
-            (L.contents_t lower) reset_lock
+            (L.contents_t lower) flip reset_lock
         in
         let nodes =
-          Node.CA.v (U.node_t upper1) (U.node_t upper0) (L.node_t lower)
+          Node.CA.v (U.node_t upper1) (U.node_t upper0) (L.node_t lower) flip
             reset_lock
         in
         let commits =
           Commit.CA.v (U.commit_t upper1) (U.commit_t upper0) (L.commit_t lower)
-            reset_lock
+            flip reset_lock
         in
         let branch =
           Branch.v (U.branch_t upper1) (U.branch_t upper0) (L.branch_t lower)
-            reset_lock
+            flip reset_lock
         in
         {
           contents;
@@ -283,12 +304,14 @@ module Make_ext
           lower;
           uppers = (upper1, upper0);
           conf;
-          flip = true;
+          flip;
+          flip_file;
           closed = false;
         }
 
       let flip_upper t =
         t.flip <- not t.flip;
+        write_flip_file t;
         Contents.CA.flip_upper t.contents;
         Node.CA.flip_upper t.nodes;
         Commit.CA.flip_upper t.commits;
@@ -432,6 +455,8 @@ module Make_ext
       end
 
       let clear t =
+        let buf = Bytes.make 1 '1' in
+        IO.write t.flip_file buf;
         L.clear t.lower >>= fun () ->
         U.clear (fst t.uppers) >>= fun () -> U.clear (snd t.uppers)
 
