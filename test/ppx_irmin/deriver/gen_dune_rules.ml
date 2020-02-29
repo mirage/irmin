@@ -1,5 +1,5 @@
 let global_stanzas () =
-  Fmt.pr
+  Format.printf
     {|(env
  (_
   (env-vars
@@ -11,12 +11,12 @@ let output_stanzas ~expect_failure filename =
   let base = Filename.remove_extension filename in
   let pp_library ppf base =
     if not expect_failure then
-      Fmt.pf ppf "@[<v 1>(library@ (name %s)@ (modules %s))@]" base base
+      Format.fprintf ppf "@[<v 1>(library@ (name %s)@ (modules %s))@]" base base
     else ()
   in
   let pp_rule ppf base =
     let pp_action ppf expect_failure =
-      Fmt.pf ppf
+      Format.fprintf ppf
         ( if expect_failure then
           "@[<v 1>(with-stderr-to@,\
            %%{targets}@,\
@@ -25,7 +25,7 @@ let output_stanzas ~expect_failure filename =
           "(run ./%%{pp} -deriving-keep-w32 both --impl %%{input} -o \
            %%{targets})" )
     in
-    Fmt.pf ppf
+    Format.fprintf ppf
       "@[<v 1>(rule@,\
        (targets %s.actual)@,\
        @[<v 1>(deps@,\
@@ -36,7 +36,7 @@ let output_stanzas ~expect_failure filename =
       base base pp_action expect_failure
   in
   let pp_alias ppf base =
-    Fmt.pf ppf
+    Format.fprintf ppf
       "@[<v 1>(alias@,\
        (name runtest)@,\
        (package ppx_irmin)@,\
@@ -44,8 +44,8 @@ let output_stanzas ~expect_failure filename =
        @[<hov 2>(diff@ %s.expected@ %s.actual)@])@])@]" base base
   in
   Format.set_margin 80;
-  Fmt.pr "@[<v 0>@,%a@,@,%a@,@,%a@]@." pp_library base pp_rule base pp_alias
-    base
+  Format.printf "@[<v 0>@,%a@,@,%a@,@,%a@]@." pp_library base pp_rule base
+    pp_alias base
 
 let is_error_test = function
   | "pp.ml" -> false
@@ -64,4 +64,4 @@ let () =
   |> List.sort String.compare
   |> List.filter is_error_test
   |> List.iter (output_stanzas ~expect_failure);
-  Fmt.pr "\n%!"
+  Format.printf "\n%!"
