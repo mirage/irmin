@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Higher
+open Brands
 
 let ( >>> ) f g x = g (f x)
 
@@ -24,6 +24,12 @@ let some x = Some x
 
 module Pair = Pair
 module Either = Either
+
+module Vector = struct
+  type 'a t =
+    | ( :: ) : ('a, 'b, unit) app2 * 'list list -> ('a * 'list) t
+    | [] : unit t
+end
 
 type ('a, 'b) either = ('a, 'b) Either.t = Left of 'a | Right of 'b
 
@@ -70,21 +76,23 @@ module Monad = struct
 end
 
 module Identity = struct
-  include Newtype1 (struct
-    type 'a t = 'a
-  end)
+  include Make_brand
+            (struct
+              type 'a t = 'a
+            end)
+            ()
 
   let v =
     object
       (* Functor instance *)
-      inherit [t] functor_
+      inherit [br] functor_
 
       method pure = inj
 
       method fmap f = prj >>> f >>> inj
 
       (* Monad instance *)
-      inherit [t] monad
+      inherit [br] monad
 
       method return = inj
 
@@ -93,9 +101,11 @@ module Identity = struct
 end
 
 module Const = struct
-  include Newtype2 (struct
-    type ('a, 'b) t = 'a
-  end)
+  include Make_brand_2
+            (struct
+              type ('a, 'b) t = 'a
+            end)
+            ()
 
   (* let v =
    *   object
@@ -113,19 +123,22 @@ end
 
 module State (S : sig
   type t
-end) =
+end)
+() =
 struct
   type state = S.t
 
-  include Newtype1 (struct
-    type 'a t = state -> 'a * state
-  end)
+  include Make_brand_1
+            (struct
+              type 'a t = state -> 'a * state
+            end)
+            ()
 
   let t =
     object
-      inherit [t] monad
+      inherit [br] monad
 
-      method pure : 'a. 'a -> ('a, t) app = fun a -> inj (fun s -> (a, s))
+      method pure : 'a. 'a -> ('a, br) app = fun a -> inj (fun s -> (a, s))
 
       method fmap f get =
         inj (fun s ->
@@ -141,9 +154,9 @@ struct
 
       method get = inj (fun s -> (s, s))
 
-      method put : state -> (unit, t) app = fun s -> inj (fun _ -> ((), s))
+      method put : state -> (unit, br) app = fun s -> inj (fun _ -> ((), s))
 
-      method run : 'a. ('a, t) app -> state -> 'a * state =
+      method run : 'a. ('a, br) app -> state -> 'a * state =
         fun m s -> (m |> prj) s
     end
 end

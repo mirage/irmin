@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Higher
+open Brands
 
 val ( >>> ) : ('a -> 'b) -> ('b -> 'c) -> 'a -> 'c
 (** Left-to-right composition operator. *)
@@ -60,11 +60,9 @@ class virtual ['m] monad :
 module Identity : sig
   (** The identity container. *)
 
-  include module type of Newtype1 (struct
-    type 'a t = 'a
-  end)
+  include BRANDED
 
-  val v : t monad
+  val v : br monad
 end
 
 module Monad : sig
@@ -81,9 +79,7 @@ end
 module Const : sig
   (** The constant container. *)
 
-  include module type of Newtype2 (struct
-    type ('a, 'b) t = 'a
-  end)
+  include BRANDED_2
 
   (* val v :
    *   < bind :
@@ -99,14 +95,12 @@ module State (S : sig
 end) : sig
   type state
 
-  include module type of Newtype1 (struct
-    type 'a t
-  end)
+  include BRANDED
 
   val t :
-    < t monad
-    ; get : (state, t) app
-    ; put : state -> (unit, t) app
-    ; run : 'a. ('a, t) app -> state -> 'a * state >
+    < br monad
+    ; get : (state, br) app
+    ; put : state -> (unit, br) app
+    ; run : 'a. ('a, br) app -> state -> 'a * state >
 end
 with type state = S.t

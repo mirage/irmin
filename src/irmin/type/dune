@@ -3,4 +3,4 @@
  (public_name irmin.type)
  (synopsis "[Internal] Generics library")
  (preprocess future_syntax)
- (libraries base64 fmt jsonm higher irmin_root irmin_optics))
+ (libraries base64 fmt jsonm brands irmin_root irmin_optics))

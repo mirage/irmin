@@ -1,7 +1,6 @@
 open Irmin_root
 open Type_core
-module Lens = Irmin_optics.Effectful.Lens
-module Prism = Irmin_optics.Effectful.Prism
+module O = Irmin_optics
 
 module Record = struct
   module Unwitnessed = struct
@@ -32,7 +31,7 @@ module Record = struct
 
   let app :
       type r c ft rem lens lens_nil m.
-      (r, c, ft -> rem, lens, (r, ft, m) Lens.mono * lens_nil, m) open_record ->
+      (r, c, ft -> rem, lens, (r, ft, m) O.Mono.lens * lens_nil, m) open_record ->
       (r, ft) field ->
       (r, c, rem, lens, lens_nil, m) open_record =
    fun { open_record = previous } field ->
@@ -48,15 +47,18 @@ module Record = struct
   let sealr_with_optics :
       type record cons lens m.
       (record, cons, record, lens, unit, m) open_record ->
-      record t * (m monad -> (lens, m) Irmin_optics.Effectful.Lens.t_list) =
+      record t
+      * (m monad ->
+        (lens, m, Irmin_optics.Subtyping.lens) Irmin_optics.Optic_list.t) =
    fun { open_record = r } ->
     let Unwitnessed.{ name; cons; fields } = r Fields_nil in
     let rwit = Witness.make () in
     let lenses (monad : m monad) =
       let ( let+ ) x f = monad#fmap f x in
-      let open Lens in
       let rec inner :
-          type a l. (record, a, l, unit, m) fields -> (l, m) Lens.t_list =
+          type a l.
+          (record, a, l, unit, m) fields ->
+          (l, m, Irmin_optics.Subtyping.lens) Irmin_optics.Optic_list.t =
         function
         | Fields_nil -> []
         | Fields_cons ({ fget; fset; _ }, fs) ->
@@ -70,7 +72,7 @@ module Record = struct
               | None -> fun _ _ -> assert false
             in
             let fget = fget >>> monad#return in
-            let ml = Irmin_optics.Effectful.Lens.v monad fget fset in
+            let ml = Irmin_optics.lens monad fget fset in
             ml :: inner fs
       in
       inner fields

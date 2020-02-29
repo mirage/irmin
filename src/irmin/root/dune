@@ -3,4 +3,4 @@
  (public_name irmin.root)
  (synopsis "[Internal] Standard library")
  (preprocess future_syntax)
- (libraries higher))
+ (libraries brands))

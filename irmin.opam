@@ -26,7 +26,7 @@ depends: [
   "logs"    {>= "0.5.0"}
   "astring"
   "ocaml-syntax-shims"
-  "higher"
+  "brands"
   "hex"      {with-test}
   "alcotest" {with-test}
 ]
@@ -40,3 +40,7 @@ variety of backends. Irmin is written in pure OCaml and does not
 depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
+
+pin-depends: [
+ [ "brands.dev" "git+https://github.com/CraigFe/brands" ]
+]

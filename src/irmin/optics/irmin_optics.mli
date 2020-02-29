@@ -14,219 +14,77 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Optics in OCaml *)
+open Brands
+open Subtyping
 
-open Irmin_root
-open Higher
+(** This library implements so-called 'optics': first-class representations of
+    {i components} of composite data types. *)
 
-module Effectful : sig
-  module Lens : sig
-    (** First class product components extended with monadic effects. *)
+type ('s, 't, 'a, 'b, 'm, 'feat) t
+(** The type of optics. The type parameters are as follows:
 
-    type ('s, 't, 'a, 'b, 'm) t
-    (** Lenses paremeterised by monadic effects. ['m] is the brand of the
-        instantiated monadic effect. *)
+    - [s]: the source/input type
+    - [t]: the target/output type (following a transformation of focused [a]'s
+      to [b]'s)
+    - [a]: the type of focused elements
+    - [b]: the type of {i transformed} focused elements
+    - [m]: the brand of monadic effects associated with access via the optic
+    - [feat]: is the set of operations supported by the optic *)
 
-    type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
+type ('s, 't, 'a, 'b, 'm, 'feat) optic = ('s, 't, 'a, 'b, 'm, 'feat) t
+(** Alias of {!t}. *)
 
-    type (_, 'm) t_list =
-      | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) t * ('l, 'm) t_list
-          -> (('s, 't, 'a, 'b, 'm) t * 'l, 'm) t_list
-      | [] : (unit, 'm) t_list
-          (** Convenient syntax for a heterogeneous list of lenses. *)
+(** {3 Composing optics} *)
 
-    val v :
-      'm monad ->
-      ('s -> ('a, 'm) app) ->
-      (('a -> ('b, 'm) app) -> 's -> ('t, 'm) app) ->
-      ('s, 't, 'a, 'b, 'm) t
-    (** [v monad f m] is the lens given by the focusing function [f] and the
-        modification function [m], each of which runs with effect [monad]. *)
+val ( >> ) :
+  ('s, 't, 'mid_in, 'mid_out, 'm, 'feat) t ->
+  ('mid_in, 'mid_out, 'a, 'b, 'm, 'feat) t ->
+  ('s, 't, 'a, 'b, 'm, 'feat) t
+(** [compose a b] is the composition of optics [a] and [b]. The non-operator
+    form is {!compose}. *)
 
-    val view : ('s, 't, 'a, 'b, 'm) t -> 's -> ('a, 'm) app
-    (** [view l] is the focusing function of [l]. *)
+val compose :
+  ('s, 't, 'mid_in, 'mid_out, 'm, 'feat) t ->
+  ('mid_in, 'mid_out, 'a, 'b, 'm, 'feat) t ->
+  ('s, 't, 'a, 'b, 'm, 'feat) t
+(** A prefix alias of {!( >> )}. *)
 
-    val modify :
-      ('s, 't, 'a, 'b, 'm) t -> ('a -> ('b, 'm) app) -> 's -> ('t, 'm) app
-    (** [modify l f s] is the result of applying [f] to the focus of [l] in [s]. *)
+(** {3 Using optics} *)
 
-    val update : ('s, 't, 'a, 'b, 'm) t -> ('b, 'm) app -> 's -> ('t, 'm) app
-    (** [update l b s] replaces the focus of [l] in [s] with [b]. *)
+val get : ('s, 't, 'a, _, 'm, [> get | exactly_one ]) t -> 's -> ('a, 'm) app
+(** [get t s] returns the focus of [t] in [s]. *)
 
-    val ( >> ) :
-      ('a, 'b, 'c, 'd, 'm) t -> ('c, 'd, 'e, 'f, 'm) t -> ('a, 'b, 'e, 'f, 'm) t
-    (** [l1 >> l2] is the composition of lenses [l1] and [l2]. *)
-  end
+val get_option :
+  ('s, _, 'a, _, 'm, [> get | at_most_one ]) t -> 's -> ('a, 'm) app
+(** [get_option t s] returns the focus of [t] in [s] (if it has one). *)
 
-  module Prism : sig
-    (** First-class sum components extended with monadic effects. *)
+val map : ('s, 't, 'a, 'b, 'm, [> map ]) t -> 's -> ('a -> 'b) -> ('t, 'm) app
+(** [map t s f] applies [f] to the focus of [t] in [s] and returns the result. *)
 
-    type ('s, 't, 'a, 'b, 'm) t = private {
-      monad : 'm monad;
-      review : 'b -> ('t, 'm) app;
-      preview : 's -> ('a option, 'm) app;
-    }
-    (** Prisms paremeterised by monadic effects. ['m] is the brand of the
-        instantiated monadic effect. *)
+val update : ('s, 't, _, 'b, 'm, [> update ]) t -> 's -> 'b -> ('t, 'm) app
+(** [update t s b] performs a functional update of setting [b] at the focus of
+    [t] in [s] (constructing the focus point if it does not exist).
 
-    type ('s, 'a, 'm) mono = ('s, 's, 'a, 'a, 'm) t
+    {b N.B.} this is not the same as [{!map} t s (fun _ -> b)], as the focus
+    point may be {!construct}ed if it does not yet exist in [s]. *)
 
-    type (_, 'm) t_list =
-      | ( :: ) :
-          ('s, 't, 'a, 'b, 'm) t * ('l, 'm) t_list
-          -> (('s, 't, 'a, 'b, 'm) t * 'l, 'm) t_list
-      | [] : (unit, 'm) t_list
+val construct : (_, 't, _, 'b, 'm, [> construct ]) t -> 'b -> ('t, 'm) app
+(** [construct t b] builds a new composite type [t] by supplying the focused
+    value [b]. *)
 
-    val v :
-      'm monad ->
-      ('b -> ('t, 'm) app) ->
-      ('s -> ('a option, 'm) app) ->
-      ('s, 't, 'a, 'b, 'm) t
-    (** [v monad review preview] is the prism given by the constructor [review]
-        and the focusing function [preview], each of which runs with effect
-        [monad]. *)
-
-    val natural_compose :
-      ('d -> (('d, 'n) app, 'm) app) ->
-      (('c, 'n) app -> ('c, 'm) app) ->
-      ('a, 'b, ('c, 'n) app, ('d, 'n) app, 'm) t ->
-      ('c, 'd, ('e, 'n) app, ('f, 'n) app, 'm) t ->
-      ('a, 'b, ('e, 'n) app, ('f, 'n) app, 'm) t
-
-    val review : ('s, 't, 'a, 'b, 'm) t -> 'b -> ('t, 'm) app
-    (** [review p] is a constructor for the sum case selected by prism [p]. *)
-
-    val preview : ('s, 't, 'a, 'b, 'm) t -> 's -> ('a option, 'm) app
-    (** [preview p] is a partial getter for the sum case selected by prism [p]. *)
-
-    val ( >> ) :
-      ('a, 'b, 'c, 'd, 'm) t -> ('c, 'd, 'e, 'f, 'm) t -> ('a, 'b, 'e, 'f, 'm) t
-    (** [l1 >> l2] is the composition of prisms l1 and l2. *)
-
-    val id : 'm monad -> ('a, 'a, 'm) mono
-    (** The identity prism. *)
-  end
-
-  (** Provides functions for _optional_ getting and setting, and is a common
-      sub-type of lenses and prisms (allowing the two to be composed after an
-      explicit coercion).
-
-      A weaker form of traversals that can't focus on more than one element.
-      {!Optional} is to [option] as [Traversal] is to [list]. *)
-  module Optional : sig
-    type ('s, 't, 'a, 'b, 'm) t
-
-    val of_lens : ('s, 't, 'a, 'b, 'm) Lens.t -> ('s, 't, 'a, 'b, 'm) t
-    (** Coerce a lens into a traversal. *)
-
-    val of_prism : ('s, 't, 'a, 'b, 'm) Prism.t -> ('s, 't, 'a, 'b, 'm) t
-    (** Coerce a prism into a traversal. *)
-
-    val modify :
-      ('s, 't, 'a, 'b, 'm) t ->
-      ('a -> ('b option, 'm) app) ->
-      's ->
-      ('t option, 'm) app
-    (** Modify the focus of an optional element to the result of a monad action,
-        and sequence those actions inside the monad. *)
-
-    val get_opt : ('s, 't, 'a, 'b, 'm) t -> 's -> ('a option, 'm) app
-    (** Get the first targeted element, if it exists. *)
-
-    val ( >> ) :
-      ('a, 'b, 'c, 'd, 'm) t -> ('c, 'd, 'e, 'f, 'm) t -> ('a, 'b, 'e, 'f, 'm) t
-    (** Composition for traversals. *)
-  end
+module Optic_list : sig
+  type ('list, 'm, 'k) t =
+    | ( :: ) :
+        ('s, 't, 'a, 'b, 'm, 'k) optic * ('list, 'm, 'k) t
+        -> (('s, 't, 'a, 'b, 'm, 'k) optic * 'list, 'm, 'k) t
+    | [] : (unit, 'm, 'k) t
 end
 
-module Lens : sig
-  (** First-class product components. *)
-
-  type ('s, 't, 'a, 'b) t
-  (** The type of lenses, where the type parameters are as follows:
-
-      - ['s]: the source type
-      - ['t]: the output type
-      - ['a]: the focus of the lens
-      - ['b]: is the type such that ['b/'a]'s = 't, i.e. the result type of the
-        focused transformation that produces the necessary output type 't. *)
-
-  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
-  (** The type of monomorphic lenses (lenses such that the internal transform is
-      type-preserving). *)
-
-  val v : ('s -> 'a) -> (('a -> 'b) -> 's -> 't) -> ('s, 't, 'a, 'b) t
-  (** [v f m] is the lens given by the focusing function [f] and the
-      modification function [m]. *)
-
-  val prj : ('s, 't, 'a, 'b, Identity.t) Effectful.Lens.t -> ('s, 't, 'a, 'b) t
-  (** An effectful prism branded with identity is not effectful. *)
-
-  val view : ('s, 't, 'a, 'b) t -> 's -> 'a
-  (** [view l] is the focusing function of [l]. *)
-
-  val modify : ('s, 't, 'a, 'b) t -> ('a -> 'b) -> 's -> 't
-  (** [modify l f s] is the result of applying [f] to the focus of [l] in [s]. *)
-
-  val update : ('s, 't, 'a, 'b) t -> 'b -> 's -> 't
-  (** [update l b s] replaces the focus of [l] in [s] with [b]. *)
-
-  val ( >> ) : ('a, 'b, 'c, 'd) t -> ('c, 'd, 'e, 'f) t -> ('a, 'b, 'e, 'f) t
-  (** [l1 >> l2] is the left-to-right composition of lenses [l1] and [l2]. *)
-
-  (** {3 Common lenses} *)
-
-  val id : ('a, 'a) mono
-
-  val fst : ('a1 * 'b, 'a2 * 'b, 'a1, 'a2) t
-
-  val snd : ('a * 'b1, 'a * 'b2, 'b1, 'b2) t
+module Subtyping : sig
+  include module type of Subtyping
 end
 
-module Prism : sig
-  type ('s, 't, 'a, 'b) t =
-    private
-    ('s, 't, 'a, 'b, Identity.t) Effectful.Prism.t
-  (** The type of prisms.
+(** {2 Type aliases} *)
 
-      The prism is the categorical dual of the lens (it operates on sum types
-      where lenses operate on product types). As such, the access function is
-      non-total. *)
-
-  type ('s, 'a) mono = ('s, 's, 'a, 'a) t
-  (** The type of monomorphic prism (prisms such that the internal transform is
-      type-preserving). *)
-
-  val v : ('b -> 't) -> ('s -> 'a option) -> ('s, 't, 'a, 'b) t
-  (** [v review preview] is the prism given by the constructor [review] and the
-      focusing function [preview]. *)
-
-  val prj : ('s, 't, 'a, 'b, Identity.t) Effectful.Prism.t -> ('s, 't, 'a, 'b) t
-  (** An effectful prism branded with identity is not effectful. *)
-
-  val review : ('s, 't, 'a, 'b) t -> 'b -> 't
-  (** [review p] is a constructor for the sum case selected by prism [p]. *)
-
-  val preview : ('s, 't, 'a, 'b) t -> 's -> 'a option
-  (** [preview p] is a partial getter for the sum case selected by prism [p]. *)
-
-  val ( >> ) : ('a, 'b, 'c, 'd) t -> ('c, 'd, 'e, 'f) t -> ('a, 'b, 'e, 'f) t
-  (** [l1 >> l2] is the composition of prisms l1 and l2. *)
-
-  (** {3 Common prisms} *)
-
-  val some : ('a option, 'b option, 'a, 'b) t
-
-  val none : ('a option, unit) mono
-
-  val ok : (('a, 'c) result, ('b, 'c) result, 'a, 'b) t
-
-  val error : (('a, 'b) result, ('a, 'c) result, 'b, 'c) t
-
-  val head : ('a list, 'a) mono
-
-  val tail : ('a list, 'a list) mono
-
-  val nil : ('a list, unit) mono
-end
+include module type of Optic_types.Aliases
+(** @inline *)

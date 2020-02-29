@@ -1,4 +1,4 @@
-open Higher
+open Brands
 open Irmin_root
 open Irmin_type
 

@@ -1,5 +1,5 @@
 open Irmin_root
-open Higher
+open Brands
 
 type ('s, 't, 'a, 'b, 'm) t = {
   monad : 'm monad;

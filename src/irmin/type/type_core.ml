@@ -148,16 +148,16 @@ and 'a fields_and_constr =
                                                       Lens.mono
     ]} *)
 
-and ('record, 'constr, 'lenses, 'lens_nil, 'm) fields =
+and ('record, 'constr, 'lenses, 'lens_nil, 'monad) fields =
   | Fields_nil : ('record, 'record, 'lens_nil, 'lens_nil, 'm) fields
   | Fields_cons :
       ('record, 'field) field
-      * ('record, 'constr, 'lenses, 'lens_nil, 'm) fields
+      * ('record, 'constr, 'lenses, 'lens_nil, 'monad) fields
       -> ( 'record,
            'field -> 'constr,
-           ('record, 'field, 'm) Irmin_optics.Effectful.Lens.mono * 'lenses,
+           ('record, 'field, 'monad) Irmin_optics.Mono.lens * 'lenses,
            'lens_nil,
-           'm )
+           'monad )
          fields
 
 and ('a, 'b) field = {
@@ -208,7 +208,7 @@ and ('variant, 'pat, 'pat_nil, 'prisms, 'prism_nil, 'm) cases =
       -> ( 'variant,
            'constr -> 'remaining,
            'pat_nil,
-           ('variant, 'case, 'm) Irmin_optics.Effectful.Prism.mono * 'prisms,
+           ('variant, 'case, 'monad) Irmin_optics.Mono.prism * 'prisms,
            'prism_nil,
            'm )
          cases
