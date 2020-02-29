@@ -10,6 +10,7 @@ env:
   - DISTRO=debian-stable
   matrix:
   - OCAML_VERSION=4.09 PACKAGE="irmin"
+  - OCAML_VERSION=4.09 PACKAGE="ppx_irmin"
   - OCAML_VERSION=4.08 PACKAGE="irmin"
   - OCAML_VERSION=4.07 PACKAGE="irmin"
   - OCAML_VERSION=4.06 PACKAGE="irmin"
