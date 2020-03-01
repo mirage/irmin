@@ -2214,8 +2214,10 @@ let layered_suite (speed, x) =
           ("Branches with squash", speed, TL.test_branch_squash x);
           ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
           ("Keep max in upper", speed, TL.test_keep_max x);
-          ("Keep max and copy from lower", speed, TL.test_keep_max x);
+          ("Keep max and copy from upper", speed, TL.test_keep_max x);
           ("Keep max and heads after max", speed, TL.test_keep_heads x);
+          ("Test find during freeze", speed, TL.test_find_during_freeze x);
+          ("Test add during freeze", speed, TL.test_add_during_freeze x);
         ] )
 
 let run name ~misc tl =

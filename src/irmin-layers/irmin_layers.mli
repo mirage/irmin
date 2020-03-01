@@ -73,10 +73,20 @@ module type STORE = sig
     module Hook : sig
       type 'a t
 
-      val v : ('a -> unit) -> 'a t
+      val v : ('a -> unit Lwt.t) -> 'a t
     end
 
     val wait_for_freeze : unit -> unit Lwt.t
+
+    val freeze_with_hook :
+      ?min:commit list ->
+      ?max:commit list ->
+      ?squash:bool ->
+      ?keep_max:bool ->
+      ?heads:commit list ->
+      ?hook:[ `After_Copy | `After_PostCopy | `Before ] Hook.t ->
+      repo ->
+      unit Lwt.t
   end
 end
 

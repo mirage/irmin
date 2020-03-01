@@ -75,6 +75,8 @@ let reset_lock = Lwt_mutex.create ()
 
 let freeze_lock = Lwt_mutex.create ()
 
+let may f = function None -> Lwt.return_unit | Some bf -> f bf
+
 module type STORE = sig
   include Irmin.S
 
@@ -102,10 +104,20 @@ module type STORE = sig
     module Hook : sig
       type 'a t
 
-      val v : ('a -> unit) -> 'a t
+      val v : ('a -> unit Lwt.t) -> 'a t
     end
 
     val wait_for_freeze : unit -> unit Lwt.t
+
+    val freeze_with_hook :
+      ?min:commit list ->
+      ?max:commit list ->
+      ?squash:bool ->
+      ?keep_max:bool ->
+      ?heads:commit list ->
+      ?hook:[ `After_Copy | `After_PostCopy | `Before ] Hook.t ->
+      repo ->
+      unit Lwt.t
   end
 end
 
@@ -463,19 +475,23 @@ module Make_ext
     let hash = Commit.hash c in
     U.Commit.of_hash upper hash
 
-  let unsafe_freeze ~min ~max ~squash ~keep_max ~heads t =
+  let unsafe_freeze ~min ~max ~squash ~keep_max ~heads ?hook t =
     Log.debug (fun l -> l "unsafe_freeze");
     X.Repo.pre_copy t >|= fun () ->
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
+        may (fun f -> f `Before) hook >>= fun () ->
         X.Repo.copy t ~keep_max ~squash ~min ~max ~heads () >>= function
-        | Ok () -> X.Repo.post_copy t
+        | Ok () ->
+            may (fun f -> f `After_Copy) hook >>= fun () ->
+            X.Repo.post_copy t >>= fun () ->
+            may (fun f -> f `After_PostCopy) hook
         | Error (`Msg e) ->
             Fmt.kstrf Lwt.fail_with "[gc_store]: import error %s" e);
     Log.debug (fun l -> l "after async called to copy")
 
-  let freeze ?(min = []) ?(max = []) ?(squash = false) ?keep_max ?(heads = []) t
-      =
+  let freeze_with_hook ?(min = []) ?(max = []) ?(squash = false) ?keep_max
+      ?(heads = []) ?hook t =
     let upper = X.Repo.current_upper t in
     let keep_max =
       match keep_max with None -> get_keep_max t.X.Repo.conf | Some b -> b
@@ -498,7 +514,9 @@ module Make_ext
        simultaneously. *)
     Lwt_mutex.lock freeze_lock >>= fun () ->
     if t.closed then failwith "store is closed";
-    unsafe_freeze ~min ~max ~squash ~keep_max ~heads t
+    unsafe_freeze ~min ~max ~squash ~keep_max ~heads ?hook t
+
+  let freeze = freeze_with_hook ?hook:None
 
   let layer_id = X.Repo.layer_id
 
@@ -508,13 +526,15 @@ module Make_ext
 
   module PrivateLayer = struct
     module Hook = struct
-      type 'a t = 'a -> unit
+      type 'a t = 'a -> unit Lwt.t
 
       let v f = f
     end
 
     let wait_for_freeze () =
       Lwt_mutex.with_lock freeze_lock (fun () -> Lwt.return_unit)
+
+    let freeze_with_hook = freeze_with_hook
   end
 end
 
