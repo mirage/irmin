@@ -315,8 +315,25 @@ module Make_ext
               with type metadata = M.t
                and type hash = H.t
                and type step = P.step)
-    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
-struct
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) : sig
+  include
+    Irmin.S
+      with type key = P.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type step = P.step
+       and type metadata = M.t
+       and type Key.step = P.step
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+end = struct
   module Index = Pack_index.Make (H)
   module Pack = Pack.File (Index) (H)
 
@@ -558,6 +575,44 @@ module type LAYERED_CONFIG = sig
   val keep_max : bool
 end
 
+module Make_ext_layered
+    (Config : LAYERED_CONFIG)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (N : Irmin.Private.Node.S
+           with type metadata = M.t
+            and type hash = H.t
+            and type step = P.step)
+    (CT : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module L = Make_ext (Config) (M) (C) (P) (B) (H) (N) (CT)
+  module U = Make_ext (Config) (M) (C) (P) (B) (H) (N) (CT)
+  include Irmin_layers.Make_ext (L) (U)
+
+  let integrity_check ?ppf ~auto_repair repo =
+    let uppers = uppers_t repo in
+    let lower = lower_t repo in
+    match
+      ( U.integrity_check ?ppf ~auto_repair (fst uppers),
+        U.integrity_check ?ppf ~auto_repair (snd uppers),
+        L.integrity_check ?ppf ~auto_repair lower )
+    with
+    | Error (`Corrupted n), _, _
+    | _, Error (`Corrupted n), _
+    | _, _, Error (`Corrupted n) ->
+        Error (`Corrupted n)
+    | Error (`Cannot_fix n), _, _
+    | _, Error (`Cannot_fix n), _
+    | _, _, Error (`Cannot_fix n) ->
+        Error (`Cannot_fix n)
+    | Ok (`Fixed n), _, _ | _, Ok (`Fixed n), _ | _, _, Ok (`Fixed n) ->
+        Ok (`Fixed n)
+    | Ok `No_error, Ok `No_error, Ok `No_error -> Ok `No_error
+end
+
 module Make_layered
     (Config : LAYERED_CONFIG)
     (M : Irmin.Metadata.S)
@@ -566,8 +621,9 @@ module Make_layered
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S) =
 struct
-  module Make = Make (Config)
-  include Irmin_layers.Make (Make) (M) (C) (P) (B) (H)
+  module XNode = Irmin.Private.Node.Make (H) (P) (M)
+  module XCommit = Irmin.Private.Commit.Make (H)
+  include Make_ext_layered (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
 module Stats = Stats

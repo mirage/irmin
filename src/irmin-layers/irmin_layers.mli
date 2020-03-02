@@ -102,14 +102,20 @@ module Make_ext
             and type hash = L.hash
             and type branch = L.branch
             and type Private.Node.value = L.Private.Node.value
-            and type Private.Commit.value = L.Private.Commit.value) :
-  STORE
-    with type step = U.step
-     and type contents = U.contents
-     and type key = U.key
-     and type branch = U.branch
-     and type metadata = U.metadata
-     and type hash = U.hash
+            and type Private.Commit.value = L.Private.Commit.value) : sig
+  include
+    STORE
+      with type step = U.step
+       and type contents = U.contents
+       and type key = U.key
+       and type branch = U.branch
+       and type metadata = U.metadata
+       and type hash = U.hash
+
+  val lower_t : repo -> L.repo
+
+  val uppers_t : repo -> U.repo * U.repo
+end
 
 module Make
     (Make : Irmin.S_MAKER)

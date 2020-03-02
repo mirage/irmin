@@ -104,20 +104,62 @@ module type LAYERED_CONFIG = sig
   val keep_max : bool
 end
 
+module Make_ext_layered
+    (Config : LAYERED_CONFIG)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (N : Irmin.Private.Node.S
+           with type metadata = M.t
+            and type hash = H.t
+            and type step = P.step)
+    (CT : Irmin.Private.Commit.S with type hash = H.t) : sig
+  include
+    Irmin_layers.STORE
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Key.step = P.step
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+end
+
 module Make_layered
     (Config : LAYERED_CONFIG)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) :
-  Irmin_layers.STORE
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+    (H : Irmin.Hash.S) : sig
+  include
+    Irmin_layers.STORE
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Key.step = P.step
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER
 

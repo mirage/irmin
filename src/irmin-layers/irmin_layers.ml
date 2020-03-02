@@ -135,14 +135,20 @@ module Make_ext
             and type hash = L.hash
             and type branch = L.branch
             and type Private.Node.value = L.Private.Node.value
-            and type Private.Commit.value = L.Private.Commit.value) :
-  STORE
-    with type step = U.step
-     and type key = U.key
-     and type metadata = U.metadata
-     and type contents = U.contents
-     and type hash = U.hash
-     and type branch = U.branch = struct
+            and type Private.Commit.value = L.Private.Commit.value) : sig
+  include
+    STORE
+      with type step = U.step
+       and type key = U.key
+       and type metadata = U.metadata
+       and type contents = U.contents
+       and type hash = U.hash
+       and type branch = U.branch
+
+  val lower_t : repo -> L.repo
+
+  val uppers_t : repo -> U.repo * U.repo
+end = struct
   type store_handle =
     | Commit_t : U.Private.Hash.t -> store_handle
     | Node_t : U.Private.Hash.t -> store_handle
@@ -550,6 +556,10 @@ module Make_ext
   let async_freeze = X.Repo.async_freeze
 
   let upper_in_use = X.Repo.upper_in_use
+
+  let lower_t t = t.X.Repo.lower
+
+  let uppers_t t = t.X.Repo.uppers
 
   module PrivateLayer = struct
     module Hook = struct
