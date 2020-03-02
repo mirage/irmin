@@ -16,7 +16,7 @@ build: [
 depends: [
   "ocaml"         {>= "4.01.0"}
   "dune"          {>= "1.8.0"}
-  "irmin"         {>= "2.0.0"}
+  "irmin"         {>= "2.1.0"}
   "irmin-mem"     {>= "2.0.0"}
   "irmin-git"     {>= "2.0.0"}
   "irmin-http"    {>= "2.0.0"}
