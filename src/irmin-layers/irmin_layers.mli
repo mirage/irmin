@@ -35,6 +35,7 @@ module type STORE = sig
     ?squash:bool ->
     ?keep_max:bool ->
     ?heads:commit list ->
+    ?recovery:bool ->
     repo ->
     unit Lwt.t
   (** [freeze ~min ~max ~squash ~heads t] copies the upper layer of [t] into the
@@ -84,6 +85,7 @@ module type STORE = sig
       ?squash:bool ->
       ?keep_max:bool ->
       ?heads:commit list ->
+      ?recovery:bool ->
       ?hook:[ `After_Copy | `After_PostCopy | `Before ] Hook.t ->
       repo ->
       unit Lwt.t

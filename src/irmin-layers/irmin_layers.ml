@@ -88,6 +88,7 @@ module type STORE = sig
     ?squash:bool ->
     ?keep_max:bool ->
     ?heads:commit list ->
+    ?recovery:bool ->
     repo ->
     unit Lwt.t
 
@@ -117,6 +118,7 @@ module type STORE = sig
       ?squash:bool ->
       ?keep_max:bool ->
       ?heads:commit list ->
+      ?recovery:bool ->
       ?hook:[ `After_Copy | `After_PostCopy | `Before ] Hook.t ->
       repo ->
       unit Lwt.t
@@ -500,9 +502,9 @@ module Make_ext
     let hash = Commit.hash c in
     U.Commit.of_hash upper hash
 
-  let unsafe_freeze ~min ~max ~squash ~keep_max ~heads ?hook t =
+  let unsafe_freeze ~min ~max ~squash ~keep_max ~heads ~recovery ?hook t =
     Log.debug (fun l -> l "unsafe_freeze");
-    X.Repo.pre_copy t >|= fun () ->
+    (if not recovery then X.Repo.pre_copy t else Lwt.return_unit) >|= fun () ->
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
         may (fun f -> f `Before) hook >>= fun () ->
@@ -516,7 +518,7 @@ module Make_ext
     Log.debug (fun l -> l "after async called to copy")
 
   let freeze_with_hook ?(min = []) ?(max = []) ?(squash = false) ?keep_max
-      ?(heads = []) ?hook t =
+      ?(heads = []) ?(recovery = false) ?hook t =
     let upper = X.Repo.current_upper t in
     let keep_max =
       match keep_max with None -> get_keep_max t.X.Repo.conf | Some b -> b
@@ -539,7 +541,7 @@ module Make_ext
        simultaneously. *)
     Lwt_mutex.lock freeze_lock >>= fun () ->
     if t.closed then failwith "store is closed";
-    unsafe_freeze ~min ~max ~squash ~keep_max ~heads ?hook t
+    unsafe_freeze ~min ~max ~squash ~keep_max ~heads ~recovery ?hook t
 
   let freeze = freeze_with_hook ?hook:None
 
