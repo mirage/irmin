@@ -123,11 +123,29 @@ let app :
   let n, c, fs = r (F1 (f, fs)) in
   (n, c, fs)
 
+module String_Set = Set.Make (String)
+
+let check_unique_names rname =
+  let rec aux set = function
+    | [] -> ()
+    | Field { fname; _ } :: fs -> (
+        match String_Set.find_opt fname set with
+        | None -> aux (String_Set.add fname set) fs
+        | Some _ ->
+            failwith
+              (Format.sprintf
+                 "The name %s was used for two or more fields in record %s."
+                 fname rname) )
+  in
+  aux String_Set.empty
+
 let sealr : type a b. (a, b, a) open_record -> a t =
  fun r ->
   let rname, c, fs = r F0 in
   let rwit = Witness.make () in
-  Record { rwit; rname; rfields = Fields (fs, c) }
+  let sealed = { rwit; rname; rfields = Fields (fs, c) } in
+  check_unique_names rname @@ fields sealed;
+  Record sealed
 
 let ( |+ ) = app
 

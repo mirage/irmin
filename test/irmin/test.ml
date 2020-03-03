@@ -1098,6 +1098,21 @@ let test_variants () =
   test (`X259 1024);
   test (`X259 (1024 * 1024))
 
+type silly_record = { a : int; b : int }
+
+(* Test that reusing the same name for different fields raises. *)
+let test_duplicate_names () =
+  let ( |+ ) = Irmin.Type.( |+ ) in
+
+  Alcotest.check_raises "Two record fields with the same name."
+    (Failure "The name foo was used for two or more fields in record bar.")
+    (fun () ->
+      ignore
+        ( Irmin.Type.record "bar" (fun a b -> { a; b })
+        |+ Irmin.Type.field "foo" Irmin.Type.int (fun r -> r.a)
+        |+ Irmin.Type.field "foo" Irmin.Type.int (fun r -> r.b)
+        |> Irmin.Type.sealr ))
+
 let suite =
   [
     ( "type",
@@ -1112,6 +1127,7 @@ let suite =
         ("size_of", `Quick, test_size);
         ("test_hashes", `Quick, test_hashes);
         ("test_variants", `Quick, test_variants);
+        ("test_duplicate_names", `Quick, test_duplicate_names);
       ] );
   ]
 

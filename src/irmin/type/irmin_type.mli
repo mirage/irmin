@@ -108,6 +108,8 @@ val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
     [g].
 
+    The name [n] must be unique to the field.
+
     For instance:
 
     {[
@@ -121,7 +123,8 @@ val ( |+ ) :
 (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
 val sealr : ('a, 'b, 'a) open_record -> 'a t
-(** [sealr r] seals the open record [r]. *)
+(** [sealr r] seals the open record [r]. {b Raises.} [Failure] if two or more
+    fields share the same name. *)
 
 (** Putting all together:
 
