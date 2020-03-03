@@ -108,7 +108,7 @@ val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
     [g].
 
-    The name [n] must be unique to the field.
+    The name [n] must not be used by any other [field] in the record.
 
     For instance:
 
@@ -163,6 +163,8 @@ val case0 : string -> 'a -> ('a, 'a case_p) case
 (** [case0 n v] is a representation of a variant constructor [v] with no
     arguments and name [n]. e.g.
 
+    The name [n] must not by used by any other [case0] in the record.
+
     {[
       type t = Foo
 
@@ -172,6 +174,8 @@ val case0 : string -> 'a -> ('a, 'a case_p) case
 val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
 (** [case1 n t c] is a representation of a variant constructor [c] with an
     argument of type [t] and name [n]. e.g.
+
+    The name [n] must not by used by any other [case1] in the record.
 
     {[
       type t = Foo of string
@@ -184,7 +188,8 @@ val ( |~ ) :
 (** [v |~ c] is the open variant [v] augmented with the case [c]. *)
 
 val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
-(** [sealv v] seals the open variant [v]. *)
+(** [sealv v] seals the open variant [v]. {b Raises.} [Failure] if two or more
+    cases of same arity share the same name. *)
 
 (** Putting all together:
 
@@ -206,7 +211,9 @@ val enum : string -> (string * 'a) list -> 'a t
       type t = Foo | Bar | Toto
 
       let t = enum "t" [ ("Foo", Foo); ("Bar", Bar); ("Toto", Toto) ]
-    ]} *)
+    ]}
+
+    {b Raises.} [Failure] if two or more cases share the same name. *)
 
 (** {1:recursive Recursive definitions}
 

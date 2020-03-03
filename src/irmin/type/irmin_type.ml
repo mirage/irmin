@@ -140,9 +140,8 @@ let check_unique f =
 let check_unique_field_names rname rfields =
   let names = List.map (fun (Field { fname; _ }) -> fname) rfields in
   let failure fname =
-    failwith
-    @@ Format.sprintf
-         "The name %s was used for two or more fields in record %s." fname rname
+    Fmt.failwith "The name %s was used for two or more fields in record %s."
+      fname rname
   in
   check_unique failure names
 
@@ -179,7 +178,7 @@ let app v c cs =
   let c, f = c (List.length cs) in
   (n, fc f, c :: cs)
 
-let check_unique_case_names ?(source = "variant") vname vcases =
+let check_unique_case_names vname vcases =
   let n0, n1 =
     List.partition (function C0 _ -> true | C1 _ -> false) vcases
   in
@@ -191,15 +190,15 @@ let check_unique_case_names ?(source = "variant") vname vcases =
   in
   check_unique
     (fun cname ->
-      failwith
-        (Format.sprintf "The name %s was used for two or more case0 in %s %s."
-           cname source vname))
+      Fmt.failwith
+        "The name %s was used for two or more case0 in variant or enum %s."
+        cname vname)
     names0;
   check_unique
     (fun cname ->
-      failwith
-        (Format.sprintf "The name %s was used for two or more case1 in %s %s."
-           cname source vname))
+      Fmt.failwith
+        "The name %s was used for two or more case1 in variant or enum %s."
+        cname vname)
     names1
 
 let sealv v =
@@ -220,7 +219,7 @@ let enum vname l =
         (ctag0 + 1, C0 c :: cases, (v, CV0 c) :: mk))
       (0, [], []) l
   in
-  check_unique_case_names ~source:"enum" vname vcases;
+  check_unique_case_names vname vcases;
   let vcases = Array.of_list (List.rev vcases) in
   Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk) }
 
