@@ -125,26 +125,33 @@ let app :
 
 module String_Set = Set.Make (String)
 
-let check_unique_names rname =
+(** [check_unique f l] checks that all the strings in [l] are unique. Otherwise,
+    calls [f dup] with [dup] the first duplicate. *)
+let check_unique f =
   let rec aux set = function
     | [] -> ()
-    | Field { fname; _ } :: fs -> (
-        match String_Set.find_opt fname set with
-        | None -> aux (String_Set.add fname set) fs
-        | Some _ ->
-            failwith
-              (Format.sprintf
-                 "The name %s was used for two or more fields in record %s."
-                 fname rname) )
+    | x :: xs -> (
+        match String_Set.find_opt x set with
+        | None -> aux (String_Set.add x set) xs
+        | Some _ -> f x )
   in
   aux String_Set.empty
+
+let check_unique_field_names rname rfields =
+  let names = List.map (fun (Field { fname; _ }) -> fname) rfields in
+  let failure fname =
+    failwith
+    @@ Format.sprintf
+         "The name %s was used for two or more fields in record %s." fname rname
+  in
+  check_unique failure names
 
 let sealr : type a b. (a, b, a) open_record -> a t =
  fun r ->
   let rname, c, fs = r F0 in
   let rwit = Witness.make () in
   let sealed = { rwit; rname; rfields = Fields (fs, c) } in
-  check_unique_names rname @@ fields sealed;
+  check_unique_field_names rname (fields sealed);
   Record sealed
 
 let ( |+ ) = app
@@ -172,8 +179,32 @@ let app v c cs =
   let c, f = c (List.length cs) in
   (n, fc f, c :: cs)
 
+let check_unique_case_names ?(source = "variant") vname vcases =
+  let n0, n1 =
+    List.partition (function C0 _ -> true | C1 _ -> false) vcases
+  in
+  let names0 =
+    List.map (function C0 { cname0; _ } -> cname0 | _ -> assert false) n0
+  in
+  let names1 =
+    List.map (function C1 { cname1; _ } -> cname1 | _ -> assert false) n1
+  in
+  check_unique
+    (fun cname ->
+      failwith
+        (Format.sprintf "The name %s was used for two or more case0 in %s %s."
+           cname source vname))
+    names0;
+  check_unique
+    (fun cname ->
+      failwith
+        (Format.sprintf "The name %s was used for two or more case1 in %s %s."
+           cname source vname))
+    names1
+
 let sealv v =
   let vname, vget, vcases = v [] in
+  check_unique_case_names vname vcases;
   let vwit = Witness.make () in
   let vcases = Array.of_list (List.rev vcases) in
   Variant { vwit; vname; vcases; vget }
@@ -189,6 +220,7 @@ let enum vname l =
         (ctag0 + 1, C0 c :: cases, (v, CV0 c) :: mk))
       (0, [], []) l
   in
+  check_unique_case_names ~source:"enum" vname vcases;
   let vcases = Array.of_list (List.rev vcases) in
   Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk) }
 

@@ -1098,11 +1098,12 @@ let test_variants () =
   test (`X259 1024);
   test (`X259 (1024 * 1024))
 
-type silly_record = { a : int; b : int }
+type dummy_record = { a : int; b : int }
 
 (* Test that reusing the same name for different fields raises. *)
 let test_duplicate_names () =
   let ( |+ ) = Irmin.Type.( |+ ) in
+  let ( |~ ) = Irmin.Type.( |~ ) in
 
   Alcotest.check_raises "Two record fields with the same name."
     (Failure "The name foo was used for two or more fields in record bar.")
@@ -1111,7 +1112,37 @@ let test_duplicate_names () =
         ( Irmin.Type.record "bar" (fun a b -> { a; b })
         |+ Irmin.Type.field "foo" Irmin.Type.int (fun r -> r.a)
         |+ Irmin.Type.field "foo" Irmin.Type.int (fun r -> r.b)
-        |> Irmin.Type.sealr ))
+        |> Irmin.Type.sealr ));
+
+  Alcotest.check_raises "Two variant case0 with the same name."
+    (Failure "The name Foo was used for two or more case0 in variant bar.")
+    (fun () ->
+      ignore
+        ( Irmin.Type.variant "bar" (fun a b -> function `A -> a | `B -> b)
+        |~ Irmin.Type.case0 "Foo" `A
+        |~ Irmin.Type.case0 "Foo" `B
+        |> Irmin.Type.sealv ));
+
+  Alcotest.check_raises "Two variant case1 with the same name."
+    (Failure "The name Foo was used for two or more case1 in variant bar.")
+    (fun () ->
+      ignore
+        ( Irmin.Type.variant "bar" (fun a b ->
+            function `A i -> a i | `B i -> b i)
+        |~ Irmin.Type.case1 "Foo" Irmin.Type.int (fun i -> `A i)
+        |~ Irmin.Type.case1 "Foo" Irmin.Type.int (fun i -> `B i)
+        |> Irmin.Type.sealv ));
+
+  (* Check that we don't raise when two cases have the same name but different arity. *)
+  ignore
+    ( Irmin.Type.variant "bar" (fun a b -> function `A -> a | `B i -> b i)
+    |~ Irmin.Type.case0 "Foo" `A
+    |~ Irmin.Type.case1 "Foo" Irmin.Type.int (fun i -> `B i)
+    |> Irmin.Type.sealv );
+
+  Alcotest.check_raises "Two enum cases with the same name."
+    (Failure "The name Foo was used for two or more case0 in enum bar.")
+    (fun () -> ignore (Irmin.Type.enum "bar" [ ("Foo", `A); ("Foo", `B) ]))
 
 let suite =
   [
