@@ -501,7 +501,7 @@ exception Closed
 
 (** Irmin stores. *)
 module type S = sig
-  include S.STORE
+  include Store.S
   (** @inline *)
 end
 
