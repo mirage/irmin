@@ -1,6 +1,7 @@
 (executable
  (name fuzz_types)
- (libraries digestif.c crowbar irmin))
+ (libraries digestif.c crowbar irmin)
+ (preprocess (pps ppx_deriving.show)))
 
 (rule
  (alias fuzz)
