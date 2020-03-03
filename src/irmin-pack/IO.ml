@@ -209,10 +209,7 @@ module Unix : S = struct
   let buffers = Hashtbl.create 256
 
   let buffer file =
-    try
-      let buf = Hashtbl.find buffers file in
-      Buffer.clear buf;
-      buf
+    try Hashtbl.find buffers file
     with Not_found ->
       let buf = Buffer.create (4 * 1024) in
       Hashtbl.add buffers file buf;

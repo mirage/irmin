@@ -1,6 +1,6 @@
 (library
  (name      test_pack)
- (modules   test_pack)
+ (modules   test_pack multiple_instances)
  (libraries irmin-test irmin-pack alcotest-lwt common))
 
 (executable
