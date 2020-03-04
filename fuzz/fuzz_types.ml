@@ -167,20 +167,40 @@ let rec unwrap : type a. a t -> any_value -> a =
       @@ fmt "Tried to unwrap %s while expecting type %s." (show_any_value w)
            (show_any_type (AT t))
 
-(** Generate a list of 1 up to [n] elements. *)
-let rec one_up_to n gen =
-  if n = 1 then map [ gen ] (fun x -> [ x ])
-  else
-    choose
-      [
-        map [ gen ] (fun x -> [ x ]);
-        map [ gen; one_up_to (n - 1) gen ] (fun x xs -> x :: xs);
-      ]
+(** Generate a variable-length list of unique elements.
+
+    - [~min] is the minimum length of the generated list (defaults to 0).
+    - [~max] is the maximum length of the generated list (defaults to +inf).
+    - [~cmp] is the comparison function (defaults to the polymorphic compare). *)
+let unique_list (type a) ?(min = 0) ?(max = max_int) ?(cmp = compare)
+    (gen : a gen) =
+  let module S = Set.Make (struct
+    type t = a
+
+    let compare = cmp
+  end) in
+  let rec aux set =
+    let n = S.cardinal set in
+    if n < min then dynamic_bind gen (fun x -> aux (S.add x set))
+    else if n >= max then const (S.elements set)
+    else
+      choose
+        [
+          const (S.elements set); dynamic_bind gen (fun x -> aux (S.add x set));
+        ]
+  in
+  aux S.empty
 
 (** Generate a dynamic type recursively. *)
 let t_gen =
   fix (fun t_gen ->
       let field_gen = pair string t_gen in
+      let fields_gen =
+        unique_list ~min:1
+          ~max:4 (* Make sure that each case has a different name. *)
+          ~cmp:(fun (s1, _) (s2, _) -> String.compare s1 s2)
+          field_gen
+      in
       (* let case_gen = pair string (choose
            [
              const (ACT Case0);
@@ -205,8 +225,7 @@ let t_gen =
           map [ t_gen; t_gen; t_gen ] (fun (AT t1) (AT t2) (AT t3) ->
               AT (TTriple (t1, t2, t3)));
           map [ t_gen; t_gen ] (fun (AT t1) (AT t2) -> AT (TResult (t1, t2)));
-          map [ string; one_up_to 4 field_gen ] (fun s fs ->
-              AT (TRecord (s, fs)));
+          map [ string; fields_gen ] (fun s fs -> AT (TRecord (s, fs)));
           (* map [string; one_up_to 4 case_gen] (fun s cs -> AT (TVariant (s, cs)));
              map [string; one_up_to 4 string] (fun s ts -> AT (TEnum (s, ts))); *)
         ])
