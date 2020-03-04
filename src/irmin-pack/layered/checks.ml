@@ -173,6 +173,7 @@ module Make (M : Maker) (Store : S.Store) = struct
 
     let check_store ~root ~heads (module S : S.Store) =
       let* repo = S.Repo.v (conf root) in
+      S.sync repo;
       let* heads =
         match heads with
         | None -> S.Repo.heads repo

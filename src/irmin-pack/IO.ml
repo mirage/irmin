@@ -24,9 +24,13 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Unix : S = struct
   module Raw = Index_unix.Private.Raw
 
+  type headers = { offset : int63; generation : int63 }
+
   type t = {
     file : string;
-    mutable raw : Raw.t;
+    (* May be None for a readonly instance if no readwrite instances have been
+       constructed. *)
+    mutable raw : Raw.t option;
     mutable generation : int63;
     mutable offset : int63;
     mutable flushed : int63;
@@ -35,6 +39,22 @@ module Unix : S = struct
     buf : Buffer.t;
   }
 
+  (* Only readonly instances call this function. *)
+  let check_open_file t =
+    match t.raw with
+    | Some raw -> raw
+    | None -> (
+        Log.debug (fun l -> l "checking on-disk %s" t.file);
+        match Sys.file_exists t.file with
+        | false -> raise S.File_not_found
+        | true ->
+            let x = Unix.openfile t.file Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
+            let raw = Raw.v x in
+            t.raw <- Some raw;
+            t.offset <- Int63.zero;
+            raw)
+
+  let get_raw t = if t.readonly then check_open_file t else Option.get t.raw
   let name t = t.file
 
   let header = function
@@ -43,13 +63,14 @@ module Unix : S = struct
 
   let unsafe_flush t =
     Log.debug (fun l -> l "IO flush %s" t.file);
+    let raw = Option.get t.raw in
     let buf = Buffer.contents t.buf in
     if buf = "" then ()
     else
       let offset = t.offset in
       Buffer.clear t.buf;
-      Raw.unsafe_write t.raw ~off:t.flushed buf;
-      Raw.Offset.set t.raw offset;
+      Raw.unsafe_write raw ~off:t.flushed buf;
+      Raw.Offset.set raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       let h = header t.version in
@@ -73,21 +94,24 @@ module Unix : S = struct
   let set t ~off buf =
     if t.readonly then raise S.RO_not_allowed;
     unsafe_flush t;
-    Raw.unsafe_write t.raw ~off:(header t.version ++ off) buf;
+    let raw = Option.get t.raw in
+    Raw.unsafe_write raw ~off:(header t.version ++ off) buf;
     assert (
       let len = Int63.of_int (String.length buf) in
       let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
   let read t ~off buf =
+    let raw = get_raw t in
     let off = header t.version ++ off in
     assert (if not t.readonly then off <= t.flushed else true);
-    Raw.unsafe_read t.raw ~off ~len:(Bytes.length buf) buf
+    Raw.unsafe_read raw ~off ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 
   let force_offset t =
-    t.offset <- Raw.Offset.get t.raw;
+    let raw = check_open_file t in
+    t.offset <- Raw.Offset.get raw;
     t.offset
 
   let generation t = t.generation
@@ -98,7 +122,8 @@ module Unix : S = struct
         (* There is no generation number in V1 *)
         { offset = force_offset t; generation = Int63.zero }
     | `V2 ->
-        let h = Raw.Header.get t.raw in
+        let raw = check_open_file t in
+        let h = Raw.Header.get raw in
         t.generation <- h.generation;
         t.offset <- h.offset;
         { offset = t.offset; generation = t.generation }
@@ -148,21 +173,23 @@ module Unix : S = struct
     (* no-op if the file is already empty; this is to avoid bumping
        the version number when this is not necessary. *)
     if t.offset = Int63.zero then ()
-    else (
+    else
+      let raw_file = Option.get t.raw in
       t.offset <- Int63.zero;
       if keep_generation = None then t.generation <- Int63.succ t.generation;
       t.flushed <- header t.version;
       (* update the generation for concurrent readonly instance to
          notice that the file has been clear when they next sync. *)
-      Raw.Generation.set t.raw t.generation;
+      Raw.Generation.set raw_file t.generation;
       (* delete the file. *)
-      Raw.close t.raw;
+      Raw.close raw_file;
       Unix.unlink t.file;
       (* and re-open a fresh instance. *)
       t.raw <-
-        raw ~version:t.version ~generation:t.generation ~offset:Int63.zero
-          ~flags:Unix.[ O_CREAT; O_RDWR; O_CLOEXEC ]
-          t.file)
+        Some
+          (raw ~version:t.version ~generation:t.generation ~offset:Int63.zero
+             ~flags:Unix.[ O_CREAT; O_RDWR; O_CLOEXEC ]
+             t.file)
 
   let clear ?keep_generation t =
     match t.version with
@@ -205,9 +232,13 @@ module Unix : S = struct
     | false ->
         let version = get_version () in
         let raw =
-          raw
-            ~flags:[ O_CREAT; mode; O_CLOEXEC ]
-            ~version ~offset:Int63.zero ~generation:Int63.zero file
+          match readonly with
+          | true -> None
+          | false ->
+              Some
+                (raw
+                   ~flags:[ O_CREAT; mode; O_CLOEXEC ]
+                   ~version ~offset:Int63.zero ~generation:Int63.zero file)
         in
         v ~offset:Int63.zero ~version ~generation:Int63.zero raw
     | true -> (
@@ -223,7 +254,7 @@ module Unix : S = struct
             }
           in
           Raw.Header.set raw header;
-          v ~offset:Int63.zero ~version ~generation:Int63.zero raw)
+          v ~offset:Int63.zero ~version ~generation:Int63.zero (Some raw))
         else
           let actual_version =
             let v_string = Raw.Version.get raw in
@@ -238,15 +269,22 @@ module Unix : S = struct
           match actual_version with
           | `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
-              let offset = Raw.Offset.get raw in
-              v ~offset ~version:`V1 ~generation:Int63.zero raw
+              let offset =
+                if readonly then Int63.zero else Raw.Offset.get raw
+              in
+              v ~offset ~version:`V1 ~generation:Int63.zero (Some raw)
           | `V2 ->
               let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
-              v ~offset ~version:`V2 ~generation raw)
+              (* To ensure that a readonly instance refills its memory cache at
+                 first read, we set its offset to 0L when they are opened. *)
+              let offset = if readonly then Int63.zero else offset in
+              v ~offset ~version:`V2 ~generation (Some raw))
 
-  let close t = Raw.close t.raw
+  let close t = Option.iter (fun raw -> Raw.close raw) t.raw
   let exists file = Sys.file_exists file
-  let size { raw; _ } = (Raw.fstat raw).st_size
+
+  let size { raw; _ } =
+    match raw with None -> 0 | Some raw -> (Raw.fstat raw).st_size
 
   (* From a given offset in [src], transfer all data to [dst] (starting at
      [dst_off]). *)
@@ -269,13 +307,14 @@ module Unix : S = struct
     inner ~src_off ~dst_off
 
   let migrate ~progress src dst_v =
+    let src_raw = Option.get src.raw in
     let src_v =
-      let v_bin = Raw.Version.get src.raw in
+      let v_bin = Raw.Version.get src_raw in
       match Version.of_bin v_bin with
       | None -> Fmt.failwith "Could not parse version string `%s'" v_bin
       | Some v -> v
     in
-    let src_offset = Raw.Offset.get src.raw in
+    let src_offset = Raw.Offset.get src_raw in
     match (src_v, dst_v) with
     | `V1, `V2 ->
         let dst_path =
@@ -293,7 +332,7 @@ module Unix : S = struct
           raw dst_path ~flags:[ Unix.O_CREAT; O_WRONLY ] ~version:`V2
             ~offset:src_offset ~generation:Int63.zero
         in
-        transfer_all ~src:src.raw ~progress
+        transfer_all ~src:src_raw ~progress
           ~src_off:(header `V1)
           ~dst
           ~dst_off:(header `V2);
@@ -306,9 +345,10 @@ module Unix : S = struct
           Version.pp src_v Version.pp dst_v
 
   let read_buffer ~chunk ~off src =
+    let src_raw = get_raw src in
     let off = header src.version ++ off in
     let tmp = Bytes.create chunk in
-    let len = Raw.unsafe_read src.raw ~off ~len:chunk tmp in
+    let len = Raw.unsafe_read src_raw ~off ~len:chunk tmp in
     Bytes.sub_string tmp 0 len
 end
 

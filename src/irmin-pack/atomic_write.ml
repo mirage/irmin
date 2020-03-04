@@ -110,6 +110,7 @@ module Make (Current : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         IO.v ~fresh:false ~readonly:true ~version:(Some Current.version)
           (IO.name t.block)
       in
+      ignore (IO.force_headers io : IO.headers);
       t.block <- io;
       Tbl.clear t.cache;
       Tbl.clear t.index;
@@ -174,8 +175,9 @@ module Make (Current : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
-    let h = IO.force_headers block in
-    refill t ~to_:h.offset ~from:Int63.zero;
+    (if not readonly then
+     let h = IO.force_headers block in
+     refill t ~to_:h.offset ~from:Int63.zero);
     t
 
   let Cache.{ v = unsafe_v } =
@@ -220,6 +222,7 @@ module Make (Current : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let list t =
     Log.debug (fun l -> l "[branches] list");
+    if IO.readonly t.block then sync_offset t;
     let keys = Tbl.fold (fun k _ acc -> k :: acc) t.cache [] in
     Lwt.return keys
 

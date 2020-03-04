@@ -288,12 +288,12 @@ struct
                 pack_file
             in
             let dict = Dict.v ~fresh:false ~readonly:true root in
-            let total = IO.offset pack in
+            let h = IO.force_headers pack in
             let bar, progress =
-              Utils.Progress.counter ~total ~sampling_interval:100
+              Utils.Progress.counter ~total:h.offset ~sampling_interval:100
                 ~message:"Reconstructing index" ~pp_count:Utils.pp_bytes ()
             in
-            decode_buffer ~progress ~total pack dict index;
+            decode_buffer ~progress ~total:h.offset pack dict index;
             Index.close index;
             IO.close pack;
             Dict.close dict;

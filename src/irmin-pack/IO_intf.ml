@@ -16,11 +16,10 @@
 
 open! Import
 
-type headers = { offset : int63; generation : int63 }
-
 module type S = sig
   type t
   type path := string
+  type headers = { offset : int63; generation : int63 }
 
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
   val name : t -> string

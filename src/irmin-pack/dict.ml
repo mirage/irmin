@@ -62,6 +62,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
         IO.v ~fresh:false ~readonly:true ~version:(Some V.version)
           (IO.name t.io)
       in
+      ignore (IO.force_headers io : IO.headers);
       t.io <- io;
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
@@ -105,7 +106,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
-    refill ~from:Int63.zero t;
+    if not readonly then refill ~from:Int63.zero t;
     t
 
   let close t =

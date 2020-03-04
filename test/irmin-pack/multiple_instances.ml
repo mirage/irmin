@@ -225,6 +225,20 @@ let dict_sync_after_clear_same_offset () =
   find_key h long_string "y" >>= fun () ->
   S.Repo.close rw >>= fun () -> S.Repo.close ro
 
+let open_ro_before_rw () =
+  rm_dir root;
+  let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  let* rw = S.Repo.v (config ~readonly:false ~fresh:false root) in
+  let* t = S.master rw in
+  let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
+  let* () = S.set_tree_exn ~parents:[] ~info t [] tree in
+  let* () = S.Repo.close rw in
+  S.sync ro;
+  let* t = S.master ro in
+  let* commit = S.Head.get t in
+  let* () = check_binding ro commit [ "a" ] "x" in
+  S.Repo.close ro
+
 let tests =
   let tc name test =
     Alcotest.test_case name `Quick (fun () -> Lwt_main.run (test ()))
@@ -237,4 +251,5 @@ let tests =
     tc "Test ro sync after add" ro_sync_after_add;
     tc "Test ro sync after close" ro_sync_after_close;
     tc "RO sync dict after clear, same offset" dict_sync_after_clear_same_offset;
+    tc "Open ro before rw" open_ro_before_rw;
   ]
