@@ -1098,6 +1098,52 @@ let test_variants () =
   test (`X259 1024);
   test (`X259 (1024 * 1024))
 
+type dummy_record = { a : int; b : int }
+
+(* Test that reusing the same name for different fields raises. *)
+let test_duplicate_names () =
+  let open Irmin.Type in
+  Alcotest.check_raises "Two record fields with the same name."
+    (Invalid_argument
+       "The name foo was used for two or more fields in record bar.") (fun () ->
+      ignore
+        ( record "bar" (fun a b -> { a; b })
+        |+ field "foo" int (fun r -> r.a)
+        |+ field "foo" int (fun r -> r.b)
+        |> sealr ));
+
+  Alcotest.check_raises "Two variant case0 with the same name."
+    (Invalid_argument
+       "The name Foo was used for two or more case0 in variant or enum bar.")
+    (fun () ->
+      ignore
+        ( variant "bar" (fun a b -> function `A -> a | `B -> b)
+        |~ case0 "Foo" `A
+        |~ case0 "Foo" `B
+        |> sealv ));
+
+  Alcotest.check_raises "Two variant case1 with the same name."
+    (Invalid_argument
+       "The name Foo was used for two or more case1 in variant or enum bar.")
+    (fun () ->
+      ignore
+        ( variant "bar" (fun a b -> function `A i -> a i | `B i -> b i)
+        |~ case1 "Foo" int (fun i -> `A i)
+        |~ case1 "Foo" int (fun i -> `B i)
+        |> sealv ));
+
+  (* Check that we don't raise when two cases have the same name but different arity. *)
+  ignore
+    ( variant "bar" (fun a b -> function `A -> a | `B i -> b i)
+    |~ case0 "Foo" `A
+    |~ case1 "Foo" int (fun i -> `B i)
+    |> sealv );
+
+  Alcotest.check_raises "Two enum cases with the same name."
+    (Invalid_argument
+       "The name Foo was used for two or more case0 in variant or enum bar.")
+    (fun () -> ignore (enum "bar" [ ("Foo", `A); ("Foo", `B) ]))
+
 let suite =
   [
     ( "type",
@@ -1112,6 +1158,7 @@ let suite =
         ("size_of", `Quick, test_size);
         ("test_hashes", `Quick, test_hashes);
         ("test_variants", `Quick, test_variants);
+        ("test_duplicate_names", `Quick, test_duplicate_names);
       ] );
   ]
 

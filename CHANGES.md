@@ -1,3 +1,17 @@
+### Unreleased
+
+#### Changed
+
+- **irmin**:
+  - Add sanity checks when creating `Irmin.Type` records, variants and enums
+    (#956, @liautaud):
+     - `Irmin.Type.sealr` will now raise `Invalid_argument` if two fields of
+       the record have the same name;
+     - `Irmin.Type.sealv` will now raise `Invalid_argument` if two cases of
+       the variant with the same arity have the same name;
+     - `Irmin.Type.enum` will now raise `Invalid_argument` if two cases of
+       the enum have the same name.
+
 ### 2.1.0 (2020-02-01)
 
 #### Added
