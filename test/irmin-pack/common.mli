@@ -39,3 +39,5 @@ end
 val get : 'a option -> 'a
 
 val sha1 : string -> H.t
+
+val rm_dir : string -> unit
