@@ -167,27 +167,17 @@ let rec unwrap : type a. a t -> any_value -> a =
       @@ fmt "Tried to unwrap %s while expecting type %s." (show_any_value w)
            (show_any_type (AT t))
 
-(** Generate a variable-length list of unique elements.
-
-    - [~min] is the minimum length of the generated list (defaults to 0).
-    - [~max] is the maximum length of the generated list (defaults to +inf).
-    - [~cmp] is the comparison function (defaults to the polymorphic compare). *)
-let unique_list (type a) ?(min = 0) ?(max = max_int) ?(cmp = compare)
-    (gen : a gen) =
+(** Check whether [l] has unique elements using comparison function [cmp]. *)
+let is_unique_list (type a) ?(cmp : a -> a -> int = compare) =
   let module S = Set.Make (struct
     type t = a
 
     let compare = cmp
   end) in
-  let rec aux set =
-    let n = S.cardinal set in
-    if n < min then dynamic_bind gen (fun x -> aux (S.add x set))
-    else if n >= max then const (S.elements set)
-    else
-      choose
-        [
-          const (S.elements set); dynamic_bind gen (fun x -> aux (S.add x set));
-        ]
+  let rec aux set = function
+    | [] -> true
+    | x :: xs when S.find_opt x set = None -> aux (S.add x set) xs
+    | _ -> false
   in
   aux S.empty
 
@@ -195,11 +185,15 @@ let unique_list (type a) ?(min = 0) ?(max = max_int) ?(cmp = compare)
 let t_gen =
   fix (fun t_gen ->
       let field_gen = pair string t_gen in
+      let fields_valid f =
+        (* Ensure that there are 4 or less uniquely named fields. *)
+        List.length f <= 4
+        && is_unique_list ~cmp:(fun (s1, _) (s2, _) -> String.compare s1 s2) f
+      in
       let fields_gen =
-        unique_list ~min:1
-          ~max:4 (* Make sure that each case has a different name. *)
-          ~cmp:(fun (s1, _) (s2, _) -> String.compare s1 s2)
-          field_gen
+        map [ list1 field_gen ] (fun f ->
+            guard (fields_valid f);
+            f)
       in
       (* let case_gen = pair string (choose
            [
