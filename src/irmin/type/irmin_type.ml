@@ -140,7 +140,7 @@ let check_unique f =
 let check_unique_field_names rname rfields =
   let names = List.map (fun (Field { fname; _ }) -> fname) rfields in
   let failure fname =
-    Fmt.failwith "The name %s was used for two or more fields in record %s."
+    Fmt.invalid_arg "The name %s was used for two or more fields in record %s."
       fname rname
   in
   check_unique failure names
@@ -190,13 +190,13 @@ let check_unique_case_names vname vcases =
   in
   check_unique
     (fun cname ->
-      Fmt.failwith
+      Fmt.invalid_arg
         "The name %s was used for two or more case0 in variant or enum %s."
         cname vname)
     names0;
   check_unique
     (fun cname ->
-      Fmt.failwith
+      Fmt.invalid_arg
         "The name %s was used for two or more case1 in variant or enum %s."
         cname vname)
     names1

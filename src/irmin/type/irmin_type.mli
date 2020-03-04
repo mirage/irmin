@@ -123,8 +123,8 @@ val ( |+ ) :
 (** [r |+ f] is the open record [r] augmented with the field [f]. *)
 
 val sealr : ('a, 'b, 'a) open_record -> 'a t
-(** [sealr r] seals the open record [r]. {b Raises.} [Failure] if two or more
-    fields share the same name. *)
+(** [sealr r] seals the open record [r]. {b Raises.} [Invalid_argument] if two
+    or more fields share the same name. *)
 
 (** Putting all together:
 
@@ -188,8 +188,8 @@ val ( |~ ) :
 (** [v |~ c] is the open variant [v] augmented with the case [c]. *)
 
 val sealv : ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
-(** [sealv v] seals the open variant [v]. {b Raises.} [Failure] if two or more
-    cases of same arity share the same name. *)
+(** [sealv v] seals the open variant [v]. {b Raises.} [Invalid_argument] if two
+    or more cases of same arity share the same name. *)
 
 (** Putting all together:
 
@@ -213,7 +213,7 @@ val enum : string -> (string * 'a) list -> 'a t
       let t = enum "t" [ ("Foo", Foo); ("Bar", Bar); ("Toto", Toto) ]
     ]}
 
-    {b Raises.} [Failure] if two or more cases share the same name. *)
+    {b Raises.} [Invalid_argument] if two or more cases share the same name. *)
 
 (** {1:recursive Recursive definitions}
 

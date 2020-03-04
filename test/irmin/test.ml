@@ -1104,8 +1104,8 @@ type dummy_record = { a : int; b : int }
 let test_duplicate_names () =
   let open Irmin.Type in
   Alcotest.check_raises "Two record fields with the same name."
-    (Failure "The name foo was used for two or more fields in record bar.")
-    (fun () ->
+    (Invalid_argument
+       "The name foo was used for two or more fields in record bar.") (fun () ->
       ignore
         ( record "bar" (fun a b -> { a; b })
         |+ field "foo" int (fun r -> r.a)
@@ -1113,7 +1113,8 @@ let test_duplicate_names () =
         |> sealr ));
 
   Alcotest.check_raises "Two variant case0 with the same name."
-    (Failure "The name Foo was used for two or more case0 in variant bar.")
+    (Invalid_argument
+       "The name Foo was used for two or more case0 in variant or enum bar.")
     (fun () ->
       ignore
         ( variant "bar" (fun a b -> function `A -> a | `B -> b)
@@ -1122,7 +1123,8 @@ let test_duplicate_names () =
         |> sealv ));
 
   Alcotest.check_raises "Two variant case1 with the same name."
-    (Failure "The name Foo was used for two or more case1 in variant bar.")
+    (Invalid_argument
+       "The name Foo was used for two or more case1 in variant or enum bar.")
     (fun () ->
       ignore
         ( variant "bar" (fun a b -> function `A i -> a i | `B i -> b i)
@@ -1138,7 +1140,8 @@ let test_duplicate_names () =
     |> sealv );
 
   Alcotest.check_raises "Two enum cases with the same name."
-    (Failure "The name Foo was used for two or more case0 in enum bar.")
+    (Invalid_argument
+       "The name Foo was used for two or more case0 in variant or enum bar.")
     (fun () -> ignore (enum "bar" [ ("Foo", `A); ("Foo", `B) ]))
 
 let suite =
