@@ -1,8 +1,4 @@
 open Crowbar
-
-(* TODO(liautaud): Add support for variants and enums. *)
-(* FIXME(liautaud): new_dynrec_getter breaks with nested type parameters. *)
-
 module T = Irmin.Type
 
 let ( |+ ) = T.( |+ )
@@ -74,7 +70,7 @@ type 'a t =
   | TPair : 'a t * 'b t -> ('a * 'b) t
   | TTriple : 'a t * 'b t * 'c t -> ('a * 'b * 'c) t
   | TResult : 'a t * 'e t -> ('a, 'e) result t
-  (* Each of these lists must have 1 to 4 elements. *)
+  (* Each of these lists must have 1 to 5 elements. *)
   | TRecord : string * field list -> dyn_record t
   | TVariant : string * case list -> dyn_variant t
   | TEnum : string * string list -> dyn_variant t
@@ -181,10 +177,11 @@ let rec unwrap : type a. a t -> any_value -> a =
   | TRecord _, VRecord v -> v
   | TVariant _, VVariant v -> v
   | TEnum _, VEnum v -> v
-  | _ ->
-      failwith
-      @@ fmt "Tried to unwrap %s while expecting type %s." (show_any_value w)
-           (show_any_type (AT t))
+  | _ -> failwith ""
+
+(* failwith
+   @@ fmt "Tried to unwrap %s while expecting type %s." (show_any_value w)
+        (show_any_type (AT t)) *)
 
 (** Check whether [l] has unique elements using comparison function [cmp]. *)
 let is_unique_list (type a) ?(cmp : a -> a -> int = compare) =
@@ -200,15 +197,16 @@ let is_unique_list (type a) ?(cmp : a -> a -> int = compare) =
   in
   aux S.empty
 
-(** Ensure that the associative list [l] has 4 or less entries with unique keys. *)
+(** Ensure that the associative list [l] has 5 or less entries with unique keys. *)
 let guard_keys l =
   guard
-    ( List.length l <= 4
+    ( List.length l <= 5
     && is_unique_list ~cmp:(fun (s1, _) (s2, _) -> String.compare s1 s2) l );
   l
 
+(** Ensure that the list [l] has 5 or less unique values. *)
 let guard_strings l =
-  guard (List.length l <= 4 && is_unique_list ~cmp:String.compare l);
+  guard (List.length l <= 5 && is_unique_list ~cmp:String.compare l);
   l
 
 (** Generate a dynamic type recursively. *)
@@ -268,37 +266,8 @@ let rec t_to_irmin : type a. a t -> a T.ty = function
   | TVariant (n, cs) -> irmin_variant n cs
   | TEnum (n, cs) -> irmin_enum n cs
 
-(** Dynamically build an Irmin record (assuming it has 1 to 4 fields). *)
-and irmin_record : string -> field list -> dyn_record T.t =
- fun n fs ->
-  let w, i, d, g = (wrap, t_to_irmin, new_dyn_record, new_dyn_record_getter) in
-  match fs with
-  | [ (n1, AT t1) ] ->
-      T.record n (fun v1 -> d n [ (n1, w t1 v1) ])
-      |+ T.field n1 (i t1) (g n n1 t1)
-      |> T.sealr
-  | [ (n1, AT t1); (n2, AT t2) ] ->
-      T.record n (fun v1 v2 -> d n [ (n1, w t1 v1); (n2, w t2 v2) ])
-      |+ T.field n1 (i t1) (g n n1 t1)
-      |+ T.field n2 (i t2) (g n n2 t2)
-      |> T.sealr
-  | [ (n1, AT t1); (n2, AT t2); (n3, AT t3) ] ->
-      T.record n (fun v1 v2 v3 ->
-          d n [ (n1, w t1 v1); (n2, w t2 v2); (n3, w t3 v3) ])
-      |+ T.field n1 (i t1) (g n n1 t1)
-      |+ T.field n2 (i t2) (g n n2 t2)
-      |+ T.field n3 (i t3) (g n n3 t3)
-      |> T.sealr
-  | [ (n1, AT t1); (n2, AT t2); (n3, AT t3); (n4, AT t4) ] ->
-      T.record n (fun v1 v2 v3 v4 ->
-          d n [ (n1, w t1 v1); (n2, w t2 v2); (n3, w t3 v3); (n4, w t4 v4) ])
-      |+ T.field n1 (i t1) (g n n1 t1)
-      |+ T.field n2 (i t2) (g n n2 t2)
-      |+ T.field n3 (i t3) (g n n3 t3)
-      |+ T.field n4 (i t4) (g n n4 t4)
-      |> T.sealr
-  | _ ->
-      failwith "The given TRecord has a number of fields outside of [|1; 4|]."
+(** Dynamically build an Irmin record (assuming it has 1 to 5 fields). *)
+and irmin_record : string -> field list -> dyn_record T.t = [%impl_record 5]
 
 (** Create a [dyn_record] from a list of [string * any_value] pairs. *)
 and new_dyn_record : string -> (string * any_value) list -> dyn_record =
@@ -318,436 +287,10 @@ and new_dyn_record_getter : type a. string -> string -> a t -> dyn_record -> a =
     let wrapped = Hashtbl.find curr_table field_name in
     unwrap field_type wrapped
 
-(** Dynamically build an Irmin variant (assuming it has 1 to 4 fields). *)
-and irmin_variant : string -> case list -> dyn_variant T.t =
- fun n cs ->
-  let w, u, i, eq = (wrap, unwrap, t_to_irmin, String.equal) in
-  let ve vn =
-    Fmt.failwith "Trying to access the wrong variant: wanted %s, got %s." n vn
-  in
-  let ce cn = Fmt.failwith "Trying to use an unknown case name: %s." cn in
-  match cs with
-  | [ (n1, ACT Case0) ] ->
-      T.variant n (fun c1 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)) ] ->
-      T.variant n (fun c1 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0) ] ->
-      T.variant n (fun c1 c2 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT (Case1 t2)) ] ->
-      T.variant n (fun c1 c2 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT Case0) ] ->
-      T.variant n (fun c1 c2 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT (Case1 t2)) ] ->
-      T.variant n (fun c1 c2 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0); (n3, ACT Case0) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0); (n3, ACT (Case1 t3)) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT (Case1 t2)); (n3, ACT Case0) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT (Case1 t2)); (n3, ACT (Case1 t3)) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT Case0); (n3, ACT Case0) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT Case0); (n3, ACT (Case1 t3)) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT (Case1 t2)); (n3, ACT Case0) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT (Case1 t2)); (n3, ACT (Case1 t3)) ] ->
-      T.variant n (fun c1 c2 c3 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0); (n3, ACT Case0); (n4, ACT Case0) ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0); (n3, ACT Case0); (n4, ACT (Case1 t4)) ]
-    ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT Case0); (n3, ACT (Case1 t3)); (n4, ACT Case0) ]
-    ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT Case0); (n2, ACT Case0); (n3, ACT (Case1 t3)); (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [ (n1, ACT Case0); (n2, ACT (Case1 t2)); (n3, ACT Case0); (n4, ACT Case0) ]
-    ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT Case0); (n2, ACT (Case1 t2)); (n3, ACT Case0); (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [
-   (n1, ACT Case0); (n2, ACT (Case1 t2)); (n3, ACT (Case1 t3)); (n4, ACT Case0);
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT Case0);
-   (n2, ACT (Case1 t2));
-   (n3, ACT (Case1 t3));
-   (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, _ when eq r n1 -> c1
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case0 n1 (n, n1, VUnit ())
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [ (n1, ACT (Case1 t1)); (n2, ACT Case0); (n3, ACT Case0); (n4, ACT Case0) ]
-    ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1)); (n2, ACT Case0); (n3, ACT Case0); (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, _ when eq r n3 -> c3
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1)); (n2, ACT Case0); (n3, ACT (Case1 t3)); (n4, ACT Case0);
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1));
-   (n2, ACT Case0);
-   (n3, ACT (Case1 t3));
-   (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, _ when eq r n2 -> c2
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case0 n2 (n, n2, VUnit ())
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1)); (n2, ACT (Case1 t2)); (n3, ACT Case0); (n4, ACT Case0);
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1));
-   (n2, ACT (Case1 t2));
-   (n3, ACT Case0);
-   (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, _ when eq r n3 -> c3
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case0 n3 (n, n3, VUnit ())
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1));
-   (n2, ACT (Case1 t2));
-   (n3, ACT (Case1 t3));
-   (n4, ACT Case0);
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, _ when eq r n4 -> c4
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case0 n4 (n, n4, VUnit ())
-      |> T.sealv
-  | [
-   (n1, ACT (Case1 t1));
-   (n2, ACT (Case1 t2));
-   (n3, ACT (Case1 t3));
-   (n4, ACT (Case1 t4));
-  ] ->
-      T.variant n (fun c1 c2 c3 c4 ->
-        function
-        | vn, _, _ when not (eq n vn) -> ve vn
-        | _, r, v when eq r n1 -> c1 (u t1 v)
-        | _, r, v when eq r n2 -> c2 (u t2 v)
-        | _, r, v when eq r n3 -> c3 (u t3 v)
-        | _, r, v when eq r n4 -> c4 (u t4 v)
-        | _, cn, _ -> ce cn)
-      |~ T.case1 n1 (i t1) (fun v -> (n, n1, w t1 v))
-      |~ T.case1 n2 (i t2) (fun v -> (n, n2, w t2 v))
-      |~ T.case1 n3 (i t3) (fun v -> (n, n3, w t3 v))
-      |~ T.case1 n4 (i t4) (fun v -> (n, n4, w t4 v))
-      |> T.sealv
-  | _ ->
-      failwith "The given TVariant has a number of cases outside of [|1; 4|]."
+(** Dynamically build an Irmin variant (assuming it has 1 to 5 cases). *)
+and irmin_variant : string -> case list -> dyn_variant T.t = [%impl_variant 5]
 
-(** Dynamically build an Irmin enum (assuming it has 1 to 4 fields). *)
+(** Dynamically build an Irmin enum (assuming it has 1 to 5 cases). *)
 and irmin_enum : string -> string list -> dyn_variant T.t =
  fun n ts -> irmin_variant n (List.map (fun t -> (t, ACT Case0)) ts)
 
@@ -809,7 +352,6 @@ let inhabited_gen : inhabited gen =
   dynamic_bind any_type_gen @@ fun (AT t) ->
   map [ t_to_value_gen t ] (fun v -> Inhabited (t_to_irmin t, v))
 
-<<<<<<< HEAD
 let rec ty_to_value_gen : type a. a ty -> a gen = function
   | Unit -> const ()
   | Bool -> bool

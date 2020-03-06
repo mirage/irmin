@@ -1,7 +1,8 @@
 (executable
- (name fuzz_types)
- (libraries digestif.c crowbar irmin)
- (preprocess (pps ppx_deriving.show)))
+ (name       fuzz_types)
+ (libraries  digestif.c crowbar irmin)
+ ;; Use a rewriter to fill in `[% generate_record n]` and `[% generate_variant n]`.
+ (preprocess (action (run fuzz/rewriter/rewriter.exe %{input-file}))))
 
 (rule
  (alias fuzz)
