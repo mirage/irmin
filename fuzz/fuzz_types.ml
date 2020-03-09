@@ -59,8 +59,8 @@ let rec show_any_value = function
   | VBool b -> fmt "VBool %B" b
   | VChar c -> fmt "VChar %C" c
   | VInt i -> fmt "VInt %d" i
-  | VInt32 i -> fmt "VInt32 %ld" i
-  | VInt64 i -> fmt "VInt64 %Ld" i
+  | VInt32 i -> fmt "VInt32 %ldl" i
+  | VInt64 i -> fmt "VInt64 %LdL" i
   | VFloat f -> fmt "VFloat %F" f
   | VString s -> fmt "VString %S" s
   | VBytes b -> fmt "VBytes %S" (Bytes.to_string b)
