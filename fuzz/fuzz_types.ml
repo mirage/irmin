@@ -363,7 +363,7 @@ and irmin_variant_gen : string -> case list -> dyn_variant gen =
     | [] -> []
     | (case_name, ACT Case0) :: xs ->
         const (variant_name, case_name, VUnit ()) :: cases_gen xs
-    | (case_name, ACT (Case1 t)) :: xs ->
+    | (case_name, ACT (Case1 t)) :: xs n->
         map [ t_to_value_gen t ] (fun v -> (variant_name, case_name, wrap t v))
         :: cases_gen xs
   in
@@ -390,38 +390,10 @@ let pp_value : type a. a t -> Format.formatter -> a -> unit =
     [t], stays consistent after binary encoding then decoding. *)
 let bin_check (Inhabited (t, v)) =
   let irmin_t = t_to_irmin t in
-  let encoded = T.to_bin_string irmin_t v in
+  let encoded = T.(unstage (to_bin_string irmin_t)) v in
   match T.of_bin_string irmin_t encoded with
   | Error _ -> failf "Could not deserialize binary string %s." encoded
   | Ok v' -> check_eq ~pp:(pp_value t) v v'
-
-let rec ty_to_value_gen : type a. a ty -> a gen = function
-  | Unit -> const ()
-  | Bool -> bool
-  | Char -> char
-  | Int -> int
-  | Int32 -> int32
-  | Int64 -> int64
-  | Float -> float
-  | String -> string
-  (* | String_of _ -> string *)
-  | Bytes -> bytes
-  (* | Bytes_of _ -> bytes *)
-  | List ty -> list (ty_to_value_gen ty)
-  | Array ty -> map [ list (ty_to_value_gen ty) ] Array.of_list
-  | Option ty -> option (ty_to_value_gen ty)
-  | Pair (ty1, ty2) -> pair (ty_to_value_gen ty1) (ty_to_value_gen ty2)
-  | Triple (ty1, ty2, ty3) ->
-      triple (ty_to_value_gen ty1) (ty_to_value_gen ty2) (ty_to_value_gen ty3)
-  | Result (ty1, ty2) -> result (ty_to_value_gen ty1) (ty_to_value_gen ty2)
-
-type pair = Pair : 'a T.t * 'a -> pair
-
-let pair_gen : pair gen =
-  dynamic_bind ty_gen @@ fun (Any t) ->
-  let itype_gen = ty_to_irmin_gen t in
-  let val_gen = ty_to_value_gen t in
-  map [ itype_gen; val_gen ] (fun t v -> Pair (t, v))
 
 (** Check that the value [v], of dynamic type [t], stays consistent after
     encoding then decoding. *)
@@ -431,6 +403,17 @@ let inhabited_check (Inhabited (t, v)) =
   | Error _ -> failf "Could not deserialize %s." encoded
   | Ok v' -> check_eq v v'
 
+(** [json_check (Inhabited (t, v))] checks that the value [v], of dynamic type
+    [t], stays consistent after JSON encoding then decoding. *)
+let json_check (Inhabited (t, v)) =
+  let irmin_t = t_to_irmin t in
+  let encoded = T.to_json_string irmin_t v in
+  match T.of_json_string irmin_t encoded with
+  | Error _ -> failf "Could not deserialize JSON string %s." encoded
+  | Ok v' -> check_eq ~pp:(pp_value t) v v'
+
 let () =
   add_test ~name:"T.of_bin_string and T.to_bin_string are mutually inverse."
     [ inhabited_gen ] bin_check;
+  add_test ~name:"T.of_json_string and T.to_json_string are mutually inverse."
+    [ inhabited_gen ] json_check

@@ -5,8 +5,8 @@
  (preprocess (action (run fuzz/rewriter/rewriter.exe %{input-file}))))
 
 ;; Start fuzzing when calling `dune build @fuzz`.
-(alias
- (name fuzz)
+(rule
+ (alias fuzz)
  (deps (source_tree ./input) fuzz_types.exe)
  (action
   (run afl-fuzz -i ./input -o output ./fuzz_types.exe @@)))
