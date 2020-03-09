@@ -4,8 +4,9 @@
  ;; Use a rewriter to fill in `[% generate_record n]` and `[% generate_variant n]`.
  (preprocess (action (run fuzz/rewriter/rewriter.exe %{input-file}))))
 
-(rule
- (alias fuzz)
+;; Start fuzzing when calling `dune build @fuzz`.
+(alias
+ (name fuzz)
  (deps (source_tree ./input) fuzz_types.exe)
  (action
   (run afl-fuzz -i ./input -o output ./fuzz_types.exe @@)))
