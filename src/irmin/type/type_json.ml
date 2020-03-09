@@ -81,7 +81,14 @@ module Encode = struct
     c e z;
     lexeme e `Ae
 
-  let option o e = function None -> lexeme e `Null | Some x -> o e x
+  let boxed_option o e = function
+    | None ->
+        lexeme e `As;
+        lexeme e `Ae
+    | Some x ->
+        lexeme e `As;
+        o e x;
+        lexeme e `Ae
 
   let rec t : type a. a t -> a encode_json =
    fun ty e ->
@@ -93,7 +100,7 @@ module Encode = struct
     | List l -> list (t l.v) e
     | Array a -> array (t a.v) e
     | Tuple t -> tuple t e
-    | Option x -> option (t x) e
+    | Option x -> boxed_option (t x) e
     | Record r -> record r e
     | Variant v -> variant v e
 
@@ -265,12 +272,21 @@ module Decode = struct
     c e >>= fun z ->
     expect_lexeme e `Ae >|= fun () -> (x, y, z)
 
-  let option o e =
+  let unboxed_option o e =
     lexeme e >>= function
     | `Null -> Ok None
     | lex ->
         Json.rewind e lex;
         o e >|= fun v -> Some v
+
+  let boxed_option o e =
+    expect_lexeme e `As >>= fun () ->
+    lexeme e >>= function
+    | `Ae -> Ok None
+    | lex ->
+        Json.rewind e lex;
+        o e >>= fun v ->
+        expect_lexeme e `Ae >|= fun () -> Some v
 
   let rec t : type a. a t -> a decode_json =
    fun ty d ->
@@ -282,9 +298,14 @@ module Decode = struct
     | List l -> list (t l.v) d
     | Array a -> array (t a.v) d
     | Tuple t -> tuple t d
-    | Option x -> option (t x) d
+    | Option x -> boxed_option (t x) d
     | Record r -> record r d
     | Variant v -> variant v d
+
+  (* Some types need to be decoded differently when wrapped inside records,
+     since e.g. `k: None` is omitted and `k: Some v` is unboxed into `k: v`. *)
+  and inside_record_t : type a. a t -> a decode_json =
+   fun ty d -> match ty with Option x -> unboxed_option (t x) d | _ -> t ty d
 
   and tuple : type a. a tuple -> a decode_json = function
     | Pair (x, y) -> pair (t x) (t y)
@@ -324,7 +345,7 @@ module Decode = struct
             try
               let s = List.assoc h.fname soup in
               let e = Json.decoder_of_lexemes s in
-              t h.ftype e
+              inside_record_t h.ftype e
             with Not_found -> (
               match h.ftype with
               | Option _ -> Ok None
