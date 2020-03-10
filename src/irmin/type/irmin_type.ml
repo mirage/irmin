@@ -163,15 +163,17 @@ type 'a case_p = 'a case_v
 
 type ('a, 'b) case = int -> 'a a_case * 'b
 
-let case0 cname0 c0 ctag0 =
+let case0 cname0 c0 =
   check_valid_utf8 cname0;
-  let c = { ctag0; cname0; c0 } in
-  (C0 c, CV0 c)
+  fun ctag0 ->
+    let c = { ctag0; cname0; c0 } in
+    (C0 c, CV0 c)
 
-let case1 cname1 ctype1 c1 ctag1 =
+let case1 cname1 ctype1 c1 =
   check_valid_utf8 cname1;
-  let c = { ctag1; cname1; ctype1; c1 } in
-  (C1 c, fun v -> CV1 (c, v))
+  fun ctag1 ->
+    let c = { ctag1; cname1; ctype1; c1 } in
+    (C1 c, fun v -> CV1 (c, v))
 
 type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
 
