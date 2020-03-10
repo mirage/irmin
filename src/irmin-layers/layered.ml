@@ -60,8 +60,8 @@ struct
 
   let check_and_copy ~src ~dst ~aux str k =
     already_in_dst ~dst k >>= function
-    | true -> Lwt.return_unit
-    | false -> copy ~src ~dst ~aux str k
+    | true -> Lwt.return_false
+    | false -> copy ~src ~dst ~aux str k >|= fun () -> true
 end
 
 module Content_addressable
@@ -98,11 +98,22 @@ struct
     | Lower -> CopyLower.already_in_dst ~dst
     | Upper -> CopyUpper.already_in_dst ~dst
 
+  let stats str = function
+    | true -> (
+        match str with
+        | "Contents" -> Stats.copy_contents ()
+        | "Node" -> Stats.copy_nodes ()
+        | "Commit" -> Stats.copy_commits ()
+        | _ -> failwith "unexpected type in stats" )
+    | false -> ()
+
   let check_and_copy_to_lower t ~dst ~aux str k =
     CopyLower.check_and_copy ~src:(previous_upper t) ~dst ~aux str k
+    >|= stats str
 
   let check_and_copy_to_current t ~dst ~aux str (k : key) =
     CopyUpper.check_and_copy ~src:(previous_upper t) ~dst ~aux str k
+    >|= stats str
 
   let check_and_copy :
       type l.
@@ -326,6 +337,7 @@ struct
              | true ->
                  Log.debug (fun l ->
                      l "[branches] copy to lower %a" (Irmin.Type.pp K.t) branch);
+                 Stats.copy_branches ();
                  L.set t.lower branch hash
              | false -> Lwt.return_unit)
             >>= fun () ->
@@ -333,6 +345,7 @@ struct
             | true ->
                 Log.debug (fun l ->
                     l "[branches] copy to current %a" (Irmin.Type.pp K.t) branch);
+                Stats.copy_branches ();
                 U.set current branch hash
             | false -> Lwt.return_unit ))
       branches

@@ -345,12 +345,24 @@ module Make_Layered (S : LAYERED_STORE) = struct
     run x test1;
     run x test2
 
+  let log_stats (s : Irmin_layers.Stats.t) =
+    let concat_list ls =
+      List.fold_left (fun acc x -> string_of_int x ^ ";" ^ acc) "" ls
+    in
+    Log.debug (fun l ->
+        l "contents = %s nodes = %s, commits = %s, branches = %s freezes =%d"
+          (concat_list s.copied_contents)
+          (concat_list s.copied_nodes)
+          (concat_list s.copied_commits)
+          (concat_list s.copied_branches)
+          s.nb_freeze)
+
   (* TODO check size of the store before and after freeze *)
   let test_squash x () =
     let check_val = check T.(option S.contents_t) in
     let test repo =
       S.master repo >>= fun t ->
-      S.Tree.reset_counters ();
+      Irmin_layers.Stats.reset_stats ();
       S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] v1 >>= fun () ->
       S.Head.get t >>= fun c ->
       S.get_tree t [ "x" ] >>= fun tree ->
@@ -361,24 +373,13 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.Tree.add tree [ "x"; "z" ] v1 >>= fun tree3 ->
       S.set_tree_exn t ~info:(infof "update") [ "u" ] tree3 >>= fun () ->
       S.Head.get t >>= fun c3 ->
-      S.tree t >>= fun tree3 ->
-      S.Tree.stats ~force:true tree3 >>= fun s ->
-      Log.debug (fun l ->
-          l
-            "stats before freeze nodes = %d, leafs = %d, depth = %d, width = \
-             %d, skips = %d"
-            s.nodes s.leafs s.depth s.width s.skips);
-      Log.debug (fun l -> l "counters = %a" S.Tree.dump_counters ());
+      let s = Irmin_layers.Stats.get () in
+      log_stats s;
+      Alcotest.(check int) "zero freeze" s.nb_freeze 0;
+      Alcotest.(check (list int)) "zero commit" s.copied_commits [ 0 ];
       S.freeze repo ~squash:true >>= fun () ->
       S.tree t >>= fun tree ->
       S.set_tree_exn t ~info:(infof "update") [] tree >>= fun () ->
-      S.Tree.stats ~force:true tree >>= fun s ->
-      Log.debug (fun l ->
-          l
-            "stats after freeze nodes = %d, leafs = %d, depth = %d, width = \
-             %d, skips = %d"
-            s.nodes s.leafs s.depth s.width s.skips);
-      Log.debug (fun l -> l "counters = %a" S.Tree.dump_counters ());
       ( if not (S.async_freeze ()) then
         (S.Commit.of_hash repo (S.Commit.hash c) >>= function
          | None -> Lwt.return_unit
@@ -407,7 +408,13 @@ module Make_Layered (S : LAYERED_STORE) = struct
         S.find t [ "u"; "x"; "y" ] >|= fun v2' ->
         check_val "vy after merge" None v2'
       else Lwt.return_unit )
-      >>= fun () -> P.Repo.close repo
+      >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      let s = Irmin_layers.Stats.get () in
+      log_stats s;
+      Alcotest.(check int) "one freeze" s.nb_freeze 1;
+      Alcotest.(check (list int)) "one commit" s.copied_commits [ 1 ];
+      P.Repo.close repo
     in
     run x test
 
@@ -455,6 +462,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     in
     let test_squash repo =
       setup repo >>= fun (c1, c2) ->
+      Irmin_layers.Stats.reset_stats ();
       S.freeze repo ~squash:true ~max:[ c2 ] >>= fun () ->
       S.PrivateLayer.wait_for_freeze () >>= fun () ->
       (P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >|= function
@@ -477,7 +485,15 @@ module Make_Layered (S : LAYERED_STORE) = struct
         S.Branch.find repo "foo" >|= function
         | None -> ()
         | Some _ -> Alcotest.failf "should not find branch foo in dst" )
-      >>= fun () -> P.Repo.close repo
+      >>= fun () ->
+      let s = Irmin_layers.Stats.get () in
+      log_stats s;
+      Alcotest.(check int) "one freeze" s.nb_freeze 1;
+      Alcotest.(check (list int)) "one commit" s.copied_commits [ 1 ];
+      Alcotest.(check (list int)) "one branch" s.copied_branches [ 1 ];
+      Alcotest.(check (list int)) "one content" s.copied_contents [ 1 ];
+      Alcotest.(check (list int)) "several nodes" s.copied_nodes [ 3 ];
+      P.Repo.close repo
     in
     run x test;
     run x test_squash

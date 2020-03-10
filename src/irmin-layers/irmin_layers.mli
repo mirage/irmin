@@ -148,3 +148,5 @@ module type L_MAKER = functor
      and type branch = B.t
      and type metadata = M.t
      and type hash = H.t
+
+module Stats = Stats

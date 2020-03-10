@@ -547,6 +547,7 @@ end = struct
        simultaneously. *)
     Lwt_mutex.lock freeze_lock >>= fun () ->
     if t.closed then failwith "store is closed";
+    Stats.freeze ();
     unsafe_freeze ~min ~max ~squash ~keep_max ~heads ~recovery ?hook t
 
   let freeze = freeze_with_hook ?hook:None
@@ -602,3 +603,5 @@ module type L_MAKER = functor
      and type branch = B.t
      and type metadata = M.t
      and type hash = H.t
+
+module Stats = Stats
