@@ -338,7 +338,7 @@ let test_pp_ty () =
   test "custom v" Custom.v "Custom (-)";
   test "custom like prim" Custom.like_prim "Custom (Prim Int)";
   test "custom like custom" Custom.like_custom "Custom (Custom (-))";
-  test "map" Custom.map "Map (Prim Int)]";
+  test "map" Custom.map "Map (Prim Int)";
 
   ()
 
