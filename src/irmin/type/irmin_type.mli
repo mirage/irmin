@@ -33,6 +33,9 @@ type 'a t
 type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 (** The type of integer used to store buffers, list or array lengths. *)
 
+exception Not_utf8
+(** Raised when a field or case name is not valid UTF-8. *)
+
 (** {1:primitives Primitives} *)
 
 val unit : unit t
@@ -106,7 +109,7 @@ type ('a, 'b) field
 
 val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
-    [g].
+    [g]. {b Raises.} [Not_utf8] if [n] is not valid UTF-8.
 
     The name [n] must not be used by any other [field] in the record.
 
@@ -161,9 +164,11 @@ type 'a case_p
 
 val case0 : string -> 'a -> ('a, 'a case_p) case
 (** [case0 n v] is a representation of a variant constructor [v] with no
-    arguments and name [n]. e.g.
+    arguments and name [n]. {b Raises.} [Not_utf8] if [n] is not valid UTF-8.
 
     The name [n] must not by used by any other [case0] in the record.
+
+    For instance:
 
     {[
       type t = Foo
@@ -173,9 +178,12 @@ val case0 : string -> 'a -> ('a, 'a case_p) case
 
 val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
 (** [case1 n t c] is a representation of a variant constructor [c] with an
-    argument of type [t] and name [n]. e.g.
+    argument of type [t] and name [n]. {b Raises.} [Not_utf8] if [n] is not
+    valid UTF-8.
 
     The name [n] must not by used by any other [case1] in the record.
+
+    For instance:
 
     {[
       type t = Foo of string

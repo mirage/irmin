@@ -16,16 +16,6 @@
 
 open Type_core
 
-exception Not_utf8
-
-let is_valid_utf8 str =
-  try
-    Uutf.String.fold_utf_8
-      (fun _ _ -> function `Malformed _ -> raise Not_utf8 | _ -> ())
-      () str;
-    true
-  with Not_utf8 -> false
-
 module Encode = struct
   let lexeme e l = ignore (Jsonm.encode e (`Lexeme l))
 
