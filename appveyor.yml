@@ -1,3 +1,8 @@
+# Appveyor CI temporarily disabled. See https://github.com/mirage/irmin/issues/963.
+branches:
+  only:
+  - explicitly-test-appveyor
+
 platform:
   - x86
 
