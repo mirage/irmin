@@ -1,5 +1,10 @@
 ### Unreleased
 
+#### Added
+
+- **irmin**:
+  - Added `Irmin.Type.empty` to represent an uninhabited type. (#961, @CraigFe)
+
 #### Changed
 
 - **irmin**:
