@@ -189,6 +189,94 @@ let test_bin () =
   Alcotest.(check int) "hash size" n Irmin.Hash.BLAKE2B.hash_size;
   Alcotest.(check hash) "hash" v h
 
+(** Test the behaviour of {!Irmin.Type.to_string}. *)
+let test_to_string () =
+  let module Test_case = struct
+    (* Local existential for testing the operation at multiple types *)
+    type test_case =
+      | E : {
+          typ : 'a Irmin.Type.t;
+          case_name : string;
+          input : 'a;
+          expected_output : string;
+        }
+          -> test_case
+
+    let v case_name typ input expected_output =
+      E { case_name; typ; input; expected_output }
+
+    let run (E { case_name; typ; input; expected_output }) =
+      let assertion =
+        Fmt.strf "Expected output of `to_string` for representation of `%s`"
+          case_name
+      in
+      T.to_string typ input |> Alcotest.(check string) assertion expected_output
+  end in
+  (* Test cases for basic types *)
+  let open Test_case in
+  [
+    v "unit" T.unit () "";
+    v "bool{true}" T.bool true "true";
+    v "bool{false}" T.bool false "false";
+    v "char" T.char 'a' "a";
+    v "int" T.int (-100) "-100";
+    v "int32" T.int32 Int32.max_int "2147483647";
+    v "int64" T.int64 Int64.max_int "9223372036854775807";
+    v "float" T.float (-1.5) "-1.5";
+    v "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
+    v "string" T.string "foo\nbar\\" "foo\nbar\\";
+  ]
+  |> List.iter run;
+
+  (* Test cases for non-algebraic combinators *)
+  [
+    v "int list{nil}" T.(list int) [] "[]";
+    v "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
+    v "unit list" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
+    v "(unit * int)" T.(pair unit int) ((), 1) "[null,1]";
+    v "unit option{some}" T.(option unit) (Some ()) "null";
+    v "int option{none}" T.(option unit) None "null";
+    v "(int * string * bool)"
+      T.(triple int string bool)
+      (1, "foo", true) "[1,\"foo\",1]";
+    v "(string, bool) result{ok}"
+      T.(result string bool)
+      (Ok "foo") "{\"ok\":\"foo\"}";
+    v "(string, bool) result{error}"
+      T.(result string bool)
+      (Error false) "{\"error\":0}";
+  ]
+  |> List.iter run;
+
+  (* Test cases for algebraic combinators *)
+  let module Algebraic = struct
+    (* Dummy algebraic types and corresponding generics *)
+
+    type my_enum = Alpha | Beta | Gamma | Delta [@@deriving irmin]
+
+    type my_variant = Left of int | Right of int list [@@deriving irmin]
+
+    type my_recursive_variant =
+      | Branch of my_recursive_variant list
+      | Leaf of int
+    [@@deriving irmin]
+
+    type my_record = { foo : int; flag : bool; letter : my_enum }
+    [@@deriving irmin]
+  end in
+  let open Algebraic in
+  [
+    v "enum" my_enum_t Alpha "\"Alpha\"";
+    v "variant" my_variant_t (Right [ 1; 2 ]) "{\"Right\":[1,2]}";
+    v "recursive variant" my_recursive_variant_t
+      (Branch [ Branch [ Leaf 1 ]; Leaf 2 ])
+      "{\"Branch\":[{\"Branch\":[{\"Leaf\":1}]},{\"Leaf\":2}]}";
+    v "record" my_record_t
+      { foo = 2; flag = false; letter = Delta }
+      "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
+  ]
+  |> List.iter run
+
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
 
 let test_compare () =
@@ -488,6 +576,7 @@ let suite =
         ("json", `Quick, test_json);
         ("json_option", `Quick, test_json_option);
         ("bin", `Quick, test_bin);
+        ("to_string", `Quick, test_to_string);
         ("compare", `Quick, test_compare);
         ("equal", `Quick, test_equal);
         ("ints", `Quick, test_int);
