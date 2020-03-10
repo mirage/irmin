@@ -80,9 +80,14 @@ let rec show_any_value = function
         (show_any_value c)
   | VResult (Ok v) -> fmt "VResult (Ok (%s))" (show_any_value v)
   | VResult (Error v) -> fmt "VResult (Error (%s))" (show_any_value v)
-  | VRecord _ -> "VRecord (_)"
-  | VVariant _ -> "VVariant (_)"
-  | VEnum _ -> "VEnum (_)"
+  | VRecord r -> fmt "VRecord (%s)" (show_dyn_record r)
+  | VVariant v -> fmt "VVariant (%s)" (show_dyn_variant v)
+  | VEnum v -> fmt "VEnum (%s)" (show_dyn_variant v)
+and show_dyn_record (n, t) =
+  fmt "{ name: %S; %s }" n (String.concat "; " (Hashtbl.fold (fun k x xs ->
+    (fmt "%S: (%s)" k (show_any_value x)) :: xs) t []))
+and show_dyn_variant (n, c, v) =
+  fmt "{ name: %S; current_case: %S; value: %S }" n c (show_any_value v)
 
 (** Internal representation of Irmin types. *)
 type 'a t =
