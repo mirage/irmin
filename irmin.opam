@@ -27,6 +27,7 @@ depends: [
   "astring"
   "hex"      {with-test}
   "alcotest" {with-test}
+  "ppx_irmin" {with-test}
 ]
 synopsis: """
 Irmin, a distributed database that follows the same design principles as Git
