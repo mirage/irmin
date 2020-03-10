@@ -333,7 +333,7 @@ let test_pp_ty () =
 
     let like_custom : empty T.t = T.like v
 
-    let map : int T.t = T.(map int) Fun.id Fun.id
+    let map : int T.t = T.(map int) (fun x -> x) (fun x -> x)
   end in
   test "custom v" Custom.v "Custom (-)";
   test "custom like prim" Custom.like_prim "Custom (Prim Int)";
