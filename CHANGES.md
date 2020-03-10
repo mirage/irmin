@@ -11,6 +11,11 @@
        the variant with the same arity have the same name;
      - `Irmin.Type.enum` will now raise `Invalid_argument` if two cases of
        the enum have the same name.
+  - Changed the JSON encoding of options to avoid ambiguity (#967, @liautaud):
+    - `None` is now encoded as `[]`;
+    - `Some x` is now encoded as `[x]`;
+    - Fields of records which have value `None` are still omitted;
+    - Fields of records which have value `Some x` are still unboxed into `x`.
 
 ### 2.1.0 (2020-02-01)
 
