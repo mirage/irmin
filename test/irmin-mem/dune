@@ -1,23 +1,25 @@
 (library
- (name      test_mem)
- (modules   test_mem)
+ (name test_mem)
+ (modules test_mem)
  (libraries irmin-test irmin-mem))
 
 (executable
- (name      test)
- (modules   test)
+ (name test)
+ (modules test)
  (libraries digestif.ocaml test_mem))
 
 (alias
- (name    runtest)
+ (name runtest)
  (package irmin-mem)
- (action  (run ./test.exe -q --color=always)))
+ (action
+  (run ./test.exe -q --color=always)))
 
 (executable
- (name      bench)
- (modules   bench)
+ (name bench)
+ (modules bench)
  (libraries irmin-mem irmin-test.bench))
 
 (alias
- (name   bench)
- (action (run ./bench.exe)))
+ (name bench)
+ (action
+  (run ./bench.exe)))
