@@ -223,6 +223,7 @@ let test_to_string () =
     v "int32" T.int32 Int32.max_int "2147483647";
     v "int64" T.int64 Int64.max_int "9223372036854775807";
     v "float" T.float (-1.5) "-1.5";
+    v "float{NaN}" T.float Float.nan "nan";
     v "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
     v "string" T.string "foo\nbar\\" "foo\nbar\\";
   ]
@@ -232,7 +233,17 @@ let test_to_string () =
   [
     v "int list{nil}" T.(list int) [] "[]";
     v "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
-    v "unit list" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
+    v "float array"
+      T.(array float)
+      [|
+        Float.neg_infinity;
+        Float.(neg zero);
+        Float.zero;
+        Float.epsilon;
+        Float.infinity;
+        Float.nan;
+      |]
+      "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
     v "(unit * int)" T.(pair unit int) ((), 1) "[null,1]";
     v "unit option{some}" T.(option unit) (Some ()) "null";
     v "int option{none}" T.(option unit) None "null";
