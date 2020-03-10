@@ -1,5 +1,7 @@
 module T = Irmin.Type
 
+type dummy_record_2 = { c : int option; d : int option option }
+
 let test_base () =
   let s = T.to_json_string T.string "foo" in
   Alcotest.(check string) "JSON string" "\"foo\"" s;
@@ -79,6 +81,33 @@ let test_json () =
     "JSON string with chars larger than 127"
     (T.of_json_string T.string x)
     (Ok "\128\129a")
+
+let test_json_option () =
+  let open T in
+  let x = to_json_string (option int) (Some 1) in
+  Alcotest.(check string) "Option outside of record 1" "[1]" x;
+  let x = to_json_string (option int) None in
+  Alcotest.(check string) "Option outside of record 2" "[]" x;
+  let x = to_json_string (option (option int)) (Some (Some 1)) in
+  Alcotest.(check string) "Nested option outside of record 1" "[[1]]" x;
+  let x = to_json_string (option (option int)) (Some None) in
+  Alcotest.(check string) "Nested option outside of record 2" "[[]]" x;
+  let x = to_json_string (option (option int)) None in
+  Alcotest.(check string) "Nested option outside of record 3" "[]" x;
+  let t =
+    record "foo" (fun c d -> { c; d })
+    |+ field "c" (option int) (fun r -> r.c)
+    |+ field "d" (option (option int)) (fun r -> r.d)
+    |> sealr
+  in
+  let x = to_json_string t { c = None; d = None } in
+  Alcotest.(check string) "Nested option within record 1" "{}" x;
+  let x = to_json_string t { c = Some 1; d = None } in
+  Alcotest.(check string) "Nested option within record 2" "{\"c\":1}" x;
+  let x = to_json_string t { c = None; d = Some (Some 1) } in
+  Alcotest.(check string) "Nested option within record 2" "{\"d\":[1]}" x;
+  let x = to_json_string t { c = None; d = Some None } in
+  Alcotest.(check string) "Nested option within record 3" "{\"d\":[]}" x
 
 let l =
   let hex = T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
@@ -1150,6 +1179,7 @@ let suite =
       [
         ("base", `Quick, test_base);
         ("json", `Quick, test_json);
+        ("json_option", `Quick, test_json_option);
         ("bin", `Quick, test_bin);
         ("compare", `Quick, test_compare);
         ("equal", `Quick, test_equal);
