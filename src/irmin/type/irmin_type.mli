@@ -87,6 +87,12 @@ val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
 val result : 'a t -> 'b t -> ('a, 'b) result t
 (** [result a b] is a representation of values of type [(a, b) result]. *)
 
+(** An uninhabited type, defined as a variant with no constructors. *)
+type empty = |
+
+val empty : empty t
+(** [empty] is a representation of the {!empty} type. *)
+
 (** {1:records Records} *)
 
 type ('a, 'b, 'c) open_record
