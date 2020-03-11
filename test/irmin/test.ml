@@ -18,7 +18,9 @@ let test_base () =
   let s = T.to_bin_string T.int 42 in
   Alcotest.(check string) "binary int" "*" s;
   let s = T.to_string T.int 42 in
-  Alcotest.(check string) "CLI string" "42" s
+  Alcotest.(check string) "CLI string" "42" s;
+  let s = T.to_json_string T.unit () in
+  Alcotest.(check string) "JSON unit" "{}" s
 
 let id x = x
 

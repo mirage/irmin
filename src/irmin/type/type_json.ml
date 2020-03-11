@@ -29,7 +29,9 @@ let is_valid_utf8 str =
 module Encode = struct
   let lexeme e l = ignore (Jsonm.encode e (`Lexeme l))
 
-  let unit e () = lexeme e `Null
+  let unit e () =
+    lexeme e `Os;
+    lexeme e `Oe
 
   let base64 e s =
     let x = Base64.encode_exn s in
@@ -198,7 +200,7 @@ module Decode = struct
     in
     aux () >|= fun () -> List.rev !lexemes
 
-  let unit e = expect_lexeme e `Null
+  let unit e = expect_lexeme e `Os >>= fun () -> expect_lexeme e `Oe
 
   let get_base64_value e =
     match lexeme e with
