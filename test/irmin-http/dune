@@ -1,15 +1,18 @@
 (library
- (name      test_http)
- (modules   test_http)
+ (name test_http)
+ (modules test_http)
  (libraries irmin-test test_mem test_git irmin-http))
 
 (executable
- (name      test)
- (modules   test)
+ (name test)
+ (modules test)
  (libraries checkseum.c digestif.c test_http))
 
 (alias
- (name    runtest)
+ (name runtest)
  (package irmin-http)
- (locks   ../http)
- (action  (chdir %{workspace_root} (run %{exe:test.exe} -q --color=always))))
+ (locks ../http)
+ (action
+  (chdir
+   %{workspace_root}
+   (run %{exe:test.exe} -q --color=always))))

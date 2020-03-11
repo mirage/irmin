@@ -1,14 +1,15 @@
 (library
- (name      test_chunk)
- (modules   test_chunk)
+ (name test_chunk)
+ (modules test_chunk)
  (libraries irmin-test irmin-chunk irmin-mem))
 
 (executable
- (name      test)
- (modules   test)
+ (name test)
+ (modules test)
  (libraries digestif.c test_chunk))
 
 (alias
- (name    runtest)
+ (name runtest)
  (package irmin-chunk)
- (action  (run ./test.exe -q --color=always)))
+ (action
+  (run ./test.exe -q --color=always)))
