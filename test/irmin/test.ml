@@ -209,7 +209,7 @@ let test_to_string () =
   test "int32" T.int32 Int32.max_int "2147483647";
   test "int64" T.int64 Int64.max_int "9223372036854775807";
   test "float" T.float (-1.5) "-1.5";
-  test "float{NaN}" T.float Float.nan "nan";
+  test "float{NaN}" T.float Stdlib.nan "nan";
   test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
   test "string" T.string "foo\nbar\\" "foo\nbar\\";
 
@@ -219,12 +219,12 @@ let test_to_string () =
   test "float array"
     T.(array float)
     [|
-      Float.neg_infinity;
-      Float.(neg zero);
-      Float.zero;
-      Float.epsilon;
-      Float.infinity;
-      Float.nan;
+      Stdlib.neg_infinity;
+      ~-.0.;
+      0.;
+      Stdlib.epsilon_float;
+      Stdlib.infinity;
+      Stdlib.nan;
     |]
     "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
   test "(unit * int)" T.(pair unit int) ((), 1) "[null,1]";
