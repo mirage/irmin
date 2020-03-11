@@ -1,7 +1,7 @@
 (executable
  (name       fuzz_types)
  (libraries  digestif.c crowbar irmin)
- ;; Use a rewriter to fill in `[% generate_record n]` and `[% generate_variant n]`.
+ ;; Use a rewriter to fill in `[%impl_record n]` and `[%impl_variant n]`.
  (preprocess (action (run fuzz/rewriter/rewriter.exe %{input-file}))))
 
 ;; Start fuzzing when calling `dune build @fuzz`.

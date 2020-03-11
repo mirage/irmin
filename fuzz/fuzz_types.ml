@@ -83,9 +83,14 @@ let rec show_any_value = function
   | VRecord r -> fmt "VRecord (%s)" (show_dyn_record r)
   | VVariant v -> fmt "VVariant (%s)" (show_dyn_variant v)
   | VEnum v -> fmt "VEnum (%s)" (show_dyn_variant v)
+
 and show_dyn_record (n, t) =
-  fmt "{ name: %S; %s }" n (String.concat "; " (Hashtbl.fold (fun k x xs ->
-    (fmt "%S: (%s)" k (show_any_value x)) :: xs) t []))
+  fmt "{ name: %S; %s }" n
+    (String.concat "; "
+       (Hashtbl.fold
+          (fun k x xs -> fmt "%S: (%s)" k (show_any_value x) :: xs)
+          t []))
+
 and show_dyn_variant (n, c, v) =
   fmt "{ name: %S; current_case: %S; value: %S }" n c (show_any_value v)
 
@@ -260,10 +265,10 @@ let any_type_gen =
           const (AT TUnit);
           const (AT TBool);
           const (AT TChar);
-          const (AT TInt);
-          const (AT TInt32);
-          const (AT TInt64);
-          const (AT TFloat);
+          (* const (AT TInt);
+             const (AT TInt32);
+             const (AT TInt64);
+             const (AT TFloat); *)
           const (AT TString);
           const (AT TBytes);
           map [ at_gen ] (fun (AT t) -> AT (TList t));
@@ -368,7 +373,7 @@ and irmin_variant_gen : string -> case list -> dyn_variant gen =
     | [] -> []
     | (case_name, ACT Case0) :: xs ->
         const (variant_name, case_name, VUnit ()) :: cases_gen xs
-    | (case_name, ACT (Case1 t)) :: xs n->
+    | (case_name, ACT (Case1 t)) :: xs ->
         map [ t_to_value_gen t ] (fun v -> (variant_name, case_name, wrap t v))
         :: cases_gen xs
   in
@@ -386,36 +391,35 @@ let inhabited_gen : inhabited gen =
   dynamic_bind any_type_gen @@ fun (AT t) ->
   map [ t_to_value_gen t ] (fun v -> Inhabited (t, v))
 
-(** Pretty-print a value of a given dynamic type. *)
-let pp_value : type a. a t -> Format.formatter -> a -> unit =
- fun t ppf v ->
-  pp ppf "%s : %s" (show_any_value (wrap t v)) (show_any_type (AT t))
+(** Pretty-print a value of a given dynamic type. [~context] can be used to
+    print additional context in case of an error. *)
+let pp_value :
+    type a. ?context:(unit -> string) -> a t -> Format.formatter -> a -> unit =
+ fun ?(context = fun () -> "") t ppf v ->
+  pp ppf "Type: %s\n    Value: %s%s" (show_any_type (AT t))
+    (show_any_value (wrap t v))
+    (context ())
 
 (** [bin_check (Inhabited (t, v))] checks that the value [v], of dynamic type
     [t], stays consistent after binary encoding then decoding. *)
 let bin_check (Inhabited (t, v)) =
   let irmin_t = t_to_irmin t in
   let encoded = T.(unstage (to_bin_string irmin_t)) v in
-  match T.of_bin_string irmin_t encoded with
-  | Error _ -> failf "Could not deserialize binary string %s." encoded
+  match T.(unstage (of_bin_string irmin_t)) encoded with
+  | Error (`Msg e) ->
+      failf "Could not deserialize binary string %s.\n\nRaised: %s." encoded e
   | Ok v' -> check_eq ~pp:(pp_value t) v v'
-
-(** Check that the value [v], of dynamic type [t], stays consistent after
-    encoding then decoding. *)
-let inhabited_check (Inhabited (t, v)) =
-  let encoded = T.(unstage (to_bin_string t)) v in
-  match T.(unstage (of_bin_string t)) encoded with
-  | Error _ -> failf "Could not deserialize %s." encoded
-  | Ok v' -> check_eq v v'
 
 (** [json_check (Inhabited (t, v))] checks that the value [v], of dynamic type
     [t], stays consistent after JSON encoding then decoding. *)
 let json_check (Inhabited (t, v)) =
   let irmin_t = t_to_irmin t in
   let encoded = T.to_json_string irmin_t v in
+  let context () = fmt "\n    JSON: %s" encoded in
   match T.of_json_string irmin_t encoded with
-  | Error _ -> failf "Could not deserialize JSON string %s." encoded
-  | Ok v' -> check_eq ~pp:(pp_value t) v v'
+  | Error (`Msg e) ->
+      failf "Could not deserialize binary string %s.\n\nRaised: %s." encoded e
+  | Ok v' -> check_eq ~pp:(pp_value ~context t) v v'
 
 let () =
   add_test ~name:"T.of_bin_string and T.to_bin_string are mutually inverse."
