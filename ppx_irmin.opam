@@ -3,7 +3,7 @@ maintainer: "Craig Ferguson <craig@tarides.com>"
 author: "Craig Ferguson <craig@tarides.com>"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
-license: "BSD-2"
+license: "ISC"
 dev-repo: "git+https://github.com/mirage/irmin.git"
 
 build: [
