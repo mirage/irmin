@@ -236,16 +236,28 @@ let is_unique_list (type a) ?(cmp : a -> a -> int = compare) =
   in
   aux S.empty
 
-(** Ensure that the associative list [l] has 5 or less entries with unique keys. *)
-let guard_keys l =
+exception Utf8_failure
+
+(** Check whether the string only contains valid UTF-8 characters. *)
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8
+      (fun _ _ -> function `Malformed _ -> raise Utf8_failure | _ -> ())
+      () str;
+    true
+  with Utf8_failure -> false
+
+(** Ensure that a [string list] is suited for Irmin field names. *)
+let guard_strings l =
   guard
     ( List.length l <= 5
-    && is_unique_list ~cmp:(fun (s1, _) (s2, _) -> String.compare s1 s2) l );
+    && List.for_all is_valid_utf8 l
+    && is_unique_list ~cmp:String.compare l );
   l
 
-(** Ensure that the list [l] has 5 or less unique values. *)
-let guard_strings l =
-  guard (List.length l <= 5 && is_unique_list ~cmp:String.compare l);
+(** Ensure that a [(string * 'a) list] is suited for Irmin field names. *)
+let guard_keys l =
+  List.map fst l |> guard_strings |> ignore;
   l
 
 (** Generate a dynamic type recursively. *)
