@@ -358,14 +358,17 @@ val encode_json : 'a t -> Jsonm.encoder -> 'a -> unit
     relatively straightforward translation of the OCaml structure into JSON. The
     main highlights are:
 
-    - OCaml [ints] are translated into JSON floats.
+    - The unit value [()] is translated into the empty object [{}].
+    - OCaml ints are translated into JSON floats.
     - OCaml strings are translated into JSON strings. You must then ensure that
       the OCaml strings contains only valid UTF-8 characters.
-    - OCaml record fields of type ['a option] are automatically unboxed in their
-      JSON representation. If the value if [None], the field is removed from the
-      JSON object.
-    - variant cases built using {!case0} are represented as strings.
-    - variant cases built using {!case1} are represented as a record with one
+    - OCaml options are translated differently depending on context: record
+      fields with a value of [None] are removed from the JSON object; record
+      fields with a value of [Some x] are automatically unboxed into x; and
+      outside of records, [None] is translated into [null] and [Some x] into
+      [{"some": x'}] with [x'] the JSON encoding of [x].
+    - Variant cases built using {!case0} are represented as strings.
+    - Variant cases built using {!case1} are represented as a record with one
       field; the field name is the name of the variant.
 
     {b NOTE:} this can be used to encode JSON fragments. It's the responsibility
