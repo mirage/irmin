@@ -273,12 +273,7 @@ module Decode = struct
     c e >>= fun z ->
     expect_lexeme e `Ae >|= fun () -> (x, y, z)
 
-  let unboxed_option o e =
-    lexeme e >>= function
-    | `Null -> Ok None
-    | lex ->
-        Json.rewind e lex;
-        o e >|= fun v -> Some v
+  let unboxed_option o e = o e >|= fun v -> Some v
 
   let boxed_option o e =
     lexeme e >>= function

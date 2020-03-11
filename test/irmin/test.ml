@@ -141,6 +141,11 @@ let test_json_option () =
   Alcotest.(check (ok testable_t))
     "Decode nested option 3"
     (Ok { c = None; d = Some (Some 1) })
+    x;
+  let x = of_json_string t "{\"d\":null}" in
+  Alcotest.(check (ok testable_t))
+    "Decode nested option 4"
+    (Ok { c = None; d = Some None })
     x
 
 let l =
