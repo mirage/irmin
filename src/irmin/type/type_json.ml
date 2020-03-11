@@ -84,13 +84,12 @@ module Encode = struct
     lexeme e `Ae
 
   let boxed_option o e = function
-    | None ->
-        lexeme e `As;
-        lexeme e `Ae
+    | None -> lexeme e `Null
     | Some x ->
-        lexeme e `As;
+        lexeme e `Os;
+        lexeme e (`Name "some");
         o e x;
-        lexeme e `Ae
+        lexeme e `Oe
 
   let rec t : type a. a t -> a encode_json =
    fun ty e ->
@@ -282,13 +281,13 @@ module Decode = struct
         o e >|= fun v -> Some v
 
   let boxed_option o e =
-    expect_lexeme e `As >>= fun () ->
     lexeme e >>= function
-    | `Ae -> Ok None
-    | lex ->
-        Json.rewind e lex;
+    | `Null -> Ok None
+    | `Os ->
+        expect_lexeme e (`Name "some") >>= fun () ->
         o e >>= fun v ->
-        expect_lexeme e `Ae >|= fun () -> Some v
+        expect_lexeme e `Oe >|= fun () -> Some v
+    | l -> error e l "`Option-contents"
 
   let rec t : type a. a t -> a decode_json =
    fun ty d ->

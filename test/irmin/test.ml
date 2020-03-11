@@ -1,6 +1,6 @@
 module T = Irmin.Type
 
-type dummy_record_2 = { c : int option; d : int option option }
+type bar = { c : int option; d : int option option }
 
 let test_base () =
   let s = T.to_json_string T.string "foo" in
@@ -82,20 +82,25 @@ let test_json () =
   Alcotest.(check (ok string))
     "JSON string with chars larger than 127"
     (T.of_json_string T.string x)
-    (Ok "\128\129a")
+    (Ok "\128\129a");
+  let x = T.of_json_string T.unit "{}" in
+  Alcotest.(check (ok unit)) "JSON of unit" (Ok ()) x
 
 let test_json_option () =
   let open T in
+  (* Test JSON encoding. *)
   let x = to_json_string (option int) (Some 1) in
-  Alcotest.(check string) "Option outside of record 1" "[1]" x;
+  Alcotest.(check string) "Option outside of record 1" "{\"some\":1}" x;
   let x = to_json_string (option int) None in
-  Alcotest.(check string) "Option outside of record 2" "[]" x;
+  Alcotest.(check string) "Option outside of record 2" "null" x;
   let x = to_json_string (option (option int)) (Some (Some 1)) in
-  Alcotest.(check string) "Nested option outside of record 1" "[[1]]" x;
+  Alcotest.(check string)
+    "Nested option outside of record 1" "{\"some\":{\"some\":1}}" x;
   let x = to_json_string (option (option int)) (Some None) in
-  Alcotest.(check string) "Nested option outside of record 2" "[[]]" x;
+  Alcotest.(check string)
+    "Nested option outside of record 2" "{\"some\":null}" x;
   let x = to_json_string (option (option int)) None in
-  Alcotest.(check string) "Nested option outside of record 3" "[]" x;
+  Alcotest.(check string) "Nested option outside of record 3" "null" x;
   let t =
     record "foo" (fun c d -> { c; d })
     |+ field "c" (option int) (fun r -> r.c)
@@ -107,9 +112,36 @@ let test_json_option () =
   let x = to_json_string t { c = Some 1; d = None } in
   Alcotest.(check string) "Nested option within record 2" "{\"c\":1}" x;
   let x = to_json_string t { c = None; d = Some (Some 1) } in
-  Alcotest.(check string) "Nested option within record 2" "{\"d\":[1]}" x;
+  Alcotest.(check string)
+    "Nested option within record 2" "{\"d\":{\"some\":1}}" x;
   let x = to_json_string t { c = None; d = Some None } in
-  Alcotest.(check string) "Nested option within record 3" "{\"d\":[]}" x
+  Alcotest.(check string) "Nested option within record 3" "{\"d\":null}" x;
+
+  (* Test JSON decoding. *)
+  let x = of_json_string (option int) "null" in
+  Alcotest.(check (ok (option int))) "Decode null option" (Ok None) x;
+  let x = of_json_string (option int) "{\"some\":1}" in
+  Alcotest.(check (ok (option int))) "Decode some option" (Ok (Some 1)) x;
+  let x = of_json_string (option (option int)) "{\"some\":null}" in
+  Alcotest.(check (ok (option (option int))))
+    "Decode nested null option" (Ok (Some None)) x;
+
+  let testable_t = Alcotest.testable (T.pp t) (T.equal t) in
+  let x = of_json_string t "{}" in
+  Alcotest.(check (ok testable_t))
+    "Decode nested option"
+    (Ok { c = None; d = None })
+    x;
+  let x = of_json_string t "{\"c\":1}" in
+  Alcotest.(check (ok testable_t))
+    "Decode nested option 2"
+    (Ok { c = Some 1; d = None })
+    x;
+  let x = of_json_string t "{\"d\":{\"some\":1}}" in
+  Alcotest.(check (ok testable_t))
+    "Decode nested option 3"
+    (Ok { c = None; d = Some (Some 1) })
+    x
 
 let l =
   let hex = T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
