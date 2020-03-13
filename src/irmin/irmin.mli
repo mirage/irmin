@@ -61,14 +61,23 @@ type 'a diff = 'a Diff.t
     content-addressable} and {{!ATOMIC_WRITE_STORE} atomic-write} stores. These
     low-level stores are provided by various backends. *)
 
-module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
 (** Content-addressable backend store. *)
+module type CONTENT_ADDRESSABLE_STORE = sig
+  include S.CONTENT_ADDRESSABLE_STORE
+  (** @inline *)
+end
 
-module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
 (** Append-only backend store. *)
+module type APPEND_ONLY_STORE = sig
+  include S.APPEND_ONLY_STORE
+  (** @inline *)
+end
 
-module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 (** Atomic-write stores. *)
+module type ATOMIC_WRITE_STORE = sig
+  include S.ATOMIC_WRITE_STORE
+  (** @inline *)
+end
 
 (** {1 User-Defined Contents} *)
 
@@ -81,8 +90,11 @@ module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module Path : sig
   (** {1 Path} *)
 
-  module type S = S.PATH
   (** Signature for path implementations.*)
+  module type S = sig
+    include S.PATH
+    (** @inline *)
+  end
 
   (** An implementation of paths as string lists. *)
   module String_list : S with type step = string and type t = string list
@@ -99,21 +111,31 @@ end
 module Hash : sig
   (** {1 Contents Hashing} *)
 
-  module type S = S.HASH
   (** Signature for hash values. *)
+  module type S = sig
+    include S.HASH
+    (** @inline *)
+  end
 
-  module type TYPED = S.TYPED_HASH
   (** Signature for typed hashes, where [hash] directly takes a value as
       argument and incremental hashing is not possible. *)
+  module type TYPED = sig
+    include S.TYPED_HASH
+    (** @inline *)
+  end
 
   include module type of Hash
+  (** @inline *)
 end
 
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. The Git backend uses this to indicate the type of file (normal,
     executable or symlink). *)
 module Metadata : sig
-  module type S = S.METADATA
+  module type S = sig
+    include S.METADATA
+    (** @inline *)
+  end
 
   module None : S with type t = unit
   (** A metadata definition for systems that don't use metadata. *)
@@ -133,7 +155,10 @@ end
     Default implementations for {{!Contents.String} idempotent string} and
     {{!Contents.Json} JSON} contents are provided. *)
 module Contents : sig
-  module type S = S.CONTENTS
+  module type S = sig
+    include S.CONTENTS
+    (** @inline *)
+  end
 
   module String : S with type t = string
   (** Contents of type [string], with the {{!Irmin.Merge.default} default} 3-way
@@ -161,8 +186,11 @@ module Contents : sig
     (** Same as {!String} but use v1 serialisation format. *)
   end
 
-  module type STORE = S.CONTENTS_STORE
   (** Contents store. *)
+  module type STORE = sig
+    include S.CONTENTS_STORE
+    (** @inline *)
+  end
 
   (** [Store] creates a contents store. *)
   module Store (S : sig
@@ -179,21 +207,27 @@ end
 module Branch : sig
   (** {1 Branches} *)
 
-  module type S = S.BRANCH
   (** The signature for branches. Irmin branches are similar to Git branches:
       they are used to associated user-defined names to head commits. Branches
       have a default value: the {{!Branch.S.master} master} branch. *)
+  module type S = sig
+    include S.BRANCH
+    (** @inline *)
+  end
 
   module String : S with type t = string
   (** [String] is an implementation of {{!Branch.S} S} where branches are
       strings. The [master] branch is ["master"]. Valid branch names contain
       only alpha-numeric characters, [-], [_], [.], and [/]. *)
 
-  module type STORE = S.BRANCH_STORE
   (** [STORE] specifies the signature for branch stores.
 
       A {i branch store} is a mutable and reactive key / value store, where keys
       are branch names created by users and values are keys are head commmits. *)
+  module type STORE = sig
+    include S.BRANCH_STORE
+    (** @inline *)
+  end
 end
 
 type remote = S.remote = ..
@@ -229,7 +263,10 @@ module Private : sig
 
       Each node can point to user-defined {{!Contents.S} contents} values. *)
   module Node : sig
-    module type S = S.NODE
+    module type S = sig
+      include S.NODE
+      (** @inline *)
+    end
 
     (** [Make] provides a simple node implementation, parameterized by the
         contents and notes keys [K], paths [P] and metadata [M]. *)
@@ -462,8 +499,11 @@ exception Closed
 (** The exception raised when any operation is attempted on a closed store,
     except for {!S.close}, which is idempotent. *)
 
-module type S = S.STORE
 (** Irmin stores. *)
+module type S = sig
+  include S.STORE
+  (** @inline *)
+end
 
 (** [Json_tree] is used to project JSON values onto trees. Instead of the entire
     object being stored under one key, it is split across several keys starting
@@ -525,9 +565,12 @@ val remote_store : (module S with type t = 'a) -> 'a -> remote
     slices}, so this is usually much slower than native synchronization using
     {!Store.remote} but it works for all backends. *)
 
-module type SYNC = S.SYNC_STORE
 (** [SYNC] provides functions to synchronize an Irmin store with local and
     remote Irmin stores. *)
+module type SYNC = sig
+  include S.SYNC_STORE
+  (** @inline *)
+end
 
 (** The default [Sync] implementation. *)
 module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit

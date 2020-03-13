@@ -15,3 +15,4 @@
  *)
 
 include module type of Irmin_type
+(** @inline *)
