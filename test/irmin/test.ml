@@ -227,8 +227,8 @@ let test_to_string () =
       Stdlib.nan;
     |]
     "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
-  test "(unit * int)" T.(pair unit int) ((), 1) "[null,1]";
-  test "unit option{some}" T.(option unit) (Some ()) "null";
+  test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
+  test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
   test "int option{none}" T.(option unit) None "null";
   test "(int * string * bool)"
     T.(triple int string bool)
