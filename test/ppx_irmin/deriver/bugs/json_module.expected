@@ -1,0 +1,10 @@
+module Json = struct type t = string
+                     let t = Irmin.Type.string end
+type foo = {
+  contents: Json.t }[@@deriving irmin]
+let foo_t =
+  let open Irmin.Type in
+    ((record "foo" (fun contents -> { contents })) |+
+       (field "contents" Json.t (fun t -> t.contents)))
+      |> sealr
+let (_ : foo Irmin.Type.t) = foo_t
