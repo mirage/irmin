@@ -5,6 +5,7 @@ let global_stanzas () =
   (env-vars
    (OCAML_ERROR_STYLE "short")
    (OCAML_COLOR "never"))))
+
 |}
 
 let output_stanzas ~expect_failure filename =
@@ -12,7 +13,8 @@ let output_stanzas ~expect_failure filename =
   let pp_library ppf base =
     if not expect_failure then
       Format.fprintf ppf
-        "@[<v 1>(executable@ (name %s)@ (modules %s)@ (preprocess (pps \
+        "; The PPX-dependent executable under test@,\
+         @[<v 1>(executable@ (name %s)@ (modules %s)@ (preprocess (pps \
          ppx_irmin))@ (libraries irmin))@]"
         base base
     else ()
@@ -21,7 +23,8 @@ let output_stanzas ~expect_failure filename =
     let pp_action ppf expect_failure =
       Format.fprintf ppf
         ( if expect_failure then
-          "@[<v 1>(with-stderr-to@,\
+          "; expect the process to fail, capturing stderr@,\
+           @[<v 1>(with-stderr-to@,\
            %%{targets}@,\
            (bash \"! ./%%{pp} -no-color --impl %%{input}\"))@]"
         else
@@ -29,7 +32,8 @@ let output_stanzas ~expect_failure filename =
            %%{targets})" )
     in
     Format.fprintf ppf
-      "@[<v 1>(rule@,\
+      "; Run the PPX on the `.ml` file@,\
+       @[<v 1>(rule@,\
        (targets %s.actual)@,\
        @[<v 1>(deps@,\
        (:pp pp.exe)@,\
@@ -40,7 +44,8 @@ let output_stanzas ~expect_failure filename =
   in
   let pp_diff_alias ppf base =
     Format.fprintf ppf
-      "@[<v 1>(alias@,\
+      "; Compare the post-processed output to the .expected file@,\
+       @[<v 1>(alias@,\
        (name runtest)@,\
        (package ppx_irmin)@,\
        @[<v 1>(action@,\
@@ -53,6 +58,7 @@ let output_stanzas ~expect_failure filename =
       Format.fprintf ppf
         "@,\
          @,\
+         ; Ensure that the post-processed executable runs correctly@,\
          @[<v 1>(alias@,\
          (name runtest)@,\
          (package ppx_irmin)@,\
@@ -61,8 +67,9 @@ let output_stanzas ~expect_failure filename =
     else ()
   in
   Format.set_margin 80;
-  Format.printf "@[<v 0>@,%a@,@,%a@,@,%a%a@]@." pp_library base pp_rule base
-    pp_diff_alias base pp_run_alias base
+  Format.printf
+    "@[<v 0>; -------- Test: `%s.ml` --------@,@,%a@,@,%a@,@,%a%a@,@]@." base
+    pp_library base pp_rule base pp_diff_alias base pp_run_alias base
 
 let is_error_test = function
   | "pp.ml" -> false
