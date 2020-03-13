@@ -4,9 +4,11 @@
    (OCAML_ERROR_STYLE "short")
    (OCAML_COLOR "never"))))
 
-(library
+(executable
  (name alias)
- (modules alias))
+ (modules alias)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets alias.actual)
@@ -22,9 +24,17 @@
  (action
   (diff alias.expected alias.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./alias.exe)))
+
+(executable
  (name arguments)
- (modules arguments))
+ (modules arguments)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets arguments.actual)
@@ -40,9 +50,17 @@
  (action
   (diff arguments.expected arguments.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./arguments.exe)))
+
+(executable
  (name basic)
- (modules basic))
+ (modules basic)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets basic.actual)
@@ -58,9 +76,17 @@
  (action
   (diff basic.expected basic.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./basic.exe)))
+
+(executable
  (name composite)
- (modules composite))
+ (modules composite)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets composite.actual)
@@ -76,9 +102,17 @@
  (action
   (diff composite.expected composite.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./composite.exe)))
+
+(executable
  (name lib_relocated)
- (modules lib_relocated))
+ (modules lib_relocated)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets lib_relocated.actual)
@@ -94,9 +128,17 @@
  (action
   (diff lib_relocated.expected lib_relocated.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./lib_relocated.exe)))
+
+(executable
  (name module)
- (modules module))
+ (modules module)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets module.actual)
@@ -112,9 +154,17 @@
  (action
   (diff module.expected module.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./module.exe)))
+
+(executable
  (name nobuiltin)
- (modules nobuiltin))
+ (modules nobuiltin)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets nobuiltin.actual)
@@ -130,9 +180,17 @@
  (action
   (diff nobuiltin.expected nobuiltin.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./nobuiltin.exe)))
+
+(executable
  (name nonrec)
- (modules nonrec))
+ (modules nonrec)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets nonrec.actual)
@@ -148,9 +206,17 @@
  (action
   (diff nonrec.expected nonrec.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./nonrec.exe)))
+
+(executable
  (name polyvariant)
- (modules polyvariant))
+ (modules polyvariant)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets polyvariant.actual)
@@ -166,9 +232,17 @@
  (action
   (diff polyvariant.expected polyvariant.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./polyvariant.exe)))
+
+(executable
  (name record)
- (modules record))
+ (modules record)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets record.actual)
@@ -184,9 +258,17 @@
  (action
   (diff record.expected record.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./record.exe)))
+
+(executable
  (name signature)
- (modules signature))
+ (modules signature)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets signature.actual)
@@ -202,9 +284,17 @@
  (action
   (diff signature.expected signature.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./signature.exe)))
+
+(executable
  (name tuple_deep)
- (modules tuple_deep))
+ (modules tuple_deep)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets tuple_deep.actual)
@@ -220,9 +310,17 @@
  (action
   (diff tuple_deep.expected tuple_deep.actual)))
 
-(library
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./tuple_deep.exe)))
+
+(executable
  (name variant)
- (modules variant))
+ (modules variant)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
 (rule
  (targets variant.actual)
@@ -237,4 +335,10 @@
  (package ppx_irmin)
  (action
   (diff variant.expected variant.actual)))
+
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./variant.exe)))
 

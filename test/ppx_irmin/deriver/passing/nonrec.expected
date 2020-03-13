@@ -1,5 +1,7 @@
-type t = unit
-type t_alias = unit
+type t = unit[@@deriving irmin]
+let t = Irmin.Type.unit
+type t_alias = unit[@@deriving irmin]
+let t_alias_t = Irmin.Type.unit
 module S1 :
   sig
     type nonrec t = t list[@@deriving irmin]

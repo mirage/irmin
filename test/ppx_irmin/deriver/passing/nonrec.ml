@@ -1,6 +1,6 @@
-type t = unit
+type t = unit [@@deriving irmin]
 
-type t_alias = unit
+type t_alias = unit [@@deriving irmin]
 
 (* Ensure that 'nonrec' assertions are respected *)
 module S1 : sig
