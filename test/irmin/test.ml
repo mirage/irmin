@@ -317,7 +317,7 @@ let test_pp_ty () =
 
   (* Test cases for 'custom' types *)
   let module Custom = struct
-    type empty = |
+    type empty = { v : 'a. 'a }
 
     let v : empty T.t =
       let a1 _ = assert false in
