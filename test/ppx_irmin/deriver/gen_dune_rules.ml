@@ -1,4 +1,6 @@
-let global_stanzas () =
+(* Global configuration for tests in which the PPX fails (for consistency with
+   various compiler versions / platforms). *)
+let ppx_fail_global_stanzas () =
   Format.printf
     {|(env
  (_
@@ -11,6 +13,7 @@ let global_stanzas () =
 let output_stanzas ~expect_failure filename =
   let base = Filename.remove_extension filename in
   let pp_library ppf base =
+    (* If the PPX will fail, we don't need to declare the file as executable *)
     if not expect_failure then
       Format.fprintf ppf
         "; The PPX-dependent executable under test@,\
@@ -82,10 +85,11 @@ let is_error_test = function
 let () =
   let expect_failure =
     match Array.to_list Sys.argv with
-    | _ :: "--expect-failure" :: _ -> true
-    | _ -> false
+    | [ _; "--expect-failure" ] -> true
+    | [ _ ] -> false
+    | _ -> failwith "Unsupported option passed"
   in
-  global_stanzas ();
+  if expect_failure then ppx_fail_global_stanzas ();
   Sys.readdir "."
   |> Array.to_list
   |> List.sort String.compare
