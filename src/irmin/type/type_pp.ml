@@ -45,7 +45,7 @@ let rec ty : type a. a t Fmt.t =
  fun ppf -> function
   | Self s -> Fmt.pf ppf "@[Self (%a@)]" ty s.self
   | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
-  | Map m -> Fmt.pf ppf "@[Map (%a)]" ty m.x
+  | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
   | Prim p -> Fmt.pf ppf "@[Prim %a@]" prim p
   | List l -> Fmt.pf ppf "@[List%a (%a)@]" len l.len ty l.v
   | Array a -> Fmt.pf ppf "@[Array%a (%a)@]" len a.len ty a.v

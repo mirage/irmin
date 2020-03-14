@@ -189,6 +189,22 @@ let test_bin () =
   Alcotest.(check int) "hash size" n Irmin.Hash.BLAKE2B.hash_size;
   Alcotest.(check hash) "hash" v h
 
+module Algebraic = struct
+  (* Dummy algebraic types and corresponding generics *)
+
+  type my_enum = Alpha | Beta | Gamma | Delta [@@deriving irmin]
+
+  type my_variant = Left of int | Right of int list [@@deriving irmin]
+
+  type my_recursive_variant =
+    | Branch of my_recursive_variant list
+    | Leaf of int
+  [@@deriving irmin]
+
+  type my_record = { foo : int; flag : bool; letter : my_enum }
+  [@@deriving irmin]
+end
+
 (** Test the behaviour of {!Irmin.Type.to_string}. *)
 let test_to_string () =
   let test : type a. string -> a T.t -> a -> string -> unit =
@@ -241,21 +257,6 @@ let test_to_string () =
     (Error false) "{\"error\":0}";
 
   (* Test cases for algebraic combinators *)
-  let module Algebraic = struct
-    (* Dummy algebraic types and corresponding generics *)
-
-    type my_enum = Alpha | Beta | Gamma | Delta [@@deriving irmin]
-
-    type my_variant = Left of int | Right of int list [@@deriving irmin]
-
-    type my_recursive_variant =
-      | Branch of my_recursive_variant list
-      | Leaf of int
-    [@@deriving irmin]
-
-    type my_record = { foo : int; flag : bool; letter : my_enum }
-    [@@deriving irmin]
-  end in
   let open Algebraic in
   test "enum" my_enum_t Alpha "\"Alpha\"";
   test "variant" my_variant_t (Right [ 1; 2 ]) "{\"Right\":[1,2]}";
@@ -265,6 +266,80 @@ let test_to_string () =
   test "record" my_record_t
     { foo = 2; flag = false; letter = Delta }
     "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
+
+  ()
+
+(** Test the behaviour of {!Irmin.Type.pp_ty}. *)
+let test_pp_ty () =
+  let test : type a. string -> a T.t -> string -> unit =
+   fun case_name input expected_output ->
+    let assertion =
+      Fmt.strf "Expected output of `pp_ty` for representation of `%s`" case_name
+    in
+    (Fmt.to_to_string T.pp_ty) input
+    |> Alcotest.(check string) assertion expected_output
+  in
+
+  (* Test cases for basic types *)
+  test "unit" T.unit "Prim Unit";
+  test "bool" T.bool "Prim Bool";
+  test "char" T.char "Prim Char";
+  test "int" T.int "Prim Int";
+  test "int32" T.int32 "Prim Int32";
+  test "int64" T.int64 "Prim Int64";
+  test "float" T.float "Prim Float";
+  test "bytes" T.bytes "Prim Bytes";
+  test "string" T.string "Prim String";
+
+  (* Test cases for non-algebraic combinators *)
+  test "int list" T.(list int) "List (Prim Int)";
+  test "float array" T.(array float) "Array (Prim Float)";
+  test "(unit * int)" T.(pair unit int) "Pair (Prim Unit, Prim Int)";
+  test "unit option" T.(option unit) "Option (Prim Unit)";
+  test "(int * string * bool)"
+    T.(triple int string bool)
+    "Triple (Prim Int, Prim String, Prim Bool)";
+  test "(string, bool) result" T.(result string bool) "Variant";
+
+  (* Test cases for fixed-size refinement types *)
+  test "string {size=Int}" T.(string_of `Int) "Prim String";
+  test "string {size=Int8}" T.(string_of `Int8) "Prim String:8";
+  test "bytes {size=Int16}" T.(bytes_of `Int16) "Prim Bytes:16";
+  test "bytes {size=Int32}" T.(bytes_of `Int32) "Prim Bytes:32";
+  test "array {size=Int64}" T.(array ~len:`Int64 unit) "Array:64 (Prim Unit)";
+  test "array {size=3}" T.(array ~len:(`Fixed 3) unit) "Array:<3> (Prim Unit)";
+
+  (* Test cases for algebraic combinators *)
+  test "enum" Algebraic.my_enum_t "Variant";
+  test "variant" Algebraic.my_variant_t "Variant";
+  test "recursive variant" Algebraic.my_recursive_variant_t "Variant";
+  test "record" Algebraic.my_record_t "Record";
+
+  (* Test cases for 'custom' types *)
+  let module Custom = struct
+    type empty = { v : 'a. 'a }
+
+    let v : empty T.t =
+      let a1 _ = assert false in
+      let a2 _ _ = assert false in
+      let hdr f ?headers:_ = f in
+      T.v ~cli:(a2, a1) ~json:(a2, a1)
+        ~bin:(hdr a2, hdr a2, hdr a1)
+        ~equal:a2 ~compare:a2
+        ~short_hash:(fun ?seed:_ -> a1)
+        ~pre_hash:a2
+
+    let like_prim : int T.t = T.(like int)
+
+    let like_custom : empty T.t = T.like v
+
+    let map : int T.t = T.(map int) (fun x -> x) (fun x -> x)
+  end in
+  test "custom v" Custom.v "Custom (-)";
+  test "custom like prim" Custom.like_prim "Custom (Prim Int)";
+  test "custom like custom" Custom.like_custom "Custom (Custom (-))";
+  test "map" Custom.map "Map (Prim Int)";
+
   ()
 
 let x = T.like ~compare:(fun x y -> y - x - 1) T.int
@@ -567,6 +642,7 @@ let suite =
         ("json_option", `Quick, test_json_option);
         ("bin", `Quick, test_bin);
         ("to_string", `Quick, test_to_string);
+        ("pp_ty", `Quick, test_pp_ty);
         ("compare", `Quick, test_compare);
         ("equal", `Quick, test_equal);
         ("ints", `Quick, test_int);
