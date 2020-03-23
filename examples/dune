@@ -1,7 +1,8 @@
 (executables
  (names readme trees sync process deploy irmin_git_store custom_merge push
    custom_graphql)
- (libraries checkseum.c digestif.c irmin irmin-unix))
+ (libraries astring checkseum.c cohttp digestif.c fmt git irmin irmin-git
+   irmin-unix lwt lwt.unix))
 
 (alias
  (name examples)

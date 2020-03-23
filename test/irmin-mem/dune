@@ -1,12 +1,12 @@
 (library
  (name test_mem)
  (modules test_mem)
- (libraries irmin-test irmin-mem))
+ (libraries irmin irmin-test irmin-mem lwt))
 
 (executable
  (name test)
  (modules test)
- (libraries digestif.ocaml test_mem))
+ (libraries alcotest digestif.ocaml irmin-test test_mem))
 
 (alias
  (name runtest)

@@ -1,12 +1,12 @@
 (library
  (name test_fs)
  (modules test_fs)
- (libraries irmin-fs irmin-test))
+ (libraries irmin irmin-fs irmin-test lwt))
 
 (executable
  (name test)
  (modules test)
- (libraries digestif.c test_fs))
+ (libraries alcotest digestif.c irmin irmin-test test_fs))
 
 (alias
  (name runtest)

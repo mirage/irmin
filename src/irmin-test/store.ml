@@ -41,7 +41,7 @@ let random_char () = char_of_int (Random.int 256)
 
 let random_ascii () =
   let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in
-  chars.[Random.int @@ String.length chars]
+  chars.[Random.int (String.length chars)]
 
 let random_string n = String.init n (fun _i -> random_char ())
 
@@ -170,7 +170,7 @@ module Make (S : S) = struct
     in
     aux 0
 
-  let old k () = Lwt.return_ok (Some k)
+  let old k () = Lwt.return (Ok (Some k))
 
   let test_two_close x () =
     try
@@ -1689,7 +1689,7 @@ module Make (S : S) = struct
     let test repo =
       let vx = "VX" in
       let vy = "VY" in
-      let old () = Lwt.return_ok None in
+      let old () = Lwt.return (Ok None) in
       S.master repo >>= fun t ->
       S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
       none_fail (S.Head.find t) "head not found" >>= fun _c1 ->

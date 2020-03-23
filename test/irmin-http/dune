@@ -1,12 +1,13 @@
 (library
  (name test_http)
  (modules test_http)
- (libraries irmin-test test_mem test_git irmin-http))
+ (libraries alcotest cohttp-lwt cohttp-lwt-unix conduit conduit-lwt-unix fmt
+   irmin-test test_mem test_git irmin irmin-http logs lwt lwt.unix uri))
 
 (executable
  (name test)
  (modules test)
- (libraries checkseum.c digestif.c test_http))
+ (libraries checkseum.c digestif.c irmin-test test_http))
 
 (alias
  (name runtest)

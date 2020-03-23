@@ -347,7 +347,9 @@ let rec read_config_file path =
     let len = in_channel_length oc in
     let buf = really_input_string oc len in
     close_in oc;
-    match Yaml.of_string buf with Ok (`O y) -> y @ global | _ -> global
+    match Yaml.of_string_exn buf with
+    | `O y -> y @ global
+    | _ | (exception _) -> global
 
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in

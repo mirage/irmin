@@ -830,15 +830,15 @@ module Make (P : S.PRIVATE) = struct
             let mold =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (_, m) -> Lwt.return_ok (Some m)
-                  | `Node _ -> Lwt.return_ok None)
+                  | `Contents (_, m) -> Lwt.return (Ok (Some m))
+                  | `Node _ -> Lwt.return (Ok None))
             in
             Merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
             let old =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (c, _) -> Lwt.return_ok (Some c)
-                  | `Node _ -> Lwt.return_ok None)
+                  | `Contents (c, _) -> Lwt.return (Ok (Some c))
+                  | `Node _ -> Lwt.return (Ok None))
             in
             Merge.(f Contents.merge) ~old x y >>=* fun c ->
             Merge.ok (`Contents (c, m))
@@ -847,8 +847,8 @@ module Make (P : S.PRIVATE) = struct
                 let old =
                   Merge.bind_promise old (fun old () ->
                       match old with
-                      | `Contents _ -> Lwt.return_ok None
-                      | `Node n -> Lwt.return_ok (Some n))
+                      | `Contents _ -> Lwt.return (Ok None)
+                      | `Node n -> Lwt.return (Ok (Some n)))
                 in
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node n))
         | _ -> Merge.conflict "add/add values"
@@ -1252,7 +1252,7 @@ module Make (P : S.PRIVATE) = struct
           | None -> Merge.conflict "conflict: contents"
           | Some c -> Merge.ok (`Contents (c, m)) )
       | Ok (`Node _ as n) -> Merge.ok n
-      | Error e -> Lwt.return_error e
+      | Error e -> Lwt.return (Error e)
     in
     Merge.v tree_t f
 

@@ -1,12 +1,12 @@
 (library
  (name test_chunk)
  (modules test_chunk)
- (libraries irmin-test irmin-chunk irmin-mem))
+ (libraries fmt irmin irmin-test irmin-chunk irmin-mem lwt))
 
 (executable
  (name test)
  (modules test)
- (libraries digestif.c test_chunk))
+ (libraries alcotest digestif.c fmt irmin irmin-test lwt lwt.unix test_chunk))
 
 (alias
  (name runtest)
