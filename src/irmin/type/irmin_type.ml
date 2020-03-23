@@ -210,6 +210,11 @@ let sealv v =
 
 let ( |~ ) = app
 
+type empty = |
+
+(* Encode [empty] as a variant with no constructors *)
+let empty = variant "empty" (fun _ -> assert false) |> sealv
+
 let enum vname l =
   let vwit = Witness.make () in
   let _, vcases, mk =
