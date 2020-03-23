@@ -19,6 +19,11 @@ depends: [
   "irmin"      {>= "2.0.0"}
   "git"        {>= "2.1.1"}
   "digestif"   {>= "0.7.3"}
+  "astring"
+  "fpath"
+  "logs"
+  "lwt"
+  "uri"
   "irmin-test" {with-test & >= "2.0.0"}
   "irmin-mem"  {with-test & >= "2.0.0"}
   "git-unix"   {with-test & >= "2.1.1"}

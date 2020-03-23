@@ -1,4 +1,5 @@
 (library
  (name irmin_graphql)
  (public_name irmin-graphql)
- (libraries graphql-lwt graphql-cohttp cohttp-lwt irmin))
+ (libraries fmt cohttp cohttp-lwt graphql-cohttp graphql graphql-lwt
+   graphql_parser irmin lwt))

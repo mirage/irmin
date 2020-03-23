@@ -329,7 +329,7 @@ module Make (P : S.PRIVATE) = struct
             !commits
           >|= fun () -> Ok ())
         (function
-          | Import_error e -> Lwt.return_error (`Msg e)
+          | Import_error e -> Lwt.return (Error (`Msg e))
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
   end
 
@@ -553,7 +553,7 @@ module Make (P : S.PRIVATE) = struct
                 Commit.pp_hash new_head);
           if Commit.equal new_head old_head then
             (* we only update if there is a change *)
-            Lwt.return_error `No_change
+            Lwt.return (Error `No_change)
           else
             H.lcas (history_t t) ?max_depth ?n new_head.Commit.h
               old_head.Commit.h
@@ -562,8 +562,8 @@ module Make (P : S.PRIVATE) = struct
                 (* we only update if new_head > old_head *)
                 test_and_set t ~test:(Some old_head) ~set:(Some new_head)
                 >|= return
-            | Ok _ -> Lwt.return_error `Rejected
-            | Error e -> Lwt.return_error (e :> ff_error) )
+            | Ok _ -> Lwt.return (Error `Rejected)
+            | Error e -> Lwt.return (Error (e :> ff_error)) )
 
     (* Merge two commits:
        - Search for common ancestors
@@ -594,11 +594,11 @@ module Make (P : S.PRIVATE) = struct
     let done_once = ref false in
     let rec aux i =
       if !done_once && i > retries then
-        Lwt.return_error (`Too_many_retries retries)
+        Lwt.return (Error (`Too_many_retries retries))
       else
         fn () >>= function
-        | Ok true -> Lwt.return_ok ()
-        | Error e -> Lwt.return_error e
+        | Ok true -> Lwt.return (Ok ())
+        | Error e -> Lwt.return (Error e)
         | Ok false ->
             done_once := true;
             aux (i + 1)
@@ -645,7 +645,7 @@ module Make (P : S.PRIVATE) = struct
           Type.(pp (option Tree.tree_t))
           t
 
-  let write_error e : ('a, write_error) result Lwt.t = Lwt.return_error e
+  let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
 
   let err_test v = write_error (`Test_was v)
 
@@ -680,17 +680,17 @@ module Make (P : S.PRIVATE) = struct
     f s.tree >>= fun new_tree ->
     (* if no change and [allow_empty = true] then, do nothing *)
     if same_tree s.tree new_tree && (not allow_empty) && s.head <> None then
-      Lwt.return_ok true
+      Lwt.return (Ok true)
     else
       merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
-      | Error e -> Lwt.return_error e
+      | Error e -> Lwt.return (Error e)
       | Ok root ->
           let info = info () in
           let parents = match parents with None -> s.parents | Some p -> p in
           let parents = List.map Commit.hash parents in
           Commit.v (repo t) ~info ~parents root >>= fun c ->
-          add_commit t s.head (c, root_tree (Tree.destruct root))
-          >>= Lwt.return_ok
+          add_commit t s.head (c, root_tree (Tree.destruct root)) >>= fun r ->
+          Lwt.return (Ok r)
 
   let ok x = Ok x
 

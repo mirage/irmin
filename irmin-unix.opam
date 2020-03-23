@@ -27,6 +27,15 @@ depends: [
   "digestif"      {>= "0.6.1"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
+  "astring"
+  "astring"
+  "cohttp"
+  "cohttp-lwt"
+  "conduit"
+  "conduit-lwt"
+  "conduit-lwt-unix"
+  "logs"
+  "uri"
   "irmin-test"    {with-test & >= "2.0.0"}
 ]
 

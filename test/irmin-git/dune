@@ -1,12 +1,13 @@
 (library
  (name test_git)
  (modules test_git)
- (libraries irmin-test irmin-mem irmin-git git-unix))
+ (libraries alcotest fmt fpath irmin irmin-test irmin-mem irmin-git git
+   git-unix lwt lwt.unix))
 
 (executable
  (name test)
  (modules test)
- (libraries checkseum.c digestif.c irmin test_git))
+ (libraries alcotest checkseum.c digestif.c irmin irmin-test test_git))
 
 (alias
  (name runtest)

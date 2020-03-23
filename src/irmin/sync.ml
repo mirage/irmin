@@ -28,8 +28,8 @@ module None (H : Type.S) (R : Type.S) = struct
   type branch = R.t
 
   let fetch () ?depth:_ _ _br =
-    Lwt.return_error (`Msg "fetch operation is not available")
+    Lwt.return (Error (`Msg "fetch operation is not available"))
 
   let push () ?depth:_ _ _br =
-    Lwt.return_error (`Msg "push operation is not available")
+    Lwt.return (Error (`Msg "push operation is not available"))
 end

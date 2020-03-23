@@ -612,7 +612,7 @@ functor
         let head = G.Reference.Ref head in
         (( if G.has_global_checkout then
            Lwt_mutex.with_lock m (fun () -> G.Ref.write t G.Reference.head head)
-         else Lwt.return_ok () )
+         else Lwt.return (Ok ()) )
          >|= function
          | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
          | Ok () -> ())

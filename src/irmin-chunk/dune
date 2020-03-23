@@ -1,4 +1,4 @@
 (library
  (name irmin_chunk)
  (public_name irmin-chunk)
- (libraries irmin))
+ (libraries irmin fmt logs lwt))
