@@ -8,6 +8,7 @@
 #### Changed
 
 - **irmin**:
+  - Require OCaml 4.07 (#961, @CraigFe)
   - Add sanity checks when creating `Irmin.Type` records, variants and enums
     (#956, @liautaud):
      - `Irmin.Type.sealr` will now raise `Invalid_argument` if two fields of
