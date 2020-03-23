@@ -16,7 +16,7 @@ build: [
 depends: [
   "ocaml"      {>= "4.02.3"}
   "dune"       {>= "1.8.0"}
-  "irmin"      {= version}
+  "irmin"      {>= "2.0.0"}
   "git"        {>= "2.1.1"}
   "digestif"   {>= "0.7.3"}
   "irmin-test" {with-test & >= "2.0.0"}

@@ -47,6 +47,14 @@ The following packages have been made available on `opam`:
 
 For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin).
 
+#### Development version
+
+To install the development version of Irmin, clone this repository and `opam install` the packages inside:
+
+    git clone https://github.com/mirage/irmin
+    cd irmin/
+    opam install .
+
 ### Examples
 Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
 
