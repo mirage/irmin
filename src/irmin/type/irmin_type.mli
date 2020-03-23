@@ -112,7 +112,7 @@ type ('a, 'b) field
 
 val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
-    [g].
+    [g]. {b Raises.} [Invalid_argument] if [n] is not valid UTF-8.
 
     The name [n] must not be used by any other [field] in the record.
 
@@ -167,9 +167,12 @@ type 'a case_p
 
 val case0 : string -> 'a -> ('a, 'a case_p) case
 (** [case0 n v] is a representation of a variant constructor [v] with no
-    arguments and name [n]. e.g.
+    arguments and name [n]. {b Raises.} [Invalid_argument] if [n] is not valid
+    UTF-8.
 
     The name [n] must not by used by any other [case0] in the record.
+
+    For instance:
 
     {[
       type t = Foo
@@ -179,9 +182,12 @@ val case0 : string -> 'a -> ('a, 'a case_p) case
 
 val case1 : string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
 (** [case1 n t c] is a representation of a variant constructor [c] with an
-    argument of type [t] and name [n]. e.g.
+    argument of type [t] and name [n]. {b Raises.} [Invalid_argument] if [n] is
+    not valid UTF-8.
 
     The name [n] must not by used by any other [case1] in the record.
+
+    For instance:
 
     {[
       type t = Foo of string

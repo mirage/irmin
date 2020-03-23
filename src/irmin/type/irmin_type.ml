@@ -112,7 +112,9 @@ let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
 
 type ('a, 'b, 'c) open_record = ('a, 'c) fields -> string * 'b * ('a, 'b) fields
 
-let field fname ftype fget = { fname; ftype; fget }
+let field fname ftype fget =
+  check_valid_utf8 fname;
+  { fname; ftype; fget }
 
 let record : string -> 'b -> ('a, 'b, 'b) open_record = fun n c fs -> (n, c, fs)
 
@@ -161,13 +163,17 @@ type 'a case_p = 'a case_v
 
 type ('a, 'b) case = int -> 'a a_case * 'b
 
-let case0 cname0 c0 ctag0 =
-  let c = { ctag0; cname0; c0 } in
-  (C0 c, CV0 c)
+let case0 cname0 c0 =
+  check_valid_utf8 cname0;
+  fun ctag0 ->
+    let c = { ctag0; cname0; c0 } in
+    (C0 c, CV0 c)
 
-let case1 cname1 ctype1 c1 ctag1 =
-  let c = { ctag1; cname1; ctype1; c1 } in
-  (C1 c, fun v -> CV1 (c, v))
+let case1 cname1 ctype1 c1 =
+  check_valid_utf8 cname1;
+  fun ctag1 ->
+    let c = { ctag1; cname1; ctype1; c1 } in
+    (C1 c, fun v -> CV1 (c, v))
 
 type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
 
@@ -220,6 +226,7 @@ let enum vname l =
   let _, vcases, mk =
     List.fold_left
       (fun (ctag0, cases, mk) (n, v) ->
+        check_valid_utf8 n;
         let c = { ctag0; cname0 = n; c0 = v } in
         (ctag0 + 1, C0 c :: cases, (v, CV0 c) :: mk))
       (0, [], []) l

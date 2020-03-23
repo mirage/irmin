@@ -14,6 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let check_valid_utf8 str =
+  Uutf.String.fold_utf_8
+    (fun _ _ -> function `Malformed _ -> invalid_arg "Malformed UTF-8"
+      | _ -> ())
+    () str
+
+let is_valid_utf8 str =
+  try
+    check_valid_utf8 str;
+    true
+  with Invalid_argument _ -> false
+
 module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
 
