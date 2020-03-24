@@ -1,14 +1,22 @@
 type test_unit = unit[@@deriving irmin]
-let test_unit_t = Irmin.Type.unit
+include struct let test_unit_t = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_bool = bool[@@deriving irmin]
-let test_bool_t = Irmin.Type.bool
+include struct let test_bool_t = Irmin.Type.bool end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_char = char[@@deriving irmin]
-let test_char_t = Irmin.Type.char
+include struct let test_char_t = Irmin.Type.char end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_int32 = int32[@@deriving irmin]
-let test_int32_t = Irmin.Type.int32
+include struct let test_int32_t = Irmin.Type.int32 end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_int64 = int64[@@deriving irmin]
-let test_int64_t = Irmin.Type.int64
+include struct let test_int64_t = Irmin.Type.int64 end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_float = float[@@deriving irmin]
-let test_float_t = Irmin.Type.float
+include struct let test_float_t = Irmin.Type.float end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 type test_string = string[@@deriving irmin]
-let test_string_t = Irmin.Type.string
+include struct let test_string_t = Irmin.Type.string end[@@ocaml.doc
+                                                          "@inline"][@@merlin.hide
+                                                                    ]

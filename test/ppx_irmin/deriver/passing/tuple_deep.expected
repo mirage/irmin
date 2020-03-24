@@ -1,7 +1,10 @@
 type deep_tuple =
   ((((int32 * int32) * int32 * int32) * int32 * int32) * int32 * int32)
 [@@deriving irmin]
-let deep_tuple_t =
-  let open Irmin.Type in
-    triple (triple (triple (pair int32 int32) int32 int32) int32 int32) int32
-      int32
+include
+  struct
+    let deep_tuple_t =
+      let open Irmin.Type in
+        triple (triple (triple (pair int32 int32) int32 int32) int32 int32)
+          int32 int32
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
