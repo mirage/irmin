@@ -37,3 +37,6 @@ let make : type a. unit -> a t =
 
 let eq : type a b. a t -> b t -> (a, b) eq option =
  fun (module A) (module B) -> match A.Eq with B.Eq -> Some Refl | _ -> None
+
+let cast : type a b. a t -> b t -> a -> b option =
+ fun awit bwit a -> match eq awit bwit with Some Refl -> Some a | None -> None
