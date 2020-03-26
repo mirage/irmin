@@ -45,7 +45,7 @@ let is_valid_utf8 str =
     true
   with Utf8_failure -> false
 
-module Make (S : S.STORE) = struct
+module Make (S : Store.S) = struct
   type db = S.t
 
   module Branch = S.Private.Branch

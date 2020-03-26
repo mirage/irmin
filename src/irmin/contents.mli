@@ -30,7 +30,7 @@ module Json : S.CONTENTS with type t = (string * json) list
 
 module Json_value : S.CONTENTS with type t = json
 
-module Json_tree (Store : S.STORE with type contents = json) : sig
+module Json_tree (Store : Store.S with type contents = json) : sig
   include S.CONTENTS with type t = json
 
   val to_concrete_tree : t -> Store.Tree.concrete

@@ -42,4 +42,4 @@ module type S = sig
       only. *)
 end
 
-module Make (S : S.STORE) : S with type db = S.t
+module Make (S : Store.S) : S with type db = S.t

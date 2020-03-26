@@ -23,9 +23,9 @@ let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let remote_store m x = S.Store (m, x)
+let remote_store m x = Store.Store (m, x)
 
-module Make (S : S.STORE) = struct
+module Make (S : Store.S) = struct
   module B = S.Private.Sync
 
   type db = S.t
@@ -85,7 +85,7 @@ module Make (S : S.STORE) = struct
 
   let fetch t ?depth remote =
     match remote with
-    | Store ((module R), r) -> (
+    | Store.Store ((module R), r) -> (
         Log.debug (fun f -> f "fetch store");
         let s_repo = S.repo t in
         let r_repo = R.repo r in
@@ -160,7 +160,7 @@ module Make (S : S.STORE) = struct
   let push t ?depth remote =
     Log.debug (fun f -> f "push");
     match remote with
-    | Store ((module R), r) -> (
+    | Store.Store ((module R), r) -> (
         S.Head.find t >>= function
         | None -> Lwt.return_ok `Empty
         | Some h -> (
