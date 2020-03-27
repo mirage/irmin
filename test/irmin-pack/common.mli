@@ -41,3 +41,5 @@ val get : 'a option -> 'a
 val sha1 : string -> H.t
 
 val rm_dir : string -> unit
+
+val random_string : int -> string

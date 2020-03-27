@@ -18,6 +18,8 @@ module type S = sig
   val add : t -> key -> value -> unit
 
   val close : t -> unit
+
+  module Stats = Index.Stats
 end
 
 module Make (K : Irmin.Hash.S) : S with type key = K.t
