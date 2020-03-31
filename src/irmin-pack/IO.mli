@@ -35,6 +35,10 @@ module type S = sig
 
   val force_offset : t -> int64
 
+  val generation : t -> int64
+
+  val force_generation : t -> int64
+
   val readonly : t -> bool
 
   val version : t -> string

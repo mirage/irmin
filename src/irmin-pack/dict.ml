@@ -79,10 +79,18 @@ module Make (IO : IO.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
+  (** if RW was cleared we have to refill the buffers entirely. In both cases
+      offset needs to be updated, as the offset is used in the refill. *)
   let sync_offset t =
     let former_log_offset = IO.offset t.io in
     let log_offset = IO.force_offset t.io in
-    if log_offset > former_log_offset then refill ~from:former_log_offset t
+    let former_generation = IO.generation t.io in
+    let generation = IO.force_generation t.io in
+    if former_generation <> generation then (
+      Hashtbl.clear t.cache;
+      Hashtbl.clear t.index;
+      refill ~from:0L t )
+    else if log_offset > former_log_offset then refill ~from:former_log_offset t
 
   let sync t =
     if IO.readonly t.io then sync_offset t
