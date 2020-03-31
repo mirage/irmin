@@ -39,6 +39,10 @@ module type S = sig
 
   val force_offset : t -> int64
 
+  val generation : t -> int64
+
+  val force_generation : t -> int64
+
   val readonly : t -> bool
 
   val version : t -> string
@@ -60,6 +64,7 @@ module Unix : S = struct
   type t = {
     file : string;
     mutable raw : Raw.t;
+    mutable generation : int64;
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
@@ -69,7 +74,7 @@ module Unix : S = struct
 
   let name t = t.file
 
-  let header = 16L (* offset + version *)
+  let header = 24L (* offset + version + generation *)
 
   let sync t =
     if t.readonly then raise RO_Not_Allowed;
@@ -81,6 +86,7 @@ module Unix : S = struct
     else (
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.Offset.set t.raw offset;
+      Raw.Generation.set t.raw t.generation;
 
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -116,6 +122,12 @@ module Unix : S = struct
     t.offset <- Raw.Offset.get t.raw;
     t.offset
 
+  let generation t = t.generation
+
+  let force_generation t =
+    t.generation <- Raw.Generation.get t.raw;
+    t.generation
+
   let version t = t.version
 
   let readonly t = t.readonly
@@ -146,6 +158,7 @@ module Unix : S = struct
   let clear t =
     t.offset <- 0L;
     t.flushed <- header;
+    t.generation <- Int64.succ t.generation;
     Buffer.clear t.buf
 
   let buffers = Hashtbl.create 256
@@ -159,7 +172,7 @@ module Unix : S = struct
 
   let v ~fresh ~version:current_version ~readonly file =
     assert (String.length current_version = 8);
-    let v ~offset ~version raw =
+    let v ~offset ~version ~generation raw =
       {
         version;
         file;
@@ -168,6 +181,7 @@ module Unix : S = struct
         readonly;
         buf = buffer file;
         flushed = header ++ offset;
+        generation;
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
@@ -178,19 +192,22 @@ module Unix : S = struct
         let raw = Raw.v x in
         Raw.Offset.set raw 0L;
         Raw.Version.set raw current_version;
-        v ~offset:0L ~version:current_version raw
+        Raw.Generation.set raw 0L;
+        v ~offset:0L ~version:current_version ~generation:0L raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
           Raw.Offset.set raw 0L;
           Raw.Version.set raw current_version;
-          v ~offset:0L ~version:current_version raw )
+          Raw.Generation.set raw 0L;
+          v ~offset:0L ~version:current_version ~generation:0L raw )
         else
           let offset = Raw.Offset.get raw in
           let version = Raw.Version.get raw in
           assert (version = current_version);
-          v ~offset ~version raw
+          let generation = Raw.Generation.get raw in
+          v ~offset ~version ~generation raw
 
   let close t = Raw.close t.raw
 end
