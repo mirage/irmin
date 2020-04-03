@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Attributes : module type of Attributes
 (** Definitions of attributes required by [ppx_irmin]. *)
+module Attributes : module type of Attributes
 
-module Deriver : module type of Deriver
 (** Structure and signature derivers for [ppx_irmin]. *)
+module Deriver : module type of Deriver

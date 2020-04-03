@@ -19,11 +19,11 @@
 module type PATH = sig
   (** {1 Path} *)
 
-  type t
   (** The type for path values. *)
+  type t
 
-  type step
   (** Type type for path's steps. *)
+  type step
 
   val empty : t
   (** The empty path. *)
@@ -63,8 +63,8 @@ end
 module type HASH = sig
   (** Signature for digest hashes, inspired by Digestif. *)
 
-  type t
   (** The type for digest hashes. *)
+  type t
 
   val hash : ((string -> unit) -> unit) -> t
   (** Compute a deterministic store key from a sequence of strings. *)
@@ -106,8 +106,8 @@ end
 module type CONTENTS = sig
   (** {1 Signature for store contents} *)
 
-  type t
   (** The type for user-defined contents. *)
+  type t
 
   val t : t Type.t
   (** [t] is the value type for {!t}. *)
@@ -127,15 +127,15 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       new values. Keys are derived from the values raw contents and hence are
       deterministic. *)
 
-  type 'a t
   (** The type for content-addressable backend stores. The ['a] phantom type
       carries information about the store mutability. *)
+  type 'a t
 
-  type key
   (** The type for keys. *)
+  type key
 
-  type value
   (** The type for raw values. *)
+  type value
 
   val mem : [> `Read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
@@ -173,15 +173,15 @@ module type APPEND_ONLY_STORE = sig
       Append-onlye stores are store where it is possible to read and add new
       values. *)
 
-  type 'a t
   (** The type for append-only backend stores. The ['a] phantom type carries
       information about the store mutability. *)
+  type 'a t
 
-  type key
   (** The type for keys. *)
+  type key
 
-  type value
   (** The type for raw values. *)
+  type value
 
   val mem : [> `Read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
@@ -205,8 +205,8 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
 end
 
 module type METADATA = sig
-  type t
   (** The type for metadata. *)
+  type t
 
   val t : t Type.t
   (** [t] is the value type for {!t}. *)
@@ -233,28 +233,28 @@ module type CONTENTS_STORE = sig
   (** [Key] provides base functions for user-defined contents keys. *)
   module Key : TYPED_HASH with type t = key and type value = value
 
-  module Val : CONTENTS with type t = value
   (** [Val] provides base functions for user-defined contents values. *)
+  module Val : CONTENTS with type t = value
 end
 
 module type NODE = sig
   (** {1 Node values} *)
 
-  type t
   (** The type for node values. *)
+  type t
 
-  type metadata
   (** The type for node metadata. *)
+  type metadata
 
-  type hash
   (** The type for keys. *)
+  type hash
 
-  type step
   (** The type for steps between nodes. *)
+  type step
 
-  type value = [ `Node of hash | `Contents of hash * metadata ]
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
+  type value = [ `Node of hash | `Contents of hash * metadata ]
 
   val v : (step * value) list -> t
   (** [create l] is a new node. *)
@@ -306,26 +306,26 @@ end
 module type NODE_GRAPH = sig
   (** {1 Node Graphs} *)
 
-  type 'a t
   (** The type for store handles. *)
+  type 'a t
 
-  type metadata
   (** The type for node metadata. *)
+  type metadata
 
-  type contents
   (** The type of user-defined contents. *)
+  type contents
 
-  type node
   (** The type for node values. *)
+  type node
 
-  type step
   (** The type of steps. A step is used to pass from one node to another. *)
+  type step
 
-  type path
   (** The type of store paths. A path is composed of {{!step} steps}. *)
+  type path
 
-  type value = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store values. *)
+  type value = [ `Node of node | `Contents of contents * metadata ]
 
   val empty : [> `Write ] t -> node Lwt.t
   (** The empty node. *)
@@ -402,8 +402,8 @@ end
 module type NODE_STORE = sig
   include CONTENT_ADDRESSABLE_STORE
 
-  module Path : PATH
   (** [Path] provides base functions on node paths. *)
+  module Path : PATH
 
   val merge : [ `Read | `Write ] t -> key option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
@@ -411,8 +411,8 @@ module type NODE_STORE = sig
   (** [Key] provides base functions for node keys. *)
   module Key : TYPED_HASH with type t = key and type value = value
 
-  module Metadata : METADATA
   (** [Metadata] provides base functions for node metadata. *)
+  module Metadata : METADATA
 
   (** [Val] provides base functions for node values. *)
   module Val :
@@ -422,8 +422,8 @@ module type NODE_STORE = sig
        and type metadata = Metadata.t
        and type step = Path.step
 
-  module Contents : CONTENTS_STORE with type key = Val.hash
   (** [Contents] is the underlying contents store. *)
+  module Contents : CONTENTS_STORE with type key = Val.hash
 end
 
 type config = Conf.t
@@ -433,11 +433,11 @@ type 'a diff = 'a Diff.t
 module type COMMIT = sig
   (** {1 Commit values} *)
 
-  type t
   (** The type for commit values. *)
+  type t
 
-  type hash
   (** Type for keys. *)
+  type hash
 
   val v : info:Info.t -> node:hash -> parents:hash list -> t
   (** Create a commit. *)
@@ -474,24 +474,24 @@ module type COMMIT_STORE = sig
   (** [Val] provides functions for commit values. *)
   module Val : COMMIT with type t = value and type hash = key
 
-  module Node : NODE_STORE with type key = Val.hash
   (** [Node] is the underlying node store. *)
+  module Node : NODE_STORE with type key = Val.hash
 end
 
 module type COMMIT_HISTORY = sig
   (** {1 Commit History} *)
 
-  type 'a t
   (** The type for store handles. *)
+  type 'a t
 
-  type node
   (** The type for node values. *)
+  type node
 
-  type commit
   (** The type for commit values. *)
+  type commit
 
-  type v
   (** The type for commit objects. *)
+  type v
 
   val v :
     [> `Write ] t ->
@@ -560,20 +560,20 @@ end
 module type SLICE = sig
   (** {1 Slices} *)
 
-  type t
   (** The type for slices. *)
+  type t
 
-  type contents
   (** The type for exported contents. *)
+  type contents
 
-  type node
   (** The type for exported nodes. *)
+  type node
 
-  type commit
   (** The type for exported commits. *)
+  type commit
 
-  type value = [ `Contents of contents | `Node of node | `Commit of commit ]
   (** The type for exported values. *)
+  type value = [ `Contents of contents | `Node of node | `Commit of commit ]
 
   val empty : unit -> t Lwt.t
   (** Create a new empty slice. *)
@@ -605,8 +605,8 @@ end
 module type BRANCH = sig
   (** {1 Signature for Branches} *)
 
-  type t
   (** The type for branches. *)
+  type t
 
   val t : t Type.t
   (** [t] is the value type for {!t}. *)
@@ -624,14 +624,14 @@ module type ATOMIC_WRITE_STORE = sig
       Atomic-write stores are stores where it is possible to read, update and
       remove elements, with atomically guarantees. *)
 
-  type t
   (** The type for atomic-write backend stores. *)
+  type t
 
-  type key
   (** The type for keys. *)
+  type key
 
-  type value
   (** The type for raw values. *)
+  type value
 
   val mem : t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
@@ -660,8 +660,8 @@ module type ATOMIC_WRITE_STORE = sig
   val list : t -> key list Lwt.t
   (** [list t] it the list of keys in [t]. *)
 
-  type watch
   (** The type of watch handlers. *)
+  type watch
 
   val watch :
     t ->
@@ -698,11 +698,11 @@ module type BRANCH_STORE = sig
 
   include ATOMIC_WRITE_STORE
 
-  module Key : BRANCH with type t = key
   (** Base functions on keys. *)
+  module Key : BRANCH with type t = key
 
-  module Val : HASH with type t = value
   (** Base functions on values. *)
+  module Val : HASH with type t = value
 end
 
 type remote = ..
@@ -710,17 +710,17 @@ type remote = ..
 module type SYNC = sig
   (** {1 Remote synchronization} *)
 
-  type t
   (** The type for store handles. *)
+  type t
 
-  type commit
   (** The type for store heads. *)
+  type commit
 
-  type branch
   (** The type for branch IDs. *)
+  type branch
 
-  type endpoint
   (** The type for sync endpoints. *)
+  type endpoint
 
   val fetch :
     t ->
@@ -888,25 +888,25 @@ module type TREE = sig
 
   (** {1 Folds} *)
 
-  type marks
   (** The type for fold marks. *)
+  type marks
 
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes. [`False f] is applying [f] on every lazy
       node instead. *)
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
 
-  type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
       nodes. [`True] does not recurse on nodes already seen. [`Marks m] uses the
       collection of marks [m] to store the cache of keys: the fold will modify
       [m]. This can be used for incremental folds. *)
+  type uniq = [ `False | `True | `Marks of marks ]
 
-  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
   (** The type for {!fold}'s [pre] and [post] parameters. *)
+  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
 
   val fold :
     ?force:'a force ->
@@ -933,6 +933,7 @@ module type TREE = sig
 
   (** {1 Stats} *)
 
+  (** The type for tree stats. *)
   type stats = {
     nodes : int;  (** Number of node. *)
     leafs : int;  (** Number of leafs. *)
@@ -940,7 +941,6 @@ module type TREE = sig
     depth : int;  (** Maximal depth. *)
     width : int;  (** Maximal width. *)
   }
-  (** The type for tree stats. *)
 
   val pp_stats : stats Fmt.t
   (** [pp_stats] is the pretty printer for tree statistics. *)
@@ -951,9 +951,9 @@ module type TREE = sig
 
   (** {1 Concrete Trees} *)
 
+  (** The type for concrete trees. *)
   type concrete =
     [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
-  (** The type for concrete trees. *)
 
   val of_concrete : concrete -> tree
   (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
@@ -995,14 +995,14 @@ end
 module type SYNC_STORE = sig
   (** {1 Native Synchronization} *)
 
-  type db
   (** Type type for store handles. *)
+  type db
 
-  type commit
   (** The type for store heads. *)
+  type commit
 
-  type status = [ `Empty | `Head of commit ]
   (** The type for remote status. *)
+  type status = [ `Empty | `Head of commit ]
 
   val status_t : db -> status Type.t
   (** [status_t db] is the value type for {!status} of remote [db]. *)
@@ -1021,8 +1021,8 @@ module type SYNC_STORE = sig
   (** Same as {!fetch} but raise [Invalid_argument] if either the local or
       remote store do not have a valid head. *)
 
-  type pull_error = [ `Msg of string | Merge.conflict ]
   (** The type for pull errors. *)
+  type pull_error = [ `Msg of string | Merge.conflict ]
 
   val pp_pull_error : pull_error Fmt.t
   (** [pp_push_error] pretty-prints pull errors. *)
@@ -1043,8 +1043,8 @@ module type SYNC_STORE = sig
     db -> ?depth:int -> remote -> [ `Merge of Info.f | `Set ] -> status Lwt.t
   (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
-  type push_error = [ `Msg of string | `Detached_head ]
   (** The type for push errors. *)
+  type push_error = [ `Msg of string | `Detached_head ]
 
   val pp_push_error : push_error Fmt.t
   (** [pp_push_error] pretty-prints push errors. *)

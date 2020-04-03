@@ -16,8 +16,8 @@
 
 (** Merge operators. *)
 
-type conflict = [ `Conflict of string ]
 (** The type for merge errors. *)
+type conflict = [ `Conflict of string ]
 
 val ok : 'a -> ('a, conflict) result Lwt.t
 (** Return [Ok x]. *)
@@ -39,9 +39,9 @@ val map : ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
 
 (** {1 Merge Combinators} *)
 
-type 'a promise = unit -> ('a option, conflict) result Lwt.t
 (** An ['a] promise is a function which, when called, will eventually return a
     value type of ['a]. A promise is an optional, lazy and non-blocking value. *)
+type 'a promise = unit -> ('a option, conflict) result Lwt.t
 
 val promise : 'a -> 'a promise
 (** [promise a] is the promise containing [a]. *)
@@ -54,7 +54,6 @@ val bind_promise : 'a promise -> ('a -> 'b promise) -> 'b promise
 (** [bind_promise a f] is the promise returned by [f] applied to what is
     promised by [a]. *)
 
-type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
 (** Signature of a merge function. [old] is the value of the least-common
     ancestor.
 
@@ -63,9 +62,10 @@ type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
     ----> old              |--> result
             \----> t2 ----/
     v} *)
+type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
 
-type 'a t
 (** The type for merge combinators. *)
+type 'a t
 
 val v : 'a Type.t -> 'a f -> 'a t
 (** [v dt f] create a merge combinator. *)
@@ -140,11 +140,11 @@ val triple : 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
 
 (** {1 Counters and Multisets} *)
 
-type counter = int64
 (** The type for counter values. It is expected that the only valid operations
     on counters are {e increment} and {e decrement}. The following merge
     functions ensure that the counter semantics are preserved: {e i.e.} it
     ensures that the number of increments and decrements is preserved. *)
+type counter = int64
 
 val counter : counter t
 (** The merge function for mergeable counters. *)

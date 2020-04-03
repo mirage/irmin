@@ -27,11 +27,11 @@
 
 (** {1 Type Combinators} *)
 
-type 'a t
 (** The type for runtime representation of values of type ['a]. *)
+type 'a t
 
-type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 (** The type of integer used to store buffers, list or array lengths. *)
+type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
 
 (** {1:primitives Primitives} *)
 
@@ -95,20 +95,20 @@ val empty : empty t
 
 (** {1:records Records} *)
 
-type ('a, 'b, 'c) open_record
 (** The type for representing open records of type ['a] with a constructor of
     type ['b]. ['c] represents the remaining fields to be described using the
     {!(|+)} operator. An open record initially satisfies ['c = 'b] and can be
     {{!sealr} sealed} once ['c = 'a]. *)
+type ('a, 'b, 'c) open_record
 
 val record : string -> 'b -> ('a, 'b, 'b) open_record
 (** [record n f] is an incomplete representation of the record called [n] of
     type ['a] with constructor [f]. To complete the representation, add fields
     with {!(|+)} and then seal the record with {!sealr}. *)
 
-type ('a, 'b) field
 (** The type for fields holding values of type ['b] and belonging to a record of
     type ['a]. *)
+type ('a, 'b) field
 
 val field : string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
 (** [field n t g] is the representation of the field [n] of type [t] with getter
@@ -146,11 +146,11 @@ val sealr : ('a, 'b, 'a) open_record -> 'a t
 
 (** {1:variants Variants} *)
 
-type ('a, 'b, 'c) open_variant
 (** The type for representing open variants of type ['a] with pattern matching
     of type ['b]. ['c] represents the remaining constructors to be described
     using the {!(|~)} operator. An open variant initially satisfies [c' = 'b]
     and can be {{!sealv} sealed} once ['c = 'a]. *)
+type ('a, 'b, 'c) open_variant
 
 val variant : string -> 'b -> ('a, 'b, 'b) open_variant
 (** [variant n p] is an incomplete representation of the variant type called [n]
@@ -158,12 +158,12 @@ val variant : string -> 'b -> ('a, 'b, 'b) open_variant
     representation, add cases with {!(|~)} and then seal the variant with
     {!sealv}. *)
 
-type ('a, 'b) case
 (** The type for representing variant cases of type ['a] with patterns of type
     ['b]. *)
+type ('a, 'b) case
 
-type 'a case_p
 (** The type for representing patterns for a variant of type ['a]. *)
+type 'a case_p
 
 val case0 : string -> 'a -> ('a, 'a case_p) case
 (** [case0 n v] is a representation of a variant constructor [v] with no
@@ -292,11 +292,11 @@ val compare : 'a t -> 'a -> 'a -> int
 val short_hash : 'a t -> ?seed:int -> 'a -> int
 (** [hash t x] is a short hash of [x] of type [t]. *)
 
-type 'a pp = 'a Fmt.t
 (** The type for pretty-printers. *)
+type 'a pp = 'a Fmt.t
 
-type 'a of_string = string -> ('a, [ `Msg of string ]) result
 (** The type for parsers. *)
+type 'a of_string = string -> ('a, [ `Msg of string ]) result
 
 val pp : 'a t -> 'a pp
 (** [pp t] is the pretty-printer for values of type [t]. *)
@@ -315,8 +315,8 @@ val of_string : 'a t -> 'a of_string
 module Json : sig
   (** Overlay on top of Jsonm to work with rewindable streams. *)
 
-  type decoder
   (** The type for JSON decoder. *)
+  type decoder
 
   val decoder : ?encoding:[< Jsonm.encoding ] -> [< Jsonm.src ] -> decoder
   (** Same as {!Jsonm.decoder}. *)
@@ -331,11 +331,11 @@ module Json : sig
       to put back lexemes already seen. *)
 end
 
-type 'a encode_json = Jsonm.encoder -> 'a -> unit
 (** The type for JSON encoders. *)
+type 'a encode_json = Jsonm.encoder -> 'a -> unit
 
-type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
 (** The type for JSON decoders. *)
+type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
 
 val pp_json : ?minify:bool -> 'a t -> 'a Fmt.t
 (** Similar to {!dump} but pretty-prints the JSON representation instead of the
@@ -406,16 +406,16 @@ val of_json_string : 'a t -> string -> ('a, [ `Msg of string ]) result
 
 type 'a bin_seq = 'a -> (string -> unit) -> unit
 
-type 'a encode_bin = ?headers:bool -> 'a bin_seq
 (** The type for binary encoders. If [headers] is not set, do not output extra
     length headers for buffers. *)
+type 'a encode_bin = ?headers:bool -> 'a bin_seq
 
-type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
 (** The type for binary decoders. IF [headers] is not set, do not read extra
     length header for buffers and consider the whole buffer instead. *)
+type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
 
-type 'a size_of = ?headers:bool -> 'a -> int option
 (** The type for size function related to binary encoder/decoders. *)
+type 'a size_of = ?headers:bool -> 'a -> int option
 
 val pre_hash : 'a t -> 'a bin_seq
 (** [pre_hash t x] is the string representation of [x], of type [t], which will

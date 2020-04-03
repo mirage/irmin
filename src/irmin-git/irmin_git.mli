@@ -58,8 +58,8 @@ module type G = sig
     (t, error) result Lwt.t
 end
 
-module Mem : G with type Hash.t = Digestif.SHA1.t
 (** In-memory Git store. *)
+module Mem : G with type Hash.t = Digestif.SHA1.t
 
 module type S = sig
   (** The Git backend specializes a few types:
@@ -67,8 +67,8 @@ module type S = sig
       - the allowed metadata are {!Metadata.t}.
       - the hash algorithm is SHA1. *)
 
-  module Git : Git.S
   (** Access to the underlying Git store. *)
+  module Git : Git.S
 
   include Irmin.S with type metadata = Metadata.t and type hash = Git.Hash.t
 

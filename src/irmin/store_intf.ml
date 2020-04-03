@@ -32,49 +32,49 @@ module type S = sig
       version control systems, that the informed user can see as an implicit
       purely functional data-structure. *)
 
-  type repo
   (** The type for Irmin repositories. *)
+  type repo
 
-  type t
   (** The type for Irmin stores. *)
+  type t
 
-  type step
   (** The type for {!key} steps. *)
+  type step
 
-  type key
   (** The type for store keys. A key is a sequence of {!step}s. *)
+  type key
 
-  type metadata
   (** The type for store metadata. *)
+  type metadata
 
-  type contents
   (** The type for store contents. *)
+  type contents
 
-  type node
   (** The type for store nodes. *)
+  type node
 
-  type tree = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store trees. *)
+  type tree = [ `Node of node | `Contents of contents * metadata ]
 
-  type hash
   (** The type for object hashes. *)
+  type hash
 
-  type commit
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
+  type commit
 
-  type branch
   (** Type for persistent branch names. Branches usually share a common global
       namespace and it's the user's responsibility to avoid name clashes. *)
+  type branch
 
-  type slice
   (** Type for store slices. *)
+  type slice
 
-  type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
   (** The type for errors associated with functions computing least common
       ancestors *)
+  type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
 
-  type ff_error = [ `No_change | `Rejected | lca_error ]
   (** The type for errors for {!fast_forward}. *)
+  type ff_error = [ `No_change | `Rejected | lca_error ]
 
   (** Repositories. *)
   module Repo : sig
@@ -82,8 +82,8 @@ module type S = sig
 
         A repository contains a set of branches. *)
 
-    type t = repo
     (** The type of repository handles. *)
+    type t = repo
 
     val v : S.config -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
@@ -154,8 +154,8 @@ module type S = sig
       tree. *)
 
   module Status : sig
-    type t = [ `Empty | `Branch of branch | `Commit of commit ]
     (** The type for store status. *)
+    type t = [ `Empty | `Branch of branch | `Commit of commit ]
 
     val t : repo -> t Type.t
     (** [t] is the value type for {!t}. *)
@@ -225,13 +225,13 @@ module type S = sig
         limit the search space of the lowest common ancestors (see {!lcas}). *)
   end
 
-  module Hash : S.HASH with type t = hash
   (** Object hashes. *)
+  module Hash : S.HASH with type t = hash
 
   (** [Commit] defines immutable objects to describe store updates. *)
   module Commit : sig
-    type t = commit
     (** The type for store commits. *)
+    type t = commit
 
     val t : repo -> t Type.t
     (** [t] is the value type for {!t}. *)
@@ -341,8 +341,6 @@ module type S = sig
 
   (** {1 Udpates} *)
 
-  type write_error =
-    [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
   (** The type for write errors.
 
       - Merge conflict.
@@ -350,6 +348,8 @@ module type S = sig
         committed and too many attemps have been tried (livelock).
       - A "test and set" operation has failed and the current value is [v]
         instead of the one we were waiting for. *)
+  type write_error =
+    [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
 
   val set :
     ?retries:int ->
@@ -603,8 +603,8 @@ module type S = sig
 
   (** {1 Watches} *)
 
-  type watch
   (** The type for store watches. *)
+  type watch
 
   val watch : t -> ?init:commit -> (commit S.diff -> unit Lwt.t) -> watch Lwt.t
   (** [watch t f] calls [f] every time the contents of [t]'s head is updated.
@@ -628,13 +628,13 @@ module type S = sig
 
   (** {1 Merges and Common Ancestors.} *)
 
+  (** The type for merge functions. *)
   type 'a merge =
     info:Info.f ->
     ?max_depth:int ->
     ?n:int ->
     'a ->
     (unit, Merge.conflict) result Lwt.t
-  (** The type for merge functions. *)
 
   val merge_into : into:t -> t merge
   (** [merge_into ~into i t] merges [t]'s current branch into [x]'s current
@@ -676,8 +676,8 @@ module type S = sig
 
   (** {1 History} *)
 
-  module History : Graph.Sig.P with type V.t = commit
   (** An history is a DAG of heads. *)
+  module History : Graph.Sig.P with type V.t = commit
 
   val history :
     ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t Lwt.t
@@ -734,15 +734,15 @@ module type S = sig
     (** [watch_all t f] calls [f] on every branch-related change in [t],
         including creation/deletion events. *)
 
-    include S.BRANCH with type t = branch
     (** Base functions for branches. *)
+    include S.BRANCH with type t = branch
   end
 
   (** [Key] provides base functions for the stores's paths. *)
   module Key : S.PATH with type t = key and type step = step
 
-  module Metadata : S.METADATA with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
+  module Metadata : S.METADATA with type t = metadata
 
   (** {1 Value Types} *)
 

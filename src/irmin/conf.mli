@@ -20,14 +20,14 @@
     A configuration converter transforms a string value to an OCaml value and
     vice-versa. There are a few {{!builtin_converters} built-in converters}. *)
 
-type 'a parser = string -> ('a, [ `Msg of string ]) result
 (** The type for configuration converter parsers. *)
+type 'a parser = string -> ('a, [ `Msg of string ]) result
 
-type 'a printer = 'a Fmt.t
 (** The type for configuration converter printers. *)
+type 'a printer = 'a Fmt.t
 
-type 'a converter = 'a parser * 'a printer
 (** The type for configuration converters. *)
+type 'a converter = 'a parser * 'a printer
 
 val parser : 'a converter -> 'a parser
 (** [parser c] is [c]'s parser. *)
@@ -37,8 +37,8 @@ val printer : 'a converter -> 'a printer
 
 (** {1:keys Keys} *)
 
-type 'a key
 (** The type for configuration keys whose lookup value is ['a]. *)
+type 'a key
 
 val key :
   ?docs:string ->
@@ -87,8 +87,8 @@ val root : string option key
 
 (** {1:conf Configurations} *)
 
-type t
 (** The type for configurations. *)
+type t
 
 val empty : t
 (** [empty] is the empty configuration. *)

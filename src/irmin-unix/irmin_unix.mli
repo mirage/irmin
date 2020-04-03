@@ -42,18 +42,18 @@ val info :
 module FS : sig
   (** {1 File-system Store} *)
 
-  module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
   (** Append-only store maker. *)
+  module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
 
-  module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
   (** Atomic-write store maker. *)
+  module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
 
-  module Make : Irmin.S_MAKER
   (** Irmin store maker. *)
+  module Make : Irmin.S_MAKER
 
-  module KV : Irmin.KV_MAKER
   (** Irmin store make, where only the Contents have to be specified: branches
       are strings and paths are string lists. *)
+  module KV : Irmin.KV_MAKER
 
   (** Append-only store maker, with control over the filenames shapes. *)
   module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER

@@ -20,17 +20,17 @@
 module type S = sig
   (** {1 Watch Helpers} *)
 
-  type key
   (** The type for store keys. *)
+  type key
 
-  type value
   (** The type for store values. *)
+  type value
 
-  type watch
   (** The type for watch handlers. *)
+  type watch
 
-  type t
   (** The type for watch state. *)
+  type t
 
   val stats : t -> int * int
   (** [stats t] is a tuple [(k,a)] represeting watch stats. [k] is the number of
@@ -77,9 +77,9 @@ val workers : unit -> int
 (** [workers ()] is the number of background worker threads managing event
     notification currently active. *)
 
+(** The type for watch hooks. *)
 type hook =
   int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-(** The type for watch hooks. *)
 
 val none : hook
 (** [none] is the hooks which asserts false. *)

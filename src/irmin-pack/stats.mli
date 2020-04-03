@@ -1,9 +1,3 @@
-type t = {
-  mutable finds : int;
-  mutable cache_misses : int;
-  mutable appended_hashes : int;
-  mutable appended_offsets : int;
-}
 (** The type for stats for a store S.
 
     - [finds] is the number of calls to [S.find];
@@ -15,6 +9,12 @@ type t = {
       calls to [add];
 
     [appended_hashes] + [appended_offsets] = the number of calls to [add] *)
+type t = {
+  mutable finds : int;
+  mutable cache_misses : int;
+  mutable appended_hashes : int;
+  mutable appended_offsets : int;
+}
 
 val reset_stats : unit -> unit
 

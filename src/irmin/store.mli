@@ -17,5 +17,5 @@
 (** Branch-consistent stores: read-write store with support fork/merge
     operations. *)
 
-include Store_intf.Store
 (** @inline *)
+include Store_intf.Store

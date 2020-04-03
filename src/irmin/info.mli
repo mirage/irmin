@@ -16,8 +16,8 @@
 
 (** {1 Commit Info} *)
 
-type t
 (** The type for commit info. *)
+type t
 
 val v : date:int64 -> author:string -> string -> t
 (** Create a new commit info. *)
@@ -47,8 +47,8 @@ val empty : t
 
 (** {1 Info Functions} *)
 
-type f = unit -> t
 (** Alias for functions which can build commit info. *)
+type f = unit -> t
 
 val none : f
 (** The empty info function. [none ()] is [empty] *)
