@@ -40,9 +40,10 @@ module Encode = struct
     let s = String.make 1 c in
     string e s
 
-  let float e f = match classify_float f with
-  | FP_nan -> lexeme e `Null
-  | _ -> lexeme e (`Float f)
+  let float e f =
+    match classify_float f with
+    | FP_nan | FP_infinite -> lexeme e (`String (string_of_float f))
+    | _ -> lexeme e (`Float f)
 
   let int e i = float e (float_of_int i)
 
@@ -227,7 +228,9 @@ module Decode = struct
   let float e =
     lexeme e >>= function
     | `Float f -> Ok f
-    | `Null -> Ok Float.nan
+    | `String "nan" -> Ok Float.nan
+    | `String "inf" -> Ok Float.infinity
+    | `String "-inf" -> Ok Float.neg_infinity
     | l -> error e l "`Float"
 
   let char e =
