@@ -19,5 +19,5 @@ type 'a t = [ `Updated of 'a * 'a | `Removed of 'a | `Added of 'a ]
 
 (** {1 Value Types} *)
 
-val t : 'a Type.t -> 'a t Type.t
 (** [t typ] is the value type for differences between values of type [typ]. *)
+val t : 'a Type.t -> 'a t Type.t

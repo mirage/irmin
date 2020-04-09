@@ -16,10 +16,10 @@
 
 (** Disk persistence. *)
 
-val config : ?config:Irmin.config -> string -> Irmin.config
 (** [config ?config root] is the configuration [config] augmented with the key
     {!Irmin.Config.root} set to [root]. If not specified, [config] is
     {!Irmin.Config.empty}. *)
+val config : ?config:Irmin.config -> string -> Irmin.config
 
 module type IO = sig
   (** {1 File-system abstractions} *)
@@ -29,30 +29,31 @@ module type IO = sig
 
   (** {2 Read operations} *)
 
-  val rec_files : path -> string list Lwt.t
   (** [rec_files dir] is the list of files recursively present in [dir] and all
       of its sub-directories. Return filenames prefixed by [dir]. *)
+  val rec_files : path -> string list Lwt.t
 
-  val file_exists : path -> bool Lwt.t
   (** [file_exist f] is true if [f] exists. *)
+  val file_exists : path -> bool Lwt.t
 
-  val read_file : path -> string option Lwt.t
   (** Read the contents of a file using mmap. *)
+  val read_file : path -> string option Lwt.t
 
   (** {2 Write Operations} *)
 
-  val mkdir : path -> unit Lwt.t
   (** Create a directory. *)
+  val mkdir : path -> unit Lwt.t
 
   (** The type for file locks. *)
   type lock
 
-  val lock_file : path -> lock
   (** [lock_file f] is the lock associated to the file [f]. *)
+  val lock_file : path -> lock
 
-  val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit Lwt.t
   (** Atomic writes. *)
+  val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit Lwt.t
 
+  (** Test and set. *)
   val test_and_set_file :
     ?temp_dir:string ->
     lock:lock ->
@@ -60,10 +61,9 @@ module type IO = sig
     test:string option ->
     set:string option ->
     bool Lwt.t
-  (** Test and set. *)
 
-  val remove_file : ?lock:lock -> path -> unit Lwt.t
   (** Remove a file or directory (even if non-empty). *)
+  val remove_file : ?lock:lock -> path -> unit Lwt.t
 end
 
 module Append_only (IO : IO) : Irmin.APPEND_ONLY_STORE_MAKER
@@ -79,14 +79,14 @@ module KV (IO : IO) : Irmin.KV_MAKER
 module type Config = sig
   (** Same as [Config] but gives more control on the file hierarchy. *)
 
-  val dir : string -> string
   (** [dir root] is the sub-directory to look for the keys. *)
+  val dir : string -> string
 
-  val file_of_key : string -> string
   (** Convert a key to a filename. *)
+  val file_of_key : string -> string
 
-  val key_of_file : string -> string
   (** Convert a filename to a key. *)
+  val key_of_file : string -> string
 end
 
 module Append_only_ext (IO : IO) (C : Config) : Irmin.APPEND_ONLY_STORE_MAKER

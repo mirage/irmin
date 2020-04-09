@@ -50,6 +50,10 @@ module type KV_RO = sig
 
   include Mirage_kv.RO
 
+  (** [connect ?depth ?branch ?path g uri] clones the given [uri] into [g]
+      repository, using the given [branch], [depth] and ['/']-separated
+      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
+      empty, ie. reads will be relative to the root of the repository. *)
   val connect :
     ?depth:int ->
     ?branch:string ->
@@ -60,10 +64,6 @@ module type KV_RO = sig
     git ->
     string ->
     t Lwt.t
-  (** [connect ?depth ?branch ?path g uri] clones the given [uri] into [g]
-      repository, using the given [branch], [depth] and ['/']-separated
-      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
-      empty, ie. reads will be relative to the root of the repository. *)
 end
 
 (** Functor to create a MirageOS' KV_RO store from a Git repository. The key
@@ -75,6 +75,13 @@ module type KV_RW = sig
 
   include Mirage_kv.RW
 
+  (** [connect ?depth ?branch ?path ?author ?msg g c uri] clones the given [uri]
+      into [g] repository, using the given [branch], [depth] and ['/']-separated
+      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
+      empty, ie. reads will be relative to the root of the repository. [author],
+      [msg] and [c] are used to create new commit info values on every update.
+      By defaut [author] is [fun () -> "irmin" <irmin@mirage.io>] and [msg]
+      returns basic information about the kind of operations performed. *)
   val connect :
     ?depth:int ->
     ?branch:string ->
@@ -87,13 +94,6 @@ module type KV_RW = sig
     git ->
     string ->
     t Lwt.t
-  (** [connect ?depth ?branch ?path ?author ?msg g c uri] clones the given [uri]
-      into [g] repository, using the given [branch], [depth] and ['/']-separated
-      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
-      empty, ie. reads will be relative to the root of the repository. [author],
-      [msg] and [c] are used to create new commit info values on every update.
-      By defaut [author] is [fun () -> "irmin" <irmin@mirage.io>] and [msg]
-      returns basic information about the kind of operations performed. *)
 end
 
 (** Functor to create a MirageOS' KV_RW store from a Git repository. *)

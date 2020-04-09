@@ -14,13 +14,13 @@ module Pack :
 module Make_context (Config : sig
   val root : string
 end) : sig
-  val fresh_name : string -> string
   (** [fresh_name typ] is a clean directory for a resource of type [typ]. *)
+  val fresh_name : string -> string
 
   type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
 
-  val get_dict : unit -> d
   (** Fresh, empty dict. *)
+  val get_dict : unit -> d
 
   type t = {
     index : Index.t;
@@ -29,9 +29,9 @@ end) : sig
     clone_index_pack : readonly:bool -> (Index.t * [ `Read ] Pack.t) Lwt.t;
   }
 
-  val get_pack : unit -> t Lwt.t
   (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
       same location, [clone_index_pack] opens a clone of the index and the pack. *)
+  val get_pack : unit -> t Lwt.t
 
   val close : Index.t -> [ `Read ] Pack.t -> unit Lwt.t
 end

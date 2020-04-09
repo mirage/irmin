@@ -56,6 +56,10 @@ module Make_ext
        and type metadata = Metadata.t
        and type Key.step = Path.step
 
+  (** Checks the integrity of the repository. if [auto_repair] is [true], will
+      also try to fix the issues. [ppf] is a formatter for progressive
+      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
+      entries. *)
   val integrity_check :
     ?ppf:Format.formatter ->
     auto_repair:bool ->
@@ -63,10 +67,6 @@ module Make_ext
     ( [> `Fixed of int | `No_error ],
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
-  (** Checks the integrity of the repository. if [auto_repair] is [true], will
-      also try to fix the issues. [ppf] is a formatter for progressive
-      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
-      entries. *)
 end
 
 module Make
@@ -85,6 +85,10 @@ module Make
        and type branch = B.t
        and type hash = H.t
 
+  (** Checks the integrity of the repository. if [auto_repair] is [true], will
+      also try to fix the issues. [ppf] is a formatter for progressive
+      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
+      entries. *)
   val integrity_check :
     ?ppf:Format.formatter ->
     auto_repair:bool ->
@@ -92,10 +96,6 @@ module Make
     ( [> `Fixed of int | `No_error ],
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
-  (** Checks the integrity of the repository. if [auto_repair] is [true], will
-      also try to fix the issues. [ppf] is a formatter for progressive
-      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
-      entries. *)
 end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER

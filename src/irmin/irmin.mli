@@ -32,8 +32,8 @@
 
     {e Release %%VERSION%% - %%HOMEPAGE%%} *)
 
-val version : string
 (** The version of the library. *)
+val version : string
 
 (** {1 Preliminaries} *)
 
@@ -412,8 +412,8 @@ module Private : sig
     module None (H : Type.S) (B : Type.S) : sig
       include S with type commit = H.t and type branch = B.t
 
-      val v : 'a -> t Lwt.t
       (** Create a remote store handle. *)
+      val v : 'a -> t Lwt.t
     end
   end
 
@@ -515,17 +515,17 @@ module Json_tree (Store : S with type contents = Contents.json) : sig
 
   val of_concrete_tree : Store.Tree.concrete -> t
 
-  val get_tree : Store.tree -> Store.key -> t Lwt.t
   (** Extract a [json] value from tree at the given key. *)
+  val get_tree : Store.tree -> Store.key -> t Lwt.t
 
-  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
   (** Project a [json] value onto a tree at the given key. *)
+  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
 
-  val get : Store.t -> Store.key -> t Lwt.t
   (** Extract a [json] value from a store at the given key. *)
+  val get : Store.t -> Store.key -> t Lwt.t
 
-  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
   (** Project a [json] value onto a store at the given key. *)
+  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
@@ -559,11 +559,11 @@ module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
-val remote_store : (module S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store [t].
     Synchronization is done by importing and exporting store {{!BC.slice}
     slices}, so this is usually much slower than native synchronization using
     {!Store.remote} but it works for all backends. *)
+val remote_store : (module S with type t = 'a) -> 'a -> remote
 
 (** [SYNC] provides functions to synchronize an Irmin store with local and
     remote Irmin stores. *)
@@ -799,17 +799,17 @@ module Dot (S : S) : Dot.S with type db = S.t
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] applies the writes in [f] in a separate batch. The exact
       guarantees depends on the backends. *)
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+  val v : config -> [ `Read ] t Lwt.t
 
-  val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any operations run
       on a closed store will raise {!Closed}. *)
+  val close : 'a t -> unit Lwt.t
 end
 
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
@@ -821,17 +821,17 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] applies the writes in [f] in a separate batch. The exact
       guarantees depends on the backends. *)
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+  val v : config -> [ `Read ] t Lwt.t
 
-  val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any operations run
       on a closed store will raise {!Closed}. *)
+  val close : 'a t -> unit Lwt.t
 end
 
 module Content_addressable
@@ -844,17 +844,17 @@ module Content_addressable
        and type key = K.t
        and type value = V.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
   (** [batch t f] applies the writes in [f] in a separate batch. The exact
       guarantees depends on the backends. *)
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val v : config -> [ `Read ] t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+  val v : config -> [ `Read ] t Lwt.t
 
-  val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated to [t]. Any operations run
       on a closed store will raise {!Closed}. *)
+  val close : 'a t -> unit Lwt.t
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store
@@ -863,9 +863,9 @@ end
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : config -> t Lwt.t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
+  val v : config -> t Lwt.t
 end
 
 (** Simple store creator. Use the same type of all of the internal keys and

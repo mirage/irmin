@@ -28,12 +28,17 @@ module type S = sig
     val fold : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   end
 
-  val vertex : t -> vertex list
   (** Get all the vertices. *)
+  val vertex : t -> vertex list
 
-  val edges : t -> (vertex * vertex) list
   (** Get all the relations. *)
+  val edges : t -> (vertex * vertex) list
 
+  (** [closure depth pred min max ()] creates the transitive closure graph of
+      [max] using the predecessor relation [pred]. The graph is bounded by the
+      [min] nodes and by [depth].
+
+      {b Note:} Both [min] and [max] are subsets of [n]. *)
   val closure :
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
@@ -41,23 +46,7 @@ module type S = sig
     max:vertex list ->
     unit ->
     t Lwt.t
-  (** [closure depth pred min max ()] creates the transitive closure graph of
-      [max] using the predecessor relation [pred]. The graph is bounded by the
-      [min] nodes and by [depth].
 
-      {b Note:} Both [min] and [max] are subsets of [n]. *)
-
-  val iter :
-    ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
-    min:vertex list ->
-    max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
-    edge:(vertex -> vertex -> unit Lwt.t) ->
-    skip:(vertex -> bool Lwt.t) ->
-    rev:bool ->
-    unit ->
-    unit Lwt.t
   (** [iter depth min max node edge skip rev ()] iterates in topological order
       over the closure graph starting with the [max] nodes and bounded by the
       [min] nodes and by [depth].
@@ -70,31 +59,42 @@ module type S = sig
       order: [node n] is applied only after it was applied on all its
       predecessors; [edge n p] is applied after [node n]. Note that [edge n p]
       is applied even if [p] is skipped. *)
+  val iter :
+    ?depth:int ->
+    pred:(vertex -> vertex list Lwt.t) ->
+    min:vertex list ->
+    max:vertex list ->
+    node:(vertex -> unit Lwt.t) ->
+    edge:(vertex -> vertex -> unit Lwt.t) ->
+    skip:(vertex -> bool Lwt.t) ->
+    rev:bool ->
+    unit ->
+    unit Lwt.t
 
+  (** [output ppf vertex edges name] create aand dumps the graph contents on
+      [ppf]. The graph is defined by its [vertex] and [edges]. [name] is the
+      name of the output graph.*)
   val output :
     Format.formatter ->
     (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->
     (vertex * Graph.Graphviz.DotAttributes.edge list * vertex) list ->
     string ->
     unit
-  (** [output ppf vertex edges name] create aand dumps the graph contents on
-      [ppf]. The graph is defined by its [vertex] and [edges]. [name] is the
-      name of the output graph.*)
 
-  val min : t -> vertex list
   (** Compute the minimum vertex. *)
+  val min : t -> vertex list
 
-  val max : t -> vertex list
   (** Compute the maximun vertex. *)
+  val max : t -> vertex list
 
   (** Expose the graph internals. *)
   type dump = vertex list * (vertex * vertex) list
 
-  val export : t -> dump
   (** Expose the graph as a pair of vertices and edges. *)
+  val export : t -> dump
 
-  val import : dump -> t
   (** Import a graph. *)
+  val import : dump -> t
 
   (** The base functions over graph internals. *)
   module Dump : Type.S with type t = dump

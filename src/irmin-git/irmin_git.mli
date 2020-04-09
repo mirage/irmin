@@ -72,20 +72,20 @@ module type S = sig
 
   include Irmin.S with type metadata = Metadata.t and type hash = Git.Hash.t
 
-  val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the repository
       [repo]. *)
+  val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
 
-  val git_of_repo : Repo.t -> Git.t
   (** [of_repo r] is the Git store associated to [r]. *)
+  val git_of_repo : Repo.t -> Git.t
 
+  (** [to_repo t] is the Irmin repository associated to [t]. *)
   val repo_of_git :
     ?head:Git.Reference.t ->
     ?bare:bool ->
     ?lock:Lwt_mutex.t ->
     Git.t ->
     Repo.t Lwt.t
-  (** [to_repo t] is the Irmin repository associated to [t]. *)
 end
 
 module type S_MAKER = functor

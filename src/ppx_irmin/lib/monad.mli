@@ -43,16 +43,16 @@ end) : sig
 
   include S
 
-  val run : 'a t -> E.t -> 'a
   (** Runs a {!'a t} and extracts the final value ['a] from it. *)
+  val run : 'a t -> E.t -> 'a
 
-  val ask : E.t t
   (** Retrieves the monad environment. *)
+  val ask : E.t t
 
-  val asks : (E.t -> 'a) -> 'a t
   (** Retrieves a projection of the current monad environment. *)
+  val asks : (E.t -> 'a) -> 'a t
 
-  val local : (E.t -> E.t) -> 'a t -> 'a t
   (** [local f m] executes a computation in [m] in an environment modified by
       [f]. *)
+  val local : (E.t -> E.t) -> 'a t -> 'a t
 end

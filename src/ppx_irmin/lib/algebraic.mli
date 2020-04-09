@@ -41,12 +41,6 @@ module type S = sig
 
   module M : Monad.S
 
-  val encode :
-    ('a, 'b) typ ->
-    subderive:('a -> 'b M.t) ->
-    type_name:string ->
-    'a list ->
-    expression M.t
   (** Build the functional encoding of a composite type. Combine the various
       elements necessary for a functional encoding of a composite type
       [('a, 'b) {!typ}], in terms its components of type ['a list] and the name
@@ -55,6 +49,12 @@ module type S = sig
       This requires a function [subderive] for deriving the generic
       representation of the subcomponents, which may run in a monadic context
       [M.t]. *)
+  val encode :
+    ('a, 'b) typ ->
+    subderive:('a -> 'b M.t) ->
+    type_name:string ->
+    'a list ->
+    expression M.t
 end
 
 module Located (S : Ast_builder.S) (M : Monad.S) : S with module M = M

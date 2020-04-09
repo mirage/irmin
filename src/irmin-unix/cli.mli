@@ -19,14 +19,14 @@
 (** [Cmdliner] commands. *)
 type command = unit Cmdliner.Term.t * Cmdliner.Term.info
 
-val default : command
 (** The default command: show a summary of the commands. *)
+val default : command
 
-val commands : command list
 (** List of available sub-commands. *)
+val commands : command list
 
-val run : default:command -> command list -> unit
 (** Create a command-line tool with the given subcommands. *)
+val run : default:command -> command list -> unit
 
 (** {2 Command-builder helper} *)
 
@@ -38,5 +38,5 @@ type sub = {
   term : unit Cmdliner.Term.t;
 }
 
-val create_command : sub -> command
 (** Build a subcommand. *)
+val create_command : sub -> command

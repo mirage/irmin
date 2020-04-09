@@ -30,12 +30,12 @@
       servers} provides a high-level REST API, with 1 RTT for the
       {{!Irmin.S.Private} private} and {{!Irmin.S} public} functions. *)
 
-val info :
-  ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 (** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.date}
     date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.author} author}
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
     provided. *)
+val info :
+  ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
 
 (** File system backends, using {{:https://github.com/janestreet/bin_prot}
     bin_prot}. *)
@@ -196,9 +196,9 @@ module Http : sig
        and type t = Cohttp_lwt_unix.Server.t
 end
 
-val set_listen_dir_hook : unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching changes in
     directories. *)
+val set_listen_dir_hook : unit -> unit
 
 module Graphql = Graphql
 module Cli = Cli

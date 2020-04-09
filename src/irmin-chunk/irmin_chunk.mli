@@ -50,17 +50,10 @@
     property that values are addressed by their hash, instead of by the hash of
     the root chunk node as is the case for {{!AO} AO}. *)
 
-val chunk_size : int Irmin.Private.Conf.key
 (** [chunk_size] is the configuration key to configure chunk size. By default,
     it is set to 4666, so that payload and metadata can be stored in a 4K block. *)
+val chunk_size : int Irmin.Private.Conf.key
 
-val config :
-  ?config:Irmin.config ->
-  ?size:int ->
-  ?min_size:int ->
-  ?chunking:[ `Max | `Best_fit ] ->
-  unit ->
-  Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value extending the
     optional [config] with bindings associating {{!chunk_size} chunk_size} to
     [size].
@@ -73,6 +66,13 @@ val config :
     [min_size] is, by default, set to 4000 (to avoid hash collisions on smaller
     sizes) but can be tweaked for testing purposes. {i Notes:} the smaller
     [size] is, the bigger the risk of hash collisions, so use reasonable values. *)
+val config :
+  ?config:Irmin.config ->
+  ?size:int ->
+  ?min_size:int ->
+  ?chunking:[ `Max | `Best_fit ] ->
+  unit ->
+  Irmin.config
 
 (** [Content_addressable(X)] is a content-addressable store which store values
     cut into chunks into the underlying store [X]. *)

@@ -29,25 +29,17 @@ type 'a printer = 'a Fmt.t
 (** The type for configuration converters. *)
 type 'a converter = 'a parser * 'a printer
 
-val parser : 'a converter -> 'a parser
 (** [parser c] is [c]'s parser. *)
+val parser : 'a converter -> 'a parser
 
-val printer : 'a converter -> 'a printer
 (** [converter c] is [c]'s printer. *)
+val printer : 'a converter -> 'a printer
 
 (** {1:keys Keys} *)
 
 (** The type for configuration keys whose lookup value is ['a]. *)
 type 'a key
 
-val key :
-  ?docs:string ->
-  ?docv:string ->
-  ?doc:string ->
-  string ->
-  'a converter ->
-  'a ->
-  'a key
 (** [key ~docs ~docv ~doc name conv default] is a configuration key named [name]
     that maps to value [default] by default. [conv] is used to convert key
     values provided by end users.
@@ -63,75 +55,83 @@ val key :
 
     {b Warning.} No two keys should share the same [name] as this may lead to
     difficulties in the UI. *)
+val key :
+  ?docs:string ->
+  ?docv:string ->
+  ?doc:string ->
+  string ->
+  'a converter ->
+  'a ->
+  'a key
 
-val name : 'a key -> string
 (** The key name. *)
+val name : 'a key -> string
 
-val conv : 'a key -> 'a converter
 (** [tc k] is [k]'s converter. *)
+val conv : 'a key -> 'a converter
 
-val default : 'a key -> 'a
 (** [default k] is [k]'s default value. *)
+val default : 'a key -> 'a
 
-val doc : 'a key -> string option
 (** [doc k] is [k]'s documentation string (if any). *)
+val doc : 'a key -> string option
 
-val docv : 'a key -> string option
 (** [docv k] is [k]'s value documentation meta-variable (if any). *)
+val docv : 'a key -> string option
 
-val docs : 'a key -> string option
 (** [docs k] is [k]'s documentation section (if any). *)
+val docs : 'a key -> string option
 
-val root : string option key
 (** Default [--root=ROOT] argument. *)
+val root : string option key
 
 (** {1:conf Configurations} *)
 
 (** The type for configurations. *)
 type t
 
-val empty : t
 (** [empty] is the empty configuration. *)
+val empty : t
 
-val singleton : 'a key -> 'a -> t
 (** [singleton k v] is the configuration where [k] maps to [v]. *)
+val singleton : 'a key -> 'a -> t
 
-val is_empty : t -> bool
 (** [is_empty c] is [true] iff [c] is empty. *)
+val is_empty : t -> bool
 
-val mem : t -> 'a key -> bool
 (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
+val mem : t -> 'a key -> bool
 
-val add : t -> 'a key -> 'a -> t
 (** [add c k v] is [c] with [k] mapping to [v]. *)
+val add : t -> 'a key -> 'a -> t
 
-val rem : t -> 'a key -> t
 (** [rem c k] is [c] with [k] unbound. *)
+val rem : t -> 'a key -> t
 
-val union : t -> t -> t
 (** [union r s] is the union of the configurations [r] and [s]. *)
+val union : t -> t -> t
 
-val find : t -> 'a key -> 'a option
 (** [find c k] is [k]'s mapping in [c], if any. *)
+val find : t -> 'a key -> 'a option
 
-val get : t -> 'a key -> 'a
 (** [get c k] is [k]'s mapping in [c].
 
     {b Raises.} [Not_found] if [k] is not bound in [d]. *)
+val get : t -> 'a key -> 'a
 
 (** {1:builtin_converters Built-in value converters} *)
 
-val bool : bool converter
 (** [bool] converts values with [bool_of_string]. *)
+val bool : bool converter
 
-val int : int converter
 (** [int] converts values with [int_of_string]. *)
+val int : int converter
 
+(** [string] converts values with the identity function. *)
 val string : string converter
-(** [string] converts values with the identity function. *)
 
-val uri : Uri.t converter
 (** [uri] converts values with {!Uri.of_string}. *)
+val uri : Uri.t converter
 
-val some : 'a converter -> 'a option converter
 (** [string] converts values with the identity function. *)
+val some : 'a converter -> 'a option converter

@@ -78,8 +78,8 @@ end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
 
-val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 (** Parse a remote store location. *)
+val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 
 (** {1 Stores} *)
 
@@ -88,5 +88,5 @@ type store =
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
       -> store
 
-val store : store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)
+val store : store Cmdliner.Term.t

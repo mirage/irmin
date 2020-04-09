@@ -21,14 +21,6 @@ module type S = sig
 
   type db
 
-  val output_buffer :
-    db ->
-    ?html:bool ->
-    ?depth:int ->
-    ?full:bool ->
-    date:(int64 -> string) ->
-    Buffer.t ->
-    unit Lwt.t
   (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
       representation of [t] in the buffer [buf].
 
@@ -40,6 +32,14 @@ module type S = sig
       If [full] is set (default is not) the full graph, including the commits,
       nodes and contents, is exported, otherwise it is the commit history graph
       only. *)
+  val output_buffer :
+    db ->
+    ?html:bool ->
+    ?depth:int ->
+    ?full:bool ->
+    date:(int64 -> string) ->
+    Buffer.t ->
+    unit Lwt.t
 end
 
 module Make (S : Store.S) : S with type db = S.t

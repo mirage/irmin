@@ -1,3 +1,4 @@
 version = 0.14.0
 break-infix = fit-or-vertical
 parse-docstrings = true
+doc-comments-val=before

@@ -20,8 +20,8 @@
     is instantiated to a module [M], it has a unique shared hash-table: multiple
     invocation of [M.create] will see and manipulate the same contents. *)
 
-val config : unit -> Irmin.config
 (** Configuration values. *)
+val config : unit -> Irmin.config
 
 (** An in-memory store for append-only values. *)
 module Append_only : Irmin.APPEND_ONLY_STORE_MAKER

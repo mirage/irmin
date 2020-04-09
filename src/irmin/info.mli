@@ -19,10 +19,9 @@
 (** The type for commit info. *)
 type t
 
-val v : date:int64 -> author:string -> string -> t
 (** Create a new commit info. *)
+val v : date:int64 -> author:string -> string -> t
 
-val date : t -> int64
 (** [date t] is [t]'s commit date.
 
     The date provided by the user when calling the {{!Info.v} create} function.
@@ -31,29 +30,30 @@ val date : t -> int64
     well. On the Git backend, the date is translated into the commit {e Date}
     field and is expected to be the number of POSIX seconds (thus not counting
     leap seconds) since the Epoch. *)
+val date : t -> int64
 
-val author : t -> string
 (** [author t] is [t]'s commit author.
 
     The author identifies the entity (human, unikernel, process, thread, etc)
     performing an operation. For the Git backend, this will be directly
     translated into the {e Author} field. *)
+val author : t -> string
 
-val message : t -> string
 (** [message t] is [t]'s commit message. *)
+val message : t -> string
 
-val empty : t
 (** The empty commit info. *)
+val empty : t
 
 (** {1 Info Functions} *)
 
 (** Alias for functions which can build commit info. *)
 type f = unit -> t
 
-val none : f
 (** The empty info function. [none ()] is [empty] *)
+val none : f
 
 (** {1 Value Types} *)
 
-val t : t Type.t
 (** [t] is the value type for {!t}. *)
+val t : t Type.t
