@@ -20,7 +20,7 @@ Documentation can be found online at [https://mirage.github.io/irmin](https://mi
 
 #### Prerequisites:
 
-  Please ensure to install the latest Opam version and the minimum Opam and Ocaml versions are 2 and 4.07 respectively.
+Please ensure to install the minimum Opam and Ocaml versions which are 2 and 4.07 respectively.
           
     opam list    // listing the installed packages
 
