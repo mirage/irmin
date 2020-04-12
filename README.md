@@ -18,9 +18,9 @@ Documentation can be found online at [https://mirage.github.io/irmin](https://mi
 
 ### Installation
 
-#### Prerequisites Note :
+#### Prerequisites:
 
-  Ensure to install the latest Opam version and the minimum Opam and Ocaml versions are 2 and 4.07 respectively.
+  Please ensure to install the latest Opam version and the minimum Opam and Ocaml versions are 2 and 4.07 respectively.
           
     opam list    // listing the installed packages
 
@@ -28,7 +28,7 @@ To install Irmin, the command-line tool and all optional dependencies using [opa
 
     opam install irmin-unix
 
-***Note :*** If you face installation issues due to pinned packages. Run  the below commands to unpin and try to install again,
+***Note :***  If you face installation issues due to pinned packages. Run  the below commands to unpin and try to install again,
 
 Unpinning *irmin-unix* package,
 
