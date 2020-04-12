@@ -22,13 +22,15 @@ Documentation can be found online at [https://mirage.github.io/irmin](https://mi
 
   Ensure to install the latest Opam version and the minimum Opam and Ocaml versions are 2 and 4.07 respectively.
           
-    opam list      // listing the installed packages
+    opam list    // listing the installed packages
 
 To install Irmin, the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
 
     opam install irmin-unix
-    
-***Note :*** If you could not install irmin-unix because of pinned package issue. You can make use of these below commands to unpin and try to install irmin again,
+
+***Note :*** If you face installation issues due to pinned packages. Run  the below commands to unpin and try to install again,
+
+Unpinning *irmin-unix* package,
 
     opam info irmin-unix // to get available versions
     opam pin -s | grep irmin | xargs opam unpin
