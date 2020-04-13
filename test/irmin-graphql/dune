@@ -1,0 +1,11 @@
+(executable
+ (name test)
+ (modules test common)
+ (libraries alcotest alcotest-lwt yojson checkseum.c digestif.c irmin
+   irmin-graphql irmin-unix))
+
+(alias
+ (name runtest)
+ (package irmin-git)
+ (action
+  (run ./test.exe -q --color=always)))

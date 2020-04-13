@@ -22,6 +22,8 @@ depends: [
   "graphql-cohttp" {>= "0.13.0"}
   "cohttp-lwt"
   "graphql_parser" {>= "0.13.0"}
+  "alcotest-lwt" {>= "1.1.0" & with-test}
+  "yojson" {with-test}
 ]
 
 
