@@ -184,10 +184,10 @@ struct
     | Some b -> Store.of_branch repo b
     | None -> Store.master repo
 
-  let rec concat_key key key' =
-    match Store.Key.decons key' with
-    | None -> key
-    | Some (step, key'') -> concat_key (Store.Key.cons step key) key''
+  let rec concat_key a b =
+    match Store.Key.decons a with
+    | None -> b
+    | Some (step, a_tl) -> Store.Key.cons step (concat_key a_tl b)
 
   module Input = struct
     let coerce_remote = function

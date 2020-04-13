@@ -52,7 +52,7 @@ let test_get_contents_list : test_case =
   in
   Alcotest.(check (list (pair string yojson)))
     "Returned entry data is valid"
-    [ ("key", `String "/c/b/a"); ("__typename", `String "Contents") ]
+    [ ("key", `String "/a/b/c"); ("__typename", `String "Contents") ]
     result;
   ()
 
@@ -88,8 +88,8 @@ let test_get_tree_list : test_case =
   Alcotest.(check (list (list (pair string yojson))))
     "Returned entry data is valid"
     [
-      [ ("key", `String "/c/b/a/branch"); ("__typename", `String "Tree") ];
-      [ ("key", `String "/c/b/a/leaf"); ("__typename", `String "Contents") ];
+      [ ("key", `String "/a/b/c/branch"); ("__typename", `String "Tree") ];
+      [ ("key", `String "/a/b/c/leaf"); ("__typename", `String "Contents") ];
     ]
     key_data;
   ()
