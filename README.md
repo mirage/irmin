@@ -58,6 +58,7 @@ To install the development version of Irmin, clone this repository and `opam ins
 ### Examples
 Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
 
+<!-- N.B. Any changes to the following example must be mirrored in `examples/readme.ml`. -->
 ```ocaml
 open Lwt.Infix
 
