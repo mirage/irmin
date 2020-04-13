@@ -1,3 +1,6 @@
+(* N.B. This excerpt is extracted from project README. Any changes made here
+ * should be mirrored there. *)
+
 open Lwt.Infix
 
 (* Irmin store with string contents *)
