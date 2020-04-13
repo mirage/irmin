@@ -13,6 +13,9 @@
 (rule
  (alias runtest)
  (package irmin-unix)
+ ; Locks mechanism is broken in Dune lang 2.0+
+ (deps
+  (alias ../irmin-http/runtest))
  (locks ../http)
  (action
   (chdir
