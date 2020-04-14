@@ -16,6 +16,7 @@
 
 open Lwt.Infix
 open Merge.Infix
+open Stdlib_ext
 
 let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 
