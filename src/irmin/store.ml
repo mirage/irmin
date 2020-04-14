@@ -84,10 +84,9 @@ module Make (P : S.PRIVATE) = struct
   module Tree = struct
     include Tree.Make (P)
 
-    let of_hash r h =
-      import r h >|= function Some t -> Some (`Node t) | None -> None
+    let of_hash r h = import r h >|= Option.map of_node
 
-    let shallow r h = `Node (import_no_check r h)
+    let shallow r h = import_no_check r h |> of_node
 
     let hash : tree -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
@@ -96,7 +95,7 @@ module Make (P : S.PRIVATE) = struct
   let save_contents b c = P.Contents.add b c
 
   let save_tree ?(clear = true) r x y (tr : Tree.tree) =
-    match tr with
+    match Tree.destruct tr with
     | `Contents (c, _) -> save_contents x c
     | `Node n -> Tree.export ~clear r x y n
 
@@ -122,8 +121,8 @@ module Make (P : S.PRIVATE) = struct
 
     let v r ~info ~parents tree =
       P.Repo.batch r @@ fun contents_t node_t commit_t ->
-      ( match tree with
-      | `Node n -> Tree.export r contents_t node_t n
+      ( match Tree.destruct tree with
+      | `Node t -> Tree.export r contents_t node_t t
       | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root" )
       >>= fun node ->
       let v = P.Commit.Val.v ~info ~node ~parents in
@@ -131,7 +130,7 @@ module Make (P : S.PRIVATE) = struct
 
     let node t = P.Commit.Val.node t.v
 
-    let tree t = Tree.import_no_check t.r (node t) |> fun n -> `Node n
+    let tree t = Tree.import_no_check t.r (node t) |> Tree.of_node
 
     let equal x y = Type.equal Hash.t x.h y.h
 
@@ -461,7 +460,7 @@ module Make (P : S.PRIVATE) = struct
 
             (* the tree cache needs to be invalidated *)
             let n = Tree.import_no_check (repo t) (Commit.node h) in
-            let tree = `Node n in
+            let tree = Tree.of_node n in
             t.tree <- Some (h, tree);
             Some (h, tree) )
 
@@ -605,7 +604,9 @@ module Make (P : S.PRIVATE) = struct
     in
     aux 0
 
-  let root_tree = function `Node _ as n -> n | `Contents _ -> assert false
+  let root_tree = function
+    | `Node _ as n -> Tree.v n
+    | `Contents _ -> assert false
 
   let add_commit t old_head ((c, _) as tree) =
     match t.head_ref with
@@ -687,7 +688,8 @@ module Make (P : S.PRIVATE) = struct
           let parents = match parents with None -> s.parents | Some p -> p in
           let parents = List.map Commit.hash parents in
           Commit.v (repo t) ~info ~parents root >>= fun c ->
-          add_commit t s.head (c, root_tree root) >>= Lwt.return_ok
+          add_commit t s.head (c, root_tree (Tree.destruct root))
+          >>= Lwt.return_ok
 
   let ok x = Ok x
 
@@ -719,7 +721,7 @@ module Make (P : S.PRIVATE) = struct
     remove ?retries ?allow_empty ?parents ~info t k >>= fail "remove_exn"
 
   let set ?retries ?allow_empty ?parents ~info t k v =
-    let v = `Contents (v, Metadata.default) in
+    let v = Tree.of_contents v in
     set_tree t k ?retries ?allow_empty ?parents ~info v
 
   let set_exn ?retries ?allow_empty ?parents ~info t k v =
@@ -746,16 +748,8 @@ module Make (P : S.PRIVATE) = struct
     >>= fail "test_and_set_tree_exn"
 
   let test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set =
-    let test =
-      match test with
-      | None -> None
-      | Some t -> Some (`Contents (t, Metadata.default))
-    in
-    let set =
-      match set with
-      | None -> None
-      | Some s -> Some (`Contents (s, Metadata.default))
-    in
+    let test = Option.map Tree.of_contents test in
+    let set = Option.map Tree.of_contents set in
     test_and_set_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
 
   let test_and_set_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
@@ -779,16 +773,8 @@ module Make (P : S.PRIVATE) = struct
     >>= fail "merge_tree_exn"
 
   let merge ?retries ?allow_empty ?parents ~info ~old t k v =
-    let old =
-      match old with
-      | None -> None
-      | Some v -> Some (`Contents (v, Metadata.default))
-    in
-    let v =
-      match v with
-      | None -> None
-      | Some v -> Some (`Contents (v, Metadata.default))
-    in
+    let old = Option.map Tree.of_contents old in
+    let v = Option.map Tree.of_contents v in
     merge_tree ?retries ?allow_empty ?parents ~info ~old t k v
 
   let merge_exn ?retries ?allow_empty ?parents ~info ~old t k v =

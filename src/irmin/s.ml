@@ -804,7 +804,7 @@ module type TREE = sig
 
   type node
 
-  type tree = [ `Node of node | `Contents of contents * metadata ]
+  type tree
 
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
       lazy reads and delayed writes.
@@ -827,6 +827,12 @@ module type TREE = sig
 
   val of_node : node -> tree
   (** [of_node n] is the subtree built from the node [n]. *)
+
+  val v : [< `Node of node | `Contents of contents * metadata ] -> tree
+  (** General-purpose constructor for trees. *)
+
+  val destruct : tree -> [> `Node of node | `Contents of contents * metadata ]
+  (** General-purpose destructor for trees. *)
 
   val kind : tree -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or

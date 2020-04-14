@@ -206,9 +206,9 @@ module Make (P : S.PRIVATE) = struct
       in
       { v; info }
 
-    let export ?clear:c repo t k =
+    let export ?clear:(c = true) repo t k =
       let hash = t.info.hash in
-      if c = Some true then clear t;
+      if c then clear t;
       match (t.v, hash) with
       | Hash (_, k), _ -> t.v <- Hash (repo, k)
       | Value _, None -> t.v <- Hash (repo, k)
@@ -415,9 +415,9 @@ module Make (P : S.PRIVATE) = struct
       clear ~max_depth 0 n
 
     (* export t to the given repo and clear the cache *)
-    let export ?clear:c repo t k =
+    let export ?clear:(c = true) repo t k =
       let hash = t.info.hash in
-      if c = Some true then clear t;
+      if c then clear t;
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
       | Value (_, v, None) when P.Node.Val.is_empty v -> ()
@@ -903,6 +903,13 @@ module Make (P : S.PRIVATE) = struct
   let of_node n = `Node n
 
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
+
+  let v = function `Contents c -> `Contents c | `Node n -> `Node n
+
+  let destruct : tree -> [> `Node of node | `Contents of contents * metadata ] =
+    function
+    | `Node n -> `Node n
+    | `Contents c -> `Contents c
 
   let clear ?depth = function
     | `Node n -> Node.clear ?depth n

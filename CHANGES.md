@@ -33,6 +33,10 @@
     - Fields of records which have value `None` are still omitted;
     - Fields of records which have value `Some x` are still unboxed into `x`.
 
+  - The type `Irmin.S.tree` is now abstract. The previous form can be coerced
+    to/from the abstract representation with the new functions
+    `Irmin.S.Tree.{v,destruct}` respectively. (#990, @CraigFe)
+    
 #### Fixed
 
 - **irmin-graphql**
