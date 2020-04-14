@@ -46,13 +46,12 @@ let rec ty : type a. a t Fmt.t =
   | Self s -> Fmt.pf ppf "@[Self (%a@)]" ty s.self
   | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
   | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
-  | Prim p -> Fmt.pf ppf "@[Prim %a@]" prim p
-  | List l -> Fmt.pf ppf "@[List%a (%a)@]" len l.len ty l.v
-  | Array a -> Fmt.pf ppf "@[Array%a (%a)@]" len a.len ty a.v
-  | Tuple (Pair (a, b)) -> Fmt.pf ppf "@[Pair (%a, %a)@]" ty a ty b
-  | Tuple (Triple (a, b, c)) ->
-      Fmt.pf ppf "@[Triple (%a, %a, %a)@]" ty a ty b ty c
-  | Option t -> Fmt.pf ppf "@[Option (%a)@]" ty t
+  | Prim p -> Fmt.pf ppf "@[%a@]" prim p
+  | List l -> Fmt.pf ppf "@[%a list%a@]" ty l.v len l.len
+  | Array a -> Fmt.pf ppf "@[%a array%a@]" ty a.v len a.len
+  | Tuple (Pair (a, b)) -> Fmt.pf ppf "@[(%a * %a)@]" ty a ty b
+  | Tuple (Triple (a, b, c)) -> Fmt.pf ppf "@[(%a * %a * %a)@]" ty a ty b ty c
+  | Option t -> Fmt.pf ppf "@[%a option@]" ty t
   | Record _ -> Fmt.pf ppf "@[Record@]"
   | Variant _ -> Fmt.pf ppf "@[Variant@]"
 
@@ -62,15 +61,15 @@ and custom : type a. a custom Fmt.t =
 
 and prim : type a. a prim Fmt.t =
  fun ppf -> function
-  | Unit -> Fmt.string ppf "Unit"
-  | Bool -> Fmt.string ppf "Bool"
-  | Char -> Fmt.string ppf "Char"
-  | Int -> Fmt.string ppf "Int"
-  | Int32 -> Fmt.string ppf "Int32"
-  | Int64 -> Fmt.string ppf "Int64"
-  | Float -> Fmt.string ppf "Float"
-  | String n -> Fmt.pf ppf "String%a" len n
-  | Bytes n -> Fmt.pf ppf "Bytes%a" len n
+  | Unit -> Fmt.string ppf "unit"
+  | Bool -> Fmt.string ppf "bool"
+  | Char -> Fmt.string ppf "char"
+  | Int -> Fmt.string ppf "int"
+  | Int32 -> Fmt.string ppf "int32"
+  | Int64 -> Fmt.string ppf "int64"
+  | Float -> Fmt.string ppf "float"
+  | String n -> Fmt.pf ppf "string%a" len n
+  | Bytes n -> Fmt.pf ppf "bytes%a" len n
 
 and len : len Fmt.t =
  fun ppf -> function

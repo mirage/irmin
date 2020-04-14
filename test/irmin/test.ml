@@ -273,8 +273,11 @@ let test_to_string () =
 
 (** Test the behaviour of {!Irmin.Type.pp_ty}. *)
 let test_pp_ty () =
-  let test : type a. string -> a T.t -> string -> unit =
-   fun case_name input expected_output ->
+  let test : type a. ?case_name:string -> a T.t -> string -> unit =
+   fun ?case_name input expected_output ->
+    let case_name =
+      match case_name with Some x -> x | None -> expected_output
+    in
     let assertion =
       Fmt.strf "Expected output of `pp_ty` for representation of `%s`" case_name
     in
@@ -283,39 +286,41 @@ let test_pp_ty () =
   in
 
   (* Test cases for basic types *)
-  test "unit" T.unit "Prim Unit";
-  test "bool" T.bool "Prim Bool";
-  test "char" T.char "Prim Char";
-  test "int" T.int "Prim Int";
-  test "int32" T.int32 "Prim Int32";
-  test "int64" T.int64 "Prim Int64";
-  test "float" T.float "Prim Float";
-  test "bytes" T.bytes "Prim Bytes";
-  test "string" T.string "Prim String";
+  test T.unit "unit";
+  test T.bool "bool";
+  test T.char "char";
+  test T.int "int";
+  test T.int32 "int32";
+  test T.int64 "int64";
+  test T.float "float";
+  test T.bytes "bytes";
+  test T.string "string";
 
   (* Test cases for non-algebraic combinators *)
-  test "int list" T.(list int) "List (Prim Int)";
-  test "float array" T.(array float) "Array (Prim Float)";
-  test "(unit * int)" T.(pair unit int) "Pair (Prim Unit, Prim Int)";
-  test "unit option" T.(option unit) "Option (Prim Unit)";
-  test "(int * string * bool)"
-    T.(triple int string bool)
-    "Triple (Prim Int, Prim String, Prim Bool)";
-  test "(string, bool) result" T.(result string bool) "Variant";
+  test T.(list int) "int list";
+  test T.(array float) "float array";
+  test T.(pair unit int) "(unit * int)";
+  test T.(option unit) "unit option";
+  test T.(triple int string bool) "(int * string * bool)";
+  test ~case_name:"(string, bool) result" T.(result string bool) "Variant";
 
   (* Test cases for fixed-size refinement types *)
-  test "string {size=Int}" T.(string_of `Int) "Prim String";
-  test "string {size=Int8}" T.(string_of `Int8) "Prim String:8";
-  test "bytes {size=Int16}" T.(bytes_of `Int16) "Prim Bytes:16";
-  test "bytes {size=Int32}" T.(bytes_of `Int32) "Prim Bytes:32";
-  test "array {size=Int64}" T.(array ~len:`Int64 unit) "Array:64 (Prim Unit)";
-  test "array {size=3}" T.(array ~len:(`Fixed 3) unit) "Array:<3> (Prim Unit)";
+  test ~case_name:"string {size=Int}" T.(string_of `Int) "string";
+  test ~case_name:"string {size=Int8}" T.(string_of `Int8) "string:8";
+  test ~case_name:"bytes {size=Int16}" T.(bytes_of `Int16) "bytes:16";
+  test ~case_name:"bytes {size=Int32}" T.(bytes_of `Int32) "bytes:32";
+  test ~case_name:"array {size=Int64}"
+    T.(array ~len:`Int64 unit)
+    "unit array:64";
+  test ~case_name:"array {size=3}"
+    T.(array ~len:(`Fixed 3) unit)
+    "unit array:<3>";
 
   (* Test cases for algebraic combinators *)
-  test "enum" Algebraic.my_enum_t "Variant";
-  test "variant" Algebraic.my_variant_t "Variant";
-  test "recursive variant" Algebraic.my_recursive_variant_t "Variant";
-  test "record" Algebraic.my_record_t "Record";
+  test ~case_name:"enum" Algebraic.my_enum_t "Variant";
+  test ~case_name:"variant" Algebraic.my_variant_t "Variant";
+  test ~case_name:"recursive variant" Algebraic.my_recursive_variant_t "Variant";
+  test ~case_name:"record" Algebraic.my_record_t "Record";
 
   (* Test cases for 'custom' types *)
   let module Custom = struct
@@ -337,10 +342,10 @@ let test_pp_ty () =
 
     let map : int T.t = T.(map int) (fun x -> x) (fun x -> x)
   end in
-  test "custom v" Custom.v "Custom (-)";
-  test "custom like prim" Custom.like_prim "Custom (Prim Int)";
-  test "custom like custom" Custom.like_custom "Custom (Custom (-))";
-  test "map" Custom.map "Map (Prim Int)";
+  test ~case_name:"custom v" Custom.v "Custom (-)";
+  test ~case_name:"custom like prim" Custom.like_prim "Custom (int)";
+  test ~case_name:"custom like custom" Custom.like_custom "Custom (Custom (-))";
+  test ~case_name:"map" Custom.map "Map (int)";
 
   ()
 
