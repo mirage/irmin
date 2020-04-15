@@ -96,6 +96,7 @@ let rec t : type a. a t -> a size_of =
   | Option x -> option (t x) e
   | Record r -> record ?headers r e
   | Variant v -> variant ?headers v e
+  | Var v -> raise (Unbound_type_variable v)
 
 and tuple : type a. a tuple -> a size_of =
  fun ty ?headers:_ ->

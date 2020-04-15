@@ -133,6 +133,7 @@ module Equal = struct
     | Option x -> option (t x) a b
     | Record r -> record r a b
     | Variant v -> variant v a b
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a equal = function
     | Pair (a, b) -> pair (t a) (t b)
@@ -268,6 +269,7 @@ module Compare = struct
     | Option x -> option (t x) a b
     | Record r -> record r a b
     | Variant v -> variant v a b
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a compare = function
     | Pair (x, y) -> pair (t x) (t y)

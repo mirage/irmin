@@ -154,6 +154,7 @@ module Encode = struct
     | Option x -> option (t x) e k
     | Record r -> record ?headers r e k
     | Variant v -> variant ?headers v e k
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a encode_bin =
    fun ty ?headers:_ ->
@@ -293,6 +294,7 @@ module Decode = struct
     | Option x -> option ?headers (t x) buf ofs
     | Record r -> record ?headers r buf ofs
     | Variant v -> variant ?headers v buf ofs
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a decode_bin =
    fun ty ?headers:_ ->

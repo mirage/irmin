@@ -69,7 +69,10 @@ type 'a equal = 'a -> 'a -> bool
 
 type 'a short_hash = ?seed:int -> 'a -> int
 
+exception Unbound_type_variable of string
+
 type 'a t =
+  | Var : string -> 'a t
   | Self : 'a self -> 'a t
   | Custom : 'a custom -> 'a t
   | Map : ('a, 'b) map -> 'b t
