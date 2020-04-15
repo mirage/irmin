@@ -7,6 +7,24 @@
 
 
 (rule
+ (targets lib_invalid.actual)
+ (deps
+  (:pp pp.exe)
+  (:input lib_invalid.ml))
+ (action
+  (with-stderr-to
+   %{targets}
+   (bash "! ./%{pp} -no-color --impl %{input}"))))
+
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (diff lib_invalid.expected lib_invalid.actual)))
+
+
+
+(rule
  (targets nobuiltin_nonempty.actual)
  (deps
   (:pp pp.exe)

@@ -55,6 +55,17 @@ types, records, variants (plain and closed polymorphic), recursive types etc.).
 Irmin does not currently support higher-kinded generics: all Irmin types must
 fully grounded (no polymorphic type variables).
 
+To supply base representations from a module other than `Irmin.Type` (such as
+when `Irmin.Type` is aliased to a different module path), the `lib` argument can
+be passed to `@@deriving irmin`:
+
+```ocaml
+type foo = unit [@@deriving irmin { lib = Some "Mylib.Types" }]
+
+(* generates the value *)
+val foo_t = Mylib.Types.unit
+```
+
 #### Naming scheme
 
 The generated generics will be called `<type-name>_t`, unless the type-name is

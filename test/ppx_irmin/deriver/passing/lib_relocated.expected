@@ -1,0 +1,21 @@
+module Elsewhere :
+  sig
+    type t[@@deriving irmin { lib = (Some "Foo") }]
+    include sig val t : t Foo.t end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end =
+  struct
+    type t = (unit * unit)[@@deriving irmin { lib = (Some "Foo") }]
+    include struct let t = let open Foo in pair unit unit end[@@ocaml.doc
+                                                               "@inline"]
+    [@@merlin.hide ]
+  end 
+module Locally_avaliable :
+  sig
+    type t[@@deriving irmin { lib = None }]
+    include sig val t : t ty end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end =
+  struct
+    type t = (unit * unit)[@@deriving irmin { lib = None }]
+    include struct let t = pair unit unit end[@@ocaml.doc "@inline"][@@merlin.hide
+                                                                    ]
+  end 
