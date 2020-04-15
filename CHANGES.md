@@ -33,6 +33,12 @@
     - Fields of records which have value `None` are still omitted;
     - Fields of records which have value `Some x` are still unboxed into `x`.
 
+#### Fixed
+
+- **irmin-graphql**
+  - Fixed an issue with keys inside `get_{contents,tree}` fields having
+    incorrect ordering (#989, @CraigFe)
+
 ### 2.1.0 (2020-02-01)
 
 #### Added
