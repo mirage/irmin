@@ -56,6 +56,9 @@ module Located (A : Ast_builder.S) : S = struct
   end
 
   module Reader = Monad.Reader (State)
+
+  let ( >>| ) x f = Reader.map f x
+
   module Algebraic = Algebraic.Located (A) (Reader)
   open A
 
@@ -211,6 +214,45 @@ module Located (A : Ast_builder.S) : S = struct
         [ psig_value (value_description ~name ~type_ ~prim:[]) ]
     | _ -> invalid_arg "Multiple type declarations not supported"
 
+  let derive_lident :
+      ?generic:expression -> ?nobuiltin:unit -> longident -> expression =
+   fun ?generic ?nobuiltin txt ->
+    let nobuiltin = match nobuiltin with Some () -> true | None -> false in
+    match generic with
+    | Some e -> e
+    | None -> (
+        match txt with
+        | Lident cons_name ->
+            if (not nobuiltin) && SSet.mem cons_name irmin_types then
+              evar ("Irmin.Type." ^ cons_name)
+            else
+              (* If not a basic type, assume a composite
+                 generic /w same naming convention *)
+              evar (generic_name_of_type_name cons_name)
+        | Ldot (lident, cons_name) ->
+            pexp_ident
+              (Located.mk @@ Ldot (lident, generic_name_of_type_name cons_name))
+        | Lapply _ -> invalid_arg "Lident.Lapply not supported" )
+
+  let derive_type_decl : type_declaration -> expression Reader.t =
+   fun typ ->
+    match typ.ptype_kind with
+    | Ptype_abstract -> (
+        match typ.ptype_manifest with
+        | None -> invalid_arg "No manifest"
+        | Some c -> (
+            match c.ptyp_desc with
+            (* No need to open Irmin.Type module *)
+            | Ptyp_constr ({ txt; loc = _ }, []) ->
+                let generic = Attribute.get Attributes.generic c
+                and nobuiltin = Attribute.get Attributes.nobuiltin c in
+                derive_lident ?generic ?nobuiltin txt |> Reader.return
+            (* Type constructor: list, tuple, etc. *)
+            | _ -> derive_core c >>| open_module ) )
+    | Ptype_variant cs -> derive_variant cs >>| open_module
+    | Ptype_record ls -> derive_record ls >>| open_module
+    | Ptype_open -> Raise.Unsupported.type_open ~loc
+
   let derive_str ?name input_ast =
     match input_ast with
     | rec_flag, [ typ ] ->
@@ -224,47 +266,7 @@ module Located (A : Ast_builder.S) : S = struct
           let rec_detected = ref false in
           State.{ rec_flag; type_name; generic_name; rec_detected }
         in
-        let expr =
-          match typ.ptype_kind with
-          | Ptype_abstract -> (
-              match typ.ptype_manifest with
-              | None -> invalid_arg "No manifest"
-              | Some c -> (
-                  match c.ptyp_desc with
-                  (* No need to open Irmin.Type module *)
-                  | Ptyp_constr ({ txt; loc = _ }, []) -> (
-                      match Attribute.get Attributes.generic c with
-                      | Some e -> e
-                      | None -> (
-                          match txt with
-                          | Lident cons_name ->
-                              let nobuiltin =
-                                match Attribute.get Attributes.nobuiltin c with
-                                | Some () -> true
-                                | None -> false
-                              in
-                              if
-                                (not nobuiltin)
-                                && SSet.mem cons_name irmin_types
-                              then evar ("Irmin.Type." ^ cons_name)
-                              else
-                                (* If not a basic type, assume a composite
-                                   generic /w same naming convention *)
-                                evar (generic_name_of_type_name cons_name)
-                          | Ldot (lident, cons_name) ->
-                              pexp_ident
-                                ( Located.mk
-                                @@ Ldot
-                                     ( lident,
-                                       generic_name_of_type_name cons_name ) )
-                          | Lapply _ ->
-                              invalid_arg "Lident.Lapply not supported" ) )
-                  (* Type constructor: list, tuple, etc. *)
-                  | _ -> run (derive_core c) env |> open_module ) )
-          | Ptype_variant cs -> run (derive_variant cs) env |> open_module
-          | Ptype_record ls -> run (derive_record ls) env |> open_module
-          | Ptype_open -> Raise.Unsupported.type_open ~loc
-        in
+        let expr = run (derive_type_decl typ) env in
         (* If the type is syntactically self-referential and the user has not
            asserted 'nonrec' in the type declaration, wrap in a 'mu'
            combinator *)
