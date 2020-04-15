@@ -205,6 +205,9 @@ module Algebraic = struct
 
   type my_record = { foo : int; flag : bool; letter : my_enum }
   [@@deriving irmin]
+
+  type my_recursive_record = { head : int; tail : my_recursive_record option }
+  [@@deriving irmin]
 end
 
 (** Test the behaviour of {!Irmin.Type.to_string}. *)
@@ -269,6 +272,10 @@ let test_to_string () =
     { foo = 2; flag = false; letter = Delta }
     "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
 
+  test "recursive record" my_recursive_record_t
+    { head = 1; tail = Some { head = 2; tail = None } }
+    "{\"head\":1,\"tail\":{\"head\":2}}";
+
   ()
 
 (** Test the behaviour of {!Irmin.Type.pp_ty}. *)
@@ -302,7 +309,10 @@ let test_pp_ty () =
   test T.(pair unit int) "(unit * int)";
   test T.(option unit) "unit option";
   test T.(triple int string bool) "(int * string * bool)";
-  test ~case_name:"(string, bool) result" T.(result string bool) "Variant";
+
+  test ~case_name:"(string, bool) result"
+    T.(result string bool)
+    "([ Ok of string | Error of bool ] as result)";
 
   (* Test cases for fixed-size refinement types *)
   test ~case_name:"string {size=Int}" T.(string_of `Int) "string";
@@ -317,10 +327,24 @@ let test_pp_ty () =
     "unit array:<3>";
 
   (* Test cases for algebraic combinators *)
-  test ~case_name:"enum" Algebraic.my_enum_t "Variant";
-  test ~case_name:"variant" Algebraic.my_variant_t "Variant";
-  test ~case_name:"recursive variant" Algebraic.my_recursive_variant_t "Variant";
-  test ~case_name:"record" Algebraic.my_record_t "Record";
+  test ~case_name:"enum" Algebraic.my_enum_t
+    "([ Alpha | Beta | Gamma | Delta ] as my_enum)";
+
+  test ~case_name:"variant" Algebraic.my_variant_t
+    "([ Left of int | Right of int list ] as my_variant)";
+
+  test ~case_name:"recursive variant" Algebraic.my_recursive_variant_t
+    "([ Branch of my_recursive_variant list | Leaf of int ] as \
+     my_recursive_variant)";
+
+  test ~case_name:"record" Algebraic.my_record_t
+    {|(< foo : int
+ ; flag : bool
+ ; letter : ([ Alpha | Beta | Gamma | Delta ] as my_enum)
+ > as my_record)|};
+
+  test ~case_name:"recursive record" Algebraic.my_recursive_record_t
+    "(< head : int; tail : my_recursive_record option > as my_recursive_record)";
 
   (* Test cases for 'custom' types *)
   let module Custom = struct
