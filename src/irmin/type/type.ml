@@ -20,7 +20,7 @@ let pre_hash t x =
   let rec aux : type a. a t -> a bin_seq =
    fun t v k ->
     match t with
-    | Self s -> aux s.self v k
+    | Self s -> aux s.self_fix v k
     | Map m -> aux m.x (m.g v) k
     | Custom c -> c.pre_hash v k
     | _ -> Type_binary.encode_bin ?headers:(Some false) t v k
@@ -94,19 +94,31 @@ let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
 
 let mu : type a. (a t -> a t) -> a t =
  fun f ->
-  let rec fake_x = { self = Self fake_x } in
+  let rec fake_x : a self = { self = f; self_fix = Self fake_x } in
   let real_x = f (Self fake_x) in
-  fake_x.self <- real_x;
-  real_x
+  fake_x.self_fix <- real_x;
+  Self fake_x
 
 let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
  fun f ->
-  let rec fake_x = { self = Self fake_x } in
-  let rec fake_y = { self = Self fake_y } in
+  let rec fake_x =
+    let self a =
+      let b = mu (fun b -> f a b |> snd) in
+      f a b |> fst
+    in
+    { self; self_fix = Self fake_x }
+  in
+  let rec fake_y =
+    let self b =
+      let a = mu (fun a -> f a b |> fst) in
+      f a b |> snd
+    in
+    { self; self_fix = Self fake_y }
+  in
   let real_x, real_y = f (Self fake_x) (Self fake_y) in
-  fake_x.self <- real_x;
-  fake_y.self <- real_y;
-  (real_x, real_y)
+  fake_x.self_fix <- real_x;
+  fake_y.self_fix <- real_y;
+  (Self fake_x, Self fake_y)
 
 (* records *)
 
@@ -250,7 +262,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
     | Some (x, y) -> (x, y)
     | None -> (
         let rec is_prim : type a. a t -> bool = function
-          | Self s -> is_prim s.self
+          | Self s -> is_prim s.self_fix
           | Map m -> is_prim m.x
           | Prim _ -> true
           | _ -> false

@@ -86,7 +86,7 @@ let option o = function
 let rec t : type a. a t -> a size_of =
  fun ty ?headers e ->
   match ty with
-  | Self s -> t ?headers s.self e
+  | Self s -> t ?headers s.self_fix e
   | Custom c -> c.size_of ?headers e
   | Map b -> map ?headers b e
   | Prim t -> prim ?headers t e

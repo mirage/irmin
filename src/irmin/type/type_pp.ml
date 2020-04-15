@@ -20,7 +20,7 @@ let t t =
   let rec aux : type a. a t -> a pp =
    fun t ppf x ->
     match t with
-    | Self s -> aux s.self ppf x
+    | Self s -> aux s.self_fix ppf x
     | Custom c -> c.pp ppf x
     | Map m -> map m ppf x
     | Prim p -> prim p ppf x
@@ -43,7 +43,7 @@ let t t =
 
 let rec ty : type a. a t Fmt.t =
  fun ppf -> function
-  | Self s -> Fmt.pf ppf "@[Self (%a@)]" ty s.self
+  | Self s -> Fmt.pf ppf "%a as 'a" ty s.self_fix
   | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
   | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
   | Prim p -> Fmt.pf ppf "@[%a@]" prim p
@@ -88,7 +88,7 @@ let of_string t =
   let rec aux : type a a. a t -> a of_string =
    fun t x ->
     match t with
-    | Self s -> aux s.self x
+    | Self s -> aux s.self_fix x
     | Custom c -> c.of_string x
     | Map m -> aux m.x x |> map_result m.f
     | Prim p -> prim p x

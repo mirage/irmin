@@ -36,8 +36,8 @@ module Refl = struct
   let rec t : type a b. a ty -> b ty -> (a, b) eq option =
    fun a b ->
     match (a, b) with
-    | Self a, _ -> t a.self b
-    | _, Self b -> t a b.self
+    | Self a, _ -> t a.self_fix b
+    | _, Self b -> t a b.self_fix
     | Map a, Map b -> Witness.eq a.mwit b.mwit
     | Custom a, Custom b -> custom a b
     | Prim a, Prim b -> prim a b
@@ -123,7 +123,7 @@ module Equal = struct
   let rec t : type a. a t -> a equal =
    fun ty a b ->
     match ty with
-    | Self s -> t s.self a b
+    | Self s -> t s.self_fix a b
     | Custom c -> c.equal a b
     | Map m -> map m a b
     | Prim p -> prim p a b
@@ -258,7 +258,7 @@ module Compare = struct
   let rec t : type a. a t -> a compare =
    fun ty a b ->
     match ty with
-    | Self s -> t s.self a b
+    | Self s -> t s.self_fix a b
     | Custom c -> c.compare a b
     | Map m -> map m a b
     | Prim p -> (prim [@inlined]) p a b

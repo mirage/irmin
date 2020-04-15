@@ -84,7 +84,7 @@ module Encode = struct
   let rec t : type a. a t -> a encode_json =
    fun ty e ->
     match ty with
-    | Self s -> t s.self e
+    | Self s -> t s.self_fix e
     | Custom c -> c.encode_json e
     | Map b -> map b e
     | Prim t -> prim t e
@@ -277,7 +277,7 @@ module Decode = struct
   let rec t : type a. a t -> a decode_json =
    fun ty d ->
     match ty with
-    | Self s -> t s.self d
+    | Self s -> t s.self_fix d
     | Custom c -> c.decode_json d
     | Map b -> map b d
     | Prim t -> prim t d
