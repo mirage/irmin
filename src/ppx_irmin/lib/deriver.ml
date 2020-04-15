@@ -104,9 +104,15 @@ module Located (A : Ast_builder.S) : S = struct
                       generic_name
                       (* If not a base type, assume a composite generic with the
                          same naming convention *) )
-                    else if not @@ SSet.mem const_name irmin_types then
-                      generic_name_of_type_name const_name
-                    else const_name
+                    else
+                      let nobuiltin =
+                        match Attribute.get Attributes.nobuiltin typ with
+                        | Some () -> true
+                        | None -> false
+                      in
+                      if nobuiltin || not (SSet.mem const_name irmin_types) then
+                        generic_name_of_type_name const_name
+                      else const_name
                   in
                   Located.lident name
               | Ldot (lident, name) ->
@@ -232,8 +238,15 @@ module Located (A : Ast_builder.S) : S = struct
                       | None -> (
                           match txt with
                           | Lident cons_name ->
-                              if SSet.mem cons_name irmin_types then
-                                evar ("Irmin.Type." ^ cons_name)
+                              let nobuiltin =
+                                match Attribute.get Attributes.nobuiltin c with
+                                | Some () -> true
+                                | None -> false
+                              in
+                              if
+                                (not nobuiltin)
+                                && SSet.mem cons_name irmin_types
+                              then evar ("Irmin.Type." ^ cons_name)
                               else
                                 (* If not a basic type, assume a composite
                                    generic /w same naming convention *)

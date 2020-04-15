@@ -7,6 +7,24 @@
 
 
 (rule
+ (targets nobuiltin_nonempty.actual)
+ (deps
+  (:pp pp.exe)
+  (:input nobuiltin_nonempty.ml))
+ (action
+  (with-stderr-to
+   %{targets}
+   (bash "! ./%{pp} -no-color --impl %{input}"))))
+
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (diff nobuiltin_nonempty.expected nobuiltin_nonempty.actual)))
+
+
+
+(rule
  (targets unsupported_tuple_size.actual)
  (deps
   (:pp pp.exe)

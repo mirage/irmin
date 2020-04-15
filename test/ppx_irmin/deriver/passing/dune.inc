@@ -95,6 +95,24 @@
   (diff module.expected module.actual)))
 
 (library
+ (name nobuiltin)
+ (modules nobuiltin))
+
+(rule
+ (targets nobuiltin.actual)
+ (deps
+  (:pp pp.exe)
+  (:input nobuiltin.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (diff nobuiltin.expected nobuiltin.actual)))
+
+(library
  (name nonrec)
  (modules nonrec))
 

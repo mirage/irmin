@@ -1,0 +1,12 @@
+type unit = string[@@deriving irmin]
+include struct let unit_t = Irmin.Type.string end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
+let result _some _opt = assert false
+type t = ((unit)[@nobuiltin ])[@@deriving irmin]
+include struct let t = unit_t end[@@ocaml.doc "@inline"][@@merlin.hide ]
+type u = (((unit, unit) result)[@nobuiltin ])[@@deriving irmin]
+include struct let u_t = let open Irmin.Type in result_t unit unit end
+[@@ocaml.doc "@inline"][@@merlin.hide ]
+type foo = ((unit)[@irmin.nobuiltin ])[@@deriving irmin]
+include struct let foo_t = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]

@@ -34,10 +34,10 @@ let str_type_decl_generator =
   let attributes = Attributes.all in
   Deriving.Generator.make ~attributes args expand_str
 
-let sig_typ_decl_generator =
+let sig_type_decl_generator =
   let args = Deriving.Args.(empty +> arg "name" (estring __)) in
   Deriving.Generator.make args expand_sig
 
 let irmin =
   Deriving.add ~str_type_decl:str_type_decl_generator
-    ~sig_type_decl:sig_typ_decl_generator ppx_name
+    ~sig_type_decl:sig_type_decl_generator ppx_name

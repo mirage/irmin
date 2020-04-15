@@ -25,4 +25,15 @@ let generic =
     Ast_pattern.(single_expr_payload __)
     (fun e -> e)
 
-let all = Attribute.[ T generic ]
+let nobuiltin =
+  Attribute.declare
+    (String.concat "." [ namespace; "nobuiltin" ])
+    Attribute.Context.Core_type
+    Ast_pattern.(pstr __')
+    (fun s ->
+      match s with
+      | { txt = _ :: _; loc } ->
+          Location.raise_errorf ~loc "`nobuiltin` payload must be empty"
+      | { txt = []; _ } -> ())
+
+let all = Attribute.[ T generic; T nobuiltin ]
