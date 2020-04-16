@@ -91,17 +91,15 @@ val bar_t = Irmin.Type.(result foo_generic string)
 ```
 
 Built-in abstract types such as `unit` are assumed to be represented in
-`Irmin.Type`. This behaviour can be overridden with the []`[@nobuiltin]`
+`Irmin.Type`. This behaviour can be overridden with the `[@nobuiltin]`
 attribute:
 
 
 ```ocaml
-type unit = string [@@deriving irmin]
-
 type t = unit [@nobuiltin] [@@deriving irmin]
 
 (* generates the value *)
-let t = string_t (* not [Irmin.Type.t] *)
+let t = unit_t (* not [Irmin.Type.unit] *)
 ```
 
 #### Signature type definitions
