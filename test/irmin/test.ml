@@ -327,6 +327,8 @@ let test_pp_ty () =
     "unit array:<3>";
 
   (* Test cases for algebraic combinators *)
+  test ~case_name:"empty" T.empty "({} as empty)";
+
   test ~case_name:"enum" Algebraic.my_enum_t
     "([ Alpha | Beta | Gamma | Delta ] as my_enum)";
 

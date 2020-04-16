@@ -61,8 +61,10 @@ let rec ty : type a. a t Fmt.t =
   | Option t -> Fmt.pf ppf "@[%a option@]" ty t
   | Record { rname; rfields = Fields (fields, _); _ } ->
       Fmt.pf ppf "(@[<hv>%a>@] as %s)" pp_fields fields rname
-  | Variant { vname; vcases; _ } ->
-      Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname
+  | Variant { vname; vcases; _ } -> (
+      match Array.length vcases with
+      | 0 -> Fmt.pf ppf "({} as %s)" vname (* empty type *)
+      | _ -> Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname )
   | Var v -> Fmt.string ppf v
 
 and pp_fields : type r b. (r, b) fields Fmt.t =
