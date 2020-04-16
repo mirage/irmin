@@ -1845,8 +1845,7 @@ module Make (S : S) = struct
       S.master repo >>= fun t ->
       let update ?retries key strategy r w =
         S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key (fun _ ->
-            Lwt_mvar.take r >|= fun v ->
-            Some (`Contents (v, S.Metadata.default)))
+            Lwt_mvar.take r >|= fun v -> Some (S.Tree.of_contents v))
         >>= Lwt_mvar.put w
       in
       let check_ok = function
@@ -1905,7 +1904,7 @@ module Make (S : S) = struct
               Alcotest.(check string) "test-and-set x" "1" a;
               Lwt_mvar.put ry "2" >>= fun () ->
               Lwt_mvar.take wy >>= fun e ->
-              check_test (Some (`Contents ("1", S.Metadata.default))) e;
+              check_test (Some (S.Tree.of_contents "1")) e;
               S.get t [ "a" ] >>= fun a ->
               Alcotest.(check string) "test-and-set y" "1" a;
               Lwt_mvar.put rz "3" >>= fun () ->
@@ -2002,7 +2001,7 @@ module Make (S : S) = struct
             ("foo", `Contents (foo_k, S.Metadata.default)); ("bar", `Node bar_k);
           ]
       in
-      let tree_3 = `Node (S.of_private_node repo node_3) in
+      let tree_3 = S.Tree.of_node (S.of_private_node repo node_3) in
       let info () = info "shallow" in
       S.master repo >>= fun t ->
       S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->

@@ -53,7 +53,7 @@ module type S = sig
   type node
   (** The type for store nodes. *)
 
-  type tree = [ `Node of node | `Contents of contents * metadata ]
+  type tree
   (** The type for store trees. *)
 
   type hash
