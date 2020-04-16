@@ -24,7 +24,7 @@ let stree only_key only_child = `Tree [ (only_key, only_child) ]
 (** Sequence of nested trees each with exactly one child *)
 let strees : string list -> concrete -> concrete = List.fold_right stree
 
-let contents ?(metadata = Irmin_git.Metadata.default) v = `Contents (v, metadata)
+let contents v = `Contents (v, ())
 
 type test_case = set_tree:(concrete -> unit Lwt.t) -> unit -> unit Lwt.t
 (** Test cases consume a setter for updating the server state *)

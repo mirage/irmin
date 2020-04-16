@@ -2,7 +2,7 @@
  (name test)
  (modules test common)
  (libraries alcotest alcotest-lwt yojson checkseum.c digestif.c irmin
-   irmin-graphql irmin-unix))
+   irmin-graphql irmin-mem cohttp-lwt-unix))
 
 (alias
  (name runtest)
