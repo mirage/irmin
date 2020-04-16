@@ -37,6 +37,10 @@
     to/from the abstract representation with the new functions
     `Irmin.S.Tree.{v,destruct}` respectively. (#990, @CraigFe)
     
+- **irmin-mem**
+  - Stores created with `KV` now expose their unit metadata type. (#995,
+    @CraigFe)
+
 #### Fixed
 
 - **irmin-graphql**
