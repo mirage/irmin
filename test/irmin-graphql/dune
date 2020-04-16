@@ -6,6 +6,6 @@
 
 (alias
  (name runtest)
- (package irmin-git)
+ (package irmin-graphql)
  (action
   (run ./test.exe -q --color=always)))
