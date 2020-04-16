@@ -348,6 +348,28 @@ let test_pp_ty () =
   test ~case_name:"recursive record" Algebraic.my_recursive_record_t
     "(< head : int; tail : my_recursive_record option > as my_recursive_record)";
 
+  (* Test cases for mutually-recursive types *)
+  let module Mu = struct
+    type tree = Empty | Node of node
+
+    and node = tree * int * tree
+
+    let tree_t, node_t =
+      let open T in
+      mu2 (fun tree node ->
+          ( variant "tree" (fun empty node ->
+              function Empty -> empty | Node n -> node n)
+            |~ case0 "empty" Empty
+            |~ case1 "node" node (fun n -> Node n)
+            |> sealv,
+            triple tree int tree ))
+  end in
+  test ~case_name:"tree_t" Mu.tree_t
+    "([ Empty | Node of ((tree * int * tree) as 'a) ] as tree)";
+  test ~case_name:"node_t" Mu.node_t
+    "((([ Empty | Node of 'a ] as tree) * int * ([ Empty | Node of 'a ] as \
+     tree)) as 'a)";
+
   (* Test cases for 'custom' types *)
   let module Custom = struct
     type empty = { v : 'a. 'a }
