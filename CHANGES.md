@@ -5,6 +5,11 @@
 - **irmin**:
   - Added `Irmin.Type.empty` to represent an uninhabited type. (#961, @CraigFe)
 
+- **ppx_irmin**
+  - Added support for the `@nobuiltin` attribute, which can be used when
+    shadowing primitive types such as `unit`. See `README_PPX` for details.
+    (#993, @CraigFe)
+
 #### Changed
 
 - **irmin**:

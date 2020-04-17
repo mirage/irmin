@@ -68,8 +68,8 @@ type foo = string list * int32 [@@deriving irmin { name = "foo_generic" }]
 val foo_generic = Irmin.Type.(pair (list string) int32)
 ```
 
-If the type references another user-defined type, `ppx_irmin` will expect the
-generic for that type to use the standard naming scheme. This can be overridden
+If the type contains an abstract type, `ppx_irmin` will expect to find a
+corresponding generic using its own naming rules. This can be overridden
 using the `[@generic ...]` attribute, as in:
 
 ```ocaml
@@ -77,6 +77,20 @@ type bar = (foo [@generic foo_generic], string) result [@@deriving irmin]
 
 (* generates the value *)
 val bar_t = Irmin.Type.(result foo_generic string)
+```
+
+Built-in abstract types such as `unit` are assumed to be represented in
+`Irmin.Type`. This behaviour can be overridden with the []`[@nobuiltin]`
+attribute:
+
+
+```ocaml
+type unit = string [@@deriving irmin]
+
+type t = unit [@nobuiltin] [@@deriving irmin]
+
+(* generates the value *)
+let t = string_t (* not [Irmin.Type.t] *)
 ```
 
 #### Signature type definitions
