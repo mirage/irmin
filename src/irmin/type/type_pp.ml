@@ -65,15 +65,15 @@ let ty : type a. a t Fmt.t =
 
   let rec ty : type a. a t Fmt.t =
    fun ppf -> function
-    | Self s -> (
-        match s.self (Var "") with
+    | Self { self_unroll; _ } -> (
+        match self_unroll (Var "") with
         (* If it's a recursive variant or record, don't print the [as 'a]
            constraint since the type is already named. *)
-        | Variant { vname; _ } -> ty ppf (s.self (Var vname))
-        | Record { rname; _ } -> ty ppf (s.self (Var rname))
+        | Variant { vname; _ } -> ty ppf (self_unroll (Var vname))
+        | Record { rname; _ } -> ty ppf (self_unroll (Var rname))
         | _ ->
             let var = Var (get_tvar ()) in
-            Fmt.pf ppf "@[(%a as %a)@]" ty (s.self var) ty var )
+            Fmt.pf ppf "@[(%a as %a)@]" ty (self_unroll var) ty var )
     | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
     | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
     | Prim p -> Fmt.pf ppf "@[%a@]" prim p

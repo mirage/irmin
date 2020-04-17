@@ -94,7 +94,7 @@ let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
 
 let mu : type a. (a t -> a t) -> a t =
  fun f ->
-  let rec fake_x : a self = { self = f; self_fix = Self fake_x } in
+  let rec fake_x : a self = { self_unroll = f; self_fix = Self fake_x } in
   let real_x = f (Self fake_x) in
   fake_x.self_fix <- real_x;
   Self fake_x
@@ -102,18 +102,18 @@ let mu : type a. (a t -> a t) -> a t =
 let mu2 : type a b. (a t -> b t -> a t * b t) -> a t * b t =
  fun f ->
   let rec fake_x =
-    let self a =
+    let self_unroll a =
       let b = mu (fun b -> f a b |> snd) in
       f a b |> fst
     in
-    { self; self_fix = Self fake_x }
+    { self_unroll; self_fix = Self fake_x }
   in
   let rec fake_y =
-    let self b =
+    let self_unroll b =
       let a = mu (fun a -> f a b |> fst) in
       f a b |> snd
     in
-    { self; self_fix = Self fake_y }
+    { self_unroll; self_fix = Self fake_y }
   in
   let real_x, real_y = f (Self fake_x) (Self fake_y) in
   fake_x.self_fix <- real_x;

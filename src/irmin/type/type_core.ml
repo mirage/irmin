@@ -103,7 +103,7 @@ and 'a custom = {
 
 and ('a, 'b) map = { x : 'a t; f : 'a -> 'b; g : 'b -> 'a; mwit : 'b Witness.t }
 
-and 'a self = { self : 'a t -> 'a t; mutable self_fix : 'a t }
+and 'a self = { self_unroll : 'a t -> 'a t; mutable self_fix : 'a t }
 
 and 'a prim =
   | Unit : unit prim
