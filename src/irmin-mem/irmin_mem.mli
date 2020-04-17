@@ -30,7 +30,8 @@ module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
 (** An in-memory store with atomic-write guarantees. *)
 
 module Make : Irmin.S_MAKER
-(** An in-memory Irmin store. *)
+(** Constructor for in-memory Irmin store. *)
 
-module KV : Irmin.KV_MAKER
-(** An in-memory KV store. *)
+(** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_MAKER}. *)
+module KV (C : Irmin.Contents.S) :
+  Irmin.KV with type contents = C.t and type metadata = unit

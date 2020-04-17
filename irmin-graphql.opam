@@ -24,6 +24,8 @@ depends: [
   "graphql_parser" {>= "0.13.0"}
   "alcotest-lwt" {>= "1.1.0" & with-test}
   "yojson" {with-test}
+  "irmin-mem" {with-test}
+  "cohttp-lwt-unix" {with-test}
 ]
 
 

@@ -1,11 +1,16 @@
 open Lwt.Infix
-module Store = Irmin_unix.Git.Mem.KV (Irmin.Contents.String)
+module Store = Irmin_mem.KV (Irmin.Contents.String)
 
-module Remote = struct
-  let remote = Some Store.remote
-end
+module Server =
+  Irmin_graphql.Server.Make
+    (Cohttp_lwt_unix.Server)
+    (struct
+      let remote = None
 
-module Server = Irmin_unix.Graphql.Server.Make (Store) (Remote)
+      let info ?(author = "graphql-test-author") =
+        Format.kasprintf (fun msg () -> Irmin.Info.v ~date:0L ~author msg)
+    end)
+    (Store)
 
 let host, port = ("0.0.0.0", 37634)
 
@@ -27,13 +32,7 @@ type server = {
 }
 
 let spawn_graphql_server () =
-  let config =
-    let tmp = Filename.get_temp_dir_name ()
-    and test_repo_name =
-      Format.sprintf "test-irmin-graphql-%d" (Random.int 100_000)
-    in
-    Filename.concat tmp test_repo_name |> Irmin_git.config
-  in
+  let config = Irmin_mem.config () in
   Store.Repo.v config >>= fun repo ->
   Store.master repo >|= fun master ->
   let event_loop = server_of_repo repo

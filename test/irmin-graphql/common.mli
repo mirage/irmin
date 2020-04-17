@@ -3,7 +3,7 @@ module Store :
   Irmin.S
     with type contents = string
      and type step = string
-     and type metadata = Irmin_git.Metadata.t
+     and type metadata = unit
 
 type server = {
   event_loop : 'a. 'a Lwt.t;
