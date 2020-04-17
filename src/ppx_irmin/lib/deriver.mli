@@ -18,12 +18,26 @@ open Ppxlib
 
 module type S = sig
   val derive_str :
-    ?name:string -> rec_flag * type_declaration list -> structure_item list
-  (** Deriver for Irmin generics. *)
+    ?name:string ->
+    ?lib:expression ->
+    rec_flag * type_declaration list ->
+    structure_item list
+  (** Deriver for Irmin generics.
+
+      - [?name]: overrides the default name of the generated generic;
+
+      - [?lib]: overrides the default location for the primitive Irmin generics.
+        [~lib:None] will assume that the generics are available in the same
+        namespace. *)
 
   val derive_sig :
-    ?name:string -> rec_flag * type_declaration list -> signature_item list
-  (** Deriver for Irmin generic type signatures. *)
+    ?name:string ->
+    ?lib:expression ->
+    rec_flag * type_declaration list ->
+    signature_item list
+  (** Deriver for Irmin generic type signatures.
+
+      Optional arguments have the same meaning as in {!derive_str}. *)
 end
 
 module Located (A : Ast_builder.S) : S

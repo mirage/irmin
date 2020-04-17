@@ -1,0 +1,2 @@
+File "lib_invalid.ml", line 1, characters 40-45:
+Error: Could not process `lib' argument: must be either `Some "Lib"' or `None'

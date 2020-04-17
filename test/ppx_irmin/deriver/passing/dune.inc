@@ -77,6 +77,24 @@
   (diff composite.expected composite.actual)))
 
 (library
+ (name lib_relocated)
+ (modules lib_relocated))
+
+(rule
+ (targets lib_relocated.actual)
+ (deps
+  (:pp pp.exe)
+  (:input lib_relocated.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (diff lib_relocated.expected lib_relocated.actual)))
+
+(library
  (name module)
  (modules module))
 
