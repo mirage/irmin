@@ -41,92 +41,111 @@ let t t =
   in
   aux t
 
-let rec ty : type a. a t Fmt.t =
- fun ppf -> function
-  | Self s -> (
-      let var = Var "'a" in
-      match s.self var with
-      (* If it's a recursive variant or record, don't print the [as 'a]
-         constraint since the type is already named. *)
-      | Variant { vname; _ } -> ty ppf (s.self (Var vname))
-      | Record { rname; _ } -> ty ppf (s.self (Var rname))
-      | unrolled -> Fmt.pf ppf "@[(%a as %a)@]" ty unrolled ty var )
-  | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
-  | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
-  | Prim p -> Fmt.pf ppf "@[%a@]" prim p
-  | List l -> Fmt.pf ppf "@[%a list%a@]" ty l.v len l.len
-  | Array a -> Fmt.pf ppf "@[%a array%a@]" ty a.v len a.len
-  | Tuple (Pair (a, b)) -> Fmt.pf ppf "@[(%a * %a)@]" ty a ty b
-  | Tuple (Triple (a, b, c)) -> Fmt.pf ppf "@[(%a * %a * %a)@]" ty a ty b ty c
-  | Option t -> Fmt.pf ppf "@[%a option@]" ty t
-  | Record { rname; rfields = Fields (fields, _); _ } ->
-      Fmt.pf ppf "(@[<hv>%a>@] as %s)" pp_fields fields rname
-  | Variant { vname; vcases; _ } -> (
-      match Array.length vcases with
-      | 0 -> Fmt.pf ppf "({} as %s)" vname (* empty type *)
-      | _ -> Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname )
-  | Var v -> Fmt.string ppf v
-
-and pp_fields : type r b. (r, b) fields Fmt.t =
- fun ppf fields ->
-  let rec inner : type b. first:bool -> (r, b) fields -> unit =
-   fun ~first -> function
-    | F0 -> ()
-    | F1 ({ fname; ftype; _ }, fs) ->
-        let trailing_space = match fs with F0 -> 1 | F1 _ -> 0 in
-        Format.pp_print_char ppf (if first then '<' else ';');
-        Format.fprintf ppf " %s : %a" fname ty ftype;
-        Format.pp_print_break ppf trailing_space 0;
-        (inner [@tailrec]) ~first:false fs
+(* Fresh type variables in sequence: ['a; 'b; ...; 'z; 'aa; 'ab; ...] *)
+let tvar_generator () =
+  let count = ref 0 in
+  let ident_of_count =
+    let rec inner acc i =
+      match i with
+      | -1 -> acc
+      | _ ->
+          let c = String.make 1 (Char.chr ((i mod 26) + 97)) in
+          inner (c ^ acc) ((i / 26) - 1)
+    in
+    inner ""
   in
-  inner ~first:true fields
+  fun () ->
+    let ident = ident_of_count !count in
+    incr count;
+    "'" ^ ident
 
-and pp_case : type v. last:bool -> v a_case Fmt.t =
- fun ~last ppf case ->
-  let pp_cname ppf name =
-    Format.pp_print_string ppf (String.capitalize_ascii name)
+let ty : type a. a t Fmt.t =
+ fun ppf typ ->
+  let get_tvar = tvar_generator () in
+
+  let rec ty : type a. a t Fmt.t =
+   fun ppf -> function
+    | Self s -> (
+        match s.self (Var "") with
+        (* If it's a recursive variant or record, don't print the [as 'a]
+           constraint since the type is already named. *)
+        | Variant { vname; _ } -> ty ppf (s.self (Var vname))
+        | Record { rname; _ } -> ty ppf (s.self (Var rname))
+        | _ ->
+            let var = Var (get_tvar ()) in
+            Fmt.pf ppf "@[(%a as %a)@]" ty (s.self var) ty var )
+    | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
+    | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
+    | Prim p -> Fmt.pf ppf "@[%a@]" prim p
+    | List l -> Fmt.pf ppf "@[%a list%a@]" ty l.v len l.len
+    | Array a -> Fmt.pf ppf "@[%a array%a@]" ty a.v len a.len
+    | Tuple (Pair (a, b)) -> Fmt.pf ppf "@[(%a * %a)@]" ty a ty b
+    | Tuple (Triple (a, b, c)) -> Fmt.pf ppf "@[(%a * %a * %a)@]" ty a ty b ty c
+    | Option t -> Fmt.pf ppf "@[%a option@]" ty t
+    | Record { rname; rfields = Fields (fields, _); _ } ->
+        Fmt.pf ppf "(@[<hv>%a>@] as %s)" pp_fields fields rname
+    | Variant { vname; vcases; _ } -> (
+        match Array.length vcases with
+        | 0 -> Fmt.pf ppf "({} as %s)" vname (* empty type *)
+        | _ -> Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname )
+    | Var v -> Fmt.string ppf v
+  and pp_fields : type r b. (r, b) fields Fmt.t =
+   fun ppf fields ->
+    let rec inner : type b. first:bool -> (r, b) fields -> unit =
+     fun ~first -> function
+      | F0 -> ()
+      | F1 ({ fname; ftype; _ }, fs) ->
+          let trailing_space = match fs with F0 -> 1 | F1 _ -> 0 in
+          Format.pp_print_char ppf (if first then '<' else ';');
+          Format.fprintf ppf " %s : %a" fname ty ftype;
+          Format.pp_print_break ppf trailing_space 0;
+          (inner [@tailrec]) ~first:false fs
+    in
+    inner ~first:true fields
+  and pp_case : type v. last:bool -> v a_case Fmt.t =
+   fun ~last ppf case ->
+    let pp_cname ppf name =
+      Format.pp_print_string ppf (String.capitalize_ascii name)
+    in
+    let () =
+      match case with
+      | C0 { cname0; _ } -> Format.fprintf ppf " %a" pp_cname cname0
+      | C1 { cname1; ctype1; _ } ->
+          Format.fprintf ppf " %a of %a" pp_cname cname1 ty ctype1
+    in
+    Format.pp_print_break ppf 1 0;
+    if not last then Format.pp_print_char ppf '|'
+  and pp_cases : type v. v a_case array Fmt.t =
+   fun ppf cases ->
+    let last_i = Array.length cases - 1 in
+    Format.pp_open_hvbox ppf 0;
+    Format.pp_print_string ppf "[";
+    cases |> Array.iteri (fun i -> pp_case ~last:(Int.equal i last_i) ppf);
+    Format.pp_close_box ppf ()
+  and custom : type a. a custom Fmt.t =
+   fun ppf c ->
+    match c.cwit with `Type t -> ty ppf t | `Witness _ -> Fmt.string ppf "-"
+  and prim : type a. a prim Fmt.t =
+   fun ppf -> function
+    | Unit -> Fmt.string ppf "unit"
+    | Bool -> Fmt.string ppf "bool"
+    | Char -> Fmt.string ppf "char"
+    | Int -> Fmt.string ppf "int"
+    | Int32 -> Fmt.string ppf "int32"
+    | Int64 -> Fmt.string ppf "int64"
+    | Float -> Fmt.string ppf "float"
+    | String n -> Fmt.pf ppf "string%a" len n
+    | Bytes n -> Fmt.pf ppf "bytes%a" len n
+  and len : len Fmt.t =
+   fun ppf -> function
+    | `Int8 -> Fmt.string ppf ":8"
+    | `Int64 -> Fmt.string ppf ":64"
+    | `Int16 -> Fmt.string ppf ":16"
+    | `Fixed n -> Fmt.pf ppf ":<%d>" n
+    | `Int -> ()
+    | `Int32 -> Fmt.pf ppf ":32"
   in
-  let () =
-    match case with
-    | C0 { cname0; _ } -> Format.fprintf ppf " %a" pp_cname cname0
-    | C1 { cname1; ctype1; _ } ->
-        Format.fprintf ppf " %a of %a" pp_cname cname1 ty ctype1
-  in
-  Format.pp_print_break ppf 1 0;
-  if not last then Format.pp_print_char ppf '|'
-
-and pp_cases : type v. v a_case array Fmt.t =
- fun ppf cases ->
-  let last_i = Array.length cases - 1 in
-  Format.pp_open_hvbox ppf 0;
-  Format.pp_print_string ppf "[";
-  cases |> Array.iteri (fun i -> pp_case ~last:(Int.equal i last_i) ppf);
-  Format.pp_close_box ppf ()
-
-and custom : type a. a custom Fmt.t =
- fun ppf c ->
-  match c.cwit with `Type t -> ty ppf t | `Witness _ -> Fmt.string ppf "-"
-
-and prim : type a. a prim Fmt.t =
- fun ppf -> function
-  | Unit -> Fmt.string ppf "unit"
-  | Bool -> Fmt.string ppf "bool"
-  | Char -> Fmt.string ppf "char"
-  | Int -> Fmt.string ppf "int"
-  | Int32 -> Fmt.string ppf "int32"
-  | Int64 -> Fmt.string ppf "int64"
-  | Float -> Fmt.string ppf "float"
-  | String n -> Fmt.pf ppf "string%a" len n
-  | Bytes n -> Fmt.pf ppf "bytes%a" len n
-
-and len : len Fmt.t =
- fun ppf -> function
-  | `Int8 -> Fmt.string ppf ":8"
-  | `Int64 -> Fmt.string ppf ":64"
-  | `Int16 -> Fmt.string ppf ":16"
-  | `Fixed n -> Fmt.pf ppf ":<%d>" n
-  | `Int -> ()
-  | `Int32 -> Fmt.pf ppf ":32"
+  ty ppf typ
 
 let to_string ty = Fmt.to_to_string (t ty)
 
