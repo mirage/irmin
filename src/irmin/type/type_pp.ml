@@ -120,7 +120,7 @@ let ty : type a. a t Fmt.t =
     let last_i = Array.length cases - 1 in
     Format.pp_open_hvbox ppf 0;
     Format.pp_print_string ppf "[";
-    cases |> Array.iteri (fun i -> pp_case ~last:(Int.equal i last_i) ppf);
+    cases |> Array.iteri (fun i -> pp_case ~last:(i = last_i) ppf);
     Format.pp_close_box ppf ()
   and custom : type a. a custom Fmt.t =
    fun ppf c ->
