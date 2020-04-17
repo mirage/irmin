@@ -68,7 +68,7 @@ let ty : type a. a t Fmt.t =
     | Self { self_unroll; _ } -> (
         match self_unroll (Var "") with
         (* If it's a recursive variant or record, don't print the [as 'a]
-           constraint since the type is already named. *)
+           alias since the type is already named. *)
         | Variant { vname; _ } -> ty ppf (self_unroll (Var vname))
         | Record { rname; _ } -> ty ppf (self_unroll (Var rname))
         | _ ->
