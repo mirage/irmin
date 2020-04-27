@@ -33,6 +33,9 @@
     - Fields of records which have value `None` are still omitted;
     - Fields of records which have value `Some x` are still unboxed into `x`.
 
+  - Changed pretty-printing of Irmin types to more closely resemble OCaml types.
+    e.g. `pair int string` prints as `int * string`. (#997, @CraigFe)
+
   - The type `Irmin.S.tree` is now abstract. The previous form can be coerced
     to/from the abstract representation with the new functions
     `Irmin.S.Tree.{v,destruct}` respectively. (#990, @CraigFe)
