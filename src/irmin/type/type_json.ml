@@ -84,7 +84,7 @@ module Encode = struct
   let rec t : type a. a t -> a encode_json =
    fun ty e ->
     match ty with
-    | Self s -> t s.self e
+    | Self s -> t s.self_fix e
     | Custom c -> c.encode_json e
     | Map b -> map b e
     | Prim t -> prim t e
@@ -94,6 +94,7 @@ module Encode = struct
     | Option x -> boxed_option (t x) e
     | Record r -> record r e
     | Variant v -> variant v e
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a encode_json = function
     | Pair (x, y) -> pair (t x) (t y)
@@ -277,7 +278,7 @@ module Decode = struct
   let rec t : type a. a t -> a decode_json =
    fun ty d ->
     match ty with
-    | Self s -> t s.self d
+    | Self s -> t s.self_fix d
     | Custom c -> c.decode_json d
     | Map b -> map b d
     | Prim t -> prim t d
@@ -287,6 +288,7 @@ module Decode = struct
     | Option x -> boxed_option (t x) d
     | Record r -> record r d
     | Variant v -> variant v d
+    | Var v -> raise (Unbound_type_variable v)
 
   (* Some types need to be decoded differently when wrapped inside records,
      since e.g. `k: None` is omitted and `k: Some v` is unboxed into `k: v`. *)

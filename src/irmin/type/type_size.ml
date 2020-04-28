@@ -86,7 +86,7 @@ let option o = function
 let rec t : type a. a t -> a size_of =
  fun ty ?headers e ->
   match ty with
-  | Self s -> t ?headers s.self e
+  | Self s -> t ?headers s.self_fix e
   | Custom c -> c.size_of ?headers e
   | Map b -> map ?headers b e
   | Prim t -> prim ?headers t e
@@ -96,6 +96,7 @@ let rec t : type a. a t -> a size_of =
   | Option x -> option (t x) e
   | Record r -> record ?headers r e
   | Variant v -> variant ?headers v e
+  | Var v -> raise (Unbound_type_variable v)
 
 and tuple : type a. a tuple -> a size_of =
  fun ty ?headers:_ ->

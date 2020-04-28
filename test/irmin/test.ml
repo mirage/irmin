@@ -205,6 +205,9 @@ module Algebraic = struct
 
   type my_record = { foo : int; flag : bool; letter : my_enum }
   [@@deriving irmin]
+
+  type my_recursive_record = { head : int; tail : my_recursive_record option }
+  [@@deriving irmin]
 end
 
 (** Test the behaviour of {!Irmin.Type.to_string}. *)
@@ -269,12 +272,19 @@ let test_to_string () =
     { foo = 2; flag = false; letter = Delta }
     "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
 
+  test "recursive record" my_recursive_record_t
+    { head = 1; tail = Some { head = 2; tail = None } }
+    "{\"head\":1,\"tail\":{\"head\":2}}";
+
   ()
 
 (** Test the behaviour of {!Irmin.Type.pp_ty}. *)
 let test_pp_ty () =
-  let test : type a. string -> a T.t -> string -> unit =
-   fun case_name input expected_output ->
+  let test : type a. ?case_name:string -> a T.t -> string -> unit =
+   fun ?case_name input expected_output ->
+    let case_name =
+      match case_name with Some x -> x | None -> expected_output
+    in
     let assertion =
       Fmt.strf "Expected output of `pp_ty` for representation of `%s`" case_name
     in
@@ -283,39 +293,82 @@ let test_pp_ty () =
   in
 
   (* Test cases for basic types *)
-  test "unit" T.unit "Prim Unit";
-  test "bool" T.bool "Prim Bool";
-  test "char" T.char "Prim Char";
-  test "int" T.int "Prim Int";
-  test "int32" T.int32 "Prim Int32";
-  test "int64" T.int64 "Prim Int64";
-  test "float" T.float "Prim Float";
-  test "bytes" T.bytes "Prim Bytes";
-  test "string" T.string "Prim String";
+  test T.unit "unit";
+  test T.bool "bool";
+  test T.char "char";
+  test T.int "int";
+  test T.int32 "int32";
+  test T.int64 "int64";
+  test T.float "float";
+  test T.bytes "bytes";
+  test T.string "string";
 
   (* Test cases for non-algebraic combinators *)
-  test "int list" T.(list int) "List (Prim Int)";
-  test "float array" T.(array float) "Array (Prim Float)";
-  test "(unit * int)" T.(pair unit int) "Pair (Prim Unit, Prim Int)";
-  test "unit option" T.(option unit) "Option (Prim Unit)";
-  test "(int * string * bool)"
-    T.(triple int string bool)
-    "Triple (Prim Int, Prim String, Prim Bool)";
-  test "(string, bool) result" T.(result string bool) "Variant";
+  test T.(list int) "int list";
+  test T.(array float) "float array";
+  test T.(pair unit int) "(unit * int)";
+  test T.(option unit) "unit option";
+  test T.(triple int string bool) "(int * string * bool)";
+
+  test ~case_name:"(string, bool) result"
+    T.(result string bool)
+    "([ Ok of string | Error of bool ] as result)";
 
   (* Test cases for fixed-size refinement types *)
-  test "string {size=Int}" T.(string_of `Int) "Prim String";
-  test "string {size=Int8}" T.(string_of `Int8) "Prim String:8";
-  test "bytes {size=Int16}" T.(bytes_of `Int16) "Prim Bytes:16";
-  test "bytes {size=Int32}" T.(bytes_of `Int32) "Prim Bytes:32";
-  test "array {size=Int64}" T.(array ~len:`Int64 unit) "Array:64 (Prim Unit)";
-  test "array {size=3}" T.(array ~len:(`Fixed 3) unit) "Array:<3> (Prim Unit)";
+  test ~case_name:"string {size=Int}" T.(string_of `Int) "string";
+  test ~case_name:"string {size=Int8}" T.(string_of `Int8) "string:8";
+  test ~case_name:"bytes {size=Int16}" T.(bytes_of `Int16) "bytes:16";
+  test ~case_name:"bytes {size=Int32}" T.(bytes_of `Int32) "bytes:32";
+  test ~case_name:"array {size=Int64}"
+    T.(array ~len:`Int64 unit)
+    "unit array:64";
+  test ~case_name:"array {size=3}"
+    T.(array ~len:(`Fixed 3) unit)
+    "unit array:<3>";
 
   (* Test cases for algebraic combinators *)
-  test "enum" Algebraic.my_enum_t "Variant";
-  test "variant" Algebraic.my_variant_t "Variant";
-  test "recursive variant" Algebraic.my_recursive_variant_t "Variant";
-  test "record" Algebraic.my_record_t "Record";
+  test ~case_name:"empty" T.empty "({} as empty)";
+
+  test ~case_name:"enum" Algebraic.my_enum_t
+    "([ Alpha | Beta | Gamma | Delta ] as my_enum)";
+
+  test ~case_name:"variant" Algebraic.my_variant_t
+    "([ Left of int | Right of int list ] as my_variant)";
+
+  test ~case_name:"recursive variant" Algebraic.my_recursive_variant_t
+    "([ Branch of my_recursive_variant list | Leaf of int ] as \
+     my_recursive_variant)";
+
+  test ~case_name:"record" Algebraic.my_record_t
+    {|(< foo : int
+ ; flag : bool
+ ; letter : ([ Alpha | Beta | Gamma | Delta ] as my_enum)
+ > as my_record)|};
+
+  test ~case_name:"recursive record" Algebraic.my_recursive_record_t
+    "(< head : int; tail : my_recursive_record option > as my_recursive_record)";
+
+  (* Test cases for mutually-recursive types *)
+  let module Mu = struct
+    type tree = Empty | Node of node
+
+    and node = tree * int * tree
+
+    let tree_t, node_t =
+      let open T in
+      mu2 (fun tree node ->
+          ( variant "tree" (fun empty node ->
+              function Empty -> empty | Node n -> node n)
+            |~ case0 "empty" Empty
+            |~ case1 "node" node (fun n -> Node n)
+            |> sealv,
+            triple tree int tree ))
+  end in
+  test ~case_name:"tree_t" Mu.tree_t
+    "([ Empty | Node of ((tree * int * tree) as 'a) ] as tree)";
+  test ~case_name:"node_t" Mu.node_t
+    "((([ Empty | Node of 'a ] as tree) * int * ([ Empty | Node of 'a ] as \
+     tree)) as 'a)";
 
   (* Test cases for 'custom' types *)
   let module Custom = struct
@@ -337,10 +390,10 @@ let test_pp_ty () =
 
     let map : int T.t = T.(map int) (fun x -> x) (fun x -> x)
   end in
-  test "custom v" Custom.v "Custom (-)";
-  test "custom like prim" Custom.like_prim "Custom (Prim Int)";
-  test "custom like custom" Custom.like_custom "Custom (Custom (-))";
-  test "map" Custom.map "Map (Prim Int)";
+  test ~case_name:"custom v" Custom.v "Custom (-)";
+  test ~case_name:"custom like prim" Custom.like_prim "Custom (int)";
+  test ~case_name:"custom like custom" Custom.like_custom "Custom (Custom (-))";
+  test ~case_name:"map" Custom.map "Map (int)";
 
   ()
 

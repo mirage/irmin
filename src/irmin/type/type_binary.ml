@@ -144,7 +144,7 @@ module Encode = struct
   let rec t : type a. a t -> a encode_bin =
    fun ty ?headers e k ->
     match ty with
-    | Self s -> t ?headers s.self e k
+    | Self s -> t ?headers s.self_fix e k
     | Custom c -> c.encode_bin ?headers e k
     | Map b -> map ?headers b e k
     | Prim t -> prim ?headers t e k
@@ -154,6 +154,7 @@ module Encode = struct
     | Option x -> option (t x) e k
     | Record r -> record ?headers r e k
     | Variant v -> variant ?headers v e k
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a encode_bin =
    fun ty ?headers:_ ->
@@ -283,7 +284,7 @@ module Decode = struct
   let rec t : type a. a t -> a decode_bin =
    fun ty ?headers buf ofs ->
     match ty with
-    | Self s -> t ?headers s.self buf ofs
+    | Self s -> t ?headers s.self_fix buf ofs
     | Custom c -> c.decode_bin ?headers buf ofs
     | Map b -> map ?headers b buf ofs
     | Prim t -> prim ?headers t buf ofs
@@ -293,6 +294,7 @@ module Decode = struct
     | Option x -> option ?headers (t x) buf ofs
     | Record r -> record ?headers r buf ofs
     | Variant v -> variant ?headers v buf ofs
+    | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a decode_bin =
    fun ty ?headers:_ ->
@@ -355,7 +357,7 @@ let to_bin_string t x =
   let rec aux : type a. a t -> a -> string =
    fun t x ->
     match t with
-    | Self s -> aux s.self x
+    | Self s -> aux s.self_fix x
     | Map m -> aux m.x (m.g x)
     | Prim (String _) -> x
     | Prim (Bytes _) -> Bytes.to_string x
@@ -375,7 +377,7 @@ let of_bin_string t x =
   let rec aux : type a. a t -> string -> (a, [ `Msg of string ]) result =
    fun t x ->
     match t with
-    | Self s -> aux s.self x
+    | Self s -> aux s.self_fix x
     | Map l -> aux l.x x |> map_result l.f
     | Prim (String _) -> Ok x
     | Prim (Bytes _) -> Ok (Bytes.of_string x)

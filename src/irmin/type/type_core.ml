@@ -69,7 +69,10 @@ type 'a equal = 'a -> 'a -> bool
 
 type 'a short_hash = ?seed:int -> 'a -> int
 
+exception Unbound_type_variable of string
+
 type 'a t =
+  | Var : string -> 'a t
   | Self : 'a self -> 'a t
   | Custom : 'a custom -> 'a t
   | Map : ('a, 'b) map -> 'b t
@@ -100,7 +103,7 @@ and 'a custom = {
 
 and ('a, 'b) map = { x : 'a t; f : 'a -> 'b; g : 'b -> 'a; mwit : 'b Witness.t }
 
-and 'a self = { mutable self : 'a t }
+and 'a self = { self_unroll : 'a t -> 'a t; mutable self_fix : 'a t }
 
 and 'a prim =
   | Unit : unit prim
