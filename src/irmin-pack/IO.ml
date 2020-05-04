@@ -199,7 +199,7 @@ module Unix : S = struct
         protect (Unix.mkdir dir) 0o755;
         k () )
     in
-    (aux [@tailcall]) dirname (fun () -> ())
+    aux dirname (fun () -> ())
 
   let clear t =
     t.offset <- 0L;
