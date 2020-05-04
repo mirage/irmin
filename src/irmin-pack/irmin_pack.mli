@@ -55,6 +55,7 @@ module Make_ext
        and type step = Path.step
        and type metadata = Metadata.t
        and type Key.step = Path.step
+       and type Private.Sync.endpoint = unit
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -84,6 +85,7 @@ module Make
        and type contents = C.t
        and type branch = B.t
        and type hash = H.t
+       and type Private.Sync.endpoint = unit
 
   val integrity_check :
     ?ppf:Format.formatter ->
