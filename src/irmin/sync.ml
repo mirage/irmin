@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type S = S.SYNC
+
 module None (H : Type.S) (R : Type.S) = struct
   type t = unit
 

@@ -16,8 +16,14 @@
 
 (** Store Synchronisation signatures. *)
 
+module type S = S.SYNC
+
+(** Provides stub implementations of the {!S} that always returns [Error] when
+    push/pull operations are attempted. *)
 module None (H : Type.S) (R : Type.S) : sig
-  include S.SYNC with type commit = H.t and type branch = R.t
+  include
+    S with type commit = H.t and type branch = R.t and type endpoint = unit
 
   val v : 'a -> t Lwt.t
+  (** Create a remote store handle. *)
 end

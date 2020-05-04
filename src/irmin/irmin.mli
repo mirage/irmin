@@ -405,17 +405,7 @@ module Private : sig
          and type commit = H.key * H.value
   end
 
-  module Sync : sig
-    module type S = S.SYNC
-
-    (** [None] is an implementation of {{!Private.Sync.S} S} which does nothing. *)
-    module None (H : Type.S) (B : Type.S) : sig
-      include S with type commit = H.t and type branch = B.t
-
-      val v : 'a -> t Lwt.t
-      (** Create a remote store handle. *)
-    end
-  end
+  module Sync = Sync
 
   (** The complete collection of private implementations. *)
   module type S = sig

@@ -342,11 +342,7 @@ module Private = struct
     module type S = S.SLICE
   end
 
-  module Sync = struct
-    include Sync
-
-    module type S = S.SYNC
-  end
+  module Sync = Sync
 
   module type S = S.PRIVATE
 
