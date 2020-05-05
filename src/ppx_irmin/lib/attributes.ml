@@ -16,7 +16,7 @@
 
 open Ppxlib
 
-let namespace = "ppx_irmin"
+let namespace = "irmin"
 
 let generic =
   Attribute.declare
