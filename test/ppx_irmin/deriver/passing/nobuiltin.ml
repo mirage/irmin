@@ -4,17 +4,30 @@
 
 type unit = string [@@deriving irmin]
 
-let result _some _opt = assert false
+(* Shadow [Stdlib.unit] *)
+module Nobuiltin_t = struct
+  type t = (unit[@nobuiltin]) [@@deriving irmin]
 
-type t = (unit[@nobuiltin]) [@@deriving irmin]
+  (* [t]'s repr should be for strings. *)
+  let (_ : string Irmin.Type.t) = t
+end
 
-type u = ((unit, unit) result[@nobuiltin]) [@@deriving irmin]
+module Nobuiltin_foo = struct
+  type foo = (unit[@irmin.nobuiltin]) [@@deriving irmin]
 
-(* Should work as "irmin.nobuiltin" too *)
-type foo = (unit[@irmin.nobuiltin]) [@@deriving irmin]
+  (* [foo]'s repr should be for strings too. *)
+  let (_ : string Irmin.Type.t) = foo_t
+end
 
-(* TODO: uncomment once https://github.com/mirage/irmin/pull/970 is merged *)
+module Nobuiltin_operator = struct
+  (* Define our own representation of [result]. *)
+  let result_t a b = Irmin.Type.pair a b
 
-(* let (_ : unit_t Irmin.Type.t) = t
- * 
- * let (_ : unit_t Irmin.Type.t) = foo_t *)
+  let int32_t = Irmin.Type.int
+
+  let int64_t = Irmin.Type.bool
+
+  type u = (((int32[@nobuiltin]), int64) result[@nobuiltin]) [@@deriving irmin]
+
+  let (_ : (int * int64) Irmin.Type.t) = u_t
+end

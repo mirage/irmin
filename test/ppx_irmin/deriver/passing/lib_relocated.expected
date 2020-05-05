@@ -1,9 +1,12 @@
 module Elsewhere :
   sig
+    module Foo : module type of Irmin.Type
     type t[@@deriving irmin { lib = (Some "Foo") }]
     include sig val t : t Foo.t end[@@ocaml.doc "@inline"][@@merlin.hide ]
   end =
   struct
+    module Foo = Irmin.Type
+    module Irmin = struct  end
     type t = (unit * unit)[@@deriving irmin { lib = (Some "Foo") }]
     include struct let t = let open Foo in pair unit unit end[@@ocaml.doc
                                                                "@inline"]
@@ -11,10 +14,13 @@ module Elsewhere :
   end 
 module Locally_avaliable :
   sig
+    type 'a ty
     type t[@@deriving irmin { lib = None }]
     include sig val t : t ty end[@@ocaml.doc "@inline"][@@merlin.hide ]
   end =
   struct
+    include Irmin.Type
+    module Irmin = struct  end
     type t = (unit * unit)[@@deriving irmin { lib = None }]
     include struct let t = pair unit unit end[@@ocaml.doc "@inline"][@@merlin.hide
                                                                     ]

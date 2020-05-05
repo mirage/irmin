@@ -1,7 +1,9 @@
 type t = unit[@@deriving irmin]
-let t = Irmin.Type.unit
+include struct let t = Irmin.Type.unit end[@@ocaml.doc "@inline"][@@merlin.hide
+                                                                   ]
 type t_alias = unit[@@deriving irmin]
-let t_alias_t = Irmin.Type.unit
+include struct let t_alias_t = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+[@@merlin.hide ]
 module S1 :
   sig
     type nonrec t = t list[@@deriving irmin]
