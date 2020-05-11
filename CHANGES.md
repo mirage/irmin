@@ -4,6 +4,7 @@
 
 - **irmin**:
   - Added `Irmin.Type.empty` to represent an uninhabited type. (#961, @CraigFe)
+  - Added `Store.Tree.concrete_t`. (#1003, @CraigFe)
 
 - **ppx_irmin**
   - Added support for the `@nobuiltin` attribute, which can be used when
