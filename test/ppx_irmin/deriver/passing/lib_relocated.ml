@@ -15,7 +15,9 @@ module Locally_avaliable : sig
 
   type t [@@deriving irmin { lib = None }]
 end = struct
-  include Irmin.Type
+  let pair, unit = Irmin.Type.(pair, unit)
+
+  type 'a ty = 'a Irmin.Type.ty
 
   module Irmin = struct end
 
