@@ -34,4 +34,7 @@ module Make : Irmin.S_MAKER
 
 (** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_MAKER}. *)
 module KV (C : Irmin.Contents.S) :
-  Irmin.KV with type contents = C.t and type metadata = unit
+  Irmin.KV
+    with type contents = C.t
+     and type metadata = unit
+     and type Private.Sync.endpoint = unit
