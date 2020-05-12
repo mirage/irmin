@@ -1371,6 +1371,16 @@ module Make (P : S.PRIVATE) = struct
   type concrete =
     [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
 
+  let concrete_t : concrete Type.t =
+    let open Type in
+    mu (fun concrete_t ->
+        variant "concrete" (fun tree contents ->
+          function `Tree t -> tree t | `Contents c -> contents c)
+        |~ case1 "tree" (list (pair Path.step_t concrete_t)) (fun t -> `Tree t)
+        |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
+               `Contents c)
+        |> sealv)
+
   let of_concrete c =
     let rec concrete k = function
       | `Contents _ as v -> k v

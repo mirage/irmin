@@ -961,6 +961,9 @@ module type TREE = sig
     [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
   (** The type for concrete trees. *)
 
+  val concrete_t : concrete Type.t
+  (** The value-type for {!concrete}. *)
+
   val of_concrete : concrete -> tree
   (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
 
