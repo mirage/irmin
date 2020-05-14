@@ -1,13 +1,13 @@
-(env
- (_
-  (env-vars
-   (OCAML_ERROR_STYLE "short")
-   (OCAML_COLOR "never"))))
+; -------- Test: `alias.ml` --------
 
-(library
+; The PPX-dependent executable under test
+(executable
  (name alias)
- (modules alias))
+ (modules alias)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
 
+; Run the PPX on the `.ml` file
 (rule
  (targets alias.actual)
  (deps
@@ -16,16 +16,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff alias.expected alias.actual)))
 
-(library
- (name arguments)
- (modules arguments))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./alias.exe)))
 
+; -------- Test: `arguments.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name arguments)
+ (modules arguments)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets arguments.actual)
  (deps
@@ -34,16 +48,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff arguments.expected arguments.actual)))
 
-(library
- (name basic)
- (modules basic))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./arguments.exe)))
 
+; -------- Test: `basic.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name basic)
+ (modules basic)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets basic.actual)
  (deps
@@ -52,16 +80,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff basic.expected basic.actual)))
 
-(library
- (name composite)
- (modules composite))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./basic.exe)))
 
+; -------- Test: `composite.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name composite)
+ (modules composite)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets composite.actual)
  (deps
@@ -70,16 +112,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff composite.expected composite.actual)))
 
-(library
- (name lib_relocated)
- (modules lib_relocated))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./composite.exe)))
 
+; -------- Test: `lib_relocated.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name lib_relocated)
+ (modules lib_relocated)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets lib_relocated.actual)
  (deps
@@ -88,16 +144,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff lib_relocated.expected lib_relocated.actual)))
 
-(library
- (name module)
- (modules module))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./lib_relocated.exe)))
 
+; -------- Test: `module.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name module)
+ (modules module)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets module.actual)
  (deps
@@ -106,16 +176,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff module.expected module.actual)))
 
-(library
- (name nobuiltin)
- (modules nobuiltin))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./module.exe)))
 
+; -------- Test: `nobuiltin.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name nobuiltin)
+ (modules nobuiltin)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets nobuiltin.actual)
  (deps
@@ -124,16 +208,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff nobuiltin.expected nobuiltin.actual)))
 
-(library
- (name nonrec)
- (modules nonrec))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./nobuiltin.exe)))
 
+; -------- Test: `nonrec.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name nonrec)
+ (modules nonrec)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets nonrec.actual)
  (deps
@@ -142,16 +240,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff nonrec.expected nonrec.actual)))
 
-(library
- (name polyvariant)
- (modules polyvariant))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./nonrec.exe)))
 
+; -------- Test: `polyvariant.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name polyvariant)
+ (modules polyvariant)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets polyvariant.actual)
  (deps
@@ -160,16 +272,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff polyvariant.expected polyvariant.actual)))
 
-(library
- (name record)
- (modules record))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./polyvariant.exe)))
 
+; -------- Test: `record.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name record)
+ (modules record)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets record.actual)
  (deps
@@ -178,16 +304,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff record.expected record.actual)))
 
-(library
- (name signature)
- (modules signature))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./record.exe)))
 
+; -------- Test: `signature.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name signature)
+ (modules signature)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets signature.actual)
  (deps
@@ -196,16 +336,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff signature.expected signature.actual)))
 
-(library
- (name tuple_deep)
- (modules tuple_deep))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./signature.exe)))
 
+; -------- Test: `tuple_deep.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name tuple_deep)
+ (modules tuple_deep)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets tuple_deep.actual)
  (deps
@@ -214,16 +368,30 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff tuple_deep.expected tuple_deep.actual)))
 
-(library
- (name variant)
- (modules variant))
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./tuple_deep.exe)))
 
+; -------- Test: `variant.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name variant)
+ (modules variant)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
 (rule
  (targets variant.actual)
  (deps
@@ -232,9 +400,18 @@
  (action
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
+; Compare the post-processed output to the .expected file
 (alias
  (name runtest)
  (package ppx_irmin)
  (action
   (diff variant.expected variant.actual)))
+
+; Ensure that the post-processed executable runs correctly
+(alias
+ (name runtest)
+ (package ppx_irmin)
+ (action
+  (run ./variant.exe)))
+
 

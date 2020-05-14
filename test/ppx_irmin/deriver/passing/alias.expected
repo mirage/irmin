@@ -7,3 +7,6 @@ include struct let t_alias_t = test_result_t end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]
 type t = t_alias[@@deriving irmin]
 include struct let t = t_alias_t end[@@ocaml.doc "@inline"][@@merlin.hide ]
+let (_ : test_result Irmin.Type.t) = test_result_t
+let (_ : t_alias Irmin.Type.t) = t_alias_t
+let (_ : t Irmin.Type.t) = t
