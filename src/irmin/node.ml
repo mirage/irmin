@@ -280,23 +280,23 @@ module Graph (S : S.NODE_STORE) = struct
 
   module Graph = Object_graph.Make (Contents) (Metadata) (S.Key) (U) (U)
 
-  let edges t =
-    List.rev_map
-      (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
-      (S.Val.list t)
-
   let pp_key = Type.pp S.Key.t
 
   let pp_keys = Fmt.(Dump.list pp_key)
 
   let pp_path = Type.pp S.Path.t
 
-  let pred t = function
-    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
-    | _ -> Lwt.return_nil
-
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
+    let edges t =
+      List.rev_map
+        (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
+        (S.Val.list t)
+    in
+    let pred t = function
+      | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
+      | _ -> Lwt.return_nil
+    in
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
     Graph.closure ~pred:(pred t) ~min ~max () >|= fun g ->
@@ -306,13 +306,36 @@ module Graph (S : S.NODE_STORE) = struct
 
   let ignore_lwt _ = Lwt.return_unit
 
-  let iter t ~min ~max ?(node = ignore_lwt) ?(edge = fun _ -> ignore_lwt)
-      ?(skip = fun _ -> Lwt.return_false) ?(rev = true) () =
+  let ignore2_lwt _ _ = Lwt.return_unit
+
+  let iter t ~min ~max ?(node = ignore2_lwt) ?(contents = ignore_lwt)
+      ?(edge = fun _ -> ignore_lwt) ?(skip = fun _ -> Lwt.return_false)
+      ?(rev = true) () =
     Log.debug (fun f ->
         f "iter on closure min=%a max=%a" pp_keys min pp_keys max);
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    let node = function `Node x -> node x | _ -> Lwt.return_unit in
+    let edges l =
+      List.rev_map
+        (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
+        l
+    in
+    let pred t = function
+      | `Node k -> (
+          S.find t k >|= function
+          | None -> (None, [])
+          | Some v ->
+              let v = S.Val.list v in
+              (Some v, edges v) )
+      | `Contents (k, _) -> Lwt.return (None, [])
+      | _ -> Lwt.return (None, [])
+    in
+    let node x l =
+      match (x, l) with
+      | `Contents (c, _), _ -> contents c
+      | `Node n, Some l -> node n l
+      | _ -> Lwt.return ()
+    in
     let edge n pred =
       match (n, pred) with
       | `Node src, `Node dst -> edge src dst

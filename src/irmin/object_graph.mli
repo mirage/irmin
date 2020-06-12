@@ -49,10 +49,10 @@ module type S = sig
 
   val iter :
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> ('a * vertex list) Lwt.t) ->
     min:vertex list ->
     max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
+    node:(vertex -> 'a -> unit Lwt.t) ->
     edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
     rev:bool ->

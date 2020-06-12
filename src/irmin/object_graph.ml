@@ -53,10 +53,10 @@ module type S = sig
 
   val iter :
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> ('a * vertex list) Lwt.t) ->
     min:vertex list ->
     max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
+    node:(vertex -> 'a -> unit Lwt.t) ->
     edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
     rev:bool ->
@@ -154,11 +154,11 @@ struct
     let has_mark key = Table.mem marks key in
     let todo = Stack.create () in
     List.iter (fun k -> Stack.push (k, 0) todo) max;
-    let treat key =
-      Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
-      node key >>= fun () ->
-      if not (List.mem key min) then
-        pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
+    let treat key (value, preds) =
+      Log.debug (fun f ->
+          f "TREAT %a (%d pred)" Type.(pp X.t) key (List.length preds));
+      node key value >>= fun () ->
+      if not (List.mem key min) then Lwt_list.iter_p (fun k -> edge key k) preds
       else Lwt.return_unit
     in
     let rec pop key level =
@@ -171,7 +171,8 @@ struct
       | key, level -> (
           if level >= depth then pop key level
           else if has_mark key then (
-            (if rev then treat key else Lwt.return_unit) >>= fun () ->
+            pred key >>= fun pred ->
+            (if rev then treat key pred else Lwt.return_unit) >>= fun () ->
             ignore (Stack.pop todo);
             visit () )
           else
@@ -179,16 +180,17 @@ struct
             | true -> pop key level
             | false ->
                 Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-                (if not rev then treat key else Lwt.return_unit) >>= fun () ->
+                pred key >>= fun pred ->
+                (if not rev then treat key pred else Lwt.return_unit)
+                >>= fun () ->
                 mark key level;
                 if List.mem key min then visit ()
-                else
-                  pred key >>= fun keys ->
+                else (
                   List.iter
                     (fun k ->
                       if not (has_mark k) then Stack.push (k, level + 1) todo)
-                    keys;
-                  visit () )
+                    (snd pred);
+                  visit () ) )
     in
     visit ()
 
@@ -197,7 +199,7 @@ struct
         f "closure depth=%d (%d elements)" depth (List.length max));
     let g = G.create ~size:1024 () in
     List.iter (G.add_vertex g) max;
-    let node key =
+    let node key () =
       if not (G.mem_vertex g key) then G.add_vertex g key else ();
       Lwt.return_unit
     in
@@ -206,6 +208,7 @@ struct
       Lwt.return_unit
     in
     let skip _ = Lwt.return_false in
+    let pred x = pred x >|= fun l -> ((), l) in
     iter ~depth ~pred ~min ~max ~node ~edge ~skip ~rev:false () >|= fun () -> g
 
   let min g =

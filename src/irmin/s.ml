@@ -359,7 +359,8 @@ module type NODE_GRAPH = sig
     [> `Read ] t ->
     min:node list ->
     max:node list ->
-    ?node:(node -> unit Lwt.t) ->
+    ?node:(node -> (step * value) list -> unit Lwt.t) ->
+    ?contents:(contents -> unit Lwt.t) ->
     ?edge:(node -> node -> unit Lwt.t) ->
     ?skip:(node -> bool Lwt.t) ->
     ?rev:bool ->
