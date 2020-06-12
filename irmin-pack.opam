@@ -22,4 +22,8 @@ depends: [
   "alcotest-lwt" {with-test}
 ]
 
+pin-depends: [
+  "index.dev" "git+https://github.com/CraigFe/syscalls-module"
+]
+
 synopsis: "Irmin backend which stores values in a pack file"
