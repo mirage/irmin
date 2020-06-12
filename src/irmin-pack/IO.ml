@@ -60,37 +60,38 @@ module Unix : S = struct
 
     let v fd = { fd; cursor = 0L }
 
-    let really_write fd buf =
-      let rec aux off len =
-        let w = Unix.write fd buf off len in
-        if w = 0 || w = len then () else (aux [@tailcall]) (off + w) (len - w)
-      in
-      (aux [@tailcall]) 0 (Bytes.length buf)
+    module Syscalls = Index_unix.Syscalls
 
-    let really_read fd len buf =
-      let rec aux off len =
-        let r = Unix.read fd buf off len in
-        if r = 0 then off (* end of file *)
-        else if r = len then off + r
-        else (aux [@tailcall]) (off + r) (len - r)
+    let really_write fd fd_offset buffer =
+      let rec aux fd_offset buffer_offset length =
+        let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
+        if w = 0 || w = length then ()
+        else
+          (aux [@tailcall])
+            (fd_offset ++ Int64.of_int w)
+            (buffer_offset + w) (length - w)
       in
-      (aux [@tailcall]) 0 len
+      (aux [@tailcall]) fd_offset 0 (Bytes.length buffer)
 
-    let lseek t off =
-      if off = t.cursor then ()
-      else
-        let _ = Unix.LargeFile.lseek t.fd off Unix.SEEK_SET in
-        t.cursor <- off
+    let really_read fd fd_offset length buffer =
+      let rec aux fd_offset buffer_offset length =
+        let r = Syscalls.pread ~fd ~fd_offset ~buffer ~buffer_offset ~length in
+        if r = 0 then buffer_offset (* end of file *)
+        else if r = length then buffer_offset + r
+        else
+          (aux [@tailcall])
+            (fd_offset ++ Int64.of_int r)
+            (buffer_offset + r) (length - r)
+      in
+      (aux [@tailcall]) fd_offset 0 length
 
     let unsafe_write t ~off buf =
-      lseek t off;
       let buf = Bytes.unsafe_of_string buf in
-      really_write t.fd buf;
+      really_write t.fd off buf;
       t.cursor <- off ++ Int64.of_int (Bytes.length buf)
 
     let unsafe_read t ~off ~len buf =
-      lseek t off;
-      let n = really_read t.fd len buf in
+      let n = really_read t.fd off len buf in
       t.cursor <- off ++ Int64.of_int n;
       n
 
