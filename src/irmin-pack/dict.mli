@@ -23,6 +23,8 @@ module type S = sig
 
   val sync : t -> unit
 
+  val ro_sync : t -> unit
+
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
   val clear : t -> unit

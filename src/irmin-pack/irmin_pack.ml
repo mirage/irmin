@@ -297,6 +297,20 @@ end
 
 module type CONFIG = Inode.CONFIG
 
+module type Stores_extra = sig
+  type repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+
+  val ro_sync : repo -> unit
+end
+
 module Make_ext
     (Config : CONFIG)
     (M : Irmin.Metadata.S)
@@ -448,6 +462,9 @@ struct
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+
+      (** stores share instances in memory, one sync is enough *)
+      let ro_sync t = Contents.CA.ro_sync (contents_t t)
     end
   end
 
@@ -517,6 +534,8 @@ struct
       else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
 
   include Irmin.Of_private (X)
+
+  let ro_sync = X.Repo.ro_sync
 end
 
 module Hash = Irmin.Hash.BLAKE2B
