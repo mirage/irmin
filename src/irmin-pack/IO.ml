@@ -56,9 +56,9 @@ module Unix : S = struct
   exception RO_Not_Allowed
 
   module Raw = struct
-    type t = { fd : Unix.file_descr; mutable cursor : int64 }
+    type t = { fd : Unix.file_descr } [@@unboxed]
 
-    let v fd = { fd; cursor = 0L }
+    let v fd = { fd }
 
     module Syscalls = Index_unix.Syscalls
 
@@ -87,13 +87,9 @@ module Unix : S = struct
 
     let unsafe_write t ~off buf =
       let buf = Bytes.unsafe_of_string buf in
-      really_write t.fd off buf;
-      t.cursor <- off ++ Int64.of_int (Bytes.length buf)
+      really_write t.fd off buf
 
-    let unsafe_read t ~off ~len buf =
-      let n = really_read t.fd off len buf in
-      t.cursor <- off ++ Int64.of_int n;
-      n
+    let unsafe_read t ~off ~len buf = really_read t.fd off len buf
 
     let unsafe_set_offset t n =
       let buf = Irmin.Type.(to_bin_string int64) n in
