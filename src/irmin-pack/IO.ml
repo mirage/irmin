@@ -55,62 +55,7 @@ let ( -- ) = Int64.sub
 module Unix : S = struct
   exception RO_Not_Allowed
 
-  module Raw = struct
-    type t = { fd : Unix.file_descr } [@@unboxed]
-
-    let v fd = { fd }
-
-    module Syscalls = Index_unix.Syscalls
-
-    let really_write fd fd_offset buffer =
-      let rec aux fd_offset buffer_offset length =
-        let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
-        if w = 0 || w = length then ()
-        else
-          (aux [@tailcall])
-            (fd_offset ++ Int64.of_int w)
-            (buffer_offset + w) (length - w)
-      in
-      (aux [@tailcall]) fd_offset 0 (Bytes.length buffer)
-
-    let really_read fd fd_offset length buffer =
-      let rec aux fd_offset buffer_offset length =
-        let r = Syscalls.pread ~fd ~fd_offset ~buffer ~buffer_offset ~length in
-        if r = 0 then buffer_offset (* end of file *)
-        else if r = length then buffer_offset + r
-        else
-          (aux [@tailcall])
-            (fd_offset ++ Int64.of_int r)
-            (buffer_offset + r) (length - r)
-      in
-      (aux [@tailcall]) fd_offset 0 length
-
-    let unsafe_write t ~off buf =
-      let buf = Bytes.unsafe_of_string buf in
-      really_write t.fd off buf
-
-    let unsafe_read t ~off ~len buf = really_read t.fd off len buf
-
-    let unsafe_set_offset t n =
-      let buf = Irmin.Type.(to_bin_string int64) n in
-      unsafe_write t ~off:0L buf
-
-    let unsafe_get_offset t =
-      let buf = Bytes.create 8 in
-      let n = unsafe_read t ~off:0L ~len:8 buf in
-      assert (n = 8);
-      match Irmin.Type.(of_bin_string int64) (Bytes.unsafe_to_string buf) with
-      | Ok t -> t
-      | Error (`Msg e) -> Fmt.failwith "get_offset: %s" e
-
-    let unsafe_get_version t =
-      let buf = Bytes.create 8 in
-      let n = unsafe_read t ~off:8L ~len:8 buf in
-      assert (n = 8);
-      Bytes.unsafe_to_string buf
-
-    let unsafe_set_version t v = unsafe_write t ~off:8L v
-  end
+  module Raw = Index_unix.Private.Raw
 
   type t = {
     file : string;
@@ -135,7 +80,7 @@ module Unix : S = struct
     if buf = "" then ()
     else (
       Raw.unsafe_write t.raw ~off:t.flushed buf;
-      Raw.unsafe_set_offset t.raw offset;
+      Raw.Offset.set t.raw offset;
 
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -168,7 +113,7 @@ module Unix : S = struct
   let offset t = t.offset
 
   let force_offset t =
-    t.offset <- Raw.unsafe_get_offset t.raw;
+    t.offset <- Raw.Offset.get t.raw;
     t.offset
 
   let version t = t.version
@@ -231,23 +176,23 @@ module Unix : S = struct
     | false ->
         let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
-        Raw.unsafe_set_offset raw 0L;
-        Raw.unsafe_set_version raw current_version;
+        Raw.Offset.set raw 0L;
+        Raw.Version.set raw current_version;
         v ~offset:0L ~version:current_version raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
-          Raw.unsafe_set_offset raw 0L;
-          Raw.unsafe_set_version raw current_version;
+          Raw.Offset.set raw 0L;
+          Raw.Version.set raw current_version;
           v ~offset:0L ~version:current_version raw )
         else
-          let offset = Raw.unsafe_get_offset raw in
-          let version = Raw.unsafe_get_version raw in
+          let offset = Raw.Offset.get raw in
+          let version = Raw.Version.get raw in
           assert (version = current_version);
           v ~offset ~version raw
 
-  let close t = Unix.close t.raw.fd
+  let close t = Raw.close t.raw
 end
 
 let ( // ) = Filename.concat
