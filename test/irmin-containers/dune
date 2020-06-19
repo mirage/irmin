@@ -1,0 +1,9 @@
+(executable
+ (name test)
+ (libraries alcotest alcotest-lwt irmin-containers))
+
+(alias
+ (name runtest)
+ (package irmin-containers)
+ (action
+  (run ./test.exe -q --color=always)))
