@@ -45,34 +45,8 @@ let open_ro_after_rw_closed () =
       Alcotest.(check (option string)) "RO find" (Some "x") x;
       S.Repo.close ro
 
-let two_rw () =
-  rm_dir root;
-  S.Repo.v (config ~readonly:false ~fresh:true root) >>= fun rw ->
-  S.Repo.v (config ~readonly:false ~fresh:false root) >>= fun rw2 ->
-  S.Repo.close rw >>= fun () ->
-  S.Tree.add S.Tree.empty [ "a" ] "x" >>= fun tree ->
-  S.Commit.v rw2 ~parents:[] ~info:(info ()) tree >>= fun _ -> S.Repo.close rw2
-
-let two_ro () =
-  rm_dir root;
-  S.Repo.v (config ~readonly:false ~fresh:true root) >>= fun rw ->
-  S.Repo.v (config ~readonly:true ~fresh:false root) >>= fun ro1 ->
-  S.Repo.v (config ~readonly:true ~fresh:false root) >>= fun ro2 ->
-  S.Tree.add S.Tree.empty [ "a" ] "x" >>= fun tree ->
-  S.Commit.v rw ~parents:[] ~info:(info ()) tree >>= fun c ->
-  S.Repo.close rw >>= fun () ->
-  S.Repo.close ro1 >>= fun () ->
-  (S.Commit.of_hash ro2 (S.Commit.hash c) >|= function
-   | None -> Alcotest.failf "commit not found"
-   | Some _ -> ())
-  >>= fun () -> S.Repo.close ro2
-
 let tests =
   [
     Alcotest.test_case "Test open ro after rw closed" `Quick (fun () ->
         Lwt_main.run (open_ro_after_rw_closed ()));
-    Alcotest.test_case "Test open rw twice" `Quick (fun () ->
-        Lwt_main.run (two_rw ()));
-    Alcotest.test_case "Test open ro twice" `Quick (fun () ->
-        Lwt_main.run (two_ro ()));
   ]
