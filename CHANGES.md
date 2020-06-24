@@ -1,4 +1,4 @@
-### Unreleased
+### 2.2.0 (2020-06-26)
 
 #### Added
 
@@ -20,20 +20,10 @@
   - Require OCaml 4.07 (#961, @CraigFe)
   - Add sanity checks when creating `Irmin.Type` records, variants and enums
     (#956 and #966, @liautaud):
-     - `Irmin.Type.sealr` will now raise `Invalid_argument` if two fields of
-       the record have the same name;
-     - `Irmin.Type.sealv` will now raise `Invalid_argument` if two cases of
-       the variant with the same arity have the same name;
-     - `Irmin.Type.enum` will now raise `Invalid_argument` if two cases of
-       the enum have the same name.
-     - `Irmin.Type.field` will now raise `Invalid_argument` if the name of
-       the field is not a valid UTF-8 string.
-     - `Irmin.Type.case0` will now raise `Invalid_argument` if the name of
-       the case is not a valid UTF-8 string.
-     - `Irmin.Type.case1` will now raise `Invalid_argument` if the name of
-       the case is not a valid UTF-8 string.
-     - `Irmin.Type.enum` will now raise `Invalid_argument` if the name of
-       any of the tags is not a valid UTF-8 string.
+     - `Irmin.Type.{sealr,sealv,enum}` will now raise `Invalid_argument` if two
+       components have the same name;
+     - `Irmin.Type.{field,case0,case1}` will now raise `Invalid_argument` if
+       the component name is not a valid UTF-8 string.
   - Changed the JSON encoding of options and unit to avoid ambiguous cases
     (#967, @liautaud):
     - `()` is now encoded as `{}`;
