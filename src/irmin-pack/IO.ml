@@ -43,7 +43,7 @@ module type S = sig
 
   val version : t -> string
 
-  val sync : t -> unit
+  val flush : t -> unit
 
   val close : t -> unit
 end
@@ -71,9 +71,9 @@ module Unix : S = struct
 
   let header = 16L (* offset + version *)
 
-  let sync t =
+  let flush t =
     if t.readonly then raise RO_Not_Allowed;
-    Log.debug (fun l -> l "IO sync %s" t.file);
+    Log.debug (fun l -> l "IO flush %s" t.file);
     let buf = Buffer.contents t.buf in
     let offset = t.offset in
     Buffer.clear t.buf;
@@ -96,11 +96,11 @@ module Unix : S = struct
     Buffer.add_string t.buf buf;
     let len = Int64.of_int (String.length buf) in
     t.offset <- t.offset ++ len;
-    if t.offset -- t.flushed > auto_flush_limit then sync t
+    if t.offset -- t.flushed > auto_flush_limit then flush t
 
   let set t ~off buf =
     if t.readonly then raise RO_Not_Allowed;
-    sync t;
+    flush t;
     Raw.unsafe_write t.raw ~off:(header ++ off) buf;
     let len = Int64.of_int (String.length buf) in
     let off = header ++ off ++ len in

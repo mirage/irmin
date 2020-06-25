@@ -21,9 +21,9 @@ module type S = sig
 
   val index : t -> string -> int option
 
-  val sync : t -> unit
+  val flush : t -> unit
 
-  val ro_sync : t -> unit
+  val sync : t -> unit
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 

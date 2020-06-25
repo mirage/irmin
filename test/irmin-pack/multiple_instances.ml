@@ -59,7 +59,7 @@ let ro_sync_after_add () =
   S.Repo.v (config ~readonly:true ~fresh:false root) >>= fun ro ->
   S.Tree.add S.Tree.empty [ "a" ] "x" >>= fun tree ->
   S.Commit.v rw ~parents:[] ~info:(info ()) tree >>= fun c1 ->
-  S.ro_sync ro;
+  S.sync ro;
   check ro c1 "a" "x" >>= fun () ->
   S.Tree.add S.Tree.empty [ "a" ] "y" >>= fun tree ->
   S.Commit.v rw ~parents:[] ~info:(info ()) tree >>= fun c2 ->
@@ -68,7 +68,7 @@ let ro_sync_after_add () =
    | None -> ()
    | Some _ -> Alcotest.failf "should not find branch by")
   >>= fun () ->
-  S.ro_sync ro;
+  S.sync ro;
   check ro c2 "a" "y" >>= fun () ->
   S.Repo.close ro >>= fun () -> S.Repo.close rw
 
@@ -87,7 +87,7 @@ let ro_sync_after_close () =
   S.Tree.add S.Tree.empty [ "a" ] "x" >>= fun tree ->
   S.Commit.v rw ~parents:[] ~info:(info ()) tree >>= fun c1 ->
   S.Repo.close rw >>= fun () ->
-  S.ro_sync ro;
+  S.sync ro;
   check ro c1 "a" "x" >>= fun () -> S.Repo.close ro
 
 let tests =

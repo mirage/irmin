@@ -287,7 +287,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     if t.open_instances = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
-      if not (IO.readonly t.block) then IO.sync t.block;
+      if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
       W.clear t.w )
     else Lwt.return_unit
@@ -308,7 +308,7 @@ module type Stores_extra = sig
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
 
-  val ro_sync : repo -> unit
+  val sync : repo -> unit
 end
 
 module Make_ext
@@ -464,7 +464,7 @@ struct
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
       (** stores share instances in memory, one sync is enough *)
-      let ro_sync t = Contents.CA.ro_sync (contents_t t)
+      let sync t = Contents.CA.sync (contents_t t)
     end
   end
 
@@ -535,7 +535,7 @@ struct
 
   include Irmin.Of_private (X)
 
-  let ro_sync = X.Repo.ro_sync
+  let sync = X.Repo.sync
 end
 
 module Hash = Irmin.Hash.BLAKE2B

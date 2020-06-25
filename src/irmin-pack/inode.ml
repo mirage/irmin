@@ -47,7 +47,7 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val ro_sync : 'a t -> unit
+  val sync : 'a t -> unit
 end
 
 module type CONFIG = sig
@@ -803,5 +803,5 @@ struct
 
   let close = Inode.close
 
-  let ro_sync = Inode.ro_sync
+  let sync = Inode.sync
 end

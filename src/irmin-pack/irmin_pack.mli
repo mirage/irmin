@@ -49,8 +49,9 @@ module type Stores_extra = sig
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
       entries. *)
 
-  val ro_sync : repo -> unit
-  (** [ro_sync t] syncs an RO instance with the files on disk. *)
+  val sync : repo -> unit
+  (** [sync t] syncs a readonly pack with the files on disk. Raises
+      [invalid_argument] if called by a read-write pack.*)
 end
 
 module Make_ext

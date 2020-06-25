@@ -110,8 +110,8 @@ module Dict = struct
     ignore_int (Dict.index dict "toto");
     ignore_int (Dict.index dict "titiabc");
     ignore_int (Dict.index dict "foo");
-    Dict.sync dict;
-    Dict.ro_sync r;
+    Dict.flush dict;
+    Dict.sync r;
     check_index "titiabc" 3;
     check_index "bar" 1;
     check_index "toto" 2;
@@ -120,8 +120,8 @@ module Dict = struct
     ignore_int (Dict.index dict "hello");
     check_raise "hello";
     check_none "hello" 4;
-    Dict.sync dict;
-    Dict.ro_sync r;
+    Dict.flush dict;
+    Dict.sync r;
     check_find "hello" 4;
     Dict.close dict;
     Dict.close r
@@ -177,8 +177,8 @@ module Pack = struct
       adds [ (h1, x1); (h2, x2) ];
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "before sync" None y2;
-      Pack.sync w;
-      Pack.ro_sync r;
+      Pack.flush w;
+      Pack.sync r;
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "after sync" (Some x2) y2;
       let x3 = "otoo" in
@@ -186,8 +186,8 @@ module Pack = struct
       let h3 = sha1 x3 in
       let h4 = sha1 x4 in
       adds [ (h3, x3); (h4, x4) ];
-      Pack.sync w;
-      Pack.ro_sync r;
+      Pack.flush w;
+      Pack.sync r;
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "y2" (Some x2) y2;
       Pack.find r h3 >>= fun y3 ->
@@ -216,7 +216,7 @@ module Pack = struct
     let x1 = "foo" in
     let h1 = sha1 x1 in
     Pack.unsafe_append w h1 x1;
-    Pack.sync w;
+    Pack.flush w;
     Index.close t.index;
     Pack.close w >>= fun () ->
     (*open and close in ro*)
@@ -293,11 +293,11 @@ module Pack = struct
       let x1 = "foo" in
       let h1 = sha1 x1 in
       Pack.unsafe_append w h1 x1;
-      Pack.ro_sync r;
+      Pack.sync r;
       Pack.find r h1 >>= fun y1 ->
       Alcotest.(check (option string)) "sync before filter" None y1;
       Index.filter t.index (fun _ -> true);
-      Pack.ro_sync r;
+      Pack.sync r;
       Lwt.catch
         (fun () ->
           Pack.find r h1 >|= fun _ ->
@@ -308,7 +308,7 @@ module Pack = struct
       let h2 = sha1 x2 in
       Pack.unsafe_append w h2 x2;
       Index.flush t.index;
-      Pack.ro_sync r;
+      Pack.sync r;
       Lwt.catch
         (fun () ->
           Pack.find r h2 >|= fun _ ->
@@ -328,24 +328,24 @@ module Pack = struct
       let x1 = "foo" in
       let h1 = sha1 x1 in
       Pack.unsafe_append w h1 x1;
-      Pack.sync t.pack;
-      Pack.ro_sync r;
+      Pack.flush t.pack;
+      Pack.sync r;
       check h1 x1 "find before filter" >>= fun () ->
       Index.filter t.index (fun _ -> true);
       check h1 x1 "find after filter" >>= fun () ->
       let x2 = "bar" in
       let h2 = sha1 x2 in
       Pack.unsafe_append w h2 x2;
-      Pack.sync t.pack;
-      Pack.ro_sync r;
+      Pack.flush t.pack;
+      Pack.sync r;
       check h2 x2 "find before flush" >>= fun () ->
       let x3 = "toto" in
       let h3 = sha1 x3 in
       Pack.unsafe_append w h3 x3;
       Index.flush t.index;
       check h2 x2 "find after flush" >>= fun () ->
-      Pack.sync t.pack;
-      Pack.ro_sync r;
+      Pack.flush t.pack;
+      Pack.sync r;
       check h3 x3 "find after flush new values"
     in
     test t.pack >>= fun () ->

@@ -30,9 +30,9 @@ module type S = sig
 
   val index : t -> string -> int option
 
-  val sync : t -> unit
+  val flush : t -> unit
 
-  val ro_sync : t -> unit
+  val sync : t -> unit
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
@@ -80,11 +80,11 @@ module Make (IO : IO.S) : S = struct
     let log_offset = IO.force_offset t.io in
     if log_offset > former_log_offset then refill ~from:former_log_offset t
 
-  let ro_sync t =
+  let sync t =
     if IO.readonly t.io then sync_offset t
     else invalid_arg "only an RO instance should call this function"
 
-  let sync t = IO.sync t.io
+  let flush t = IO.flush t.io
 
   let index t v =
     Log.debug (fun l -> l "[dict] index %S" v);
@@ -120,7 +120,7 @@ module Make (IO : IO.S) : S = struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.io) then sync t;
+      if not (IO.readonly t.io) then flush t;
       IO.close t.io;
       Hashtbl.reset t.cache;
       Hashtbl.reset t.index )
