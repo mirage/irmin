@@ -172,18 +172,6 @@ module Make (S : S) = struct
 
   let old k () = Lwt.return_ok (Some k)
 
-  let test_two_close x () =
-    try
-      Lwt_main.run
-        ( x.init () >>= fun () ->
-          S.Repo.v x.config >>= fun repo1 ->
-          S.Repo.v x.config >>= fun repo2 ->
-          S.Repo.close repo1 >>= fun () ->
-          kv1 ~repo:repo2 >>= fun _ -> x.clean () )
-    with e ->
-      Lwt_main.run (x.clean ());
-      raise e
-
   let test_contents x () =
     let test repo =
       let t = P.Repo.contents_t repo in
@@ -723,8 +711,8 @@ module Make (S : S) = struct
         in
         aux s n
     end in
-    let test repo =
-      S.master repo >>= fun t1 ->
+    let test repo1 =
+      S.master repo1 >>= fun t1 ->
       S.Repo.v x.config >>= fun repo ->
       S.master repo >>= fun t2 ->
       Log.debug (fun f -> f "WATCH");
@@ -837,7 +825,8 @@ module Make (S : S) = struct
       S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) >>= fun u ->
       update true (0, 0, 0) 10 ~first:true >>= fun () ->
       S.unwatch u >>= fun () ->
-      update false (0, 10, 0) 10 >>= fun () -> P.Repo.close repo
+      update false (0, 10, 0) 10 >>= fun () ->
+      P.Repo.close repo >>= fun () -> P.Repo.close repo1
     in
     run x test
 
@@ -2130,7 +2119,6 @@ let suite (speed, x) =
       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
       ("Concurrent merges", speed, T.test_concurrent_merges x);
       ("Shallow objects", speed, T.test_shallow_objects x);
-      ("Close a repo, keep another open", speed, T.test_two_close x);
       ("Test iter", speed, T.test_iter x);
       ("Closure with disconnected commits", speed, T.test_closure x);
     ] )
