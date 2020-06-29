@@ -82,7 +82,7 @@ module Make (IO : IO.S) : S = struct
 
   let sync t =
     if IO.readonly t.io then sync_offset t
-    else invalid_arg "only an RO instance should call this function"
+    else invalid_arg "only a readonly instance should call this function"
 
   let flush t = IO.flush t.io
 

@@ -64,7 +64,7 @@ module type S = sig
 
   val unsafe_find : 'a t -> key -> value option
 
-  val flush : 'a t -> unit
+  val flush : ?index:bool -> 'a t -> unit
 
   val sync : 'a t -> unit
 
@@ -74,8 +74,6 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
-
-  exception Invalid_read
 end
 
 module type MAKER = sig
@@ -191,6 +189,12 @@ struct
         true )
       else false
 
+    let flush ?(index = true) t =
+      Dict.flush t.pack.dict;
+      IO.flush t.pack.block;
+      if index then Index.flush t.pack.index;
+      Tbl.clear t.staging
+
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
@@ -285,12 +289,6 @@ struct
 
     let cast t = (t :> [ `Read | `Write ] t)
 
-    let flush t =
-      Dict.flush t.pack.dict;
-      IO.flush t.pack.block;
-      Index.flush t.pack.index;
-      Tbl.clear t.staging
-
     type integrity_error = [ `Wrong_hash | `Absent_value ]
 
     let integrity_check ~offset ~length k t =
@@ -359,6 +357,6 @@ struct
 
     let sync t =
       Dict.sync t.pack.dict;
-      Index.ro_sync t.pack.index
+      Index.sync t.pack.index
   end
 end

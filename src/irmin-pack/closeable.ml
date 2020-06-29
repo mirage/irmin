@@ -65,9 +65,9 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.unsafe_find t.t k
 
-  let flush t =
+  let flush ?index t =
     check_not_closed t;
-    S.flush t.t
+    S.flush ?index t.t
 
   let sync t =
     check_not_closed t;
@@ -78,8 +78,6 @@ module Pack (S : Pack.S) = struct
   let integrity_check ~offset ~length k t =
     check_not_closed t;
     S.integrity_check ~offset ~length k t.t
-
-  exception Invalid_read = S.Invalid_read
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

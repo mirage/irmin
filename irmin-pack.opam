@@ -22,4 +22,8 @@ depends: [
   "alcotest-lwt" {with-test}
 ]
 
+pin-depends: [
+  "index.dev" "git+https://github.com/mirage/index#9717194feb57c27cac9ad993aaf24a64dc5b64a3"
+]
+
 synopsis: "Irmin backend which stores values in a pack file"

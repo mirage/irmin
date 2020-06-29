@@ -285,7 +285,8 @@ module Pack = struct
       (function I.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
 
   (** Index can be flushed to disk independently of pack, we simulate this in
-      the tests using [Index.filter] and [Index.flush]. *)
+      the tests using [Index.filter] and [Index.flush]. Regression test for PR
+      1008 in which values were indexed before being reachable in pack. *)
   let readonly_sync_index_flush () =
     Context.get_pack () >>= fun t ->
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
@@ -298,22 +299,14 @@ module Pack = struct
       Alcotest.(check (option string)) "sync before filter" None y1;
       Index.filter t.index (fun _ -> true);
       Pack.sync r;
-      Lwt.catch
-        (fun () ->
-          Pack.find r h1 >|= fun _ ->
-          Alcotest.fail "index is flushed but not pack, should raise exception")
-        (function Pack.Invalid_read -> Lwt.return_unit | exn -> Lwt.fail exn)
-      >>= fun () ->
-      let x2 = "toto" in
+      Pack.find r h1 >>= fun y1 ->
+      Alcotest.(check (option string)) "sync after filter" (Some x1) y1;
+      let x2 = "foo" in
       let h2 = sha1 x2 in
       Pack.unsafe_append w h2 x2;
       Index.flush t.index;
-      Pack.sync r;
-      Lwt.catch
-        (fun () ->
-          Pack.find r h2 >|= fun _ ->
-          Alcotest.fail "index is flushed but not pack, should raise exception")
-        (function Pack.Invalid_read -> Lwt.return_unit | exn -> Lwt.fail exn)
+      Pack.find r h2 >|= fun y2 ->
+      Alcotest.(check (option string)) "sync after flush" (Some x2) y2
     in
     test t.pack >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
