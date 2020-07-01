@@ -14,45 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Inode_intf
 open Lwt.Infix
 
 let src =
   Logs.Src.create "irmin.pack.i" ~doc:"inodes for the irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  module Key : Irmin.Hash.S with type t = key
-
-  module Val : Irmin.Private.Node.S with type t = value and type hash = key
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-end
-
-module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
-end
 
 module Make
     (Conf : CONFIG)
