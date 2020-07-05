@@ -9,11 +9,11 @@ dev-repo: "git+https://github.com/mirage/irmin.git"
 build: [
   ["dune" "subst"] {pinned}
   ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name] {with-test}
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 
 depends: [
-  "dune"
+  "dune" {>= "1.8.0"}
   "ocaml" {>= "4.06.0"}
   "ocaml-syntax-shims"
   "ppxlib" {>= "0.12.0"}
