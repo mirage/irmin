@@ -20,6 +20,8 @@ module Config = struct
   let entries = 2
 
   let stable_hash = 3
+
+  module Instance_pool = Index.Cache.Noop
 end
 
 module KV = Irmin_pack.KV (Config) (Irmin.Contents.String)

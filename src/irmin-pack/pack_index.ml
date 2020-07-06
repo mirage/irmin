@@ -12,7 +12,7 @@
 
 include Pack_index_intf
 
-module Make (K : Irmin.Hash.S) = struct
+module Make (K : Irmin.Hash.S) (Cache : Index.Cache.S) = struct
   module Key = struct
     type t = K.t
 
@@ -51,7 +51,7 @@ module Make (K : Irmin.Hash.S) = struct
     let encoded_size = (64 / 8) + (32 / 8) + 1
   end
 
-  module Index = Index_unix.Make (Key) (Val)
+  module Index = Index_unix.Make (Key) (Val) (Cache)
   include Index
 
   let add t k v = replace t k v

@@ -27,7 +27,7 @@ module Default = struct
 
   let index_log_size = 500_000
 
-  let readonly = false
+  let mode = Pack.RW
 end
 
 let fresh_key =
@@ -310,7 +310,7 @@ module Make_ext
                and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
-  module Index = Pack_index.Make (H)
+  module Index = Pack_index.Make (H) (Config.Instance_pool)
   module Pack = Pack.File (Index) (H)
 
   module X = struct

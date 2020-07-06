@@ -31,7 +31,7 @@ end
 
 module H = Irmin.Hash.SHA1
 module I = Index
-module Index = Irmin_pack.Index.Make (H)
+module Index = Irmin_pack.Index.Make (H) (Index.Cache.Unbounded)
 module P = Irmin_pack.Pack.File (Index) (H)
 module Pack = P.Make (S)
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (H)

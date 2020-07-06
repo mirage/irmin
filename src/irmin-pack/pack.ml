@@ -101,18 +101,79 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
-let with_cache = IO.with_cache
-
 module IO = IO.Unix
+module I = Index
 
-module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
+module File
+    (Index : Pack_index.S)
+    (K : Irmin.Hash.S with type t = Index.key)
+    (Instance_pool : I.Cache.S) =
 struct
   module Tbl = Table (K)
   module Dict = Pack_dict
 
   type index = Index.t
 
-  type 'a t = {
+  type ro = [ `Read ]
+
+  type rw = [ `Read | `Write ]
+
+  type _ mode = RO : ro mode | RW : rw mode
+
+  let pp_mode (type m) ppf (m : m mode) =
+    match m with
+    | RO -> Format.pp_print_string ppf "ro"
+    | RW -> Format.pp_print_string ppf "rw"
+
+  (** Wrap [Instance_pool] to allow the type of values to depend on the phantom
+      type parameter in the key. *)
+  module Modal_instance_pool (V : sig
+    type 'a t
+  end) : sig
+    type 'm key := string * 'm mode
+
+    type 'm value := 'm V.t
+
+    type t
+
+    val create : unit -> t
+
+    val add : t -> 'm key -> 'm value -> unit
+
+    val find : t -> 'm key -> 'm value option
+
+    val remove : t -> _ key -> unit
+  end = struct
+    type cache = {
+      readonly : (string, ro V.t) Instance_pool.t;
+      readwrite : (string, rw V.t) Instance_pool.t;
+    }
+
+    let create () =
+      {
+        readonly = Instance_pool.create ();
+        readwrite = Instance_pool.create ();
+      }
+
+    let add (type m) t (name, (mode : m mode)) (v : m V.t) =
+      match mode with
+      | RO -> Instance_pool.add t.readonly name v
+      | RW -> Instance_pool.add t.readwrite name v
+
+    let find (type m) t (name, (mode : m mode)) : m V.t option =
+      match mode with
+      | RO -> Instance_pool.find t.readonly name
+      | RW -> Instance_pool.find t.readwrite name
+
+    let remove (type m) t (name, (mode : m mode)) =
+      match mode with
+      | RO -> Instance_pool.remove t.readonly name
+      | RW -> Instance_pool.remove t.readwrite name
+
+    type t = cache
+  end
+
+  type _ t = {
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
@@ -120,18 +181,21 @@ struct
     mutable open_instances : int;
   }
 
+  module Instance_pool = Modal_instance_pool (struct
+    type nonrec 'a t = 'a t
+  end)
+
+  type cache = Instance_pool.t
+
+  let empty_cache = Instance_pool.create
+
   let clear t =
     IO.clear t.block;
     Index.clear t.index;
     Dict.clear t.dict
 
-  let valid t =
-    if t.open_instances <> 0 then (
-      t.open_instances <- t.open_instances + 1;
-      true )
-    else false
-
-  let unsafe_v ~index ~fresh ~readonly file =
+  let v_no_cache (type m) ~index ~fresh ~(mode : m mode) file : m t =
+    let readonly = match mode with RO -> true | RW -> false in
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
@@ -141,8 +205,47 @@ struct
         current_version;
     { block; index; lock; dict; open_instances = 1 }
 
-  let (`Staged v) =
-    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
+  let ( // ) = Filename.concat
+
+  let v (type m) ~cache ~index ~fresh ~(mode : m mode) file : m t =
+    let file = "store.pack" // file in
+    let pool_key = (file, mode) in
+    let new_instance () =
+      Log.debug (fun l ->
+          l "[%s] v fresh=%b mode=%a" (Filename.basename file) fresh pp_mode
+            mode);
+      let t = v_no_cache ~index ~fresh ~mode file in
+      Instance_pool.add cache pool_key t;
+
+      t
+    in
+    ( match (fresh, mode) with
+    | true, RO -> invalid_arg "Read-only IO cannot be fresh"
+    | _, _ -> () );
+
+    match Instance_pool.find cache pool_key with
+    | None -> new_instance ()
+    | Some t ->
+        Log.debug (fun l -> l "%s found in cache" file);
+
+        if not (Sys.file_exists file) then (
+          Log.debug (fun l ->
+              l "[%s] does not exist anymore, cleaning up the fd cache"
+                (Filename.basename file));
+          Instance_pool.remove cache (file, RO);
+          Instance_pool.remove cache (file, RW);
+          new_instance () )
+        else if t.open_instances = 0 then (
+          Log.warn (fun l ->
+              l "[%s] exists in cache, but doesn't have any open instances."
+                (Filename.basename file));
+
+          Instance_pool.remove cache pool_key;
+          new_instance () )
+        else (
+          t.open_instances <- t.open_instances + 1;
+          if fresh then clear t;
+          t )
 
   type key = K.t
 
@@ -187,31 +290,32 @@ struct
         true )
       else false
 
-    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
-      let pack = v index ~fresh ~readonly root in
-      let staging = Tbl.create 127 in
-      let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1 }
-
-    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
-        ~index root =
-      try
-        let t = Hashtbl.find roots (root, readonly) in
-        if valid t then (
-          if fresh then clear t;
-          t )
-        else (
-          Hashtbl.remove roots (root, readonly);
-          raise Not_found )
-      with Not_found ->
-        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+    let unsafe_v ?(cache = empty_cache ()) ?(fresh = false) ?(mode = RW)
+        ?(lru_size = 10_000) ~index root =
+      let new_instance () =
+        let t =
+          let pack = v ~cache ~index ~fresh ~mode root in
+          let staging = Tbl.create 127 in
+          let lru = Lru.create lru_size in
+          { staging; lru; pack; open_instances = 1 }
+        in
         if fresh then clear t;
-        Hashtbl.add roots (root, readonly) t;
+        Instance_pool.add cache (root, mode) t;
         t
+      in
+      match Instance_pool.find cache (root, mode) with
+      | None -> new_instance ()
+      | Some t ->
+          if valid t then (
+            if fresh then clear t;
+            t )
+          else (
+            Hashtbl.remove roots (root, mode);
+            new_instance () )
 
-    let v ?fresh ?readonly ?lru_size ~index root =
+    let v ?cache ?fresh ?readonly ?lru_size ~index root =
       Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
+          let t = unsafe_v ?cache ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
 
     let pp_hash = Irmin.Type.pp K.t

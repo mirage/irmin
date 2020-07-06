@@ -13,6 +13,8 @@ module Conf = struct
   let entries = 32
 
   let stable_hash = 256
+
+  module Instance_pool = I.Cache.Unbounded
 end
 
 module Hash = Irmin.Hash.SHA1

@@ -286,6 +286,8 @@ module Store = struct
     let entries = 32
 
     let stable_hash = 256
+
+    module Instance_pool = Index.Cache.Noop
   end
 
   let pack = create (module Irmin_pack.Make (Inode_config))

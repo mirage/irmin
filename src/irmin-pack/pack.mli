@@ -35,28 +35,35 @@ module type ELT = sig
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
+type _ mode = RO : [ `Read ] mode | RW : [ `Read | `Write ] mode
+
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
   type index
 
+  type cache
+
   val v :
+    ?cache:cache ->
     ?fresh:bool ->
-    ?readonly:bool ->
+    ?mode:'m mode ->
     ?lru_size:int ->
-    index:index ->
+    index:(unit -> index) ->
     string ->
-    [ `Read ] t Lwt.t
+    'm t Lwt.t
+  (** @param cache A pool of instances from which to share, keyed by (path,
+      mode). If the cache hits, [index] will not be called. *)
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  val batch : [> `Read ] t -> ([> `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val unsafe_append : 'a t -> key -> value -> unit
+  val unsafe_append : [> `Write ] t -> key -> value -> unit
 
-  val unsafe_mem : 'a t -> key -> bool
+  val unsafe_mem : [> `Read ] t -> key -> bool
 
-  val unsafe_find : 'a t -> key -> value option
+  val unsafe_find : [> `Read ] t -> key -> value option
 
-  val sync : 'a t -> unit
+  val sync : [> `Write ] t -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 

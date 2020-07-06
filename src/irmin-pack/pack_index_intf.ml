@@ -26,5 +26,6 @@ module type Pack_index = sig
     (** @inline *)
   end
 
-  module Make (K : Irmin.Hash.S) : S with type key = K.t
+  module Make (K : Irmin.Hash.S) (Instance_pool : Index.Cache.S) :
+    S with type key = K.t
 end

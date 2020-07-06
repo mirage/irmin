@@ -21,6 +21,8 @@ module Config = struct
   let entries = 2
 
   let stable_hash = 3
+
+  module Instance_pool = I.Cache.Unbounded
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"

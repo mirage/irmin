@@ -29,9 +29,8 @@ module Index = Pack_index
 exception RO_Not_Allowed
 
 module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
+  include Inode.CONFIG
+  (** @inline *)
 end
 
 module Make_ext

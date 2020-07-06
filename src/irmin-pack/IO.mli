@@ -45,10 +45,3 @@ module type S = sig
 end
 
 module Unix : S
-
-val with_cache :
-  v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
-  clear:('b -> unit) ->
-  valid:('b -> bool) ->
-  string ->
-  [ `Staged of 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]
