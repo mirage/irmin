@@ -40,6 +40,9 @@ module type S = sig
   type t
   (** The type of trees. *)
 
+  val t : t Type.t
+  (** The value-type of trees. *)
+
   (** {1 Constructors} *)
 
   val empty : t
@@ -275,8 +278,6 @@ module type Tree = sig
     val dump : t Fmt.t
 
     val equal : t -> t -> bool
-
-    val t : t Type.t
 
     val hash : t -> [ `Contents of hash * metadata | `Node of hash ]
 
