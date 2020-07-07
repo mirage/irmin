@@ -283,12 +283,12 @@ module type S = sig
   module Tree : sig
     include
       Tree.S
-        with type step := step
+        with type t := tree
+         and type step := step
          and type key := key
          and type metadata := metadata
          and type contents := contents
          and type node := node
-         and type tree := tree
 
     (** {1 Import/Export} *)
 

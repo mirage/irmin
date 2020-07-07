@@ -26,8 +26,6 @@ module type S = sig
 
   type node
 
-  type tree
-
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
       lazy reads and delayed writes.
 
@@ -37,81 +35,84 @@ module type S = sig
       needed on commit: if you modify a key twice, only the last change will be
       written to the store when you commit. *)
 
+  type t
+  (** The type of trees. *)
+
   (** {1 Constructors} *)
 
-  val empty : tree
+  val empty : t
   (** [empty] is the empty tree. The empty tree does not have associated backend
       configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
-  val of_contents : ?metadata:metadata -> contents -> tree
+  val of_contents : ?metadata:metadata -> contents -> t
   (** [of_contents c] is the subtree built from the contents [c]. *)
 
-  val of_node : node -> tree
+  val of_node : node -> t
   (** [of_node n] is the subtree built from the node [n]. *)
 
-  val v : [< `Node of node | `Contents of contents * metadata ] -> tree
+  val v : [< `Node of node | `Contents of contents * metadata ] -> t
   (** General-purpose constructor for trees. *)
 
-  val destruct : tree -> [> `Node of node | `Contents of contents * metadata ]
+  val destruct : t -> [> `Node of node | `Contents of contents * metadata ]
   (** General-purpose destructor for trees. *)
 
-  val kind : tree -> key -> [ `Contents | `Node ] option Lwt.t
+  val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
-  val list : tree -> key -> (step * [ `Contents | `Node ]) list Lwt.t
+  val list : t -> key -> (step * [ `Contents | `Node ]) list Lwt.t
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t]. *)
 
   (** {1 Diffs} *)
 
-  val diff : tree -> tree -> (key * (contents * metadata) Diff.t) list Lwt.t
+  val diff : t -> t -> (key * (contents * metadata) Diff.t) list Lwt.t
   (** [diff x y] is the difference of contents between [x] and [y]. *)
 
   (** {1 Manipulating Contents} *)
 
-  val mem : tree -> key -> bool Lwt.t
+  val mem : t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
-  val find_all : tree -> key -> (contents * metadata) option Lwt.t
+  val find_all : t -> key -> (contents * metadata) option Lwt.t
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
-  val find : tree -> key -> contents option Lwt.t
+  val find : t -> key -> contents option Lwt.t
   (** [find] is similar to {!find_all} but it discards metadata. *)
 
-  val get_all : tree -> key -> (contents * metadata) Lwt.t
+  val get_all : t -> key -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
-  val get : tree -> key -> contents Lwt.t
+  val get : t -> key -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
 
-  val add : tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
+  val add : t -> key -> ?metadata:metadata -> contents -> t Lwt.t
   (** [add t k c] is the tree where the key [k] is bound to the contents [c] but
       is similar to [t] for other bindings. *)
 
-  val remove : tree -> key -> tree Lwt.t
+  val remove : t -> key -> t Lwt.t
   (** [remove t k] is the tree where [k] bindings has been removed but is
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
 
-  val mem_tree : tree -> key -> bool Lwt.t
+  val mem_tree : t -> key -> bool Lwt.t
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
-  val find_tree : tree -> key -> tree option Lwt.t
+  val find_tree : t -> key -> t option Lwt.t
   (** [find_tree t k] is [Some v] if [k] is associated to [v] in [t]. It is
       [None] if [k] is not present in [t]. *)
 
-  val get_tree : tree -> key -> tree Lwt.t
+  val get_tree : t -> key -> t Lwt.t
   (** [get_tree t k] is [v] if [k] is associated to [v] in [t]. Raise
       [Invalid_arg] if [k] is not present in [t].*)
 
-  val add_tree : tree -> key -> tree -> tree Lwt.t
+  val add_tree : t -> key -> t -> t Lwt.t
   (** [add_tree t k v] is the tree where the key [k] is bound to the tree [v]
       but is similar to [t] for other bindings *)
 
-  val merge : tree Merge.t
+  val merge : t Merge.t
   (** [merge] is the 3-way merge function for trees. *)
 
   (** {1 Folds} *)
@@ -142,7 +143,7 @@ module type S = sig
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
     (key -> contents -> 'a -> 'a Lwt.t) ->
-    tree ->
+    t ->
     'a ->
     'a Lwt.t
   (** [fold f t acc] folds [f] over [t]'s leafs.
@@ -173,7 +174,7 @@ module type S = sig
   val pp_stats : stats Fmt.t
   (** [pp_stats] is the pretty printer for tree statistics. *)
 
-  val stats : ?force:bool -> tree -> stats Lwt.t
+  val stats : ?force:bool -> t -> stats Lwt.t
   (** [stats ~force t] are [t]'s statistics. If [force] is true, this will force
       the reading of lazy nodes. By default it is [false]. *)
 
@@ -186,15 +187,15 @@ module type S = sig
   val concrete_t : concrete Type.t
   (** The value-type for {!concrete}. *)
 
-  val of_concrete : concrete -> tree
+  val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
 
-  val to_concrete : tree -> concrete Lwt.t
+  val to_concrete : t -> concrete Lwt.t
   (** [to_concrete t] is the concrete tree equivalent to the subtree [t]. *)
 
   (** {1 Caches} *)
 
-  val clear : ?depth:int -> tree -> unit
+  val clear : ?depth:int -> t -> unit
   (** [clear ?depth t] clears all the cache in the tree [t] for subtrees with a
       depth higher than [depth]. If [depth] is not set, all the subtrees are
       cleared. *)
@@ -220,7 +221,7 @@ module type S = sig
 
   val reset_counters : unit -> unit
 
-  val inspect : tree -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
+  val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
 end
 
 module type Tree = sig
@@ -249,15 +250,13 @@ module type Tree = sig
       node ->
       P.Node.key Lwt.t
 
-    val dump : tree Fmt.t
+    val dump : t Fmt.t
 
-    val equal : tree -> tree -> bool
+    val equal : t -> t -> bool
 
-    val node_t : node Type.t
+    val t : t Type.t
 
-    val tree_t : tree Type.t
-
-    val hash : tree -> [ `Contents of P.Hash.t * metadata | `Node of P.Hash.t ]
+    val hash : t -> [ `Contents of P.Hash.t * metadata | `Node of P.Hash.t ]
 
     val of_private_node : P.Repo.t -> P.Node.value -> node
 

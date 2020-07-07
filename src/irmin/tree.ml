@@ -863,15 +863,9 @@ module Make (P : S.PRIVATE) = struct
 
   type metadata = Metadata.t
 
-  type tree = [ `Node of node | `Contents of contents * metadata ]
+  type t = [ `Node of node | `Contents of contents * metadata ]
 
-  let of_private_node repo n = Node.of_value repo n
-
-  let to_private_node = Node.to_value
-
-  let node_t = Node.t
-
-  let tree_t =
+  let t =
     let open Type in
     variant "tree" (fun node contents ->
       function `Node n -> node n | `Contents c -> contents c)
@@ -879,6 +873,10 @@ module Make (P : S.PRIVATE) = struct
     |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
            `Contents c)
     |> sealv
+
+  let of_private_node repo n = Node.of_value repo n
+
+  let to_private_node = Node.to_value
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n
@@ -889,7 +887,7 @@ module Make (P : S.PRIVATE) = struct
     || (c1 == c2 && m1 == m2)
     || (Type.equal P.Contents.Val.t c1 c2 && Type.equal Metadata.t m1 m2)
 
-  let equal (x : tree) (y : tree) =
+  let equal (x : t) (y : t) =
     x == y
     ||
     match (x, y) with
@@ -907,7 +905,7 @@ module Make (P : S.PRIVATE) = struct
 
   let v = function `Contents c -> `Contents c | `Node n -> `Node n
 
-  let destruct : tree -> [> `Node of node | `Contents of contents * metadata ] =
+  let destruct : t -> [> `Node of node | `Contents of contents * metadata ] =
     function
     | `Node n -> `Node n
     | `Contents c -> `Contents c
@@ -929,7 +927,7 @@ module Make (P : S.PRIVATE) = struct
     | `Node n -> (aux [@tailcall]) n path
     | `Contents _ -> Lwt.return_none
 
-  let find_tree (t : tree) path =
+  let find_tree (t : t) path =
     Log.debug (fun l -> l "Tree.find_tree %a" pp_path path);
     match (t, Path.rdecons path) with
     | v, None -> Lwt.return_some v
@@ -950,8 +948,8 @@ module Make (P : S.PRIVATE) = struct
 
   let id _ _ acc = Lwt.return acc
 
-  let fold ?(force = `True) ?(uniq = `False) ?(pre = id) ?(post = id) f
-      (t : tree) acc =
+  let fold ?(force = `True) ?(uniq = `False) ?(pre = id) ?(post = id) f (t : t)
+      acc =
     match t with
     | `Contents v -> f Path.empty (fst v) acc
     | `Node n -> Node.fold ~force ~uniq ~pre ~post ~path:Path.empty f n acc
@@ -988,7 +986,7 @@ module Make (P : S.PRIVATE) = struct
   let err_not_found n k =
     Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n pp_path k
 
-  let get_tree (t : tree) path =
+  let get_tree (t : t) path =
     find_tree t path >|= function
     | None -> err_not_found "get_tree" path
     | Some v -> v
@@ -1242,8 +1240,8 @@ module Make (P : S.PRIVATE) = struct
     Log.debug (fun l -> l "Tree.export -> %a" pp_hash x);
     x
 
-  let merge : tree Merge.t =
-    let f ~old (x : tree) y =
+  let merge : t Merge.t =
+    let f ~old (x : t) y =
       let to_node x =
         match x with
         | `Node _ as x -> x
@@ -1262,7 +1260,7 @@ module Make (P : S.PRIVATE) = struct
       | Ok (`Node _ as n) -> Merge.ok n
       | Error e -> Lwt.return (Error e)
     in
-    Merge.v tree_t f
+    Merge.v t f
 
   let entries path tree =
     let rec aux acc = function
@@ -1356,7 +1354,7 @@ module Make (P : S.PRIVATE) = struct
     in
     (aux [@tailcall]) [] [ (Path.empty, x, y) ]
 
-  let diff (x : tree) (y : tree) =
+  let diff (x : t) (y : t) =
     match (x, y) with
     | `Contents x, `Contents y ->
         if contents_equal x y then Lwt.return_nil
@@ -1429,7 +1427,7 @@ module Make (P : S.PRIVATE) = struct
     in
     tree (fun x -> Lwt.return x) t
 
-  let hash (t : tree) =
+  let hash (t : t) =
     Log.debug (fun l -> l "Tree.hash");
     match t with
     | `Node n -> `Node (Node.to_hash n)
@@ -1437,7 +1435,7 @@ module Make (P : S.PRIVATE) = struct
         cnt.contents_hash <- cnt.contents_hash + 1;
         `Contents (P.Contents.Key.hash c, m)
 
-  let stats ?(force = false) (t : tree) =
+  let stats ?(force = false) (t : t) =
     let force =
       if force then `True
       else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
