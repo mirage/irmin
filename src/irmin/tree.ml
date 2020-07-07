@@ -177,6 +177,10 @@ module Make (P : S.PRIVATE) = struct
 
     type t = { mutable v : v; mutable info : info }
 
+    exception Corrupted_store of t * hash
+    (** The exception raised when attempting to force a lazy contents value that
+        does not exist in the store. *)
+
     let info_is_empty i = i.hash = None && i.value = None
 
     let v =
@@ -266,6 +270,17 @@ module Make (P : S.PRIVATE) = struct
           match t.v with
           | Value v -> Lwt.return_some v
           | Hash (repo, k) -> value_of_hash t repo k )
+
+    let to_value_exn t =
+      match value t with
+      | Some v -> Lwt.return v
+      | None -> (
+          match t.v with
+          | Value v -> Lwt.return v
+          | Hash (repo, k) -> (
+              value_of_hash t repo k >|= function
+              | Some v -> v
+              | None -> raise (Corrupted_store (t, k)) ) )
 
     let equal (x : t) (y : t) =
       x == y
@@ -483,7 +498,7 @@ module Make (P : S.PRIVATE) = struct
       t.info.hash <- Some k;
       match t.info.hash with Some k -> k | None -> k
 
-    let to_hash ~value_of_adds ~value_of_map t =
+    let hash ~value_of_adds ~value_of_map t =
       match hash t with
       | Some h -> h
       | None -> (
@@ -515,7 +530,7 @@ module Make (P : S.PRIVATE) = struct
                   (aux [@tailcall]) ((step, v) :: acc) rest
               | `Node n ->
                   let n =
-                    to_hash ~value_of_adds
+                    hash ~value_of_adds
                       ~value_of_map:(value_of_map ~value_of_adds)
                       n
                   in
@@ -531,7 +546,7 @@ module Make (P : S.PRIVATE) = struct
       | `Contents (c, m) -> `Contents (Contents.to_hash c, m)
       | `Node n ->
           let h =
-            to_hash ~value_of_map:(value_of_map ~value_of_adds) ~value_of_adds n
+            hash ~value_of_map:(value_of_map ~value_of_adds) ~value_of_adds n
           in
           `Node h
 
@@ -549,7 +564,7 @@ module Make (P : S.PRIVATE) = struct
 
     let value_of_map = value_of_map ~value_of_adds
 
-    let to_hash = to_hash ~value_of_adds ~value_of_map
+    let hash = hash ~value_of_adds ~value_of_map
 
     let value_of_hash t repo k =
       match t.info.value with
@@ -626,7 +641,7 @@ module Make (P : S.PRIVATE) = struct
           | _ -> (
               match (map x, map y) with
               | Some x, Some y -> map_equal x y
-              | _ -> hash_equal (to_hash x) (to_hash y) ) )
+              | _ -> hash_equal (hash x) (hash y) ) )
 
     let is_empty t =
       match map t with
@@ -658,6 +673,15 @@ module Make (P : S.PRIVATE) = struct
 
     let listv t =
       to_map t >|= function None -> [] | Some m -> StepMap.bindings m
+
+    let bindings t =
+      listv t
+      (* Force lazy contents to real values *)
+      >>= Lwt_list.map_s (function
+            | step, `Contents (contents, metadata) ->
+                Contents.to_value_exn contents >|= fun contents ->
+                (step, `Contents (contents, metadata))
+            | (_, `Node _) as b -> Lwt.return b)
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
@@ -739,7 +763,7 @@ module Make (P : S.PRIVATE) = struct
       and aux_uniq ~path acc t k =
         if uniq = `False then (aux [@tailcall]) ~path acc t k
         else
-          let h = to_hash t in
+          let h = hash t in
           if Hashes.mem marks h then k acc
           else (
             Hashes.add marks h ();
@@ -1146,7 +1170,7 @@ module Make (P : S.PRIVATE) = struct
     let add_node n v () =
       cnt.node_add <- cnt.node_add + 1;
       P.Node.add node_t v >|= fun k ->
-      let k' = Node.to_hash n in
+      let k' = Node.hash n in
       assert (Type.equal P.Hash.t k k');
       Node.export ?clear repo n k
     in
@@ -1161,7 +1185,7 @@ module Make (P : S.PRIVATE) = struct
     let todo = Stack.create () in
     let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
-      let h = Node.to_hash n in
+      let h = Node.hash n in
       if Hashes.mem seen h then k ()
       else (
         Hashes.add seen h ();
@@ -1236,7 +1260,7 @@ module Make (P : S.PRIVATE) = struct
     in
     (add_to_todo [@tailcall]) n @@ fun () ->
     loop () >|= fun () ->
-    let x = Node.to_hash n in
+    let x = Node.hash n in
     Log.debug (fun l -> l "Tree.export -> %a" pp_hash x);
     x
 
@@ -1430,7 +1454,7 @@ module Make (P : S.PRIVATE) = struct
   let hash (t : t) =
     Log.debug (fun l -> l "Tree.hash");
     match t with
-    | `Node n -> `Node (Node.to_hash n)
+    | `Node n -> `Node (Node.hash n)
     | `Contents (c, m) ->
         cnt.contents_hash <- cnt.contents_hash + 1;
         `Contents (P.Contents.Key.hash c, m)

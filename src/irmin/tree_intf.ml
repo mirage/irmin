@@ -26,6 +26,8 @@ module type S = sig
 
   type node
 
+  type hash
+
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
       lazy reads and delayed writes.
 
@@ -96,6 +98,25 @@ module type S = sig
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
+
+  (** Operations on {{!node} tree nodes}. *)
+  module Node : sig
+    type t := node
+    (** The type of tree nodes. *)
+
+    val t : t Type.t
+    (** The value type of tree nodes. *)
+
+    val hash : t -> hash
+    (** [hash t] is the hash of [t]. *)
+
+    val list : t -> (step * [ `Contents | `Node ]) list Lwt.t
+    (** [list t] is the list of keys in [t], and their corresponding kinds. *)
+
+    val bindings :
+      t -> (step * [ `Node of t | `Contents of contents * metadata ]) list Lwt.t
+    (** [bindings t] is the list of bindings in [t]. *)
+  end
 
   val mem_tree : t -> key -> bool Lwt.t
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
@@ -237,6 +258,7 @@ module type Tree = sig
          and type step = P.Node.Path.step
          and type metadata = P.Node.Val.metadata
          and type contents = P.Contents.value
+         and type hash = P.Hash.t
 
     val import : P.Repo.t -> P.Node.key -> node option Lwt.t
 
@@ -256,7 +278,7 @@ module type Tree = sig
 
     val t : t Type.t
 
-    val hash : t -> [ `Contents of P.Hash.t * metadata | `Node of P.Hash.t ]
+    val hash : t -> [ `Contents of hash * metadata | `Node of hash ]
 
     val of_private_node : P.Repo.t -> P.Node.value -> node
 

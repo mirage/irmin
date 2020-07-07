@@ -1088,7 +1088,7 @@ module Make (P : S.PRIVATE) = struct
 
   let step_t = Key.step_t
 
-  let node_t = Tree.node_t
+  let node_t = Tree.Node.t
 
   let commit_t = Commit.t
 

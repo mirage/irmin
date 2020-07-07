@@ -289,6 +289,7 @@ module type S = sig
          and type metadata := metadata
          and type contents := contents
          and type node := node
+         and type hash := hash
 
     (** {1 Import/Export} *)
 
