@@ -282,7 +282,7 @@ module type S = sig
   (** Managing store's trees. *)
   module Tree : sig
     include
-      S.TREE
+      Tree.S
         with type step := step
          and type key := key
          and type metadata := metadata

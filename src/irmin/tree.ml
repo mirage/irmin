@@ -16,6 +16,7 @@
  *)
 
 open Lwt.Infix
+include Tree_intf
 
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
