@@ -881,7 +881,9 @@ module Make (P : S.PRIVATE) = struct
 
   type t = [ `Node of node | `Contents of contents * metadata ]
 
-  let t =
+  let node_t = Node.t
+
+  let tree_t =
     let open Type in
     variant "tree" (fun node contents ->
       function `Node n -> node n | `Contents c -> contents c)
@@ -1284,7 +1286,7 @@ module Make (P : S.PRIVATE) = struct
       | Ok (`Node _ as n) -> Merge.ok n
       | Error e -> Lwt.return (Error e)
     in
-    Merge.v t f
+    Merge.v tree_t f
 
   let entries path tree =
     let rec aux acc = function

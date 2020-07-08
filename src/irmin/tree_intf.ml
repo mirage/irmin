@@ -40,9 +40,6 @@ module type S = sig
   type t
   (** The type of trees. *)
 
-  val t : t Type.t
-  (** The value-type of trees. *)
-
   (** {1 Constructors} *)
 
   val empty : t
@@ -124,9 +121,6 @@ module type S = sig
   module Node : sig
     type t = node
     (** The type of lazy tree nodes. *)
-
-    val t : t Type.t
-    (** The value type of lazy tree nodes. *)
 
     val hash : t -> hash
     (** [hash t] is the hash of the underlying (non-lazy) form of [t] when
@@ -299,6 +293,10 @@ module type Tree = sig
     val dump : t Fmt.t
 
     val equal : t -> t -> bool
+
+    val node_t : node Type.t
+
+    val tree_t : t Type.t
 
     val hash : t -> [ `Contents of hash * metadata | `Node of hash ]
 

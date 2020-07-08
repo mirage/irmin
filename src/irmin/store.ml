@@ -642,7 +642,7 @@ module Make (P : S.PRIVATE) = struct
           i
     | `Test_was t ->
         Fmt.pf ppf "Test-and-set failed: got %a when reading the store"
-          Type.(pp (option Tree.t))
+          Type.(pp (option Tree.tree_t))
           t
 
   let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
@@ -1078,7 +1078,7 @@ module Make (P : S.PRIVATE) = struct
 
   let slice_t = P.Slice.t
 
-  let tree_t = Tree.t
+  let tree_t = Tree.tree_t
 
   let contents_t = Contents.t
 
@@ -1088,7 +1088,7 @@ module Make (P : S.PRIVATE) = struct
 
   let step_t = Key.step_t
 
-  let node_t = Tree.Node.t
+  let node_t = Tree.node_t
 
   let commit_t = Commit.t
 
