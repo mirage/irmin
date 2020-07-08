@@ -56,6 +56,8 @@ module type S = sig
 
   val unsafe_find : 'a t -> key -> value option
 
+  val flush : ?index:bool -> 'a t -> unit
+
   val sync : 'a t -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]

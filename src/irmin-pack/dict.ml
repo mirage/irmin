@@ -30,6 +30,8 @@ module type S = sig
 
   val index : t -> string -> int option
 
+  val flush : t -> unit
+
   val sync : t -> unit
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
@@ -78,11 +80,14 @@ module Make (IO : IO.S) : S = struct
     let log_offset = IO.force_offset t.io in
     if log_offset > former_log_offset then refill ~from:former_log_offset t
 
-  let sync t = IO.sync t.io
+  let sync t =
+    if IO.readonly t.io then sync_offset t
+    else invalid_arg "only a readonly instance should call this function"
+
+  let flush t = IO.flush t.io
 
   let index t v =
     Log.debug (fun l -> l "[dict] index %S" v);
-    if IO.readonly t.io then sync_offset t;
     try Some (Hashtbl.find t.cache v)
     with Not_found ->
       let id = Hashtbl.length t.cache in
@@ -95,7 +100,6 @@ module Make (IO : IO.S) : S = struct
         Some id )
 
   let find t id =
-    if IO.readonly t.io then sync_offset t;
     Log.debug (fun l -> l "[dict] find %d" id);
     let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
     v
@@ -116,7 +120,7 @@ module Make (IO : IO.S) : S = struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.io) then sync t;
+      if not (IO.readonly t.io) then flush t;
       IO.close t.io;
       Hashtbl.reset t.cache;
       Hashtbl.reset t.index )

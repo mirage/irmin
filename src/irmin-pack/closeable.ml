@@ -65,6 +65,10 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.unsafe_find t.t k
 
+  let flush ?index t =
+    check_not_closed t;
+    S.flush ?index t.t
+
   let sync t =
     check_not_closed t;
     S.sync t.t

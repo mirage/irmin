@@ -64,6 +64,8 @@ module type S = sig
 
   val unsafe_find : 'a t -> key -> value option
 
+  val flush : ?index:bool -> 'a t -> unit
+
   val sync : 'a t -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
@@ -149,7 +151,7 @@ struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.block) then IO.sync t.block;
+      if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
       Dict.close t.dict )
 
@@ -186,6 +188,12 @@ struct
         t.open_instances <- t.open_instances + 1;
         true )
       else false
+
+    let flush ?(index = true) t =
+      Dict.flush t.pack.dict;
+      IO.flush t.pack.block;
+      if index then Index.flush t.pack.index;
+      Tbl.clear t.staging
 
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
       let pack = v index ~fresh ~readonly root in
@@ -281,12 +289,6 @@ struct
 
     let cast t = (t :> [ `Read | `Write ] t)
 
-    let sync t =
-      Dict.sync t.pack.dict;
-      IO.sync t.pack.block;
-      Index.flush t.pack.index;
-      Tbl.clear t.staging
-
     type integrity_error = [ `Wrong_hash | `Absent_value ]
 
     let integrity_check ~offset ~length k t =
@@ -301,7 +303,7 @@ struct
       f (cast t) >>= fun r ->
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
-        sync t;
+        flush t;
         Lwt.return r )
 
     let auto_flush = 1024
@@ -325,7 +327,7 @@ struct
           V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
           let len = Int64.to_int (IO.offset t.pack.block -- off) in
           Index.add t.pack.index k (off, len, V.magic v);
-          if Tbl.length t.staging >= auto_flush then sync t
+          if Tbl.length t.staging >= auto_flush then flush t
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
 
@@ -352,5 +354,9 @@ struct
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_close t;
           Lwt.return_unit)
+
+    let sync t =
+      Dict.sync t.pack.dict;
+      Index.sync t.pack.index
   end
 end

@@ -287,7 +287,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     if t.open_instances = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
-      if not (IO.readonly t.block) then IO.sync t.block;
+      if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
       W.clear t.w )
     else Lwt.return_unit
@@ -296,6 +296,20 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 end
 
 module type CONFIG = Inode.CONFIG
+
+module type Stores_extra = sig
+  type repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+
+  val sync : repo -> unit
+end
 
 module Make_ext
     (Config : CONFIG)
@@ -436,11 +450,22 @@ struct
         let lru_size = lru_size config in
         let readonly = readonly config in
         let log_size = index_log_size config in
-        let index = Index.v ~fresh ~readonly ~log_size root in
+        let f = ref (fun () -> ()) in
+        let index =
+          Index.v
+            ~auto_flush_callback:(fun () -> !f ())
+              (* backpatching to add pack flush before an index flush *)
+            ~fresh ~readonly ~log_size root
+        in
         Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
         Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
         Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
+        (* Stores share instances in memory, one flush is enough. In case of a
+           system crash, the auto_flush_callback might not make with the disk.
+           In this case, when the store is reopened, [integrity_check] needs to
+           be called to repair the store. *)
+        (f := fun () -> Contents.CA.flush ~index:false contents);
         { contents; node; commit; branch; config; index }
 
       let close t =
@@ -448,6 +473,9 @@ struct
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+
+      (** stores share instances in memory, one sync is enough *)
+      let sync t = Contents.CA.sync (contents_t t)
     end
   end
 
@@ -517,6 +545,8 @@ struct
       else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
 
   include Irmin.Of_private (X)
+
+  let sync = X.Repo.sync
 end
 
 module Hash = Irmin.Hash.BLAKE2B

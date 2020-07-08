@@ -34,6 +34,26 @@ module type CONFIG = sig
   val stable_hash : int
 end
 
+module type Stores_extra = sig
+  type repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] )
+    result
+  (** Checks the integrity of the repository. if [auto_repair] is [true], will
+      also try to fix the issues. [ppf] is a formatter for progressive
+      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
+      entries. *)
+
+  val sync : repo -> unit
+  (** [sync t] syncs a readonly pack with the files on disk. Raises
+      [invalid_argument] if called by a read-write pack.*)
+end
+
 module Make_ext
     (Config : CONFIG)
     (Metadata : Irmin.Metadata.S)
@@ -57,17 +77,7 @@ module Make_ext
        and type Key.step = Path.step
        and type Private.Sync.endpoint = unit
 
-  val integrity_check :
-    ?ppf:Format.formatter ->
-    auto_repair:bool ->
-    repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] )
-    result
-  (** Checks the integrity of the repository. if [auto_repair] is [true], will
-      also try to fix the issues. [ppf] is a formatter for progressive
-      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
-      entries. *)
+  include Stores_extra with type repo := repo
 end
 
 module Make
@@ -87,17 +97,7 @@ module Make
        and type hash = H.t
        and type Private.Sync.endpoint = unit
 
-  val integrity_check :
-    ?ppf:Format.formatter ->
-    auto_repair:bool ->
-    repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] )
-    result
-  (** Checks the integrity of the repository. if [auto_repair] is [true], will
-      also try to fix the issues. [ppf] is a formatter for progressive
-      reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
-      entries. *)
+  include Stores_extra with type repo := repo
 end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER

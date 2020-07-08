@@ -39,7 +39,7 @@ module type S = sig
 
   val version : t -> string
 
-  val sync : t -> unit
+  val flush : t -> unit
 
   val close : t -> unit
 end
