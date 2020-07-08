@@ -1304,75 +1304,86 @@ module Make (P : S.PRIVATE) = struct
     in
     (aux [@tailcall]) [] [ (path, tree) ]
 
+  (** Given two forced lazy values, return an empty diff if they both use the
+      same dangling hash. *)
+  let diff_force_result (type a b) ~(empty : b) ~(diff_ok : a * a -> b)
+      (x : a or_error) (y : a or_error) : b =
+    match (x, y) with
+    | Error (`Dangling_hash h1), Error (`Dangling_hash h2) -> (
+        match Type.(equal P.Hash.t) h1 h2 with
+        | true -> empty
+        | false -> assert false )
+    | Error _, Ok _ -> assert false
+    | Ok _, Error _ -> assert false
+    | Ok x, Ok y -> diff_ok (x, y)
+
+  let diff_contents x y =
+    if Node.contents_equal x y then Lwt.return_nil
+    else
+      Contents.to_value (fst x) >>= fun cx ->
+      Contents.to_value (fst y) >|= fun cy ->
+      diff_force_result cx cy ~empty:[] ~diff_ok:(fun (cx, cy) ->
+          [ `Updated ((cx, snd x), (cy, snd y)) ])
+
   let diff_node (x : node) (y : node) =
-    let bindings n = Node.to_map n >|= fun m -> StepMap.bindings (get_ok m) in
+    let bindings n =
+      Node.to_map n >|= function
+      | Ok m -> Ok (StepMap.bindings m)
+      | Error _ as e -> e
+    in
     let removed acc (k, (c, m)) =
       Contents.to_value c >|= get_ok >|= fun c -> (k, `Removed (c, m)) :: acc
     in
     let added acc (k, (c, m)) =
       Contents.to_value c >|= get_ok >|= fun c -> (k, `Added (c, m)) :: acc
     in
-    let rec aux acc = function
+    let rec diff_bindings acc todo path x y =
+      let acc = ref acc in
+      let todo = ref todo in
+      alist_iter2_lwt
+        Type.(compare @@ Path.step_t)
+        (fun key v ->
+          let path = Path.rcons path key in
+          match v with
+          (* Left *)
+          | `Left (`Contents x) -> removed !acc (path, x) >|= fun x -> acc := x
+          | `Left (`Node x) ->
+              entries path x >>= fun xs ->
+              Lwt_list.fold_left_s removed !acc xs >|= fun xs -> acc := xs
+          (* Right *)
+          | `Right (`Contents y) -> added !acc (path, y) >|= fun y -> acc := y
+          | `Right (`Node y) ->
+              entries path y >>= fun ys ->
+              Lwt_list.fold_left_s added !acc ys >|= fun ys -> acc := ys
+          (* Both *)
+          | `Both (`Node x, `Node y) ->
+              todo := (path, x, y) :: !todo;
+              Lwt.return_unit
+          | `Both (`Contents x, `Node y) ->
+              entries path y >>= fun ys ->
+              removed !acc (path, x) >>= fun x ->
+              Lwt_list.fold_left_s added x ys >|= fun ys -> acc := ys
+          | `Both (`Node x, `Contents y) ->
+              entries path x >>= fun xs ->
+              added !acc (path, y) >>= fun y ->
+              Lwt_list.fold_left_s removed y xs >|= fun ys -> acc := ys
+          | `Both (`Contents x, `Contents y) ->
+              diff_contents x y >|= List.map (fun d -> (path, d))
+              >|= fun content_diffs -> acc := content_diffs @ !acc)
+        x y
+      >>= fun () -> (diff_node [@tailcall]) !acc !todo
+    and diff_node acc = function
       | [] -> Lwt.return acc
       | (path, x, y) :: todo ->
-          if Node.equal x y then (aux [@tailcall]) acc todo
+          if Node.equal x y then (diff_node [@tailcall]) acc todo
           else
             bindings x >>= fun x ->
             bindings y >>= fun y ->
-            let acc = ref acc in
-            let todo = ref todo in
-            alist_iter2_lwt
-              Type.(compare @@ Path.step_t)
-              (fun key v ->
-                let path = Path.rcons path key in
-                match v with
-                (* Left *)
-                | `Left (`Contents x) ->
-                    removed !acc (path, x) >|= fun x -> acc := x
-                | `Left (`Node x) ->
-                    entries path x >>= fun xs ->
-                    Lwt_list.fold_left_s removed !acc xs >|= fun xs -> acc := xs
-                (* Right *)
-                | `Right (`Contents y) ->
-                    added !acc (path, y) >|= fun y -> acc := y
-                | `Right (`Node y) ->
-                    entries path y >>= fun ys ->
-                    Lwt_list.fold_left_s added !acc ys >|= fun ys -> acc := ys
-                (* Both *)
-                | `Both (`Node x, `Node y) ->
-                    todo := (path, x, y) :: !todo;
-                    Lwt.return_unit
-                | `Both (`Contents x, `Node y) ->
-                    entries path y >>= fun ys ->
-                    removed !acc (path, x) >>= fun x ->
-                    Lwt_list.fold_left_s added x ys >|= fun ys -> acc := ys
-                | `Both (`Node x, `Contents y) ->
-                    entries path x >>= fun xs ->
-                    added !acc (path, y) >>= fun y ->
-                    Lwt_list.fold_left_s removed y xs >|= fun ys -> acc := ys
-                | `Both (`Contents x, `Contents y) -> (
-                    if Node.contents_equal x y then Lwt.return_unit
-                    else
-                      Contents.to_value (fst x) >|= option_of_result
-                      >>= fun cx ->
-                      Contents.to_value (fst y) >|= option_of_result
-                      >|= fun cy ->
-                      match (cx, cy) with
-                      | None, None -> ()
-                      | Some cx, None ->
-                          let x = (cx, snd x) in
-                          acc := (path, `Removed x) :: !acc
-                      | None, Some cy ->
-                          let y = (cy, snd y) in
-                          acc := (path, `Added y) :: !acc
-                      | Some cx, Some cy ->
-                          let x = (cx, snd x) in
-                          let y = (cy, snd y) in
-                          acc := (path, `Updated (x, y)) :: !acc ))
+            diff_force_result ~empty:Lwt.return_nil
+              ~diff_ok:(fun (x, y) -> diff_bindings acc todo path x y)
               x y
-            >>= fun () -> (aux [@tailcall]) !acc !todo
     in
-    (aux [@tailcall]) [] [ (Path.empty, x, y) ]
+    (diff_node [@tailcall]) [] [ (Path.empty, x, y) ]
 
   let diff (x : t) (y : t) =
     match (x, y) with
