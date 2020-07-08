@@ -4,6 +4,10 @@ module Tree = Store.Tree
 
 let ( >> ) f g x = g (f x)
 
+let get_ok = function
+  | Ok x -> x
+  | Error (`Dangling_hash _) -> Alcotest.fail "Unexpected dangling hash"
+
 let test_bindings _ () =
   let tree =
     Tree.of_concrete
@@ -24,6 +28,6 @@ let test_bindings _ () =
   (* [Tree.Node.bindings] *)
   Tree.destruct tree |> function
   | `Contents _ -> Alcotest.fail "Received `Contents but expected `Node"
-  | `Node n -> Tree.Node.bindings n >|= (List.map fst >> check_sorted)
+  | `Node n -> Tree.Node.bindings n >|= (get_ok >> List.map fst >> check_sorted)
 
 let suite = [ Alcotest_lwt.test_case "bindings" `Quick test_bindings ]

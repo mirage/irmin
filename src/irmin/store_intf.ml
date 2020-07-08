@@ -805,7 +805,7 @@ module type S = sig
 
   (** {2 Converters to private types} *)
 
-  val to_private_node : node -> Private.Node.value option Lwt.t
+  val to_private_node : node -> Private.Node.value Tree.or_error Lwt.t
 
   val of_private_node : repo -> Private.Node.value -> node
 

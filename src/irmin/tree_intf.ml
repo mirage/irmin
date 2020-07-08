@@ -76,6 +76,24 @@ module type S = sig
 
   (** {1 Manipulating Contents} *)
 
+  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
+  (** Operations on lazy nodes can fail if the underlying store does not contain
+      the expected hash. *)
+
+  (** Operations on lazy tree contents. *)
+  module Contents : sig
+    type t
+    (** The type of lazy tree contents. *)
+
+    val to_hash : t -> hash
+    (** [hash t] is the hash of the {!contents} value returned when [t] is
+        {!force}d successfully. *)
+
+    val force : t -> contents or_error Lwt.t
+    (** [force t] forces evaluation of the lazy content value [t], or returns an
+        error if no such value exists in the underlying repository. *)
+  end
+
   val mem : t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
@@ -102,22 +120,24 @@ module type S = sig
 
   (** {1 Manipulating Subtrees} *)
 
-  (** Operations on {{!node} tree nodes}. *)
+  (** Operations on {{!node} lazy tree nodes}. *)
   module Node : sig
     type t = node
-    (** The type of tree nodes. *)
+    (** The type of lazy tree nodes. *)
 
     val t : t Type.t
     (** The value type of tree nodes. *)
 
-    val hash : t -> hash
+    val to_hash : t -> hash
     (** [hash t] is the hash of [t]. *)
 
-    val list : t -> (step * [ `Contents | `Node ]) list Lwt.t
+    val list : t -> (step * [ `Contents | `Node ]) list or_error Lwt.t
     (** [list t] is the list of keys in [t], and their corresponding kinds. *)
 
     val bindings :
-      t -> (step * [ `Node of t | `Contents of contents * metadata ]) list Lwt.t
+      t ->
+      (step * [ `Node of t | `Contents of Contents.t * metadata ]) list or_error
+      Lwt.t
     (** [bindings t] is the list of bindings in [t]. *)
   end
 
@@ -283,6 +303,6 @@ module type Tree = sig
 
     val of_private_node : P.Repo.t -> P.Node.value -> node
 
-    val to_private_node : node -> P.Node.value option Lwt.t
+    val to_private_node : node -> P.Node.value or_error Lwt.t
   end
 end

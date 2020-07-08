@@ -3,8 +3,8 @@
 #### Added
 
 - **irmin**
-  - Added a `Tree.Node` module exposing operations over lazy tree nodes. (#1022,
-    @CraigFe)
+  - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
+    contents and nodes respectively. (#1022, @CraigFe)
 
 #### Changed
 
