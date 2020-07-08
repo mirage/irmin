@@ -85,7 +85,7 @@ module type S = sig
     type t
     (** The type of lazy tree contents. *)
 
-    val to_hash : t -> hash
+    val hash : t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
         {!force}d successfully. *)
 
@@ -126,10 +126,11 @@ module type S = sig
     (** The type of lazy tree nodes. *)
 
     val t : t Type.t
-    (** The value type of tree nodes. *)
+    (** The value type of lazy tree nodes. *)
 
-    val to_hash : t -> hash
-    (** [hash t] is the hash of [t]. *)
+    val hash : t -> hash
+    (** [hash t] is the hash of the underlying (non-lazy) form of [t] when
+        serialised in the underlying store.*)
 
     val list : t -> (step * [ `Contents | `Node ]) list or_error Lwt.t
     (** [list t] is the list of keys in [t], and their corresponding kinds. *)
