@@ -1,3 +1,12 @@
+### Unreleased
+
+#### Changed
+- **irmin-pack**:
+  - `sync` has to be called by the read-only instance to synchronise with the
+    files on disk. (#1008, @icristescu)
+  - Renamed `sync` to `flush` for the operation that flushes to disk all buffers
+    of a read-write instance. (#1008, @icristescu)
+
 ### 2.2.0 (2020-06-26)
 
 #### Added
