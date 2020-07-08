@@ -1,6 +1,16 @@
 ### Unreleased
 
+#### Added
+
+- **irmin**
+  - Added a `Tree.Node` module exposing operations over lazy tree nodes. (#1022,
+    @CraigFe)
+
 #### Changed
+
+- **irmin**
+  - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
+  
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
     files on disk. (#1008, @icristescu)
