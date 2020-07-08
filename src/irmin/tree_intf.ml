@@ -104,7 +104,7 @@ module type S = sig
 
   (** Operations on {{!node} tree nodes}. *)
   module Node : sig
-    type t := node
+    type t = node
     (** The type of tree nodes. *)
 
     val t : t Type.t
