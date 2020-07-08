@@ -27,7 +27,8 @@ depends: [
   "logs"    {>= "0.5.0"}
   "astring"
   "hex"      {with-test}
-  "alcotest" {with-test}
+  "alcotest" {>= "1.1.0" & with-test}
+  "alcotest-lwt" {with-test}
   "ppx_irmin" {with-test}
 ]
 synopsis: """
