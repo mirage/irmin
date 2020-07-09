@@ -30,6 +30,7 @@ depends: [
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}
   "ppx_irmin" {with-test}
+  "irmin-mem" {with-test & post}
 ]
 synopsis: """
 Irmin, a distributed database that follows the same design principles as Git
