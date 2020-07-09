@@ -23,7 +23,7 @@ depends: [
 ]
 
 pin-depends: [
-  "index.dev" "git+https://github.com/mirage/index#9717194feb57c27cac9ad993aaf24a64dc5b64a3"
+  "index.dev" "git+https://github.com/mirage/index#bd2c09387053cb893fcbb41d9833a09460899cc6"
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
