@@ -177,6 +177,10 @@ let test_bin () =
   let buf = Buffer.create 10 in
   T.encode_bin ~headers:false T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
+  let _, foo = T.decode_bin ~headers:false T.string "foo" 0 in
+  Alcotest.(check string) "decode foo 0" foo "foo";
+  let _, foo = T.decode_bin ~headers:false T.string "123foo" 3 in
+  Alcotest.(check string) "decode foo 3" foo "foo";
   let buf = Buffer.create 10 in
   let h = sha1 "foo" in
   T.encode_bin ~headers:false Irmin.Hash.BLAKE2B.t h (Buffer.add_string buf);
