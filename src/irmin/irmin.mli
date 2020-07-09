@@ -280,7 +280,7 @@ module Private : sig
       S with type hash = K.t and type step = P.step and type metadata = M.t
 
     (** v1 serialisation *)
-    module V1 (S : S) : sig
+    module V1 (S : S with type step = string) : sig
       include
         S
           with type hash = S.hash

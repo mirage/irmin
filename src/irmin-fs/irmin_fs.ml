@@ -102,8 +102,10 @@ struct
     let file = file_of_key t key in
     IO.file_exists file
 
+  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
+
   let value v =
-    match Irmin.Type.of_bin_string V.t v with
+    match of_bin_string v with
     | Ok v -> Some v
     | Error (`Msg e) ->
         Log.err (fun l -> l "Irmin_fs.value %s" e);
@@ -151,6 +153,8 @@ struct
 
   let temp_dir t = t.path / "tmp"
 
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+
   let add t key value =
     Log.debug (fun f -> f "add %a" pp_key key);
     let file = file_of_key t key in
@@ -158,7 +162,7 @@ struct
     IO.file_exists file >>= function
     | true -> Lwt.return_unit
     | false ->
-        let str = Irmin.Type.to_bin_string V.t value in
+        let str = to_bin_string value in
         IO.write_file ~temp_dir file str
 end
 
@@ -232,7 +236,7 @@ struct
 
   let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
 
-  let raw_value v = Irmin.Type.to_bin_string V.t v
+  let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
 
   let set t key value =
     Log.debug (fun f -> f "update %a" RO.pp_key key);

@@ -16,25 +16,24 @@
 
 include Type_core
 
-let pre_hash t x =
-  let rec aux : type a. a t -> a bin_seq =
-   fun t v k ->
-    match t with
-    | Self s -> aux s.self_fix v k
-    | Map m -> aux m.x (m.g v) k
-    | Custom c -> c.pre_hash v k
-    | _ -> Type_binary.encode_bin ?headers:(Some false) t v k
+let pre_hash t =
+  let rec aux : type a. a t -> a bin_seq = function
+    | Self s -> aux s.self_fix
+    | Map m -> fun v -> aux m.x (m.g v)
+    | Custom c -> c.pre_hash
+    | t -> Type_binary.Unboxed.encode_bin t
   in
-  aux t x
+  aux t
 
-let short_hash t ?seed x =
-  match t with
-  | Custom c -> c.short_hash ?seed x
-  | _ ->
-      let seed = match seed with None -> 0 | Some t -> t in
-      let h = ref seed in
-      pre_hash t x (fun s -> h := Hashtbl.seeded_hash !h s);
-      !h
+let short_hash = function
+  | Custom c -> c.short_hash
+  | t ->
+      let pre_hash = pre_hash t in
+      fun ?seed x ->
+        let seed = match seed with None -> 0 | Some t -> t in
+        let h = ref seed in
+        pre_hash x (fun s -> h := Hashtbl.seeded_hash !h s);
+        !h
 
 (* Combinators for Irmin types *)
 
@@ -70,10 +69,15 @@ let triple a b c = Tuple (Triple (a, b, c))
 
 let option a = Option a
 
-let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
+let boxed t = Boxed t
+
+let v ~cli ~json ~bin ?unboxed_bin ~equal ~compare ~short_hash ~pre_hash () =
   let pp, of_string = cli in
   let encode_json, decode_json = json in
   let encode_bin, decode_bin, size_of = bin in
+  let unboxed_encode_bin, unboxed_decode_bin, unboxed_size_of =
+    match unboxed_bin with None -> bin | Some b -> b
+  in
   Custom
     {
       cwit = `Witness (Witness.make ());
@@ -88,6 +92,9 @@ let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
       compare;
       equal;
       short_hash;
+      unboxed_encode_bin;
+      unboxed_decode_bin;
+      unboxed_size_of;
     }
 
 (* fix points *)
@@ -254,7 +261,8 @@ let result a b =
   |~ case1 "error" b (fun b -> Error b)
   |> sealv
 
-let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
+let like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h ?pre_hash:p
+    t =
   let encode_json, decode_json =
     let ( >|= ) l f = match l with Ok l -> Ok (f l) | Error _ as e -> e in
     let join = function Error _ as e -> e | Ok x -> x in
@@ -284,6 +292,14 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
     | Some (x, y, z) -> (x, y, z)
     | None -> (Type_binary.encode_bin t, Type_binary.decode_bin t, Type_size.t t)
   in
+  let unboxed_encode_bin, unboxed_decode_bin, unboxed_size_of =
+    match unboxed_bin with
+    | Some (x, y, z) -> (x, y, z)
+    | None ->
+        ( Type_binary.Unboxed.encode_bin t,
+          Type_binary.Unboxed.decode_bin t,
+          Type_size.unboxed t )
+  in
   let equal =
     match equal with
     | Some x -> x
@@ -298,9 +314,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
   let short_hash ?seed =
     match h with Some x -> x | None -> short_hash ?seed t
   in
-  let pre_hash =
-    match p with Some x -> x | None -> encode_bin ?headers:(Some false)
-  in
+  let pre_hash = match p with Some x -> x | None -> encode_bin in
   Custom
     {
       cwit = `Type t;
@@ -315,15 +329,19 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
       equal;
       short_hash;
       pre_hash;
+      unboxed_encode_bin;
+      unboxed_decode_bin;
+      unboxed_size_of;
     }
 
-let map ?cli ?json ?bin ?equal ?compare ?short_hash ?pre_hash x f g =
-  match (cli, json, bin, equal, compare, short_hash, pre_hash) with
-  | None, None, None, None, None, None, None ->
+let map ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash ?pre_hash x f g
+    =
+  match (cli, json, bin, unboxed_bin, equal, compare, short_hash, pre_hash) with
+  | None, None, None, None, None, None, None, None ->
       Map { x; f; g; mwit = Witness.make () }
   | _ ->
       let x = Map { x; f; g; mwit = Witness.make () } in
-      like ?cli ?json ?bin ?equal ?compare ?short_hash ?pre_hash x
+      like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash ?pre_hash x
 
 module type S = sig
   type t
@@ -347,3 +365,9 @@ let encode_bin, decode_bin, to_bin_string, of_bin_string =
   Type_binary.(encode_bin, decode_bin, to_bin_string, of_bin_string)
 
 let size_of = Type_size.t
+
+module Unboxed = struct
+  include Type_binary.Unboxed
+
+  let size_of = Type_size.unboxed
+end

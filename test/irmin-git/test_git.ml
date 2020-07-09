@@ -186,7 +186,8 @@ let bin_string = Alcotest.testable (Fmt.fmt "%S") ( = )
 
 let pre_hash t v =
   let buf = Buffer.create 13 in
-  Irmin.Type.pre_hash t v (Buffer.add_string buf);
+  let pre_hash = Irmin.Type.(unstage (pre_hash t)) in
+  pre_hash v (Buffer.add_string buf);
   Buffer.contents buf
 
 let test_blobs (module S : S) =

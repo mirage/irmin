@@ -87,6 +87,7 @@ module Encode = struct
     | Self s -> t s.self_fix e
     | Custom c -> c.encode_json e
     | Map b -> map b e
+    | Boxed x -> t x e
     | Prim t -> prim t e
     | List l -> list (t l.v) e
     | Array a -> array (t a.v) e
@@ -282,6 +283,7 @@ module Decode = struct
     | Custom c -> c.decode_json d
     | Map b -> map b d
     | Prim t -> prim t d
+    | Boxed x -> t x d
     | List l -> list (t l.v) d
     | Array a -> array (t a.v) d
     | Tuple t -> tuple t d

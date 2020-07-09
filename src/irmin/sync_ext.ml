@@ -32,37 +32,49 @@ module Make (S : Store.S) = struct
 
   type commit = S.commit
 
-  let conv dx dy x =
-    let str = Type.to_bin_string dx x in
-    Type.of_bin_string dy str
+  let conv dx dy =
+    let dx_to_bin_string = Type.(unstage (to_bin_string dx)) in
+    let dy_of_bin_string = Type.(unstage (of_bin_string dy)) in
+    Type.stage (fun x -> dy_of_bin_string (dx_to_bin_string x))
 
   let convert_slice (type r s) (module RP : PRIVATE with type Slice.t = r)
       (module SP : PRIVATE with type Slice.t = s) r =
+    let conv_contents_k =
+      Type.unstage (conv RP.Contents.Key.t SP.Contents.Key.t)
+    in
+    let conv_contents_v =
+      Type.unstage (conv RP.Contents.Val.t SP.Contents.Val.t)
+    in
+    let conv_node_k = Type.unstage (conv RP.Node.Key.t SP.Node.Key.t) in
+    let conv_node_v = Type.unstage (conv RP.Node.Val.t SP.Node.Val.t) in
+    let conv_commit_k = Type.unstage (conv RP.Commit.Key.t SP.Commit.Key.t) in
+    let conv_commit_v = Type.unstage (conv RP.Commit.Val.t SP.Commit.Val.t) in
     SP.Slice.empty () >>= fun s ->
     RP.Slice.iter r (function
       | `Contents (k, v) -> (
-          let k = conv RP.Contents.Key.t SP.Contents.Key.t k in
-          let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
+          let k = conv_contents_k k in
+          let v = conv_contents_v v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
           | _ -> Lwt.return_unit)
       | `Node (k, v) -> (
-          let k = conv RP.Node.Key.t SP.Node.Key.t k in
-          let v = conv RP.Node.Val.t SP.Node.Val.t v in
+          let k = conv_node_k k in
+          let v = conv_node_v v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
           | _ -> Lwt.return_unit)
       | `Commit (k, v) -> (
-          let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
-          let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
+          let k = conv_commit_k k in
+          let v = conv_commit_v v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
           | _ -> Lwt.return_unit))
     >>= fun () -> Lwt.return s
 
   let convs src dst l =
+    let conv = Type.unstage (conv src dst) in
     List.fold_left
-      (fun acc x -> match conv src dst x with Ok x -> x :: acc | _ -> acc)
+      (fun acc x -> match conv x with Ok x -> x :: acc | _ -> acc)
       [] l
 
   let pp_branch = Type.pp S.Branch.t
@@ -89,6 +101,9 @@ module Make (S : Store.S) = struct
         Log.debug (fun f -> f "fetch store");
         let s_repo = S.repo t in
         let r_repo = R.repo r in
+        let conv =
+          Type.unstage (conv R.(commit_t r_repo) S.(commit_t s_repo))
+        in
         S.Repo.heads s_repo >>= fun min ->
         let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
         R.Head.find r >>= function
@@ -101,9 +116,7 @@ module Make (S : Store.S) = struct
             S.Repo.import s_repo s_slice >|= function
             | Error e -> Error e
             | Ok () -> (
-                match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
-                | Ok h -> Ok (`Head h)
-                | Error e -> Error e)))
+                match conv h with Ok h -> Ok (`Head h) | Error e -> Error e)))
     | S.E e -> (
         match S.status t with
         | `Empty | `Commit _ -> Lwt.return (Ok `Empty)
@@ -169,13 +182,16 @@ module Make (S : Store.S) = struct
             let r_repo = R.repo r in
             let s_repo = S.repo t in
             let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
+            let conv =
+              Type.unstage (conv S.(commit_t s_repo) R.(commit_t r_repo))
+            in
             S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
             convert_slice (module S.Private) (module R.Private) s_slice
             >>= fun r_slice ->
             R.Repo.import (R.repo r) r_slice >>= function
             | Error e -> Lwt.return (Error (e :> push_error))
             | Ok () -> (
-                match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
+                match conv h with
                 | Error e -> Lwt.return (Error (e :> push_error))
                 | Ok h ->
                     R.Head.set r h >>= fun () ->

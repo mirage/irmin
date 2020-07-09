@@ -74,6 +74,7 @@ let ty : type a. a t Fmt.t =
         | _ ->
             let var = Var (get_tvar ()) in
             Fmt.pf ppf "@[(%a as %a)@]" ty (self_unroll var) ty var)
+    | Boxed b -> Fmt.pf ppf "@[Boxed (%a)@]" ty b
     | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
     | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
     | Prim p -> Fmt.pf ppf "@[%a@]" prim p

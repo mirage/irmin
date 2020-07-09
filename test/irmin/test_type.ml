@@ -1,30 +1,77 @@
 module T = Irmin.Type
 
+let id x = x
+
 type foo = { a : int; b : int }
 
 type bar = { c : int option; d : int option option }
 
+let to_bin_string t = T.unstage (T.to_bin_string t)
+
+let of_bin_string t = T.unstage (T.of_bin_string t)
+
+let encode_bin t = T.unstage (T.encode_bin t)
+
+let decode_bin t = T.unstage (T.decode_bin t)
+
+let size_of t = T.unstage (T.size_of t)
+
+let with_buf f =
+  let buf = Buffer.create 10 in
+  f (Buffer.add_string buf);
+  Buffer.contents buf
+
+module Unboxed = struct
+  let decode_bin t = T.unstage (T.Unboxed.decode_bin t)
+
+  let encode_bin t = T.unstage (T.Unboxed.encode_bin t)
+
+  let size_of t = T.unstage (T.Unboxed.size_of t)
+end
+
 let test_base () =
   let s = T.to_json_string T.string "foo" in
   Alcotest.(check string) "JSON string" "\"foo\"" s;
-  let s = T.to_bin_string T.string "foo" in
+  let s = to_bin_string T.string "foo" in
   Alcotest.(check string) "binary string" "foo" s;
   Alcotest.(check (option int))
     "binary size"
     (Some (String.length "foo"))
-    (T.size_of T.(string_of (`Fixed 3)) "foo");
+    (size_of T.(string_of (`Fixed 3)) "foo");
   let s = T.to_string T.string "foo" in
   Alcotest.(check string) "CLI string" "foo" s;
   let s = T.to_json_string T.int 42 in
   Alcotest.(check string) "JSON int" "42" s;
-  let s = T.to_bin_string T.int 42 in
+  let s = to_bin_string T.int 42 in
   Alcotest.(check string) "binary int" "*" s;
   let s = T.to_string T.int 42 in
   Alcotest.(check string) "CLI string" "42" s;
   let s = T.to_json_string T.unit () in
   Alcotest.(check string) "JSON unit" "{}" s
 
-let id x = x
+let test_boxing () =
+  let foo = "foo" in
+  let s = to_bin_string T.string foo in
+  Alcotest.(check string) "foo eq" s foo;
+  Alcotest.(check bool) "foo physeq" true (foo == s);
+  let check msg ty foo =
+    let msg f = Fmt.strf "%s: %s" msg f in
+    let buf = with_buf (encode_bin ty foo) in
+    Alcotest.(check string) (msg "boxed") buf "\003foo";
+    let buf = with_buf (Unboxed.encode_bin ty foo) in
+    Alcotest.(check string) (msg "unboxed") buf "foo";
+    let buf = with_buf (Unboxed.encode_bin (T.boxed ty) foo) in
+    Alcotest.(check string) (msg "force boxed") buf "\003foo"
+  in
+  check "string" T.string foo;
+  check "string-like" (T.like T.string) foo;
+  check "string-map" (T.map T.string id id) foo;
+  check "string-like-map" (T.map (T.like T.string) id id) foo;
+  let foo = Bytes.of_string foo in
+  check "bytes" T.bytes foo;
+  check "bytes-like" (T.like T.bytes) foo;
+  check "bytes-map" (T.map T.bytes id id) foo;
+  check "bytes-map-like" (T.like (T.map T.bytes id id)) foo
 
 let pp_hex ppf s =
   let (`Hex x) = Hex.of_string s in
@@ -70,7 +117,7 @@ let ok x = Alcotest.result x error
 let test_json () =
   let s = T.to_json_string hex "foo" in
   Alcotest.(check string) "JSON hex" "\"666f6f\"" s;
-  let s = T.to_bin_string hex "foo" in
+  let s = to_bin_string hex "foo" in
   Alcotest.(check string) "CLI hex" "foo" s;
   let x = T.of_json_string hex "\"666f6f\"" in
   Alcotest.(check (ok string)) "JSON of hex" (Ok "foo") x;
@@ -164,34 +211,30 @@ let sha1 x = Irmin.Hash.BLAKE2B.hash (fun l -> l x)
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
   Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
-  let s = T.to_bin_string l [ "foo"; "bar" ] in
+  let s = to_bin_string l [ "foo"; "bar" ] in
   Alcotest.(check string) "encode list" "foobar" s;
   Alcotest.(check (option int))
     "size of list" (Some 6)
-    (T.size_of l [ "foo"; "bar" ]);
-  let s = T.of_bin_string l "foobar" in
+    (size_of l [ "foo"; "bar" ]);
+  let s = of_bin_string l "foobar" in
   Alcotest.(check (ok tl)) "decode list" (Ok [ "foo"; "bar" ]) s;
   let buf = Buffer.create 10 in
-  T.encode_bin ~headers:true T.string "foo" (Buffer.add_string buf);
+  encode_bin T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "\003foo";
   let buf = Buffer.create 10 in
-  T.encode_bin ~headers:false T.string "foo" (Buffer.add_string buf);
+  Unboxed.encode_bin T.string "foo" (Buffer.add_string buf);
   Alcotest.(check string) "foo 1" (Buffer.contents buf) "foo";
-  let _, foo = T.decode_bin ~headers:false T.string "foo" 0 in
+  let _, foo = Unboxed.decode_bin T.string "foo" 0 in
   Alcotest.(check string) "decode foo 0" foo "foo";
-  let _, foo = T.decode_bin ~headers:false T.string "123foo" 3 in
+  let _, foo = Unboxed.decode_bin T.string "123foo" 3 in
   Alcotest.(check string) "decode foo 3" foo "foo";
   let buf = Buffer.create 10 in
   let h = sha1 "foo" in
-  T.encode_bin ~headers:false Irmin.Hash.BLAKE2B.t h (Buffer.add_string buf);
+  encode_bin Irmin.Hash.BLAKE2B.t h (Buffer.add_string buf);
   let x = Buffer.contents buf in
   let buf = Bytes.create 100 in
   Bytes.blit_string x 0 buf 0 (String.length x);
-  let n, v =
-    T.decode_bin ~headers:false Irmin.Hash.BLAKE2B.t
-      (Bytes.unsafe_to_string buf)
-      0
-  in
+  let n, v = decode_bin Irmin.Hash.BLAKE2B.t (Bytes.unsafe_to_string buf) 0 in
   Alcotest.(check int) "hash size" n Irmin.Hash.BLAKE2B.hash_size;
   Alcotest.(check hash) "hash" v h
 
@@ -381,12 +424,13 @@ let test_pp_ty () =
     let v : empty T.t =
       let a1 _ = assert false in
       let a2 _ _ = assert false in
-      let hdr f ?headers:_ = f in
+      let s2 = T.stage @@ fun _ _ -> assert false in
+      let hdr f = T.stage f in
       T.v ~cli:(a2, a1) ~json:(a2, a1)
         ~bin:(hdr a2, hdr a2, hdr a1)
         ~equal:a2 ~compare:a2
         ~short_hash:(fun ?seed:_ -> a1)
-        ~pre_hash:a2
+        ~pre_hash:s2 ()
 
     let like_prim : int T.t = T.(like int)
 
@@ -428,12 +472,12 @@ let test_equal () =
 let test_int () =
   let test dx x =
     let tt = Alcotest.testable (T.pp dx) (T.equal dx) in
-    match T.of_bin_string dx (T.to_bin_string dx x) with
+    match of_bin_string dx (to_bin_string dx x) with
     | Error (`Msg e) -> Alcotest.fail e
     | Ok y -> Alcotest.(check tt) "eq" x y
   in
   let size x s =
-    match T.size_of T.int x with
+    match size_of T.int x with
     | Some ss -> Alcotest.(check int) (Fmt.strf "size:%d" x) s ss
     | None -> Alcotest.fail "size"
   in
@@ -471,7 +515,7 @@ let test_decode () =
     try Ok (f ()) with e -> Fmt.kstrf (fun s -> Error s) "%a" Fmt.exn e
   in
   let decode ~off buf exp =
-    match (exp, wrap (fun () -> T.decode_bin T.string buf off)) with
+    match (exp, wrap (fun () -> decode_bin T.string buf off)) with
     | Error (), Error _ -> ()
     | Ok x, Ok (_, y) -> Alcotest.(check string) ("decode " ^ x) x y
     | Error _, Ok (_, y) -> Alcotest.failf "error expected, got %s" y
@@ -484,7 +528,7 @@ let test_decode () =
 
 let test_size () =
   let check t v n =
-    match Irmin.Type.size_of t v with
+    match size_of t v with
     | Some s ->
         let name = Fmt.strf "size: %a" (Irmin.Type.pp t) v in
         Alcotest.(check int) name n s
@@ -497,9 +541,9 @@ let test_size () =
   check Irmin.Type.string (String.make 128 'x') (2 + 128);
   check Irmin.Type.bytes (Bytes.of_string "foo") 4;
   check Irmin.Type.(list string) [] 1;
-  let s = T.size_of ~headers:false T.string "foo" in
+  let s = Unboxed.size_of T.string "foo" in
   Alcotest.(check (option int)) "foo 1" (Some 3) s;
-  let s = T.size_of ~headers:true T.string "foo" in
+  let s = size_of T.string "foo" in
   Alcotest.(check (option int)) "foo 1" (Some 4) s
 
 module Hash = Irmin.Hash.SHA1
@@ -520,10 +564,12 @@ let hash_v1 = H_v1.hash
 
 let test_hashes () =
   let digest t x =
-    let s = Irmin.Type.to_bin_string t x in
+    let s = to_bin_string t x in
     Printf.eprintf "to_bin_string: %S\n" s;
     Irmin.Type.to_string Hash.t (Hash.hash (fun l -> l s))
   in
+
+  (* contents *)
   Alcotest.(check string)
     "empty contents" "da39a3ee5e6b4b0d3255bfef95601890afd80709"
     (digest Irmin.Contents.String.t "");
@@ -536,6 +582,8 @@ let test_hashes () =
   Alcotest.(check string)
     "contents v1" "e2383c8f6ce9f8b894fbe26abe34e7db053bc48f"
     (digest Irmin.Contents.V1.String.t "xxx");
+
+  (* nodes *)
   Alcotest.(check string)
     "empty node" "5ba93c9db0cff93f52b521d7420e43f6eda2784f"
     (digest Node.t Node.empty);
@@ -555,6 +603,8 @@ let test_hashes () =
   Alcotest.(check string)
     "node v1" "bc5615e070d2838b278a1de0bb63fe325dd9cb11"
     (digest Node_v1.t (n1 Node_v1.v hash_v1));
+
+  (* commits *)
   let v1 v hash = v ~info:Irmin.Info.empty ~node:(hash "toto") ~parents:[] in
   let v2 v hash =
     v
@@ -633,14 +683,12 @@ let v_t = Alcotest.testable (Irmin.Type.pp v) (Irmin.Type.equal v)
 
 let test_variants () =
   let test i =
-    let x = Irmin.Type.to_bin_string v i in
+    let x = to_bin_string v i in
     let y =
-      match Irmin.Type.of_bin_string v x with
-      | Ok x -> x
-      | Error (`Msg e) -> failwith e
+      match of_bin_string v x with Ok x -> x | Error (`Msg e) -> failwith e
     in
-    let n = Irmin.Type.size_of v i in
-    let s = Irmin.Type.to_string v i in
+    let n = size_of v i in
+    let s = to_bin_string v i in
     Alcotest.(check (option int)) ("sizes " ^ s) (Some (String.length x)) n;
     Alcotest.(check v_t) ("bij " ^ s) i y
   in
@@ -722,6 +770,7 @@ let test_malformed_utf8 () =
 let suite =
   [
     ("base", `Quick, test_base);
+    ("boxing", `Quick, test_boxing);
     ("json", `Quick, test_json);
     ("json_option", `Quick, test_json_option);
     ("bin", `Quick, test_bin);

@@ -113,19 +113,31 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     mutable open_instances : int;
   }
 
+  let decode_bin = Irmin.Type.(unstage (decode_bin int32))
+
   let read_length32 ~off block =
     let buf = Bytes.create 4 in
     let n = IO.read block ~off buf in
     assert (n = 4);
-    let n, v = Irmin.Type.(decode_bin int32) (Bytes.unsafe_to_string buf) 0 in
+    let n, v = decode_bin (Bytes.unsafe_to_string buf) 0 in
     assert (n = 4);
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
 
+  let key_to_bin_string = Irmin.Type.(unstage (to_bin_string K.t))
+
+  let key_of_bin_string = Irmin.Type.(unstage (of_bin_string K.t))
+
+  let entry_to_bin_string = Irmin.Type.(unstage (to_bin_string entry))
+
+  let value_of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
+
+  let value_decode_bin = Irmin.Type.(unstage (decode_bin V.t))
+
   let set_entry t ?off k v =
-    let k = Irmin.Type.to_bin_string K.t k in
-    let buf = Irmin.Type.to_bin_string entry (k, v) in
+    let k = key_to_bin_string k in
+    let buf = entry_to_bin_string (k, v) in
     match off with
     | None -> IO.append t.block buf
     | Some off -> IO.set t.block buf ~off
@@ -133,7 +145,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let pp_branch = Irmin.Type.pp K.t
 
   let zero =
-    match Irmin.Type.of_bin_string V.t (String.make V.hash_size '\000') with
+    match value_of_bin_string (String.make V.hash_size '\000') with
     | Ok x -> x
     | Error _ -> assert false
 
@@ -150,11 +162,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         let buf = Bytes.unsafe_to_string buf in
         let h =
           let h = String.sub buf 0 len in
-          match Irmin.Type.of_bin_string K.t h with
+          match key_of_bin_string h with
           | Ok k -> k
           | Error (`Msg e) -> failwith e
         in
-        let n, v = Irmin.Type.decode_bin V.t buf len in
+        let n, v = value_decode_bin buf len in
         assert (n = String.length buf);
         if not (Irmin.Type.equal V.t v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
@@ -355,11 +367,15 @@ struct
 
           let value = value Val.t
 
+          let encode_value = Irmin.Type.(unstage (encode_bin value))
+
+          let decode_value = Irmin.Type.(unstage (decode_bin value))
+
           let encode_bin ~dict:_ ~offset:_ v hash =
-            Irmin.Type.encode_bin value { magic; hash; v }
+            encode_value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, t = Irmin.Type.decode_bin ~headers:false value s off in
+            let _, t = decode_value s off in
             t.v
 
           let magic _ = magic
@@ -391,11 +407,15 @@ struct
 
           let magic = 'C'
 
+          let encode_value = Irmin.Type.(unstage (encode_bin value))
+
+          let decode_value = Irmin.Type.(unstage (decode_bin value))
+
           let encode_bin ~dict:_ ~offset:_ v hash =
-            Irmin.Type.encode_bin value { magic; hash; v }
+            encode_value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, v = Irmin.Type.decode_bin ~headers:false value s off in
+            let _, v = decode_value s off in
             v.v
 
           let magic _ = magic

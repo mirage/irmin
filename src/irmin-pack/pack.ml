@@ -224,13 +224,13 @@ struct
 
     let pp_hash = Irmin.Type.pp K.t
 
+    let decode_key = Irmin.Type.(unstage (decode_bin K.t))
+
     let io_read_and_decode_hash ~off t =
       let buf = Bytes.create K.hash_size in
       let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
-      let _, v =
-        Irmin.Type.decode_bin ~headers:false K.t (Bytes.unsafe_to_string buf) 0
-      in
+      let _, v = decode_key (Bytes.unsafe_to_string buf) 0 in
       v
 
     let unsafe_mem t k =

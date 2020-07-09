@@ -126,6 +126,7 @@ module Equal = struct
     | Self s -> t s.self_fix a b
     | Custom c -> c.equal a b
     | Map m -> map m a b
+    | Boxed x -> t x a b
     | Prim p -> prim p a b
     | List l -> list (t l.v) a b
     | Array x -> array (t x.v) a b
@@ -262,6 +263,7 @@ module Compare = struct
     | Self s -> t s.self_fix a b
     | Custom c -> c.compare a b
     | Map m -> map m a b
+    | Boxed x -> t x a b
     | Prim p -> (prim [@inlined]) p a b
     | List l -> list (t l.v) a b
     | Array x -> array (t x.v) a b

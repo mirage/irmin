@@ -489,16 +489,24 @@ module V1 (C : S.COMMIT) = struct
   module K = struct
     let h = Type.string_of `Int64
 
-    let size_of ?headers x =
-      Type.size_of ?headers h (Type.to_bin_string C.hash_t x)
+    let hash_to_bin_string = Type.(unstage (to_bin_string C.hash_t))
 
-    let encode_bin ?headers e k =
-      Type.encode_bin ?headers h (Type.to_bin_string C.hash_t e) k
+    let hash_of_bin_string = Type.(unstage (of_bin_string C.hash_t))
 
-    let decode_bin ?headers buf off =
-      let n, v = Type.decode_bin ?headers h buf off in
+    let size_of =
+      let size_of = Type.(unstage (size_of h)) in
+      Type.stage (fun x -> size_of (hash_to_bin_string x))
+
+    let encode_bin =
+      let encode_bin = Type.(unstage (encode_bin h)) in
+      Type.stage @@ fun e k -> encode_bin (hash_to_bin_string e) k
+
+    let decode_bin =
+      let decode_bin = Type.(unstage (decode_bin h)) in
+      Type.stage @@ fun buf off ->
+      let n, v = decode_bin buf off in
       ( n,
-        match Type.of_bin_string C.hash_t v with
+        match hash_of_bin_string v with
         | Ok v -> v
         | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 

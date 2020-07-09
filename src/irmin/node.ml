@@ -402,20 +402,28 @@ module Graph (S : S.NODE_STORE) = struct
   let value_t = S.Val.value_t
 end
 
-module V1 (N : S.NODE) = struct
+module V1 (N : S.NODE with type step = string) = struct
   module K = struct
     let h = Type.string_of `Int64
 
-    let size_of ?headers x =
-      Type.size_of ?headers h (Type.to_bin_string N.hash_t x)
+    let to_bin_string = Type.(unstage (to_bin_string N.hash_t))
 
-    let encode_bin ?headers e k =
-      Type.encode_bin ?headers h (Type.to_bin_string N.hash_t e) k
+    let of_bin_string = Type.(unstage (of_bin_string N.hash_t))
 
-    let decode_bin ?headers buf off =
-      let n, v = Type.decode_bin ?headers h buf off in
+    let size_of =
+      let size_of = Type.(unstage (size_of h)) in
+      Type.stage (fun x -> size_of (to_bin_string x))
+
+    let encode_bin =
+      let encode_bin = Type.(unstage (encode_bin h)) in
+      Type.stage @@ fun e k -> encode_bin (to_bin_string e) k
+
+    let decode_bin =
+      let decode_bin = Type.(unstage (decode_bin h)) in
+      Type.stage @@ fun buf off ->
+      let n, v = decode_bin buf off in
       ( n,
-        match Type.of_bin_string N.hash_t v with
+        match of_bin_string v with
         | Ok v -> v
         | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
@@ -462,10 +470,16 @@ module V1 (N : S.NODE) = struct
     let n = N.remove t.n k in
     if t.n == n then t else { n; entries = N.list n }
 
+  let v1_step = Type.string_of `Int64
+
+  let step_to_bin_string = Type.(unstage (to_bin_string v1_step))
+
+  let step_of_bin_string = Type.(unstage (of_bin_string v1_step))
+
   let step_t : step Type.t =
-    let to_string p = Type.to_bin_string N.step_t p in
+    let to_string p = step_to_bin_string p in
     let of_string s =
-      Type.of_bin_string N.step_t s |> function
+      step_of_bin_string s |> function
       | Ok x -> x
       | Error (`Msg e) -> Fmt.failwith "Step.of_string: %s" e
     in

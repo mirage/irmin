@@ -84,10 +84,16 @@ module Chunk (K : Irmin.Hash.S) = struct
 
   type t = { len : int; v : v }
 
+  let size_of = Irmin.Type.unstage (Irmin.Type.size_of v)
+
+  let to_bin_string = Irmin.Type.unstage (Irmin.Type.to_bin_string v)
+
+  let decode_bin = Irmin.Type.unstage (Irmin.Type.decode_bin v)
+
+  let encode_bin = Irmin.Type.unstage (Irmin.Type.encode_bin v)
+
   let size_of_v t =
-    match Irmin.Type.size_of v t with
-    | Some n -> n
-    | None -> String.length (Irmin.Type.to_bin_string v t)
+    match size_of t with Some n -> n | None -> String.length (to_bin_string t)
 
   let size_of_data_header = size_of_v (Data "")
 
@@ -95,14 +101,14 @@ module Chunk (K : Irmin.Hash.S) = struct
 
   let of_string b =
     let len = String.length b in
-    let n, v = Irmin.Type.decode_bin v b 0 in
+    let n, v = decode_bin b 0 in
     if len = n then { len; v }
     else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
     let b = Buffer.create t.len in
-    Irmin.Type.encode_bin v t.v (Buffer.add_string b);
+    encode_bin t.v (Buffer.add_string b);
     let s = Buffer.contents b in
     Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
@@ -225,15 +231,15 @@ struct
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
 
+  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
+
   let find t key =
     find_leaves t key >>= function
     | None -> Lwt.return_none
     | Some bufs -> (
         let buf = String.concat "" bufs in
         check_hash key buf >|= fun () ->
-        match Irmin.Type.of_bin_string V.t buf with
-        | Ok va -> Some va
-        | Error _ -> None)
+        match of_bin_string buf with Ok va -> Some va | Error _ -> None)
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =
@@ -256,13 +262,15 @@ struct
       Lwt_list.map_s aux offs >>= Tree.add ~key t >|= fun k ->
       Log.debug (fun l -> l "add -> %a (split)" pp_key k)
 
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+
   let add t v =
-    let buf = Irmin.Type.to_bin_string V.t v in
+    let buf = to_bin_string v in
     let key = K.hash (fun f -> f buf) in
     unsafe_add_buffer t key buf >|= fun () -> key
 
   let unsafe_add t key v =
-    let buf = Irmin.Type.to_bin_string V.t v in
+    let buf = to_bin_string v in
     unsafe_add_buffer t key buf
 
   let mem t key = CA.mem t.db key

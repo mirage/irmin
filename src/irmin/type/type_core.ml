@@ -55,13 +55,17 @@ type 'a encode_json = Jsonm.encoder -> 'a -> unit
 
 type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
 
+type 'a staged = 'a
+
 type 'a bin_seq = 'a -> (string -> unit) -> unit
 
-type 'a encode_bin = ?headers:bool -> 'a bin_seq
+type 'a pre_hash = 'a bin_seq staged
 
-type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
+type 'a encode_bin = 'a bin_seq staged
 
-type 'a size_of = ?headers:bool -> 'a -> int option
+type 'a decode_bin = (string -> int -> int * 'a) staged
+
+type 'a size_of = ('a -> int option) staged
 
 type 'a compare = 'a -> 'a -> int
 
@@ -70,6 +74,10 @@ type 'a equal = 'a -> 'a -> bool
 type 'a short_hash = ?seed:int -> 'a -> int
 
 exception Unbound_type_variable of string
+
+let stage x = x
+
+let unstage x = x
 
 type 'a t =
   | Var : string -> 'a t
@@ -83,6 +91,7 @@ type 'a t =
   | Option : 'a t -> 'a option t
   | Record : 'a record -> 'a t
   | Variant : 'a variant -> 'a t
+  | Boxed : 'a t -> 'a t
 
 and 'a len_v = { len : len; v : 'a t }
 
@@ -92,13 +101,18 @@ and 'a custom = {
   of_string : 'a of_string;
   encode_json : 'a encode_json;
   decode_json : 'a decode_json;
-  encode_bin : 'a encode_bin;
-  decode_bin : 'a decode_bin;
   short_hash : 'a short_hash;
   pre_hash : 'a bin_seq;
-  size_of : 'a size_of;
   compare : 'a compare;
   equal : 'a equal;
+  (* boxed binary encoding *)
+  encode_bin : 'a encode_bin;
+  decode_bin : 'a decode_bin;
+  size_of : 'a size_of;
+  (* ubboxed binary encoding *)
+  unboxed_encode_bin : 'a encode_bin;
+  unboxed_decode_bin : 'a decode_bin;
+  unboxed_size_of : 'a size_of;
 }
 
 and ('a, 'b) map = { x : 'a t; f : 'a -> 'b; g : 'b -> 'a; mwit : 'b Witness.t }

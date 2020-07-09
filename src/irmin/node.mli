@@ -61,7 +61,7 @@ module Graph (N : S.NODE_STORE) :
      and type step = N.Path.step
      and type path = N.Path.t
 
-module V1 (N : S.NODE) : sig
+module V1 (N : S.NODE with type step = string) : sig
   include
     S.NODE
       with type hash = N.hash

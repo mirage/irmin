@@ -7,30 +7,27 @@ let ( >> ) f g x = g (f x)
 
 module Generic_op = struct
   type op =
-    | Consumer : { consume : 'a. 'a T.t -> [ `Staged of 'a -> _ ] } -> op
+    | Consumer : { consume : 'a. 'a T.t -> ('a -> _) T.staged } -> op
     | Codec : {
-        encode : 'a. 'a T.t -> [ `Staged of 'a -> string ];
-        decode : 'a. 'a T.t -> [ `Staged of string -> 'a ];
+        encode : 'a. 'a T.t -> ('a -> string) T.staged;
+        decode : 'a. 'a T.t -> (string -> 'a) T.staged;
       }
         -> op
 
   type t = { name : string; operation : op }
 
   let bin_string : t =
-    let encode (type a) (ty : a T.t) =
-      let f = T.to_bin_string ty in
-      `Staged (f : a -> string)
-    in
+    let encode (type a) (ty : a T.t) = T.to_bin_string ty in
     let decode (type a) (ty : a T.t) =
-      let f = T.of_bin_string ty in
-      `Staged (f >> Result.get_ok : string -> a)
+      let f = T.unstage (T.of_bin_string ty) in
+      T.stage (f >> Result.get_ok : string -> a)
     in
     { name = "bin_string"; operation = Codec { encode; decode } }
 
   let bin : t =
     let encode (type a) (ty : a T.t) =
-      let f = T.encode_bin ty ?headers:None in
-      `Staged
+      let f = T.unstage (T.encode_bin ty) in
+      T.stage
         (fun a ->
            let buffer = Buffer.create 0 in
            f a (Buffer.add_string buffer);
@@ -38,15 +35,15 @@ module Generic_op = struct
           : a -> string)
     in
     let decode (type a) (ty : a T.t) =
-      let f = T.decode_bin ty ?headers:None in
-      `Staged (fun s -> f s 0 |> snd : string -> a)
+      let f = T.unstage (T.decode_bin ty) in
+      T.stage (fun s -> f s 0 |> snd : string -> a)
     in
     { name = "bin"; operation = Codec { encode; decode } }
 
   let pre_hash : t =
     let consume (type a) (ty : a T.t) =
-      let f = T.pre_hash ty in
-      `Staged
+      let f = T.unstage (T.pre_hash ty) in
+      T.stage
         (fun a ->
            let buffer = Buffer.create 0 in
            f a (Buffer.add_string buffer);
@@ -58,7 +55,7 @@ module Generic_op = struct
   let short_hash : t =
     let consume (type a) (ty : a T.t) =
       let f = T.short_hash ty in
-      `Staged (f : a -> int)
+      T.stage (f : a -> int)
     in
     { name = "short_hash"; operation = Consumer { consume } }
 end
@@ -112,7 +109,7 @@ module Data = struct
         match Op.t with
         | Consumer _ -> None
         | Codec { encode; _ } ->
-            let (`Staged f) = encode typ in
+            let f = T.unstage (encode typ) in
             Some (random |> Array.map f)
       in
       E { typ; random; encoded }
@@ -146,9 +143,10 @@ end
 
 (** Stage a function with inputs chosen sequentially from an array of size
     {!nb_runs}. *)
-let distrib_arr (type a b) (`Staged (f : a -> b)) (arr : a array) :
+let distrib_arr (type a b) (f : (a -> b) T.staged) (arr : a array) :
     (unit -> unit) Staged.t =
   let i = ref 0 in
+  let f = T.unstage f in
   Staged.stage @@ fun () ->
   let (_ : b) = f arr.(!i mod nb_runs) in
   incr i
