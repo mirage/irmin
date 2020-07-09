@@ -21,7 +21,7 @@
  (libraries irmin_pack irmin-test.bench))
 
 (alias
- (name bench)
+ (name runbench)
  (action
   (run ./bench.exe)))
 

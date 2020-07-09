@@ -7,7 +7,7 @@ test:
 	dune runtest
 
 bench:
-	dune build @bench
+	dune build @runbench
 
 examples:
 	dune build @examples
