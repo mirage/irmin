@@ -360,6 +360,7 @@ module type NODE_GRAPH = sig
     min:node list ->
     max:node list ->
     ?node:(node -> unit Lwt.t) ->
+    ?contents:(contents * metadata -> unit Lwt.t) ->
     ?edge:(node -> node -> unit Lwt.t) ->
     ?skip:(node -> bool Lwt.t) ->
     ?rev:bool ->
