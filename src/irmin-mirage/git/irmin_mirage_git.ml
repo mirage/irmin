@@ -313,7 +313,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.set ~info s.t (path k) v >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return_error (e :> write_error) )
+        | Error e -> Lwt.return (Error (e :> write_error)) )
     | Batch b ->
         S.Tree.add b.tree (path k) v >|= fun tree ->
         b.tree <- tree;
@@ -325,7 +325,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.remove ~info s.t (path k) >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return_error (e :> write_error) )
+        | Error e -> Lwt.return (Error (e :> write_error)) )
     | Batch b ->
         S.Tree.remove b.tree (path k) >|= fun tree ->
         b.tree <- tree;
@@ -357,13 +357,13 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
               get_store_tree s >>= function
               | None ->
                   (* Someting weird happened, retring *)
-                  Lwt.return_error `Retry
+                  Lwt.return (Error `Retry)
               | Some (_, main_tree) -> (
                   Irmin.Merge.f S.Tree.merge
                     ~old:(Irmin.Merge.promise old_tree)
                     main_tree batch.tree
                   >>= function
-                  | Error (`Conflict _) -> Lwt.return_error `Retry
+                  | Error (`Conflict _) -> Lwt.return (Error `Retry)
                   | Ok new_tree -> (
                       S.set_tree s.t ~info s.root new_tree >|= function
                       | Ok () -> Ok result

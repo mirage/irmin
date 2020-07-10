@@ -1,4 +1,4 @@
 (library
  (name irmin_git)
  (public_name irmin-git)
- (libraries irmin git))
+ (libraries astring cstruct digestif fmt fpath git irmin logs lwt uri))

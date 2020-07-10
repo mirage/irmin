@@ -1,4 +1,4 @@
 (library
  (name irmin_mem)
  (public_name irmin-mem)
- (libraries irmin))
+ (libraries irmin logs lwt))

@@ -1,4 +1,4 @@
 (library
  (name irmin_mirage)
  (public_name irmin-mirage)
- (libraries irmin irmin-mem ptime mirage-clock))
+ (libraries fmt irmin irmin-mem mirage-clock ptime))
