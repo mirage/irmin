@@ -1,0 +1,28 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Clément Pascutto" "Craig Ferguson"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
+]
+
+depends: [
+  "ocaml"   {>= "4.07.0"}
+  "dune"    {>= "1.8.0"}
+  "irmin"
+  "bechamel"
+  "notty"
+]
+
+pin-depends: [
+  "bechamel.dev" "git+https://github.com/dinosaure/bechamel#60688198cf9bffe5467406181e231e13c57a1e7a"
+]
+
+synopsis: "Benchmarks for Irmin"
