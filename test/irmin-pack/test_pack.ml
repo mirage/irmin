@@ -37,7 +37,7 @@ let suite =
       let cmd = Printf.sprintf "rm -rf %s" test_dir in
       Fmt.epr "exec: %s\n%!" cmd;
       let _ = Sys.command cmd in
-      () );
+      ());
     Lwt.return_unit
   in
   let clean () =

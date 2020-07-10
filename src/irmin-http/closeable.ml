@@ -50,7 +50,7 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 
   let batch t f =
     check_not_closed t;
@@ -113,5 +113,5 @@ module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 end

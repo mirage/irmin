@@ -199,9 +199,9 @@ module Decode = struct
         | Ok (`String b) -> (
             match expect_lexeme e `Oe with
             | Ok () -> Ok (Base64.decode_exn b)
-            | Error e -> Error e )
+            | Error e -> Error e)
         | Ok l -> error e l "Bad base64 encoded character"
-        | Error e -> Error e )
+        | Error e -> Error e)
     | Ok l -> error e l "Invalid base64 object"
     | Error e -> Error e
 
@@ -217,7 +217,7 @@ module Decode = struct
     | `Os -> (
         match get_base64_value e with
         | Ok s -> Ok (Bytes.unsafe_of_string s)
-        | Error e -> Error e )
+        | Error e -> Error e)
     | l -> error e l "`String"
 
   let float e =
@@ -227,7 +227,7 @@ module Decode = struct
     lexeme e >>= function
     | `String s when String.length s = 1 -> Ok s.[0]
     | `Os -> (
-        match get_base64_value e with Ok s -> Ok s.[0] | Error x -> Error x )
+        match get_base64_value e with Ok s -> Ok s.[0] | Error x -> Error x)
     | l -> error e l "`String[0]"
 
   let int32 e = float e >|= Int32.of_float
@@ -340,9 +340,9 @@ module Decode = struct
               | List _ -> Ok []
               | _ ->
                   Error
-                    (`Msg (Fmt.strf "missing value for %s.%s" r.rname h.fname)) )
+                    (`Msg (Fmt.strf "missing value for %s.%s" r.rname h.fname)))
           in
-          match v with Ok v -> aux f (c v) | Error _ as e -> e )
+          match v with Ok v -> aux f (c v) | Error _ as e -> e)
     in
     let (Fields (f, c)) = r.rfields in
     aux f c

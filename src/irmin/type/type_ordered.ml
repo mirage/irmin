@@ -42,12 +42,12 @@ module Refl = struct
     | Custom a, Custom b -> custom a b
     | Prim a, Prim b -> prim a b
     | Array a, Array b -> (
-        match t a.v b.v with Some Refl -> Some Refl | None -> None )
+        match t a.v b.v with Some Refl -> Some Refl | None -> None)
     | List a, List b -> (
-        match t a.v b.v with Some Refl -> Some Refl | None -> None )
+        match t a.v b.v with Some Refl -> Some Refl | None -> None)
     | Tuple a, Tuple b -> tuple a b
     | Option a, Option b -> (
-        match t a b with Some Refl -> Some Refl | None -> None )
+        match t a b with Some Refl -> Some Refl | None -> None)
     | Record a, Record b -> Witness.eq a.rwit b.rwit
     | Variant a, Variant b -> Witness.eq a.vwit b.vwit
     | _ -> None
@@ -65,11 +65,11 @@ module Refl = struct
     | Pair (a0, a1), Pair (b0, b1) -> (
         match (t a0 b0, t a1 b1) with
         | Some Refl, Some Refl -> Some Refl
-        | _ -> None )
+        | _ -> None)
     | Triple (a0, a1, a2), Triple (b0, b1, b2) -> (
         match (t a0 b0, t a1 b1, t a2 b2) with
         | Some Refl, Some Refl, Some Refl -> Some Refl
-        | _ -> None )
+        | _ -> None)
     | _ -> None
 end
 
@@ -206,7 +206,7 @@ module Compare = struct
         | [], [] -> 0
         | [], _ -> -1
         | _, [] -> 1
-        | xx :: x, yy :: y -> ( match c xx yy with 0 -> aux x y | i -> i )
+        | xx :: x, yy :: y -> ( match c xx yy with 0 -> aux x y | i -> i)
       in
       aux x y
 
@@ -282,7 +282,7 @@ module Compare = struct
    fun r x y ->
     let rec aux = function
       | [] -> 0
-      | Field f :: t -> ( match field f x y with 0 -> aux t | i -> i )
+      | Field f :: t -> ( match field f x y with 0 -> aux t | i -> i)
     in
     aux (fields r)
 
@@ -301,7 +301,7 @@ module Compare = struct
     | CV1 (x, vx), CV1 (y, vy) -> (
         match int x.ctag1 y.ctag1 with
         | 0 -> compare (x.ctype1, vx) (y.ctype1, vy)
-        | i -> i )
+        | i -> i)
 
   and compare : type a b. a t * a -> b t * b -> int =
    fun (tx, x) (ty, y) ->

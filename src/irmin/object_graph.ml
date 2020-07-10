@@ -26,7 +26,7 @@ let list_partition_map f t =
     | h :: t -> (
         match f h with
         | `Fst x -> aux (x :: fst) snd t
-        | `Snd x -> aux fst (x :: snd) t )
+        | `Snd x -> aux fst (x :: snd) t)
   in
   aux [] [] t
 
@@ -173,7 +173,7 @@ struct
           else if has_mark key then (
             (if rev then treat key else Lwt.return_unit) >>= fun () ->
             ignore (Stack.pop todo);
-            visit () )
+            visit ())
           else
             skip key >>= function
             | true -> pop key level
@@ -188,7 +188,7 @@ struct
                     (fun k ->
                       if not (has_mark k) then Stack.push (k, level + 1) todo)
                     keys;
-                  visit () )
+                  visit ())
     in
     visit ()
 

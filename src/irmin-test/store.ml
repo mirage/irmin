@@ -619,7 +619,7 @@ module Make (S : S) = struct
               else (
                 Log.debug (fun f ->
                     f "check-worker: expected %a, got %a" pp_w exp pp_w got);
-                Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp ))
+                Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp))
     in
     let module State = struct
       type t = {
@@ -659,9 +659,9 @@ module Make (S : S) = struct
 
       let process ?sleep_t t = function
         | head ->
-            ( match sleep_t with
+            (match sleep_t with
             | None -> Lwt.return_unit
-            | Some s -> Lwt_unix.sleep s )
+            | Some s -> Lwt_unix.sleep s)
             >>= fun () ->
             let () =
               match head with
@@ -1460,7 +1460,9 @@ module Make (S : S) = struct
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->
       S.Tree.to_concrete v0 >>= fun c ->
-      (match c with `Tree [] -> () | _ -> Alcotest.fail "Excpected empty tree");
+      (match c with
+      | `Tree [] -> ()
+      | _ -> Alcotest.fail "Excpected empty tree");
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
       check_val "read /" (normal foo1) foo1';
@@ -2036,7 +2038,7 @@ module Make (S : S) = struct
             | None -> (
                 match P.Node.Val.find value "b" with
                 | Some k -> check_node "b" hash k1 k foo
-                | None -> Alcotest.fail "unexpected node" ) )
+                | None -> Alcotest.fail "unexpected node"))
       in
       let rev_order step =
         if !visited = [] && step <> "b" then

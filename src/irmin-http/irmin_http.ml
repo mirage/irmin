@@ -71,7 +71,7 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
         | None -> Lwt.fail (Escape (Jsonm.decoded_range d, `Expected `Value))
         | Some str ->
             Jsonm.Manual.src d (Bytes.of_string str) 0 (String.length str);
-            lexeme () )
+            lexeme ())
   in
   let lexemes e =
     let lexemes = ref [] in
@@ -102,7 +102,7 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
     if not !opened then (
       open_stream () >>= fun () ->
       opened := true;
-      lexemes () >|= fun ls -> Some ls )
+      lexemes () >|= fun ls -> Some ls)
     else lexemes () >|= fun ls -> Some ls
   in
   Lwt_stream.from open_and_get
@@ -161,8 +161,8 @@ module Helper (Client : Cohttp_lwt.S.Client) :
       if keep_alive then [ ("Connection", "Keep-Alive") ] else []
     in
     Cohttp.Header.of_list
-      ( [ (irmin_version, Irmin.version); ("Content-type", "application/json") ]
-      @ keep_alive )
+      ([ (irmin_version, Irmin.version); ("Content-type", "application/json") ]
+      @ keep_alive)
 
   let map_call meth t ctx ~keep_alive ?body path fn =
     let uri = uri_append t path in
@@ -343,11 +343,11 @@ functor
       let init_stream () =
         if nb_keys t <> 0 then Lwt.return_unit
         else
-          ( match init with
+          (match init with
           | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
           | Some init ->
               let body = to_json V.t init in
-              post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t) )
+              post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t))
           >>= fun s ->
           let stop () =
             Lwt_stream.iter_s
@@ -369,11 +369,11 @@ functor
       let init_stream () =
         if nb_glob t <> 0 then Lwt.return_unit
         else
-          ( match init with
+          (match init with
           | None -> get_stream t [ "watches" ] (event_t K.t V.t)
           | Some init ->
               let body = to_json T.(list (init_t K.t V.t)) init in
-              post_stream t [ "watches" ] ~body (event_t K.t V.t) )
+              post_stream t [ "watches" ] ~body (event_t K.t V.t))
           >>= fun s ->
           let stop () =
             Lwt_stream.iter_s

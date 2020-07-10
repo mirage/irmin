@@ -52,10 +52,10 @@ let rec wait_for_the_server_to_start () =
     let pid = int_of_string line in
     Logs.debug (fun l -> l "read PID %d fomr %s" pid pid_file);
     Unix.unlink pid_file;
-    Lwt.return pid )
+    Lwt.return pid)
   else (
     Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start () )
+    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start ())
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
@@ -162,7 +162,7 @@ let with_server servers f =
   if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then (
     let n = int_of_string Sys.argv.(2) in
     Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
-    serve servers n )
+    serve servers n)
   else f ()
 
 type test = Alcotest.speed_level * Irmin_test.t

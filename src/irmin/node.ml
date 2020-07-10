@@ -236,7 +236,7 @@ struct
     let merge = merge_value t merge_key in
     let read = function
       | None -> Lwt.return S.Val.empty
-      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v )
+      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v)
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
@@ -292,7 +292,7 @@ module Graph (S : S.NODE_STORE) = struct
   let pp_path = Type.pp S.Path.t
 
   let pred t = function
-    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
+    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
     | _ -> Lwt.return_nil
 
   let closure t ~min ~max =
@@ -340,7 +340,7 @@ module Graph (S : S.NODE_STORE) = struct
       | Some (h, tl) -> (
           find_step t node h >>= function
           | (None | Some (`Contents _)) as x -> Lwt.return x
-          | Some (`Node node) -> aux node tl )
+          | Some (`Node node) -> aux node tl)
     in
     aux node path
 
@@ -349,10 +349,10 @@ module Graph (S : S.NODE_STORE) = struct
   let map_one t node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
     let old_key = S.Val.find node label in
-    ( match old_key with
+    (match old_key with
     | None | Some (`Contents _) -> Lwt.return S.Val.empty
     | Some (`Node k) -> (
-        S.find t k >|= function None -> S.Val.empty | Some v -> v ) )
+        S.find t k >|= function None -> S.Val.empty | Some v -> v))
     >>= fun old_node ->
     f old_node >>= fun new_node ->
     if Type.equal S.Val.t old_node new_node then Lwt.return node
@@ -378,7 +378,7 @@ module Graph (S : S.NODE_STORE) = struct
     | None -> (
         match n with
         | `Node n -> Lwt.return n
-        | `Contents _ -> failwith "TODO: Node.add" )
+        | `Contents _ -> failwith "TODO: Node.add")
 
   let rdecons_exn path =
     match Path.rdecons path with

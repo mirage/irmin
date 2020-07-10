@@ -115,14 +115,14 @@ module Json_value = struct
     | `Float a, `Float b -> Type.(equal float) a b
     | `A a, `A b -> (
         try List.for_all2 (fun a' b' -> equal a' b') a b
-        with Invalid_argument _ -> false )
+        with Invalid_argument _ -> false)
     | `O a, `O b -> (
         let compare_fst (a, _) (b, _) = compare a b in
         try
           List.for_all2
             (fun (k, v) (k', v') -> k = k' && equal v v')
             (List.sort compare_fst a) (List.sort compare_fst b)
-        with Invalid_argument _ -> false )
+        with Invalid_argument _ -> false)
     | _, _ -> false
 
   let t = Type.like ~equal ~cli:(pp, of_string) t
@@ -218,7 +218,7 @@ module Json_tree (Store : Store.S with type contents = json) = struct
       | (k, v) :: l -> (
           match Type.of_string Store.Key.step_t k with
           | Ok key -> obj l ((key, node v []) :: acc)
-          | _ -> obj l acc )
+          | _ -> obj l acc)
     and node j acc =
       match j with
       | `O j -> obj j acc

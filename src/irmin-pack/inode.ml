@@ -362,7 +362,7 @@ struct
             | None -> Fmt.failwith "%a: unknown key" pp_hash h
             | Some x ->
                 t.tree <- Some x;
-                x )
+                x)
 
       let rec list_entry ~find acc = function
         | Empty -> acc
@@ -490,13 +490,13 @@ struct
       let find_value ~seed ~find t s =
         let rec aux ~seed = function
           | Values vs -> (
-              try Some (StepMap.find s vs) with Not_found -> None )
+              try Some (StepMap.find s vs) with Not_found -> None)
           | Inodes t -> (
               let i = index ~seed s in
               let x = t.entries.(i) in
               match x with
               | Empty -> None
-              | Inode i -> aux ~seed:(seed + 1) (get_tree ~find i).v )
+              | Inode i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
         in
         aux ~seed t.v
 
@@ -552,7 +552,7 @@ struct
                     let inode = inode ~tree tree.hash in
                     entries.(i) <- inode;
                     let t = inodes { seed; length; entries } in
-                    k t ) )
+                    k t))
 
       let add ~find ~copy t s v =
         add ~seed:0 ~find ~copy t s v (stabilize ~find)
@@ -583,7 +583,7 @@ struct
                       remove ~seed:(seed + 1) ~find t s @@ fun tree ->
                       entries.(i) <- inode ~tree (lazy (hash tree));
                       let t = inodes { seed; length; entries } in
-                      k t ) )
+                      k t))
 
       let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
 
@@ -679,7 +679,7 @@ struct
               | Some s -> (
                   match Irmin.Type.of_bin_string T.step_t s with
                   | Error e -> raise_notrace (Exit e)
-                  | Ok v -> v ) )
+                  | Ok v -> v))
         in
         let hash : Compress.address -> H.t = function
           | Indirect off -> hash off

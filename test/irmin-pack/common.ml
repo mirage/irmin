@@ -10,7 +10,7 @@ let rm_dir root =
     let cmd = Printf.sprintf "rm -rf %s" root in
     Logs.info (fun l -> l "exec: %s\n%!" cmd);
     let _ = Sys.command cmd in
-    () )
+    ())
 
 module S = struct
   include Irmin.Contents.String

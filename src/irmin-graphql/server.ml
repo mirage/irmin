@@ -194,7 +194,7 @@ struct
       | `String s -> (
           match Config.remote with
           | Some remote -> Ok (remote s)
-          | None -> Error "sync is not available" )
+          | None -> Error "sync is not available")
       | _ -> Error "Invalid input value"
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
@@ -363,7 +363,7 @@ struct
                       | Ok lcas -> Lwt.return (Ok lcas)
                       | Error e ->
                           let msg = Irmin.Type.to_string Store.lca_error_t e in
-                          Lwt.return (Error msg) )
+                          Lwt.return (Error msg))
                   | None -> Lwt.return (Error "Commit not found"));
             ]))
 
@@ -629,17 +629,17 @@ struct
           ~resolve:(fun _ _src branch key value old info ->
             mk_branch s branch >>= fun t ->
             txn_args s info >>= fun (info, retries, allow_empty, parents) ->
-            ( match old with
+            (match old with
             | Some old ->
                 let tree = Store.Tree.empty in
                 to_tree tree old >>= Lwt.return_some
-            | None -> Lwt.return_none )
+            | None -> Lwt.return_none)
             >>= fun old ->
-            ( match value with
+            (match value with
             | Some value ->
                 let tree = Store.Tree.empty in
                 to_tree tree value >>= Lwt.return_some
-            | None -> Lwt.return_none )
+            | None -> Lwt.return_none)
             >>= fun value ->
             Store.merge_tree t key ~info ?retries ?allow_empty ?parents ~old
               value
@@ -680,7 +680,7 @@ struct
                 | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
                 | Error e ->
                     Lwt.return
-                      (Error (Irmin.Type.to_string Irmin.Merge.conflict_t e)) )
+                      (Error (Irmin.Type.to_string Irmin.Merge.conflict_t e)))
             | None -> Lwt.return (Error "invalid hash"));
         io_field "revert" ~typ:(Lazy.force commit)
           ~args:
