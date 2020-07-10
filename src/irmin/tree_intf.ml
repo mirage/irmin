@@ -134,6 +134,11 @@ module type S = sig
       (step * [ `Node of t | `Contents of Contents.t * metadata ]) list or_error
       Lwt.t
     (** [bindings t] is the list of bindings in [t]. *)
+
+    val clear : ?depth:int -> t -> unit
+    (** [clear ?depth t] clears all the cache in the tree [t] for subtrees with
+        a depth higher than [depth]. If [depth] is not set, all the subtrees are
+        cleared. *)
   end
 
   val mem_tree : t -> key -> bool Lwt.t
