@@ -84,9 +84,9 @@ module Make (S : Store.S) = struct
     in
     let label_of_node k _ =
       let s =
-        ( if html then
-          sprintf "<div class='node'><div class='sha1'>%s</div></div>"
-        else fun x -> x )
+        (if html then
+         sprintf "<div class='node'><div class='sha1'>%s</div></div>"
+        else fun x -> x)
           (string_of_key Node.Key.t k)
       in
       `Label s

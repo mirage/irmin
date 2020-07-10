@@ -147,7 +147,7 @@ let check_unique f =
     | x :: xs -> (
         match String_Set.find_opt x set with
         | None -> aux (String_Set.add x set) xs
-        | Some _ -> f x )
+        | Some _ -> f x)
   in
   aux String_Set.empty
 
@@ -272,7 +272,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
             let ty = string in
             ( (fun ppf u -> Type_json.encode ty ppf (Fmt.to_to_string pp u)),
               fun buf -> Type_json.decode ty buf >|= of_string |> join )
-        | _ -> (Type_json.encode t, Type_json.decode t) )
+        | _ -> (Type_json.encode t, Type_json.decode t))
   in
   let pp, of_string =
     match cli with
@@ -290,7 +290,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
     | None -> (
         match compare with
         | Some f -> fun x y -> f x y = 0
-        | None -> Type_ordered.equal t )
+        | None -> Type_ordered.equal t)
   in
   let compare =
     match compare with Some x -> x | None -> Type_ordered.compare t

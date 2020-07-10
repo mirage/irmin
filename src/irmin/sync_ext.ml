@@ -45,19 +45,19 @@ module Make (S : Store.S) = struct
           let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
-          | _ -> Lwt.return_unit )
+          | _ -> Lwt.return_unit)
       | `Node (k, v) -> (
           let k = conv RP.Node.Key.t SP.Node.Key.t k in
           let v = conv RP.Node.Val.t SP.Node.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
-          | _ -> Lwt.return_unit )
+          | _ -> Lwt.return_unit)
       | `Commit (k, v) -> (
           let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
           let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
-          | _ -> Lwt.return_unit ))
+          | _ -> Lwt.return_unit))
     >>= fun () -> Lwt.return s
 
   let convs src dst l =
@@ -103,7 +103,7 @@ module Make (S : Store.S) = struct
             | Ok () -> (
                 match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
                 | Ok h -> Ok (`Head h)
-                | Error e -> Error e ) ) )
+                | Error e -> Error e)))
     | S.E e -> (
         match S.status t with
         | `Empty | `Commit _ -> Lwt.return (Ok `Empty)
@@ -116,11 +116,11 @@ module Make (S : Store.S) = struct
                 Log.debug (fun l -> l "Fetched %a" pp_hash c);
                 S.Commit.of_hash (S.repo t) c >|= function
                 | None -> Ok `Empty
-                | Some x -> Ok (`Head x) )
+                | Some x -> Ok (`Head x))
             | Ok None -> (
                 S.Head.find t >>= function
                 | Some h -> Lwt.return (Ok (`Head h))
-                | None -> Lwt.return (Ok `Empty) ) ) )
+                | None -> Lwt.return (Ok `Empty))))
     | _ -> Lwt.return (Error (`Msg "fetch operation is not available"))
 
   let fetch_exn t ?depth remote =
@@ -143,7 +143,7 @@ module Make (S : Store.S) = struct
         | `Merge info -> (
             S.Head.merge ~into:t ~info k >>= function
             | Ok () -> Lwt.return (Ok (`Head k))
-            | Error e -> Lwt.return (Error (e :> pull_error)) ) )
+            | Error e -> Lwt.return (Error (e :> pull_error))))
     | Ok `Empty -> Lwt.return (Ok `Empty)
 
   let pull_exn t ?depth remote kind =
@@ -179,7 +179,7 @@ module Make (S : Store.S) = struct
                 | Error e -> Lwt.return (Error (e :> push_error))
                 | Ok h ->
                     R.Head.set r h >>= fun () ->
-                    S.Head.get t >|= fun head -> Ok (`Head head) ) ) )
+                    S.Head.get t >|= fun head -> Ok (`Head head))))
     | S.E e -> (
         match S.status t with
         | `Empty -> Lwt.return (Ok `Empty)
@@ -189,7 +189,7 @@ module Make (S : Store.S) = struct
             B.v (S.repo t) >>= fun g ->
             B.push g ?depth e br >>= function
             | Ok () -> Lwt.return (Ok (`Head head))
-            | Error err -> Lwt.return (Error (err :> push_error)) ) )
+            | Error err -> Lwt.return (Error (err :> push_error))))
     | _ -> Lwt.return (Error (`Msg "push operation is not available"))
 
   let push_exn t ?depth remote =

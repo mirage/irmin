@@ -252,7 +252,7 @@ struct
           if equal_opt_values old_value value then (
             Log.debug (fun f ->
                 f "notify-all[%d:%d]: same value, skipping." t.id id);
-            IMap.add id arg acc )
+            IMap.add id arg acc)
           else fire old_value)
         t.glob IMap.empty
     in
@@ -270,11 +270,11 @@ struct
           else if equal_opt_values value old_value then (
             Log.debug (fun f ->
                 f "notify-key[%d.%d]: same value, skipping." t.id id);
-            IMap.add id arg acc )
+            IMap.add id arg acc)
           else (
             Log.debug (fun f -> f "notify-key[%d:%d] firing!" t.id id);
             todo := protect (fun () -> f (mk old_value value)) :: !todo;
-            IMap.add id (k, value, f) acc ))
+            IMap.add id (k, value, f) acc))
         t.keys IMap.empty
     in
     t.keys <- keys;
@@ -288,7 +288,7 @@ struct
         else (
           notify_all_unsafe t key value;
           notify_key_unsafe t key value;
-          Lwt.return_unit ))
+          Lwt.return_unit))
 
   let watch_key_unsafe t key ?init f =
     let id = next t in
@@ -323,10 +323,10 @@ struct
             match key file with
             | None -> Lwt.return_unit
             | Some key -> value key >>= notify t key)
-        >|= fun f -> t.stop_listening <- f )
+        >|= fun f -> t.stop_listening <- f)
       else (
         Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
-        Lwt.return_unit )
+        Lwt.return_unit)
     in
     init () >|= fun () ->
     t.listeners <- t.listeners + 1;
@@ -336,5 +336,5 @@ struct
         if t.listeners <> 0 then Lwt.return_unit
         else (
           Log.debug (fun f -> f "%s: stop listening to %s" (to_string t) dir);
-          t.stop_listening () )
+          t.stop_listening ())
 end

@@ -43,7 +43,7 @@ end = struct
     | None -> Error (`Msg ("invalid entry: " ^ str))
     | Some (x, message) -> (
         try Ok { timestamp = Int64.of_string x; message }
-        with Failure e -> Error (`Msg e) )
+        with Failure e -> Error (`Msg e))
 
   let t =
     let open Irmin.Type in

@@ -88,7 +88,7 @@ module Unix : S = struct
       then
         Fmt.failwith "sync error: %s flushed=%Ld offset+header=%Ld\n%!" t.file
           t.flushed (offset ++ header);
-      t.flushed <- offset ++ header )
+      t.flushed <- offset ++ header)
 
   let auto_flush_limit = 1_000_000L
 
@@ -139,7 +139,7 @@ module Unix : S = struct
         if Sys.file_exists dir then safe Unix.unlink dir;
         (aux [@tailcall]) (Filename.dirname dir) @@ fun () ->
         protect (Unix.mkdir dir) 0o755;
-        k () )
+        k ())
     in
     aux dirname (fun () -> ())
 
@@ -185,7 +185,7 @@ module Unix : S = struct
         if fresh then (
           Raw.Offset.set raw 0L;
           Raw.Version.set raw current_version;
-          v ~offset:0L ~version:current_version raw )
+          v ~offset:0L ~version:current_version raw)
         else
           let offset = Raw.Offset.get raw in
           let version = Raw.Version.get raw in
@@ -209,15 +209,15 @@ let with_cache ~v ~clear ~valid file =
               (Filename.basename file));
         Hashtbl.remove files (file, true);
         Hashtbl.remove files (file, false);
-        raise Not_found );
+        raise Not_found);
       let t = Hashtbl.find files (file, readonly) in
       if valid t then (
         Log.debug (fun l -> l "%s found in cache" file);
         if fresh then clear t;
-        t )
+        t)
       else (
         Hashtbl.remove files (file, readonly);
-        raise Not_found )
+        raise Not_found)
     with Not_found ->
       Log.debug (fun l ->
           l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh

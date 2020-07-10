@@ -51,7 +51,7 @@ module Pack (S : Pack.S) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 
   let unsafe_append t k v =
     check_not_closed t;
@@ -134,5 +134,5 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      AW.close t.t )
+      AW.close t.t)
 end

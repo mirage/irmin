@@ -72,10 +72,10 @@ let init () = Lwt.return_unit
 
 let store =
   Irmin_test.store
-    ( module Irmin.Make
-               (Irmin_chunk.Content_addressable
-                  (Append_only))
-                  (Irmin_mem.Atomic_write) )
+    (module Irmin.Make
+              (Irmin_chunk.Content_addressable
+                 (Append_only))
+                 (Irmin_mem.Atomic_write))
     (module Irmin.Metadata.None)
 
 let config = Irmin_chunk.config ()

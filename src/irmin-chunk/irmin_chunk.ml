@@ -187,7 +187,7 @@ struct
             in
             match list_partition n l with
             | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
-            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux )
+            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux)
       in
       aux l
   end
@@ -200,9 +200,9 @@ struct
       (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
     let chunking = C.get config Conf.chunking in
-    ( if max_children <= 1 then
-      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
-      err_too_small ~min chunk_size );
+    (if max_children <= 1 then
+     let min = Chunk.size_of_index_header + (K.hash_size * 2) in
+     err_too_small ~min chunk_size);
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
           chunk_size K.hash_size max_data max_children);
@@ -233,7 +233,7 @@ struct
         check_hash key buf >|= fun () ->
         match Irmin.Type.of_bin_string V.t buf with
         | Ok va -> Some va
-        | Error _ -> None )
+        | Error _ -> None)
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =

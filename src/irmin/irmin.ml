@@ -99,7 +99,7 @@ functor
       if !(t.closed) then Lwt.return_unit
       else (
         t.closed := true;
-        S.close t.t )
+        S.close t.t)
   end
 
 module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
@@ -163,7 +163,7 @@ functor
       if !(t.closed) then Lwt.return_unit
       else (
         t.closed := true;
-        S.close t.t )
+        S.close t.t)
   end
 
 module Make_ext

@@ -130,7 +130,7 @@ struct
   let valid t =
     if t.open_instances <> 0 then (
       t.open_instances <- t.open_instances + 1;
-      true )
+      true)
     else false
 
   let unsafe_v ~index ~fresh ~readonly file =
@@ -153,7 +153,7 @@ struct
     if t.open_instances = 0 then (
       if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
-      Dict.close t.dict )
+      Dict.close t.dict)
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
@@ -186,7 +186,7 @@ struct
     let valid t =
       if t.open_instances <> 0 then (
         t.open_instances <- t.open_instances + 1;
-        true )
+        true)
       else false
 
     let flush ?(index = true) t =
@@ -207,10 +207,10 @@ struct
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
           if fresh then clear t;
-          t )
+          t)
         else (
           Hashtbl.remove roots (root, readonly);
-          raise Not_found )
+          raise Not_found)
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
         if fresh then clear t;
@@ -280,7 +280,7 @@ struct
                        Fmt.failwith "corrupted value: got %a, expecting %a."
                          pp_hash got pp_hash expected);
                   Lru.add t.lru k v;
-                  Some v ) )
+                  Some v))
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
@@ -304,7 +304,7 @@ struct
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
         flush t;
-        Lwt.return r )
+        Lwt.return r)
 
     let auto_flush = 1024
 
@@ -348,7 +348,7 @@ struct
         Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
         Tbl.clear t.staging;
         ignore (Lru.clear t.lru);
-        close t.pack )
+        close t.pack)
 
     let close t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->

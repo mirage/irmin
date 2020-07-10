@@ -173,8 +173,7 @@ module History (S : S.COMMIT_STORE) = struct
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure");
     let pred = function
-      | `Commit k -> (
-          S.find t k >|= function Some r -> edges r | None -> [] )
+      | `Commit k -> ( S.find t k >|= function Some r -> edges r | None -> [])
       | _ -> Lwt.return_nil
     in
     let min = List.map (fun k -> `Commit k) min in
@@ -245,7 +244,7 @@ module History (S : S.COMMIT_STORE) = struct
               let () = f depth commit parents in
               let parents = KSet.diff parents seen in
               KSet.iter (add_todo (depth + 1)) parents;
-              aux seen )
+              aux seen)
     in
     aux KSet.empty
 
@@ -362,7 +361,7 @@ module History (S : S.COMMIT_STORE) = struct
     let is_shared () = new_mark = SeenBoth || new_mark = LCA in
     if is_shared () && is_init () then (
       Log.debug (fun f -> f "fast-forward");
-      t.complete <- true );
+      t.complete <- true);
     set_mark t commit new_mark;
     new_mark
 
@@ -399,7 +398,7 @@ module History (S : S.COMMIT_STORE) = struct
          by one node? *)
       let layer = get_layer t t.depth in
       let complete = KSet.for_all (both_seen t) layer in
-      if complete then t.complete <- true else t.depth <- depth );
+      if complete then t.complete <- true else t.depth <- depth);
     let mark = get_mark_exn t commit in
     KSet.iter (update_ancestors_marks t mark) parents
 
@@ -473,7 +472,7 @@ module History (S : S.COMMIT_STORE) = struct
             | c :: cs -> (
                 three_way_merge t ~info ?max_depth ?n acc c >>= function
                 | Error (`Conflict _) -> Merge.ok None
-                | Ok acc -> aux acc cs )
+                | Ok acc -> aux acc cs)
           in
           aux c cs
 
@@ -483,7 +482,7 @@ module History (S : S.COMMIT_STORE) = struct
     | c1 :: c2 :: cs -> (
         lca_aux t ~info ?max_depth ?n c1 c2 >>=* function
         | None -> Merge.ok None
-        | Some c -> lca t ~info ?max_depth ?n (c :: cs) )
+        | Some c -> lca t ~info ?max_depth ?n (c :: cs))
 end
 
 module V1 (C : S.COMMIT) = struct

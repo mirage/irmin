@@ -313,7 +313,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.set ~info s.t (path k) v >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)) )
+        | Error e -> Lwt.return (Error (e :> write_error)))
     | Batch b ->
         S.Tree.add b.tree (path k) v >|= fun tree ->
         b.tree <- tree;
@@ -325,7 +325,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         S.remove ~info s.t (path k) >>= function
         | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)) )
+        | Error e -> Lwt.return (Error (e :> write_error)))
     | Batch b ->
         S.Tree.remove b.tree (path k) >|= fun tree ->
         b.tree <- tree;
@@ -338,7 +338,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
         let tree = S.Commit.tree origin in
         S.Tree.find_tree tree t.root >|= function
         | Some t -> Some (origin, t)
-        | None -> Some (origin, S.Tree.empty) )
+        | None -> Some (origin, S.Tree.empty))
 
   let batch t ?(retries = 42) f =
     let info = info t `Batch in
@@ -367,14 +367,14 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
                   | Ok new_tree -> (
                       S.set_tree s.t ~info s.root new_tree >|= function
                       | Ok () -> Ok result
-                      | Error _ -> Error `Retry ) ) ) )
+                      | Error _ -> Error `Retry))))
     in
     let rec loop = function
       | 0 -> Lwt.fail_with "Too many retries"
       | n -> (
           one t >>= function
           | Error `Retry -> loop (n - 1)
-          | Ok r -> Lwt.return r )
+          | Ok r -> Lwt.return r)
     in
     loop retries >>= fun r ->
     match t.store with
@@ -382,7 +382,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store s -> (
         RO.Sync.push s.t t.remote >>= function
         | Ok _ -> Lwt.return r
-        | Error e -> Lwt.fail_with (Fmt.to_to_string RO.Sync.pp_push_error e) )
+        | Error e -> Lwt.fail_with (Fmt.to_to_string RO.Sync.pp_push_error e))
 end
 
 module Mem = struct

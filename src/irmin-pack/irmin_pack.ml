@@ -207,7 +207,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let valid t =
     if t.open_instances <> 0 then (
       t.open_instances <- t.open_instances + 1;
-      true )
+      true)
     else false
 
   let unsafe_v ~fresh ~readonly file =
@@ -289,7 +289,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Tbl.reset t.cache;
       if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
-      W.clear t.w )
+      W.clear t.w)
     else Lwt.return_unit
 
   let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
@@ -542,7 +542,7 @@ struct
           | Error `Absent_value -> incr nb_absent)
         t.index;
       if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
-      else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
+      else Error (`Corrupted (!nb_corrupted + !nb_absent)))
 
   include Irmin.Of_private (X)
 

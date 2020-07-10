@@ -31,11 +31,11 @@ module Generic_op = struct
     let encode (type a) (ty : a T.t) =
       let f = T.encode_bin ty ?headers:None in
       `Staged
-        ( fun a ->
-            let buffer = Buffer.create 0 in
-            f a (Buffer.add_string buffer);
-            Buffer.contents buffer
-          : a -> string )
+        (fun a ->
+           let buffer = Buffer.create 0 in
+           f a (Buffer.add_string buffer);
+           Buffer.contents buffer
+          : a -> string)
     in
     let decode (type a) (ty : a T.t) =
       let f = T.decode_bin ty ?headers:None in
@@ -47,11 +47,11 @@ module Generic_op = struct
     let consume (type a) (ty : a T.t) =
       let f = T.pre_hash ty in
       `Staged
-        ( fun a ->
-            let buffer = Buffer.create 0 in
-            f a (Buffer.add_string buffer);
-            Buffer.contents buffer
-          : a -> string )
+        (fun a ->
+           let buffer = Buffer.create 0 in
+           f a (Buffer.add_string buffer);
+           Buffer.contents buffer
+          : a -> string)
     in
     { name = "pre_hash"; operation = Consumer { consume } }
 

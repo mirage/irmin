@@ -83,13 +83,13 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
       else pexp_construct (Located.lident cons_name) None
     in
     pexp_apply (evar "|~")
-      ( [
-          e;
-          pexp_apply (evar "case0")
-            ( [ pexp_constant @@ Pconst_string (cons_name, None); fnbody ]
-            >|= unlabelled );
-        ]
-      >|= unlabelled )
+      ([
+         e;
+         pexp_apply (evar "case0")
+           ([ pexp_constant @@ Pconst_string (cons_name, None); fnbody ]
+           >|= unlabelled);
+       ]
+      >|= unlabelled)
 
   (** {[
         |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> (`)Cons_name (x1, ..., xN))
@@ -105,17 +105,17 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
       pexp_fun Nolabel None tuple_pat fnbody
     in
     pexp_apply (evar "|~")
-      ( [
-          e;
-          pexp_apply (evar "case1")
-            ( [
-                pexp_constant @@ Pconst_string (cons_name, None);
-                component_type;
-                constructor;
-              ]
-            >|= unlabelled );
-        ]
-      >|= unlabelled )
+      ([
+         e;
+         pexp_apply (evar "case1")
+           ([
+              pexp_constant @@ Pconst_string (cons_name, None);
+              component_type;
+              constructor;
+            ]
+           >|= unlabelled);
+       ]
+      >|= unlabelled)
 
   (** Wrapper for {!variant_case0} and {!variant_case1} *)
   let variant_case ~polymorphic { case_name; case_cons } =
@@ -128,17 +128,17 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
   (** [|+ field "field_name" (field_type) (fun t -> t.field_name)] *)
   let record_field { field_name; field_generic } e =
     pexp_apply (evar "|+")
-      ( [
-          e;
-          pexp_apply (evar "field")
-            ( [
-                pexp_constant @@ Pconst_string (field_name, None);
-                field_generic;
-                lambda "t" (pexp_field (evar "t") (Located.lident field_name));
-              ]
-            >|= unlabelled );
-        ]
-      >|= unlabelled )
+      ([
+         e;
+         pexp_apply (evar "field")
+           ([
+              pexp_constant @@ Pconst_string (field_name, None);
+              field_generic;
+              lambda "t" (pexp_field (evar "t") (Located.lident field_name));
+            ]
+           >|= unlabelled);
+       ]
+      >|= unlabelled)
 
   (** Record composites are encoded as a constructor function
 
