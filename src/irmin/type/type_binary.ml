@@ -236,25 +236,31 @@ module Decode = struct
     | `Int64 -> int64 buf ofs >|= Int64.to_int
     | `Fixed n -> ok ofs n
 
-  let fixed_size = function `Fixed n -> n | _ -> -1
-
   let string ?(headers = true) n buf ofs =
-    let f = fixed_size n in
-    if (not headers) && f = String.length buf then ok f buf
-    else
-      len buf ofs n >>= fun (ofs, len) ->
-      let str = Bytes.create len in
-      String.blit buf ofs str 0 len;
-      ok (ofs + len) (Bytes.unsafe_to_string str)
+    let sub ofs len =
+      if ofs = 0 && len = String.length buf then ok len buf
+      else
+        let str = Bytes.create len in
+        String.blit buf ofs str 0 len;
+        ok (ofs + len) (Bytes.unsafe_to_string str)
+    in
+    match (headers, n) with
+    | _, `Fixed len -> sub ofs len
+    | true, _ -> len buf ofs n >>= fun (ofs, len) -> sub ofs len
+    | false, _ -> sub ofs (String.length buf - ofs)
 
   let bytes ?(headers = true) n buf ofs =
-    let f = fixed_size n in
-    if (not headers) && f = String.length buf then ok f (Bytes.of_string buf)
-    else
-      len buf ofs n >>= fun (ofs, len) ->
-      let str = Bytes.create len in
-      String.blit buf ofs str 0 len;
-      ok (ofs + len) str
+    let sub ofs len =
+      if ofs = 0 && len = String.length buf then ok len (Bytes.of_string buf)
+      else
+        let str = Bytes.create len in
+        String.blit buf ofs str 0 len;
+        ok (ofs + len) str
+    in
+    match (headers, n) with
+    | _, `Fixed len -> sub ofs len
+    | true, _ -> len buf ofs n >>= fun (ofs, len) -> sub ofs len
+    | false, _ -> sub ofs (String.length buf - ofs)
 
   let list l n buf ofs =
     len buf ofs n >>= fun (ofs, len) ->
