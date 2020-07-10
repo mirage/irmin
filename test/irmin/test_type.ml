@@ -534,6 +534,9 @@ let test_hashes () =
     "contents" "b60d121b438a380c343d5ec3c2037564b82ffef3"
     (digest Irmin.Contents.String.t "xxx");
   Alcotest.(check string)
+    "contents v1" "e2383c8f6ce9f8b894fbe26abe34e7db053bc48f"
+    (digest Irmin.Contents.V1.String.t "xxx");
+  Alcotest.(check string)
     "empty node" "5ba93c9db0cff93f52b521d7420e43f6eda2784f"
     (digest Node.t Node.empty);
   Alcotest.(check string)
