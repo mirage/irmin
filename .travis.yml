@@ -9,6 +9,7 @@ env:
   - PINS="irmin.dev:. irmin-mem.dev:. irmin-pack.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql.dev:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
   - DISTRO=debian-stable
   matrix:
+  - OCAML_VERSION=4.07 PACKAGE="irmin-unix" REVDEPS="irmin-indexeddb"
   - OCAML_VERSION=4.09 PACKAGE="irmin"
   - OCAML_VERSION=4.09 PACKAGE="ppx_irmin"
   - OCAML_VERSION=4.08 PACKAGE="irmin"
@@ -23,4 +24,3 @@ env:
   - OCAML_VERSION=4.07 PACKAGE="irmin-mirage-graphql"
   - OCAML_VERSION=4.07 PACKAGE="irmin-graphql"
   - OCAML_VERSION=4.07 PACKAGE="irmin-pack"
-  - OCAML_VERSION=4.07 PACKAGE="irmin-unix" REVDEPS="irmin-indexeddb"
