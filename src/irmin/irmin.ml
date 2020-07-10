@@ -292,7 +292,7 @@ module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
 
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 
-module type TREE = S.TREE
+module type TREE = Tree.S
 
 module type S = Store.S
 

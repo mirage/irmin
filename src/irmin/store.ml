@@ -89,13 +89,13 @@ module Make (P : S.PRIVATE) = struct
 
     let shallow r h = import_no_check r h |> of_node
 
-    let hash : tree -> hash =
+    let hash : t -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
   end
 
   let save_contents b c = P.Contents.add b c
 
-  let save_tree ?(clear = true) r x y (tr : Tree.tree) =
+  let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
     | `Contents (c, _) -> save_contents x c
     | `Node n -> Tree.export ~clear r x y n
@@ -106,7 +106,7 @@ module Make (P : S.PRIVATE) = struct
 
   type metadata = Metadata.t
 
-  type tree = Tree.tree
+  type tree = Tree.t
 
   type repo = P.Repo.t
 

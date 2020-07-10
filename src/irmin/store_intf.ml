@@ -282,13 +282,14 @@ module type S = sig
   (** Managing store's trees. *)
   module Tree : sig
     include
-      S.TREE
-        with type step := step
+      Tree.S
+        with type t := tree
+         and type step := step
          and type key := key
          and type metadata := metadata
          and type contents := contents
          and type node := node
-         and type tree := tree
+         and type hash := hash
 
     (** {1 Import/Export} *)
 
@@ -804,7 +805,7 @@ module type S = sig
 
   (** {2 Converters to private types} *)
 
-  val to_private_node : node -> Private.Node.value option Lwt.t
+  val to_private_node : node -> Private.Node.value Tree.or_error Lwt.t
 
   val of_private_node : repo -> Private.Node.value -> node
 
