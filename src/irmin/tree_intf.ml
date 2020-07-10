@@ -89,6 +89,9 @@ module type S = sig
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an
         error if no such value exists in the underlying repository. *)
+
+    val clear : t -> unit
+    (** [clear t] clears [t]'s cache. *)
   end
 
   val mem : t -> key -> bool Lwt.t
