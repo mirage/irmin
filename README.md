@@ -16,11 +16,24 @@ Irmin is an OCaml library for building mergeable, branchable distributed data st
 ### Documentation
 Documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
 
-
 ### Installation
+
+#### Prerequisites:
+
+Please ensure to install the minimum Opam and Ocaml versions which are 2 and 4.07 respectively.
+          
+    opam list    // listing the installed packages
+
 To install Irmin, the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
 
     opam install irmin-unix
+
+***Note :***  If you face installation issues due to pinned packages. Run  the below commands to unpin and try to install again,
+
+Unpinning *irmin-unix* package,
+
+    opam info irmin-unix // to get available versions
+    opam pin -s | grep irmin | xargs opam unpin
 
 A minimal installation, with no storage backends can be installed by running:
 
