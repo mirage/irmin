@@ -81,20 +81,18 @@ module Encode = struct
         o e x;
         lexeme e `Oe
 
-  let rec t : type a. a t -> a encode_json =
-   fun ty e ->
-    match ty with
-    | Self s -> t s.self_fix e
-    | Custom c -> c.encode_json e
-    | Map b -> map b e
-    | Boxed x -> t x e
-    | Prim t -> prim t e
-    | List l -> list (t l.v) e
-    | Array a -> array (t a.v) e
-    | Tuple t -> tuple t e
-    | Option x -> boxed_option (t x) e
-    | Record r -> record r e
-    | Variant v -> variant v e
+  let rec t : type a. a t -> a encode_json = function
+    | Self s -> t s.self_fix
+    | Custom c -> c.encode_json
+    | Map b -> map b
+    | Boxed x -> t x
+    | Prim t -> prim t
+    | List l -> list (t l.v)
+    | Array a -> array (t a.v)
+    | Tuple t -> tuple t
+    | Option x -> boxed_option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
 
   and tuple : type a. a tuple -> a encode_json = function
@@ -102,7 +100,9 @@ module Encode = struct
     | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
   and map : type a b. (a, b) map -> b encode_json =
-   fun { x; g; _ } e u -> t x e (g u)
+   fun { x; g; _ } ->
+    let encode = t x in
+    fun e u -> encode e (g u)
 
   and prim : type a. a prim -> a encode_json = function
     | Unit -> unit
@@ -116,22 +116,23 @@ module Encode = struct
     | Bytes _ -> bytes
 
   and record : type a. a record -> a encode_json =
-   fun r e x ->
+   fun r ->
     let fields = fields r in
-    lexeme e `Os;
-    List.iter
-      (fun (Field f) ->
-        match (f.ftype, f.fget x) with
-        | Option _, None -> ()
-        | Option o, Some x ->
-            lexeme e (`Name f.fname);
-            t o e x
-        | List _, [] -> ()
-        | tx, x ->
-            lexeme e (`Name f.fname);
-            t tx e x)
-      fields;
-    lexeme e `Oe
+    fun e x ->
+      lexeme e `Os;
+      List.iter
+        (fun (Field f) ->
+          match (f.ftype, f.fget x) with
+          | Option _, None -> ()
+          | Option o, Some x ->
+              lexeme e (`Name f.fname);
+              t o e x
+          | List _, [] -> ()
+          | tx, x ->
+              lexeme e (`Name f.fname);
+              t tx e x)
+        fields;
+      lexeme e `Oe
 
   and variant : type a. a variant -> a encode_json =
    fun v e x -> case_v e (v.vget x)
@@ -276,33 +277,34 @@ module Decode = struct
         expect_lexeme e `Oe >|= fun () -> Some v
     | l -> error e l "`Option-contents"
 
-  let rec t : type a. a t -> a decode_json =
-   fun ty d ->
-    match ty with
-    | Self s -> t s.self_fix d
-    | Custom c -> c.decode_json d
-    | Map b -> map b d
-    | Prim t -> prim t d
-    | Boxed x -> t x d
-    | List l -> list (t l.v) d
-    | Array a -> array (t a.v) d
-    | Tuple t -> tuple t d
-    | Option x -> boxed_option (t x) d
-    | Record r -> record r d
-    | Variant v -> variant v d
+  let rec t : type a. a t -> a decode_json = function
+    | Self s -> t s.self_fix
+    | Custom c -> c.decode_json
+    | Map b -> map b
+    | Prim t -> prim t
+    | Boxed x -> t x
+    | List l -> list (t l.v)
+    | Array a -> array (t a.v)
+    | Tuple t -> tuple t
+    | Option x -> boxed_option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
 
   (* Some types need to be decoded differently when wrapped inside records,
      since e.g. `k: None` is omitted and `k: Some v` is unboxed into `k: v`. *)
-  and inside_record_t : type a. a t -> a decode_json =
-   fun ty d -> match ty with Option x -> unboxed_option (t x) d | _ -> t ty d
+  and inside_record_t : type a. a t -> a decode_json = function
+    | Option x -> unboxed_option (t x)
+    | ty -> t ty
 
   and tuple : type a. a tuple -> a decode_json = function
     | Pair (x, y) -> pair (t x) (t y)
     | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
   and map : type a b. (a, b) map -> b decode_json =
-   fun { x; f; _ } e -> t x e >|= f
+   fun { x; f; _ } ->
+    let decode = t x in
+    fun e -> decode e >|= f
 
   and prim : type a. a prim -> a decode_json = function
     | Unit -> unit
@@ -316,38 +318,40 @@ module Decode = struct
     | Bytes _ -> bytes
 
   and record : type a. a record -> a decode_json =
-   fun r e ->
-    expect_lexeme e `Os >>= fun () ->
-    let rec soup acc =
-      lexeme e >>= function
-      | `Name n -> value e >>= fun s -> soup ((n, s) :: acc)
-      | `Oe -> Ok acc
-      | l -> error e l "`Record-contents"
-    in
-    soup [] >>= fun soup ->
-    let rec aux : type a b. (a, b) fields -> b -> (a, [ `Msg of string ]) result
-        =
-     fun f c ->
-      match f with
-      | F0 -> Ok c
-      | F1 (h, f) -> (
-          let v =
-            try
-              let s = List.assoc h.fname soup in
-              let e = Json.decoder_of_lexemes s in
-              inside_record_t h.ftype e
-            with Not_found -> (
-              match h.ftype with
-              | Option _ -> Ok None
-              | List _ -> Ok []
-              | _ ->
-                  Error
-                    (`Msg (Fmt.strf "missing value for %s.%s" r.rname h.fname)))
-          in
-          match v with Ok v -> aux f (c v) | Error _ as e -> e)
-    in
+   fun r ->
     let (Fields (f, c)) = r.rfields in
-    aux f c
+    fun e ->
+      expect_lexeme e `Os >>= fun () ->
+      let rec soup acc =
+        lexeme e >>= function
+        | `Name n -> value e >>= fun s -> soup ((n, s) :: acc)
+        | `Oe -> Ok acc
+        | l -> error e l "`Record-contents"
+      in
+      soup [] >>= fun soup ->
+      let rec aux :
+          type a b. (a, b) fields -> b -> (a, [ `Msg of string ]) result =
+       fun f c ->
+        match f with
+        | F0 -> Ok c
+        | F1 (h, f) -> (
+            let v =
+              try
+                let s = List.assoc h.fname soup in
+                let e = Json.decoder_of_lexemes s in
+                inside_record_t h.ftype e
+              with Not_found -> (
+                match h.ftype with
+                | Option _ -> Ok None
+                | List _ -> Ok []
+                | _ ->
+                    Error
+                      (`Msg
+                        (Fmt.strf "missing value for %s.%s" r.rname h.fname)))
+            in
+            match v with Ok v -> aux f (c v) | Error _ as e -> e)
+      in
+      aux f c
 
   and variant : type a. a variant -> a decode_json =
    fun v e ->
