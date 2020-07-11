@@ -18,7 +18,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = IO.v2
 
 module Default = struct
   let fresh = false
@@ -202,9 +202,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     aux from
 
   let sync_offset t =
-    let former_log_offset = IO.offset t.block in
-    let log_offset = IO.force_offset t.block in
-    if log_offset > former_log_offset then refill t ~from:former_log_offset
+    let former_generation = IO.generation t.block in
+    let generation = IO.force_generation t.block in
+    if former_generation <> generation then refill t ~from:0L
+    else
+      let former_log_offset = IO.offset t.block in
+      let log_offset = IO.force_offset t.block in
+      if log_offset > former_log_offset then refill t ~from:former_log_offset
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);

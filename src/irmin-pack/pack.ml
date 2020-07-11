@@ -18,7 +18,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = IO.v2
 
 let ( -- ) = Int64.sub
 
@@ -107,6 +107,8 @@ end)
 
 let with_cache = IO.with_cache
 
+let pp_version = IO.pp_version
+
 module IO = IO.Unix
 
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
@@ -117,6 +119,7 @@ struct
   type index = Index.t
 
   type 'a t = {
+    root : string;
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
@@ -125,8 +128,8 @@ struct
   }
 
   let clear t =
-    IO.clear t.block;
     Index.clear t.index;
+    IO.clear t.block;
     Dict.clear t.dict
 
   let valid t =
@@ -141,9 +144,9 @@ struct
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
     if IO.version block <> current_version then
-      Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
-        current_version;
-    { block; index; lock; dict; open_instances = 1 }
+      Fmt.failwith "invalid version: got %a, expecting %a" pp_version
+        (IO.version block) pp_version current_version;
+    { root; block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
     with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
