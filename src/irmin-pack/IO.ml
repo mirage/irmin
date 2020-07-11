@@ -39,6 +39,10 @@ module type S = sig
 
   val force_offset : t -> int64
 
+  val generation : t -> int64
+
+  val force_generation : t -> int64
+
   val readonly : t -> bool
 
   val version : t -> string
@@ -52,6 +56,14 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
+type version = string
+
+let pp_version = Fmt.Dump.string
+
+let v1 = "00000001"
+
+let v2 = "00000002"
+
 module Unix : S = struct
   exception RO_Not_Allowed
 
@@ -60,16 +72,21 @@ module Unix : S = struct
   type t = {
     file : string;
     mutable raw : Raw.t;
+    mutable generation : int64;
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
-    version : string;
+    mutable version : string;
     buf : Buffer.t;
   }
 
   let name t = t.file
 
-  let header = 16L (* offset + version *)
+  let header_v1 = 16L (* offset + version *)
+
+  let header_v2 = 24L (* offset + version + generation *)
+
+  let header t = if t.version = v1 then header_v1 else header_v2
 
   let flush t =
     if t.readonly then raise RO_Not_Allowed;
@@ -80,15 +97,17 @@ module Unix : S = struct
     if buf = "" then ()
     else (
       Raw.unsafe_write t.raw ~off:t.flushed buf;
-      Raw.Offset.set t.raw offset;
+      (* version and generation can change after a clear *)
+      Raw.Header.set t.raw
+        { Raw.Header.version = t.version; offset; generation = t.generation };
 
       (* concurrent append might happen so here t.offset might differ
          from offset *)
-      if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
-      then
+      let h = header t in
+      if not (t.flushed ++ Int64.of_int (String.length buf) = h ++ offset) then
         Fmt.failwith "sync error: %s flushed=%Ld offset+header=%Ld\n%!" t.file
-          t.flushed (offset ++ header);
-      t.flushed <- offset ++ header)
+          t.flushed (offset ++ h);
+      t.flushed <- offset ++ h)
 
   let auto_flush_limit = 1_000_000L
 
@@ -101,20 +120,23 @@ module Unix : S = struct
   let set t ~off buf =
     if t.readonly then raise RO_Not_Allowed;
     flush t;
-    Raw.unsafe_write t.raw ~off:(header ++ off) buf;
-    let len = Int64.of_int (String.length buf) in
-    let off = header ++ off ++ len in
-    assert (off <= t.flushed)
+    Raw.unsafe_write t.raw ~off:(header t ++ off) buf
 
   let read t ~off buf =
-    if not t.readonly then assert (header ++ off <= t.flushed);
-    Raw.unsafe_read t.raw ~off:(header ++ off) ~len:(Bytes.length buf) buf
+    if not t.readonly then assert (header t ++ off <= t.flushed);
+    Raw.unsafe_read t.raw ~off:(header t ++ off) ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 
   let force_offset t =
     t.offset <- Raw.Offset.get t.raw;
     t.offset
+
+  let generation t = t.generation
+
+  let force_generation t =
+    t.generation <- Raw.Generation.get t.raw;
+    t.generation
 
   let version t = t.version
 
@@ -143,10 +165,27 @@ module Unix : S = struct
     in
     aux dirname (fun () -> ())
 
+  let raw ~mode ~version file =
+    let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
+    let raw = Raw.v x in
+    let header = { Raw.Header.version; offset = 0L; generation = 0L } in
+    Raw.Header.set raw header;
+    raw
+
   let clear t =
+    if t.readonly then invalid_arg "Read-only IO cannot be cleared";
     t.offset <- 0L;
-    t.flushed <- header;
-    Buffer.clear t.buf
+    t.flushed <- header t;
+    if t.version = v1 then t.version <- v2;
+    t.generation <- Int64.succ t.generation;
+    Buffer.clear t.buf;
+    (* update the file contents for concurrent read-only instance to
+       notice that the file has been clear when they next sync. *)
+    flush t;
+    (* and delete the file. *)
+    Raw.close t.raw;
+    Unix.unlink t.file;
+    t.raw <- raw ~version:t.version ~mode:Unix.O_RDWR t.file
 
   let buffers = Hashtbl.create 256
 
@@ -159,7 +198,8 @@ module Unix : S = struct
 
   let v ~fresh ~version:current_version ~readonly file =
     assert (String.length current_version = 8);
-    let v ~offset ~version raw =
+    let v ~offset ~version ~generation raw =
+      let header = if current_version = v1 then header_v1 else header_v2 in
       {
         version;
         file;
@@ -168,29 +208,30 @@ module Unix : S = struct
         readonly;
         buf = buffer file;
         flushed = header ++ offset;
+        generation;
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
-        let raw = Raw.v x in
-        Raw.Offset.set raw 0L;
-        Raw.Version.set raw current_version;
-        v ~offset:0L ~version:current_version raw
+        let raw = raw ~mode ~version:current_version file in
+        v ~offset:0L ~version:current_version ~generation:0L raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
           Raw.Offset.set raw 0L;
           Raw.Version.set raw current_version;
-          v ~offset:0L ~version:current_version raw)
+          Raw.Generation.set raw 0L;
+          v ~offset:0L ~version:current_version ~generation:0L raw)
         else
           let offset = Raw.Offset.get raw in
           let version = Raw.Version.get raw in
-          assert (version = current_version);
-          v ~offset ~version raw
+          let generation =
+            if version = v1 then 0L else Raw.Generation.get raw
+          in
+          v ~offset ~version ~generation raw
 
   let close t = Raw.close t.raw
 end
