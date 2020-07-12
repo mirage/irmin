@@ -87,7 +87,7 @@ module Make (H : Hashtbl.HashedType) = struct
     with Not_found -> ()
 
   let add t k v =
-    if t.w = 0 then ()
+    if t.cap = 0 then ()
     else (
       remove t k;
       let n = Q.node (k, v) in
