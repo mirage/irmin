@@ -358,6 +358,19 @@ module Pack = struct
     test t.pack >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
+  let test_clear () =
+    Context.get_pack ~lru_size:10 () >>= fun t ->
+    let v = "foo" in
+    let k = sha1 v in
+    Pack.unsafe_append t.pack k v;
+    Pack.flush t.pack;
+    Pack.find t.pack k >>= fun v1 ->
+    Alcotest.(check (option string)) "before clear" (Some v) v1;
+    Pack.clear t.pack;
+    Pack.find t.pack k >>= fun v2 ->
+    Alcotest.(check (option string)) "after clear" None v2;
+    Lwt.return ()
+
   let tests =
     [
       Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
@@ -373,6 +386,7 @@ module Pack = struct
           Lwt_main.run (readonly_sync_index_flush ()));
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
+      Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
     ]
 end
 
@@ -460,4 +474,9 @@ module Branch = struct
 end
 
 let misc =
-  ("misc", Dict.tests @ Pack.tests @ Branch.tests @ Multiple_instances.tests)
+  [
+    ("dict-files", Dict.tests);
+    ("pack-files", Pack.tests);
+    ("branch-files", Branch.tests);
+    ("instances", Multiple_instances.tests);
+  ]
