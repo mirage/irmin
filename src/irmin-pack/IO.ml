@@ -18,12 +18,18 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(* For every new version, update the [version] type and [versions]
+   headers. *)
+type version = [ `V1 | `V2 ]
+
+let versions = [ (`V1, "00000001"); (`V2, "00000002") ]
+
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -45,7 +51,7 @@ module type S = sig
 
   val readonly : t -> bool
 
-  val version : t -> string
+  val version : t -> version
 
   val flush : t -> unit
 
@@ -56,13 +62,18 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
-type version = string
+let pp_version ppf v =
+  let rec aux i = function
+    | (x, _) :: t -> if v = x then i else aux (i + 1) t
+    | [] -> assert false
+  in
+  Fmt.pf ppf "v%d" (aux 1 versions)
 
-let pp_version = Fmt.Dump.string
+let bin_of_version v = List.assoc v versions
 
-let v1 = "00000001"
-
-let v2 = "00000002"
+let version_of_bin b =
+  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
+  with Not_found -> None
 
 module Unix : S = struct
   exception RO_Not_Allowed
@@ -76,7 +87,7 @@ module Unix : S = struct
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
-    mutable version : string;
+    mutable version : [ `V1 | `V2 ];
     buf : Buffer.t;
   }
 
@@ -86,7 +97,9 @@ module Unix : S = struct
 
   let header_v2 = 24L (* offset + version + generation *)
 
-  let header t = if t.version = v1 then header_v1 else header_v2
+  let header_of_version = function `V1 -> header_v1 | `V2 -> header_v2
+
+  let header t = header_of_version t.version
 
   let flush t =
     if t.readonly then raise RO_Not_Allowed;
@@ -99,7 +112,11 @@ module Unix : S = struct
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       (* version and generation can change after a clear *)
       Raw.Header.set t.raw
-        { Raw.Header.version = t.version; offset; generation = t.generation };
+        {
+          Raw.Header.version = bin_of_version t.version;
+          offset;
+          generation = t.generation;
+        };
 
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -173,19 +190,20 @@ module Unix : S = struct
     raw
 
   let clear t =
+    Log.debug (fun l -> l "clear %s" t.file);
     if t.readonly then invalid_arg "Read-only IO cannot be cleared";
-    t.offset <- 0L;
-    t.flushed <- header t;
-    if t.version = v1 then t.version <- v2;
-    t.generation <- Int64.succ t.generation;
     Buffer.clear t.buf;
-    (* update the file contents for concurrent read-only instance to
-       notice that the file has been clear when they next sync. *)
-    flush t;
-    (* and delete the file. *)
-    Raw.close t.raw;
-    Unix.unlink t.file;
-    t.raw <- raw ~version:t.version ~mode:Unix.O_RDWR t.file
+    (* no-op if the file is already empty; this is to avoid bumping
+       the version number when this is not necessary. *)
+    if t.offset = 0L then ()
+    else
+      let e = Printexc.get_callstack 10 in
+      Printexc.print_raw_backtrace stdout e;
+      flush_all ();
+      t.offset <- 0L;
+      t.flushed <- header t;
+      if t.version = `V1 then t.version <- `V2;
+      t.generation <- Int64.succ t.generation
 
   let buffers = Hashtbl.create 256
 
@@ -196,10 +214,8 @@ module Unix : S = struct
       Hashtbl.add buffers file buf;
       buf
 
-  let v ~fresh ~version:current_version ~readonly file =
-    assert (String.length current_version = 8);
+  let v ~version ~fresh ~readonly file =
     let v ~offset ~version ~generation raw =
-      let header = if current_version = v1 then header_v1 else header_v2 in
       {
         version;
         file;
@@ -207,7 +223,7 @@ module Unix : S = struct
         raw;
         readonly;
         buf = buffer file;
-        flushed = header ++ offset;
+        flushed = header_of_version version ++ offset;
         generation;
       }
     in
@@ -215,23 +231,36 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let raw = raw ~mode ~version:current_version file in
-        v ~offset:0L ~version:current_version ~generation:0L raw
-    | true ->
+        Fmt.epr "XXX io 1\n%!";
+        let raw = raw ~mode ~version:(bin_of_version version) file in
+        v ~offset:0L ~version ~generation:0L raw
+    | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
-          Raw.Offset.set raw 0L;
-          Raw.Version.set raw current_version;
-          Raw.Generation.set raw 0L;
-          v ~offset:0L ~version:current_version ~generation:0L raw)
-        else
-          let offset = Raw.Offset.get raw in
-          let version = Raw.Version.get raw in
-          let generation =
-            if version = v1 then 0L else Raw.Generation.get raw
+          Fmt.epr "XXX io 2 (version = %a)\n%!" pp_version version;
+          let headers =
+            {
+              Raw.Header.version = bin_of_version version;
+              offset = 0L;
+              generation = 0L;
+            }
           in
-          v ~offset ~version ~generation raw
+          Raw.Header.set raw headers;
+          v ~offset:0L ~version ~generation:0L raw)
+        else
+          let { Raw.Header.version; offset; generation } = Raw.Header.get raw in
+          Fmt.epr "XXX io 3\n%!";
+          match version_of_bin version with
+          | Some `V1 -> v ~offset ~version:`V1 ~generation:0L raw
+          | Some version -> v ~offset ~version ~generation raw
+          | None ->
+              let pp_full_version ppf v =
+                Fmt.pf ppf "%a (%S)" pp_version v (bin_of_version v)
+              in
+              Fmt.failwith "invalid version: got %S, expecting %a" version
+                Fmt.(Dump.list pp_full_version)
+                [ `V1; `V2 ])
 
   let close t = Raw.close t.raw
 end
@@ -240,7 +269,8 @@ let ( // ) = Filename.concat
 
 let with_cache ~v ~clear ~valid file =
   let files = Hashtbl.create 13 in
-  let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
+  let cached_constructor extra_args ?(version = `V2) ?(fresh = false)
+      ?(readonly = false) root =
     let file = root // file in
     if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
     try
@@ -261,9 +291,9 @@ let with_cache ~v ~clear ~valid file =
         raise Not_found)
     with Not_found ->
       Log.debug (fun l ->
-          l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
-            readonly);
-      let t = v extra_args ~fresh ~readonly file in
+          l "[%s] v version=%a fresh=%b readonly=%b" (Filename.basename file)
+            pp_version version fresh readonly);
+      let t = v extra_args ~version ~fresh ~readonly file in
       if fresh then clear t;
       Hashtbl.add files (file, readonly) t;
       t

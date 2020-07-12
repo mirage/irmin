@@ -18,8 +18,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = IO.v2
-
 module Default = struct
   let fresh = false
 
@@ -77,6 +75,10 @@ let config ?(fresh = Default.fresh) ?(readonly = Default.readonly)
 let ( ++ ) = Int64.add
 
 let with_cache = IO.with_cache
+
+type version = IO.version
+
+let pp_version = IO.pp_version
 
 open Lwt.Infix
 module Pack = Pack
@@ -214,8 +216,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       true)
     else false
 
-  let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:current_version ~readonly file in
+  let unsafe_v ~version ~fresh ~readonly file =
+    let block = IO.v ~fresh ~version ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t =
@@ -236,10 +238,14 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       ~v:(fun () -> unsafe_v)
       "store.branches"
 
-  let v ?fresh ?readonly file =
+  let v ?version ?fresh ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
-        let v = unsafe_v () ?fresh ?readonly file in
+        let v = unsafe_v () ?version ?fresh ?readonly file in
         Lwt.return v)
+
+  let version t = IO.version t.block
+
+  let generation t = IO.generation t.block
 
   let unsafe_set t k v =
     try
@@ -369,7 +375,7 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Pack (CA_Pack)
+        include Closeable.Content_addressable (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -405,7 +411,7 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Pack (CA_Pack)
+        include Closeable.Content_addressable (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)

@@ -18,8 +18,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = IO.v2
-
 let ( -- ) = Int64.sub
 
 module type ELT = sig
@@ -43,49 +41,19 @@ module type ELT = sig
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  val unsafe_append : 'a t -> key -> value -> unit
-
-  val unsafe_mem : 'a t -> key -> bool
-
-  val unsafe_find : 'a t -> key -> value option
-
-  val flush : ?index:bool -> 'a t -> unit
-
-  val sync : 'a t -> unit
-
-  val clear : 'a t -> unit
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-end
-
 module type MAKER = sig
   type key
 
   type index
 
   module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    S.CONTENT_ADDRESSABLE_STORE
+      with type key = key
+       and type value = V.t
+       and type index = index
 end
+
+module type S = S.CONTENT_ADDRESSABLE_STORE
 
 open Lwt.Infix
 
@@ -106,8 +74,6 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
 end)
 
 let with_cache = IO.with_cache
-
-let pp_version = IO.pp_version
 
 module IO = IO.Unix
 
@@ -138,14 +104,11 @@ struct
       true)
     else false
 
-  let unsafe_v ~index ~fresh ~readonly file =
+  let unsafe_v ~version ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
-    let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~fresh ~version:current_version ~readonly file in
-    if IO.version block <> current_version then
-      Fmt.failwith "invalid version: got %a, expecting %a" pp_version
-        (IO.version block) pp_version current_version;
+    let dict = Dict.v ~version ~fresh ~readonly root in
+    let block = IO.v ~version ~fresh ~readonly file in
     { root; block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
@@ -201,14 +164,14 @@ struct
       if index then Index.flush t.pack.index;
       Tbl.clear t.staging
 
-    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
-      let pack = v index ~fresh ~readonly root in
+    let unsafe_v_no_cache ~version ~fresh ~readonly ~lru_size ~index root =
+      let pack = v index ~version ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack; open_instances = 1 }
 
-    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
-        ~index root =
+    let unsafe_v ?(version = `V2) ?(fresh = false) ?(readonly = false)
+        ?(lru_size = 10_000) ~index root =
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
@@ -218,15 +181,21 @@ struct
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
-        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+        let t =
+          unsafe_v_no_cache ~version ~fresh ~readonly ~lru_size ~index root
+        in
         if fresh then clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
-    let v ?fresh ?readonly ?lru_size ~index root =
+    let v ?version ?fresh ?readonly ?lru_size ~index root =
       Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
+          let t = unsafe_v ?version ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
+
+    let version t = IO.version t.pack.block
+
+    let generation t = IO.generation t.pack.block
 
     let pp_hash = Irmin.Type.pp K.t
 

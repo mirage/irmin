@@ -139,11 +139,24 @@ module Dict = struct
     Alcotest.(check (option string))
       "find foo after clear" None (Dict.find dict i)
 
+  let test_upgrade () =
+    let Context.{ dict; _ } = Context.get_dict ~version:`V1 () in
+    let v1 = Dict.version dict in
+    let g1 = Dict.generation dict in
+    Alcotest.(check version) "v1" `V1 v1;
+    Alcotest.(check int64) "generation 0" 0L g1;
+    Dict.clear dict;
+    let v2 = Dict.version dict in
+    let g2 = Dict.generation dict in
+    Alcotest.(check version) "v2" `V2 v2;
+    Alcotest.(check int64) "generation 1" 1L g2
+
   let tests =
     [
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
       Alcotest.test_case "clear" `Quick test_clear;
+      Alcotest.test_case "upgrade" `Quick test_upgrade;
     ]
 end
 
@@ -371,6 +384,16 @@ module Pack = struct
     Alcotest.(check (option string)) "after clear" None v2;
     Lwt.return ()
 
+  let test_upgrade () =
+    Context.get_pack ~version:`V1 () >>= fun t ->
+    Fmt.epr "XXX XXX\n%!";
+    let v1 = Pack.version t.pack in
+    Alcotest.(check version) "v1" `V1 v1;
+    Pack.clear t.pack;
+    let v2 = Pack.version t.pack in
+    Alcotest.(check version) "v2" `V2 v2;
+    Lwt.return ()
+
   let tests =
     [
       Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
@@ -387,6 +410,8 @@ module Pack = struct
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
       Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
+      Alcotest.test_case "upgrade" `Quick (fun () ->
+          Lwt_main.run (test_upgrade ()));
     ]
 end
 

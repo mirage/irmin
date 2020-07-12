@@ -5,6 +5,8 @@ let get = function Some x -> x | None -> Alcotest.fail "None"
 
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 
+let version = Alcotest.testable Irmin_pack.pp_version ( = )
+
 let rm_dir root =
   if Sys.file_exists root then (
     let cmd = Printf.sprintf "rm -rf %s" root in
@@ -51,10 +53,10 @@ struct
 
   type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
 
-  let get_dict () =
+  let get_dict ?version () =
     let name = fresh_name "dict" in
-    let dict = Dict.v ~fresh:true name in
-    let clone ~readonly = Dict.v ~fresh:false ~readonly name in
+    let dict = Dict.v ?version ~fresh:true name in
+    let clone ~readonly = Dict.v ?version ~fresh:false ~readonly name in
     { dict; clone }
 
   type t = {
@@ -66,18 +68,21 @@ struct
 
   let log_size = 10_000_000
 
-  let get_pack ?(lru_size = 0) () =
+  let get_pack ?version ?(lru_size = 0) () =
     let name = fresh_name "dict" in
     let f = ref (fun () -> ()) in
     let index =
       Index.v ~auto_flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    Pack.v ~fresh:true ~lru_size ~index name >|= fun pack ->
+    Pack.v ?version ~fresh:true ~lru_size ~index name >|= fun pack ->
     (f := fun () -> Pack.flush ~index:false pack);
-    let clone_pack ~readonly = Pack.v ~fresh:false ~readonly ~index name in
+    let clone_pack ~readonly =
+      Pack.v ?version ~fresh:false ~readonly ~index name
+    in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      Pack.v ~fresh:false ~readonly ~index name >|= fun pack -> (index, pack)
+      Pack.v ?version ~lru_size ~fresh:false ~readonly ~index name
+      >|= fun pack -> (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }
 
