@@ -126,10 +126,24 @@ module Dict = struct
     Dict.close dict;
     Dict.close r
 
+  let test_clear () =
+    let Context.{ dict; _ } = Context.get_dict () in
+    let i =
+      match Dict.index dict "foo" with
+      | None -> Alcotest.fail "full dict!"
+      | Some i -> i
+    in
+    Dict.flush dict;
+    Alcotest.(check (option string)) "find foo" (Some "foo") (Dict.find dict i);
+    Dict.clear dict;
+    Alcotest.(check (option string))
+      "find foo after clear" None (Dict.find dict i)
+
   let tests =
     [
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
+      Alcotest.test_case "clear" `Quick test_clear;
     ]
 end
 
