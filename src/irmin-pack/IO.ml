@@ -71,24 +71,26 @@ module Unix : S = struct
 
   let header = 16L (* offset + version *)
 
-  let flush t =
-    if t.readonly then raise RO_Not_Allowed;
+  let unsafe_flush t =
     Log.debug (fun l -> l "IO flush %s" t.file);
     let buf = Buffer.contents t.buf in
-    let offset = t.offset in
-    Buffer.clear t.buf;
     if buf = "" then ()
-    else (
+    else
+      let offset = t.offset in
+      Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.Offset.set t.raw offset;
-
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
       then
         Fmt.failwith "sync error: %s flushed=%Ld offset+header=%Ld\n%!" t.file
           t.flushed (offset ++ header);
-      t.flushed <- offset ++ header)
+      t.flushed <- offset ++ header
+
+  let flush t =
+    if t.readonly then raise RO_Not_Allowed;
+    unsafe_flush t
 
   let auto_flush_limit = 1_000_000L
 
@@ -100,14 +102,15 @@ module Unix : S = struct
 
   let set t ~off buf =
     if t.readonly then raise RO_Not_Allowed;
-    flush t;
+    unsafe_flush t;
     Raw.unsafe_write t.raw ~off:(header ++ off) buf;
-    let len = Int64.of_int (String.length buf) in
-    let off = header ++ off ++ len in
-    assert (off <= t.flushed)
+    assert (
+      let len = Int64.of_int (String.length buf) in
+      let off = header ++ off ++ len in
+      off <= t.flushed)
 
   let read t ~off buf =
-    if not t.readonly then assert (header ++ off <= t.flushed);
+    assert (if not t.readonly then header ++ off <= t.flushed else true);
     Raw.unsafe_read t.raw ~off:(header ++ off) ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
