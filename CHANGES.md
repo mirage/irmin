@@ -1,5 +1,10 @@
 ### Unreleased
 
+### Fixed
+
+- **irmin-pack***
+  - Fix a major bug in the LRU which was never used (#1035, @samoht)
+
 #### Added
 
 - **irmin**
@@ -10,7 +15,7 @@
 
 - **irmin**
   - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
-  
+
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
     files on disk. (#1008, @icristescu)
@@ -57,7 +62,7 @@
   - The type `Irmin.S.tree` is now abstract. The previous form can be coerced
     to/from the abstract representation with the new functions
     `Irmin.S.Tree.{v,destruct}` respectively. (#990, @CraigFe)
-    
+
 - **irmin-mem**
   - Stores created with `KV` now expose their unit metadata type. (#995,
     @CraigFe)
@@ -81,7 +86,7 @@
     function to be specified. For BLAKE2b and BLAKE2s, the bit-length may be
     specified with a trailing slash, as in `--hash=blake2b/16`. The `hash`
     function may also be specified in the configuration file. (#898, @craigfe)
- 
+
 - **irmin**:
   - Added `Irmin.Hash.Make_BLAKE2B` and `Irmin.Hash.Make_BLAKE2S` functors for
     customizing the bit-length of these hash functions. (#898, @craigfe)
