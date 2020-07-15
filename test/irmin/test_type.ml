@@ -317,15 +317,15 @@ let test_to_string () =
     "Branch ([Branch ([Leaf (1)]); Leaf (2)])";
   test "record" my_record_t
     { foo = 2; flag = false; letter = Delta }
-    {|{ "foo" = 2;
-  "flag" = false;
-  "letter" = Delta }|};
+    {|{ foo = 2;
+  flag = false;
+  letter = Delta }|};
 
   test "recursive record" my_recursive_record_t
     { head = 1; tail = Some { head = 2; tail = None } }
-    {|{ "head" = 1;
-  "tail" = Some { "head" = 2;
-                  "tail" = None } }|};
+    {|{ head = 1;
+  tail = Some { head = 2;
+                tail = None } }|};
 
   ()
 

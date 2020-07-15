@@ -65,7 +65,8 @@ let t t =
   and record : type a. a record -> a pp =
    fun t ->
     fields t
-    |> List.map (fun (Field f) -> Fmt.Dump.field f.fname f.fget (aux f.ftype))
+    |> List.map (fun (Field f) ->
+           Fmt.Dump.field ~label:Fmt.string f.fname f.fget (aux f.ftype))
     |> Fmt.Dump.record
   and variant : type a. a variant -> a pp =
    fun t ppf x ->
