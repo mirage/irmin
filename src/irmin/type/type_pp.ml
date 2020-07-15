@@ -16,7 +16,7 @@
 
 open Type_core
 
-let t t =
+let t ?(ocaml_syntax = false) t =
   let rec aux : type a. a t -> a pp =
    fun t ppf x ->
     match t with
@@ -24,6 +24,7 @@ let t t =
     | Custom c -> c.pp ppf x
     | Map m -> map m ppf x
     | Prim p -> prim p ppf x
+    | _ when not ocaml_syntax -> Type_json.pp t ppf x
     | Var v -> raise (Unbound_type_variable v)
     | List l -> Fmt.Dump.list (aux l.v) ppf x
     | Array a -> Fmt.Dump.array (aux a.v) ppf x
@@ -34,21 +35,25 @@ let t t =
   and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
   and prim : type a. a prim -> a pp =
    fun t ppf x ->
-    match t with
-    | Unit -> Fmt.string ppf "()"
-    | Bool -> Fmt.bool ppf x
-    | Char -> Fmt.(pf ppf "'%c'" x)
-    | Int -> Fmt.int ppf x
-    | Int32 -> Fmt.int32 ppf x
-    | Int64 -> Fmt.int64 ppf x
-    | Float ->
-        Fmt.string ppf
-          ( match classify_float x with
-          | FP_infinite when x < 0. -> "neg_infinity"
-          | FP_infinite -> "infinity"
-          | _ -> string_of_float x (* Usually more precise than Fmt.float. *) )
-    | String _ -> Fmt.Dump.string ppf x
-    | Bytes _ -> Fmt.Dump.string ppf (Bytes.unsafe_to_string x)
+    match (t, ocaml_syntax) with
+    | Unit, false -> ()
+    | Char, false -> Fmt.char ppf x
+    | Float, false when Float.is_nan x -> Fmt.string ppf "\"nan\""
+    | Float, false when x = infinity -> Fmt.string ppf "\"inf\""
+    | Float, false when x = neg_infinity -> Fmt.string ppf "\"-inf\""
+    | String _, false -> Fmt.string ppf x
+    | Unit, true -> Fmt.string ppf "()"
+    | Char, true -> Fmt.(pf ppf "'%c'" x)
+    | Float, true when Float.is_nan x -> Fmt.string ppf "nan"
+    | Float, true when x = infinity -> Fmt.string ppf "infinity"
+    | Float, true when x = neg_infinity -> Fmt.string ppf "neg_infinity"
+    | String _, true -> Fmt.Dump.string ppf x
+    | Bool, _ -> Fmt.bool ppf x
+    | Int, _ -> Fmt.int ppf x
+    | Int32, _ -> Fmt.int32 ppf x
+    | Int64, _ -> Fmt.int64 ppf x
+    | Float, _ -> Fmt.string ppf (string_of_float x)
+    | Bytes _, _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
   and tuple : type a. a tuple -> a pp =
    fun t ->
     match t with
@@ -193,7 +198,9 @@ let ty : type a. a t Fmt.t =
   in
   ty ppf typ
 
-let to_string ty = Fmt.to_to_string (t ty)
+let to_string ty = Fmt.to_to_string (t ~ocaml_syntax:false ty)
+
+let to_ocaml_string ty = Fmt.to_to_string (t ~ocaml_syntax:true ty)
 
 let of_string t =
   let map_result f = function Ok x -> Ok (f x) | Error _ as e -> e in

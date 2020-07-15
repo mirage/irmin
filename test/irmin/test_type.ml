@@ -39,7 +39,7 @@ let test_base () =
     (Some (String.length "foo"))
     (size_of T.(string_of (`Fixed 3)) "foo");
   let s = T.to_string T.string "foo" in
-  Alcotest.(check string) "CLI string" "\"foo\"" s;
+  Alcotest.(check string) "CLI string" "foo" s;
   let s = T.to_json_string T.int 42 in
   Alcotest.(check string) "JSON int" "42" s;
   let s = to_bin_string T.int 42 in
@@ -210,7 +210,7 @@ let sha1 x = Irmin.Hash.BLAKE2B.hash (fun l -> l x)
 
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
-  Alcotest.(check string) "hex list" "[666f6f; 666f6f]" s;
+  Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
   let s = T.to_bin_string l [ "foo"; "bar" ] in
   Alcotest.(check string) "encode list" "foobar" s;
   Alcotest.(check (option int))
@@ -269,6 +269,83 @@ let test_to_string () =
   in
 
   (* Test cases for basic types *)
+  test "unit" T.unit () "";
+  test "bool{true}" T.bool true "true";
+  test "bool{false}" T.bool false "false";
+  test "char" T.char 'a' "a";
+  test "int" T.int (-100) "-100";
+  test "int32" T.int32 Int32.max_int "2147483647";
+  test "int64" T.int64 Int64.max_int "9223372036854775807";
+  test "float" T.float (-1.5) "-1.5";
+  test "float{NaN}" T.float Stdlib.nan "\"nan\"";
+  test "float{inf}" T.float Stdlib.infinity "\"inf\"";
+  test "float{-inf}" T.float Stdlib.neg_infinity "\"-inf\"";
+  test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
+  test "string" T.string "foo\nbar\\" "foo\nbar\\";
+
+  (* Test cases for non-algebraic combinators *)
+  test "int list{nil}" T.(list int) [] "[]";
+  test "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
+  test "float array"
+    T.(array float)
+    [|
+      Stdlib.neg_infinity;
+      ~-.0.;
+      0.;
+      Stdlib.epsilon_float;
+      Stdlib.infinity;
+      Stdlib.nan;
+    |]
+    "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
+  test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
+  test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
+  test "unit option{none}" T.(option unit) None "null";
+  test "unit option option{some some}"
+    T.(option (option unit))
+    (Some (Some ())) "{\"some\":{\"some\":{}}}";
+  test "unit option option{some none}"
+    T.(option (option unit))
+    (Some None) "{\"some\":null}";
+  test "(int * string * bool)"
+    T.(triple int string bool)
+    (1, "foo", true) "[1,\"foo\",1]";
+  test "(string, bool) result{ok}"
+    T.(result string bool)
+    (Ok "foo") "{\"ok\":\"foo\"}";
+  test "(string, bool) result{error}"
+    T.(result string bool)
+    (Error false) "{\"error\":0}";
+
+  (* Test cases for algebraic combinators *)
+  let open Algebraic in
+  test "enum" my_enum_t Alpha "\"Alpha\"";
+  test "variant" my_variant_t (Right [ 1; 2 ]) "{\"Right\":[1,2]}";
+  test "recursive variant" my_recursive_variant_t
+    (Branch [ Branch [ Leaf 1 ]; Leaf 2 ])
+    "{\"Branch\":[{\"Branch\":[{\"Leaf\":1}]},{\"Leaf\":2}]}";
+  test "record" my_record_t
+    { foo = 2; flag = false; letter = Delta }
+    "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
+
+  test "recursive record" my_recursive_record_t
+    { head = 1; tail = Some { head = 2; tail = None } }
+    "{\"head\":1,\"tail\":{\"head\":2}}";
+
+  ()
+
+(** Test the behaviour of {!Irmin.Type.to_ocaml_string}. *)
+let test_to_ocaml_string () =
+  let test : type a. string -> a T.t -> a -> string -> unit =
+   fun case_name typ input expected_output ->
+    let assertion =
+      Fmt.strf "Expected output of `to_ocaml_string` for representation of `%s`"
+        case_name
+    in
+    T.to_ocaml_string typ input
+    |> Alcotest.(check string) assertion expected_output
+  in
+
+  (* Test cases for basic types *)
   test "unit" T.unit () "()";
   test "bool{true}" T.bool true "true";
   test "bool{false}" T.bool false "false";
@@ -278,7 +355,9 @@ let test_to_string () =
   test "int64" T.int64 Int64.max_int "9223372036854775807";
   test "float" T.float (-1.5) "-1.5";
   test "float{NaN}" T.float Stdlib.nan "nan";
-  test "bytes" T.bytes (Bytes.make 5 'a') "\"aaaaa\"";
+  test "float{inf}" T.float Stdlib.infinity "infinity";
+  test "float{-inf}" T.float Stdlib.neg_infinity "neg_infinity";
+  test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
   test "string" T.string "foo\nbar\\" "\"foo\\nbar\\\\\"";
 
   (* Test cases for non-algebraic combinators *)
@@ -785,6 +864,7 @@ let suite =
     ("json_option", `Quick, test_json_option);
     ("bin", `Quick, test_bin);
     ("to_string", `Quick, test_to_string);
+    ("to_ocaml_string", `Quick, test_to_ocaml_string);
     ("pp_ty", `Quick, test_pp_ty);
     ("compare", `Quick, test_compare);
     ("equal", `Quick, test_equal);

@@ -306,14 +306,17 @@ type 'a pp = 'a Fmt.t
 type 'a of_string = string -> ('a, [ `Msg of string ]) result
 (** The type for parsers. *)
 
-val pp : 'a t -> 'a pp
+val pp : ?ocaml_syntax:bool -> 'a t -> 'a pp
 (** [pp t] is the pretty-printer for values of type [t]. *)
 
 val pp_ty : 'a t pp
 (** The pretty printer for generics of type {!t}. *)
 
 val to_string : 'a t -> 'a -> string
-(** [to_string t] is [Fmt.to_to_string (pp t)]. *)
+(** [to_string t] is [Fmt.to_to_string (pp ~ocaml_syntax:false t)]. *)
+
+val to_ocaml_string : 'a t -> 'a -> string
+(** [to_ocaml_string t] is [Fmt.to_to_string (pp ~ocaml_syntax:true t)]. *)
 
 val of_string : 'a t -> 'a of_string
 (** [of_string t] parses values of type [t]. *)
