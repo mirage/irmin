@@ -15,11 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** [Linked_log] is the linked list implementation of log. Due to the linked
-    property, two versions of the log share their common predecessor. As it is a
-    linked data structure, a content addressable store is required. Along with
-    that, a method to obtain timestamps, a hash for the content addressable
-    store and the type of values stored must also be provided. *)
+(** The linked list implementation of log. Due to the linked property, two
+    versions of the log share their common predecessor. As it is a linked data
+    structure, a content addressable store is required. Along with that, a
+    method to obtain timestamps, a hash for the content addressable store and
+    the type of values stored must also be provided. *)
 
 (** Signature of [Linked_log] *)
 module type S = sig

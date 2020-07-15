@@ -15,6 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** The signature for the backend input to the data structures. The Irmin stores
+    of the data structures are constructed using modules of this type *)
 module type Store_maker = functor (C : Irmin.Contents.S) ->
   Irmin.S
     with type contents = C.t

@@ -15,11 +15,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** [Lww_register] is the implementation of last-write-wins register. The value
-    to be stored in the register and the timestamp method are provided by the
-    user. Merge semantics : The value with the largest timestamp is chosen. If
-    two values have the same timestamp, then the larger value is selected based
-    on the compare specified by the user. *)
+(** The implementation of last-write-wins register. The value to be stored in
+    the register and the timestamp method are provided by the user.
+
+    Merge semantics: The value with the largest timestamp is chosen. If two
+    values have the same timestamp, then the larger value is selected based on
+    the compare specified by the user. *)
 
 (** Signature of [Lww_register] *)
 module type S = sig

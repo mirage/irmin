@@ -15,12 +15,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** [Blob_log] is the implementation of log in which it is maintained as a
-    single unit, or blob. Hence, two versions of the log cannot share their
-    common predecessor. The type of values to be stored as well as a method to
-    obtain timestamps are provided by the user. Merging does the following: the
-    newer entries from each branch, with respect to the least common ancestor,
-    are taken, merged and then appended in front of the LCA *)
+(** The implementation of log in which it is maintained as a single unit, or
+    blob. Hence, two versions of the log cannot share their common predecessor.
+    The type of values to be stored as well as a method to obtain timestamps are
+    provided by the user.
+
+    Merging does the following: the newer entries from each branch, with respect
+    to the least common ancestor, are taken, merged and then appended in front
+    of the LCA. *)
 
 (** Signature of [Blob_log] *)
 module type S = sig

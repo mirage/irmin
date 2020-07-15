@@ -15,12 +15,35 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Store_maker = Stores.Store_maker
+(** [Irmin_containers] is a collection of simple, ready-to-use mergeable data
+    structures. Each data structure works with an arbitrary Irmin backend and is
+    customisable in a variety of ways.
 
-module type Cas_maker = Stores.Cas_maker
+    Additionally, [Irmin_containers] supplies instantiations of each of these
+    data structures with two backends:
 
-module Time = Time
+    - the {{!Irmin_mem} in-memory backend} provided by {!Irmin_mem}
+    - the {{!Irmin_unix.FS} FS backend} provided by {!Irmin_unix}. *)
+
+(** {1 Data structures} *)
+
 module Counter = Counter
 module Lww_register = Lww_register
 module Blob_log = Blob_log
 module Linked_log = Linked_log
+
+(** {1 Auxiliary signatures and modules} *)
+
+module type Store_maker = Stores.Store_maker
+
+(** [Store_maker] is the signature for the backend input to the data structures.
+    The Irmin stores of the data structures are constructed using modules of
+    this type *)
+
+module type Cas_maker = Stores.Cas_maker
+
+(** [Cas_maker] is the signature for the store which will be used to maintain
+    linked data structures. The elements are hashed into this store and the hash
+    value is used to construct the linkages. *)
+
+module Time = Time
