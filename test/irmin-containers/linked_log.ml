@@ -15,13 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Common
 open Lwt.Infix
-
-module Str = struct
-  type t = string
-
-  let t = Irmin.Type.string
-end
 
 module CAS = struct
   module CAS_Maker = Irmin.Content_addressable (Irmin_mem.Append_only)
@@ -29,7 +24,9 @@ module CAS = struct
   let config = Irmin_mem.config ()
 end
 
-module L = Irmin_containers.Linked_log.Mem (CAS) (Str) ()
+module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String) ()
+
+let merge_into_exn = merge_into_exn (module L.Store)
 
 let path = [ "tmp"; "link" ]
 
@@ -69,9 +66,8 @@ let test_clone_merge _ () =
   L.Store.clone ~src:t ~dst:"cl" >>= fun b ->
   L.append ~path b "clone.1" >>= fun () ->
   L.append ~path t "master.3" >>= fun () ->
-  L.Store.merge_into ~info:Irmin.Info.none b ~into:t
-  >>= (function
-        | Error _ -> failwith "merging error" | Ok _ -> L.read_all ~path t)
+  merge_into_exn b ~into:t >>= fun () ->
+  L.read_all ~path t
   >|= Alcotest.(check (list string))
         "checked - log after appending"
         [ "master.3"; "clone.1"; "master.2"; "master.1" ]
@@ -88,19 +84,11 @@ let test_branch_merge _ () =
   L.append ~path b1 "b1.3" >>= fun () ->
   L.append ~path b2 "b2.2" >>= fun () ->
   L.append ~path b1 "b1.4" >>= fun () ->
-  L.Store.merge_into ~info:Irmin.Info.none b1 ~into:b3
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b3"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b2 ~into:b3)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b3"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b2 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b4"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b1 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b4"
-        | Ok _ -> L.read_all ~path b3)
+  merge_into_exn b1 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b4 >>= fun () ->
+  merge_into_exn b1 ~into:b4 >>= fun () ->
+  L.read_all ~path b3
   >|= Alcotest.(check (list string))
         "checked - value of b3"
         [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
@@ -112,7 +100,7 @@ let test_branch_merge _ () =
 
 let test_cases =
   [
-    ( "linked_log operations",
+    ( "linked_log",
       [
         Alcotest_lwt.test_case "Read empty log" `Quick test_empty_read;
         Alcotest_lwt.test_case "Append and real all" `Quick test_append_read_all;
@@ -120,11 +108,9 @@ let test_cases =
           test_read_incr;
         Alcotest_lwt.test_case "Read excess with cursor" `Quick test_read_excess;
       ] );
-    ( "linked_log store operations",
+    ( "linked_log store",
       [
         Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
         Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
-
-(* let () = Lwt_main.run @@ Alcotest_lwt.run "Linked_log" test_cases *)

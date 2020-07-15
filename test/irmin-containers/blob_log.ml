@@ -15,19 +15,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Common
 open Lwt.Infix
-
-module Str = struct
-  type t = string
-
-  let t = Irmin.Type.string
-end
-
-module B = Irmin_containers.Blob_log.Mem (Str)
+module B = Irmin_containers.Blob_log.Mem (Irmin.Contents.String)
 
 let path = [ "tmp"; "blob" ]
 
 let config () = B.Store.Repo.v (Irmin_mem.config ())
+
+let merge_into_exn = merge_into_exn (module B.Store)
 
 let test_empty_read _ () =
   config ()
@@ -48,9 +44,8 @@ let test_clone_merge _ () =
   B.Store.clone ~src:t ~dst:"cl" >>= fun b ->
   B.append ~path b "clone.1" >>= fun () ->
   B.append ~path t "master.3" >>= fun () ->
-  B.Store.merge_into ~info:Irmin.Info.none b ~into:t
-  >>= (function
-        | Error _ -> failwith "merging error" | Ok _ -> B.read_all ~path t)
+  merge_into_exn b ~into:t >>= fun () ->
+  B.read_all ~path t
   >|= Alcotest.(check (list string))
         "checked - log after appending"
         [ "master.3"; "clone.1"; "master.2"; "master.1" ]
@@ -67,19 +62,11 @@ let test_branch_merge _ () =
   B.append ~path b1 "b1.3" >>= fun () ->
   B.append ~path b2 "b2.2" >>= fun () ->
   B.append ~path b1 "b1.4" >>= fun () ->
-  B.Store.merge_into ~info:Irmin.Info.none b1 ~into:b3
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b3"
-        | Ok _ -> B.Store.merge_into ~info:Irmin.Info.none b2 ~into:b3)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b3"
-        | Ok _ -> B.Store.merge_into ~info:Irmin.Info.none b2 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b4"
-        | Ok _ -> B.Store.merge_into ~info:Irmin.Info.none b1 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b4"
-        | Ok _ -> B.read_all ~path b3)
+  merge_into_exn b1 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b4 >>= fun () ->
+  merge_into_exn b1 ~into:b4 >>= fun () ->
+  B.read_all ~path b3
   >|= Alcotest.(check (list string))
         "checked - value of b3"
         [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
@@ -91,16 +78,14 @@ let test_branch_merge _ () =
 
 let test_cases =
   [
-    ( "blob_log operations",
+    ( "blob_log",
       [
         Alcotest_lwt.test_case "Read empty log" `Quick test_empty_read;
         Alcotest_lwt.test_case "Append" `Quick test_append;
       ] );
-    ( "blob_log store operations",
+    ( "blob_log store",
       [
         Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
         Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
-
-(* let () = Lwt_main.run @@ Alcotest_lwt.run "Blob_log" test_cases *)

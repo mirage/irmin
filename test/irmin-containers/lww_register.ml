@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Common
 open Lwt.Infix
 
 module In = struct
@@ -24,6 +25,8 @@ module In = struct
 end
 
 module L = Irmin_containers.Lww_register.Mem (In)
+
+let merge_into_exn = merge_into_exn (module L.Store)
 
 let path = [ "tmp"; "lww" ]
 
@@ -54,8 +57,8 @@ let test_clone_merge _ () =
   L.read ~path b
   >|= Alcotest.(check (option int)) "checked - value of clone" (Some 10)
   >>= fun () ->
-  L.Store.merge_into ~info:Irmin.Info.none b ~into:t
-  >>= (function Error _ -> failwith "merging error" | Ok _ -> L.read ~path t)
+  merge_into_exn b ~into:t >>= fun () ->
+  L.read ~path t
   >|= Alcotest.(check (option int))
         "checked - value of master after merging" (Some 10)
 
@@ -67,19 +70,11 @@ let test_branch_merge _ () =
   L.Store.of_branch r "b4" >>= fun b4 ->
   L.write ~path b1 6 >>= fun () ->
   L.write ~path b2 3 >>= fun () ->
-  L.Store.merge_into ~info:Irmin.Info.none b1 ~into:b3
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b3"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b2 ~into:b3)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b3"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b2 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b4"
-        | Ok _ -> L.Store.merge_into ~info:Irmin.Info.none b1 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b4"
-        | Ok _ -> L.read ~path b3)
+  merge_into_exn b1 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b4 >>= fun () ->
+  merge_into_exn b1 ~into:b4 >>= fun () ->
+  L.read ~path b3
   >|= Alcotest.(check (option int)) "checked - value of b3" (Some 3)
   >>= fun () ->
   L.read ~path b4
@@ -87,16 +82,14 @@ let test_branch_merge _ () =
 
 let test_cases =
   [
-    ( "lww_register operations",
+    ( "lww_register",
       [
         Alcotest_lwt.test_case "Read" `Quick test_empty_read;
         Alcotest_lwt.test_case "Write" `Quick test_write;
       ] );
-    ( "lww_register store operations",
+    ( "lww_register store",
       [
         Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
         Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
-
-(* let () = Lwt_main.run @@ Alcotest_lwt.run "Lww_register" test_cases *)

@@ -15,12 +15,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Common
 open Lwt.Infix
 module C = Irmin_containers.Counter.Mem
 
 let path = [ "tmp"; "counter" ]
 
 let config () = C.Store.Repo.v (Irmin_mem.config ())
+
+let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc _ () =
   config () >>= C.Store.master >>= fun t ->
@@ -50,8 +53,8 @@ let test_clone_merge _ () =
   >>= fun () ->
   C.read ~path b >|= Alcotest.(check int64) "checked - value of clone" 7L
   >>= fun () ->
-  C.Store.merge_into ~info:Irmin.Info.none b ~into:t
-  >>= (function Error _ -> failwith "merging error" | Ok _ -> C.read t ~path)
+  merge_into_exn b ~into:t >>= fun () ->
+  C.read t ~path
   >|= Alcotest.(check int64) "checked - value of master after merging" 3L
 
 let test_branch_merge _ () =
@@ -62,35 +65,24 @@ let test_branch_merge _ () =
   C.Store.of_branch r "b4" >>= fun b4 ->
   C.inc ~by:5L ~path b1 >>= fun () ->
   C.dec ~by:2L ~path b2 >>= fun () ->
-  C.Store.merge_into ~info:Irmin.Info.none b1 ~into:b3
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b3"
-        | Ok _ -> C.Store.merge_into ~info:Irmin.Info.none b2 ~into:b3)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b3"
-        | Ok _ -> C.Store.merge_into ~info:Irmin.Info.none b2 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b2 into b4"
-        | Ok _ -> C.Store.merge_into ~info:Irmin.Info.none b1 ~into:b4)
-  >>= (function
-        | Error _ -> failwith "error while merging b1 into b4"
-        | Ok _ -> C.read ~path b3)
-  >|= Alcotest.(check int64) "checked - value of b3" 3L
+  merge_into_exn b1 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b3 >>= fun () ->
+  merge_into_exn b2 ~into:b4 >>= fun () ->
+  merge_into_exn b1 ~into:b4 >>= fun () ->
+  C.read ~path b3 >|= Alcotest.(check int64) "checked - value of b3" 3L
   >>= fun () ->
   C.read ~path b4 >|= Alcotest.(check int64) "checked - value of b4" 3L
 
 let test_cases =
   [
-    ( "counter operations",
+    ( "counter",
       [
         Alcotest_lwt.test_case "Increment" `Quick test_inc;
         Alcotest_lwt.test_case "Decrement" `Quick test_dec;
       ] );
-    ( "counter store operations",
+    ( "counter store",
       [
         Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
         Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
-
-(* let () = Lwt_main.run @@ Alcotest_lwt.run "Counter" test_cases *)

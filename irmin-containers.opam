@@ -18,7 +18,13 @@ depends: [
   "dune"       {>= "1.8.0"}
   "irmin"      {>= "2.1.0"}
   "lwt"
+  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
 ]
 
-
 synopsis: "Mergeable Irmin data structures"
+description: """
+A collection of simple, ready-to-use mergeable data structures built using
+Irmin. Each data structure works with an arbitrary Irmin backend and is
+customisable in a variety of ways.
+"""
