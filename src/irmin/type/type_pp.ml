@@ -27,7 +27,7 @@ let t t =
     | Var v -> raise (Unbound_type_variable v)
     | List l -> Fmt.Dump.list (aux l.v) ppf x
     | Array a -> Fmt.Dump.array (aux a.v) ppf x
-    | Option o -> Fmt.Dump.option (aux o) ppf x
+    | Option o -> option o ppf x
     | Tuple t -> tuple t ppf x
     | Record r -> record r ppf x
     | Variant v -> variant v ppf x
@@ -68,6 +68,13 @@ let t t =
     |> List.map (fun (Field f) ->
            Fmt.Dump.field ~label:Fmt.string f.fname f.fget (aux f.ftype))
     |> Fmt.Dump.record
+  and option : type a. a t -> a option pp =
+   fun t ppf -> function
+    | None -> Fmt.string ppf "None"
+    | Some x ->
+        Fmt.(
+          string ppf "Some ";
+          parens (aux t) ppf x)
   and variant : type a. a variant -> a pp =
    fun t ppf x ->
     match t.vget x with

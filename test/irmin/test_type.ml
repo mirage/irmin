@@ -296,8 +296,14 @@ let test_to_string () =
     |]
     "[|neg_infinity; -0.; 0.; 2.22044604925e-16; infinity; nan|]";
   test "(unit * int)" T.(pair unit int) ((), 1) "((), 1)";
-  test "unit option{some}" T.(option unit) (Some ()) "Some ()";
-  test "int option{none}" T.(option unit) None "None";
+  test "unit option{some}" T.(option unit) (Some ()) "Some (())";
+  test "unit option{none}" T.(option unit) None "None";
+  test "unit option option{some some}"
+    T.(option (option unit))
+    (Some (Some ())) "Some (Some (()))";
+  test "unit option option{some none}"
+    T.(option (option unit))
+    (Some None) "Some (None)";
   test "(int * string * bool)"
     T.(triple int string bool)
     (1, "foo", true) "(1, \"foo\", true)";
@@ -324,8 +330,8 @@ let test_to_string () =
   test "recursive record" my_recursive_record_t
     { head = 1; tail = Some { head = 2; tail = None } }
     {|{ head = 1;
-  tail = Some { head = 2;
-                tail = None } }|};
+  tail = Some ({ head = 2;
+                 tail = None }) }|};
 
   ()
 
