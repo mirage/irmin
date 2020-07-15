@@ -44,6 +44,10 @@
   - Added `Irmin.Type.empty` to represent an uninhabited type. (#961, @CraigFe)
   - Added `Store.Tree.concrete_t`. (#1003, @CraigFe)
 
+- **irmin-containers** (_new_):
+  - Created a new package, `irmin-containers`, which provides a set of simple
+    mergeable datastructures implemented using Irmin. (#1014, @ani003)
+
 - **ppx_irmin**
   - Added support for the `@nobuiltin` attribute, which can be used when
     shadowing primitive types such as `unit`. See `README_PPX` for details.
