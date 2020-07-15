@@ -102,20 +102,29 @@ module Encode = struct
     | `Int32 -> int32 (Int32.of_int i)
     | `Int64 -> int64 (Int64.of_int i)
     | `Fixed _ -> unit ()
+    | `Unboxed -> unit ()
 
-  let string ?(headers = true) n s k =
-    if not headers then add_string s k
-    else
+  let unboxed_string _ = add_string
+
+  let boxed_string n =
+    let len = len n in
+    fun s k ->
       let i = String.length s in
-      len n i k;
+      len i k;
       add_string s k
 
-  let bytes ?(headers = true) n s k =
-    if not headers then add_bytes s k
-    else
+  let string boxed = if boxed then boxed_string else unboxed_string
+
+  let unboxed_bytes _ = add_bytes
+
+  let boxed_bytes n =
+    let len = len n in
+    fun s k ->
       let i = Bytes.length s in
-      len n i k;
+      len i k;
       add_bytes s k
+
+  let bytes boxed = if boxed then boxed_bytes else unboxed_bytes
 
   let list l n x k =
     len n (List.length x) k;
@@ -141,33 +150,45 @@ module Encode = struct
         char '\255' k;
         o x k
 
-  let rec t : type a. a t -> a encode_bin =
-   fun ty ?headers e k ->
-    match ty with
-    | Self s -> t ?headers s.self_fix e k
-    | Custom c -> c.encode_bin ?headers e k
-    | Map b -> map ?headers b e k
-    | Prim t -> prim ?headers t e k
-    | List l -> list (t l.v) l.len e k
-    | Array a -> array (t a.v) a.len e k
-    | Tuple t -> tuple ?headers t e k
-    | Option x -> option (t x) e k
-    | Record r -> record ?headers r e k
-    | Variant v -> variant ?headers v e k
+  let rec t : type a. a t -> a encode_bin = function
+    | Self s -> t s.self_fix
+    | Custom c -> c.encode_bin
+    | Map b -> map ~boxed:true b
+    | Prim t -> prim ~boxed:true t
+    | Boxed b -> t b
+    | List l -> list (t l.v) l.len
+    | Array a -> array (t a.v) a.len
+    | Tuple t -> tuple t
+    | Option x -> option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
 
-  and tuple : type a. a tuple -> a encode_bin =
-   fun ty ?headers:_ ->
-    match ty with
+  and unboxed : type a. a t -> a encode_bin = function
+    | Self s -> unboxed s.self_fix
+    | Custom c -> c.unboxed_encode_bin
+    | Map b -> map ~boxed:false b
+    | Prim t -> prim ~boxed:false t
+    | Boxed b -> t b
+    | List l -> list (t l.v) l.len
+    | Array a -> array (t a.v) a.len
+    | Tuple t -> tuple t
+    | Option x -> option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
+    | Var v -> raise (Unbound_type_variable v)
+
+  and tuple : type a. a tuple -> a encode_bin = function
     | Pair (x, y) -> pair (t x) (t y)
     | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
-  and map : type a b. (a, b) map -> b encode_bin =
-   fun { x; g; _ } ?headers u k -> t ?headers x (g u) k
+  and map : type a b. boxed:bool -> (a, b) map -> b encode_bin =
+   fun ~boxed { x; g; _ } ->
+    let encode_bin = if boxed then t x else unboxed x in
+    fun u k -> encode_bin (g u) k
 
-  and prim : type a. a prim -> a encode_bin =
-   fun ty ?headers ->
-    match ty with
+  and prim : type a. boxed:bool -> a prim -> a encode_bin =
+   fun ~boxed -> function
     | Unit -> unit
     | Bool -> bool
     | Char -> char
@@ -175,19 +196,19 @@ module Encode = struct
     | Int32 -> int32
     | Int64 -> int64
     | Float -> float
-    | String n -> string ?headers n
-    | Bytes n -> bytes ?headers n
+    | String n -> string boxed n
+    | Bytes n -> bytes boxed n
 
   and record : type a. a record -> a encode_bin =
-   fun r ?headers:_ x k ->
+   fun r ->
     let fields = fields r in
-    List.iter (fun (Field f) -> t f.ftype (f.fget x) k) fields
+    fun x k -> List.iter (fun (Field f) -> t f.ftype (f.fget x) k) fields
 
   and variant : type a. a variant -> a encode_bin =
-   fun v ?headers:_ x k -> case_v (v.vget x) k
+   fun v x k -> case_v (v.vget x) k
 
   and case_v : type a. a case_v encode_bin =
-   fun ?headers:_ c k ->
+   fun c k ->
     match c with
     | CV0 c -> int c.ctag0 k
     | CV1 (c, v) ->
@@ -196,33 +217,33 @@ module Encode = struct
 end
 
 module Decode = struct
-  let ( >|= ) (ofs, x) f = (ofs, f x)
-
-  let ( >>= ) (ofs, x) f = f (ofs, x)
-
-  let ok ofs x = (ofs, x)
-
   type 'a res = int * 'a
 
-  let unit _ ofs = ok ofs ()
+  let unit _ ofs = (ofs, ())
 
-  let char buf ofs = ok (ofs + 1) buf.[ofs]
+  let char buf ofs = (ofs + 1, buf.[ofs])
 
-  let int8 buf ofs = char buf ofs >|= Char.code
+  let int8 buf ofs =
+    let ofs, c = char buf ofs in
+    (ofs, Char.code c)
 
-  let int16 buf ofs = ok (ofs + 2) (B.get_uint16 buf ofs)
+  let int16 buf ofs = (ofs + 2, B.get_uint16 buf ofs)
 
-  let int32 buf ofs = ok (ofs + 4) (B.get_uint32 buf ofs)
+  let int32 buf ofs = (ofs + 4, B.get_uint32 buf ofs)
 
-  let int64 buf ofs = ok (ofs + 8) (B.get_uint64 buf ofs)
+  let int64 buf ofs = (ofs + 8, B.get_uint64 buf ofs)
 
-  let bool buf ofs = char buf ofs >|= function '\000' -> false | _ -> true
+  let bool buf ofs =
+    let ofs, c = char buf ofs in
+    match c with '\000' -> (ofs, false) | _ -> (ofs, true)
 
-  let float buf ofs = int64 buf ofs >|= Int64.float_of_bits
+  let float buf ofs =
+    let ofs, f = int64 buf ofs in
+    (ofs, Int64.float_of_bits f)
 
   let int buf ofs =
     let rec aux n p ofs =
-      int8 buf ofs >>= fun (ofs, i) ->
+      let ofs, i = int8 buf ofs in
       let n = n + ((i land 127) lsl (p * 7)) in
       if i >= 0 && i < 128 then (ofs, n) else aux n (p + 1) ofs
     in
@@ -232,88 +253,122 @@ module Decode = struct
     | `Int -> int buf ofs
     | `Int8 -> int8 buf ofs
     | `Int16 -> int16 buf ofs
-    | `Int32 -> int32 buf ofs >|= Int32.to_int
-    | `Int64 -> int64 buf ofs >|= Int64.to_int
-    | `Fixed n -> ok ofs n
+    | `Int32 ->
+        let ofs, i = int32 buf ofs in
+        (ofs, Int32.to_int i)
+    | `Int64 ->
+        let ofs, i = int64 buf ofs in
+        (ofs, Int64.to_int i)
+    | `Fixed n -> (ofs, n)
+    | `Unboxed -> (ofs, String.length buf - ofs)
 
-  let string ?(headers = true) n buf ofs =
-    let sub ofs len =
-      if ofs = 0 && len = String.length buf then ok len buf
+  let mk_unboxed of_string of_bytes _ buf ofs =
+    let len = String.length buf - ofs in
+    if ofs = 0 then (len, of_string buf)
+    else
+      let str = Bytes.create len in
+      String.blit buf ofs str 0 len;
+      (ofs + len, of_bytes str)
+
+  let mk_boxed of_string of_bytes n =
+    let sub len buf ofs =
+      if ofs = 0 && len = String.length buf then (len, of_string buf)
       else
         let str = Bytes.create len in
         String.blit buf ofs str 0 len;
-        ok (ofs + len) (Bytes.unsafe_to_string str)
+        (ofs + len, of_bytes str)
     in
-    match (headers, n) with
-    | _, `Fixed len -> sub ofs len
-    | true, _ -> len buf ofs n >>= fun (ofs, len) -> sub ofs len
-    | false, _ -> sub ofs (String.length buf - ofs)
+    match n with
+    | `Fixed n -> sub n (* fixed-size strings are never boxed *)
+    | n ->
+        fun buf ofs ->
+          let ofs, len = len buf ofs n in
+          sub len buf ofs
 
-  let bytes ?(headers = true) n buf ofs =
-    let sub ofs len =
-      if ofs = 0 && len = String.length buf then ok len (Bytes.of_string buf)
-      else
-        let str = Bytes.create len in
-        String.blit buf ofs str 0 len;
-        ok (ofs + len) str
-    in
-    match (headers, n) with
-    | _, `Fixed len -> sub ofs len
-    | true, _ -> len buf ofs n >>= fun (ofs, len) -> sub ofs len
-    | false, _ -> sub ofs (String.length buf - ofs)
+  let mk of_string of_bytes =
+    let f_boxed = mk_boxed of_string of_bytes in
+    let f_unboxed = mk_unboxed of_string of_bytes in
+    fun boxed -> if boxed then f_boxed else f_unboxed
+
+  let string = mk (fun x -> x) Bytes.unsafe_to_string
+
+  let bytes = mk Bytes.of_string (fun x -> x)
 
   let list l n buf ofs =
-    len buf ofs n >>= fun (ofs, len) ->
+    let ofs, len = len buf ofs n in
     let rec aux acc ofs = function
-      | 0 -> ok ofs (List.rev acc)
-      | n -> l buf ofs >>= fun (ofs, x) -> aux (x :: acc) ofs (n - 1)
+      | 0 -> (ofs, List.rev acc)
+      | n ->
+          let ofs, x = l buf ofs in
+          aux (x :: acc) ofs (n - 1)
     in
     aux [] ofs len
 
-  let array l len buf ofs = list l len buf ofs >|= Array.of_list
+  let array l len buf ofs =
+    let ofs, l = list l len buf ofs in
+    (ofs, Array.of_list l)
 
   let pair a b buf ofs =
-    a buf ofs >>= fun (ofs, a) ->
-    b buf ofs >|= fun b -> (a, b)
+    let ofs, a = a buf ofs in
+    let ofs, b = b buf ofs in
+    (ofs, (a, b))
 
   let triple a b c buf ofs =
-    a buf ofs >>= fun (ofs, a) ->
-    b buf ofs >>= fun (ofs, b) ->
-    c buf ofs >|= fun c -> (a, b, c)
+    let ofs, a = a buf ofs in
+    let ofs, b = b buf ofs in
+    let ofs, c = c buf ofs in
+    (ofs, (a, b, c))
 
   let option : type a. a decode_bin -> a option decode_bin =
-   fun o ?headers:_ buf ofs ->
-    char buf ofs >>= function
-    | ofs, '\000' -> ok ofs None
-    | ofs, _ -> o buf ofs >|= fun x -> Some x
+   fun o buf ofs ->
+    let ofs, c = char buf ofs in
+    match c with
+    | '\000' -> (ofs, None)
+    | _ ->
+        let ofs, x = o buf ofs in
+        (ofs, Some x)
 
-  let rec t : type a. a t -> a decode_bin =
-   fun ty ?headers buf ofs ->
-    match ty with
-    | Self s -> t ?headers s.self_fix buf ofs
-    | Custom c -> c.decode_bin ?headers buf ofs
-    | Map b -> map ?headers b buf ofs
-    | Prim t -> prim ?headers t buf ofs
-    | List l -> list (t l.v) l.len buf ofs
-    | Array a -> array (t a.v) a.len buf ofs
-    | Tuple t -> tuple ?headers t buf ofs
-    | Option x -> option ?headers (t x) buf ofs
-    | Record r -> record ?headers r buf ofs
-    | Variant v -> variant ?headers v buf ofs
+  let rec t : type a. a t -> a decode_bin = function
+    | Self s -> t s.self_fix
+    | Custom c -> c.decode_bin
+    | Map b -> map ~boxed:true b
+    | Prim t -> prim ~boxed:true t
+    | Boxed b -> t b
+    | List l -> list (t l.v) l.len
+    | Array a -> array (t a.v) a.len
+    | Tuple t -> tuple t
+    | Option x -> option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
 
-  and tuple : type a. a tuple -> a decode_bin =
-   fun ty ?headers:_ ->
-    match ty with
+  and unboxed : type a. a t -> a decode_bin = function
+    | Self s -> unboxed s.self_fix
+    | Custom c -> c.unboxed_decode_bin
+    | Map b -> map ~boxed:false b
+    | Prim t -> prim ~boxed:false t
+    | Boxed b -> t b
+    | List l -> list (t l.v) l.len
+    | Array a -> array (t a.v) a.len
+    | Tuple t -> tuple t
+    | Option x -> option (t x)
+    | Record r -> record r
+    | Variant v -> variant v
+    | Var v -> raise (Unbound_type_variable v)
+
+  and tuple : type a. a tuple -> a decode_bin = function
     | Pair (x, y) -> pair (t x) (t y)
     | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
-  and map : type a b. (a, b) map -> b decode_bin =
-   fun { x; f; _ } ?headers buf ofs -> t ?headers x buf ofs >|= f
+  and map : type a b. boxed:bool -> (a, b) map -> b decode_bin =
+   fun ~boxed { x; f; _ } ->
+    let decode_bin = if boxed then t x else unboxed x in
+    fun buf ofs ->
+      let ofs, x = decode_bin buf ofs in
+      (ofs, f x)
 
-  and prim : type a. a prim -> a decode_bin =
-   fun ty ?headers ->
-    match ty with
+  and prim : type a. boxed:bool -> a prim -> a decode_bin =
+   fun ~boxed -> function
     | Unit -> unit
     | Bool -> bool
     | Char -> char
@@ -321,73 +376,83 @@ module Decode = struct
     | Int32 -> int32
     | Int64 -> int64
     | Float -> float
-    | String n -> string ?headers n
-    | Bytes n -> bytes ?headers n
+    | String n -> string boxed n
+    | Bytes n -> bytes boxed n
 
   and record : type a. a record -> a decode_bin =
-   fun r ?headers:_ buf ofs ->
+   fun r ->
     match r.rfields with
     | Fields (fs, c) ->
-        let rec aux : type b. int -> b -> (a, b) fields -> a res =
-         fun ofs f -> function
-          | F0 -> ok ofs f
-          | F1 (h, t) -> field h buf ofs >>= fun (ofs, x) -> aux ofs (f x) t
+        let rec aux : type b. string -> int -> b -> (a, b) fields -> a res =
+         fun buf ofs f -> function
+          | F0 -> (ofs, f)
+          | F1 (h, t) ->
+              let ofs, x = field h buf ofs in
+              aux buf ofs (f x) t
         in
-        aux ofs c fs
+        fun buf ofs -> aux buf ofs c fs
 
   and field : type a b. (a, b) field -> b decode_bin = fun f -> t f.ftype
 
   and variant : type a. a variant -> a decode_bin =
-   fun v ?headers:_ buf ofs ->
-    int buf ofs >>= fun (ofs, i) -> case v.vcases.(i) buf ofs
+   fun v buf ofs ->
+    let ofs, i = int buf ofs in
+    case v.vcases.(i) buf ofs
 
-  and case : type a. a a_case -> a decode_bin =
-   fun c ?headers:_ buf ofs ->
-    match c with C0 c -> ok ofs c.c0 | C1 c -> t c.ctype1 buf ofs >|= c.c1
+  and case : type a. a a_case -> a decode_bin = function
+    | C0 c -> fun _ ofs -> (ofs, c.c0)
+    | C1 c ->
+        fun buf ofs ->
+          let ofs, x = t c.ctype1 buf ofs in
+          (ofs, c.c1 x)
 end
 
 let encode_bin = Encode.t
 
 let decode_bin = Decode.t
 
+module Unboxed = struct
+  let encode_bin = Encode.unboxed
+
+  let decode_bin = Decode.unboxed
+end
+
 let to_bin size_of encode_bin x =
-  let seq = encode_bin ?headers:(Some false) x in
-  let len =
-    match size_of ?headers:(Some false) x with None -> 1024 | Some n -> n
-  in
+  let seq = encode_bin x in
+  let len = match size_of x with None -> 1024 | Some n -> n in
   let buf = Buffer.create len in
   seq (Buffer.add_string buf);
   Buffer.contents buf
 
-let to_bin_string t x =
+let to_bin_string =
   let rec aux : type a. a t -> a -> string =
-   fun t x ->
+   fun t ->
     match t with
-    | Self s -> aux s.self_fix x
-    | Map m -> aux m.x (m.g x)
-    | Prim (String _) -> x
-    | Prim (Bytes _) -> Bytes.to_string x
-    | Custom c -> to_bin c.size_of c.encode_bin x
-    | _ -> to_bin (Type_size.t t) (Encode.t t) x
+    | Self s -> aux s.self_fix
+    | Map m -> fun x -> aux m.x (m.g x)
+    | Prim (String _) -> fun x -> x
+    | Prim (Bytes _) -> Bytes.to_string
+    | Custom c -> to_bin c.unboxed_size_of c.unboxed_encode_bin
+    | _ -> to_bin (Type_size.unboxed t) (Encode.unboxed t)
   in
-  aux t x
+  aux
 
 let map_result f = function Ok x -> Ok (f x) | Error _ as e -> e
 
 let of_bin decode_bin x =
-  let last, v = decode_bin ?headers:(Some false) x 0 in
+  let last, v = decode_bin x 0 in
   assert (last = String.length x);
   Ok v
 
-let of_bin_string t x =
+let of_bin_string t =
   let rec aux : type a. a t -> string -> (a, [ `Msg of string ]) result =
-   fun t x ->
+   fun t ->
     match t with
-    | Self s -> aux s.self_fix x
-    | Map l -> aux l.x x |> map_result l.f
-    | Prim (String _) -> Ok x
-    | Prim (Bytes _) -> Ok (Bytes.of_string x)
-    | Custom c -> of_bin c.decode_bin x
-    | _ -> of_bin (Decode.t t) x
+    | Self s -> aux s.self_fix
+    | Map l -> fun x -> aux l.x x |> map_result l.f
+    | Prim (String _) -> fun x -> Ok x
+    | Prim (Bytes _) -> fun x -> Ok (Bytes.of_string x)
+    | Custom c -> of_bin c.unboxed_decode_bin
+    | _ -> of_bin (Decode.unboxed t)
   in
-  try aux t x with Invalid_argument e -> Error (`Msg e)
+  fun x -> try aux t x with Invalid_argument e -> Error (`Msg e)

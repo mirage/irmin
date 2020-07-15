@@ -10,6 +10,20 @@
 - **irmin**
   - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
     contents and nodes respectively. (#1022, @CraigFe)
+  - Added `Type.Unboxed.{encode_bin,decode_bin,size_of}` to work with unboxed
+    values (#1030, @samoht)
+  - Remove the `headers` option in `Type.{encode_bin,decode_bin,size_of}`. Use
+    `Type.Unboxed.<fn>` instead (#1030, @samoht)
+  - `Type.v` now takes an extra mandatory `unit` argument (#1030, @samoht)
+  - Generic functions in `Irmin.Type` are now more efficient when a partial
+    closure is constructed to the type representation (#1030, @samoht).
+    To make this even more explicit, these functions are now staged and
+    `Type.{unstage,stage}` can manipulate these. The goal is to encourage
+    users to write this kind of (efficent) pattern:
+    ```ocaml
+    let encode_bin = Type.(unstage (encode_bin ty))
+    let _ = <begin loop> ... encode_bin foo ... <end loop>
+    ```
 
 #### Changed
 

@@ -153,9 +153,11 @@ struct
 
       type t = { hash : H.t Lazy.t; stable : bool; v : v }
 
+      let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
+
       let t : t Irmin.Type.t =
         let open Irmin.Type in
-        let pre_hash x = Irmin.Type.pre_hash v_t x.v in
+        let pre_hash = stage (fun x -> pre_hash_v x.v) in
         record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
         |+ field "hash" H.t (fun t -> Lazy.force t.hash)
         |+ field "stable" bool (fun t -> t.stable)
@@ -440,9 +442,11 @@ struct
         in
         { hash = t.Bin.hash; stable = t.Bin.stable; v }
 
+      let pre_hash_bin = Irmin.Type.(unstage (pre_hash Bin.v_t))
+
       let v_t t : v Irmin.Type.t =
         let open Irmin.Type in
-        let pre_hash x = pre_hash Bin.v_t (to_bin_v x) in
+        let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
         let entry = entry_t (inode_t t) in
         variant "Inode.t" (fun values inodes ->
           function Values v -> values v | Inodes i -> inodes i)
@@ -462,8 +466,8 @@ struct
           |+ field "v" v (fun t -> t.v)
           |> sealr
         in
-        let pre_hash x = Irmin.Type.pre_hash v x.v in
-        like ~pre_hash t
+        let pre_hash = Irmin.Type.unstage (Irmin.Type.pre_hash v) in
+        like ~pre_hash:(stage @@ fun x -> pre_hash x.v) t
 
       let empty =
         let hash = lazy (Node.hash Node.empty) in
@@ -628,9 +632,17 @@ struct
 
       let hash t = Bin.hash t
 
+      let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
+
+      let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
+
+      let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
+
+      let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
+
       let encode_bin ~dict ~offset (t : t) k =
         let step s : Compress.name =
-          let str = Irmin.Type.to_bin_string T.step_t s in
+          let str = step_to_bin s in
           if String.length str <= 3 then Direct s
           else match dict str with Some i -> Indirect i | None -> Direct s
         in
@@ -665,19 +677,19 @@ struct
           if t.stable then Compress.node ~hash:k (v t.v)
           else Compress.inode ~hash:k (v t.v)
         in
-        Irmin.Type.encode_bin Compress.t t
+        encode_compress t
 
       exception Exit of [ `Msg of string ]
 
       let decode_bin ~dict ~hash t off : t =
-        let _, i = Irmin.Type.decode_bin ~headers:false Compress.t t off in
+        let _, i = decode_compress t off in
         let step : Compress.name -> T.step = function
           | Direct n -> n
           | Indirect s -> (
               match dict s with
               | None -> raise_notrace (Exit (`Msg "dict"))
               | Some s -> (
-                  match Irmin.Type.of_bin_string T.step_t s with
+                  match step_of_bin s with
                   | Error e -> raise_notrace (Exit e)
                   | Ok v -> v))
         in
@@ -737,12 +749,17 @@ struct
       let v = I.remove ~find:t.find t.v s in
       if v == t.v then t else { find = t.find; v }
 
+    let pre_hash_i = Irmin.Type.(unstage (pre_hash I.t))
+
+    let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
+
     let t : t Irmin.Type.t =
-      let pre_hash x =
-        if not x.v.stable then Irmin.Type.pre_hash I.t x.v
+      let pre_hash =
+        Irmin.Type.stage @@ fun x ->
+        if not x.v.stable then pre_hash_i x.v
         else
           let vs = list x in
-          Irmin.Type.pre_hash Node.t (Node.v vs)
+          pre_hash_node (Node.v vs)
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
   end

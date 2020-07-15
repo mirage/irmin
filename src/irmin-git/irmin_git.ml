@@ -180,9 +180,10 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ (t : t) k = k (to_bin t)
+      let encode_bin = Irmin.Type.stage (fun (t : t) k -> k (to_bin t))
 
-      let decode_bin ?headers:_ buf off =
+      let decode_bin =
+        Irmin.Type.stage @@ fun buf off ->
         Log.debug (fun l -> l "Content.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -193,7 +194,7 @@ struct
             | None -> failwith "wrong object kind")
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of ?headers:_ _ = None
+      let size_of = Irmin.Type.stage (fun _ -> None)
 
       let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
     end
@@ -342,11 +343,13 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ (t : t) k =
+      let encode_bin =
+        Irmin.Type.stage @@ fun (t : t) k ->
         Log.debug (fun l -> l "Tree.encode_bin");
         k (to_bin t)
 
-      let decode_bin ?headers:_ buf off =
+      let decode_bin =
+        Irmin.Type.stage @@ fun buf off ->
         Log.debug (fun l -> l "Tree.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -355,7 +358,7 @@ struct
         | Ok _ -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of ?headers:_ _ = None
+      let size_of = Irmin.Type.stage (fun _ -> None)
 
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
@@ -457,11 +460,13 @@ struct
         | Error _ -> assert false
         | Ok s -> s
 
-      let encode_bin ?headers:_ (t : t) k =
+      let encode_bin =
+        Irmin.Type.stage @@ fun (t : t) k ->
         Log.debug (fun l -> l "Commit.encode_bin");
         k (to_bin t)
 
-      let decode_bin ?headers:_ buf off =
+      let decode_bin =
+        Irmin.Type.stage @@ fun buf off ->
         Log.debug (fun l -> l "Commit.decode_bin");
         let buf = Cstruct.of_string buf in
         let buf = Cstruct.shift buf off in
@@ -470,7 +475,7 @@ struct
         | Ok _ -> failwith "wrong object kind"
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
-      let size_of ?headers:_ _ = None
+      let size_of = Irmin.Type.stage (fun _ -> None)
 
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c

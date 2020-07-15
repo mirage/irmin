@@ -303,14 +303,16 @@ module V1 = struct
   module String = struct
     include String
 
-    let t = Type.string_of `Int64
+    let t = Type.(boxed (string_of `Int64))
 
-    let size_of ?headers:_ = Type.size_of ~headers:true t
+    let size_of = Type.size_of t
 
-    let decode_bin ?headers:_ = Type.decode_bin ~headers:true t
+    let decode_bin = Type.decode_bin t
 
-    let encode_bin ?headers:_ = Type.encode_bin ~headers:true t
+    let encode_bin = Type.encode_bin t
 
-    let t = Type.like t ~bin:(encode_bin, decode_bin, size_of)
+    let pre_hash = Type.pre_hash t
+
+    let t = Type.like t ~bin:(encode_bin, decode_bin, size_of) ~pre_hash
   end
 end

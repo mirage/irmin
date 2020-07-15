@@ -46,13 +46,25 @@ let bool (_ : bool) = 1
 
 let float (_ : float) = 8 (* NOTE: we consider 'double' here *)
 
-let string ?(headers = true) n s =
+let boxed_string n s =
   let s = String.length s in
-  if not headers then s else len s n + s
+  len s n + s
 
-let bytes ?(headers = true) n s =
+let unboxed_string = function
+  | `Fixed len -> fun _ -> len (* fixed-size strings are never boxed *)
+  | _ -> String.length
+
+let string ~boxed = if boxed then boxed_string else unboxed_string
+
+let boxed_bytes n s =
   let s = Bytes.length s in
-  if not headers then s else len s n + s
+  len s n + s
+
+let unboxed_bytes = function
+  | `Fixed len -> fun _ -> len (* fixed-size bytes are never boxed *)
+  | _ -> Bytes.length
+
+let bytes ~boxed = if boxed then boxed_bytes else unboxed_bytes
 
 let list l n x =
   let init = len (List.length x) n in
@@ -83,57 +95,79 @@ let option o = function
   | None -> Some (char '\000')
   | Some x -> o x >|= fun o -> char '\000' + o
 
-let rec t : type a. a t -> a size_of =
- fun ty ?headers e ->
-  match ty with
-  | Self s -> t ?headers s.self_fix e
-  | Custom c -> c.size_of ?headers e
-  | Map b -> map ?headers b e
-  | Prim t -> prim ?headers t e
-  | List l -> list (t l.v) l.len e
-  | Array a -> array (t a.v) a.len e
-  | Tuple t -> tuple ?headers t e
-  | Option x -> option (t x) e
-  | Record r -> record ?headers r e
-  | Variant v -> variant ?headers v e
+let rec t : type a. a t -> a size_of = function
+  | Self s -> t s.self_fix
+  | Custom c -> c.size_of
+  | Map b -> map ~boxed:true b
+  | Prim t -> prim ~boxed:true t
+  | Boxed b -> t b
+  | List l -> list (t l.v) l.len
+  | Array a -> array (t a.v) a.len
+  | Tuple t -> tuple t
+  | Option x -> option (t x)
+  | Record r -> record r
+  | Variant v -> variant v
+  | Var v -> raise (Unbound_type_variable v)
+
+and unboxed : type a. a t -> a size_of = function
+  | Self s -> unboxed s.self_fix
+  | Custom c -> c.unboxed_size_of
+  | Map b -> map ~boxed:false b
+  | Prim t -> prim ~boxed:false t
+  | Boxed b -> t b
+  | List l -> list (t l.v) l.len
+  | Array a -> array (t a.v) a.len
+  | Tuple t -> tuple t
+  | Option x -> option (t x)
+  | Record r -> record r
+  | Variant v -> variant v
   | Var v -> raise (Unbound_type_variable v)
 
 and tuple : type a. a tuple -> a size_of =
- fun ty ?headers:_ ->
+ fun ty ->
   match ty with
   | Pair (x, y) -> pair (t x) (t y)
   | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
-and map : type a b. (a, b) map -> b size_of =
- fun { x; g; _ } ?headers u -> t ?headers x (g u)
+and map : type a b. boxed:bool -> (a, b) map -> b size_of =
+ fun ~boxed { x; g; _ } ->
+  let size_of = if boxed then t x else unboxed x in
+  fun u -> size_of (g u)
 
-and prim : type a. a prim -> a size_of =
- fun p ?headers x ->
+and prim : type a. boxed:bool -> a prim -> a size_of =
+ fun ~boxed p ->
   match p with
-  | Unit -> Some (unit x)
-  | Bool -> Some (bool x)
-  | Char -> Some (char x)
-  | Int -> Some (int x)
-  | Int32 -> Some (int32 x)
-  | Int64 -> Some (int64 x)
-  | Float -> Some (float x)
-  | String n -> Some (string ?headers n x)
-  | Bytes n -> Some (bytes ?headers n x)
+  | Unit -> fun x -> Some (unit x)
+  | Bool -> fun x -> Some (bool x)
+  | Char -> fun x -> Some (char x)
+  | Int -> fun x -> Some (int x)
+  | Int32 -> fun x -> Some (int32 x)
+  | Int64 -> fun x -> Some (int64 x)
+  | Float -> fun x -> Some (float x)
+  | String n ->
+      let size_of = string ~boxed n in
+      fun x -> Some (size_of x)
+  | Bytes n ->
+      let size_of = bytes ~boxed n in
+      fun x -> Some (size_of x)
 
 and record : type a. a record -> a size_of =
- fun r ?headers:_ x ->
+ fun r ->
   let fields = fields r in
-  List.fold_left
-    (fun acc (Field f) ->
-      acc >>= fun acc ->
-      field f x >|= fun f -> acc + f)
-    (Some 0) fields
+  fun x ->
+    List.fold_left
+      (fun acc (Field f) ->
+        acc >>= fun acc ->
+        field f x >|= fun f -> acc + f)
+      (Some 0) fields
 
 and field : type a b. (a, b) field -> a size_of =
- fun f ?headers:_ x -> t f.ftype (f.fget x)
+ fun f ->
+  let size_of = t f.ftype in
+  fun x -> size_of (f.fget x)
 
 and variant : type a. a variant -> a size_of =
- fun v ?headers:_ x ->
+ fun v x ->
   match v.vget x with
   | CV0 v -> Some (int v.ctag0)
   | CV1 (x, vx) -> t x.ctype1 vx >|= fun v -> int x.ctag1 + v

@@ -60,7 +60,9 @@ module Typed (K : S.HASH) (V : Type.S) = struct
 
   type value = V.t
 
-  let hash v = K.hash (Type.pre_hash V.t v)
+  let pre_hash = Type.unstage (Type.pre_hash V.t)
+
+  let hash v = K.hash (pre_hash v)
 end
 
 module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
@@ -74,15 +76,24 @@ module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
 
   let h = Type.string_of `Int64
 
-  let size_of ?headers x = Type.size_of ?headers h (Type.to_bin_string K.t x)
+  let to_bin_key = Type.unstage (Type.to_bin_string K.t)
 
-  let encode_bin ?headers e k =
-    Type.encode_bin ?headers h (Type.to_bin_string K.t e) k
+  let of_bin_key = Type.unstage (Type.of_bin_string K.t)
 
-  let decode_bin ?headers buf off =
-    let n, v = Type.decode_bin ?headers h buf off in
+  let size_of =
+    let size_of = Type.unstage (Type.size_of h) in
+    Type.stage (fun x -> size_of (to_bin_key x))
+
+  let encode_bin =
+    let encode_bin = Type.unstage (Type.encode_bin h) in
+    Type.stage (fun e -> encode_bin (to_bin_key e))
+
+  let decode_bin =
+    let decode_bin = Type.unstage (Type.decode_bin h) in
+    Type.stage @@ fun buf off ->
+    let n, v = decode_bin buf off in
     ( n,
-      match Type.of_bin_string K.t v with
+      match of_bin_key v with
       | Ok v -> v
       | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
