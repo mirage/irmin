@@ -24,20 +24,61 @@ let t t =
     | Custom c -> c.pp ppf x
     | Map m -> map m ppf x
     | Prim p -> prim p ppf x
-    | _ -> Type_json.pp t ppf x
+    | Var v -> raise (Unbound_type_variable v)
+    | List l -> Fmt.Dump.list (aux l.v) ppf x
+    | Array a -> Fmt.Dump.array (aux a.v) ppf x
+    | Option o -> Fmt.Dump.option (aux o) ppf x
+    | Tuple t -> tuple t ppf x
+    | Record r -> record r ppf x
+    | Variant v -> variant v ppf x
   and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
   and prim : type a. a prim -> a pp =
-   fun t ppf x ->
+   fun t ->
     match t with
-    | Unit -> ()
-    | Bool -> Fmt.bool ppf x
-    | Char -> Fmt.char ppf x
-    | Int -> Fmt.int ppf x
-    | Int32 -> Fmt.int32 ppf x
-    | Int64 -> Fmt.int64 ppf x
-    | Float -> Fmt.float ppf x
-    | String _ -> Fmt.string ppf x
-    | Bytes _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
+    | Unit -> Fmt.(using (fun _ -> "()") string)
+    | Bool -> Fmt.bool
+    | Char -> Fmt.char
+    | Int -> Fmt.int
+    | Int32 -> Fmt.int32
+    | Int64 -> Fmt.int64
+    | Float ->
+        Fmt.(
+          using
+            (fun f ->
+              match classify_float f with
+              | FP_infinite when f < 0. -> "neg_infinity"
+              | FP_infinite -> "infinity"
+              | _ -> string_of_float f
+              (* Usually yields better precision than Fmt.float. *))
+            string)
+    | String _ -> Fmt.Dump.string
+    | Bytes _ -> Fmt.(using Bytes.unsafe_to_string Dump.string)
+  and tuple : type a. a tuple -> a pp =
+   fun t ->
+    match t with
+    | Pair (ta, tb) -> Fmt.Dump.pair (aux ta) (aux tb)
+    | Triple (ta, tb, tc) ->
+        (* There is no built-in formatter for triples in [Fmt.Dump]. *)
+        Fmt.(
+          parens
+            ( using (fun (a, _, _) -> a) (box (aux ta))
+            ++ comma
+            ++ using (fun (_, b, _) -> b) (box (aux tb))
+            ++ comma
+            ++ using (fun (_, _, c) -> c) (box (aux tc)) ))
+  and record : type a. a record -> a pp =
+   fun t ->
+    fields t
+    |> List.map (fun (Field f) -> Fmt.Dump.field f.fname f.fget (aux f.ftype))
+    |> Fmt.Dump.record
+  and variant : type a. a variant -> a pp =
+   fun t ppf x ->
+    match t.vget x with
+    | CV0 c -> Fmt.string ppf (String.capitalize_ascii c.cname0)
+    | CV1 (c, v) ->
+        Fmt.string ppf (String.capitalize_ascii c.cname1);
+        Fmt.string ppf " ";
+        Fmt.parens (aux c.ctype1) ppf v
   in
   aux t
 
