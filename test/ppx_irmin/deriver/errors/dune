@@ -14,8 +14,8 @@
    %{targets}
    (run ../gen_dune_rules.exe --expect-failure))))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff dune.inc dune.inc.gen)))

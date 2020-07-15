@@ -8,8 +8,8 @@
  (modules test)
  (libraries alcotest digestif.c irmin irmin-test test_fs))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-fs)
  (action
   (run ./test.exe -q --color=always)))

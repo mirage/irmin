@@ -17,15 +17,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff alias.expected alias.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./alias.exe)))
@@ -49,15 +49,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff arguments.expected arguments.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./arguments.exe)))
@@ -81,15 +81,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff basic.expected basic.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./basic.exe)))
@@ -113,15 +113,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff composite.expected composite.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./composite.exe)))
@@ -145,15 +145,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff lib_relocated.expected lib_relocated.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./lib_relocated.exe)))
@@ -177,15 +177,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff module.expected module.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./module.exe)))
@@ -209,15 +209,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff nobuiltin.expected nobuiltin.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./nobuiltin.exe)))
@@ -241,15 +241,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff nonrec.expected nonrec.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./nonrec.exe)))
@@ -273,15 +273,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff polyvariant.expected polyvariant.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./polyvariant.exe)))
@@ -305,15 +305,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff record.expected record.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./record.exe)))
@@ -337,15 +337,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff signature.expected signature.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./signature.exe)))
@@ -369,15 +369,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff tuple_deep.expected tuple_deep.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./tuple_deep.exe)))
@@ -401,15 +401,15 @@
   (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff variant.expected variant.actual)))
 
 ; Ensure that the post-processed executable runs correctly
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (run ./variant.exe)))

@@ -48,8 +48,8 @@ let output_stanzas ~expect_failure filename =
   let pp_diff_alias ppf base =
     Format.fprintf ppf
       "; Compare the post-processed output to the .expected file@,\
-       @[<v 1>(alias@,\
-       (name runtest)@,\
+       @[<v 1>(rule@,\
+       (alias runtest)@,\
        (package ppx_irmin)@,\
        @[<v 1>(action@,\
        @[<hov 2>(diff@ %s.expected@ %s.actual)@])@])@]" base base
@@ -62,8 +62,8 @@ let output_stanzas ~expect_failure filename =
         "@,\
          @,\
          ; Ensure that the post-processed executable runs correctly@,\
-         @[<v 1>(alias@,\
-         (name runtest)@,\
+         @[<v 1>(rule@,\
+         (alias runtest)@,\
          (package ppx_irmin)@,\
          @[<v 1>(action@,\
          @[<hov 2>(run@ ./%s.exe)@])@])@]" base

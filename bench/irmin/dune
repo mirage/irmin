@@ -2,21 +2,21 @@
  (name main)
  (libraries irmin bechamel bechamel.notty notty.unix))
 
-(alias
- (name bench)
+(rule
+ (alias bench)
  (deps main.exe)
  (action (progn)))
 
 ;; Require [main.ml] to compile during tests
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-bench)
  (deps main.exe)
  (action progn))
 
-(alias
- (name runbench-type)
+(rule
+ (alias runbench-type)
  (deps (universe))
  (action
   (run %{exe:main.exe})))

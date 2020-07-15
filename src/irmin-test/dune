@@ -6,9 +6,11 @@
    mtime.clock.os))
 
 (library
+ (foreign_stubs
+  (language c)
+  (names rusage_stubs))
  (name irmin_bench)
  (public_name irmin-test.bench)
  (modules Irmin_bench Rusage)
- (c_names rusage_stubs)
  (libraries fmt.tty fmt.cli cmdliner irmin logs.fmt logs.cli lwt lwt.unix
    metrics metrics-unix))

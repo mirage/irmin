@@ -1,3 +1,3 @@
-(lang dune 1.8)
+(lang dune 2.0)
 (name irmin)
-(using fmt 1.1)
+(allow_approximate_merlin)

@@ -9,8 +9,8 @@
  (modules test)
  (libraries alcotest checkseum.c digestif.c irmin irmin-test test_git))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-git)
  (action
   (run ./test.exe -q --color=always)))
