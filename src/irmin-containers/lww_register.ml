@@ -25,11 +25,13 @@ module LWW (T : Time.S) (V : Irmin.Type.S) :
 
   let t = Irmin.Type.(pair V.t T.t)
 
+  let compare_t = Irmin.Type.compare T.t
+
+  let compare_v = Irmin.Type.compare V.t
+
   let compare (v1, t1) (v2, t2) =
-    let t_comp = Irmin.Type.compare T.t in
-    let v_comp = Irmin.Type.compare V.t in
-    let res = t_comp t1 t2 in
-    if res = 0 then v_comp v1 v2 else res
+    let res = compare_t t1 t2 in
+    if res = 0 then compare_v v1 v2 else res
 
   let merge ~old:_ v1 v2 =
     let open Irmin.Merge in

@@ -83,9 +83,9 @@ struct
 
   let read_key k = Store.get_store () >>= fun store -> Store.read_exn store k
 
-  let sort l =
-    let compare = Irmin.Type.compare T.t in
-    List.sort (fun i1 i2 -> compare i2.L.time i1.L.time) l
+  let compare_times = Irmin.Type.compare T.t
+
+  let sort l = List.sort (fun i1 i2 -> compare_times i2.L.time i1.L.time) l
 
   let merge ~old:_ v1 v2 =
     let open Irmin.Merge in

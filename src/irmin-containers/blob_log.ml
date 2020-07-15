@@ -27,7 +27,9 @@ module Blob_log (T : Time.S) (V : Irmin.Type.S) :
 
   let t = Irmin.Type.(list (pair V.t T.t))
 
-  let compare (_, t1) (_, t2) = Irmin.Type.compare T.t t1 t2
+  let compare =
+    let compare_times = Irmin.Type.compare T.t in
+    fun (_, t1) (_, t2) -> compare_times t1 t2
 
   let newer_than timestamp entries =
     let t_comp = Irmin.Type.compare T.t in
