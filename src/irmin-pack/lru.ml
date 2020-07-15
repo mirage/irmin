@@ -55,6 +55,10 @@ module Make (H : Hashtbl.HashedType) = struct
     let node x = { value = x; prev = None; next = None }
 
     let create () = { first = None; last = None }
+
+    let clear t =
+      t.first <- None;
+      t.last <- None
   end
 
   type key = HT.key
@@ -116,5 +120,7 @@ module Make (H : Hashtbl.HashedType) = struct
         promote t k;
         true
 
-  let clear t = create t.cap
+  let clear t =
+    HT.clear t.ht;
+    Q.clear t.q
 end

@@ -126,10 +126,24 @@ module Dict = struct
     Dict.close dict;
     Dict.close r
 
+  let test_clear () =
+    let Context.{ dict; _ } = Context.get_dict () in
+    let i =
+      match Dict.index dict "foo" with
+      | None -> Alcotest.fail "full dict!"
+      | Some i -> i
+    in
+    Dict.flush dict;
+    Alcotest.(check (option string)) "find foo" (Some "foo") (Dict.find dict i);
+    Dict.clear dict;
+    Alcotest.(check (option string))
+      "find foo after clear" None (Dict.find dict i)
+
   let tests =
     [
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
+      Alcotest.test_case "clear" `Quick test_clear;
     ]
 end
 
@@ -344,6 +358,19 @@ module Pack = struct
     test t.pack >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
+  let test_clear () =
+    Context.get_pack ~lru_size:10 () >>= fun t ->
+    let v = "foo" in
+    let k = sha1 v in
+    Pack.unsafe_append t.pack k v;
+    Pack.flush t.pack;
+    Pack.find t.pack k >>= fun v1 ->
+    Alcotest.(check (option string)) "before clear" (Some v) v1;
+    Pack.clear t.pack;
+    Pack.find t.pack k >>= fun v2 ->
+    Alcotest.(check (option string)) "after clear" None v2;
+    Lwt.return ()
+
   let tests =
     [
       Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
@@ -359,6 +386,7 @@ module Pack = struct
           Lwt_main.run (readonly_sync_index_flush ()));
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
+      Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
     ]
 end
 
@@ -446,4 +474,9 @@ module Branch = struct
 end
 
 let misc =
-  ("misc", Dict.tests @ Pack.tests @ Branch.tests @ Multiple_instances.tests)
+  [
+    ("dict-files", Dict.tests);
+    ("pack-files", Pack.tests);
+    ("branch-files", Branch.tests);
+    ("instances", Multiple_instances.tests);
+  ]

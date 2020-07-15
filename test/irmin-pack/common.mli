@@ -29,7 +29,7 @@ end) : sig
     clone_index_pack : readonly:bool -> (Index.t * [ `Read ] Pack.t) Lwt.t;
   }
 
-  val get_pack : unit -> t Lwt.t
+  val get_pack : ?lru_size:int -> unit -> t Lwt.t
   (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
       same location, [clone_index_pack] opens a clone of the index and the pack. *)
 

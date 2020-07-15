@@ -68,6 +68,8 @@ module type S = sig
 
   val sync : 'a t -> unit
 
+  val clear : 'a t -> unit
+
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
   val integrity_check :
@@ -174,7 +176,8 @@ struct
 
     let clear t =
       clear t.pack;
-      Tbl.clear t.staging
+      Tbl.clear t.staging;
+      Lru.clear t.lru
 
     (* we need another cache here, as we want to share the LRU and
        staging caches too. *)
@@ -347,7 +350,7 @@ struct
       if t.open_instances = 0 then (
         Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
         Tbl.clear t.staging;
-        ignore (Lru.clear t.lru);
+        Lru.clear t.lru;
         close t.pack)
 
     let close t =

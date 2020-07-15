@@ -60,6 +60,8 @@ module type S = sig
 
   val sync : 'a t -> unit
 
+  val clear : 'a t -> unit
+
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
   val integrity_check :

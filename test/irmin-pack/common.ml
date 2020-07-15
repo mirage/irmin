@@ -66,18 +66,21 @@ struct
 
   let log_size = 10_000_000
 
-  let get_pack () =
+  let get_pack ?(lru_size = 0) () =
     let name = fresh_name "dict" in
     let f = ref (fun () -> ()) in
     let index =
       Index.v ~auto_flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    Pack.v ~fresh:true ~lru_size:0 ~index name >|= fun pack ->
+    Pack.v ~fresh:true ~lru_size ~index name >|= fun pack ->
     (f := fun () -> Pack.flush ~index:false pack);
-    let clone_pack ~readonly = Pack.v ~fresh:false ~readonly ~index name in
+    let clone_pack ~readonly =
+      Pack.v ~lru_size ~fresh:false ~readonly ~index name
+    in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      Pack.v ~fresh:false ~readonly ~index name >|= fun pack -> (index, pack)
+      Pack.v ~lru_size ~fresh:false ~readonly ~index name >|= fun pack ->
+      (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }
 
