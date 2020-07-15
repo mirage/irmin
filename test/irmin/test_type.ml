@@ -272,7 +272,7 @@ let test_to_string () =
   test "unit" T.unit () "()";
   test "bool{true}" T.bool true "true";
   test "bool{false}" T.bool false "false";
-  test "char" T.char 'a' "a";
+  test "char" T.char 'a' "'a'";
   test "int" T.int (-100) "-100";
   test "int32" T.int32 Int32.max_int "2147483647";
   test "int64" T.int64 Int64.max_int "9223372036854775807";

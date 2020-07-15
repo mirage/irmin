@@ -33,26 +33,22 @@ let t t =
     | Variant v -> variant v ppf x
   and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
   and prim : type a. a prim -> a pp =
-   fun t ->
+   fun t ppf x ->
     match t with
-    | Unit -> Fmt.(using (fun _ -> "()") string)
-    | Bool -> Fmt.bool
-    | Char -> Fmt.char
-    | Int -> Fmt.int
-    | Int32 -> Fmt.int32
-    | Int64 -> Fmt.int64
+    | Unit -> Fmt.string ppf "()"
+    | Bool -> Fmt.bool ppf x
+    | Char -> Fmt.(pf ppf "'%c'" x)
+    | Int -> Fmt.int ppf x
+    | Int32 -> Fmt.int32 ppf x
+    | Int64 -> Fmt.int64 ppf x
     | Float ->
-        Fmt.(
-          using
-            (fun f ->
-              match classify_float f with
-              | FP_infinite when f < 0. -> "neg_infinity"
-              | FP_infinite -> "infinity"
-              | _ -> string_of_float f
-              (* Usually yields better precision than Fmt.float. *))
-            string)
-    | String _ -> Fmt.Dump.string
-    | Bytes _ -> Fmt.(using Bytes.unsafe_to_string Dump.string)
+        Fmt.string ppf
+          ( match classify_float x with
+          | FP_infinite when x < 0. -> "neg_infinity"
+          | FP_infinite -> "infinity"
+          | _ -> string_of_float x (* Usually more precise than Fmt.float. *) )
+    | String _ -> Fmt.Dump.string ppf x
+    | Bytes _ -> Fmt.Dump.string ppf (Bytes.unsafe_to_string x)
   and tuple : type a. a tuple -> a pp =
    fun t ->
     match t with
