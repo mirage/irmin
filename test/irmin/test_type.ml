@@ -39,7 +39,7 @@ let test_base () =
     (Some (String.length "foo"))
     (size_of T.(string_of (`Fixed 3)) "foo");
   let s = T.to_string T.string "foo" in
-  Alcotest.(check string) "CLI string" "foo" s;
+  Alcotest.(check string) "CLI string" "\"foo\"" s;
   let s = T.to_json_string T.int 42 in
   Alcotest.(check string) "JSON int" "42" s;
   let s = to_bin_string T.int 42 in
@@ -210,8 +210,8 @@ let sha1 x = Irmin.Hash.BLAKE2B.hash (fun l -> l x)
 
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
-  Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
-  let s = to_bin_string l [ "foo"; "bar" ] in
+  Alcotest.(check string) "hex list" "[666f6f; 666f6f]" s;
+  let s = T.to_bin_string l [ "foo"; "bar" ] in
   Alcotest.(check string) "encode list" "foobar" s;
   Alcotest.(check (option int))
     "size of list" (Some 6)
@@ -269,7 +269,7 @@ let test_to_string () =
   in
 
   (* Test cases for basic types *)
-  test "unit" T.unit () "";
+  test "unit" T.unit () "()";
   test "bool{true}" T.bool true "true";
   test "bool{false}" T.bool false "false";
   test "char" T.char 'a' "a";
@@ -278,12 +278,12 @@ let test_to_string () =
   test "int64" T.int64 Int64.max_int "9223372036854775807";
   test "float" T.float (-1.5) "-1.5";
   test "float{NaN}" T.float Stdlib.nan "nan";
-  test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
-  test "string" T.string "foo\nbar\\" "foo\nbar\\";
+  test "bytes" T.bytes (Bytes.make 5 'a') "\"aaaaa\"";
+  test "string" T.string "foo\nbar\\" "\"foo\\nbar\\\\\"";
 
   (* Test cases for non-algebraic combinators *)
   test "int list{nil}" T.(list int) [] "[]";
-  test "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1,2,3]";
+  test "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1; 2; 3]";
   test "float array"
     T.(array float)
     [|
@@ -294,34 +294,38 @@ let test_to_string () =
       Stdlib.infinity;
       Stdlib.nan;
     |]
-    "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
-  test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
-  test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
-  test "int option{none}" T.(option unit) None "null";
+    "[|neg_infinity; -0.; 0.; 2.22044604925e-16; infinity; nan|]";
+  test "(unit * int)" T.(pair unit int) ((), 1) "((), 1)";
+  test "unit option{some}" T.(option unit) (Some ()) "Some ()";
+  test "int option{none}" T.(option unit) None "None";
   test "(int * string * bool)"
     T.(triple int string bool)
-    (1, "foo", true) "[1,\"foo\",1]";
+    (1, "foo", true) "(1, \"foo\", true)";
   test "(string, bool) result{ok}"
     T.(result string bool)
-    (Ok "foo") "{\"ok\":\"foo\"}";
+    (Ok "foo") "Ok (\"foo\")";
   test "(string, bool) result{error}"
     T.(result string bool)
-    (Error false) "{\"error\":0}";
+    (Error false) "Error (false)";
 
   (* Test cases for algebraic combinators *)
   let open Algebraic in
-  test "enum" my_enum_t Alpha "\"Alpha\"";
-  test "variant" my_variant_t (Right [ 1; 2 ]) "{\"Right\":[1,2]}";
+  test "enum" my_enum_t Alpha "Alpha";
+  test "variant" my_variant_t (Right [ 1; 2 ]) "Right ([1; 2])";
   test "recursive variant" my_recursive_variant_t
     (Branch [ Branch [ Leaf 1 ]; Leaf 2 ])
-    "{\"Branch\":[{\"Branch\":[{\"Leaf\":1}]},{\"Leaf\":2}]}";
+    "Branch ([Branch ([Leaf (1)]); Leaf (2)])";
   test "record" my_record_t
     { foo = 2; flag = false; letter = Delta }
-    "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
+    {|{ "foo" = 2;
+  "flag" = false;
+  "letter" = Delta }|};
 
   test "recursive record" my_recursive_record_t
     { head = 1; tail = Some { head = 2; tail = None } }
-    "{\"head\":1,\"tail\":{\"head\":2}}";
+    {|{ "head" = 1;
+  "tail" = Some { "head" = 2;
+                  "tail" = None } }|};
 
   ()
 
