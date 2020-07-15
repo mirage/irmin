@@ -152,7 +152,7 @@ struct
     | Some k -> (
         L.read_key k >|= function
         | Value v -> mk_cursor (HashSet.singleton k) [ v ]
-        | Merge l -> mk_cursor (HashSet.singleton k) l )
+        | Merge l -> mk_cursor (HashSet.singleton k) l)
 
   let rec read_log cursor num_items acc =
     if num_items <= 0 then return (List.rev acc, cursor)
@@ -174,7 +174,7 @@ struct
             | Merge l ->
                 read_log
                   { cursor with seen; cache = L.sort (l @ xs) }
-                  (num_items - 1) (msg :: acc) )
+                  (num_items - 1) (msg :: acc))
 
   let read ~num_items cursor = read_log cursor num_items []
 
