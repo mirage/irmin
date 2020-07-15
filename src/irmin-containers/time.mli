@@ -23,9 +23,10 @@ module type S = sig
   include Irmin.Type.S
   (** Type of the timestamp *)
 
-  val get_time : unit -> t
+  val now : unit -> t
   (** Returns a timestamp *)
 end
 
-module Unix : S
-(** A timestamp method using [Unix.gettimeofday] *)
+module Machine : S
+(** A timestamp method using system-specific monotonic clocks (as provided by
+    the [Mtime] package). *)

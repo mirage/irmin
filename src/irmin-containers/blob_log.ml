@@ -70,7 +70,7 @@ struct
 
   type value = V.t
 
-  let create_entry v = (v, T.get_time ())
+  let create_entry v = (v, T.now ())
 
   let append ~path t v =
     Store.find t path >>= function
@@ -83,5 +83,5 @@ struct
     | Some l -> return (List.map (fun (v, _) -> v) l)
 end
 
-module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Unix) (V)
-module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Unix) (V)
+module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Machine) (V)
+module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Machine) (V)

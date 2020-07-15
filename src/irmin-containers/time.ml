@@ -18,13 +18,16 @@
 module type S = sig
   include Irmin.Type.S
 
-  val get_time : unit -> t
+  val now : unit -> t
 end
 
-module Unix : S = struct
-  type t = float
+module Machine : S = struct
+  type t = Mtime.t
 
-  let t = Irmin.Type.float
+  let t =
+    let open Mtime in
+    Irmin.Type.map ~equal ~compare Irmin.Type.int64 Mtime.of_uint64_ns
+      Mtime.to_uint64_ns
 
-  let get_time () = Unix.gettimeofday ()
+  let now = Mtime_clock.now
 end

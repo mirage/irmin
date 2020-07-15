@@ -59,9 +59,9 @@ struct
     Store.find t path >|= function None -> None | Some (v, _) -> Some v
 
   let write ?(info = empty_info) ~path t v =
-    let timestamp = T.get_time () in
+    let timestamp = T.now () in
     Store.set_exn ~info t path (v, timestamp)
 end
 
-module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Unix) (V)
-module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Unix) (V)
+module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Machine) (V)
+module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Machine) (V)

@@ -79,7 +79,7 @@ struct
 
   let append prev msg =
     Store.get_store () >>= fun store ->
-    Store.add store (Value { time = T.get_time (); msg; prev })
+    Store.add store (Value { time = T.now (); msg; prev })
 
   let read_key k = Store.get_store () >>= fun store -> Store.read_exn store k
 
@@ -182,7 +182,7 @@ struct
 end
 
 module FS (C : Stores.Cas_maker) (V : Irmin.Type.S) () =
-  Make (Irmin_unix.FS.KV) (C) (Time.Unix) (Irmin.Hash.SHA1) (V) ()
+  Make (Irmin_unix.FS.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
 
 module Mem (C : Stores.Cas_maker) (V : Irmin.Type.S) () =
-  Make (Irmin_mem.KV) (C) (Time.Unix) (Irmin.Hash.SHA1) (V) ()
+  Make (Irmin_mem.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
