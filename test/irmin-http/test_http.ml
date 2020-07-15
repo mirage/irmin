@@ -26,6 +26,8 @@ let uri = Uri.of_string "http://irmin"
 
 let pid_file = test_http_dir / "irmin-test.pid"
 
+let pid_file_tmp = pid_file ^ ".tmp"
+
 module Client = struct
   include Cohttp_lwt_unix.Client
 
@@ -68,9 +70,14 @@ let mkdir d =
       | Unix.Unix_error (Unix.EEXIST, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
 let rec lock () =
-  Lwt_unix.openfile pid_file [ Unix.O_CREAT; Unix.O_RDWR ] 0o600 >>= fun fd ->
   let pid = string_of_int (Unix.getpid ()) in
   let pid_len = String.length pid in
+  (* [fd0]'s [O_CREAT] ensures that we are the only one writing to that file *)
+  Lwt_unix.openfile pid_file [ Unix.O_CREAT; Unix.O_RDWR ] 0o600 >>= fun fd0 ->
+  (* [fd] is used to write the actual PID file; the file is renamed
+     bellow to ensure atomicity. *)
+  Lwt_unix.openfile pid_file_tmp [ Unix.O_CREAT; Unix.O_RDWR ] 0o600
+  >>= fun fd ->
   Lwt.catch
     (fun () ->
       Lwt_unix.lockf fd Unix.F_LOCK 0 >>= fun () ->
@@ -79,7 +86,9 @@ let rec lock () =
       if len <> pid_len then
         Lwt_unix.close fd >>= fun () ->
         Lwt.fail_with "Unable to write PID to lock file"
-      else Lwt.return fd)
+      else
+        Lwt_unix.close fd0 >>= fun () ->
+        Lwt_unix.rename pid_file_tmp pid_file >|= fun () -> fd)
     (function
       | Unix.Unix_error (Unix.EAGAIN, _, _) ->
           Lwt_unix.close fd >>= fun () -> lock ()
