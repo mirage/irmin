@@ -1622,14 +1622,14 @@ module Make (S : S) = struct
 
   module Dot = Irmin.Dot (S)
 
-  let output_file t file =
+  let output_file x t file =
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
       Fmt.strf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
-    let oc = open_out_bin (file ^ ".dot") in
+    let oc = open_out_bin (Fmt.str "%s-%s.dot" x.name file) in
     output_string oc (Buffer.contents buf);
     close_out oc;
     Lwt.return_unit
@@ -1654,11 +1654,11 @@ module Make (S : S) = struct
       >>= fun () ->
       S.set_exn t2 ~info:(infof "update test:a/b/c") [ "a"; "b"; "c" ] v1
       >>= fun () ->
-      output_file t1 "before" >>= fun () ->
+      output_file x t1 "before" >>= fun () ->
       S.merge_into ~info:(infof "merge test into master") t2 ~into:t1
       >>= fun m ->
       merge_exn "m" m >>= fun () ->
-      output_file t1 "after" >>= fun () ->
+      output_file x t1 "after" >>= fun () ->
       S.get t1 [ "a"; "b"; "c" ] >>= fun v1' ->
       S.get t2 [ "a"; "b"; "b" ] >>= fun v2' ->
       S.get t1 [ "a"; "b"; "b" ] >>= fun v3' ->
