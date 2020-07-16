@@ -17,7 +17,7 @@
 open Type_core
 
 let t ?ocaml_syntax t =
-  let is_ocaml = Option.is_some ocaml_syntax in
+  let use_ocaml_syntax = ocaml_syntax = Some () in
   let rec aux : type a. a t -> a pp =
    fun t ppf x ->
     match t with
@@ -25,7 +25,7 @@ let t ?ocaml_syntax t =
     | Custom c -> c.pp ppf x
     | Map m -> map m ppf x
     | Prim p -> prim p ppf x
-    | _ when not is_ocaml -> Type_json.pp t ppf x
+    | _ when not use_ocaml_syntax -> Type_json.pp t ppf x
     | Var v -> raise (Unbound_type_variable v)
     | List l -> Fmt.Dump.list (aux l.v) ppf x
     | Array a -> Fmt.Dump.array (aux a.v) ppf x
@@ -36,7 +36,7 @@ let t ?ocaml_syntax t =
   and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
   and prim : type a. a prim -> a pp =
    fun t ppf x ->
-    match (t, is_ocaml) with
+    match (t, use_ocaml_syntax) with
     | Unit, false -> ()
     | Unit, true -> Fmt.string ppf "()"
     | Bool, _ -> Fmt.bool ppf x
