@@ -17,6 +17,9 @@ depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "1.8.0"}
   "irmin"      {>= "2.1.0"}
+  "irmin-mem"  {>= "2.1.0"}
+  "irmin-unix" {>= "2.1.0"}
+  "irmin-git"  {>= "2.1.0"}
   "lwt"
   "mtime"
   "alcotest" {with-test}
