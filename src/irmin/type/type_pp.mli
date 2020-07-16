@@ -16,7 +16,7 @@
 
 open Type_core
 
-val t : ?ocaml_syntax:bool -> 'a t -> 'a Fmt.t
+val t : ?ocaml_syntax:unit -> 'a t -> 'a Fmt.t
 
 val ty : 'a t Fmt.t
 
