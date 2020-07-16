@@ -37,23 +37,23 @@ let t ?(ocaml_syntax = false) t =
    fun t ppf x ->
     match (t, ocaml_syntax) with
     | Unit, false -> ()
-    | Char, false -> Fmt.char ppf x
-    | Float, false when Float.is_nan x -> Fmt.string ppf "\"nan\""
-    | Float, false when x = infinity -> Fmt.string ppf "\"inf\""
-    | Float, false when x = neg_infinity -> Fmt.string ppf "\"-inf\""
-    | String _, false -> Fmt.string ppf x
     | Unit, true -> Fmt.string ppf "()"
-    | Char, true -> Fmt.(pf ppf "'%c'" x)
-    | Float, true when Float.is_nan x -> Fmt.string ppf "nan"
-    | Float, true when x = infinity -> Fmt.string ppf "infinity"
-    | Float, true when x = neg_infinity -> Fmt.string ppf "neg_infinity"
-    | String _, true -> Fmt.Dump.string ppf x
     | Bool, _ -> Fmt.bool ppf x
+    | Char, false -> Fmt.char ppf x
+    | Char, true -> Fmt.(pf ppf "'%c'" x)
+    | String _, false -> Fmt.string ppf x
+    | String _, true -> Fmt.Dump.string ppf x
+    | Bytes _, _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
     | Int, _ -> Fmt.int ppf x
     | Int32, _ -> Fmt.int32 ppf x
     | Int64, _ -> Fmt.int64 ppf x
+    | Float, false when Float.is_nan x -> Fmt.string ppf "\"nan\""
+    | Float, false when x = infinity -> Fmt.string ppf "\"inf\""
+    | Float, false when x = neg_infinity -> Fmt.string ppf "\"-inf\""
+    | Float, true when Float.is_nan x -> Fmt.string ppf "nan"
+    | Float, true when x = infinity -> Fmt.string ppf "infinity"
+    | Float, true when x = neg_infinity -> Fmt.string ppf "neg_infinity"
     | Float, _ -> Fmt.string ppf (string_of_float x)
-    | Bytes _, _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
   and tuple : type a. a tuple -> a pp =
    fun t ->
     match t with
