@@ -1,0 +1,34 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["KC Sivaramakrishnan" "Anirudh Sunder Raj"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
+]
+
+depends: [
+  "ocaml"      {>= "4.03.0"}
+  "dune"       {>= "1.8.0"}
+  "irmin"      {>= "2.1.0"}
+  "irmin-mem"  {>= "2.1.0"}
+  "irmin-unix" {>= "2.1.0"}
+  "irmin-git"  {>= "2.1.0"}
+  "lwt"
+  "mtime"
+  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
+]
+
+synopsis: "Mergeable Irmin data structures"
+description: """
+A collection of simple, ready-to-use mergeable data structures built using
+Irmin. Each data structure works with an arbitrary Irmin backend and is
+customisable in a variety of ways.
+"""

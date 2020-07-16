@@ -24,3 +24,4 @@ env:
   - OCAML_VERSION=4.07 PACKAGE="irmin-mirage-graphql"
   - OCAML_VERSION=4.07 PACKAGE="irmin-graphql"
   - OCAML_VERSION=4.07 PACKAGE="irmin-pack"
+  - OCAML_VERSION=4.07 PACKAGE="irmin-containers"
