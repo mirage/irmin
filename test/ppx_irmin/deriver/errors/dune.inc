@@ -21,8 +21,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff lib_invalid.expected lib_invalid.actual)))
@@ -44,8 +44,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff nobuiltin_nonempty.expected nobuiltin_nonempty.actual)))
@@ -67,8 +67,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_tuple_size.expected unsupported_tuple_size.actual)))
@@ -90,8 +90,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_arrow.expected unsupported_type_arrow.actual)))
@@ -113,8 +113,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_extension.expected unsupported_type_extension.actual)))
@@ -136,8 +136,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_open.expected unsupported_type_open.actual)))
@@ -159,8 +159,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_open_polyvariant.expected
@@ -183,8 +183,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_package.expected unsupported_type_package.actual)))
@@ -206,8 +206,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_poly.expected unsupported_type_poly.actual)))
@@ -229,8 +229,8 @@
    (bash "! ./%{pp} -no-color --impl %{input}"))))
 
 ; Compare the post-processed output to the .expected file
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package ppx_irmin)
  (action
   (diff unsupported_type_variable.expected unsupported_type_variable.actual)))

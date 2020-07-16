@@ -8,8 +8,8 @@
  (modules test)
  (libraries alcotest digestif.c fmt irmin irmin-test lwt lwt.unix test_chunk))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-chunk)
  (action
   (run ./test.exe -q --color=always)))

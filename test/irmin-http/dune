@@ -9,8 +9,8 @@
  (modules test)
  (libraries checkseum.c digestif.c irmin-test test_http))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-http)
  (locks ../http)
  (action

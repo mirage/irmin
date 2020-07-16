@@ -10,8 +10,8 @@
  (libraries alcotest checkseum.c digestif.c irmin-test test_git test_http
    test_unix))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-unix)
  (locks ../http)
  (action

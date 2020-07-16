@@ -9,8 +9,8 @@
  (modules test)
  (libraries alcotest digestif.ocaml irmin irmin-test test_pack))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (package irmin-pack)
  (action
   (run ./test.exe -q --color=always)))
@@ -20,8 +20,8 @@
  (modules bench)
  (libraries irmin_pack irmin-test.bench))
 
-(alias
- (name runbench)
+(rule
+ (alias runbench)
  (action
   (run ./bench.exe)))
 
