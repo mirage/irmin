@@ -16,6 +16,9 @@
 
 open Type_core
 
+(* Polyfill for [Float.is_nan] which is only >=4.08. *)
+let is_nan x = Float.classify_float x = FP_nan
+
 let t ?ocaml_syntax t =
   let use_ocaml_syntax = ocaml_syntax = Some () in
   let rec aux : type a. a t -> a pp =
@@ -48,10 +51,10 @@ let t ?ocaml_syntax t =
     | Int, _ -> Fmt.int ppf x
     | Int32, _ -> Fmt.int32 ppf x
     | Int64, _ -> Fmt.int64 ppf x
-    | Float, false when Float.is_nan x -> Fmt.string ppf "\"nan\""
+    | Float, false when is_nan x -> Fmt.string ppf "\"nan\""
     | Float, false when x = infinity -> Fmt.string ppf "\"inf\""
     | Float, false when x = neg_infinity -> Fmt.string ppf "\"-inf\""
-    | Float, true when Float.is_nan x -> Fmt.string ppf "nan"
+    | Float, true when is_nan x -> Fmt.string ppf "nan"
     | Float, true when x = infinity -> Fmt.string ppf "infinity"
     | Float, true when x = neg_infinity -> Fmt.string ppf "neg_infinity"
     | Float, _ -> Fmt.string ppf (string_of_float x)
