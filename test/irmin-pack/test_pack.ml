@@ -85,8 +85,9 @@ module Dict = struct
     Dict.close dict2;
     Dict.close dict3
 
+  let ignore_int (_ : int option) = ()
+
   let test_readonly_dict () =
-    let ignore_int (_ : int option) = () in
     let Context.{ dict; clone } = Context.get_dict () in
     let r = clone ~readonly:true in
     let check_index k i =
@@ -128,16 +129,38 @@ module Dict = struct
 
   let test_clear () =
     let Context.{ dict; _ } = Context.get_dict () in
-    let i =
-      match Dict.index dict "foo" with
-      | None -> Alcotest.fail "full dict!"
-      | Some i -> i
-    in
+    ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Alcotest.(check (option string)) "find foo" (Some "foo") (Dict.find dict i);
+    Alcotest.(check (option string)) "find foo" (Some "foo") (Dict.find dict 0);
     Dict.clear dict;
     Alcotest.(check (option string))
-      "find foo after clear" None (Dict.find dict i)
+      "find foo after clear" None (Dict.find dict 0);
+    Dict.close dict
+
+  let test_clear_readonly () =
+    let Context.{ dict; clone } = Context.get_dict () in
+    let r = clone ~readonly:true in
+    let check_find msg k i =
+      Alcotest.(check (option string)) msg k (Dict.find r i)
+    in
+    ignore_int (Dict.index dict "foo");
+    Dict.flush dict;
+    Dict.sync r;
+    check_find "find before clear" (Some "foo") 0;
+    Dict.clear dict;
+    Dict.flush dict;
+    Dict.sync r;
+    check_find "find after clear" None 0;
+    ignore_int (Dict.index dict "bar");
+    Dict.flush dict;
+    Dict.sync r;
+    Dict.clear dict;
+    Dict.flush dict;
+    check_find "find after clear but before sync" (Some "bar") 0;
+    Dict.sync r;
+    check_find "find after clear and sync" None 0;
+    Dict.close dict;
+    Dict.close r
 
   let test_upgrade () =
     let Context.{ dict; _ } = Context.get_dict ~version:`V1 () in
@@ -156,6 +179,7 @@ module Dict = struct
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
       Alcotest.test_case "clear" `Quick test_clear;
+      Alcotest.test_case "RO clear" `Quick test_clear_readonly;
       Alcotest.test_case "upgrade" `Quick test_upgrade;
     ]
 end
@@ -382,7 +406,41 @@ module Pack = struct
     Pack.clear t.pack;
     Pack.find t.pack k >>= fun v2 ->
     Alcotest.(check (option string)) "after clear" None v2;
-    Lwt.return ()
+    Context.close t.index t.pack
+
+  let test_clear_readonly () =
+    Context.get_pack ~lru_size:10 () >>= fun t ->
+    t.clone_index_pack ~readonly:true >>= fun (i, r) ->
+    let check h x msg =
+      Pack.find r h >|= fun y -> Alcotest.(check (option string)) msg x y
+    in
+    let x1 = "foo" in
+    let h1 = sha1 x1 in
+    Pack.unsafe_append t.pack h1 x1;
+    Pack.flush t.pack;
+    Pack.sync r;
+    check h1 (Some x1) "find before clear" >>= fun () ->
+    Pack.clear t.pack;
+    Pack.flush t.pack;
+    Pack.sync r;
+    check h1 None "find after clear" >>= fun () ->
+    let find_before_and_after_sync flush file =
+      Pack.unsafe_append t.pack h1 x1;
+      flush ();
+      Pack.sync r;
+      Pack.clear t.pack;
+      Pack.flush t.pack;
+      check h1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
+      >>= fun () ->
+      Pack.sync r;
+      check h1 None ("find in " ^ file ^ " after clear and sync")
+    in
+    find_before_and_after_sync (fun () -> Pack.flush t.pack) "log" >>= fun () ->
+    find_before_and_after_sync
+      (fun () -> Index.filter t.index (fun _ -> true))
+      "data"
+    >>= fun () ->
+    Context.close t.index t.pack >>= fun () -> Context.close i r
 
   let test_upgrade () =
     Context.get_pack ~version:`V1 () >>= fun t ->
@@ -410,6 +468,8 @@ module Pack = struct
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
       Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
+      Alcotest.test_case "readonly clear" `Quick (fun () ->
+          Lwt_main.run (test_clear_readonly ()));
       Alcotest.test_case "upgrade" `Quick (fun () ->
           Lwt_main.run (test_upgrade ()));
     ]
