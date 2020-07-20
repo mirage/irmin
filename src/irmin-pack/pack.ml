@@ -330,6 +330,9 @@ struct
           Lwt.return_unit)
 
     let sync t =
+      let former_generation = generation t in
+      let generation = IO.force_generation t.pack.block in
+      if former_generation <> generation then Lru.clear t.lru;
       Dict.sync t.pack.dict;
       Index.sync t.pack.index
   end

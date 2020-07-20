@@ -203,7 +203,14 @@ module Unix : S = struct
       t.offset <- 0L;
       t.flushed <- header t;
       if t.version = `V1 then t.version <- `V2;
-      t.generation <- Int64.succ t.generation)
+      t.generation <- Int64.succ t.generation;
+      (* set the header, because calling flush after clear will not set it. *)
+      Raw.Header.set t.raw
+        {
+          Raw.Header.version = bin_of_version t.version;
+          offset = t.offset;
+          generation = t.generation;
+        })
 
   let v ~version ~fresh ~readonly file =
     let v ~offset ~version ~generation raw =
