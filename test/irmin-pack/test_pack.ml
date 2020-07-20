@@ -162,17 +162,49 @@ module Dict = struct
     Dict.close dict;
     Dict.close r
 
+  let check_version_and_generation dict msg v g =
+    let v' = Dict.version dict in
+    let g' = Dict.generation dict in
+    Alcotest.(check version) msg v v';
+    Alcotest.(check int64) msg g g'
+
+  (** Clear increases the generation and bumps version to V2 only if the dict is
+      not empty. Otherwise neither generation nor version is changed. *)
   let test_upgrade () =
     let Context.{ dict; _ } = Context.get_dict ~version:`V1 () in
-    let v1 = Dict.version dict in
-    let g1 = Dict.generation dict in
-    Alcotest.(check version) "v1" `V1 v1;
-    Alcotest.(check int64) "generation 0" 0L g1;
+    let check_version_and_generation = check_version_and_generation dict in
+    check_version_and_generation "v1, generation 0" `V1 0L;
     Dict.clear dict;
-    let v2 = Dict.version dict in
-    let g2 = Dict.generation dict in
-    Alcotest.(check version) "v2" `V2 v2;
-    Alcotest.(check int64) "generation 1" 1L g2
+    check_version_and_generation "nothing to clear: v1, generation 0" `V1 0L;
+    let (_ : int option) = Dict.index dict "foo" in
+    Dict.clear dict;
+    check_version_and_generation "v2, generation 1" `V2 1L;
+    let (_ : int option) = Dict.index dict "bar" in
+    Dict.clear dict;
+    check_version_and_generation "v2, generation 2" `V2 2L;
+    Dict.close dict
+
+  (** A readonly instance will only reads the version when the store is opened. *)
+  let test_upgrade_readonly () =
+    let Context.{ dict; clone } = Context.get_dict ~version:`V1 () in
+    let r = clone ~readonly:true in
+    let check_generation msg g =
+      Dict.flush dict;
+      Dict.sync r;
+      check_version_and_generation r msg `V1 g
+    in
+    check_generation "v1, generation 0" 0L;
+    let (_ : int option) = Dict.index dict "foo" in
+    Dict.clear dict;
+    check_generation "v1, generation 1" 1L;
+    let (_ : int option) = Dict.index dict "bar" in
+    Dict.clear dict;
+    check_generation "v1, generation 2" 2L;
+    Dict.close dict;
+    Dict.close r;
+    let r = clone ~readonly:true in
+    check_version_and_generation r "v2, generation 2" `V2 2L;
+    Dict.close r
 
   let tests =
     [
@@ -181,6 +213,7 @@ module Dict = struct
       Alcotest.test_case "clear" `Quick test_clear;
       Alcotest.test_case "RO clear" `Quick test_clear_readonly;
       Alcotest.test_case "upgrade" `Quick test_upgrade;
+      Alcotest.test_case "RO upgrade" `Quick test_upgrade_readonly;
     ]
 end
 
@@ -442,15 +475,66 @@ module Pack = struct
     >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
+  let check_version_and_generation pack msg v g =
+    let v' = Pack.version pack in
+    let g' = Pack.generation pack in
+    Alcotest.(check version) msg v v';
+    Alcotest.(check int64) msg g g'
+
   let test_upgrade () =
     Context.get_pack ~version:`V1 () >>= fun t ->
-    Fmt.epr "XXX XXX\n%!";
-    let v1 = Pack.version t.pack in
-    Alcotest.(check version) "v1" `V1 v1;
+    let check_version_and_generation = check_version_and_generation t.pack in
+    check_version_and_generation "v1, generation 0" `V1 0L;
     Pack.clear t.pack;
-    let v2 = Pack.version t.pack in
-    Alcotest.(check version) "v2" `V2 v2;
-    Lwt.return ()
+    check_version_and_generation "nothing to clear: v1, generation 0" `V1 0L;
+    let v = "foo" in
+    let k = sha1 v in
+    Pack.unsafe_append t.pack k v;
+    Pack.clear t.pack;
+    check_version_and_generation "v2, generation 1" `V2 1L;
+    Pack.unsafe_append t.pack k v;
+    Pack.clear t.pack;
+    check_version_and_generation "v2, generation 2" `V2 2L;
+    Context.close t.index t.pack
+
+  let test_upgrade_close () =
+    Context.get_pack ~version:`V1 () >>= fun t ->
+    Context.close t.index t.pack >>= fun () ->
+    let open_and_close_readonly msg v g =
+      t.clone_index_pack ~readonly:true >>= fun (i, r) ->
+      check_version_and_generation r msg v g;
+      Context.close i r
+    in
+    open_and_close_readonly "v1, generation 0" `V1 0L >>= fun () ->
+    t.clone_index_pack ~readonly:false >>= fun (i, w) ->
+    check_version_and_generation w "v1, generation 0" `V1 0L;
+    let v = "foo" in
+    let k = sha1 v in
+    Pack.unsafe_append w k v;
+    Pack.clear w;
+    Context.close i w >>= fun () ->
+    open_and_close_readonly "v2, generation 1" `V2 1L >>= fun () ->
+    t.clone_index_pack ~readonly:false >>= fun (i, w) ->
+    check_version_and_generation w "v2, generation 1" `V2 1L;
+    Context.close i w
+
+  (** A readonly instance only reads the version when the store is opened. *)
+  let test_upgrade_readonly () =
+    Context.get_pack ~version:`V1 () >>= fun t ->
+    t.clone_index_pack ~readonly:true >>= fun (i, r) ->
+    let check_generation msg g = check_version_and_generation r msg `V1 g in
+    check_generation "v1, generation 0" 0L;
+    let v = "foo" in
+    let k = sha1 v in
+    Pack.unsafe_append t.pack k v;
+    Pack.flush t.pack;
+    Pack.sync r;
+    check_generation "v1, generation 0" 0L;
+    Pack.clear t.pack;
+    Pack.flush t.pack;
+    Pack.sync r;
+    check_generation "v1, generation 1" 1L;
+    Context.close t.index t.pack >>= fun () -> Context.close i r
 
   let tests =
     [
@@ -472,6 +556,10 @@ module Pack = struct
           Lwt_main.run (test_clear_readonly ()));
       Alcotest.test_case "upgrade" `Quick (fun () ->
           Lwt_main.run (test_upgrade ()));
+      Alcotest.test_case "upgrade and close" `Quick (fun () ->
+          Lwt_main.run (test_upgrade_close ()));
+      Alcotest.test_case "readonly upgrade" `Quick (fun () ->
+          Lwt_main.run (test_upgrade_readonly ()));
     ]
 end
 
