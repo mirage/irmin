@@ -199,14 +199,11 @@ module Unix : S = struct
     (* no-op if the file is already empty; this is to avoid bumping
        the version number when this is not necessary. *)
     if t.offset = 0L then ()
-    else
-      let e = Printexc.get_callstack 10 in
-      Printexc.print_raw_backtrace stdout e;
-      flush_all ();
+    else (
       t.offset <- 0L;
       t.flushed <- header t;
       if t.version = `V1 then t.version <- `V2;
-      t.generation <- Int64.succ t.generation
+      t.generation <- Int64.succ t.generation)
 
   let v ~version ~fresh ~readonly file =
     let v ~offset ~version ~generation raw =

@@ -85,7 +85,6 @@ struct
   type index = Index.t
 
   type 'a t = {
-    root : string;
     block : IO.t;
     index : Index.t;
     dict : Dict.t;
@@ -109,7 +108,7 @@ struct
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~version ~fresh ~readonly root in
     let block = IO.v ~version ~fresh ~readonly file in
-    { root; block; index; lock; dict; open_instances = 1 }
+    { block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
     with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
