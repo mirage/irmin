@@ -600,4 +600,5 @@ let misc =
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
+    ("migration", Migration.tests);
   ]

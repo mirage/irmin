@@ -86,6 +86,15 @@ module Pack (S : Pack.S) = struct
   let clear_lru t =
     check_not_closed t;
     S.clear_lru t.t
+
+  let version t =
+    check_not_closed t;
+    S.version t.t
+
+  let migrate_to_current_version ~offset ~length k t1 t2 =
+    check_not_closed t1;
+    check_not_closed t2;
+    S.migrate_to_current_version ~offset ~length k t1.t t2.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
@@ -147,4 +156,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   let clear t =
     check_not_closed t;
     AW.clear t.t
+
+  let iter t =
+    check_not_closed t;
+    AW.iter t.t
 end

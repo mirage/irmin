@@ -68,6 +68,11 @@ module type S = sig
   val close : 'a t -> unit Lwt.t
 
   val clear_lru : 'a t -> unit
+
+  val version : 'a t -> IO.version
+
+  val migrate_to_current_version :
+    offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
 end
 
 module type MAKER = sig

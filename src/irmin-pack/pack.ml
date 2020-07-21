@@ -18,7 +18,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 let ( -- ) = Int64.sub
 
@@ -76,6 +76,11 @@ module type S = sig
   val close : 'a t -> unit Lwt.t
 
   val clear_lru : 'a t -> unit
+
+  val version : 'a t -> IO.version
+
+  val migrate_to_current_version :
+    offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
 end
 
 module type MAKER = sig
@@ -141,9 +146,6 @@ struct
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~fresh ~version:current_version ~readonly file in
-    if IO.version block <> current_version then
-      Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
-        current_version;
     { block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
@@ -382,5 +384,14 @@ struct
         Dict.sync ~force_refill:true t.pack.dict)
       else Dict.sync ~force_refill:false t.pack.dict;
       Index.sync t.pack.index
+
+    let migrate_to_current_version ~offset ~length k t1 t2 =
+      Log.debug (fun l ->
+          l "read from [%s] at off %Ld length %d " (IO.name t1.pack.block)
+            offset length);
+      let v = io_read_and_decode ~off:offset ~len:length t1 in
+      unsafe_append t2 k v
+
+    let version t = IO.version t.pack.block
   end
 end

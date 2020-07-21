@@ -18,7 +18,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 module Default = struct
   let fresh = false
@@ -350,6 +350,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     else Lwt.return_unit
 
   let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
+
+  let iter t f =
+    list t
+    >>= Lwt_list.iter_s (fun branch ->
+            find t branch >>= function
+            | None -> Lwt.return_unit
+            | Some commit -> f branch commit)
 end
 
 module type CONFIG = Inode.CONFIG
@@ -509,7 +516,7 @@ struct
                     let commit : 'a Commit.t = (node, commit) in
                     f contents node commit)))
 
-      let v config =
+      let unsafe_v config =
         let root = root config in
         let fresh = fresh config in
         let lru_size = lru_size config in
@@ -548,6 +555,53 @@ struct
           Commit.CA.clear_lru (snd (commit_t t))
         in
         Contents.CA.sync ~clear_lrus (contents_t t)
+
+      let migrate v1 v2 =
+        Log.debug (fun l -> l "migrate");
+        let contents = contents_t v1 in
+        let nodes = node_t v1 |> snd in
+        let commits = commit_t v1 |> snd in
+        let f (k, (offset, length, m)) =
+          match m with
+          | 'B' ->
+              contents_t v2
+              |> Contents.CA.migrate_to_current_version ~offset ~length k
+                   contents
+          | 'N' | 'I' ->
+              node_t v2
+              |> snd
+              |> Node.CA.migrate_to_current_version ~offset ~length k nodes
+          | 'C' ->
+              commit_t v2
+              |> snd
+              |> Commit.CA.migrate_to_current_version ~offset ~length k commits
+          | _ -> invalid_arg "unknown content type"
+        in
+        Index.iter (fun k v -> f (k, v)) v1.index
+
+      let migrate_to_current_version config v1 =
+        (*open a fresh store in the new format*)
+        let root = root config in
+        let root_v2 = Filename.concat root "../_v2" in
+        let config = Irmin.Private.Conf.add config root_key (Some root_v2) in
+        let config = Irmin.Private.Conf.add config fresh_key true in
+        unsafe_v config >>= fun v2 ->
+        migrate v1 v2;
+        (*copy branch file*)
+        Branch.iter (branch_t v1) (Branch.set (branch_t v2)) >>= fun () ->
+        close v1 >>= fun () ->
+        close v2 >>= fun () ->
+        IO.rename_dir ~src:root_v2 ~dst:root;
+        (*rename new dir to new dir and erase old dir*)
+        let config = Irmin.Private.Conf.add config fresh_key false in
+        let config = Irmin.Private.Conf.add config root_key (Some root) in
+        unsafe_v config
+
+      let v config =
+        unsafe_v config >>= fun t ->
+        if Contents.CA.version (contents_t t) <> current_version then
+          migrate_to_current_version config t
+        else Lwt.return t
     end
   end
 

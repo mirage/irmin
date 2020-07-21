@@ -19,7 +19,7 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 let ( -- ) = Int64.sub
 

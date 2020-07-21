@@ -14,12 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type version = [ `V1 | `V2 ]
+
+val pp_version : version Fmt.t
+
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+  val v : fresh:bool -> version:version -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -41,11 +45,13 @@ module type S = sig
 
   val readonly : t -> bool
 
-  val version : t -> string
+  val version : t -> version
 
   val flush : t -> unit
 
   val close : t -> unit
+
+  val rename_dir : src:string -> dst:string -> unit
 end
 
 module Unix : S

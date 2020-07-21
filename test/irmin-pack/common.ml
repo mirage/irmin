@@ -12,6 +12,14 @@ let rm_dir root =
     let _ = Sys.command cmd in
     ())
 
+let index_log_size = Some 1_000
+
+module Conf = struct
+  let entries = 32
+
+  let stable_hash = 256
+end
+
 module S = struct
   include Irmin.Contents.String
 

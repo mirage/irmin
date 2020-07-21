@@ -41,3 +41,11 @@ val get : 'a option -> 'a
 val sha1 : string -> H.t
 
 val rm_dir : string -> unit
+
+val index_log_size : int option
+
+module Conf : sig
+  val entries : int
+
+  val stable_hash : int
+end

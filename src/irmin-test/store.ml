@@ -2115,15 +2115,15 @@ module Make (S : S) = struct
       check_commit "r1 after clear is not found" None k2';
       P.Commit.clear c >>= fun () ->
       P.Commit.find c (S.Commit.hash h1) >>= fun v ->
-      ( match v with
+      (match v with
       | Some _ -> Alcotest.fail "after clear commit is found"
-      | None -> () );
+      | None -> ());
       n1 ~repo >>= fun n1 ->
       P.Node.clear n >>= fun () ->
       P.Node.find n n1 >>= fun v ->
-      ( match v with
+      (match v with
       | Some _ -> Alcotest.fail "after clear node is found"
-      | None -> () );
+      | None -> ());
       kv2 ~repo >>= fun h2 ->
       P.Contents.clear t >>= fun () ->
       P.Contents.find t h2 >>= fun v2' ->

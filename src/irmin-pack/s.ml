@@ -18,4 +18,6 @@ module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+
+  val iter : t -> (key -> value -> unit Lwt.t) -> unit Lwt.t
 end
