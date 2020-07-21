@@ -13,6 +13,15 @@
 module type S = sig
   include Index.S with type value = int64 * int * char
 
+  val v :
+    ?auto_flush_callback:(unit -> unit) ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    log_size:int ->
+    string ->
+    t
+
   val find : t -> key -> value option
 
   val add : t -> key -> value -> unit
@@ -62,8 +71,15 @@ module Make (K : Irmin.Hash.S) = struct
     let encoded_size = (64 / 8) + (32 / 8) + 1
   end
 
-  module Index = Index_unix.Make (Key) (Val)
+  module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
   include Index
+
+  (** Implicit caching of Index instances. TODO: Require the user to pass Pack
+      instance caches explicitly. See
+      https://github.com/mirage/irmin/issues/1017. *)
+  let cache = Index.empty_cache ()
+
+  let v = Index.v ~cache
 
   let add t k v = replace t k v
 
