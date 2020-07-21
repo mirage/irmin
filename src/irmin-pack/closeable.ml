@@ -82,6 +82,10 @@ module Pack (S : Pack.S) = struct
   let integrity_check ~offset ~length k t =
     check_not_closed t;
     S.integrity_check ~offset ~length k t.t
+
+  let clear_lru t =
+    check_not_closed t;
+    S.clear_lru t.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

@@ -212,7 +212,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
           (IO.name t.block)
       in
       t.block <- io;
-      refill t ~from:0L )
+      refill t ~from:0L)
     else
       let former_log_offset = IO.offset t.block in
       let log_offset = IO.force_offset t.block in
@@ -540,8 +540,14 @@ struct
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
-      (** stores share instances in memory, one sync is enough *)
-      let sync t = Contents.CA.sync (contents_t t)
+      (** Stores share instances in memory, one sync is enough. However each
+          store has its own lru and all have to be cleared. *)
+      let sync t =
+        let clear_lrus () =
+          Node.CA.clear_lru (snd (node_t t));
+          Commit.CA.clear_lru (snd (commit_t t))
+        in
+        Contents.CA.sync ~clear_lrus (contents_t t)
     end
   end
 

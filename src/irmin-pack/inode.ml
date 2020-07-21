@@ -47,7 +47,9 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val sync : 'a t -> unit
+  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
+
+  val clear_lru : 'a t -> unit
 end
 
 module type CONFIG = sig
@@ -823,4 +825,6 @@ struct
   let sync = Inode.sync
 
   let clear = Inode.clear
+
+  let clear_lru = Inode.clear_lru
 end

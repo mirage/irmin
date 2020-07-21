@@ -58,7 +58,7 @@ module type S = sig
 
   val flush : ?index:bool -> 'a t -> unit
 
-  val sync : 'a t -> unit
+  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -66,6 +66,8 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
+
+  val clear_lru : 'a t -> unit
 end
 
 module type MAKER = sig

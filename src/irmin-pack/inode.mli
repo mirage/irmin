@@ -46,7 +46,9 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val sync : 'a t -> unit
+  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
+
+  val clear_lru : 'a t -> unit
 end
 
 module Make

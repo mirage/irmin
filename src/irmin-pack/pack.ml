@@ -66,7 +66,7 @@ module type S = sig
 
   val flush : ?index:bool -> 'a t -> unit
 
-  val sync : 'a t -> unit
+  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -74,6 +74,8 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
+
+  val clear_lru : 'a t -> unit
 end
 
 module type MAKER = sig
@@ -126,7 +128,7 @@ struct
     if IO.offset t.block <> 0L then (
       IO.clear t.block;
       Index.clear t.index;
-      Dict.clear t.dict )
+      Dict.clear t.dict)
 
   let valid t =
     if t.open_instances <> 0 then (
@@ -362,18 +364,22 @@ struct
           unsafe_clear t;
           Lwt.return_unit)
 
-    let sync t =
+    let clear_lru t = Lru.clear t.lru
+
+    let sync t ~clear_lrus =
       let former_generation = IO.generation t.pack.block in
       let generation = IO.force_generation t.pack.block in
       if former_generation <> generation then (
         Log.debug (fun l -> l "[pack] generation changed, refill buffers");
+        clear_lru t;
+        clear_lrus ();
         IO.close t.pack.block;
         let block =
           IO.v ~fresh:false ~version:current_version ~readonly:true
             (IO.name t.pack.block)
         in
         t.pack.block <- block;
-        Dict.sync ~force_refill:true t.pack.dict )
+        Dict.sync ~force_refill:true t.pack.dict)
       else Dict.sync ~force_refill:false t.pack.dict;
       Index.sync t.pack.index
   end
