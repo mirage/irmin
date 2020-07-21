@@ -13,6 +13,16 @@
 module type S = sig
   include Index.S with type value = int64 * int * char
 
+  val v :
+    ?auto_flush_callback:(unit -> unit) ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    log_size:int ->
+    string ->
+    t
+  (** Constructor for indices, memoized by [(path, readonly)] pairs. *)
+
   val find : t -> key -> value option
 
   val add : t -> key -> value -> unit
