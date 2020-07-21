@@ -32,7 +32,7 @@ module type S = sig
 
   val flush : t -> unit
 
-  val sync : t -> unit
+  val sync : t -> force_refill:bool -> unit
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
@@ -48,7 +48,7 @@ module Make (IO : IO.S) : S = struct
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : IO.t;
+    mutable io : IO.t;
     mutable open_instances : int;
   }
 
@@ -79,21 +79,25 @@ module Make (IO : IO.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
-  (** if RW was cleared we have to refill the buffers entirely. In both cases
-      offset needs to be updated, as the offset is used in the refill. *)
-  let sync_offset t =
-    let former_log_offset = IO.offset t.io in
-    let log_offset = IO.force_offset t.io in
-    let former_generation = IO.generation t.io in
-    let generation = IO.force_generation t.io in
-    if former_generation <> generation then (
+  let sync_offset t ~force_refill =
+    if force_refill then (
+      (* RW was cleared, so we have to reopen file and refill the hashtables
+         entirely *)
+      IO.close t.io;
+      let io =
+        IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)
+      in
+      t.io <- io;
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
-      refill ~from:0L t )
-    else if log_offset > former_log_offset then refill ~from:former_log_offset t
+      refill ~from:0L t)
+    else
+      let former_log_offset = IO.offset t.io in
+      let log_offset = IO.force_offset t.io in
+      if log_offset > former_log_offset then refill ~from:former_log_offset t
 
-  let sync t =
-    if IO.readonly t.io then sync_offset t
+  let sync t ~force_refill =
+    if IO.readonly t.io then sync_offset t ~force_refill
     else invalid_arg "only a readonly instance should call this function"
 
   let flush t = IO.flush t.io

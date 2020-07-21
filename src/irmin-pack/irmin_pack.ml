@@ -134,7 +134,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   type t = {
     index : int64 Tbl.t;
     cache : V.t Tbl.t;
-    block : IO.t;
+    mutable block : IO.t;
     lock : Lwt_mutex.t;
     w : W.t;
     mutable open_instances : int;
@@ -204,7 +204,15 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let sync_offset t =
     let former_generation = IO.generation t.block in
     let generation = IO.force_generation t.block in
-    if former_generation <> generation then refill t ~from:0L
+    if former_generation <> generation then (
+      Log.debug (fun l -> l "[branches] generation changed, refill buffers");
+      IO.close t.block;
+      let io =
+        IO.v ~fresh:false ~readonly:true ~version:current_version
+          (IO.name t.block)
+      in
+      t.block <- io;
+      refill t ~from:0L )
     else
       let former_log_offset = IO.offset t.block in
       let log_offset = IO.force_offset t.block in

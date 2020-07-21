@@ -115,7 +115,7 @@ struct
   type index = Index.t
 
   type 'a t = {
-    block : IO.t;
+    mutable block : IO.t;
     index : Index.t;
     dict : Dict.t;
     lock : Lwt_mutex.t;
@@ -123,9 +123,10 @@ struct
   }
 
   let clear t =
-    IO.clear t.block;
-    Index.clear t.index;
-    Dict.clear t.dict
+    if IO.offset t.block <> 0L then (
+      IO.clear t.block;
+      Index.clear t.index;
+      Dict.clear t.dict )
 
   let valid t =
     if t.open_instances <> 0 then (
@@ -356,13 +357,24 @@ struct
           unsafe_close t;
           Lwt.return_unit)
 
-    let sync t =
-      Dict.sync t.pack.dict;
-      Index.sync t.pack.index
-
     let clear t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_clear t;
           Lwt.return_unit)
+
+    let sync t =
+      let former_generation = IO.generation t.pack.block in
+      let generation = IO.force_generation t.pack.block in
+      if former_generation <> generation then (
+        Log.debug (fun l -> l "[pack] generation changed, refill buffers");
+        IO.close t.pack.block;
+        let block =
+          IO.v ~fresh:false ~version:current_version ~readonly:true
+            (IO.name t.pack.block)
+        in
+        t.pack.block <- block;
+        Dict.sync ~force_refill:true t.pack.dict )
+      else Dict.sync ~force_refill:false t.pack.dict;
+      Index.sync t.pack.index
   end
 end

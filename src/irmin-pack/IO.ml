@@ -85,7 +85,6 @@ module Unix : S = struct
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf;
       Raw.Offset.set t.raw offset;
-      Raw.Generation.set t.raw t.generation;
 
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -159,11 +158,28 @@ module Unix : S = struct
     in
     aux dirname (fun () -> ())
 
+  let raw ~mode ~version ~generation file =
+    let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
+    let raw = Raw.v x in
+    let header = { Raw.Header.version; offset = 0L; generation } in
+    Raw.Header.set raw header;
+    raw
+
   let clear t =
+    if t.readonly then invalid_arg "Read-only IO cannot be cleared";
+    Log.debug (fun l -> l "clear %s" t.file);
     t.offset <- 0L;
     t.flushed <- header;
+    Buffer.clear t.buf;
     t.generation <- Int64.succ t.generation;
-    Buffer.clear t.buf
+    (* update the generation for concurrent readonly instance to
+       notice that the file has been clear when they next sync. *)
+    Raw.Generation.set t.raw t.generation;
+    (* and delete the file. *)
+    Raw.close t.raw;
+    Unix.unlink t.file;
+    t.raw <-
+      raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file
 
   let buffers = Hashtbl.create 256
 
@@ -192,25 +208,24 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
-        let raw = Raw.v x in
-        Raw.Offset.set raw 0L;
-        Raw.Version.set raw current_version;
-        Raw.Generation.set raw 0L;
+        let raw = raw ~mode ~version:current_version ~generation:0L file in
         v ~offset:0L ~version:current_version ~generation:0L raw
     | true ->
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
-          Raw.Offset.set raw 0L;
-          Raw.Version.set raw current_version;
-          Raw.Generation.set raw 0L;
+          let header =
+            {
+              Raw.Header.version = current_version;
+              offset = 0L;
+              generation = 0L;
+            }
+          in
+          Raw.Header.set raw header;
           v ~offset:0L ~version:current_version ~generation:0L raw)
         else
-          let offset = Raw.Offset.get raw in
-          let version = Raw.Version.get raw in
+          let { Raw.Header.version; offset; generation } = Raw.Header.get raw in
           assert (version = current_version);
-          let generation = Raw.Generation.get raw in
           v ~offset ~version ~generation raw
 
   let close t = Raw.close t.raw

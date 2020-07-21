@@ -23,7 +23,7 @@ module type S = sig
 
   val flush : t -> unit
 
-  val sync : t -> unit
+  val sync : t -> force_refill:bool -> unit
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
