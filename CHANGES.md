@@ -25,6 +25,10 @@
     let _ = <begin loop> ... encode_bin foo ... <end loop>
     ```
 
+- **irmin-pack**:
+  - Added `index_throttle` option to `Irmin_pack.config`, which exposes the
+    memory throttle feature of `Index` in `Irmin-Pack`. (#1049, @icristescu)
+
 #### Changed
 
 - **irmin**
