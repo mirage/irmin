@@ -333,17 +333,16 @@ let test_to_string () =
 
   ()
 
-(** Test the behaviour of {!Irmin.Type.to_ocaml_string}. *)
-let test_to_ocaml_string () =
-  let to_string_dump ty = Fmt.to_to_string (T.pp_dump ty) in
+(** Test the behaviour of {!Irmin.Type.pp_dump}. *)
+let test_pp_dump () =
+  let to_string ty = Fmt.to_to_string (T.pp_dump ty) in
   let test : type a. string -> a T.t -> a -> string -> unit =
    fun case_name typ input expected_output ->
     let assertion =
-      Fmt.strf "Expected output of `to_ocaml_string` for representation of `%s`"
+      Fmt.strf "Expected output of `pp_dump` for representation of `%s`"
         case_name
     in
-    to_string_dump typ input
-    |> Alcotest.(check string) assertion expected_output
+    to_string typ input |> Alcotest.(check string) assertion expected_output
   in
 
   (* Test cases for basic types *)
@@ -865,7 +864,7 @@ let suite =
     ("json_option", `Quick, test_json_option);
     ("bin", `Quick, test_bin);
     ("to_string", `Quick, test_to_string);
-    ("to_ocaml_string", `Quick, test_to_ocaml_string);
+    ("pp_dump", `Quick, test_pp_dump);
     ("pp_ty", `Quick, test_pp_ty);
     ("compare", `Quick, test_compare);
     ("equal", `Quick, test_equal);
