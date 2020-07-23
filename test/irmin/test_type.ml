@@ -310,7 +310,7 @@ let test_to_string () =
       Stdlib.infinity;
       Stdlib.nan;
     |]
-    "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
+    "[\"-inf\",-0,0,2.220446049250313e-16,\"inf\",\"nan\"]";
   test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
   test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
   test "unit option{none}" T.(option unit) None "null";
