@@ -15,6 +15,9 @@
   - Remove the `headers` option in `Type.{encode_bin,decode_bin,size_of}`. Use
     `Type.Unboxed.<fn>` instead (#1030, @samoht)
   - `Type.v` now takes an extra mandatory `unit` argument (#1030, @samoht)
+  - Added `Type.pp_dump`, which provides a way to pretty-print values with a
+    syntax almost identical to native OCaml syntax, so that they can easily be
+    copy-pasted into an OCaml REPL for inspection. (#1046, @liautaud)
   - Generic functions in `Irmin.Type` are now more efficient when a partial
     closure is constructed to the type representation (#1030, @samoht).
     To make this even more explicit, these functions are now staged and
@@ -29,6 +32,9 @@
 
 - **irmin**
   - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
+  - Changed the JSON encoding of special floats. `Float.nan`, `Float.infinity`
+    and `Float.neg_infinity` are now encoded as `"nan"`, `"inf"` and `"-inf"`
+    respectively. (#979, @liautaud)
 
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
