@@ -16,6 +16,9 @@
 
 open Type_core
 
+(* Polyfill for [Float.is_nan] which is only >=4.08. *)
+let is_nan x = Float.classify_float x = FP_nan
+
 let t t =
   let rec aux : type a. a t -> a pp =
    fun t ppf x ->
@@ -32,12 +35,84 @@ let t t =
     | Unit -> ()
     | Bool -> Fmt.bool ppf x
     | Char -> Fmt.char ppf x
+    | String _ -> Fmt.string ppf x
+    | Bytes _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
     | Int -> Fmt.int ppf x
     | Int32 -> Fmt.int32 ppf x
     | Int64 -> Fmt.int64 ppf x
-    | Float -> Fmt.float ppf x
-    | String _ -> Fmt.string ppf x
+    | Float when is_nan x -> Fmt.string ppf "\"nan\""
+    | Float when x = infinity -> Fmt.string ppf "\"inf\""
+    | Float when x = neg_infinity -> Fmt.string ppf "\"-inf\""
+    | Float -> Fmt.string ppf (string_of_float x)
+  in
+  aux t
+
+let dump t =
+  let rec aux : type a. a t -> a pp =
+   fun t ppf x ->
+    match t with
+    | Self s -> aux s.self_fix ppf x
+    | Custom c -> c.pp ppf x
+    | Map m -> map m ppf x
+    | Prim p -> prim p ppf x
+    | Var v -> raise (Unbound_type_variable v)
+    | List l -> Fmt.Dump.list (aux l.v) ppf x
+    | Array a -> Fmt.Dump.array (aux a.v) ppf x
+    | Option o -> option o ppf x
+    | Tuple t -> tuple t ppf x
+    | Record r -> record r ppf x
+    | Variant v -> variant v ppf x
+    | Boxed t -> aux t ppf x
+  and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
+  and prim : type a. a prim -> a pp =
+   fun t ppf x ->
+    match t with
+    | Unit -> Fmt.string ppf "()"
+    | Bool -> Fmt.bool ppf x
+    | Char -> Fmt.(pf ppf "'%c'" x)
+    | String _ -> Fmt.Dump.string ppf x
     | Bytes _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
+    | Int -> Fmt.int ppf x
+    | Int32 -> Fmt.int32 ppf x
+    | Int64 -> Fmt.int64 ppf x
+    | Float when is_nan x -> Fmt.string ppf "nan"
+    | Float when x = infinity -> Fmt.string ppf "infinity"
+    | Float when x = neg_infinity -> Fmt.string ppf "neg_infinity"
+    | Float -> Fmt.string ppf (string_of_float x)
+  and tuple : type a. a tuple -> a pp =
+   fun t ->
+    match t with
+    | Pair (ta, tb) -> Fmt.Dump.pair (aux ta) (aux tb)
+    | Triple (ta, tb, tc) ->
+        (* There is no built-in formatter for triples in [Fmt.Dump]. *)
+        Fmt.(
+          parens
+            (using (fun (a, _, _) -> a) (box (aux ta))
+            ++ comma
+            ++ using (fun (_, b, _) -> b) (box (aux tb))
+            ++ comma
+            ++ using (fun (_, _, c) -> c) (box (aux tc))))
+  and record : type a. a record -> a pp =
+   fun t ->
+    fields t
+    |> List.map (fun (Field f) ->
+           Fmt.Dump.field ~label:Fmt.string f.fname f.fget (aux f.ftype))
+    |> Fmt.Dump.record
+  and option : type a. a t -> a option pp =
+   fun t ppf -> function
+    | None -> Fmt.string ppf "None"
+    | Some x ->
+        Fmt.(
+          string ppf "Some ";
+          parens (aux t) ppf x)
+  and variant : type a. a variant -> a pp =
+   fun t ppf x ->
+    match t.vget x with
+    | CV0 c -> Fmt.string ppf (String.capitalize_ascii c.cname0)
+    | CV1 (c, v) ->
+        Fmt.string ppf (String.capitalize_ascii c.cname1);
+        Fmt.string ppf " ";
+        Fmt.parens (aux c.ctype1) ppf v
   in
   aux t
 

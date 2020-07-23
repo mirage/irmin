@@ -309,6 +309,13 @@ type 'a of_string = string -> ('a, [ `Msg of string ]) result
 val pp : 'a t -> 'a pp
 (** [pp t] is the pretty-printer for values of type [t]. *)
 
+val pp_dump : 'a t -> 'a pp
+(** [pp t] is the dump pretty-printer for values of type [t].
+
+    This pretty-printer outputs an encoding which is as close as possible to
+    native OCaml syntax, so that the result can easily be copy-pasted into an
+    OCaml REPL to inspect the value further. *)
+
 val pp_ty : 'a t pp
 (** The pretty printer for generics of type {!t}. *)
 

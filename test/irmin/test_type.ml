@@ -277,7 +277,9 @@ let test_to_string () =
   test "int32" T.int32 Int32.max_int "2147483647";
   test "int64" T.int64 Int64.max_int "9223372036854775807";
   test "float" T.float (-1.5) "-1.5";
-  test "float{NaN}" T.float Stdlib.nan "nan";
+  test "float{NaN}" T.float Stdlib.nan "\"nan\"";
+  test "float{inf}" T.float Stdlib.infinity "\"inf\"";
+  test "float{-inf}" T.float Stdlib.neg_infinity "\"-inf\"";
   test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
   test "string" T.string "foo\nbar\\" "foo\nbar\\";
 
@@ -297,7 +299,13 @@ let test_to_string () =
     "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
   test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
   test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
-  test "int option{none}" T.(option unit) None "null";
+  test "unit option{none}" T.(option unit) None "null";
+  test "unit option option{some some}"
+    T.(option (option unit))
+    (Some (Some ())) "{\"some\":{\"some\":{}}}";
+  test "unit option option{some none}"
+    T.(option (option unit))
+    (Some None) "{\"some\":null}";
   test "(int * string * bool)"
     T.(triple int string bool)
     (1, "foo", true) "[1,\"foo\",1]";
@@ -322,6 +330,87 @@ let test_to_string () =
   test "recursive record" my_recursive_record_t
     { head = 1; tail = Some { head = 2; tail = None } }
     "{\"head\":1,\"tail\":{\"head\":2}}";
+
+  ()
+
+(** Test the behaviour of {!Irmin.Type.pp_dump}. *)
+let test_pp_dump () =
+  let to_string ty = Fmt.to_to_string (T.pp_dump ty) in
+  let test : type a. string -> a T.t -> a -> string -> unit =
+   fun case_name typ input expected_output ->
+    let assertion =
+      Fmt.strf "Expected output of `pp_dump` for representation of `%s`"
+        case_name
+    in
+    to_string typ input |> Alcotest.(check string) assertion expected_output
+  in
+
+  (* Test cases for basic types *)
+  test "unit" T.unit () "()";
+  test "bool{true}" T.bool true "true";
+  test "bool{false}" T.bool false "false";
+  test "char" T.char 'a' "'a'";
+  test "int" T.int (-100) "-100";
+  test "int32" T.int32 Int32.max_int "2147483647";
+  test "int64" T.int64 Int64.max_int "9223372036854775807";
+  test "float" T.float (-1.5) "-1.5";
+  test "float{NaN}" T.float Stdlib.nan "nan";
+  test "float{inf}" T.float Stdlib.infinity "infinity";
+  test "float{-inf}" T.float Stdlib.neg_infinity "neg_infinity";
+  test "bytes" T.bytes (Bytes.make 5 'a') "aaaaa";
+  test "string" T.string "foo\nbar\\" "\"foo\\nbar\\\\\"";
+
+  (* Test cases for non-algebraic combinators *)
+  test "int list{nil}" T.(list int) [] "[]";
+  test "int list{cons}" T.(list int) [ 1; 2; 3 ] "[1; 2; 3]";
+  test "float array"
+    T.(array float)
+    [|
+      Stdlib.neg_infinity;
+      ~-.0.;
+      0.;
+      Stdlib.epsilon_float;
+      Stdlib.infinity;
+      Stdlib.nan;
+    |]
+    "[|neg_infinity; -0.; 0.; 2.22044604925e-16; infinity; nan|]";
+  test "(unit * int)" T.(pair unit int) ((), 1) "((), 1)";
+  test "unit option{some}" T.(option unit) (Some ()) "Some (())";
+  test "unit option{none}" T.(option unit) None "None";
+  test "unit option option{some some}"
+    T.(option (option unit))
+    (Some (Some ())) "Some (Some (()))";
+  test "unit option option{some none}"
+    T.(option (option unit))
+    (Some None) "Some (None)";
+  test "(int * string * bool)"
+    T.(triple int string bool)
+    (1, "foo", true) "(1, \"foo\", true)";
+  test "(string, bool) result{ok}"
+    T.(result string bool)
+    (Ok "foo") "Ok (\"foo\")";
+  test "(string, bool) result{error}"
+    T.(result string bool)
+    (Error false) "Error (false)";
+
+  (* Test cases for algebraic combinators *)
+  let open Algebraic in
+  test "enum" my_enum_t Alpha "Alpha";
+  test "variant" my_variant_t (Right [ 1; 2 ]) "Right ([1; 2])";
+  test "recursive variant" my_recursive_variant_t
+    (Branch [ Branch [ Leaf 1 ]; Leaf 2 ])
+    "Branch ([Branch ([Leaf (1)]); Leaf (2)])";
+  test "record" my_record_t
+    { foo = 2; flag = false; letter = Delta }
+    {|{ foo = 2;
+  flag = false;
+  letter = Delta }|};
+
+  test "recursive record" my_recursive_record_t
+    { head = 1; tail = Some { head = 2; tail = None } }
+    {|{ head = 1;
+  tail = Some ({ head = 2;
+                 tail = None }) }|};
 
   ()
 
@@ -775,6 +864,7 @@ let suite =
     ("json_option", `Quick, test_json_option);
     ("bin", `Quick, test_bin);
     ("to_string", `Quick, test_to_string);
+    ("pp_dump", `Quick, test_pp_dump);
     ("pp_ty", `Quick, test_pp_ty);
     ("compare", `Quick, test_compare);
     ("equal", `Quick, test_equal);

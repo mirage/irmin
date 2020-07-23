@@ -18,6 +18,8 @@ open Type_core
 
 val t : 'a t -> 'a Fmt.t
 
+val dump : 'a t -> 'a Fmt.t
+
 val ty : 'a t Fmt.t
 
 val to_string : 'a t -> 'a to_string
