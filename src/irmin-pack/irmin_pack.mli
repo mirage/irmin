@@ -31,7 +31,7 @@ val config :
     @param index_throttle the strategy to use when the index cache is full and
     an async [Index.merge] in already in progress. [Block_writes] (the default)
     blocks any new writes until the merge is completed. [Overcommit_memory] does
-    not block but continues to fill the in-memory (already full) cache in index. *)
+    not block but indefinitely expands the in-memory cache. *)
 
 module Pack = Pack
 module Dict = Pack_dict

@@ -37,14 +37,13 @@ let throttle_converter =
     | "Block_writes" -> Ok `Block_writes
     | "Overcommit_memory" -> Ok `Overcommit_memory
     | s ->
-        Error
-          (`Msg
-            (Printf.sprintf
-               "invalid %s, expected one of: Block_writes Overcommit_memory" s))
+        Fmt.error_msg
+          "invalid %s, expected one of: Block_writes Overcommit_memory" s
   in
-  let print pp = function
-    | `Block_writes -> Fmt.string pp "Block_writes"
-    | `Overcommit_memory -> Fmt.string pp "Overcommit_memory"
+  let print =
+    Fmt.of_to_string (function
+      | `Block_writes -> "Block_writes"
+      | `Overcommit_memory -> "Overcommit_memory")
   in
   (parse, print)
 
