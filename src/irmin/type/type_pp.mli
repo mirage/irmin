@@ -16,12 +16,12 @@
 
 open Type_core
 
-val t : ?ocaml_syntax:unit -> 'a t -> 'a Fmt.t
+val t : 'a t -> 'a Fmt.t
+
+val dump : 'a t -> 'a Fmt.t
 
 val ty : 'a t Fmt.t
 
 val to_string : 'a t -> 'a to_string
-
-val to_ocaml_string : 'a t -> 'a to_string
 
 val of_string : 'a t -> 'a of_string

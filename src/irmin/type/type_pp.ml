@@ -19,8 +19,7 @@ open Type_core
 (* Polyfill for [Float.is_nan] which is only >=4.08. *)
 let is_nan x = Float.classify_float x = FP_nan
 
-let t ?ocaml_syntax t =
-  let use_ocaml_syntax = ocaml_syntax = Some () in
+let t t =
   let rec aux : type a. a t -> a pp =
    fun t ppf x ->
     match t with
@@ -28,7 +27,34 @@ let t ?ocaml_syntax t =
     | Custom c -> c.pp ppf x
     | Map m -> map m ppf x
     | Prim p -> prim p ppf x
-    | _ when not use_ocaml_syntax -> Type_json.pp t ppf x
+    | _ -> Type_json.pp t ppf x
+  and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
+  and prim : type a. a prim -> a pp =
+   fun t ppf x ->
+    match t with
+    | Unit -> ()
+    | Bool -> Fmt.bool ppf x
+    | Char -> Fmt.char ppf x
+    | String _ -> Fmt.string ppf x
+    | Bytes _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
+    | Int -> Fmt.int ppf x
+    | Int32 -> Fmt.int32 ppf x
+    | Int64 -> Fmt.int64 ppf x
+    | Float when is_nan x -> Fmt.string ppf "\"nan\""
+    | Float when x = infinity -> Fmt.string ppf "\"inf\""
+    | Float when x = neg_infinity -> Fmt.string ppf "\"-inf\""
+    | Float -> Fmt.string ppf (string_of_float x)
+  in
+  aux t
+
+let dump t =
+  let rec aux : type a. a t -> a pp =
+   fun t ppf x ->
+    match t with
+    | Self s -> aux s.self_fix ppf x
+    | Custom c -> c.pp ppf x
+    | Map m -> map m ppf x
+    | Prim p -> prim p ppf x
     | Var v -> raise (Unbound_type_variable v)
     | List l -> Fmt.Dump.list (aux l.v) ppf x
     | Array a -> Fmt.Dump.array (aux a.v) ppf x
@@ -36,28 +62,23 @@ let t ?ocaml_syntax t =
     | Tuple t -> tuple t ppf x
     | Record r -> record r ppf x
     | Variant v -> variant v ppf x
+    | Boxed t -> aux t ppf x
   and map : type a b. (a, b) map -> b pp = fun l ppf x -> aux l.x ppf (l.g x)
   and prim : type a. a prim -> a pp =
    fun t ppf x ->
-    match (t, use_ocaml_syntax) with
-    | Unit, false -> ()
-    | Unit, true -> Fmt.string ppf "()"
-    | Bool, _ -> Fmt.bool ppf x
-    | Char, false -> Fmt.char ppf x
-    | Char, true -> Fmt.(pf ppf "'%c'" x)
-    | String _, false -> Fmt.string ppf x
-    | String _, true -> Fmt.Dump.string ppf x
-    | Bytes _, _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
-    | Int, _ -> Fmt.int ppf x
-    | Int32, _ -> Fmt.int32 ppf x
-    | Int64, _ -> Fmt.int64 ppf x
-    | Float, false when is_nan x -> Fmt.string ppf "\"nan\""
-    | Float, false when x = infinity -> Fmt.string ppf "\"inf\""
-    | Float, false when x = neg_infinity -> Fmt.string ppf "\"-inf\""
-    | Float, true when is_nan x -> Fmt.string ppf "nan"
-    | Float, true when x = infinity -> Fmt.string ppf "infinity"
-    | Float, true when x = neg_infinity -> Fmt.string ppf "neg_infinity"
-    | Float, _ -> Fmt.string ppf (string_of_float x)
+    match t with
+    | Unit -> Fmt.string ppf "()"
+    | Bool -> Fmt.bool ppf x
+    | Char -> Fmt.(pf ppf "'%c'" x)
+    | String _ -> Fmt.Dump.string ppf x
+    | Bytes _ -> Fmt.string ppf (Bytes.unsafe_to_string x)
+    | Int -> Fmt.int ppf x
+    | Int32 -> Fmt.int32 ppf x
+    | Int64 -> Fmt.int64 ppf x
+    | Float when is_nan x -> Fmt.string ppf "nan"
+    | Float when x = infinity -> Fmt.string ppf "infinity"
+    | Float when x = neg_infinity -> Fmt.string ppf "neg_infinity"
+    | Float -> Fmt.string ppf (string_of_float x)
   and tuple : type a. a tuple -> a pp =
    fun t ->
     match t with
@@ -66,11 +87,11 @@ let t ?ocaml_syntax t =
         (* There is no built-in formatter for triples in [Fmt.Dump]. *)
         Fmt.(
           parens
-            ( using (fun (a, _, _) -> a) (box (aux ta))
+            (using (fun (a, _, _) -> a) (box (aux ta))
             ++ comma
             ++ using (fun (_, b, _) -> b) (box (aux tb))
             ++ comma
-            ++ using (fun (_, _, c) -> c) (box (aux tc)) ))
+            ++ using (fun (_, _, c) -> c) (box (aux tc))))
   and record : type a. a record -> a pp =
    fun t ->
     fields t
@@ -203,8 +224,6 @@ let ty : type a. a t Fmt.t =
   ty ppf typ
 
 let to_string ty = Fmt.to_to_string (t ty)
-
-let to_ocaml_string ty = Fmt.to_to_string (t ~ocaml_syntax:() ty)
 
 let of_string t =
   let map_result f = function Ok x -> Ok (f x) | Error _ as e -> e in

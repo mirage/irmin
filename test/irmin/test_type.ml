@@ -211,7 +211,7 @@ let sha1 x = Irmin.Hash.BLAKE2B.hash (fun l -> l x)
 let test_bin () =
   let s = T.to_string l [ "foo"; "foo" ] in
   Alcotest.(check string) "hex list" "[\"666f6f\",\"666f6f\"]" s;
-  let s = T.to_bin_string l [ "foo"; "bar" ] in
+  let s = to_bin_string l [ "foo"; "bar" ] in
   Alcotest.(check string) "encode list" "foobar" s;
   Alcotest.(check (option int))
     "size of list" (Some 6)
@@ -335,13 +335,14 @@ let test_to_string () =
 
 (** Test the behaviour of {!Irmin.Type.to_ocaml_string}. *)
 let test_to_ocaml_string () =
+  let to_string_dump ty = Fmt.to_to_string (T.pp_dump ty) in
   let test : type a. string -> a T.t -> a -> string -> unit =
    fun case_name typ input expected_output ->
     let assertion =
       Fmt.strf "Expected output of `to_ocaml_string` for representation of `%s`"
         case_name
     in
-    T.to_ocaml_string typ input
+    to_string_dump typ input
     |> Alcotest.(check string) assertion expected_output
   in
 
