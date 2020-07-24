@@ -473,7 +473,7 @@ struct
         let f = ref (fun () -> ()) in
         let index =
           Index.v
-            ~auto_flush_callback:(fun () -> !f ())
+            ~flush_callback:(fun () -> !f ())
               (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~log_size root
         in
@@ -482,9 +482,9 @@ struct
         Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
         (* Stores share instances in memory, one flush is enough. In case of a
-           system crash, the auto_flush_callback might not make with the disk.
-           In this case, when the store is reopened, [integrity_check] needs to
-           be called to repair the store. *)
+           system crash, the flush_callback might not make with the disk. In
+           this case, when the store is reopened, [integrity_check] needs to be
+           called to repair the store. *)
         (f := fun () -> Contents.CA.flush ~index:false contents);
         { contents; node; commit; branch; config; index }
 

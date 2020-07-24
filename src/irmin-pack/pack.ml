@@ -195,7 +195,7 @@ struct
     let flush ?(index = true) t =
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
-      if index then Index.flush t.pack.index;
+      if index then Index.flush ~no_callback:() t.pack.index;
       Tbl.clear t.staging
 
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
