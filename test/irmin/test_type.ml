@@ -197,6 +197,20 @@ let test_json_option () =
     (Ok { c = None; d = Some None })
     x
 
+let test_json_float () =
+  let x = T.to_json_string T.float Float.nan in
+  Alcotest.(check string) "NaN to JSON" "\"nan\"" x;
+  let x = T.to_json_string T.float Float.infinity in
+  Alcotest.(check string) "+inf to JSON" "\"inf\"" x;
+  let x = T.to_json_string T.float Float.neg_infinity in
+  Alcotest.(check string) "-inf to JSON" "\"-inf\"" x;
+  let x = T.of_json_string T.float "\"nan\"" |> Result.get_ok in
+  Alcotest.(check (float Float.epsilon)) "NaN from JSON" Float.nan x;
+  let x = T.of_json_string T.float "\"inf\"" |> Result.get_ok in
+  Alcotest.(check (float Float.epsilon)) "+inf from JSON" Float.infinity x;
+  let x = T.of_json_string T.float "\"-inf\"" |> Result.get_ok in
+  Alcotest.(check (float Float.epsilon)) "-inf from JSON" Float.neg_infinity x
+
 let l =
   let hex = T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
   T.list ~len:(`Fixed 2) hex
@@ -296,7 +310,7 @@ let test_to_string () =
       Stdlib.infinity;
       Stdlib.nan;
     |]
-    "[-inf,-0,0,2.220446049250313e-16,inf,nan]";
+    "[\"-inf\",-0,0,2.220446049250313e-16,\"inf\",\"nan\"]";
   test "(unit * int)" T.(pair unit int) ((), 1) "[{},1]";
   test "unit option{some}" T.(option unit) (Some ()) "{\"some\":{}}";
   test "unit option{none}" T.(option unit) None "null";
@@ -862,6 +876,7 @@ let suite =
     ("boxing", `Quick, test_boxing);
     ("json", `Quick, test_json);
     ("json_option", `Quick, test_json_option);
+    ("json_float", `Quick, test_json_float);
     ("bin", `Quick, test_bin);
     ("to_string", `Quick, test_to_string);
     ("pp_dump", `Quick, test_pp_dump);
