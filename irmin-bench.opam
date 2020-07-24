@@ -18,7 +18,6 @@ depends: [
   "dune"    {>= "2.0.0"}
   "irmin"
   "bechamel"
-  "notty"
 ]
 
 pin-depends: [

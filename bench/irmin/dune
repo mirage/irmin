@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries irmin bechamel bechamel.notty notty.unix))
+ (libraries irmin bechamel))
 
 (rule
  (alias bench)
