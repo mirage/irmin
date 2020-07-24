@@ -14,7 +14,7 @@ module type S = sig
   include Index.S with type value = int64 * int * char
 
   val v :
-    ?auto_flush_callback:(unit -> unit) ->
+    ?flush_callback:(unit -> unit) ->
     ?fresh:bool ->
     ?readonly:bool ->
     ?throttle:[ `Block_writes | `Overcommit_memory ] ->
