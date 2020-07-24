@@ -22,7 +22,7 @@ depends: [
 ]
 
 pin-depends: [
-  "bechamel.dev" "git+https://github.com/dinosaure/bechamel#60688198cf9bffe5467406181e231e13c57a1e7a"
+  "bechamel.dev" "git+https://github.com/dinosaure/bechamel#f1b3db0115af3854422697134a1555e3c07a19f5"
 ]
 
 synopsis: "Benchmarks for Irmin"
