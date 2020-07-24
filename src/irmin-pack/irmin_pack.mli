@@ -19,8 +19,19 @@ val config :
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
+  ?index_throttle:[ `Overcommit_memory | `Block_writes ] ->
   string ->
   Irmin.config
+(** Configuration options for stores.
+
+    @param fresh whether an existing store should be overwritten.
+    @param read_only whether read-only mode is enabled for this store.
+    @param lru_size the maximum number of bindings in the lru cache.
+    @param index_log_size the maximum number of bindings in the index cache.
+    @param index_throttle the strategy to use when the index cache is full and
+    an async [Index.merge] in already in progress. [Block_writes] (the default)
+    blocks any new writes until the merge is completed. [Overcommit_memory] does
+    not block but indefinitely expands the in-memory cache. *)
 
 module Pack = Pack
 module Dict = Pack_dict
