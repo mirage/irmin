@@ -228,7 +228,7 @@ let to_string ty = Fmt.to_to_string (t ty)
 let of_string t =
   let map_result f = function Ok x -> Ok (f x) | Error _ as e -> e in
   let v f x = try Ok (f x) with Invalid_argument e -> Error (`Msg e) in
-  let rec aux : type a a. a t -> a of_string =
+  let rec aux : type a. a t -> a of_string =
    fun t x ->
     match t with
     | Self s -> aux s.self_fix x
