@@ -19,9 +19,7 @@ let info () = Irmin.Info.empty
 
 let root_V1_source, root_V1, root_V2 =
   let ( / ) = Filename.concat in
-  ( "test" / "irmin-pack" / "data" / "version_1",
-    "_build" / "version_1",
-    "_build" / "version_2" )
+  ("data" / "version_1", "_build" / "version_1", "_build" / "version_2")
 
 (** testV1 is a store in V1 used to test the migration to V2 *)
 let setup_test_env () =
