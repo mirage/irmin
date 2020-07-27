@@ -12,7 +12,8 @@
 (rule
  (alias runtest)
  (package irmin-pack)
- (deps (source_tree test/irmin-pack/testV1))
+ (deps
+  (source_tree data/version_1))
  (action
   (run ./test.exe -q --color=always)))
 
