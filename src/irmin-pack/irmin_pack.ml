@@ -550,39 +550,50 @@ struct
       (** Stores share instances in memory, one sync is enough. However each
           store has its own lru and all have to be cleared. *)
       let sync t =
-        let clear_lrus () =
-          Node.CA.clear_lru (snd (node_t t));
-          Commit.CA.clear_lru (snd (commit_t t))
+        let on_generation_change () =
+          Node.CA.clear_caches (snd (node_t t));
+          Commit.CA.clear_caches (snd (commit_t t))
         in
-        Contents.CA.sync ~clear_lrus (contents_t t)
+        Contents.CA.sync ~on_generation_change (contents_t t)
 
       let migrate v1 v2 =
         Log.debug (fun l -> l "migrate");
+        let nb_commits = ref 0 in
+        let nb_nodes = ref 0 in
+        let nb_contents = ref 0 in
         let contents = contents_t v1 in
         let nodes = node_t v1 |> snd in
         let commits = commit_t v1 |> snd in
-        let f (k, (offset, length, m)) =
+        let pp_stats () =
+          Log.app (fun l ->
+              l "\t%dk contents / %dk nodes / %dk commits" (!nb_contents / 1000)
+                (!nb_nodes / 1000) (!nb_commits / 1000))
+        in
+        let count_increment count =
+          incr count;
+          if !count mod 1000 = 0 then pp_stats ()
+        in
+        let f k (offset, length, m) =
           match m with
           | 'B' ->
-              contents_t v2
-              |> Contents.CA.migrate_to_current_version ~offset ~length k
-                   contents
+              count_increment nb_contents;
+              contents_t v2 |> Contents.CA.copy_entry ~offset ~length k contents
           | 'N' | 'I' ->
-              node_t v2
-              |> snd
-              |> Node.CA.migrate_to_current_version ~offset ~length k nodes
+              count_increment nb_nodes;
+              node_t v2 |> snd |> Node.CA.copy_entry ~offset ~length k nodes
           | 'C' ->
+              count_increment nb_commits;
               commit_t v2
               |> snd
-              |> Commit.CA.migrate_to_current_version ~offset ~length k commits
-          | _ -> invalid_arg "unknown content type"
+              |> Commit.CA.copy_entry ~offset ~length k commits
+          | c -> Fmt.failwith "Unknown content type: %c" c
         in
-        Index.iter (fun k v -> f (k, v)) v1.index
+        Index.iter f v1.index
 
       let migrate_to_current_version config v1 =
         (*open a fresh store in the new format*)
         let root = root config in
-        let root_v2 = Filename.concat root "../_v2" in
+        let root_v2 = IO.tmp_dir "irmin-migrate" in
         let config = Irmin.Private.Conf.add config root_key (Some root_v2) in
         let config = Irmin.Private.Conf.add config fresh_key true in
         unsafe_v config >>= fun v2 ->

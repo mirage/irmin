@@ -81,8 +81,6 @@ module Make (IO : IO.S) : S = struct
 
   let sync_offset t ~force_refill =
     if force_refill then (
-      (* RW was cleared, so we have to reopen file and refill the hashtables
-         entirely *)
       IO.close t.io;
       let io =
         IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)

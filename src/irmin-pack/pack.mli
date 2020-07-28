@@ -58,7 +58,12 @@ module type S = sig
 
   val flush : ?index:bool -> 'a t -> unit
 
-  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
+  (** syncs a readonly instance with the files on disk. The same file instance
+      is shared between several pack instances. Therefore only the first pack
+      instance that checks a generation change, can see it.
+      [on_generation_change] is a callback for all pack instances to react to a
+      generation change. *)
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -67,12 +72,11 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val clear_lru : 'a t -> unit
+  val clear_caches : 'a t -> unit
 
   val version : 'a t -> IO.version
 
-  val migrate_to_current_version :
-    offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
+  val copy_entry : offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
 end
 
 module type MAKER = sig

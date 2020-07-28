@@ -18,6 +18,8 @@ type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
 
+exception Unsupported_version of version
+
 module type S = sig
   type t
 
@@ -52,6 +54,8 @@ module type S = sig
   val close : t -> unit
 
   val rename_dir : src:string -> dst:string -> unit
+
+  val tmp_dir : string -> string
 end
 
 module Unix : S

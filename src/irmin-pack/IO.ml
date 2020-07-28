@@ -34,6 +34,8 @@ let version_of_bin b =
   try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
   with Not_found -> None
 
+exception Unsupported_version of version
+
 module type S = sig
   type t
 
@@ -68,6 +70,8 @@ module type S = sig
   val close : t -> unit
 
   val rename_dir : src:string -> dst:string -> unit
+
+  val tmp_dir : string -> string
 end
 
 let ( ++ ) = Int64.add
@@ -94,7 +98,7 @@ module Unix : S = struct
 
   let header = function
     | `V1 -> (* offset + version *) 16L
-    | _ -> (* offset + version + generation *) 24L
+    | `V2 -> (* offset + version + generation *) 24L
 
   let unsafe_flush t =
     Log.debug (fun l -> l "IO flush %s" t.file);
@@ -199,18 +203,22 @@ module Unix : S = struct
   let clear t =
     if t.readonly then invalid_arg "Read-only IO cannot be cleared";
     Log.debug (fun l -> l "clear %s" t.file);
-    t.offset <- 0L;
-    t.flushed <- header t.version;
     Buffer.clear t.buf;
-    t.generation <- Int64.succ t.generation;
-    (* update the generation for concurrent readonly instance to
-       notice that the file has been clear when they next sync. *)
-    Raw.Generation.set t.raw t.generation;
-    (* and delete the file. *)
-    Raw.close t.raw;
-    Unix.unlink t.file;
-    t.raw <-
-      raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file
+    (* no-op if the file is already empty; this is to avoid bumping
+           the version number when this is not necessary. *)
+    if t.offset = 0L then ()
+    else (
+      t.offset <- 0L;
+      t.generation <- Int64.succ t.generation;
+      t.flushed <- header t.version;
+      (* update the generation for concurrent readonly instance to
+         notice that the file has been clear when they next sync. *)
+      Raw.Generation.set t.raw t.generation;
+      (* and delete the file. *)
+      Raw.close t.raw;
+      Unix.unlink t.file;
+      t.raw <-
+        raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file)
 
   let buffers = Hashtbl.create 256
 
@@ -258,15 +266,12 @@ module Unix : S = struct
           match version_of_bin version with
           | Some `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
-              if readonly then
-                invalid_arg
-                  "File is in version 1. Open the store in read-write mode to \
-                   migrate it to version 2";
+              if readonly then raise (Unsupported_version `V1);
               let offset = Raw.Offset.get raw in
               v ~offset ~version:`V1 ~generation:0L raw
-          | Some version ->
+          | Some `V2 ->
               let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
-              v ~offset ~version ~generation raw
+              v ~offset ~version:`V2 ~generation raw
           | None ->
               let pp_full_version ppf v =
                 Fmt.pf ppf "%a (%S)" pp_version v (bin_of_version v)
@@ -277,22 +282,28 @@ module Unix : S = struct
 
   let close t = Raw.close t.raw
 
-  let rmdir =
+  let rmdir path =
     let rec aux path =
       match Sys.is_directory path with
       | true ->
-          Sys.readdir path
-          |> Array.iter (fun name -> aux (Filename.concat path name))
+          Sys.readdir path |> Array.iter (fun name -> aux (path // name));
+          Unix.rmdir path
       | false -> Sys.remove path
     in
-    aux
+    aux path
 
   let rename_dir ~src ~dst =
+    Log.debug (fun l -> l "rename_dir %s to %s" src dst);
     rmdir dst;
-    let cmd = Printf.sprintf "mv %s/* %s" src dst in
-    Fmt.epr "exec: %s\n%!" cmd;
-    let _ = Sys.command cmd in
-    Unix.rmdir src
+    Unix.rename src dst
+
+  (* Extracted from https://github.com/dbuenzli/bos *)
+  let tmp_dir pat =
+    let rand_path =
+      let rand = Random.State.(bits (make_self_init ())) land 0xFFFFFF in
+      Printf.sprintf "%s-%06x" pat rand
+    in
+    Filename.get_temp_dir_name () // rand_path
 end
 
 let with_cache ~v ~clear ~valid file =

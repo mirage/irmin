@@ -2169,7 +2169,7 @@ let suite (speed, x) =
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Test iter", speed, T.test_iter x);
       ("Closure with disconnected commits", speed, T.test_closure x);
-      ("Test clear", speed, T.test_clear x);
+      ("Clear", speed, T.test_clear x);
     ] )
 
 let run name ~misc tl =

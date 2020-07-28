@@ -47,12 +47,11 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
 
-  val clear_lru : 'a t -> unit
+  val clear_caches : 'a t -> unit
 
-  val migrate_to_current_version :
-    offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
+  val copy_entry : offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
 end
 
 module type CONFIG = sig
@@ -829,7 +828,7 @@ struct
 
   let clear = Inode.clear
 
-  let clear_lru = Inode.clear_lru
+  let clear_caches = Inode.clear_caches
 
-  let migrate_to_current_version = Inode.migrate_to_current_version
+  let copy_entry = Inode.copy_entry
 end

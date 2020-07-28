@@ -69,9 +69,9 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.flush ?index t.t
 
-  let sync t =
+  let sync ?on_generation_change t =
     check_not_closed t;
-    S.sync t.t
+    S.sync ?on_generation_change t.t
 
   let clear t =
     check_not_closed t;
@@ -83,18 +83,18 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.integrity_check ~offset ~length k t.t
 
-  let clear_lru t =
+  let clear_caches t =
     check_not_closed t;
-    S.clear_lru t.t
+    S.clear_caches t.t
 
   let version t =
     check_not_closed t;
     S.version t.t
 
-  let migrate_to_current_version ~offset ~length k t1 t2 =
+  let copy_entry ~offset ~length k t1 t2 =
     check_not_closed t1;
     check_not_closed t2;
-    S.migrate_to_current_version ~offset ~length k t1.t t2.t
+    S.copy_entry ~offset ~length k t1.t t2.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

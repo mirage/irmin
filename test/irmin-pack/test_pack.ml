@@ -229,8 +229,6 @@ module Pack = struct
     test pack2 >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Pack.close pack2
 
-  let pack_sync = Pack.sync ~clear_lrus:(fun () -> ())
-
   let test_readonly_pack () =
     Context.get_pack () >>= fun t ->
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
@@ -244,7 +242,7 @@ module Pack = struct
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "before sync" None y2;
       Pack.flush w;
-      pack_sync r;
+      Pack.sync r;
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "after sync" (Some x2) y2;
       let x3 = "otoo" in
@@ -253,7 +251,7 @@ module Pack = struct
       let h4 = sha1 x4 in
       adds [ (h3, x3); (h4, x4) ];
       Pack.flush w;
-      pack_sync r;
+      Pack.sync r;
       Pack.find r h2 >>= fun y2 ->
       Alcotest.(check (option string)) "y2" (Some x2) y2;
       Pack.find r h3 >>= fun y3 ->
@@ -359,11 +357,11 @@ module Pack = struct
       let x1 = "foo" in
       let h1 = sha1 x1 in
       Pack.unsafe_append w h1 x1;
-      pack_sync r;
+      Pack.sync r;
       Pack.find r h1 >>= fun y1 ->
       Alcotest.(check (option string)) "sync before filter" None y1;
       Index.filter t.index (fun _ -> true);
-      pack_sync r;
+      Pack.sync r;
       Pack.find r h1 >>= fun y1 ->
       Alcotest.(check (option string)) "sync after filter" (Some x1) y1;
       let x2 = "foo" in
@@ -387,7 +385,7 @@ module Pack = struct
       let h1 = sha1 x1 in
       Pack.unsafe_append w h1 x1;
       Pack.flush t.pack;
-      pack_sync r;
+      Pack.sync r;
       check h1 x1 "find before filter" >>= fun () ->
       Index.filter t.index (fun _ -> true);
       check h1 x1 "find after filter" >>= fun () ->
@@ -395,7 +393,7 @@ module Pack = struct
       let h2 = sha1 x2 in
       Pack.unsafe_append w h2 x2;
       Pack.flush t.pack;
-      pack_sync r;
+      Pack.sync r;
       check h2 x2 "find before flush" >>= fun () ->
       let x3 = "toto" in
       let h3 = sha1 x3 in
@@ -403,7 +401,7 @@ module Pack = struct
       Index.flush t.index;
       check h2 x2 "find after flush" >>= fun () ->
       Pack.flush t.pack;
-      pack_sync r;
+      Pack.sync r;
       check h3 x3 "find after flush new values"
     in
     test t.pack >>= fun () ->
@@ -437,12 +435,12 @@ module Pack = struct
     let find_before_and_after_sync persist file =
       Pack.unsafe_append t.pack h1 x1;
       persist ();
-      pack_sync r;
+      Pack.sync r;
       Pack.clear t.pack >>= fun () ->
       Pack.flush t.pack;
       check h1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
       >>= fun () ->
-      pack_sync r;
+      Pack.sync r;
       check h1 None ("find in " ^ file ^ " after clear and sync")
     in
     find_before_and_after_sync (fun () -> Index.flush t.index) "log"
@@ -468,14 +466,14 @@ module Pack = struct
     let find_before_and_after_sync persist file =
       Pack.unsafe_append t.pack h1 x1;
       persist ();
-      pack_sync r;
+      Pack.sync r;
       Pack.clear t.pack >>= fun () ->
       Pack.unsafe_append t.pack h2 x2;
       persist ();
       check h1 (Some x1)
         ("find old values in " ^ file ^ " after clear but before sync")
       >>= fun () ->
-      pack_sync r;
+      Pack.sync r;
       check h1 None ("do not find old values in " ^ file ^ " after sync")
       >>= fun () ->
       check h2 (Some x2) ("find new values in " ^ file ^ " after sync")

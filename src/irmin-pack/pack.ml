@@ -66,7 +66,7 @@ module type S = sig
 
   val flush : ?index:bool -> 'a t -> unit
 
-  val sync : 'a t -> clear_lrus:(unit -> unit) -> unit
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -75,12 +75,11 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val clear_lru : 'a t -> unit
+  val clear_caches : 'a t -> unit
 
   val version : 'a t -> IO.version
 
-  val migrate_to_current_version :
-    offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
+  val copy_entry : offset:int64 -> length:int -> key -> 'a t -> 'a t -> unit
 end
 
 module type MAKER = sig
@@ -130,10 +129,9 @@ struct
   }
 
   let clear t =
-    if IO.offset t.block <> 0L then (
-      IO.clear t.block;
-      Index.clear t.index;
-      Dict.clear t.dict)
+    Index.clear t.index;
+    IO.clear t.block;
+    Dict.clear t.dict
 
   let valid t =
     if t.open_instances <> 0 then (
@@ -366,15 +364,15 @@ struct
           unsafe_clear t;
           Lwt.return_unit)
 
-    let clear_lru t = Lru.clear t.lru
+    let clear_caches t = Lru.clear t.lru
 
-    let sync t ~clear_lrus =
+    let sync ?(on_generation_change = Fun.id) t =
       let former_generation = IO.generation t.pack.block in
       let generation = IO.force_generation t.pack.block in
       if former_generation <> generation then (
         Log.debug (fun l -> l "[pack] generation changed, refill buffers");
-        clear_lru t;
-        clear_lrus ();
+        clear_caches t;
+        on_generation_change ();
         IO.close t.pack.block;
         let block =
           IO.v ~fresh:false ~version:current_version ~readonly:true
@@ -385,7 +383,7 @@ struct
       else Dict.sync ~force_refill:false t.pack.dict;
       Index.sync t.pack.index
 
-    let migrate_to_current_version ~offset ~length k t1 t2 =
+    let copy_entry ~offset ~length k t1 t2 =
       Log.debug (fun l ->
           l "read from [%s] at off %Ld length %d " (IO.name t1.pack.block)
             offset length);
