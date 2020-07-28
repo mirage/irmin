@@ -2,8 +2,7 @@ open Bechamel
 open Toolkit
 module T = Irmin.Type
 module Hash = Irmin.Hash.BLAKE2B
-
-let ( >> ) f g x = g (f x)
+open Output
 
 module Generic_op = struct
   type op =
@@ -190,7 +189,7 @@ let test_operation ~name (op : Generic_op.t) =
       test ~name:"triple_short_int" Data.triple_short_int;
     ]
 
-let suite =
+let suite () =
   Test.make_grouped ~name:""
     [
       test_operation ~name:"bin" Generic_op.bin;
@@ -199,49 +198,8 @@ let suite =
       test_operation ~name:"pre_hash" Generic_op.pre_hash;
     ]
 
-type csv_line = { bench_name : string; metric : string; value : float }
-
-let compare_csv_line a b =
-  match String.compare a.bench_name b.bench_name with
-  | 0 -> (
-      match String.compare a.metric b.metric with
-      | 0 -> Float.compare a.value b.value
-      | o -> o)
-  | o -> o
-
-let unit_of_metric = function
-  | "major-allocated" -> "words"
-  | "minor-allocated" -> "words"
-  | "monotonic-clock" -> "ns"
-  | s -> Fmt.failwith "Unexpected unit: %s" s
-
-let pp_results_csv ppf results =
-  Fmt.string ppf "bench_name,metric,value\n";
-  Hashtbl.fold
-    (fun metric bench_values ->
-      Hashtbl.fold
-        (fun bench_name analysis ->
-          let value, _ =
-            let open Bechamel.Analyze.OLS in
-            match (estimates analysis, predictors analysis) with
-            | Some [ value ], [ "run" ] -> (value, ())
-            | estimates, predictors ->
-                Fmt.failwith
-                  "Unexpected results: { estimates = %a; predictors = %a }"
-                  Fmt.(Dump.option (Dump.list float))
-                  estimates
-                  Fmt.(Dump.list string)
-                  predictors
-          in
-          List.cons { metric; bench_name; value })
-        bench_values)
-    results []
-  |> List.sort compare_csv_line
-  |> List.iter (fun { bench_name; metric; value } ->
-         Fmt.pf ppf "%s,%s (%s),%f\n" bench_name metric (unit_of_metric metric)
-           value)
-
 let benchmark () =
+  let suite = suite () in
   Fmt.epr "Running benchmarks\n%!";
   let ols =
     Analyze.ols ~bootstrap:0 ~r_square:true ~predictors:Measure.[| run |]
@@ -256,4 +214,27 @@ let benchmark () =
   List.map (fun instance -> Analyze.all ols instance raw_results) instances
   |> Analyze.merge ols instances
 
-let () = benchmark () |> Fmt.pr "%a%!" pp_results_csv
+let ignore_eexist f = try f () with Unix.Unix_error (EEXIST, _, _) -> ()
+
+let () =
+  Random.self_init ();
+  let output_formatter =
+    match Sys.argv with
+    | [| _ |] -> Fmt.stdout
+    | [| _; "--output-dir"; dir |] ->
+        let fname = Fmt.str "results-%lx.json" (Random.int32 Int32.max_int) in
+        let latest, data_output =
+          let data_file name =
+            let open Fpath in
+            v (Sys.getcwd ()) // v dir / name |> normalize |> to_string
+          in
+          (data_file "latest.json", data_file fname)
+        in
+        Fmt.epr "Results streaming to %s\n%!" data_output;
+        ignore_eexist (fun () -> Unix.mkdir dir 0o777);
+        if Unix.has_symlink () then
+          ignore_eexist (fun () -> Unix.symlink data_output latest);
+        open_out data_output |> Format.formatter_of_out_channel
+    | a -> Fmt.failwith "Unexpected arguments: `%a'" Fmt.(Dump.array string) a
+  in
+  benchmark () |> Fmt.pf output_formatter "%a%!" pp_results

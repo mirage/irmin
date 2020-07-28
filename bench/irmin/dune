@@ -1,9 +1,12 @@
 (executable
  (name main)
- (libraries irmin bechamel))
+ (libraries irmin bechamel fpath yojson ppx_deriving_yojson.runtime unix)
+ (preprocess
+  (pps ppx_deriving_yojson)))
 
 (rule
  (alias bench)
+ (package irmin-bench)
  (deps main.exe)
  (action (progn)))
 
@@ -16,7 +19,9 @@
  (action progn))
 
 (rule
- (alias runbench-type)
+ (alias runbench)
+ (package irmin-bench)
  (deps (universe))
+ (targets ./data)
  (action
-  (run %{exe:main.exe})))
+  (run %{exe:main.exe} --output-dir ./data)))

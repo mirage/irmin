@@ -7,7 +7,7 @@ test:
 	dune runtest
 
 bench:
-	dune build @runbench
+	dune build @runbench --no-buffer -j 1 --force
 
 examples:
 	dune build @examples

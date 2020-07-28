@@ -18,6 +18,8 @@ depends: [
   "dune"    {>= "2.0.0"}
   "irmin"
   "bechamel"
+  "yojson"
+  "ppx_deriving_yojson"
 ]
 
 pin-depends: [
