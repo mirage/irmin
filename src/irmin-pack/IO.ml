@@ -34,8 +34,6 @@ let version_of_bin b =
   try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
   with Not_found -> None
 
-exception Unsupported_version of version
-
 module type S = sig
   type t
 
@@ -266,7 +264,6 @@ module Unix : S = struct
           match version_of_bin version with
           | Some `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
-              if readonly then raise (Unsupported_version `V1);
               let offset = Raw.Offset.get raw in
               v ~offset ~version:`V1 ~generation:0L raw
           | Some `V2 ->

@@ -18,8 +18,6 @@ type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
 
-exception Unsupported_version of version
-
 module type S = sig
   type t
 

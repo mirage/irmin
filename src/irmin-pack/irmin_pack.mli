@@ -39,6 +39,8 @@ module Index = Pack_index
 
 exception RO_Not_Allowed
 
+exception Unsupported_version of string
+
 module type CONFIG = sig
   val entries : int
 
@@ -63,6 +65,10 @@ module type Stores_extra = sig
   val sync : repo -> unit
   (** [sync t] syncs a readonly pack with the files on disk. Raises
       [invalid_argument] if called by a read-write pack.*)
+
+  val migrate : Irmin.config -> unit Lwt.t
+  (** [migrate conf] migrates a store with configuration [conf] to the current
+      version. Raises [RO_Not_Allowed] if called by a readonly instance. *)
 end
 
 module Make_ext

@@ -105,6 +105,8 @@ let ( ++ ) = Int64.add
 
 let with_cache = IO.with_cache
 
+let pp_version = IO.pp_version
+
 open Lwt.Infix
 module Pack = Pack
 module Dict = Pack_dict
@@ -112,6 +114,8 @@ module Index = Pack_index
 module IO = IO.Unix
 
 exception RO_Not_Allowed = IO.RO_Not_Allowed
+
+exception Unsupported_version of string
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -373,6 +377,8 @@ module type Stores_extra = sig
     result
 
   val sync : repo -> unit
+
+  val migrate : Irmin.config -> unit Lwt.t
 end
 
 module Make_ext
@@ -547,6 +553,14 @@ struct
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
+      let v config =
+        unsafe_v config >>= fun t ->
+        match Contents.CA.version (contents_t t) with
+        | `V1 ->
+            close t >>= fun () ->
+            Lwt.fail (Unsupported_version (Fmt.str "%a" pp_version `V1))
+        | `V2 -> Lwt.return t
+
       (** Stores share instances in memory, one sync is enough. However each
           store has its own lru and all have to be cleared. *)
       let sync t =
@@ -556,8 +570,7 @@ struct
         in
         Contents.CA.sync ~on_generation_change (contents_t t)
 
-      let migrate v1 v2 =
-        Log.debug (fun l -> l "migrate");
+      let migrate_stores v1 v2 =
         let nb_commits = ref 0 in
         let nb_nodes = ref 0 in
         let nb_contents = ref 0 in
@@ -590,29 +603,32 @@ struct
         in
         Index.iter f v1.index
 
-      let migrate_to_current_version config v1 =
-        (*open a fresh store in the new format*)
-        let root = root config in
-        let root_v2 = IO.tmp_dir "irmin-migrate" in
-        let config = Irmin.Private.Conf.add config root_key (Some root_v2) in
-        let config = Irmin.Private.Conf.add config fresh_key true in
-        unsafe_v config >>= fun v2 ->
-        migrate v1 v2;
-        (*copy branch file*)
-        Branch.iter (branch_t v1) (Branch.set (branch_t v2)) >>= fun () ->
-        close v1 >>= fun () ->
-        close v2 >>= fun () ->
-        IO.rename_dir ~src:root_v2 ~dst:root;
-        (*rename new dir to new dir and erase old dir*)
-        let config = Irmin.Private.Conf.add config fresh_key false in
-        let config = Irmin.Private.Conf.add config root_key (Some root) in
-        unsafe_v config
-
-      let v config =
-        unsafe_v config >>= fun t ->
-        if Contents.CA.version (contents_t t) <> current_version then
-          migrate_to_current_version config t
-        else Lwt.return t
+      let migrate config =
+        if readonly config then Lwt.fail RO_Not_Allowed
+        else
+          unsafe_v config >>= fun t ->
+          match Contents.CA.version (contents_t t) with
+          | `V2 ->
+              Log.app (fun l -> l "store is already in current version");
+              close t
+          | `V1 ->
+              let v1 = t in
+              (*open a fresh store in V2 *)
+              let root = root config in
+              let root_v2 = IO.tmp_dir "irmin-migrate" in
+              let config =
+                Irmin.Private.Conf.add config root_key (Some root_v2)
+              in
+              let config = Irmin.Private.Conf.add config fresh_key true in
+              v config >>= fun v2 ->
+              (*copy index entries from v1 to v2*)
+              migrate_stores v1 v2;
+              (*copy branches from v1 to v2*)
+              Branch.iter (branch_t v1) (Branch.set (branch_t v2)) >>= fun () ->
+              close v1 >>= fun () ->
+              close v2 >|= fun () ->
+              (*rename v2 store and erase v1 store *)
+              IO.rename_dir ~src:root_v2 ~dst:root
     end
   end
 
@@ -684,6 +700,8 @@ struct
   include Irmin.Of_private (X)
 
   let sync = X.Repo.sync
+
+  let migrate = X.Repo.migrate
 end
 
 module Hash = Irmin.Hash.BLAKE2B

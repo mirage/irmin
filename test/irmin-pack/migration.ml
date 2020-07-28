@@ -35,9 +35,9 @@ let setup_test_env () =
          non-zero exit code %d"
         cmd n
 
-(** Opening a store in V1 automatically migrates it to V2. Old values are
-    readable and new values can be added. Reopening the store in RO mode is also
-    tested. *)
+(** Opening a store in V1 fails. The store is then migrated to V2. After
+    migration, the tstore in V2 is opened, old values are readable and new
+    values can be added. We can test that the V2 store can be opened in RO mode *)
 let test () =
   setup_test_env ();
   let check repo commit msg k v =
@@ -59,12 +59,30 @@ let test () =
     | None -> Alcotest.failf "branch foo not found"
     | Some commit -> check r commit "check old values b" [ "b" ] "y"
   in
-  S.Repo.v (config ~readonly:false ~fresh:false root_V1) >>= fun r ->
+  let conf = config ~readonly:false ~fresh:false root_V1 in
+  Lwt.catch
+    (fun () ->
+      S.Repo.v conf >>= fun _ ->
+      Alcotest.fail "V1 stores are no longer supported.")
+    (function
+      | Irmin_pack.Unsupported_version "v1" -> Lwt.return_unit
+      | exn -> Lwt.fail exn)
+  >>= fun () ->
+  Lwt.catch
+    (fun () ->
+      let conf = config ~readonly:true ~fresh:false root_V1 in
+      S.migrate conf >>= fun _ -> Alcotest.fail "RO cannot call migrate")
+    (function
+      | Irmin_pack.RO_Not_Allowed -> Lwt.return_unit | exn -> Lwt.fail exn)
+  >>= fun () ->
+  S.migrate conf >>= fun () ->
+  S.Repo.v conf >>= fun r ->
   check_old_values r >>= fun () ->
   S.Tree.add S.Tree.empty [ "c" ] "x" >>= fun tree ->
   S.Commit.v r ~parents:[] ~info:(info ()) tree >>= fun c ->
   check r c "check new values" [ "c" ] "x" >>= fun () ->
   S.Repo.close r >>= fun () ->
+  S.migrate conf >>= fun () ->
   S.Repo.v (config ~readonly:false ~fresh:false root_V1) >>= fun r ->
   S.Repo.v (config ~readonly:true ~fresh:false root_V1) >>= fun ro ->
   check_old_values ro >>= fun () ->
