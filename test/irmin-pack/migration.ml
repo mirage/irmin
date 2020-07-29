@@ -25,7 +25,7 @@ let root_V1_source, root_V1, root_V2 =
 let setup_test_env () =
   rm_dir root_V1;
   rm_dir root_V2;
-  let cmd = Printf.sprintf "cp -r %s %s" root_V1_source root_V1 in
+  let cmd = Printf.sprintf "cp -rp %s %s" root_V1_source root_V1 in
   Fmt.epr "exec: %s\n%!" cmd;
   match Sys.command cmd with
   | 0 -> ()
@@ -36,8 +36,8 @@ let setup_test_env () =
         cmd n
 
 (** Opening a store in V1 fails. The store is then migrated to V2. After
-    migration, the tstore in V2 is opened, old values are readable and new
-    values can be added. We can test that the V2 store can be opened in RO mode *)
+    migration, the store in V2 is opened, old values are readable and new values
+    can be added. We can test that the V2 store can be opened in RO mode *)
 let test () =
   setup_test_env ();
   let check repo commit msg k v =
@@ -59,7 +59,9 @@ let test () =
     | None -> Alcotest.failf "branch foo not found"
     | Some commit -> check r commit "check old values b" [ "b" ] "y"
   in
-  let conf = config ~readonly:false ~fresh:false root_V1 in
+  (* dune removes the write permission from root_V1, we can only open it in
+     readonly mode in the tests. *)
+  let conf = config ~readonly:true ~fresh:false root_V1 in
   Lwt.catch
     (fun () ->
       S.Repo.v conf >>= fun _ ->
@@ -75,6 +77,7 @@ let test () =
     (function
       | Irmin_pack.RO_Not_Allowed -> Lwt.return_unit | exn -> Lwt.fail exn)
   >>= fun () ->
+  let conf = config ~readonly:false ~fresh:false root_V1 in
   S.migrate conf >>= fun () ->
   S.Repo.v conf >>= fun r ->
   check_old_values r >>= fun () ->

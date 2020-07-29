@@ -606,6 +606,7 @@ struct
       let migrate config =
         if readonly config then Lwt.fail RO_Not_Allowed
         else
+          let config = Irmin.Private.Conf.add config readonly_key true in
           unsafe_v config >>= fun t ->
           match Contents.CA.version (contents_t t) with
           | `V2 ->
@@ -613,12 +614,13 @@ struct
               close t
           | `V1 ->
               let v1 = t in
-              (*open a fresh store in V2 *)
+              (*open a fresh, read-write store in V2 *)
               let root = root config in
               let root_v2 = IO.tmp_dir "irmin-migrate" in
               let config =
                 Irmin.Private.Conf.add config root_key (Some root_v2)
               in
+              let config = Irmin.Private.Conf.add config readonly_key false in
               let config = Irmin.Private.Conf.add config fresh_key true in
               v config >>= fun v2 ->
               (*copy index entries from v1 to v2*)
