@@ -23,6 +23,7 @@ depends: [
   "irmin-fs"      {>= "2.0.0"}
   "irmin-pack"    {>= "2.0.0"}
   "irmin-graphql"
+  "irmin-layers"
   "git-unix"      {>= "1.11.4"}
   "digestif"      {>= "0.9.0"}
   "irmin-watcher" {>= "0.2.0"}

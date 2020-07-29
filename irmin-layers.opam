@@ -1,6 +1,6 @@
 opam-version: "2.0"
 maintainer:   "thomas@gazagnaire.org"
-authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+authors:      ["Thomas Gazagnaire"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
@@ -16,10 +16,9 @@ build: [
 depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "2.5.1"}
-  "irmin"      {>= "2.2.0"}
-  "irmin-layers"
-  "irmin-test" {with-test}
+  "irmin"      {>= "2.0.0"}
+  "irmin-test" {with-test & post}
 ]
 
 
-synopsis: "Generic in-memory Irmin stores"
+synopsis: "Layered Irmin stores"
