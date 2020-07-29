@@ -1,0 +1,39 @@
+include Common_intf.Common
+(** @inline *)
+
+val fresh_key : bool Irmin.Private.Conf.key
+
+val lru_size_key : int Irmin.Private.Conf.key
+
+val index_log_size_key : int Irmin.Private.Conf.key
+
+val readonly_key : bool Irmin.Private.Conf.key
+
+val index_throttle_key :
+  [ `Block_writes | `Overcommit_memory ] Irmin.Private.Conf.key
+
+val root_key : string option Irmin.Private.Conf.key
+
+val fresh : Irmin.Private.Conf.t -> bool
+
+val lru_size : Irmin.Private.Conf.t -> int
+
+val index_log_size : Irmin.Private.Conf.t -> int
+
+val readonly : Irmin.Private.Conf.t -> bool
+
+val index_throttle :
+  Irmin.Private.Conf.t -> [ `Block_writes | `Overcommit_memory ]
+
+val root : Irmin.Private.Conf.t -> string
+
+val config :
+  ?fresh:bool ->
+  ?readonly:bool ->
+  ?lru_size:int ->
+  ?index_log_size:int ->
+  ?index_throttle:[ `Overcommit_memory | `Block_writes ] ->
+  string ->
+  Irmin.config
+
+val migrate : Irmin.config -> unit
