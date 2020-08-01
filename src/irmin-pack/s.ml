@@ -32,6 +32,28 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
   val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+
+  val copy :
+    [ `Read ] L.t ->
+    [ `Read ] t ->
+    ?aux:(value -> unit Lwt.t) ->
+    string ->
+    key ->
+    unit Lwt.t
+
+  val check_and_copy :
+    [ `Read ] L.t ->
+    [ `Read ] t ->
+    ?aux:(value -> unit Lwt.t) ->
+    string ->
+    key ->
+    unit Lwt.t
+
+  val mem_lower : 'a t -> key -> bool Lwt.t
+
+  val upper : 'a t -> [ `Read ] U.t
+
+  val lower : 'a t -> [ `Read ] L.t
 end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
@@ -42,6 +64,8 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
   module L : ATOMIC_WRITE_STORE
 
   val v : U.t -> L.t -> t
+
+  val copy : mem_commit_lower:(value -> bool Lwt.t) -> t -> unit Lwt.t
 end
 
 module type LAYERED_MAKER = sig
@@ -56,6 +80,10 @@ module type LAYERED_MAKER = sig
        and type index = index
        and type U.index = index
        and type L.index = index
+       and type U.key = key
+       and type L.key = key
+       and type U.value = V.t
+       and type L.value = V.t
 end
 
 module type LAYERED_INODE = sig
@@ -68,4 +96,10 @@ module type LAYERED_INODE = sig
   val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+
+  val copy : [ `Read ] L.t -> [ `Read ] t -> key -> unit Lwt.t
+
+  val mem_lower : 'a t -> key -> bool Lwt.t
+
+  val lower : 'a t -> [ `Read ] L.t
 end

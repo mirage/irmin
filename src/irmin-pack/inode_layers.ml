@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
+
 let src =
   Logs.Src.create "irmin.pack.i.layers"
     ~doc:"layered inodes for the irmin-pack backend"
@@ -84,4 +86,30 @@ module Make
   module L = Inode.L
 
   let layer_id = Inode.layer_id
+
+  let mem_lower = Inode.mem_lower
+
+  let lower = Inode.lower
+
+  let unsafe_find t k =
+    match Inode.unsafe_find t k with
+    | None -> None
+    | Some v ->
+        let v = Inode.Val.of_bin v in
+        Some v
+
+  let lift t v =
+    let v = Inode.Val.of_bin v in
+    let find = unsafe_find t in
+    { Val.find; v }
+
+  let copy dst t k =
+    Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
+    let add k v = Inode.L.unsafe_append dst k v in
+    let mem k = Inode.L.unsafe_mem dst k in
+    Inode.U.find (Inode.upper t) k >|= function
+    | None -> ()
+    | Some v ->
+        let v' = lift t v in
+        Inode.Val.save ~add ~mem v'.Val.v
 end

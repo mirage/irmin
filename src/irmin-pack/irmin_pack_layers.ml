@@ -124,7 +124,7 @@ struct
         end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered.Content_addressable (Index) (CA)
+        include Layered.Content_addressable (H) (Index) (CA)
       end
 
       include Irmin.Contents.Store (CA)
@@ -166,7 +166,7 @@ struct
         end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered.Content_addressable (Index) (CA)
+        include Layered.Content_addressable (H) (Index) (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -177,7 +177,7 @@ struct
       module Val = H
       module AW = Atomic_write (Key) (Val)
       module Closeable_AW = Closeable.Atomic_write (AW)
-      include Layered.Atomic_write (Closeable_AW)
+      include Layered.Atomic_write (Key) (Closeable_AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
@@ -433,7 +433,67 @@ struct
 
   let flush = X.Repo.flush
 
-  let freeze ?min:_ ?max:_ ?squash:_ _repo = Lwt.return_unit
+  module Copy = struct
+    let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
+
+    let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
+
+    let copy_branches t =
+      X.Branch.copy ~mem_commit_lower:(mem_commit_lower t) t.X.Repo.branch
+
+    let copy_tree ~skip nodes contents t root =
+      (* if node are already in dst then they are skipped by Graph.iter; there
+         is no need to check this again when the node is copied *)
+      let node k = X.Node.CA.copy nodes t.X.Repo.node k in
+      (* we need to check that the contents is not already in dst, to avoid
+         copying it again *)
+      let contents (k, _) =
+        X.Contents.CA.check_and_copy contents t.X.Repo.contents "Contents" k
+      in
+      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip ()
+
+    let copy_commit ~skip contents nodes commits t k =
+      let aux c = copy_tree ~skip nodes contents t (X.Commit.Val.node c) in
+      X.Commit.CA.copy commits t.X.Repo.commit ~aux "Commit" k
+
+    module CopyToLower = struct
+      let on_lower t f =
+        let contents = X.Contents.CA.lower t.X.Repo.contents in
+        let nodes = X.Node.CA.lower t.X.Repo.node in
+        let commits = X.Commit.CA.lower t.X.Repo.commit in
+        f contents nodes commits
+
+      let copy_commit contents nodes commits t =
+        copy_commit ~skip:(mem_node_lower t) contents nodes commits t
+
+      let copy_max_commits ~max t =
+        Log.debug (fun f -> f "copy max commits to lower");
+        Lwt_list.iter_s
+          (fun k ->
+            let h = Commit.hash k in
+            on_lower t (fun contents nodes commits ->
+                mem_commit_lower t h >>= function
+                | true -> Lwt.return_unit
+                | false -> copy_commit contents nodes commits t h))
+          max
+
+      let copy ~min ~max t =
+        let max = List.map (fun x -> Commit.hash x) max in
+        let min = List.map (fun x -> Commit.hash x) min in
+        let skip = mem_commit_lower t in
+        on_lower t (fun contents nodes commits ->
+            let commit = copy_commit contents nodes commits t in
+            Repo.iter_commits t ~min ~max ~commit ~skip ())
+    end
+  end
+
+  let freeze ?(min = []) ?(max = []) ?(squash = false) t =
+    (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
+    (* Copy commits to lower: if squash then copy only the max commits *)
+    (if squash then Copy.CopyToLower.copy_max_commits ~max t
+    else Copy.CopyToLower.copy ~min ~max t)
+    (* Copy branches to both lower and current_upper *)
+    >>= fun () -> Copy.copy_branches t
 
   let layer_id t = X.Repo.layer_id t
 end

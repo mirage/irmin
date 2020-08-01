@@ -20,9 +20,42 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 open Lwt.Infix
 
+module type CA = sig
+  include Pack.S
+
+  module Key : Irmin.Hash.TYPED with type t = key and type value = value
+end
+
+module Copy
+    (Key : Irmin.Hash.S)
+    (SRC : Pack.S with type key = Key.t)
+    (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
+struct
+  let add_to_dst add (k, v) = add k v
+
+  let already_in_dst ~dst k =
+    DST.mem dst k >|= function
+    | true ->
+        Log.debug (fun l -> l "already in dst %a" (Irmin.Type.pp Key.t) k);
+        true
+    | false -> false
+
+  let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+    Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
+    SRC.find src k >>= function
+    | None -> Lwt.return_unit
+    | Some v -> aux v >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
+
+  let check_and_copy ~src ~dst ?aux str k =
+    already_in_dst ~dst k >>= function
+    | true -> Lwt.return_unit
+    | false -> copy ~src ~dst ?aux str k
+end
+
 module Content_addressable
+    (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (Pack : Pack.S with type index = Index.t) :
+    (Pack : Pack.S with type index = Index.t and type key = H.t) :
   S.LAYERED_CONTENT_ADDRESSABLE_STORE
     with type key = Pack.key
      and type value = Pack.value
@@ -41,6 +74,8 @@ module Content_addressable
   type 'a t = { upper : [ `Read ] U.t; lower : [ `Read ] L.t }
 
   let v upper lower = { upper; lower }
+
+  let mem_lower t k = L.mem t.lower k
 
   let add t = U.add t.upper
 
@@ -108,6 +143,17 @@ module Content_addressable
     L.clear_caches t.lower
 
   let version t = U.version t.upper
+
+  module Copy = Copy (H) (U) (L)
+
+  let check_and_copy dst t ?aux str k =
+    Copy.check_and_copy ~src:t.upper ~dst ?aux str k
+
+  let copy dst t ?aux str k = Copy.copy ~src:t.upper ~dst ?aux str k
+
+  let upper t = t.upper
+
+  let lower t = t.lower
 end
 
 module Pack_Maker
@@ -121,11 +167,13 @@ module Pack_Maker
 
   module Make (V : Pack.ELT with type hash := key) = struct
     module Upper = P.Make (V)
-    include Content_addressable (Index) (Upper)
+    include Content_addressable (H) (Index) (Upper)
   end
 end
 
-module Atomic_write (A : S.ATOMIC_WRITE_STORE) :
+module Atomic_write
+    (K : Irmin.Branch.S)
+    (A : S.ATOMIC_WRITE_STORE with type key = K.t) :
   S.LAYERED_ATOMIC_WRITE_STORE with type key = A.key and type value = A.value =
 struct
   type key = A.key
@@ -185,4 +233,20 @@ struct
   let flush t =
     U.flush t.upper;
     L.flush t.lower
+
+  (** Do not copy branches that point to commits not copied. *)
+  let copy ~mem_commit_lower t =
+    U.list t.upper >>= fun branches ->
+    Lwt_list.iter_s
+      (fun branch ->
+        U.find t.upper branch >>= function
+        | None -> Lwt.fail_with "branch not found in previous upper"
+        | Some hash -> (
+            mem_commit_lower hash >>= function
+            | true ->
+                Log.debug (fun l ->
+                    l "[branches] copy to lower %a" (Irmin.Type.pp K.t) branch);
+                L.set t.lower branch hash
+            | false -> Lwt.return_unit))
+      branches
 end
