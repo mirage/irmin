@@ -29,12 +29,16 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   module L : Pack.S
 
-  val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> 'a t
 
-  val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+  val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
+
+  type 'a layer_type =
+    | Upper : [ `Read ] U.t layer_type
+    | Lower : [ `Read ] L.t layer_type
 
   val copy :
-    [ `Read ] L.t ->
+    'l layer_type * 'l ->
     [ `Read ] t ->
     ?aux:(value -> unit Lwt.t) ->
     string ->
@@ -42,7 +46,7 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
     unit Lwt.t
 
   val check_and_copy :
-    [ `Read ] L.t ->
+    'l layer_type * 'l ->
     [ `Read ] t ->
     ?aux:(value -> unit Lwt.t) ->
     string ->
@@ -51,9 +55,17 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   val mem_lower : 'a t -> key -> bool Lwt.t
 
-  val upper : 'a t -> [ `Read ] U.t
+  val mem_current : [> `Read ] t -> key -> bool Lwt.t
+
+  val flip_upper : 'a t -> unit
+
+  val current_upper : 'a t -> [ `Read ] U.t
+
+  val previous_upper : 'a t -> [ `Read ] U.t
 
   val lower : 'a t -> [ `Read ] L.t
+
+  val clear_previous_upper : 'a t -> unit Lwt.t
 end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
@@ -63,9 +75,17 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
 
   module L : ATOMIC_WRITE_STORE
 
-  val v : U.t -> L.t -> t
+  val v : U.t -> U.t -> L.t -> t
 
-  val copy : mem_commit_lower:(value -> bool Lwt.t) -> t -> unit Lwt.t
+  val copy :
+    mem_commit_lower:(value -> bool Lwt.t) ->
+    mem_commit_upper:(value -> bool Lwt.t) ->
+    t ->
+    unit Lwt.t
+
+  val flip_upper : t -> unit
+
+  val clear_previous_upper : t -> unit Lwt.t
 end
 
 module type LAYERED_MAKER = sig
@@ -93,13 +113,25 @@ module type LAYERED_INODE = sig
 
   module L : Pack.S
 
-  val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> 'a t
 
-  val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+  val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
-  val copy : [ `Read ] L.t -> [ `Read ] t -> key -> unit Lwt.t
+  type 'a layer_type =
+    | Upper : [ `Read ] U.t layer_type
+    | Lower : [ `Read ] L.t layer_type
+
+  val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> unit Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
 
+  val mem_current : [> `Read ] t -> key -> bool Lwt.t
+
+  val flip_upper : 'a t -> unit
+
+  val current_upper : 'a t -> [ `Read ] U.t
+
   val lower : 'a t -> [ `Read ] L.t
+
+  val clear_previous_upper : 'a t -> unit Lwt.t
 end

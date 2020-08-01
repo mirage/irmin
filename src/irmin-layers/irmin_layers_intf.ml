@@ -18,16 +18,52 @@ module type S = sig
   include Irmin.S
 
   val freeze :
-    ?min:commit list -> ?max:commit list -> ?squash:bool -> repo -> unit Lwt.t
+    ?min:commit list ->
+    ?max:commit list ->
+    ?squash:bool ->
+    ?copy_in_upper:bool ->
+    ?heads:commit list ->
+    repo ->
+    unit Lwt.t
 
   type store_handle =
     | Commit_t : hash -> store_handle
     | Node_t : hash -> store_handle
     | Content_t : hash -> store_handle
 
-  val layer_id : repo -> store_handle -> [ `Upper | `Lower ] Lwt.t
+  val layer_id : repo -> store_handle -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
+
+  val async_freeze : unit -> bool
+  (** [async_freeze t] returns true if there is an ongoing freeze. To be used
+      with caution, as a freeze can start (or stop) just after the test. It is
+      helpful when a single freeze is called, to check whether it completed or
+      not. *)
+
+  (** These modules should not be used. They are exposed purely for testing
+      purposes. *)
+  module PrivateLayer : sig
+    module Hook : sig
+      type 'a t
+
+      val v : ('a -> unit Lwt.t) -> 'a t
+    end
+
+    val wait_for_freeze : unit -> unit Lwt.t
+
+    val freeze' :
+      ?min:commit list ->
+      ?max:commit list ->
+      ?squash:bool ->
+      ?copy_in_upper:bool ->
+      ?heads:commit list ->
+      ?hook:[ `After_Clear | `Before_Clear | `Before_Copy ] Hook.t ->
+      repo ->
+      unit Lwt.t
+
+    val upper_in_use : repo -> [ `Upper0 | `Upper1 ]
+  end
 end
 
 module type S_MAKER = functor

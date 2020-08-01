@@ -18,6 +18,8 @@ val config_layers :
   ?conf:Irmin.config ->
   ?lower_root:string ->
   ?upper_root1:string ->
+  ?upper_root0:string ->
+  ?copy_in_upper:bool ->
   unit ->
   Irmin.config
 (** Setting up the configuration for a layered store. *)

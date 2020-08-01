@@ -125,7 +125,8 @@ struct
 
   include Irmin.Of_private (X)
 
-  let freeze ?min:_ ?max:_ ?squash:_ _repo = Lwt.fail_with "not implemented"
+  let freeze ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?heads:_ _repo =
+    Lwt.fail_with "not implemented"
 
   type store_handle =
     | Commit_t : hash -> store_handle
@@ -133,6 +134,26 @@ struct
     | Content_t : hash -> store_handle
 
   let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
+
+  let async_freeze _ = failwith "not implemented"
+
+  let upper_in_use _repo = failwith "not implemented"
+
+  module PrivateLayer = struct
+    module Hook = struct
+      type 'a t = unit
+
+      let v _ = failwith "not implemented"
+    end
+
+    let wait_for_freeze _ = Lwt.fail_with "not implemented"
+
+    let freeze' ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?heads:_ ?hook:_ _repo
+        =
+      Lwt.fail_with "not implemented"
+
+    let upper_in_use = upper_in_use
+  end
 end
 
 module Make

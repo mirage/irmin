@@ -91,6 +91,14 @@ module Make
 
   let lower = Inode.lower
 
+  let mem_current = Inode.mem_current
+
+  let flip_upper = Inode.flip_upper
+
+  let current_upper = Inode.current_upper
+
+  let clear_previous_upper = Inode.clear_previous_upper
+
   let unsafe_find t k =
     match Inode.unsafe_find t k with
     | None -> None
@@ -103,13 +111,31 @@ module Make
     let find = unsafe_find t in
     { Val.find; v }
 
-  let copy dst t k =
+  type 'a layer_type =
+    | Upper : [ `Read ] U.t layer_type
+    | Lower : [ `Read ] L.t layer_type
+
+  let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
-    let add k v = Inode.L.unsafe_append dst k v in
-    let mem k = Inode.L.unsafe_mem dst k in
-    Inode.U.find (Inode.upper t) k >|= function
+    Inode.U.find (Inode.previous_upper t) k >|= function
     | None -> ()
     | Some v ->
         let v' = lift t v in
         Inode.Val.save ~add ~mem v'.Val.v
+
+  let copy_to_lower ~dst t k =
+    let add k v = Inode.L.unsafe_append dst k v in
+    let mem k = Inode.L.unsafe_mem dst k in
+    copy ~add ~mem t k
+
+  let copy_to_current ~dst t k =
+    let add k v = Inode.U.unsafe_append dst k v in
+    let mem k = Inode.U.unsafe_mem dst k in
+    copy ~add ~mem t k
+
+  let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
+   fun (ltype, dst) ->
+    match ltype with
+    | Lower -> copy_to_lower ~dst
+    | Upper -> copy_to_current ~dst
 end
