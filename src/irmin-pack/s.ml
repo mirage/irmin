@@ -29,7 +29,7 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   module L : Pack.S
 
-  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> flip:bool -> 'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
@@ -75,7 +75,7 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
 
   module L : ATOMIC_WRITE_STORE
 
-  val v : U.t -> U.t -> L.t -> t
+  val v : U.t -> U.t -> L.t -> flip:bool -> t
 
   val copy :
     mem_commit_lower:(value -> bool Lwt.t) ->
@@ -113,7 +113,7 @@ module type LAYERED_INODE = sig
 
   module L : Pack.S
 
-  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+  val v : [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t -> flip:bool -> 'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 

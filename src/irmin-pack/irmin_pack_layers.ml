@@ -33,6 +33,7 @@ module IO = IO.Unix
 open Lwt.Infix
 module Atomic_write = Store.Atomic_write
 module Pack_config = Config
+module IO_layers = IO_layers.IO
 
 module Default = struct
   let lower_root = "lower"
@@ -233,6 +234,7 @@ struct
         uppers_index : Index.t * Index.t;
         mutable flip : bool;
         mutable closed : bool;
+        flip_file : IO_layers.t;
       }
 
       let contents_t t = t.contents
@@ -315,13 +317,19 @@ struct
         let upper0 = Filename.concat root (upper_root0 config) in
         v_layer ~v:unsafe_v_upper upper0 config >>= fun upper0 ->
         let lower_root = Filename.concat root (lower_root config) in
-        v_layer ~v:unsafe_v_lower lower_root config >|= fun lower ->
+        v_layer ~v:unsafe_v_lower lower_root config >>= fun lower ->
+        let file = Filename.concat root "flip" in
+        IO_layers.v file >>= fun flip_file ->
+        IO_layers.read_flip flip_file >|= fun flip ->
         let contents =
-          Contents.CA.v upper1.contents upper0.contents lower.contents
+          Contents.CA.v upper1.contents upper0.contents lower.contents ~flip
         in
-        let node = Node.CA.v upper1.node upper0.node lower.node in
-        let commit = Commit.CA.v upper1.commit upper0.commit lower.commit in
-        let branch = Branch.v upper1.branch upper0.branch lower.branch in
+        let node = Node.CA.v upper1.node upper0.node lower.node ~flip in
+        let commit =
+          Commit.CA.v upper1.commit upper0.commit lower.commit ~flip
+        in
+        let branch = Branch.v upper1.branch upper0.branch lower.branch ~flip in
+
         {
           contents;
           node;
@@ -330,8 +338,9 @@ struct
           config;
           lower_index = lower.index;
           uppers_index = (upper1.index, upper0.index);
-          flip = true;
+          flip;
           closed = false;
+          flip_file;
         }
 
       let unsafe_close t =
@@ -339,6 +348,7 @@ struct
         Index.close t.lower_index;
         Index.close (fst t.uppers_index);
         Index.close (snd t.uppers_index);
+        IO_layers.close t.flip_file >>= fun () ->
         Contents.CA.close t.contents >>= fun () ->
         Node.CA.close t.node >>= fun () ->
         Commit.CA.close t.commit >>= fun () -> Branch.close t.branch
@@ -405,7 +415,8 @@ struct
         Contents.CA.flip_upper t.contents;
         Node.CA.flip_upper t.node;
         Commit.CA.flip_upper t.commit;
-        Branch.flip_upper t.branch
+        Branch.flip_upper t.branch;
+        IO_layers.write_flip t.flip t.flip_file
 
       let upper_in_use t = if t.flip then `Upper1 else `Upper0
     end
@@ -635,7 +646,7 @@ struct
           pp_commits min pp_commits max squash copy_in_upper pp_commits heads);
     (* we don't support multiple RW instances for now, so there is no need to
        add a lock for [flip_upper] and [add]. *)
-    X.Repo.flip_upper t;
+    X.Repo.flip_upper t >|= fun () ->
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
         may (fun f -> f `Before_Copy) hook >>= fun () ->
@@ -661,7 +672,7 @@ struct
     (match heads with [] -> Repo.heads t | m -> Lwt.return m) >>= fun heads ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else
-      Lwt_mutex.lock freeze_lock >|= fun () ->
+      Lwt_mutex.lock freeze_lock >>= fun () ->
       unsafe_freeze ~min ~max ~squash ~copy_in_upper ~heads ?hook t
 
   let layer_id = X.Repo.layer_id

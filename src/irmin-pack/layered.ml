@@ -77,7 +77,7 @@ module Content_addressable
     uppers : [ `Read ] U.t * [ `Read ] U.t;
   }
 
-  let v upper1 upper0 lower = { lower; flip = true; uppers = (upper1, upper0) }
+  let v upper1 upper0 lower ~flip = { lower; flip; uppers = (upper1, upper0) }
 
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
 
@@ -387,7 +387,7 @@ struct
     U.close (fst t.uppers) >>= fun () ->
     U.close (snd t.uppers) >>= fun () -> L.close t.lower
 
-  let v upper1 upper0 lower = { lower; flip = true; uppers = (upper1, upper0) }
+  let v upper1 upper0 lower ~flip = { lower; flip; uppers = (upper1, upper0) }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
