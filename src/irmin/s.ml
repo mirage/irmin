@@ -558,6 +558,19 @@ module type COMMIT_HISTORY = sig
   (** Same as {{!Private.Node.GRAPH.closure} GRAPH.closure} but for the history
       graph. *)
 
+  val iter :
+    [> `Read ] t ->
+    min:node list ->
+    max:node list ->
+    ?commit:(commit -> unit Lwt.t) ->
+    ?edge:(node -> node -> unit Lwt.t) ->
+    ?skip:(node -> bool Lwt.t) ->
+    ?rev:bool ->
+    unit ->
+    unit Lwt.t
+  (** [iter min max commit edge skip rev ()] iterates over the closure of [t] as
+      specified by {{!Irmin__.S.NODE_GRAPH.iter} GRAPH.iter}. *)
+
   (** {1 Value Types} *)
 
   val commit_t : commit Type.t
