@@ -43,6 +43,8 @@ module Default = struct
   let upper_root0 = "upper0"
 
   let copy_in_upper = false
+
+  let with_lower = true
 end
 
 module Conf = Irmin.Private.Conf
@@ -71,13 +73,20 @@ let copy_in_upper_key =
 
 let get_copy_in_upper conf = Conf.get conf copy_in_upper_key
 
+let with_lower_key =
+  Conf.key ~doc:"Use a lower layer." "with-lower" Conf.bool Default.with_lower
+
+let with_lower conf = Conf.get conf with_lower_key
+
 let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
     ?(upper_root1 = Default.upper_root1) ?(upper_root0 = Default.upper_root0)
-    ?(copy_in_upper = Default.copy_in_upper) () =
+    ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
+    () =
   let config = Conf.add conf lower_root_key lower_root in
   let config = Conf.add config upper_root1_key upper_root1 in
   let config = Conf.add config upper_root0_key upper_root0 in
   let config = Conf.add config copy_in_upper_key copy_in_upper in
+  let config = Conf.add config with_lower_key with_lower in
   config
 
 let freeze_lock = Lwt_mutex.create ()
@@ -217,11 +226,11 @@ struct
       }
 
       type lower_layer = {
-        contents : [ `Read ] Contents.CA.L.t;
-        node : [ `Read ] Node.CA.L.t;
-        commit : [ `Read ] Commit.CA.L.t;
-        branch : Branch.L.t;
-        index : Index.t;
+        lcontents : [ `Read ] Contents.CA.L.t;
+        lnode : [ `Read ] Node.CA.L.t;
+        lcommit : [ `Read ] Commit.CA.L.t;
+        lbranch : Branch.L.t;
+        lindex : Index.t;
       }
 
       type t = {
@@ -230,7 +239,7 @@ struct
         node : [ `Read ] Node.CA.t;
         branch : Branch.t;
         commit : [ `Read ] Commit.CA.t;
-        lower_index : Index.t;
+        lower_index : Index.t option;
         uppers_index : Index.t * Index.t;
         mutable flip : bool;
         mutable closed : bool;
@@ -287,16 +296,15 @@ struct
         let index =
           Index.v
             ~flush_callback:(fun () -> !f ())
-              (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
         Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
-        >>= fun contents ->
-        Node.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
-        Branch.L.v ~fresh ~readonly root >|= fun branch ->
-        (f := fun () -> Contents.CA.L.flush ~index:false contents);
-        ({ index; contents; node; commit; branch } : lower_layer)
+        >>= fun lcontents ->
+        Node.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lnode ->
+        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lcommit ->
+        Branch.L.v ~fresh ~readonly root >|= fun lbranch ->
+        (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
+        ({ lindex = index; lcontents; lnode; lcommit; lbranch } : lower_layer)
 
       let v_layer ~v root config =
         Lwt.catch
@@ -316,19 +324,28 @@ struct
         v_layer ~v:unsafe_v_upper upper1 config >>= fun upper1 ->
         let upper0 = Filename.concat root (upper_root0 config) in
         v_layer ~v:unsafe_v_upper upper0 config >>= fun upper0 ->
+        let with_lower = with_lower config in
         let lower_root = Filename.concat root (lower_root config) in
-        v_layer ~v:unsafe_v_lower lower_root config >>= fun lower ->
+        (if with_lower then
+         v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
+        else Lwt.return_none)
+        >>= fun lower ->
         let file = Filename.concat root "flip" in
         IO_layers.v file >>= fun flip_file ->
         IO_layers.read_flip flip_file >|= fun flip ->
+        let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
-          Contents.CA.v upper1.contents upper0.contents lower.contents ~flip
+          Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
         in
-        let node = Node.CA.v upper1.node upper0.node lower.node ~flip in
+        let lower_node = Option.map (fun x -> x.lnode) lower in
+        let node = Node.CA.v upper1.node upper0.node lower_node ~flip in
+        let lower_commit = Option.map (fun x -> x.lcommit) lower in
         let commit =
-          Commit.CA.v upper1.commit upper0.commit lower.commit ~flip
+          Commit.CA.v upper1.commit upper0.commit lower_commit ~flip
         in
-        let branch = Branch.v upper1.branch upper0.branch lower.branch ~flip in
+        let lower_branch = Option.map (fun x -> x.lbranch) lower in
+        let branch = Branch.v upper1.branch upper0.branch lower_branch ~flip in
+        let lower_index = Option.map (fun x -> x.lindex) lower in
 
         {
           contents;
@@ -336,7 +353,7 @@ struct
           commit;
           branch;
           config;
-          lower_index = lower.index;
+          lower_index;
           uppers_index = (upper1.index, upper0.index);
           flip;
           closed = false;
@@ -345,7 +362,7 @@ struct
 
       let unsafe_close t =
         t.closed <- true;
-        Index.close t.lower_index;
+        (match t.lower_index with Some x -> Index.close x | None -> ());
         Index.close (fst t.uppers_index);
         Index.close (snd t.uppers_index);
         IO_layers.close t.flip_file >>= fun () ->
@@ -422,70 +439,8 @@ struct
     end
   end
 
-  let null =
-    match Sys.os_type with
-    | "Unix" | "Cygwin" -> "/dev/null"
-    | "Win32" -> "NUL"
-    | _ -> invalid_arg "invalid os type"
-
-  let integrity_check ?ppf ~auto_repair t =
-    let ppf =
-      match ppf with
-      | Some p -> p
-      | None -> open_out null |> Format.formatter_of_out_channel
-    in
-    Fmt.pf ppf "Running the integrity_check.\n%!";
-    let nb_commits = ref 0 in
-    let nb_nodes = ref 0 in
-    let nb_contents = ref 0 in
-    let nb_absent = ref 0 in
-    let nb_corrupted = ref 0 in
-    let exception Cannot_fix in
-    let contents = X.Repo.contents_t t in
-    let nodes = X.Repo.node_t t |> snd in
-    let commits = X.Repo.commit_t t |> snd in
-    let pp_stats () =
-      Fmt.pf ppf "\t%dk contents / %dk nodes / %dk commits\n%!"
-        (!nb_contents / 1000) (!nb_nodes / 1000) (!nb_commits / 1000)
-    in
-    let count_increment count =
-      incr count;
-      if !count mod 1000 = 0 then pp_stats ()
-    in
-    let f (k, (offset, length, m)) =
-      match m with
-      | 'B' ->
-          count_increment nb_contents;
-          X.Contents.CA.integrity_check ~offset ~length k contents
-      | 'N' | 'I' ->
-          count_increment nb_nodes;
-          X.Node.CA.integrity_check ~offset ~length k nodes
-      | 'C' ->
-          count_increment nb_commits;
-          X.Commit.CA.integrity_check ~offset ~length k commits
-      | _ -> invalid_arg "unknown content type"
-    in
-    if auto_repair then
-      try
-        Index.filter t.lower_index (fun binding ->
-            match f binding with
-            | Ok () -> true
-            | Error `Wrong_hash -> raise Cannot_fix
-            | Error `Absent_value ->
-                incr nb_absent;
-                false);
-        if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
-      with Cannot_fix -> Error (`Cannot_fix "Not implemented")
-    else (
-      Index.iter
-        (fun k v ->
-          match f (k, v) with
-          | Ok () -> ()
-          | Error `Wrong_hash -> incr nb_corrupted
-          | Error `Absent_value -> incr nb_absent)
-        t.lower_index;
-      if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
-      else Error (`Corrupted (!nb_corrupted + !nb_absent)))
+  let integrity_check ?ppf:_ ~auto_repair:_ _repo =
+    Error (`Cannot_fix "Not implemented")
 
   include Irmin.Of_private (X)
 
@@ -573,23 +528,23 @@ struct
           (X.Commit.CA.Upper, commits)
           t
 
-      let copy_max_commits ~max t =
-        Log.debug (fun f ->
-            f "copy max commits to current %s" (X.Repo.log_current_upper t));
-        Lwt_list.iter_s
-          (fun k ->
-            let h = Commit.hash k in
-            on_current t (fun contents nodes commits ->
-                mem_commit_upper t h >>= function
-                | true -> Lwt.return_unit
-                | false -> copy_commit contents nodes commits t h))
-          max
-
       let copy ~min ~max t =
         let skip = mem_commit_upper t in
         on_current t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
+
+      let copy_commits ~min ~max t =
+        Log.debug (fun f ->
+            f "copy commits to current upper %s" (X.Repo.log_current_upper t));
+        let max = List.map (fun x -> Commit.hash x) max in
+        (* if min is empty then copy only the max commits *)
+        let min =
+          match min with
+          | [] -> max
+          | min -> List.map (fun x -> Commit.hash x) min
+        in
+        copy ~min ~max t
 
       let includes commits k =
         List.exists (fun k' -> Irmin.Type.equal Hash.t k k') commits
@@ -624,33 +579,37 @@ struct
     end
   end
 
-  let copy ~min ~max ~squash ~copy_in_upper ~heads t =
+  let copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t =
     (* Copy commits to lower: if squash then copy only the max commits *)
-    (if squash then Copy.CopyToLower.copy_max_commits ~max t
-    else Copy.CopyToLower.copy ~min ~max t)
+    let with_lower = with_lower t.X.Repo.config in
+    (if with_lower then
+     if squash then Copy.CopyToLower.copy_max_commits ~max t
+     else Copy.CopyToLower.copy ~min ~max t
+    else Lwt.return_unit)
     >>= fun () ->
-    (* Copy max and heads after max to current_upper *)
+    (* Copy [min_upper, max] and [max, heads] to current_upper *)
     (if copy_in_upper then
-     Copy.CopyToUpper.copy_max_commits ~max t >>= fun () ->
+     Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
      Copy.CopyToUpper.copy_heads ~max ~heads t
     else Lwt.return_unit)
     (* Copy branches to both lower and current_upper *)
     >>= fun () -> Copy.copy_branches t
 
-  let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~heads ?hook t =
+  let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
     let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
     Log.debug (fun l ->
         l
           "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \
-           heads = %a"
-          pp_commits min pp_commits max squash copy_in_upper pp_commits heads);
+           min_upper = %a heads = %a"
+          pp_commits min pp_commits max squash copy_in_upper pp_commits
+          min_upper pp_commits heads);
     (* we don't support multiple RW instances for now, so there is no need to
        add a lock for [flip_upper] and [add]. *)
     X.Repo.flip_upper t >|= fun () ->
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
         may (fun f -> f `Before_Copy) hook >>= fun () ->
-        copy ~min ~max ~squash ~copy_in_upper ~heads t >>= fun () ->
+        copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
         may (fun f -> f `Before_Clear) hook >>= fun () ->
         X.Repo.clear_previous_upper t >>= fun () ->
         Lwt_mutex.unlock freeze_lock;
@@ -662,7 +621,7 @@ struct
       releases it at the end. This is to ensure that no two freezes can run
       simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
-      ?(heads = []) ?hook t =
+      ?(min_upper = []) ?(heads = []) ?hook t =
     let copy_in_upper =
       match copy_in_upper with
       | None -> get_copy_in_upper t.X.Repo.config
@@ -673,7 +632,7 @@ struct
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else
       Lwt_mutex.lock freeze_lock >>= fun () ->
-      unsafe_freeze ~min ~max ~squash ~copy_in_upper ~heads ?hook t
+      unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t
 
   let layer_id = X.Repo.layer_id
 

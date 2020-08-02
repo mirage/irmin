@@ -72,7 +72,7 @@ module Content_addressable
   module L = Pack
 
   type 'a t = {
-    lower : [ `Read ] L.t;
+    lower : [ `Read ] L.t option;
     mutable flip : bool;
     uppers : [ `Read ] U.t * [ `Read ] U.t;
   }
@@ -83,13 +83,13 @@ module Content_addressable
 
   let previous_upper t = if t.flip then snd t.uppers else fst t.uppers
 
-  let lower t = t.lower
+  let lower t = Option.get t.lower
 
   let log_current_upper t = if t.flip then "upper1" else "upper0"
 
   let log_previous_upper t = if t.flip then "upper0" else "upper1"
 
-  let mem_lower t k = L.mem t.lower k
+  let mem_lower t k = Option.get t.lower |> fun lower -> L.mem lower k
 
   let mem_current t k = U.mem (current_upper t) k
 
@@ -120,9 +120,12 @@ module Content_addressable
         Log.debug (fun l -> l "find in %s" (log_previous_upper t));
         U.find previous k >>= function
         | Some v -> Lwt.return_some v
-        | None ->
-            Log.debug (fun l -> l "find in lower");
-            L.find t.lower k)
+        | None -> (
+            match t.lower with
+            | None -> Lwt.return_none
+            | Some lower ->
+                Log.debug (fun l -> l "find in lower");
+                L.find lower k))
 
   let unsafe_find t k =
     let current = current_upper t in
@@ -134,9 +137,12 @@ module Content_addressable
         Log.debug (fun l -> l "unsafe_find in %s" (log_previous_upper t));
         match U.unsafe_find previous k with
         | Some v -> Some v
-        | None ->
-            Log.debug (fun l -> l "unsafe_find in lower");
-            L.unsafe_find t.lower k)
+        | None -> (
+            match t.lower with
+            | None -> None
+            | Some lower ->
+                Log.debug (fun l -> l "unsafe_find in lower");
+                L.unsafe_find lower k))
 
   let mem t k =
     let current = current_upper t in
@@ -146,17 +152,22 @@ module Content_addressable
     | false -> (
         U.mem previous k >>= function
         | true -> Lwt.return_true
-        | false -> L.mem t.lower k)
+        | false -> (
+            match t.lower with
+            | None -> Lwt.return_false
+            | Some lower -> L.mem lower k))
 
   let unsafe_mem t k =
     let current = current_upper t in
     let previous = previous_upper t in
-    U.unsafe_mem current k || U.unsafe_mem previous k || L.unsafe_mem t.lower k
+    U.unsafe_mem current k
+    || U.unsafe_mem previous k
+    || match t.lower with None -> false | Some lower -> L.unsafe_mem lower k
 
   let flush ?index t =
     U.flush ?index (fst t.uppers);
     U.flush ?index (snd t.uppers);
-    L.flush ?index t.lower
+    match t.lower with None -> () | Some x -> L.flush ?index x
 
   let cast t = (t :> [ `Read | `Write ] t)
 
@@ -168,11 +179,12 @@ module Content_addressable
   let sync ?on_generation_change t =
     U.sync ?on_generation_change (fst t.uppers);
     U.sync ?on_generation_change (snd t.uppers);
-    L.sync t.lower
+    match t.lower with None -> () | Some x -> L.sync ?on_generation_change x
 
   let close t =
     U.close (fst t.uppers) >>= fun () ->
-    U.close (snd t.uppers) >>= fun () -> L.close t.lower
+    U.close (snd t.uppers) >>= fun () ->
+    match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
   type integrity_error = U.integrity_error
 
@@ -183,7 +195,9 @@ module Content_addressable
     match
       ( U.integrity_check ~offset ~length k current,
         U.integrity_check ~offset ~length k previous,
-        L.integrity_check ~offset ~length k lower )
+        match lower with
+        | None -> Ok ()
+        | Some lower -> L.integrity_check ~offset ~length k lower )
     with
     | Ok (), Ok (), Ok () -> Ok ()
     | Error `Wrong_hash, _, _
@@ -202,18 +216,22 @@ module Content_addressable
         U.mem (snd t.uppers) k >>= function
         | true -> Lwt.return `Upper0
         | false -> (
-            L.mem t.lower k >|= function
-            | true -> `Lower
-            | false -> raise Not_found))
+            match t.lower with
+            | None -> raise Not_found
+            | Some lower -> (
+                L.mem lower k >|= function
+                | true -> `Lower
+                | false -> raise Not_found)))
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
-    U.clear (snd t.uppers) >>= fun () -> L.clear t.lower
+    U.clear (snd t.uppers) >>= fun () ->
+    match t.lower with None -> Lwt.return_unit | Some x -> L.clear x
 
   let clear_caches t =
     U.clear_caches (fst t.uppers);
     U.clear_caches (snd t.uppers);
-    L.clear_caches t.lower
+    match t.lower with None -> () | Some x -> L.clear_caches x
 
   let clear_previous_upper t =
     let previous = previous_upper t in
@@ -298,7 +316,7 @@ struct
   module U = A
   module L = A
 
-  type t = { lower : L.t; mutable flip : bool; uppers : U.t * U.t }
+  type t = { lower : L.t option; mutable flip : bool; uppers : U.t * U.t }
 
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
 
@@ -321,9 +339,12 @@ struct
         Log.debug (fun l -> l "[branches] mem in%s" (log_previous_upper t));
         U.mem previous k >>= function
         | true -> Lwt.return_true
-        | false ->
-            Log.debug (fun l -> l "[branches] mem in lower");
-            L.mem t.lower k)
+        | false -> (
+            match t.lower with
+            | None -> Lwt.return_false
+            | Some lower ->
+                Log.debug (fun l -> l "[branches] mem in lower");
+                L.mem lower k))
 
   let find t k =
     let current = current_upper t in
@@ -335,13 +356,16 @@ struct
         Log.debug (fun l -> l "[branches] find in %s" (log_previous_upper t));
         U.find previous k >>= function
         | Some v -> Lwt.return_some v
-        | None ->
-            Log.debug (fun l -> l "[branches] find in lower");
-            L.find t.lower k)
+        | None -> (
+            match t.lower with
+            | None -> Lwt.return_none
+            | Some lower ->
+                Log.debug (fun l -> l "[branches] find in lower");
+                L.find lower k))
 
   let set t k v =
     Log.debug (fun l ->
-        l "unsafe set %a in %s" (Irmin.Type.pp K.t) k (log_current_upper t));
+        l "set %a in %s" (Irmin.Type.pp K.t) k (log_current_upper t));
     let upper = current_upper t in
     U.set upper k v
 
@@ -350,7 +374,10 @@ struct
     let current = current_upper t in
     let previous = previous_upper t in
     let find_in_lower () =
-      L.find t.lower k >>= function
+      (match t.lower with
+      | None -> Lwt.return_none
+      | Some lower -> L.find lower k)
+      >>= function
       | None -> U.test_and_set current k ~test:None ~set
       | Some v ->
           U.set current k v >>= fun () -> U.test_and_set current k ~test ~set
@@ -365,12 +392,16 @@ struct
 
   let remove t k =
     U.remove (fst t.uppers) k >>= fun () ->
-    U.remove (snd t.uppers) k >>= fun () -> L.remove t.lower k
+    U.remove (snd t.uppers) k >>= fun () ->
+    match t.lower with
+    | None -> Lwt.return_unit
+    | Some lower -> L.remove lower k
 
   let list t =
     U.list (fst t.uppers) >>= fun upper1 ->
     U.list (snd t.uppers) >>= fun upper2 ->
-    L.list t.lower >|= fun lower ->
+    (match t.lower with None -> Lwt.return_nil | Some lower -> L.list lower)
+    >|= fun lower ->
     List.fold_left
       (fun acc b -> if List.mem b acc then acc else b :: acc)
       lower (upper1 @ upper2)
@@ -385,18 +416,20 @@ struct
 
   let close t =
     U.close (fst t.uppers) >>= fun () ->
-    U.close (snd t.uppers) >>= fun () -> L.close t.lower
+    U.close (snd t.uppers) >>= fun () ->
+    match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
   let v upper1 upper0 lower ~flip = { lower; flip; uppers = (upper1, upper0) }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
-    U.clear (snd t.uppers) >>= fun () -> L.clear t.lower
+    U.clear (snd t.uppers) >>= fun () ->
+    match t.lower with None -> Lwt.return_unit | Some x -> L.clear x
 
   let flush t =
     U.flush (fst t.uppers);
     U.flush (snd t.uppers);
-    L.flush t.lower
+    match t.lower with None -> () | Some x -> L.flush x
 
   (** Do not copy branches that point to commits not copied. *)
   let copy ~mem_commit_lower ~mem_commit_upper t =
@@ -408,12 +441,16 @@ struct
         U.find previous branch >>= function
         | None -> Lwt.fail_with "branch not found in previous upper"
         | Some hash -> (
-            (mem_commit_lower hash >>= function
-             | true ->
-                 Log.debug (fun l ->
-                     l "[branches] copy to lower %a" (Irmin.Type.pp K.t) branch);
-                 L.set t.lower branch hash
-             | false -> Lwt.return_unit)
+            (match t.lower with
+            | None -> Lwt.return_unit
+            | Some lower -> (
+                mem_commit_lower hash >>= function
+                | true ->
+                    Log.debug (fun l ->
+                        l "[branches] copy to lower %a" (Irmin.Type.pp K.t)
+                          branch);
+                    L.set lower branch hash
+                | false -> Lwt.return_unit))
             >>= fun () ->
             mem_commit_upper hash >>= function
             | true ->

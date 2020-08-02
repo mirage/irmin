@@ -22,6 +22,7 @@ module type S = sig
     ?max:commit list ->
     ?squash:bool ->
     ?copy_in_upper:bool ->
+    ?min_upper:commit list ->
     ?heads:commit list ->
     repo ->
     unit Lwt.t
@@ -57,6 +58,7 @@ module type S = sig
       ?max:commit list ->
       ?squash:bool ->
       ?copy_in_upper:bool ->
+      ?min_upper:commit list ->
       ?heads:commit list ->
       ?hook:[ `After_Clear | `Before_Clear | `Before_Copy ] Hook.t ->
       repo ->
