@@ -2,8 +2,7 @@ open Bechamel
 open Toolkit
 module T = Irmin.Type
 module Hash = Irmin.Hash.BLAKE2B
-
-let ( >> ) f g x = g (f x)
+open Output
 
 module Generic_op = struct
   type op =
@@ -190,7 +189,7 @@ let test_operation ~name (op : Generic_op.t) =
       test ~name:"triple_short_int" Data.triple_short_int;
     ]
 
-let suite =
+let suite () =
   Test.make_grouped ~name:""
     [
       test_operation ~name:"bin" Generic_op.bin;
@@ -200,6 +199,7 @@ let suite =
     ]
 
 let benchmark () =
+  let suite = suite () in
   Fmt.epr "Running benchmarks\n%!";
   let ols =
     Analyze.ols ~bootstrap:0 ~r_square:true ~predictors:Measure.[| run |]
@@ -214,19 +214,27 @@ let benchmark () =
   List.map (fun instance -> Analyze.all ols instance raw_results) instances
   |> Analyze.merge ols instances
 
-let img (window, results) =
-  Bechamel_notty.Multiple.image_of_ols_results ~rect:window
-    ~predictor:Measure.run results
-
-type rect = Bechamel_notty.rect = { w : int; h : int }
+let ignore_eexist f = try f () with Unix.Unix_error (EEXIST, _, _) -> ()
 
 let () =
-  Bechamel_notty.Unit.add Instance.monotonic_clock "ns";
-  Bechamel_notty.Unit.add Instance.minor_allocated "w";
-  Bechamel_notty.Unit.add Instance.major_allocated "mw";
-  let window =
-    match Notty_unix.winsize Unix.stdout with
-    | Some (w, h) -> { w; h }
-    | None -> { w = 80; h = 1 }
+  Random.self_init ();
+  let output_formatter =
+    match Sys.argv with
+    | [| _ |] -> Fmt.stdout
+    | [| _; "--output-dir"; dir |] ->
+        let fname = Fmt.str "results-%lx.json" (Random.int32 Int32.max_int) in
+        let latest, data_output =
+          let data_file name =
+            let open Fpath in
+            v (Sys.getcwd ()) // v dir / name |> normalize |> to_string
+          in
+          (data_file "latest.json", data_file fname)
+        in
+        Fmt.epr "Results streaming to %s\n%!" data_output;
+        ignore_eexist (fun () -> Unix.mkdir dir 0o777);
+        if Unix.has_symlink () then
+          ignore_eexist (fun () -> Unix.symlink data_output latest);
+        open_out data_output |> Format.formatter_of_out_channel
+    | a -> Fmt.failwith "Unexpected arguments: `%a'" Fmt.(Dump.array string) a
   in
-  img (window, benchmark ()) |> Notty_unix.eol |> Notty_unix.output_image
+  benchmark () |> Fmt.pf output_formatter "%a%!" pp_results
