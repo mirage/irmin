@@ -121,6 +121,10 @@ module Make
     | None -> ()
     | Some v ->
         let v' = lift t v in
+        (* copy is called right after [of_bin] and the inodes have empty cached
+           trees. We call [list] here to add the cached tree to the inodes, so that
+           they are copied in the dst layer. *)
+        List.iter ignore (Val.list v');
         Inode.Val.save ~add ~mem v'.Val.v
 
   let copy_to_lower ~dst t k =
