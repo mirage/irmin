@@ -117,6 +117,7 @@ module Make
 
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
+    Irmin_layers.Stats.copy_nodes ();
     Inode.U.find (Inode.previous_upper t) k >|= function
     | None -> ()
     | Some v ->

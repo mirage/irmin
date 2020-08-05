@@ -603,6 +603,7 @@ struct
            min_upper = %a heads = %a"
           pp_commits min pp_commits max squash copy_in_upper pp_commits
           min_upper pp_commits heads);
+    Irmin_layers.Stats.freeze ();
     (* we don't support multiple RW instances for now, so there is no need to
        add a lock for [flip_upper] and [add]. *)
     X.Repo.flip_upper t >|= fun () ->

@@ -33,6 +33,12 @@ module Copy
 struct
   let add_to_dst add (k, v) = add k v
 
+  let stats = function
+    | "Contents" -> Irmin_layers.Stats.copy_contents ()
+    | "Node" -> Irmin_layers.Stats.copy_nodes ()
+    | "Commit" -> Irmin_layers.Stats.copy_commits ()
+    | _ -> failwith "unexpected type in stats"
+
   let already_in_dst ~dst k =
     DST.mem dst k >|= function
     | true ->
@@ -42,6 +48,7 @@ struct
 
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
+    stats str;
     SRC.find src k >>= function
     | None -> Lwt.return_unit
     | Some v -> aux v >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
@@ -95,11 +102,13 @@ module Content_addressable
 
   let add t v =
     Log.debug (fun l -> l "add in %s" (log_current_upper t));
+    Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v
 
   let unsafe_add t k v =
     Log.debug (fun l -> l "unsafe_add in %s" (log_current_upper t));
+    Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v
 
@@ -453,6 +462,7 @@ struct
                     Log.debug (fun l ->
                         l "[branches] copy to lower %a" (Irmin.Type.pp K.t)
                           branch);
+                    Irmin_layers.Stats.copy_branches ();
                     L.set lower branch hash
                 | false -> Lwt.return_unit))
             >>= fun () ->
@@ -460,6 +470,7 @@ struct
             | true ->
                 Log.debug (fun l ->
                     l "[branches] copy to current %a" (Irmin.Type.pp K.t) branch);
+                Irmin_layers.Stats.copy_branches ();
                 U.set current branch hash
             | false -> Lwt.return_unit))
       branches

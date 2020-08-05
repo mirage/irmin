@@ -43,3 +43,5 @@ module type S_MAKER = Irmin_layers_intf.S_MAKER
 module Make
     (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+
+module Stats = Stats
