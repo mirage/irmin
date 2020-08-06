@@ -507,8 +507,8 @@ let test_pp_ty () =
     let tree_t, node_t =
       let open T in
       mu2 (fun tree node ->
-          ( variant "tree" (fun empty node ->
-              function Empty -> empty | Node n -> node n)
+          ( variant "tree" (fun empty node -> function
+              | Empty -> empty | Node n -> node n)
             |~ case0 "empty" Empty
             |~ case1 "node" node (fun n -> Node n)
             |> sealv,

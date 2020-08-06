@@ -1062,8 +1062,7 @@ module Make (P : S.PRIVATE) = struct
 
     let t r =
       let open Type in
-      variant "status" (fun empty branch commit ->
-        function
+      variant "status" (fun empty branch commit -> function
         | `Empty -> empty | `Branch b -> branch b | `Commit c -> commit c)
       |~ case0 "empty" `Empty
       |~ case1 "branch" Branch.t (fun b -> `Branch b)
@@ -1114,8 +1113,7 @@ module Make (P : S.PRIVATE) = struct
 
   let write_error_t =
     let open Type in
-    variant "write-error" (fun c m e ->
-      function
+    variant "write-error" (fun c m e -> function
       | `Conflict x -> c x | `Too_many_retries x -> m x | `Test_was x -> e x)
     |~ case1 "conflict" string (fun x -> `Conflict x)
     |~ case1 "too-many-retries" int (fun x -> `Too_many_retries x)

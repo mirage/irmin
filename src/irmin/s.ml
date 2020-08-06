@@ -224,9 +224,9 @@ module type CONTENTS_STORE = sig
   val merge : [ `Read | `Write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
       key. The merge function will: {e (i)} read the values associated with the
-      given keys, {e (ii)} use the merge function defined on values and {e
-      (iii)} write the resulting values into the store to get the resulting key.
-      See {!Contents.S.merge}.
+      given keys, {e (ii)} use the merge function defined on values and
+      {e (iii)} write the resulting values into the store to get the resulting
+      key. See {!Contents.S.merge}.
 
       If any of these operations fail, return [`Conflict]. *)
 

@@ -51,8 +51,7 @@ struct
 
   let kind_t =
     let open Type in
-    variant "Tree.kind" (fun node contents contents_m ->
-      function
+    variant "Tree.kind" (fun node contents contents_m -> function
       | `Node -> node
       | `Contents m ->
           if Type.equal M.t m M.default then contents else contents_m m)
@@ -126,8 +125,7 @@ struct
 
   let value_t =
     let open Type in
-    variant "value" (fun n c x ->
-      function
+    variant "value" (fun n c x -> function
       | `Node h -> n h
       | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m))
     |~ case1 "node" K.t (fun k -> `Node k)

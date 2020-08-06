@@ -91,8 +91,7 @@ module Json_value = struct
   let t =
     let open Type in
     mu (fun ty ->
-        variant "json" (fun null bool string float obj arr ->
-          function
+        variant "json" (fun null bool string float obj arr -> function
           | `Null -> null
           | `Bool b -> bool b
           | `String s -> string s

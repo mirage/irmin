@@ -231,8 +231,8 @@ struct
 
       let value_t =
         let open Irmin.Type in
-        variant "Tree.value" (fun node contents ->
-          function `Node n -> node n | `Contents c -> contents c)
+        variant "Tree.value" (fun node contents -> function
+          | `Node n -> node n | `Contents c -> contents c)
         |~ case1 "node" hash_t (fun n -> `Node n)
         |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
         |> sealv
@@ -714,7 +714,7 @@ functor
               is not critical for Irmin consistency (it's only a
               convenience for the user). *)
            b
-         then
+          then
            match set with
            | None -> Lwt.return_unit
            | Some v -> write_index t gr v
@@ -830,8 +830,7 @@ module Reference : BRANCH with type t = reference = struct
 
   let t =
     let open Irmin.Type in
-    variant "reference" (fun branch remote tag other ->
-      function
+    variant "reference" (fun branch remote tag other -> function
       | `Branch x -> branch x
       | `Remote x -> remote x
       | `Tag x -> tag x

@@ -40,8 +40,8 @@ module Store_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
 
   let t =
     let open Irmin.Type in
-    variant "t" (fun value merge ->
-      function Value v -> value v | Merge l -> merge l)
+    variant "t" (fun value merge -> function
+      | Value v -> value v | Merge l -> merge l)
     |~ case1 "Value" L.t (fun v -> Value v)
     |~ case1 "Merge" (list L.t) (fun l -> Merge l)
     |> sealv

@@ -1,4 +1,4 @@
-version = 0.14.2
+version = 0.15.0
 break-infix = fit-or-vertical
 parse-docstrings = true
 indicate-multiline-delimiters = no
