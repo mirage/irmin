@@ -2,7 +2,7 @@
  (name main)
  (libraries irmin bechamel fpath yojson ppx_deriving_yojson.runtime unix)
  (preprocess
-  (pps ppx_deriving_yojson)))
+  (pps ppx_irmin ppx_deriving_yojson)))
 
 (rule
  (alias bench)
