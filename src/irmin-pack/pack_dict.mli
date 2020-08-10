@@ -13,7 +13,7 @@
 include Dict.S
 
 val v :
-  ?version:[ `V1 | `V2 ] ->
+  ?version:IO.version ->
   ?fresh:bool ->
   ?readonly:bool ->
   ?capacity:int ->

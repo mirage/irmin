@@ -18,9 +18,9 @@ module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
   val v :
-    ?version:[ `V1 | `V2 ] -> ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+    ?version:IO.version -> ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 
-  val version : t -> [ `V1 | `V2 ]
+  val version : t -> IO.version
 
   val generation : t -> int64
 end

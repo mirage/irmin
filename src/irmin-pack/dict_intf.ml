@@ -26,7 +26,7 @@ module type S = sig
   val sync : t -> unit
 
   val v :
-    ?version:[ `V1 | `V2 ] ->
+    ?version:IO.version ->
     ?fresh:bool ->
     ?readonly:bool ->
     ?capacity:int ->
@@ -39,7 +39,7 @@ module type S = sig
 
   val valid : t -> bool
 
-  val version : t -> [ `V1 | `V2 ]
+  val version : t -> IO.version
 
   val generation : t -> int64
 end

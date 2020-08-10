@@ -41,7 +41,7 @@ module type S = sig
   type index
 
   val v :
-    ?version:[ `V1 | `V2 ] ->
+    ?version:IO.version ->
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
@@ -70,7 +70,7 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val version : 'a t -> [ `V1 | `V2 ]
+  val version : 'a t -> IO.version
 
   val generation : 'a t -> int64
 end

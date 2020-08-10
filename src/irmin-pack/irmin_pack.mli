@@ -113,17 +113,16 @@ end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
-  include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-
-  val v :
-    ?version:[ `V1 | `V2 ] -> ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-
-  val version : t -> [ `V1 | `V2 ]
-end
-
-module Stats = Stats
-
 type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
+
+module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
+  include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
+
+  val v : ?version:version -> ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+
+  val version : t -> version
+end
+
+module Stats = Stats

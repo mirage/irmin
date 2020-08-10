@@ -27,7 +27,7 @@ module type S = sig
   type index
 
   val v :
-    ?version:[ `V1 | `V2 ] ->
+    ?version:IO.version ->
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->

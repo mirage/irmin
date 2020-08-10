@@ -82,7 +82,7 @@ module Unix : S = struct
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
-    mutable version : [ `V1 | `V2 ];
+    mutable version : version;
     buf : Buffer.t;
   }
 
