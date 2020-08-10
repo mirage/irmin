@@ -19,7 +19,7 @@ end) : sig
 
   type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
 
-  val get_dict : ?version:[ `V1 | `V2 ] -> unit -> d
+  val get_dict : ?version:Irmin_pack.version -> unit -> d
   (** Fresh, empty dict. *)
 
   type t = {
