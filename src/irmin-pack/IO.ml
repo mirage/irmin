@@ -189,18 +189,22 @@ module Unix : S = struct
     (* no-op if the file is already empty; this is to avoid bumping
        the version number when this is not necessary. *)
     if t.offset = 0L then ()
-    else (
-      t.offset <- 0L;
-      t.flushed <- header t;
-      if t.version = `V1 then t.version <- `V2;
-      t.generation <- Int64.succ t.generation;
-      (* set the header, because calling flush after clear will not set it. *)
-      Raw.Header.set t.raw
-        {
-          Raw.Header.version = bin_of_version t.version;
-          offset = t.offset;
-          generation = t.generation;
-        })
+    else
+      let version =
+        match t.version with
+        | `V1 -> (* [clear] did not exist in v1 *) `V2
+        | v -> v
+      in
+      let generation = Int64.succ t.generation in
+      let h =
+        { Raw.Header.version = bin_of_version version; offset = 0L; generation }
+      in
+      (* set and flush the header *)
+      Raw.Header.set t.raw h;
+      t.offset <- h.offset;
+      t.version <- version;
+      t.generation <- h.generation;
+      t.flushed <- header t
 
   let v ~version ~fresh ~readonly file =
     let v ~offset ~version ~generation raw =
