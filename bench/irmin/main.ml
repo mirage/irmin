@@ -63,6 +63,11 @@ end
 module Faker = struct
   let () = Random.self_init ()
 
+  let unit () = ()
+
+  let bool () =
+    match Random.int 2 with 0 -> false | 1 -> true | _ -> assert false
+
   let char_int () = Random.int (1 lsl 8)
 
   let short_int () = (1 lsl 8) + Random.int (1 lsl 8)
@@ -82,6 +87,22 @@ module Faker = struct
   let pair a b () = (a (), b ())
 
   let triple a b c () = (a (), b (), c ())
+
+  type record = { foo : string; bar : int64; baz : bool * unit }
+  [@@deriving irmin]
+
+  type variant = Foo of string | Bar of int64 | Baz of bool * unit
+  [@@deriving irmin]
+
+  let record () =
+    { foo = string 10 (); bar = int64 (); baz = (bool (), unit ()) }
+
+  let variant () =
+    match Random.int 3 with
+    | 0 -> Foo (string 10 ())
+    | 1 -> Bar (int64 ())
+    | 2 -> Baz (bool (), unit ())
+    | _ -> assert false
 end
 
 let nb_runs = 30_000
@@ -113,6 +134,10 @@ module Data = struct
       in
       E { typ; random; encoded }
 
+    let unit = mk_data T.unit Faker.unit
+
+    let bool = mk_data T.bool Faker.bool
+
     let hash =
       mk_data Hash.t (fun () -> Hash.hash (fun f -> f (Faker.string 1024 ())))
 
@@ -137,6 +162,10 @@ module Data = struct
       mk_data
         T.(triple int int int)
         Faker.(triple short_int short_int short_int)
+
+    let record = mk_data Faker.record_t Faker.record
+
+    let variant = mk_data Faker.variant_t Faker.variant
   end
 end
 
@@ -155,8 +184,8 @@ let test ~op ~name (E data : Data.t) =
     match op.Generic_op.operation with
     | Codec { encode; decode } ->
         [
-          Test.make ~name:"enc" (distrib_arr (encode data.typ) data.random);
-          Test.make ~name:"dec"
+          Test.make ~name:"encoder" (distrib_arr (encode data.typ) data.random);
+          Test.make ~name:"decoder"
             (distrib_arr (decode data.typ) (data.encoded |> Option.get));
         ]
     | Consumer { consume } ->
@@ -174,6 +203,8 @@ let test_operation ~name (op : Generic_op.t) =
   let test = test ~op in
   Test.make_grouped ~name
     [
+      test ~name:"unit" Data.unit;
+      test ~name:"bool" Data.bool;
       Test.make_grouped ~name:"int"
         [
           test ~name:"char (0 <= b <= 7)" Data.char_int;
@@ -187,6 +218,8 @@ let test_operation ~name (op : Generic_op.t) =
       test ~name:"int64" Data.int64;
       test ~name:"pair_string_int" Data.pair_string_int;
       test ~name:"triple_short_int" Data.triple_short_int;
+      test ~name:"record" Data.record;
+      test ~name:"variant" Data.variant;
     ]
 
 let suite () =
@@ -208,7 +241,7 @@ let benchmark () =
     Instance.[ minor_allocated; major_allocated; monotonic_clock ]
   in
   let raw_results =
-    let quota = Mtime.Span.of_uint64_ns 1_000_000_000L (* 1s *) in
+    let quota = Mtime.Span.of_uint64_ns 5_000_000_000L (* 5s *) in
     Benchmark.all (Benchmark.cfg ~run:nb_runs ~quota ()) instances suite
   in
   List.map (fun instance -> Analyze.all ols instance raw_results) instances
