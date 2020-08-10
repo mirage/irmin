@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Dict_intf
+
 let src =
   Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"
 
@@ -21,7 +23,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let ( -- ) = Int64.sub
 
-module Make (IO : IO.S) : S.DICT = struct
+module Make (IO : IO.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;

@@ -12,7 +12,7 @@
 
 open Lwt.Infix
 
-module Content_addressable (S : S.CONTENT_ADDRESSABLE_STORE) = struct
+module Content_addressable (S : Pack.S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
 
   type key = S.key

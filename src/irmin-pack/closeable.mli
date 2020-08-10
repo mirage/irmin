@@ -12,8 +12,8 @@
 
 (** Augments primitive store modules with close semantics *)
 
-module Content_addressable (CA : S.CONTENT_ADDRESSABLE_STORE) :
-  S.CONTENT_ADDRESSABLE_STORE
+module Content_addressable (CA : Pack.S) :
+  Pack.S
     with type key = CA.key
      and type value = CA.value
      and type index = CA.index

@@ -14,4 +14,38 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Dict_intf.Dict (** @inline *)
+module type S = sig
+  type t
+
+  val find : t -> int -> string option
+
+  val index : t -> string -> int option
+
+  val flush : t -> unit
+
+  val sync : t -> unit
+
+  val v :
+    ?version:[ `V1 | `V2 ] ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?capacity:int ->
+    string ->
+    t
+
+  val clear : t -> unit
+
+  val close : t -> unit
+
+  val valid : t -> bool
+
+  val version : t -> [ `V1 | `V2 ]
+
+  val generation : t -> int64
+end
+
+module type Dict = sig
+  module type S = S
+
+  module Make (IO : IO.S) : S
+end

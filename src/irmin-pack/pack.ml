@@ -14,46 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Pack_intf
+
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let ( -- ) = Int64.sub
-
-module type ELT = sig
-  include Irmin.Type.S
-
-  type hash
-
-  val hash : t -> hash
-
-  val magic : t -> char
-
-  val encode_bin :
-    dict:(string -> int option) ->
-    offset:(hash -> int64 option) ->
-    t ->
-    hash ->
-    (string -> unit) ->
-    unit
-
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
-end
-
-module type MAKER = sig
-  type key
-
-  type index
-
-  module Make (V : ELT with type hash := key) :
-    S.CONTENT_ADDRESSABLE_STORE
-      with type key = key
-       and type value = V.t
-       and type index = index
-end
-
-module type S = S.CONTENT_ADDRESSABLE_STORE
 
 open Lwt.Infix
 
