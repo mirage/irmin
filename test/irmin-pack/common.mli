@@ -29,7 +29,7 @@ end) : sig
     clone_index_pack : readonly:bool -> (Index.t * [ `Read ] Pack.t) Lwt.t;
   }
 
-  val get_pack : ?version:[ `V1 | `V2 ] -> ?lru_size:int -> unit -> t Lwt.t
+  val get_pack : ?version:Irmin_pack.version -> ?lru_size:int -> unit -> t Lwt.t
   (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
       same location, [clone_index_pack] opens a clone of the index and the pack. *)
 
@@ -42,4 +42,4 @@ val sha1 : string -> H.t
 
 val rm_dir : string -> unit
 
-val version : [ `V1 | `V2 ] Alcotest.testable
+val version : Irmin_pack.version Alcotest.testable
