@@ -102,14 +102,7 @@ module Unix : S = struct
       let offset = t.offset in
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf;
-      (* version and generation can change after a clear *)
-      Raw.Header.set t.raw
-        {
-          Raw.Header.version = bin_of_version t.version;
-          offset;
-          generation = t.generation;
-        };
-
+      Raw.Offset.set t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       let h = header t in
