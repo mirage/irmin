@@ -173,15 +173,17 @@ module Dict = struct
   let test_upgrade () =
     let Context.{ dict; _ } = Context.get_dict ~version:`V1 () in
     let check_version_and_generation = check_version_and_generation dict in
-    check_version_and_generation "v1, generation 0" `V1 0L;
+    check_version_and_generation "V1 format always has generation = 0" `V1 0L;
     Dict.clear dict;
-    check_version_and_generation "nothing to clear: v1, generation 0" `V1 0L;
+    check_version_and_generation "no-op [clear] does not bump the generation"
+      `V1 0L;
     let (_ : int option) = Dict.index dict "foo" in
     Dict.clear dict;
-    check_version_and_generation "v2, generation 1" `V2 1L;
+    check_version_and_generation
+      "[clear] upgrades the version and bumps the generation" `V2 1L;
     let (_ : int option) = Dict.index dict "bar" in
     Dict.clear dict;
-    check_version_and_generation "v2, generation 2" `V2 2L;
+    check_version_and_generation "Subsequent clears bump the generation" `V2 2L;
     Dict.close dict
 
   (** A readonly instance will only reads the version when the store is opened. *)
