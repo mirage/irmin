@@ -62,12 +62,7 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
-let pp_version ppf v =
-  let rec aux i = function
-    | (x, _) :: t -> if v = x then i else aux (i + 1) t
-    | [] -> assert false
-  in
-  Fmt.pf ppf "v%d" (aux 1 versions)
+let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 
 let bin_of_version v = List.assoc v versions
 
