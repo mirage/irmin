@@ -248,7 +248,7 @@ module Unix : S = struct
               in
               Fmt.failwith "invalid version: got %S, expecting %a" version
                 Fmt.(Dump.list pp_full_version)
-                [ `V1; `V2 ])
+                (List.map fst versions))
 
   let close t = Raw.close t.raw
 end
