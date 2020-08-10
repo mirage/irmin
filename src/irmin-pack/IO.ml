@@ -88,11 +88,9 @@ module Unix : S = struct
 
   let name t = t.file
 
-  let header_v1 = 16L (* offset + version *)
-
-  let header_v2 = 24L (* offset + version + generation *)
-
-  let header_of_version = function `V1 -> header_v1 | `V2 -> header_v2
+  let header_of_version = function
+    | `V1 -> (* offset + version *) 16L
+    | `V2 -> (* offset + version + generation *) 24L
 
   let header t = header_of_version t.version
 
