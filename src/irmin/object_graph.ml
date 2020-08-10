@@ -99,8 +99,7 @@ struct
 
     let t =
       let open Type in
-      variant "vertex" (fun contents node commit branch ->
-        function
+      variant "vertex" (fun contents node commit branch -> function
         | `Contents x -> contents x
         | `Node x -> node x
         | `Commit x -> commit x

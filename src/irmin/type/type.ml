@@ -255,8 +255,8 @@ let enum vname l =
   Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk) }
 
 let result a b =
-  variant "result" (fun ok error ->
-    function Ok x -> ok x | Error x -> error x)
+  variant "result" (fun ok error -> function
+    | Ok x -> ok x | Error x -> error x)
   |~ case1 "ok" a (fun a -> Ok a)
   |~ case1 "error" b (fun b -> Error b)
   |> sealv

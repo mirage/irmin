@@ -13,8 +13,8 @@ module Car = struct
 
   let color =
     let open Irmin.Type in
-    variant "color" (fun black white other ->
-      function Black -> black | White -> white | Other color -> other color)
+    variant "color" (fun black white other -> function
+      | Black -> black | White -> white | Other color -> other color)
     |~ case0 "Black" Black
     |~ case0 "White" White
     |~ case1 "Other" string (fun s -> Other s)

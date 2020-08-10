@@ -434,8 +434,8 @@ let conflict_t =
 
 let result_t ok =
   let open Type in
-  variant "result" (fun ok error ->
-    function Ok x -> ok x | Error x -> error x)
+  variant "result" (fun ok error -> function
+    | Ok x -> ok x | Error x -> error x)
   |~ case1 "ok" ok (fun x -> Ok x)
   |~ case1 "error" conflict_t (fun x -> Error x)
   |> sealv

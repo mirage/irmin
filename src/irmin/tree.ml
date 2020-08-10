@@ -68,17 +68,18 @@ module Make (P : S.PRIVATE) = struct
   let counters_t =
     let open Type in
     record "counters"
-      (fun contents_hash
-           contents_find
-           contents_add
-           node_hash
-           node_mem
-           node_add
-           node_find
-           node_val_v
-           node_val_find
-           node_val_list
-           ->
+      (fun
+        contents_hash
+        contents_find
+        contents_add
+        node_hash
+        node_mem
+        node_add
+        node_find
+        node_val_v
+        node_val_find
+        node_val_list
+      ->
         {
           contents_hash;
           contents_find;
@@ -190,8 +191,8 @@ module Make (P : S.PRIVATE) = struct
 
     let v =
       let open Type in
-      variant "Node.Contents.v" (fun hash value ->
-        function Hash (_, x) -> hash x | Value v -> value v)
+      variant "Node.Contents.v" (fun hash value -> function
+        | Hash (_, x) -> hash x | Value v -> value v)
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
       |> sealv
@@ -333,8 +334,7 @@ module Make (P : S.PRIVATE) = struct
 
     let elt_t t : elt Type.t =
       let open Type in
-      variant "Node.value" (fun node contents contents_m ->
-        function
+      variant "Node.value" (fun node contents contents_m -> function
         | `Node x -> node x
         | `Contents (c, m) ->
             if Type.equal Metadata.t m Metadata.default then contents c
@@ -354,8 +354,7 @@ module Make (P : S.PRIVATE) = struct
 
     let v_t (m : map Type.t) : v Type.t =
       let open Type in
-      variant "Node.node" (fun map hash value ->
-        function
+      variant "Node.node" (fun map hash value -> function
         | Map m -> map m
         | Hash (_, y) -> hash y
         | Value (_, v, m) -> value (v, m))
@@ -885,8 +884,8 @@ module Make (P : S.PRIVATE) = struct
 
   let tree_t =
     let open Type in
-    variant "tree" (fun node contents ->
-      function `Node n -> node n | `Contents c -> contents c)
+    variant "tree" (fun node contents -> function
+      | `Node n -> node n | `Contents c -> contents c)
     |~ case1 "node" Node.t (fun n -> `Node n)
     |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
            `Contents c)
@@ -1406,8 +1405,8 @@ module Make (P : S.PRIVATE) = struct
   let concrete_t : concrete Type.t =
     let open Type in
     mu (fun concrete_t ->
-        variant "concrete" (fun tree contents ->
-          function `Tree t -> tree t | `Contents c -> contents c)
+        variant "concrete" (fun tree contents -> function
+          | `Tree t -> tree t | `Contents c -> contents c)
         |~ case1 "tree" (list (pair Path.step_t concrete_t)) (fun t -> `Tree t)
         |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
                `Contents c)
