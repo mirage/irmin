@@ -126,7 +126,11 @@ module Unix : S = struct
   let set t ~off buf =
     if t.readonly then raise RO_Not_Allowed;
     unsafe_flush t;
-    Raw.unsafe_write t.raw ~off:(header t ++ off) buf
+    Raw.unsafe_write t.raw ~off:(header t ++ off) buf;
+    assert (
+      let len = Int64.of_int (String.length buf) in
+      let off = header t ++ off ++ len in
+      off <= t.flushed)
 
   let read t ~off buf =
     assert (if not t.readonly then header t ++ off <= t.flushed else true);
