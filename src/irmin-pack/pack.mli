@@ -35,40 +35,7 @@ module type ELT = sig
     dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
 end
 
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  val unsafe_append : 'a t -> key -> value -> unit
-
-  val unsafe_mem : 'a t -> key -> bool
-
-  val unsafe_find : 'a t -> key -> value option
-
-  val flush : ?index:bool -> 'a t -> unit
-
-  val sync : 'a t -> unit
-
-  val clear : 'a t -> unit
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-end
+module type S = S.CONTENT_ADDRESSABLE_STORE
 
 module type MAKER = sig
   type key
@@ -78,7 +45,10 @@ module type MAKER = sig
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
   module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    S.CONTENT_ADDRESSABLE_STORE
+      with type key = key
+       and type value = V.t
+       and type index = index
 end
 
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :

@@ -14,11 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type version
-
-val v1 : version
-
-val v2 : version
+type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
 
@@ -27,7 +23,7 @@ module type S = sig
 
   exception RO_Not_Allowed
 
-  val v : fresh:bool -> version:version -> readonly:bool -> string -> t
+  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -59,8 +55,9 @@ end
 module Unix : S
 
 val with_cache :
-  v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
+  v:('a -> version:version -> fresh:bool -> readonly:bool -> string -> 'b) ->
   clear:('b -> unit) ->
   valid:('b -> bool) ->
   string ->
-  [ `Staged of 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]
+  [ `Staged of
+    'a -> ?version:version -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]

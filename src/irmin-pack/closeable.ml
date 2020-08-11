@@ -12,7 +12,7 @@
 
 open Lwt.Infix
 
-module Pack (S : Pack.S) = struct
+module Content_addressable (S : S.CONTENT_ADDRESSABLE_STORE) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
 
   type key = S.key
@@ -43,9 +43,17 @@ module Pack (S : Pack.S) = struct
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
-  let v ?fresh ?readonly ?lru_size ~index root =
-    S.v ?fresh ?readonly ?lru_size ~index root >|= fun t ->
+  let v ?version ?fresh ?readonly ?lru_size ~index root =
+    S.v ?version ?fresh ?readonly ?lru_size ~index root >|= fun t ->
     { closed = ref false; t }
+
+  let version t =
+    check_not_closed t;
+    S.version t.t
+
+  let generation t =
+    check_not_closed t;
+    S.generation t.t
 
   let close t =
     if !(t.closed) then Lwt.return_unit
@@ -93,6 +101,14 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
+  let version t =
+    check_not_closed t;
+    AW.version t.t
+
+  let generation t =
+    check_not_closed t;
+    AW.generation t.t
+
   let mem t k =
     check_not_closed t;
     AW.mem t.t k
@@ -131,8 +147,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     check_not_closed t;
     AW.unwatch t.t w
 
-  let v ?fresh ?readonly root =
-    AW.v ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
+  let v ?version ?fresh ?readonly root =
+    AW.v ?version ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit

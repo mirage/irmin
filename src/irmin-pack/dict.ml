@@ -19,31 +19,9 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = IO.v2
-
 let ( -- ) = Int64.sub
 
-module type S = sig
-  type t
-
-  val find : t -> int -> string option
-
-  val index : t -> string -> int option
-
-  val flush : t -> unit
-
-  val sync : t -> unit
-
-  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-
-  val clear : t -> unit
-
-  val close : t -> unit
-
-  val valid : t -> bool
-end
-
-module Make (IO : IO.S) : S = struct
+module Make (IO : IO.S) : S.DICT = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
@@ -55,6 +33,10 @@ module Make (IO : IO.S) : S = struct
   let int32_to_bin = Irmin.Type.(unstage (to_bin_string int32))
 
   let decode_int32 = Irmin.Type.(unstage (decode_bin int32))
+
+  let version t = IO.version t.io
+
+  let generation t = IO.generation t.io
 
   let append_string t v =
     let len = Int32.of_int (String.length v) in
@@ -121,8 +103,9 @@ module Make (IO : IO.S) : S = struct
     Hashtbl.clear t.cache;
     Hashtbl.clear t.index
 
-  let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version:current_version ~readonly file in
+  let v ?(version = `V2) ?(fresh = true) ?(readonly = false)
+      ?(capacity = 100_000) file =
+    let io = IO.v ~fresh ~version ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
