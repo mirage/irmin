@@ -13,6 +13,7 @@
 (rule
  (alias runtest)
  (package irmin-unix)
+ (locks ../http)
  (action
   (chdir
    %{workspace_root}
