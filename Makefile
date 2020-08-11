@@ -1,4 +1,4 @@
-.PHONY: all clean test bench doc examples
+.PHONY: all clean test bench-type bench-mem bench-pack bench doc examples
 
 all:
 	dune build
@@ -6,8 +6,16 @@ all:
 test:
 	dune runtest
 
-bench:
-	dune build @runbench --no-buffer -j 1 --force
+bench-type:
+	dune exec ./bench/irmin/main.exe -- --output-dir _build/default/data
+
+bench-mem:
+	dune exec ./test/irmin-mem/bench.exe
+
+bench-pack:
+	dune exec ./test/irmin-pack/bench.exe
+
+bench: bench-type bench-mem bench-pack
 
 examples:
 	dune build @examples
