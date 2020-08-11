@@ -20,6 +20,8 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let current_version = `V2
+
 let ( -- ) = Int64.sub
 
 open Lwt.Infix
@@ -52,7 +54,7 @@ struct
   type index = Index.t
 
   type 'a t = {
-    block : IO.t;
+    mutable block : IO.t;
     index : Index.t;
     dict : Dict.t;
     lock : Lwt_mutex.t;
@@ -70,11 +72,11 @@ struct
       true)
     else false
 
-  let unsafe_v ~version ~index ~fresh ~readonly file =
+  let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
-    let dict = Dict.v ~version ~fresh ~readonly root in
-    let block = IO.v ~version ~fresh ~readonly file in
+    let dict = Dict.v ~fresh ~readonly root in
+    let block = IO.v ~version:current_version ~fresh ~readonly file in
     { block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
@@ -106,7 +108,7 @@ struct
 
     type index = Index.t
 
-    let clear t =
+    let unsafe_clear t =
       clear t.pack;
       Tbl.clear t.staging;
       Lru.clear t.lru
@@ -130,38 +132,32 @@ struct
       if index then Index.flush ~no_callback:() t.pack.index;
       Tbl.clear t.staging
 
-    let unsafe_v_no_cache ~version ~fresh ~readonly ~lru_size ~index root =
-      let pack = v index ~version ~fresh ~readonly root in
+    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
+      let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack; open_instances = 1 }
 
-    let unsafe_v ?(version = `V2) ?(fresh = false) ?(readonly = false)
-        ?(lru_size = 10_000) ~index root =
+    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
+        ~index root =
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
-          if fresh then clear t;
+          if fresh then unsafe_clear t;
           t)
         else (
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
-        let t =
-          unsafe_v_no_cache ~version ~fresh ~readonly ~lru_size ~index root
-        in
-        if fresh then clear t;
+        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+        if fresh then unsafe_clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
-    let v ?version ?fresh ?readonly ?lru_size ~index root =
+    let v ?fresh ?readonly ?lru_size ~index root =
       Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?version ?fresh ?readonly ?lru_size ~index root in
+          let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
-
-    let version t = IO.version t.pack.block
-
-    let generation t = IO.generation t.pack.block
 
     let pp_hash = Irmin.Type.pp K.t
 
@@ -296,11 +292,30 @@ struct
           unsafe_close t;
           Lwt.return_unit)
 
-    let sync t =
-      let former_generation = generation t in
+    let clear t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_clear t;
+          Lwt.return_unit)
+
+    let clear_caches t = Lru.clear t.lru
+
+    let sync ?(on_generation_change = Fun.id) t =
+      let former_generation = IO.generation t.pack.block in
       let generation = IO.force_generation t.pack.block in
-      if former_generation <> generation then Lru.clear t.lru;
-      Dict.sync t.pack.dict;
+      if former_generation <> generation then (
+        Log.debug (fun l -> l "[pack] generation changed, refill buffers");
+        clear_caches t;
+        on_generation_change ();
+        IO.close t.pack.block;
+        let block =
+          IO.v ~fresh:false ~version:current_version ~readonly:true
+            (IO.name t.pack.block)
+        in
+        t.pack.block <- block;
+        Dict.sync ~force_refill:true t.pack.dict)
+      else Dict.sync ~force_refill:false t.pack.dict;
       Index.sync t.pack.index
+
+    let version t = IO.version t.pack.block
   end
 end

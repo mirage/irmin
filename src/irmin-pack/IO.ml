@@ -18,11 +18,21 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let ( // ) = Filename.concat
+
 (* For every new version, update the [version] type and [versions]
    headers. *)
 type version = [ `V1 | `V2 ]
 
 let versions = [ (`V1, "00000001"); (`V2, "00000002") ]
+
+let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+
+let bin_of_version v = List.assoc v versions
+
+let version_of_bin b =
+  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
+  with Not_found -> None
 
 module type S = sig
   type t
@@ -62,14 +72,6 @@ let ( ++ ) = Int64.add
 
 let ( -- ) = Int64.sub
 
-let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
-
-let bin_of_version v = List.assoc v versions
-
-let version_of_bin b =
-  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
-  with Not_found -> None
-
 module Unix : S = struct
   exception RO_Not_Allowed
 
@@ -82,7 +84,7 @@ module Unix : S = struct
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
-    mutable version : version;
+    version : version;
     buf : Buffer.t;
   }
 
@@ -183,32 +185,33 @@ module Unix : S = struct
     Raw.Header.set raw header;
     raw
 
-  let clear t =
-    Log.debug (fun l -> l "clear %s" t.file);
+  let unsafe_clear t =
     if t.readonly then invalid_arg "Read-only IO cannot be cleared";
+    Log.debug (fun l -> l "clear %s" t.file);
+    Buffer.clear t.buf;
+    (* no-op if the file is already empty; this is to avoid bumping
+       the version  number when this is not necessary. *)
+    if t.offset = 0L then ()
+    else (
+      t.offset <- 0L;
+      t.generation <- Int64.succ t.generation;
+      t.flushed <- header t.version;
+      (* update the generation for concurrent readonly instance to
+         notice that the file has been clear when they next sync. *)
+      Raw.Generation.set t.raw t.generation;
+      (* delete the file. *)
+      Raw.close t.raw;
+      Unix.unlink t.file;
+      (* and re-open a fresh instance. *)
+      t.raw <-
+        raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file)
+
+  let clear t =
     match t.version with
     | `V1 -> invalid_arg "V1 stores cannot be cleared"
-    | `V2 ->
-        Buffer.clear t.buf;
-        (* no-op if the file is already empty; this is to avoid bumping
-           the version  number when this is not necessary. *)
-        if t.offset = 0L then ()
-        else (
-          t.offset <- 0L;
-          t.generation <- Int64.succ t.generation;
-          t.flushed <- header t.version;
-          (* update the generation for concurrent readonly instance to
-             notice that the file has been clear when they next sync. *)
-          Raw.Generation.set t.raw t.generation;
-          (* delete the file. *)
-          Raw.close t.raw;
-          Unix.unlink t.file;
-          (* and re-open a fresh instance. *)
-          t.raw <-
-            raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR
-              t.file)
+    | `V2 -> unsafe_clear t
 
-  let v ~version ~fresh ~readonly file =
+  let v ~version:current_version ~fresh ~readonly file =
     let v ~offset ~version ~generation raw =
       {
         version;
@@ -225,21 +228,21 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let raw = raw ~mode ~version ~generation:0L file in
-        v ~offset:0L ~version ~generation:0L raw
+        let raw = raw ~mode ~version:current_version ~generation:0L file in
+        v ~offset:0L ~version:current_version ~generation:0L raw
     | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
-          let headers =
+          let header =
             {
-              Raw.Header.version = bin_of_version version;
+              Raw.Header.version = bin_of_version current_version;
               offset = 0L;
               generation = 0L;
             }
           in
-          Raw.Header.set raw headers;
-          v ~offset:0L ~version ~generation:0L raw)
+          Raw.Header.set raw header;
+          v ~offset:0L ~version:current_version ~generation:0L raw)
         else
           let version = Raw.Version.get raw in
           match version_of_bin version with
@@ -261,12 +264,9 @@ module Unix : S = struct
   let close t = Raw.close t.raw
 end
 
-let ( // ) = Filename.concat
-
 let with_cache ~v ~clear ~valid file =
   let files = Hashtbl.create 13 in
-  let cached_constructor extra_args ?(version = `V2) ?(fresh = false)
-      ?(readonly = false) root =
+  let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
     let file = root // file in
     if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
     try
@@ -287,9 +287,9 @@ let with_cache ~v ~clear ~valid file =
         raise Not_found)
     with Not_found ->
       Log.debug (fun l ->
-          l "[%s] v version=%a fresh=%b readonly=%b" (Filename.basename file)
-            pp_version version fresh readonly);
-      let t = v extra_args ~version ~fresh ~readonly file in
+          l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
+            readonly);
+      let t = v extra_args ~fresh ~readonly file in
       if fresh then clear t;
       Hashtbl.add files (file, readonly) t;
       t

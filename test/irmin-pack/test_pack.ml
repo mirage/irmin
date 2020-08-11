@@ -42,6 +42,7 @@ let suite =
   in
   let clean () =
     let (module S : Irmin_test.S) = store in
+    let module P = S.Private in
     let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
     S.Repo.v config >>= fun repo ->
     S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
@@ -112,7 +113,7 @@ module Dict = struct
     ignore_int (Dict.index dict "titiabc");
     ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Dict.sync r;
+    Dict.sync ~force_refill:false r;
     check_index "titiabc" 3;
     check_index "bar" 1;
     check_index "toto" 2;
@@ -122,7 +123,7 @@ module Dict = struct
     check_raise "hello";
     check_none "hello" 4;
     Dict.flush dict;
-    Dict.sync r;
+    Dict.sync ~force_refill:false r;
     check_find "hello" 4;
     Dict.close dict;
     Dict.close r
@@ -137,7 +138,9 @@ module Dict = struct
       "find foo after clear" None (Dict.find dict 0);
     Dict.close dict
 
-  let test_clear_readonly () =
+  (** Readonly can read old values, after a RW clear but before a sync. Set
+      ~force_refill:true for the first sync after a clear. *)
+  let readonly_find_old () =
     let Context.{ dict; clone } = Context.get_dict () in
     let r = clone ~readonly:true in
     let check_find msg k i =
@@ -145,67 +148,36 @@ module Dict = struct
     in
     ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Dict.sync r;
+    Dict.sync ~force_refill:false r;
     check_find "find before clear" (Some "foo") 0;
     Dict.clear dict;
     Dict.flush dict;
-    Dict.sync r;
-    check_find "find after clear" None 0;
-    ignore_int (Dict.index dict "bar");
-    Dict.flush dict;
-    Dict.sync r;
-    Dict.clear dict;
-    Dict.flush dict;
-    check_find "find after clear but before sync" (Some "bar") 0;
-    Dict.sync r;
+    check_find "find after clear but before sync" (Some "foo") 0;
+    Dict.sync ~force_refill:true r;
     check_find "find after clear and sync" None 0;
     Dict.close dict;
     Dict.close r
 
-  let check_version_and_generation dict msg v g =
-    let v' = Dict.version dict in
-    let g' = Dict.generation dict in
-    Alcotest.(check version) msg v v';
-    Alcotest.(check int64) msg g g'
-
-  (** Clear increases the generation and bumps version to V2 only if the dict is
-      not empty. Otherwise neither generation nor version is changed. *)
-  let test_upgrade () =
-    let Context.{ dict; _ } = Context.get_dict ~version:`V1 () in
-    let check_version_and_generation = check_version_and_generation dict in
-    check_version_and_generation "V1 format always has generation = 0" `V1 0L;
-    Dict.clear dict;
-    check_version_and_generation "no-op [clear] does not bump the generation"
-      `V1 0L;
-    let (_ : int option) = Dict.index dict "foo" in
-    Dict.clear dict;
-    check_version_and_generation
-      "[clear] upgrades the version and bumps the generation" `V2 1L;
-    let (_ : int option) = Dict.index dict "bar" in
-    Dict.clear dict;
-    check_version_and_generation "Subsequent clears bump the generation" `V2 2L;
-    Dict.close dict
-
-  (** A readonly instance will only reads the version when the store is opened. *)
-  let test_upgrade_readonly () =
-    let Context.{ dict; clone } = Context.get_dict ~version:`V1 () in
+  (** Readonly can read old values, after RW clear and add, but before sync. Set
+      ~force_refill:true for the first sync after a clear. *)
+  let readonly_find_old_after_rewrite () =
+    let Context.{ dict; clone } = Context.get_dict () in
     let r = clone ~readonly:true in
-    let check_generation msg g =
-      Dict.flush dict;
-      Dict.sync r;
-      check_version_and_generation r msg `V1 g
+    let check_find msg k i =
+      Alcotest.(check (option string)) msg k (Dict.find r i)
     in
-    check_generation "v1, generation 0" 0L;
-    let (_ : int option) = Dict.index dict "foo" in
+    ignore_int (Dict.index dict "foo");
+    Dict.flush dict;
+    Dict.sync ~force_refill:false r;
+    check_find "find before clear" (Some "foo") 0;
     Dict.clear dict;
-    check_generation "v1, generation 1" 1L;
-    let (_ : int option) = Dict.index dict "bar" in
-    Dict.clear dict;
-    check_generation "v1, generation 2" 2L;
+    ignore_int (Dict.index dict "bar");
+    Dict.flush dict;
+    check_find "find after clear and new values added, but before sync"
+      (Some "foo") 0;
+    Dict.sync ~force_refill:true r;
+    check_find "find new values after sync" (Some "bar") 0;
     Dict.close dict;
-    Dict.close r;
-    let r = clone ~readonly:true in
-    check_version_and_generation r "v2, generation 2" `V2 2L;
     Dict.close r
 
   let tests =
@@ -213,9 +185,10 @@ module Dict = struct
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
       Alcotest.test_case "clear" `Quick test_clear;
-      Alcotest.test_case "RO clear" `Quick test_clear_readonly;
-      Alcotest.test_case "upgrade" `Quick test_upgrade;
-      Alcotest.test_case "RO upgrade" `Quick test_upgrade_readonly;
+      Alcotest.test_case "RO find old values after clear" `Quick
+        readonly_find_old;
+      Alcotest.test_case "RO find old values after clear and add" `Quick
+        readonly_find_old_after_rewrite;
     ]
 end
 
@@ -340,7 +313,6 @@ module Pack = struct
     Alcotest.(check string) "x2.1" x2 y2;
     Pack.find w h1 >|= get >>= fun y1 ->
     Alcotest.(check string) "x1.1" x1 y1;
-
     (*open and close two packs *)
     let x3 = "toto" in
     let h3 = sha1 x3 in
@@ -438,104 +410,75 @@ module Pack = struct
     Pack.flush t.pack;
     Pack.find t.pack k >>= fun v1 ->
     Alcotest.(check (option string)) "before clear" (Some v) v1;
-    Pack.clear t.pack;
+    Pack.clear t.pack >>= fun () ->
     Pack.find t.pack k >>= fun v2 ->
     Alcotest.(check (option string)) "after clear" None v2;
     Context.close t.index t.pack
 
-  let test_clear_readonly () =
-    Context.get_pack ~lru_size:10 () >>= fun t ->
+  (** Readonly can read old values, after a RW clear but before a sync. Old
+      values can be either in the log or in the data file. [persist] calls
+      [Index.flush] to the test for old values in log; it calls [Index.filter]
+      to force a merge, to add the values in the data file. *)
+  let readonly_find_old () =
+    Context.get_pack () >>= fun t ->
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
     let check h x msg =
       Pack.find r h >|= fun y -> Alcotest.(check (option string)) msg x y
     in
     let x1 = "foo" in
     let h1 = sha1 x1 in
-    Pack.unsafe_append t.pack h1 x1;
-    Pack.flush t.pack;
-    Pack.sync r;
-    check h1 (Some x1) "find before clear" >>= fun () ->
-    Pack.clear t.pack;
-    Pack.flush t.pack;
-    Pack.sync r;
-    check h1 None "find after clear" >>= fun () ->
-    let find_before_and_after_sync flush file =
+    let find_before_and_after_sync persist file =
       Pack.unsafe_append t.pack h1 x1;
-      flush ();
+      persist ();
       Pack.sync r;
-      Pack.clear t.pack;
+      Pack.clear t.pack >>= fun () ->
       Pack.flush t.pack;
       check h1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
       >>= fun () ->
       Pack.sync r;
       check h1 None ("find in " ^ file ^ " after clear and sync")
     in
-    find_before_and_after_sync (fun () -> Pack.flush t.pack) "log" >>= fun () ->
+    find_before_and_after_sync (fun () -> Index.flush t.index) "log"
+    >>= fun () ->
     find_before_and_after_sync
       (fun () -> Index.filter t.index (fun _ -> true))
       "data"
     >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
-  let check_version_and_generation pack msg v g =
-    let v' = Pack.version pack in
-    let g' = Pack.generation pack in
-    Alcotest.(check version) msg v v';
-    Alcotest.(check int64) msg g g'
-
-  let test_upgrade () =
-    Context.get_pack ~version:`V1 () >>= fun t ->
-    let check_version_and_generation = check_version_and_generation t.pack in
-    check_version_and_generation "v1, generation 0" `V1 0L;
-    Pack.clear t.pack;
-    check_version_and_generation "nothing to clear: v1, generation 0" `V1 0L;
-    let v = "foo" in
-    let k = sha1 v in
-    Pack.unsafe_append t.pack k v;
-    Pack.clear t.pack;
-    check_version_and_generation "v2, generation 1" `V2 1L;
-    Pack.unsafe_append t.pack k v;
-    Pack.clear t.pack;
-    check_version_and_generation "v2, generation 2" `V2 2L;
-    Context.close t.index t.pack
-
-  let test_upgrade_close () =
-    Context.get_pack ~version:`V1 () >>= fun t ->
-    Context.close t.index t.pack >>= fun () ->
-    let open_and_close_readonly msg v g =
-      t.clone_index_pack ~readonly:true >>= fun (i, r) ->
-      check_version_and_generation r msg v g;
-      Context.close i r
-    in
-    open_and_close_readonly "v1, generation 0" `V1 0L >>= fun () ->
-    t.clone_index_pack ~readonly:false >>= fun (i, w) ->
-    check_version_and_generation w "v1, generation 0" `V1 0L;
-    let v = "foo" in
-    let k = sha1 v in
-    Pack.unsafe_append w k v;
-    Pack.clear w;
-    Context.close i w >>= fun () ->
-    open_and_close_readonly "v2, generation 1" `V2 1L >>= fun () ->
-    t.clone_index_pack ~readonly:false >>= fun (i, w) ->
-    check_version_and_generation w "v2, generation 1" `V2 1L;
-    Context.close i w
-
-  (** A readonly instance only reads the version when the store is opened. *)
-  let test_upgrade_readonly () =
-    Context.get_pack ~version:`V1 () >>= fun t ->
+  (** Similar to the test above, but the read-write pack adds new values after a
+      clear, and before a readonly sync. *)
+  let readonly_find_old_after_rewrite () =
+    Context.get_pack () >>= fun t ->
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
-    let check_generation msg g = check_version_and_generation r msg `V1 g in
-    check_generation "v1, generation 0" 0L;
-    let v = "foo" in
-    let k = sha1 v in
-    Pack.unsafe_append t.pack k v;
-    Pack.flush t.pack;
-    Pack.sync r;
-    check_generation "v1, generation 0" 0L;
-    Pack.clear t.pack;
-    Pack.flush t.pack;
-    Pack.sync r;
-    check_generation "v1, generation 1" 1L;
+    let check h x msg =
+      Pack.find r h >|= fun y -> Alcotest.(check (option string)) msg x y
+    in
+    let x1 = "foo" in
+    let h1 = sha1 x1 in
+    let x2 = "bar" in
+    let h2 = sha1 x2 in
+    let find_before_and_after_sync persist file =
+      Pack.unsafe_append t.pack h1 x1;
+      persist ();
+      Pack.sync r;
+      Pack.clear t.pack >>= fun () ->
+      Pack.unsafe_append t.pack h2 x2;
+      persist ();
+      check h1 (Some x1)
+        ("find old values in " ^ file ^ " after clear but before sync")
+      >>= fun () ->
+      Pack.sync r;
+      check h1 None ("do not find old values in " ^ file ^ " after sync")
+      >>= fun () ->
+      check h2 (Some x2) ("find new values in " ^ file ^ " after sync")
+    in
+    find_before_and_after_sync (fun () -> Index.flush t.index) "log"
+    >>= fun () ->
+    find_before_and_after_sync
+      (fun () -> Index.filter t.index (fun _ -> true))
+      "data"
+    >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
   let tests =
@@ -554,14 +497,10 @@ module Pack = struct
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
       Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
-      Alcotest.test_case "readonly clear" `Quick (fun () ->
-          Lwt_main.run (test_clear_readonly ()));
-      Alcotest.test_case "upgrade" `Quick (fun () ->
-          Lwt_main.run (test_upgrade ()));
-      Alcotest.test_case "upgrade and close" `Quick (fun () ->
-          Lwt_main.run (test_upgrade_close ()));
-      Alcotest.test_case "readonly upgrade" `Quick (fun () ->
-          Lwt_main.run (test_upgrade_readonly ()));
+      Alcotest.test_case "readonly find old values after clear" `Quick
+        (fun () -> Lwt_main.run (readonly_find_old ()));
+      Alcotest.test_case "readonly find old values after clear and add" `Quick
+        (fun () -> Lwt_main.run (readonly_find_old_after_rewrite ()));
     ]
 end
 

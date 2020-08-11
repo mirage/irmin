@@ -43,17 +43,9 @@ module Content_addressable (S : Pack.S) = struct
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
-  let v ?version ?fresh ?readonly ?lru_size ~index root =
-    S.v ?version ?fresh ?readonly ?lru_size ~index root >|= fun t ->
+  let v ?fresh ?readonly ?lru_size ~index root =
+    S.v ?fresh ?readonly ?lru_size ~index root >|= fun t ->
     { closed = ref false; t }
-
-  let version t =
-    check_not_closed t;
-    S.version t.t
-
-  let generation t =
-    check_not_closed t;
-    S.generation t.t
 
   let close t =
     if !(t.closed) then Lwt.return_unit
@@ -77,9 +69,9 @@ module Content_addressable (S : Pack.S) = struct
     check_not_closed t;
     S.flush ?index t.t
 
-  let sync t =
+  let sync ?on_generation_change t =
     check_not_closed t;
-    S.sync t.t
+    S.sync ?on_generation_change t.t
 
   let clear t =
     check_not_closed t;
@@ -90,6 +82,14 @@ module Content_addressable (S : Pack.S) = struct
   let integrity_check ~offset ~length k t =
     check_not_closed t;
     S.integrity_check ~offset ~length k t.t
+
+  let clear_caches t =
+    check_not_closed t;
+    S.clear_caches t.t
+
+  let version t =
+    check_not_closed t;
+    S.version t.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
@@ -100,14 +100,6 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   type value = AW.value
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let version t =
-    check_not_closed t;
-    AW.version t.t
-
-  let generation t =
-    check_not_closed t;
-    AW.generation t.t
 
   let mem t k =
     check_not_closed t;
@@ -147,8 +139,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     check_not_closed t;
     AW.unwatch t.t w
 
-  let v ?version ?fresh ?readonly root =
-    AW.v ?version ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
+  let v ?fresh ?readonly root =
+    AW.v ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit

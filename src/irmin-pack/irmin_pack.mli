@@ -39,6 +39,8 @@ module Index = Pack_index
 
 exception RO_Not_Allowed
 
+exception Unsupported_version of string
+
 module type CONFIG = sig
   val entries : int
 
@@ -113,16 +115,10 @@ end
 
 module KV (Config : CONFIG) : Irmin.KV_MAKER
 
-type version = [ `V1 | `V2 ]
-
-val pp_version : version Fmt.t
-
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
-  val v : ?version:version -> ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-
-  val version : t -> version
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end
 
 module Stats = Stats

@@ -12,10 +12,4 @@
 
 include Dict.S
 
-val v :
-  ?version:IO.version ->
-  ?fresh:bool ->
-  ?readonly:bool ->
-  ?capacity:int ->
-  string ->
-  t
+val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t

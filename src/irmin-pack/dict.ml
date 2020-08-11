@@ -21,6 +21,8 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let current_version = `V2
+
 let ( -- ) = Int64.sub
 
 module Make (IO : IO.S) : S = struct
@@ -28,17 +30,13 @@ module Make (IO : IO.S) : S = struct
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : IO.t;
+    mutable io : IO.t;
     mutable open_instances : int;
   }
 
   let int32_to_bin = Irmin.Type.(unstage (to_bin_string int32))
 
   let decode_int32 = Irmin.Type.(unstage (decode_bin int32))
-
-  let version t = IO.version t.io
-
-  let generation t = IO.generation t.io
 
   let append_string t v =
     let len = Int32.of_int (String.length v) in
@@ -63,21 +61,23 @@ module Make (IO : IO.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
-  (** if RW was cleared we have to refill the buffers entirely. In both cases
-      offset needs to be updated, as the offset is used in the refill. *)
-  let sync_offset t =
-    let former_log_offset = IO.offset t.io in
-    let log_offset = IO.force_offset t.io in
-    let former_generation = IO.generation t.io in
-    let generation = IO.force_generation t.io in
-    if former_generation <> generation then (
+  let sync_offset t ~force_refill =
+    if force_refill then (
+      IO.close t.io;
+      let io =
+        IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)
+      in
+      t.io <- io;
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
       refill ~from:0L t)
-    else if log_offset > former_log_offset then refill ~from:former_log_offset t
+    else
+      let former_log_offset = IO.offset t.io in
+      let log_offset = IO.force_offset t.io in
+      if log_offset > former_log_offset then refill ~from:former_log_offset t
 
-  let sync t =
-    if IO.readonly t.io then sync_offset t
+  let sync t ~force_refill =
+    if IO.readonly t.io then sync_offset t ~force_refill
     else invalid_arg "only a readonly instance should call this function"
 
   let flush t = IO.flush t.io
@@ -105,9 +105,8 @@ module Make (IO : IO.S) : S = struct
     Hashtbl.clear t.cache;
     Hashtbl.clear t.index
 
-  let v ?(version = `V2) ?(fresh = true) ?(readonly = false)
-      ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version ~readonly file in
+  let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
+    let io = IO.v ~fresh ~version:current_version ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in

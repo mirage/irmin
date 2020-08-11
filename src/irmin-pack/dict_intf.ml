@@ -23,25 +23,18 @@ module type S = sig
 
   val flush : t -> unit
 
-  val sync : t -> unit
+  val sync : t -> force_refill:bool -> unit
+  (** syncs a readonly dict with the file on disk. if [force_refill] is true
+      then the file is reopened and the in memory caches are refilled entirely.
+      set [force_refill] after a clear to ensure a correct sync. *)
 
-  val v :
-    ?version:IO.version ->
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?capacity:int ->
-    string ->
-    t
+  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 
   val clear : t -> unit
 
   val close : t -> unit
 
   val valid : t -> bool
-
-  val version : t -> IO.version
-
-  val generation : t -> int64
 end
 
 module type Dict = sig

@@ -14,10 +14,10 @@ include Dict.Make (IO.Unix)
 
 (* Add IO caching around Dict.v *)
 let (`Staged v) =
-  let v_no_cache ~version ~fresh ~readonly = v ~version ~fresh ~readonly in
+  let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
   IO.with_cache ~clear ~valid
     ~v:(fun capacity -> v_no_cache ~capacity)
     "store.dict"
 
-let v ?version ?fresh ?readonly ?(capacity = 100_000) root =
-  v capacity ?version ?fresh ?readonly root
+let v ?fresh ?readonly ?(capacity = 100_000) root =
+  v capacity ?fresh ?readonly root
