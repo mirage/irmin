@@ -18,8 +18,3 @@
  (name bench)
  (modules bench)
  (libraries irmin-mem irmin-test.bench))
-
-(rule
- (alias runbench)
- (action
-  (run ./bench.exe)))

@@ -17,11 +17,3 @@
  (package irmin-bench)
  (deps main.exe)
  (action progn))
-
-(rule
- (alias runbench)
- (package irmin-bench)
- (deps (universe))
- (targets ./data)
- (action
-  (run %{exe:main.exe} --output-dir ./data)))

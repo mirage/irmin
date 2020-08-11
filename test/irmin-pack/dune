@@ -20,11 +20,6 @@
  (modules bench)
  (libraries irmin_pack irmin-test.bench))
 
-(rule
- (alias runbench)
- (action
-  (run ./bench.exe)))
-
 (library
  (name common)
  (modules common)
