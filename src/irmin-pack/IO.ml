@@ -151,15 +151,6 @@ module Unix : S = struct
     t.flushed <- header;
     Buffer.clear t.buf
 
-  let buffers = Hashtbl.create 256
-
-  let buffer file =
-    try Hashtbl.find buffers file
-    with Not_found ->
-      let buf = Buffer.create (4 * 1024) in
-      Hashtbl.add buffers file buf;
-      buf
-
   let v ~fresh ~version:current_version ~readonly file =
     assert (String.length current_version = 8);
     let v ~offset ~version raw =
@@ -169,7 +160,7 @@ module Unix : S = struct
         offset;
         raw;
         readonly;
-        buf = buffer file;
+        buf = Buffer.create (4 * 1024);
         flushed = header ++ offset;
       }
     in
