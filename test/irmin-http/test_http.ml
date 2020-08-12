@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let () = Random.self_init ()
+
 open Lwt.Infix
 
 let ( / ) = Filename.concat
@@ -22,14 +24,18 @@ let test_http_dir = "test-http"
 
 let uri = Uri.of_string "http://irmin"
 
-let socket name = test_http_dir / Fmt.strf "irmin-%s.sock" name
+type id = { name : string; id : int }
 
-let pid_file name = test_http_dir / Fmt.strf "irmin-test-%s.pid" name
+let pp ppf t = Fmt.pf ppf "%s-%d" t.name t.id
 
-let pid_file_tmp name = pid_file name ^ ".tmp"
+let socket t = test_http_dir / Fmt.strf "irmin-%a.sock" pp t
+
+let pid_file t = test_http_dir / Fmt.strf "irmin-test-%a.pid" pp t
+
+let tmp_file file = file ^ ".tmp"
 
 module Client (P : sig
-  val name : string
+  val id : id
 end) =
 struct
   include Cohttp_lwt_unix.Client
@@ -37,23 +43,23 @@ struct
   let ctx () =
     let resolver =
       let h = Hashtbl.create 1 in
-      Hashtbl.add h "irmin" (`Unix_domain_socket (socket P.name));
+      Hashtbl.add h "irmin" (`Unix_domain_socket (socket P.id));
       Resolver_lwt_unix.static h
     in
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-let http_store name (module S : Irmin_test.S) =
+let http_store id (module S : Irmin_test.S) =
   let module P = struct
-    let name = name
+    let id = id
   end in
   let module M = Irmin_http.Client (Client (P)) (S) in
   (module M : Irmin_test.S)
 
 let remove file = try Unix.unlink file with _ -> ()
 
-let rec wait_for_the_server_to_start name =
-  let pid_file = pid_file name in
+let rec wait_for_the_server_to_start id =
+  let pid_file = pid_file id in
   if Sys.file_exists pid_file then (
     let ic = open_in pid_file in
     let line = input_line ic in
@@ -64,7 +70,7 @@ let rec wait_for_the_server_to_start name =
     Lwt.return pid)
   else (
     Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start name)
+    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start id)
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
@@ -76,11 +82,11 @@ let mkdir d =
     (function
       | Unix.Unix_error (Unix.EEXIST, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
-let rec lock name =
+let rec lock id =
   let pid = string_of_int (Unix.getpid ()) in
   let pid_len = String.length pid in
-  let pid_file = pid_file name in
-  let pid_file_tmp = pid_file_tmp name in
+  let pid_file = pid_file id in
+  let pid_file_tmp = tmp_file pid_file in
   (* [fd0]'s [O_CREAT] ensures that we are the only one writing to that file *)
   Lwt_unix.openfile pid_file [ Unix.O_CREAT; Unix.O_RDWR ] 0o600 >>= fun fd0 ->
   (* [fd] is used to write the actual PID file; the file is renamed
@@ -100,12 +106,12 @@ let rec lock name =
         Lwt_unix.rename pid_file_tmp pid_file >|= fun () -> fd)
     (function
       | Unix.Unix_error (Unix.EAGAIN, _, _) ->
-          Lwt_unix.close fd >>= fun () -> lock name
+          Lwt_unix.close fd >>= fun () -> lock id
       | e -> Lwt_unix.close fd >>= fun () -> Lwt.fail e)
 
 let unlock fd = Lwt_unix.close fd
 
-let serve servers n =
+let serve servers n id =
   Logs.set_level ~all:true (Some Logs.Debug);
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
   let _, (server : Irmin_test.t) = List.nth servers n in
@@ -115,11 +121,12 @@ let serve servers n =
         (root server.config));
   let (module Server : Irmin_test.S) = server.store in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
-  let socket = socket server.name in
+  let test = { name = server.name; id } in
+  let socket = socket test in
   let server () =
     server.init () >>= fun () ->
     Server.Repo.v server.config >>= fun repo ->
-    lock server.name >>= fun lock ->
+    lock test >>= fun lock ->
     let spec = HTTP.v repo ~strict:false in
     Lwt.catch
       (fun () -> Lwt_unix.unlink socket)
@@ -145,14 +152,15 @@ let kill_server pid =
 
 let suite i server =
   let open Irmin_test in
-  let socket = server.name in
+  let test = { name = server.name; id = Random.int 0x3FFFFFFF } in
+  let socket = socket test in
   let server_pid = ref 0 in
   {
     name = Printf.sprintf "HTTP.%s" server.name;
     init =
       (fun () ->
         remove socket;
-        remove (pid_file server.name);
+        remove (pid_file test);
         mkdir test_http_dir >>= fun () ->
         Lwt_io.flush_all () >>= fun () ->
         let pwd = Sys.getcwd () in
@@ -160,19 +168,21 @@ let suite i server =
           if Filename.basename pwd = "default" then ".." / ".." / "" else ""
         in
         let cmd =
-          root ^ ("_build" / "default" / Fmt.strf "%s serve %d &" Sys.argv.(0) i)
+          root
+          ^ "_build"
+            / "default"
+            / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i test.id
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in
-        wait_for_the_server_to_start server.name >|= fun pid ->
-        server_pid := pid);
+        wait_for_the_server_to_start test >|= fun pid -> server_pid := pid);
     stats = None;
     clean =
       (fun () ->
         kill_server !server_pid;
         server.clean ());
     config = Irmin_http.config uri;
-    store = http_store server.name server.store;
+    store = http_store test server.store;
   }
 
 let suites servers =
@@ -183,10 +193,11 @@ let suites servers =
   else List.mapi (fun i (s, server) -> (s, suite i server)) servers
 
 let with_server servers f =
-  if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then (
+  if Array.length Sys.argv = 4 && Sys.argv.(1) = "serve" then (
     let n = int_of_string Sys.argv.(2) in
+    let id = int_of_string Sys.argv.(3) in
     Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
-    serve servers n)
+    serve servers n id)
   else f ()
 
 type test = Alcotest.speed_level * Irmin_test.t
