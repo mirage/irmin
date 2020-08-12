@@ -1629,7 +1629,10 @@ module Make (S : S) = struct
       Fmt.strf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
-    let oc = open_out_bin (Fmt.str "%s-%s.dot" x.name file) in
+    let oc =
+      open_out_bin
+        (Filename.get_temp_dir_name () / Fmt.str "%s-%s.dot" x.name file)
+    in
     output_string oc (Buffer.contents buf);
     close_out oc;
     Lwt.return_unit
