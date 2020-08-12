@@ -59,7 +59,7 @@ let rec wait_for_the_server_to_start name =
     let line = input_line ic in
     close_in ic;
     let pid = int_of_string line in
-    Logs.debug (fun l -> l "read PID %d fomr %s" pid pid_file);
+    Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
     Unix.unlink pid_file;
     Lwt.return pid)
   else (
