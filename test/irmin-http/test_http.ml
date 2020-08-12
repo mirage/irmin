@@ -134,6 +134,15 @@ let serve servers n =
   in
   Lwt_main.run (server ())
 
+let kill_server pid =
+  let () =
+    try
+      Unix.kill pid Sys.sigkill;
+      try ignore (Unix.waitpid [ Unix.WUNTRACED ] pid) with _ -> ()
+    with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
+  in
+  Fmt.epr "Server [PID %d] is killed.\n%!" pid
+
 let suite i server =
   let open Irmin_test in
   let socket = server.name in
@@ -160,14 +169,8 @@ let suite i server =
     stats = None;
     clean =
       (fun () ->
-        try
-          Unix.kill !server_pid Sys.sigkill;
-          let () =
-            try ignore (Unix.waitpid [ Unix.WUNTRACED ] !server_pid)
-            with _ -> ()
-          in
-          server.clean ()
-        with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit);
+        kill_server !server_pid;
+        server.clean ());
     config = Irmin_http.config uri;
     store = http_store server.name server.store;
   }
