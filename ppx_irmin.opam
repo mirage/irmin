@@ -16,7 +16,7 @@ depends: [
   "dune" {>= "2.5.1"}
   "ocaml" {>= "4.06.0"}
   "ocaml-syntax-shims"
-  "ppxlib" {>= "0.12.0"}
+  "ppxlib" {>= "0.15.0"}
   "irmin" {with-test & >= "2.0.0"}
 ]
 
