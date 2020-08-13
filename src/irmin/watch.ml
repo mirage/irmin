@@ -148,7 +148,7 @@ struct
     id : int;
     (* unique watch manager id. *)
     lock : Lwt_mutex.t;
-    (* protect [keys] and [glb]. *)
+    (* protect [keys] and [glob]. *)
     mutable next : int;
     (* next id, to identify watch handlers. *)
     mutable keys : (key * value option * key_handler) IMap.t;
@@ -228,6 +228,10 @@ struct
             l "watch callback got: %a\n%s" Fmt.exn e (Printexc.get_backtrace ()));
         Lwt.return_unit)
 
+  let pp_option = Fmt.option ~none:(Fmt.any "<none>")
+
+  let pp_key = Type.pp K.t
+
   let notify_all_unsafe t key value =
     let todo = ref [] in
     let glob =
@@ -235,9 +239,8 @@ struct
         (fun id ((init, f) as arg) acc ->
           let fire old_value =
             Log.debug (fun f ->
-                f "notify-all[%d.%d]: firing! (v=%a)" t.id id
-                  Fmt.(Dump.option pp_value)
-                  old_value);
+                f "notify-all[%d.%d:%a]: firing! (%a -> %a)" t.id id pp_key key
+                  (pp_option pp_value) old_value (pp_option pp_value) value);
             todo := protect (fun () -> f key (mk old_value value)) :: !todo;
             let init =
               match value with
@@ -251,7 +254,8 @@ struct
           in
           if equal_opt_values old_value value then (
             Log.debug (fun f ->
-                f "notify-all[%d:%d]: same value, skipping." t.id id);
+                f "notify-all[%d:%d:%a]: same value, skipping." t.id id pp_key
+                  key);
             IMap.add id arg acc)
           else fire old_value)
         t.glob IMap.empty
@@ -269,10 +273,12 @@ struct
           if not (equal_keys key k) then IMap.add id arg acc
           else if equal_opt_values value old_value then (
             Log.debug (fun f ->
-                f "notify-key[%d.%d]: same value, skipping." t.id id);
+                f "notify-key[%d.%d:%a]: same value, skipping." t.id id pp_key
+                  key);
             IMap.add id arg acc)
           else (
-            Log.debug (fun f -> f "notify-key[%d:%d] firing!" t.id id);
+            Log.debug (fun f ->
+                f "notify-key[%d:%d:%a] firing!" t.id id pp_key key);
             todo := protect (fun () -> f (mk old_value value)) :: !todo;
             IMap.add id (k, value, f) acc))
         t.keys IMap.empty

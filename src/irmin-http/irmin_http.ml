@@ -318,6 +318,8 @@ functor
       | "false" -> Lwt.return_false
       | e -> Lwt.fail_with e
 
+    let pp_key = Irmin.Type.pp K.t
+
     let remove t key =
       HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
         [ RO.item t.t; key_str key ] (fun (r, b) ->
@@ -325,8 +327,7 @@ functor
           | `Not_found | `OK -> Lwt.return_unit
           | _ ->
               Cohttp_lwt.Body.to_string b >>= fun b ->
-              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" (Irmin.Type.pp K.t)
-                key b)
+              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" pp_key key b)
 
     let nb_keys t = fst (W.stats t.w)
 
@@ -383,6 +384,11 @@ functor
                   | `Removed _ -> None
                   | `Added v | `Updated (_, v) -> Some v
                 in
+                Log.debug (fun l ->
+                    let pp_opt =
+                      Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp V.t)
+                    in
+                    l "notify %a: %a" pp_key k pp_opt v);
                 W.notify t.w k v)
               s
           in
