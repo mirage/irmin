@@ -364,6 +364,8 @@ module type Stores_extra = sig
     result
 
   val sync : repo -> unit
+
+  val clear : repo -> unit Lwt.t
 end
 
 module Make_ext
@@ -554,6 +556,9 @@ struct
           Commit.CA.clear_caches (snd (commit_t t))
         in
         Contents.CA.sync ~on_generation_change (contents_t t)
+
+      (** Storea share instances so one clear is enough. *)
+      let clear t = Contents.CA.clear (contents_t t)
     end
   end
 
@@ -625,6 +630,8 @@ struct
   include Irmin.Of_private (X)
 
   let sync = X.Repo.sync
+
+  let clear = X.Repo.clear
 end
 
 module Hash = Irmin.Hash.BLAKE2B
