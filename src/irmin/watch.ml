@@ -161,7 +161,9 @@ struct
     (* destroy the notification thread. *)
     mutable listeners : int;
     (* number of listeners. *)
-    mutable stop_listening : unit -> unit Lwt.t; (* clean-up listen resources. *)
+    mutable stop_listening : unit -> unit Lwt.t;
+    (* clean-up listen resources. *)
+    mutable notifications : int; (* number of notifcations. *)
   }
 
   let stats t = (IMap.cardinal t.keys, IMap.cardinal t.glob)
@@ -200,6 +202,7 @@ struct
       glob = IMap.empty;
       listeners = 0;
       stop_listening = (fun () -> Lwt.return_unit);
+      notifications = 0;
     }
 
   let unwatch_unsafe t id =
@@ -241,7 +244,11 @@ struct
             Log.debug (fun f ->
                 f "notify-all[%d.%d:%a]: firing! (%a -> %a)" t.id id pp_key key
                   (pp_option pp_value) old_value (pp_option pp_value) value);
-            todo := protect (fun () -> f key (mk old_value value)) :: !todo;
+            todo :=
+              protect (fun () ->
+                  t.notifications <- t.notifications + 1;
+                  f key (mk old_value value))
+              :: !todo;
             let init =
               match value with
               | None -> KMap.remove key init
@@ -279,7 +286,11 @@ struct
           else (
             Log.debug (fun f ->
                 f "notify-key[%d:%d:%a] firing!" t.id id pp_key key);
-            todo := protect (fun () -> f (mk old_value value)) :: !todo;
+            todo :=
+              protect (fun () ->
+                  t.notifications <- t.notifications + 1;
+                  f (mk old_value value))
+              :: !todo;
             IMap.add id (k, value, f) acc))
         t.keys IMap.empty
     in
@@ -328,7 +339,16 @@ struct
         !listen_dir_hook t.id dir (fun file ->
             match key file with
             | None -> Lwt.return_unit
-            | Some key -> value key >>= notify t key)
+            | Some key ->
+                let rec read n =
+                  value key >>= fun value ->
+                  let n' = t.notifications in
+                  if n = n' then notify t key value
+                  else (
+                    Log.debug (fun l -> l "Stale event, trying reading again");
+                    read n')
+                in
+                read t.notifications)
         >|= fun f -> t.stop_listening <- f)
       else (
         Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
