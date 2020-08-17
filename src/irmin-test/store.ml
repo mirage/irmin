@@ -649,11 +649,17 @@ module Make (S : S) = struct
 
       let empty () = { adds = 0; updates = 0; removes = 0 }
 
-      let add t = t.adds <- t.adds + 1
+      let add t =
+        Log.debug (fun l -> l "add %a" pp t);
+        t.adds <- t.adds + 1
 
-      let update t = t.updates <- t.updates + 1
+      let update t =
+        Log.debug (fun l -> l "update %a" pp t);
+        t.updates <- t.updates + 1
 
-      let remove t = t.removes <- t.removes + 1
+      let remove t =
+        Log.debug (fun l -> l "remove %a" pp t);
+        t.removes <- t.removes + 1
 
       let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
 
