@@ -681,19 +681,18 @@ module Make (S : S) = struct
             if a = b then line msg
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
-      let process ?sleep_t t = function
-        | head ->
-            (match sleep_t with
-            | None -> Lwt.return_unit
-            | Some s -> Lwt_unix.sleep s)
-            >>= fun () ->
-            let () =
-              match head with
-              | `Added _ -> add t
-              | `Updated _ -> update t
-              | `Removed _ -> remove t
-            in
-            Lwt.return_unit
+      let process ?sleep_t t head =
+        (match sleep_t with
+        | None -> Lwt.return_unit
+        | Some s -> Lwt_unix.sleep s)
+        >>= fun () ->
+        let () =
+          match head with
+          | `Added _ -> add t
+          | `Updated _ -> update t
+          | `Removed _ -> remove t
+        in
+        Lwt.return_unit
 
       let apply msg state kind fn ?(first = false) on s n =
         let msg mode n w s =

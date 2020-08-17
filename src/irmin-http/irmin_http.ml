@@ -58,6 +58,18 @@ let invalid_arg fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
 
 exception Escape of ((int * int) * (int * int)) * Jsonm.error
 
+let () =
+  Printexc.register_printer (function
+    | Escape ((start, end_), err) ->
+        Fmt.kstr
+          (fun s -> Some s)
+          "Escape ({ start = %a; end = %a; error = %a })"
+          Fmt.(Dump.pair int int)
+          start
+          Fmt.(Dump.pair int int)
+          end_ Jsonm.pp_error err
+    | _ -> None)
+
 let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
     =
   let d = Jsonm.decoder `Manual in
