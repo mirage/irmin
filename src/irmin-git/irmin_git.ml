@@ -667,16 +667,15 @@ functor
     let set t r k =
       Log.debug (fun f -> f "set %a" pp_branch r);
       let gr = git_of_branch r in
-      Lwt_mutex.with_lock t.m (fun () ->
-          G.Ref.write t.t gr (G.Reference.Hash k))
-      >>= function
+      Lwt_mutex.with_lock t.m @@ fun () ->
+      G.Ref.write t.t gr (G.Reference.Hash k) >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok () -> W.notify t.w r (Some k) >>= fun () -> write_index t gr k
 
     let remove t r =
       Log.debug (fun f -> f "remove %a" pp_branch r);
-      Lwt_mutex.with_lock t.m (fun () -> G.Ref.remove t.t (git_of_branch r))
-      >>= function
+      Lwt_mutex.with_lock t.m @@ fun () ->
+      G.Ref.remove t.t (git_of_branch r) >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok () -> W.notify t.w r None
 
