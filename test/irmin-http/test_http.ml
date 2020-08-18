@@ -58,19 +58,23 @@ let http_store id (module S : Irmin_test.S) =
 
 let remove file = try Unix.unlink file with _ -> ()
 
-let rec wait_for_the_server_to_start id =
-  let pid_file = pid_file id in
-  if Sys.file_exists pid_file then (
-    let ic = open_in pid_file in
-    let line = input_line ic in
-    close_in ic;
-    let pid = int_of_string line in
-    Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
-    Unix.unlink pid_file;
-    Lwt.return pid)
-  else (
-    Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start id)
+let wait_for_the_server_to_start id =
+  let rec aux n =
+    let pid_file = pid_file id in
+    let socket = socket id in
+    if Sys.file_exists pid_file && Sys.file_exists socket then (
+      let ic = open_in pid_file in
+      let line = input_line ic in
+      close_in ic;
+      let pid = int_of_string line in
+      Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
+      Unix.unlink pid_file;
+      Lwt.return pid)
+    else (
+      Logs.debug (fun l -> l "waiting for the server to start...");
+      Lwt_unix.sleep (float n *. 0.1) >>= fun () -> aux (n + 1))
+  in
+  aux 1
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
