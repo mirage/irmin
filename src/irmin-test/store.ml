@@ -151,13 +151,15 @@ module Make (S : S) = struct
     let sleep_t = min sleep_t 1. in
     Lwt_unix.yield () >>= fun () -> Lwt_unix.sleep sleep_t
 
-  let retry ?(timeout = 15.) ?(sleep_t = 0.) fn =
+  (* Re-apply [f] at intervals of [sleep_t] while [f] raises exceptions and
+     [while_ ()] holds. *)
+  let retry ?(timeout = 15.) ?(sleep_t = 0.) ~while_ fn =
     let sleep_t = max sleep_t 0.001 in
     let time = Unix.gettimeofday in
     let t = time () in
     let str i = Fmt.strf "%d, %.3fs" i (time () -. t) in
     let rec aux i =
-      if time () -. t > timeout then fn (str i);
+      if time () -. t > timeout || not (while_ ()) then fn (str i);
       try
         fn (str i);
         Lwt.return_unit
@@ -567,11 +569,17 @@ module Make (S : S) = struct
       >>= fun v ->
       S.watch ?init:h t (fun v -> check v) >>= fun w ->
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
+      retry
+        ~while_:(fun () -> !r < 3)
+        (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r)
+      >>= fun () ->
       S.Head.find t >>= fun h ->
       old_head := h;
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r) >>= fun () ->
+      retry
+        ~while_:(fun () -> !r < 6)
+        (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r)
+      >>= fun () ->
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
@@ -590,9 +598,15 @@ module Make (S : S) = struct
           Lwt.return_unit)
       >>= fun w ->
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
+      retry
+        ~while_:(fun () -> !r < 9)
+        (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r)
+      >>= fun () ->
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r) >>= fun () ->
+      retry
+        ~while_:(fun () -> !r < 12)
+        (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
+      >>= fun () ->
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
@@ -611,7 +625,9 @@ module Make (S : S) = struct
       match x.stats with
       | None -> Lwt.return_unit
       | Some stats ->
-          retry (fun s ->
+          retry
+            ~while_:(fun _ -> true)
+            (fun s ->
               let got = stats () in
               let exp = (p, w) in
               let msg = Fmt.strf "workers: %s %a (%s)" msg pp_w got s in
@@ -628,13 +644,22 @@ module Make (S : S) = struct
         mutable removes : int;
       }
 
+      let pp ppf { adds; updates; removes } =
+        Fmt.pf ppf "{ adds=%d; updates=%d; removes=%d }" adds updates removes
+
       let empty () = { adds = 0; updates = 0; removes = 0 }
 
-      let add t = t.adds <- t.adds + 1
+      let add t =
+        Log.debug (fun l -> l "add %a" pp t);
+        t.adds <- t.adds + 1
 
-      let update t = t.updates <- t.updates + 1
+      let update t =
+        Log.debug (fun l -> l "update %a" pp t);
+        t.updates <- t.updates + 1
 
-      let remove t = t.removes <- t.removes + 1
+      let remove t =
+        Log.debug (fun l -> l "remove %a" pp t);
+        t.removes <- t.removes + 1
 
       let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
 
@@ -646,30 +671,34 @@ module Make (S : S) = struct
 
       let xremove (a, u, r) = (a, u, r + 1)
 
-      let check ?sleep_t msg (p, w) a b =
-        let pp ppf (a, u, r) =
-          Fmt.pf ppf "{ adds=%d; updates=%d; removes=%d }" a u r
-        in
+      let less_than a b =
+        a.adds <= b.adds
+        && a.updates <= b.updates
+        && a.removes <= b.removes
+        && not (a = b)
+
+      let check ?sleep_t msg (p, w) (a_adds, a_updates, a_removes) b =
+        let a = { adds = a_adds; updates = a_updates; removes = a_removes } in
         check_workers msg p w >>= fun () ->
-        retry ?sleep_t (fun s ->
-            let b = (b.adds, b.updates, b.removes) in
+        retry ?sleep_t
+          ~while_:(fun () -> less_than b a (* While [b] converges toward [a] *))
+          (fun s ->
             let msg = Fmt.strf "state: %s (%s)" msg s in
             if a = b then line msg
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
-      let process ?sleep_t t = function
-        | head ->
-            (match sleep_t with
-            | None -> Lwt.return_unit
-            | Some s -> Lwt_unix.sleep s)
-            >>= fun () ->
-            let () =
-              match head with
-              | `Added _ -> add t
-              | `Updated _ -> update t
-              | `Removed _ -> remove t
-            in
-            Lwt.return_unit
+      let process ?sleep_t t head =
+        (match sleep_t with
+        | None -> Lwt.return_unit
+        | Some s -> Lwt_unix.sleep s)
+        >>= fun () ->
+        let () =
+          match head with
+          | `Added _ -> add t
+          | `Updated _ -> update t
+          | `Removed _ -> remove t
+        in
+        Lwt.return_unit
 
       let apply msg state kind fn ?(first = false) on s n =
         let msg mode n w s =
@@ -762,7 +791,10 @@ module Make (S : S) = struct
             let tag = Fmt.strf "t%d" n in
             S.Branch.remove repo tag)
       in
-      S.Branch.watch_all repo (fun _ -> State.process state) >>= fun u ->
+      S.Branch.get repo "master" >>= fun master ->
+      S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
+          State.process state)
+      >>= fun u ->
       add true (0, 0, 0) 10 ~first:true >>= fun () ->
       remove true (10, 0, 0) 5 >>= fun () ->
       S.unwatch u >>= fun () ->

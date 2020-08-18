@@ -401,23 +401,36 @@ module Make (P : S.PRIVATE) = struct
 
   let pp_key = Type.pp Key.t
 
+  let pp_hash = Type.pp Hash.t
+
   let skip_key key =
     Log.debug (fun l -> l "[watch-key] key %a has not changed" pp_key key);
     Lwt.return_unit
 
-  let changed_key key =
-    Log.debug (fun l -> l "[watch-key] key %a has changed" pp_key key)
+  let changed_key key old_t new_t =
+    Log.debug (fun l ->
+        let pp = Fmt.option ~none:(Fmt.any "<none>") pp_hash in
+        let old_h = Option.map Tree.hash old_t in
+        let new_h = Option.map Tree.hash new_t in
+        l "[watch-key] key %a has changed: %a -> %a" pp_key key pp old_h pp
+          new_h)
 
   let with_tree ~key x f =
     x >>= function
     | None -> skip_key key
     | Some x ->
-        changed_key key;
+        changed_key key None None;
         f x
 
   let lift_tree_diff ~key tree fn = function
-    | `Removed x -> with_tree ~key (tree x) @@ fun v -> fn @@ `Removed (x, v)
-    | `Added x -> with_tree ~key (tree x) @@ fun v -> fn @@ `Added (x, v)
+    | `Removed x ->
+        with_tree ~key (tree x) @@ fun v ->
+        changed_key key (Some v) None;
+        fn @@ `Removed (x, v)
+    | `Added x ->
+        with_tree ~key (tree x) @@ fun v ->
+        changed_key key None (Some v);
+        fn @@ `Added (x, v)
     | `Updated (x, y) -> (
         assert (not (Commit.equal x y));
         tree x >>= fun vx ->
@@ -425,15 +438,15 @@ module Make (P : S.PRIVATE) = struct
         match (vx, vy) with
         | None, None -> skip_key key
         | None, Some vy ->
-            changed_key key;
+            changed_key key None (Some vy);
             fn @@ `Added (y, vy)
         | Some vx, None ->
-            changed_key key;
+            changed_key key (Some vx) None;
             fn @@ `Removed (x, vx)
         | Some vx, Some vy ->
             if Tree.equal vx vy then skip_key key
             else (
-              changed_key key;
+              changed_key key (Some vx) (Some vy);
               fn @@ `Updated ((x, vx), (y, vy))))
 
   let head t =

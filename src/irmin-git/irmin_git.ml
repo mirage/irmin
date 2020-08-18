@@ -667,16 +667,15 @@ functor
     let set t r k =
       Log.debug (fun f -> f "set %a" pp_branch r);
       let gr = git_of_branch r in
-      Lwt_mutex.with_lock t.m (fun () ->
-          G.Ref.write t.t gr (G.Reference.Hash k))
-      >>= function
+      Lwt_mutex.with_lock t.m @@ fun () ->
+      G.Ref.write t.t gr (G.Reference.Hash k) >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok () -> W.notify t.w r (Some k) >>= fun () -> write_index t gr k
 
     let remove t r =
       Log.debug (fun f -> f "remove %a" pp_branch r);
-      Lwt_mutex.with_lock t.m (fun () -> G.Ref.remove t.t (git_of_branch r))
-      >>= function
+      Lwt_mutex.with_lock t.m @@ fun () ->
+      G.Ref.remove t.t (git_of_branch r) >>= function
       | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
       | Ok () -> W.notify t.w r None
 
@@ -687,7 +686,9 @@ functor
       | _ -> false
 
     let test_and_set t r ~test ~set =
-      Log.debug (fun f -> f "test_and_set %a" pp_branch r);
+      Log.debug (fun f ->
+          let pp = Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp Val.t) in
+          f "test_and_set %a: %a => %a" pp_branch r pp test pp set);
       let gr = git_of_branch r in
       let c = function None -> None | Some h -> Some (G.Reference.Hash h) in
       let ok = function

@@ -58,19 +58,23 @@ let http_store id (module S : Irmin_test.S) =
 
 let remove file = try Unix.unlink file with _ -> ()
 
-let rec wait_for_the_server_to_start id =
-  let pid_file = pid_file id in
-  if Sys.file_exists pid_file then (
-    let ic = open_in pid_file in
-    let line = input_line ic in
-    close_in ic;
-    let pid = int_of_string line in
-    Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
-    Unix.unlink pid_file;
-    Lwt.return pid)
-  else (
-    Logs.debug (fun l -> l "waiting for the server to start...");
-    Lwt_unix.sleep 0.1 >>= fun () -> wait_for_the_server_to_start id)
+let wait_for_the_server_to_start id =
+  let rec aux n =
+    let pid_file = pid_file id in
+    let socket = socket id in
+    if Sys.file_exists pid_file && Sys.file_exists socket then (
+      let ic = open_in pid_file in
+      let line = input_line ic in
+      close_in ic;
+      let pid = int_of_string line in
+      Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
+      Unix.unlink pid_file;
+      Lwt.return pid)
+    else (
+      Logs.debug (fun l -> l "waiting for the server to start...");
+      Lwt_unix.sleep (float n *. 0.1) >>= fun () -> aux (n + 1))
+  in
+  aux 1
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
 
@@ -137,26 +141,27 @@ let serve servers n id =
   in
   Lwt_main.run (server ())
 
-let kill_server pid =
+let kill_server socket pid =
   let () =
     try
       Unix.kill pid Sys.sigkill;
       try ignore (Unix.waitpid [ Unix.WUNTRACED ] pid) with _ -> ()
     with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
   in
+  Unix.unlink socket;
   Fmt.epr "Server [PID %d] is killed.\n%!" pid
 
 let suite i server =
   let open Irmin_test in
-  let test = { name = server.name; id = Random.int 0x3FFFFFFF } in
-  let socket = socket test in
+  let id = { name = server.name; id = Random.int 0x3FFFFFFF } in
+  let socket = socket id in
   let server_pid = ref 0 in
   {
     name = Printf.sprintf "HTTP.%s" server.name;
     init =
       (fun () ->
         remove socket;
-        remove (pid_file test);
+        remove (pid_file id);
         mkdir test_http_dir >>= fun () ->
         Lwt_io.flush_all () >>= fun () ->
         let pwd = Sys.getcwd () in
@@ -167,18 +172,18 @@ let suite i server =
           root
           ^ "_build"
             / "default"
-            / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i test.id
+            / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i id.id
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in
-        wait_for_the_server_to_start test >|= fun pid -> server_pid := pid);
+        wait_for_the_server_to_start id >|= fun pid -> server_pid := pid);
     stats = None;
     clean =
       (fun () ->
-        kill_server !server_pid;
+        kill_server socket !server_pid;
         server.clean ());
     config = Irmin_http.config uri;
-    store = http_store test server.store;
+    store = http_store id server.store;
   }
 
 let suites servers =
