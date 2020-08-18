@@ -241,11 +241,12 @@ struct
       IMap.fold
         (fun id ((init, f) as arg) acc ->
           let fire old_value =
-            Log.debug (fun f ->
-                f "notify-all[%d.%d:%a]: firing! (%a -> %a)" t.id id pp_key key
-                  (pp_option pp_value) old_value (pp_option pp_value) value);
             todo :=
               protect (fun () ->
+                  Log.debug (fun f ->
+                      f "notify-all[%d.%d:%a]: %d firing! (%a -> %a)" t.id id
+                        pp_key key t.notifications (pp_option pp_value)
+                        old_value (pp_option pp_value) value);
                   t.notifications <- t.notifications + 1;
                   f key (mk old_value value))
               :: !todo;
@@ -284,10 +285,12 @@ struct
                   key);
             IMap.add id arg acc)
           else (
-            Log.debug (fun f ->
-                f "notify-key[%d:%d:%a] firing!" t.id id pp_key key);
             todo :=
               protect (fun () ->
+                  Log.debug (fun f ->
+                      f "notify-key[%d:%d:%a] %d firing! (%a -> %a)" t.id id
+                        pp_key key t.notifications (pp_option pp_value)
+                        old_value (pp_option pp_value) value);
                   t.notifications <- t.notifications + 1;
                   f (mk old_value value))
               :: !todo;
