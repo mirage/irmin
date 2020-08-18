@@ -791,7 +791,10 @@ module Make (S : S) = struct
             let tag = Fmt.strf "t%d" n in
             S.Branch.remove repo tag)
       in
-      S.Branch.watch_all repo (fun _ -> State.process state) >>= fun u ->
+      S.Branch.get repo "master" >>= fun master ->
+      S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
+          State.process state)
+      >>= fun u ->
       add true (0, 0, 0) 10 ~first:true >>= fun () ->
       remove true (10, 0, 0) 5 >>= fun () ->
       S.unwatch u >>= fun () ->
