@@ -113,7 +113,7 @@ module Dict = struct
     ignore_int (Dict.index dict "titiabc");
     ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Dict.sync ~force_refill:false r;
+    Dict.sync r;
     check_index "titiabc" 3;
     check_index "bar" 1;
     check_index "toto" 2;
@@ -123,7 +123,7 @@ module Dict = struct
     check_raise "hello";
     check_none "hello" 4;
     Dict.flush dict;
-    Dict.sync ~force_refill:false r;
+    Dict.sync r;
     check_find "hello" 4;
     Dict.close dict;
     Dict.close r
@@ -148,12 +148,12 @@ module Dict = struct
     in
     ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Dict.sync ~force_refill:false r;
+    Dict.sync r;
     check_find "find before clear" (Some "foo") 0;
     Dict.clear dict;
     Dict.flush dict;
     check_find "find after clear but before sync" (Some "foo") 0;
-    Dict.sync ~force_refill:true r;
+    Dict.sync r;
     check_find "find after clear and sync" None 0;
     Dict.close dict;
     Dict.close r
@@ -168,14 +168,14 @@ module Dict = struct
     in
     ignore_int (Dict.index dict "foo");
     Dict.flush dict;
-    Dict.sync ~force_refill:false r;
+    Dict.sync r;
     check_find "find before clear" (Some "foo") 0;
     Dict.clear dict;
     ignore_int (Dict.index dict "bar");
     Dict.flush dict;
     check_find "find after clear and new values added, but before sync"
       (Some "foo") 0;
-    Dict.sync ~force_refill:true r;
+    Dict.sync r;
     check_find "find new values after sync" (Some "bar") 0;
     Dict.close dict;
     Dict.close r

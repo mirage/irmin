@@ -312,8 +312,8 @@ struct
             (IO.name t.pack.block)
         in
         t.pack.block <- block;
-        Dict.sync ~force_refill:true t.pack.dict)
-      else Dict.sync ~force_refill:false t.pack.dict;
+        Dict.sync t.pack.dict)
+      else Dict.sync t.pack.dict;
       Index.sync t.pack.index
 
     let version t = IO.version t.pack.block

@@ -61,8 +61,10 @@ module Make (IO : IO.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
-  let sync_offset t ~force_refill =
-    if force_refill then (
+  let sync_offset t =
+    let former_generation = IO.generation t.io in
+    let generation = IO.force_generation t.io in
+    if former_generation <> generation then (
       IO.close t.io;
       let io =
         IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)
@@ -76,8 +78,8 @@ module Make (IO : IO.S) : S = struct
       let log_offset = IO.force_offset t.io in
       if log_offset > former_log_offset then refill ~from:former_log_offset t
 
-  let sync t ~force_refill =
-    if IO.readonly t.io then sync_offset t ~force_refill
+  let sync t =
+    if IO.readonly t.io then sync_offset t
     else invalid_arg "only a readonly instance should call this function"
 
   let flush t = IO.flush t.io
