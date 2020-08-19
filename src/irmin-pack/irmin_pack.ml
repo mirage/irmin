@@ -18,7 +18,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 module Default = struct
   let fresh = false
@@ -105,6 +105,8 @@ let ( ++ ) = Int64.add
 
 let with_cache = IO.with_cache
 
+let pp_version = IO.pp_version
+
 open Lwt.Infix
 module Pack = Pack
 module Dict = Pack_dict
@@ -112,6 +114,8 @@ module Index = Pack_index
 module IO = IO.Unix
 
 exception RO_Not_Allowed = IO.RO_Not_Allowed
+
+exception Unsupported_version of string
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -134,7 +138,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   type t = {
     index : int64 Tbl.t;
     cache : V.t Tbl.t;
-    block : IO.t;
+    mutable block : IO.t;
     lock : Lwt_mutex.t;
     w : W.t;
     mutable open_instances : int;
@@ -202,9 +206,21 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     aux from
 
   let sync_offset t =
-    let former_log_offset = IO.offset t.block in
-    let log_offset = IO.force_offset t.block in
-    if log_offset > former_log_offset then refill t ~from:former_log_offset
+    let former_generation = IO.generation t.block in
+    let generation = IO.force_generation t.block in
+    if former_generation <> generation then (
+      Log.debug (fun l -> l "[branches] generation changed, refill buffers");
+      IO.close t.block;
+      let io =
+        IO.v ~fresh:false ~readonly:true ~version:current_version
+          (IO.name t.block)
+      in
+      t.block <- io;
+      refill t ~from:0L)
+    else
+      let former_log_offset = IO.offset t.block in
+      let log_offset = IO.force_offset t.block in
+      if log_offset > former_log_offset then refill t ~from:former_log_offset
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
@@ -348,6 +364,8 @@ module type Stores_extra = sig
     result
 
   val sync : repo -> unit
+
+  val clear : repo -> unit Lwt.t
 end
 
 module Make_ext
@@ -408,7 +426,7 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Pack (CA_Pack)
+        include Closeable.Content_addressable (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
@@ -448,7 +466,7 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Pack (CA_Pack)
+        include Closeable.Content_addressable (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -491,7 +509,7 @@ struct
                     let commit : 'a Commit.t = (node, commit) in
                     f contents node commit)))
 
-      let v config =
+      let unsafe_v config =
         let root = root config in
         let fresh = fresh config in
         let lru_size = lru_size config in
@@ -522,8 +540,25 @@ struct
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
-      (** stores share instances in memory, one sync is enough *)
-      let sync t = Contents.CA.sync (contents_t t)
+      let v config =
+        unsafe_v config >>= fun t ->
+        match Contents.CA.version (contents_t t) with
+        | `V1 ->
+            close t >>= fun () ->
+            Lwt.fail (Unsupported_version (Fmt.str "%a" pp_version `V1))
+        | `V2 -> Lwt.return t
+
+      (** Stores share instances in memory, one sync is enough. However each
+          store has its own lru and all have to be cleared. *)
+      let sync t =
+        let on_generation_change () =
+          Node.CA.clear_caches (snd (node_t t));
+          Commit.CA.clear_caches (snd (commit_t t))
+        in
+        Contents.CA.sync ~on_generation_change (contents_t t)
+
+      (** Storea share instances so one clear is enough. *)
+      let clear t = Contents.CA.clear (contents_t t)
     end
   end
 
@@ -595,6 +630,8 @@ struct
   include Irmin.Of_private (X)
 
   let sync = X.Repo.sync
+
+  let clear = X.Repo.clear
 end
 
 module Hash = Irmin.Hash.BLAKE2B

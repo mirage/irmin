@@ -14,41 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Dict_intf
+
 let src =
   Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 let ( -- ) = Int64.sub
-
-module type S = sig
-  type t
-
-  val find : t -> int -> string option
-
-  val index : t -> string -> int option
-
-  val flush : t -> unit
-
-  val sync : t -> unit
-
-  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-
-  val clear : t -> unit
-
-  val close : t -> unit
-
-  val valid : t -> bool
-end
 
 module Make (IO : IO.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : IO.t;
+    mutable io : IO.t;
     mutable open_instances : int;
   }
 
@@ -80,9 +62,21 @@ module Make (IO : IO.S) : S = struct
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
   let sync_offset t =
-    let former_log_offset = IO.offset t.io in
-    let log_offset = IO.force_offset t.io in
-    if log_offset > former_log_offset then refill ~from:former_log_offset t
+    let former_generation = IO.generation t.io in
+    let generation = IO.force_generation t.io in
+    if former_generation <> generation then (
+      IO.close t.io;
+      let io =
+        IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)
+      in
+      t.io <- io;
+      Hashtbl.clear t.cache;
+      Hashtbl.clear t.index;
+      refill ~from:0L t)
+    else
+      let former_log_offset = IO.offset t.io in
+      let log_offset = IO.force_offset t.io in
+      if log_offset > former_log_offset then refill ~from:former_log_offset t
 
   let sync t =
     if IO.readonly t.io then sync_offset t

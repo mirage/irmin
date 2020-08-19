@@ -14,49 +14,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type version = [ `V1 | `V2 ]
-
-val pp_version : version Fmt.t
-
 module type S = sig
   type t
 
-  exception RO_Not_Allowed
+  val find : t -> int -> string option
 
-  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
-
-  val name : t -> string
-
-  val clear : t -> unit
-
-  val append : t -> string -> unit
-
-  val set : t -> off:int64 -> string -> unit
-
-  val read : t -> off:int64 -> bytes -> int
-
-  val offset : t -> int64
-
-  val force_offset : t -> int64
-
-  val generation : t -> int64
-
-  val force_generation : t -> int64
-
-  val readonly : t -> bool
-
-  val version : t -> version
+  val index : t -> string -> int option
 
   val flush : t -> unit
 
+  val sync : t -> unit
+  (** syncs a readonly dict with the file on disk. *)
+
+  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+
+  val clear : t -> unit
+
   val close : t -> unit
+
+  val valid : t -> bool
 end
 
-module Unix : S
+module type Dict = sig
+  module type S = S
 
-val with_cache :
-  v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
-  clear:('b -> unit) ->
-  valid:('b -> bool) ->
-  string ->
-  [ `Staged of 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]
+  module Make (IO : IO.S) : S
+end

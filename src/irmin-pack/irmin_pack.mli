@@ -39,6 +39,8 @@ module Index = Pack_index
 
 exception RO_Not_Allowed
 
+exception Unsupported_version of string
+
 module type CONFIG = sig
   val entries : int
 
@@ -63,6 +65,11 @@ module type Stores_extra = sig
   val sync : repo -> unit
   (** [sync t] syncs a readonly pack with the files on disk. Raises
       [invalid_argument] if called by a read-write pack.*)
+
+  val clear : repo -> unit Lwt.t
+  (** [clear t] removes all the data persisted in [t]. This operations provides
+      snapshot isolation guarantees for read-only instances: read-only instance
+      will continue to see all the data until they explicitely call {!sync}. *)
 end
 
 module Make_ext

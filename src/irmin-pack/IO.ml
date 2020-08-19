@@ -18,12 +18,28 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let ( // ) = Filename.concat
+
+(* For every new version, update the [version] type and [versions]
+   headers. *)
+type version = [ `V1 | `V2 ]
+
+let versions = [ (`V1, "00000001"); (`V2, "00000002") ]
+
+let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+
+let bin_of_version v = List.assoc v versions
+
+let version_of_bin b =
+  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
+  with Not_found -> None
+
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : fresh:bool -> version:string -> readonly:bool -> string -> t
+  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -39,9 +55,13 @@ module type S = sig
 
   val force_offset : t -> int64
 
+  val generation : t -> int64
+
+  val force_generation : t -> int64
+
   val readonly : t -> bool
 
-  val version : t -> string
+  val version : t -> version
 
   val flush : t -> unit
 
@@ -60,16 +80,19 @@ module Unix : S = struct
   type t = {
     file : string;
     mutable raw : Raw.t;
+    mutable generation : int64;
     mutable offset : int64;
     mutable flushed : int64;
     readonly : bool;
-    version : string;
+    version : version;
     buf : Buffer.t;
   }
 
   let name t = t.file
 
-  let header = 16L (* offset + version *)
+  let header = function
+    | `V1 -> (* offset + version *) 16L
+    | `V2 -> (* offset + version + generation *) 24L
 
   let unsafe_flush t =
     Log.debug (fun l -> l "IO flush %s" t.file);
@@ -82,11 +105,11 @@ module Unix : S = struct
       Raw.Offset.set t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
-      if not (t.flushed ++ Int64.of_int (String.length buf) = header ++ offset)
-      then
+      let h = header t.version in
+      if not (t.flushed ++ Int64.of_int (String.length buf) = h ++ offset) then
         Fmt.failwith "sync error: %s flushed=%Ld offset+header=%Ld\n%!" t.file
-          t.flushed (offset ++ header);
-      t.flushed <- offset ++ header
+          t.flushed (offset ++ h);
+      t.flushed <- offset ++ h
 
   let flush t =
     if t.readonly then raise RO_Not_Allowed;
@@ -103,21 +126,28 @@ module Unix : S = struct
   let set t ~off buf =
     if t.readonly then raise RO_Not_Allowed;
     unsafe_flush t;
-    Raw.unsafe_write t.raw ~off:(header ++ off) buf;
+    Raw.unsafe_write t.raw ~off:(header t.version ++ off) buf;
     assert (
       let len = Int64.of_int (String.length buf) in
-      let off = header ++ off ++ len in
+      let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
   let read t ~off buf =
-    assert (if not t.readonly then header ++ off <= t.flushed else true);
-    Raw.unsafe_read t.raw ~off:(header ++ off) ~len:(Bytes.length buf) buf
+    let off = header t.version ++ off in
+    assert (if not t.readonly then off <= t.flushed else true);
+    Raw.unsafe_read t.raw ~off ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 
   let force_offset t =
     t.offset <- Raw.Offset.get t.raw;
     t.offset
+
+  let generation t = t.generation
+
+  let force_generation t =
+    t.generation <- Raw.Generation.get t.raw;
+    t.generation
 
   let version t = t.version
 
@@ -146,14 +176,43 @@ module Unix : S = struct
     in
     aux dirname (fun () -> ())
 
-  let clear t =
-    t.offset <- 0L;
-    t.flushed <- header;
-    Buffer.clear t.buf
+  let raw ~mode ~version ~generation file =
+    let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
+    let raw = Raw.v x in
+    let header =
+      { Raw.Header.version = bin_of_version version; offset = 0L; generation }
+    in
+    Raw.Header.set raw header;
+    raw
 
-  let v ~fresh ~version:current_version ~readonly file =
-    assert (String.length current_version = 8);
-    let v ~offset ~version raw =
+  let unsafe_clear t =
+    if t.readonly then invalid_arg "Read-only IO cannot be cleared";
+    Log.debug (fun l -> l "clear %s" t.file);
+    Buffer.clear t.buf;
+    (* no-op if the file is already empty; this is to avoid bumping
+       the version  number when this is not necessary. *)
+    if t.offset = 0L then ()
+    else (
+      t.offset <- 0L;
+      t.generation <- Int64.succ t.generation;
+      t.flushed <- header t.version;
+      (* update the generation for concurrent readonly instance to
+         notice that the file has been clear when they next sync. *)
+      Raw.Generation.set t.raw t.generation;
+      (* delete the file. *)
+      Raw.close t.raw;
+      Unix.unlink t.file;
+      (* and re-open a fresh instance. *)
+      t.raw <-
+        raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file)
+
+  let clear t =
+    match t.version with
+    | `V1 -> invalid_arg "V1 stores cannot be cleared"
+    | `V2 -> unsafe_clear t
+
+  let v ~version:current_version ~fresh ~readonly file =
+    let v ~offset ~version ~generation raw =
       {
         version;
         file;
@@ -161,35 +220,49 @@ module Unix : S = struct
         raw;
         readonly;
         buf = Buffer.create (4 * 1024);
-        flushed = header ++ offset;
+        flushed = header version ++ offset;
+        generation;
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
-        let raw = Raw.v x in
-        Raw.Offset.set raw 0L;
-        Raw.Version.set raw current_version;
-        v ~offset:0L ~version:current_version raw
-    | true ->
+        let raw = raw ~mode ~version:current_version ~generation:0L file in
+        v ~offset:0L ~version:current_version ~generation:0L raw
+    | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
-          Raw.Offset.set raw 0L;
-          Raw.Version.set raw current_version;
-          v ~offset:0L ~version:current_version raw)
+          let header =
+            {
+              Raw.Header.version = bin_of_version current_version;
+              offset = 0L;
+              generation = 0L;
+            }
+          in
+          Raw.Header.set raw header;
+          v ~offset:0L ~version:current_version ~generation:0L raw)
         else
-          let offset = Raw.Offset.get raw in
           let version = Raw.Version.get raw in
-          assert (version = current_version);
-          v ~offset ~version raw
+          match version_of_bin version with
+          | Some `V1 ->
+              Log.debug (fun l -> l "[%s] file exists in V1" file);
+              let offset = Raw.Offset.get raw in
+              v ~offset ~version:`V1 ~generation:0L raw
+          | Some `V2 ->
+              let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
+              v ~offset ~version:`V2 ~generation raw
+          | None ->
+              let pp_full_version ppf v =
+                Fmt.pf ppf "%a (%S)" pp_version v (bin_of_version v)
+              in
+              Fmt.failwith "invalid version: got %S, expecting %a" version
+                (Fmt.Dump.list pp_full_version)
+                (List.map fst versions))
 
   let close t = Raw.close t.raw
 end
-
-let ( // ) = Filename.concat
 
 let with_cache ~v ~clear ~valid file =
   let files = Hashtbl.create 13 in

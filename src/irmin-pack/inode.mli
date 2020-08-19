@@ -46,7 +46,9 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val sync : 'a t -> unit
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
+
+  val clear_caches : 'a t -> unit
 end
 
 module Make

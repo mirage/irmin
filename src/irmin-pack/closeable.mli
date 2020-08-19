@@ -12,8 +12,11 @@
 
 (** Augments primitive store modules with close semantics *)
 
-module Pack (S : Pack.S) :
-  Pack.S with type key = S.key and type value = S.value and type index = S.index
+module Content_addressable (CA : Pack.S) :
+  Pack.S
+    with type key = CA.key
+     and type value = CA.value
+     and type index = CA.index
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) :
   S.ATOMIC_WRITE_STORE

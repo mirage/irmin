@@ -14,78 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Pack_intf
+
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = "00000001"
+let current_version = `V2
 
 let ( -- ) = Int64.sub
-
-module type ELT = sig
-  include Irmin.Type.S
-
-  type hash
-
-  val hash : t -> hash
-
-  val magic : t -> char
-
-  val encode_bin :
-    dict:(string -> int option) ->
-    offset:(hash -> int64 option) ->
-    t ->
-    hash ->
-    (string -> unit) ->
-    unit
-
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
-end
-
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  val unsafe_append : 'a t -> key -> value -> unit
-
-  val unsafe_mem : 'a t -> key -> bool
-
-  val unsafe_find : 'a t -> key -> value option
-
-  val flush : ?index:bool -> 'a t -> unit
-
-  val sync : 'a t -> unit
-
-  val clear : 'a t -> unit
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-end
-
-module type MAKER = sig
-  type key
-
-  type index
-
-  module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
-end
 
 open Lwt.Infix
 
@@ -117,7 +54,7 @@ struct
   type index = Index.t
 
   type 'a t = {
-    block : IO.t;
+    mutable block : IO.t;
     index : Index.t;
     dict : Dict.t;
     lock : Lwt_mutex.t;
@@ -125,8 +62,8 @@ struct
   }
 
   let clear t =
-    IO.clear t.block;
     Index.clear t.index;
+    IO.clear t.block;
     Dict.clear t.dict
 
   let valid t =
@@ -139,10 +76,7 @@ struct
     let root = Filename.dirname file in
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~fresh ~version:current_version ~readonly file in
-    if IO.version block <> current_version then
-      Fmt.failwith "invalid version: got %S, expecting %S" (IO.version block)
-        current_version;
+    let block = IO.v ~version:current_version ~fresh ~readonly file in
     { block; index; lock; dict; open_instances = 1 }
 
   let (`Staged v) =
@@ -174,7 +108,7 @@ struct
 
     type index = Index.t
 
-    let clear t =
+    let unsafe_clear t =
       clear t.pack;
       Tbl.clear t.staging;
       Lru.clear t.lru
@@ -209,14 +143,14 @@ struct
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
-          if fresh then clear t;
+          if fresh then unsafe_clear t;
           t)
         else (
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
         let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
-        if fresh then clear t;
+        if fresh then unsafe_clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
@@ -358,8 +292,30 @@ struct
           unsafe_close t;
           Lwt.return_unit)
 
-    let sync t =
-      Dict.sync t.pack.dict;
+    let clear t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_clear t;
+          Lwt.return_unit)
+
+    let clear_caches t = Lru.clear t.lru
+
+    let sync ?(on_generation_change = Fun.id) t =
+      let former_generation = IO.generation t.pack.block in
+      let generation = IO.force_generation t.pack.block in
+      if former_generation <> generation then (
+        Log.debug (fun l -> l "[pack] generation changed, refill buffers");
+        clear_caches t;
+        on_generation_change ();
+        IO.close t.pack.block;
+        let block =
+          IO.v ~fresh:false ~version:current_version ~readonly:true
+            (IO.name t.pack.block)
+        in
+        t.pack.block <- block;
+        Dict.sync t.pack.dict)
+      else Dict.sync t.pack.dict;
       Index.sync t.pack.index
+
+    let version t = IO.version t.pack.block
   end
 end
