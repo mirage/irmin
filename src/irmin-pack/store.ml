@@ -216,7 +216,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Tbl.add t.index k offset
 
   let set t k v =
-    Log.debug (fun l -> l "[branches] set %a" pp_branch k);
+    Log.debug (fun l -> l "[branches %s] set %a" (IO.name t.block) pp_branch k);
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_set t k v;
         Lwt.return_unit)
