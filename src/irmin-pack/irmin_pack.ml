@@ -22,6 +22,10 @@ let current_version = `V2
 
 let ( // ) = Filename.concat
 
+let ( >> ) f g x = g (f x)
+
+let ( let* ) x f = Lwt.bind x f
+
 module Platform = Platform.Unix
 
 module Default = struct
@@ -576,57 +580,73 @@ struct
       (** Stores share instances so one clear is enough. *)
       let clear t = Contents.CA.clear (contents_t t)
 
+      (** Migrate data from the IO [src] (with [name] in path [root_old]) into
+          the temporary dir [root_tmp], then swap in the replaced version. *)
+      let migrate_io_to_v2 ~root_old ~root_tmp ~progress (name, src) =
+        let old, tmp = (root_old // name, root_tmp // name) in
+        IO.upgrade ~progress ~src ~dst:(tmp, `V2) |> function
+        | Ok () ->
+            Platform.unlink old;
+            Platform.rename tmp old;
+            IO.close src;
+            ()
+        | Error (`Msg s) -> invalid_arg s
+
       let migrate config =
-        if readonly config then Lwt.fail RO_Not_Allowed
-        else
-          let config = Irmin.Private.Conf.add config readonly_key true in
-          Log.info (fun l -> l "[%s] migrate" (root config));
-          unsafe_v config >>= fun t ->
-          match Contents.CA.version (contents_t t) with
-          | `V2 as v ->
-              Log.app (fun l ->
-                  l "Store at %s is already in current version (%a)"
-                    (root config) pp_version v);
-              close t
-          | `V1 ->
-              let root_old = root config in
-              let root_tmp =
-                let rand =
-                  Random.State.(bits (make_self_init ())) land 0xFFFFFF
-                in
-                root_old // Fmt.str "tmp-migrate-%06x" rand
+        let* () =
+          if readonly config then Lwt.fail RO_Not_Allowed else Lwt.return_unit
+        in
+        let config = Irmin.Private.Conf.add config readonly_key true in
+        Log.info (fun l -> l "[%s] migrate" (root config));
+        let* t = unsafe_v config in
+        match Contents.CA.version (contents_t t) with
+        | `V2 as v ->
+            Log.app (fun l ->
+                l "Store at %s is already in current version (%a)" (root config)
+                  pp_version v);
+            close t
+        | `V1 ->
+            let* () = close t in
+            let root_old = root config in
+            let root_tmp =
+              let rand =
+                Random.State.(bits (make_self_init ())) land 0xFFFFFF
               in
-              Log.info (fun l ->
-                  l "Creating temporary directory `%s' for the migrated store"
-                    root_tmp);
-              Platform.mkdir root_tmp;
-              let migrate_io name =
-                let old, tmp = (root_old // name, root_tmp // name) in
-                let src = IO.v ~version:`V1 ~fresh:false ~readonly:true old in
-                IO.upgrade ~progress:(fun ~written:_ -> ()) ~src ~dst:(tmp, `V2)
-                |> function
-                | Ok () ->
-                    Platform.unlink old;
-                    Platform.rename tmp old;
-                    IO.close src;
-                    ()
-                | Error (`Msg s) -> invalid_arg s
-              in
-              List.iter migrate_io
-                [ "store.pack"; "store.branches"; "store.dict" ];
-              List.iter
-                (fun i ->
-                  i ~readonly:true root_old;
-                  i ~readonly:false root_old)
-                [
-                  Contents.CA.invalidate;
-                  Node.CA.invalidate;
-                  Commit.CA.invalidate;
-                  Pack.invalidate;
-                  Branch.AW.invalidate;
-                  Dict.invalidate;
-                ];
-              Lwt.return_unit
+              root_old // Fmt.str "tmp-migrate-%06x" rand
+            in
+            Log.info (fun l ->
+                l "Creating temporary directory `%s' for the migrated store"
+                  root_tmp);
+            Platform.mkdir root_tmp;
+            let ios : (string * IO.t) list =
+              [ "store.pack"; "store.branches"; "store.dict" ]
+              |> List.map (fun name ->
+                     ( name,
+                       IO.v ~version:`V1 ~fresh:false ~readonly:true
+                         (root_old // name) ))
+            in
+            let total =
+              ios |> List.map (snd >> IO.offset) |> List.fold_left Int64.add 0L
+            in
+            let bar, progress =
+              Utils.Progress.counter ~total ~sampling_interval:10
+                ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
+            in
+            ios |> List.iter (migrate_io_to_v2 ~root_old ~root_tmp ~progress);
+            Utils.Progress.finalise bar;
+            List.iter
+              (fun i ->
+                i ~readonly:true root_old;
+                i ~readonly:false root_old)
+              [
+                Contents.CA.invalidate;
+                Node.CA.invalidate;
+                Commit.CA.invalidate;
+                Pack.invalidate;
+                Branch.AW.invalidate;
+                Dict.invalidate;
+              ];
+            Lwt.return_unit
     end
   end
 
@@ -724,3 +744,7 @@ end
 module KV (Config : CONFIG) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 module Stats = Stats
+
+module Private = struct
+  module Utils = Utils
+end

@@ -6,8 +6,8 @@
 
 (executable
  (name test)
- (modules test)
- (libraries alcotest digestif.ocaml irmin irmin-test test_pack))
+ (modules test test_utils)
+ (libraries alcotest astring digestif.ocaml irmin irmin-test test_pack))
 
 (rule
  (alias runtest)

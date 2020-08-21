@@ -1,4 +1,4 @@
 (library
  (public_name irmin-pack)
  (name irmin_pack)
- (libraries fmt index index.unix irmin logs lwt lwt.unix))
+ (libraries fmt index index.unix irmin logs lwt lwt.unix mtime))

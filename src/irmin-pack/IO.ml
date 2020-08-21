@@ -87,7 +87,7 @@ module type S = sig
   val upgrade :
     src:t ->
     dst:path * version ->
-    progress:(written:int64 -> unit) ->
+    progress:(int64 -> unit) ->
     (unit, [> `Msg of string ]) result
 end
 
@@ -305,8 +305,9 @@ module Unix : S = struct
 
   let close t = Raw.close t.raw
 
-  (* From a given offset in [src], transfer all data to [dst] (starting at [dst_off]). *)
-  let transfer_all ~progress:_ ~src ~src_off ~dst ~dst_off =
+  (* From a given offset in [src], transfer all data to [dst] (starting at
+     [dst_off]). *)
+  let transfer_all ~progress ~src ~src_off ~dst ~dst_off =
     let ( + ) a b = Int64.(add a (of_int b)) in
     let buf_len = 4096 in
     let buf = Bytes.create buf_len in
@@ -319,6 +320,7 @@ module Unix : S = struct
           let () =
             Raw.unsafe_write dst ~off:dst_off (Bytes.unsafe_to_string to_write)
           in
+          progress (Int64.of_int read);
           (inner [@tailcall]) ~src_off:(src_off + read) ~dst_off:(dst_off + read)
     in
     inner ~src_off ~dst_off
