@@ -147,4 +147,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     else (
       t.closed := true;
       AW.close t.t)
+
+  let clear t =
+    check_not_closed t;
+    AW.clear t.t
 end

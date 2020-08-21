@@ -82,9 +82,18 @@ let config = Irmin_chunk.config ()
 
 let clean () =
   let (module S : Irmin_test.S) = store in
+  let module P = S.Private in
+  let clear repo =
+    Lwt.join
+      [
+        P.Commit.clear (P.Repo.commit_t repo);
+        P.Node.clear (P.Repo.node_t repo);
+        P.Contents.clear (P.Repo.contents_t repo);
+        P.Branch.clear (P.Repo.branch_t repo);
+      ]
+  in
   S.Repo.v config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo) >>= fun () ->
-  S.Repo.close repo
+  clear repo >>= fun () -> S.Repo.close repo
 
 let suite =
   { Irmin_test.name = "CHUNK"; init; store; config; clean; stats = None }

@@ -141,6 +141,13 @@ struct
             Log.err (fun l -> l "Irmin_fs.list: %s" e);
             acc)
       [] files
+
+  let clear t =
+    Log.debug (fun f -> f "clear");
+    let remove_file key =
+      IO.remove_file ~lock:(lock_of_key t key) (file_of_key t key)
+    in
+    list t >>= Lwt_list.iter_p remove_file
 end
 
 module Append_only_ext
@@ -262,6 +269,13 @@ struct
       ~set:(raw_value set)
     >>= fun b ->
     (if b then W.notify t.w key set else Lwt.return_unit) >|= fun () -> b
+
+  let clear t =
+    Log.debug (fun f -> f "clear");
+    let remove_file key =
+      IO.remove_file ~lock:(RO.lock_of_key t.t key) (RO.file_of_key t.t key)
+    in
+    list t >>= Lwt_list.iter_p remove_file
 end
 
 module Make_ext

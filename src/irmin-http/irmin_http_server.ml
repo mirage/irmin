@@ -58,6 +58,25 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         |> Wm.continue ()
     end
 
+  (** A [POST] endpoint that performs a given repository operation. *)
+  class post_unit_endpoint ~op repo =
+    object
+      inherit resource
+
+      method! allowed_methods rd = Wm.continue [ `POST ] rd
+
+      method content_types_provided rd =
+        Wm.continue [ ("application/json", fun _ -> assert false) ] rd
+
+      method content_types_accepted rd = Wm.continue [] rd
+
+      method! process_post rd =
+        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun _ ->
+        op repo >>= fun () ->
+        let resp_body = `String "" in
+        Wm.continue true { rd with Wm.Rd.resp_body }
+    end
+
   let parse_error rd str (`Msg e) =
     let err = Fmt.strf "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
@@ -169,6 +188,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#to_json) ] rd
       end
+
+    class clear = post_unit_endpoint ~op:S.clear
   end
 
   module Atomic_write
@@ -322,6 +343,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#of_json) ] rd
       end
+
+    class clear = post_unit_endpoint ~op:S.clear
   end
 
   module Blob =
@@ -381,6 +404,10 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         ("/branch/*", fun () -> new Branch.item branch);
         ("/watches", fun () -> new Branch.watches branch);
         ("/watch/*", fun () -> new Branch.watch branch);
+        ("/clear/blobs", fun () -> new Blob.clear blob);
+        ("/clear/trees", fun () -> new Tree.clear tree);
+        ("/clear/commits", fun () -> new Commit.clear commit);
+        ("/clear/branches", fun () -> new Branch.clear branch);
       ]
     in
     let pp_con = Fmt.of_to_string Cohttp.Connection.to_string in

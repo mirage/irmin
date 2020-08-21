@@ -824,5 +824,7 @@ struct
 
   let sync = Inode.sync
 
+  let clear = Inode.clear
+
   let clear_caches = Inode.clear_caches
 end

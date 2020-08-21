@@ -146,6 +146,11 @@ struct
         Fmt.failwith
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
           pp_key k pp_key k'
+
+    let clear t =
+      G.reset t >>= function
+      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Ok () -> Lwt.return_unit
   end)
 
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
@@ -723,6 +728,20 @@ functor
           >|= fun () -> b)
 
     let close _ = Lwt.return_unit
+
+    let clear t =
+      Log.debug (fun l -> l "clear");
+      Lwt_mutex.with_lock t.m (fun () ->
+          G.Ref.list t.t >>= fun refs ->
+          Lwt_list.iter_p
+            (fun (r, _) ->
+              G.Ref.remove t.t r >>= function
+              | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+              | Ok () -> (
+                  match branch_of_git r with
+                  | Some k -> W.notify t.w k None
+                  | None -> Lwt.return_unit))
+            refs)
   end
 
 module Irmin_sync_store
@@ -944,6 +963,10 @@ functor
       else (
         t.closed := true;
         S.close t.t)
+
+    let clear t =
+      check_not_closed t;
+      S.clear t.t
   end
 
 module Make_ext
@@ -1159,6 +1182,8 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
   let find = with_state X.find
 
   let mem = with_state X.mem
+
+  let clear _ = Lwt.fail_with "not implemented"
 end
 
 module Atomic_write (G : Git.S) (K : Irmin.Branch.S) = struct

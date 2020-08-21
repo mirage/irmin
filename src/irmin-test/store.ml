@@ -17,6 +17,8 @@
 open Lwt.Infix
 open Common
 
+let ( let* ) x f = Lwt.bind x f
+
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -65,6 +67,8 @@ module Make (S : S) = struct
   let g repo = P.Repo.node_t repo
 
   let h repo = P.Repo.commit_t repo
+
+  let b repo = P.Repo.branch_t repo
 
   let v1 = long_random_string
 
@@ -2125,6 +2129,59 @@ module Make (S : S) = struct
       P.Repo.close repo
     in
     run x test
+
+  let test_clear x () =
+    let test repo =
+      let vt = v repo and b = b repo and ct = ct repo and n = n repo in
+      let check_none msg =
+        Alcotest.(check (testable Fmt.(option (const string "<value>")) ( = )))
+          msg None
+      in
+      let check_val = check (T.option S.contents_t) in
+      let check_commit = check (T.option @@ S.commit_t repo) in
+      let* h2 = kv2 ~repo in
+      let* () = P.Contents.clear vt in
+      let* () =
+        P.Contents.find vt h2 >|= check_val "v2 after clear is not found" None
+      in
+      let* h2 = kv2 ~repo in
+      let* () =
+        P.Contents.find vt h2 >|= check_val "add v2 again after clear" (Some v2)
+      in
+      let* h1 = r1 ~repo in
+      let* n1 = n1 ~repo in
+      let* () = S.Branch.set repo b1 h1 in
+      let* () =
+        S.Branch.find repo b1
+        >|= check_commit "r1 before clear is found" (Some h1)
+      in
+      let* () =
+        Lwt.join [ P.Branch.clear b; P.Commit.clear ct; P.Node.clear n ]
+      in
+      let* () =
+        S.Branch.find repo b1
+        >|= check_commit "r1 after clear is not found" None
+      in
+      let* () =
+        P.Commit.find ct (S.Commit.hash h1)
+        >|= check_none "after clear commit is not found"
+      in
+      let* () =
+        P.Node.find n n1 >|= check_none "after clear node is not found"
+      in
+      let* h2 = kv2 ~repo in
+      let* () = P.Contents.clear vt in
+      let* () =
+        P.Contents.find vt h2 >|= check_none "v2 after clear is not found"
+      in
+      let* () = r1 ~repo >>= S.Branch.set repo b1 in
+      let* () = P.Branch.clear b in
+      let* () =
+        S.Branch.find repo b1 >|= check_commit "cleared twice r1" None
+      in
+      P.Repo.close repo
+    in
+    run x test
 end
 
 let suite (speed, x) =
@@ -2158,6 +2215,7 @@ let suite (speed, x) =
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Test iter", speed, T.test_iter x);
       ("Closure with disconnected commits", speed, T.test_closure x);
+      ("Clear", speed, T.test_clear x);
     ] )
 
 let run name ~misc tl =
