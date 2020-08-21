@@ -56,7 +56,7 @@ module Graph (N : S.NODE_STORE) :
   S.NODE_GRAPH
     with type 'a t = 'a N.t
      and type contents = N.Contents.key
-     and type metadata = N.Val.metadata
+     and type metadata = N.Metadata.t
      and type node = N.key
      and type step = N.Path.step
      and type path = N.Path.t
