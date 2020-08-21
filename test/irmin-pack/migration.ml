@@ -107,27 +107,43 @@ let v1_to_v2 () =
     Log.app (fun m -> m "Running the migration with a RW config");
     S.migrate conf_rw
   in
-  let* r = S.Repo.v conf_rw in
+  let* () =
+    Log.app (fun m -> m "Checking migration is idempotent (cached instance)");
+    S.migrate conf_rw
+  in
+  let* () =
+    let module S = Make () in
+    Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
+    S.migrate conf_rw
+  in
   let* () =
     Log.app (fun m ->
-        m "Checking that old bindings are still reachable post-migration");
+        m
+          "Checking old bindings are still reachable post-migration (cached RO \
+           instance)");
+    let* r = S.Repo.v conf_ro in
     check_repo r archive
   in
   let* new_commit =
-    S.Tree.add S.Tree.empty [ "c" ] "x"
-    >>= S.Commit.v r ~parents:[] ~info:(info ())
+    let* rw = S.Repo.v conf_rw in
+    Log.app (fun m -> m "Checking new commits can be added to the V2 store");
+    let* new_commit =
+      S.Tree.add S.Tree.empty [ "c" ] "x"
+      >>= S.Commit.v rw ~parents:[] ~info:(info ())
+    in
+    let* () = check_commit rw new_commit [ ([ "c" ], "x") ] in
+    let* () = S.Repo.close rw in
+    Lwt.return new_commit
   in
-  let* () = check_commit r new_commit [ ([ "c" ], "x") ] in
-  let* () = S.Repo.close r in
   let* () =
-    Log.app (fun m -> m "Running another migration should be a no-op");
-    S.migrate conf_rw
+    Log.app (fun m ->
+        m "Checking all values can be read from an uncached instance");
+    let module S = Make () in
+    let* ro = S.Repo.v conf_ro in
+    let* () = check_repo ro archive in
+    let* () = check_commit ro new_commit [ ([ "c" ], "x") ] in
+    S.Repo.close ro
   in
-  let* r = S.Repo.v conf_rw in
-  let* ro = S.Repo.v conf_ro in
-  let* () = check_repo ro archive in
-  let* () = check_commit ro new_commit [ ([ "c" ], "x") ] in
-  let* () = S.Repo.close r in
   Lwt.return_unit
 
 let tests =
