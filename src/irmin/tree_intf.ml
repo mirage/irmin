@@ -282,7 +282,7 @@ module type Tree = sig
       S
         with type key = P.Node.Path.t
          and type step = P.Node.Path.step
-         and type metadata = P.Node.Val.metadata
+         and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
          and type hash = P.Hash.t
 

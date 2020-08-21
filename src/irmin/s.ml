@@ -749,13 +749,11 @@ module type PRIVATE = sig
 
   module Contents : CONTENTS_STORE with type key = Hash.t
 
-  module Node :
-    NODE_STORE with type key = Hash.t and type Val.hash = Contents.key
+  module Node : NODE_STORE with type key = Hash.t
 
-  module Commit :
-    COMMIT_STORE with type key = Hash.t and type Val.hash = Node.key
+  module Commit : COMMIT_STORE with type key = Hash.t
 
-  module Branch : BRANCH_STORE with type value = Commit.key
+  module Branch : BRANCH_STORE with type value = Hash.t
 
   module Slice :
     SLICE

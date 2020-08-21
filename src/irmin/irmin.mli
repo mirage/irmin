@@ -328,7 +328,7 @@ module Private : sig
       GRAPH
         with type 'a t = 'a S.t
          and type contents = S.Contents.key
-         and type metadata = S.Val.metadata
+         and type metadata = S.Metadata.t
          and type node = S.key
          and type path = S.Path.t
          and type step = S.Path.step
@@ -417,15 +417,13 @@ module Private : sig
     module Contents : Contents.STORE with type key = Hash.t
     (** Private content store. *)
 
+    module Node : Node.STORE with type key = Hash.t
     (** Private node store. *)
-    module Node :
-      Node.STORE with type key = Hash.t and type Val.hash = Contents.key
 
+    module Commit : Commit.STORE with type key = Hash.t
     (** Private commit store. *)
-    module Commit :
-      Commit.STORE with type key = Hash.t and type Val.hash = Node.key
 
-    module Branch : Branch.STORE with type value = Commit.key
+    module Branch : Branch.STORE with type value = Hash.t
     (** Private branch store. *)
 
     (** Private slices. *)
@@ -896,7 +894,7 @@ module Of_private (P : Private.S) :
      and type branch = P.Branch.key
      and type hash = P.Hash.t
      and type step = P.Node.Path.step
-     and type metadata = P.Node.Val.metadata
+     and type metadata = P.Node.Metadata.t
      and type Key.step = P.Node.Path.step
      and type repo = P.Repo.t
      and type slice = P.Slice.t
