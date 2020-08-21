@@ -233,8 +233,12 @@ module Content_addressable
     U.clear_caches (snd t.uppers);
     match t.lower with None -> () | Some x -> L.clear_caches x
 
+  (** After clearing the previous upper, we also needs to flush current upper to
+      disk, otherwise values are not found by the RO. *)
   let clear_previous_upper t =
     let previous = previous_upper t in
+    let current = current_upper t in
+    U.flush current;
     U.clear previous
 
   let version t = U.version (fst t.uppers)
@@ -464,7 +468,12 @@ struct
     Log.debug (fun l -> l "[branches] flip to %s" (log_previous_upper t));
     t.flip <- not t.flip
 
+  (** After clearing the previous upper, we also needs to flush current upper to
+      disk, otherwise values are not found by the RO. *)
   let clear_previous_upper t =
+    let current = current_upper t in
     let previous = previous_upper t in
-    U.clear previous
+    U.clear previous >|= fun () ->
+    U.flush current;
+    match t.lower with None -> () | Some x -> L.flush x
 end
