@@ -47,14 +47,12 @@ type version = Version.t
 
 let pp_version = Version.pp
 
-type path = string
-
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : version:version -> fresh:bool -> readonly:bool -> path -> t
+  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -78,15 +76,13 @@ module type S = sig
 
   val version : t -> version
 
-  val force_version : t -> version
-
   val flush : t -> unit
 
   val close : t -> unit
 
   val upgrade :
     src:t ->
-    dst:path * version ->
+    dst:string * version ->
     progress:(int64 -> unit) ->
     (unit, [> `Msg of string ]) result
 end
@@ -178,19 +174,6 @@ module Unix : S = struct
   let version t =
     Log.debug (fun l ->
         l "[%s] version: %a" (Filename.basename t.file) pp_version t.version);
-    t.version
-
-  let force_version t =
-    let v = Raw.Version.get t.raw in
-    let v =
-      match Version.of_bin v with
-      | None -> Version.raise_invalid v
-      | Some v -> v
-    in
-    Log.debug (fun l ->
-        l "[%s] force_version: %a ↦ %a" (Filename.basename t.file) pp_version
-          t.version pp_version v);
-    t.version <- v;
     t.version
 
   let readonly t = t.readonly

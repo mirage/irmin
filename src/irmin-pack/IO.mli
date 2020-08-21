@@ -18,7 +18,7 @@ type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
 
-type path = string
+type path := string
 
 module type S = sig
   type t
@@ -48,8 +48,6 @@ module type S = sig
   val readonly : t -> bool
 
   val version : t -> version
-
-  val force_version : t -> version
 
   val flush : t -> unit
 
