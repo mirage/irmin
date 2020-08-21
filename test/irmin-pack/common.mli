@@ -2,6 +2,18 @@ module Dict = Irmin_pack.Dict
 module H = Irmin.Hash.SHA1
 module I = Index
 
+module Filename : sig
+  include module type of Filename
+
+  val quote_command :
+    string ->
+    ?stdin:string ->
+    ?stdout:string ->
+    ?stderr:string ->
+    string list ->
+    string
+end
+
 module Alcotest : sig
   include module type of Alcotest
 
