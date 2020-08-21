@@ -201,6 +201,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
           (IO.name t.block)
       in
       t.block <- io;
+      Tbl.clear t.cache;
+      Tbl.clear t.index;
       refill t ~from:0L)
     else
       let former_log_offset = IO.offset t.block in
