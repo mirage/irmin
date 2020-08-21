@@ -19,14 +19,12 @@
 
 module No_metadata : S.METADATA with type t = unit
 
-module Make
-    (K : Type.S) (P : sig
-      type step
-
-      val step_t : step Type.t
-    end)
-    (M : S.METADATA) :
-  S.NODE with type hash = K.t and type step = P.step and type metadata = M.t
+module Make (K : S.HASH) (P : S.PATH) (M : S.METADATA) :
+  S.NODE
+    with type hash = K.t
+     and type step = P.step
+     and type metadata = M.t
+     and type 'a map = 'a P.StepMap.t
 
 module Store
     (C : S.CONTENTS_STORE)
@@ -42,11 +40,13 @@ module Store
            and type hash = key
            and type metadata = M.t
            and type step = P.step
+           and type 'a map = 'a P.StepMap.t
     end) :
   S.NODE_STORE
     with type 'a t = 'a C.t * 'a N.t
      and type key = N.key
      and type value = N.value
+     and type 'a Path.StepMap.t = 'a P.StepMap.t
      and module Path = P
      and module Metadata = M
      and type Key.t = N.key
@@ -60,6 +60,7 @@ module Graph (N : S.NODE_STORE) :
      and type node = N.key
      and type step = N.Path.step
      and type path = N.Path.t
+     and type 'a map = 'a N.Path.StepMap.t
 
 module V1 (N : S.NODE with type step = string) : sig
   include

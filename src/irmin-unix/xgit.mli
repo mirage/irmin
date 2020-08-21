@@ -33,6 +33,7 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and module Git = G
+     and type 'a Key.StepMap.t = 'a P.StepMap.t
 
 module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
@@ -41,6 +42,7 @@ module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and type contents = C.t
      and type branch = string
      and module Git = G
+     and type 'a Key.StepMap.t = 'a Irmin.Path.String_list.StepMap.t
 
 module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
@@ -67,6 +69,7 @@ module FS : sig
        and type contents = C.t
        and type branch = B.t
        and module Git = G
+       and type 'a Key.StepMap.t = 'a P.StepMap.t
 
   module Ref (C : Irmin.Contents.S) :
     S
@@ -84,6 +87,7 @@ module FS : sig
        and type contents = C.t
        and type branch = string
        and module Git = G
+       and type 'a Key.StepMap.t = 'a Irmin.Path.String_list.StepMap.t
 end
 
 module Mem : sig
@@ -97,6 +101,7 @@ module Mem : sig
        and type contents = C.t
        and type branch = B.t
        and module Git = G
+       and type 'a Key.StepMap.t = 'a P.StepMap.t
 
   module Ref (C : Irmin.Contents.S) :
     S
@@ -114,4 +119,5 @@ module Mem : sig
        and type contents = C.t
        and type branch = string
        and module Git = G
+       and type 'a Key.StepMap.t = 'a Irmin.Path.String_list.StepMap.t
 end

@@ -58,6 +58,10 @@ module type PATH = sig
 
   val step_t : step Type.t
   (** [step_t] is the value type for {!step}. *)
+
+  (** {1 Maps} *} *)
+
+  module StepMap : Map.S with type key = step
 end
 
 module type HASH = sig
@@ -258,9 +262,13 @@ module type NODE = sig
   type step
   (** The type for steps between nodes. *)
 
-  type value = [ `Node of hash | `Contents of hash * metadata ]
+  type 'a map
+  (** The type for polymorphic maps. *)
+
+  type value =
+    [ `Node of hash | `Contents of hash * metadata | `Tree of value map ]
   (** The type for either (node) keys or (contents) keys combined with their
-      metadata. *)
+      metadata or trees. *)
 
   val v : (step * value) list -> t
   (** [create l] is a new node. *)
@@ -330,8 +338,12 @@ module type NODE_GRAPH = sig
   type path
   (** The type of store paths. A path is composed of {{!step} steps}. *)
 
-  type value = [ `Node of node | `Contents of contents * metadata ]
-  (** The type for store values. *)
+  type 'a map
+  (** The type for polymorphic maps. *)
+
+  type value =
+    [ `Node of node | `Contents of contents * metadata | `Tree of value map ]
+  (** The type for node elements. *)
 
   val empty : [> `Write ] t -> node Lwt.t
   (** The empty node. *)
@@ -428,6 +440,7 @@ module type NODE_STORE = sig
        and type hash = key
        and type metadata = Metadata.t
        and type step = Path.step
+       and type 'a map = 'a Path.StepMap.t
 
   module Contents : CONTENTS_STORE with type key = Val.hash
   (** [Contents] is the underlying contents store. *)

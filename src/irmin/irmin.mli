@@ -270,14 +270,12 @@ module Private : sig
 
     (** [Make] provides a simple node implementation, parameterized by the
         contents and notes keys [K], paths [P] and metadata [M]. *)
-    module Make
-        (K : Type.S) (P : sig
-          type step
-
-          val step_t : step Type.t
-        end)
-        (M : Metadata.S) :
-      S with type hash = K.t and type step = P.step and type metadata = M.t
+    module Make (K : S.HASH) (P : Path.S) (M : Metadata.S) :
+      S
+        with type hash = K.t
+         and type step = P.step
+         and type metadata = M.t
+         and type 'a map = 'a P.StepMap.t
 
     (** v1 serialisation *)
     module V1 (S : S with type step = string) : sig
@@ -310,6 +308,7 @@ module Private : sig
                and type hash = key
                and type metadata = M.t
                and type step = P.step
+               and type 'a map = 'a P.StepMap.t
         end) :
       STORE
         with type 'a t = 'a C.t * 'a S.t
@@ -332,6 +331,7 @@ module Private : sig
          and type node = S.key
          and type path = S.Path.t
          and type step = S.Path.step
+         and type 'a map = 'a S.Path.StepMap.t
   end
 
   (** Commit values represent the store history.
@@ -536,11 +536,16 @@ module type S_MAKER = functor
      and type branch = B.t
      and type hash = H.t
      and type Private.Sync.endpoint = unit
+     and type 'a Key.StepMap.t = 'a P.StepMap.t
 
 (** [KV] is similar to {!S} but chooses sensible implementations for path and
     branch. *)
 module type KV =
-  S with type key = string list and type step = string and type branch = string
+  S
+    with type key = string list
+     and type step = string
+     and type branch = string
+     and type 'a Key.StepMap.t = 'a Path.String_list.StepMap.t
 
 (** [KV_MAKER] is like {!S_MAKER} but where everything except the contents is
     replaced by sensible default implementations. *)
@@ -874,7 +879,8 @@ module Make_ext
     (Node : Private.Node.S
               with type metadata = Metadata.t
                and type hash = Hash.t
-               and type step = Path.step)
+               and type step = Path.step
+               and type 'a map = 'a Path.StepMap.t)
     (Commit : Private.Commit.S with type hash = Hash.t) :
   S
     with type key = Path.t
@@ -885,6 +891,7 @@ module Make_ext
      and type metadata = Metadata.t
      and type Key.step = Path.step
      and type Private.Sync.endpoint = unit
+     and type 'a Key.StepMap.t = 'a Path.StepMap.t
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :
@@ -896,6 +903,7 @@ module Of_private (P : Private.S) :
      and type step = P.Node.Path.step
      and type metadata = P.Node.Metadata.t
      and type Key.step = P.Node.Path.step
+     and type 'a Key.StepMap.t = 'a P.Node.Path.StepMap.t
      and type repo = P.Repo.t
      and type slice = P.Slice.t
      and module Private = P

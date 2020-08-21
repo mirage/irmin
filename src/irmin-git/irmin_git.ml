@@ -230,7 +230,10 @@ struct
 
       type step = Path.step
 
-      type value = [ `Node of hash | `Contents of hash * metadata ]
+      type 'a map = 'a P.StepMap.t
+
+      type value =
+        [ `Node of hash | `Contents of hash * metadata | `Tree of value map ]
 
       let metadata_t = Metadata.t
 
@@ -240,12 +243,20 @@ struct
 
       let default = Metadata.default
 
+      let map_t v_t =
+        Irmin.Type.map
+          Irmin.Type.(list (pair P.step_t v_t))
+          (List.fold_left (fun m (k, v) -> P.StepMap.add k v m) P.StepMap.empty)
+          P.StepMap.bindings
+
       let value_t =
         let open Irmin.Type in
-        variant "Tree.value" (fun node contents -> function
-          | `Node n -> node n | `Contents c -> contents c)
+        mu @@ fun value_t ->
+        variant "Tree.value" (fun node contents tree -> function
+          | `Node n -> node n | `Contents c -> contents c | `Tree t -> tree t)
         |~ case1 "node" hash_t (fun n -> `Node n)
         |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
+        |~ case1 "tree" (map_t value_t) (fun t -> `Tree t)
         |> sealv
 
       let of_step = Irmin.Type.to_string P.step_t
@@ -290,6 +301,7 @@ struct
           | `Node node -> G.Value.Tree.entry name `Dir node
           | `Contents (node, perm) ->
               G.Value.Tree.entry name (perm :> G.Value.Tree.perm) node
+          | `Tree _ -> failwith "TODO: Irmin_git: Tree"
         in
         (* FIXME(samoht): issue in G.Value.Tree.add *)
         let entries = G.Value.Tree.to_list t in
@@ -319,7 +331,8 @@ struct
               let v k = (l, k) in
               match x with
               | `Node n -> to_git `Dir (v n)
-              | `Contents (c, perm) -> to_git (perm :> G.Value.Tree.perm) (v c))
+              | `Contents (c, perm) -> to_git (perm :> G.Value.Tree.perm) (v c)
+              | `Tree _ -> failwith "TODO: Irmin_git.v: Tree")
             alist
         in
         (* Tree.of_list will sort the list in the right order *)
@@ -1224,6 +1237,7 @@ module type S_MAKER = functor
      and type branch = B.t
      and module Git = G
      and type Private.Sync.endpoint = S.Endpoint.t
+     and type 'a Key.StepMap.t = 'a P.StepMap.t
 
 module type KV_MAKER = functor
   (G : G)
@@ -1237,6 +1251,7 @@ module type KV_MAKER = functor
      and type branch = string
      and module Git = G
      and type Private.Sync.endpoint = S.Endpoint.t
+     and type 'a Key.StepMap.t = 'a Irmin.Path.String_list.StepMap.t
 
 module type REF_MAKER = functor
   (G : G)

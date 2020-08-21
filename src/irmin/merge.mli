@@ -150,12 +150,8 @@ val counter : counter t
 (** The merge function for mergeable counters. *)
 
 (** Multi-sets. *)
-module MultiSet (K : sig
-  include Set.OrderedType
-
-  val t : t Type.t
-end) : sig
-  val merge : counter Map.Make(K).t t
+module MultiSet (M : Map.S) (K : Type.S with type t = M.key) : sig
+  val merge : counter M.t t
 end
 
 (** {1 Maps and Association Lists} *)
@@ -178,12 +174,8 @@ end
     multi-sets}. *)
 
 (** Lift merge functions to sets. *)
-module Set (E : sig
-  include Set.OrderedType
-
-  val t : t Type.t
-end) : sig
-  val merge : Set.Make(E).t t
+module Set (S : Set.S) (K : Type.S with type t = S.elt) : sig
+  val merge : S.t t
 end
 
 val alist : 'a Type.t -> 'b Type.t -> ('a -> 'b option t) -> ('a * 'b) list t
@@ -191,12 +183,8 @@ val alist : 'a Type.t -> 'b Type.t -> ('a -> 'b option t) -> ('a * 'b) list t
 
 (** Lift the merge functions to maps. *)
 
-module Map (K : sig
-  include Map.OrderedType
-
-  val t : t Type.t
-end) : sig
-  val merge : 'a Type.t -> (K.t -> 'a option t) -> 'a Map.Make(K).t t
+module Map (M : Map.S) (K : Type.S with type t = M.key) : sig
+  val merge : 'a Type.t -> (K.t -> 'a option t) -> 'a M.t t
 end
 
 (** Infix operators for manipulating merge results and {!promise}s.

@@ -93,6 +93,8 @@ struct
     let value_t = Node.value_t
 
     let pp_hash = Irmin.Type.(pp hash_t)
+
+    type 'a map = 'a Node.map
   end
 
   module Inode = struct
@@ -667,6 +669,7 @@ struct
               let s = step s in
               let v = hash n in
               Compress.Node (s, v)
+          | _, `Tree _ -> failwith "Inode.encode_bin: Tree"
         in
         (* List.map is fine here as the number of entries is small *)
         let v : Bin.v -> Compress.v = function

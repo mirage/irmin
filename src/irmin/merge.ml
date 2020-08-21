@@ -258,14 +258,7 @@ let alist dx dy merge_v =
           alist_merge_lwt Type.(compare dx) (merge_elt merge_v old) x y >>= ok)
         (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
 
-module MultiSet (K : sig
-  include Set.OrderedType
-
-  val t : t Type.t
-end) =
-struct
-  module M = Map.Make (K)
-
+module MultiSet (M : Map.S) (K : Type.S with type t = M.key) = struct
   let of_alist l = List.fold_left (fun map (k, v) -> M.add k v map) M.empty l
 
   let t = Type.map Type.(list (pair K.t int64)) of_alist M.bindings
@@ -289,14 +282,7 @@ struct
   let merge = (t, merge)
 end
 
-module Set (K : sig
-  include Set.OrderedType
-
-  val t : t Type.t
-end) =
-struct
-  module S = Set.Make (K)
-
+module Set (S : Set.S) (K : Type.S with type t = S.elt) = struct
   let of_list l = List.fold_left (fun set elt -> S.add elt set) S.empty l
 
   let t = Type.(map @@ list K.t) of_list S.elements
@@ -315,19 +301,14 @@ struct
   let merge = (t, merge)
 end
 
-module Map (K : sig
-  include Map.OrderedType
-
-  val t : t Type.t
-end) =
-struct
-  module M = Map.Make (K)
+module Map (M : Map.S) (K : Type.S with type t = M.key) = struct
+  let compare = Type.compare K.t
 
   let of_alist l = List.fold_left (fun map (k, v) -> M.add k v map) M.empty l
 
   let t x = Type.map Type.(list @@ pair K.t x) of_alist M.bindings
 
-  let iter2 f t1 t2 = alist_iter2 K.compare f (M.bindings t1) (M.bindings t2)
+  let iter2 f t1 t2 = alist_iter2 compare f (M.bindings t1) (M.bindings t2)
 
   let iter2 f m1 m2 =
     let m3 = ref [] in

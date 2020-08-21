@@ -103,6 +103,7 @@ module type S_MAKER = functor
      and type branch = B.t
      and module Git = G
      and type Private.Sync.endpoint = S.Endpoint.t
+     and type 'a Key.StepMap.t = 'a P.StepMap.t
 
 module type KV_MAKER = functor
   (G : G)
@@ -116,6 +117,7 @@ module type KV_MAKER = functor
      and type branch = string
      and module Git = G
      and type Private.Sync.endpoint = S.Endpoint.t
+     and type 'a Key.StepMap.t = 'a Irmin.Path.String_list.StepMap.t
 
 type reference =
   [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]

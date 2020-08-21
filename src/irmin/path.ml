@@ -53,4 +53,10 @@ module String_list = struct
   let of_string s = Ok (List.filter (( <> ) "") (String.cuts s ~sep:"/"))
 
   let t = Type.like ~cli:(pp, of_string) Type.(list step_t)
+
+  module StepMap = Map.Make (struct
+    type t = step
+
+    let compare = Type.compare step_t
+  end)
 end

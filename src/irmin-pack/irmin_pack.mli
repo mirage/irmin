@@ -90,7 +90,8 @@ module Make_ext
     (N : Irmin.Private.Node.S
            with type metadata = Metadata.t
             and type hash = Hash.t
-            and type step = Path.step)
+            and type step = Path.step
+            and type 'a map = 'a Path.StepMap.t)
     (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
   include
     Irmin.S
@@ -102,6 +103,7 @@ module Make_ext
        and type metadata = Metadata.t
        and type Key.step = Path.step
        and type Private.Sync.endpoint = unit
+       and type 'a Key.StepMap.t = 'a Path.StepMap.t
 
   include Stores_extra with type repo := repo
 end
@@ -122,6 +124,7 @@ module Make
        and type branch = B.t
        and type hash = H.t
        and type Private.Sync.endpoint = unit
+       and type 'a Key.StepMap.t = 'a P.StepMap.t
 
   include Stores_extra with type repo := repo
 end
