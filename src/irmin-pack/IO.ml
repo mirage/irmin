@@ -177,7 +177,7 @@ module Unix : S = struct
 
   let version t =
     Log.debug (fun l ->
-        l "[%s] version %a" (Filename.basename t.file) pp_version t.version);
+        l "[%s] version: %a" (Filename.basename t.file) pp_version t.version);
     t.version
 
   let force_version t =
@@ -356,34 +356,50 @@ module Unix : S = struct
           pp_version src_v pp_version dst_v
 end
 
-let with_cache ~v ~clear ~valid file =
-  let files = Hashtbl.create 13 in
-  let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
-    let file = root // file in
-    if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
-    try
-      if not (Sys.file_exists file) then (
+module Cache = struct
+  type ('a, 'v) t = {
+    v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
+    invalidate : readonly:bool -> string -> unit;
+  }
+
+  let memoize ~v ~clear ~valid file =
+    let files = Hashtbl.create 13 in
+    let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root
+        =
+      let file = root // file in
+      if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
+      try
+        if not (Sys.file_exists file) then (
+          Log.debug (fun l ->
+              l "[%s] does not exist anymore, cleaning up the fd cache"
+                (Filename.basename file));
+          Hashtbl.remove files (file, true);
+          Hashtbl.remove files (file, false);
+          raise Not_found);
+        let t = Hashtbl.find files (file, readonly) in
+        if valid t then (
+          Log.debug (fun l ->
+              l "Found in cache: { path = %s; readonly = %b }" file readonly);
+          if fresh then clear t;
+          t)
+        else (
+          Hashtbl.remove files (file, readonly);
+          raise Not_found)
+      with Not_found ->
         Log.debug (fun l ->
-            l "[%s] does not exist anymore, cleaning up the fd cache"
-              (Filename.basename file));
-        Hashtbl.remove files (file, true);
-        Hashtbl.remove files (file, false);
-        raise Not_found);
-      let t = Hashtbl.find files (file, readonly) in
-      if valid t then (
-        Log.debug (fun l -> l "%s found in cache" file);
+            l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
+              readonly);
+        let t = v extra_args ~fresh ~readonly file in
         if fresh then clear t;
-        t)
-      else (
-        Hashtbl.remove files (file, readonly);
-        raise Not_found)
-    with Not_found ->
+        Hashtbl.add files (file, readonly) t;
+        t
+    in
+    let invalidate ~readonly root =
+      let file = root // file in
       Log.debug (fun l ->
-          l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
+          l "Invalidating cache entries for { path = %s; readonly = %b }" file
             readonly);
-      let t = v extra_args ~fresh ~readonly file in
-      if fresh then clear t;
-      Hashtbl.add files (file, readonly) t;
-      t
-  in
-  `Staged cached_constructor
+      Hashtbl.remove files (file, readonly)
+    in
+    { v = cached_constructor; invalidate }
+end

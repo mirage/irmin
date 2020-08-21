@@ -42,8 +42,7 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
-let with_cache = IO.with_cache
-
+module IO_cache = IO.Cache
 module IO = IO.Unix
 
 module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
@@ -79,8 +78,10 @@ struct
     let block = IO.v ~version:current_version ~fresh ~readonly file in
     { block; index; lock; dict; open_instances = 1 }
 
-  let (`Staged v) =
-    with_cache ~clear ~valid ~v:(fun index -> unsafe_v ~index) "store.pack"
+  let IO_cache.{ v; invalidate } =
+    IO_cache.memoize ~clear ~valid
+      ~v:(fun index -> unsafe_v ~index)
+      "store.pack"
 
   type key = K.t
 
@@ -158,6 +159,8 @@ struct
       Lwt_mutex.with_lock create (fun () ->
           let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
+
+    let invalidate ~readonly root = Hashtbl.remove roots (root, readonly)
 
     let pp_hash = Irmin.Type.pp K.t
 

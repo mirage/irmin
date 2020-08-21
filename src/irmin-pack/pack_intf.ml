@@ -81,12 +81,15 @@ module type S = sig
 
   val close : 'a t -> unit Lwt.t
 
+  val invalidate : readonly:bool -> string -> unit
 end
 
 module type MAKER = sig
   type key
 
   type index
+
+  val invalidate : readonly:bool -> string -> unit
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)

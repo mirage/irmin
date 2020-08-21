@@ -13,3 +13,5 @@
 include Dict.S
 
 val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+
+val invalidate : readonly:bool -> string -> unit

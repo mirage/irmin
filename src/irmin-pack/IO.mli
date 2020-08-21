@@ -65,9 +65,16 @@ end
 
 module Unix : S
 
-val with_cache :
-  v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
-  clear:('b -> unit) ->
-  valid:('b -> bool) ->
-  string ->
-  [ `Staged of 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'b ]
+module Cache : sig
+  type ('a, 'v) t = {
+    v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
+    invalidate : readonly:bool -> string -> unit;
+  }
+
+  val memoize :
+    v:('a -> fresh:bool -> readonly:bool -> string -> 'v) ->
+    clear:('v -> unit) ->
+    valid:('v -> bool) ->
+    string ->
+    ('a, 'v) t
+end

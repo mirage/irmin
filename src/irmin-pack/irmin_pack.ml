@@ -105,7 +105,7 @@ let config ?(fresh = Default.fresh) ?(readonly = Default.readonly)
 
 let ( ++ ) = Int64.add
 
-let with_cache = IO.with_cache
+module Cache = IO.Cache
 
 let pp_version = IO.pp_version
 
@@ -291,8 +291,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     refill t ~from:0L;
     t
 
-  let (`Staged unsafe_v) =
-    with_cache ~clear:unsafe_clear ~valid
+  let Cache.{ v = unsafe_v; invalidate } =
+    Cache.memoize ~clear:unsafe_clear ~valid
       ~v:(fun () -> unsafe_v)
       "store.branches"
 
@@ -612,6 +612,18 @@ struct
               in
               List.iter migrate_io
                 [ "store.pack"; "store.branches"; "store.dict" ];
+              List.iter
+                (fun i ->
+                  i ~readonly:true root_old;
+                  i ~readonly:false root_old)
+                [
+                  Contents.CA.invalidate;
+                  Node.CA.invalidate;
+                  Commit.CA.invalidate;
+                  Pack.invalidate;
+                  Branch.AW.invalidate;
+                  Dict.invalidate;
+                ];
               Lwt.return_unit
     end
   end

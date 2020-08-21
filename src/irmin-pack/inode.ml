@@ -50,6 +50,8 @@ module type S = sig
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
 
   val clear_caches : 'a t -> unit
+
+  val invalidate : readonly:bool -> string -> unit
 end
 
 module type CONFIG = sig
@@ -825,4 +827,6 @@ struct
   let sync = Inode.sync
 
   let clear_caches = Inode.clear_caches
+
+  let invalidate = Inode.invalidate
 end
