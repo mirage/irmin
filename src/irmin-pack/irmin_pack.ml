@@ -634,6 +634,7 @@ struct
             in
             ios |> List.iter (migrate_io_to_v2 ~root_old ~root_tmp ~progress);
             Utils.Progress.finalise bar;
+            Platform.rmdir root_tmp;
             List.iter
               (fun i ->
                 i ~readonly:true root_old;
