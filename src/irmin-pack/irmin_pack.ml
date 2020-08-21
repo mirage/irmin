@@ -22,6 +22,8 @@ let current_version = `V2
 
 let ( // ) = Filename.concat
 
+module Platform = Platform.Unix
+
 module Default = struct
   let fresh = false
 
@@ -597,15 +599,15 @@ struct
               Log.info (fun l ->
                   l "Creating temporary directory `%s' for the migrated store"
                     root_tmp);
-              Unix.mkdir root_tmp 0o777;
+              Platform.mkdir root_tmp;
               let migrate_io name =
                 let old, tmp = (root_old // name, root_tmp // name) in
                 let src = IO.v ~version:`V1 ~fresh:false ~readonly:true old in
                 IO.upgrade ~progress:(fun ~written:_ -> ()) ~src ~dst:(tmp, `V2)
                 |> function
                 | Ok () ->
-                    Unix.unlink old;
-                    Unix.rename tmp old;
+                    Platform.unlink old;
+                    Platform.rename tmp old;
                     IO.close src;
                     ()
                 | Error (`Msg s) -> invalid_arg s
