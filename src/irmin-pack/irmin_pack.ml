@@ -586,7 +586,6 @@ struct
         let old, tmp = (root_old // name, root_tmp // name) in
         IO.upgrade ~progress ~src ~dst:(tmp, `V2) |> function
         | Ok () ->
-            Platform.unlink old;
             Platform.rename tmp old;
             IO.close src;
             ()

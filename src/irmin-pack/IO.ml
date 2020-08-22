@@ -153,11 +153,9 @@ module Unix : S = struct
       off <= t.flushed)
 
   let read t ~off buf =
-    assert (
-      if not t.readonly then header t.version ++ off <= t.flushed else true);
-    Raw.unsafe_read t.raw
-      ~off:(header t.version ++ off)
-      ~len:(Bytes.length buf) buf
+    let off = header t.version ++ off in
+    assert (if not t.readonly then off <= t.flushed else true);
+    Raw.unsafe_read t.raw ~off ~len:(Bytes.length buf) buf
 
   let offset t = t.offset
 

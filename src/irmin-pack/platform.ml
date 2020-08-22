@@ -5,8 +5,6 @@ module type S = sig
 
   val rename : path -> path -> unit
 
-  val unlink : path -> unit
-
   val rmdir : path -> unit
 end
 

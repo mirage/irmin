@@ -76,7 +76,7 @@ module type Stores_extra = sig
       the latest storage format.
 
       {b Note:} performing concurrent store operations during the migration, or
-      attenpting to use pre-migration instances of the repository after the
+      attempting to use pre-migration instances of the repository after the
       migration is complete, will result in undefined behaviour. *)
 end
 
