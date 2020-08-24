@@ -67,7 +67,8 @@ end = struct
       let percentage = percentage !count in
       if first then Format.pp_open_box ppf 0 else Fmt.pf ppf "\r";
       Fmt.pf ppf "%s  %a  %02.0f:%02.0f  %s %3.0f%%@,%!" message pp_count !count
-        (Mtime.Span.to_min span) (Mtime.Span.to_s span)
+        (Mtime.Span.to_min span)
+        (Float.rem (Mtime.Span.to_s span) 60.)
         (bar bar_width percentage) percentage
     in
     update ~first:true;

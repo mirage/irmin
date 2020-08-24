@@ -609,15 +609,13 @@ struct
               ios |> List.map IO.offset |> List.fold_left Int64.add 0L
             in
             let bar, progress =
-              Utils.Progress.counter ~total ~sampling_interval:10
+              Utils.Progress.counter ~total ~sampling_interval:100
                 ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
             in
-            ios |> List.iter (migrate_io_to_v2 ~progress);
+            List.iter (migrate_io_to_v2 ~progress) ios;
             Utils.Progress.finalise bar;
             List.iter
-              (fun i ->
-                i ~readonly:true root_old;
-                i ~readonly:false root_old)
+              (fun i -> i root_old)
               [
                 Contents.CA.invalidate;
                 Node.CA.invalidate;
