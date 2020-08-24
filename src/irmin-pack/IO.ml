@@ -324,7 +324,7 @@ module Unix : S = struct
           (* Note: all V1 files implicitly have [generation = 0], since it
              is not possible to [clear] them. *)
           raw dst_path
-            ~flags:[ Unix.O_CREAT; O_WRONLY; O_APPEND ]
+            ~flags:[ Unix.O_CREAT; O_WRONLY ]
             ~version:`V2 ~offset:src_offset ~generation:0L
         in
         transfer_all ~src:src.raw ~progress
