@@ -34,7 +34,7 @@ module Progress : sig
 
   val finalise : t -> unit
 end = struct
-  type t = Format.formatter
+  type t = { ppf : Format.formatter; update : unit -> unit }
 
   let bar width percentage =
     let filled =
@@ -63,19 +63,21 @@ end = struct
     let bar_width = columns - String.length message - count_width - 16 in
     if bar_width < 3 then invalid_arg "Not enough space for a progress bar";
     let update ~first =
-      let span = Mtime_clock.count start_time in
+      let seconds = Mtime_clock.count start_time |> Mtime.Span.to_s in
       let percentage = percentage !count in
       if first then Format.pp_open_box ppf 0 else Fmt.pf ppf "\r";
-      Fmt.pf ppf "%s  %a  %02.0f:%02.0f  %s %3.0f%%@,%!" message pp_count !count
-        (Mtime.Span.to_min span)
-        (Float.rem (Mtime.Span.to_s span) 60.)
+      Fmt.pf ppf "%s  %a  %02.0f:%02.0f  %s %3.0f%%%!" message pp_count !count
+        (Float.div seconds 60.) (Float.rem seconds 60.)
         (bar bar_width percentage) percentage
     in
+    let progress i =
+      count := Int64.add !count i;
+      if should_update () then update ~first:false
+    in
     update ~first:true;
-    ( ppf,
-      fun i ->
-        count := Int64.add !count i;
-        if should_update () then update ~first:false )
+    ({ ppf; update = (fun () -> update ~first:false) }, progress)
 
-  let finalise ppf = Format.pp_close_box ppf ()
+  let finalise { ppf; update } =
+    update ();
+    Fmt.pf ppf "@,@]%!"
 end
