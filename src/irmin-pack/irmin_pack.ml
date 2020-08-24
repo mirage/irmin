@@ -22,8 +22,6 @@ let current_version = `V2
 
 let ( // ) = Filename.concat
 
-let ( >> ) f g x = g (f x)
-
 let ( let* ) x f = Lwt.bind x f
 
 module Platform = Platform.Unix
@@ -582,13 +580,9 @@ struct
 
       (** Migrate data from the IO [src] (with [name] in path [root_old]) into
           the temporary dir [root_tmp], then swap in the replaced version. *)
-      let migrate_io_to_v2 ~root_old ~root_tmp ~progress (name, src) =
-        let old, tmp = (root_old // name, root_tmp // name) in
-        IO.upgrade ~progress ~src ~dst:(tmp, `V2) |> function
-        | Ok () ->
-            Platform.rename tmp old;
-            IO.close src;
-            ()
+      let migrate_io_to_v2 ~progress src =
+        IO.migrate ~progress src `V2 |> function
+        | Ok () -> IO.close src
         | Error (`Msg s) -> invalid_arg s
 
       let migrate config =
@@ -607,33 +601,21 @@ struct
         | `V1 ->
             let* () = close t in
             let root_old = root config in
-            let root_tmp =
-              let rand =
-                Random.State.(bits (make_self_init ())) land 0xFFFFFF
-              in
-              root_old // Fmt.str "tmp-migrate-%06x" rand
-            in
-            Log.info (fun l ->
-                l "Creating temporary directory `%s' for the migrated store"
-                  root_tmp);
-            Platform.mkdir root_tmp;
-            let ios : (string * IO.t) list =
+            let ios =
               [ "store.pack"; "store.branches"; "store.dict" ]
               |> List.map (fun name ->
-                     ( name,
-                       IO.v ~version:`V1 ~fresh:false ~readonly:true
-                         (root_old // name) ))
+                     IO.v ~version:`V1 ~fresh:false ~readonly:true
+                       (root_old // name))
             in
             let total =
-              ios |> List.map (snd >> IO.offset) |> List.fold_left Int64.add 0L
+              ios |> List.map IO.offset |> List.fold_left Int64.add 0L
             in
             let bar, progress =
               Utils.Progress.counter ~total ~sampling_interval:10
                 ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
             in
-            ios |> List.iter (migrate_io_to_v2 ~root_old ~root_tmp ~progress);
+            ios |> List.iter (migrate_io_to_v2 ~progress);
             Utils.Progress.finalise bar;
-            Platform.rmdir root_tmp;
             List.iter
               (fun i ->
                 i ~readonly:true root_old;

@@ -53,10 +53,10 @@ module type S = sig
 
   val close : t -> unit
 
-  val upgrade :
-    src:t ->
-    dst:path * version ->
+  val migrate :
     progress:(int64 -> unit) ->
+    t ->
+    version ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
 end

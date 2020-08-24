@@ -80,10 +80,10 @@ module type S = sig
 
   val close : t -> unit
 
-  val upgrade :
-    src:t ->
-    dst:string * version ->
+  val migrate :
     progress:(int64 -> unit) ->
+    t ->
+    version ->
     (unit, [> `Msg of string ]) result
 end
 
@@ -306,7 +306,7 @@ module Unix : S = struct
     in
     inner ~src_off ~dst_off
 
-  let upgrade ~src ~dst:(dst_path, dst_v) ~progress =
+  let migrate ~progress src dst_v =
     let src_v =
       let v_bin = Raw.Version.get src.raw in
       match Version.of_bin v_bin with
@@ -316,22 +316,27 @@ module Unix : S = struct
     let src_offset = Raw.Offset.get src.raw in
     match (src_v, dst_v) with
     | `V1, `V2 ->
+        let dst_path =
+          let rand = Random.State.(bits (make_self_init ())) land 0xFFFFFF in
+          Fmt.str "%s-tmp-migrate-%06x" src.file rand
+        in
         Log.debug (fun m ->
-            m "[%s] Performing migration: %a → %a"
+            m "[%s] Performing migration [%a → %a] using tmp file %s"
               (Filename.basename src.file)
-              pp_version `V1 pp_version `V2);
+              pp_version `V1 pp_version `V2
+              (Filename.basename dst_path));
         let dst =
           (* Note: all V1 files implicitly have [generation = 0], since it
              is not possible to [clear] them. *)
-          raw dst_path
-            ~flags:[ Unix.O_CREAT; O_WRONLY ]
-            ~version:`V2 ~offset:src_offset ~generation:0L
+          raw dst_path ~flags:[ Unix.O_CREAT; O_WRONLY ] ~version:`V2
+            ~offset:src_offset ~generation:0L
         in
         transfer_all ~src:src.raw ~progress
           ~src_off:(header `V1)
           ~dst
           ~dst_off:(header `V2);
         Raw.close dst;
+        Unix.rename dst_path src.file;
         Ok ()
     | _, _ ->
         Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
