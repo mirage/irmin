@@ -24,8 +24,6 @@ let ( // ) = Filename.concat
 
 let ( let* ) x f = Lwt.bind x f
 
-module Platform = Platform.Unix
-
 module Default = struct
   let fresh = false
 
