@@ -50,7 +50,7 @@ module type S = sig
 
   val clear_caches : 'a t -> unit
 
-  val invalidate : readonly:bool -> string -> unit
+  val invalidate : string -> unit
 end
 
 module Make

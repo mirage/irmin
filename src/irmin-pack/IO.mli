@@ -66,7 +66,7 @@ module Unix : S
 module Cache : sig
   type ('a, 'v) t = {
     v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
-    invalidate : readonly:bool -> string -> unit;
+    invalidate : string -> unit;
   }
 
   val memoize :

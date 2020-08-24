@@ -346,7 +346,7 @@ end
 module Cache = struct
   type ('a, 'v) t = {
     v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
-    invalidate : readonly:bool -> string -> unit;
+    invalidate : string -> unit;
   }
 
   let memoize ~v ~clear ~valid file =
@@ -381,12 +381,11 @@ module Cache = struct
         Hashtbl.add files (file, readonly) t;
         t
     in
-    let invalidate ~readonly root =
+    let invalidate root =
       let file = root // file in
-      Log.debug (fun l ->
-          l "Invalidating cache entries for { path = %s; readonly = %b }" file
-            readonly);
-      Hashtbl.remove files (file, readonly)
+      Log.debug (fun l -> l "Invalidating cache entries for path = `%s'" file);
+      Hashtbl.remove files (file, true);
+      Hashtbl.remove files (file, false)
     in
     { v = cached_constructor; invalidate }
 end

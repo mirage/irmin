@@ -160,7 +160,9 @@ struct
           let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
 
-    let invalidate ~readonly root = Hashtbl.remove roots (root, readonly)
+    let invalidate root =
+      Hashtbl.remove roots (root, true);
+      Hashtbl.remove roots (root, false)
 
     let pp_hash = Irmin.Type.pp K.t
 
