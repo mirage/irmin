@@ -20,6 +20,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
 
+let ( // ) = Filename.concat
+
 module Default = struct
   let fresh = false
 
@@ -103,7 +105,7 @@ let config ?(fresh = Default.fresh) ?(readonly = Default.readonly)
 
 let ( ++ ) = Int64.add
 
-let with_cache = IO.with_cache
+module Cache = IO.Cache
 
 let pp_version = IO.pp_version
 
@@ -111,11 +113,19 @@ open Lwt.Infix
 module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
+
+exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
+
+exception Unsupported_version of IO.version
+
+let () =
+  Printexc.register_printer (function
+    | Unsupported_version v ->
+        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" IO.pp_version v)
+    | _ -> None)
+
+module I = IO
 module IO = IO.Unix
-
-exception RO_Not_Allowed = IO.RO_Not_Allowed
-
-exception Unsupported_version of string
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -212,7 +222,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Log.debug (fun l -> l "[branches] generation changed, refill buffers");
       IO.close t.block;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:current_version
+        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
           (IO.name t.block)
       in
       t.block <- io;
@@ -266,7 +276,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:current_version ~readonly file in
+    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t =
@@ -282,8 +292,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     refill t ~from:0L;
     t
 
-  let (`Staged unsafe_v) =
-    with_cache ~clear:unsafe_clear ~valid
+  let Cache.{ v = unsafe_v } =
+    Cache.memoize ~clear:unsafe_clear ~valid
       ~v:(fun () -> unsafe_v)
       "store.branches"
 
@@ -366,6 +376,8 @@ module type Stores_extra = sig
   val sync : repo -> unit
 
   val clear : repo -> unit Lwt.t
+
+  val migrate : Irmin.config -> unit
 end
 
 module Make_ext
@@ -541,12 +553,16 @@ struct
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
       let v config =
-        unsafe_v config >>= fun t ->
-        match Contents.CA.version (contents_t t) with
-        | `V1 ->
-            close t >>= fun () ->
-            Lwt.fail (Unsupported_version (Fmt.str "%a" pp_version `V1))
-        | `V2 -> Lwt.return t
+        Lwt.catch
+          (fun () -> unsafe_v config)
+          (function
+            | I.Invalid_version { expected; found }
+              when expected = current_version ->
+                Log.err (fun m ->
+                    m "[%s] Attempted to open store of unsupported version %a"
+                      (root config) pp_version found);
+                Lwt.fail (Unsupported_version found)
+            | e -> Lwt.fail e)
 
       (** Stores share instances in memory, one sync is enough. However each
           store has its own lru and all have to be cleared. *)
@@ -557,8 +573,62 @@ struct
         in
         Contents.CA.sync ~on_generation_change (contents_t t)
 
-      (** Storea share instances so one clear is enough. *)
+      (** Stores share instances so one clear is enough. *)
       let clear t = Contents.CA.clear (contents_t t)
+
+      (** Migrate data from the IO [src] (with [name] in path [root_old]) into
+          the temporary dir [root_tmp], then swap in the replaced version. *)
+      let migrate_io_to_v2 ~progress src =
+        IO.migrate ~progress src `V2 |> function
+        | Ok () -> IO.close src
+        | Error (`Msg s) -> invalid_arg s
+
+      let migrate config =
+        if readonly config then raise RO_Not_Allowed;
+        Log.info (fun l -> l "[%s] migrate" (root config));
+        let root_old = root config in
+        [ "store.pack"; "store.branches"; "store.dict" ]
+        |> List.map (fun name ->
+               let io =
+                 IO.v ~version:None ~fresh:false ~readonly:true
+                   (root_old // name)
+               in
+               let version = IO.version io in
+               (name, io, version))
+        |> List.partition (fun (_, _, v) -> v = current_version)
+        |> function
+        | migrated, [] ->
+            Log.app (fun l ->
+                l "Store at %s is already in current version (%a)" (root config)
+                  pp_version current_version);
+            List.iter (fun (_, io, _) -> IO.close io) migrated
+        | migrated, to_migrate ->
+            List.iter (fun (_, io, _) -> IO.close io) migrated;
+            (match migrated with
+            | [] -> ()
+            | _ :: _ ->
+                let pp_ios =
+                  Fmt.(Dump.list (using (fun (n, _, _) -> n) string))
+                in
+                Log.warn (fun l ->
+                    l
+                      "Store is in an inconsistent state: files %a have \
+                       already been upgraded, but %a have not. Upgrading the \
+                       remaining files now."
+                      pp_ios migrated pp_ios to_migrate));
+            let total =
+              to_migrate
+              |> List.map (fun (_, io, _) -> IO.offset io)
+              |> List.fold_left Int64.add 0L
+            in
+            let bar, progress =
+              Utils.Progress.counter ~total ~sampling_interval:100
+                ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
+            in
+            List.iter
+              (fun (_, io, _) -> migrate_io_to_v2 ~progress io)
+              to_migrate;
+            Utils.Progress.finalise bar
     end
   end
 
@@ -632,6 +702,8 @@ struct
   let sync = X.Repo.sync
 
   let clear = X.Repo.clear
+
+  let migrate = X.Repo.migrate
 end
 
 module Hash = Irmin.Hash.BLAKE2B
@@ -654,3 +726,7 @@ end
 module KV (Config : CONFIG) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 module Stats = Stats
+
+module Private = struct
+  module Utils = Utils
+end

@@ -1,13 +1,13 @@
 (library
  (name test_pack)
- (modules test_pack multiple_instances)
+ (modules test_pack multiple_instances migration)
  (libraries alcotest fmt common index irmin irmin-test irmin-pack logs lwt
-   lwt.unix))
+   lwt.unix fpath))
 
 (executable
  (name test)
- (modules test)
- (libraries alcotest digestif.ocaml irmin irmin-test test_pack))
+ (modules test test_utils)
+ (libraries alcotest astring digestif.ocaml irmin irmin-test test_pack))
 
 (rule
  (alias runtest)

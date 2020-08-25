@@ -13,9 +13,9 @@
 include Dict.Make (IO.Unix)
 
 (* Add IO caching around Dict.v *)
-let (`Staged v) =
+let IO.Cache.{ v } =
   let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
-  IO.with_cache ~clear ~valid
+  IO.Cache.memoize ~clear ~valid
     ~v:(fun capacity -> v_no_cache ~capacity)
     "store.dict"
 

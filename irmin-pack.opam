@@ -20,8 +20,11 @@ depends: [
   "fmt"
   "logs"
   "lwt"
+  "mtime"
   "irmin-test" {with-test & >= "2.2.0"}
   "alcotest-lwt" {with-test}
+  "astring" {with-test}
+  "fpath" {with-test}
 ]
 
 pin-depends: [

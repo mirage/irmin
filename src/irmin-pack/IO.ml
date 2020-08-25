@@ -22,24 +22,39 @@ let ( // ) = Filename.concat
 
 (* For every new version, update the [version] type and [versions]
    headers. *)
-type version = [ `V1 | `V2 ]
 
-let versions = [ (`V1, "00000001"); (`V2, "00000002") ]
+module Version = struct
+  type t = [ `V1 | `V2 ]
 
-let pp_version = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+  let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
 
-let bin_of_version v = List.assoc v versions
+  let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 
-let version_of_bin b =
-  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) versions))
-  with Not_found -> None
+  let to_bin v = List.assoc v enum
+
+  let raise_invalid v =
+    let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in
+    Fmt.failwith "invalid version: got %S, expecting %a" v
+      Fmt.(Dump.list pp_full_version)
+      (List.map fst enum)
+
+  let of_bin b =
+    try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
+    with Not_found -> None
+end
+
+type version = Version.t
+
+let pp_version = Version.pp
+
+exception Invalid_version of { expected : version; found : version }
 
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
+  val v : version:version option -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -66,6 +81,12 @@ module type S = sig
   val flush : t -> unit
 
   val close : t -> unit
+
+  val migrate :
+    progress:(int64 -> unit) ->
+    t ->
+    version ->
+    (unit, [> `Msg of string ]) result
 end
 
 let ( ++ ) = Int64.add
@@ -149,7 +170,10 @@ module Unix : S = struct
     t.generation <- Raw.Generation.get t.raw;
     t.generation
 
-  let version t = t.version
+  let version t =
+    Log.debug (fun l ->
+        l "[%s] version: %a" (Filename.basename t.file) pp_version t.version);
+    t.version
 
   let readonly t = t.readonly
 
@@ -176,11 +200,11 @@ module Unix : S = struct
     in
     aux dirname (fun () -> ())
 
-  let raw ~mode ~version ~generation file =
-    let x = Unix.openfile file Unix.[ O_CREAT; mode; O_CLOEXEC ] 0o644 in
+  let raw ~flags ~version ~offset ~generation file =
+    let x = Unix.openfile file flags 0o644 in
     let raw = Raw.v x in
     let header =
-      { Raw.Header.version = bin_of_version version; offset = 0L; generation }
+      { Raw.Header.version = Version.to_bin version; offset; generation }
     in
     Raw.Header.set raw header;
     raw
@@ -190,7 +214,7 @@ module Unix : S = struct
     Log.debug (fun l -> l "clear %s" t.file);
     Buffer.clear t.buf;
     (* no-op if the file is already empty; this is to avoid bumping
-       the version  number when this is not necessary. *)
+       the version number when this is not necessary. *)
     if t.offset = 0L then ()
     else (
       t.offset <- 0L;
@@ -204,14 +228,25 @@ module Unix : S = struct
       Unix.unlink t.file;
       (* and re-open a fresh instance. *)
       t.raw <-
-        raw ~version:t.version ~generation:t.generation ~mode:Unix.O_RDWR t.file)
+        raw ~version:t.version ~generation:t.generation ~offset:0L
+          ~flags:Unix.[ O_CREAT; O_RDWR; O_CLOEXEC ]
+          t.file)
 
   let clear t =
     match t.version with
     | `V1 -> invalid_arg "V1 stores cannot be cleared"
     | `V2 -> unsafe_clear t
 
-  let v ~version:current_version ~fresh ~readonly file =
+  let v ~version ~fresh ~readonly file =
+    let get_version () =
+      match version with
+      | Some v -> v
+      | None ->
+          Fmt.invalid_arg
+            "Must supply an explicit version when creating a new store ({ file \
+             = %s })"
+            file
+    in
     let v ~offset ~version ~generation raw =
       {
         version;
@@ -228,70 +263,141 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
-        let raw = raw ~mode ~version:current_version ~generation:0L file in
-        v ~offset:0L ~version:current_version ~generation:0L raw
+        let version = get_version () in
+        let raw =
+          raw
+            ~flags:[ O_CREAT; mode; O_CLOEXEC ]
+            ~version ~offset:0L ~generation:0L file
+        in
+        v ~offset:0L ~version ~generation:0L raw
     | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
+          let version = get_version () in
           let header =
             {
-              Raw.Header.version = bin_of_version current_version;
+              Raw.Header.version = Version.to_bin version;
               offset = 0L;
               generation = 0L;
             }
           in
           Raw.Header.set raw header;
-          v ~offset:0L ~version:current_version ~generation:0L raw)
+          v ~offset:0L ~version ~generation:0L raw)
         else
-          let version = Raw.Version.get raw in
-          match version_of_bin version with
-          | Some `V1 ->
+          let actual_version =
+            let v_string = Raw.Version.get raw in
+            match Version.of_bin v_string with
+            | Some v -> v
+            | None -> Version.raise_invalid v_string
+          in
+          (match version with
+          | Some v when v <> actual_version ->
+              raise (Invalid_version { expected = v; found = actual_version })
+          | _ -> ());
+          match actual_version with
+          | `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
               let offset = Raw.Offset.get raw in
               v ~offset ~version:`V1 ~generation:0L raw
-          | Some `V2 ->
+          | `V2 ->
               let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
-              v ~offset ~version:`V2 ~generation raw
-          | None ->
-              let pp_full_version ppf v =
-                Fmt.pf ppf "%a (%S)" pp_version v (bin_of_version v)
-              in
-              Fmt.failwith "invalid version: got %S, expecting %a" version
-                (Fmt.Dump.list pp_full_version)
-                (List.map fst versions))
+              v ~offset ~version:`V2 ~generation raw)
 
   let close t = Raw.close t.raw
+
+  (* From a given offset in [src], transfer all data to [dst] (starting at
+     [dst_off]). *)
+  let transfer_all ~progress ~src ~src_off ~dst ~dst_off =
+    let ( + ) a b = Int64.(add a (of_int b)) in
+    let buf_len = 4096 in
+    let buf = Bytes.create buf_len in
+    let rec inner ~src_off ~dst_off =
+      match Raw.unsafe_read src ~off:src_off ~len:buf_len buf with
+      | 0 -> ()
+      | read ->
+          assert (read <= buf_len);
+          let to_write = if read < buf_len then Bytes.sub buf 0 read else buf in
+          let () =
+            Raw.unsafe_write dst ~off:dst_off (Bytes.unsafe_to_string to_write)
+          in
+          progress (Int64.of_int read);
+          (inner [@tailcall]) ~src_off:(src_off + read) ~dst_off:(dst_off + read)
+    in
+    inner ~src_off ~dst_off
+
+  let migrate ~progress src dst_v =
+    let src_v =
+      let v_bin = Raw.Version.get src.raw in
+      match Version.of_bin v_bin with
+      | None -> Fmt.failwith "Could not parse version string `%s'" v_bin
+      | Some v -> v
+    in
+    let src_offset = Raw.Offset.get src.raw in
+    match (src_v, dst_v) with
+    | `V1, `V2 ->
+        let dst_path =
+          let rand = Random.State.(bits (make_self_init ())) land 0xFFFFFF in
+          Fmt.str "%s-tmp-migrate-%06x" src.file rand
+        in
+        Log.debug (fun m ->
+            m "[%s] Performing migration [%a → %a] using tmp file %s"
+              (Filename.basename src.file)
+              pp_version `V1 pp_version `V2
+              (Filename.basename dst_path));
+        let dst =
+          (* Note: all V1 files implicitly have [generation = 0], since it
+             is not possible to [clear] them. *)
+          raw dst_path ~flags:[ Unix.O_CREAT; O_WRONLY ] ~version:`V2
+            ~offset:src_offset ~generation:0L
+        in
+        transfer_all ~src:src.raw ~progress
+          ~src_off:(header `V1)
+          ~dst
+          ~dst_off:(header `V2);
+        Raw.close dst;
+        Unix.rename dst_path src.file;
+        Ok ()
+    | _, _ ->
+        Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
+          (Filename.basename src.file)
+          pp_version src_v pp_version dst_v
 end
 
-let with_cache ~v ~clear ~valid file =
-  let files = Hashtbl.create 13 in
-  let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root =
-    let file = root // file in
-    if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
-    try
-      if not (Sys.file_exists file) then (
+module Cache = struct
+  type ('a, 'v) t = { v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v }
+
+  let memoize ~v ~clear ~valid file =
+    let files = Hashtbl.create 13 in
+    let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root
+        =
+      let file = root // file in
+      if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
+      try
+        if not (Sys.file_exists file) then (
+          Log.debug (fun l ->
+              l "[%s] does not exist anymore, cleaning up the fd cache"
+                (Filename.basename file));
+          Hashtbl.remove files (file, true);
+          Hashtbl.remove files (file, false);
+          raise Not_found);
+        let t = Hashtbl.find files (file, readonly) in
+        if valid t then (
+          Log.debug (fun l ->
+              l "Found in cache: { path = %s; readonly = %b }" file readonly);
+          if fresh then clear t;
+          t)
+        else (
+          Hashtbl.remove files (file, readonly);
+          raise Not_found)
+      with Not_found ->
         Log.debug (fun l ->
-            l "[%s] does not exist anymore, cleaning up the fd cache"
-              (Filename.basename file));
-        Hashtbl.remove files (file, true);
-        Hashtbl.remove files (file, false);
-        raise Not_found);
-      let t = Hashtbl.find files (file, readonly) in
-      if valid t then (
-        Log.debug (fun l -> l "%s found in cache" file);
+            l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
+              readonly);
+        let t = v extra_args ~fresh ~readonly file in
         if fresh then clear t;
-        t)
-      else (
-        Hashtbl.remove files (file, readonly);
-        raise Not_found)
-    with Not_found ->
-      Log.debug (fun l ->
-          l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
-            readonly);
-      let t = v extra_args ~fresh ~readonly file in
-      if fresh then clear t;
-      Hashtbl.add files (file, readonly) t;
-      t
-  in
-  `Staged cached_constructor
+        Hashtbl.add files (file, readonly) t;
+        t
+    in
+    { v = cached_constructor }
+end
