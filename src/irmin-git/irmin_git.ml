@@ -91,6 +91,11 @@ let config ?(config = Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git root
   let config = C.add config Conf.dot_git dot_git in
   config
 
+(** NOTE(craigfe): As of Git 2.1.3, attempting to [reset] repositories
+    concurrently can fail due to file-system race conditions. The next version
+    should fix this issue, so this global lock is a quick workaround. *)
+let reset_lock = Lwt_mutex.create ()
+
 module Make_private (G : Git.S) (C : Irmin.Contents.S) (P : Irmin.Path.S) =
 struct
   module H = Irmin.Hash.Make (G.Hash)
@@ -149,7 +154,9 @@ struct
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
           pp_key k pp_key k'
 
-    let clear t = G.reset t >>= handle_git_err
+    let clear t =
+      Log.debug (fun l -> l "clear");
+      Lwt_mutex.with_lock reset_lock (fun () -> G.reset t) >>= handle_git_err
   end)
 
   module Raw = Git.Value.Raw (G.Hash) (G.Inflate) (G.Deflate)
