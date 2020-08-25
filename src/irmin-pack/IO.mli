@@ -18,6 +18,8 @@ type version = [ `V1 | `V2 ]
 
 val pp_version : version Fmt.t
 
+exception Invalid_version of { expected : version; found : version }
+
 type path := string
 
 module type S = sig
@@ -25,7 +27,7 @@ module type S = sig
 
   exception RO_Not_Allowed
 
-  val v : version:version -> fresh:bool -> readonly:bool -> path -> t
+  val v : version:version option -> fresh:bool -> readonly:bool -> path -> t
 
   val name : t -> string
 

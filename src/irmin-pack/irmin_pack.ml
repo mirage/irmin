@@ -22,8 +22,6 @@ let current_version = `V2
 
 let ( // ) = Filename.concat
 
-let ( let* ) x f = Lwt.bind x f
-
 module Default = struct
   let fresh = false
 
@@ -126,6 +124,7 @@ let () =
         Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" IO.pp_version v)
     | _ -> None)
 
+module I = IO
 module IO = IO.Unix
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
@@ -223,7 +222,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Log.debug (fun l -> l "[branches] generation changed, refill buffers");
       IO.close t.block;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:current_version
+        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
           (IO.name t.block)
       in
       t.block <- io;
@@ -277,7 +276,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:current_version ~readonly file in
+    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t =
@@ -378,7 +377,7 @@ module type Stores_extra = sig
 
   val clear : repo -> unit Lwt.t
 
-  val migrate : Irmin.config -> unit Lwt.t
+  val migrate : Irmin.config -> unit
 end
 
 module Make_ext
@@ -554,15 +553,16 @@ struct
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
       let v config =
-        unsafe_v config >>= fun t ->
-        match Contents.CA.version (contents_t t) with
-        | `V1 as v ->
-            close t >>= fun () ->
-            Log.err (fun m ->
-                m "[%s] Attempted to open store of unsupported version %a"
-                  (root config) pp_version v);
-            Lwt.fail (Unsupported_version v)
-        | `V2 -> Lwt.return t
+        Lwt.catch
+          (fun () -> unsafe_v config)
+          (function
+            | I.Invalid_version { expected; found }
+              when expected = current_version ->
+                Log.err (fun m ->
+                    m "[%s] Attempted to open store of unsupported version %a"
+                      (root config) pp_version found);
+                Lwt.fail (Unsupported_version found)
+            | e -> Lwt.fail e)
 
       (** Stores share instances in memory, one sync is enough. However each
           store has its own lru and all have to be cleared. *)
@@ -584,35 +584,50 @@ struct
         | Error (`Msg s) -> invalid_arg s
 
       let migrate config =
-        let* () =
-          if readonly config then Lwt.fail RO_Not_Allowed else Lwt.return_unit
-        in
-        let config = Irmin.Private.Conf.add config readonly_key true in
+        if readonly config then raise RO_Not_Allowed;
         Log.info (fun l -> l "[%s] migrate" (root config));
-        let* t = unsafe_v config in
-        match Contents.CA.version (contents_t t) with
-        | `V2 as v ->
+        let root_old = root config in
+        [ "store.pack"; "store.branches"; "store.dict" ]
+        |> List.map (fun name ->
+               let io =
+                 IO.v ~version:None ~fresh:false ~readonly:true
+                   (root_old // name)
+               in
+               let version = IO.version io in
+               (name, io, version))
+        |> List.partition (fun (_, _, v) -> v = current_version)
+        |> function
+        | migrated, [] ->
             Log.app (fun l ->
                 l "Store at %s is already in current version (%a)" (root config)
-                  pp_version v);
-            close t
-        | `V1 ->
-            let* () = close t in
-            let root_old = root config in
-            let ios =
-              [ "store.pack"; "store.branches"; "store.dict" ]
-              |> List.map (fun name ->
-                     IO.v ~version:`V1 ~fresh:false ~readonly:true
-                       (root_old // name))
-            in
+                  pp_version current_version);
+            List.iter (fun (_, io, _) -> IO.close io) migrated
+        | migrated, to_migrate ->
+            List.iter (fun (_, io, _) -> IO.close io) migrated;
+            (match migrated with
+            | [] -> ()
+            | _ :: _ ->
+                let pp_ios =
+                  Fmt.(Dump.list (using (fun (n, _, _) -> n) string))
+                in
+                Log.warn (fun l ->
+                    l
+                      "Store is in an inconsistent state: files %a have \
+                       already been upgraded, but %a have not. Upgrading the \
+                       remaining files now."
+                      pp_ios migrated pp_ios to_migrate));
             let total =
-              ios |> List.map IO.offset |> List.fold_left Int64.add 0L
+              to_migrate
+              |> List.map (fun (_, io, _) -> IO.offset io)
+              |> List.fold_left Int64.add 0L
             in
             let bar, progress =
               Utils.Progress.counter ~total ~sampling_interval:100
                 ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
             in
-            List.iter (migrate_io_to_v2 ~progress) ios;
+            List.iter
+              (fun (_, io, _) -> migrate_io_to_v2 ~progress io)
+              to_migrate;
             Utils.Progress.finalise bar;
             List.iter
               (fun i -> i root_old)
@@ -623,8 +638,7 @@ struct
                 Pack.invalidate;
                 Branch.AW.invalidate;
                 Dict.invalidate;
-              ];
-            Lwt.return_unit
+              ]
     end
   end
 

@@ -71,7 +71,7 @@ module type Stores_extra = sig
       snapshot isolation guarantees for read-only instances: read-only instance
       will continue to see all the data until they explicitely call {!sync}. *)
 
-  val migrate : Irmin.config -> unit Lwt.t
+  val migrate : Irmin.config -> unit
   (** [migrate conf] upgrades the repository with configuration [conf] to use
       the latest storage format.
 

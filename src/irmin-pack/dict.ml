@@ -67,7 +67,8 @@ module Make (IO : IO.S) : S = struct
     if former_generation <> generation then (
       IO.close t.io;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:current_version (IO.name t.io)
+        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+          (IO.name t.io)
       in
       t.io <- io;
       Hashtbl.clear t.cache;
@@ -108,7 +109,7 @@ module Make (IO : IO.S) : S = struct
     Hashtbl.clear t.index
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version:current_version ~readonly file in
+    let io = IO.v ~fresh ~version:(Some current_version) ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in

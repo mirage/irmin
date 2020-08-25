@@ -99,19 +99,13 @@ let v1_to_v2 () =
       (Irmin_pack.Unsupported_version `V1)
       (fun () -> S.Repo.v conf_ro)
   in
-  let* () =
-    Alcotest.check_raises_lwt "Migrating with RO config should fail"
-      Irmin_pack.RO_Not_Allowed (fun () -> S.migrate conf_ro)
-  in
-  let* () =
-    Log.app (fun m -> m "Running the migration with a RW config");
-    S.migrate conf_rw
-  in
-  let* () =
-    Log.app (fun m -> m "Checking migration is idempotent (cached instance)");
-    S.migrate conf_rw
-  in
-  let* () =
+  Alcotest.check_raises "Migrating with RO config should fail"
+    Irmin_pack.RO_Not_Allowed (fun () -> ignore (S.migrate conf_ro));
+  Log.app (fun m -> m "Running the migration with a RW config");
+  S.migrate conf_rw;
+  Log.app (fun m -> m "Checking migration is idempotent (cached instance)");
+  S.migrate conf_rw;
+  let () =
     let module S = Make () in
     Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
     S.migrate conf_rw

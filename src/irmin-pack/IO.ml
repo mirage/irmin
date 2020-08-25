@@ -47,12 +47,14 @@ type version = Version.t
 
 let pp_version = Version.pp
 
+exception Invalid_version of { expected : version; found : version }
+
 module type S = sig
   type t
 
   exception RO_Not_Allowed
 
-  val v : version:version -> fresh:bool -> readonly:bool -> string -> t
+  val v : version:version option -> fresh:bool -> readonly:bool -> string -> t
 
   val name : t -> string
 
@@ -235,7 +237,16 @@ module Unix : S = struct
     | `V1 -> invalid_arg "V1 stores cannot be cleared"
     | `V2 -> unsafe_clear t
 
-  let v ~version:current_version ~fresh ~readonly file =
+  let v ~version ~fresh ~readonly file =
+    let get_version () =
+      match version with
+      | Some v -> v
+      | None ->
+          Fmt.invalid_arg
+            "Must supply an explicit version when creating a new store ({ file \
+             = %s })"
+            file
+    in
     let v ~offset ~version ~generation raw =
       {
         version;
@@ -252,36 +263,46 @@ module Unix : S = struct
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
+        let version = get_version () in
         let raw =
           raw
             ~flags:[ O_CREAT; mode; O_CLOEXEC ]
-            ~version:current_version ~offset:0L ~generation:0L file
+            ~version ~offset:0L ~generation:0L file
         in
-        v ~offset:0L ~version:current_version ~generation:0L raw
+        v ~offset:0L ~version ~generation:0L raw
     | true -> (
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
+          let version = get_version () in
           let header =
             {
-              Raw.Header.version = Version.to_bin current_version;
+              Raw.Header.version = Version.to_bin version;
               offset = 0L;
               generation = 0L;
             }
           in
           Raw.Header.set raw header;
-          v ~offset:0L ~version:current_version ~generation:0L raw)
+          v ~offset:0L ~version ~generation:0L raw)
         else
-          let version = Raw.Version.get raw in
-          match Version.of_bin version with
-          | Some `V1 ->
+          let actual_version =
+            let v_string = Raw.Version.get raw in
+            match Version.of_bin v_string with
+            | Some v -> v
+            | None -> Version.raise_invalid v_string
+          in
+          (match version with
+          | Some v when v <> actual_version ->
+              raise (Invalid_version { expected = v; found = actual_version })
+          | _ -> ());
+          match actual_version with
+          | `V1 ->
               Log.debug (fun l -> l "[%s] file exists in V1" file);
               let offset = Raw.Offset.get raw in
               v ~offset ~version:`V1 ~generation:0L raw
-          | Some `V2 ->
+          | `V2 ->
               let { Raw.Header.offset; generation; _ } = Raw.Header.get raw in
-              v ~offset ~version:`V2 ~generation raw
-          | None -> Version.raise_invalid version)
+              v ~offset ~version:`V2 ~generation raw)
 
   let close t = Raw.close t.raw
 
