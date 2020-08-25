@@ -66,10 +66,7 @@ end
 module Unix : S
 
 module Cache : sig
-  type ('a, 'v) t = {
-    v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
-    invalidate : string -> unit;
-  }
+  type ('a, 'v) t = { v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v }
 
   val memoize :
     v:('a -> fresh:bool -> readonly:bool -> string -> 'v) ->

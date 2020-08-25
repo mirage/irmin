@@ -80,16 +80,12 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
-
-  val invalidate : string -> unit
 end
 
 module type MAKER = sig
   type key
 
   type index
-
-  val invalidate : string -> unit
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)

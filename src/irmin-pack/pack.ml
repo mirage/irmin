@@ -78,7 +78,7 @@ struct
     let block = IO.v ~version:(Some current_version) ~fresh ~readonly file in
     { block; index; lock; dict; open_instances = 1 }
 
-  let IO_cache.{ v; invalidate } =
+  let IO_cache.{ v } =
     IO_cache.memoize ~clear ~valid
       ~v:(fun index -> unsafe_v ~index)
       "store.pack"
@@ -159,10 +159,6 @@ struct
       Lwt_mutex.with_lock create (fun () ->
           let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
           Lwt.return t)
-
-    let invalidate root =
-      Hashtbl.remove roots (root, true);
-      Hashtbl.remove roots (root, false)
 
     let pp_hash = Irmin.Type.pp K.t
 

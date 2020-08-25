@@ -365,10 +365,7 @@ module Unix : S = struct
 end
 
 module Cache = struct
-  type ('a, 'v) t = {
-    v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;
-    invalidate : string -> unit;
-  }
+  type ('a, 'v) t = { v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v }
 
   let memoize ~v ~clear ~valid file =
     let files = Hashtbl.create 13 in
@@ -402,11 +399,5 @@ module Cache = struct
         Hashtbl.add files (file, readonly) t;
         t
     in
-    let invalidate root =
-      let file = root // file in
-      Log.debug (fun l -> l "Invalidating cache entries for path = `%s'" file);
-      Hashtbl.remove files (file, true);
-      Hashtbl.remove files (file, false)
-    in
-    { v = cached_constructor; invalidate }
+    { v = cached_constructor }
 end

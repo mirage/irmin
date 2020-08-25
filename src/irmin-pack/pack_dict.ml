@@ -13,7 +13,7 @@
 include Dict.Make (IO.Unix)
 
 (* Add IO caching around Dict.v *)
-let IO.Cache.{ v; invalidate } =
+let IO.Cache.{ v } =
   let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
   IO.Cache.memoize ~clear ~valid
     ~v:(fun capacity -> v_no_cache ~capacity)

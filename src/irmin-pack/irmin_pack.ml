@@ -292,7 +292,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     refill t ~from:0L;
     t
 
-  let Cache.{ v = unsafe_v; invalidate } =
+  let Cache.{ v = unsafe_v } =
     Cache.memoize ~clear:unsafe_clear ~valid
       ~v:(fun () -> unsafe_v)
       "store.branches"
@@ -628,17 +628,7 @@ struct
             List.iter
               (fun (_, io, _) -> migrate_io_to_v2 ~progress io)
               to_migrate;
-            Utils.Progress.finalise bar;
-            List.iter
-              (fun i -> i root_old)
-              [
-                Contents.CA.invalidate;
-                Node.CA.invalidate;
-                Commit.CA.invalidate;
-                Pack.invalidate;
-                Branch.AW.invalidate;
-                Dict.invalidate;
-              ]
+            Utils.Progress.finalise bar
     end
   end
 

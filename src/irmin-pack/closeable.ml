@@ -90,8 +90,6 @@ module Content_addressable (S : Pack.S) = struct
   let version t =
     check_not_closed t;
     S.version t.t
-
-  let invalidate = S.invalidate
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
