@@ -24,6 +24,7 @@ depends: [
   "logs"
   "lwt"
   "metrics-unix"
+  "ocaml-syntax-shims"
 ]
 
 synopsis: "Irmin test suite"
