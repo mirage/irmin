@@ -60,7 +60,14 @@ module type S = sig
       ?copy_in_upper:bool ->
       ?min_upper:commit list ->
       ?heads:commit list ->
-      ?hook:[ `After_Clear | `Before_Clear | `Before_Copy ] Hook.t ->
+      ?hook:
+        [ `After_Clear
+        | `Before_Clear
+        | `Before_Copy
+        | `Before_Copy_Newies
+        | `Before_Copy_Last_Newies
+        | `Before_Flip ]
+        Hook.t ->
       repo ->
       unit Lwt.t
 

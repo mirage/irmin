@@ -24,6 +24,10 @@ let pp_version = IO.pp_version
 
 let ( // ) = Filename.concat
 
+let newies_limit = 64L
+
+let ( -- ) = Int64.sub
+
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
 exception Unsupported_version = Store.Unsupported_version
@@ -90,6 +94,8 @@ let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
   config
 
 let freeze_lock = Lwt_mutex.create ()
+
+let add_lock = Lwt_mutex.create ()
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 
@@ -336,17 +342,24 @@ struct
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
           Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
+            ~freeze_lock ~add_lock
         in
         let lower_node = Option.map (fun x -> x.lnode) lower in
-        let node = Node.CA.v upper1.node upper0.node lower_node ~flip in
+        let node =
+          Node.CA.v upper1.node upper0.node lower_node ~flip ~freeze_lock
+            ~add_lock
+        in
         let lower_commit = Option.map (fun x -> x.lcommit) lower in
         let commit =
           Commit.CA.v upper1.commit upper0.commit lower_commit ~flip
+            ~freeze_lock ~add_lock
         in
         let lower_branch = Option.map (fun x -> x.lbranch) lower in
-        let branch = Branch.v upper1.branch upper0.branch lower_branch ~flip in
+        let branch =
+          Branch.v upper1.branch upper0.branch lower_branch ~flip ~freeze_lock
+            ~add_lock
+        in
         let lower_index = Option.map (fun x -> x.lindex) lower in
-
         {
           contents;
           node;
@@ -372,12 +385,27 @@ struct
 
       let close t = Lwt_mutex.with_lock freeze_lock (fun () -> unsafe_close t)
 
+      (** RO uses the generation to sync the stores, so to prevent races (async
+          reads of flip and generation) the generation is used to update the
+          flip. The first store reads the flip and syncs with the files on disk,
+          the other stores only need to update the flip. *)
       let sync t =
         let on_generation_change () =
           Node.CA.clear_caches t.node;
           Commit.CA.clear_caches t.commit
         in
-        Contents.CA.sync ~on_generation_change t.contents
+        let on_generation_change_next_upper () =
+          Node.CA.clear_caches_next_upper t.node;
+          Commit.CA.clear_caches_next_upper t.commit
+        in
+        let flip =
+          Contents.CA.sync ~on_generation_change
+            ~on_generation_change_next_upper t.contents
+        in
+        t.flip <- flip;
+        Node.CA.update_flip ~flip t.node;
+        Commit.CA.update_flip ~flip t.commit;
+        Branch.update_flip ~flip t.branch
 
       let clear t = Contents.CA.clear t.contents
 
@@ -420,6 +448,10 @@ struct
         Contents.CA.flush t.contents;
         Branch.flush t.branch
 
+      let flush_next_lower t =
+        Contents.CA.flush_next_lower t.contents;
+        Branch.flush_next_lower t.branch
+
       let clear_previous_upper t =
         Log.debug (fun l -> l "clear previous upper");
         Contents.CA.clear_previous_upper t.contents >>= fun () ->
@@ -436,6 +468,29 @@ struct
         IO_layers.write_flip t.flip t.flip_file
 
       let upper_in_use t = if t.flip then `Upper1 else `Upper0
+
+      let offset t = Contents.CA.offset t.contents
+
+      (** Newies are the objects added in current upper during the freeze. They
+          are copied to the next upper before the freeze ends. We do not lock
+          this operation if we have to copy more than [newies_limit] bytes. If
+          there are fewer newies than that then [copy_last_newies_to_next_upper]
+          is called right after. *)
+      let rec copy_newies_to_next_upper t former_offset =
+        let offset = offset t in
+        if offset -- former_offset >= newies_limit then
+          Contents.CA.copy_newies_to_next_upper t.contents >>= fun () ->
+          Node.CA.copy_newies_to_next_upper t.node >>= fun () ->
+          Commit.CA.copy_newies_to_next_upper t.commit >>= fun () ->
+          Branch.copy_newies_to_next_upper t.branch >>= fun () ->
+          copy_newies_to_next_upper t offset
+        else Lwt.return_unit
+
+      let copy_last_newies_to_next_upper t =
+        Contents.CA.copy_last_newies_to_next_upper t.contents;
+        Node.CA.copy_last_newies_to_next_upper t.node;
+        Commit.CA.copy_last_newies_to_next_upper t.commit;
+        Branch.copy_last_newies_to_next_upper t.branch
     end
   end
 
@@ -455,11 +510,11 @@ struct
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
 
-    let mem_commit_upper t = X.Commit.CA.mem_current t.X.Repo.commit
+    let mem_commit_upper t = X.Commit.CA.mem_next t.X.Repo.commit
 
     let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
 
-    let mem_node_upper t = X.Node.CA.mem_current t.X.Repo.node
+    let mem_node_upper t = X.Node.CA.mem_next t.X.Repo.node
 
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
@@ -515,10 +570,10 @@ struct
     end
 
     module CopyToUpper = struct
-      let on_current t f =
-        let contents = X.Contents.CA.current_upper t.X.Repo.contents in
-        let nodes = X.Node.CA.current_upper t.X.Repo.node in
-        let commits = X.Commit.CA.current_upper t.X.Repo.commit in
+      let on_next_upper t f =
+        let contents = X.Contents.CA.next_upper t.X.Repo.contents in
+        let nodes = X.Node.CA.next_upper t.X.Repo.node in
+        let commits = X.Commit.CA.next_upper t.X.Repo.commit in
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
@@ -530,13 +585,13 @@ struct
 
       let copy ~min ~max t =
         let skip = mem_commit_upper t in
-        on_current t (fun contents nodes commits ->
+        on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
 
       let copy_commits ~min ~max t =
         Log.debug (fun f ->
-            f "copy commits to current upper %s" (X.Repo.log_current_upper t));
+            f "copy commits to next upper %s" (X.Repo.log_current_upper t));
         let max = List.map (fun x -> Commit.hash x) max in
         (* if min is empty then copy only the max commits *)
         let min =
@@ -587,13 +642,14 @@ struct
      else Copy.CopyToLower.copy ~min ~max t
     else Lwt.return_unit)
     >>= fun () ->
-    (* Copy [min_upper, max] and [max, heads] to current_upper *)
+    (* Copy [min_upper, max] and [max, heads] to next_upper *)
     (if copy_in_upper then
      Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
      Copy.CopyToUpper.copy_heads ~max ~heads t
     else Lwt.return_unit)
-    (* Copy branches to both lower and current_upper *)
-    >>= fun () -> Copy.copy_branches t
+    >>= fun () ->
+    (* Copy branches to both lower and next_upper *)
+    Copy.copy_branches t
 
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
     let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
@@ -604,19 +660,27 @@ struct
           pp_commits min pp_commits max squash copy_in_upper pp_commits
           min_upper pp_commits heads);
     Irmin_layers.Stats.freeze ();
-    (* we don't support multiple RW instances for now, so there is no need to
-       add a lock for [flip_upper] and [add]. *)
-    X.Repo.flip_upper t >|= fun () ->
+    let offset = X.Repo.offset t in
     Lwt.async (fun () ->
         Lwt.pause () >>= fun () ->
         may (fun f -> f `Before_Copy) hook >>= fun () ->
         copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
-        may (fun f -> f `Before_Clear) hook >>= fun () ->
-        X.Repo.clear_previous_upper t >>= fun () ->
+        X.Repo.flush_next_lower t;
+        may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
+        X.Repo.copy_newies_to_next_upper t offset >>= fun () ->
+        may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
+        Lwt_mutex.with_lock add_lock (fun () ->
+            X.Repo.copy_last_newies_to_next_upper t >>= fun () ->
+            may (fun f -> f `Before_Flip) hook >>= fun () ->
+            X.Repo.flip_upper t >>= fun () ->
+            may (fun f -> f `Before_Clear) hook >>= fun () ->
+            X.Repo.clear_previous_upper t)
+        >>= fun () ->
         Lwt_mutex.unlock freeze_lock;
         Log.debug (fun l -> l "free lock");
         may (fun f -> f `After_Clear) hook);
-    Log.debug (fun l -> l "after async called to copy")
+    Log.debug (fun l -> l "after async called to copy");
+    Lwt.return_unit
 
   (** main thread takes the lock at the begining of freeze and async thread
       releases it at the end. This is to ensure that no two freezes can run

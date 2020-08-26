@@ -65,22 +65,22 @@ module Make
 
   let save t v =
     let add k v = Inode.unsafe_append t k v in
-    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
+    Inode.Val.save_lwt ~add ~mem:(Inode.unsafe_mem t) v
 
-  let add t v =
-    save t v.Val.v;
-    Lwt.return (hash v)
+  let add t v = save t v.Val.v >|= fun () -> hash v
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v.Val.v;
-    Lwt.return_unit
+    save t v.Val.v
 
   let v = Inode.v
 
-  let sync = Inode.sync
+  let sync ?on_generation_change:_ _ =
+    Fmt.failwith "not implemented for the node store"
 
   let clear_caches = Inode.clear_caches
+
+  let clear_caches_next_upper = Inode.clear_caches_next_upper
 
   module U = Inode.U
   module L = Inode.L
@@ -91,11 +91,17 @@ module Make
 
   let lower = Inode.lower
 
-  let mem_current = Inode.mem_current
+  let mem_next = Inode.mem_next
 
   let flip_upper = Inode.flip_upper
 
-  let current_upper = Inode.current_upper
+  let next_upper = Inode.next_upper
+
+  let copy_newies_to_next_upper = Inode.copy_newies_to_next_upper
+
+  let copy_last_newies_to_next_upper = Inode.copy_last_newies_to_next_upper
+
+  let update_flip = Inode.update_flip
 
   let clear_previous_upper = Inode.clear_previous_upper
 
@@ -118,7 +124,7 @@ module Make
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
     Irmin_layers.Stats.copy_nodes ();
-    Inode.U.find (Inode.previous_upper t) k >|= function
+    Inode.U.find (Inode.current_upper t) k >|= function
     | None -> ()
     | Some v ->
         let v' = lift t v in
@@ -133,14 +139,12 @@ module Make
     let mem k = Inode.L.unsafe_mem dst k in
     copy ~add ~mem t k
 
-  let copy_to_current ~dst t k =
+  let copy_to_next ~dst t k =
     let add k v = Inode.U.unsafe_append dst k v in
     let mem k = Inode.U.unsafe_mem dst k in
     copy ~add ~mem t k
 
   let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
    fun (ltype, dst) ->
-    match ltype with
-    | Lower -> copy_to_lower ~dst
-    | Upper -> copy_to_current ~dst
+    match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 end

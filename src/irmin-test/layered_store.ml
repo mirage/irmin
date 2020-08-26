@@ -16,6 +16,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
 
   let v3 = "X3"
 
+  let v4 = "X4"
+
+  let v5 = "X5"
+
+  let v6 = "X6"
+
   let b1 = "foo"
 
   let b2 = "bar/toto"
@@ -802,18 +808,77 @@ module Make_Layered (S : LAYERED_STORE) = struct
 
   module Hook = S.PrivateLayer.Hook
 
-  let after_copy f =
-    Hook.v (function `Before_Clear -> f () | _ -> Lwt.return_unit)
+  let before_copy f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `Before_Copy ->
+            Log.debug (fun l -> l "test hook -- before_copy");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
 
-  let after_postcopy f =
-    Hook.v (function `After_Clear -> f () | _ -> Lwt.return_unit)
+  let before_copy_newies f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `Before_Copy_Newies ->
+            Log.debug (fun l -> l "test hook -- before_copy_newies");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
 
-  let after f =
-    Hook.v (function
-      | `Before_Clear | `After_Clear -> f ()
-      | _ -> Lwt.return_unit)
+  let before_copy_last_newies f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `Before_Copy_Last_Newies ->
+            Log.debug (fun l -> l "test hook -- before_copy_last_newies");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
 
-  let before f = Hook.v (function `Before_Copy -> f () | _ -> Lwt.return_unit)
+  let before_flip f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `Before_Flip ->
+            Log.debug (fun l -> l "test hook -- before_flip");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
+
+  let before_clear f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `Before_Clear ->
+            Log.debug (fun l -> l "test hook -- before_clear");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
+
+  let after_clear f =
+    let p, r = Lwt.wait () in
+    let hook =
+      Hook.v (function
+        | `After_Clear ->
+            Log.debug (fun l -> l "test hook -- after_clear");
+            Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
+            Lwt.return_unit
+        | _ -> Lwt.return_unit)
+    in
+    (hook, p)
 
   let test_find_during_freeze x () =
     let info = info "hooks" in
@@ -827,35 +892,26 @@ module Make_Layered (S : LAYERED_STORE) = struct
         S.Tree.find tree [ "a"; "b"; "c" ] >|= fun v' ->
         Alcotest.(check (option string)) "v1" v' (Some v)
       in
-      S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 >>= fun tree1 ->
-      S.Commit.v repo ~info ~parents:[] tree1 >>= fun c1 ->
-      S.PrivateLayer.freeze'
-        ~hook:(after (find_commit c1 v1))
-        ~max:[ c1 ] ~copy_in_upper:true repo
-      >>= fun () ->
-      find_commit c1 v1 () >>= fun () ->
-      S.Tree.add tree1 [ "a"; "b"; "c" ] v2 >>= fun tree2 ->
-      S.Commit.v repo ~info ~parents:[ S.Commit.hash c1 ] tree2 >>= fun c2 ->
-      S.PrivateLayer.wait_for_freeze () >>= fun () ->
-      S.PrivateLayer.freeze'
-        ~hook:(before (find_commit c2 v2))
-        ~max:[ c2 ] ~copy_in_upper:true repo
-      >>= fun () ->
-      find_commit c2 v2 () >>= fun () ->
-      S.PrivateLayer.wait_for_freeze () >>= fun () ->
-      S.Tree.add tree1 [ "a"; "b"; "c" ] v3 >>= fun tree3 ->
-      S.Commit.v repo ~info ~parents:[ S.Commit.hash c2 ] tree3 >>= fun c3 ->
-      S.PrivateLayer.freeze'
-        ~hook:(after (find_commit c3 v3))
-        ~max:[ c3 ] ~copy_in_upper:true repo
-      >>= fun () -> S.Repo.close repo
+      let add_and_find_commit ~hook v =
+        S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v >>= fun tree ->
+        S.Commit.v repo ~info ~parents:[] tree >>= fun c ->
+        let hook, p = hook (find_commit c v) in
+        S.PrivateLayer.freeze' ~hook ~max:[ c ] ~copy_in_upper:true repo
+        >>= fun () ->
+        p >>= fun () -> S.PrivateLayer.wait_for_freeze ()
+      in
+      add_and_find_commit ~hook:before_copy v1 >>= fun () ->
+      add_and_find_commit ~hook:before_copy_newies v2 >>= fun () ->
+      add_and_find_commit ~hook:before_copy_last_newies v3 >>= fun () ->
+      add_and_find_commit ~hook:before_flip v4 >>= fun () ->
+      add_and_find_commit ~hook:before_clear v5 >>= fun () ->
+      add_and_find_commit ~hook:after_clear v6 >>= fun () -> S.Repo.close repo
     in
     run x test
 
   let test_add_during_freeze x () =
     let test repo =
       let find_commit t v () =
-        Log.debug (fun l -> l "find_commit");
         S.Head.get t >>= fun c ->
         fail_with_none
           (S.Commit.of_hash repo (S.Commit.hash c))
@@ -866,30 +922,23 @@ module Make_Layered (S : LAYERED_STORE) = struct
         Alcotest.(check (option string)) "v" v' (Some v)
       in
       let add_commit t v () =
-        Log.debug (fun l -> l "add_commit");
         S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v >>= fun tree ->
         S.set_tree_exn ~parents:[] ~info:(infof "tree1") t [] tree
       in
+      let add_and_find_commit ~hook t v =
+        let hook, p = hook (add_commit t v) in
+        S.PrivateLayer.freeze' ~hook ~copy_in_upper:true repo >>= fun () ->
+        p >>= fun () ->
+        find_commit t v () >>= fun () ->
+        S.PrivateLayer.wait_for_freeze () >>= fun () -> find_commit t v ()
+      in
       S.master repo >>= fun t ->
-      S.PrivateLayer.freeze'
-        ~hook:(before (add_commit t v1))
-        ~copy_in_upper:true repo
-      >>= fun () ->
-      S.PrivateLayer.wait_for_freeze () >>= fun () ->
-      find_commit t v1 () >>= fun () ->
-      S.PrivateLayer.freeze'
-        ~hook:(after (add_commit t v2))
-        ~copy_in_upper:true repo
-      >>= fun () ->
-      S.PrivateLayer.wait_for_freeze () >>= fun () ->
-      find_commit t v2 () >>= fun () ->
-      add_commit t v3 () >>= fun () ->
-      S.Head.get t >>= fun c ->
-      S.PrivateLayer.freeze'
-        ~hook:(before (find_commit t v3))
-        ~max:[ c ] ~copy_in_upper:true repo
-      >>= fun () ->
-      S.PrivateLayer.wait_for_freeze () >>= fun () -> S.Repo.close repo
+      add_and_find_commit ~hook:before_copy t v1 >>= fun () ->
+      add_and_find_commit ~hook:before_copy_newies t v2 >>= fun () ->
+      add_and_find_commit ~hook:before_copy_last_newies t v3 >>= fun () ->
+      add_and_find_commit ~hook:before_flip t v4 >>= fun () ->
+      add_and_find_commit ~hook:before_clear t v5 >>= fun () ->
+      add_and_find_commit ~hook:after_clear t v6 >>= fun () -> S.Repo.close repo
     in
     run x test
 end

@@ -30,7 +30,13 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
   module L : Pack.S
 
   val v :
-    [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t option -> flip:bool -> 'a t
+    [ `Read ] U.t ->
+    [ `Read ] U.t ->
+    [ `Read ] L.t option ->
+    flip:bool ->
+    freeze_lock:Lwt_mutex.t ->
+    add_lock:Lwt_mutex.t ->
+    'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
@@ -56,17 +62,35 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   val mem_lower : 'a t -> key -> bool Lwt.t
 
-  val mem_current : [> `Read ] t -> key -> bool Lwt.t
+  val mem_next : [> `Read ] t -> key -> bool Lwt.t
 
   val flip_upper : 'a t -> unit
 
   val current_upper : 'a t -> [ `Read ] U.t
 
-  val previous_upper : 'a t -> [ `Read ] U.t
+  val next_upper : 'a t -> [ `Read ] U.t
 
   val lower : 'a t -> [ `Read ] L.t
 
   val clear_previous_upper : 'a t -> unit Lwt.t
+
+  val sync :
+    ?on_generation_change:(unit -> unit) ->
+    ?on_generation_change_next_upper:(unit -> unit) ->
+    'a t ->
+    bool
+
+  val update_flip : flip:bool -> 'a t -> unit
+
+  val copy_newies_to_next_upper : 'a t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : 'a t -> unit
+
+  val clear_caches_next_upper : 'a t -> unit
+
+  val unsafe_append : 'a t -> key -> value -> unit Lwt.t
+
+  val flush_next_lower : 'a t -> unit
 end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
@@ -76,7 +100,14 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
 
   module L : ATOMIC_WRITE_STORE
 
-  val v : U.t -> U.t -> L.t option -> flip:bool -> t
+  val v :
+    U.t ->
+    U.t ->
+    L.t option ->
+    flip:bool ->
+    freeze_lock:Lwt_mutex.t ->
+    add_lock:Lwt_mutex.t ->
+    t
 
   val copy :
     mem_commit_lower:(value -> bool Lwt.t) ->
@@ -87,6 +118,14 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
   val flip_upper : t -> unit
 
   val clear_previous_upper : t -> unit Lwt.t
+
+  val update_flip : flip:bool -> t -> unit
+
+  val copy_newies_to_next_upper : t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : t -> unit Lwt.t
+
+  val flush_next_lower : t -> unit
 end
 
 module type LAYERED_MAKER = sig
@@ -115,7 +154,13 @@ module type LAYERED_INODE = sig
   module L : Pack.S
 
   val v :
-    [ `Read ] U.t -> [ `Read ] U.t -> [ `Read ] L.t option -> flip:bool -> 'a t
+    [ `Read ] U.t ->
+    [ `Read ] U.t ->
+    [ `Read ] L.t option ->
+    flip:bool ->
+    freeze_lock:Lwt_mutex.t ->
+    add_lock:Lwt_mutex.t ->
+    'a t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
@@ -127,13 +172,21 @@ module type LAYERED_INODE = sig
 
   val mem_lower : 'a t -> key -> bool Lwt.t
 
-  val mem_current : [> `Read ] t -> key -> bool Lwt.t
+  val mem_next : [> `Read ] t -> key -> bool Lwt.t
 
   val flip_upper : 'a t -> unit
 
-  val current_upper : 'a t -> [ `Read ] U.t
+  val next_upper : 'a t -> [ `Read ] U.t
 
   val lower : 'a t -> [ `Read ] L.t
 
   val clear_previous_upper : 'a t -> unit Lwt.t
+
+  val copy_newies_to_next_upper : 'a t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : 'a t -> unit
+
+  val update_flip : flip:bool -> 'a t -> unit
+
+  val clear_caches_next_upper : 'a t -> unit
 end

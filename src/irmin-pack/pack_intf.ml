@@ -71,6 +71,10 @@ module type S = sig
 
   val version : 'a t -> IO.version
 
+  val generation : 'a t -> int64
+
+  val offset : 'a t -> int64
+
   val clear : 'a t -> unit Lwt.t
   (** [clear t] removes all the data from [t]. *)
 

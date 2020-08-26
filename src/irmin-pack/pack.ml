@@ -321,5 +321,9 @@ struct
       Index.sync t.pack.index
 
     let version t = IO.version t.pack.block
+
+    let generation t = IO.generation t.pack.block
+
+    let offset t = IO.offset t.pack.block
   end
 end
