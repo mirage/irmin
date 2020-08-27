@@ -6,7 +6,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest digestif.c irmin irmin-test test_fs))
+ (libraries alcotest irmin irmin-test test_fs))
 
 (rule
  (alias runtest)
