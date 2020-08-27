@@ -28,6 +28,8 @@
     let _ = <begin loop> ... encode_bin foo ... <end loop>
     ```
   - Added a `clear` function for stores (#1071, @icristescu, @CraigFe)
+  - Requires digestif>=0.9 to use digestif's default variants
+    (#873, @pascutto, @samoht)
 
 - **irmin-pack**:
   - Added `index_throttle` option to `Irmin_pack.config`, which exposes the
