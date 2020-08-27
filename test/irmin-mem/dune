@@ -6,7 +6,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest digestif.ocaml irmin-test test_mem))
+ (libraries alcotest irmin-test test_mem))
 
 (rule
  (alias runtest)

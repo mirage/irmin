@@ -6,7 +6,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest digestif.c fmt irmin irmin-test lwt lwt.unix test_chunk))
+ (libraries alcotest fmt irmin irmin-test lwt lwt.unix test_chunk))
 
 (rule
  (alias runtest)

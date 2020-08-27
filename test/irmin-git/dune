@@ -7,7 +7,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest checkseum.c digestif.c irmin irmin-test test_git))
+ (libraries alcotest irmin irmin-test test_git))
 
 (rule
  (alias runtest)

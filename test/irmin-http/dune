@@ -7,7 +7,7 @@
 (executable
  (name test)
  (modules test)
- (libraries checkseum.c digestif.c irmin-test test_http))
+ (libraries irmin-test test_http))
 
 (rule
  (alias runtest)

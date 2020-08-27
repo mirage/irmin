@@ -2,4 +2,4 @@
  (name main)
  (public_name irmin)
  (package irmin-unix)
- (libraries checkseum.c digestif.c irmin-unix))
+ (libraries irmin-unix))
