@@ -27,6 +27,7 @@
     let encode_bin = Type.(unstage (encode_bin ty))
     let _ = <begin loop> ... encode_bin foo ... <end loop>
     ```
+  - Added a `clear` function for stores (#1071, @icristescu, @CraigFe)
 
 - **irmin-pack**:
   - Added `index_throttle` option to `Irmin_pack.config`, which exposes the

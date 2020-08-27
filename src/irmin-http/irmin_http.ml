@@ -245,6 +245,9 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
     f (cast t)
 
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
+
+  let clear t =
+    HTTP.call `POST t.uri t.ctx [ "clear"; t.items ] Irmin.Type.(of_string unit)
 end
 
 module AO (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
@@ -420,6 +423,8 @@ functor
       Lwt.return_unit
 
     let close _ = Lwt.return_unit
+
+    let clear t = RO.clear t.t
   end
 
 module type HTTP_CLIENT = sig

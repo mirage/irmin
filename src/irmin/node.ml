@@ -171,6 +171,8 @@ struct
 
   let find (_, t) = S.find t
 
+  let clear (_, t) = S.clear t
+
   let add (_, t) = S.add t
 
   let unsafe_add (_, t) = S.unsafe_add t

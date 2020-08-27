@@ -55,6 +55,10 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
   let batch t f =
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
+
+  let clear t =
+    check_not_closed t;
+    S.clear t.t
 end
 
 module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
@@ -114,4 +118,8 @@ module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
     else (
       t.closed := true;
       S.close t.t)
+
+  let clear t =
+    check_not_closed t;
+    S.clear t.t
 end

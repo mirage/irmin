@@ -288,6 +288,8 @@ struct
 
   let mem = S.mem
 
+  let clear = S.clear
+
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
 
   let add_opt t = function

@@ -43,10 +43,18 @@ let suite =
   let clean () =
     let (module S : Irmin_test.S) = store in
     let module P = S.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
     let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
     S.Repo.v config >>= fun repo ->
-    S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
-    >>= fun () -> S.Repo.close repo
+    clear repo >>= fun () -> S.Repo.close repo
   in
   let stats = None in
   { Irmin_test.name = "PACK"; init; clean; config; store; stats }

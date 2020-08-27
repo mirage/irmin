@@ -1,6 +1,8 @@
 open Lwt.Infix
 module Dict = Irmin_pack.Dict
 
+let ( let* ) x f = Lwt.bind x f
+
 let get = function Some x -> x | None -> Alcotest.fail "None"
 
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
@@ -11,6 +13,8 @@ let rm_dir root =
     Logs.info (fun l -> l "exec: %s\n%!" cmd);
     let _ = Sys.command cmd in
     ())
+
+let index_log_size = Some 1_000
 
 module Conf = struct
   let entries = 32
