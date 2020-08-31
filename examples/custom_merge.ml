@@ -12,8 +12,6 @@ let what =
 open Lwt.Infix
 open Astring
 
-let info = Irmin_unix.info
-
 let time = ref 0L
 
 let failure fmt = Fmt.kstrf failwith fmt
@@ -26,7 +24,10 @@ module Entry : sig
 
   val timestamp : t -> int64
 end = struct
-  type t = { timestamp : int64; message : string }
+  type t =
+    { timestamp : int64
+    ; message : string
+    }
 
   let compare x y = Int64.compare x.timestamp y.timestamp
 
@@ -40,10 +41,10 @@ end = struct
 
   let of_string str =
     match String.cut ~sep:": " str with
-    | None -> Error (`Msg ("invalid entry: " ^ str))
-    | Some (x, message) -> (
-        try Ok { timestamp = Int64.of_string x; message }
-        with Failure e -> Error (`Msg e))
+    | None              -> Error (`Msg ("invalid entry: " ^ str))
+    | Some (x, message) ->
+    try Ok { timestamp = Int64.of_string x; message }
+    with Failure e -> Error (`Msg e)
 
   let t =
     let open Irmin.Type in
@@ -77,7 +78,7 @@ end = struct
       List.fold_left
         (fun acc l ->
           match Irmin.Type.of_string Entry.t l with
-          | Ok x -> x :: acc
+          | Ok x           -> x :: acc
           | Error (`Msg e) -> failwith e)
         [] lines
       |> fun l -> Ok l
@@ -87,7 +88,9 @@ end = struct
 
   let t = Irmin.Type.(like ~cli (list Entry.t))
 
-  let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
+  let timestamp = function
+    | []     -> 0L
+    | e :: _ -> Entry.timestamp e
 
   let newer_than timestamp file =
     let rec aux acc = function
@@ -100,7 +103,11 @@ end = struct
   let merge ~old t1 t2 =
     let open Irmin.Merge.Infix in
     old () >>=* fun old ->
-    let old = match old with None -> [] | Some o -> o in
+    let old =
+      match old with
+      | None   -> []
+      | Some o -> o
+    in
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in
@@ -112,14 +119,21 @@ end = struct
   let add t e = e :: t
 end
 
+(* Build an Irmin store containing log files. *)
 module Store = Irmin_unix.Git.FS.KV (Log)
 
+(* Set-up the local configuration of the Git repository. *)
 let config = Irmin_git.config ~bare:true Config.root
+
+(* Convenient alias for the info function for commit messages *)
+let info = Irmin_unix.info
 
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  Store.find t log_file >|= function None -> Log.empty | Some l -> l
+  Store.find t log_file >|= function
+  | None   -> Log.empty
+  | Some l -> l
 
 (* Persist a new entry in the log. Pretty inefficient as it
    reads/writes the whole file every time. *)
@@ -155,7 +169,7 @@ let main () =
   log t "Yes. On t!" >>= fun () ->
   print_logs "branch 2" t >>= fun () ->
   Store.merge_into ~info:(info "Merging x into t") x ~into:t >>= function
-  | Ok () -> print_logs "merge" t
+  | Ok ()   -> print_logs "merge" t
   | Error _ -> failwith "conflict!"
 
 let () = Lwt_main.run (main ())
