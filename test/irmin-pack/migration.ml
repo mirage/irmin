@@ -45,8 +45,7 @@ let setup_test_env () =
   goto_project_root ();
   rm_dir root_v1;
   let cmd =
-    Filename.quote_command "cp"
-      [ "--recursive"; "-p"; root_v1_archive; root_v1 ]
+    Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
   in
   Log.info (fun l -> l "exec: %s\n%!" cmd);
   match Sys.command cmd with
