@@ -59,6 +59,9 @@
 
   - Added a `flush` function for a repo (#1092, @icristescu)
 
+  - Added `Make_layered` functor, to construct a layered stores from irmin-pack.
+    (#882, @icristescu)
+
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
