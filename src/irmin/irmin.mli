@@ -622,10 +622,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
         val timestamp : t -> int64
       end = struct
-        type t =
-          { timestamp : int64
-          ; message : string
-          }
+        type t = { timestamp : int64; message : string }
 
         let compare x y = Int64.compare x.timestamp y.timestamp
 
@@ -639,10 +636,10 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
         let of_string str =
           match String.cut ~sep:": " str with
-          | None              -> Error (`Msg ("invalid entry: " ^ str))
-          | Some (x, message) ->
-            try Ok { timestamp = Int64.of_string x; message }
-            with Failure e -> Error (`Msg e)
+          | None -> Error (`Msg ("invalid entry: " ^ str))
+          | Some (x, message) -> (
+              try Ok { timestamp = Int64.of_string x; message }
+              with Failure e -> Error (`Msg e))
 
         let t =
           let open Irmin.Type in
@@ -682,7 +679,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
             List.fold_left
               (fun acc l ->
                  match Irmin.Type.of_string Entry.t l with
-                 | Ok x           -> x :: acc
+                 | Ok x -> x :: acc
                  | Error (`Msg e) -> failwith e)
               [] lines
             |> fun l -> Ok l
@@ -692,9 +689,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
         let t = Irmin.Type.(like ~cli (list Entry.t))
 
-        let timestamp = function
-          | []     -> 0L
-          | e :: _ -> Entry.timestamp e
+        let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
 
         let newer_than timestamp file =
           let rec aux acc = function
@@ -707,11 +702,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
         let merge ~old t1 t2 =
           let open Irmin.Merge.Infix in
           old () >>=* fun old ->
-          let old =
-            match old with
-            | None   -> []
-            | Some o -> o
-          in
+          let old = match old with None -> [] | Some o -> o in
           let ts = timestamp old in
           let t1 = newer_than ts t1 in
           let t2 = newer_than ts t2 in
@@ -740,14 +731,11 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
       (* Convenient alias for the info function for commit messages *)
       let info = Irmin_unix.info
-
     ]}
 
     We can now define a toy example to use our mergeable log files.
 
     {[
-      open Lwt.Infix
-
       let log_file = [ "local"; "debug" ]
 
       let all_logs t =
