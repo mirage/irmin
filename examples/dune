@@ -6,7 +6,7 @@
 (alias
  (name examples)
  (deps readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
-   irmin_git_store.exe custom_merge.exe custom_graphql))
+   irmin_git_store.exe custom_merge.exe custom_graphql.exe))
 
 (alias
  (name runtest)
