@@ -12,8 +12,6 @@ let what =
 open Lwt.Infix
 open Astring
 
-let info = Irmin_unix.info
-
 let time = ref 0L
 
 let failure fmt = Fmt.kstrf failwith fmt
@@ -112,17 +110,22 @@ end = struct
   let add t e = e :: t
 end
 
+(* Build an Irmin store containing log files. *)
 module Store = Irmin_unix.Git.FS.KV (Log)
 
+(* Set-up the local configuration of the Git repository. *)
 let config = Irmin_git.config ~bare:true Config.root
+
+(* Convenient alias for the info function for commit messages *)
+let info = Irmin_unix.info
 
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
   Store.find t log_file >|= function None -> Log.empty | Some l -> l
 
-(* Persist a new entry in the log. Pretty inefficient as it
-   reads/writes the whole file every time. *)
+(** Persist a new entry in the log. Pretty inefficient as it reads/writes the
+    whole file every time. *)
 let log t fmt =
   Printf.ksprintf
     (fun message ->
