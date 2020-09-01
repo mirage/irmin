@@ -250,9 +250,9 @@ let is_valid_utf8 str =
 (** Ensure that a [string list] is suited for Irmin field names. *)
 let guard_strings l =
   guard
-    ( List.length l <= 5
+    (List.length l <= 5
     && List.for_all is_valid_utf8 l
-    && is_unique_list ~cmp:String.compare l );
+    && is_unique_list ~cmp:String.compare l);
   l
 
 (** Ensure that a [(string * 'a) list] is suited for Irmin field names. *)
