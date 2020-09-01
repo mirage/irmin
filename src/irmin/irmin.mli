@@ -632,7 +632,8 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 
         let timestamp t = t.timestamp
 
-        let pp ppf { timestamp; message } = Fmt.pf ppf "%04Ld: %s" timestamp message
+        let pp ppf { timestamp; message } =
+          Fmt.pf ppf "%04Ld: %s" timestamp message
 
         let of_string str =
           match String.cut ~sep:": " str with
@@ -678,9 +679,9 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
           try
             List.fold_left
               (fun acc l ->
-                 match Irmin.Type.of_string Entry.t l with
-                 | Ok x -> x :: acc
-                 | Error (`Msg e) -> failwith e)
+                match Irmin.Type.of_string Entry.t l with
+                | Ok x -> x :: acc
+                | Error (`Msg e) -> failwith e)
               [] lines
             |> fun l -> Ok l
           with Failure e -> Error (`Msg e)
@@ -706,7 +707,9 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
           let ts = timestamp old in
           let t1 = newer_than ts t1 in
           let t2 = newer_than ts t2 in
-          let t3 = List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2) in
+          let t3 =
+            List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2)
+          in
           Irmin.Merge.ok (List.rev_append t3 old)
 
         let merge = Irmin.Merge.(option (v t merge))
@@ -741,19 +744,20 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
       let all_logs t =
         Store.find t log_file >|= function None -> Log.empty | Some l -> l
 
-      (* Persist a new entry in the log. Pretty inefficient as it
-         reads/writes the whole file every time. *)
+      (** Persist a new entry in the log. Pretty inefficient as it reads/writes
+          the whole file every time. *)
       let log t fmt =
         Printf.ksprintf
           (fun message ->
-             all_logs t >>= fun logs ->
-             let logs = Log.add logs (Entry.v message) in
-             Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
+            all_logs t >>= fun logs ->
+            let logs = Log.add logs (Entry.v message) in
+            Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
           fmt
 
       let print_logs name t =
         all_logs t >|= fun logs ->
-        Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
+        Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t)
+          logs
 
       let main () =
         Config.init ();

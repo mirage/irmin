@@ -124,8 +124,8 @@ let log_file = [ "local"; "debug" ]
 let all_logs t =
   Store.find t log_file >|= function None -> Log.empty | Some l -> l
 
-(* Persist a new entry in the log. Pretty inefficient as it
-   reads/writes the whole file every time. *)
+(** Persist a new entry in the log. Pretty inefficient as it reads/writes the
+    whole file every time. *)
 let log t fmt =
   Printf.ksprintf
     (fun message ->
