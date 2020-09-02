@@ -14,7 +14,7 @@ build: [
 
 depends: [
   "ocaml"    {>= "4.02.3"}
-  "dune"     {>= "2.5.1"}
+  "dune"     {>= "2.7.0"}
   "irmin"    {>= "2.2.0"}
   "alcotest" {>= "1.0.1"}
   "mtime"    {>= "1.0.0"}

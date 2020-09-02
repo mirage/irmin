@@ -15,7 +15,7 @@ build: [
 
 depends: [
   "ocaml"   {>= "4.07.0"}
-  "dune"    {>= "2.5.1"}
+  "dune"    {>= "2.7.0"}
   "irmin"
   "bechamel"
   "yojson"

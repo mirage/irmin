@@ -65,19 +65,22 @@ For more information about an individual package consult the [online documentati
 
 To install the development version of Irmin, clone this repository and `opam install` the packages inside:
 
-    git clone https://github.com/mirage/irmin
-    cd irmin/
-    opam install .
+<!-- $MDX skip -->
+```sh
+git clone https://github.com/mirage/irmin
+cd irmin/
+opam install .
+```
 
 ### Examples
 Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
 
-<!-- N.B. Any changes to the following example must be mirrored in `examples/readme.ml`. -->
+<!-- $MDX file=examples/readme.ml -->
 ```ocaml
 open Lwt.Infix
 
 (* Irmin store with string contents *)
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 (* Database configuration *)
 let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
@@ -90,17 +93,14 @@ let info fmt = Irmin_unix.info ~author fmt
 
 let main =
   (* Open the repo *)
-  Store.Repo.v config >>=
-
+  Store.Repo.v config >>= fun repo ->
   (* Load the master branch *)
-  Store.master >>= fun t ->
-
+  Store.master repo >>= fun t ->
   (* Set key "foo/bar" to "testing 123" *)
-  Store.set_exn t ~info:(info "Updating foo/bar") ["foo"; "bar"] "testing 123" >>= fun () ->
-
-  (* Get key "foo/bar" and print it to stdout *)
-  Store.get t ["foo"; "bar"] >|= fun x ->
-  Printf.printf "foo/bar => '%s'\n" x
+  Store.set_exn t ~info:(info "Updating foo/bar") [ "foo"; "bar" ] "testing 123"
+  >>= fun () ->
+  (* Get key "foo/bar" print it to stdout *)
+  Store.get t [ "foo"; "bar" ] >|= fun x -> Printf.printf "foo/bar => '%s'\n" x
 
 (* Run the program *)
 let () = Lwt_main.run main
@@ -108,7 +108,8 @@ let () = Lwt_main.run main
 
 The example is contained in `examples/readme.ml`. It can be compiled and executed with dune:
 
-```bash
+<!-- $MDX skip -->
+```sh
 $ dune build examples/readme.exe
 $ dune exec examples/readme.exe
 foo/bar => 'testing 123'
@@ -118,11 +119,12 @@ The `examples/` directory also contains more advanced examples, which can be exe
 ### Command-line
 The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
 
-```bash
+```sh
 $ echo "root: ." > irmin.yml
 $ irmin init
 $ irmin set foo/bar "testing 123"
 $ irmin get foo/bar
+testing 123
 ```
 
 `irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You can also set flags globally using `$HOME/.irmin/config.yml`. Run `irmin help irmin.yml` for further details.
