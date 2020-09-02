@@ -52,6 +52,10 @@ module type S = sig
 
   val unsafe_append : 'a t -> key -> value -> unit
 
+  val add : 'a t -> value -> key Lwt.t
+
+  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+
   val unsafe_mem : 'a t -> key -> bool
 
   val unsafe_find : 'a t -> key -> value option
