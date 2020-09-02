@@ -464,8 +464,9 @@ struct
         Contents.CA.flip_upper t.contents;
         Node.CA.flip_upper t.node;
         Commit.CA.flip_upper t.commit;
-        Branch.flip_upper t.branch;
-        IO_layers.write_flip t.flip t.flip_file
+        Branch.flip_upper t.branch
+
+      let write_flip t = IO_layers.write_flip t.flip t.flip_file
 
       let upper_in_use t = if t.flip then `Upper1 else `Upper0
 
@@ -672,10 +673,13 @@ struct
         Lwt_mutex.with_lock add_lock (fun () ->
             X.Repo.copy_last_newies_to_next_upper t >>= fun () ->
             may (fun f -> f `Before_Flip) hook >>= fun () ->
-            X.Repo.flip_upper t >>= fun () ->
+            X.Repo.flip_upper t;
             may (fun f -> f `Before_Clear) hook >>= fun () ->
             X.Repo.clear_previous_upper t)
         >>= fun () ->
+        (* RO reads generation from pack file to detect a flip change, so it's
+           ok to write the flip file outside the lock *)
+        X.Repo.write_flip t >>= fun () ->
         Lwt_mutex.unlock freeze_lock;
         Log.debug (fun l -> l "free lock");
         may (fun f -> f `After_Clear) hook);
