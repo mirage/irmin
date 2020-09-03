@@ -1,0 +1,23 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {pinned}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name] {with-test}
+]
+
+depends: [
+  "dune"    {>= "2.5.1"}
+  "irmin"   {= version}
+  "crowbar" {>= "0.2"}
+  "ppxlib"  {>= "0.14.0"}
+]
+
+synopsis: "Fuzz testing for Irmin"
