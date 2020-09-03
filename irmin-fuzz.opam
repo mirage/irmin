@@ -19,3 +19,5 @@ depends: [
   "crowbar" {>= "0.2"}
   "ppxlib"  {>= "0.14.0"}
 ]
+
+synopsis: "Fuzz testing for Irmin"
