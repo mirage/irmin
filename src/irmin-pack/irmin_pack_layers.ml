@@ -18,6 +18,18 @@ let src = Logs.Src.create "irmin.pack.layers" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let current_version = `V2
+
+let pp_version = IO.pp_version
+
+let ( // ) = Filename.concat
+
+exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
+
+exception Unsupported_version of IO.version
+
+module I = IO
+module IO = IO.Unix
 open Lwt.Infix
 module Atomic_write = Store.Atomic_write
 module Pack_config = Config
@@ -215,7 +227,7 @@ struct
                     let commit : 'a Commit.t = (node, commit) in
                     f contents node commit)))
 
-      let v_upper root config =
+      let unsafe_v_upper root config =
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
@@ -236,7 +248,7 @@ struct
         (f := fun () -> Contents.CA.U.flush ~index:false contents);
         ({ index; contents; node; commit; branch } : upper_layer)
 
-      let v_lower root config =
+      let unsafe_v_lower root config =
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
@@ -257,12 +269,24 @@ struct
         (f := fun () -> Contents.CA.L.flush ~index:false contents);
         ({ index; contents; node; commit; branch } : lower_layer)
 
+      let v_layer ~v root config =
+        Lwt.catch
+          (fun () -> v root config)
+          (function
+            | I.Invalid_version { expected; found }
+              when expected = current_version ->
+                Log.err (fun m ->
+                    m "[%s] Attempted to open store of unsupported version %a"
+                      root pp_version found);
+                Lwt.fail (Unsupported_version found)
+            | e -> Lwt.fail e)
+
       let v config =
         let root = Pack_config.root config in
         let upper_root = Filename.concat root (upper_root1 config) in
-        v_upper upper_root config >>= fun upper ->
+        v_layer ~v:unsafe_v_upper upper_root config >>= fun upper ->
         let lower_root = Filename.concat root (lower_root config) in
-        v_lower lower_root config >|= fun lower ->
+        v_layer ~v:unsafe_v_lower lower_root config >|= fun lower ->
         let contents = Contents.CA.v upper.contents lower.contents in
         let node = Node.CA.v upper.node lower.node in
         let commit = Commit.CA.v upper.commit lower.commit in
@@ -293,7 +317,34 @@ struct
 
       let clear t = Contents.CA.clear t.contents
 
-      let migrate _ = failwith "not implemented"
+      (** migrate can be called on a layered store where only one layer exists
+          on disk. As migration fails on an empty store, we check which layer is
+          in the wrong version. *)
+      let migrate config =
+        if Pack_config.readonly config then raise RO_Not_Allowed;
+        let root = Pack_config.root config in
+        [ upper_root1; lower_root ]
+        |> List.map (fun name ->
+               let root = Filename.concat root (name config) in
+               let config = Conf.add config Pack_config.root_key (Some root) in
+               try
+                 let io =
+                   IO.v ~version:(Some current_version) ~fresh:false
+                     ~readonly:true (root // "store.pack")
+                 in
+                 (config, Some io)
+               with
+               | I.Invalid_version _ -> (config, None)
+               | e -> raise e)
+        |> List.fold_left
+             (fun to_migrate (config, io) ->
+               match io with
+               | None -> config :: to_migrate
+               | Some io ->
+                   IO.close io;
+                   to_migrate)
+             []
+        |> List.iter (fun config -> Store.migrate config)
 
       let layer_id t store_handler =
         match store_handler with

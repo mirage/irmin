@@ -44,3 +44,5 @@ module type Store = sig
 
   val migrate : Irmin.config -> unit
 end
+
+exception Unsupported_version of IO.version
