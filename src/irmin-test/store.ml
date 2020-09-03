@@ -559,6 +559,34 @@ module Make (S : S) = struct
     in
     run x test
 
+  let test_tree_hashes x () =
+    let test repo =
+      let node bindings =
+        with_node repo (fun g ->
+            Graph.empty g >>= fun empty ->
+            Lwt_list.fold_left_s
+              (fun t (k, v) ->
+                with_contents repo (fun t -> P.Contents.add t v) >>= fun v ->
+                Graph.add g t k (`Contents (v, S.Metadata.default)))
+              empty bindings)
+      in
+      let tree bindings =
+        Lwt_list.fold_left_s
+          (fun t (k, v) -> S.Tree.add t k v)
+          S.Tree.empty bindings
+      in
+      let check_hash msg bindings =
+        node bindings >>= fun node ->
+        tree bindings >|= fun tree -> check S.Hash.t msg node (S.Tree.hash tree)
+      in
+      check_hash "empty" [] >>= fun () ->
+      let bindings1 = [ ([ "a" ], "x"); ([ "b" ], "y") ] in
+      check_hash "1 level" bindings1 >>= fun () ->
+      let bindings2 = [ ([ "a"; "b" ], "x"); ([ "a"; "c" ], "y") ] in
+      check_hash "2 levels" bindings2 >>= fun () -> S.Repo.close repo
+    in
+    run x test
+
   let test_watch_exn x () =
     let test repo =
       S.master repo >>= fun t ->
@@ -2209,6 +2237,7 @@ let suite (speed, x) =
       ("Basic operations on nodes", speed, T.test_nodes x);
       ("Basic operations on commits", speed, T.test_commits x);
       ("Basic operations on branches", speed, T.test_branches x);
+      ("Hash operations on trees", speed, T.test_tree_hashes x);
       ("Watch callbacks and exceptions", speed, T.test_watch_exn x);
       ("Basic operations on watches", speed, T.test_watches x);
       ("Basic merge operations", speed, T.test_simple_merges x);
