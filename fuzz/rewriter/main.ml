@@ -13,7 +13,7 @@ end
 
 let ( >>| ) x f = List.map f x
 
-let ( >>= ) x f = List.concat_map f x
+let ( >>= ) x f = List.map f x |> List.flatten
 
 module Located (A : Ast_builder.S) : S = struct
   open A
