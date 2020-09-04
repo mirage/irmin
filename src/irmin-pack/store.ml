@@ -12,6 +12,8 @@ let pp_version = IO.pp_version
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
+exception Unsupported_version of IO.version
+
 let ( ++ ) = Int64.add
 
 module Cache = IO.Cache

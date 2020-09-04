@@ -28,7 +28,7 @@ module Index = Pack_index
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
-exception Unsupported_version of IO.version
+exception Unsupported_version = Store.Unsupported_version
 
 let () =
   Printexc.register_printer (function
