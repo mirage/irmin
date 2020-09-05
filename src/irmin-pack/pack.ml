@@ -301,7 +301,9 @@ struct
           unsafe_clear t;
           Lwt.return_unit)
 
-    let clear_caches t = Lru.clear t.lru
+    let clear_caches t =
+      Tbl.clear t.staging;
+      Lru.clear t.lru
 
     let sync ?(on_generation_change = Fun.id) t =
       let former_generation = IO.generation t.pack.block in

@@ -452,11 +452,14 @@ struct
         Contents.CA.flush_next_lower t.contents;
         Branch.flush_next_lower t.branch
 
+      (** Store share instances of the underlying IO files, so it is enough to
+          call clear on one store. However, each store has its own caches, which
+          need to be cleared too. *)
       let clear_previous_upper t =
         Log.debug (fun l -> l "clear previous upper");
         Contents.CA.clear_previous_upper t.contents >>= fun () ->
-        Node.CA.clear_previous_upper t.node >>= fun () ->
-        Commit.CA.clear_previous_upper t.commit >>= fun () ->
+        Node.CA.clear_caches_next_upper t.node;
+        Commit.CA.clear_caches_next_upper t.commit;
         Branch.clear_previous_upper t.branch
 
       let flip_upper t =
