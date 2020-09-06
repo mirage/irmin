@@ -20,6 +20,8 @@ type t = {
   mutable copied_nodes : int list;
   mutable copied_commits : int list;
   mutable copied_branches : int list;
+  mutable waiting_freeze : float list;
+  mutable completed_freeze : float list;
 }
 (** The type for stats for a store S.
 
@@ -61,3 +63,7 @@ val get_adds : unit -> int
 
 val reset_adds : unit -> unit
 (** Reset the number of objects added. *)
+
+val with_timer : [ `Freeze | `Waiting ] -> (unit -> unit Lwt.t) -> unit Lwt.t
+(** Either the duration of a freeze thread waiting on the freeze lock to start;
+    or the duration of a freeze thread to complete a freeze. *)

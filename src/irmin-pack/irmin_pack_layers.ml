@@ -671,27 +671,40 @@ struct
           min_upper pp_commits heads);
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
-    Lwt.async (fun () ->
-        Lwt.pause () >>= fun () ->
-        may (fun f -> f `Before_Copy) hook >>= fun () ->
-        copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
-        X.Repo.flush_next_lower t;
-        may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
-        X.Repo.copy_newies_to_next_upper t offset >>= fun () ->
-        may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
-        Lwt_mutex.with_lock add_lock (fun () ->
-            X.Repo.copy_last_newies_to_next_upper t >>= fun () ->
-            may (fun f -> f `Before_Flip) hook >>= fun () ->
-            X.Repo.flip_upper t;
-            may (fun f -> f `Before_Clear) hook >>= fun () ->
-            X.Repo.clear_previous_upper t)
-        >>= fun () ->
-        (* RO reads generation from pack file to detect a flip change, so it's
-           ok to write the flip file outside the lock *)
-        X.Repo.write_flip t >>= fun () ->
-        Lwt_mutex.unlock freeze_lock;
-        Log.debug (fun l -> l "free lock");
-        may (fun f -> f `After_Clear) hook);
+    let async () =
+      let waiting =
+        (Irmin_layers.Stats.get ()).waiting_freeze |> List.hd |> fun w ->
+        w *. 0.000001
+      in
+      if waiting >= 1.0 then
+        Log.warn (fun l ->
+            l
+              "freeze blocked for %f seconds due to a previous unfinished \
+               freeze"
+              waiting);
+      Log.app (fun l -> l "start freeze");
+      Lwt.pause () >>= fun () ->
+      may (fun f -> f `Before_Copy) hook >>= fun () ->
+      copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
+      X.Repo.flush_next_lower t;
+      may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
+      X.Repo.copy_newies_to_next_upper t offset >>= fun () ->
+      may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
+      Lwt_mutex.with_lock add_lock (fun () ->
+          X.Repo.copy_last_newies_to_next_upper t >>= fun () ->
+          may (fun f -> f `Before_Flip) hook >>= fun () ->
+          X.Repo.flip_upper t;
+          may (fun f -> f `Before_Clear) hook >>= fun () ->
+          X.Repo.clear_previous_upper t)
+      >>= fun () ->
+      (* RO reads generation from pack file to detect a flip change, so it's
+         ok to write the flip file outside the lock *)
+      X.Repo.write_flip t >>= fun () ->
+      Lwt_mutex.unlock freeze_lock;
+      Log.app (fun l -> l "end freeze");
+      may (fun f -> f `After_Clear) hook
+    in
+    Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
     Log.debug (fun l -> l "after async called to copy");
     Lwt.return_unit
 
@@ -709,7 +722,9 @@ struct
     (match heads with [] -> Repo.heads t | m -> Lwt.return m) >>= fun heads ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else
-      Lwt_mutex.lock freeze_lock >>= fun () ->
+      Irmin_layers.Stats.with_timer `Waiting (fun () ->
+          Lwt_mutex.lock freeze_lock)
+      >>= fun () ->
       unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t
 
   let layer_id = X.Repo.layer_id

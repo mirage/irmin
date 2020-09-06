@@ -194,12 +194,17 @@ let print_stats () =
         "Irmin stats : finds = %d cache_misses= %d appended_hashes= %d \
          appended_offsets= %d \n\
          Index stats:         nb_reads = %d nb_writes = %d \n\
-         Irmin-layers stats : nb_freeze = %d copied_objects = %a \n\
+         Irmin-layers stats : nb_freeze = %d copied_objects = %a \
+         waiting_freeze  = %a completed_freeze = %a \n\
          Lwt engine stats: readable = %d, writable = %d, timer = %d" s.finds
         s.cache_misses s.appended_hashes s.appended_offsets i.nb_reads
         i.nb_writes t.nb_freeze
         Fmt.(list ~sep:pp_comma int)
         copied_objects
+        Fmt.(list ~sep:pp_comma float)
+        t.waiting_freeze
+        Fmt.(list ~sep:pp_comma float)
+        t.completed_freeze
         (Lwt_engine.readable_count ())
         (Lwt_engine.writable_count ())
         (Lwt_engine.timer_count ()))

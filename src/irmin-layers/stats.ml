@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Lwt.Infix
 
 type t = {
   mutable nb_freeze : int;
@@ -20,6 +21,8 @@ type t = {
   mutable copied_nodes : int list;
   mutable copied_commits : int list;
   mutable copied_branches : int list;
+  mutable waiting_freeze : float list;
+  mutable completed_freeze : float list;
 }
 
 type i = {
@@ -37,6 +40,8 @@ let fresh_stats_t () =
     copied_nodes = [];
     copied_commits = [];
     copied_branches = [];
+    waiting_freeze = [];
+    completed_freeze = [];
   }
 
 let fresh_stats_i () =
@@ -68,6 +73,8 @@ let get () =
     copied_nodes = stats_i.nodes :: stats_t.copied_nodes;
     copied_commits = stats_i.commits :: stats_t.copied_commits;
     copied_branches = stats_i.branches :: stats_t.copied_branches;
+    waiting_freeze = stats_t.waiting_freeze;
+    completed_freeze = stats_t.completed_freeze;
   }
 
 (** Ensure lists are not growing indefinitely by dropping elements. *)
@@ -84,7 +91,9 @@ let drop_last_elements n =
   stats_t.copied_contents <- shorter stats_t.copied_contents;
   stats_t.copied_nodes <- shorter stats_t.copied_nodes;
   stats_t.copied_commits <- shorter stats_t.copied_commits;
-  stats_t.copied_branches <- shorter stats_t.copied_branches
+  stats_t.copied_branches <- shorter stats_t.copied_branches;
+  stats_t.completed_freeze <- shorter stats_t.completed_freeze;
+  stats_t.waiting_freeze <- shorter stats_t.waiting_freeze
 
 let freeze () =
   stats_t.nb_freeze <- succ stats_t.nb_freeze;
@@ -94,7 +103,7 @@ let freeze () =
     stats_t.copied_commits <- stats_i.commits :: stats_t.copied_commits;
     stats_t.copied_branches <- stats_i.branches :: stats_t.copied_branches;
     reset_stats_i ());
-  if List.length stats_t.copied_contents >= limit_length_list then
+  if List.length stats_t.completed_freeze >= limit_length_list then
     drop_last_elements (limit_length_list / 2)
 
 let copy_contents () = stats_i.contents <- succ stats_i.contents
@@ -110,3 +119,11 @@ let add () = stats_i.adds <- succ stats_i.adds
 let get_adds () = stats_i.adds
 
 let reset_adds () = stats_i.adds <- 0
+
+let with_timer (operation : [ `Freeze | `Waiting ]) f =
+  let timer = Mtime_clock.counter () in
+  f () >|= fun () ->
+  let span = Mtime.Span.to_us (Mtime_clock.count timer) in
+  match operation with
+  | `Freeze -> stats_t.completed_freeze <- span :: stats_t.completed_freeze
+  | `Waiting -> stats_t.waiting_freeze <- span :: stats_t.waiting_freeze
