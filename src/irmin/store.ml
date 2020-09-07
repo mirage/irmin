@@ -981,13 +981,14 @@ module Make (P : S.PRIVATE) = struct
 
   let pp_option = Type.pp (Type.option Type.int)
 
-  module Heap = Bheap.Make (struct
+  module Heap = Binary_heap.Make (struct
     type t = commit * int
 
     let compare c1 c2 =
-      Int64.compare
-        (Info.date (Commit.info (fst c1)))
-        (Info.date (Commit.info (fst c2)))
+      (* [bheap] operates on miminums, we need to invert the comparison. *)
+      -Int64.compare
+         (Info.date (Commit.info (fst c1)))
+         (Info.date (Commit.info (fst c2)))
   end)
 
   let last_modified ?depth ?(n = 1) t key =
@@ -995,12 +996,12 @@ module Make (P : S.PRIVATE) = struct
         l "last_modified depth=%a n=%d key=%a" pp_option depth n pp_key key);
     let repo = repo t in
     Head.get t >>= fun commit ->
-    let heap = Heap.create 5 in
+    let heap = Heap.create ~dummy:(commit, 0) 0 in
     let () = Heap.add heap (commit, 0) in
     let rec search acc =
       if Heap.is_empty heap || List.length acc = n then Lwt.return acc
       else
-        let current, current_depth = Heap.pop_maximum heap in
+        let current, current_depth = Heap.pop_minimum heap in
         let parents = Commit.parents current in
         let tree = Commit.tree current in
         Tree.find tree key >>= fun current_value ->

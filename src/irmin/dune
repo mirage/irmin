@@ -1,5 +1,5 @@
 (library
  (name irmin)
  (public_name irmin)
- (libraries astring base64 digestif fmt irmin_type jsonm logs lwt ocamlgraph
-   uri uutf))
+ (libraries astring base64 bheap digestif fmt irmin_type jsonm logs lwt
+   ocamlgraph uri uutf))
