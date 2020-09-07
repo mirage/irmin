@@ -17,7 +17,7 @@ depends: [
   "ocaml" {>= "4.06.0"}
   "ocaml-syntax-shims"
   "ppxlib" {>= "0.12.0"}
-  "irmin" {with-test & >= "2.0.0"}
+  "irmin" {with-test & post & >= "2.0.0"}
 ]
 
 synopsis: "PPX deriver for Irmin generics"
