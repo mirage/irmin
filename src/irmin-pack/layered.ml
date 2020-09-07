@@ -46,16 +46,22 @@ struct
         true
     | false -> false
 
+  let return = Lwt.pause
+
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
     stats str;
     SRC.find src k >>= function
-    | None -> Lwt.return_unit
-    | Some v -> aux v >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
+    | None ->
+        (* This can happen when we try to copy an object to lower, that is
+           already in lower and no longer in upper, due to a previous freeze. *)
+        return ()
+    | Some v ->
+        aux v >>= return >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
 
   let check_and_copy ~src ~dst ?aux str k =
     already_in_dst ~dst k >>= function
-    | true -> Lwt.return_unit
+    | true -> return ()
     | false -> copy ~src ~dst ?aux str k
 end
 
@@ -341,6 +347,8 @@ module Content_addressable
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 
+  let yield = Lwt_unix.auto_yield 0.1
+
   (** Copy newies (objects added during the freeze) to the next upper. No lock
       is used during this copy, so additional newies can be added during this
       operation. *)
@@ -353,8 +361,10 @@ module Content_addressable
         tmp_newies := !newies;
         newies := [];
         Lwt.return_unit)
-    >|= fun () ->
-    List.iter (fun (k, v) -> U.unsafe_append next k v) (List.rev !tmp_newies)
+    >>= fun () ->
+    Lwt_list.iter_s
+      (fun (k, v) -> yield () >|= fun () -> U.unsafe_append next k v)
+      (List.rev !tmp_newies)
 
   (** As copy_newies_to_next_upper but inside a lock, which ensure that no
       newies are added. *)

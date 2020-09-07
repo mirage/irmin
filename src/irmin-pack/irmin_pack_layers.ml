@@ -527,12 +527,16 @@ struct
     let copy_tree ~skip nodes contents t root =
       (* if node are already in dst then they are skipped by Graph.iter; there
          is no need to check this again when the node is copied *)
-      let node k = X.Node.CA.copy nodes t.X.Repo.node k in
+      let node k =
+        Lwt.pause () >>= fun () ->
+        X.Node.CA.copy nodes t.X.Repo.node k >>= Lwt.pause
+      in
       (* we need to check that the contents is not already in dst, to avoid
          copying it again *)
       let contents (k, _) =
         X.Contents.CA.check_and_copy contents t.X.Repo.contents "Contents" k
       in
+      let skip h = Lwt.pause () >>= fun () -> skip h in
       Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip ()
 
     let copy_commit ~skip contents nodes commits t k =
@@ -547,7 +551,8 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_lower t)
+        let skip h = Lwt.pause () >>= fun () -> mem_node_lower t h in
+        copy_commit ~skip
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -581,14 +586,15 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_upper t)
+        let skip h = Lwt.pause () >>= fun () -> mem_node_upper t h in
+        copy_commit ~skip
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
           t
 
       let copy ~min ~max t =
-        let skip = mem_commit_upper t in
+        let skip h = Lwt.pause () >>= fun () -> mem_commit_upper t h in
         on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())

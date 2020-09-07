@@ -121,18 +121,25 @@ module Make
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
+  let return = Lwt.pause
+
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
     Irmin_layers.Stats.copy_nodes ();
-    Inode.U.find (Inode.current_upper t) k >|= function
-    | None -> ()
+    Inode.U.find (Inode.current_upper t) k >>= function
+    | None -> return ()
     | Some v ->
+        return () >>= fun () ->
         let v' = lift t v in
         (* copy is called right after [of_bin] and the inodes have empty cached
            trees. We call [list] here to add the cached tree to the inodes, so that
            they are copied in the dst layer. *)
         List.iter ignore (Val.list v');
-        Inode.Val.save ~add ~mem v'.Val.v
+        let add k v =
+          add k v;
+          return ()
+        in
+        return () >>= fun () -> Inode.Val.save_lwt ~add ~mem v'.Val.v
 
   let copy_to_lower ~dst t k =
     let add k v = Inode.L.unsafe_append dst k v in

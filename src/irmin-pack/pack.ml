@@ -272,10 +272,12 @@ struct
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
 
+    let return () = Lwt.return_unit
+
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_append t k v;
-          Lwt.return_unit)
+          return ())
 
     let add t v =
       let k = V.hash v in
@@ -299,7 +301,7 @@ struct
     let clear t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_clear t;
-          Lwt.return_unit)
+          return ())
 
     let clear_caches t =
       Tbl.clear t.staging;
