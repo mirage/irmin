@@ -4,6 +4,9 @@
 
 - **irmin-pack***
   - Fix a major bug in the LRU which was never used (#1035, @samoht)
+  
+- **irmin***
+  - Improve performance of `last_modified` (#948, @pascutto)
 
 #### Added
 
