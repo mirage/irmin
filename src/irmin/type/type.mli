@@ -254,7 +254,9 @@ val mu : ('a t -> 'a t) -> 'a t
 
       let x =
         mu (fun x ->
-            record "x" (fun x -> { x }) |+ field "x" x (fun x -> x.x) |> sealr)
+            record "x" (fun x -> { x })
+            |+ field "x" (option x) (fun x -> x.x)
+            |> sealr)
     ]} *)
 
 val mu2 : ('a t -> 'b t -> 'a t * 'b t) -> 'a t * 'b t
