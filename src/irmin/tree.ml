@@ -135,20 +135,7 @@ module Make (P : S.PRIVATE) = struct
   let cnt = fresh_counters ()
 
   module Path = P.Node.Path
-
-  module StepMap = struct
-    module X = struct
-      type t = Path.step
-
-      let t = Path.step_t
-
-      let compare = Type.compare Path.step_t
-    end
-
-    include Map.Make (X)
-    include Merge.Map (X)
-  end
-
+  module StepMap = Path.StepMap
   module Metadata = P.Node.Metadata
 
   type key = Path.t
@@ -389,6 +376,8 @@ module Make (P : S.PRIVATE) = struct
 
     let elt_t = elt_t t
 
+    let map_t = map_t elt_t
+
     let rec clear_map ~max_depth depth m =
       List.iter
         (fun (_, v) ->
@@ -446,6 +435,17 @@ module Make (P : S.PRIVATE) = struct
 
     let of_value ?added repo v = of_v (Value (repo, v, added))
 
+    let rec of_tree repo (t : P.Node.Val.value StepMap.t) : t =
+      let map =
+        StepMap.map
+          (function
+            | `Node h -> `Node (of_hash repo h)
+            | `Contents (h, m) -> `Contents (Contents.of_hash repo h, m)
+            | `Tree t -> `Node (of_tree repo t))
+          t
+      in
+      of_map map
+
     let empty = function
       | { v = Hash (repo, _) | Value (repo, _, _); _ } ->
           of_value repo P.Node.Val.empty
@@ -457,6 +457,7 @@ module Make (P : S.PRIVATE) = struct
       let aux = function
         | `Node h -> `Node (of_hash repo h)
         | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
+        | `Tree t -> `Node (of_tree repo t)
       in
       List.fold_left
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
@@ -605,6 +606,16 @@ module Make (P : S.PRIVATE) = struct
               | Error _ as e -> e
               | Ok v -> Ok (of_value repo v None)))
 
+    let value =
+      let rec aux : elt -> P.Node.Val.value = function
+        | `Contents (c, m) -> `Contents (Contents.hash c, m)
+        | `Node t -> (
+            match cached_map t with
+            | Some m -> `Tree (StepMap.map aux m)
+            | None -> `Node (hash t))
+      in
+      aux
+
     let hash_equal x y = x == y || Type.equal P.Hash.t x y
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
@@ -652,7 +663,11 @@ module Make (P : S.PRIVATE) = struct
       let trim l =
         List.rev_map
           (fun (s, v) ->
-            (s, match v with `Contents _ -> `Contents | `Node _ -> `Node))
+            ( s,
+              match v with
+              | `Contents _ -> `Contents
+              | `Node _ -> `Node
+              | `Tree _ -> `Node ))
           l
         |> List.rev
         |> fun l -> Ok l
@@ -699,6 +714,11 @@ module Make (P : S.PRIVATE) = struct
         | Some (`Node n) ->
             let n = of_hash repo n in
             let v = `Node n in
+            add_to_findv_cache t step v;
+            Lwt.return_some v
+        | Some (`Tree t) ->
+            let t = of_tree repo t in
+            let v = `Node t in
             add_to_findv_cache t step v;
             Lwt.return_some v
       in
@@ -816,6 +836,15 @@ module Make (P : S.PRIVATE) = struct
                | Error (`Dangling_hash _) -> P.Node.Val.empty)
               >|= fun v -> of_value repo v StepMap.empty)
 
+    module Merge_steps =
+      Merge.Map
+        (StepMap)
+        (struct
+          type t = Path.step
+
+          let t = Path.step_t
+        end)
+
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
       let f ~old x y =
@@ -826,7 +855,7 @@ module Make (P : S.PRIVATE) = struct
         to_map x >|= option_of_result >>= fun x ->
         to_map y >|= option_of_result >>= fun y ->
         let m =
-          StepMap.merge elt_t (fun _step ->
+          Merge_steps.merge elt_t (fun _step ->
               (merge_elt [@tailcall]) Merge.option)
         in
         Merge.(f @@ option m) ~old x y >|= function
@@ -936,7 +965,7 @@ module Make (P : S.PRIVATE) = struct
     | `Node n -> Node.clear ?depth n
     | `Contents _ -> ()
 
-  let sub t path =
+  let sub (t : t) path =
     let rec aux node path =
       match Path.decons path with
       | None -> Lwt.return_some node
@@ -1166,12 +1195,29 @@ module Make (P : S.PRIVATE) = struct
 
   let import_no_check repo k = Node.of_hash repo k
 
+  let stats ?(force = false) (t : t) =
+    let force =
+      if force then `True
+      else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
+    in
+    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
+    let pre k childs s =
+      if childs = [] then Lwt.return s
+      else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
+    in
+    let post _ _ acc = Lwt.return acc in
+    fold ~force ~pre ~post f t empty_stats
+
+  let pp_map = Type.pp Node.map_t
+
   let export ?clear repo contents_t node_t n =
     let seen = Hashes.create 127 in
     let add_node n v () =
       cnt.node_add <- cnt.node_add + 1;
       P.Node.add node_t v >|= fun k ->
       let k' = Node.hash n in
+      Log.debug (fun l -> l "k = %a" pp_hash k);
+      Log.debug (fun l -> l "k'= %a" pp_hash k');
       assert (Type.equal P.Hash.t k k');
       Node.export ?clear repo n k
     in
@@ -1210,50 +1256,62 @@ module Make (P : S.PRIVATE) = struct
                        (while the thread was block on P.Node.mem *)
                     k ()
                 | Map children | Value (_, _, Some children) ->
-                    (* 1. convert partial values to total values *)
-                    (match n.v with
-                    | Value (_, _, Some _) -> (
-                        Node.to_value n >|= function
-                        | Error (`Dangling_hash _) -> ()
-                        | Ok v -> n.v <- Value (repo, v, None))
-                    | _ -> Lwt.return_unit)
-                    >>= fun () ->
-                    (* 2. push the current node job on the stack. *)
-                    let () =
-                      match (n.v, Node.cached_value n) with
-                      | _, Some v -> Stack.push (add_node n v) todo
-                      | Map x, None -> Stack.push (add_node_map n x) todo
-                      | _ -> assert false
-                    in
-                    let contents = ref [] in
-                    let nodes = ref [] in
-                    StepMap.iter
-                      (fun _ -> function
-                        | `Contents c -> contents := c :: !contents
-                        | `Node n -> nodes := n :: !nodes)
-                      children;
+                    stats ~force:false (`Node n) >>= fun stats ->
+                    if stats.nodes < 10 then (
+                      Log.debug (fun l -> l "inlining %a" pp_map children);
+                      let v =
+                        StepMap.fold
+                          (fun k v acc -> (k, Node.value v) :: acc)
+                          children []
+                      in
+                      let v = P.Node.Val.v (List.rev v) in
+                      Stack.push (add_node n v) todo;
+                      k ())
+                    else
+                      (* 1. convert partial values to total values *)
+                      (match n.v with
+                      | Value (_, _, Some _) -> (
+                          Node.to_value n >|= function
+                          | Error (`Dangling_hash _) -> ()
+                          | Ok v -> n.v <- Value (repo, v, None))
+                      | _ -> Lwt.return_unit)
+                      >>= fun () ->
+                      (* 2. push the current node job on the stack. *)
+                      let () =
+                        match (n.v, Node.cached_value n) with
+                        | _, Some v -> Stack.push (add_node n v) todo
+                        | Map x, None -> Stack.push (add_node_map n x) todo
+                        | _ -> assert false
+                      in
+                      let contents = ref [] in
+                      let nodes = ref [] in
+                      StepMap.iter
+                        (fun _ -> function
+                          | `Contents c -> contents := c :: !contents
+                          | `Node n -> nodes := n :: !nodes)
+                        children;
 
-                    (* 2. push the contents job on the stack. *)
-                    List.iter
-                      (fun (c, _) ->
-                        let h = Contents.hash c in
-                        if Hashes.mem seen h then ()
-                        else (
-                          Hashes.add seen h ();
-                          match c.Contents.v with
-                          | Contents.Hash _ -> ()
-                          | Contents.Value x ->
-                              Stack.push (add_contents c x) todo))
-                      !contents;
+                      (* 2. push the contents job on the stack. *)
+                      List.iter
+                        (fun (c, _) ->
+                          let h = Contents.hash c in
+                          if Hashes.mem seen h then ()
+                          else (
+                            Hashes.add seen h ();
+                            match c.Contents.v with
+                            | Contents.Hash _ -> ()
+                            | Contents.Value x ->
+                                Stack.push (add_contents c x) todo))
+                        !contents;
 
-                    (* 3. push the children jobs on the stack. *)
-                    List.iter
-                      (fun n ->
-                        Stack.push
-                          (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
-                          todo)
-                      !nodes;
-                    k ())))
+                      (* 3. push the children jobs on the stack. *)
+                      List.iter
+                        (fun n ->
+                          Stack.push
+                            (fun () -> (add_to_todo [@tailcall]) n Lwt.return)
+                            todo)
+                        !nodes;
+                      k ())))
     in
     let rec loop () =
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in
@@ -1462,19 +1520,6 @@ module Make (P : S.PRIVATE) = struct
     | `Contents (c, m) ->
         cnt.contents_hash <- cnt.contents_hash + 1;
         `Contents (P.Contents.Key.hash c, m)
-
-  let stats ?(force = false) (t : t) =
-    let force =
-      if force then `True
-      else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
-    in
-    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
-    let pre k childs s =
-      if childs = [] then Lwt.return s
-      else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
-    in
-    let post _ _ acc = Lwt.return acc in
-    fold ~force ~pre ~post f t empty_stats
 
   let counters () = cnt
 

@@ -793,6 +793,7 @@ module type S = sig
         with type Contents.value = contents
          and module Hash = Hash
          and module Node.Path = Key
+         and type 'a Node.Val.map = 'a Key.StepMap.t
          and type Node.Metadata.t = metadata
          and type Branch.key = branch
          and type Slice.t = slice
@@ -846,6 +847,7 @@ module type MAKER = functor
      and type branch = B.t
      and type hash = H.t
      and type Private.Sync.endpoint = unit
+     and type 'a Key.StepMap.t = 'a P.StepMap.t
 
 module type Store = sig
   module type S = S

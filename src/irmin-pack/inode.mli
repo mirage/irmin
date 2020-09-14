@@ -61,3 +61,4 @@ module Make
      and type Val.metadata = Node.metadata
      and type Val.step = Node.step
      and type index = Pack_index.Make(H).t
+     and type 'a Val.map = 'a Node.map

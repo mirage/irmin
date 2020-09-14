@@ -31,70 +31,90 @@ module No_metadata = struct
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
-module Make
-    (K : Type.S) (P : sig
-      type step
-
-      val step_t : step Type.t
-    end)
-    (M : S.METADATA) =
-struct
+module Make (K : S.HASH) (P : S.PATH) (M : S.METADATA) = struct
   type hash = K.t
 
   type step = P.step
 
   type metadata = M.t
 
-  type kind = [ `Node | `Contents of M.t ]
+  module StepMap = P.StepMap
 
-  type entry = { kind : kind; name : P.step; node : K.t }
+  type 'a map = 'a StepMap.t
 
-  let kind_t =
-    let open Type in
-    variant "Tree.kind" (fun node contents contents_m -> function
-      | `Node -> node
-      | `Contents m ->
-          if Type.equal M.t m M.default then contents else contents_m m)
-    |~ case0 "node" `Node
-    |~ case0 "contents" (`Contents M.default)
-    |~ case1 "contents" M.t (fun m -> `Contents m)
-    |> sealv
+  type 'a with_name = { name : P.step; v : 'a }
 
-  let entry_t : entry Type.t =
-    let open Type in
-    record "Tree.entry" (fun kind name node -> { kind; name; node })
-    |+ field "kind" kind_t (function { kind; _ } -> kind)
-    |+ field "name" P.step_t (fun { name; _ } -> name)
-    |+ field "node" K.t (fun { node; _ } -> node)
-    |> sealr
+  and entry =
+    | Contents of M.t * K.t with_name
+    | Node of K.t with_name
+    | Tree of entry map with_name
 
-  let to_entry (k, v) =
-    match v with
-    | `Node h -> { name = k; kind = `Node; node = h }
-    | `Contents (h, m) -> { name = k; kind = `Contents m; node = h }
-
-  let of_entry n =
-    ( n.name,
-      match n.kind with
-      | `Node -> `Node n.node
-      | `Contents m -> `Contents (n.node, m) )
-
-  module StepMap = Map.Make (struct
-    type t = P.step
-
-    let compare (x : t) (y : t) = Type.compare P.step_t y x
-  end)
-
-  type value = [ `Contents of hash * metadata | `Node of hash ]
+  type value =
+    [ `Contents of hash * metadata | `Node of hash | `Tree of value map ]
 
   type t = entry StepMap.t
+
+  let rec to_entry (name, v) =
+    match (v : value) with
+    | `Node h -> Node { name; v = h }
+    | `Contents (h, m) -> Contents (m, { name; v = h })
+    | `Tree t ->
+        let v =
+          StepMap.fold
+            (fun k v map -> StepMap.add k (to_entry (k, v)) map)
+            t StepMap.empty
+        in
+        Tree { name; v }
+
+  let rec of_entry : entry -> P.step * value = function
+    | Contents (m, n) -> (n.name, `Contents (n.v, m))
+    | Node n -> (n.name, `Node n.v)
+    | Tree t ->
+        let map =
+          StepMap.fold
+            (fun k v map ->
+              let _, v = of_entry v in
+              StepMap.add k v map)
+            t.v StepMap.empty
+        in
+        (t.name, `Tree map)
+
+  let with_name_t v_name v_t =
+    let open Type in
+    record "Tree.with_name" (fun name v -> { name; v })
+    |+ field "name" P.step_t (fun t -> t.name)
+    |+ field v_name v_t (fun t -> t.v)
+    |> sealr
+
+  let map_of_list l =
+    List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty l
+
+  let map_t v_t =
+    Type.map Type.(list (pair P.step_t v_t)) map_of_list P.StepMap.bindings
+
+  let entry_t =
+    let open Type in
+    mu @@ fun entry_t ->
+    variant "Tree.entry" (fun node contents contents_m tree -> function
+      | Node n -> node n
+      | Contents (m, n) ->
+          if Type.equal M.t m M.default then contents n else contents_m (m, n)
+      | Tree t -> tree t)
+    |~ case1 "node" (with_name_t "node" K.t) (fun n -> Node n)
+    |~ case1 "contents" (with_name_t "node" K.t) (fun n ->
+           Contents (M.default, n))
+    |~ case1 "contents-x"
+         (pair M.t (with_name_t "node" K.t))
+         (fun (m, n) -> Contents (m, n))
+    |~ case1 "tree" (with_name_t "tree" (map_t entry_t)) (fun t -> Tree t)
+    |> sealv
 
   let v l =
     List.fold_left
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
 
-  let list t = List.rev_map (fun (_, e) -> of_entry e) (StepMap.bindings t)
+  let list t = StepMap.fold (fun _ e map -> of_entry e :: map) t [] |> List.rev
 
   let find t s =
     try
@@ -105,6 +125,19 @@ struct
   let empty = StepMap.empty
 
   let is_empty e = list e = []
+
+  let value_t =
+    let open Type in
+    mu @@ fun value_t ->
+    variant "value" (fun n c x y -> function
+      | `Node h -> n h
+      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m)
+      | `Tree t -> y t)
+    |~ case1 "node" K.t (fun k -> `Node k)
+    |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
+    |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
+    |~ case1 "tree" (map_t value_t) (fun t -> `Tree t)
+    |> sealv
 
   let add t k v =
     let e = to_entry (k, v) in
@@ -123,21 +156,34 @@ struct
 
   let default = M.default
 
-  let value_t =
-    let open Type in
-    variant "value" (fun n c x -> function
-      | `Node h -> n h
-      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m))
-    |~ case1 "node" K.t (fun k -> `Node k)
-    |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
-    |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
-    |> sealv
-
   let of_entries e = v (List.rev_map of_entry e)
 
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
 
-  let t = Type.map Type.(list entry_t) of_entries entries
+  let t' = Type.map Type.(list entry_t) of_entries entries
+
+  let pre_hash' = Type.unstage (Type.pre_hash t')
+
+  let pre_hash' t f =
+    let f s =
+      Fmt.epr "XXX %S\n%!" s;
+      f s
+    in
+    pre_hash' t f
+
+  let rec pre_hash (t : entry map) = pre_hash' (StepMap.map without_tree t)
+
+  and without_tree = function
+    | (Node _ | Contents _) as v -> v
+    | Tree t -> Node { name = t.name; v = hash_of_tree t.v }
+
+  and hash_of_tree t =
+    Fmt.epr "XXX tree: %a\n%!" (Type.pp t') t;
+    let hash = K.hash (pre_hash t) in
+    Fmt.epr "XXX %a\n%!" (Type.pp K.t) hash;
+    hash
+
+  let t = Type.like ~pre_hash:(Type.stage pre_hash) t'
 end
 
 module Store
@@ -264,7 +310,10 @@ module Graph (S : S.NODE_STORE) = struct
 
   type 'a t = 'a S.t
 
-  type value = [ `Contents of contents * metadata | `Node of node ]
+  type 'a map = 'a Path.StepMap.t
+
+  type value =
+    [ `Contents of contents * metadata | `Node of node | `Tree of value map ]
 
   let empty t = S.add t S.Val.empty
 
@@ -281,9 +330,16 @@ module Graph (S : S.NODE_STORE) = struct
   module Graph = Object_graph.Make (Contents) (Metadata) (S.Key) (U) (U)
 
   let edges t =
-    List.rev_map
-      (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
-      (S.Val.list t)
+    let rec aux acc (l : (S.Path.step * S.Val.value) list) =
+      List.fold_left
+        (fun acc -> function _, `Node n -> `Node n :: acc
+          | _, `Contents c -> `Contents c :: acc
+          | _, `Tree t ->
+              let t = S.Path.StepMap.bindings t in
+              aux acc t)
+        acc l
+    in
+    aux [] (S.Val.list t)
 
   let pp_key = Type.pp S.Key.t
 
@@ -332,6 +388,8 @@ module Graph (S : S.NODE_STORE) = struct
     Log.debug (fun f -> f "contents %a" pp_key node);
     S.find t node >|= function None -> None | Some n -> S.Val.find n step
 
+  let tree_find t h = try Some (Path.StepMap.find h t) with Not_found -> None
+
   let find t node path =
     Log.debug (fun f -> f "read_node_exn %a %a" pp_key node pp_path path);
     let rec aux node path =
@@ -340,7 +398,17 @@ module Graph (S : S.NODE_STORE) = struct
       | Some (h, tl) -> (
           find_step t node h >>= function
           | (None | Some (`Contents _)) as x -> Lwt.return x
-          | Some (`Node node) -> aux node tl)
+          | Some (`Node node) -> aux node tl
+          | Some (`Tree t) -> tree t tl)
+    and tree t path =
+      match Path.decons path with
+      | None -> Lwt.return (Some (`Tree t))
+      | Some (h, tl) -> (
+          match tree_find t h with
+          | None -> Lwt.return None
+          | Some (`Tree t) -> tree t tl
+          | Some (`Node n) -> aux n tl
+          | Some (`Contents _) as x -> Lwt.return x)
     in
     aux node path
 
@@ -348,11 +416,12 @@ module Graph (S : S.NODE_STORE) = struct
 
   let map_one t node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
-    let old_key = S.Val.find node label in
-    (match old_key with
+    let old_val = S.Val.find node label in
+    (match old_val with
     | None | Some (`Contents _) -> Lwt.return S.Val.empty
     | Some (`Node k) -> (
-        S.find t k >|= function None -> S.Val.empty | Some v -> v))
+        S.find t k >|= function None -> S.Val.empty | Some v -> v)
+    | Some (`Tree _) -> failwith "TODO: Node.map_one Tree")
     >>= fun old_node ->
     f old_node >>= fun new_node ->
     if Type.equal S.Val.t old_node new_node then Lwt.return node
@@ -378,7 +447,8 @@ module Graph (S : S.NODE_STORE) = struct
     | None -> (
         match n with
         | `Node n -> Lwt.return n
-        | `Contents _ -> failwith "TODO: Node.add")
+        | `Contents _ -> failwith "TODO: Node.add Contents"
+        | `Tree _ -> failwith "TODO: Node.add Tree")
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -441,6 +511,8 @@ module V1 (N : S.NODE with type step = string) = struct
   let hash_t = N.hash_t
 
   let metadata_t = N.metadata_t
+
+  type 'a map = 'a N.map
 
   type t = { n : N.t; entries : (step * value) list }
 

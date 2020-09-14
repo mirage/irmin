@@ -396,7 +396,8 @@ module Make_ext
     (Node : Irmin.Private.Node.S
               with type metadata = M.t
                and type hash = H.t
-               and type step = P.step)
+               and type step = P.step
+               and type 'a map = 'a P.StepMap.t)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)

@@ -185,7 +185,8 @@ module Make_ext
     (N : S.NODE
            with type metadata = M.t
             and type hash = H.t
-            and type step = P.step)
+            and type step = P.step
+            and type 'a map = 'a P.StepMap.t)
     (CT : S.COMMIT with type hash = H.t) =
 struct
   module CA = CA_check_closed (CA)
@@ -317,7 +318,11 @@ module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
 module type S_MAKER = Store.MAKER
 
 module type KV =
-  S with type key = string list and type step = string and type branch = string
+  S
+    with type key = string list
+     and type step = string
+     and type branch = string
+     and type 'a Key.StepMap.t = 'a Path.String_list.StepMap.t
 
 module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
