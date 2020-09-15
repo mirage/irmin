@@ -122,6 +122,33 @@ module type S = sig
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
     (** [import t s] imports the contents of the slice [s] in [t]. Does not
         modify branches. *)
+
+    val iter_nodes :
+      t ->
+      min:hash list ->
+      max:hash list ->
+      ?node:(hash -> unit Lwt.t) ->
+      ?contents:(hash * metadata -> unit Lwt.t) ->
+      ?edge:(hash -> hash -> unit Lwt.t) ->
+      ?skip:(hash -> bool Lwt.t) ->
+      ?rev:bool ->
+      unit ->
+      unit Lwt.t
+    (** [iter t] iterates in reverse topological order over the closure graph of
+        [t] as specified by {{!Irmin__.S.NODE_GRAPH.iter} NODE_GRAPH.iter}. *)
+
+    val iter_commits :
+      t ->
+      min:hash list ->
+      max:hash list ->
+      ?commit:(hash -> unit Lwt.t) ->
+      ?edge:(hash -> hash -> unit Lwt.t) ->
+      ?skip:(hash -> bool Lwt.t) ->
+      ?rev:bool ->
+      unit ->
+      unit Lwt.t
+    (** [iter t] iterates over the closure graph of [t] as specified by
+        {{!Irmin__.S.COMMIT_HISTORY.iter} COMMIT_HISTORY.iter}. *)
   end
 
   val empty : repo -> t Lwt.t

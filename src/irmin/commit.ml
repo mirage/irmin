@@ -185,6 +185,29 @@ module History (S : S.COMMIT_STORE) = struct
       (fun acc -> function `Commit k -> k :: acc | _ -> acc)
       [] (Graph.vertex g)
 
+  let pp_keys = Type.(pp_dump (list S.Key.t))
+
+  let ignore_lwt _ = Lwt.return_unit
+
+  let iter t ~min ~max ?(commit = ignore_lwt) ?(edge = fun _ -> ignore_lwt)
+      ?(skip = fun _ -> Lwt.return_false) ?(rev = true) () =
+    Log.debug (fun f ->
+        f "iter on closure min=%a max=%a" pp_keys min pp_keys max);
+    let max = List.map (fun x -> `Commit x) max in
+    let min = List.map (fun x -> `Commit x) min in
+    let node = function `Commit x -> commit x | _ -> assert false in
+    let skip = function `Commit x -> skip x | _ -> assert false in
+    let pred = function
+      | `Commit k -> parents t k >|= List.map (fun x -> `Commit x)
+      | _ -> assert false
+    in
+    let edge n pred =
+      match (n, pred) with
+      | `Commit src, `Commit dst -> edge src dst
+      | _ -> assert false
+    in
+    Graph.iter ~pred ~min ~max ~node ~edge ~skip ~rev ()
+
   module K = struct
     type t = S.Key.t
 

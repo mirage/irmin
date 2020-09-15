@@ -331,6 +331,10 @@ module Make (P : S.PRIVATE) = struct
         (function
           | Import_error e -> Lwt.return (Error (`Msg e))
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+
+    let iter_nodes t = Graph.iter (graph_t t)
+
+    let iter_commits t = H.iter (history_t t)
   end
 
   type t = {

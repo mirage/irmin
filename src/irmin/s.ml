@@ -372,9 +372,9 @@ module type NODE_GRAPH = sig
     ?rev:bool ->
     unit ->
     unit Lwt.t
-  (** [iter min max node edge skip rev ()] iterates in topological order over
-      the closure of [t] as specified by {{!Private.Node.GRAPH.closure}
-      GRAPH.closure}.
+  (** [iter t min max node edge skip rev ()] iterates in topological order over
+      the closure of [t] as specified by {{!Irmin__Object_graph.S.closure}
+      Object_graph.closure}.
 
       It applies three functions while traversing the graph: [node] on the
       nodes; [edge n predecessor_of_n] on the directed edges and [skip n] to not
@@ -555,8 +555,21 @@ module type COMMIT_HISTORY = sig
 
   val closure :
     [> `Read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
-  (** Same as {{!Private.Node.GRAPH.closure} GRAPH.closure} but for the history
+  (** Same as {{!NODE_GRAPH.closure} NODE_GRAPH.closure} but for the history
       graph. *)
+
+  val iter :
+    [> `Read ] t ->
+    min:node list ->
+    max:node list ->
+    ?commit:(commit -> unit Lwt.t) ->
+    ?edge:(node -> node -> unit Lwt.t) ->
+    ?skip:(node -> bool Lwt.t) ->
+    ?rev:bool ->
+    unit ->
+    unit Lwt.t
+  (** Same as {{!NODE_GRAPH.iter} NODE_GRAPH.iter} but for traversing the
+      history graph. *)
 
   (** {1 Value Types} *)
 

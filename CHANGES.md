@@ -33,6 +33,8 @@
   - Added a `clear` function for stores (#1071, @icristescu, @CraigFe)
   - Requires digestif>=0.9 to use digestif's default variants
     (#873, @pascutto, @samoht)
+  - Added `iter_commits` and `iter_nodes` functions to traverse the commits and
+    nodes graphs (#1077, @icristescu)
 
 - **irmin-pack**:
   - Added `index_throttle` option to `Irmin_pack.config`, which exposes the
