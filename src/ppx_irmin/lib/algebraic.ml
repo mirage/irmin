@@ -19,7 +19,7 @@ open Ppxlib
 module type S = sig
   type nonrec record_field_repr = {
     field_name : string;
-    field_generic : expression;
+    field_repr : expression;
   }
 
   and variant_case_repr = {
@@ -61,7 +61,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
 
   type nonrec record_field_repr = {
     field_name : string;
-    field_generic : expression;
+    field_repr : expression;
   }
 
   and variant_case_repr = {
@@ -126,14 +126,14 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         variant_case1 ~polymorphic ~cons_name:case_name ~component_type ~idents
 
   (** [|+ field "field_name" (field_type) (fun t -> t.field_name)] *)
-  let record_field { field_name; field_generic } e =
+  let record_field { field_name; field_repr } e =
     pexp_apply (evar "|+")
       ([
          e;
          pexp_apply (evar "field")
            ([
               pexp_constant @@ Pconst_string (field_name, None);
-              field_generic;
+              field_repr;
               lambda "t" (pexp_field (evar "t") (Located.lident field_name));
             ]
            >|= unlabelled);

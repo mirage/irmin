@@ -3,24 +3,22 @@ type c = string [@@deriving irmin { name = "c_wit" }]
 
 let (_ : c Irmin.Type.t) = c_wit
 
-type d = int [@@deriving irmin { name = "generic_for_d" }]
+type d = int [@@deriving irmin { name = "repr_for_d" }]
 
-let (_ : d Irmin.Type.t) = generic_for_d
+let (_ : d Irmin.Type.t) = repr_for_d
 
-type point_elsewhere1 = (c[@generic c_wit]) [@@deriving irmin]
+type point_elsewhere1 = (c[@repr c_wit]) [@@deriving irmin]
 
-type point_elsewhere2 = int * (c[@generic c_wit]) [@@deriving irmin]
+type point_elsewhere2 = int * (c[@repr c_wit]) [@@deriving irmin]
 
-type point_elsewhere3 =
-  | A of int * (c[@generic c_wit])
-  | B of (c[@generic c_wit])
+type point_elsewhere3 = A of int * (c[@repr c_wit]) | B of (c[@repr c_wit])
 [@@deriving irmin]
 
 type point_elsewhere4 = {
   lorem : string;
-  ipsum : (c[@generic c_wit]);
+  ipsum : (c[@repr c_wit]);
   dolor : int;
-  sit : (d[@generic generic_for_d]);
+  sit : (d[@repr repr_for_d]);
 }
 [@@deriving irmin]
 

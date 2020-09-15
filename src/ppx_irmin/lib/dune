@@ -1,4 +1,6 @@
 (library
  (name ppx_irmin_lib)
  (public_name ppx_irmin._lib)
- (libraries ppxlib))
+ (libraries ppxlib)
+ (preprocess
+  (pps ppxlib.metaquot)))

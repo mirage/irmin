@@ -16,7 +16,7 @@
 
 open Ppxlib
 
-val generic : (core_type, expression) Attribute.t
+val repr : (core_type, expression) Attribute.t
 
 val nobuiltin : (core_type, unit) Attribute.t
 

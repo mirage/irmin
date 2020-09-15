@@ -64,6 +64,10 @@
     number. Version 1 of irmin-pack was used for the previous format, version 2
     is used with the new format. (#1047, @icristescu, @CraigFe, @samoht)
 
+- **ppx_irmin**:
+
+  - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (TODO)
+
 ### 2.2.0 (2020-06-26)
 
 #### Added

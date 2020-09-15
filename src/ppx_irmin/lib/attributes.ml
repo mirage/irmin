@@ -18,9 +18,9 @@ open Ppxlib
 
 let namespace = "irmin"
 
-let generic =
+let repr =
   Attribute.declare
-    (String.concat "." [ namespace; "generic" ])
+    (String.concat "." [ namespace; "repr" ])
     Attribute.Context.Core_type
     Ast_pattern.(single_expr_payload __)
     (fun e -> e)
@@ -36,4 +36,4 @@ let nobuiltin =
           Location.raise_errorf ~loc "`nobuiltin` payload must be empty"
       | { txt = []; _ } -> ())
 
-let all = Attribute.[ T generic; T nobuiltin ]
+let all = Attribute.[ T repr; T nobuiltin ]

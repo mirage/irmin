@@ -38,6 +38,7 @@ let sig_type_decl_generator =
   let args = Deriving.Args.(empty +> arg "name" (estring __) +> arg "lib" __) in
   Deriving.Generator.make args expand_sig
 
-let irmin =
+let () =
   Deriving.add ~str_type_decl:str_type_decl_generator
     ~sig_type_decl:sig_type_decl_generator ppx_name
+  |> Deriving.ignore

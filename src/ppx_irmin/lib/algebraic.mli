@@ -14,14 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Helper functions for deriving generic encodings of algebraic data types. *)
+(** Helper functions for deriving encodings of algebraic data types. *)
 
 open Ppxlib
 
 module type S = sig
   type nonrec record_field_repr = {
     field_name : string;
-    field_generic : expression;
+    field_repr : expression;
   }
 
   and variant_case_repr = {
@@ -33,7 +33,7 @@ module type S = sig
 
       - ['a]: the subcomponent type of the algebraic type
       - ['b]: a generic representation of the subcomponent type necessary to
-        derive the {i composite} generic *)
+        derive the {i composite} type representation *)
   type (_, _) typ =
     | Record : (label_declaration, record_field_repr) typ
     | Variant : (constructor_declaration, variant_case_repr) typ
@@ -52,9 +52,8 @@ module type S = sig
       [('a, 'b) {!typ}], in terms its components of type ['a list] and the name
       of the composite type [type_name].
 
-      This requires a function [subderive] for deriving the generic
-      representation of the subcomponents, which may run in a monadic context
-      [M.t]. *)
+      This requires a function [subderive] for deriving the type representation
+      of the subcomponents, which may run in a monadic context [M.t]. *)
 end
 
 module Located (S : Ast_builder.S) (M : Monad.S) : S with module M = M

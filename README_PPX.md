@@ -1,10 +1,10 @@
 ## ppx_irmin
 
-PPX extension for automatically generating Irmin generics.
+PPX extension for automatically generating Irmin type representations.
 
 ### Overview
 
-`ppx_irmin` automatically generates Irmin generics (values of type
+`ppx_irmin` automatically generates Irmin type representations (values of type
 `_ Irmin.Type.t`) corresponding to type declarations in your code. For example:
 
 ```ocaml
@@ -45,14 +45,14 @@ following field to your `library`, `executable` or `test` stanza:
 ```
 
 You can now use `[@@deriving irmin]` after a type declaration in your code to
-automatically derive an Irmin generic with the same name.
+automatically derive an Irmin type representation with the same name.
 
 ### Specifics
 
 `ppx_irmin` supports all of the type combinators exposed in the
 [Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic
 types, records, variants (plain and closed polymorphic), recursive types etc.).
-Irmin does not currently support higher-kinded generics: all Irmin types must
+Irmin does not currently support higher-kinded type representations: all Irmin types must
 fully grounded (no polymorphic type variables).
 
 To supply base representations from a module other than `Irmin.Type` (such as
@@ -68,26 +68,26 @@ val foo_t = Mylib.Types.unit
 
 #### Naming scheme
 
-The generated generics will be called `<type-name>_t`, unless the type-name is
-`t`, in which case the generic is simply `t`. This behaviour can be overridden
+The generated type representation will be called `<type-name>_t`, unless the type-name is
+`t`, in which case the representation is simply `t`. This behaviour can be overridden
 using the `name` argument, as in:
 
 ```ocaml
-type foo = string list * int32 [@@deriving irmin { name = "foo_generic" }]
+type foo = string list * int32 [@@deriving irmin { name = "foo_repr" }]
 
 (* generates the value *)
-val foo_generic = Irmin.Type.(pair (list string) int32)
+val foo_repr = Irmin.Type.(pair (list string) int32)
 ```
 
 If the type contains an abstract type, `ppx_irmin` will expect to find a
-corresponding generic using its own naming rules. This can be overridden
-using the `[@generic ...]` attribute, as in:
+corresponding type representation using its own naming rules. This can be
+overridden using the `[@repr ...]` attribute, as in:
 
 ```ocaml
-type bar = (foo [@generic foo_generic], string) result [@@deriving irmin]
+type bar = (foo [@repr foo_repr], string) result [@@deriving irmin]
 
 (* generates the value *)
-val bar_t = Irmin.Type.(result foo_generic string)
+val bar_t = Irmin.Type.(result foo_repr string)
 ```
 
 Built-in abstract types such as `unit` are assumed to be represented in
@@ -111,13 +111,13 @@ auto-generated value:
 module Contents : sig
   type t = int32 [@@deriving irmin]
 
-  (* exposes generic in signature *)
+  (* exposes repr in signature *)
   val t : t Irmin.Type.t
 
 end = struct
   type t = int32 [@@deriving irmin]
 
-  (* generates generic value *)
+  (* generates repr value *)
   val t = Irmin.Type.int32
 end
 ```

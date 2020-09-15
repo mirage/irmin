@@ -22,12 +22,13 @@ module type S = sig
     ?lib:expression ->
     rec_flag * type_declaration list ->
     structure_item list
-  (** Deriver for Irmin generics.
+  (** Deriver for Irmin type representations.
 
-      - [?name]: overrides the default name of the generated generic;
+      - [?name]: overrides the default name of the generated type
+        representation;
 
-      - [?lib]: overrides the default location for the primitive Irmin generics.
-        [~lib:None] will assume that the generics are available in the same
+      - [?lib]: overrides the default location for the primitive Irmin typereps.
+        [~lib:None] will assume that the typereps are available in the same
         namespace. *)
 
   val derive_sig :
@@ -35,7 +36,7 @@ module type S = sig
     ?lib:expression ->
     rec_flag * type_declaration list ->
     signature_item list
-  (** Deriver for Irmin generic type signatures.
+  (** Deriver for Irmin type representation signatures.
 
       Optional arguments have the same meaning as in {!derive_str}. *)
 end
