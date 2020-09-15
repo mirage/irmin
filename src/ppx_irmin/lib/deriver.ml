@@ -17,6 +17,8 @@
 open Ppxlib
 module SSet = Set.Make (String)
 
+let ( >> ) f g x = g (f x)
+
 let irmin_types =
   SSet.of_list
     [
@@ -63,38 +65,38 @@ module Located (A : Ast_builder.S) : S = struct
   end
 
   module Reader = Monad.Reader (State)
-  module Algebraic = Algebraic.Located (A) (Reader)
+
+  module Algebraic = struct
+    include Algebraic
+    include Algebraic.Located (A) (Reader)
+  end
+
   open A
   open Reader.Syntax
   open Reader
 
   let unlabelled x = (Nolabel, x)
 
-  let ( >>= ) x f = Reader.bind f x
-
   let ( >|= ) x f = List.map f x
 
-  let lambda fparam = pvar fparam |> pexp_fun Nolabel None
-
-  let open_lib expr =
-    let+ { lib; _ } = ask in
-    match lib with
-    | Some lib ->
-        pexp_open
-          {
-            popen_expr = pmod_ident (Located.lident lib);
-            popen_override = Fresh;
-            popen_loc = A.loc;
-            popen_attributes = [];
-          }
-          expr
-    | None -> expr
+  let with_open_lib =
+    Reader.bind (fun expr ->
+        let+ { lib; _ } = ask in
+        match lib with
+        | Some lib ->
+            pexp_open
+              {
+                popen_expr = pmod_ident (Located.lident lib);
+                popen_override = Fresh;
+                popen_loc = A.loc;
+                popen_attributes = [];
+              }
+              expr
+        | None -> expr)
 
   let recursive ~lib fparam e =
-    let lib = match lib with Some s -> s | None -> "" in
-    pexp_apply
-      (evar (String.concat "." [ lib; "mu" ]))
-      ([ lambda fparam e ] >|= unlabelled)
+    let mu = evar (match lib with Some s -> s ^ ".mu" | None -> "mu") in
+    [%expr [%e mu] (fun [%p pvar fparam] -> [%e e])]
 
   let repr_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
@@ -167,17 +169,16 @@ module Located (A : Ast_builder.S) : S = struct
         args
         >|= derive_core
         |> sequence
-        |> map (List.map unlabelled)
-        |> map (pexp_apply (evar tuple_type))
+        |> map (List.map unlabelled >> pexp_apply (evar tuple_type))
 
   and derive_record ls =
     let* State.{ type_name; _ } = ask in
     let subderive label_decl =
       let field_name = label_decl.pld_name.txt in
       let+ field_repr = derive_core label_decl.pld_type in
-      Algebraic.{ field_name; field_repr }
+      Algebraic.Typ.{ field_name; field_repr }
     in
-    Algebraic.(encode Record) ~subderive ~type_name ls
+    Algebraic.(encode Typ.Record) ~subderive ~type_name ls
 
   and derive_variant cs =
     let* { type_name; _ } = ask in
@@ -191,7 +192,7 @@ module Located (A : Ast_builder.S) : S = struct
             let+ tuple_typ = derive_tuple cs in
             Some (tuple_typ, List.length cs)
       in
-      Algebraic.{ case_name; case_cons }
+      Algebraic.Typ.{ case_name; case_cons }
     in
     Algebraic.(encode Variant) ~subderive ~type_name cs
 
@@ -205,7 +206,7 @@ module Located (A : Ast_builder.S) : S = struct
             (label.txt, Some (tuple_typ, List.length typs))
         | Rinherit _ -> assert false
       in
-      Algebraic.{ case_name; case_cons }
+      Algebraic.Typ.{ case_name; case_cons }
     in
     Algebraic.(encode Polyvariant) ~subderive ~type_name:name rowfields
 
@@ -246,9 +247,9 @@ module Located (A : Ast_builder.S) : S = struct
                 and nobuiltin = Attribute.get Attributes.nobuiltin c in
                 derive_lident ?repr ?nobuiltin txt
             (* Type constructor: list, tuple, etc. *)
-            | _ -> derive_core c >>= open_lib))
-    | Ptype_variant cs -> derive_variant cs >>= open_lib
-    | Ptype_record ls -> derive_record ls >>= open_lib
+            | _ -> with_open_lib (derive_core c)))
+    | Ptype_variant cs -> with_open_lib (derive_variant cs)
+    | Ptype_record ls -> with_open_lib (derive_record ls)
     | Ptype_open -> Raise.Unsupported.type_open ~loc
 
   let parse_lib expr =

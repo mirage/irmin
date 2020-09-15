@@ -14,27 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type FUNCTOR = sig
-  type 'a t
-
-  val return : 'a -> 'a t
-
-  val map : ('a -> 'b) -> 'a t -> 'b t
-end
-
-module type S = sig
-  include FUNCTOR
-
-  val bind : ('a -> 'b t) -> 'a t -> 'b t
-
-  val sequence : 'a t list -> 'a list t
-
-  module Syntax : sig
-    val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
-
-    val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
-  end
-end
+include Monad_intf
 
 module Reader (E : sig
   type t

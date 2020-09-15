@@ -14,33 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Algebraic_intf
+open Typ
 open Ppxlib
 
-module type S = sig
-  type nonrec record_field_repr = {
-    field_name : string;
-    field_repr : expression;
-  }
-
-  and variant_case_repr = {
-    case_name : string;
-    case_cons : (expression * int) option;
-  }
-
-  type (_, _) typ =
-    | Record : (label_declaration, record_field_repr) typ
-    | Variant : (constructor_declaration, variant_case_repr) typ
-    | Polyvariant : (row_field, variant_case_repr) typ
-
-  module M : Monad.S
-
-  val encode :
-    ('a, 'b) typ ->
-    subderive:('a -> 'b M.t) ->
-    type_name:string ->
-    'a list ->
-    expression M.t
-end
+let ( >> ) f g x = g (f x)
 
 module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
   module M = M
@@ -48,74 +26,37 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
 
   let ( >|= ) x f = List.map f x
 
-  let unlabelled x = (Nolabel, x)
-
   let compose_all : type a. (a -> a) list -> a -> a =
    fun l x -> List.fold_left ( |> ) x (List.rev l)
 
   let generate_identifiers n =
     List.init n (fun i -> Printf.sprintf "x%d" (i + 1))
 
-  (** [lambda "x" e] is [fun x -> e] *)
-  let lambda fparam = pvar fparam |> pexp_fun Nolabel None
-
-  type nonrec record_field_repr = {
-    field_name : string;
-    field_repr : expression;
-  }
-
-  and variant_case_repr = {
-    case_name : string;
-    case_cons : (expression * int) option;
-  }
-
-  type (_, _) typ =
-    | Record : (label_declaration, record_field_repr) typ
-    | Variant : (constructor_declaration, variant_case_repr) typ
-    | Polyvariant : (row_field, variant_case_repr) typ
+  (** [lambda \[ "x_1"; ...; "x_n" \] e] is [fun x1 ... xN -> e] *)
+  let lambda params = params >|= (pvar >> pexp_fun Nolabel None) |> compose_all
 
   (** {1 Helper functions for various subfragments} *)
 
+  let construct ~polymorphic ?body name =
+    if polymorphic then pexp_variant name body
+    else pexp_construct (Located.lident name) body
+
   (** {[ |~ case0 "cons_name" (`)Cons_name ]} *)
   let variant_case0 ~polymorphic ~cons_name e =
-    let fnbody =
-      if polymorphic then pexp_variant cons_name None
-      else pexp_construct (Located.lident cons_name) None
-    in
-    pexp_apply (evar "|~")
-      ([
-         e;
-         pexp_apply (evar "case0")
-           ([ pexp_constant @@ Pconst_string (cons_name, None); fnbody ]
-           >|= unlabelled);
-       ]
-      >|= unlabelled)
+    [%expr
+      [%e e]
+      |~ case0 [%e estring cons_name] [%e construct ~polymorphic cons_name]]
 
   (** {[
         |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> (`)Cons_name (x1, ..., xN))
       ]} *)
   let variant_case1 ~polymorphic ~cons_name ~component_type ~idents e =
-    let constructor =
-      let tuple_pat = idents >|= Located.mk >|= ppat_var |> ppat_tuple in
-      let tuple_exp = idents >|= evar |> pexp_tuple in
-      let fnbody =
-        if polymorphic then pexp_variant cons_name (Some tuple_exp)
-        else pexp_construct (Located.lident cons_name) (Some tuple_exp)
-      in
-      pexp_fun Nolabel None tuple_pat fnbody
-    in
-    pexp_apply (evar "|~")
-      ([
-         e;
-         pexp_apply (evar "case1")
-           ([
-              pexp_constant @@ Pconst_string (cons_name, None);
-              component_type;
-              constructor;
-            ]
-           >|= unlabelled);
-       ]
-      >|= unlabelled)
+    let tuple_pat = idents >|= pvar |> ppat_tuple in
+    let tuple_exp = idents >|= evar |> pexp_tuple in
+    [%expr
+      [%e e]
+      |~ case1 [%e estring cons_name] [%e component_type] (fun [%p tuple_pat] ->
+             [%e construct ~polymorphic ~body:tuple_exp cons_name])]
 
   (** Wrapper for {!variant_case0} and {!variant_case1} *)
   let variant_case ~polymorphic { case_name; case_cons } =
@@ -127,30 +68,21 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
 
   (** [|+ field "field_name" (field_type) (fun t -> t.field_name)] *)
   let record_field { field_name; field_repr } e =
-    pexp_apply (evar "|+")
-      ([
-         e;
-         pexp_apply (evar "field")
-           ([
-              pexp_constant @@ Pconst_string (field_name, None);
-              field_repr;
-              lambda "t" (pexp_field (evar "t") (Located.lident field_name));
-            ]
-           >|= unlabelled);
-       ]
-      >|= unlabelled)
+    [%expr
+      [%e e]
+      |+ field [%e estring field_name] [%e field_repr] (fun t ->
+             [%e pexp_field (evar "t") (Located.lident field_name)])]
 
   (** Record composites are encoded as a constructor function
 
       {[ fun field1 field2 ... fieldN -> { field1; field2; ...; fieldN }) ]} *)
   let record_composite fields =
     let fields = fields >|= fun l -> l.pld_name.txt in
-    let lambda_wrapper = compose_all (fields >|= lambda) in
     let record =
       let rfields = fields >|= fun s -> (Located.lident s, evar s) in
       pexp_record rfields None
     in
-    lambda_wrapper record
+    lambda fields record
 
   (** {[ | Cons_name (x1, x2, x3) -> cons_name x1 x2 x3 ] ]} *)
   let variant_pattern cons_name pattern n =
@@ -165,7 +97,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         let lhs = idents >|= pvar |> ppat_tuple |> fun x -> pattern (Some x) in
         let rhs =
           idents >|= evar |> pexp_tuple |> fun x ->
-          pexp_apply (evar (fparam_of_name cons_name)) [ (Nolabel, x) ]
+          [%expr [%e evar (fparam_of_name cons_name)] [%e x]]
         in
         case ~lhs ~guard:None ~rhs
 
@@ -189,10 +121,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
       in
       variant_pattern c.pcd_name.txt pattern n
     in
-    cs
-    >|= pattern_of_cdecl
-    |> pexp_function
-    |> compose_all (cs >|= fparam_of_cdecl >|= lambda)
+    cs >|= pattern_of_cdecl |> pexp_function |> lambda (cs >|= fparam_of_cdecl)
 
   (** Analogous to {!variant_composite} but using AST fragments for polymorphic
       variants. *)
@@ -213,7 +142,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     fs
     >|= pattern_case_of_rowfield
     |> pexp_function
-    |> compose_all (fs >|= fparam_of_rowfield >|= lambda)
+    |> lambda (fs >|= fparam_of_rowfield)
 
   (** {1 Functional encodings of composite types}
 
@@ -234,26 +163,25 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
       The following functions provide each part of the encoding for each
       composite type. *)
 
-  let augment_of_typ : type a b. (a, b) typ -> b -> expression -> expression =
+  let augment_of_typ : type a b. (a, b) Typ.t -> b -> expression -> expression =
     function
     | Record -> record_field
     | Variant -> variant_case ~polymorphic:false
     | Polyvariant -> variant_case ~polymorphic:true
 
-  let composite_of_typ : type a b. (a, b) typ -> a list -> expression = function
+  let composite_of_typ : type a b. (a, b) Typ.t -> a list -> expression =
+    function
     | Record -> record_composite
     | Variant -> variant_composite
     | Polyvariant -> polyvariant_composite
 
-  let combinator_of_typ : type a b. (a, b) typ -> string = function
+  let combinator_of_typ : type a b. (a, b) Typ.t -> string = function
     | Record -> "record"
     | Variant -> "variant"
     | Polyvariant -> "variant"
 
-  let sealer_of_typ : type a b. (a, b) typ -> expression -> expression =
-    let seal name e =
-      pexp_apply (evar "|>") ([ e; evar name ] >|= unlabelled)
-    in
+  let sealer_of_typ : type a b. (a, b) Typ.t -> expression -> expression =
+    let seal name e = [%expr [%e e] |> [%e evar name]] in
     function
     | Record -> seal "sealr"
     | Variant -> seal "sealv"
@@ -261,7 +189,7 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
 
   let encode :
       type a b.
-      (a, b) typ ->
+      (a, b) Typ.t ->
       subderive:(a -> b M.t) ->
       type_name:string ->
       a list ->
@@ -271,15 +199,12 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     let composite = composite_of_typ typ ts in
     let+ apply_augments =
       ts
-      >|= subderive
-      >|= M.map (augment_of_typ typ)
+      >|= (subderive >> M.map (augment_of_typ typ))
       |> M.sequence
-      |> M.map List.rev
-      |> M.map compose_all
+      |> M.map (List.rev >> compose_all)
     in
-    pexp_apply
-      (evar (combinator_of_typ typ))
-      ([ estring type_name; composite ] >|= unlabelled)
+    [%expr
+      [%e evar (combinator_of_typ typ)] [%e estring type_name] [%e composite]]
     |> apply_augments
     |> sealer_of_typ typ
 end
