@@ -126,6 +126,38 @@
  (action
   (run ./composite.exe)))
 
+; -------- Test: `extension.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name extension)
+ (modules extension)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
+(rule
+ (targets extension.actual)
+ (deps
+  (:pp pp.exe)
+  (:input extension.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+; Compare the post-processed output to the .expected file
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff extension.expected extension.actual)))
+
+; Ensure that the post-processed executable runs correctly
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (run ./extension.exe)))
+
 ; -------- Test: `json_module.ml` --------
 
 ; The PPX-dependent executable under test

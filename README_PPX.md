@@ -29,6 +29,9 @@ let tree_t leaf_t =
       |> sealv)
 ```
 
+Type representations can also be derived inline using the `[%typ: <core-type>]`
+extension point.
+
 ### Installation and usage
 
 `ppx_irmin` may be installed via [opam](https://opam.ocaml.org/):

@@ -40,6 +40,8 @@ let irmin_types =
 module type S = sig
   val parse_lib : expression -> string option
 
+  val expand_typ : ?lib:string -> core_type -> expression
+
   val derive_str :
     ?name:string ->
     ?lib:string ->
@@ -60,7 +62,7 @@ module Located (A : Ast_builder.S) : S = struct
     lib : string option;
     repr_name : string;
     rec_detected : bool ref;
-    var_repr : string -> expression option;
+    var_repr : [ `Any | `Var of string ] -> expression option;
         (** Given a type variable in a type, get its corresponding typerep (if
             the variable is properly bound). *)
   }
@@ -142,7 +144,7 @@ module Located (A : Ast_builder.S) : S = struct
     | Ptyp_tuple args -> derive_tuple args
     | Ptyp_arrow _ -> Raise.Unsupported.type_arrow ~loc typ
     | Ptyp_var v -> (
-        match var_repr v with
+        match var_repr (`Var v) with
         | Some r -> return r
         | None -> Location.raise_errorf ~loc "Unbound type variable" v)
     | Ptyp_package _ -> Raise.Unsupported.type_package ~loc typ
@@ -270,6 +272,53 @@ module Located (A : Ast_builder.S) : S = struct
           "Could not process `lib' argument: must be either `Some \"Lib\"' or \
            `None'"
 
+  (* Remove duplicate elements from a list (preserving the order of the first
+     occurrence of each duplicate). *)
+  let list_uniq_stable =
+    let rec inner ~seen acc = function
+      | [] -> List.rev acc
+      | x :: xs when not (List.mem x seen) ->
+          inner ~seen:(x :: seen) (x :: acc) xs
+      | _ :: xs (* seen *) -> inner ~seen acc xs
+    in
+    inner ~seen:[] []
+
+  let expand_typ ?lib typ =
+    let typ, tvars =
+      (* Find all type variables, renaming any instances of [Ptyp_any] to a
+         fresh variable. *)
+      (object
+         inherit [string list] Ast_traverse.fold_map as super
+
+         method! core_type_desc t =
+           super#core_type_desc t >> fun (t, acc) ->
+           match t with
+           | Ptyp_var v -> (t, v :: acc)
+           | Ptyp_any ->
+               let name = gen_symbol () in
+               (Ptyp_var name, name :: acc)
+           | _ -> (t, acc)
+      end)
+        #core_type
+        typ []
+    in
+    let tvars = List.rev tvars |> list_uniq_stable in
+    let env =
+      {
+        rec_flag = Nonrecursive;
+        type_name = "t";
+        repr_name = "t";
+        rec_detected = ref false;
+        lib;
+        var_repr =
+          (function
+          | `Any ->
+              assert false (* We already renamed all instances of [Ptyp_any] *)
+          | `Var x -> Some (evar x));
+      }
+    in
+    run (derive_core typ) env |> lambda tvars
+
   let derive_sig ?name ?lib input_ast =
     match input_ast with
     | _, [ typ ] ->
@@ -315,7 +364,10 @@ module Located (A : Ast_builder.S) : S = struct
             | None -> repr_name_of_type_name type_name
           in
           let rec_detected = ref false in
-          let var_repr v = if List.mem v tparams then Some (evar v) else None in
+          let var_repr = function
+            | `Any -> Raise.Unsupported.type_any ~loc
+            | `Var v -> if List.mem v tparams then Some (evar v) else None
+          in
           { rec_flag; type_name; repr_name; rec_detected; lib; var_repr }
         in
         let expr = run (derive_type_decl typ) env in

@@ -15,4 +15,7 @@
  *)
 
 module Attributes = Attributes
-module Deriver = Deriver
+(** Definitions of attributes required by [ppx_irmin]. *)
+
+module Engine = Engine
+(** Derivers and expanders for [ppx_irmin]. *)

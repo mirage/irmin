@@ -22,6 +22,8 @@ module type S = sig
       raises a located exception otherwise. Intended to be used for parsing the
       [lib] argument to the derivers. *)
 
+  val expand_typ : ?lib:string -> core_type -> expression
+
   val derive_str :
     ?name:string ->
     ?lib:string ->

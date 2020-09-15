@@ -1,0 +1,31 @@
+type 'a typ = 'a Irmin.Type.t
+module Simple =
+  struct
+    let (_ : (int * string) list typ) =
+      Irmin.Type.list (Irmin.Type.pair Irmin.Type.int Irmin.Type.string)
+  end
+module Alias =
+  struct type t = unit
+         let t = Irmin.Type.unit
+         let (_ : unit typ) = t end
+module Sum =
+  struct
+    let (_ : [ `Foo  | `Bar of string ] typ) =
+      Irmin.Type.sealv
+        (Irmin.Type.(|~)
+           (Irmin.Type.(|~)
+              (Irmin.Type.variant "t"
+                 (fun foo ->
+                    fun bar -> function | `Foo -> foo | `Bar x1 -> bar x1))
+              (Irmin.Type.case0 "Foo" `Foo))
+           (Irmin.Type.case1 "Bar" Irmin.Type.string (fun x1 -> `Bar x1)))
+  end
+module Params =
+  struct
+    let __ : type a. a typ -> a list typ = fun a -> Irmin.Type.list a
+    let __ : type a b. a typ -> b typ -> (a * b * a) typ =
+      fun a -> fun _x__001_ -> Irmin.Type.triple a _x__001_ a
+    let __ : type a b. a typ -> b typ -> (a, b) result typ =
+      fun _x__002_ -> fun _x__003_ -> Irmin.Type.result _x__002_ _x__003_
+  end
+module Namespace = struct let (_ : string typ) = Irmin.Type.string end
