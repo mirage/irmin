@@ -54,17 +54,15 @@ module type S = sig
 end
 
 module Located (A : Ast_builder.S) : S = struct
-  module State = struct
-    type t = {
-      rec_flag : rec_flag;
-      type_name : string;
-      lib : string option;
-      repr_name : string;
-      rec_detected : bool ref;
-    }
-  end
+  type state = {
+    rec_flag : rec_flag;
+    type_name : string;
+    lib : string option;
+    repr_name : string;
+    rec_detected : bool ref;
+  }
 
-  module Reader = Monad.Reader (State)
+  module Reader = Monad.Reader
 
   module Algebraic = struct
     include Algebraic
@@ -142,7 +140,7 @@ module Located (A : Ast_builder.S) : S = struct
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple args =
-    let* State.{ lib; _ } = ask in
+    let* { lib; _ } = ask in
     match args with
     | [ t ] ->
         (* This case can occur when the tuple type is nested inside a variant *)
@@ -162,7 +160,7 @@ module Located (A : Ast_builder.S) : S = struct
         |> map (List.map unlabelled >> pexp_apply tuple_type)
 
   and derive_record ls =
-    let* State.{ type_name; lib; _ } = ask in
+    let* { type_name; lib; _ } = ask in
     let subderive label_decl =
       let field_name = label_decl.pld_name.txt in
       let+ field_repr = derive_core label_decl.pld_type in
@@ -202,7 +200,10 @@ module Located (A : Ast_builder.S) : S = struct
     Algebraic.(encode Polyvariant) ~subderive ~lib ~type_name:name rowfields
 
   let derive_lident :
-      ?repr:expression -> ?nobuiltin:unit -> longident -> expression Reader.t =
+      ?repr:expression ->
+      ?nobuiltin:unit ->
+      longident ->
+      (expression, state) Reader.t =
    fun ?repr ?nobuiltin txt ->
     let+ { lib; _ } = ask in
     let nobuiltin = match nobuiltin with Some () -> true | None -> false in
@@ -222,7 +223,7 @@ module Located (A : Ast_builder.S) : S = struct
               (Located.mk @@ Ldot (lident, repr_name_of_type_name cons_name))
         | Lapply _ -> invalid_arg "Lident.Lapply not supported")
 
-  let derive_type_decl : type_declaration -> expression Reader.t =
+  let derive_type_decl : type_declaration -> (expression, state) Reader.t =
    fun typ ->
     match typ.ptype_kind with
     | Ptype_abstract -> (
@@ -303,7 +304,7 @@ module Located (A : Ast_builder.S) : S = struct
           let lib =
             match lib with Some l -> parse_lib l | None -> Some lib_default
           in
-          State.{ rec_flag; type_name; repr_name; rec_detected; lib }
+          { rec_flag; type_name; repr_name; rec_detected; lib }
         in
         let expr = run (derive_type_decl typ) env in
         (* If the type is syntactically self-referential and the user has not

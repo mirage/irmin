@@ -16,11 +16,8 @@
 
 include Monad_intf
 
-module Reader (E : sig
-  type t
-end) =
-struct
-  type 'a t = Reader of (E.t -> 'a)
+module Reader = struct
+  type ('a, 'e) t = Reader of ('e -> 'a)
 
   let run (Reader r) = r
 
@@ -30,15 +27,15 @@ struct
 
   let return x = Reader (fun _ -> x)
 
-  let sequence ms =
+  let sequence (type a e) ms =
     List.fold_right
-      (fun (aM : 'a t) (bM : 'a list t) ->
+      (fun (aM : (a, e) t) (bM : (a list, e) t) ->
         bind (fun a -> map (fun b -> a :: b) bM) aM)
       ms (return [])
 
   let asks f = Reader (fun env -> f env)
 
-  let ask = asks (fun x -> x)
+  let ask = Reader (fun env -> env)
 
   let local f m = Reader (fun env -> run m (f env))
 

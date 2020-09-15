@@ -43,11 +43,11 @@ module type S = sig
 
   val encode :
     ('a, 'b) Typ.t ->
-    subderive:('a -> 'b M.t) ->
+    subderive:('a -> ('b, 'e) M.t) ->
     lib:string option ->
     type_name:string ->
     'a list ->
-    expression M.t
+    (expression, 'e) M.t
   (** Build the functional encoding of a composite type. Combine the various
       elements necessary for a functional encoding of a composite type
       [('a, 'b) {!typ}], in terms its components of type ['a list] and the name
