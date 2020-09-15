@@ -1,0 +1,42 @@
+type 'a typ = 'a Irmin.Type.t
+module Trivial :
+  sig
+    type t[@@deriving irmin]
+    include sig val t : t Irmin.Type.t end[@@ocaml.doc "@inline"][@@merlin.hide
+                                                                   ]
+  end =
+  struct
+    type t = int as 'a[@@deriving irmin]
+    include struct let t = Irmin.Type.int end[@@ocaml.doc "@inline"][@@merlin.hide
+                                                                    ]
+  end 
+module Recursive :
+  sig
+    type 'a tree[@@deriving irmin]
+    include sig val tree_t : 'a Irmin.Type.t -> 'a tree Irmin.Type.t end
+    [@@ocaml.doc "@inline"][@@merlin.hide ]
+  end =
+  struct
+    type 'a tree =
+      [ `Branch of ('tree * int * 'tree)  | `Leaf of 'a ] as 'tree[@@deriving
+                                                                    irmin]
+    include
+      struct
+        let tree_t a =
+          Irmin.Type.mu
+            (fun tree ->
+               Irmin.Type.sealv
+                 (Irmin.Type.(|~)
+                    (Irmin.Type.(|~)
+                       (Irmin.Type.variant "tree"
+                          (fun branch ->
+                             fun leaf ->
+                               function
+                               | `Branch x1 -> branch x1
+                               | `Leaf x1 -> leaf x1))
+                       (Irmin.Type.case1 "Branch"
+                          (Irmin.Type.triple tree Irmin.Type.int tree)
+                          (fun x1 -> `Branch x1)))
+                    (Irmin.Type.case1 "Leaf" a (fun x1 -> `Leaf x1))))
+      end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end 

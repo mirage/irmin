@@ -62,10 +62,16 @@ module Located (A : Ast_builder.S) : S = struct
     lib : string option;
     repr_name : string;
     rec_detected : bool ref;
-    var_repr : [ `Any | `Var of string ] -> expression option;
+    var_repr : ([ `Any | `Var of string ] -> expression option) ref;
         (** Given a type variable in a type, get its corresponding typerep (if
             the variable is properly bound). *)
   }
+
+  let add_var_repr : type a b. (a -> b option) ref -> a * b -> unit =
+   fun f_ref (a, b) ->
+    let f_old = !f_ref in
+    let f_new a' = if a = a' then Some b else f_old a' in
+    f_ref := f_new
 
   open Utils
 
@@ -91,6 +97,17 @@ module Located (A : Ast_builder.S) : S = struct
   let repr_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
   let in_lib ~lib x = match lib with Some lib -> lib ^ "." ^ x | None -> x
+
+  let contains_tvar tvar typ =
+    (object
+       inherit [bool] Ast_traverse.fold as super
+
+       method! core_type_desc t =
+         super#core_type_desc t >> fun acc ->
+         acc || match t with Ptyp_var v when v = tvar -> true | _ -> false
+    end)
+      #core_type
+      typ false
 
   let rec derive_core typ =
     let* { rec_flag; type_name; repr_name; rec_detected; lib; var_repr } =
@@ -143,13 +160,19 @@ module Located (A : Ast_builder.S) : S = struct
     | Ptyp_poly _ -> Raise.Unsupported.type_poly ~loc typ
     | Ptyp_tuple args -> derive_tuple args
     | Ptyp_arrow _ -> Raise.Unsupported.type_arrow ~loc typ
+    | Ptyp_any -> Location.raise_errorf ~loc "Unbound type variable"
     | Ptyp_var v -> (
-        match var_repr (`Var v) with
+        match !var_repr (`Var v) with
         | Some r -> return r
         | None -> Location.raise_errorf ~loc "Unbound type variable" v)
     | Ptyp_package _ -> Raise.Unsupported.type_package ~loc typ
     | Ptyp_extension _ -> Raise.Unsupported.type_extension ~loc typ
-    | Ptyp_alias _ -> Raise.Unsupported.type_alias ~loc typ
+    | Ptyp_alias (c, var) ->
+        if contains_tvar var c then (
+          add_var_repr var_repr (`Var var, evar var);
+          let+ inner = derive_core c in
+          recursive ~lib var inner)
+        else derive_core c
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple args =
@@ -283,25 +306,42 @@ module Located (A : Ast_builder.S) : S = struct
     in
     inner ~seen:[] []
 
-  let expand_typ ?lib typ =
-    let typ, tvars =
-      (* Find all type variables, renaming any instances of [Ptyp_any] to a
-         fresh variable. *)
-      (object
-         inherit [string list] Ast_traverse.fold_map as super
+  module Unbound_tvars = struct
+    type acc = { free : string list; ctx_bound : string list }
 
-         method! core_type_desc t =
-           super#core_type_desc t >> fun (t, acc) ->
+    (* Find all unbound type variables, renaming any instances of [Ptyp_any] to a
+       fresh variable. *)
+    let find typ =
+      (object
+         inherit [acc] Ast_traverse.fold_map as super
+
+         method! core_type_desc t acc =
            match t with
-           | Ptyp_var v -> (t, v :: acc)
+           | Ptyp_var v when not (List.mem v acc.ctx_bound) ->
+               (t, { acc with free = v :: acc.free })
            | Ptyp_any ->
                let name = gen_symbol () in
-               (Ptyp_var name, name :: acc)
-           | _ -> (t, acc)
+               (Ptyp_var name, { acc with free = name :: acc.free })
+           | Ptyp_alias (c, v) ->
+               (* Push [v] to the bound stack, traverse the alias, then remove it. *)
+               let c, acc =
+                 super#core_type c { acc with ctx_bound = v :: acc.ctx_bound }
+               in
+               let ctx_bound =
+                 match acc.ctx_bound with
+                 | v' :: ctx_bound when v = v' -> ctx_bound
+                 | _ -> assert false
+               in
+               (Ptyp_alias (c, v), { acc with ctx_bound })
+           | _ -> super#core_type_desc t acc
       end)
         #core_type
-        typ []
-    in
+        typ
+        { free = []; ctx_bound = [] }
+  end
+
+  let expand_typ ?lib typ =
+    let typ, Unbound_tvars.{ free = tvars; _ } = Unbound_tvars.find typ in
     let tvars = List.rev tvars |> list_uniq_stable in
     let env =
       {
@@ -311,10 +351,11 @@ module Located (A : Ast_builder.S) : S = struct
         rec_detected = ref false;
         lib;
         var_repr =
-          (function
-          | `Any ->
-              assert false (* We already renamed all instances of [Ptyp_any] *)
-          | `Var x -> Some (evar x));
+          ref (function
+            | `Any ->
+                assert false
+                (* We already renamed all instances of [Ptyp_any] *)
+            | `Var x -> Some (evar x));
       }
     in
     run (derive_core typ) env |> lambda tvars
@@ -364,9 +405,10 @@ module Located (A : Ast_builder.S) : S = struct
             | None -> repr_name_of_type_name type_name
           in
           let rec_detected = ref false in
-          let var_repr = function
-            | `Any -> Raise.Unsupported.type_any ~loc
-            | `Var v -> if List.mem v tparams then Some (evar v) else None
+          let var_repr =
+            ref (function
+              | `Any -> Raise.Unsupported.type_any ~loc
+              | `Var v -> if List.mem v tparams then Some (evar v) else None)
           in
           { rec_flag; type_name; repr_name; rec_detected; lib; var_repr }
         in

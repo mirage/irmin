@@ -62,6 +62,38 @@
  (action
   (run ./arguments.exe)))
 
+; -------- Test: `as_alias.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name as_alias)
+ (modules as_alias)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
+(rule
+ (targets as_alias.actual)
+ (deps
+  (:pp pp.exe)
+  (:input as_alias.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+; Compare the post-processed output to the .expected file
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff as_alias.expected as_alias.actual)))
+
+; Ensure that the post-processed executable runs correctly
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (run ./as_alias.exe)))
+
 ; -------- Test: `basic.ml` --------
 
 ; The PPX-dependent executable under test
