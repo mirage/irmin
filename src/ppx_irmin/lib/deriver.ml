@@ -87,6 +87,7 @@ module Located (A : Ast_builder.S) : S = struct
 
   let rec derive_core typ =
     let* { rec_flag; type_name; repr_name; rec_detected; lib } = ask in
+    let loc = typ.ptyp_loc in
     match typ.ptyp_desc with
     | Ptyp_constr ({ txt = const_name; _ }, args) -> (
         match Attribute.get Attributes.repr typ with
