@@ -1,0 +1,61 @@
+type 'a typ = 'a Irmin.Type.t
+module Id :
+  sig
+    type 'a t[@@deriving irmin]
+    include sig val t : 'a Irmin.Type.t -> 'a t Irmin.Type.t end[@@ocaml.doc
+                                                                  "@inline"]
+    [@@merlin.hide ]
+  end =
+  struct
+    type 'a t = 'a[@@deriving irmin]
+    include struct let t a = a end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end 
+let __ : type a. a typ -> a Id.t typ = Id.t
+module Phantom :
+  sig
+    type _ t = int[@@deriving irmin]
+    include
+      sig val t : 'v_x__001_ Irmin.Type.t -> 'v_x__001_ t Irmin.Type.t end
+    [@@ocaml.doc "@inline"][@@merlin.hide ]
+  end =
+  struct
+    type _ t = int[@@deriving irmin]
+    include struct let t _ = Irmin.Type.int end[@@ocaml.doc "@inline"]
+    [@@merlin.hide ]
+  end 
+let __ : type a. a typ -> a Phantom.t typ = Phantom.t
+module Multiple :
+  sig
+    type ('a, 'b, 'c) t = {
+      foo: 'a ;
+      bar: 'b list ;
+      baz: ('b * 'c) }[@@deriving irmin]
+    include
+      sig
+        val t :
+          'a Irmin.Type.t ->
+            'b Irmin.Type.t -> 'c Irmin.Type.t -> ('a, 'b, 'c) t Irmin.Type.t
+      end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end =
+  struct
+    type ('a, 'b, 'c) t = {
+      foo: 'a ;
+      bar: 'b list ;
+      baz: ('b * 'c) }[@@deriving irmin]
+    include
+      struct
+        let t a b c =
+          Irmin.Type.sealr
+            (Irmin.Type.(|+)
+               (Irmin.Type.(|+)
+                  (Irmin.Type.(|+)
+                     (Irmin.Type.record "t"
+                        (fun foo -> fun bar -> fun baz -> { foo; bar; baz }))
+                     (Irmin.Type.field "foo" a (fun t -> t.foo)))
+                  (Irmin.Type.field "bar" (Irmin.Type.list b)
+                     (fun t -> t.bar)))
+               (Irmin.Type.field "baz" (Irmin.Type.pair b c) (fun t -> t.baz)))
+      end[@@ocaml.doc "@inline"][@@merlin.hide ]
+  end 
+let __ : type a b c. a typ -> b typ -> c typ -> (a, b, c) Multiple.t typ =
+  Multiple.t

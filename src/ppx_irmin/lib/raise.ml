@@ -28,12 +28,6 @@ module Unsupported = struct
       "%s: function type encountered: %a. Functions are not Irmin-serialisable."
       name Pprintast.core_type ctyp
 
-  let type_var ~loc typvar =
-    Location.raise_errorf ~loc
-      "%s: uninstantiated type variable '%s found. Irmin types must be \
-       grounded."
-      name typvar
-
   let type_open ~loc =
     Location.raise_errorf ~loc
       "%s: extensible variant types are not Irmin-serialisable." name

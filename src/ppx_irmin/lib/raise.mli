@@ -21,8 +21,6 @@ module Unsupported : sig
 
   val type_arrow : loc:location -> core_type -> 'a
 
-  val type_var : loc:location -> label -> 'a
-
   val type_open : loc:location -> 'a
 
   val type_poly : loc:location -> core_type -> 'a

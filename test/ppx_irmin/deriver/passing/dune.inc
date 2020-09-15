@@ -414,6 +414,38 @@
  (action
   (run ./tuple_deep.exe)))
 
+; -------- Test: `type_params.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name type_params)
+ (modules type_params)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
+(rule
+ (targets type_params.actual)
+ (deps
+  (:pp pp.exe)
+  (:input type_params.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+; Compare the post-processed output to the .expected file
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff type_params.expected type_params.actual)))
+
+; Ensure that the post-processed executable runs correctly
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (run ./type_params.exe)))
+
 ; -------- Test: `variant.ml` --------
 
 ; The PPX-dependent executable under test

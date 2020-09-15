@@ -17,8 +17,6 @@
 open Ppxlib
 module SSet = Set.Make (String)
 
-let ( >> ) f g x = g (f x)
-
 let irmin_types =
   SSet.of_list
     [
@@ -60,7 +58,14 @@ module Located (A : Ast_builder.S) : S = struct
     lib : string option;
     repr_name : string;
     rec_detected : bool ref;
+    var_repr : string -> expression option;
+        (** Given a type variable in a type, get its corresponding typerep (if
+            the variable is properly bound). *)
   }
+
+  open Utils
+
+  open Utils.Make (A)
 
   module Reader = Monad.Reader
 
@@ -73,9 +78,7 @@ module Located (A : Ast_builder.S) : S = struct
   open Reader.Syntax
   open Reader
 
-  let unlabelled x = (Nolabel, x)
-
-  let ( >|= ) x f = List.map f x
+  let all_unlabelled = List.map (fun x -> (Nolabel, x))
 
   let recursive ~lib fparam e =
     let mu = evar (match lib with Some s -> s ^ ".mu" | None -> "mu") in
@@ -86,7 +89,9 @@ module Located (A : Ast_builder.S) : S = struct
   let in_lib ~lib x = match lib with Some lib -> lib ^ "." ^ x | None -> x
 
   let rec derive_core typ =
-    let* { rec_flag; type_name; repr_name; rec_detected; lib } = ask in
+    let* { rec_flag; type_name; repr_name; rec_detected; lib; var_repr } =
+      ask
+    in
     let loc = typ.ptyp_loc in
     match typ.ptyp_desc with
     | Ptyp_constr ({ txt = const_name; _ }, args) -> (
@@ -125,7 +130,7 @@ module Located (A : Ast_builder.S) : S = struct
               | Lapply _ -> invalid_arg "Lident.Lapply not supported"
             in
             let+ cons_args =
-              args >|= derive_core |> sequence |> map (List.map unlabelled)
+              args >|= derive_core |> sequence |> map all_unlabelled
             in
             pexp_apply (pexp_ident lident) cons_args)
     | Ptyp_variant (_, Open, _) -> Raise.Unsupported.type_open_polyvar ~loc typ
@@ -134,7 +139,10 @@ module Located (A : Ast_builder.S) : S = struct
     | Ptyp_poly _ -> Raise.Unsupported.type_poly ~loc typ
     | Ptyp_tuple args -> derive_tuple args
     | Ptyp_arrow _ -> Raise.Unsupported.type_arrow ~loc typ
-    | Ptyp_var v -> Raise.Unsupported.type_var ~loc v
+    | Ptyp_var v -> (
+        match var_repr v with
+        | Some r -> return r
+        | None -> Location.raise_errorf ~loc "Unbound type variable" v)
     | Ptyp_package _ -> Raise.Unsupported.type_package ~loc typ
     | Ptyp_extension _ -> Raise.Unsupported.type_extension ~loc typ
     | Ptyp_alias _ -> Raise.Unsupported.type_alias ~loc typ
@@ -158,7 +166,7 @@ module Located (A : Ast_builder.S) : S = struct
         args
         >|= derive_core
         |> sequence
-        |> map (List.map unlabelled >> pexp_apply tuple_type)
+        |> map (all_unlabelled >> pexp_apply tuple_type)
 
   and derive_record ls =
     let* { type_name; lib; _ } = ask in
@@ -286,7 +294,8 @@ module Located (A : Ast_builder.S) : S = struct
           |> Located.lident
         in
         let type_ =
-          ptyp_constr ty_lident [ ptyp_constr (Located.lident type_name) [] ]
+          combinator_type_of_type_declaration typ ~f:(fun ~loc:_ t ->
+              ptyp_constr ty_lident [ t ])
         in
         [ psig_value (value_description ~name ~type_ ~prim:[]) ]
     | _ -> invalid_arg "Multiple type declarations not supported"
@@ -294,6 +303,13 @@ module Located (A : Ast_builder.S) : S = struct
   let derive_str ?name ?lib input_ast =
     match input_ast with
     | rec_flag, [ typ ] ->
+        let tparams =
+          typ.ptype_params
+          |> List.map (function
+               | { ptyp_desc = Ptyp_var v; _ }, _ -> v
+               | { ptyp_desc = Ptyp_any; _ }, _ -> "_"
+               | _ -> assert false)
+        in
         let env =
           let type_name = typ.ptype_name.txt in
           let repr_name =
@@ -305,7 +321,8 @@ module Located (A : Ast_builder.S) : S = struct
           let lib =
             match lib with Some l -> parse_lib l | None -> Some lib_default
           in
-          { rec_flag; type_name; repr_name; rec_detected; lib }
+          let var_repr v = if List.mem v tparams then Some (evar v) else None in
+          { rec_flag; type_name; repr_name; rec_detected; lib; var_repr }
         in
         let expr = run (derive_type_decl typ) env in
         (* If the type is syntactically self-referential and the user has not
@@ -316,6 +333,7 @@ module Located (A : Ast_builder.S) : S = struct
             recursive ~lib:env.lib env.repr_name expr
           else expr
         in
+        let expr = lambda tparams expr in
         let pat = pvar env.repr_name in
         [ pstr_value Nonrecursive [ value_binding ~pat ~expr ] ]
     | _ -> invalid_arg "Multiple type declarations not supported"
