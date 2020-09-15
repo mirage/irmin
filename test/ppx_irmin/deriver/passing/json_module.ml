@@ -1,7 +1,7 @@
 (* Ensure that the [Json] module in [Irmin.Type] doesn't shadow references to
    types contained in a different [Json] module.
 
-   Disabled due to https://github.com/mirage/irmin/issues/923. *)
+   Regression test for https://github.com/mirage/irmin/issues/923. *)
 
 module Json = struct
   type t = string

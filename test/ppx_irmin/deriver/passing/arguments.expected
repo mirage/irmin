@@ -11,7 +11,7 @@ include struct let point_elsewhere1_t = c_wit end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]
 type point_elsewhere2 = (int * ((c)[@repr c_wit]))[@@deriving irmin]
 include
-  struct let point_elsewhere2_t = let open Irmin.Type in pair int c_wit end
+  struct let point_elsewhere2_t = Irmin.Type.pair Irmin.Type.int c_wit end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type point_elsewhere3 =
   | A of int * ((c)[@repr c_wit]) 
@@ -19,13 +19,16 @@ type point_elsewhere3 =
 include
   struct
     let point_elsewhere3_t =
-      let open Irmin.Type in
-        (((variant "point_elsewhere3"
-             (fun a ->
-                fun b -> function | A (x1, x2) -> a (x1, x2) | B x1 -> b x1))
-            |~ (case1 "A" (pair int c_wit) (fun (x1, x2) -> A (x1, x2))))
-           |~ (case1 "B" c_wit (fun x1 -> B x1)))
-          |> sealv
+      Irmin.Type.sealv
+        (Irmin.Type.(|~)
+           (Irmin.Type.(|~)
+              (Irmin.Type.variant "point_elsewhere3"
+                 (fun a ->
+                    fun b ->
+                      function | A (x1, x2) -> a (x1, x2) | B x1 -> b x1))
+              (Irmin.Type.case1 "A" (Irmin.Type.pair Irmin.Type.int c_wit)
+                 (fun (x1, x2) -> A (x1, x2))))
+           (Irmin.Type.case1 "B" c_wit (fun x1 -> B x1)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type point_elsewhere4 =
   {
@@ -36,16 +39,21 @@ type point_elsewhere4 =
 include
   struct
     let point_elsewhere4_t =
-      let open Irmin.Type in
-        (((((record "point_elsewhere4"
-               (fun lorem ->
-                  fun ipsum ->
-                    fun dolor -> fun sit -> { lorem; ipsum; dolor; sit }))
-              |+ (field "lorem" string (fun t -> t.lorem)))
-             |+ (field "ipsum" c_wit (fun t -> t.ipsum)))
-            |+ (field "dolor" int (fun t -> t.dolor)))
-           |+ (field "sit" repr_for_d (fun t -> t.sit)))
-          |> sealr
+      Irmin.Type.sealr
+        (Irmin.Type.(|+)
+           (Irmin.Type.(|+)
+              (Irmin.Type.(|+)
+                 (Irmin.Type.(|+)
+                    (Irmin.Type.record "point_elsewhere4"
+                       (fun lorem ->
+                          fun ipsum ->
+                            fun dolor ->
+                              fun sit -> { lorem; ipsum; dolor; sit }))
+                    (Irmin.Type.field "lorem" Irmin.Type.string
+                       (fun t -> t.lorem)))
+                 (Irmin.Type.field "ipsum" c_wit (fun t -> t.ipsum)))
+              (Irmin.Type.field "dolor" Irmin.Type.int (fun t -> t.dolor)))
+           (Irmin.Type.field "sit" repr_for_d (fun t -> t.sit)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 let (_ : point_elsewhere1 Irmin.Type.t) = point_elsewhere1_t
 let (_ : point_elsewhere2 Irmin.Type.t) = point_elsewhere2_t

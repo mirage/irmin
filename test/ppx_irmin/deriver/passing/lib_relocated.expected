@@ -8,8 +8,8 @@ module Elsewhere :
     module Foo = Irmin.Type
     module Irmin = struct  end
     type t = (unit * unit)[@@deriving irmin { lib = (Some "Foo") }]
-    include struct let t = let open Foo in pair unit unit end[@@ocaml.doc
-                                                               "@inline"]
+    include struct let t = Foo.pair Foo.unit Foo.unit end[@@ocaml.doc
+                                                           "@inline"]
     [@@merlin.hide ]
   end 
 module Locally_avaliable :

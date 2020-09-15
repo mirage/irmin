@@ -1,7 +1,8 @@
 type test_result = (int, string) result[@@deriving irmin]
 include
-  struct let test_result_t = let open Irmin.Type in result int string end
-[@@ocaml.doc "@inline"][@@merlin.hide ]
+  struct
+    let test_result_t = Irmin.Type.result Irmin.Type.int Irmin.Type.string
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type t_alias = test_result[@@deriving irmin]
 include struct let t_alias_t = test_result_t end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]

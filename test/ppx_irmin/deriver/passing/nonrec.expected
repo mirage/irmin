@@ -16,12 +16,12 @@ module S1 :
   end =
   struct
     type nonrec t = t list[@@deriving irmin]
-    include struct let t = let open Irmin.Type in list t end[@@ocaml.doc
-                                                              "@inline"]
+    include struct let t = Irmin.Type.list t end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
     type nonrec t_alias = t_alias list[@@deriving irmin]
-    include struct let t_alias_t = let open Irmin.Type in list t_alias_t end
-    [@@ocaml.doc "@inline"][@@merlin.hide ]
+    include struct let t_alias_t = Irmin.Type.list t_alias_t end[@@ocaml.doc
+                                                                  "@inline"]
+    [@@merlin.hide ]
   end 
 module S2 :
   sig
@@ -34,10 +34,10 @@ module S2 :
   end =
   struct
     type nonrec t = t list[@@deriving irmin { name = "t_repr" }]
-    include struct let t_repr = let open Irmin.Type in list t end[@@ocaml.doc
-                                                                   "@inline"]
+    include struct let t_repr = Irmin.Type.list t end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
     type nonrec t_alias = t_alias list[@@deriving irmin { name = "t_repr" }]
-    include struct let t_repr = let open Irmin.Type in list t_alias_t end
-    [@@ocaml.doc "@inline"][@@merlin.hide ]
+    include struct let t_repr = Irmin.Type.list t_alias_t end[@@ocaml.doc
+                                                               "@inline"]
+    [@@merlin.hide ]
   end 

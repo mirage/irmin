@@ -1,29 +1,34 @@
 type test_list1 = string list[@@deriving irmin]
-include struct let test_list1_t = let open Irmin.Type in list string end
+include struct let test_list1_t = Irmin.Type.list Irmin.Type.string end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_list2 = int32 list list list[@@deriving irmin]
 include
   struct
-    let test_list2_t = let open Irmin.Type in list (list (list int32))
+    let test_list2_t =
+      Irmin.Type.list (Irmin.Type.list (Irmin.Type.list Irmin.Type.int32))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_array = bool array[@@deriving irmin]
-include struct let test_array_t = let open Irmin.Type in array bool end
+include struct let test_array_t = Irmin.Type.array Irmin.Type.bool end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_option = unit option[@@deriving irmin]
-include struct let test_option_t = let open Irmin.Type in option unit end
+include struct let test_option_t = Irmin.Type.option Irmin.Type.unit end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_pair = (string * int32)[@@deriving irmin]
-include struct let test_pair_t = let open Irmin.Type in pair string int32 end
-[@@ocaml.doc "@inline"][@@merlin.hide ]
+include
+  struct
+    let test_pair_t = Irmin.Type.pair Irmin.Type.string Irmin.Type.int32
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_triple = (string * int32 * bool)[@@deriving irmin]
 include
   struct
-    let test_triple_t = let open Irmin.Type in triple string int32 bool
+    let test_triple_t =
+      Irmin.Type.triple Irmin.Type.string Irmin.Type.int32 Irmin.Type.bool
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_result = (int32, string) result[@@deriving irmin]
 include
-  struct let test_result_t = let open Irmin.Type in result int32 string end
-[@@ocaml.doc "@inline"][@@merlin.hide ]
+  struct
+    let test_result_t = Irmin.Type.result Irmin.Type.int32 Irmin.Type.string
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
 let (_ : test_list1 Irmin.Type.t) = test_list1_t
 let (_ : test_list2 Irmin.Type.t) = test_list2_t
 let (_ : test_array Irmin.Type.t) = test_array_t
