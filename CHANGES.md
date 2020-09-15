@@ -55,6 +55,11 @@
     parameters. Type `'a t` generateseara representation of type
     `'a Type.t -> 'a t Type.t` (#1085, @CraigFe)
 
+  - Added a `--lib` command-line option which has the same behaviour as the
+    `lib` run-time argument (i.e. `--lib Foo` will cause `ppx_irmin` to derive
+    type representations using combinators in the `Foo` module). (#1086,
+    @CraigFe)
+
 #### Changed
 
 - **irmin**

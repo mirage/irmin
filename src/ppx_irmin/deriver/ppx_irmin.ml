@@ -17,16 +17,22 @@
 open Ppxlib
 open Ppx_irmin_lib
 
+let default_library = "Irmin.Type"
+
+let library = ref (Some default_library)
+
 let ppx_name = "irmin"
 
 let expand_str ~loc ~path:_ input_ast name lib =
   let (module S) = Ast_builder.make loc in
   let (module L) = (module Deriver.Located (S) : Deriver.S) in
+  let lib = match lib with Some s -> L.parse_lib s | None -> !library in
   L.derive_str ?name ?lib input_ast
 
 let expand_sig ~loc ~path:_ input_ast name lib =
   let (module S) = Ast_builder.make loc in
   let (module L) = (module Deriver.Located (S) : Deriver.S) in
+  let lib = match lib with Some s -> L.parse_lib s | None -> !library in
   L.derive_sig ?name ?lib input_ast
 
 let str_type_decl_generator =
@@ -39,6 +45,16 @@ let sig_type_decl_generator =
   Deriving.Generator.make args expand_sig
 
 let () =
+  let doc =
+    Format.sprintf
+      "<module-path> Set the module path containing the combinators to use \
+       (defaults to %s). An empty string is interpreted as the current module."
+      default_library
+  in
+  Ppxlib.Driver.add_arg "--lib"
+    (Arg.String (function "" -> library := None | s -> library := Some s))
+    ~doc;
+
   Deriving.add ~str_type_decl:str_type_decl_generator
     ~sig_type_decl:sig_type_decl_generator ppx_name
   |> Deriving.ignore

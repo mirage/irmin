@@ -17,9 +17,14 @@
 open Ppxlib
 
 module type S = sig
+  val parse_lib : expression -> string option
+  (** [parse_lib e] is [Some "foo"] or [None] if [e] is a [string option], and
+      raises a located exception otherwise. Intended to be used for parsing the
+      [lib] argument to the derivers. *)
+
   val derive_str :
     ?name:string ->
-    ?lib:expression ->
+    ?lib:string ->
     rec_flag * type_declaration list ->
     structure_item list
   (** Deriver for Irmin type representations.
@@ -33,7 +38,7 @@ module type S = sig
 
   val derive_sig :
     ?name:string ->
-    ?lib:expression ->
+    ?lib:string ->
     rec_flag * type_declaration list ->
     signature_item list
   (** Deriver for Irmin type representation signatures.
