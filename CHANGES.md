@@ -42,7 +42,7 @@
 
   - Added `Pack.clear` and `Dict.clear` (#1047, @icristescu, @CraigFe, @samoht)
 
-  - Added a `migrate` function for upgrading stores with old formats (#TODO,
+  - Added a `migrate` function for upgrading stores with old formats (#1070,
     @icristescu, @CraigFe)
 
 #### Changed
@@ -66,7 +66,8 @@
 
 - **ppx_irmin**:
 
-  - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (TODO)
+  - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (#1082,
+    @CraigFe)
 
 ### 2.2.0 (2020-06-26)
 
