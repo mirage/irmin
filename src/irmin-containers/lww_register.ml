@@ -21,9 +21,7 @@ let empty_info = Irmin.Info.none
 
 module LWW (T : Time.S) (V : Irmin.Type.S) :
   Irmin.Contents.S with type t = V.t * T.t = struct
-  type t = V.t * T.t
-
-  let t = Irmin.Type.(pair V.t T.t)
+  type t = V.t * T.t [@@deriving irmin]
 
   let compare_t = Irmin.Type.compare T.t
 

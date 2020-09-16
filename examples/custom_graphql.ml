@@ -1,7 +1,7 @@
 open Lwt.Infix
 
 module Car = struct
-  type color = Black | White | Other of string
+  type color = Black | White | Other of string [@@deriving irmin]
 
   type t = {
     license : string;
@@ -10,26 +10,7 @@ module Car = struct
     color : color;
     owner : string;
   }
-
-  let color =
-    let open Irmin.Type in
-    variant "color" (fun black white other -> function
-      | Black -> black | White -> white | Other color -> other color)
-    |~ case0 "Black" Black
-    |~ case0 "White" White
-    |~ case1 "Other" string (fun s -> Other s)
-    |> sealv
-
-  let t =
-    let open Irmin.Type in
-    record "car" (fun license year make_and_model color owner ->
-        { license; year; make_and_model; color; owner })
-    |+ field "license" string (fun t -> t.license)
-    |+ field "year" int32 (fun t -> t.year)
-    |+ field "make_and_model" (pair string string) (fun t -> t.make_and_model)
-    |+ field "color" color (fun t -> t.color)
-    |+ field "owner" string (fun t -> t.owner)
-    |> sealr
+  [@@deriving irmin]
 
   let merge = Irmin.Merge.(option (idempotent t))
 end

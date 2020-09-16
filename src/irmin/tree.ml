@@ -64,45 +64,7 @@ module Make (P : S.PRIVATE) = struct
     mutable node_val_find : int;
     mutable node_val_list : int;
   }
-
-  let counters_t =
-    let open Type in
-    record "counters"
-      (fun
-        contents_hash
-        contents_find
-        contents_add
-        node_hash
-        node_mem
-        node_add
-        node_find
-        node_val_v
-        node_val_find
-        node_val_list
-      ->
-        {
-          contents_hash;
-          contents_find;
-          contents_add;
-          node_hash;
-          node_mem;
-          node_add;
-          node_find;
-          node_val_v;
-          node_val_find;
-          node_val_list;
-        })
-    |+ field "contents_hash" int (fun x -> x.contents_hash)
-    |+ field "contents_find" int (fun x -> x.contents_find)
-    |+ field "contents_add" int (fun x -> x.contents_add)
-    |+ field "node_hash" int (fun x -> x.node_hash)
-    |+ field "node_mem" int (fun x -> x.node_mem)
-    |+ field "node_add" int (fun x -> x.node_add)
-    |+ field "node_find" int (fun x -> x.node_find)
-    |+ field "node_val_v" int (fun x -> x.node_val_v)
-    |+ field "node_val_find" int (fun x -> x.node_val_find)
-    |+ field "node_val_list" int (fun x -> x.node_val_list)
-    |> sealr
+  [@@deriving irmin]
 
   let dump_counters ppf t = Type.pp_json ~minify:false counters_t ppf t
 
@@ -874,22 +836,12 @@ module Make (P : S.PRIVATE) = struct
     let merge_elt = merge_elt (fun x -> x)
   end
 
-  type node = Node.t
+  type node = Node.t [@@deriving irmin]
 
   type metadata = Metadata.t
 
-  type t = [ `Node of node | `Contents of contents * metadata ]
-
-  let node_t = Node.t
-
-  let tree_t =
-    let open Type in
-    variant "tree" (fun node contents -> function
-      | `Node n -> node n | `Contents c -> contents c)
-    |~ case1 "node" Node.t (fun n -> `Node n)
-    |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
-           `Contents c)
-    |> sealv
+  type t = [ `Node of node | `Contents of P.Contents.Val.t * Metadata.t ]
+  [@@deriving irmin { name = "tree_t" }]
 
   let of_private_node repo n = Node.of_value repo n
 
@@ -1400,17 +1352,9 @@ module Make (P : S.PRIVATE) = struct
         diff_node x empty >|= fun diff -> (Path.empty, `Added y) :: diff
 
   type concrete =
-    [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
-
-  let concrete_t : concrete Type.t =
-    let open Type in
-    mu (fun concrete_t ->
-        variant "concrete" (fun tree contents -> function
-          | `Tree t -> tree t | `Contents c -> contents c)
-        |~ case1 "tree" (list (pair Path.step_t concrete_t)) (fun t -> `Tree t)
-        |~ case1 "contents" (pair P.Contents.Val.t Metadata.t) (fun c ->
-               `Contents c)
-        |> sealv)
+    [ `Tree of (Path.step * concrete) list
+    | `Contents of P.Contents.Val.t * Metadata.t ]
+  [@@deriving irmin]
 
   let of_concrete c =
     let rec concrete k = function

@@ -35,17 +35,11 @@ struct
   end
 
   module T = struct
-    type hash = H.t
+    type hash = H.t [@@deriving irmin]
 
-    type step = Node.step
+    type step = Node.step [@@deriving irmin]
 
-    type metadata = Node.metadata
-
-    let step_t = Node.step_t
-
-    let hash_t = H.t
-
-    let metadata_t = Node.metadata_t
+    type metadata = Node.metadata [@@deriving irmin]
 
     let default = Node.default
 
