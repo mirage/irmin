@@ -61,13 +61,13 @@ module Make (P : S.PRIVATE) = struct
 
   type hash = Hash.t
 
-  type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
+  type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
 
   type ff_error = [ `No_change | `Rejected | lca_error ]
 
   module Key = P.Node.Path
 
-  type key = Key.t
+  type key = Key.t [@@deriving irmin]
 
   module Metadata = P.Node.Metadata
   module H = Commit.History (P.Commit)
@@ -100,11 +100,11 @@ module Make (P : S.PRIVATE) = struct
     | `Contents (c, _) -> save_contents x c
     | `Node n -> Tree.export ~clear r x y n
 
-  type node = Tree.node
+  type node = Tree.node [@@deriving irmin]
 
-  type contents = Contents.t
+  type contents = Contents.t [@@deriving irmin]
 
-  type metadata = Metadata.t
+  type metadata = Metadata.t [@@deriving irmin]
 
   type tree = Tree.t
 
@@ -180,7 +180,7 @@ module Make (P : S.PRIVATE) = struct
       (P.Commit.Key)
       (Branch_store.Key)
 
-  type slice = P.Slice.t
+  type slice = P.Slice.t [@@deriving irmin]
 
   type watch = unit -> unit Lwt.t
 
@@ -345,7 +345,7 @@ module Make (P : S.PRIVATE) = struct
     lock : Lwt_mutex.t;
   }
 
-  type step = Key.step
+  type step = Key.step [@@deriving irmin]
 
   let repo t = t.repo
 
@@ -1094,32 +1094,13 @@ module Make (P : S.PRIVATE) = struct
       | `Commit c -> Type.pp Hash.t ppf (Commit.hash c)
   end
 
-  let slice_t = P.Slice.t
-
   let tree_t = Tree.tree_t
-
-  let contents_t = Contents.t
-
-  let metadata_t = Metadata.t
-
-  let key_t = Key.t
-
-  let step_t = Key.step_t
-
-  let node_t = Tree.node_t
 
   let commit_t = Commit.t
 
   let branch_t = Branch.t
 
-  let kind_t = Type.enum "kind" [ ("contents", `Contents); ("node", `Node) ]
-
-  let lca_error_t =
-    Type.enum "lca-error"
-      [
-        ("max-depth-reached", `Max_depth_reached);
-        ("too-many-lcas", `Too_many_lcas);
-      ]
+  type kind = [ `Contents | `Node ] [@@deriving irmin]
 
   let ff_error_t =
     Type.enum "ff-error"

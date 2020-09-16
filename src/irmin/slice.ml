@@ -19,31 +19,21 @@ module Make
     (Node : S.NODE_STORE)
     (Commit : S.COMMIT_STORE) =
 struct
-  type contents = Contents.key * Contents.value
+  type contents = Contents.Key.t * Contents.Val.t [@@deriving irmin]
 
-  type node = Node.key * Node.value
+  type node = Node.Key.t * Node.Val.t [@@deriving irmin]
 
-  type commit = Commit.key * Commit.value
+  type commit = Commit.Key.t * Commit.Val.t [@@deriving irmin]
 
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]
+  [@@deriving irmin]
 
   type t = {
-    mutable contents : (Contents.key * Contents.value) list;
-    mutable nodes : (Node.key * Node.value) list;
-    mutable commits : (Commit.key * Commit.value) list;
+    mutable contents : contents list;
+    mutable nodes : node list;
+    mutable commits : commit list;
   }
-
-  let t =
-    let open Type in
-    record "slice" (fun contents nodes commits -> { contents; nodes; commits })
-    |+ field "contents"
-         (list (pair Contents.Key.t Contents.Val.t))
-         (fun t -> t.contents)
-    |+ field "nodes" (list (pair Node.Key.t Node.Val.t)) (fun t -> t.nodes)
-    |+ field "commits"
-         (list (pair Commit.Key.t Commit.Val.t))
-         (fun t -> t.commits)
-    |> sealr
+  [@@deriving irmin]
 
   let empty () = Lwt.return { contents = []; nodes = []; commits = [] }
 
@@ -65,19 +55,4 @@ struct
         Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
         Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
       ]
-
-  let contents_t = Type.pair Contents.Key.t Contents.Val.t
-
-  let node_t = Type.pair Node.Key.t Node.Val.t
-
-  let commit_t = Type.pair Commit.Key.t Commit.Val.t
-
-  let value_t =
-    let open Type in
-    variant "slice" (fun contents node commit -> function
-      | `Contents x -> contents x | `Node x -> node x | `Commit x -> commit x)
-    |~ case1 "contents" contents_t (fun x -> `Contents x)
-    |~ case1 "node" node_t (fun x -> `Node x)
-    |~ case1 "commit" commit_t (fun x -> `Commit x)
-    |> sealv
 end

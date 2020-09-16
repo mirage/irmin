@@ -16,6 +16,7 @@ depends: [
   "ocaml"      {>= "4.08.0"}
   "dune"       {>= "2.5.1"}
   "irmin"      {>= "2.2.0"}
+  "ppx_irmin"
   "index"      {>= "1.2.1"}
   "fmt"
   "logs"

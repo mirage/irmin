@@ -219,7 +219,7 @@ module Make (S : S) = struct
       let g = g repo and n = n repo in
       let k = normal (P.Contents.Key.hash "foo") in
       let check_key = check P.Node.Key.t in
-      let check_val = check (T.option Graph.value_t) in
+      let check_val = check [%typ: Graph.value option] in
       let check_node msg v =
         let h' = H_node.hash v in
         with_node repo (fun n -> P.Node.add n v) >|= fun h ->
@@ -870,8 +870,8 @@ module Make (S : S) = struct
     (* simple merges *)
     let check_merge () =
       let ok = Irmin.Merge.ok in
-      let dt = T.(option int64) in
-      let dx = T.(list (pair string int64)) in
+      let dt = [%typ: int64 option] in
+      let dx = [%typ: (string * int64) list] in
       let merge_skip ~old:_ _ _ = ok None in
       let merge_left ~old:_ x _ = ok x in
       let merge_right ~old:_ _ y = ok y in
@@ -932,7 +932,7 @@ module Make (S : S) = struct
       merge_exn "k4" k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
       let _ = k4 in
-      let succ_t = T.(pair string Graph.value_t) in
+      let succ_t = [%typ: string * Graph.value] in
       Graph.list g k4 >>= fun succ ->
       checks succ_t "k4" [ ("b", `Node k1); ("c", `Node k1) ] succ;
       let info date =
@@ -1211,7 +1211,7 @@ module Make (S : S) = struct
 
   let test_private_nodes x () =
     let test repo =
-      let check_val = check T.(option S.contents_t) in
+      let check_val = check [%typ: S.contents option] in
       let vx = "VX" in
       let vy = "VY" in
       S.master repo >>= fun t ->
@@ -1238,8 +1238,8 @@ module Make (S : S) = struct
 
   let test_stores x () =
     let test repo =
-      let check_val = check T.(option S.contents_t) in
-      let check_list = checks T.(pair S.Key.step_t S.kind_t) in
+      let check_val = check [%typ: S.contents option] in
+      let check_list = checks [%typ: S.Key.step * S.kind] in
       S.master repo >>= fun t ->
       S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
       S.mem t [ "a"; "b" ] >>= fun b0 ->

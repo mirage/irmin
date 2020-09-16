@@ -20,6 +20,7 @@ depends: [
   "irmin-mem"  {>= "2.1.0"}
   "irmin-unix" {>= "2.1.0"}
   "irmin-git"  {>= "2.1.0"}
+  "ppx_irmin"
   "lwt"
   "mtime"
   "alcotest" {with-test}

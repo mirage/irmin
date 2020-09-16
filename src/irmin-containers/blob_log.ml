@@ -23,9 +23,7 @@ let empty_info = Irmin.Info.none
 
 module Blob_log (T : Time.S) (V : Irmin.Type.S) :
   Irmin.Contents.S with type t = (V.t * T.t) list = struct
-  type t = (V.t * T.t) list
-
-  let t = Irmin.Type.(list (pair V.t T.t))
+  type t = (V.t * T.t) list [@@deriving irmin]
 
   let compare =
     let compare_times = Irmin.Type.compare T.t in

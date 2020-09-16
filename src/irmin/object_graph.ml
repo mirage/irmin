@@ -96,19 +96,7 @@ struct
       | `Node of Node.t
       | `Commit of Commit.t
       | `Branch of Branch.t ]
-
-    let t =
-      let open Type in
-      variant "vertex" (fun contents node commit branch -> function
-        | `Contents x -> contents x
-        | `Node x -> node x
-        | `Commit x -> commit x
-        | `Branch x -> branch x)
-      |~ case1 "contents" (pair Contents.t Metadata.t) (fun x -> `Contents x)
-      |~ case1 "node" Node.t (fun x -> `Node x)
-      |~ case1 "commit" Commit.t (fun x -> `Commit x)
-      |~ case1 "branch" Branch.t (fun x -> `Branch x)
-      |> sealv
+    [@@deriving irmin]
 
     let equal = Type.equal t
 
@@ -136,9 +124,7 @@ struct
   (* XXX: for the binary format, we can use offsets in the vertex list
      to save space. *)
   module Dump = struct
-    type t = X.t list * (X.t * X.t) list
-
-    let t = Type.(pair (list X.t) (list (pair X.t X.t)))
+    type t = X.t list * (X.t * X.t) list [@@deriving irmin]
   end
 
   let vertex g = G.fold_vertex (fun k set -> k :: set) g []

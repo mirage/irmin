@@ -19,6 +19,7 @@ depends: [
   "crunch"     {>= "2.2.0"}
   "webmachine" {>= "0.6.0"}
   "irmin"      {>= "2.2.0"}
+  "ppx_irmin"
   "cohttp-lwt" {>= "1.0.0"}
   "irmin-git"  {with-test & >= "2.0.0"}
   "irmin-mem"  {with-test & >= "2.0.0"}

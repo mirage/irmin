@@ -2,7 +2,8 @@
  (name irmin_test)
  (public_name irmin-test)
  (modules Irmin_test Store Common)
- (preprocess future_syntax)
+ (preprocess
+  (pps ppx_irmin))
  (libraries alcotest astring fmt irmin jsonm logs.fmt lwt lwt.unix mtime
    mtime.clock.os))
 

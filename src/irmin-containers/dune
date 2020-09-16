@@ -1,4 +1,6 @@
 (library
  (name irmin_containers)
  (public_name irmin-containers)
- (libraries irmin irmin-mem irmin-unix irmin-git mtime))
+ (libraries irmin irmin-mem irmin-unix irmin-git mtime)
+ (preprocess
+  (pps ppx_irmin)))

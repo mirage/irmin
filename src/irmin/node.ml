@@ -22,9 +22,7 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module No_metadata = struct
-  type t = unit
-
-  let t = Type.unit
+  type t = unit [@@deriving irmin]
 
   let default = ()
 
@@ -33,21 +31,17 @@ end
 
 module Make
     (K : Type.S) (P : sig
-      type step
-
-      val step_t : step Type.t
+      type step [@@deriving irmin]
     end)
     (M : S.METADATA) =
 struct
-  type hash = K.t
+  type hash = K.t [@@deriving irmin]
 
-  type step = P.step
+  type step = P.step [@@deriving irmin]
 
-  type metadata = M.t
+  type metadata = M.t [@@deriving irmin]
 
   type kind = [ `Node | `Contents of M.t ]
-
-  type entry = { kind : kind; name : P.step; node : K.t }
 
   let kind_t =
     let open Type in
@@ -60,13 +54,7 @@ struct
     |~ case1 "contents" M.t (fun m -> `Contents m)
     |> sealv
 
-  let entry_t : entry Type.t =
-    let open Type in
-    record "Tree.entry" (fun kind name node -> { kind; name; node })
-    |+ field "kind" kind_t (function { kind; _ } -> kind)
-    |+ field "name" P.step_t (fun { name; _ } -> name)
-    |+ field "node" K.t (fun { node; _ } -> node)
-    |> sealr
+  type entry = { kind : kind; name : P.step; node : K.t } [@@deriving irmin]
 
   let to_entry (k, v) =
     match v with
@@ -110,16 +98,10 @@ struct
     let e = to_entry (k, v) in
     StepMap.update k
       (fun e' ->
-        if Type.equal (Type.option entry_t) (Some e) e' then e' else Some e)
+        if Type.equal [%typ: entry option] (Some e) e' then e' else Some e)
       t
 
   let remove t k = StepMap.remove k t
-
-  let step_t = P.step_t
-
-  let hash_t = K.t
-
-  let metadata_t = M.t
 
   let default = M.default
 
@@ -205,15 +187,13 @@ struct
       | Some (c, m) -> (Some c, m)
     in
     let implode = function None, _ -> None | Some c, m -> Some (c, m) in
-    Merge.like
-      Type.(option (pair contents_t metadata_t))
+    Merge.like [%typ: (contents * metadata) option]
       (Merge.pair (C.merge c) M.merge)
       explode implode
 
   let merge_contents_meta c =
-    Merge.alist step_t
-      Type.(pair contents_t metadata_t)
-      (fun _step -> merge_contents_meta c)
+    Merge.alist step_t [%typ: contents * metadata] (fun _step ->
+        merge_contents_meta c)
 
   let merge_parents merge_key =
     Merge.alist step_t S.Key.t (fun _step -> merge_key)
@@ -230,7 +210,7 @@ struct
 
   let rec merge t =
     let merge_key =
-      Merge.v (Type.option S.Key.t) (fun ~old x y ->
+      Merge.v [%typ: S.Key.t option] (fun ~old x y ->
           Merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
@@ -242,7 +222,7 @@ struct
       if S.Val.is_empty v then Lwt.return_none
       else add t v >>= fun k -> Lwt.return_some k
     in
-    Merge.like_lwt Type.(option S.Key.t) merge read add
+    Merge.like_lwt [%typ: S.Key.t option] merge read add
 
   module Val = S.Val
 end
@@ -252,15 +232,15 @@ module Graph (S : S.NODE_STORE) = struct
   module Contents = S.Contents.Key
   module Metadata = S.Metadata
 
-  type step = Path.step
+  type step = Path.step [@@deriving irmin]
 
-  type metadata = Metadata.t
+  type metadata = Metadata.t [@@deriving irmin]
 
-  type contents = Contents.t
+  type contents = Contents.t [@@deriving irmin]
 
-  type node = S.key
+  type node = S.Key.t [@@deriving irmin]
 
-  type path = Path.t
+  type path = Path.t [@@deriving irmin]
 
   type 'a t = 'a S.t
 
@@ -273,9 +253,7 @@ module Graph (S : S.NODE_STORE) = struct
     S.find t n >|= function None -> [] | Some n -> S.Val.list n
 
   module U = struct
-    type t = unit
-
-    let t = Type.unit
+    type t = unit [@@deriving irmin]
   end
 
   module Graph = Object_graph.Make (Contents) (Metadata) (S.Key) (U) (U)
@@ -389,16 +367,6 @@ module Graph (S : S.NODE_STORE) = struct
     let path, file = rdecons_exn path in
     map t node path (fun node -> S.Val.remove node file)
 
-  let path_t = Path.t
-
-  let node_t = S.Key.t
-
-  let metadata_t = Metadata.t
-
-  let step_t = Path.step_t
-
-  let contents_t = Contents.t
-
   let value_t = S.Val.value_t
 end
 
@@ -432,15 +400,11 @@ module V1 (N : S.NODE with type step = string) = struct
 
   type step = N.step
 
-  type hash = N.hash
+  type hash = N.hash [@@deriving irmin]
 
-  type metadata = N.metadata
+  type metadata = N.metadata [@@deriving irmin]
 
   type value = N.value
-
-  let hash_t = N.hash_t
-
-  let metadata_t = N.metadata_t
 
   type t = { n : N.t; entries : (step * value) list }
 
