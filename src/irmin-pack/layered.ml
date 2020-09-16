@@ -221,8 +221,8 @@ module Content_addressable
       Log.debug (fun l -> l "generation change, RO updates upper");
       t.flip <- not t.flip;
       let current = current_upper t in
-      U.sync ?on_generation_change:on_generation_change_next_upper current);
-    (match t.lower with None -> () | Some x -> L.sync ?on_generation_change x);
+      U.sync ?on_generation_change:on_generation_change_next_upper current;
+      match t.lower with None -> () | Some x -> L.sync ?on_generation_change x);
     t.flip
 
   let update_flip ~flip t = t.flip <- flip
