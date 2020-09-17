@@ -14,51 +14,43 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type FUNCTOR = sig
-  type 'a t
-
-  val return : 'a -> 'a t
-
-  val map : ('a -> 'b) -> 'a t -> 'b t
-end
-
 module type S = sig
-  include FUNCTOR
+  type ('a, 'p) t
 
-  val bind : ('a -> 'b t) -> 'a t -> 'b t
+  val return : 'a -> ('a, 'p) t
 
-  val sequence : 'a t list -> 'a list t
+  val map : ('a -> 'b) -> ('a, 'p) t -> ('b, 'p) t
+
+  val bind : ('a -> ('b, 'p) t) -> ('a, 'p) t -> ('b, 'p) t
+
+  val sequence : ('a, 'p) t list -> ('a list, 'p) t
 
   module Syntax : sig
-    val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
+    val ( let+ ) : ('a, 'p) t -> ('a -> 'b) -> ('b, 'p) t
 
-    val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
+    val ( let* ) : ('a, 'p) t -> ('a -> ('b, 'p) t) -> ('b, 'p) t
   end
 end
 
 module type Monad = sig
-  module type FUNCTOR = FUNCTOR
-
   module type S = S
 
-  module Reader (E : sig
-    type t
-  end) : sig
+  module Reader : sig
     (** Computations that read values from a shared environment. *)
 
     include S
     (** @inline *)
 
-    val run : 'a t -> E.t -> 'a
-    (** Runs a {!'a t} and extracts the final value ['a] from it. *)
+    val run : ('a, 'e) t -> 'e -> 'a
+    (** Runs a {!('a, 'e) t} and extracts the final value ['a] from it. *)
 
-    val ask : E.t t
+    val ask : ('e, 'e) t
     (** Retrieves the monad environment. *)
 
-    val asks : (E.t -> 'a) -> 'a t
+    val asks : ('e -> 'a) -> ('a, 'e) t
     (** Retrieves a projection of the current monad environment. *)
 
-    val local : (E.t -> E.t) -> 'a t -> 'a t
+    val local : ('e -> 'e) -> ('a, 'e) t -> ('a, 'e) t
     (** [local f m] executes a computation in [m] in an environment modified by
         [f]. *)
   end

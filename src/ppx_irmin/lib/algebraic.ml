@@ -220,13 +220,13 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     { combinator; composite; augment; sealer }
 
   let encode :
-      type a b.
+      type a b e.
       (a, b) Typ.t ->
-      subderive:(a -> b M.t) ->
+      subderive:(a -> (b, e) M.t) ->
       lib:string option ->
       type_name:string ->
       a list ->
-      expression M.t =
+      (expression, e) M.t =
    fun typ ~subderive ~lib ~type_name ts ->
     let open M.Syntax in
     let dsl = terms_of_typ ~lib typ in
