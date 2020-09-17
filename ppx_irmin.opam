@@ -19,4 +19,4 @@ depends: [
   "irmin" {with-test & post & >= "2.0.0"}
 ]
 
-synopsis: "PPX deriver for Irmin generics"
+synopsis: "PPX deriver for Irmin type representations"

@@ -3,8 +3,8 @@ module SigTests :
     type t = string[@@deriving irmin]
     include sig val t : t Irmin.Type.t end[@@ocaml.doc "@inline"][@@merlin.hide
                                                                    ]
-    type foo = unit[@@deriving irmin { name = "foo_generic" }]
-    include sig val foo_generic : foo Irmin.Type.t end[@@ocaml.doc "@inline"]
+    type foo = unit[@@deriving irmin { name = "foo_repr" }]
+    include sig val foo_repr : foo Irmin.Type.t end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
     type my_int = (int32 * t)[@@deriving irmin]
     include sig val my_int_t : my_int Irmin.Type.t end[@@ocaml.doc "@inline"]
@@ -21,10 +21,9 @@ module SigTests :
     type t = string[@@deriving irmin]
     include struct let t = Irmin.Type.string end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
-    type foo = unit[@@deriving irmin { name = "foo_generic" }]
-    include struct let foo_generic = Irmin.Type.unit end[@@ocaml.doc
-                                                          "@inline"][@@merlin.hide
-                                                                    ]
+    type foo = unit[@@deriving irmin { name = "foo_repr" }]
+    include struct let foo_repr = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+    [@@merlin.hide ]
     type my_int = (int32 * t)[@@deriving irmin]
     include struct let my_int_t = let open Irmin.Type in pair int32 t end
     [@@ocaml.doc "@inline"][@@merlin.hide ]

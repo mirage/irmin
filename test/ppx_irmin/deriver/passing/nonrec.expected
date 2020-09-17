@@ -25,22 +25,19 @@ module S1 :
   end 
 module S2 :
   sig
-    type nonrec t = t list[@@deriving irmin { name = "t_generic" }]
-    include sig val t_generic : t Irmin.Type.t end[@@ocaml.doc "@inline"]
+    type nonrec t = t list[@@deriving irmin { name = "t_repr" }]
+    include sig val t_repr : t Irmin.Type.t end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
-    type nonrec t_alias = t_alias list[@@deriving
-                                        irmin { name = "t_generic" }]
-    include sig val t_generic : t_alias Irmin.Type.t end[@@ocaml.doc
-                                                          "@inline"][@@merlin.hide
-                                                                    ]
+    type nonrec t_alias = t_alias list[@@deriving irmin { name = "t_repr" }]
+    include sig val t_repr : t_alias Irmin.Type.t end[@@ocaml.doc "@inline"]
+    [@@merlin.hide ]
   end =
   struct
-    type nonrec t = t list[@@deriving irmin { name = "t_generic" }]
-    include struct let t_generic = let open Irmin.Type in list t end[@@ocaml.doc
-                                                                    "@inline"]
+    type nonrec t = t list[@@deriving irmin { name = "t_repr" }]
+    include struct let t_repr = let open Irmin.Type in list t end[@@ocaml.doc
+                                                                   "@inline"]
     [@@merlin.hide ]
-    type nonrec t_alias = t_alias list[@@deriving
-                                        irmin { name = "t_generic" }]
-    include struct let t_generic = let open Irmin.Type in list t_alias_t end
+    type nonrec t_alias = t_alias list[@@deriving irmin { name = "t_repr" }]
+    include struct let t_repr = let open Irmin.Type in list t_alias_t end
     [@@ocaml.doc "@inline"][@@merlin.hide ]
   end 

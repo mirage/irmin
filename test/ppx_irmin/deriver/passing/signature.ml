@@ -2,7 +2,7 @@
 module SigTests : sig
   type t = string [@@deriving irmin]
 
-  type foo = unit [@@deriving irmin { name = "foo_generic" }]
+  type foo = unit [@@deriving irmin { name = "foo_repr" }]
 
   type my_int = int32 * t [@@deriving irmin]
 
@@ -14,7 +14,7 @@ module SigTests : sig
 end = struct
   type t = string [@@deriving irmin]
 
-  type foo = unit [@@deriving irmin { name = "foo_generic" }]
+  type foo = unit [@@deriving irmin { name = "foo_repr" }]
 
   type my_int = int32 * t [@@deriving irmin]
 
