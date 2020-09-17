@@ -1,0 +1,13 @@
+module Json = struct type t = string
+                     let t = Irmin.Type.string end
+type foo = {
+  contents: Json.t }[@@deriving irmin]
+include
+  struct
+    let foo_t =
+      Irmin.Type.sealr
+        (Irmin.Type.(|+)
+           (Irmin.Type.record "foo" (fun contents -> { contents }))
+           (Irmin.Type.field "contents" Json.t (fun t -> t.contents)))
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
+let (_ : foo Irmin.Type.t) = foo_t

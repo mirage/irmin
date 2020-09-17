@@ -8,6 +8,10 @@
 - **irmin***
   - Improve performance of `last_modified` (#948, @pascutto)
 
+- **ppx_irmin**
+  - Fix a bug causing certain type derivations to be incorrect due to unsound
+    namespacing. (#1083, @CraigFe)
+
 #### Added
 
 - **irmin**

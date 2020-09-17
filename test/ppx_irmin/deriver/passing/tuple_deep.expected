@@ -4,8 +4,11 @@ type deep_tuple =
 include
   struct
     let deep_tuple_t =
-      let open Irmin.Type in
-        triple (triple (triple (pair int32 int32) int32 int32) int32 int32)
-          int32 int32
+      Irmin.Type.triple
+        (Irmin.Type.triple
+           (Irmin.Type.triple
+              (Irmin.Type.pair Irmin.Type.int32 Irmin.Type.int32)
+              Irmin.Type.int32 Irmin.Type.int32) Irmin.Type.int32
+           Irmin.Type.int32) Irmin.Type.int32 Irmin.Type.int32
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 let (_ : deep_tuple Irmin.Type.t) = deep_tuple_t

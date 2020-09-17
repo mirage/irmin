@@ -35,6 +35,20 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
   (** [lambda \[ "x_1"; ...; "x_n" \] e] is [fun x1 ... xN -> e] *)
   let lambda params = params >|= (pvar >> pexp_fun Nolabel None) |> compose_all
 
+  let dsl ~lib =
+    (function
+      | `field -> "field"
+      | `case1 -> "case1"
+      | `case0 -> "case0"
+      | `add_case -> "|~"
+      | `add_field -> "|+"
+      | `sealr -> "sealr"
+      | `sealv -> "sealv"
+      | `record -> "record"
+      | `variant -> "variant")
+    >> (match lib with Some l -> ( ^ ) (l ^ ".") | None -> fun x -> x)
+    >> evar
+
   (** {1 Helper functions for various subfragments} *)
 
   let construct ~polymorphic ?body name =
@@ -42,21 +56,26 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
     else pexp_construct (Located.lident name) body
 
   (** {[ |~ case0 "cons_name" (`)Cons_name ]} *)
-  let variant_case0 ~polymorphic ~cons_name e =
+  let variant_case0 ~lib ~polymorphic ~cons_name e =
     [%expr
-      [%e e]
-      |~ case0 [%e estring cons_name] [%e construct ~polymorphic cons_name]]
+      [%e dsl ~lib `add_case]
+        [%e e]
+        ([%e dsl ~lib `case0]
+           [%e estring cons_name]
+           [%e construct ~polymorphic cons_name])]
 
   (** {[
         |~ case1 "cons_name" component_type (fun (x1, ..., xN) -> (`)Cons_name (x1, ..., xN))
       ]} *)
-  let variant_case1 ~polymorphic ~cons_name ~component_type ~idents e =
+  let variant_case1 ~lib ~polymorphic ~cons_name ~component_type ~idents e =
     let tuple_pat = idents >|= pvar |> ppat_tuple in
     let tuple_exp = idents >|= evar |> pexp_tuple in
     [%expr
-      [%e e]
-      |~ case1 [%e estring cons_name] [%e component_type] (fun [%p tuple_pat] ->
-             [%e construct ~polymorphic ~body:tuple_exp cons_name])]
+      [%e dsl ~lib `add_case]
+        [%e e]
+        ([%e dsl ~lib `case1] [%e estring cons_name] [%e component_type]
+           (fun [%p tuple_pat] ->
+             [%e construct ~polymorphic ~body:tuple_exp cons_name]))]
 
   (** Wrapper for {!variant_case0} and {!variant_case1} *)
   let variant_case ~polymorphic { case_name; case_cons } =
@@ -67,11 +86,12 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
         variant_case1 ~polymorphic ~cons_name:case_name ~component_type ~idents
 
   (** [|+ field "field_name" (field_type) (fun t -> t.field_name)] *)
-  let record_field { field_name; field_repr } e =
+  let record_field ~lib { field_name; field_repr } e =
     [%expr
-      [%e e]
-      |+ field [%e estring field_name] [%e field_repr] (fun t ->
-             [%e pexp_field (evar "t") (Located.lident field_name)])]
+      [%e dsl ~lib `add_field]
+        [%e e]
+        ([%e dsl ~lib `field] [%e estring field_name] [%e field_repr] (fun t ->
+             [%e pexp_field (evar "t") (Located.lident field_name)]))]
 
   (** Record composites are encoded as a constructor function
 
@@ -160,51 +180,66 @@ module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
       composite, then add each of the subcomponents to the open representation
       using an 'augmenter', and finally 'seal' the representation.
 
-      The following functions provide each part of the encoding for each
-      composite type. *)
+      The following function extracts the necessary terms for each algebraic
+      type. *)
 
-  let augment_of_typ : type a b. (a, b) Typ.t -> b -> expression -> expression =
-    function
-    | Record -> record_field
-    | Variant -> variant_case ~polymorphic:false
-    | Polyvariant -> variant_case ~polymorphic:true
+  type ('a, 'b) dsl_terms = {
+    combinator : expression;
+    composite : 'a list -> expression;
+    augment : 'b -> expression -> expression;
+    sealer : expression;
+  }
 
-  let composite_of_typ : type a b. (a, b) Typ.t -> a list -> expression =
-    function
-    | Record -> record_composite
-    | Variant -> variant_composite
-    | Polyvariant -> polyvariant_composite
-
-  let combinator_of_typ : type a b. (a, b) Typ.t -> string = function
-    | Record -> "record"
-    | Variant -> "variant"
-    | Polyvariant -> "variant"
-
-  let sealer_of_typ : type a b. (a, b) Typ.t -> expression -> expression =
-    let seal name e = [%expr [%e e] |> [%e evar name]] in
-    function
-    | Record -> seal "sealr"
-    | Variant -> seal "sealv"
-    | Polyvariant -> seal "sealv"
+  let terms_of_typ :
+      type a b. lib:string option -> (a, b) Typ.t -> (a, b) dsl_terms =
+   fun ~lib typ ->
+    let dsl = dsl ~lib in
+    let combinator =
+      dsl
+        (match typ with
+        | Record -> `record
+        | Variant -> `variant
+        | Polyvariant -> `variant)
+    and composite : a list -> expression =
+      match typ with
+      | Record -> record_composite
+      | Variant -> variant_composite
+      | Polyvariant -> polyvariant_composite
+    and augment : b -> expression -> expression =
+      match typ with
+      | Record -> record_field ~lib
+      | Variant -> variant_case ~lib ~polymorphic:false
+      | Polyvariant -> variant_case ~lib ~polymorphic:true
+    and sealer =
+      dsl
+        (match typ with
+        | Record -> `sealr
+        | Variant -> `sealv
+        | Polyvariant -> `sealv)
+    in
+    { combinator; composite; augment; sealer }
 
   let encode :
       type a b.
       (a, b) Typ.t ->
       subderive:(a -> b M.t) ->
+      lib:string option ->
       type_name:string ->
       a list ->
       expression M.t =
-   fun typ ~subderive ~type_name ts ->
+   fun typ ~subderive ~lib ~type_name ts ->
     let open M.Syntax in
-    let composite = composite_of_typ typ ts in
+    let dsl = terms_of_typ ~lib typ in
+    let composite = dsl.composite ts in
     let+ apply_augments =
       ts
-      >|= (subderive >> M.map (augment_of_typ typ))
+      >|= (subderive >> M.map dsl.augment)
       |> M.sequence
       |> M.map (List.rev >> compose_all)
     in
-    [%expr
-      [%e evar (combinator_of_typ typ)] [%e estring type_name] [%e composite]]
-    |> apply_augments
-    |> sealer_of_typ typ
+    let open_repr =
+      [%expr [%e dsl.combinator] [%e estring type_name] [%e composite]]
+      |> apply_augments
+    in
+    [%expr [%e dsl.sealer] [%e open_repr]]
 end

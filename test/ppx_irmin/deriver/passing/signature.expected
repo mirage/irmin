@@ -25,7 +25,7 @@ module SigTests :
     include struct let foo_repr = Irmin.Type.unit end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
     type my_int = (int32 * t)[@@deriving irmin]
-    include struct let my_int_t = let open Irmin.Type in pair int32 t end
+    include struct let my_int_t = Irmin.Type.pair Irmin.Type.int32 t end
     [@@ocaml.doc "@inline"][@@merlin.hide ]
     type my_variant =
       | A of (my_int, int) result 
@@ -34,19 +34,24 @@ module SigTests :
     include
       struct
         let my_variant_t =
-          let open Irmin.Type in
-            ((((variant "my_variant"
-                  (fun a ->
-                     fun b ->
-                       fun c ->
-                         function
-                         | A x1 -> a x1
-                         | B x1 -> b x1
-                         | C (x1, x2) -> c (x1, x2)))
-                 |~ (case1 "A" (result my_int_t int) (fun x1 -> A x1)))
-                |~ (case1 "B" unit (fun x1 -> B x1)))
-               |~
-               (case1 "C" (pair string int32) (fun (x1, x2) -> C (x1, x2))))
-              |> sealv
+          Irmin.Type.sealv
+            (Irmin.Type.(|~)
+               (Irmin.Type.(|~)
+                  (Irmin.Type.(|~)
+                     (Irmin.Type.variant "my_variant"
+                        (fun a ->
+                           fun b ->
+                             fun c ->
+                               function
+                               | A x1 -> a x1
+                               | B x1 -> b x1
+                               | C (x1, x2) -> c (x1, x2)))
+                     (Irmin.Type.case1 "A"
+                        (Irmin.Type.result my_int_t Irmin.Type.int)
+                        (fun x1 -> A x1)))
+                  (Irmin.Type.case1 "B" Irmin.Type.unit (fun x1 -> B x1)))
+               (Irmin.Type.case1 "C"
+                  (Irmin.Type.pair Irmin.Type.string Irmin.Type.int32)
+                  (fun (x1, x2) -> C (x1, x2))))
       end[@@ocaml.doc "@inline"][@@merlin.hide ]
   end 

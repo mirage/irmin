@@ -5,13 +5,18 @@ type test_record1 = {
 include
   struct
     let test_record1_t =
-      let open Irmin.Type in
-        ((((record "test_record1"
-              (fun alpha -> fun beta -> fun gamma -> { alpha; beta; gamma }))
-             |+ (field "alpha" string (fun t -> t.alpha)))
-            |+ (field "beta" (list int64) (fun t -> t.beta)))
-           |+ (field "gamma" unit (fun t -> t.gamma)))
-          |> sealr
+      Irmin.Type.sealr
+        (Irmin.Type.(|+)
+           (Irmin.Type.(|+)
+              (Irmin.Type.(|+)
+                 (Irmin.Type.record "test_record1"
+                    (fun alpha ->
+                       fun beta -> fun gamma -> { alpha; beta; gamma }))
+                 (Irmin.Type.field "alpha" Irmin.Type.string
+                    (fun t -> t.alpha)))
+              (Irmin.Type.field "beta" (Irmin.Type.list Irmin.Type.int64)
+                 (fun t -> t.beta)))
+           (Irmin.Type.field "gamma" Irmin.Type.unit (fun t -> t.gamma)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_record2 =
   {
@@ -20,16 +25,18 @@ type test_record2 =
 include
   struct
     let test_record2_t =
-      let open Irmin.Type in
-        (((record "test_record2"
-             (fun the_FIRST_identifier ->
-                fun the_SECOND_identifier ->
-                  { the_FIRST_identifier; the_SECOND_identifier }))
-            |+
-            (field "the_FIRST_identifier" (option test_record1_t)
-               (fun t -> t.the_FIRST_identifier)))
-           |+
-           (field "the_SECOND_identifier" (list (result string int32))
+      Irmin.Type.sealr
+        (Irmin.Type.(|+)
+           (Irmin.Type.(|+)
+              (Irmin.Type.record "test_record2"
+                 (fun the_FIRST_identifier ->
+                    fun the_SECOND_identifier ->
+                      { the_FIRST_identifier; the_SECOND_identifier }))
+              (Irmin.Type.field "the_FIRST_identifier"
+                 (Irmin.Type.option test_record1_t)
+                 (fun t -> t.the_FIRST_identifier)))
+           (Irmin.Type.field "the_SECOND_identifier"
+              (Irmin.Type.list
+                 (Irmin.Type.result Irmin.Type.string Irmin.Type.int32))
               (fun t -> t.the_SECOND_identifier)))
-          |> sealr
   end[@@ocaml.doc "@inline"][@@merlin.hide ]

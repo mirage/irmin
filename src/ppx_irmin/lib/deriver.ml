@@ -79,29 +79,16 @@ module Located (A : Ast_builder.S) : S = struct
 
   let ( >|= ) x f = List.map f x
 
-  let with_open_lib =
-    Reader.bind (fun expr ->
-        let+ { lib; _ } = ask in
-        match lib with
-        | Some lib ->
-            pexp_open
-              {
-                popen_expr = pmod_ident (Located.lident lib);
-                popen_override = Fresh;
-                popen_loc = A.loc;
-                popen_attributes = [];
-              }
-              expr
-        | None -> expr)
-
   let recursive ~lib fparam e =
     let mu = evar (match lib with Some s -> s ^ ".mu" | None -> "mu") in
     [%expr [%e mu] (fun [%p pvar fparam] -> [%e e])]
 
   let repr_name_of_type_name = function "t" -> "t" | x -> x ^ "_t"
 
+  let in_lib ~lib x = match lib with Some lib -> lib ^ "." ^ x | None -> x
+
   let rec derive_core typ =
-    let* { rec_flag; type_name; repr_name; rec_detected; _ } = ask in
+    let* { rec_flag; type_name; repr_name; rec_detected; lib } = ask in
     match typ.ptyp_desc with
     | Ptyp_constr ({ txt = const_name; _ }, args) -> (
         match Attribute.get Attributes.repr typ with
@@ -130,7 +117,7 @@ module Located (A : Ast_builder.S) : S = struct
                       in
                       if nobuiltin || not (SSet.mem const_name irmin_types) then
                         repr_name_of_type_name const_name
-                      else const_name
+                      else in_lib ~lib const_name
                   in
                   Located.lident name
               | Ldot (lident, name) ->
@@ -155,33 +142,36 @@ module Located (A : Ast_builder.S) : S = struct
     | _ -> invalid_arg "unsupported"
 
   and derive_tuple args =
+    let* State.{ lib; _ } = ask in
     match args with
     | [ t ] ->
         (* This case can occur when the tuple type is nested inside a variant *)
         derive_core t
     | _ ->
         let tuple_type =
-          match List.length args with
+          (match List.length args with
           | 2 -> "pair"
           | 3 -> "triple"
-          | n -> Raise.Unsupported.tuple_size ~loc n
+          | n -> Raise.Unsupported.tuple_size ~loc n)
+          |> in_lib ~lib
+          |> evar
         in
         args
         >|= derive_core
         |> sequence
-        |> map (List.map unlabelled >> pexp_apply (evar tuple_type))
+        |> map (List.map unlabelled >> pexp_apply tuple_type)
 
   and derive_record ls =
-    let* State.{ type_name; _ } = ask in
+    let* State.{ type_name; lib; _ } = ask in
     let subderive label_decl =
       let field_name = label_decl.pld_name.txt in
       let+ field_repr = derive_core label_decl.pld_type in
       Algebraic.Typ.{ field_name; field_repr }
     in
-    Algebraic.(encode Typ.Record) ~subderive ~type_name ls
+    Algebraic.(encode Typ.Record) ~subderive ~lib ~type_name ls
 
   and derive_variant cs =
-    let* { type_name; _ } = ask in
+    let* { type_name; lib; _ } = ask in
     let subderive c =
       let case_name = c.pcd_name.txt in
       let+ case_cons =
@@ -194,9 +184,10 @@ module Located (A : Ast_builder.S) : S = struct
       in
       Algebraic.Typ.{ case_name; case_cons }
     in
-    Algebraic.(encode Variant) ~subderive ~type_name cs
+    Algebraic.(encode Variant) ~subderive ~lib ~type_name cs
 
   and derive_polyvariant name rowfields =
+    let* { lib; _ } = ask in
     let subderive f =
       let+ case_name, case_cons =
         match f.prf_desc with
@@ -208,7 +199,7 @@ module Located (A : Ast_builder.S) : S = struct
       in
       Algebraic.Typ.{ case_name; case_cons }
     in
-    Algebraic.(encode Polyvariant) ~subderive ~type_name:name rowfields
+    Algebraic.(encode Polyvariant) ~subderive ~lib ~type_name:name rowfields
 
   let derive_lident :
       ?repr:expression -> ?nobuiltin:unit -> longident -> expression Reader.t =
@@ -221,9 +212,7 @@ module Located (A : Ast_builder.S) : S = struct
         match txt with
         | Lident cons_name ->
             if (not nobuiltin) && SSet.mem cons_name irmin_types then
-              match lib with
-              | Some lib -> evar (String.concat "." [ lib; cons_name ])
-              | None -> evar cons_name
+              evar (in_lib ~lib cons_name)
             else
               (* If not a basic type, assume a composite
                  repr /w same naming convention *)
@@ -247,9 +236,9 @@ module Located (A : Ast_builder.S) : S = struct
                 and nobuiltin = Attribute.get Attributes.nobuiltin c in
                 derive_lident ?repr ?nobuiltin txt
             (* Type constructor: list, tuple, etc. *)
-            | _ -> with_open_lib (derive_core c)))
-    | Ptype_variant cs -> with_open_lib (derive_variant cs)
-    | Ptype_record ls -> with_open_lib (derive_record ls)
+            | _ -> derive_core c))
+    | Ptype_variant cs -> derive_variant cs
+    | Ptype_record ls -> derive_record ls
     | Ptype_open -> Raise.Unsupported.type_open ~loc
 
   let parse_lib expr =
@@ -285,13 +274,14 @@ module Located (A : Ast_builder.S) : S = struct
           match lib with Some l -> parse_lib l | None -> Some lib_default
         in
         let ty_lident =
-          match lib with
-          | Some l -> Located.lident (String.concat "." [ l; "t" ])
+          (match lib with
+          | Some _ -> in_lib ~lib "t"
           | None -> (
               (* This type decl may shadow the repr type ['a t] *)
               match name.txt with
-              | "t" -> Located.lident "ty"
-              | _ -> Located.lident "t")
+              | "t" -> "ty"
+              | _ -> "t"))
+          |> Located.lident
         in
         let type_ =
           ptyp_constr ty_lident [ ptyp_constr (Located.lident type_name) [] ]

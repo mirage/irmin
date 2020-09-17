@@ -126,6 +126,38 @@
  (action
   (run ./composite.exe)))
 
+; -------- Test: `json_module.ml` --------
+
+; The PPX-dependent executable under test
+(executable
+ (name json_module)
+ (modules json_module)
+ (preprocess (pps ppx_irmin))
+ (libraries irmin))
+
+; Run the PPX on the `.ml` file
+(rule
+ (targets json_module.actual)
+ (deps
+  (:pp pp.exe)
+  (:input json_module.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+; Compare the post-processed output to the .expected file
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff json_module.expected json_module.actual)))
+
+; Ensure that the post-processed executable runs correctly
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (run ./json_module.exe)))
+
 ; -------- Test: `lib_relocated.ml` --------
 
 ; The PPX-dependent executable under test

@@ -44,6 +44,7 @@ module type S = sig
   val encode :
     ('a, 'b) Typ.t ->
     subderive:('a -> 'b M.t) ->
+    lib:string option ->
     type_name:string ->
     'a list ->
     expression M.t

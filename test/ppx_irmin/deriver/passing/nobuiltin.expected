@@ -21,8 +21,8 @@ module Nobuiltin_operator =
     let int64_t = Irmin.Type.bool
     type u = (((((int32)[@nobuiltin ]), int64) result)[@nobuiltin ])[@@deriving
                                                                     irmin]
-    include
-      struct let u_t = let open Irmin.Type in result_t int32_t int64 end
-    [@@ocaml.doc "@inline"][@@merlin.hide ]
+    include struct let u_t = result_t int32_t Irmin.Type.int64 end[@@ocaml.doc
+                                                                    "@inline"]
+    [@@merlin.hide ]
     let (_ : (int * int64) Irmin.Type.t) = u_t
   end
