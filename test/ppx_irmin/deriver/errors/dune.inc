@@ -212,27 +212,4 @@
  (action
   (diff unsupported_type_poly.expected unsupported_type_poly.actual)))
 
-; -------- Test: `unsupported_type_variable.ml` --------
-
-
-
-; Run the PPX on the `.ml` file
-(rule
- (targets unsupported_type_variable.actual)
- (deps
-  (:pp pp.exe)
-  (:input unsupported_type_variable.ml))
- (action
-  ; expect the process to fail, capturing stderr
-  (with-stderr-to
-   %{targets}
-   (bash "! ./%{pp} -no-color --impl %{input}"))))
-
-; Compare the post-processed output to the .expected file
-(rule
- (alias runtest)
- (package ppx_irmin)
- (action
-  (diff unsupported_type_variable.expected unsupported_type_variable.actual)))
-
 

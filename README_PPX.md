@@ -8,24 +8,24 @@ PPX extension for automatically generating Irmin type representations.
 `_ Irmin.Type.t`) corresponding to type declarations in your code. For example:
 
 ```ocaml
-type tree =
+type 'a tree =
   | Branch of tree * bool option * tree
-  | Leaf of int32 * string [@@deriving irmin]
+  | Leaf of 'a [@@deriving irmin]
 ```
 
 will be expanded to:
 
 ```ocaml
-type tree = (* as above *)
+type 'a tree = (* as above *)
 
-let tree_t =
+let tree_t leaf_t =
   let open Irmin.Type in
   mu (fun tree_t ->
       variant "tree" (fun branch leaf -> function
           | Branch (x1, x2, x3) -> branch (x1, x2, x3)
           | Leaf   (x1, x2)     -> leaf (x1, x2))
       |~ case1 "Branch" (triple tree_t (option bool) tree_t) (fun (x1, x2, x3) -> Branch (x1, x2, x3))
-      |~ case1 "Leaf"   (pair int32 string)                  (fun (x1, x2) -> Leaf (x1, x2))
+      |~ case1 "Leaf"   leaf_t                               (fun x1 -> Leaf x1)
       |> sealv)
 ```
 
@@ -52,8 +52,8 @@ automatically derive an Irmin type representation with the same name.
 `ppx_irmin` supports all of the type combinators exposed in the
 [Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic
 types, records, variants (plain and closed polymorphic), recursive types etc.).
-Irmin does not currently support higher-kinded type representations: all Irmin
-types must fully grounded (no polymorphic type variables).
+Types with parameters will result in parameterised representations (i.e. type
+`'a t` is generated a representation of type `'a Type.t -> 'a t Type.t`).
 
 To supply base representations from a module other than `Irmin.Type` (such as
 when `Irmin.Type` is aliased to a different module path), the `lib` argument

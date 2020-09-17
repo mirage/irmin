@@ -18,22 +18,16 @@ include Algebraic_intf
 open Typ
 open Ppxlib
 
-let ( >> ) f g x = g (f x)
-
 module Located (A : Ast_builder.S) (M : Monad.S) : S with module M = M = struct
   module M = M
+  open Utils
+
+  open Utils.Make (A)
+
   open A
-
-  let ( >|= ) x f = List.map f x
-
-  let compose_all : type a. (a -> a) list -> a -> a =
-   fun l x -> List.fold_left ( |> ) x (List.rev l)
 
   let generate_identifiers n =
     List.init n (fun i -> Printf.sprintf "x%d" (i + 1))
-
-  (** [lambda \[ "x_1"; ...; "x_n" \] e] is [fun x1 ... xN -> e] *)
-  let lambda params = params >|= (pvar >> pexp_fun Nolabel None) |> compose_all
 
   let dsl ~lib =
     (function
