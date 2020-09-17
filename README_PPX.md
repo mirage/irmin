@@ -52,12 +52,12 @@ automatically derive an Irmin type representation with the same name.
 `ppx_irmin` supports all of the type combinators exposed in the
 [Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic
 types, records, variants (plain and closed polymorphic), recursive types etc.).
-Irmin does not currently support higher-kinded type representations: all Irmin types must
-fully grounded (no polymorphic type variables).
+Irmin does not currently support higher-kinded type representations: all Irmin
+types must fully grounded (no polymorphic type variables).
 
 To supply base representations from a module other than `Irmin.Type` (such as
-when `Irmin.Type` is aliased to a different module path), the `lib` argument can
-be passed to `@@deriving irmin`:
+when `Irmin.Type` is aliased to a different module path), the `lib` argument
+can be passed to `@@deriving irmin`:
 
 ```ocaml
 type foo = unit [@@deriving irmin { lib = Some "Mylib.Types" }]
@@ -68,9 +68,9 @@ val foo_t = Mylib.Types.unit
 
 #### Naming scheme
 
-The generated type representation will be called `<type-name>_t`, unless the type-name is
-`t`, in which case the representation is simply `t`. This behaviour can be overridden
-using the `name` argument, as in:
+The generated type representation will be called `<type-name>_t`, unless the
+type-name is `t`, in which case the representation is simply `t`. This
+behaviour can be overridden using the `name` argument, as in:
 
 ```ocaml
 type foo = string list * int32 [@@deriving irmin { name = "foo_repr" }]
@@ -93,7 +93,6 @@ val bar_t = Irmin.Type.(result foo_repr string)
 Built-in abstract types such as `unit` are assumed to be represented in
 `Irmin.Type`. This behaviour can be overridden with the `[@nobuiltin]`
 attribute:
-
 
 ```ocaml
 type t = unit [@nobuiltin] [@@deriving irmin]
