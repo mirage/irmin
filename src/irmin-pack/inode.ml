@@ -567,6 +567,8 @@ struct
 
       let add ~find t s v = add ~find ~copy:true t s v
 
+      let return = Lwt.pause
+
       let lwt_array_iter_s arr f =
         let rec aux i =
           if i = Array.length arr then Lwt.return_unit
@@ -584,9 +586,11 @@ struct
           | Inodes n ->
               lwt_array_iter_s n.entries (function
                 | Empty | Inode { tree = None; _ } -> Lwt.return_unit
-                | Inode ({ tree = Some t; _ } as i) ->
+                | Inode ({ tree = Some t; _ } as i) -> (
                     let hash = hash_of_inode i in
-                    if mem hash then Lwt.return_unit else aux ~seed:(seed + 1) t)
+                    mem hash >>= function
+                    | true -> return ()
+                    | false -> aux ~seed:(seed + 1) t))
               >>= fun () -> add (Lazy.force t.hash) (to_bin t)
         in
         aux ~seed:0 t

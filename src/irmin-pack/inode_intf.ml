@@ -60,7 +60,10 @@ module type INODE_INTER = sig
     val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
 
     val save_lwt :
-      add:(hash -> Elt.t -> unit Lwt.t) -> mem:(hash -> bool) -> t -> unit Lwt.t
+      add:(hash -> Elt.t -> unit Lwt.t) ->
+      mem:(hash -> bool Lwt.t) ->
+      t ->
+      unit Lwt.t
 
     val hash : t -> hash
   end

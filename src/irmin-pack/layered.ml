@@ -26,6 +26,8 @@ module type CA = sig
   module Key : Irmin.Hash.TYPED with type t = key and type value = value
 end
 
+let return = Lwt.pause
+
 module Copy
     (Key : Irmin.Hash.S)
     (SRC : Pack.S with type key = Key.t)
@@ -45,8 +47,6 @@ struct
         Log.debug (fun l -> l "already in dst %a" (Irmin.Type.pp Key.t) k);
         true
     | false -> false
-
-  let return = Lwt.pause
 
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
@@ -148,7 +148,7 @@ module Content_addressable
   let unsafe_append t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
         unsafe_append' t k v;
-        Lwt.return_unit)
+        return ())
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
@@ -186,8 +186,11 @@ module Content_addressable
 
   let unsafe_mem t k =
     let current = current_upper t in
-    U.unsafe_mem current k
-    || match t.lower with None -> false | Some lower -> L.unsafe_mem lower k
+    let b =
+      U.unsafe_mem current k
+      || match t.lower with None -> false | Some lower -> L.unsafe_mem lower k
+    in
+    Lwt.return b
 
   (** Only flush current upper, to prevent concurrent flushing and appends
       during copy. Next upper and lower are flushed at the end of a freeze. *)

@@ -272,7 +272,7 @@ struct
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
 
-    let return () = Lwt.return_unit
+    let return = Lwt.pause
 
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->

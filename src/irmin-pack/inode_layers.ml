@@ -139,6 +139,7 @@ module Make
           add k v;
           return ()
         in
+        let mem k = mem k |> Lwt.return in
         return () >>= fun () -> Inode.Val.save_lwt ~add ~mem v'.Val.v
 
   let copy_to_lower ~dst t k =

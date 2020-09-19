@@ -90,6 +90,8 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   val unsafe_append : 'a t -> key -> value -> unit Lwt.t
 
+  val unsafe_mem : 'a t -> key -> bool Lwt.t
+
   val flush_next_lower : 'a t -> unit
 end
 
