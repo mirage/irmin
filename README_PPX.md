@@ -66,6 +66,9 @@ type foo = unit [@@deriving irmin { lib = Some "Mylib.Types" }]
 val foo_t = Mylib.Types.unit
 ```
 
+This argument can also be passed as a command-line option (i.e. `--lib
+Mylib.Types`, with `--lib ''` interpreted as the current module).
+
 #### Naming scheme
 
 The generated type representation will be called `<type-name>_t`, unless the

@@ -38,15 +38,17 @@ let irmin_types =
     ]
 
 module type S = sig
+  val parse_lib : expression -> string option
+
   val derive_str :
     ?name:string ->
-    ?lib:expression ->
+    ?lib:string ->
     rec_flag * type_declaration list ->
     structure_item list
 
   val derive_sig :
     ?name:string ->
-    ?lib:expression ->
+    ?lib:string ->
     rec_flag * type_declaration list ->
     signature_item list
 end
@@ -268,8 +270,6 @@ module Located (A : Ast_builder.S) : S = struct
           "Could not process `lib' argument: must be either `Some \"Lib\"' or \
            `None'"
 
-  let lib_default = "Irmin.Type"
-
   let derive_sig ?name ?lib input_ast =
     match input_ast with
     | _, [ typ ] ->
@@ -279,9 +279,6 @@ module Located (A : Ast_builder.S) : S = struct
             (match name with
             | Some n -> n
             | None -> repr_name_of_type_name type_name)
-        in
-        let lib =
-          match lib with Some l -> parse_lib l | None -> Some lib_default
         in
         let ty_lident =
           (match lib with
@@ -318,9 +315,6 @@ module Located (A : Ast_builder.S) : S = struct
             | None -> repr_name_of_type_name type_name
           in
           let rec_detected = ref false in
-          let lib =
-            match lib with Some l -> parse_lib l | None -> Some lib_default
-          in
           let var_repr v = if List.mem v tparams then Some (evar v) else None in
           { rec_flag; type_name; repr_name; rec_detected; lib; var_repr }
         in
