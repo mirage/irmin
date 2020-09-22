@@ -260,6 +260,43 @@ struct
 
       let branch_t t = t.branch
 
+      module Iterate = struct
+        module Contents = struct
+          include Contents.CA
+
+          type t = [ `Read ] Contents.CA.t
+        end
+
+        module Nodes = struct
+          include Node.CA
+
+          type t = [ `Read ] Node.CA.t
+        end
+
+        module Commits = struct
+          include Commit.CA
+
+          type t = [ `Read ] Commit.CA.t
+        end
+
+        type 'a store_fn = {
+          f : 't. (module S.STORE with type t = 't) -> 't -> 'a;
+        }
+        [@@ocaml.unboxed]
+
+        let iter_lwt (f : unit Lwt.t store_fn) t : unit Lwt.t =
+          f.f (module Contents) t.contents >>= fun () ->
+          f.f (module Nodes) t.node >>= fun () ->
+          f.f (module Commits) t.commit >>= fun () ->
+          f.f (module Branch) t.branch
+
+        let iter (f : unit store_fn) t : unit =
+          f.f (module Contents) t.contents;
+          f.f (module Nodes) t.node;
+          f.f (module Commits) t.commit;
+          f.f (module Branch) t.branch
+      end
+
       let batch t f =
         Contents.CA.batch t.contents (fun contents ->
             Node.CA.batch t.node (fun node ->
@@ -379,9 +416,14 @@ struct
         Index.close (fst t.uppers_index);
         Index.close (snd t.uppers_index);
         IO_layers.close t.flip_file >>= fun () ->
-        Contents.CA.close t.contents >>= fun () ->
-        Node.CA.close t.node >>= fun () ->
-        Commit.CA.close t.commit >>= fun () -> Branch.close t.branch
+        let f : unit Lwt.t Iterate.store_fn =
+          {
+            f =
+              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                C.close x);
+          }
+        in
+        Iterate.iter_lwt f t
 
       let close t = Lwt_mutex.with_lock freeze_lock (fun () -> unsafe_close t)
 
@@ -403,9 +445,14 @@ struct
             ~on_generation_change_next_upper t.contents
         in
         t.flip <- flip;
-        Node.CA.update_flip ~flip t.node;
-        Commit.CA.update_flip ~flip t.commit;
-        Branch.update_flip ~flip t.branch
+        let f : unit Iterate.store_fn =
+          {
+            f =
+              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                C.update_flip ~flip x);
+          }
+        in
+        Iterate.iter f t
 
       let clear t = Contents.CA.clear t.contents
 
@@ -464,10 +511,14 @@ struct
 
       let flip_upper t =
         t.flip <- not t.flip;
-        Contents.CA.flip_upper t.contents;
-        Node.CA.flip_upper t.node;
-        Commit.CA.flip_upper t.commit;
-        Branch.flip_upper t.branch
+        let f : unit Iterate.store_fn =
+          {
+            f =
+              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                C.flip_upper x);
+          }
+        in
+        Iterate.iter f t
 
       let write_flip t = IO_layers.write_flip t.flip t.flip_file
 
@@ -483,18 +534,25 @@ struct
       let rec copy_newies_to_next_upper t former_offset =
         let offset = offset t in
         if offset -- former_offset >= newies_limit then
-          Contents.CA.copy_newies_to_next_upper t.contents >>= fun () ->
-          Node.CA.copy_newies_to_next_upper t.node >>= fun () ->
-          Commit.CA.copy_newies_to_next_upper t.commit >>= fun () ->
-          Branch.copy_newies_to_next_upper t.branch >>= fun () ->
-          copy_newies_to_next_upper t offset
+          let f : unit Lwt.t Iterate.store_fn =
+            {
+              f =
+                (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                  C.copy_newies_to_next_upper x);
+            }
+          in
+          Iterate.iter_lwt f t >>= fun () -> copy_newies_to_next_upper t offset
         else Lwt.return_unit
 
       let copy_last_newies_to_next_upper t =
-        Contents.CA.copy_last_newies_to_next_upper t.contents;
-        Node.CA.copy_last_newies_to_next_upper t.node;
-        Commit.CA.copy_last_newies_to_next_upper t.commit;
-        Branch.copy_last_newies_to_next_upper t.branch
+        let f : unit Lwt.t Iterate.store_fn =
+          {
+            f =
+              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                C.copy_last_newies_to_next_upper x);
+          }
+        in
+        Iterate.iter_lwt f t
     end
   end
 

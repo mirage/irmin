@@ -84,7 +84,7 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
 
   val copy_newies_to_next_upper : 'a t -> unit Lwt.t
 
-  val copy_last_newies_to_next_upper : 'a t -> unit
+  val copy_last_newies_to_next_upper : 'a t -> unit Lwt.t
 
   val clear_caches_next_upper : 'a t -> unit
 
@@ -186,9 +186,23 @@ module type LAYERED_INODE = sig
 
   val copy_newies_to_next_upper : 'a t -> unit Lwt.t
 
-  val copy_last_newies_to_next_upper : 'a t -> unit
+  val copy_last_newies_to_next_upper : 'a t -> unit Lwt.t
 
   val update_flip : flip:bool -> 'a t -> unit
 
   val clear_caches_next_upper : 'a t -> unit
+end
+
+module type STORE = sig
+  type t
+
+  val close : t -> unit Lwt.t
+
+  val update_flip : flip:bool -> t -> unit
+
+  val flip_upper : t -> unit
+
+  val copy_newies_to_next_upper : t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : t -> unit Lwt.t
 end

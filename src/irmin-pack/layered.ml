@@ -376,7 +376,8 @@ module Content_addressable
         l "copy %d newies in %s " (List.length !newies) (log_next_upper t));
     let next = next_upper t in
     List.iter (fun (k, v) -> U.unsafe_append next k v) (List.rev !newies);
-    newies := []
+    newies := [];
+    Lwt.return_unit
 end
 
 module Pack_Maker
