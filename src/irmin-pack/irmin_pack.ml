@@ -242,6 +242,10 @@ struct
 
       (** Stores share instances so one clear is enough. *)
       let clear t = Contents.CA.clear (contents_t t)
+
+      let flush t =
+        Contents.CA.flush (contents_t t);
+        Branch.flush t.branch
     end
   end
 
@@ -317,6 +321,8 @@ struct
   let clear = X.Repo.clear
 
   let migrate = migrate
+
+  let flush = X.Repo.flush
 end
 
 module Hash = Irmin.Hash.BLAKE2B

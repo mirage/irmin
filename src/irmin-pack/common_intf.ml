@@ -35,6 +35,10 @@ module type Stores_extra = sig
       {b Note:} performing concurrent store operations during the migration, or
       attempting to use pre-migration instances of the repository after the
       migration is complete, will result in undefined behaviour. *)
+
+  val flush : repo -> unit
+  (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
+      by a readonly instance.*)
 end
 
 module type Common = sig
