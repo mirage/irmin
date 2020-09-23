@@ -15,4 +15,4 @@
  *)
 
 include Inode_intf.Inode
-(** @inline **)
+(** @inline *)

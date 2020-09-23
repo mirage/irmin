@@ -23,7 +23,7 @@ let src =
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make
-    (Conf : CONFIG)
+    (Conf : Config.S)
     (H : Irmin.Hash.S)
     (Pack : Pack.MAKER with type key = H.t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =

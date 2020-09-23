@@ -50,7 +50,7 @@ let config = Config.v
 module Pack_config = Config
 
 module Make_ext
-    (Config : CONFIG)
+    (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -332,7 +332,7 @@ module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 
 module Make
-    (Config : CONFIG)
+    (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -344,7 +344,7 @@ struct
   include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
-module KV (Config : CONFIG) (C : Irmin.Contents.S) =
+module KV (Config : Config.S) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 module Stats = Stats
 

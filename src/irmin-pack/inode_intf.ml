@@ -45,19 +45,11 @@ module type S = sig
   val clear_caches : 'a t -> unit
 end
 
-module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
-end
-
 module type Inode = sig
   module type S = S
 
-  module type CONFIG = CONFIG
-
   module Make
-      (Conf : CONFIG)
+      (Conf : Config.S)
       (H : Irmin.Hash.S)
       (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
