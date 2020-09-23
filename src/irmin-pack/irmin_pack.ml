@@ -45,7 +45,9 @@ module type Stores_extra = Stores_extra
 
 module Atomic_write = Atomic_write
 
-let config = config
+let config = Config.v
+
+module Pack_config = Config
 
 module Make_ext
     (Config : CONFIG)
@@ -189,12 +191,12 @@ struct
                     f contents node commit)))
 
       let unsafe_v config =
-        let root = root config in
-        let fresh = fresh config in
-        let lru_size = lru_size config in
-        let readonly = readonly config in
-        let log_size = index_log_size config in
-        let throttle = index_throttle config in
+        let root = Pack_config.root config in
+        let fresh = Pack_config.fresh config in
+        let lru_size = Pack_config.lru_size config in
+        let readonly = Pack_config.readonly config in
+        let log_size = Pack_config.index_log_size config in
+        let throttle = Pack_config.index_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -227,7 +229,7 @@ struct
               when expected = current_version ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
-                      (root config) pp_version found);
+                      (Pack_config.root config) pp_version found);
                 Lwt.fail (Unsupported_version found)
             | e -> Lwt.fail e)
 

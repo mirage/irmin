@@ -1,9 +1,3 @@
-module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
-end
-
 module type Stores_extra = sig
   type repo
 
@@ -42,8 +36,6 @@ module type Stores_extra = sig
 end
 
 module type Common = sig
-  module type CONFIG = CONFIG
-
   module type Stores_extra = Stores_extra
 
   module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) :

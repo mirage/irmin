@@ -42,7 +42,7 @@ exception RO_Not_Allowed
 exception Unsupported_version of IO.version
 
 module Make_ext
-    (Config : Common.CONFIG)
+    (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
     (Path : Irmin.Path.S)
@@ -68,7 +68,7 @@ module Make_ext
 end
 
 module Make
-    (Config : Common.CONFIG)
+    (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -87,7 +87,7 @@ module Make
   include Common.Stores_extra with type repo := repo
 end
 
-module KV (Config : Common.CONFIG) : Irmin.KV_MAKER
+module KV (Config : Config.S) : Irmin.KV_MAKER
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
