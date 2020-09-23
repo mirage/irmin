@@ -49,6 +49,8 @@
   - Added a `migrate` function for upgrading stores with old formats (#1070,
     @icristescu, @CraigFe)
 
+  - Added a `flush` function for a repo (#1092, @icristescu)
+
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
