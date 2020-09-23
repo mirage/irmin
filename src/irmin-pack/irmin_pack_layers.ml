@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -7,43 +7,46 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * MERCHANTABILITY AND FITNESIrmin. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
+let src = Logs.Src.create "irmin.pack.layers" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
-
-let pp_version = IO.pp_version
-
-module Pack = Pack
-module Dict = Pack_dict
-module Index = Pack_index
-
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-
-exception Unsupported_version of IO.version
-
-let () =
-  Printexc.register_printer (function
-    | Unsupported_version v ->
-        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" IO.pp_version v)
-    | _ -> None)
-
-module I = IO
-module IO = IO.Unix
 open Lwt.Infix
 module Atomic_write = Store.Atomic_write
-
-let config = Config.v
-
 module Pack_config = Config
+
+module Default = struct
+  let lower_root = "lower"
+
+  let upper_root1 = "upper1"
+end
+
+module Conf = Irmin.Private.Conf
+
+let lower_root_key =
+  Conf.key ~doc:"The root directory for the lower layer." "root_lower"
+    Conf.string Default.lower_root
+
+let lower_root conf = Conf.get conf lower_root_key
+
+let upper_root1_key =
+  Conf.key ~doc:"The root directory for the upper layer." "root_upper"
+    Conf.string Default.upper_root1
+
+let upper_root1 conf = Conf.get conf upper_root1_key
+
+let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
+    ?(upper_root1 = Default.upper_root1) () =
+  let config = Conf.add conf lower_root_key lower_root in
+  let config = Conf.add config upper_root1_key upper_root1 in
+  config
 
 module Make_ext
     (Config : Config.S)
@@ -60,6 +63,11 @@ module Make_ext
 struct
   module Index = Pack_index.Make (H)
   module Pack = Pack.File (Index) (H)
+
+  type store_handle =
+    | Commit_t : H.t -> store_handle
+    | Node_t : H.t -> store_handle
+    | Content_t : H.t -> store_handle
 
   module X = struct
     module Hash = H
@@ -103,14 +111,16 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Content_addressable (CA_Pack)
+        module CA = Closeable.Content_addressable (CA_Pack)
+        include Layered.Content_addressable (Index) (CA)
       end
 
       include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
-      module CA = Inode.Make (Config) (H) (Pack) (Node)
+      module Pa = Layered.Pack_Maker (H) (Index) (Pack)
+      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -143,7 +153,8 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Content_addressable (CA_Pack)
+        module CA = Closeable.Content_addressable (CA_Pack)
+        include Layered.Content_addressable (Index) (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -152,42 +163,59 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Store.Atomic_write (Key) (Val)
-      include Closeable.Atomic_write (AW)
+      module AW = Atomic_write (Key) (Val)
+      module Closeable_AW = Closeable.Atomic_write (AW)
+      include Layered.Atomic_write (Closeable_AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
     module Sync = Irmin.Private.Sync.None (H) (B)
 
     module Repo = struct
+      type upper_layer = {
+        contents : [ `Read ] Contents.CA.U.t;
+        node : [ `Read ] Node.CA.U.t;
+        commit : [ `Read ] Commit.CA.U.t;
+        branch : Branch.U.t;
+        index : Index.t;
+      }
+
+      type lower_layer = {
+        contents : [ `Read ] Contents.CA.L.t;
+        node : [ `Read ] Node.CA.L.t;
+        commit : [ `Read ] Commit.CA.L.t;
+        branch : Branch.L.t;
+        index : Index.t;
+      }
+
       type t = {
         config : Irmin.Private.Conf.t;
         contents : [ `Read ] Contents.CA.t;
         node : [ `Read ] Node.CA.t;
-        commit : [ `Read ] Commit.CA.t;
         branch : Branch.t;
-        index : Index.t;
+        commit : [ `Read ] Commit.CA.t;
+        lower_index : Index.t;
+        upper_index : Index.t;
       }
 
-      let contents_t t : 'a Contents.t = t.contents
+      let contents_t t = t.contents
 
-      let node_t t : 'a Node.t = (contents_t t, t.node)
+      let node_t t = (contents_t t, t.node)
 
-      let commit_t t : 'a Commit.t = (node_t t, t.commit)
+      let commit_t t = (node_t t, t.commit)
 
       let branch_t t = t.branch
 
       let batch t f =
-        Commit.CA.batch t.commit (fun commit ->
+        Contents.CA.batch t.contents (fun contents ->
             Node.CA.batch t.node (fun node ->
-                Contents.CA.batch t.contents (fun contents ->
+                Commit.CA.batch t.commit (fun commit ->
                     let contents : 'a Contents.t = contents in
                     let node : 'a Node.t = (contents, node) in
                     let commit : 'a Commit.t = (node, commit) in
                     f contents node commit)))
 
-      let unsafe_v config =
-        let root = Pack_config.root config in
+      let v_upper root config =
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
@@ -200,49 +228,81 @@ struct
               (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
-        Branch.v ~fresh ~readonly root >|= fun branch ->
-        (* Stores share instances in memory, one flush is enough. In case of a
-           system crash, the flush_callback might not make with the disk. In
-           this case, when the store is reopened, [integrity_check] needs to be
-           called to repair the store. *)
-        (f := fun () -> Contents.CA.flush ~index:false contents);
-        { contents; node; commit; branch; config; index }
+        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
+        >>= fun contents ->
+        Node.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
+        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
+        Branch.U.v ~fresh ~readonly root >|= fun branch ->
+        (f := fun () -> Contents.CA.U.flush ~index:false contents);
+        ({ index; contents; node; commit; branch } : upper_layer)
 
-      let close t =
-        Index.close t.index;
-        Contents.CA.close (contents_t t) >>= fun () ->
-        Node.CA.close (snd (node_t t)) >>= fun () ->
-        Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+      let v_lower root config =
+        let fresh = Pack_config.fresh config in
+        let lru_size = Pack_config.lru_size config in
+        let readonly = Pack_config.readonly config in
+        let log_size = Pack_config.index_log_size config in
+        let throttle = Pack_config.index_throttle config in
+        let f = ref (fun () -> ()) in
+        let index =
+          Index.v
+            ~flush_callback:(fun () -> !f ())
+              (* backpatching to add pack flush before an index flush *)
+            ~fresh ~readonly ~throttle ~log_size root
+        in
+        Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
+        >>= fun contents ->
+        Node.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
+        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
+        Branch.L.v ~fresh ~readonly root >|= fun branch ->
+        (f := fun () -> Contents.CA.L.flush ~index:false contents);
+        ({ index; contents; node; commit; branch } : lower_layer)
 
       let v config =
-        Lwt.catch
-          (fun () -> unsafe_v config)
-          (function
-            | I.Invalid_version { expected; found }
-              when expected = current_version ->
-                Log.err (fun m ->
-                    m "[%s] Attempted to open store of unsupported version %a"
-                      (Pack_config.root config) pp_version found);
-                Lwt.fail (Unsupported_version found)
-            | e -> Lwt.fail e)
+        let root = Pack_config.root config in
+        let upper_root = Filename.concat root (upper_root1 config) in
+        v_upper upper_root config >>= fun upper ->
+        let lower_root = Filename.concat root (lower_root config) in
+        v_lower lower_root config >|= fun lower ->
+        let contents = Contents.CA.v upper.contents lower.contents in
+        let node = Node.CA.v upper.node lower.node in
+        let commit = Commit.CA.v upper.commit lower.commit in
+        let branch = Branch.v upper.branch lower.branch in
+        {
+          contents;
+          node;
+          commit;
+          branch;
+          config;
+          lower_index = lower.index;
+          upper_index = upper.index;
+        }
 
-      (** Stores share instances in memory, one sync is enough. However each
-          store has its own lru and all have to be cleared. *)
+      let close t =
+        Index.close t.lower_index;
+        Index.close t.upper_index;
+        Contents.CA.close t.contents >>= fun () ->
+        Node.CA.close t.node >>= fun () ->
+        Commit.CA.close t.commit >>= fun () -> Branch.close t.branch
+
       let sync t =
         let on_generation_change () =
-          Node.CA.clear_caches (snd (node_t t));
-          Commit.CA.clear_caches (snd (commit_t t))
+          Node.CA.clear_caches t.node;
+          Commit.CA.clear_caches t.commit
         in
-        Contents.CA.sync ~on_generation_change (contents_t t)
+        Contents.CA.sync ~on_generation_change t.contents
 
-      (** Stores share instances so one clear is enough. *)
-      let clear t = Contents.CA.clear (contents_t t)
+      let clear t = Contents.CA.clear t.contents
+
+      let migrate _ = failwith "not implemented"
+
+      let layer_id t store_handler =
+        match store_handler with
+        | Commit_t k -> Commit.CA.layer_id t.commit k
+        | Node_t k -> Node.CA.layer_id t.node k
+        | Content_t k -> Contents.CA.layer_id t.contents k
 
       let flush t =
-        Contents.CA.flush (contents_t t);
+        Contents.CA.flush t.contents;
         Branch.flush t.branch
     end
   end
@@ -292,7 +352,7 @@ struct
     in
     if auto_repair then
       try
-        Index.filter t.index (fun binding ->
+        Index.filter t.lower_index (fun binding ->
             match f binding with
             | Ok () -> true
             | Error `Wrong_hash -> raise Cannot_fix
@@ -308,7 +368,7 @@ struct
           | Ok () -> ()
           | Error `Wrong_hash -> incr nb_corrupted
           | Error `Absent_value -> incr nb_absent)
-        t.index;
+        t.lower_index;
       if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
       else Error (`Corrupted (!nb_corrupted + !nb_absent)))
 
@@ -318,34 +378,11 @@ struct
 
   let clear = X.Repo.clear
 
-  let migrate = Store.migrate
+  let migrate = X.Repo.migrate
 
   let flush = X.Repo.flush
+
+  let freeze ?min:_ ?max:_ ?squash:_ _repo = Lwt.return_unit
+
+  let layer_id t = X.Repo.layer_id t
 end
-
-module Hash = Irmin.Hash.BLAKE2B
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-
-module Make
-    (Config : Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
-end
-
-module KV (Config : Config.S) (C : Irmin.Contents.S) =
-  Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
-module Stats = Stats
-
-module Private = struct
-  module Utils = Utils
-end
-
-module Make_layered = Irmin_pack_layers.Make_ext

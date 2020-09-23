@@ -100,3 +100,5 @@ module Stats = Stats
 module Private : sig
   module Utils = Utils
 end
+
+module Make_layered = Irmin_pack_layers.Make_ext

@@ -21,3 +21,51 @@ module type ATOMIC_WRITE_STORE = sig
 
   val flush : t -> unit
 end
+
+module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
+  include Pack.S
+
+  module U : Pack.S
+
+  module L : Pack.S
+
+  val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+
+  val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+end
+
+module type LAYERED_ATOMIC_WRITE_STORE = sig
+  include ATOMIC_WRITE_STORE
+
+  module U : ATOMIC_WRITE_STORE
+
+  module L : ATOMIC_WRITE_STORE
+
+  val v : U.t -> L.t -> t
+end
+
+module type LAYERED_MAKER = sig
+  type key
+
+  type index
+
+  module Make (V : Pack.ELT with type hash := key) :
+    LAYERED_CONTENT_ADDRESSABLE_STORE
+      with type key = key
+       and type value = V.t
+       and type index = index
+       and type U.index = index
+       and type L.index = index
+end
+
+module type LAYERED_INODE = sig
+  include Inode.S
+
+  module U : Pack.S
+
+  module L : Pack.S
+
+  val v : [ `Read ] U.t -> [ `Read ] L.t -> 'a t
+
+  val layer_id : [ `Read ] t -> key -> [ `Upper | `Lower ] Lwt.t
+end

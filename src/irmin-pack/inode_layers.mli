@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,5 +13,18 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-include Pack_intf.Pack
-(** @inline *)
+
+module Make
+    (Conf : Config.S)
+    (H : Irmin.Hash.S)
+    (P : S.LAYERED_MAKER
+           with type key = H.t
+            and type index = Pack_index.Make(H).t)
+    (Node : Irmin.Private.Node.S with type hash = H.t) :
+  S.LAYERED_INODE
+    with type key = H.t
+     and type Val.metadata = Node.metadata
+     and type Val.step = Node.step
+     and type index = Pack_index.Make(H).t
+     and type U.index = Pack_index.Make(H).t
+     and type L.index = Pack_index.Make(H).t
