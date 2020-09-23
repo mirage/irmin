@@ -39,11 +39,7 @@ let () =
 module I = IO
 module IO = IO.Unix
 open Lwt.Infix
-open Common
-
-module type Stores_extra = Stores_extra
-
-module Atomic_write = Atomic_write
+module Atomic_write = Store.Atomic_write
 
 let config = Config.v
 
@@ -156,7 +152,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Atomic_write (Key) (Val)
+      module AW = Store.Atomic_write (Key) (Val)
       include Closeable.Atomic_write (AW)
     end
 
@@ -322,7 +318,7 @@ struct
 
   let clear = X.Repo.clear
 
-  let migrate = migrate
+  let migrate = Store.migrate
 
   let flush = X.Repo.flush
 end

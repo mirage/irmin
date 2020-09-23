@@ -1,4 +1,5 @@
-module type Stores_extra = sig
+(** [Irmin-pack]-specific extensions to the [Store] module type. *)
+module type S = sig
   type repo
 
   val integrity_check :
@@ -35,8 +36,8 @@ module type Stores_extra = sig
       by a readonly instance.*)
 end
 
-module type Common = sig
-  module type Stores_extra = Stores_extra
+module type Store = sig
+  module type S = S
 
   module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) :
     S.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t

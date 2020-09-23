@@ -1,4 +1,4 @@
-include Common_intf
+include Store_intf
 
 let src = Logs.Src.create "irmin.pack.commons" ~doc:"irmin-pack backend"
 

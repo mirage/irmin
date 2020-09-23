@@ -64,7 +64,7 @@ module Make_ext
        and type Key.step = Path.step
        and type Private.Sync.endpoint = unit
 
-  include Common.Stores_extra with type repo := repo
+  include Store.S with type repo := repo
 end
 
 module Make
@@ -84,7 +84,7 @@ module Make
        and type hash = H.t
        and type Private.Sync.endpoint = unit
 
-  include Common.Stores_extra with type repo := repo
+  include Store.S with type repo := repo
 end
 
 module KV (Config : Config.S) : Irmin.KV_MAKER
