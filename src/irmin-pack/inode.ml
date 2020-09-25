@@ -734,21 +734,16 @@ struct
   end
 end
 
-module Make
-    (Conf : Config.S)
+module Make_ext
     (H : Irmin.Hash.S)
-    (Pack : Pack.MAKER with type key = H.t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inode : INODE_EXT with type hash = H.t)
+    (Val : VAL_INTER
+             with type hash = H.t
+              and type inode_val = Inode.Val.t
+              and type metadata = Node.metadata
+              and type step = Node.step) =
 struct
-  type index = Pack.index
-
-  include Make_intermediate (Conf) (H) (Node)
-
-  module Inode = struct
-    include Inode
-    include Pack.Make (Inode.Elt)
-  end
-
   module Key = H
 
   type 'a t = 'a Inode.t
@@ -810,4 +805,22 @@ struct
   let clear = Inode.clear
 
   let clear_caches = Inode.clear_caches
+end
+
+module Make
+    (Conf : Config.S)
+    (H : Irmin.Hash.S)
+    (Pack : Pack.MAKER with type key = H.t)
+    (Node : Irmin.Private.Node.S with type hash = H.t) =
+struct
+  type index = Pack.index
+
+  include Make_intermediate (Conf) (H) (Node)
+
+  module Inode = struct
+    include Inode
+    include Pack.Make (Elt)
+  end
+
+  include Make_ext (H) (Node) (Inode) (Val)
 end

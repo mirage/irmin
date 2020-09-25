@@ -73,6 +73,35 @@ module type VAL_INTER = sig
   include Irmin.Private.Node.S with type hash := hash and type t := t
 end
 
+module type INODE_EXT = sig
+  include INODE_INTER
+
+  include Pack.S with type value = Elt.t and type key = hash
+end
+
+module type S_EXT = sig
+  include Irmin.CONTENT_ADDRESSABLE_STORE
+
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+  module Key : Irmin.Hash.S with type t = key
+
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
+
+  val close : 'a t -> unit Lwt.t
+
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
+
+  val clear_caches : 'a t -> unit
+
+  val hash : value -> key
+
+  val check_hash : key -> key -> unit
+end
+
 module type Inode = sig
   module type S = S
 
@@ -88,6 +117,17 @@ module type Inode = sig
          and type metadata = Node.metadata
          and type step = Node.step
   end
+
+  module Make_ext
+      (H : Irmin.Hash.S)
+      (Node : Irmin.Private.Node.S with type hash = H.t)
+      (Inode : INODE_EXT with type hash = H.t)
+      (Val : VAL_INTER
+               with type hash = H.t
+                and type inode_val = Inode.Val.t
+                and type metadata = Node.metadata
+                and type step = Node.step) :
+    S_EXT with type key = H.t and type 'a t = 'a Inode.t and type value = Val.t
 
   module Make
       (Conf : Config.S)
