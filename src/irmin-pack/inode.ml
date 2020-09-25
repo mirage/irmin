@@ -22,14 +22,11 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make
+module Make_intermediate
     (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (Pack : Pack.MAKER with type key = H.t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack.index
-
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
@@ -588,7 +585,7 @@ struct
         aux ~seed:0 t
     end
 
-    include Pack.Make (struct
+    module Elt = struct
       type t = Bin.t
 
       let t = Bin.t
@@ -686,12 +683,18 @@ struct
         in
         if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
         else Bin.inode ~hash:(lazy i.hash) (t i.v)
-    end)
+    end
+
+    type hash = T.hash
+
+    let pp_hash = T.pp_hash
   end
 
   module Val = struct
     include T
     module I = Inode.Val
+
+    type inode_val = I.t
 
     type t = { mutable find : H.t -> I.t option; v : I.t }
 
@@ -729,6 +732,22 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
   end
+end
+
+module Make
+    (Conf : Config.S)
+    (H : Irmin.Hash.S)
+    (Pack : Pack.MAKER with type key = H.t)
+    (Node : Irmin.Private.Node.S with type hash = H.t) =
+struct
+  type index = Pack.index
+
+  include Make_intermediate (Conf) (H) (Node)
+
+  module Inode = struct
+    include Inode
+    include Pack.Make (Inode.Elt)
+  end
 
   module Key = H
 
@@ -759,7 +778,7 @@ struct
     let add k v = Inode.unsafe_append t k v in
     Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
 
-  let hash v = Lazy.force v.Val.v.Inode.Val.hash
+  let hash v = Inode.Val.hash v.Val.v
 
   let add t v =
     save t v.Val.v;
@@ -768,8 +787,8 @@ struct
   let check_hash expected got =
     if Irmin.Type.equal H.t expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" T.pp_hash expected
-        T.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
+        expected Inode.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);

@@ -45,8 +45,49 @@ module type S = sig
   val clear_caches : 'a t -> unit
 end
 
+module type INODE_INTER = sig
+  type hash
+
+  val pp_hash : hash Fmt.t
+
+  module Elt : Pack.ELT with type hash := hash
+
+  module Val : sig
+    type t
+
+    val of_bin : Elt.t -> t
+
+    val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
+
+    val hash : t -> hash
+  end
+end
+
+module type VAL_INTER = sig
+  type hash
+
+  type inode_val
+
+  type t = { mutable find : hash -> inode_val option; v : inode_val }
+
+  include Irmin.Private.Node.S with type hash := hash and type t := t
+end
+
 module type Inode = sig
   module type S = S
+
+  module Make_intermediate
+      (Conf : Config.S)
+      (H : Irmin.Hash.S)
+      (Node : Irmin.Private.Node.S with type hash = H.t) : sig
+    module Inode : INODE_INTER
+
+    module Val :
+      VAL_INTER
+        with type inode_val = Inode.Val.t
+         and type metadata = Node.metadata
+         and type step = Node.step
+  end
 
   module Make
       (Conf : Config.S)

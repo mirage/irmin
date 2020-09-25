@@ -98,6 +98,8 @@ module type MAKER = sig
 end
 
 module type Pack = sig
+  module type ELT = ELT
+
   module type S = S
 
   module type MAKER = MAKER
