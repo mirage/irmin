@@ -14,50 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
-end
-
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  module Key : Irmin.Hash.S with type t = key
-
-  module Val : Irmin.Private.Node.S with type t = value and type hash = key
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-
-  val clear_caches : 'a t -> unit
-end
-
-module Make
-    (Conf : CONFIG)
-    (H : Irmin.Hash.S)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) :
-  S
-    with type key = H.t
-     and type Val.metadata = Node.metadata
-     and type Val.step = Node.step
-     and type index = Pack_index.Make(H).t
+include Inode_intf.Inode
+(** @inline **)
