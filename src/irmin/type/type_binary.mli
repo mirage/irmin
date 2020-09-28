@@ -26,6 +26,6 @@ module Unboxed : sig
   val decode_bin : 'a t -> 'a decode_bin
 end
 
-val to_bin_string : 'a t -> 'a to_string
+val to_bin_string : 'a t -> 'a to_string staged
 
-val of_bin_string : 'a t -> 'a of_string
+val of_bin_string : 'a t -> 'a of_string staged

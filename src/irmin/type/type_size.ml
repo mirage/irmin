@@ -15,6 +15,8 @@
  *)
 
 open Type_core
+open Staging
+open Utils
 
 let ( >>= ) x f = match x with Some x -> f x | None -> None
 
@@ -66,37 +68,48 @@ let unboxed_bytes = function
 
 let bytes ~boxed = if boxed then boxed_bytes else unboxed_bytes
 
-let list l n x =
-  let init = len (List.length x) n in
-  List.fold_left
-    (fun acc x ->
-      acc >>= fun acc ->
-      l x >|= fun l -> acc + l)
-    (Some init) x
+let list l n =
+  let l = unstage l in
+  stage (fun x ->
+      let init = len (List.length x) n in
+      List.fold_left
+        (fun acc x ->
+          acc >>= fun acc ->
+          l x >|= fun l -> acc + l)
+        (Some init) x)
 
-let array l n x =
-  let init = len (Array.length x) n in
-  Array.fold_left
-    (fun acc x ->
-      acc >>= fun acc ->
-      l x >|= fun l -> acc + l)
-    (Some init) x
+let array l n =
+  let l = unstage l in
+  stage (fun x ->
+      let init = len (Array.length x) n in
+      Array.fold_left
+        (fun acc x ->
+          acc >>= fun acc ->
+          l x >|= fun l -> acc + l)
+        (Some init) x)
 
-let pair a b (x, y) =
-  a x >>= fun a ->
-  b y >|= fun b -> a + b
+let pair a b =
+  let a = unstage a and b = unstage b in
+  stage (fun (x, y) ->
+      a x >>= fun a ->
+      b y >|= fun b -> a + b)
 
-let triple a b c (x, y, z) =
-  a x >>= fun a ->
-  b y >>= fun b ->
-  c z >|= fun c -> a + b + c
+let triple a b c =
+  let a = unstage a and b = unstage b and c = unstage c in
+  stage (fun (x, y, z) ->
+      a x >>= fun a ->
+      b y >>= fun b ->
+      c z >|= fun c -> a + b + c)
 
-let option o = function
-  | None -> Some (char '\000')
-  | Some x -> o x >|= fun o -> char '\000' + o
+let option o =
+  let o = unstage o in
+  stage (function
+    | None -> Some (char '\000')
+    | Some x -> o x >|= fun o -> char '\000' + o)
 
 let rec t : type a. a t -> a size_of = function
-  | Self s -> t s.self_fix
+  | Self s ->
+      fix_staged (fun size_of -> t (s.self_unroll (partial ~size_of ())))
   | Custom c -> c.size_of
   | Map b -> map ~boxed:true b
   | Prim t -> prim ~boxed:true t
@@ -110,7 +123,9 @@ let rec t : type a. a t -> a size_of = function
   | Var v -> raise (Unbound_type_variable v)
 
 and unboxed : type a. a t -> a size_of = function
-  | Self s -> unboxed s.self_fix
+  | Self s ->
+      fix_staged (fun unboxed_size_of ->
+          unboxed (s.self_unroll (partial ~unboxed_size_of ())))
   | Custom c -> c.unboxed_size_of
   | Map b -> map ~boxed:false b
   | Prim t -> prim ~boxed:false t
@@ -123,51 +138,49 @@ and unboxed : type a. a t -> a size_of = function
   | Variant v -> variant v
   | Var v -> raise (Unbound_type_variable v)
 
-and tuple : type a. a tuple -> a size_of =
- fun ty ->
-  match ty with
+and tuple : type a. a tuple -> a size_of = function
   | Pair (x, y) -> pair (t x) (t y)
   | Triple (x, y, z) -> triple (t x) (t y) (t z)
 
 and map : type a b. boxed:bool -> (a, b) map -> b size_of =
  fun ~boxed { x; g; _ } ->
-  let size_of = if boxed then t x else unboxed x in
-  fun u -> size_of (g u)
+  let size_of = unstage (if boxed then t x else unboxed x) in
+  stage (fun u -> size_of (g u))
 
 and prim : type a. boxed:bool -> a prim -> a size_of =
- fun ~boxed p ->
-  match p with
-  | Unit -> fun x -> Some (unit x)
-  | Bool -> fun x -> Some (bool x)
-  | Char -> fun x -> Some (char x)
-  | Int -> fun x -> Some (int x)
-  | Int32 -> fun x -> Some (int32 x)
-  | Int64 -> fun x -> Some (int64 x)
-  | Float -> fun x -> Some (float x)
+ fun ~boxed -> function
+  | Unit -> stage (fun x -> Some (unit x))
+  | Bool -> stage (fun x -> Some (bool x))
+  | Char -> stage (fun x -> Some (char x))
+  | Int -> stage (fun x -> Some (int x))
+  | Int32 -> stage (fun x -> Some (int32 x))
+  | Int64 -> stage (fun x -> Some (int64 x))
+  | Float -> stage (fun x -> Some (float x))
   | String n ->
       let size_of = string ~boxed n in
-      fun x -> Some (size_of x)
+      stage (fun x -> Some (size_of x))
   | Bytes n ->
       let size_of = bytes ~boxed n in
-      fun x -> Some (size_of x)
+      stage (fun x -> Some (size_of x))
 
 and record : type a. a record -> a size_of =
  fun r ->
-  let fields = fields r in
-  fun x ->
-    List.fold_left
-      (fun acc (Field f) ->
-        acc >>= fun acc ->
-        field f x >|= fun f -> acc + f)
-      (Some 0) fields
-
-and field : type a b. (a, b) field -> a size_of =
- fun f ->
-  let size_of = t f.ftype in
-  fun x -> size_of (f.fget x)
+  let field_sizers : (a -> int option) list =
+    fields r
+    |> List.map @@ fun (Field f) ->
+       let field_size = unstage (t f.ftype) in
+       fun x -> field_size (f.fget x)
+  in
+  stage (fun x ->
+      List.fold_left
+        (fun acc fsize -> acc >>= fun acc -> fsize x >|= ( + ) acc)
+        (Some 0) field_sizers)
 
 and variant : type a. a variant -> a size_of =
- fun v x ->
-  match v.vget x with
-  | CV0 v -> Some (int v.ctag0)
-  | CV1 (x, vx) -> t x.ctype1 vx >|= fun v -> int x.ctag1 + v
+  let c0 { ctag0; _ } = stage (Some (int ctag0)) in
+  let c1 { ctag1; ctype1; _ } =
+    let size_tag = int ctag1 in
+    let size_arg = unstage (t ctype1) in
+    stage (fun v -> size_arg v >|= ( + ) size_tag)
+  in
+  fun v -> fold_variant { c0; c1 } v

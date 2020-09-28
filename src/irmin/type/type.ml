@@ -15,11 +15,15 @@
  *)
 
 include Type_core
+include Staging
+open Utils
 
 let pre_hash t =
-  let rec aux : type a. a t -> a bin_seq = function
+  let rec aux : type a. a t -> a encode_bin = function
     | Self s -> aux s.self_fix
-    | Map m -> fun v -> aux m.x (m.g v)
+    | Map m ->
+        let dst = unstage (aux m.x) in
+        stage (fun v -> dst (m.g v))
     | Custom c -> c.pre_hash
     | t -> Type_binary.Unboxed.encode_bin t
   in
@@ -28,7 +32,7 @@ let pre_hash t =
 let short_hash = function
   | Custom c -> c.short_hash
   | t ->
-      let pre_hash = pre_hash t in
+      let pre_hash = unstage (pre_hash t) in
       fun ?seed x ->
         let seed = match seed with None -> 0 | Some t -> t in
         let h = ref seed in

@@ -15,6 +15,7 @@
  *)
 
 open Type_core
+open Utils
 
 module Encode = struct
   let lexeme e l = ignore (Jsonm.encode e (`Lexeme l))
@@ -163,7 +164,7 @@ module Decode = struct
   let ( >|= ) l f = match l with Ok l -> Ok (f l) | Error _ as e -> e
 
   let error e got expected =
-    let _, (l, c) = Jsonm.decoded_range e.Json.d in
+    let _, (l, c) = Jsonm.decoded_range e.d in
     Error
       (`Msg
         (Fmt.strf
@@ -399,7 +400,7 @@ let encode = Encode.t
 
 let decode = Decode.t
 
-let decode_jsonm x d = Decode.(t x @@ { Json.d; lexemes = [] })
+let decode_jsonm x d = Decode.(t x @@ { d; lexemes = [] })
 
 let pp ?minify t ppf x =
   let buf = Buffer.create 42 in
