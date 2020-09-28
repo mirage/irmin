@@ -23,26 +23,30 @@ let library = ref (Some default_library)
 
 let ppx_name = "irmin"
 
-let expand_str ~loc ~path:_ input_ast name lib =
+let with_engine f ~loc ~path:_ =
   let (module S) = Ast_builder.make loc in
-  let (module L) = (module Deriver.Located (S) : Deriver.S) in
-  let lib = match lib with Some s -> L.parse_lib s | None -> !library in
-  L.derive_str ?name ?lib input_ast
+  f (module Engine.Located (S) : Engine.S)
 
-let expand_sig ~loc ~path:_ input_ast name lib =
-  let (module S) = Ast_builder.make loc in
-  let (module L) = (module Deriver.Located (S) : Deriver.S) in
-  let lib = match lib with Some s -> L.parse_lib s | None -> !library in
-  L.derive_sig ?name ?lib input_ast
+let deriving_args () =
+  Deriving.Args.(empty +> arg "name" (estring __) +> arg "lib" __)
 
-let str_type_decl_generator =
-  let args = Deriving.Args.(empty +> arg "name" (estring __) +> arg "lib" __) in
+let str_type_decl =
   let attributes = Attributes.all in
-  Deriving.Generator.make ~attributes args expand_str
+  Deriving.Generator.make ~attributes (deriving_args ())
+    ( with_engine @@ fun (module L) input_ast name lib ->
+      let lib = match lib with Some s -> L.parse_lib s | None -> !library in
+      L.derive_str ?name ?lib input_ast )
 
-let sig_type_decl_generator =
-  let args = Deriving.Args.(empty +> arg "name" (estring __) +> arg "lib" __) in
-  Deriving.Generator.make args expand_sig
+let sig_type_decl =
+  Deriving.Generator.make (deriving_args ())
+    ( with_engine @@ fun (module L) input_ast name lib ->
+      let lib = match lib with Some s -> L.parse_lib s | None -> !library in
+      L.derive_sig ?name ?lib input_ast )
+
+let extension =
+  Extension.declare (ppx_name ^ ".typ") Extension.Context.expression
+    Ast_pattern.(ptyp __)
+    (with_engine @@ fun (module L) -> L.expand_typ ?lib:!library)
 
 let () =
   let doc =
@@ -55,6 +59,6 @@ let () =
     (Arg.String (function "" -> library := None | s -> library := Some s))
     ~doc;
 
-  Deriving.add ~str_type_decl:str_type_decl_generator
-    ~sig_type_decl:sig_type_decl_generator ppx_name
-  |> Deriving.ignore
+  Reserved_namespaces.reserve ppx_name;
+  Deriving.add ~str_type_decl ~sig_type_decl ppx_name |> Deriving.ignore;
+  Driver.register_transformation ~extensions:[ extension ] ppx_name

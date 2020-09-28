@@ -58,4 +58,7 @@ module Unsupported = struct
     Location.raise_errorf ~loc
       "%s: alias type %a encountered. Alias types are not supported." name
       Pprintast.core_type ctyp
+
+  let type_any ~loc =
+    Location.raise_errorf ~loc "%s: anonymous type variable unsupported." name
 end
