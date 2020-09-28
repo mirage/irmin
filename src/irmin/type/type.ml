@@ -188,10 +188,12 @@ let case0 cname0 c0 =
     let c = { ctag0; cname0; c0 } in
     (C0 c, CV0 c)
 
-let case1 cname1 ctype1 c1 =
+let case1 : type a b. string -> b t -> (b -> a) -> (a, b -> a case_p) case =
+ fun cname1 ctype1 c1 ->
   check_valid_utf8 cname1;
   fun ctag1 ->
-    let c = { ctag1; cname1; ctype1; c1 } in
+    let cwit1 : b Witness.t = Witness.make () in
+    let c = { ctag1; cname1; ctype1; cwit1; c1 } in
     (C1 c, fun v -> CV1 (c, v))
 
 type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
