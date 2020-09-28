@@ -57,6 +57,13 @@ module Generic_op = struct
       T.stage (f : a -> int)
     in
     { name = "short_hash"; operation = Consumer { consume } }
+
+  let size_of : t =
+    let consume (type a) (ty : a T.t) =
+      let f = T.(unstage (size_of ty)) in
+      T.stage (f : a -> int option)
+    in
+    { name = "size_of"; operation = Consumer { consume } }
 end
 
 (** Generators for random data *)
@@ -103,6 +110,25 @@ module Faker = struct
     | 1 -> Bar (int64 ())
     | 2 -> Baz (bool (), unit ())
     | _ -> assert false
+
+  type fixed_string = string
+
+  let fixed_string_t = T.string_of (`Fixed 5)
+
+  let fixed_string () = string 5 ()
+
+  type 'a node = { left : 'a; v : fixed_string; right : 'a } [@@deriving irmin]
+
+  type tree = Branch of tree node | Leaf of int [@@deriving irmin]
+
+  let tree () =
+    let rec inner depth =
+      if depth > 12 then Leaf (long_int ())
+      else
+        let child = inner (depth + 1) in
+        Branch { left = child; v = fixed_string (); right = child }
+    in
+    inner 0
 end
 
 let nb_runs = 30_000
@@ -166,6 +192,8 @@ module Data = struct
     let record = mk_data Faker.record_t Faker.record
 
     let variant = mk_data Faker.variant_t Faker.variant
+
+    let tree = mk_data Faker.tree_t Faker.tree
   end
 end
 
@@ -220,6 +248,7 @@ let test_operation ~name (op : Generic_op.t) =
       test ~name:"triple_short_int" Data.triple_short_int;
       test ~name:"record" Data.record;
       test ~name:"variant" Data.variant;
+      test ~name:"tree" Data.tree;
     ]
 
 let suite () =
@@ -229,6 +258,7 @@ let suite () =
       test_operation ~name:"bin_string" Generic_op.bin_string;
       test_operation ~name:"short_hash" Generic_op.short_hash;
       test_operation ~name:"pre_hash" Generic_op.pre_hash;
+      test_operation ~name:"size_of" Generic_op.size_of;
     ]
 
 let benchmark () =
