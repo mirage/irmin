@@ -17,7 +17,6 @@
 include Type_core_intf
 include Type_core_intf.Types
 open Staging
-open Brands
 
 module Json = struct
   type decoder = json_decoder
@@ -77,12 +76,20 @@ module Dispatch = struct
     | Arrow : { arg_wit : 'b Witness.t; f : ('b -> 'a) staged } -> 'a t
 end
 
-let rec fold_fields :
-    type a c acc. (a, acc) Fields_folder.t -> (a, c) fields -> (a, c, acc) app2
-    =
- fun folder -> function
-  | F0 -> folder.nil
-  | F1 (f, fs) -> folder.cons f (fold_fields folder fs)
+module Fields_folder (Acc : sig
+  type ('a, 'b) t
+end) =
+struct
+  type 'a t = {
+    nil : ('a, 'a) Acc.t;
+    cons : 'b 'c. ('a, 'b) field -> ('a, 'c) Acc.t -> ('a, 'b -> 'c) Acc.t;
+  }
+
+  let rec fold : type a c. a t -> (a, c) fields -> (a, c) Acc.t =
+   fun folder -> function
+    | F0 -> folder.nil
+    | F1 (f, fs) -> folder.cons f (fold folder fs)
+end
 
 let fold_variant :
     type a f. (a, f) Case_folder.t -> a variant -> (a -> f) staged =

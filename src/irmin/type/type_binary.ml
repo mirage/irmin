@@ -358,9 +358,9 @@ module Decode = struct
             let ofs, x = o buf ofs in
             (ofs, Some x))
 
-  module Record_decoder = struct
+  module Record_decoder = Fields_folder (struct
     type ('a, 'b) t = string -> int -> 'b -> 'a res [@@deriving branded]
-  end
+  end)
 
   let rec t : type a. a t -> a decode_bin = function
     | Self s ->
@@ -418,19 +418,17 @@ module Decode = struct
     | Bytes n -> stage (bytes boxed n)
 
   and record : type a. a record -> a decode_bin =
-    let inj, prj = Record_decoder.(inj, prj) in
-    fun { rfields = Fields (fs, constr); _ } ->
-      let nil = inj (fun _buf ofs f -> (ofs, f)) in
-      let cons { ftype; _ } decode_remaining =
-        let f_decode = unstage (t ftype) in
-        let decode_remaining = prj decode_remaining in
-        inj (fun buf ofs constr ->
-            let ofs, x = f_decode buf ofs in
-            let constr = constr x in
-            decode_remaining buf ofs constr)
-      in
-      let f = prj (fold_fields { nil; cons } fs) in
-      stage (fun buf ofs -> f buf ofs constr)
+   fun { rfields = Fields (fs, constr); _ } ->
+    let nil _buf ofs f = (ofs, f) in
+    let cons { ftype; _ } decode_remaining =
+      let f_decode = unstage (t ftype) in
+      fun buf ofs constr ->
+        let ofs, x = f_decode buf ofs in
+        let constr = constr x in
+        decode_remaining buf ofs constr
+    in
+    let f = Record_decoder.fold { nil; cons } fs in
+    stage (fun buf ofs -> f buf ofs constr)
 
   and variant : type a. a variant -> a decode_bin =
    fun v ->

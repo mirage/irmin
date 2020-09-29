@@ -1,5 +1,4 @@
 open Staging
-open Brands
 
 module Types = struct
   type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
@@ -140,15 +139,6 @@ module Types = struct
 
   type _ a_field = Field : ('a, 'b) field -> 'a a_field
 
-  module Fields_folder = struct
-    type ('a, 'acc) t = {
-      nil : ('a, 'a, 'acc) app2;
-      cons :
-        'b 'c. ('a, 'b) field -> ('a, 'c, 'acc) app2 ->
-        ('a, 'b -> 'c, 'acc) app2;
-    }
-  end
-
   module Case_folder = struct
     type ('a, 'f) t = {
       c0 : 'a case0 -> 'f staged;
@@ -163,8 +153,16 @@ module type Type_core = sig
 
   val fields : 'a record -> 'a a_field list
 
-  val fold_fields :
-    ('a, 'acc) Fields_folder.t -> ('a, 'c) fields -> ('a, 'c, 'acc) app2
+  module Fields_folder (Acc : sig
+    type ('a, 'b) t
+  end) : sig
+    type 'a t = {
+      nil : ('a, 'a) Acc.t;
+      cons : 'b 'c. ('a, 'b) field -> ('a, 'c) Acc.t -> ('a, 'b -> 'c) Acc.t;
+    }
+
+    val fold : 'a t -> ('a, 'c) fields -> ('a, 'c) Acc.t
+  end
 
   val fold_variant : ('a, 'b) Case_folder.t -> 'a variant -> ('a -> 'b) staged
 

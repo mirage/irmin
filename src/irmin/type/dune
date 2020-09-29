@@ -2,6 +2,4 @@
  (name irmin_type)
  (public_name irmin.type)
  (synopsis "[Internal] Generics library")
- (libraries base64 fmt jsonm uutf brands)
- (preprocess
-  (pps ppx_brands)))
+ (libraries base64 fmt jsonm uutf))
