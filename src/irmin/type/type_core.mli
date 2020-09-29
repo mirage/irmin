@@ -14,19 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Type_core
-open Staging
-
-val encode_bin : 'a t -> 'a encode_bin
-
-val decode_bin : 'a t -> 'a decode_bin
-
-module Unboxed : sig
-  val encode_bin : 'a t -> 'a encode_bin
-
-  val decode_bin : 'a t -> 'a decode_bin
-end
-
-val to_bin_string : 'a t -> 'a to_string staged
-
-val of_bin_string : 'a t -> 'a of_string staged
+include Type_core_intf.Type_core
+(** @inline *)
