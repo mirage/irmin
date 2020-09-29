@@ -17,26 +17,34 @@
 - **irmin**
   - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
     contents and nodes respectively. (#1022, @CraigFe)
+
   - Added `Type.Unboxed.{encode_bin,decode_bin,size_of}` to work with unboxed
     values (#1030, @samoht)
+
   - Remove the `headers` option in `Type.{encode_bin,decode_bin,size_of}`. Use
     `Type.Unboxed.<fn>` instead (#1030, @samoht)
+
   - `Type.v` now takes an extra mandatory `unit` argument (#1030, @samoht)
+
   - Added `Type.pp_dump`, which provides a way to pretty-print values with a
     syntax almost identical to native OCaml syntax, so that they can easily be
     copy-pasted into an OCaml REPL for inspection. (#1046, @liautaud)
+
   - Generic functions in `Irmin.Type` are now more efficient when a partial
-    closure is constructed to the type representation (#1030, @samoht).
-    To make this even more explicit, these functions are now staged and
-    `Type.{unstage,stage}` can manipulate these. The goal is to encourage
+    closure is constructed to the type representation (#1030 #1093, @samoht
+    @CraigFe).  To make this even more explicit, these functions are now staged
+    and `Type.{unstage,stage}` can manipulate these. The goal is to encourage
     users to write this kind of (efficent) pattern:
     ```ocaml
     let encode_bin = Type.(unstage (encode_bin ty))
     let _ = <begin loop> ... encode_bin foo ... <end loop>
     ```
+
   - Added a `clear` function for stores (#1071, @icristescu, @CraigFe)
+
   - Requires digestif>=0.9 to use digestif's default variants
     (#873, @pascutto, @samoht)
+
   - Added `iter_commits` and `iter_nodes` functions to traverse the commits and
     nodes graphs (#1077, @icristescu)
 
