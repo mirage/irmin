@@ -15,57 +15,18 @@
  *)
 
 open Lwt.Infix
+include Inode_intf
 
 let src =
   Logs.Src.create "irmin.pack.i" ~doc:"inodes for the irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    [ `Read ] t Lwt.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  module Key : Irmin.Hash.S with type t = key
-
-  module Val : Irmin.Private.Node.S with type t = value and type hash = key
-
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
-
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-
-  val clear_caches : 'a t -> unit
-end
-
-module type CONFIG = sig
-  val entries : int
-
-  val stable_hash : int
-end
-
-module Make
-    (Conf : CONFIG)
+module Make_intermediate
+    (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (Pack : Pack.MAKER with type key = H.t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack.index
-
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
@@ -624,7 +585,7 @@ struct
         aux ~seed:0 t
     end
 
-    include Pack.Make (struct
+    module Elt = struct
       type t = Bin.t
 
       let t = Bin.t
@@ -722,12 +683,18 @@ struct
         in
         if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
         else Bin.inode ~hash:(lazy i.hash) (t i.v)
-    end)
+    end
+
+    type hash = T.hash
+
+    let pp_hash = T.pp_hash
   end
 
   module Val = struct
     include T
     module I = Inode.Val
+
+    type inode_val = I.t
 
     type t = { mutable find : H.t -> I.t option; v : I.t }
 
@@ -765,7 +732,18 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
   end
+end
 
+module Make_ext
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inode : INODE_EXT with type hash = H.t)
+    (Val : VAL_INTER
+             with type hash = H.t
+              and type inode_val = Inode.Val.t
+              and type metadata = Node.metadata
+              and type step = Node.step) =
+struct
   module Key = H
 
   type 'a t = 'a Inode.t
@@ -795,7 +773,7 @@ struct
     let add k v = Inode.unsafe_append t k v in
     Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
 
-  let hash v = Lazy.force v.Val.v.Inode.Val.hash
+  let hash v = Inode.Val.hash v.Val.v
 
   let add t v =
     save t v.Val.v;
@@ -804,8 +782,8 @@ struct
   let check_hash expected got =
     if Irmin.Type.equal H.t expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" T.pp_hash expected
-        T.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
+        expected Inode.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);
@@ -827,4 +805,22 @@ struct
   let clear = Inode.clear
 
   let clear_caches = Inode.clear_caches
+end
+
+module Make
+    (Conf : Config.S)
+    (H : Irmin.Hash.S)
+    (Pack : Pack.MAKER with type key = H.t)
+    (Node : Irmin.Private.Node.S with type hash = H.t) =
+struct
+  type index = Pack.index
+
+  include Make_intermediate (Conf) (H) (Node)
+
+  module Inode = struct
+    include Inode
+    include Pack.Make (Elt)
+  end
+
+  include Make_ext (H) (Node) (Inode) (Val)
 end
