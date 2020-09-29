@@ -15,8 +15,6 @@ module Types = struct
 
   type 'a decode_json = json_decoder -> ('a, [ `Msg of string ]) result
 
-  type nonrec 'a staged = 'a staged
-
   type 'a bin_seq = 'a -> (string -> unit) -> unit
 
   type 'a pre_hash = 'a bin_seq staged

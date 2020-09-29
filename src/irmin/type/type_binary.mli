@@ -15,6 +15,7 @@
  *)
 
 open Type_core
+open Staging
 
 val encode_bin : 'a t -> 'a encode_bin
 
