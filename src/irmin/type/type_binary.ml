@@ -163,9 +163,7 @@ module Encode = struct
             o x k)
 
   let rec t : type a. a t -> a encode_bin = function
-    | Self s ->
-        fix_staged (fun encode_bin ->
-            t (s.self_unroll (partial ~encode_bin ())))
+    | Self s -> fst (self s)
     | Custom c -> c.encode_bin
     | Map b -> map ~boxed:true b
     | Prim t -> prim ~boxed:true t
@@ -179,9 +177,7 @@ module Encode = struct
     | Var v -> raise (Unbound_type_variable v)
 
   and unboxed : type a. a t -> a encode_bin = function
-    | Self s ->
-        fix_staged (fun unboxed_encode_bin ->
-            unboxed (s.self_unroll (partial ~unboxed_encode_bin ())))
+    | Self s -> snd (self s)
     | Custom c -> c.unboxed_encode_bin
     | Map b -> map ~boxed:false b
     | Prim t -> prim ~boxed:false t
@@ -193,6 +189,12 @@ module Encode = struct
     | Record r -> record r
     | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
+
+  and self : type a. a self -> a encode_bin * a encode_bin =
+   fun { self_unroll; _ } ->
+    fix_staged2 (fun encode_bin unboxed_encode_bin ->
+        let cyclic = self_unroll (partial ~encode_bin ~unboxed_encode_bin ()) in
+        (t cyclic, unboxed cyclic))
 
   and tuple : type a. a tuple -> a encode_bin = function
     | Pair (x, y) -> pair (t x) (t y)
@@ -363,9 +365,7 @@ module Decode = struct
   end)
 
   let rec t : type a. a t -> a decode_bin = function
-    | Self s ->
-        fix_staged (fun decode_bin ->
-            t (s.self_unroll (partial ~decode_bin ())))
+    | Self s -> fst (self s)
     | Custom c -> c.decode_bin
     | Map b -> map ~boxed:true b
     | Prim t -> prim ~boxed:true t
@@ -379,9 +379,7 @@ module Decode = struct
     | Var v -> raise (Unbound_type_variable v)
 
   and unboxed : type a. a t -> a decode_bin = function
-    | Self s ->
-        fix_staged (fun unboxed_decode_bin ->
-            t (s.self_unroll (partial ~unboxed_decode_bin ())))
+    | Self s -> snd (self s)
     | Custom c -> c.unboxed_decode_bin
     | Map b -> map ~boxed:false b
     | Prim t -> prim ~boxed:false t
@@ -393,6 +391,12 @@ module Decode = struct
     | Record r -> record r
     | Variant v -> variant v
     | Var v -> raise (Unbound_type_variable v)
+
+  and self : type a. a self -> a decode_bin * a decode_bin =
+   fun { self_unroll; _ } ->
+    fix_staged2 (fun decode_bin unboxed_decode_bin ->
+        let cyclic = self_unroll (partial ~decode_bin ~unboxed_decode_bin ()) in
+        (t cyclic, unboxed cyclic))
 
   and tuple : type a. a tuple -> a decode_bin = function
     | Pair (x, y) -> pair (t x) (t y)

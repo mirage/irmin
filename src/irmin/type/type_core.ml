@@ -35,16 +35,23 @@ module Json = struct
     | [] -> Jsonm.decode e.d
 end
 
-let undefined _ = assert false
-
-let partial ?(pp = undefined) ?(of_string = undefined)
-    ?(encode_json = undefined) ?(decode_json = undefined)
-    ?(short_hash = fun ?seed:_ -> undefined) ?(pre_hash = stage undefined)
-    ?(compare = undefined) ?(equal = undefined) ?(encode_bin = stage undefined)
-    ?(decode_bin = stage undefined) ?(size_of = stage undefined)
-    ?(unboxed_encode_bin = stage undefined)
-    ?(unboxed_decode_bin = stage undefined) ?(unboxed_size_of = stage undefined)
-    () =
+let partial ?(pp = fun _ -> failwith "`pp` not implemented")
+    ?(of_string = fun _ -> failwith "`of_string` not implemented")
+    ?(encode_json = fun _ -> failwith "`encode_json` not implemented")
+    ?(decode_json = fun _ -> failwith "`decode_json` not implemented")
+    ?(short_hash = fun ?seed:_ _ -> failwith "`short_hash` not implemented")
+    ?(pre_hash = stage (fun _ -> failwith "`pre_hash` not implemented"))
+    ?(compare = fun _ -> failwith "`compare` not implemented")
+    ?(equal = fun _ -> failwith "`equal` not implemented")
+    ?(encode_bin = stage (fun _ -> failwith "`encode_bin` not implemented"))
+    ?(decode_bin = stage (fun _ -> failwith "`decode_bin` not implemented"))
+    ?(size_of = stage (fun _ -> failwith "`size_of` not implemented"))
+    ?(unboxed_encode_bin =
+      stage (fun _ -> failwith "`unboxed_encode_bin` not implemented"))
+    ?(unboxed_decode_bin =
+      stage (fun _ -> failwith "`unboxed_decode_bin` not implemented"))
+    ?(unboxed_size_of =
+      stage (fun _ -> failwith "`unboxed_size_of` not implemented")) () =
   Custom
     {
       cwit = `Witness (Witness.make ());

@@ -108,8 +108,7 @@ let option o =
     | Some x -> o x >|= fun o -> char '\000' + o)
 
 let rec t : type a. a t -> a size_of = function
-  | Self s ->
-      fix_staged (fun size_of -> t (s.self_unroll (partial ~size_of ())))
+  | Self s -> fst (self s)
   | Custom c -> c.size_of
   | Map b -> map ~boxed:true b
   | Prim t -> prim ~boxed:true t
@@ -123,9 +122,7 @@ let rec t : type a. a t -> a size_of = function
   | Var v -> raise (Unbound_type_variable v)
 
 and unboxed : type a. a t -> a size_of = function
-  | Self s ->
-      fix_staged (fun unboxed_size_of ->
-          unboxed (s.self_unroll (partial ~unboxed_size_of ())))
+  | Self s -> snd (self s)
   | Custom c -> c.unboxed_size_of
   | Map b -> map ~boxed:false b
   | Prim t -> prim ~boxed:false t
@@ -137,6 +134,12 @@ and unboxed : type a. a t -> a size_of = function
   | Record r -> record r
   | Variant v -> variant v
   | Var v -> raise (Unbound_type_variable v)
+
+and self : type a. a self -> a size_of * a size_of =
+ fun { self_unroll; _ } ->
+  fix_staged2 (fun size_of unboxed_size_of ->
+      let cyclic = self_unroll (partial ~size_of ~unboxed_size_of ()) in
+      (t cyclic, unboxed cyclic))
 
 and tuple : type a. a tuple -> a size_of = function
   | Pair (x, y) -> pair (t x) (t y)
