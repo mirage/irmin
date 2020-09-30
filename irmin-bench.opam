@@ -19,7 +19,7 @@ depends: [
   "irmin"
   "bechamel"
   "yojson"
-  "ppx_irmin"
+  "ppx_irmin" {= version}
   "ppx_deriving_yojson"
 ]
 
