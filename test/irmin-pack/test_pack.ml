@@ -628,5 +628,4 @@ let misc =
     ("instances", Multiple_instances.tests);
     ("migration", Migration.tests);
     ("layers", Layered.tests);
-    ("concurrent layers", Concurrent.tests);
   ]

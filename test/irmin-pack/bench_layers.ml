@@ -87,6 +87,39 @@ module FSHelper = struct
       (size upper1) (size upper0) (size lower)
 end
 
+module Concurrent = struct
+  (* Helpers for Unix pipe *)
+  let write input =
+    try
+      let m = Bytes.of_string (string_of_int (Unix.getpid ())) in
+      let n = Unix.write input m 0 (Bytes.length m) in
+      assert (n = Bytes.length m)
+    with Unix.Unix_error (n, f, arg) ->
+      Alcotest.failf "Unix error %s %s %s " f arg (Unix.error_message n)
+
+  let read output =
+    let buff = Bytes.create 5 in
+    match Unix.read output buff 0 5 with
+    | 0 -> Alcotest.fail "Something wrong when reading from the pipe"
+    | n -> int_of_string (Bytes.to_string (Bytes.sub buff 0 n))
+
+  let wait pid =
+    Lwt_unix.waitpid [ Unix.WUNTRACED ] pid >>= fun (pid', status) ->
+    if pid <> pid' then
+      Alcotest.failf "I'm %d, expecting child %d, but got %d instead"
+        (Unix.getpid ()) pid pid';
+    match status with
+    | Unix.WEXITED 0 ->
+        Logs.debug (fun l -> l "Child %d finished work" pid);
+        Lwt.return_unit
+    | Unix.WSTOPPED s ->
+        Alcotest.failf "Child %d died unexpectedly stopped by %d" pid s
+    | Unix.WEXITED s ->
+        Alcotest.failf "Child %d died unexpectedly exited with %d" pid s
+    | Unix.WSIGNALED s ->
+        Alcotest.failf "Child %d died unexpectedly signaled by %d" pid s
+end
+
 let configure_store ?(readonly = false) ?(fresh = true)
     ?(copy_in_upper = Conf.copy_in_upper) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
