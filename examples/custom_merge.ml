@@ -24,7 +24,7 @@ module Entry : sig
 
   val timestamp : t -> int64
 end = struct
-  type t = { timestamp : int64; message : string }
+  type t = { timestamp : int64; message : string } [@@deriving irmin]
 
   let compare x y = Int64.compare x.timestamp y.timestamp
 
@@ -42,13 +42,6 @@ end = struct
     | Some (x, message) -> (
         try Ok { timestamp = Int64.of_string x; message }
         with Failure e -> Error (`Msg e))
-
-  let t =
-    let open Irmin.Type in
-    record "entry" (fun timestamp message -> { timestamp; message })
-    |+ field "timestamp" int64 (fun t -> t.timestamp)
-    |+ field "message" string (fun t -> t.message)
-    |> sealr
 
   let t = Irmin.Type.like ~cli:(pp, of_string) ~compare t
 end

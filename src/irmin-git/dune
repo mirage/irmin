@@ -1,4 +1,6 @@
 (library
  (name irmin_git)
  (public_name irmin-git)
- (libraries astring cstruct fmt fpath git irmin logs lwt uri))
+ (libraries astring cstruct fmt fpath git irmin logs lwt uri)
+ (preprocess
+  (pps ppx_irmin)))

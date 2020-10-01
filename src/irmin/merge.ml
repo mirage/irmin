@@ -432,10 +432,4 @@ let with_conflict rewrite (d, f) =
 let conflict_t =
   Type.(map string) (fun x -> `Conflict x) (function `Conflict x -> x)
 
-let result_t ok =
-  let open Type in
-  variant "result" (fun ok error -> function
-    | Ok x -> ok x | Error x -> error x)
-  |~ case1 "ok" ok (fun x -> Ok x)
-  |~ case1 "error" conflict_t (fun x -> Error x)
-  |> sealv
+type nonrec 'a result = ('a, conflict) result [@@deriving irmin]

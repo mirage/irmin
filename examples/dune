@@ -1,7 +1,10 @@
 (executables
  (names readme trees sync process deploy irmin_git_store custom_merge push
    custom_graphql)
- (libraries astring cohttp fmt git irmin irmin-git irmin-unix lwt lwt.unix))
+ (libraries astring cohttp fmt git irmin irmin-git irmin-unix ppx_irmin lwt
+   lwt.unix)
+ (preprocess
+  (pps ppx_irmin)))
 
 (alias
  (name examples)

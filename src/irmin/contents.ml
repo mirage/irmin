@@ -72,9 +72,10 @@ type json =
   | `Float of float
   | `O of (string * json) list
   | `A of json list ]
+[@@deriving irmin]
 
 module Json_value = struct
-  type t = json
+  type t = json [@@deriving irmin]
 
   let pp fmt x =
     let buffer = Buffer.create 32 in
@@ -87,24 +88,6 @@ module Json_value = struct
   let of_string s =
     let decoder = Jsonm.decoder (`String s) in
     match decode_json decoder with Ok obj -> Ok obj | Error _ as err -> err
-
-  let t =
-    let open Type in
-    mu (fun ty ->
-        variant "json" (fun null bool string float obj arr -> function
-          | `Null -> null
-          | `Bool b -> bool b
-          | `String s -> string s
-          | `Float f -> float f
-          | `O o -> obj o
-          | `A a -> arr a)
-        |~ case0 "null" `Null
-        |~ case1 "bool" bool (fun x -> `Bool x)
-        |~ case1 "string" string (fun x -> `String x)
-        |~ case1 "float" float (fun x -> `Float x)
-        |~ case1 "object" (list (pair string ty)) (fun obj -> `O obj)
-        |~ case1 "array" (list ty) (fun arr -> `A arr)
-        |> sealv)
 
   let rec equal a b =
     match (a, b) with
@@ -180,7 +163,7 @@ module Json_value = struct
 end
 
 module Json = struct
-  type t = (string * json) list
+  type t = (string * json) list [@@deriving irmin]
 
   let pp fmt x =
     let buffer = Buffer.create 32 in
@@ -198,8 +181,6 @@ module Json = struct
     | Error _ as err -> err
 
   let equal a b = Json_value.equal (`O a) (`O b)
-
-  let t = Type.(list (pair string Json_value.t))
 
   let t = Type.like ~equal ~cli:(pp, of_string) t
 
@@ -254,9 +235,7 @@ module Json_tree (Store : Store.S with type contents = json) = struct
 end
 
 module String = struct
-  type t = string
-
-  let t = Type.string
+  type t = string [@@deriving irmin]
 
   let merge = Merge.idempotent Type.(option string)
 end
