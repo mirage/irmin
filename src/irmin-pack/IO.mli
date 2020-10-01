@@ -65,6 +65,8 @@ module type S = sig
     version ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
+
+  val read_buffer : chunk:int -> off:int64 -> t -> string
 end
 
 module Unix : S

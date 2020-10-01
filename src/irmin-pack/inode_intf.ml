@@ -49,6 +49,13 @@ module type INODE_INTER = sig
 
   module Elt : Pack.ELT with type hash := hash
 
+  val decode_bin :
+    dict:(int -> string option) ->
+    hash:(int64 -> hash) ->
+    string ->
+    int ->
+    int * Elt.t
+
   module Val : sig
     type t
 
@@ -162,10 +169,15 @@ module type Inode = sig
       (Conf : Config.S)
       (H : Irmin.Hash.S)
       (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
-      (Node : Irmin.Private.Node.S with type hash = H.t) :
-    S
-      with type key = H.t
-       and type Val.metadata = Node.metadata
-       and type Val.step = Node.step
-       and type index = Pack_index.Make(H).t
+      (Node : Irmin.Private.Node.S with type hash = H.t) : sig
+    include
+      S
+        with type key = H.t
+         and type Val.metadata = Node.metadata
+         and type Val.step = Node.step
+         and type index = Pack_index.Make(H).t
+
+    val decode_bin :
+      dict:(int -> string option) -> hash:(int64 -> key) -> string -> int -> int
+  end
 end

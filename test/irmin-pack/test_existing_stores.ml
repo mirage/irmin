@@ -129,10 +129,11 @@ struct
 end
 
 module Config_store = struct
-  let root_v1_archive, root_v1 =
+  let root_v1_archive, root_v1, tmp =
     let open Fpath in
     ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-      v "_build" / "test_pack_migrate_1_to_2" |> to_string )
+      v "_build" / "test_pack_migrate_1_to_2" |> to_string,
+      v "_build" / "test_index_reconstruct" |> to_string )
 
   let setup_test_env () =
     goto_project_root ();
@@ -180,6 +181,61 @@ module Test_store = struct
 
   let v1_to_v2 =
     v1_to_v2 ~uncached_instance_check_idempotent ~uncached_instance_check_commit
+end
+
+module Test_reconstruct = struct
+  module S = Make ()
+
+  include Test (S) (Config_store)
+
+  let setup_test_env () =
+    Config_store.setup_test_env ();
+    rm_dir Config_store.tmp;
+    let cmd =
+      Filename.quote_command "cp"
+        [ "-R"; "-p"; Config_store.root_v1; Config_store.tmp ]
+    in
+    Log.info (fun l -> l "exec: %s\n%!" cmd);
+    match Sys.command cmd with
+    | 0 -> ()
+    | n ->
+        Fmt.failwith
+          "Failed to set up the test environment: command `%s' exited with \
+           non-zero exit code %d"
+          cmd n
+
+  let test_reconstruct () =
+    setup_test_env ();
+    let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
+    S.migrate conf;
+    S.reconstruct_index conf;
+    let index_old =
+      Index.v ~fresh:false ~readonly:false ~log_size:500_000 Config_store.tmp
+    in
+    let index_new =
+      Index.v ~fresh:false ~readonly:false ~log_size:500_000
+        Config_store.root_v1
+    in
+    Index.iter
+      (fun k (offset, length, magic) ->
+        Log.debug (fun l ->
+            l "index find k = %a (off, len, magic) = (%Ld, %d, %c)"
+              (Irmin.Type.pp Hash.t) k offset length magic);
+        match Index.find index_new k with
+        | Some (offset', length', magic') ->
+            Alcotest.(check int64) "check offset" offset offset';
+            Alcotest.(check int) "check length" length length';
+            Alcotest.(check char) "check magic" magic magic'
+        | None ->
+            Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
+      index_old;
+    Index.close index_old;
+    Index.close index_new;
+    Log.app (fun m ->
+        m "Checking old bindings are still reachable post index reconstruction)");
+    let* r = S.Repo.v conf in
+    let* () = check_repo r archive in
+    S.Repo.close r
 end
 
 module Config_layered_store = struct
@@ -369,6 +425,8 @@ let tests =
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_store.v1_to_v2 ()));
+    Alcotest.test_case "Test index reconstuction" `Quick (fun () ->
+        Lwt_main.run (Test_reconstruct.test_reconstruct ()));
     Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_layered_store.v1_to_v2 ()));
     Alcotest.test_case "Test integrity check" `Quick (fun () ->

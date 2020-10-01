@@ -30,6 +30,8 @@ exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
 exception Unsupported_version = Store.Unsupported_version
 
+let ( ++ ) = Int64.add
+
 let () =
   Printexc.register_printer (function
     | Unsupported_version v ->
@@ -236,6 +238,102 @@ struct
       let flush t =
         Contents.CA.flush (contents_t t);
         Branch.flush t.branch
+
+      module Reconstruct_index = struct
+        let pp_hash = Irmin.Type.pp Hash.t
+
+        let decode_value value_t = Irmin.Type.(unstage (decode_bin value_t))
+
+        let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
+
+        let decode_magic = Irmin.Type.(unstage (decode_bin char))
+
+        let decode_buffer ~progress ~total pack dict index =
+          let decode_len buf magic =
+            try
+              let len =
+                match magic with
+                | 'B' -> decode_value (value_t Contents.Val.t) buf 0 |> fst
+                | 'C' -> decode_value (value_t Commit.Val.t) buf 0 |> fst
+                | 'N' | 'I' ->
+                    let hash off =
+                      let buf =
+                        IO.read_buffer ~chunk:Hash.hash_size ~off pack
+                      in
+                      decode_key buf 0 |> snd
+                    in
+                    let dict = Dict.find dict in
+                    Node.CA.decode_bin ~hash ~dict buf 0
+                | _ -> failwith "unexpected magic char"
+              in
+              Some len
+            with
+            | Invalid_argument msg when msg = "index out of bounds" -> None
+            | Invalid_argument msg when msg = "String.blit / Bytes.blit_string"
+              ->
+                None
+          in
+          let decode_entry buf off =
+            let off_k, k = decode_key buf 0 in
+            assert (off_k = Hash.hash_size);
+            let off_m, magic = decode_magic buf off_k in
+            assert (off_m = Hash.hash_size + 1);
+            match decode_len buf magic with
+            | Some len ->
+                let new_off = off ++ Int64.of_int len in
+                Log.debug (fun l ->
+                    l "k = %a (off, len, magic) = (%Ld, %d, %c)" pp_hash k off
+                      len magic);
+                Index.add index k (off, len, magic);
+                progress (Int64.of_int len);
+                Some new_off
+            | None -> None
+          in
+          let rec read_and_decode ?(retries = 1) off =
+            Log.debug (fun l ->
+                l "read_and_decode retries %d off %Ld" retries off);
+            let chunk = 64 * 10 * retries in
+            let buf = IO.read_buffer ~chunk ~off pack in
+            match decode_entry buf off with
+            | Some new_off -> new_off
+            | None ->
+                (* the biggest entry in a tezos store is a blob of 54801B *)
+                if retries > 90 then
+                  failwith "too many retries to read data, buffer size = 57600B"
+                else (read_and_decode [@tailcall]) ~retries:(retries + 1) off
+          in
+          let rec read_buffer off =
+            if off >= total then ()
+            else
+              let new_off = read_and_decode off in
+              (read_buffer [@tailcall]) new_off
+          in
+          read_buffer 0L
+
+        let reconstruct config =
+          if Pack_config.readonly config then raise RO_Not_Allowed;
+          Log.info (fun l ->
+              l "[%s] reconstructing index" (Pack_config.root config));
+          let root = Pack_config.root config in
+          let log_size = Pack_config.index_log_size config in
+          let index = Index.v ~fresh:true ~readonly:false ~log_size root in
+          let pack_file = Filename.concat root "store.pack" in
+          let pack =
+            IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+              pack_file
+          in
+          let dict = Dict.v ~fresh:false ~readonly:true root in
+          let total = IO.offset pack in
+          let bar, progress =
+            Utils.Progress.counter ~total ~sampling_interval:100
+              ~message:"Reconstructing index" ~pp_count:Utils.pp_bytes ()
+          in
+          decode_buffer ~progress ~total pack dict index;
+          Index.close index;
+          IO.close pack;
+          Dict.close dict;
+          Utils.Progress.finalise bar
+      end
     end
   end
 
@@ -261,6 +359,8 @@ struct
   let migrate = Store.migrate
 
   let flush = X.Repo.flush
+
+  let reconstruct_index = X.Repo.Reconstruct_index.reconstruct
 end
 
 module Hash = Irmin.Hash.BLAKE2B
