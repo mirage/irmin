@@ -17,7 +17,9 @@
 open Astring
 
 module String_list = struct
-  type step = string [@@deriving irmin]
+  type step = string
+
+  let step_t = Type.string
 
   type t = step list
 

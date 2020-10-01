@@ -37,9 +37,16 @@ module type G = sig
 end
 
 module X = struct
-  type t = X of (int * int) | Y of string list [@@deriving irmin]
+  type t = X of (int * int) | Y of string list
 
-  let merge = Irmin.Merge.idempotent [%typ: t option]
+  let t : t Irmin.Type.t =
+    let open Irmin.Type in
+    variant "test" (fun x y -> function X i -> x i | Y i -> y i)
+    |~ case1 "x" (pair int int) (fun x -> X x)
+    |~ case1 "y" (list string) (fun y -> Y y)
+    |> sealv
+
+  let merge = Irmin.Merge.idempotent Irmin.Type.(option t)
 end
 
 module type X =
@@ -191,9 +198,9 @@ let test_blobs (module S : S) =
   let module X = Mem (X) in
   let str = pre_hash X.Contents.t (Y [ "foo"; "bar" ]) in
   Alcotest.(check bin_string)
-    "blob foo" "blob 19\000{\"Y\":[\"foo\",\"bar\"]}" str;
+    "blob foo" "blob 19\000{\"y\":[\"foo\",\"bar\"]}" str;
   let str = pre_hash X.Contents.t (X (1, 2)) in
-  Alcotest.(check bin_string) "blob ''" "blob 11\000{\"X\":[1,2]}" str;
+  Alcotest.(check bin_string) "blob ''" "blob 11\000{\"x\":[1,2]}" str;
   let t = X.Tree.empty in
   X.Tree.add t [ "foo" ] (X (1, 2)) >>= fun t ->
   let k1 = X.Tree.hash t in

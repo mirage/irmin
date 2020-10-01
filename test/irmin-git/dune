@@ -2,9 +2,7 @@
  (name test_git)
  (modules test_git)
  (libraries alcotest fmt fpath irmin irmin-test irmin-mem irmin-git git
-   git-unix lwt lwt.unix)
- (preprocess
-  (pps ppx_irmin)))
+   git-unix lwt lwt.unix))
 
 (executable
  (name test)

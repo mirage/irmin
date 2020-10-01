@@ -106,8 +106,11 @@ end
 module type CONTENTS = sig
   (** {1 Signature for store contents} *)
 
-  type t [@@deriving irmin]
+  type t
   (** The type for user-defined contents. *)
+
+  val t : t Type.t
+  (** [t] is the value type for {!t}. *)
 
   val merge : t option Merge.t
   (** Merge function. Evaluates to [`Conflict msg] if the values cannot be
@@ -208,8 +211,11 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
 end
 
 module type METADATA = sig
-  type t [@@deriving irmin]
+  type t
   (** The type for metadata. *)
+
+  val t : t Type.t
+  (** [t] is the value type for {!t}. *)
 
   val merge : t Merge.t
   (** [merge] is the merge function for metadata. *)
@@ -619,8 +625,11 @@ end
 module type BRANCH = sig
   (** {1 Signature for Branches} *)
 
-  type t [@@deriving irmin]
+  type t
   (** The type for branches. *)
+
+  val t : t Type.t
+  (** [t] is the value type for {!t}. *)
 
   val master : t
   (** The name of the master branch. *)

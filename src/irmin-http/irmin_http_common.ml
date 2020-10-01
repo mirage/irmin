@@ -21,7 +21,14 @@ let status_t =
   record "status" (fun x -> x) |+ field "status" string (fun x -> x) |> sealr
 
 type 'a set = { test : 'a option; set : 'a option; v : 'a option }
-[@@deriving irmin]
+
+let set_t a =
+  let open Irmin.Type in
+  record "set" (fun test set v -> { test; set; v })
+  |+ field "test" (option a) (fun x -> x.test)
+  |+ field "set" (option a) (fun x -> x.set)
+  |+ field "v" (option a) (fun x -> x.v)
+  |> sealr
 
 let event_t k x =
   let open Irmin.Type in
@@ -37,4 +44,12 @@ let init_t k x =
   |+ field "commit" x snd
   |> sealr
 
-type 'a merge = { old : 'a; left : 'a; right : 'a } [@@deriving irmin]
+type 'a merge = { old : 'a; left : 'a; right : 'a }
+
+let merge_t h =
+  let open Irmin.Type in
+  record "merge" (fun old left right -> { old; left; right })
+  |+ field "old" h (fun t -> t.old)
+  |+ field "left" h (fun t -> t.left)
+  |+ field "right" h (fun t -> t.right)
+  |> sealr
