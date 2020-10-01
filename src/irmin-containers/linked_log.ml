@@ -22,13 +22,29 @@ let return = Lwt.return
 let empty_info = Irmin.Info.none
 
 module Log_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
-  type t = { time : T.t; msg : V.t; prev : K.t option } [@@deriving irmin]
+  type t = { time : T.t; msg : V.t; prev : K.t option }
+
+  let t =
+    let open Irmin.Type in
+    record "t" (fun time msg prev -> { time; msg; prev })
+    |+ field "time" T.t (fun r -> r.time)
+    |+ field "msg" V.t (fun r -> r.msg)
+    |+ field "prev" (option K.t) (fun r -> r.prev)
+    |> sealr
 end
 
 module Store_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
   module L = Log_item (T) (K) (V)
 
-  type t = Value of L.t | Merge of L.t list [@@deriving irmin]
+  type t = Value of L.t | Merge of L.t list
+
+  let t =
+    let open Irmin.Type in
+    variant "t" (fun value merge -> function
+      | Value v -> value v | Merge l -> merge l)
+    |~ case1 "Value" L.t (fun v -> Value v)
+    |~ case1 "Merge" (list L.t) (fun l -> Merge l)
+    |> sealv
 end
 
 module Linked_log
@@ -37,7 +53,9 @@ module Linked_log
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S) =
 struct
-  type t = K.t [@@deriving irmin]
+  type t = K.t
+
+  let t = K.t
 
   module L = Log_item (T) (K) (V)
   module S = Store_item (T) (K) (V)

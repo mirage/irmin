@@ -21,7 +21,9 @@ module No_metadata : S.METADATA with type t = unit
 
 module Make
     (K : Type.S) (P : sig
-      type step [@@deriving irmin]
+      type step
+
+      val step_t : step Type.t
     end)
     (M : S.METADATA) :
   S.NODE with type hash = K.t and type step = P.step and type metadata = M.t

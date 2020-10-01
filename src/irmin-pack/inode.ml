@@ -22,14 +22,6 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Lazy = struct
-  include Lazy
-
-  (* Define a repr for [lazy] that simply forces all encountered lazy values. *)
-  let t : type a. a Irmin.Type.t -> a lazy_t Irmin.Type.t =
-   fun a -> Irmin.Type.map a Lazy.from_val Lazy.force
-end
-
 module Make_intermediate
     (Conf : Config.S)
     (H : Irmin.Hash.S)
@@ -43,15 +35,23 @@ struct
   end
 
   module T = struct
-    type hash = H.t [@@deriving irmin]
+    type hash = H.t
 
-    type step = Node.step [@@deriving irmin]
+    type step = Node.step
 
-    type metadata = Node.metadata [@@deriving irmin]
+    type metadata = Node.metadata
+
+    let step_t = Node.step_t
+
+    let hash_t = H.t
+
+    let metadata_t = Node.metadata_t
 
     let default = Node.default
 
-    type value = Node.value [@@deriving irmin]
+    type value = Node.value
+
+    let value_t = Node.value_t
 
     let pp_hash = Irmin.Type.(pp hash_t)
   end
@@ -75,13 +75,35 @@ struct
     module Bin = struct
       open T
 
-      type inode = { index : int; hash : H.t } [@@deriving irmin]
+      type inode = { index : int; hash : H.t }
 
       type inodes = { seed : int; length : int; entries : inode list }
-      [@@deriving irmin]
 
       type v = Values of (step * value) list | Inodes of inodes
-      [@@deriving irmin]
+
+      let inode : inode Irmin.Type.t =
+        let open Irmin.Type in
+        record "Bin.inode" (fun index hash -> { index; hash })
+        |+ field "index" int (fun t -> t.index)
+        |+ field "hash" H.t (fun (t : inode) -> t.hash)
+        |> sealr
+
+      let inodes : inodes Irmin.Type.t =
+        let open Irmin.Type in
+        record "Bin.inodes" (fun seed length entries ->
+            { seed; length; entries })
+        |+ field "seed" int (fun t -> t.seed)
+        |+ field "length" int (fun t -> t.length)
+        |+ field "entries" (list inode) (fun t -> t.entries)
+        |> sealr
+
+      let v_t : v Irmin.Type.t =
+        let open Irmin.Type in
+        variant "Bin.v" (fun values inodes -> function
+          | Values l -> values l | Inodes i -> inodes i)
+        |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
+        |~ case1 "Inodes" inodes (fun t -> Inodes t)
+        |> sealv
 
       module V =
         Irmin.Hash.Typed
@@ -92,14 +114,19 @@ struct
             let t = v_t
           end)
 
-      type t = { hash : H.t Lazy.t; stable : bool; v : v } [@@deriving irmin]
+      type t = { hash : H.t Lazy.t; stable : bool; v : v }
 
       let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
 
       let t : t Irmin.Type.t =
         let open Irmin.Type in
         let pre_hash = stage (fun x -> pre_hash_v x.v) in
-        like ~pre_hash t
+        record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
+        |+ field "hash" H.t (fun t -> Lazy.force t.hash)
+        |+ field "stable" bool (fun t -> t.stable)
+        |+ field "v" v_t (fun t -> t.v)
+        |> sealr
+        |> like ~pre_hash
 
       let node ~hash v = { stable = true; hash; v }
 
@@ -114,12 +141,35 @@ struct
 
       type name = Indirect of int | Direct of step
 
-      type address = Indirect of int64 | Direct of H.t [@@deriving irmin]
+      type address = Indirect of int64 | Direct of H.t
 
-      type inode = { index : int; hash : address } [@@deriving irmin]
+      let address : address Irmin.Type.t =
+        let open Irmin.Type in
+        variant "Compress.address" (fun i d -> function
+          | Indirect x -> i x | Direct x -> d x)
+        |~ case1 "Indirect" int64 (fun x -> Indirect x)
+        |~ case1 "Direct" H.t (fun x -> Direct x)
+        |> sealv
+
+      type inode = { index : int; hash : address }
+
+      let inode : inode Irmin.Type.t =
+        let open Irmin.Type in
+        record "Compress.inode" (fun index hash -> { index; hash })
+        |+ field "index" int (fun t -> t.index)
+        |+ field "hash" address (fun t -> t.hash)
+        |> sealr
 
       type inodes = { seed : int; length : int; entries : inode list }
-      [@@deriving irmin]
+
+      let inodes : inodes Irmin.Type.t =
+        let open Irmin.Type in
+        record "Compress.inodes" (fun seed length entries ->
+            { seed; length; entries })
+        |+ field "seed" int (fun t -> t.seed)
+        |+ field "length" int (fun t -> t.length)
+        |+ field "entries" (list inode) (fun t -> t.entries)
+        |> sealr
 
       type value =
         | Contents of name * address * metadata
@@ -186,24 +236,38 @@ struct
                Node (Direct n, Direct i))
         |> sealv
 
-      type v = Values of (value[@repr value]) list | Inodes of inodes
-      [@@deriving irmin]
+      type v = Values of value list | Inodes of inodes
+
+      let v_t : v Irmin.Type.t =
+        let open Irmin.Type in
+        variant "Compress.v" (fun values inodes -> function
+          | Values x -> values x | Inodes x -> inodes x)
+        |~ case1 "Values" (list value) (fun x -> Values x)
+        |~ case1 "Inodes" inodes (fun x -> Inodes x)
+        |> sealv
+
+      type t = { hash : H.t; stable : bool; v : v }
+
+      let node ~hash v = { hash; stable = true; v }
+
+      let inode ~hash v = { hash; stable = false; v }
 
       let magic_node = 'N'
 
       let magic_inode = 'I'
 
-      let stable_t : bool Irmin.Type.t =
+      let stable : bool Irmin.Type.t =
         Irmin.Type.(map char)
           (fun n -> n = magic_node)
           (function true -> magic_node | false -> magic_inode)
 
-      type t = { hash : H.t; stable : (bool[@repr stable_t]); v : v }
-      [@@deriving irmin]
-
-      let node ~hash v = { hash; stable = true; v }
-
-      let inode ~hash v = { hash; stable = false; v }
+      let t =
+        let open Irmin.Type in
+        record "Compress.t" (fun hash stable v -> { hash; stable; v })
+        |+ field "hash" H.t (fun t -> t.hash)
+        |+ field "stable" stable (fun t -> t.stable)
+        |+ field "v" v_t (fun t -> t.v)
+        |> sealr
     end
 
     module Val = struct

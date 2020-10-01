@@ -64,7 +64,15 @@ struct
   module X = struct
     module Hash = H
 
-    type 'a value = { magic : char; hash : H.t; v : 'a } [@@deriving irmin]
+    type 'a value = { magic : char; hash : H.t; v : 'a }
+
+    let value a =
+      let open Irmin.Type in
+      record "value" (fun hash magic v -> { magic; hash; v })
+      |+ field "hash" H.t (fun v -> v.hash)
+      |+ field "magic" char (fun v -> v.magic)
+      |+ field "v" a (fun v -> v.v)
+      |> sealr
 
     module Contents = struct
       module CA = struct
@@ -79,7 +87,7 @@ struct
 
           let magic = 'B'
 
-          let value = value_t Val.t
+          let value = value Val.t
 
           let encode_value = Irmin.Type.(unstage (encode_bin value))
 
@@ -117,7 +125,7 @@ struct
 
           let hash = H.hash
 
-          let value = value_t Val.t
+          let value = value Val.t
 
           let magic = 'C'
 
