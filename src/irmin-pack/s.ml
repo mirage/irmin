@@ -25,7 +25,7 @@ end
 module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
   include Pack.S
 
-  module U : Pack.S
+  module U : Pack.S with type value = value
 
   module L : Pack.S
 
@@ -36,7 +36,7 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
     flip:bool ->
     freeze_lock:Lwt_mutex.t ->
     add_lock:Lwt_mutex.t ->
-    'a t
+    [ `Read ] t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
@@ -162,7 +162,7 @@ module type LAYERED_INODE = sig
     flip:bool ->
     freeze_lock:Lwt_mutex.t ->
     add_lock:Lwt_mutex.t ->
-    'a t
+    [ `Read ] t
 
   val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
 
@@ -191,6 +191,12 @@ module type LAYERED_INODE = sig
   val update_flip : flip:bool -> 'a t -> unit
 
   val clear_caches_next_upper : 'a t -> unit
+
+  val sync :
+    ?on_generation_change:(unit -> unit) ->
+    ?on_generation_change_next_upper:(unit -> unit) ->
+    'a t ->
+    bool
 end
 
 module type STORE = sig

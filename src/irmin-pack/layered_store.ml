@@ -68,21 +68,17 @@ end
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (Pack : Pack.S with type index = Index.t and type key = H.t) :
-  S.LAYERED_CONTENT_ADDRESSABLE_STORE
-    with type key = Pack.key
-     and type value = Pack.value
-     and type index = Pack.index
-     and module U = Pack
-     and module L = Pack = struct
-  type index = Pack.index
+    (U : Pack.S with type index = Index.t and type key = H.t)
+    (L : Pack.S
+           with type index = U.index
+            and type key = U.key
+            and type value = U.value) =
+struct
+  type index = U.index
 
-  type key = Pack.key
+  type key = U.key
 
-  type value = Pack.value
-
-  module U = Pack
-  module L = Pack
+  type value = U.value
 
   type 'a t = {
     lower : [ `Read ] L.t option;
@@ -91,6 +87,9 @@ module Content_addressable
     freeze_lock : Lwt_mutex.t;
     add_lock : Lwt_mutex.t;
   }
+
+  module U = U
+  module L = L
 
   let v upper1 upper0 lower ~flip ~freeze_lock ~add_lock =
     Log.debug (fun l -> l "v flip = %b" flip);
@@ -383,29 +382,29 @@ end
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) :
-  S.LAYERED_MAKER with type key = P.key and type index = P.index = struct
+    (P : Pack.MAKER with type key = H.t and type index = Index.t) =
+struct
   type index = P.index
 
   type key = P.key
 
   module Make (V : Pack.ELT with type hash := key) = struct
     module Upper = P.Make (V)
-    include Content_addressable (H) (Index) (Upper)
+    include Content_addressable (H) (Index) (Upper) (Upper)
   end
 end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (A : S.ATOMIC_WRITE_STORE with type key = K.t) :
-  S.LAYERED_ATOMIC_WRITE_STORE with type key = A.key and type value = A.value =
+    (U : S.ATOMIC_WRITE_STORE with type key = K.t)
+    (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) =
 struct
-  type key = A.key
+  type key = U.key
 
-  type value = A.value
+  type value = U.value
 
-  module U = A
-  module L = A
+  module U = U
+  module L = L
 
   type t = {
     lower : L.t option;

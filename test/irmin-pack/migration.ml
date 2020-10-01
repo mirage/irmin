@@ -33,7 +33,7 @@ let archive =
     ("foo", [ ([ "b" ], "y") ]);
   ]
 
-module type Migrate_Store = sig
+module type Migrate_store = sig
   include
     Irmin.S
       with type step = string
@@ -45,7 +45,7 @@ module type Migrate_Store = sig
 end
 
 module Test
-    (S : Migrate_Store) (Config : sig
+    (S : Migrate_store) (Config : sig
       val setup_test_env : unit -> unit
 
       val root_v1 : string
@@ -118,7 +118,7 @@ struct
     Lwt.return_unit
 end
 
-module Config_Store = struct
+module Config_store = struct
   let root_v1_archive, root_v1 =
     let open Fpath in
     ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
@@ -147,22 +147,22 @@ module Make () =
     (Irmin.Branch.String)
     (Hash)
 
-module Test_Store = struct
+module Test_store = struct
   module S = Make ()
 
-  include Test (S) (Config_Store)
+  include Test (S) (Config_store)
 
   let uncached_instance_check_idempotent () =
     Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
     let module S = Make () in
-    let conf = config ~readonly:false ~fresh:false Config_Store.root_v1 in
+    let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf
 
   let uncached_instance_check_commit new_commit =
     Log.app (fun m ->
         m "Checking all values can be read from an uncached instance");
     let module S = Make () in
-    let conf = config ~readonly:true ~fresh:false Config_Store.root_v1 in
+    let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
     let* ro = S.Repo.v conf in
     let* () = check_repo ro archive in
     let* () = check_commit ro new_commit [ ([ "c" ], "x") ] in
@@ -172,7 +172,7 @@ module Test_Store = struct
     v1_to_v2 ~uncached_instance_check_idempotent ~uncached_instance_check_commit
 end
 
-module Config_Layered_Store = struct
+module Config_layered_store = struct
   (** the empty store is to simulate the scenario where upper0 is non existing.
       TODO make the test pass with an actual non existing upper0. *)
   let root_v1_archive, empty_store, root_v1, upper1, upper0, lower =
@@ -216,12 +216,12 @@ module Make_layered =
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
-module Test_Layered_Store = Test (Make_layered) (Config_Layered_Store)
+module Test_layered_store = Test (Make_layered) (Config_layered_store)
 
 let tests =
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
-        Lwt_main.run (Test_Store.v1_to_v2 ()));
+        Lwt_main.run (Test_store.v1_to_v2 ()));
     Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
-        Lwt_main.run (Test_Layered_Store.v1_to_v2 ()));
+        Lwt_main.run (Test_layered_store.v1_to_v2 ()));
   ]

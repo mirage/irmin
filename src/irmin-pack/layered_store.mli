@@ -17,18 +17,26 @@
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (Pack : Pack.S with type index = Index.t and type key = H.t) :
+    (U : Pack.S with type index = Index.t and type key = H.t)
+    (L : Pack.S
+           with type index = U.index
+            and type key = U.key
+            and type value = U.value) :
   S.LAYERED_CONTENT_ADDRESSABLE_STORE
-    with type key = Pack.key
-     and type value = Pack.value
-     and type index = Pack.index
-     and module U = Pack
-     and module L = Pack
+    with type index = U.index
+     and type U.index = Index.t
+     and type L.index = Index.t
+     and type key = U.key
+     and type U.key = H.t
+     and type L.key = H.t
+     and type value = U.value
+     and type L.value = U.value
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (A : S.ATOMIC_WRITE_STORE with type key = K.t) :
-  S.LAYERED_ATOMIC_WRITE_STORE with type key = A.key and type value = A.value
+    (U : S.ATOMIC_WRITE_STORE with type key = K.t)
+    (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) :
+  S.LAYERED_ATOMIC_WRITE_STORE with type key = U.key and type value = U.value
 
 module Pack_Maker
     (H : Irmin.Hash.S)

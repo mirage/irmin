@@ -21,5 +21,4 @@ depends: [
   "irmin-test" {with-test & post}
 ]
 
-
-synopsis: "Layered Irmin stores"
+synopsis: "Combine different Irmin stores into a single, layered store."

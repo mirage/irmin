@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2020 Ioana Cristescu <ioana@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -41,7 +41,7 @@ struct
         module Key = Hash
         module Val = C
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered.Content_addressable (Key) (Val) (CA)
+        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
         include Layered_CA
       end
 
@@ -53,7 +53,7 @@ struct
         module Key = Hash
         module Val = N
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered.Content_addressable (Key) (Val) (CA)
+        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
         include Layered_CA
       end
 
@@ -65,7 +65,7 @@ struct
         module Key = Hash
         module Val = CT
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered.Content_addressable (Key) (Val) (CA)
+        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
         include Layered_CA
       end
 

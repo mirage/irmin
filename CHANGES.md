@@ -14,6 +14,10 @@
 
 #### Added
 
+- **irmin-layers** (_new_):
+  - Created a new package, `irmin-layers` that includes common signatures for
+    layered stores. It contains a stub `Make_layers` functor (#882, @icristescu)
+
 - **irmin**
   - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
     contents and nodes respectively. (#1022, @CraigFe)
@@ -59,7 +63,7 @@
 
   - Added a `flush` function for a repo (#1092, @icristescu)
 
-  - Added `Make_layered` functor, to construct a layered stores from irmin-pack.
+  - Added `Make_layered` functor, to construct layered stores from irmin-pack.
     (#882, @icristescu)
 
 - **ppx_irmin**:

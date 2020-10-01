@@ -35,21 +35,21 @@ end
 module IO = struct
   type t = { file : string; fd : Lwt_unix.file_descr }
 
-  let write ~offset t buf =
+  let lseek ~offset t =
     Lwt_unix.lseek t.fd offset Lwt_unix.SEEK_SET >>= fun off ->
-    if off <> offset then Lwt.fail_with "invalid lseek"
-    else
-      let len = Bytes.length buf in
-      Lwt_unix.write t.fd buf 0 len >>= fun n ->
-      if n <> len then Lwt.fail_with "invalid write" else Lwt.return_unit
+    if off <> offset then Lwt.fail_with "invalid lseek" else Lwt.return_unit
+
+  let write ~offset t buf =
+    lseek ~offset t >>= fun () ->
+    let len = Bytes.length buf in
+    Lwt_unix.write t.fd buf 0 len >>= fun n ->
+    if n <> len then Lwt.fail_with "invalid write" else Lwt.return_unit
 
   let read ~offset t buf =
-    Lwt_unix.lseek t.fd offset Lwt_unix.SEEK_SET >>= fun off ->
-    if off <> offset then Lwt.fail_with "invalid lseek"
-    else
-      let len = Bytes.length buf in
-      Lwt_unix.read t.fd buf 0 len >>= fun n ->
-      if n <> len then Lwt.fail_with "invalid read" else Lwt.return_unit
+    lseek ~offset t >>= fun () ->
+    let len = Bytes.length buf in
+    Lwt_unix.read t.fd buf 0 len >>= fun n ->
+    if n <> len then Lwt.fail_with "invalid read" else Lwt.return_unit
 
   let close t = Lwt_unix.close t.fd
 
@@ -63,10 +63,7 @@ module IO = struct
     | d -> Lwt.fail_with ("corrupted flip file " ^ string_of_int d)
 
   let write_flip flip t =
-    let buf =
-      if flip then Bytes.make 1 (char_of_int 1)
-      else Bytes.make 1 (char_of_int 0)
-    in
+    let buf = Bytes.make 1 (char_of_int (if flip then 1 else 0)) in
     write ~offset:0 t buf
 
   let v file =

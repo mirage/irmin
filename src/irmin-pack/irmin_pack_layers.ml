@@ -163,14 +163,14 @@ struct
         end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered.Content_addressable (H) (Index) (CA)
+        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
       include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
-      module Pa = Layered.Pack_Maker (H) (Index) (Pack)
+      module Pa = Layered_store.Pack_Maker (H) (Index) (Pack)
       module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
@@ -205,7 +205,7 @@ struct
         end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered.Content_addressable (H) (Index) (CA)
+        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -216,7 +216,7 @@ struct
       module Val = H
       module AW = Atomic_write (Key) (Val)
       module Closeable_AW = Closeable.Atomic_write (AW)
-      include Layered.Atomic_write (Key) (Closeable_AW)
+      include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)

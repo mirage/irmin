@@ -1,4 +1,4 @@
 (library
  (public_name irmin-layers)
  (name irmin_layers)
- (libraries irmin mtime mtime.clock.os))
+ (libraries irmin logs lwt mtime mtime.clock.os))

@@ -25,40 +25,6 @@ let reset_stats () =
   Irmin_pack.Stats.reset_stats ();
   Irmin_layers.Stats.reset_stats ()
 
-open Cmdliner
-
-let ncommits =
-  let doc = Arg.info ~doc:"Number of commits per batch." [ "n"; "ncommits" ] in
-  Arg.(value @@ opt int 50 doc)
-
-let nbatches =
-  let doc = Arg.info ~doc:"Number of batches." [ "b"; "nbatches" ] in
-  Arg.(value @@ opt int 5 doc)
-
-let depth =
-  let doc = Arg.info ~doc:"Depth of a commit's tree." [ "d"; "depth" ] in
-  Arg.(value @@ opt int 1000 doc)
-
-let clear =
-  let doc =
-    Arg.info ~doc:"Clear the tree after each commit." [ "c"; "clear" ]
-  in
-  Arg.(value @@ opt bool false doc)
-
-let copy_in_upper =
-  let doc =
-    Arg.info ~doc:"Freeze with copy_in_upper." [ "k"; "copy_in_upper" ]
-  in
-  Arg.(value @@ opt bool true doc)
-
-let reader =
-  let doc = Arg.info ~doc:"Benchmark RO reads." [ "r"; "reader" ] in
-  Arg.(value @@ opt bool false doc)
-
-let no_freeze =
-  let doc = Arg.info ~doc:"Without freeze." [ "f"; "no_freeze" ] in
-  Arg.(value @@ opt bool false doc)
-
 type config = {
   ncommits : int;
   nbatches : int;
@@ -345,6 +311,40 @@ let main ncommits nbatches depth clear copy_in_upper reader no_freeze =
     config.root config.depth config.ncommits config.nbatches config.clear
     config.copy_in_upper config.reader config.no_freeze;
   Lwt_main.run (run config)
+
+open Cmdliner
+
+let ncommits =
+  let doc = Arg.info ~doc:"Number of commits per batch." [ "n"; "ncommits" ] in
+  Arg.(value @@ opt int 50 doc)
+
+let nbatches =
+  let doc = Arg.info ~doc:"Number of batches." [ "b"; "nbatches" ] in
+  Arg.(value @@ opt int 5 doc)
+
+let depth =
+  let doc = Arg.info ~doc:"Depth of a commit's tree." [ "d"; "depth" ] in
+  Arg.(value @@ opt int 1000 doc)
+
+let clear =
+  let doc =
+    Arg.info ~doc:"Clear the tree after each commit." [ "c"; "clear" ]
+  in
+  Arg.(value @@ opt bool false doc)
+
+let copy_in_upper =
+  let doc =
+    Arg.info ~doc:"Freeze with copy_in_upper." [ "k"; "copy_in_upper" ]
+  in
+  Arg.(value @@ opt bool true doc)
+
+let reader =
+  let doc = Arg.info ~doc:"Benchmark RO reads." [ "r"; "reader" ] in
+  Arg.(value @@ opt bool false doc)
+
+let no_freeze =
+  let doc = Arg.info ~doc:"Without freeze." [ "f"; "no_freeze" ] in
+  Arg.(value @@ opt bool false doc)
 
 let main_term =
   Term.(

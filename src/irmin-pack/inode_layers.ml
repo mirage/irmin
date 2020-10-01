@@ -44,14 +44,8 @@ module Make
     (Pack : S.LAYERED_MAKER
               with type key = H.t
                and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) :
-  S.LAYERED_INODE
-    with type key = H.t
-     and type Val.metadata = Node.metadata
-     and type Val.step = Node.step
-     and type index = Pack_index.Make(H).t
-     and type U.index = Pack_index.Make(H).t
-     and type L.index = Pack_index.Make(H).t = struct
+    (Node : Irmin.Private.Node.S with type hash = H.t) =
+struct
   type index = Pack.index
 
   include Inode.Make_intermediate (Conf) (H) (Node)
@@ -75,8 +69,8 @@ module Make
 
   let v = Inode.v
 
-  let sync ?on_generation_change:_ _ =
-    Fmt.failwith "not implemented for the node store"
+  let sync ?on_generation_change ?on_generation_change_next_upper t =
+    Inode.sync ?on_generation_change ?on_generation_change_next_upper t
 
   let clear_caches = Inode.clear_caches
 
@@ -121,15 +115,15 @@ module Make
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let return = Lwt.pause
+  let pause = Lwt.pause
 
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
     Irmin_layers.Stats.copy_nodes ();
     Inode.U.find (Inode.current_upper t) k >>= function
-    | None -> return ()
+    | None -> pause ()
     | Some v ->
-        return () >>= fun () ->
+        pause () >>= fun () ->
         let v' = lift t v in
         (* copy is called right after [of_bin] and the inodes have empty cached
            trees. We call [list] here to add the cached tree to the inodes, so that
@@ -137,10 +131,10 @@ module Make
         List.iter ignore (Val.list v');
         let add k v =
           add k v;
-          return ()
+          pause ()
         in
         let mem k = mem k |> Lwt.return in
-        return () >>= fun () -> Inode.Val.save_lwt ~add ~mem v'.Val.v
+        pause () >>= fun () -> Inode.Val.save_lwt ~add ~mem v'.Val.v
 
   let copy_to_lower ~dst t k =
     let add k v = Inode.L.unsafe_append dst k v in
