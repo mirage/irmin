@@ -109,7 +109,7 @@ end
 module type INODE_EXT = sig
   include INODE_INTER
 
-  include PACK_INTER with type value = Elt.t and type key = hash
+  include Pack.S with type value = Elt.t and type key = hash
 end
 
 module type S_EXT = sig

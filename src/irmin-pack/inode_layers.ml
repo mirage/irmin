@@ -24,20 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module I = Inode
 
-module Make_ext
-    (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inode : I.INODE_EXT with type hash = H.t)
-    (Val : I.VAL_INTER
-             with type hash = H.t
-              and type inode_val = Inode.Val.t
-              and type metadata = Node.metadata
-              and type step = Node.step) :
-  I.S_EXT with type key = H.t and type 'a t = 'a Inode.t and type value = Val.t =
-struct
-  include I.Make_ext (H) (Node) (Inode) (Val)
-end
-
 module Make
     (Conf : Config.S)
     (H : Irmin.Hash.S)
@@ -55,7 +41,54 @@ struct
     include Pack.Make (Elt)
   end
 
-  include Make_ext (H) (Node) (Inode) (Val)
+  module Key = H
+
+  type 'a t = 'a Inode.t
+
+  type key = Key.t
+
+  type value = Val.t
+
+  let mem t k = Inode.mem t k
+
+  let unsafe_find t k =
+    match Inode.unsafe_find t k with
+    | None -> None
+    | Some v ->
+        let v = Inode.Val.of_bin v in
+        Some v
+
+  let find t k =
+    Inode.find t k >|= function
+    | None -> None
+    | Some v ->
+        let v = Inode.Val.of_bin v in
+        let find = unsafe_find t in
+        Some { Val.find; v }
+
+  let hash v = Inode.Val.hash v.Val.v
+
+  let check_hash expected got =
+    if Irmin.Type.equal H.t expected got then ()
+    else
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
+        expected Inode.pp_hash got
+
+  let batch = Inode.batch
+
+  let v = Inode.v
+
+  type integrity_error = Inode.integrity_error
+
+  let integrity_check = Inode.integrity_check
+
+  let close = Inode.close
+
+  let sync = Inode.sync
+
+  let clear = Inode.clear
+
+  let clear_caches = Inode.clear_caches
 
   let save t v =
     let add k v = Inode.unsafe_append t k v in
@@ -66,13 +99,6 @@ struct
   let unsafe_add t k v =
     check_hash k (hash v);
     save t v.Val.v
-
-  let v = Inode.v
-
-  let sync ?on_generation_change ?on_generation_change_next_upper t =
-    Inode.sync ?on_generation_change ?on_generation_change_next_upper t
-
-  let clear_caches = Inode.clear_caches
 
   let clear_caches_next_upper = Inode.clear_caches_next_upper
 

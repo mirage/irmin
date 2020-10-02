@@ -797,7 +797,15 @@ struct
         let find = unsafe_find t in
         Some { Val.find; v }
 
+  let save t v =
+    let add k v = Inode.unsafe_append t k v in
+    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
+
   let hash v = Inode.Val.hash v.Val.v
+
+  let add t v =
+    save t v.Val.v;
+    Lwt.return (hash v)
 
   let check_hash expected got =
     if Irmin.Type.equal H.t expected got then ()
@@ -805,7 +813,14 @@ struct
       Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
         expected Inode.pp_hash got
 
+  let unsafe_add t k v =
+    check_hash k (hash v);
+    save t v.Val.v;
+    Lwt.return_unit
+
   let batch = Inode.batch
+
+  let v = Inode.v
 
   type integrity_error = Inode.integrity_error
 
@@ -813,13 +828,11 @@ struct
 
   let close = Inode.close
 
+  let sync = Inode.sync
+
   let clear = Inode.clear
 
   let clear_caches = Inode.clear_caches
-
-  let add _ _ = failwith "not implemented"
-
-  let unsafe_add _ _ _ = failwith "not implemented"
 end
 
 module Make
@@ -838,21 +851,4 @@ struct
   end
 
   include Make_ext (H) (Node) (Inode) (Val)
-
-  let save t v =
-    let add k v = Inode.unsafe_append t k v in
-    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
-
-  let add t v =
-    save t v.Val.v;
-    Lwt.return (hash v)
-
-  let unsafe_add t k v =
-    check_hash k (hash v);
-    save t v.Val.v;
-    Lwt.return_unit
-
-  let v = Inode.v
-
-  let sync = Inode.sync
 end
