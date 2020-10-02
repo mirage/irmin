@@ -90,6 +90,14 @@ module Content_addressable (S : Pack.S) = struct
   let version t =
     check_not_closed t;
     S.version t.t
+
+  let generation t =
+    check_not_closed t;
+    S.generation t.t
+
+  let offset t =
+    check_not_closed t;
+    S.offset t.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

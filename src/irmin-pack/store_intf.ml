@@ -43,4 +43,6 @@ module type Store = sig
     S.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val migrate : Irmin.config -> unit
+
+  exception Unsupported_version of IO.version
 end

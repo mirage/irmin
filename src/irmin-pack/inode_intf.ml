@@ -59,6 +59,12 @@ module type INODE_INTER = sig
 
     val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
 
+    val save_lwt :
+      add:(hash -> Elt.t -> unit Lwt.t) ->
+      mem:(hash -> bool Lwt.t) ->
+      t ->
+      unit Lwt.t
+
     val hash : t -> hash
   end
 end
@@ -71,6 +77,33 @@ module type VAL_INTER = sig
   type t = { mutable find : hash -> inode_val option; v : inode_val }
 
   include Irmin.Private.Node.S with type hash := hash and type t := t
+end
+
+module type PACK_INTER = sig
+  include Irmin.CONTENT_ADDRESSABLE_STORE
+
+  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+
+  val add : 'a t -> value -> key Lwt.t
+
+  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+
+  val unsafe_find : 'a t -> key -> value option
+
+  val flush : ?index:bool -> 'a t -> unit
+
+  val version : 'a t -> IO.version
+
+  val clear : 'a t -> unit Lwt.t
+
+  val clear_caches : 'a t -> unit
+
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
+
+  val close : 'a t -> unit Lwt.t
 end
 
 module type INODE_EXT = sig
@@ -93,8 +126,6 @@ module type S_EXT = sig
 
   val close : 'a t -> unit Lwt.t
 
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-
   val clear_caches : 'a t -> unit
 
   val hash : value -> key
@@ -105,15 +136,22 @@ end
 module type Inode = sig
   module type S = S
 
+  module type INODE_EXT = INODE_EXT
+
+  module type VAL_INTER = VAL_INTER
+
+  module type S_EXT = S_EXT
+
   module Make_intermediate
       (Conf : Config.S)
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t) : sig
-    module Inode : INODE_INTER
+    module Inode : INODE_INTER with type hash = H.t
 
     module Val :
       VAL_INTER
-        with type inode_val = Inode.Val.t
+        with type hash = H.t
+         and type inode_val = Inode.Val.t
          and type metadata = Node.metadata
          and type step = Node.step
   end

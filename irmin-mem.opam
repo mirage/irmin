@@ -17,6 +17,7 @@ depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "2.5.1"}
   "irmin"      {>= "2.2.0"}
+  "irmin-layers"
   "irmin-test" {with-test}
 ]
 

@@ -21,6 +21,7 @@ depends: [
   "logs"
   "lwt"
   "mtime"
+  "irmin-layers"
   "irmin-test" {with-test & >= "2.2.0"}
   "alcotest-lwt" {with-test}
   "astring" {with-test}

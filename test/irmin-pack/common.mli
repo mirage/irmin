@@ -69,3 +69,5 @@ module Conf : sig
 
   val stable_hash : int
 end
+
+val random_string : int -> string

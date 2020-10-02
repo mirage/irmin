@@ -1,10 +1,10 @@
 (library
  (name irmin_test)
  (public_name irmin-test)
- (modules Irmin_test Store Common)
+ (modules Irmin_test Store Common Layered_store)
  (preprocess future_syntax)
- (libraries alcotest astring fmt irmin jsonm logs.fmt lwt lwt.unix mtime
-   mtime.clock.os))
+ (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt
+   lwt.unix mtime mtime.clock.os))
 
 (library
  (foreign_stubs

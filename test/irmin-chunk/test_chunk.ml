@@ -96,4 +96,12 @@ let clean () =
   clear repo >>= fun () -> S.Repo.close repo
 
 let suite =
-  { Irmin_test.name = "CHUNK"; init; store; config; clean; stats = None }
+  {
+    Irmin_test.name = "CHUNK";
+    init;
+    store;
+    config;
+    clean;
+    stats = None;
+    layered_store = None;
+  }

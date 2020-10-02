@@ -1,0 +1,507 @@
+open Lwt.Infix
+
+let src = Logs.Src.create "test" ~doc:"Irmin-pack layered tests"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
+let root = "_build"
+
+let fresh_name =
+  let c = ref 0 in
+  fun () ->
+    incr c;
+    let name = Filename.concat root ("layered_" ^ string_of_int !c) in
+    Logs.info (fun m -> m "Constructing irmin store %s" name);
+    name
+
+let index_log_size = Some 4
+
+module Conf = struct
+  let entries = 32
+
+  let stable_hash = 256
+
+  let lower_root = "_lower"
+
+  let upper_root0 = "0"
+
+  let copy_in_upper = true
+
+  let with_lower = true
+end
+
+module Hash = Irmin.Hash.SHA1
+module Store =
+  Irmin_pack.Make_layered (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+module StoreSimple =
+  Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+
+let config ?(readonly = false) ?(fresh = true)
+    ?(copy_in_upper = Conf.copy_in_upper) ?(lower_root = Conf.lower_root)
+    ?(upper_root0 = Conf.upper_root0) ?(with_lower = Conf.with_lower) root =
+  let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
+  Irmin_pack.config_layers ~conf ~copy_in_upper ~lower_root ~upper_root0
+    ~with_lower ()
+
+module Test = struct
+  type index = { root : string; repo : Store.Repo.t }
+
+  and context = {
+    index : index;
+    parents : Store.Commit.t list;
+    tree : Store.tree;
+  }
+
+  let info = Irmin.Info.v ~date:0L ~author:"" ""
+
+  let commit ctxt =
+    let parents = List.map Store.Commit.hash ctxt.parents in
+    Store.Commit.v ctxt.index.repo ~info ~parents ctxt.tree >|= fun h ->
+    Store.Tree.clear ctxt.tree;
+    h
+
+  let set ctxt key data =
+    Store.Tree.add ctxt.tree key data >>= fun tree ->
+    Lwt.return { ctxt with tree }
+
+  let del ctxt key =
+    Store.Tree.remove ctxt.tree key >>= fun tree ->
+    Lwt.return { ctxt with tree }
+
+  let checkout index key =
+    Store.Commit.of_hash index.repo (Store.Commit.hash key) >>= function
+    | None -> Lwt.return_none
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        let ctxt = { index; tree; parents = [ commit ] } in
+        Lwt.return_some ctxt
+
+  let init ?readonly ?with_lower () =
+    let root = fresh_name () in
+    Common.rm_dir root;
+    Store.Repo.v (config ?readonly ?with_lower root) >|= fun repo ->
+    let index = { root; repo } in
+    let tree = Store.Tree.empty in
+    { index; tree; parents = [] }
+
+  let clone ?readonly ?with_lower root =
+    Store.Repo.v (config ~fresh:false ?readonly ?with_lower root)
+    >|= fun repo ->
+    let index = { root; repo } in
+    let tree = Store.Tree.empty in
+    { index; tree; parents = [] }
+
+  let freeze ?copy_in_upper ctxt commit =
+    Store.freeze ?copy_in_upper ctxt.index.repo ~max:[ commit ] >|= fun () ->
+    { index = ctxt.index; tree = Store.Tree.empty; parents = [] }
+
+  let commit_block1 ctxt =
+    set ctxt [ "a"; "b" ] "Novembre" >>= fun ctxt ->
+    set ctxt [ "a"; "c" ] "Juin" >>= fun ctxt ->
+    set ctxt [ "version" ] "0.0" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block1 repo block1 =
+    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "b" ] >>= fun novembre ->
+        Alcotest.(check (option string)) "nov" (Some "Novembre") novembre;
+        Store.Tree.find tree [ "a"; "c" ] >>= fun juin ->
+        Alcotest.(check (option string)) "juin" (Some "Juin") juin;
+        Store.Tree.find tree [ "version" ] >|= fun version ->
+        Alcotest.(check (option string)) "version" (Some "0.0") version
+
+  let commit_block1a ctxt =
+    del ctxt [ "a"; "b" ] >>= fun ctxt ->
+    set ctxt [ "a"; "d" ] "Mars" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block1a repo block1a =
+    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "d" ] >>= fun mars ->
+        Alcotest.(check (option string)) "mars" (Some "Mars") mars;
+        Store.Tree.find tree [ "a"; "c" ] >>= fun juin ->
+        Alcotest.(check (option string)) "juin" (Some "Juin") juin;
+        Store.Tree.find tree [ "version" ] >|= fun version ->
+        Alcotest.(check (option string)) "version" (Some "0.0") version
+
+  let commit_block1b ctxt =
+    del ctxt [ "a"; "c" ] >>= fun ctxt ->
+    set ctxt [ "a"; "d" ] "Février" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block1b repo block1 =
+    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "d" ] >|= fun fev ->
+        Alcotest.(check (option string)) "fev" (Some "Février") fev
+
+  let commit_block1c ctxt =
+    del ctxt [ "a"; "c" ] >>= fun ctxt ->
+    set ctxt [ "a"; "d" ] "Janv" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block1c repo block =
+    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "d" ] >|= fun janv ->
+        Alcotest.(check (option string)) "janv" (Some "Janv") janv
+
+  let commit_block2a ctxt =
+    set ctxt [ "a"; "e" ] "Mars" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block2a repo block1a =
+    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "e" ] >|= fun mars ->
+        Alcotest.(check (option string)) "mars" (Some "Mars") mars
+
+  let commit_block3a ctxt =
+    set ctxt [ "e"; "a" ] "Avril" >>= fun ctxt ->
+    commit ctxt >|= fun h -> (ctxt, h)
+
+  let check_block3a repo block =
+    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        Store.Tree.find tree [ "a"; "e" ] >>= fun mars ->
+        Alcotest.(check (option string)) "mars" (Some "Mars") mars;
+        Store.Tree.find tree [ "e"; "a" ] >|= fun avril ->
+        Alcotest.(check (option string)) "avril" (Some "Avril") avril
+
+  let checkout_and_commit ctxt block create =
+    checkout ctxt.index block >>= function
+    | None -> failwith "checkout block"
+    | Some ctxt -> create ctxt
+
+  let check_removed ctxt key msg =
+    Store.Commit.of_hash ctxt.index.repo (Store.Commit.hash key) >>= function
+    | None -> Lwt.return_unit
+    | Some _ -> Alcotest.failf "should not find %s" msg
+
+  let commit_block1_simple_store repo =
+    StoreSimple.Tree.add StoreSimple.Tree.empty [ "a"; "b" ] "Novembre"
+    >>= fun tree ->
+    StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" >>= fun tree ->
+    StoreSimple.Tree.add tree [ "version" ] "0.0" >>= fun tree ->
+    StoreSimple.Commit.v repo ~info ~parents:[] tree >|= fun block1 ->
+    StoreSimple.Commit.hash block1
+
+  let check_commit_hash ctxt check_block hash =
+    Store.Commit.of_hash ctxt.index.repo hash >>= function
+    | None -> Alcotest.fail "no hash found in repo"
+    | Some commit -> check_block ctxt.index.repo commit
+
+  (** Check that freeze preserves and deletes commits accordingly. *)
+  let test_simple_freeze () =
+    init () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    checkout_and_commit ctxt block1 commit_block1b >>= fun (ctxt, block1b) ->
+    freeze ctxt block1a >>= fun ctxt ->
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_removed ctxt block1b "block1b" >>= fun () ->
+    check_block1a ctxt.index.repo block1a >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
+  (** Check that freeze and close work together; check that the right upper is
+      used after freeze and after closing and reopening the store. *)
+  let test_close_freeze () =
+    let check_upper msg expected repo =
+      let x = Store.PrivateLayer.upper_in_use repo in
+      if expected <> x then Alcotest.fail msg
+    in
+    init () >>= fun ctxt ->
+    let store_name = ctxt.index.root in
+    check_upper "upper1.1" `Upper1 ctxt.index.repo;
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_upper "upper0.1" `Upper0 ctxt.index.repo;
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_upper "upper0.2" `Upper0 ctxt.index.repo;
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    check_block1a ctxt.index.repo block1a >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_upper "upper0.3" `Upper0 ctxt.index.repo;
+    freeze ctxt block1a >>= fun ctxt ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_upper "upper1.2" `Upper1 ctxt.index.repo;
+    Store.Repo.close ctxt.index.repo
+
+  (** Check that freeze preserves and deletes commits from RO. *)
+  let test_ro_simple () =
+    init () >>= fun ctxt ->
+    clone ~readonly:true ctxt.index.root >>= fun ro_ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    checkout_and_commit ctxt block1 commit_block1b >>= fun (ctxt, block1b) ->
+    Store.sync ro_ctxt.index.repo;
+    Log.debug (fun l -> l "Freeze removes block1b but keeps block1, block1a");
+    freeze ctxt block1a >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    check_block1a ro_ctxt.index.repo block1a >>= fun () ->
+    check_block1b ro_ctxt.index.repo block1b >>= fun () ->
+    Store.sync ro_ctxt.index.repo;
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    check_block1a ro_ctxt.index.repo block1a >>= fun () ->
+    check_removed ro_ctxt block1b "block1b" >>= fun () ->
+    checkout_and_commit ctxt block1a commit_block2a >>= fun (ctxt, block2a) ->
+    checkout_and_commit ctxt block1a commit_block1c >>= fun (ctxt, block1c) ->
+    Store.sync ro_ctxt.index.repo;
+    Log.debug (fun l -> l "Freeze removes block1c but keeps block2a");
+    freeze ctxt block2a >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_block2a ro_ctxt.index.repo block2a >>= fun () ->
+    check_block1c ro_ctxt.index.repo block1c >>= fun () ->
+    Store.sync ro_ctxt.index.repo;
+    check_block2a ro_ctxt.index.repo block2a >>= fun () ->
+    check_removed ro_ctxt block1c "block1c" >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
+  (** When RO calls sync the value is in upper1, but when RO calls find the
+      value moved to lower. *)
+  let test_ro_sync_after_two_freezes () =
+    init () >>= fun ctxt ->
+    clone ~readonly:true ctxt.index.root >>= fun ro_ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    Store.sync ro_ctxt.index.repo;
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    freeze ctxt block1a >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
+  (** Check opening RO store and calling sync right after. *)
+  let test_ro_sync_after_v () =
+    init () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    clone ~readonly:true ctxt.index.root >>= fun ro_ctxt ->
+    Store.sync ro_ctxt.index.repo;
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
+  (** Delete lower or the upper not in use and add, find and freeze. *)
+  let test_delete_stores () =
+    let rm_store_from_disk store_name root =
+      let name = Filename.concat store_name root in
+      let cmd = Printf.sprintf "rm -rf %s" name in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      ()
+    in
+    init () >>= fun ctxt ->
+    let store_name = ctxt.index.root in
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    rm_store_from_disk store_name Conf.lower_root;
+    rm_store_from_disk store_name Conf.upper_root0;
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    rm_store_from_disk store_name Conf.lower_root;
+    rm_store_from_disk store_name "upper1";
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    freeze ctxt block1a >>= fun ctxt ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    rm_store_from_disk store_name Conf.lower_root;
+    rm_store_from_disk store_name Conf.upper_root0;
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_block1a ctxt.index.repo block1a >>= fun () ->
+    check_removed ctxt block1 "block1" >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
+  (** Open layered store, close it and open only the lower layer. *)
+  let test_open_lower () =
+    init () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    let hash1 = Store.Commit.hash block1 in
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    StoreSimple.Repo.v
+      (config ~fresh:false ~readonly:true
+         (Filename.concat ctxt.index.root Conf.lower_root))
+    >>= fun repo ->
+    (StoreSimple.Commit.of_hash repo hash1 >>= function
+     | None -> Alcotest.fail "checkout block1"
+     | Some commit ->
+         let tree = StoreSimple.Commit.tree commit in
+         StoreSimple.Tree.find tree [ "version" ] >>= fun version ->
+         Alcotest.(check (option string)) "version" version (Some "0.0");
+         Lwt.return_unit)
+    >>= fun () -> StoreSimple.Repo.close repo
+
+  (** Open upper1 as simple store, close it and then open it as layered store. *)
+  let test_upper1_reopen () =
+    let store_name = fresh_name () in
+    Common.rm_dir store_name;
+    StoreSimple.Repo.v
+      (config ~fresh:true ~readonly:false (Filename.concat store_name "upper1"))
+    >>= fun repo ->
+    commit_block1_simple_store repo >>= fun hash1 ->
+    StoreSimple.Repo.close repo >>= fun () ->
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_commit_hash ctxt check_block1 hash1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
+  (** Open lower as simple store, close it and then open it as layered store. *)
+  let test_lower_reopen () =
+    let store_name = fresh_name () in
+    Common.rm_dir store_name;
+    StoreSimple.Repo.v
+      (config ~fresh:true ~readonly:false
+         (Filename.concat store_name Conf.lower_root))
+    >>= fun repo ->
+    commit_block1_simple_store repo >>= fun hash1 ->
+    StoreSimple.Repo.close repo >>= fun () ->
+    clone ~readonly:false store_name >>= fun ctxt ->
+    check_commit_hash ctxt check_block1 hash1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
+  (** Test the without lower option for both RW and RO instances. *)
+  let test_without_lower () =
+    init ~with_lower:false () >>= fun ctxt ->
+    clone ~readonly:true ~with_lower:false ctxt.index.root >>= fun ro_ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    Log.debug (fun l -> l "Freeze removes block1 from upper");
+    freeze ~copy_in_upper:false ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_removed ctxt block1 "block1" >>= fun () ->
+    Store.sync ro_ctxt.index.repo;
+    check_removed ro_ctxt block1 "block1" >>= fun () ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    Log.debug (fun l -> l "Freeze keeps block1 in upper");
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    Store.sync ro_ctxt.index.repo;
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    Log.debug (fun l -> l "Freeze removes block1, block1a from upper");
+    freeze ~copy_in_upper:false ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_removed ctxt block1 "block1" >>= fun () ->
+    check_removed ctxt block1a "block1a" >>= fun () ->
+    Store.sync ro_ctxt.index.repo;
+    check_removed ro_ctxt block1 "block1" >>= fun () ->
+    check_removed ro_ctxt block1a "block1a" >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
+  (* 1 - 1a - 2a - 3a
+        \- 1b
+        \- 1c
+      and keep in upper 1a - 2a - 3a
+                          \- 1c *)
+  let test_without_lower_min_upper () =
+    init ~with_lower:false () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    checkout_and_commit ctxt block1 commit_block1b >>= fun (ctxt, block1b) ->
+    checkout_and_commit ctxt block1 commit_block1c >>= fun (ctxt, block1c) ->
+    checkout_and_commit ctxt block1a commit_block2a >>= fun (ctxt, block2a) ->
+    checkout_and_commit ctxt block2a commit_block3a >>= fun (ctxt, block3a) ->
+    Store.freeze ctxt.index.repo ~min_upper:[ block1a; block1c ]
+      ~max:[ block2a; block1c ] ~heads:[ block3a ]
+    >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    check_removed ctxt block1 "block1" >>= fun () ->
+    check_removed ctxt block1b "block1b" >>= fun () ->
+    check_block1c ctxt.index.repo block1c >>= fun () ->
+    check_block3a ctxt.index.repo block3a >>= fun () ->
+    check_block1a ctxt.index.repo block1a >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
+  module Hook = Store.PrivateLayer.Hook
+
+  let hook before after =
+    Hook.v (function
+      | `Before_Copy -> before ()
+      | `After_Clear -> after ()
+      | _ -> Lwt.return_unit)
+
+  let test_ro_find_during_freeze () =
+    init () >>= fun ctxt ->
+    clone ~readonly:true ctxt.index.root >>= fun ro_ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    let before () =
+      Store.sync ro_ctxt.index.repo;
+      Lwt.return_unit
+    in
+    let after () =
+      Store.sync ro_ctxt.index.repo;
+      check_block1 ro_ctxt.index.repo block1
+    in
+    Store.PrivateLayer.freeze' ctxt.index.repo ~max:[ block1 ]
+      ~hook:(hook before after)
+    >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    (* the commit is in lower *)
+    check_block1 ro_ctxt.index.repo block1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
+  let tests =
+    [
+      Alcotest.test_case "Test simple freeze" `Quick (fun () ->
+          Lwt_main.run (test_simple_freeze ()));
+      Alcotest.test_case "Test close and reopen a store" `Quick (fun () ->
+          Lwt_main.run (test_close_freeze ()));
+      Alcotest.test_case "Test ro instances" `Quick (fun () ->
+          Lwt_main.run (test_ro_simple ()));
+      Alcotest.test_case "Test ro after two freezes" `Quick (fun () ->
+          Lwt_main.run (test_ro_sync_after_two_freezes ()));
+      Alcotest.test_case "Test ro sync after v" `Quick (fun () ->
+          Lwt_main.run (test_ro_sync_after_v ()));
+      Alcotest.test_case "Delete lower and previous upper" `Quick (fun () ->
+          Lwt_main.run (test_delete_stores ()));
+      Alcotest.test_case "Open upper as simple store, then as layered" `Quick
+        (fun () -> Lwt_main.run (test_upper1_reopen ()));
+      Alcotest.test_case "Test open lower" `Quick (fun () ->
+          Lwt_main.run (test_open_lower ()));
+      Alcotest.test_case "Open lower as simple store, then as layered" `Quick
+        (fun () -> Lwt_main.run (test_lower_reopen ()));
+      Alcotest.test_case "Test without lower" `Quick (fun () ->
+          Lwt_main.run (test_without_lower ()));
+      Alcotest.test_case "Test without lower, min_upper" `Quick (fun () ->
+          Lwt_main.run (test_without_lower_min_upper ()));
+      Alcotest.test_case "Test ro find during freeze" `Quick (fun () ->
+          Lwt_main.run (test_ro_find_during_freeze ()));
+    ]
+end
+
+let tests = Test.tests

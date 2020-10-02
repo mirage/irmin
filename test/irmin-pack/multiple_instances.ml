@@ -181,6 +181,34 @@ let clear_rw_twice () =
   let* () = check_empty () in
   S.Repo.close rw
 
+let dict_sync_after_clear_same_offset () =
+  rm_dir root;
+  let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
+  let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  let find_key hash key value =
+    S.Commit.of_hash ro hash >>= function
+    | None -> Alcotest.fail "no hash"
+    | Some commit ->
+        let tree = S.Commit.tree commit in
+        S.Tree.find tree [ key ] >|= fun x ->
+        Alcotest.(check (option string)) "RO find" (Some value) x
+  in
+  let long_string = random_string 200 in
+  let* tree = S.Tree.add S.Tree.empty [ long_string ] "x" in
+  let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
+  let h = S.Commit.hash c in
+  S.sync ro;
+  let* () = find_key h long_string "x" in
+  let* () = clear_all rw in
+  let long_string = random_string 200 in
+  let* tree = S.Tree.add S.Tree.empty [ long_string ] "y" in
+  let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
+  let h = S.Commit.hash c in
+  S.sync ro;
+  let* () = find_key h long_string "y" in
+  let* () = S.Repo.close rw in
+  S.Repo.close ro
+
 let tests =
   let tc name test =
     Alcotest.test_case name `Quick (fun () -> Lwt_main.run (test ()))
@@ -192,4 +220,5 @@ let tests =
     tc "Find in ro after rw cleared" clear_rw_find_ro;
     tc "Test ro sync after add" ro_sync_after_add;
     tc "Test ro sync after close" ro_sync_after_close;
+    tc "RO sync dict after clear, same offset" dict_sync_after_clear_same_offset;
   ]

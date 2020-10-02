@@ -25,6 +25,7 @@ depends: [
   "lwt"
   "metrics-unix"
   "ocaml-syntax-shims"
+  "irmin-layers"
 ]
 
 synopsis: "Irmin test suite"

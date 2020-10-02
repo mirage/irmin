@@ -567,6 +567,34 @@ struct
 
       let add ~find t s v = add ~find ~copy:true t s v
 
+      let pause = Lwt.pause
+
+      let lwt_array_iter_s arr f =
+        let rec aux i =
+          if i = Array.length arr then Lwt.return_unit
+          else
+            let entry = arr.(i) in
+            f entry >>= fun () -> aux (i + 1)
+        in
+        aux 0
+
+      let save_lwt ~add ~mem t =
+        let rec aux ~seed t =
+          Log.debug (fun l -> l "save seed:%d %a" seed pp_hash (hash t));
+          match t.v with
+          | Values _ -> add (Lazy.force t.hash) (to_bin t)
+          | Inodes n ->
+              lwt_array_iter_s n.entries (function
+                | Empty | Inode { tree = None; _ } -> Lwt.return_unit
+                | Inode ({ tree = Some t; _ } as i) -> (
+                    let hash = hash_of_inode i in
+                    mem hash >>= function
+                    | true -> pause ()
+                    | false -> aux ~seed:(seed + 1) t))
+              >>= fun () -> add (Lazy.force t.hash) (to_bin t)
+        in
+        aux ~seed:0 t
+
       let save ~add ~mem t =
         let rec aux ~seed t =
           Log.debug (fun l -> l "save seed:%d" seed);

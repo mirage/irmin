@@ -101,6 +101,7 @@ struct
       lru : V.t Lru.t;
       staging : V.t Tbl.t;
       mutable open_instances : int;
+      readonly : bool;
     }
 
     type key = K.t
@@ -137,7 +138,7 @@ struct
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1 }
+      { staging; lru; pack; open_instances = 1; readonly }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
@@ -197,7 +198,9 @@ struct
       V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
 
     let unsafe_find t k =
-      Log.debug (fun l -> l "[pack] find %a" pp_hash k);
+      Log.debug (fun l ->
+          l "[pack] find %a in %s RO = %b" pp_hash k (IO.name t.pack.block)
+            t.readonly);
       Stats.incr_finds ();
       match Tbl.find t.staging k with
       | v ->
@@ -269,10 +272,12 @@ struct
           else Tbl.add t.staging k v;
           Lru.add t.lru k v
 
+    let pause = Lwt.pause
+
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_append t k v;
-          Lwt.return_unit)
+          pause ())
 
     let add t v =
       let k = V.hash v in
@@ -296,9 +301,11 @@ struct
     let clear t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_clear t;
-          Lwt.return_unit)
+          pause ())
 
-    let clear_caches t = Lru.clear t.lru
+    let clear_caches t =
+      Tbl.clear t.staging;
+      Lru.clear t.lru
 
     let sync ?(on_generation_change = Fun.id) t =
       let former_generation = IO.generation t.pack.block in
@@ -318,5 +325,9 @@ struct
       Index.sync t.pack.index
 
     let version t = IO.version t.pack.block
+
+    let generation t = IO.generation t.pack.block
+
+    let offset t = IO.offset t.pack.block
   end
 end

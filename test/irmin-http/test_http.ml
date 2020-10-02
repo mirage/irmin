@@ -207,6 +207,7 @@ let suite i server =
         server.clean ());
     config = Irmin_http.config uri;
     store = http_store id server.store;
+    layered_store = None;
   }
 
 let suites servers =
