@@ -234,28 +234,15 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
+  type layer_id = [ `Upper1 | `Upper0 | `Lower ]
+
   type integrity_error = U.integrity_error
 
-  let integrity_check ~offset ~length k t =
-    let current = current_upper t in
-    let next = next_upper t in
-    let lower = t.lower in
-    match
-      ( U.integrity_check ~offset ~length k current,
-        U.integrity_check ~offset ~length k next,
-        match lower with
-        | None -> Ok ()
-        | Some lower -> L.integrity_check ~offset ~length k lower )
-    with
-    | Ok (), Ok (), Ok () -> Ok ()
-    | Error `Wrong_hash, _, _
-    | _, Error `Wrong_hash, _
-    | _, _, Error `Wrong_hash ->
-        Error `Wrong_hash
-    | Error `Absent_value, _, _
-    | _, Error `Absent_value, _
-    | _, _, Error `Absent_value ->
-        Error `Absent_value
+  let integrity_check ~offset ~length ~layer k t =
+    match layer with
+    | `Upper1 -> U.integrity_check ~offset ~length k (fst t.uppers)
+    | `Upper0 -> U.integrity_check ~offset ~length k (snd t.uppers)
+    | `Lower -> L.integrity_check ~offset ~length k (lower t)
 
   let layer_id t k =
     let current, upper =

@@ -80,6 +80,8 @@ struct
 
   type integrity_error = Inode.integrity_error
 
+  type layer_id = Inode.layer_id
+
   let integrity_check = Inode.integrity_check
 
   let close = Inode.close

@@ -38,7 +38,9 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
     add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
-  val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
+  type layer_id = [ `Upper1 | `Upper0 | `Lower ]
+
+  val layer_id : [ `Read ] t -> key -> layer_id Lwt.t
 
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type
@@ -93,6 +95,14 @@ module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
   val unsafe_mem : 'a t -> key -> bool Lwt.t
 
   val flush_next_lower : 'a t -> unit
+
+  val integrity_check :
+    offset:int64 ->
+    length:int ->
+    layer:layer_id ->
+    key ->
+    'a t ->
+    (unit, integrity_error) result
 end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
@@ -164,7 +174,9 @@ module type LAYERED_INODE = sig
     add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
-  val layer_id : [ `Read ] t -> key -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
+  type layer_id = [ `Upper1 | `Upper0 | `Lower ]
+
+  val layer_id : [ `Read ] t -> key -> layer_id Lwt.t
 
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type
@@ -197,6 +209,14 @@ module type LAYERED_INODE = sig
     ?on_generation_change_next_upper:(unit -> unit) ->
     'a t ->
     bool
+
+  val integrity_check :
+    offset:int64 ->
+    length:int ->
+    layer:layer_id ->
+    key ->
+    'a t ->
+    (unit, integrity_error) result
 end
 
 module type STORE = sig
