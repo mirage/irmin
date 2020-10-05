@@ -71,6 +71,9 @@
   - Added `Make_checks`, which provides some offline checks for irmin-pack
     stores. (#1117, @icristescu, @CraigFe)
 
+  - Added `reconstruct_index` to reconstruct an index from a pack file. (#1097,
+    @icristescu)
+
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
