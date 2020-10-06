@@ -224,29 +224,16 @@ struct
 
       type t = G.Value.Tree.t
 
-      type metadata = Metadata.t
+      type metadata = Metadata.t [@@deriving irmin]
 
-      type hash = Key.t
+      type hash = Key.t [@@deriving irmin]
 
-      type step = Path.step
+      type step = Path.step [@@deriving irmin]
 
       type value = [ `Node of hash | `Contents of hash * metadata ]
-
-      let metadata_t = Metadata.t
-
-      let hash_t = Key.t
-
-      let step_t = Path.step_t
+      [@@deriving irmin]
 
       let default = Metadata.default
-
-      let value_t =
-        let open Irmin.Type in
-        variant "Tree.value" (fun node contents -> function
-          | `Node n -> node n | `Contents c -> contents c)
-        |~ case1 "node" hash_t (fun n -> `Node n)
-        |~ case1 "contents" (pair hash_t metadata_t) (fun c -> `Contents c)
-        |> sealv
 
       let of_step = Irmin.Type.to_string P.step_t
 
@@ -392,9 +379,7 @@ struct
     module Val = struct
       type t = G.Value.Commit.t
 
-      type hash = H.t
-
-      let hash_t = H.t
+      type hash = H.t [@@deriving irmin]
 
       let info_of_git author message =
         let id = author.Git.User.name in
@@ -834,6 +819,7 @@ module Reference : BRANCH with type t = reference = struct
 
   type t =
     [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
+  [@@deriving irmin]
 
   let pp_ref ppf = function
     | `Branch b -> Fmt.pf ppf "refs/heads/%s" b
@@ -850,19 +836,6 @@ module Reference : BRANCH with type t = reference = struct
     | "refs" :: "tags" :: t -> Ok (`Tag (path t))
     | "refs" :: o -> Ok (`Other (path o))
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
-
-  let t =
-    let open Irmin.Type in
-    variant "reference" (fun branch remote tag other -> function
-      | `Branch x -> branch x
-      | `Remote x -> remote x
-      | `Tag x -> tag x
-      | `Other x -> other x)
-    |~ case1 "branch" string (fun t -> `Branch t)
-    |~ case1 "remote" string (fun t -> `Remote t)
-    |~ case1 "tag" string (fun t -> `Tag t)
-    |~ case1 "other" string (fun t -> `Other t)
-    |> sealv
 
   let t = Irmin.Type.like t ~cli:(pp_ref, of_ref)
 

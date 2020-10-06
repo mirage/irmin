@@ -14,15 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = { date : int64; author : string; message : string }
-
-let t =
-  let open Type in
-  record "info" (fun date author message -> { date; author; message })
-  |+ field "date" int64 (fun t -> t.date)
-  |+ field "author" string (fun t -> t.author)
-  |+ field "message" string (fun t -> t.message)
-  |> sealr
+type t = { date : int64; author : string; message : string } [@@deriving irmin]
 
 type f = unit -> t
 

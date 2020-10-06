@@ -22,9 +22,10 @@ let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (K : Type.S) = struct
-  type hash = K.t
+  type hash = K.t [@@deriving irmin]
 
   type t = { node : hash; parents : hash list; info : Info.t }
+  [@@deriving irmin]
 
   let parents t = t.parents
 
@@ -35,16 +36,6 @@ module Make (K : Type.S) = struct
   let v ~info ~node ~parents =
     let parents = List.fast_sort (Type.compare K.t) parents in
     { node; parents; info }
-
-  let t =
-    let open Type in
-    record "commit" (fun node parents info -> { node; parents; info })
-    |+ field "node" K.t (fun t -> t.node)
-    |+ field "parents" (list K.t) (fun t -> t.parents)
-    |+ field "info" Info.t (fun t -> t.info)
-    |> sealr
-
-  let hash_t = K.t
 end
 
 module Store
@@ -129,15 +120,13 @@ struct
 end
 
 module History (S : S.COMMIT_STORE) = struct
-  type commit = S.key
+  type commit = S.Key.t [@@deriving irmin]
 
   type node = S.Node.key
 
   type 'a t = 'a S.t
 
   type v = S.Val.t
-
-  let commit_t = S.Key.t
 
   let merge t ~info =
     let f ~old c1 c2 =
@@ -538,9 +527,7 @@ module V1 (C : S.COMMIT) = struct
     let t = Type.like C.hash_t ~bin:(encode_bin, decode_bin, size_of)
   end
 
-  type hash = C.hash
-
-  let hash_t = K.t
+  type hash = C.hash [@@deriving irmin]
 
   type t = { parents : hash list; c : C.t }
 
