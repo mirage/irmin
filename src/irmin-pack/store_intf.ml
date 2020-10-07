@@ -45,4 +45,29 @@ module type Store = sig
   val migrate : Irmin.config -> unit
 
   exception Unsupported_version of IO.version
+
+  module Checks (Index : Pack_index.S) : sig
+    val integrity_check :
+      ?ppf:Format.formatter ->
+      auto_repair:bool ->
+      check_contents:
+        (offset:int64 ->
+        length:int ->
+        Index.key ->
+        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
+      check_nodes:
+        (offset:int64 ->
+        length:int ->
+        Index.key ->
+        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
+      check_commits:
+        (offset:int64 ->
+        length:int ->
+        Index.key ->
+        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
+      Index.t ->
+      ( [> `Fixed of int | `No_error ],
+        [> `Cannot_fix of string | `Corrupted of int ] )
+      result
+  end
 end
