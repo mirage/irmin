@@ -556,8 +556,33 @@ struct
     end
   end
 
-  let integrity_check ?ppf:_ ~auto_repair:_ _repo =
-    Error (`Cannot_fix "Not implemented")
+  let integrity_check ?ppf ~auto_repair t =
+    let module Checks = Store.Checks (Index) in
+    let contents = X.Repo.contents_t t in
+    let nodes = X.Repo.node_t t |> snd in
+    let commits = X.Repo.commit_t t |> snd in
+    let integrity_check_layer ~layer index =
+      let check ~kind ~offset ~length k =
+        match kind with
+        | `Contents ->
+            X.Contents.CA.integrity_check ~offset ~length ~layer k contents
+        | `Node -> X.Node.CA.integrity_check ~offset ~length ~layer k nodes
+        | `Commit ->
+            X.Commit.CA.integrity_check ~offset ~length ~layer k commits
+      in
+      Checks.integrity_check ?ppf ~auto_repair ~check index
+    in
+    [
+      (`Upper1, Some (fst t.X.Repo.uppers_index));
+      (`Upper0, Some (snd t.X.Repo.uppers_index));
+      (`Lower, t.lower_index);
+    ]
+    |> List.map (fun (layer, index) ->
+           match index with
+           | Some index ->
+               integrity_check_layer ~layer index
+               |> Result.map_error (function e -> (e, layer))
+           | None -> Ok `No_error)
 
   include Irmin.Of_private (X)
 

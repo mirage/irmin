@@ -59,6 +59,16 @@ module Make_ext
        and type Key.step = Path.step
 
   include Store.S with type repo := repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ]
+      * [ `Upper1 | `Upper0 | `Lower ] )
+    result
+    list
 end
 
 module Make
@@ -78,4 +88,14 @@ module Make
        and type hash = H.t
 
   include Store.S with type repo := repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ]
+      * [ `Upper1 | `Upper0 | `Lower ] )
+    result
+    list
 end

@@ -33,6 +33,16 @@ let archive =
     ("foo", [ ([ "b" ], "y") ]);
   ]
 
+let exec_cmd cmd =
+  Log.info (fun l -> l "exec: %s\n%!" cmd);
+  match Sys.command cmd with
+  | 0 -> ()
+  | n ->
+      Fmt.failwith
+        "Failed to set up the test environment: command `%s' exited with \
+         non-zero exit code %d"
+        cmd n
+
 module type Migrate_store = sig
   include
     Irmin.S
@@ -184,16 +194,6 @@ module Config_layered_store = struct
       v "_build" / "test_layers_migrate_1_to_2" / "upper0" |> to_string,
       v "_build" / "test_layers_migrate_1_to_2" / "lower" |> to_string )
 
-  let exec_cmd cmd =
-    Log.info (fun l -> l "exec: %s\n%!" cmd);
-    match Sys.command cmd with
-    | 0 -> ()
-    | n ->
-        Fmt.failwith
-          "Failed to set up the test environment: command `%s' exited with \
-           non-zero exit code %d"
-          cmd n
-
   let setup_test_env () =
     goto_project_root ();
     rm_dir root_v1;
@@ -218,10 +218,84 @@ module Make_layered =
     (Hash)
 module Test_layered_store = Test (Make_layered) (Config_layered_store)
 
+module Test_corrupted_stores = struct
+  let root_archive, root, root_layers, upper1, upper0, lower =
+    let open Fpath in
+    ( v "test" / "irmin-pack" / "data" / "corrupted" |> to_string,
+      v "_build" / "test_integrity" |> to_string,
+      v "_build" / "test_integrity_layers" |> to_string,
+      v "_build" / "test_integrity_layers" / "upper1" |> to_string,
+      v "_build" / "test_integrity_layers" / "upper0" |> to_string,
+      v "_build" / "test_integrity_layers" / "lower" |> to_string )
+
+  let setup_test_env () =
+    goto_project_root ();
+    rm_dir root;
+    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
+    exec_cmd cmd
+
+  let setup_test_env_layered_store () =
+    rm_dir root_layers;
+    let copy_root_archive dst =
+      Filename.quote_command "cp" [ "-R"; "-p"; root_archive; dst ] |> exec_cmd
+    in
+    let cmd = Filename.quote_command "mkdir" [ root_layers ] in
+    exec_cmd cmd;
+    copy_root_archive upper1;
+    copy_root_archive upper0;
+    copy_root_archive lower
+
+  let test () =
+    setup_test_env ();
+    let module S = Make () in
+    let* rw = S.Repo.v (config ~fresh:false root) in
+    Log.app (fun l ->
+        l "integrity check on a store where 3 entries are missing from pack");
+    (match S.integrity_check ~auto_repair:false rw with
+    | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
+    | Error (`Corrupted 3) -> ()
+    | _ -> Alcotest.fail "With auto_repair:false should not match");
+    (match S.integrity_check ~auto_repair:true rw with
+    | Ok (`Fixed 3) -> ()
+    | _ -> Alcotest.fail "Integrity check should repair the store");
+    (match S.integrity_check ~auto_repair:false rw with
+    | Ok `No_error -> ()
+    | _ -> Alcotest.fail "Store is repaired, should return Ok");
+    S.Repo.close rw
+
+  let test_layered_store () =
+    setup_test_env_layered_store ();
+    let module S = Make_layered in
+    let* rw = S.Repo.v (config ~fresh:false root_layers) in
+    Log.app (fun l ->
+        l
+          "integrity check on a layered store where 3 entries are missing from \
+           the pack file of each layer");
+    S.integrity_check ~auto_repair:false rw
+    |> List.iter (function
+         | Ok `No_error ->
+             Alcotest.fail "Store is corrupted, the check should fail"
+         | Error (`Corrupted 3, _) -> ()
+         | _ -> Alcotest.fail "With auto_repair:false should not match");
+    S.integrity_check ~auto_repair:true rw
+    |> List.iter (function
+         | Ok (`Fixed 3) -> ()
+         | _ -> Alcotest.fail "Integrity check should repair the store");
+    S.integrity_check ~auto_repair:false rw
+    |> List.iter (function
+         | Ok `No_error -> ()
+         | _ -> Alcotest.fail "Store is repaired, should return Ok");
+    S.Repo.close rw
+end
+
 let tests =
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_store.v1_to_v2 ()));
     Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_layered_store.v1_to_v2 ()));
+    Alcotest.test_case "Test integrity check" `Quick (fun () ->
+        Lwt_main.run (Test_corrupted_stores.test ()));
+    Alcotest.test_case "Test integrity check on layered stores" `Quick
+      (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
   ]

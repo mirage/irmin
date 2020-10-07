@@ -313,3 +313,67 @@ let migrate config =
       in
       List.iter (fun (_, io, _) -> migrate_io_to_v2 ~progress io) to_migrate;
       Utils.Progress.finalise bar
+
+module Checks (Index : Pack_index.S) = struct
+  let null =
+    match Sys.os_type with
+    | "Unix" | "Cygwin" -> "/dev/null"
+    | "Win32" -> "NUL"
+    | _ -> invalid_arg "invalid os type"
+
+  let integrity_check ?ppf ~auto_repair ~check index =
+    let ppf =
+      match ppf with
+      | Some p -> p
+      | None -> open_out null |> Format.formatter_of_out_channel
+    in
+    Fmt.pf ppf "Running the integrity_check.\n%!";
+    let nb_commits = ref 0 in
+    let nb_nodes = ref 0 in
+    let nb_contents = ref 0 in
+    let nb_absent = ref 0 in
+    let nb_corrupted = ref 0 in
+    let exception Cannot_fix in
+    let pp_stats () =
+      Fmt.pf ppf "\t%dk contents / %dk nodes / %dk commits\n%!"
+        (!nb_contents / 1000) (!nb_nodes / 1000) (!nb_commits / 1000)
+    in
+    let count_increment count =
+      incr count;
+      if !count mod 1000 = 0 then pp_stats ()
+    in
+    let f (k, (offset, length, m)) =
+      match m with
+      | 'B' ->
+          count_increment nb_contents;
+          check ~kind:`Contents ~offset ~length k
+      | 'N' | 'I' ->
+          count_increment nb_nodes;
+          check ~kind:`Node ~offset ~length k
+      | 'C' ->
+          count_increment nb_commits;
+          check ~kind:`Commit ~offset ~length k
+      | _ -> invalid_arg "unknown content type"
+    in
+    if auto_repair then
+      try
+        Index.filter index (fun binding ->
+            match f binding with
+            | Ok () -> true
+            | Error `Wrong_hash -> raise Cannot_fix
+            | Error `Absent_value ->
+                incr nb_absent;
+                false);
+        if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
+      with Cannot_fix -> Error (`Cannot_fix "Not implemented")
+    else (
+      Index.iter
+        (fun k v ->
+          match f (k, v) with
+          | Ok () -> ()
+          | Error `Wrong_hash -> incr nb_corrupted
+          | Error `Absent_value -> incr nb_absent)
+        index;
+      if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
+      else Error (`Corrupted (!nb_corrupted + !nb_absent)))
+end
