@@ -244,17 +244,13 @@ struct
     let contents = X.Repo.contents_t t in
     let nodes = X.Repo.node_t t |> snd in
     let commits = X.Repo.commit_t t |> snd in
-    let check_contents ~offset ~length k =
-      X.Contents.CA.integrity_check ~offset ~length k contents
+    let check ~kind ~offset ~length k =
+      match kind with
+      | `Contents -> X.Contents.CA.integrity_check ~offset ~length k contents
+      | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
+      | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
     in
-    let check_nodes ~offset ~length k =
-      X.Node.CA.integrity_check ~offset ~length k nodes
-    in
-    let check_commits ~offset ~length k =
-      X.Commit.CA.integrity_check ~offset ~length k commits
-    in
-    Checks.integrity_check ?ppf ~auto_repair ~check_contents ~check_nodes
-      ~check_commits t.index
+    Checks.integrity_check ?ppf ~auto_repair ~check t.index
 
   include Irmin.Of_private (X)
 

@@ -562,17 +562,15 @@ struct
     let nodes = X.Repo.node_t t |> snd in
     let commits = X.Repo.commit_t t |> snd in
     let integrity_check_layer ~layer index =
-      let check_contents ~offset ~length k =
-        X.Contents.CA.integrity_check ~offset ~length ~layer k contents
+      let check ~kind ~offset ~length k =
+        match kind with
+        | `Contents ->
+            X.Contents.CA.integrity_check ~offset ~length ~layer k contents
+        | `Node -> X.Node.CA.integrity_check ~offset ~length ~layer k nodes
+        | `Commit ->
+            X.Commit.CA.integrity_check ~offset ~length ~layer k commits
       in
-      let check_nodes ~offset ~length k =
-        X.Node.CA.integrity_check ~offset ~length ~layer k nodes
-      in
-      let check_commits ~offset ~length k =
-        X.Commit.CA.integrity_check ~offset ~length ~layer k commits
-      in
-      Checks.integrity_check ?ppf ~auto_repair ~check_contents ~check_nodes
-        ~check_commits index
+      Checks.integrity_check ?ppf ~auto_repair ~check index
     in
     [
       (`Upper1, Some (fst t.X.Repo.uppers_index));

@@ -321,8 +321,7 @@ module Checks (Index : Pack_index.S) = struct
     | "Win32" -> "NUL"
     | _ -> invalid_arg "invalid os type"
 
-  let integrity_check ?ppf ~auto_repair ~check_contents ~check_nodes
-      ~check_commits index =
+  let integrity_check ?ppf ~auto_repair ~check index =
     let ppf =
       match ppf with
       | Some p -> p
@@ -347,13 +346,13 @@ module Checks (Index : Pack_index.S) = struct
       match m with
       | 'B' ->
           count_increment nb_contents;
-          check_contents ~offset ~length k
+          check ~kind:`Contents ~offset ~length k
       | 'N' | 'I' ->
           count_increment nb_nodes;
-          check_nodes ~offset ~length k
+          check ~kind:`Node ~offset ~length k
       | 'C' ->
           count_increment nb_commits;
-          check_commits ~offset ~length k
+          check ~kind:`Commit ~offset ~length k
       | _ -> invalid_arg "unknown content type"
     in
     if auto_repair then

@@ -50,18 +50,9 @@ module type Store = sig
     val integrity_check :
       ?ppf:Format.formatter ->
       auto_repair:bool ->
-      check_contents:
-        (offset:int64 ->
-        length:int ->
-        Index.key ->
-        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
-      check_nodes:
-        (offset:int64 ->
-        length:int ->
-        Index.key ->
-        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
-      check_commits:
-        (offset:int64 ->
+      check:
+        (kind:[ `Contents | `Node | `Commit ] ->
+        offset:int64 ->
         length:int ->
         Index.key ->
         (unit, [ `Absent_value | `Wrong_hash ]) result) ->

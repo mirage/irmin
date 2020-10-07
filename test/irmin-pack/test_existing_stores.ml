@@ -236,24 +236,20 @@ module Test_corrupted_stores = struct
 
   let setup_test_env_layered_store () =
     rm_dir root_layers;
+    let copy_root_archive dst =
+      Filename.quote_command "cp" [ "-R"; "-p"; root_archive; dst ] |> exec_cmd
+    in
     let cmd = Filename.quote_command "mkdir" [ root_layers ] in
     exec_cmd cmd;
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_archive; upper1 ]
-    in
-    exec_cmd cmd;
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_archive; upper0 ]
-    in
-    exec_cmd cmd;
-    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; lower ] in
-    exec_cmd cmd
+    copy_root_archive upper1;
+    copy_root_archive upper0;
+    copy_root_archive lower
 
   let test () =
     setup_test_env ();
     let module S = Make () in
     let* rw = S.Repo.v (config ~fresh:false root) in
-    Log.debug (fun l ->
+    Log.app (fun l ->
         l "integrity check on a store where 3 entries are missing from pack");
     (match S.integrity_check ~auto_repair:false rw with
     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
@@ -271,7 +267,7 @@ module Test_corrupted_stores = struct
     setup_test_env_layered_store ();
     let module S = Make_layered in
     let* rw = S.Repo.v (config ~fresh:false root_layers) in
-    Log.debug (fun l ->
+    Log.app (fun l ->
         l
           "integrity check on a layered store where 3 entries are missing from \
            the pack file of each layer");
