@@ -45,7 +45,7 @@ module type S = sig
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
-    index:index ->
+    index:index option ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -86,6 +86,12 @@ module type S = sig
   include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
 
   include Sigs.CLOSEABLE with type 'a t := 'a t
+
+  val add_in_mem : 'a t -> key -> value -> unit
+
+  val decode_value : string -> int -> int * value
+
+  val refill : 'a t -> int64 * int64 * IO.Unix.t
 end
 
 module type MAKER = sig
@@ -104,7 +110,7 @@ module type LAYERED = sig
 
   module U : S with type value = value
 
-  module L : S
+  module L : S with type value = value
 
   val v :
     [ `Read ] U.t ->

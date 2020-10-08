@@ -76,6 +76,7 @@ struct
     let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~version:(Some current_version) ~fresh ~readonly file in
+    let index = Option.get index in
     { block; index; lock; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
@@ -327,5 +328,11 @@ struct
     let generation t = IO.generation t.pack.block
 
     let offset t = IO.offset t.pack.block
+
+    let add_in_mem _ = failwith "not implemented"
+
+    let decode_value _ _ = failwith "not implemented"
+
+    let refill _ = failwith "not implemented"
   end
 end

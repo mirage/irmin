@@ -114,6 +114,7 @@ module Make_ext
 struct
   module Index = Pack_index.Make (H)
   module Pack = Pack.File (Index) (H)
+  module Pack_mem = Pack_mem.File (Index) (H)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
@@ -133,12 +134,14 @@ struct
       |+ field "v" a (fun v -> v.v)
       |> sealr
 
+    let decode_magic = Irmin.Type.(unstage (decode_bin char))
+
     module Contents = struct
       module CA = struct
         module Key = H
         module Val = C
 
-        module CA_Pack = Pack.Make (struct
+        module Elt = struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -160,18 +163,20 @@ struct
             t.v
 
           let magic _ = magic
-        end)
+        end
 
+        module CA_Pack = Pack.Make (Elt)
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+        module CA_mem = Pack_mem.Make (Elt)
+        include Layered_store.Content_addressable (H) (Index) (CA_mem) (CA)
       end
 
       include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
-      module Pa = Layered_store.Pack_Maker (H) (Index) (Pack)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
+      module Pack_maker = Layered_store.Pack_Maker (H) (Index) (Pack_mem) (Pack)
+      module CA = Inode_layers.Make (Config) (H) (Pack_maker) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -180,7 +185,7 @@ struct
         module Key = H
         module Val = Commit
 
-        module CA_Pack = Pack.Make (struct
+        module Elt = struct
           include Val
           module H = Irmin.Hash.Typed (H) (Val)
 
@@ -202,10 +207,12 @@ struct
             v.v
 
           let magic _ = magic
-        end)
+        end
 
+        module CA_Pack = Pack.Make (Elt)
         module CA = Closeable.Content_addressable (CA_Pack)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+        module CA_mem = Pack_mem.Make (Elt)
+        include Layered_store.Content_addressable (H) (Index) (CA_mem) (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -228,7 +235,7 @@ struct
         node : [ `Read ] Node.CA.U.t;
         commit : [ `Read ] Commit.CA.U.t;
         branch : Branch.U.t;
-        index : Index.t;
+        index : Index.t option;
       }
 
       type lower_layer = {
@@ -246,7 +253,7 @@ struct
         branch : Branch.t;
         commit : [ `Read ] Commit.CA.t;
         lower_index : Index.t option;
-        uppers_index : Index.t * Index.t;
+        uppers_index : Index.t option * Index.t option;
         mutable flip : bool;
         mutable closed : bool;
         flip_file : IO_layers.t;
@@ -306,28 +313,59 @@ struct
                     let commit : 'a Commit.t = (node, commit) in
                     f contents node commit)))
 
-      let log_current_upper t = if t.flip then "upper1" else "upper0"
+      let iter ~former_offset ~offset ~io t =
+        Log.debug (fun l ->
+            l "iter over io %s former offset %Ld offset %Ld" (IO.name io)
+              former_offset offset);
+        let len = Int64.to_int (offset -- former_offset) in
+        let raw = Bytes.create len in
+        let n = IO.read io ~off:former_offset raw in
+        assert (n = len);
+        let raw = Bytes.unsafe_to_string raw in
+        let decode_key = Irmin.Type.(unstage (decode_bin H.t)) in
+        let rec read_entry page off =
+          if off >= len then ()
+          else
+            let off_k, k = decode_key page off in
+            assert (off_k - off = H.hash_size);
+            let new_off, m = decode_magic page off_k in
+            assert (new_off - off = H.hash_size + 1);
+            let new_off =
+              match m with
+              | 'B' ->
+                  let new_off, v = Contents.CA.U.decode_value page new_off in
+                  Contents.CA.add_in_mem t.contents k v;
+                  new_off
+              | 'N' | 'I' ->
+                  let new_off, v = Node.CA.U.decode_value page new_off in
+                  Node.CA.add_in_mem t.node k v;
+                  new_off
+              | 'C' ->
+                  let new_off, v = Commit.CA.U.decode_value page new_off in
+                  Commit.CA.add_in_mem t.commit k v;
+                  new_off
+              | _ -> invalid_arg "unknown content type"
+            in
+            read_entry page new_off
+        in
+        (read_entry [@tailcall]) raw 0
+
+      let refill ?(from_scratch = false) t =
+        let former_offset, offset, io = Contents.CA.refill t.contents in
+        let former_offset = if from_scratch then 0L else former_offset in
+        iter ~former_offset ~offset ~io t
 
       let unsafe_v_upper root config =
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
-        let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.index_throttle config in
-        let f = ref (fun () -> ()) in
-        let index =
-          Index.v
-            ~flush_callback:(fun () -> !f ())
-              (* backpatching to add pack flush before an index flush *)
-            ~fresh ~readonly ~throttle ~log_size root
-        in
-        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
+        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index:None root
         >>= fun contents ->
-        Node.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
+        Node.CA.U.v ~fresh ~readonly ~lru_size ~index:None root >>= fun node ->
+        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index:None root
+        >>= fun commit ->
         Branch.U.v ~fresh ~readonly root >|= fun branch ->
-        (f := fun () -> Contents.CA.U.flush ~index:false contents);
-        ({ index; contents; node; commit; branch } : upper_layer)
+        ({ index = None; contents; node; commit; branch } : upper_layer)
 
       let unsafe_v_lower root config =
         let fresh = Pack_config.fresh config in
@@ -341,10 +379,12 @@ struct
             ~flush_callback:(fun () -> !f ())
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
+        Contents.CA.L.v ~fresh ~readonly ~lru_size ~index:(Some index) root
         >>= fun lcontents ->
-        Node.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lnode ->
-        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lcommit ->
+        Node.CA.L.v ~fresh ~readonly ~lru_size ~index:(Some index) root
+        >>= fun lnode ->
+        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index:(Some index) root
+        >>= fun lcommit ->
         Branch.L.v ~fresh ~readonly root >|= fun lbranch ->
         (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
         ({ lindex = index; lcontents; lnode; lcommit; lbranch } : lower_layer)
@@ -397,24 +437,28 @@ struct
             ~add_lock
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
-        {
-          contents;
-          node;
-          commit;
-          branch;
-          config;
-          lower_index;
-          uppers_index = (upper1.index, upper0.index);
-          flip;
-          closed = false;
-          flip_file;
-        }
+        let t =
+          {
+            contents;
+            node;
+            commit;
+            branch;
+            config;
+            lower_index;
+            uppers_index = (upper1.index, upper0.index);
+            flip;
+            closed = false;
+            flip_file;
+          }
+        in
+        refill ~from_scratch:true t;
+        t
 
       let unsafe_close t =
         t.closed <- true;
         (match t.lower_index with Some x -> Index.close x | None -> ());
-        Index.close (fst t.uppers_index);
-        Index.close (snd t.uppers_index);
+        Option.iter Index.close (fst t.uppers_index);
+        Option.iter Index.close (snd t.uppers_index);
         IO_layers.close t.flip_file >>= fun () ->
         let f : unit Lwt.t Iterate.store_fn =
           {
@@ -452,7 +496,8 @@ struct
                 C.update_flip ~flip x);
           }
         in
-        Iterate.iter f t
+        Iterate.iter f t;
+        refill t
 
       let clear t = Contents.CA.clear t.contents
 
@@ -572,17 +617,14 @@ struct
       in
       Checks.integrity_check ?ppf ~auto_repair ~check index
     in
-    [
-      (`Upper1, Some (fst t.X.Repo.uppers_index));
-      (`Upper0, Some (snd t.X.Repo.uppers_index));
-      (`Lower, t.lower_index);
-    ]
-    |> List.map (fun (layer, index) ->
-           match index with
-           | Some index ->
-               integrity_check_layer ~layer index
-               |> Result.map_error (function e -> (e, layer))
-           | None -> Ok `No_error)
+    let lower =
+      match t.lower_index with
+      | None -> Ok `No_error
+      | Some index ->
+          integrity_check_layer ~layer:`Lower index
+          |> Result.map_error (function e -> (e, `Lower))
+    in
+    [ lower; Ok `No_error; Ok `No_error ]
 
   include Irmin.Of_private (X)
 
@@ -722,8 +764,7 @@ struct
             Repo.iter_commits t ~min ~max ~commit ~skip ())
 
       let copy_commits ~min ~max t =
-        Log.debug (fun f ->
-            f "copy commits to next upper %s" (X.Repo.log_current_upper t));
+        Log.debug (fun f -> f "copy commits to next upper");
         let max = List.map (fun x -> Commit.hash x) max in
         (* if min is empty then copy only the max commits *)
         let min =
@@ -747,7 +788,7 @@ struct
       (** Copy the heads that include a max commit *)
       let copy_heads ~max ~heads t =
         Log.debug (fun f ->
-            f "copy heads to current %s" (X.Repo.log_current_upper t));
+            f "copy heads %a to next upper" (Fmt.list Commit.pp_hash) heads);
         let max = List.map (fun x -> Commit.hash x) max in
         let heads = List.map (fun x -> Commit.hash x) heads in
         Lwt_list.fold_left_s
@@ -843,7 +884,7 @@ struct
     Copy.copy_branches t
 
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
-    let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
+    let pp_commits = Fmt.list Commit.pp_hash in
     Log.app (fun l ->
         l
           "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \

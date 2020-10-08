@@ -290,6 +290,8 @@ module type S = sig
     val of_hash : repo -> hash -> commit option Lwt.t
     (** [of_hash r h] is the the commit object in [r] having [h] as hash, or
         [None] is no such commit object exists. *)
+
+    val node : commit -> hash
   end
 
   (** [Contents] provides base functions for the store's contents. *)

@@ -825,6 +825,8 @@ struct
   let clear = Inode.clear
 
   let clear_caches = Inode.clear_caches
+
+  module Elt = Inode.Elt
 end
 
 module Make

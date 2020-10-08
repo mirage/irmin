@@ -30,9 +30,9 @@ module type S = sig
 
   val mem_current : [> `Read ] t -> key -> bool Lwt.t
 
-  val next_upper : 'a t -> [ `Read ] U.t
-
   val current_upper : 'a t -> [ `Read ] U.t
+
+  val next_upper : 'a t -> [ `Read ] U.t
 
   val lower : 'a t -> [ `Read ] L.t
 
@@ -58,7 +58,11 @@ module type S = sig
 
   val flush : ?index:bool -> 'a t -> unit
 
+  val flush_next_lower : 'a t -> unit
+
   val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
+
+  val add_in_mem : 'a t -> key -> U.value -> unit
 end
 
 module type Inode_layers = sig
@@ -78,4 +82,6 @@ module type Inode_layers = sig
        and type index = Pack_index.Make(H).t
        and type U.index = Pack_index.Make(H).t
        and type L.index = Pack_index.Make(H).t
+       and type U.key = H.t
+       and type L.key = H.t
 end

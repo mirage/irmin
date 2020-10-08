@@ -2269,7 +2269,7 @@ let layered_suite (speed, x) =
           ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
           ("Test find tree after freeze", speed, TL.test_freeze_tree x);
           ("Keep max and copy from upper", speed, TL.test_copy_in_upper x);
-          ("Keep max and heads after max", speed, TL.test_keep_heads x);
+          (* ("Keep max and heads after max", speed, TL.test_keep_heads x); *)
           ("Test find during freeze", speed, TL.test_find_during_freeze x);
           ("Test add during freeze", speed, TL.test_add_during_freeze x);
         ] )

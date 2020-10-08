@@ -96,6 +96,16 @@ module Content_addressable (S : Pack.S) = struct
   let offset t =
     check_not_closed t;
     S.offset t.t
+
+  let add_in_mem t v =
+    check_not_closed t;
+    S.add_in_mem t.t v
+
+  let decode_value = S.decode_value
+
+  let refill t =
+    check_not_closed t;
+    S.refill t.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

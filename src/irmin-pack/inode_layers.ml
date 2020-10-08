@@ -130,6 +130,8 @@ struct
 
   let flush = Inode.flush
 
+  let flush_next_lower = Inode.flush_next_lower
+
   let unsafe_find t k =
     match Inode.unsafe_find t k with
     | None -> None
@@ -201,4 +203,8 @@ struct
   let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
+
+  let add_in_mem t k v =
+    let current = current_upper t in
+    U.add_in_mem current k v
 end

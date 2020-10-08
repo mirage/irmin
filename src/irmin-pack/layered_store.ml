@@ -103,7 +103,6 @@ struct
   let newies : (key * value) list ref = ref []
 
   let add' t v =
-    Log.debug (fun l -> l "add in %s" (log_current_upper t));
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v >|= fun k ->
@@ -115,7 +114,6 @@ struct
   let add t v = Lwt_mutex.with_lock t.add_lock (fun () -> add' t v)
 
   let unsafe_add' t k v =
-    Log.debug (fun l -> l "unsafe_add in %s" (log_current_upper t));
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v >|= fun () ->
@@ -127,7 +125,6 @@ struct
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
 
   let unsafe_append' t k v =
-    Log.debug (fun l -> l "unsafe_append in %s" (log_current_upper t));
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append upper k v;
@@ -143,7 +140,6 @@ struct
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "find in %s" (log_current_upper t));
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
@@ -155,7 +151,6 @@ struct
 
   let unsafe_find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "unsafe_find in %s" (log_current_upper t));
     match U.unsafe_find current k with
     | Some v -> Some v
     | None -> (
@@ -347,20 +342,31 @@ struct
     List.iter (fun (k, v) -> U.unsafe_append next k v) (List.rev !newies);
     newies := [];
     Lwt.return_unit
+
+  let add_in_mem t k v =
+    let current = current_upper t in
+    U.add_in_mem current k v
+
+  let decode_value _ _ = failwith "not implemented"
+
+  let refill t = current_upper t |> U.refill
 end
 
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) =
+    (U : Pack.MAKER with type key = H.t and type index = Index.t)
+    (L : Pack.MAKER with type key = H.t and type index = Index.t) =
 struct
-  type index = P.index
+  type index = U.index
 
-  type key = P.key
+  type key = U.key
 
   module Make (V : Pack.ELT with type hash := key) = struct
-    module Upper = P.Make (V)
-    include Content_addressable (H) (Index) (Upper) (Upper)
+    module Upper = U.Make (V)
+    module Lower = L.Make (V)
+    module Elt = V
+    include Content_addressable (H) (Index) (Upper) (Lower)
   end
 end
 

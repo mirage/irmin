@@ -91,15 +91,15 @@ struct
     let index =
       Index.v ~flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    Pack.v ~fresh:true ~lru_size ~index name >|= fun pack ->
+    Pack.v ~fresh:true ~lru_size ~index:(Some index) name >|= fun pack ->
     (f := fun () -> Pack.flush ~index:false pack);
     let clone_pack ~readonly =
-      Pack.v ~lru_size ~fresh:false ~readonly ~index name
+      Pack.v ~lru_size ~fresh:false ~readonly ~index:(Some index) name
     in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      Pack.v ~lru_size ~fresh:false ~readonly ~index name >|= fun pack ->
-      (index, pack)
+      Pack.v ~lru_size ~fresh:false ~readonly ~index:(Some index) name
+      >|= fun pack -> (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }
 

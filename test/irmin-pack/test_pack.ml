@@ -292,7 +292,8 @@ module Pack = struct
   let test_reuse_index () =
     (* index and pack with different names. However, this behaviour is not exposed by irmin_pack.*)
     let index = Index.v ~log_size:4 ~fresh:true (Context.fresh_name "index") in
-    Pack.v ~fresh:true ~index (Context.fresh_name "pack") >>= fun w1 ->
+    Pack.v ~fresh:true ~index:(Some index) (Context.fresh_name "pack")
+    >>= fun w1 ->
     let x1 = "foo" in
     let h1 = sha1 x1 in
     Pack.unsafe_append w1 h1 x1;

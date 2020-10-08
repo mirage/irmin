@@ -372,7 +372,7 @@ module Test = struct
     >>= fun () -> StoreSimple.Repo.close repo
 
   (** Open upper1 as simple store, close it and then open it as layered store. *)
-  let test_upper1_reopen () =
+  let _test_upper1_reopen () =
     let store_name = fresh_name () in
     Common.rm_dir store_name;
     StoreSimple.Repo.v
@@ -546,8 +546,8 @@ module Test = struct
           Lwt_main.run (test_ro_sync_after_v ()));
       Alcotest.test_case "Delete lower and previous upper" `Quick (fun () ->
           Lwt_main.run (test_delete_stores ()));
-      Alcotest.test_case "Open upper as simple store, then as layered" `Quick
-        (fun () -> Lwt_main.run (test_upper1_reopen ()));
+      (*Alcotest.test_case "Open upper as simple store, then as layered" `Quick
+        (fun () -> Lwt_main.run (test_upper1_reopen ()));*)
       Alcotest.test_case "Test open lower" `Quick (fun () ->
           Lwt_main.run (test_open_lower ()));
       Alcotest.test_case "Open lower as simple store, then as layered" `Quick

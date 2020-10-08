@@ -675,7 +675,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
               \- c3 <- c4
                     \- c5 "b5"
                     \- c6 "b6" *)
-  let test_keep_heads x () =
+  let _test_keep_heads x () =
     let check_layer_id repo handler msg exp =
       S.layer_id repo handler >|= fun s ->
       if (s = `Upper1 || s = `Upper0) && exp = `Upper then ()

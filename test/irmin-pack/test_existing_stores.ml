@@ -292,10 +292,10 @@ let tests =
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_store.v1_to_v2 ()));
-    Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
-        Lwt_main.run (Test_layered_store.v1_to_v2 ()));
+    (*Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
+        Lwt_main.run (Test_layered_store.v1_to_v2 ()));*)
     Alcotest.test_case "Test integrity check" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_stores.test ()));
-    Alcotest.test_case "Test integrity check on layered stores" `Quick
-      (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
+    (*Alcotest.test_case "Test integrity check on layered stores" `Quick
+      (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));*)
   ]

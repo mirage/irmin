@@ -23,7 +23,7 @@ module type S = sig
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
-    index:index ->
+    index:index option ->
     string ->
     [ `Read ] t Lwt.t
 
@@ -53,6 +53,8 @@ module type INODE_INTER = sig
     type t
 
     val of_bin : Elt.t -> t
+
+    val to_bin : t -> Elt.t
 
     val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
 

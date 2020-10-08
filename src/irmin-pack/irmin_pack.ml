@@ -192,9 +192,12 @@ struct
               (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
+        Contents.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
+        >>= fun contents ->
+        Node.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
+        >>= fun node ->
+        Commit.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
+        >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
         (* Stores share instances in memory, one flush is enough. In case of a
            system crash, the flush_callback might not make with the disk. In

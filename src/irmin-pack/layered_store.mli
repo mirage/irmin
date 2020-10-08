@@ -41,5 +41,6 @@ module Atomic_write
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) :
-  Pack.LAYERED_MAKER with type key = P.key and type index = P.index
+    (U : Pack.MAKER with type key = H.t and type index = Index.t)
+    (L : Pack.MAKER with type key = H.t and type index = Index.t) :
+  Pack.LAYERED_MAKER with type key = U.key and type index = U.index
