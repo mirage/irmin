@@ -14,5 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Staging = Staging
 module Type = Type
 module Witness = Witness
