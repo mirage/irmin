@@ -1,4 +1,4 @@
-module T = Irmin.Type
+module T = Irmin_type.Type
 
 let id x = x
 
@@ -271,7 +271,7 @@ module Algebraic = struct
   [@@deriving irmin]
 end
 
-(** Test the behaviour of {!Irmin.Type.to_string}. *)
+(** Test the behaviour of {!T.to_string}. *)
 let test_to_string () =
   let test : type a. string -> a T.t -> a -> string -> unit =
    fun case_name typ input expected_output ->
@@ -347,7 +347,7 @@ let test_to_string () =
 
   ()
 
-(** Test the behaviour of {!Irmin.Type.pp_dump}. *)
+(** Test the behaviour of {!T.pp_dump}. *)
 let test_pp_dump () =
   let to_string ty = Fmt.to_to_string (T.pp_dump ty) in
   let test : type a. string -> a T.t -> a -> string -> unit =
@@ -428,7 +428,7 @@ let test_pp_dump () =
 
   ()
 
-(** Test the behaviour of {!Irmin.Type.pp_ty}. *)
+(** Test the behaviour of {!T.pp_ty}. *)
 let test_pp_ty () =
   let test : type a. ?case_name:string -> a T.t -> string -> unit =
    fun ?case_name input expected_output ->
@@ -633,17 +633,17 @@ let test_size () =
   let check t v n =
     match size_of t v with
     | Some s ->
-        let name = Fmt.strf "size: %a" (Irmin.Type.pp t) v in
+        let name = Fmt.strf "size: %a" (T.pp t) v in
         Alcotest.(check int) name n s
     | None -> Alcotest.fail "size expected"
   in
-  check Irmin.Type.int 0 1;
-  check Irmin.Type.int 128 2;
-  check Irmin.Type.int 16384 3;
-  check Irmin.Type.string "foo" (1 + 3);
-  check Irmin.Type.string (String.make 128 'x') (2 + 128);
-  check Irmin.Type.bytes (Bytes.of_string "foo") 4;
-  check Irmin.Type.(list string) [] 1;
+  check T.int 0 1;
+  check T.int 128 2;
+  check T.int 16384 3;
+  check T.string "foo" (1 + 3);
+  check T.string (String.make 128 'x') (2 + 128);
+  check T.bytes (Bytes.of_string "foo") 4;
+  check T.(list string) [] 1;
   let s = Unboxed.size_of T.string "foo" in
   Alcotest.(check (option int)) "foo 1" (Some 3) s;
   let s = size_of T.string "foo" in
@@ -669,7 +669,7 @@ let test_hashes () =
   let digest t x =
     let s = to_bin_string t x in
     Printf.eprintf "to_bin_string: %S\n" s;
-    Irmin.Type.to_string Hash.t (Hash.hash (fun l -> l s))
+    T.to_string Hash.t (Hash.hash (fun l -> l s))
   in
 
   (* contents *)
@@ -782,7 +782,7 @@ type v =
   | `X256 of int | `X257 of int | `X258 of int | `X259 of int ]
 [@@deriving irmin { name = "v"}] [@@ocamlformat "disable"]
 
-let v_t = Alcotest.testable (Irmin.Type.pp v) (Irmin.Type.equal v)
+let v_t = Alcotest.testable (T.pp v) (T.equal v)
 
 let test_variants () =
   let test i =
@@ -802,7 +802,7 @@ let test_variants () =
 
 (* Test that reusing the same name for different fields raises. *)
 let test_duplicate_names () =
-  let open Irmin.Type in
+  let open T in
   Alcotest.check_raises "Two record fields with the same name."
     (Invalid_argument
        "The name foo was used for two or more fields in record bar.") (fun () ->
@@ -848,46 +848,50 @@ let test_duplicate_names () =
 let test_malformed_utf8 () =
   Alcotest.check_raises "Malformed UTF-8 in field name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
-      let open Irmin.Type in
+      let open T in
       ignore
         (record "foo" (fun a b -> { a; b })
         |+ field "a" int (fun r -> r.a)
         |+ field "\128\255\255\r\012\247" int (fun r -> r.b)));
   Alcotest.check_raises "Malformed UTF-8 in case0 name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
-      let open Irmin.Type in
+      let open T in
       ignore
         (variant "foo" (fun a -> function `A -> a)
         |~ case0 "\128\255\255\r\012\247" `A));
   Alcotest.check_raises "Malformed UTF-8 in case1 name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
-      let open Irmin.Type in
+      let open T in
       ignore
         (variant "foo" (fun a -> function `A i -> a i)
         |~ case1 "\128\255\255\r\012\247" int (fun i -> `A i)));
   Alcotest.check_raises "Malformed UTF-8 in enum tag name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
-      let open Irmin.Type in
+      let open T in
       ignore (enum "foo" [ ("\128\255\255\r\012\247", `A) ]))
 
-let suite =
-  [
-    ("base", `Quick, test_base);
-    ("boxing", `Quick, test_boxing);
-    ("json", `Quick, test_json);
-    ("json_option", `Quick, test_json_option);
-    ("json_float", `Quick, test_json_float);
-    ("bin", `Quick, test_bin);
-    ("to_string", `Quick, test_to_string);
-    ("pp_dump", `Quick, test_pp_dump);
-    ("pp_ty", `Quick, test_pp_ty);
-    ("compare", `Quick, test_compare);
-    ("equal", `Quick, test_equal);
-    ("ints", `Quick, test_int);
-    ("decode", `Quick, test_decode);
-    ("size_of", `Quick, test_size);
-    ("test_hashes", `Quick, test_hashes);
-    ("test_variants", `Quick, test_variants);
-    ("test_duplicate_names", `Quick, test_duplicate_names);
-    ("test_malformed_utf8", `Quick, test_malformed_utf8);
-  ]
+let () =
+  Alcotest.run "irmin-type"
+    [
+      ( "type",
+        [
+          ("base", `Quick, test_base);
+          ("boxing", `Quick, test_boxing);
+          ("json", `Quick, test_json);
+          ("json_option", `Quick, test_json_option);
+          ("json_float", `Quick, test_json_float);
+          ("bin", `Quick, test_bin);
+          ("to_string", `Quick, test_to_string);
+          ("pp_dump", `Quick, test_pp_dump);
+          ("pp_ty", `Quick, test_pp_ty);
+          ("compare", `Quick, test_compare);
+          ("equal", `Quick, test_equal);
+          ("ints", `Quick, test_int);
+          ("decode", `Quick, test_decode);
+          ("size_of", `Quick, test_size);
+          ("test_hashes", `Quick, test_hashes);
+          ("test_variants", `Quick, test_variants);
+          ("test_duplicate_names", `Quick, test_duplicate_names);
+          ("test_malformed_utf8", `Quick, test_malformed_utf8);
+        ] );
+    ]

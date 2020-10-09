@@ -17,7 +17,7 @@
 open Ppxlib
 open Ppx_irmin_lib
 
-let default_library = "Irmin.Type"
+let default_library = "Irmin_type.Type"
 
 let library = ref (Some default_library)
 

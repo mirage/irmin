@@ -6,7 +6,7 @@ script: bash -ex .travis-docker.sh
 env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
-  - PINS='irmin-chunk.dev:. irmin-containers.dev:. irmin-fs.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-http.dev:. irmin-layers.dev:. irmin-mem.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql.dev:. irmin-mirage.dev:. irmin-pack.dev:. irmin-test.dev:. irmin-unix.dev:. irmin.dev:. ppx_irmin.dev:.'
+  - PINS='irmin-chunk.dev:. irmin-containers.dev:. irmin-fs.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-http.dev:. irmin-layers.dev:. irmin-mem.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql.dev:. irmin-mirage.dev:. irmin-pack.dev:. irmin-test.dev:. irmin-type.dev:. irmin-unix.dev:. irmin.dev:. ppx_irmin.dev:.'
   - DISTRO=debian-stable
   matrix:
   - OCAML_VERSION=4.08 PACKAGE="irmin-unix" REVDEPS="irmin-indexeddb"
@@ -25,3 +25,4 @@ env:
   - OCAML_VERSION=4.08 PACKAGE="irmin-graphql"
   - OCAML_VERSION=4.08 PACKAGE="irmin-pack"
   - OCAML_VERSION=4.08 PACKAGE="irmin-containers"
+  - OCAML_VERSION=4.08 PACKAGE="irmin-type"

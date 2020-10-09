@@ -1,34 +1,37 @@
 type c = string[@@deriving irmin { name = "c_wit" }]
-include struct let c_wit = Irmin.Type.string end[@@ocaml.doc "@inline"]
+include struct let c_wit = Irmin_type.Type.string end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]
-let (_ : c Irmin.Type.t) = c_wit
+let (_ : c Irmin_type.Type.t) = c_wit
 type d = int[@@deriving irmin { name = "repr_for_d" }]
-include struct let repr_for_d = Irmin.Type.int end[@@ocaml.doc "@inline"]
-[@@merlin.hide ]
-let (_ : d Irmin.Type.t) = repr_for_d
+include struct let repr_for_d = Irmin_type.Type.int end[@@ocaml.doc
+                                                         "@inline"][@@merlin.hide
+                                                                    ]
+let (_ : d Irmin_type.Type.t) = repr_for_d
 type point_elsewhere1 = ((c)[@repr c_wit])[@@deriving irmin]
 include struct let point_elsewhere1_t = c_wit end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]
 type point_elsewhere2 = (int * ((c)[@repr c_wit]))[@@deriving irmin]
 include
-  struct let point_elsewhere2_t = Irmin.Type.pair Irmin.Type.int c_wit end
-[@@ocaml.doc "@inline"][@@merlin.hide ]
+  struct
+    let point_elsewhere2_t = Irmin_type.Type.pair Irmin_type.Type.int c_wit
+  end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type point_elsewhere3 =
   | A of int * ((c)[@repr c_wit]) 
   | B of ((c)[@repr c_wit]) [@@deriving irmin]
 include
   struct
     let point_elsewhere3_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.(|~)
-              (Irmin.Type.variant "point_elsewhere3"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.(|~)
+              (Irmin_type.Type.variant "point_elsewhere3"
                  (fun a ->
                     fun b ->
                       function | A (x1, x2) -> a (x1, x2) | B x1 -> b x1))
-              (Irmin.Type.case1 "A" (Irmin.Type.pair Irmin.Type.int c_wit)
+              (Irmin_type.Type.case1 "A"
+                 (Irmin_type.Type.pair Irmin_type.Type.int c_wit)
                  (fun (x1, x2) -> A (x1, x2))))
-           (Irmin.Type.case1 "B" c_wit (fun x1 -> B x1)))
+           (Irmin_type.Type.case1 "B" c_wit (fun x1 -> B x1)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type point_elsewhere4 =
   {
@@ -39,23 +42,24 @@ type point_elsewhere4 =
 include
   struct
     let point_elsewhere4_t =
-      Irmin.Type.sealr
-        (Irmin.Type.(|+)
-           (Irmin.Type.(|+)
-              (Irmin.Type.(|+)
-                 (Irmin.Type.(|+)
-                    (Irmin.Type.record "point_elsewhere4"
+      Irmin_type.Type.sealr
+        (Irmin_type.Type.(|+)
+           (Irmin_type.Type.(|+)
+              (Irmin_type.Type.(|+)
+                 (Irmin_type.Type.(|+)
+                    (Irmin_type.Type.record "point_elsewhere4"
                        (fun lorem ->
                           fun ipsum ->
                             fun dolor ->
                               fun sit -> { lorem; ipsum; dolor; sit }))
-                    (Irmin.Type.field "lorem" Irmin.Type.string
+                    (Irmin_type.Type.field "lorem" Irmin_type.Type.string
                        (fun t -> t.lorem)))
-                 (Irmin.Type.field "ipsum" c_wit (fun t -> t.ipsum)))
-              (Irmin.Type.field "dolor" Irmin.Type.int (fun t -> t.dolor)))
-           (Irmin.Type.field "sit" repr_for_d (fun t -> t.sit)))
+                 (Irmin_type.Type.field "ipsum" c_wit (fun t -> t.ipsum)))
+              (Irmin_type.Type.field "dolor" Irmin_type.Type.int
+                 (fun t -> t.dolor)))
+           (Irmin_type.Type.field "sit" repr_for_d (fun t -> t.sit)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
-let (_ : point_elsewhere1 Irmin.Type.t) = point_elsewhere1_t
-let (_ : point_elsewhere2 Irmin.Type.t) = point_elsewhere2_t
-let (_ : point_elsewhere3 Irmin.Type.t) = point_elsewhere3_t
-let (_ : point_elsewhere4 Irmin.Type.t) = point_elsewhere4_t
+let (_ : point_elsewhere1 Irmin_type.Type.t) = point_elsewhere1_t
+let (_ : point_elsewhere2 Irmin_type.Type.t) = point_elsewhere2_t
+let (_ : point_elsewhere3 Irmin_type.Type.t) = point_elsewhere3_t
+let (_ : point_elsewhere4 Irmin_type.Type.t) = point_elsewhere4_t

@@ -1,31 +1,35 @@
 module SigTests :
   sig
     type t = string[@@deriving irmin]
-    include sig val t : t Irmin.Type.t end[@@ocaml.doc "@inline"][@@merlin.hide
-                                                                   ]
-    type foo = unit[@@deriving irmin { name = "foo_repr" }]
-    include sig val foo_repr : foo Irmin.Type.t end[@@ocaml.doc "@inline"]
+    include sig val t : t Irmin_type.Type.t end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
+    type foo = unit[@@deriving irmin { name = "foo_repr" }]
+    include sig val foo_repr : foo Irmin_type.Type.t end[@@ocaml.doc
+                                                          "@inline"][@@merlin.hide
+                                                                    ]
     type my_int = (int32 * t)[@@deriving irmin]
-    include sig val my_int_t : my_int Irmin.Type.t end[@@ocaml.doc "@inline"]
+    include sig val my_int_t : my_int Irmin_type.Type.t end[@@ocaml.doc
+                                                             "@inline"]
     [@@merlin.hide ]
     type my_variant =
       | A of (my_int, int) result 
       | B of unit 
       | C of string * int32 [@@deriving irmin]
-    include sig val my_variant_t : my_variant Irmin.Type.t end[@@ocaml.doc
-                                                                "@inline"]
+    include sig val my_variant_t : my_variant Irmin_type.Type.t end[@@ocaml.doc
+                                                                    "@inline"]
     [@@merlin.hide ]
   end =
   struct
     type t = string[@@deriving irmin]
-    include struct let t = Irmin.Type.string end[@@ocaml.doc "@inline"]
+    include struct let t = Irmin_type.Type.string end[@@ocaml.doc "@inline"]
     [@@merlin.hide ]
     type foo = unit[@@deriving irmin { name = "foo_repr" }]
-    include struct let foo_repr = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+    include struct let foo_repr = Irmin_type.Type.unit end[@@ocaml.doc
+                                                            "@inline"]
     [@@merlin.hide ]
     type my_int = (int32 * t)[@@deriving irmin]
-    include struct let my_int_t = Irmin.Type.pair Irmin.Type.int32 t end
+    include
+      struct let my_int_t = Irmin_type.Type.pair Irmin_type.Type.int32 t end
     [@@ocaml.doc "@inline"][@@merlin.hide ]
     type my_variant =
       | A of (my_int, int) result 
@@ -34,11 +38,11 @@ module SigTests :
     include
       struct
         let my_variant_t =
-          Irmin.Type.sealv
-            (Irmin.Type.(|~)
-               (Irmin.Type.(|~)
-                  (Irmin.Type.(|~)
-                     (Irmin.Type.variant "my_variant"
+          Irmin_type.Type.sealv
+            (Irmin_type.Type.(|~)
+               (Irmin_type.Type.(|~)
+                  (Irmin_type.Type.(|~)
+                     (Irmin_type.Type.variant "my_variant"
                         (fun a ->
                            fun b ->
                              fun c ->
@@ -46,12 +50,13 @@ module SigTests :
                                | A x1 -> a x1
                                | B x1 -> b x1
                                | C (x1, x2) -> c (x1, x2)))
-                     (Irmin.Type.case1 "A"
-                        (Irmin.Type.result my_int_t Irmin.Type.int)
+                     (Irmin_type.Type.case1 "A"
+                        (Irmin_type.Type.result my_int_t Irmin_type.Type.int)
                         (fun x1 -> A x1)))
-                  (Irmin.Type.case1 "B" Irmin.Type.unit (fun x1 -> B x1)))
-               (Irmin.Type.case1 "C"
-                  (Irmin.Type.pair Irmin.Type.string Irmin.Type.int32)
-                  (fun (x1, x2) -> C (x1, x2))))
+                  (Irmin_type.Type.case1 "B" Irmin_type.Type.unit
+                     (fun x1 -> B x1)))
+               (Irmin_type.Type.case1 "C"
+                  (Irmin_type.Type.pair Irmin_type.Type.string
+                     Irmin_type.Type.int32) (fun (x1, x2) -> C (x1, x2))))
       end[@@ocaml.doc "@inline"][@@merlin.hide ]
   end 

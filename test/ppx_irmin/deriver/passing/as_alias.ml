@@ -1,4 +1,4 @@
-type 'a typ = 'a Irmin.Type.t
+type 'a typ = 'a Irmin_type.Type.t
 
 module Trivial : sig
   type t [@@deriving irmin]

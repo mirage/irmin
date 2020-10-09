@@ -1,6 +1,6 @@
 open Bechamel
 open Toolkit
-module T = Irmin.Type
+module T = Irmin_type.Type
 module Hash = Irmin.Hash.BLAKE2B
 open Output
 

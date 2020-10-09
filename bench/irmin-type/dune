@@ -1,6 +1,7 @@
 (executable
  (name main)
- (libraries irmin bechamel fpath yojson ppx_deriving_yojson.runtime unix)
+ (libraries irmin irmin-type bechamel fpath yojson
+   ppx_deriving_yojson.runtime unix)
  (preprocess
   (pps ppx_irmin ppx_deriving_yojson)))
 

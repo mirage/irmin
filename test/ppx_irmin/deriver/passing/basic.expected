@@ -1,22 +1,28 @@
 type test_unit = unit[@@deriving irmin]
-include struct let test_unit_t = Irmin.Type.unit end[@@ocaml.doc "@inline"]
+include struct let test_unit_t = Irmin_type.Type.unit end[@@ocaml.doc
+                                                           "@inline"]
 [@@merlin.hide ]
 type test_bool = bool[@@deriving irmin]
-include struct let test_bool_t = Irmin.Type.bool end[@@ocaml.doc "@inline"]
+include struct let test_bool_t = Irmin_type.Type.bool end[@@ocaml.doc
+                                                           "@inline"]
 [@@merlin.hide ]
 type test_char = char[@@deriving irmin]
-include struct let test_char_t = Irmin.Type.char end[@@ocaml.doc "@inline"]
+include struct let test_char_t = Irmin_type.Type.char end[@@ocaml.doc
+                                                           "@inline"]
 [@@merlin.hide ]
 type test_int32 = int32[@@deriving irmin]
-include struct let test_int32_t = Irmin.Type.int32 end[@@ocaml.doc "@inline"]
+include struct let test_int32_t = Irmin_type.Type.int32 end[@@ocaml.doc
+                                                             "@inline"]
 [@@merlin.hide ]
 type test_int64 = int64[@@deriving irmin]
-include struct let test_int64_t = Irmin.Type.int64 end[@@ocaml.doc "@inline"]
+include struct let test_int64_t = Irmin_type.Type.int64 end[@@ocaml.doc
+                                                             "@inline"]
 [@@merlin.hide ]
 type test_float = float[@@deriving irmin]
-include struct let test_float_t = Irmin.Type.float end[@@ocaml.doc "@inline"]
+include struct let test_float_t = Irmin_type.Type.float end[@@ocaml.doc
+                                                             "@inline"]
 [@@merlin.hide ]
 type test_string = string[@@deriving irmin]
-include struct let test_string_t = Irmin.Type.string end[@@ocaml.doc
-                                                          "@inline"][@@merlin.hide
-                                                                    ]
+include struct let test_string_t = Irmin_type.Type.string end[@@ocaml.doc
+                                                               "@inline"]
+[@@merlin.hide ]
