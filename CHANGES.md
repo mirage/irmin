@@ -89,6 +89,9 @@
     and `Float.neg_infinity` are now encoded as `"nan"`, `"inf"` and `"-inf"`
     respectively. (#979, @liautaud)
 
+  - Changed the JSON encoding of Boolean values to use JSON Booleans, rather
+    than the numbers 0 and 1. (#1104, @CraigFe)
+
   - The functions `Type.{v,like,map}` no longer take a `~cli` argument, and now
     take separate `~pp` and `~of_string` arguments instead. (#1103, @CraigFe)
 

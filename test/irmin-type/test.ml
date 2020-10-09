@@ -324,13 +324,13 @@ let test_to_string () =
     (Some None) "{\"some\":null}";
   test "(int * string * bool)"
     T.(triple int string bool)
-    (1, "foo", true) "[1,\"foo\",1]";
+    (1, "foo", true) "[1,\"foo\",true]";
   test "(string, bool) result{ok}"
     T.(result string bool)
     (Ok "foo") "{\"ok\":\"foo\"}";
   test "(string, bool) result{error}"
     T.(result string bool)
-    (Error false) "{\"error\":0}";
+    (Error false) "{\"error\":false}";
 
   (* Test cases for algebraic combinators *)
   let open Algebraic in
@@ -341,7 +341,7 @@ let test_to_string () =
     "{\"Branch\":[{\"Branch\":[{\"Leaf\":1}]},{\"Leaf\":2}]}";
   test "record" my_record_t
     { foo = 2; flag = false; letter = Delta }
-    "{\"foo\":2,\"flag\":0,\"letter\":\"Delta\"}";
+    "{\"foo\":2,\"flag\":false,\"letter\":\"Delta\"}";
 
   test "recursive record" my_recursive_record_t
     { head = 1; tail = Some { head = 2; tail = None } }
