@@ -84,9 +84,13 @@
 
 - **irmin**
   - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
+
   - Changed the JSON encoding of special floats. `Float.nan`, `Float.infinity`
     and `Float.neg_infinity` are now encoded as `"nan"`, `"inf"` and `"-inf"`
     respectively. (#979, @liautaud)
+
+  - The functions `Type.{v,like,map}` no longer take a `~cli` argument, and now
+    take separate `~pp` and `~of_string` arguments instead. (#1103, @CraigFe)
 
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the

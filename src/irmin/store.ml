@@ -1122,7 +1122,7 @@ module Make (P : S.PRIVATE) = struct
 
   let write_error_t =
     let of_string _ = assert false in
-    Type.like ~cli:(pp_write_error, of_string) write_error_t
+    Type.like ~pp:pp_write_error ~of_string write_error_t
 end
 
 type S.remote += Store : (module Store_intf.S with type t = 'a) * 'a -> S.remote

@@ -837,7 +837,7 @@ module Reference : BRANCH with type t = reference = struct
     | "refs" :: o -> Ok (`Other (path o))
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
 
-  let t = Irmin.Type.like t ~cli:(pp_ref, of_ref)
+  let t = Irmin.Type.like t ~pp:pp_ref ~of_string:of_ref
 
   let master = `Branch Irmin.Branch.String.master
 

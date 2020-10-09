@@ -312,7 +312,7 @@ val pp : 'a t -> 'a pp
 (** [pp t] is the pretty-printer for values of type [t]. *)
 
 val pp_dump : 'a t -> 'a pp
-(** [pp t] is the dump pretty-printer for values of type [t].
+(** [pp_dump t] is the dump pretty-printer for values of type [t].
 
     This pretty-printer outputs an encoding which is as close as possible to
     native OCaml syntax, so that the result can easily be copy-pasted into an
@@ -497,10 +497,11 @@ module Unboxed : sig
   (** Same as {!size_of} for unboxed values. *)
 end
 
-(** {1 Customs converters} *)
+(** {1 Custom converters} *)
 
 val v :
-  cli:'a pp * 'a of_string ->
+  pp:'a pp ->
+  of_string:'a of_string ->
   json:'a encode_json * 'a decode_json ->
   bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   ?unboxed_bin:'a encode_bin * 'a decode_bin * 'a size_of ->
@@ -512,7 +513,8 @@ val v :
   'a t
 
 val like :
-  ?cli:'a pp * 'a of_string ->
+  ?pp:'a pp ->
+  ?of_string:'a of_string ->
   ?json:'a encode_json * 'a decode_json ->
   ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   ?unboxed_bin:'a encode_bin * 'a decode_bin * 'a size_of ->
@@ -524,7 +526,8 @@ val like :
   'a t
 
 val map :
-  ?cli:'a pp * 'a of_string ->
+  ?pp:'a pp ->
+  ?of_string:'a of_string ->
   ?json:'a encode_json * 'a decode_json ->
   ?bin:'a encode_bin * 'a decode_bin * 'a size_of ->
   ?unboxed_bin:'a encode_bin * 'a decode_bin * 'a size_of ->
