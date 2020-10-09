@@ -15,15 +15,15 @@ build: [
 depends: [
   "ocaml"      {>= "4.08.0"}
   "dune"       {>= "2.5.1"}
-  "irmin"      {>= "2.2.0"}
+  "irmin"      {= version}
+  "irmin-layers" {= version}
   "ppx_irmin"  {= version}
   "index"      {>= "1.2.1"}
   "fmt"
   "logs"
   "lwt"
   "mtime"
-  "irmin-layers"
-  "irmin-test" {with-test & >= "2.2.0"}
+  "irmin-test" {with-test & = version}
   "alcotest-lwt" {with-test}
   "astring" {with-test}
   "fpath" {with-test}

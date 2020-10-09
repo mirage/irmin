@@ -16,10 +16,10 @@ build: [
 depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "2.5.1"}
-  "irmin"      {>= "2.1.0"}
-  "irmin-mem"  {>= "2.1.0"}
-  "irmin-unix" {>= "2.1.0"}
-  "irmin-git"  {>= "2.1.0"}
+  "irmin"      {= version}
+  "irmin-mem"  {= version}
+  "irmin-unix" {= version}
+  "irmin-git"  {= version}
   "ppx_irmin"  {= version}
   "lwt"
   "mtime"

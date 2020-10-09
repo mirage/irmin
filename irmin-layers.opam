@@ -17,8 +17,8 @@ depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "2.5.1"}
   "mtime"      {>= "1.0.0"}
-  "irmin"      {>= "2.0.0"}
-  "irmin-test" {with-test & post}
+  "irmin"      {= version}
+  "irmin-test" {with-test & post & = version}
 ]
 
 synopsis: "Combine different Irmin stores into a single, layered store"

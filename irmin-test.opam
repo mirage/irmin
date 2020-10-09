@@ -15,7 +15,8 @@ build: [
 depends: [
   "ocaml"    {>= "4.02.3"}
   "dune"     {>= "2.5.1"}
-  "irmin"    {>= "2.2.0"}
+  "irmin"    {= version}
+  "irmin-layers" {= version}
   "ppx_irmin" {= version}
   "alcotest" {>= "1.0.1"}
   "mtime"    {>= "1.0.0"}
@@ -26,7 +27,6 @@ depends: [
   "lwt"
   "metrics-unix"
   "ocaml-syntax-shims"
-  "irmin-layers"
 ]
 
 synopsis: "Irmin test suite"
