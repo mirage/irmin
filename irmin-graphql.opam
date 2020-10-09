@@ -16,15 +16,15 @@ build: [
 depends: [
   "ocaml"   {>= "4.03.0"}
   "dune"    {>= "2.5.1"}
-  "irmin"   {>= "2.2.0"}
+  "irmin"   {= version}
   "graphql" {>= "0.13.0"}
   "graphql-lwt" {>= "0.13.0"}
   "graphql-cohttp" {>= "0.13.0"}
   "cohttp-lwt"
   "graphql_parser" {>= "0.13.0"}
+  "irmin-mem" {with-test & = version}
   "alcotest-lwt" {>= "1.1.0" & with-test}
   "yojson" {with-test}
-  "irmin-mem" {with-test}
   "cohttp-lwt-unix" {with-test}
 ]
 

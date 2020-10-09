@@ -14,12 +14,12 @@ build: [
 ]
 
 depends: [
+  "irmin"     {= version}
+  "ppx_irmin" {= version}
   "ocaml"   {>= "4.07.0"}
   "dune"    {>= "2.5.1"}
-  "irmin"
   "bechamel"
   "yojson"
-  "ppx_irmin" {= version}
   "ppx_deriving_yojson"
 ]
 

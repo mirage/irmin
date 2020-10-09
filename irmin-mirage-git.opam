@@ -14,8 +14,8 @@ build: [
 
 depends: [
   "dune"       {>= "2.5.1"}
-  "irmin-mirage"
-  "irmin-git"  {>= "2.0.0"}
+  "irmin-mirage" {= version}
+  "irmin-git"  {= version}
   "git-mirage" {>= "2.1.2"}
   "mirage-kv" {>= "3.0.0"}
 ]

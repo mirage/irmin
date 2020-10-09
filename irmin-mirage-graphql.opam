@@ -14,9 +14,9 @@ build: [
 
 depends: [
   "dune"    {>= "2.5.1"}
-  "irmin-mirage"
+  "irmin-mirage" {= version}
   "git-mirage" {>= "2.1.1"}
-  "irmin-graphql"
+  "irmin-graphql" {= version}
   "mirage-clock"
 ]
 
