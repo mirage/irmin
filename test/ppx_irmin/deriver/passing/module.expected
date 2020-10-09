@@ -3,26 +3,28 @@ module ModuleQualifiedTypes =
     module X =
       struct
         type t = int[@@deriving irmin]
-        include struct let t = Irmin.Type.int end[@@ocaml.doc "@inline"]
+        include struct let t = Irmin_type.Type.int end[@@ocaml.doc "@inline"]
         [@@merlin.hide ]
       end
     module Y =
       struct
         type foo = X.t list[@@deriving irmin]
-        include struct let foo_t = Irmin.Type.list X.t end[@@ocaml.doc
-                                                            "@inline"]
+        include struct let foo_t = Irmin_type.Type.list X.t end[@@ocaml.doc
+                                                                 "@inline"]
         [@@merlin.hide ]
       end
     type t = X.t[@@deriving irmin]
     include struct let t = X.t end[@@ocaml.doc "@inline"][@@merlin.hide ]
     type t_result = (X.t, unit) result[@@deriving irmin]
-    include struct let t_result_t = Irmin.Type.result X.t Irmin.Type.unit end
-    [@@ocaml.doc "@inline"][@@merlin.hide ]
+    include
+      struct
+        let t_result_t = Irmin_type.Type.result X.t Irmin_type.Type.unit
+      end[@@ocaml.doc "@inline"][@@merlin.hide ]
     type foo = Y.foo[@@deriving irmin]
     include struct let foo_t = Y.foo_t end[@@ocaml.doc "@inline"][@@merlin.hide
                                                                    ]
     type foo_list = Y.foo list[@@deriving irmin]
-    include struct let foo_list_t = Irmin.Type.list Y.foo_t end[@@ocaml.doc
-                                                                 "@inline"]
+    include struct let foo_list_t = Irmin_type.Type.list Y.foo_t end[@@ocaml.doc
+                                                                    "@inline"]
     [@@merlin.hide ]
   end

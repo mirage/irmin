@@ -1,19 +1,20 @@
-type 'a typ = 'a Irmin.Type.t
+type 'a typ = 'a Irmin_type.Type.t
 module Trivial :
   sig
     type t[@@deriving irmin]
-    include sig val t : t Irmin.Type.t end[@@ocaml.doc "@inline"][@@merlin.hide
-                                                                   ]
+    include sig val t : t Irmin_type.Type.t end[@@ocaml.doc "@inline"]
+    [@@merlin.hide ]
   end =
   struct
     type t = int as 'a[@@deriving irmin]
-    include struct let t = Irmin.Type.int end[@@ocaml.doc "@inline"][@@merlin.hide
-                                                                    ]
+    include struct let t = Irmin_type.Type.int end[@@ocaml.doc "@inline"]
+    [@@merlin.hide ]
   end 
 module Recursive :
   sig
     type 'a tree[@@deriving irmin]
-    include sig val tree_t : 'a Irmin.Type.t -> 'a tree Irmin.Type.t end
+    include
+      sig val tree_t : 'a Irmin_type.Type.t -> 'a tree Irmin_type.Type.t end
     [@@ocaml.doc "@inline"][@@merlin.hide ]
   end =
   struct
@@ -23,20 +24,20 @@ module Recursive :
     include
       struct
         let tree_t a =
-          Irmin.Type.mu
+          Irmin_type.Type.mu
             (fun tree ->
-               Irmin.Type.sealv
-                 (Irmin.Type.(|~)
-                    (Irmin.Type.(|~)
-                       (Irmin.Type.variant "tree"
+               Irmin_type.Type.sealv
+                 (Irmin_type.Type.(|~)
+                    (Irmin_type.Type.(|~)
+                       (Irmin_type.Type.variant "tree"
                           (fun branch ->
                              fun leaf ->
                                function
                                | `Branch x1 -> branch x1
                                | `Leaf x1 -> leaf x1))
-                       (Irmin.Type.case1 "Branch"
-                          (Irmin.Type.triple tree Irmin.Type.int tree)
-                          (fun x1 -> `Branch x1)))
-                    (Irmin.Type.case1 "Leaf" a (fun x1 -> `Leaf x1))))
+                       (Irmin_type.Type.case1 "Branch"
+                          (Irmin_type.Type.triple tree Irmin_type.Type.int
+                             tree) (fun x1 -> `Branch x1)))
+                    (Irmin_type.Type.case1 "Leaf" a (fun x1 -> `Leaf x1))))
       end[@@ocaml.doc "@inline"][@@merlin.hide ]
   end 

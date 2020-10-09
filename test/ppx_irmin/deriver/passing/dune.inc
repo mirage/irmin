@@ -5,7 +5,7 @@
  (name alias)
  (modules alias)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -37,7 +37,7 @@
  (name arguments)
  (modules arguments)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -69,7 +69,7 @@
  (name as_alias)
  (modules as_alias)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -101,7 +101,7 @@
  (name basic)
  (modules basic)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -133,7 +133,7 @@
  (name composite)
  (modules composite)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -165,7 +165,7 @@
  (name extension)
  (modules extension)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -197,7 +197,7 @@
  (name json_module)
  (modules json_module)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -229,7 +229,7 @@
  (name lib_relocated)
  (modules lib_relocated)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -261,7 +261,7 @@
  (name module)
  (modules module)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -293,7 +293,7 @@
  (name nobuiltin)
  (modules nobuiltin)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -325,7 +325,7 @@
  (name nonrec)
  (modules nonrec)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -357,7 +357,7 @@
  (name polyvariant)
  (modules polyvariant)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -389,7 +389,7 @@
  (name record)
  (modules record)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -421,7 +421,7 @@
  (name signature)
  (modules signature)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -453,7 +453,7 @@
  (name tuple_deep)
  (modules tuple_deep)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -485,7 +485,7 @@
  (name type_params)
  (modules type_params)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule
@@ -517,7 +517,7 @@
  (name variant)
  (modules variant)
  (preprocess (pps ppx_irmin))
- (libraries irmin))
+ (libraries irmin-type))
 
 ; Run the PPX on the `.ml` file
 (rule

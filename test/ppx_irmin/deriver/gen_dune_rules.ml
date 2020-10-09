@@ -18,7 +18,7 @@ let output_stanzas ~expect_failure filename =
       Format.fprintf ppf
         "; The PPX-dependent executable under test@,\
          @[<v 1>(executable@ (name %s)@ (modules %s)@ (preprocess (pps \
-         ppx_irmin))@ (libraries irmin))@]"
+         ppx_irmin))@ (libraries irmin-type))@]"
         base base
     else ()
   in

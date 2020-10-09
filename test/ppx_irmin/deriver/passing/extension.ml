@@ -1,4 +1,4 @@
-type 'a typ = 'a Irmin.Type.t
+type 'a typ = 'a Irmin_type.Type.t
 
 module Simple = struct
   let (_ : (int * string) list typ) = [%typ: (int * string) list]
@@ -7,7 +7,7 @@ end
 module Alias = struct
   type t = unit
 
-  let t = Irmin.Type.unit
+  let t = Irmin_type.Type.unit
 
   let (_ : unit typ) = [%typ: t]
 end

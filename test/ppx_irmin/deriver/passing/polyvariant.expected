@@ -2,14 +2,14 @@ type test_polyvar1 = [ `On of int  | `Off ][@@deriving irmin]
 include
   struct
     let test_polyvar1_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.(|~)
-              (Irmin.Type.variant "test_polyvar1"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.(|~)
+              (Irmin_type.Type.variant "test_polyvar1"
                  (fun on ->
                     fun off -> function | `On x1 -> on x1 | `Off -> off))
-              (Irmin.Type.case1 "On" Irmin.Type.int (fun x1 -> `On x1)))
-           (Irmin.Type.case0 "Off" `Off))
+              (Irmin_type.Type.case1 "On" Irmin_type.Type.int
+                 (fun x1 -> `On x1))) (Irmin_type.Type.case0 "Off" `Off))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_polyvar2 =
   [ `Outer_a of [ `Inner_a  | `Inner_b ]  | `Outer_b of [ `Inner_a ] 
@@ -17,11 +17,11 @@ type test_polyvar2 =
 include
   struct
     let test_polyvar2_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.(|~)
-              (Irmin.Type.(|~)
-                 (Irmin.Type.variant "test_polyvar2"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.(|~)
+              (Irmin_type.Type.(|~)
+                 (Irmin_type.Type.variant "test_polyvar2"
                     (fun outer_a ->
                        fun outer_b ->
                          fun outer_c ->
@@ -29,39 +29,39 @@ include
                            | `Outer_a x1 -> outer_a x1
                            | `Outer_b x1 -> outer_b x1
                            | `Outer_c x1 -> outer_c x1))
-                 (Irmin.Type.case1 "Outer_a"
-                    (Irmin.Type.sealv
-                       (Irmin.Type.(|~)
-                          (Irmin.Type.(|~)
-                             (Irmin.Type.variant "test_polyvar2"
+                 (Irmin_type.Type.case1 "Outer_a"
+                    (Irmin_type.Type.sealv
+                       (Irmin_type.Type.(|~)
+                          (Irmin_type.Type.(|~)
+                             (Irmin_type.Type.variant "test_polyvar2"
                                 (fun inner_a ->
                                    fun inner_b ->
                                      function
                                      | `Inner_a -> inner_a
                                      | `Inner_b -> inner_b))
-                             (Irmin.Type.case0 "Inner_a" `Inner_a))
-                          (Irmin.Type.case0 "Inner_b" `Inner_b)))
+                             (Irmin_type.Type.case0 "Inner_a" `Inner_a))
+                          (Irmin_type.Type.case0 "Inner_b" `Inner_b)))
                     (fun x1 -> `Outer_a x1)))
-              (Irmin.Type.case1 "Outer_b"
-                 (Irmin.Type.sealv
-                    (Irmin.Type.(|~)
-                       (Irmin.Type.variant "test_polyvar2"
+              (Irmin_type.Type.case1 "Outer_b"
+                 (Irmin_type.Type.sealv
+                    (Irmin_type.Type.(|~)
+                       (Irmin_type.Type.variant "test_polyvar2"
                           (fun inner_a -> function | `Inner_a -> inner_a))
-                       (Irmin.Type.case0 "Inner_a" `Inner_a)))
+                       (Irmin_type.Type.case0 "Inner_a" `Inner_a)))
                  (fun x1 -> `Outer_b x1)))
-           (Irmin.Type.case1 "Outer_c"
-              (Irmin.Type.sealv
-                 (Irmin.Type.(|~)
-                    (Irmin.Type.(|~)
-                       (Irmin.Type.variant "test_polyvar2"
+           (Irmin_type.Type.case1 "Outer_c"
+              (Irmin_type.Type.sealv
+                 (Irmin_type.Type.(|~)
+                    (Irmin_type.Type.(|~)
+                       (Irmin_type.Type.variant "test_polyvar2"
                           (fun inner_a ->
                              fun inner_c ->
                                function
                                | `Inner_a x1 -> inner_a x1
                                | `Inner_c x1 -> inner_c x1))
-                       (Irmin.Type.case1 "Inner_a" Irmin.Type.string
-                          (fun x1 -> `Inner_a x1)))
-                    (Irmin.Type.case1 "Inner_c" Irmin.Type.int
+                       (Irmin_type.Type.case1 "Inner_a"
+                          Irmin_type.Type.string (fun x1 -> `Inner_a x1)))
+                    (Irmin_type.Type.case1 "Inner_c" Irmin_type.Type.int
                        (fun x1 -> `Inner_c x1)))) (fun x1 -> `Outer_c x1)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_polyvar3 =
@@ -70,20 +70,20 @@ type test_polyvar3 =
 include
   struct
     let test_polyvar3_t =
-      Irmin.Type.mu
+      Irmin_type.Type.mu
         (fun test_polyvar3_t ->
-           Irmin.Type.sealv
-             (Irmin.Type.(|~)
-                (Irmin.Type.(|~)
-                   (Irmin.Type.variant "test_polyvar3"
+           Irmin_type.Type.sealv
+             (Irmin_type.Type.(|~)
+                (Irmin_type.Type.(|~)
+                   (Irmin_type.Type.variant "test_polyvar3"
                       (fun branch ->
                          fun leaf ->
                            function
                            | `Branch x1 -> branch x1
                            | `Leaf x1 -> leaf x1))
-                   (Irmin.Type.case1 "Branch"
-                      (Irmin.Type.pair test_polyvar3_t test_polyvar3_t)
+                   (Irmin_type.Type.case1 "Branch"
+                      (Irmin_type.Type.pair test_polyvar3_t test_polyvar3_t)
                       (fun x1 -> `Branch x1)))
-                (Irmin.Type.case1 "Leaf" Irmin.Type.string
+                (Irmin_type.Type.case1 "Leaf" Irmin_type.Type.string
                    (fun x1 -> `Leaf x1))))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]

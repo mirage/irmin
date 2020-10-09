@@ -1,28 +1,27 @@
 type unit = string[@@deriving irmin]
-include struct let unit_t = Irmin.Type.string end[@@ocaml.doc "@inline"]
+include struct let unit_t = Irmin_type.Type.string end[@@ocaml.doc "@inline"]
 [@@merlin.hide ]
 module Nobuiltin_t =
   struct
     type t = ((unit)[@nobuiltin ])[@@deriving irmin]
     include struct let t = unit_t end[@@ocaml.doc "@inline"][@@merlin.hide ]
-    let (_ : string Irmin.Type.t) = t
+    let (_ : string Irmin_type.Type.t) = t
   end
 module Nobuiltin_foo =
   struct
     type foo = ((unit)[@irmin.nobuiltin ])[@@deriving irmin]
     include struct let foo_t = unit_t end[@@ocaml.doc "@inline"][@@merlin.hide
                                                                   ]
-    let (_ : string Irmin.Type.t) = foo_t
+    let (_ : string Irmin_type.Type.t) = foo_t
   end
 module Nobuiltin_operator =
   struct
-    let result_t a b = Irmin.Type.pair a b
-    let int32_t = Irmin.Type.int
-    let int64_t = Irmin.Type.bool
+    let result_t a b = Irmin_type.Type.pair a b
+    let int32_t = Irmin_type.Type.int
+    let int64_t = Irmin_type.Type.bool
     type u = (((((int32)[@nobuiltin ]), int64) result)[@nobuiltin ])[@@deriving
                                                                     irmin]
-    include struct let u_t = result_t int32_t Irmin.Type.int64 end[@@ocaml.doc
-                                                                    "@inline"]
-    [@@merlin.hide ]
-    let (_ : (int * int64) Irmin.Type.t) = u_t
+    include struct let u_t = result_t int32_t Irmin_type.Type.int64 end
+    [@@ocaml.doc "@inline"][@@merlin.hide ]
+    let (_ : (int * int64) Irmin_type.Type.t) = u_t
   end

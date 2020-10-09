@@ -3,33 +3,34 @@ type test_variant1 =
 include
   struct
     let test_variant1_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.variant "test_variant1" (fun a -> function | A -> a))
-           (Irmin.Type.case0 "A" A))
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.variant "test_variant1"
+              (fun a -> function | A -> a)) (Irmin_type.Type.case0 "A" A))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_variant2 =
   | A2 of int64 [@@deriving irmin]
 include
   struct
     let test_variant2_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.variant "test_variant2"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.variant "test_variant2"
               (fun a2 -> function | A2 x1 -> a2 x1))
-           (Irmin.Type.case1 "A2" Irmin.Type.int64 (fun x1 -> A2 x1)))
+           (Irmin_type.Type.case1 "A2" Irmin_type.Type.int64
+              (fun x1 -> A2 x1)))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_variant3 =
   | A3 of string * test_variant2 [@@deriving irmin]
 include
   struct
     let test_variant3_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.variant "test_variant3"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.variant "test_variant3"
               (fun a3 -> function | A3 (x1, x2) -> a3 (x1, x2)))
-           (Irmin.Type.case1 "A3"
-              (Irmin.Type.pair Irmin.Type.string test_variant2_t)
+           (Irmin_type.Type.case1 "A3"
+              (Irmin_type.Type.pair Irmin_type.Type.string test_variant2_t)
               (fun (x1, x2) -> A3 (x1, x2))))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_variant4 =
@@ -39,16 +40,17 @@ type test_variant4 =
 include
   struct
     let test_variant4_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.(|~)
-              (Irmin.Type.(|~)
-                 (Irmin.Type.variant "test_variant4"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.(|~)
+              (Irmin_type.Type.(|~)
+                 (Irmin_type.Type.variant "test_variant4"
                     (fun a4 ->
                        fun b4 ->
                          fun c4 -> function | A4 -> a4 | B4 -> b4 | C4 -> c4))
-                 (Irmin.Type.case0 "A4" A4)) (Irmin.Type.case0 "B4" B4))
-           (Irmin.Type.case0 "C4" C4))
+                 (Irmin_type.Type.case0 "A4" A4))
+              (Irmin_type.Type.case0 "B4" B4))
+           (Irmin_type.Type.case0 "C4" C4))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_variant5 =
   | A5 
@@ -57,11 +59,11 @@ type test_variant5 =
 include
   struct
     let test_variant5_t =
-      Irmin.Type.sealv
-        (Irmin.Type.(|~)
-           (Irmin.Type.(|~)
-              (Irmin.Type.(|~)
-                 (Irmin.Type.variant "test_variant5"
+      Irmin_type.Type.sealv
+        (Irmin_type.Type.(|~)
+           (Irmin_type.Type.(|~)
+              (Irmin_type.Type.(|~)
+                 (Irmin_type.Type.variant "test_variant5"
                     (fun a5 ->
                        fun b5 ->
                          fun c5 ->
@@ -69,13 +71,14 @@ include
                            | A5 -> a5
                            | B5 (x1, x2) -> b5 (x1, x2)
                            | C5 (x1, x2, x3) -> c5 (x1, x2, x3)))
-                 (Irmin.Type.case0 "A5" A5))
-              (Irmin.Type.case1 "B5"
-                 (Irmin.Type.pair Irmin.Type.string test_variant4_t)
+                 (Irmin_type.Type.case0 "A5" A5))
+              (Irmin_type.Type.case1 "B5"
+                 (Irmin_type.Type.pair Irmin_type.Type.string test_variant4_t)
                  (fun (x1, x2) -> B5 (x1, x2))))
-           (Irmin.Type.case1 "C5"
-              (Irmin.Type.triple Irmin.Type.int32 Irmin.Type.string
-                 Irmin.Type.unit) (fun (x1, x2, x3) -> C5 (x1, x2, x3))))
+           (Irmin_type.Type.case1 "C5"
+              (Irmin_type.Type.triple Irmin_type.Type.int32
+                 Irmin_type.Type.string Irmin_type.Type.unit)
+              (fun (x1, x2, x3) -> C5 (x1, x2, x3))))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_variant6 =
   | Nil 
@@ -83,19 +86,19 @@ type test_variant6 =
 include
   struct
     let test_variant6_t =
-      Irmin.Type.mu
+      Irmin_type.Type.mu
         (fun test_variant6_t ->
-           Irmin.Type.sealv
-             (Irmin.Type.(|~)
-                (Irmin.Type.(|~)
-                   (Irmin.Type.variant "test_variant6"
+           Irmin_type.Type.sealv
+             (Irmin_type.Type.(|~)
+                (Irmin_type.Type.(|~)
+                   (Irmin_type.Type.variant "test_variant6"
                       (fun nil ->
                          fun cons ->
                            function
                            | Nil -> nil
                            | Cons (x1, x2) -> cons (x1, x2)))
-                   (Irmin.Type.case0 "Nil" Nil))
-                (Irmin.Type.case1 "Cons"
-                   (Irmin.Type.pair Irmin.Type.string test_variant6_t)
-                   (fun (x1, x2) -> Cons (x1, x2)))))
+                   (Irmin_type.Type.case0 "Nil" Nil))
+                (Irmin_type.Type.case1 "Cons"
+                   (Irmin_type.Type.pair Irmin_type.Type.string
+                      test_variant6_t) (fun (x1, x2) -> Cons (x1, x2)))))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]

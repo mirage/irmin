@@ -1,38 +1,45 @@
 type test_list1 = string list[@@deriving irmin]
-include struct let test_list1_t = Irmin.Type.list Irmin.Type.string end
+include
+  struct let test_list1_t = Irmin_type.Type.list Irmin_type.Type.string end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_list2 = int32 list list list[@@deriving irmin]
 include
   struct
     let test_list2_t =
-      Irmin.Type.list (Irmin.Type.list (Irmin.Type.list Irmin.Type.int32))
+      Irmin_type.Type.list
+        (Irmin_type.Type.list (Irmin_type.Type.list Irmin_type.Type.int32))
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_array = bool array[@@deriving irmin]
-include struct let test_array_t = Irmin.Type.array Irmin.Type.bool end
+include
+  struct let test_array_t = Irmin_type.Type.array Irmin_type.Type.bool end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_option = unit option[@@deriving irmin]
-include struct let test_option_t = Irmin.Type.option Irmin.Type.unit end
+include
+  struct let test_option_t = Irmin_type.Type.option Irmin_type.Type.unit end
 [@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_pair = (string * int32)[@@deriving irmin]
 include
   struct
-    let test_pair_t = Irmin.Type.pair Irmin.Type.string Irmin.Type.int32
+    let test_pair_t =
+      Irmin_type.Type.pair Irmin_type.Type.string Irmin_type.Type.int32
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_triple = (string * int32 * bool)[@@deriving irmin]
 include
   struct
     let test_triple_t =
-      Irmin.Type.triple Irmin.Type.string Irmin.Type.int32 Irmin.Type.bool
+      Irmin_type.Type.triple Irmin_type.Type.string Irmin_type.Type.int32
+        Irmin_type.Type.bool
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
 type test_result = (int32, string) result[@@deriving irmin]
 include
   struct
-    let test_result_t = Irmin.Type.result Irmin.Type.int32 Irmin.Type.string
+    let test_result_t =
+      Irmin_type.Type.result Irmin_type.Type.int32 Irmin_type.Type.string
   end[@@ocaml.doc "@inline"][@@merlin.hide ]
-let (_ : test_list1 Irmin.Type.t) = test_list1_t
-let (_ : test_list2 Irmin.Type.t) = test_list2_t
-let (_ : test_array Irmin.Type.t) = test_array_t
-let (_ : test_option Irmin.Type.t) = test_option_t
-let (_ : test_pair Irmin.Type.t) = test_pair_t
-let (_ : test_triple Irmin.Type.t) = test_triple_t
-let (_ : test_result Irmin.Type.t) = test_result_t
+let (_ : test_list1 Irmin_type.Type.t) = test_list1_t
+let (_ : test_list2 Irmin_type.Type.t) = test_list2_t
+let (_ : test_array Irmin_type.Type.t) = test_array_t
+let (_ : test_option Irmin_type.Type.t) = test_option_t
+let (_ : test_pair Irmin_type.Type.t) = test_pair_t
+let (_ : test_triple Irmin_type.Type.t) = test_triple_t
+let (_ : test_result Irmin_type.Type.t) = test_result_t
