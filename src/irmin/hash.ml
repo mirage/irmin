@@ -31,7 +31,7 @@ module Make (H : Digestif.S) = struct
   let pp_hex ppf x = Fmt.string ppf (H.to_hex x)
 
   let t =
-    Type.map ~cli:(pp_hex, of_hex)
+    Type.map ~pp:pp_hex ~of_string:of_hex
       Type.(string_of (`Fixed hash_size))
       H.of_raw_string H.to_raw_string
 

@@ -79,7 +79,7 @@ let pp_hex ppf s =
 
 let of_hex_string x = Ok (Hex.to_string (`Hex x))
 
-let hex = T.map T.string ~cli:(pp_hex, of_hex_string) id id
+let hex = T.map T.string ~pp:pp_hex ~of_string:of_hex_string id id
 
 let hex2 =
   let encode_json e x =
@@ -212,7 +212,9 @@ let test_json_float () =
   Alcotest.(check (float Float.epsilon)) "-inf from JSON" Float.neg_infinity x
 
 let l =
-  let hex = T.map (T.string_of (`Fixed 3)) ~cli:(pp_hex, of_hex_string) id id in
+  let hex =
+    T.map (T.string_of (`Fixed 3)) ~pp:pp_hex ~of_string:of_hex_string id id
+  in
   T.list ~len:(`Fixed 2) hex
 
 let tl = Alcotest.testable (T.pp l) (T.equal l)
@@ -529,7 +531,7 @@ let test_pp_ty () =
       let a2 _ _ = assert false in
       let s2 = T.stage @@ fun _ _ -> assert false in
       let hdr f = T.stage f in
-      T.v ~cli:(a2, a1) ~json:(a2, a1)
+      T.v ~pp:a2 ~of_string:a1 ~json:(a2, a1)
         ~bin:(hdr a2, hdr a2, hdr a1)
         ~equal:a2 ~compare:a2
         ~short_hash:(fun ?seed:_ -> a1)

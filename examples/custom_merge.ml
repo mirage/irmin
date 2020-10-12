@@ -43,7 +43,7 @@ end = struct
         try Ok { timestamp = Int64.of_string x; message }
         with Failure e -> Error (`Msg e))
 
-  let t = Irmin.Type.like ~cli:(pp, of_string) ~compare t
+  let t = Irmin.Type.like ~pp ~of_string ~compare t
 end
 
 (* A log file *)
@@ -54,7 +54,7 @@ module Log : sig
 
   val empty : t
 end = struct
-  type t = Entry.t list
+  type t = Entry.t list [@@deriving irmin]
 
   let empty = []
 
@@ -74,9 +74,7 @@ end = struct
       |> fun l -> Ok l
     with Failure e -> Error (`Msg e)
 
-  let cli = (lines, of_string)
-
-  let t = Irmin.Type.(like ~cli (list Entry.t))
+  let t = Irmin.Type.like ~pp:lines ~of_string t
 
   let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
 

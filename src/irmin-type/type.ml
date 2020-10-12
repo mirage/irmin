@@ -75,8 +75,8 @@ let option a = Option a
 
 let boxed t = Boxed t
 
-let v ~cli ~json ~bin ?unboxed_bin ~equal ~compare ~short_hash ~pre_hash () =
-  let pp, of_string = cli in
+let v ~pp ~of_string ~json ~bin ?unboxed_bin ~equal ~compare ~short_hash
+    ~pre_hash () =
   let encode_json, decode_json = json in
   let encode_bin, decode_bin, size_of = bin in
   let unboxed_encode_bin, unboxed_decode_bin, unboxed_size_of =
@@ -267,8 +267,12 @@ let result a b =
   |~ case1 "error" b (fun b -> Error b)
   |> sealv
 
-let like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h ?pre_hash:p
-    t =
+let like ?pp ?of_string ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h
+    ?pre_hash:p t =
+  let or_default ~op:generic_op = function
+    | Some x -> x
+    | None -> generic_op t
+  in
   let encode_json, decode_json =
     let ( >|= ) l f = match l with Ok l -> Ok (f l) | Error _ as e -> e in
     let join = function Error _ as e -> e | Ok x -> x in
@@ -281,18 +285,15 @@ let like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h ?pre_hash:p
           | Prim _ -> true
           | _ -> false
         in
-        match (t, cli) with
-        | ty, Some (pp, of_string) when is_prim ty ->
+        match (t, pp, of_string) with
+        | ty, Some pp, Some of_string when is_prim ty ->
             let ty = string in
             ( (fun ppf u -> Type_json.encode ty ppf (Fmt.to_to_string pp u)),
               fun buf -> Type_json.decode ty buf >|= of_string |> join )
         | _ -> (Type_json.encode t, Type_json.decode t))
   in
-  let pp, of_string =
-    match cli with
-    | Some (x, y) -> (x, y)
-    | None -> (Type_pp.t t, Type_pp.of_string t)
-  in
+  let pp = or_default ~op:Type_pp.t pp in
+  let of_string = or_default ~op:Type_pp.of_string of_string in
   let encode_bin, decode_bin, size_of =
     match bin with
     | Some (x, y, z) -> (x, y, z)
@@ -314,9 +315,7 @@ let like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h ?pre_hash:p
         | Some f -> fun x y -> f x y = 0
         | None -> Type_ordered.equal t)
   in
-  let compare =
-    match compare with Some x -> x | None -> Type_ordered.compare t
-  in
+  let compare = or_default ~op:Type_ordered.compare compare in
   let short_hash ?seed =
     match h with Some x -> x | None -> short_hash ?seed t
   in
@@ -340,14 +339,17 @@ let like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash:h ?pre_hash:p
       unboxed_size_of;
     }
 
-let map ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash ?pre_hash x f g
-    =
-  match (cli, json, bin, unboxed_bin, equal, compare, short_hash, pre_hash) with
-  | None, None, None, None, None, None, None, None ->
+let map ?pp ?of_string ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash
+    ?pre_hash x f g =
+  match
+    (pp, of_string, json, bin, unboxed_bin, equal, compare, short_hash, pre_hash)
+  with
+  | None, None, None, None, None, None, None, None, None ->
       Map { x; f; g; mwit = Witness.make () }
   | _ ->
       let x = Map { x; f; g; mwit = Witness.make () } in
-      like ?cli ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash ?pre_hash x
+      like ?pp ?of_string ?json ?bin ?unboxed_bin ?equal ?compare ?short_hash
+        ?pre_hash x
 
 module type S = sig
   type t

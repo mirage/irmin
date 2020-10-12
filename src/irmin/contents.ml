@@ -107,7 +107,7 @@ module Json_value = struct
         with Invalid_argument _ -> false)
     | _, _ -> false
 
-  let t = Type.like ~equal ~cli:(pp, of_string) t
+  let t = Type.like ~equal ~pp ~of_string t
 
   let rec merge_object ~old x y =
     let open Merge.Infix in
@@ -182,7 +182,7 @@ module Json = struct
 
   let equal a b = Json_value.equal (`O a) (`O b)
 
-  let t = Type.like ~equal ~cli:(pp, of_string) t
+  let t = Type.like ~equal ~pp ~of_string t
 
   let merge =
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
