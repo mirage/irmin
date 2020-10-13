@@ -601,13 +601,19 @@ struct
 
     let mem_commit_upper t = X.Commit.CA.mem_next t.X.Repo.commit
 
+    let mem_commit_current t = X.Commit.CA.mem_current t.X.Repo.commit
+
     let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
 
     let mem_node_upper t = X.Node.CA.mem_next t.X.Repo.node
 
+    let mem_node_current t = X.Node.CA.mem_current t.X.Repo.node
+
     let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
 
     let mem_contents_upper t = X.Contents.CA.mem_next t.X.Repo.contents
+
+    let mem_contents_current t = X.Contents.CA.mem_current t.X.Repo.contents
 
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
@@ -651,9 +657,8 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        let skip h = mem_node_lower t h in
-        let skip_contents h = mem_contents_lower t h in
-        copy_commit ~skip ~skip_contents
+        copy_commit ~skip:(mem_node_lower t)
+          ~skip_contents:(mem_contents_lower t)
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -680,6 +685,23 @@ struct
     end
 
     module CopyToUpper = struct
+      (** Skip if object is not in current; this check is cheap with the mem
+          upper layer. *)
+      let skip_node t h =
+        mem_node_current t h >>= function
+        | false -> Lwt.return_true
+        | true -> mem_node_upper t h
+
+      let skip_commit t h =
+        mem_commit_current t h >>= function
+        | false -> Lwt.return_true
+        | true -> mem_commit_upper t h
+
+      let skip_contents t h =
+        mem_contents_current t h >>= function
+        | false -> Lwt.return_true
+        | true -> mem_contents_upper t h
+
       let on_next_upper t f =
         let contents = X.Contents.CA.next_upper t.X.Repo.contents in
         let nodes = X.Node.CA.next_upper t.X.Repo.node in
@@ -687,15 +709,14 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_upper t)
-          ~skip_contents:(mem_contents_upper t)
+        copy_commit ~skip:(skip_node t) ~skip_contents:(skip_contents t)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
           t
 
       let copy ~min ~max t =
-        let skip h = skip_with_stats ~skip:(mem_commit_upper t) h in
+        let skip h = skip_with_stats ~skip:(skip_commit t) h in
         on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())

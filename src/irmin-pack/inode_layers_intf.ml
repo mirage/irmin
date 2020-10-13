@@ -28,6 +28,8 @@ module type S = sig
 
   val mem_next : [> `Read ] t -> key -> bool Lwt.t
 
+  val mem_current : [> `Read ] t -> key -> bool Lwt.t
+
   val next_upper : 'a t -> [ `Read ] U.t
 
   val current_upper : 'a t -> [ `Read ] U.t

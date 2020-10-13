@@ -112,6 +112,8 @@ struct
 
   let mem_next = Inode.mem_next
 
+  let mem_current = Inode.mem_current
+
   let flip_upper = Inode.flip_upper
 
   let next_upper = Inode.next_upper

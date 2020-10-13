@@ -97,6 +97,8 @@ struct
 
   let mem_next t k = U.mem (next_upper t) k
 
+  let mem_current t k = U.mem (current_upper t) k
+
   (** Objects added during a freeze *)
   let newies : (key * value) list ref = ref []
 
