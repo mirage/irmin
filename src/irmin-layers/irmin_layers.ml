@@ -148,6 +148,8 @@ struct
 
   let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
 
+  let needs_recovery _ = failwith "not implemented"
+
   module PrivateLayer = struct
     module Hook = struct
       type 'a t = unit

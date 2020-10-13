@@ -77,3 +77,21 @@ module IO = struct
         Lwt_unix.openfile file Lwt_unix.[ O_EXCL; O_RDWR; O_CLOEXEC ] 0o644
         >|= fun fd -> { file; fd }
 end
+
+module Lock = struct
+  type t = { file : string; fd : Lwt_unix.file_descr }
+
+  let v file =
+    let pid = string_of_int (Unix.getpid ()) in
+    Lwt_unix.openfile file Unix.[ O_CREAT; O_WRONLY; O_TRUNC ] 0o644
+    >>= fun fd ->
+    Lwt_unix.write_string fd pid 0 (String.length pid) >>= fun n ->
+    if n <> String.length pid then Lwt.fail_with "invalid write for lock file"
+    else Lwt.return { file; fd }
+
+  let test = Sys.file_exists
+
+  let unlink = Lwt_unix.unlink
+
+  let close { fd; file } = Lwt_unix.close fd >>= fun () -> unlink file
+end

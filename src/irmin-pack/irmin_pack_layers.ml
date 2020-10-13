@@ -37,6 +37,7 @@ module IO = IO.Unix
 open Lwt.Infix
 module Atomic_write = Store.Atomic_write
 module Pack_config = Config
+module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
 module Default = struct
@@ -98,6 +99,10 @@ let freeze_lock = Lwt_mutex.create ()
 let add_lock = Lwt_mutex.create ()
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
+
+let lock_path config =
+  let root = Pack_config.root config in
+  Filename.concat root "lock"
 
 module Make_ext
     (Config : Config.S)
@@ -375,7 +380,13 @@ struct
         >>= fun lower ->
         let file = Filename.concat root "flip" in
         IO_layers.v file >>= fun flip_file ->
-        IO_layers.read_flip flip_file >|= fun flip ->
+        IO_layers.read_flip flip_file >>= fun flip ->
+        (* A fresh store has to unlink the lock file as well. *)
+        let fresh = Pack_config.fresh config in
+        let lock_file = lock_path config in
+        (if fresh && Lock.test lock_file then Lock.unlink lock_file
+        else Lwt.return_unit)
+        >|= fun () ->
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
           Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
@@ -842,6 +853,7 @@ struct
               "freeze blocked for %f seconds due to a previous unfinished \
                freeze"
               waiting);
+      lock_path t.X.Repo.config |> Lock.v >>= fun lock_file ->
       pause () >>= fun () ->
       may (fun f -> f `Before_Copy) hook >>= fun () ->
       copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
@@ -859,9 +871,10 @@ struct
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >>= fun () ->
+      Lock.close lock_file >>= fun () ->
       Lwt_mutex.unlock freeze_lock;
-      Log.app (fun l -> l "end freeze");
-      may (fun f -> f `After_Clear) hook
+      may (fun f -> f `After_Clear) hook >|= fun () ->
+      Log.app (fun l -> l "end freeze")
     in
     Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
     Log.debug (fun l -> l "after async called to copy");
@@ -880,6 +893,7 @@ struct
     (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
     (match heads with [] -> Repo.heads t | m -> Lwt.return m) >>= fun heads ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
+    else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
     else
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
           Lwt_mutex.lock freeze_lock)
@@ -895,6 +909,8 @@ struct
   let upper_in_use = X.Repo.upper_in_use
 
   let self_contained = Copy.CopyFromLower.self_contained
+
+  let needs_recovery t = lock_path t.X.Repo.config |> Lock.test
 
   module PrivateLayer = struct
     module Hook = struct
