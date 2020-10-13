@@ -32,7 +32,7 @@ module type CHECKABLE = sig
 end
 
 module type LAYERED_GENERAL = sig
-  type 'cap t
+  type 'a t
 
   include CLOSEABLE with type 'a t := 'a t
 

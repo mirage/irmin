@@ -86,8 +86,6 @@ module type S = sig
   include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
 
   include Sigs.CLOSEABLE with type 'a t := 'a t
-
-  val close : 'a t -> unit Lwt.t
 end
 
 module type MAKER = sig
