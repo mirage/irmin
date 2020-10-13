@@ -33,10 +33,7 @@ module type S = sig
 
   module Val : Irmin.Private.Node.S with type t = value and type hash = key
 
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
+  include S.CHECKABLE with type 'a t := 'a t and type key := key
 
   val close : 'a t -> unit Lwt.t
 
@@ -98,12 +95,9 @@ module type PACK_INTER = sig
 
   val clear_caches : 'a t -> unit
 
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
+  include S.CHECKABLE with type 'a t := 'a t and type key := key
 
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
+  include S.CLOSEABLE with type 'a t := 'a t
 end
 
 module type INODE_EXT = sig
@@ -119,12 +113,9 @@ module type S_EXT = sig
 
   module Key : Irmin.Hash.S with type t = key
 
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
+  include S.CHECKABLE with type 'a t := 'a t and type key := key
 
-  val integrity_check :
-    offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
-
-  val close : 'a t -> unit Lwt.t
+  include S.CLOSEABLE with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
 

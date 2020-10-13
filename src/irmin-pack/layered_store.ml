@@ -236,8 +236,6 @@ struct
 
   type layer_id = [ `Upper1 | `Upper0 | `Lower ]
 
-  type integrity_error = U.integrity_error
-
   let integrity_check ~offset ~length ~layer k t =
     match layer with
     | `Upper1 -> U.integrity_check ~offset ~length k (fst t.uppers)

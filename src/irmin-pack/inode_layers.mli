@@ -14,17 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make
-    (Conf : Config.S)
-    (H : Irmin.Hash.S)
-    (P : S.LAYERED_MAKER
-           with type key = H.t
-            and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) :
-  S.LAYERED_INODE
-    with type key = H.t
-     and type Val.metadata = Node.metadata
-     and type Val.step = Node.step
-     and type index = Pack_index.Make(H).t
-     and type U.index = Pack_index.Make(H).t
-     and type L.index = Pack_index.Make(H).t
+include Inode_layers_intf.Inode_layers
+(** @inline *)

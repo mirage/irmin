@@ -170,3 +170,5 @@ struct
   module CT = Irmin.Private.Commit.Make (H)
   include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 end
+
+module Stats = Stats

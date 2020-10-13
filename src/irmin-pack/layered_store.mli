@@ -22,7 +22,7 @@ module Content_addressable
            with type index = U.index
             and type key = U.key
             and type value = U.value) :
-  S.LAYERED_CONTENT_ADDRESSABLE_STORE
+  Pack.LAYERED
     with type index = U.index
      and type U.index = Index.t
      and type L.index = Index.t
@@ -41,5 +41,5 @@ module Atomic_write
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
-    (Pack : Pack.MAKER with type key = H.t and type index = Index.t) :
-  S.LAYERED_MAKER with type key = Pack.key and type index = Pack.index
+    (P : Pack.MAKER with type key = H.t and type index = Index.t) :
+  Pack.LAYERED_MAKER with type key = P.key and type index = P.index
