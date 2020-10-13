@@ -1,4 +1,0 @@
-(library
- (name irmin_type)
- (public_name irmin-type)
- (libraries base64 fmt jsonm uutf))

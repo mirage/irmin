@@ -2,6 +2,6 @@
  (name irmin)
  (public_name irmin)
  (libraries astring base64 bheap digestif fmt jsonm logs lwt ocamlgraph uri
-   uutf irmin-type ppx_irmin)
+   uutf repr ppx_irmin)
  (preprocess
-  (pps ppx_irmin -- --lib "Irmin_type.Type")))
+  (pps ppx_irmin -- --lib "Type")))

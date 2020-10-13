@@ -1,2 +1,0 @@
-File "unsupported_type_extension.ml", line 1, characters 9-15:
-Error: ppx_irmin: unprocessed extension [%typ ] encountered.

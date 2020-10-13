@@ -14,34 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Monad_intf
+module Plugins = Ppx_repr_lib.Plugins.Make (struct
+  let default_library = "Irmin.Type"
 
-module Reader = struct
-  type ('a, 'e) t = Reader of ('e -> 'a)
+  let namespace = "irmin"
+end)
 
-  let run (Reader r) = r
-
-  let map f m = Reader (fun env -> f (run m env))
-
-  let bind f m = Reader (fun env -> run (f (run m env)) env)
-
-  let return x = Reader (fun _ -> x)
-
-  let sequence (type a e) ms =
-    List.fold_right
-      (fun (aM : (a, e) t) (bM : (a list, e) t) ->
-        bind (fun a -> map (fun b -> a :: b) bM) aM)
-      ms (return [])
-
-  let asks f = Reader (fun env -> f env)
-
-  let ask = Reader (fun env -> env)
-
-  let local f m = Reader (fun env -> run m (f env))
-
-  module Syntax = struct
-    let ( let+ ) x f = map f x
-
-    let ( let* ) x f = bind f x
-  end
-end
+let () =
+  Plugins.register_deriver ();
+  Plugins.register_extension ()

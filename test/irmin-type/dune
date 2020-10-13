@@ -1,6 +1,0 @@
-(test
- (name test)
- (package irmin-type)
- (libraries alcotest irmin-type irmin hex)
- (preprocess
-  (pps ppx_irmin)))
