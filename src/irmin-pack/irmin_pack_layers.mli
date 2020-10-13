@@ -65,8 +65,7 @@ module Make_ext
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ]
-      * [ `Upper1 | `Upper0 | `Lower ] )
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
     result
     list
 end
@@ -94,8 +93,7 @@ module Make
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ]
-      * [ `Upper1 | `Upper0 | `Lower ] )
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
     result
     list
 end

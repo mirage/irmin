@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type layer_id = [ `Upper0 | `Upper1 | `Lower ]
+
 module type S = sig
   include Irmin.S
 
@@ -32,7 +34,7 @@ module type S = sig
     | Node_t : hash -> store_handle
     | Content_t : hash -> store_handle
 
-  val layer_id : repo -> store_handle -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
+  val layer_id : repo -> store_handle -> layer_id Lwt.t
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
 
@@ -91,6 +93,8 @@ module type S_MAKER = functor
      and type hash = H.t
 
 module type Irmin_layers = sig
+  type nonrec layer_id = layer_id
+
   module type S = S
 
   module type S_MAKER = S_MAKER
