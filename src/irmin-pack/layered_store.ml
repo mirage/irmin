@@ -33,36 +33,24 @@ module Copy
     (SRC : Pack.S with type key = Key.t)
     (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
 struct
-  let add_to_dst add (k, v) = add k v
-
   let stats = function
     | "Contents" -> Irmin_layers.Stats.copy_contents ()
     | "Node" -> Irmin_layers.Stats.copy_nodes ()
     | "Commit" -> Irmin_layers.Stats.copy_commits ()
     | _ -> failwith "unexpected type in stats"
 
-  let already_in_dst ~dst k =
-    DST.mem dst k >|= function
-    | true ->
-        Log.debug (fun l -> l "already in dst %a" (Irmin.Type.pp Key.t) k);
-        true
-    | false -> false
-
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
-    stats str;
     SRC.find src k >>= function
     | None ->
-        (* This can happen when we try to copy an object to lower, that is
-           already in lower and no longer in upper, due to a previous freeze. *)
+        Log.warn (fun l ->
+            l "Attempt to copy %s %a not contained in upper." str
+              (Irmin.Type.pp Key.t) k);
         pause ()
     | Some v ->
-        aux v >>= pause >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
-
-  let check_and_copy ~src ~dst ?aux str k =
-    already_in_dst ~dst k >>= function
-    | true -> pause ()
-    | false -> copy ~src ~dst ?aux str k
+        aux v >>= pause >>= fun () ->
+        stats str;
+        DST.unsafe_add dst k v
 end
 
 module Content_addressable
@@ -296,30 +284,11 @@ struct
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let check_and_copy_to_lower t ~dst ?aux str k =
-    CopyLower.check_and_copy ~src:(current_upper t) ~dst ?aux str k
-
-  let check_and_copy_to_next t ~dst ?aux str (k : key) =
-    CopyUpper.check_and_copy ~src:(current_upper t) ~dst ?aux str k
-
   let copy_to_lower t ~dst ?aux str k =
     CopyLower.copy ~src:(current_upper t) ~dst ?aux str k
 
   let copy_to_next t ~dst ?aux str (k : key) =
     CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
-
-  let check_and_copy :
-      type l.
-      l layer_type * l ->
-      [ `Read ] t ->
-      ?aux:(value -> unit Lwt.t) ->
-      string ->
-      key ->
-      unit Lwt.t =
-   fun (ltype, dst) ->
-    match ltype with
-    | Lower -> check_and_copy_to_lower ~dst
-    | Upper -> check_and_copy_to_next ~dst
 
   let copy :
       type l.

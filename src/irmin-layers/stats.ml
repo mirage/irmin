@@ -23,6 +23,7 @@ type t = {
   mutable copied_branches : int list;
   mutable waiting_freeze : float list;
   mutable completed_freeze : float list;
+  mutable skips : int;
 }
 
 type i = {
@@ -42,6 +43,7 @@ let fresh_stats_t () =
     copied_branches = [];
     waiting_freeze = [];
     completed_freeze = [];
+    skips = 0;
   }
 
 let fresh_stats_i () =
@@ -64,6 +66,7 @@ let reset_stats () =
   stats_t.copied_nodes <- [];
   stats_t.copied_commits <- [];
   stats_t.copied_branches <- [];
+  stats_t.skips <- 0;
   reset_stats_i ()
 
 let get () =
@@ -75,6 +78,7 @@ let get () =
     copied_branches = stats_i.branches :: stats_t.copied_branches;
     waiting_freeze = stats_t.waiting_freeze;
     completed_freeze = stats_t.completed_freeze;
+    skips = stats_t.skips;
   }
 
 (** Ensure lists are not growing indefinitely by dropping elements. *)
@@ -97,6 +101,7 @@ let drop_last_elements n =
 
 let freeze () =
   stats_t.nb_freeze <- succ stats_t.nb_freeze;
+  stats_t.skips <- 0;
   if stats_t.nb_freeze <> 1 then (
     stats_t.copied_contents <- stats_i.contents :: stats_t.copied_contents;
     stats_t.copied_nodes <- stats_i.nodes :: stats_t.copied_nodes;
@@ -113,6 +118,8 @@ let copy_nodes () = stats_i.nodes <- succ stats_i.nodes
 let copy_commits () = stats_i.commits <- succ stats_i.commits
 
 let copy_branches () = stats_i.branches <- succ stats_i.branches
+
+let skip () = stats_t.skips <- succ stats_t.skips
 
 let add () = stats_i.adds <- succ stats_i.adds
 
