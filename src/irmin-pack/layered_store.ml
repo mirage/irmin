@@ -26,7 +26,7 @@ module type CA = sig
   module Key : Irmin.Hash.TYPED with type t = key and type value = value
 end
 
-let return = Lwt.pause
+let pause = Lwt.pause
 
 module Copy
     (Key : Irmin.Hash.S)
@@ -55,13 +55,13 @@ struct
     | None ->
         (* This can happen when we try to copy an object to lower, that is
            already in lower and no longer in upper, due to a previous freeze. *)
-        return ()
+        pause ()
     | Some v ->
-        aux v >>= return >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
+        aux v >>= pause >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
 
   let check_and_copy ~src ~dst ?aux str k =
     already_in_dst ~dst k >>= function
-    | true -> return ()
+    | true -> pause ()
     | false -> copy ~src ~dst ?aux str k
 end
 
@@ -147,7 +147,7 @@ struct
   let unsafe_append t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
         unsafe_append' t k v;
-        return ())
+        pause ())
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
