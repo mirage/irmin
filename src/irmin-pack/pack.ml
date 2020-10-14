@@ -230,8 +230,6 @@ struct
 
     let cast t = (t :> [ `Read | `Write ] t)
 
-    type integrity_error = [ `Wrong_hash | `Absent_value ]
-
     let integrity_check ~offset ~length k t =
       try
         let value = io_read_and_decode ~off:offset ~len:length t in

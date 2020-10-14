@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Inode_layers_intf
 open Lwt.Infix
 
 let src =
@@ -27,7 +28,7 @@ module I = Inode
 module Make
     (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (Pack : S.LAYERED_MAKER
+    (Pack : Pack.LAYERED_MAKER
               with type key = H.t
                and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
@@ -77,10 +78,6 @@ struct
   let batch = Inode.batch
 
   let v = Inode.v
-
-  type integrity_error = Inode.integrity_error
-
-  type layer_id = Inode.layer_id
 
   let integrity_check = Inode.integrity_check
 

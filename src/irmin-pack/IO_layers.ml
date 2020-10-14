@@ -25,7 +25,7 @@ module type S = sig
 
   val v : string -> t Lwt.t
 
-  val close : t -> unit Lwt.t
+  include S.CLOSEABLE with type _ t := t
 
   val read_flip : t -> bool Lwt.t
 

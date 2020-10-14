@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type layer_id = [ `Upper0 | `Upper1 | `Lower ]
+
 module type S = sig
   include Irmin.S
 
@@ -32,7 +34,7 @@ module type S = sig
     | Node_t : hash -> store_handle
     | Content_t : hash -> store_handle
 
-  val layer_id : repo -> store_handle -> [ `Upper0 | `Upper1 | `Lower ] Lwt.t
+  val layer_id : repo -> store_handle -> layer_id Lwt.t
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
 
@@ -90,4 +92,38 @@ module type S_MAKER = functor
      and type branch = B.t
      and type hash = H.t
 
-module Stats = Stats
+module type Irmin_layers = sig
+  type nonrec layer_id = layer_id
+
+  module type S = S
+
+  module type S_MAKER = S_MAKER
+
+  module Make_ext
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+      (Metadata : Irmin.Metadata.S)
+      (Contents : Irmin.Contents.S)
+      (Path : Irmin.Path.S)
+      (Branch : Irmin.Branch.S)
+      (Hash : Irmin.Hash.S)
+      (Node : Irmin.Private.Node.S
+                with type metadata = Metadata.t
+                 and type hash = Hash.t
+                 and type step = Path.step)
+      (Commit : Irmin.Private.Commit.S with type hash = Hash.t) :
+    S
+      with type key = Path.t
+       and type contents = Contents.t
+       and type branch = Branch.t
+       and type hash = Hash.t
+       and type step = Path.step
+       and type metadata = Metadata.t
+       and type Key.step = Path.step
+
+  module Make
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+
+  module Stats = Stats
+end

@@ -14,95 +14,49 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+module type CLOSEABLE = sig
+  type 'a t
+
+  val close : _ t -> unit Lwt.t
+end
+
+module type CHECKABLE = sig
+  type 'a t
+
+  type key
+
+  val integrity_check :
+    offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
+end
+
+module type LAYERED_GENERAL = sig
+  type 'a t
+
+  include CLOSEABLE with type 'a t := 'a t
+
+  val update_flip : flip:bool -> _ t -> unit
+
+  val flip_upper : _ t -> unit
+
+  val copy_newies_to_next_upper : _ t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : _ t -> unit Lwt.t
+end
+
+module type LAYERED = sig
+  type t
+
+  include LAYERED_GENERAL with type _ t := t
+end
+
 module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 
   val flush : t -> unit
-end
-
-module type LAYERED_CONTENT_ADDRESSABLE_STORE = sig
-  include Pack.S
-
-  module U : Pack.S with type value = value
-
-  module L : Pack.S
-
-  val v :
-    [ `Read ] U.t ->
-    [ `Read ] U.t ->
-    [ `Read ] L.t option ->
-    flip:bool ->
-    freeze_lock:Lwt_mutex.t ->
-    add_lock:Lwt_mutex.t ->
-    [ `Read ] t
-
-  type layer_id = [ `Upper1 | `Upper0 | `Lower ]
-
-  val layer_id : [ `Read ] t -> key -> layer_id Lwt.t
-
-  type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
-
-  val copy :
-    'l layer_type * 'l ->
-    [ `Read ] t ->
-    ?aux:(value -> unit Lwt.t) ->
-    string ->
-    key ->
-    unit Lwt.t
-
-  val check_and_copy :
-    'l layer_type * 'l ->
-    [ `Read ] t ->
-    ?aux:(value -> unit Lwt.t) ->
-    string ->
-    key ->
-    unit Lwt.t
-
-  val mem_lower : 'a t -> key -> bool Lwt.t
-
-  val mem_next : [> `Read ] t -> key -> bool Lwt.t
-
-  val flip_upper : 'a t -> unit
-
-  val current_upper : 'a t -> [ `Read ] U.t
-
-  val next_upper : 'a t -> [ `Read ] U.t
-
-  val lower : 'a t -> [ `Read ] L.t
-
-  val clear_previous_upper : 'a t -> unit Lwt.t
-
-  val sync :
-    ?on_generation_change:(unit -> unit) ->
-    ?on_generation_change_next_upper:(unit -> unit) ->
-    'a t ->
-    bool
-
-  val update_flip : flip:bool -> 'a t -> unit
-
-  val copy_newies_to_next_upper : 'a t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : 'a t -> unit Lwt.t
-
-  val clear_caches_next_upper : 'a t -> unit
-
-  val unsafe_append : 'a t -> key -> value -> unit Lwt.t
-
-  val unsafe_mem : 'a t -> key -> bool Lwt.t
-
-  val flush_next_lower : 'a t -> unit
-
-  val integrity_check :
-    offset:int64 ->
-    length:int ->
-    layer:layer_id ->
-    key ->
-    'a t ->
-    (unit, integrity_error) result
 end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
@@ -127,108 +81,9 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
     t ->
     unit Lwt.t
 
-  val flip_upper : t -> unit
+  include LAYERED with type t := t
 
   val clear_previous_upper : t -> unit Lwt.t
 
-  val update_flip : flip:bool -> t -> unit
-
-  val copy_newies_to_next_upper : t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : t -> unit Lwt.t
-
   val flush_next_lower : t -> unit
-end
-
-module type LAYERED_MAKER = sig
-  type key
-
-  type index
-
-  module Make (V : Pack.ELT with type hash := key) :
-    LAYERED_CONTENT_ADDRESSABLE_STORE
-      with type key = key
-       and type value = V.t
-       and type index = index
-       and type U.index = index
-       and type L.index = index
-       and type U.key = key
-       and type L.key = key
-       and type U.value = V.t
-       and type L.value = V.t
-end
-
-module type LAYERED_INODE = sig
-  include Inode.S
-
-  module U : Pack.S
-
-  module L : Pack.S
-
-  val v :
-    [ `Read ] U.t ->
-    [ `Read ] U.t ->
-    [ `Read ] L.t option ->
-    flip:bool ->
-    freeze_lock:Lwt_mutex.t ->
-    add_lock:Lwt_mutex.t ->
-    [ `Read ] t
-
-  type layer_id = [ `Upper1 | `Upper0 | `Lower ]
-
-  val layer_id : [ `Read ] t -> key -> layer_id Lwt.t
-
-  type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
-
-  val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> unit Lwt.t
-
-  val mem_lower : 'a t -> key -> bool Lwt.t
-
-  val mem_next : [> `Read ] t -> key -> bool Lwt.t
-
-  val flip_upper : 'a t -> unit
-
-  val next_upper : 'a t -> [ `Read ] U.t
-
-  val lower : 'a t -> [ `Read ] L.t
-
-  val clear_previous_upper : 'a t -> unit Lwt.t
-
-  val copy_newies_to_next_upper : 'a t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : 'a t -> unit Lwt.t
-
-  val update_flip : flip:bool -> 'a t -> unit
-
-  val clear_caches_next_upper : 'a t -> unit
-
-  val sync :
-    ?on_generation_change:(unit -> unit) ->
-    ?on_generation_change_next_upper:(unit -> unit) ->
-    'a t ->
-    bool
-
-  val integrity_check :
-    offset:int64 ->
-    length:int ->
-    layer:layer_id ->
-    key ->
-    'a t ->
-    (unit, integrity_error) result
-end
-
-module type STORE = sig
-  type t
-
-  val close : t -> unit Lwt.t
-
-  val update_flip : flip:bool -> t -> unit
-
-  val flip_upper : t -> unit
-
-  val copy_newies_to_next_upper : t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : t -> unit Lwt.t
 end

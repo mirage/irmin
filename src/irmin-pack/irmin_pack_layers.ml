@@ -280,7 +280,7 @@ struct
         end
 
         type 'a store_fn = {
-          f : 't. (module S.STORE with type t = 't) -> 't -> 'a;
+          f : 't. (module S.LAYERED with type t = 't) -> 't -> 'a;
         }
         [@@ocaml.unboxed]
 
@@ -419,7 +419,7 @@ struct
         let f : unit Lwt.t Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
                 C.close x);
           }
         in
@@ -448,7 +448,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
                 C.update_flip ~flip x);
           }
         in
@@ -514,7 +514,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
                 C.flip_upper x);
           }
         in
@@ -537,7 +537,7 @@ struct
           let f : unit Lwt.t Iterate.store_fn =
             {
               f =
-                (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+                (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
                   C.copy_newies_to_next_upper x);
             }
           in
@@ -548,7 +548,7 @@ struct
         let f : unit Lwt.t Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.STORE with type t = a) (x : a) ->
+              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
                 C.copy_last_newies_to_next_upper x);
           }
         in

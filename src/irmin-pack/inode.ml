@@ -816,8 +816,6 @@ struct
 
   let v = Inode.v
 
-  type integrity_error = Inode.integrity_error
-
   let integrity_check = Inode.integrity_check
 
   let close = Inode.close

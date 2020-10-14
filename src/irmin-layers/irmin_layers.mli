@@ -14,34 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = Irmin_layers_intf.S
-
-module Make_ext
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S
-              with type metadata = Metadata.t
-               and type hash = Hash.t
-               and type step = Path.step)
-    (Commit : Irmin.Private.Commit.S with type hash = Hash.t) :
-  S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
-
-module type S_MAKER = Irmin_layers_intf.S_MAKER
-
-module Make
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
-
-module Stats = Stats
+include Irmin_layers_intf.Irmin_layers
+(** @inline *)
