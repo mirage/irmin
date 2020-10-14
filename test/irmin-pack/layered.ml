@@ -185,8 +185,14 @@ module Test = struct
         let tree = Store.Commit.tree commit in
         Store.Tree.find tree [ "a"; "e" ] >>= fun mars ->
         Alcotest.(check (option string)) "mars" (Some "Mars") mars;
-        Store.Tree.find tree [ "e"; "a" ] >|= fun avril ->
-        Alcotest.(check (option string)) "avril" (Some "Avril") avril
+        Store.Tree.find tree [ "e"; "a" ] >>= fun avril ->
+        Alcotest.(check (option string)) "avril" (Some "Avril") avril;
+        Store.Tree.find tree [ "a"; "d" ] >>= fun mars ->
+        Alcotest.(check (option string)) "mars" (Some "Mars") mars;
+        Store.Tree.find tree [ "a"; "c" ] >>= fun juin ->
+        Alcotest.(check (option string)) "juin" (Some "Juin") juin;
+        Store.Tree.find tree [ "version" ] >|= fun version ->
+        Alcotest.(check (option string)) "version" (Some "0.0") version
 
   let checkout_and_commit ctxt block create =
     checkout ctxt.index block >>= function
@@ -470,6 +476,33 @@ module Test = struct
     check_layer block1a "check layer of block1a" `Upper1 >>= fun () ->
     Store.Repo.close ctxt.index.repo
 
+  (* 1 - 1a - 2a - 3a
+        \- 1b
+        \- 1c *)
+
+  (** the upper is self contained for 3a and 1c; the store is reopened without
+      lower and the commits are checked. *)
+  let test_self_contained () =
+    init () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    checkout_and_commit ctxt block1 commit_block1b >>= fun (ctxt, block1b) ->
+    checkout_and_commit ctxt block1 commit_block1c >>= fun (ctxt, block1c) ->
+    checkout_and_commit ctxt block1a commit_block2a >>= fun (ctxt, block2a) ->
+    Store.freeze ctxt.index.repo
+      ~max:[ block2a; block1b; block1c ]
+      ~copy_in_upper:false
+    >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    checkout_and_commit ctxt block2a commit_block3a >>= fun (ctxt, block3a) ->
+    Store.self_contained ~max:[ block3a; block1c ] ctxt.index.repo >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    clone ~readonly:false ~with_lower:false ctxt.index.root >>= fun ctxt ->
+    check_block3a ctxt.index.repo block3a >>= fun () ->
+    check_removed ctxt block1b "block1b" >>= fun () ->
+    check_block1c ctxt.index.repo block1c >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
   module Hook = Store.PrivateLayer.Hook
 
   let hook before after =
@@ -527,6 +560,8 @@ module Test = struct
           Lwt_main.run (test_reopen_with_lower ()));
       Alcotest.test_case "Test ro find during freeze" `Quick (fun () ->
           Lwt_main.run (test_ro_find_during_freeze ()));
+      Alcotest.test_case "Test self contained upper" `Quick (fun () ->
+          Lwt_main.run (test_self_contained ()));
     ]
 end
 

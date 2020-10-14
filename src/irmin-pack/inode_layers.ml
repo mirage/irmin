@@ -116,6 +116,8 @@ struct
 
   let next_upper = Inode.next_upper
 
+  let current_upper = Inode.current_upper
+
   let copy_newies_to_next_upper = Inode.copy_newies_to_next_upper
 
   let copy_last_newies_to_next_upper = Inode.copy_last_newies_to_next_upper
@@ -123,6 +125,8 @@ struct
   let update_flip = Inode.update_flip
 
   let clear_previous_upper = Inode.clear_previous_upper
+
+  let flush = Inode.flush
 
   let unsafe_find t k =
     match Inode.unsafe_find t k with
@@ -141,6 +145,27 @@ struct
     | Lower : [ `Read ] L.t layer_type
 
   let pause = Lwt.pause
+
+  (** The object [k] can be in either lower or upper. If already in upper then
+      do not copy it. *)
+  let copy_from_lower ~dst t k =
+    let lower = lower t in
+    let current = current_upper t in
+    U.mem current k >>= function
+    | true -> Lwt.return_unit
+    | false -> (
+        L.find lower k >>= function
+        | None -> Fmt.failwith "Node %a not found" (Irmin.Type.pp H.t) k
+        | Some v ->
+            let add k v =
+              Irmin_layers.Stats.copy_nodes ();
+              Inode.U.unsafe_append dst k v
+            in
+            let mem k = Inode.U.unsafe_mem dst k in
+            let v' = lift t v in
+            List.iter ignore (Val.list v');
+            Inode.Val.save ~add ~mem v'.Val.v;
+            Lwt.return_unit)
 
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);

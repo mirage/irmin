@@ -30,6 +30,8 @@ module type S = sig
 
   val next_upper : 'a t -> [ `Read ] U.t
 
+  val current_upper : 'a t -> [ `Read ] U.t
+
   val lower : 'a t -> [ `Read ] L.t
 
   val clear_previous_upper : 'a t -> unit Lwt.t
@@ -51,6 +53,10 @@ module type S = sig
     key ->
     'a t ->
     (unit, S.integrity_error) result
+
+  val flush : ?index:bool -> 'a t -> unit
+
+  val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
 end
 
 module type Inode_layers = sig

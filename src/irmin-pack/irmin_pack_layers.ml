@@ -741,6 +741,56 @@ struct
           [] heads
         >>= fun heads -> copy ~min:max ~max:heads t
     end
+
+    module CopyFromLower = struct
+      let on_current_upper t f =
+        let contents = X.Contents.CA.current_upper t.X.Repo.contents in
+        let nodes = X.Node.CA.current_upper t.X.Repo.node in
+        let commits = X.Commit.CA.current_upper t.X.Repo.commit in
+        f contents nodes commits
+
+      let copy_tree contents nodes t root =
+        let node k =
+          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k >|= fun () ->
+          (* We have to ensure that a node is entirely flushed to disk.
+             If we rely on the implicit flush of io, it could be that
+             only a part of a node if flushed to disk when RO tries to
+             read it. *)
+          X.Node.CA.flush t.node
+        in
+        let contents (k, _) =
+          X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
+            "Contents" k
+        in
+        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
+
+      let copy_commit contents nodes commits t hash =
+        let aux c = copy_tree contents nodes t (X.Commit.Val.node c) in
+        X.Commit.CA.copy_from_lower t.X.Repo.commit ~dst:commits ~aux "Commit"
+          hash
+        >|= fun () -> X.Repo.flush t
+
+      (** The commits can be in either lower or upper. We don't skip an object
+          already in upper as its predecessors could be in lower. *)
+      let self_contained ?min ~max t =
+        let max = List.map (fun x -> Commit.hash x) max in
+        let min =
+          match min with
+          | None -> max (* if min is empty then copy only the max commits *)
+          | Some min -> List.map (fun x -> Commit.hash x) min
+        in
+        Log.debug (fun l ->
+            l
+              "self_contained: copy commits min:%a; max:%a from lower into \
+               upper to make the upper self contained"
+              (Fmt.list (Irmin.Type.pp H.t))
+              min
+              (Fmt.list (Irmin.Type.pp H.t))
+              max);
+        on_current_upper t (fun contents nodes commits ->
+            let commit h = copy_commit contents nodes commits t h in
+            Repo.iter_commits t ~min ~max ~commit ())
+    end
   end
 
   let pp_stats msg =
@@ -843,6 +893,8 @@ struct
   let async_freeze () = Lwt_mutex.is_locked freeze_lock
 
   let upper_in_use = X.Repo.upper_in_use
+
+  let self_contained = Copy.CopyFromLower.self_contained
 
   module PrivateLayer = struct
     module Hook = struct

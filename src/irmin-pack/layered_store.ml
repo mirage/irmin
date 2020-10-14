@@ -28,17 +28,17 @@ end
 
 let pause = Lwt.pause
 
+let stats = function
+  | "Contents" -> Irmin_layers.Stats.copy_contents ()
+  | "Node" -> Irmin_layers.Stats.copy_nodes ()
+  | "Commit" -> Irmin_layers.Stats.copy_commits ()
+  | _ -> failwith "unexpected type in stats"
+
 module Copy
     (Key : Irmin.Hash.S)
     (SRC : Pack.S with type key = Key.t)
     (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
 struct
-  let stats = function
-    | "Contents" -> Irmin_layers.Stats.copy_contents ()
-    | "Node" -> Irmin_layers.Stats.copy_nodes ()
-    | "Commit" -> Irmin_layers.Stats.copy_commits ()
-    | _ -> failwith "unexpected type in stats"
-
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
     SRC.find src k >>= function
@@ -288,7 +288,7 @@ struct
   let copy_to_lower t ~dst ?aux str k =
     CopyLower.copy ~src:(current_upper t) ~dst ?aux str k
 
-  let copy_to_next t ~dst ?aux str (k : key) =
+  let copy_to_next t ~dst ?aux str k =
     CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
 
   let copy :
@@ -301,6 +301,21 @@ struct
       unit Lwt.t =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
+
+  (** The object [k] can be in either lower or upper. If already in upper then
+      do not copy it. *)
+  let copy_from_lower t ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+    let lower = lower t in
+    let current = current_upper t in
+    U.find current k >>= function
+    | Some v -> aux v
+    | None -> (
+        L.find lower k >>= function
+        | Some v ->
+            aux v >>= fun () ->
+            stats str;
+            U.unsafe_add dst k v
+        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
 
   let yield = Lwt_unix.auto_yield 0.1
 

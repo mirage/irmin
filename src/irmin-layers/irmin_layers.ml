@@ -146,6 +146,8 @@ struct
 
   let upper_in_use _repo = failwith "not implemented"
 
+  let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
+
   module PrivateLayer = struct
     module Hook = struct
       type 'a t = unit
