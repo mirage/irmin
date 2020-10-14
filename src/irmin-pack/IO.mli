@@ -31,7 +31,7 @@ module type S = sig
 
   val name : t -> string
 
-  val clear : t -> unit
+  val clear : ?keep_generation:bool -> t -> unit
 
   val append : t -> string -> unit
 

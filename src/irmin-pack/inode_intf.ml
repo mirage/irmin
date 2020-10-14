@@ -91,7 +91,7 @@ module type PACK_INTER = sig
 
   val version : 'a t -> IO.version
 
-  val clear : 'a t -> unit Lwt.t
+  val clear : ?keep_generation:bool -> 'a t -> unit Lwt.t
 
   val clear_caches : 'a t -> unit
 

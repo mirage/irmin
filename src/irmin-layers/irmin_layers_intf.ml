@@ -26,6 +26,7 @@ module type S = sig
     ?copy_in_upper:bool ->
     ?min_upper:commit list ->
     ?heads:commit list ->
+    ?recovery:bool ->
     repo ->
     unit Lwt.t
 
@@ -72,6 +73,7 @@ module type S = sig
       ?copy_in_upper:bool ->
       ?min_upper:commit list ->
       ?heads:commit list ->
+      ?recovery:bool ->
       ?hook:
         [ `After_Clear
         | `Before_Clear

@@ -513,9 +513,10 @@ struct
       (** Store share instances of the underlying IO files, so it is enough to
           call clear on one store. However, each store has its own caches, which
           need to be cleared too. *)
-      let clear_previous_upper t =
+      let clear_previous_upper ?keep_generation t =
         Log.debug (fun l -> l "clear previous upper");
-        Contents.CA.clear_previous_upper t.contents >>= fun () ->
+        Contents.CA.clear_previous_upper ?keep_generation t.contents
+        >>= fun () ->
         Node.CA.clear_caches_next_upper t.node;
         Commit.CA.clear_caches_next_upper t.commit;
         Branch.clear_previous_upper t.branch
@@ -884,7 +885,15 @@ struct
       releases it at the end. This is to ensure that no two freezes can run
       simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
-      ?(min_upper = []) ?(heads = []) ?hook t =
+      ?(min_upper = []) ?(heads = []) ?(recovery = false) ?hook t =
+    let lock_file = lock_path t.X.Repo.config in
+    if recovery && not (Lock.test lock_file) then
+      Log.warn (fun l ->
+          l "No lock file detected, ignoring the recovery set flag");
+    (if recovery && Lock.test lock_file then
+     X.Repo.clear_previous_upper ~keep_generation:true t
+    else Lwt.return_unit)
+    >>= fun () ->
     let copy_in_upper =
       match copy_in_upper with
       | None -> get_copy_in_upper t.X.Repo.config

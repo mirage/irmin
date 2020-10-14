@@ -157,9 +157,9 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         Lwt.return_unit)
     >>= fun () -> W.notify t.w k None
 
-  let unsafe_clear t =
+  let unsafe_clear ?keep_generation t =
     Lwt.async (fun () -> W.clear t.w);
-    IO.clear t.block;
+    IO.clear ?keep_generation t.block;
     Tbl.clear t.cache;
     Tbl.clear t.index
 
@@ -167,6 +167,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Log.debug (fun l -> l "[branches] clear");
     Lwt_mutex.with_lock t.lock (fun () ->
         unsafe_clear t;
+        Lwt.return_unit)
+
+  let clear_keep_generation t =
+    Log.debug (fun l -> l "[branches] clear");
+    Lwt_mutex.with_lock t.lock (fun () ->
+        unsafe_clear ~keep_generation:true t;
         Lwt.return_unit)
 
   let create = Lwt_mutex.create ()

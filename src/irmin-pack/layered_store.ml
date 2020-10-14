@@ -248,6 +248,13 @@ struct
     U.clear (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.clear x
 
+  let clear_keep_generation t =
+    U.clear_keep_generation (fst t.uppers) >>= fun () ->
+    U.clear_keep_generation (snd t.uppers) >>= fun () ->
+    match t.lower with
+    | None -> Lwt.return_unit
+    | Some x -> L.clear_keep_generation x
+
   let clear_caches t =
     let current = current_upper t in
     U.clear_caches current
@@ -258,11 +265,12 @@ struct
 
   (** After clearing the previous upper, we also needs to flush current upper to
       disk, otherwise values are not found by the RO. *)
-  let clear_previous_upper t =
+  let clear_previous_upper ?(keep_generation = false) t =
     let previous = next_upper t in
     let current = current_upper t in
     U.flush current;
-    U.clear previous
+    if keep_generation then U.clear_keep_generation previous
+    else U.clear previous
 
   let version t = U.version (fst t.uppers)
 
@@ -542,11 +550,12 @@ struct
 
   (** After clearing the previous upper, we also needs to flush current upper to
       disk, otherwise values are not found by the RO. *)
-  let clear_previous_upper t =
+  let clear_previous_upper ?(keep_generation = false) t =
     let current = current_upper t in
     let previous = next_upper t in
     U.flush current;
-    U.clear previous
+    if keep_generation then U.clear_keep_generation previous
+    else U.clear previous
 
   let flush_next_lower t =
     let next = next_upper t in
@@ -577,4 +586,11 @@ struct
   (** RO syncs the branch store at every find call, but it still needs to update
       the upper in use.*)
   let update_flip ~flip t = t.flip <- flip
+
+  let clear_keep_generation t =
+    U.clear_keep_generation (fst t.uppers) >>= fun () ->
+    U.clear_keep_generation (snd t.uppers) >>= fun () ->
+    match t.lower with
+    | None -> Lwt.return_unit
+    | Some x -> L.clear_keep_generation x
 end
