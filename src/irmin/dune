@@ -1,7 +1,7 @@
 (library
  (name irmin)
  (public_name irmin)
- (libraries astring base64 bheap digestif fmt irmin_type jsonm logs lwt
-   ocamlgraph uri uutf irmin-type ppx_irmin)
+ (libraries astring base64 bheap digestif fmt jsonm logs lwt ocamlgraph uri
+   uutf irmin-type ppx_irmin)
  (preprocess
   (pps ppx_irmin -- --lib "Irmin_type.Type")))
