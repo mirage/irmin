@@ -57,8 +57,7 @@ let reset_stats_i () =
   stats_i.contents <- 0;
   stats_i.nodes <- 0;
   stats_i.commits <- 0;
-  stats_i.branches <- 0;
-  stats_i.adds <- 0
+  stats_i.branches <- 0
 
 let reset_stats () =
   stats_t.nb_freeze <- 0;

@@ -144,7 +144,6 @@ struct
 
   let copy ~add ~mem t k =
     Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
-    Irmin_layers.Stats.copy_nodes ();
     Inode.U.find (Inode.current_upper t) k >>= function
     | None -> pause ()
     | Some v ->
@@ -155,6 +154,7 @@ struct
            they are copied in the dst layer. *)
         List.iter ignore (Val.list v');
         let add k v =
+          Irmin_layers.Stats.copy_nodes ();
           add k v;
           pause ()
         in

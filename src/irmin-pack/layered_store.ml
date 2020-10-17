@@ -126,6 +126,7 @@ struct
 
   let unsafe_append' t k v =
     Log.debug (fun l -> l "unsafe_append in %s" (log_current_upper t));
+    Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append upper k v;
     if Lwt_mutex.is_locked t.freeze_lock then (

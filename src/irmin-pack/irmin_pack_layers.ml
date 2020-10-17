@@ -743,6 +743,15 @@ struct
     end
   end
 
+  let pp_stats msg =
+    let stats = Irmin_layers.Stats.get () in
+    Log.app (fun l ->
+        l "%s contents = %d, nodes = %d, commits = %d, skips = %d" msg
+          (List.hd stats.copied_contents)
+          (List.hd stats.copied_nodes)
+          (List.hd stats.copied_commits)
+          stats.skips)
+
   let copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
@@ -751,18 +760,20 @@ struct
      else Copy.CopyToLower.copy ~min ~max t
     else Lwt.return_unit)
     >>= fun () ->
+    pp_stats "end of copied in lower";
     (* Copy [min_upper, max] and [max, heads] to next_upper *)
     (if copy_in_upper then
      Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
      Copy.CopyToUpper.copy_heads ~max ~heads t
     else Lwt.return_unit)
     >>= fun () ->
+    pp_stats "end of copied in upper";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
     let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
-    Log.debug (fun l ->
+    Log.app (fun l ->
         l
           "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \
            min_upper = %a heads = %a"
@@ -781,7 +792,6 @@ struct
               "freeze blocked for %f seconds due to a previous unfinished \
                freeze"
               waiting);
-      Log.app (fun l -> l "start freeze");
       pause () >>= fun () ->
       may (fun f -> f `Before_Copy) hook >>= fun () ->
       copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
