@@ -57,7 +57,7 @@ module type S = sig
     min:vertex list ->
     max:vertex list ->
     node:(vertex -> unit Lwt.t) ->
-    edge:(vertex -> vertex -> unit Lwt.t) ->
+    ?edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
     rev:bool ->
     unit ->
@@ -131,7 +131,7 @@ struct
 
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
 
-  let iter ?(depth = max_int) ~pred ~min ~max ~node ~edge ~skip ~rev () =
+  let iter ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip ~rev () =
     Log.debug (fun f ->
         f "iter on closure depth=%d (%d elements)" depth (List.length max));
     let marks = Table.create 1024 in
@@ -143,7 +143,12 @@ struct
       Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
       node key >>= fun () ->
       if not (List.mem key min) then
-        pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
+        (* the edge function is optional to prevent an unnecessary computation
+           of the preds .*)
+        match edge with
+        | None -> Lwt.return_unit
+        | Some edge ->
+            pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
       else Lwt.return_unit
     in
     let rec pop key level =
