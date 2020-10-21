@@ -95,6 +95,8 @@ module type S_MAKER = functor
 module type Irmin_layers = sig
   type nonrec layer_id = layer_id
 
+  val pp_layer_id : layer_id Fmt.t
+
   module type S = S
 
   module type S_MAKER = S_MAKER

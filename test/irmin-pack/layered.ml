@@ -446,6 +446,30 @@ module Test = struct
     check_block1a ctxt.index.repo block1a >>= fun () ->
     Store.Repo.close ctxt.index.repo
 
+  (** Open layered store without lower, close it and open it with the lower
+      layer. *)
+  let test_reopen_with_lower () =
+    init ~with_lower:false () >>= fun ctxt ->
+    commit_block1 ctxt >>= fun (ctxt, block1) ->
+    freeze ctxt block1 >>= fun ctxt ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    clone ~with_lower:true ctxt.index.root >>= fun ctxt ->
+    check_block1 ctxt.index.repo block1 >>= fun () ->
+    checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
+    Store.freeze ctxt.index.repo ~max:[ block1a ] >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    let check_layer block msg exp =
+      Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
+      >|= fun got ->
+      if not (got = exp) then
+        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.pp_layer_id exp
+          Irmin_layers.pp_layer_id got
+    in
+    check_layer block1 "check layer of block1" `Lower >>= fun () ->
+    check_layer block1a "check layer of block1a" `Upper1 >>= fun () ->
+    Store.Repo.close ctxt.index.repo
+
   module Hook = Store.PrivateLayer.Hook
 
   let hook before after =
@@ -499,6 +523,8 @@ module Test = struct
           Lwt_main.run (test_without_lower ()));
       Alcotest.test_case "Test without lower, min_upper" `Quick (fun () ->
           Lwt_main.run (test_without_lower_min_upper ()));
+      Alcotest.test_case "Test reopen with lower" `Quick (fun () ->
+          Lwt_main.run (test_reopen_with_lower ()));
       Alcotest.test_case "Test ro find during freeze" `Quick (fun () ->
           Lwt_main.run (test_ro_find_during_freeze ()));
     ]
