@@ -31,16 +31,6 @@ module Conf = struct
 end
 
 module Hash = Irmin.Hash.SHA1
-module Store =
-  Irmin_pack.Make_layered (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
-module StoreSimple =
-  Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
 
 let config ?(readonly = false) ?(fresh = true)
     ?(copy_in_upper = Conf.copy_in_upper) ?(lower_root = Conf.lower_root)
@@ -49,7 +39,27 @@ let config ?(readonly = false) ?(fresh = true)
   Irmin_pack.config_layers ~conf ~copy_in_upper ~lower_root ~upper_root0
     ~with_lower ()
 
-module Test = struct
+module type Pack_store =
+  Irmin_pack.S
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
+     and type hash = Hash.t
+
+module type Layered_pack_store =
+  Irmin_pack.Layered_store
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
+     and type hash = Hash.t
+
+module Test
+    (Store : Layered_pack_store)
+    (StoreUpper : Pack_store)
+    (StoreLower : Pack_store) =
+struct
   type index = { root : string; repo : Store.Repo.t }
 
   and context = {
@@ -204,13 +214,21 @@ module Test = struct
     | None -> Lwt.return_unit
     | Some _ -> Alcotest.failf "should not find %s" msg
 
-  let commit_block1_simple_store repo =
-    StoreSimple.Tree.add StoreSimple.Tree.empty [ "a"; "b" ] "Novembre"
+  let commit_block1_lower_store repo =
+    StoreLower.Tree.add StoreLower.Tree.empty [ "a"; "b" ] "Novembre"
     >>= fun tree ->
-    StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" >>= fun tree ->
-    StoreSimple.Tree.add tree [ "version" ] "0.0" >>= fun tree ->
-    StoreSimple.Commit.v repo ~info ~parents:[] tree >|= fun block1 ->
-    StoreSimple.Commit.hash block1
+    StoreLower.Tree.add tree [ "a"; "c" ] "Juin" >>= fun tree ->
+    StoreLower.Tree.add tree [ "version" ] "0.0" >>= fun tree ->
+    StoreLower.Commit.v repo ~info ~parents:[] tree >|= fun block1 ->
+    StoreLower.Commit.hash block1
+
+  let commit_block1_upper_store repo =
+    StoreUpper.Tree.add StoreUpper.Tree.empty [ "a"; "b" ] "Novembre"
+    >>= fun tree ->
+    StoreUpper.Tree.add tree [ "a"; "c" ] "Juin" >>= fun tree ->
+    StoreUpper.Tree.add tree [ "version" ] "0.0" >>= fun tree ->
+    StoreUpper.Commit.v repo ~info ~parents:[] tree >|= fun block1 ->
+    StoreUpper.Commit.hash block1
 
   let check_commit_hash ctxt check_block hash =
     Store.Commit.of_hash ctxt.index.repo hash >>= function
@@ -358,28 +376,28 @@ module Test = struct
     Store.PrivateLayer.wait_for_freeze () >>= fun () ->
     let hash1 = Store.Commit.hash block1 in
     Store.Repo.close ctxt.index.repo >>= fun () ->
-    StoreSimple.Repo.v
+    StoreLower.Repo.v
       (config ~fresh:false ~readonly:true
          (Filename.concat ctxt.index.root Conf.lower_root))
     >>= fun repo ->
-    (StoreSimple.Commit.of_hash repo hash1 >>= function
+    (StoreLower.Commit.of_hash repo hash1 >>= function
      | None -> Alcotest.fail "checkout block1"
      | Some commit ->
-         let tree = StoreSimple.Commit.tree commit in
-         StoreSimple.Tree.find tree [ "version" ] >>= fun version ->
+         let tree = StoreLower.Commit.tree commit in
+         StoreLower.Tree.find tree [ "version" ] >>= fun version ->
          Alcotest.(check (option string)) "version" version (Some "0.0");
          Lwt.return_unit)
-    >>= fun () -> StoreSimple.Repo.close repo
+    >>= fun () -> StoreLower.Repo.close repo
 
   (** Open upper1 as simple store, close it and then open it as layered store. *)
-  let _test_upper1_reopen () =
+  let test_upper1_reopen () =
     let store_name = fresh_name () in
     Common.rm_dir store_name;
-    StoreSimple.Repo.v
+    StoreUpper.Repo.v
       (config ~fresh:true ~readonly:false (Filename.concat store_name "upper1"))
     >>= fun repo ->
-    commit_block1_simple_store repo >>= fun hash1 ->
-    StoreSimple.Repo.close repo >>= fun () ->
+    commit_block1_upper_store repo >>= fun hash1 ->
+    StoreUpper.Repo.close repo >>= fun () ->
     clone ~readonly:false store_name >>= fun ctxt ->
     check_commit_hash ctxt check_block1 hash1 >>= fun () ->
     Store.Repo.close ctxt.index.repo
@@ -388,12 +406,12 @@ module Test = struct
   let test_lower_reopen () =
     let store_name = fresh_name () in
     Common.rm_dir store_name;
-    StoreSimple.Repo.v
+    StoreLower.Repo.v
       (config ~fresh:true ~readonly:false
          (Filename.concat store_name Conf.lower_root))
     >>= fun repo ->
-    commit_block1_simple_store repo >>= fun hash1 ->
-    StoreSimple.Repo.close repo >>= fun () ->
+    commit_block1_lower_store repo >>= fun hash1 ->
+    StoreLower.Repo.close repo >>= fun () ->
     clone ~readonly:false store_name >>= fun ctxt ->
     check_commit_hash ctxt check_block1 hash1 >>= fun () ->
     Store.Repo.close ctxt.index.repo
@@ -546,8 +564,8 @@ module Test = struct
           Lwt_main.run (test_ro_sync_after_v ()));
       Alcotest.test_case "Delete lower and previous upper" `Quick (fun () ->
           Lwt_main.run (test_delete_stores ()));
-      (*Alcotest.test_case "Open upper as simple store, then as layered" `Quick
-        (fun () -> Lwt_main.run (test_upper1_reopen ()));*)
+      Alcotest.test_case "Open upper as simple store, then as layered" `Quick
+        (fun () -> Lwt_main.run (test_upper1_reopen ()));
       Alcotest.test_case "Test open lower" `Quick (fun () ->
           Lwt_main.run (test_open_lower ()));
       Alcotest.test_case "Open lower as simple store, then as layered" `Quick
@@ -565,4 +583,30 @@ module Test = struct
     ]
 end
 
-let tests = Test.tests
+module Store =
+  Irmin_pack.Make_layered (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+module StoreSimple =
+  Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+module StoreMem =
+  Irmin_pack.Make_layered_mem (Conf) (Irmin.Metadata.None)
+    (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+module StoreSimpleMem =
+  Irmin_pack.Make_mem (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+module Test_pack = Test (Store) (StoreSimple) (StoreSimple)
+module Test_mem = Test (StoreMem) (StoreSimpleMem) (StoreSimple)
+
+let tests = Test_pack.tests
+
+let tests_mem = Test_mem.tests

@@ -41,6 +41,12 @@ exception RO_Not_Allowed
 
 exception Unsupported_version of IO.version
 
+module type S = sig
+  include Irmin.S
+
+  include Store.S with type repo := repo
+end
+
 module Make_ext
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
@@ -52,20 +58,16 @@ module Make_ext
            with type metadata = Metadata.t
             and type hash = Hash.t
             and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
-  include
-    Irmin.S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Sync.endpoint = unit
-
-  include Store.S with type repo := repo
-end
+    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
+  S
+    with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type hash = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
+     and type Private.Sync.endpoint = unit
 
 module Make
     (Config : Config.S)
@@ -73,19 +75,31 @@ module Make
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) : sig
-  include
-    Irmin.S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type Private.Sync.endpoint = unit
+    (H : Irmin.Hash.S) :
+  S
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
+     and type Private.Sync.endpoint = unit
 
-  include Store.S with type repo := repo
-end
+module Make_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) :
+  S
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
+     and type Private.Sync.endpoint = unit
 
 module KV (Config : Config.S) : Irmin.KV_MAKER
 
@@ -111,5 +125,9 @@ val config_layers :
   unit ->
   Irmin.config
 
+module Make_ext_layered_mem = Irmin_pack_layers.Make_ext_mem
 module Make_ext_layered = Irmin_pack_layers.Make_ext
 module Make_layered = Irmin_pack_layers.Make
+module Make_layered_mem = Irmin_pack_layers.Make_mem
+
+module type Layered_store = Irmin_pack_layers.S

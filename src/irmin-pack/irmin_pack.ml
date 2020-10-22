@@ -45,7 +45,7 @@ let config = Config.v
 
 module Pack_config = Config
 
-module Make_ext
+module Make_ext_generic
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -56,10 +56,13 @@ module Make_ext
               with type metadata = M.t
                and type hash = H.t
                and type step = P.step)
-    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+    (Commit : Irmin.Private.Commit.S with type hash = H.t)
+    (Index : Pack_index.S with type key = H.t)
+    (Pack : Pack.FILE_MAKER) =
 struct
-  module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H)
+  module Pack = Pack (Index) (H)
+
+  let pack_mem = Pack.pack_type = 'M'
 
   module X = struct
     module Hash = H
@@ -158,7 +161,7 @@ struct
         node : [ `Read ] Node.CA.t;
         commit : [ `Read ] Commit.CA.t;
         branch : Branch.t;
-        index : Index.t;
+        index : Index.t option;
       }
 
       let contents_t t : 'a Contents.t = t.contents
@@ -187,17 +190,17 @@ struct
         let throttle = Pack_config.index_throttle config in
         let f = ref (fun () -> ()) in
         let index =
-          Index.v
-            ~flush_callback:(fun () -> !f ())
-              (* backpatching to add pack flush before an index flush *)
-            ~fresh ~readonly ~throttle ~log_size root
+          if pack_mem then None
+          else
+            Some
+              (Index.v
+                 ~flush_callback:(fun () -> !f ())
+                   (* backpatching to add pack flush before an index flush *)
+                 ~fresh ~readonly ~throttle ~log_size root)
         in
-        Contents.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
-        >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
-        >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size ~index:(Some index) root
-        >>= fun commit ->
+        Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
+        Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
+        Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.v ~fresh ~readonly root >|= fun branch ->
         (* Stores share instances in memory, one flush is enough. In case of a
            system crash, the flush_callback might not make with the disk. In
@@ -207,7 +210,7 @@ struct
         { contents; node; commit; branch; config; index }
 
       let close t =
-        Index.close t.index;
+        Option.iter Index.close t.index;
         Contents.CA.close (contents_t t) >>= fun () ->
         Node.CA.close (snd (node_t t)) >>= fun () ->
         Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
@@ -253,7 +256,9 @@ struct
       | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
       | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
     in
-    Checks.integrity_check ?ppf ~auto_repair ~check t.index
+    match t.index with
+    | None -> Ok `No_error
+    | Some index -> Checks.integrity_check ?ppf ~auto_repair ~check index
 
   include Irmin.Of_private (X)
 
@@ -270,6 +275,24 @@ module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 
+module Make_ext
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module Index = Pack_index.Make (H)
+  include Make_ext_generic (Config) (M) (C) (P) (B) (H) (Node) (Commit) (Index)
+            (Pack.File)
+end
+
 module Make
     (Config : Config.S)
     (M : Irmin.Metadata.S)
@@ -283,6 +306,37 @@ struct
   include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
+module Make_ext_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module Index = Pack_index.Make (H)
+  include Make_ext_generic (Config) (M) (C) (P) (B) (H) (Node) (Commit) (Index)
+            (Pack_mem.File)
+end
+
+module Make_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
+struct
+  module XNode = Irmin.Private.Node.Make (H) (P) (M)
+  module XCommit = Irmin.Private.Commit.Make (H)
+  include Make_ext_mem (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
+end
+
 module KV (Config : Config.S) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 module Stats = Stats
@@ -291,7 +345,17 @@ module Private = struct
   module Utils = Utils
 end
 
+module type S = sig
+  include Irmin.S
+
+  include Store.S with type repo := repo
+end
+
+module Make_ext_layered_mem = Irmin_pack_layers.Make_ext_mem
 module Make_ext_layered = Irmin_pack_layers.Make_ext
 module Make_layered = Irmin_pack_layers.Make
+module Make_layered_mem = Irmin_pack_layers.Make_mem
 
 let config_layers = Irmin_pack_layers.config_layers
+
+module type Layered_store = Irmin_pack_layers.S

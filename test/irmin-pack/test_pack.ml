@@ -84,6 +84,65 @@ let suite =
     layered_store = Some layered_store;
   }
 
+let suite_mem =
+  let store =
+    Irmin_test.store
+      (module Irmin_pack.Make_mem (Config))
+      (module Irmin.Metadata.None)
+  in
+  let layered_store =
+    Irmin_test.layered_store
+      (module Irmin_pack.Make_layered_mem (Config))
+      (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let init () =
+    if Sys.file_exists test_dir then (
+      let cmd = Printf.sprintf "rm -rf %s" test_dir in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      ());
+    Lwt.return_unit
+  in
+  let clean () =
+    let (module S : Irmin_test.S) = store in
+    let module P = S.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    clear repo >>= fun () ->
+    S.Repo.close repo >>= fun () ->
+    let (module S : Irmin_test.LAYERED_STORE) = layered_store in
+    let module P = S.Private in
+    let clear repo =
+      P.Commit.clear (P.Repo.commit_t repo) >>= fun () ->
+      P.Node.clear (P.Repo.node_t repo) >>= fun () ->
+      P.Contents.clear (P.Repo.contents_t repo) >>= fun () ->
+      P.Branch.clear (P.Repo.branch_t repo)
+    in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    clear repo >>= fun () -> S.Repo.close repo
+  in
+  let stats = None in
+  {
+    Irmin_test.name = "PACK MEM";
+    init;
+    clean;
+    config;
+    store;
+    stats;
+    layered_store = Some layered_store;
+  }
+
 module Context = Make_context (struct
   let root = test_dir
 end)
@@ -629,4 +688,5 @@ let misc =
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
     ("layers", Layered.tests);
+    ("layers mem", Layered.tests_mem);
   ]

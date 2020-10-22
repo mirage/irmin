@@ -335,4 +335,6 @@ struct
 
     let refill _ = failwith "not implemented"
   end
+
+  let pack_type = 'P'
 end

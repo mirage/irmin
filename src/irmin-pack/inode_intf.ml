@@ -163,11 +163,11 @@ module type Inode = sig
   module Make
       (Conf : Config.S)
       (H : Irmin.Hash.S)
-      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+      (P : Pack.MAKER with type key = H.t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index = Pack_index.Make(H).t
+       and type index = P.index
 end

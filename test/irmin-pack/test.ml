@@ -17,4 +17,4 @@
 let () =
   Irmin_test.Store.run "irmin-pack"
     ~misc:(Test_pack.misc @ [ ("utils", Test_utils.tests) ])
-    [ (`Quick, Test_pack.suite) ]
+    [ (`Quick, Test_pack.suite); (`Quick, Test_pack.suite_mem) ]

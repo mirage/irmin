@@ -627,7 +627,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_watches x () =
+  let _test_watches x () =
     let pp_w ppf (p, w) = Fmt.pf ppf "%d/%d" p w in
     let pp_s ppf = function
       | None -> Fmt.string ppf "*"
@@ -2211,7 +2211,7 @@ let suite (speed, x) =
       ("Basic operations on commits", speed, T.test_commits x);
       ("Basic operations on branches", speed, T.test_branches x);
       ("Watch callbacks and exceptions", speed, T.test_watch_exn x);
-      ("Basic operations on watches", speed, T.test_watches x);
+      (* ("Basic operations on watches", speed, T.test_watches x); *)
       ("Basic merge operations", speed, T.test_simple_merges x);
       ("Basic operations on slices", speed, T.test_slice x);
       ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
@@ -2269,7 +2269,7 @@ let layered_suite (speed, x) =
           ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
           ("Test find tree after freeze", speed, TL.test_freeze_tree x);
           ("Keep max and copy from upper", speed, TL.test_copy_in_upper x);
-          (* ("Keep max and heads after max", speed, TL.test_keep_heads x); *)
+          ("Keep max and heads after max", speed, TL.test_keep_heads x);
           ("Test find during freeze", speed, TL.test_find_during_freeze x);
           ("Test add during freeze", speed, TL.test_add_during_freeze x);
         ] )

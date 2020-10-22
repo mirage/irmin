@@ -99,7 +99,7 @@ let add_lock = Lwt_mutex.create ()
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 
-module Make_ext
+module Make_ext_generic
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -110,16 +110,20 @@ module Make_ext
               with type metadata = M.t
                and type hash = H.t
                and type step = P.step)
-    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+    (Commit : Irmin.Private.Commit.S with type hash = H.t)
+    (Index : Pack_index.S with type key = H.t)
+    (Pack_lower : Pack.FILE_MAKER)
+    (Pack_upper : Pack.FILE_MAKER) =
 struct
-  module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H)
-  module Pack_mem = Pack_mem.File (Index) (H)
+  module PackL = Pack_lower (Index) (H)
+  module PackU = Pack_upper (Index) (H)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
     | Node_t : H.t -> store_handle
     | Content_t : H.t -> store_handle
+
+  let upper_mem = PackU.pack_type = 'M'
 
   module X = struct
     module Hash = H
@@ -165,17 +169,17 @@ struct
           let magic _ = magic
         end
 
-        module CA_Pack = Pack.Make (Elt)
+        module CA_Pack = PackL.Make (Elt)
         module CA = Closeable.Content_addressable (CA_Pack)
-        module CA_mem = Pack_mem.Make (Elt)
-        include Layered_store.Content_addressable (H) (Index) (CA_mem) (CA)
+        module CA_upper = PackU.Make (Elt)
+        include Layered_store.Content_addressable (H) (Index) (CA_upper) (CA)
       end
 
       include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
-      module Pack_maker = Layered_store.Pack_Maker (H) (Index) (Pack_mem) (Pack)
+      module Pack_maker = Layered_store.Pack_Maker (H) (Index) (PackU) (PackL)
       module CA = Inode_layers.Make (Config) (H) (Pack_maker) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
@@ -209,10 +213,10 @@ struct
           let magic _ = magic
         end
 
-        module CA_Pack = Pack.Make (Elt)
+        module CA_Pack = PackL.Make (Elt)
         module CA = Closeable.Content_addressable (CA_Pack)
-        module CA_mem = Pack_mem.Make (Elt)
-        include Layered_store.Content_addressable (H) (Index) (CA_mem) (CA)
+        module CA_upper = PackU.Make (Elt)
+        include Layered_store.Content_addressable (H) (Index) (CA_upper) (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -359,13 +363,24 @@ struct
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
-        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index:None root
+        let log_size = Pack_config.index_log_size config in
+        let throttle = Pack_config.index_throttle config in
+        let f = ref (fun () -> ()) in
+        let index =
+          if upper_mem then None
+          else
+            Some
+              (Index.v
+                 ~flush_callback:(fun () -> !f ())
+                 ~fresh ~readonly ~throttle ~log_size root)
+        in
+        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
         >>= fun contents ->
-        Node.CA.U.v ~fresh ~readonly ~lru_size ~index:None root >>= fun node ->
-        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index:None root
-        >>= fun commit ->
+        Node.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
+        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
         Branch.U.v ~fresh ~readonly root >|= fun branch ->
-        ({ index = None; contents; node; commit; branch } : upper_layer)
+        (f := fun () -> Contents.CA.U.flush ~index:false contents);
+        ({ index; contents; node; commit; branch } : upper_layer)
 
       let unsafe_v_lower root config =
         let fresh = Pack_config.fresh config in
@@ -451,7 +466,7 @@ struct
             flip_file;
           }
         in
-        refill ~from_scratch:true t;
+        if upper_mem then refill ~from_scratch:true t;
         t
 
       let unsafe_close t =
@@ -497,7 +512,7 @@ struct
           }
         in
         Iterate.iter f t;
-        refill t
+        if upper_mem then refill t
 
       let clear t = Contents.CA.clear t.contents
 
@@ -624,7 +639,19 @@ struct
           integrity_check_layer ~layer:`Lower index
           |> Result.map_error (function e -> (e, `Lower))
     in
-    [ lower; Ok `No_error; Ok `No_error ]
+    if upper_mem then [ lower; Ok `No_error; Ok `No_error ]
+    else
+      [
+        (`Upper1, fst t.X.Repo.uppers_index);
+        (`Upper0, snd t.X.Repo.uppers_index);
+      ]
+      |> List.map (fun (layer, index) ->
+             match index with
+             | Some index ->
+                 integrity_check_layer ~layer index
+                 |> Result.map_error (function e -> (e, layer))
+             | None -> Ok `No_error)
+      |> List.cons lower
 
   include Irmin.Of_private (X)
 
@@ -730,19 +757,25 @@ struct
       (** Skip if object is not in current; this check is cheap with the mem
           upper layer. *)
       let skip_node t h =
-        mem_node_current t h >>= function
-        | false -> Lwt.return_true
-        | true -> mem_node_upper t h
+        if upper_mem then
+          mem_node_current t h >>= function
+          | false -> Lwt.return_true
+          | true -> mem_node_upper t h
+        else mem_node_upper t h
 
       let skip_commit t h =
-        mem_commit_current t h >>= function
-        | false -> Lwt.return_true
-        | true -> mem_commit_upper t h
+        if upper_mem then
+          mem_commit_current t h >>= function
+          | false -> Lwt.return_true
+          | true -> mem_commit_upper t h
+        else mem_commit_upper t h
 
       let skip_contents t h =
-        mem_contents_current t h >>= function
-        | false -> Lwt.return_true
-        | true -> mem_contents_upper t h
+        if upper_mem then
+          mem_contents_current t h >>= function
+          | false -> Lwt.return_true
+          | true -> mem_contents_upper t h
+        else mem_contents_upper t h
 
       let on_next_upper t f =
         let contents = X.Contents.CA.next_upper t.X.Repo.contents in
@@ -972,6 +1005,76 @@ struct
 
     let upper_in_use = upper_in_use
   end
+end
+
+module type S = sig
+  include Irmin_layers.S
+
+  include Store.S with type repo := repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
+    result
+    list
+end
+
+module Make_ext_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module Index = Pack_index.Make (H)
+  module Pack_lower = Pack.File
+  module Pack_upper = Pack_mem.File
+  include Make_ext_generic (Config) (M) (C) (P) (B) (H) (Node) (Commit) (Index)
+            (Pack_lower)
+            (Pack_upper)
+end
+
+module Make_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
+struct
+  module XNode = Irmin.Private.Node.Make (H) (P) (M)
+  module XCommit = Irmin.Private.Commit.Make (H)
+  include Make_ext_mem (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
+end
+
+module Make_ext
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module Index = Pack_index.Make (H)
+  module Pack_lower = Pack.File
+  module Pack_upper = Pack.File
+  include Make_ext_generic (Config) (M) (C) (P) (B) (H) (Node) (Commit) (Index)
+            (Pack_lower)
+            (Pack_upper)
 end
 
 module Make

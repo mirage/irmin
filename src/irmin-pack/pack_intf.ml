@@ -103,6 +103,8 @@ module type MAKER = sig
       distinguished using [V.magic], so they have to all be different. *)
   module Make (V : ELT with type hash := key) :
     S with type key = key and type value = V.t and type index = index
+
+  val pack_type : char
 end
 
 module type LAYERED = sig
@@ -200,6 +202,11 @@ module type LAYERED_MAKER = sig
        and type L.value = V.t
 end
 
+module type FILE_MAKER = functor
+  (Index : Pack_index.S)
+  (K : Irmin.Hash.S with type t = Index.key)
+  -> MAKER with type key = K.t and type index = Index.t
+
 module type Pack = sig
   module type ELT = ELT
 
@@ -211,6 +218,7 @@ module type Pack = sig
 
   module type LAYERED_MAKER = LAYERED_MAKER
 
-  module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
-    MAKER with type key = K.t and type index = Index.t
+  module type FILE_MAKER = FILE_MAKER
+
+  module File : FILE_MAKER
 end

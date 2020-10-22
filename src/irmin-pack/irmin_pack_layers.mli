@@ -36,6 +36,42 @@ val config_layers :
     with the [copy_in_upper] argument set. By default it is set to false.
     @param with_lower if true (the default) use a lower layer during freezes. *)
 
+module type S = sig
+  include Irmin_layers.S
+
+  include Store.S with type repo := repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
+    result
+    list
+end
+
+module Make_ext_mem
+    (Config : Config.S)
+    (Metadata : Irmin.Metadata.S)
+    (Contents : Irmin.Contents.S)
+    (Path : Irmin.Path.S)
+    (Branch : Irmin.Branch.S)
+    (Hash : Irmin.Hash.S)
+    (N : Irmin.Private.Node.S
+           with type metadata = Metadata.t
+            and type hash = Hash.t
+            and type step = Path.step)
+    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
+  S
+    with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type hash = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
+
 module Make_ext
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
@@ -47,28 +83,15 @@ module Make_ext
            with type metadata = Metadata.t
             and type hash = Hash.t
             and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
-  include
-    Irmin_layers.S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-
-  include Store.S with type repo := repo
-
-  val integrity_check :
-    ?ppf:Format.formatter ->
-    auto_repair:bool ->
-    repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
-    result
-    list
-end
+    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
+  S
+    with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type hash = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
 
 module Make
     (Config : Config.S)
@@ -76,24 +99,26 @@ module Make
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) : sig
-  include
-    Irmin_layers.S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
+    (H : Irmin.Hash.S) :
+  S
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
 
-  include Store.S with type repo := repo
-
-  val integrity_check :
-    ?ppf:Format.formatter ->
-    auto_repair:bool ->
-    repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
-    result
-    list
-end
+module Make_mem
+    (Config : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) :
+  S
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t

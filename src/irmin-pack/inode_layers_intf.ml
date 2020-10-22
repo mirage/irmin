@@ -71,17 +71,15 @@ module type Inode_layers = sig
   module Make
       (Conf : Config.S)
       (H : Irmin.Hash.S)
-      (P : Pack.LAYERED_MAKER
-             with type key = H.t
-              and type index = Pack_index.Make(H).t)
+      (P : Pack.LAYERED_MAKER with type key = H.t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index = Pack_index.Make(H).t
-       and type U.index = Pack_index.Make(H).t
-       and type L.index = Pack_index.Make(H).t
+       and type index = P.index
+       and type U.index = P.index
+       and type L.index = P.index
        and type U.key = H.t
        and type L.key = H.t
 end

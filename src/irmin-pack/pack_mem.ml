@@ -203,4 +203,6 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let integrity_check ~offset:_ ~length:_ _k _t = Ok ()
   end
+
+  let pack_type = 'M'
 end
