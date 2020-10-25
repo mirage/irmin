@@ -81,9 +81,10 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     type nonrec 'a t = {
       t : value KMap.t;
-      name : string;
+      root : string;
       pack : 'a t;
       readonly : bool;
+      mutable open_instances : int;
     }
 
     let decode_value = Irmin.Type.(unstage (decode_bin V.t))
@@ -100,7 +101,7 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let former_generation = IO.generation t.pack.block in
       let generation = IO.force_generation t.pack.block in
       if former_generation <> generation then (
-        Log.debug (fun l -> l "[%s] generation changed, refill buffers" t.name);
+        Log.debug (fun l -> l "[%s] generation changed, refill buffers" t.root);
         KMap.clear t.t;
         IO.close t.pack.block;
         let block =
@@ -115,24 +116,58 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       Log.debug (fun l -> l "former = %Ld now = %Ld" former_offset offset);
       (former_offset, offset, t.pack.block)
 
-    let v ?(fresh = false) ?(readonly = false) ?lru_size:_ ~index name =
-      Log.debug (fun l -> l "[%s] v fresh =%b readonly =%b" name fresh readonly);
-      let pack = v index ~fresh ~readonly name in
-      let t = { t = KMap.create 0; name; pack; readonly } in
+    let roots = Hashtbl.create 10
+
+    let unsafe_clear t =
+      Log.debug (fun f -> f "[%s] clear" t.root);
+      KMap.clear t.t;
+      clear t.pack
+
+    let clear t =
+      unsafe_clear t;
+      Lwt.return_unit
+
+    let valid t =
+      if t.open_instances <> 0 then (
+        t.open_instances <- t.open_instances + 1;
+        true)
+      else false
+
+    let unsafe_v_no_cache ~fresh ~readonly ~index root =
+      Log.debug (fun l -> l "[%s] v fresh =%b readonly =%b" root fresh readonly);
+      let pack = v index ~fresh ~readonly root in
+      { t = KMap.create 0; root; pack; readonly; open_instances = 1 }
+
+    let unsafe_v ?(fresh = false) ?(readonly = false) ?lru_size:_ ~index root =
+      try
+        let t = Hashtbl.find roots (root, readonly) in
+        if valid t then (
+          if fresh then unsafe_clear t;
+          t)
+        else (
+          Hashtbl.remove roots (root, readonly);
+          raise Not_found)
+      with Not_found ->
+        let t = unsafe_v_no_cache ~fresh ~readonly ~index root in
+        if fresh then unsafe_clear t;
+        Hashtbl.add roots (root, readonly) t;
+        t
+
+    let v ?fresh ?readonly ?lru_size ~index root =
+      let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
       Lwt.return t
 
     let flush ?index:_ t = flush t.pack
 
-    let clear t =
-      Log.debug (fun f -> f "[%s] clear" t.name);
-      KMap.clear t.t;
-      clear t.pack;
-      Lwt.return_unit
+    let unsafe_close t =
+      t.open_instances <- t.open_instances - 1;
+      if t.open_instances = 0 then (
+        Log.debug (fun f -> f "[%s] close" t.root);
+        KMap.clear t.t;
+        close t.pack)
 
     let close t =
-      Log.debug (fun f -> f "[%s] close" t.name);
-      KMap.clear t.t;
-      close t.pack;
+      unsafe_close t;
       Lwt.return_unit
 
     let offset t = offset t.pack
@@ -150,14 +185,14 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let k' = V.hash v in
       if Irmin.Type.equal K.t k k' then Ok () else Error (k, k')
 
-    let find { t; _ } k =
+    let find t k =
       try
-        let v = KMap.find t k in
+        let v = KMap.find t.t k in
         check_key k v |> Result.map (fun () -> Some v)
       with Not_found -> Ok None
 
     let unsafe_find t k =
-      Log.debug (fun f -> f "[%s] unsafe find %a" t.name pp_key k);
+      Log.debug (fun f -> f "[%s] unsafe find %a" t.root pp_key k);
       find t k |> function
       | Ok r -> r
       | Error (k, k') ->
@@ -165,23 +200,23 @@ module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
             pp_key k
 
     let find t k =
-      Log.debug (fun f -> f "[%s] find %a" t.name pp_key k);
+      Log.debug (fun f -> f "[%s] find %a" t.root pp_key k);
       find t k |> function
       | Ok r -> Lwt.return r
       | Error (k, k') ->
           Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
             pp_key k' pp_key k
 
-    let unsafe_mem { t; name; _ } k =
-      Log.debug (fun f -> f "[%s] unsafe mem %a" name pp_key k);
-      KMap.mem t k
+    let unsafe_mem t k =
+      Log.debug (fun f -> f "[%s] mem %a" t.root pp_key k);
+      KMap.mem t.t k
 
-    let mem { t; name; _ } k =
-      Log.debug (fun f -> f "[%s] mem %a" name pp_key k);
-      Lwt.return (KMap.mem t k)
+    let mem t k =
+      let b = unsafe_mem t k in
+      Lwt.return b
 
     let unsafe_append t k v =
-      Log.debug (fun f -> f "[%s] add -> %a" t.name pp_key k);
+      Log.debug (fun f -> f "[%s] add -> %a" t.root pp_key k);
       KMap.add t.t k v;
       encode_key k (IO.append t.pack.block);
       encode_magic (V.magic v) (IO.append t.pack.block);
