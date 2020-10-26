@@ -2272,6 +2272,7 @@ let layered_suite (speed, x) =
           ("Keep max and heads after max", speed, TL.test_keep_heads x);
           ("Test find during freeze", speed, TL.test_find_during_freeze x);
           ("Test add during freeze", speed, TL.test_add_during_freeze x);
+          ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
         ] )
 
 let run name ~misc tl =

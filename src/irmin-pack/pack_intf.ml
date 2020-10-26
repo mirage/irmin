@@ -174,6 +174,10 @@ module type LAYERED = sig
     key ->
     _ t ->
     (unit, Sigs.integrity_error) result
+
+  val unsafe_get_newies : unit -> key list
+
+  val get_newies : 'a t -> key list Lwt.t
 end
 
 module type LAYERED_MAKER = sig
