@@ -63,8 +63,11 @@
 
   - Added a `flush` function for a repo (#1092, @icristescu)
 
-  - Added `Make_layered` functor, to construct layered stores from irmin-pack.
+  - Added `Make_layered` functor, to construct layered stores from irmin-pack
     (#882, @icristescu)
+
+  - Added `Make_mem` functor, to construct an in-memory irmin-pack store (#1099,
+    @icristescu, @pascutto)
 
 - **ppx_irmin**:
 
