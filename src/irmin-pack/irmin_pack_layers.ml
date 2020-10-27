@@ -24,8 +24,6 @@ let pp_version = IO.pp_version
 
 let ( // ) = Filename.concat
 
-let newies_limit = 1_000L
-
 let ( -- ) = Int64.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
@@ -50,6 +48,8 @@ module Default = struct
   let copy_in_upper = false
 
   let with_lower = true
+
+  let blocking_copy_size = 64
 end
 
 module Conf = Irmin.Private.Conf
@@ -83,15 +83,25 @@ let with_lower_key =
 
 let with_lower conf = Conf.get conf with_lower_key
 
+let blocking_copy_size_key =
+  Conf.key
+    ~doc:
+      "Specify the size (in bytes) that can be copied in the blocking portion \
+       of the freeze."
+    "blocking-copy" Conf.int Default.blocking_copy_size
+
+let blocking_copy_size conf = Conf.get conf blocking_copy_size_key
+
 let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
     ?(upper_root1 = Default.upper_root1) ?(upper_root0 = Default.upper_root0)
     ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
-    () =
+    ?(blocking_copy_size = Default.blocking_copy_size) () =
   let config = Conf.add conf lower_root_key lower_root in
   let config = Conf.add config upper_root1_key upper_root1 in
   let config = Conf.add config upper_root0_key upper_root0 in
   let config = Conf.add config copy_in_upper_key copy_in_upper in
   let config = Conf.add config with_lower_key with_lower in
+  let config = Conf.add config blocking_copy_size_key blocking_copy_size in
   config
 
 let freeze_lock = Lwt_mutex.create ()
@@ -798,6 +808,7 @@ struct
       (** If there are too many newies (more than newies_limit bytes added) then
           copy them concurrently. *)
       let rec copy_newies_to_next_upper t former_offset =
+        let newies_limit = blocking_copy_size t.X.Repo.config |> Int64.of_int in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then
           copy_newies_aux ~with_lock:false t >>= fun () ->

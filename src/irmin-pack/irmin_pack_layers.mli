@@ -21,6 +21,7 @@ val config_layers :
   ?upper_root0:string ->
   ?copy_in_upper:bool ->
   ?with_lower:bool ->
+  ?blocking_copy_size:int ->
   unit ->
   Irmin.config
 (** Configuration options for layered stores.
@@ -34,7 +35,9 @@ val config_layers :
     @param copy_in_upper if true then at the end of a freee the max commits are
     copied back in upper. This option can be overriden when calling a freeze
     with the [copy_in_upper] argument set. By default it is set to false.
-    @param with_lower if true (the default) use a lower layer during freezes. *)
+    @param with_lower if true (the default) use a lower layer during freezes.
+    @param blocking_copy_size specifies the size (in bytes) that can be copied
+    in the blocking portion of the freeze. *)
 
 module Make_ext
     (Config : Config.S)
