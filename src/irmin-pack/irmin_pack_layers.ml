@@ -633,25 +633,25 @@ struct
           true
       | false -> false
 
-    let copy_tree ~skip ~skip_contents nodes contents t root =
-      (* if node are already in dst then they are skipped by Graph.iter; there
-         is no need to check this again when the node is copied *)
+    let copy_tree ~skip_nodes ~skip_contents nodes contents t root =
+      (* if node or contents are already in dst then they are skipped by
+         Graph.iter; there is no need to check this again when the object is
+         copied *)
       let node k =
         pause () >>= fun () -> X.Node.CA.copy nodes t.X.Repo.node k >>= pause
       in
-      (* we need to check that the contents is not already in dst, to avoid
-         copying it again *)
       let contents (k, _) =
-        skip_with_stats ~skip:skip_contents k >>= function
-        | false -> X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
-        | true -> Lwt.return_unit
+        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
       in
-      let skip h = skip_with_stats ~skip h in
-      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip ()
+      let skip_nodes h = skip_with_stats ~skip:skip_nodes h in
+      let skip_contents h = skip_with_stats ~skip:skip_contents h in
+      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_nodes
+        ~skip_contents ()
 
-    let copy_commit ~skip ~skip_contents contents nodes commits t k =
+    let copy_commit ~skip_nodes ~skip_contents contents nodes commits t k =
       let aux c =
-        copy_tree ~skip ~skip_contents nodes contents t (X.Commit.Val.node c)
+        copy_tree ~skip_nodes ~skip_contents nodes contents t
+          (X.Commit.Val.node c)
       in
       X.Commit.CA.copy commits t.X.Repo.commit ~aux "Commit" k
 
@@ -663,9 +663,8 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        let skip h = mem_node_lower t h in
-        let skip_contents h = mem_contents_lower t h in
-        copy_commit ~skip ~skip_contents
+        copy_commit ~skip_nodes:(mem_node_lower t)
+          ~skip_contents:(fun (k, _) -> mem_contents_lower t k)
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -699,7 +698,8 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_next t) ~skip_contents:(mem_contents_next t)
+        copy_commit ~skip_nodes:(mem_node_next t)
+          ~skip_contents:(fun (k, _) -> mem_contents_next t k)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
@@ -773,7 +773,11 @@ struct
           X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
             "Contents" k
         in
-        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
+        (* We cannot skip nodes, because a node in upper can have a predecessor
+           in lower. Contents do not have predecessors, so we can skip them. *)
+        let skip_contents (k, _) = mem_contents_next t k in
+        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_contents
+          ()
 
       let copy_commit contents nodes commits t hash =
         let aux c = copy_tree contents nodes t (X.Commit.Val.node c) in
