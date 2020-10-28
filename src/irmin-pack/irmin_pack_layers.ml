@@ -594,6 +594,8 @@ struct
 
   let flush = X.Repo.flush
 
+  let pause = Lwt.pause
+
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
 
@@ -603,27 +605,42 @@ struct
 
     let mem_node_upper t = X.Node.CA.mem_next t.X.Repo.node
 
+    let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
+
+    let mem_contents_upper t = X.Contents.CA.mem_next t.X.Repo.contents
+
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
         ~mem_commit_upper:(mem_commit_upper t) t.X.Repo.branch
 
-    let copy_tree ~skip nodes contents t root =
+    let skip_with_stats ~skip h =
+      pause () >>= fun () ->
+      skip h >|= function
+      | true ->
+          Irmin_layers.Stats.skip ();
+          true
+      | false -> false
+
+    let copy_tree ~skip ~skip_contents nodes contents t root =
       (* if node are already in dst then they are skipped by Graph.iter; there
          is no need to check this again when the node is copied *)
       let node k =
-        Lwt.pause () >>= fun () ->
-        X.Node.CA.copy nodes t.X.Repo.node k >>= Lwt.pause
+        pause () >>= fun () -> X.Node.CA.copy nodes t.X.Repo.node k >>= pause
       in
       (* we need to check that the contents is not already in dst, to avoid
          copying it again *)
       let contents (k, _) =
-        X.Contents.CA.check_and_copy contents t.X.Repo.contents "Contents" k
+        skip_with_stats ~skip:skip_contents k >>= function
+        | false -> X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        | true -> Lwt.return_unit
       in
-      let skip h = Lwt.pause () >>= fun () -> skip h in
+      let skip h = skip_with_stats ~skip h in
       Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip ()
 
-    let copy_commit ~skip contents nodes commits t k =
-      let aux c = copy_tree ~skip nodes contents t (X.Commit.Val.node c) in
+    let copy_commit ~skip ~skip_contents contents nodes commits t k =
+      let aux c =
+        copy_tree ~skip ~skip_contents nodes contents t (X.Commit.Val.node c)
+      in
       X.Commit.CA.copy commits t.X.Repo.commit ~aux "Commit" k
 
     module CopyToLower = struct
@@ -634,8 +651,9 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        let skip h = Lwt.pause () >>= fun () -> mem_node_lower t h in
-        copy_commit ~skip
+        let skip h = mem_node_lower t h in
+        let skip_contents h = mem_contents_lower t h in
+        copy_commit ~skip ~skip_contents
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -655,7 +673,7 @@ struct
       let copy ~min ~max t =
         let max = List.map (fun x -> Commit.hash x) max in
         let min = List.map (fun x -> Commit.hash x) min in
-        let skip = mem_commit_lower t in
+        let skip h = skip_with_stats ~skip:(mem_commit_lower t) h in
         on_lower t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
@@ -669,15 +687,15 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        let skip h = Lwt.pause () >>= fun () -> mem_node_upper t h in
-        copy_commit ~skip
+        copy_commit ~skip:(mem_node_upper t)
+          ~skip_contents:(mem_contents_upper t)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
           t
 
       let copy ~min ~max t =
-        let skip h = Lwt.pause () >>= fun () -> mem_commit_upper t h in
+        let skip h = skip_with_stats ~skip:(mem_commit_upper t) h in
         on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
@@ -698,14 +716,12 @@ struct
         List.exists (fun k' -> Irmin.Type.equal Hash.t k k') commits
 
       let non_empty_intersection t min head =
-        let skip _ = Lwt.return_false in
         let ok = ref false in
         let commit x =
           if includes min x then ok := true;
           Lwt.return_unit
         in
-        Repo.iter_commits t ~min ~max:[ head ] ~commit ~skip () >|= fun () ->
-        !ok
+        Repo.iter_commits t ~min ~max:[ head ] ~commit () >|= fun () -> !ok
 
       (** Copy the heads that include a max commit *)
       let copy_heads ~max ~heads t =
@@ -725,7 +741,66 @@ struct
           [] heads
         >>= fun heads -> copy ~min:max ~max:heads t
     end
+
+    module CopyFromLower = struct
+      let on_current_upper t f =
+        let contents = X.Contents.CA.current_upper t.X.Repo.contents in
+        let nodes = X.Node.CA.current_upper t.X.Repo.node in
+        let commits = X.Commit.CA.current_upper t.X.Repo.commit in
+        f contents nodes commits
+
+      let copy_tree contents nodes t root =
+        let node k =
+          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k >|= fun () ->
+          (* We have to ensure that a node is entirely flushed to disk.
+             If we rely on the implicit flush of io, it could be that
+             only a part of a node if flushed to disk when RO tries to
+             read it. *)
+          X.Node.CA.flush t.node
+        in
+        let contents (k, _) =
+          X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
+            "Contents" k
+        in
+        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
+
+      let copy_commit contents nodes commits t hash =
+        let aux c = copy_tree contents nodes t (X.Commit.Val.node c) in
+        X.Commit.CA.copy_from_lower t.X.Repo.commit ~dst:commits ~aux "Commit"
+          hash
+        >|= fun () -> X.Repo.flush t
+
+      (** The commits can be in either lower or upper. We don't skip an object
+          already in upper as its predecessors could be in lower. *)
+      let self_contained ?min ~max t =
+        let max = List.map (fun x -> Commit.hash x) max in
+        let min =
+          match min with
+          | None -> max (* if min is empty then copy only the max commits *)
+          | Some min -> List.map (fun x -> Commit.hash x) min
+        in
+        Log.debug (fun l ->
+            l
+              "self_contained: copy commits min:%a; max:%a from lower into \
+               upper to make the upper self contained"
+              (Fmt.list (Irmin.Type.pp H.t))
+              min
+              (Fmt.list (Irmin.Type.pp H.t))
+              max);
+        on_current_upper t (fun contents nodes commits ->
+            let commit h = copy_commit contents nodes commits t h in
+            Repo.iter_commits t ~min ~max ~commit ())
+    end
   end
+
+  let pp_stats msg =
+    let stats = Irmin_layers.Stats.get () in
+    Log.app (fun l ->
+        l "%s contents = %d, nodes = %d, commits = %d, skips = %d" msg
+          (List.hd stats.copied_contents)
+          (List.hd stats.copied_nodes)
+          (List.hd stats.copied_commits)
+          stats.skips)
 
   let copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t =
     (* Copy commits to lower: if squash then copy only the max commits *)
@@ -735,18 +810,20 @@ struct
      else Copy.CopyToLower.copy ~min ~max t
     else Lwt.return_unit)
     >>= fun () ->
+    pp_stats "end of copied in lower";
     (* Copy [min_upper, max] and [max, heads] to next_upper *)
     (if copy_in_upper then
      Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
      Copy.CopyToUpper.copy_heads ~max ~heads t
     else Lwt.return_unit)
     >>= fun () ->
+    pp_stats "end of copied in upper";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
     let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
-    Log.debug (fun l ->
+    Log.app (fun l ->
         l
           "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \
            min_upper = %a heads = %a"
@@ -765,8 +842,7 @@ struct
               "freeze blocked for %f seconds due to a previous unfinished \
                freeze"
               waiting);
-      Log.app (fun l -> l "start freeze");
-      Lwt.pause () >>= fun () ->
+      pause () >>= fun () ->
       may (fun f -> f `Before_Copy) hook >>= fun () ->
       copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
       X.Repo.flush_next_lower t;
@@ -817,6 +893,8 @@ struct
   let async_freeze () = Lwt_mutex.is_locked freeze_lock
 
   let upper_in_use = X.Repo.upper_in_use
+
+  let self_contained = Copy.CopyFromLower.self_contained
 
   module PrivateLayer = struct
     module Hook = struct

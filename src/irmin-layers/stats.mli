@@ -22,6 +22,7 @@ type t = {
   mutable copied_branches : int list;
   mutable waiting_freeze : float list;
   mutable completed_freeze : float list;
+  mutable skips : int;
 }
 (** The type for stats for a store S.
 
@@ -29,7 +30,13 @@ type t = {
     - [copied_contents] is the number of contents copied per freeze;
     - [copied_nodes] is the number of nodes copied per freeze;
     - [copied_commits] is the number of commits copied per freeze;
-    - [copied_branches] is the number of branches copied per freeze.
+    - [copied_branches] is the number of branches copied per freeze;
+    - [waiting_freeze] are the times the freeze threads waited to start, for the
+      last 10 freezes at most;
+    - [completed_freeze] are the times the freeze threads took to complete, for
+      the last 10 freezes at most;
+    - [skips] the number of skips during the graph traversals called by the
+      freeze, where the same object can be skipped several times;
 
     Note that stats assume that there always is an ongoing freeze. If its not
     the case, you should discard the last 0.*)
@@ -67,3 +74,6 @@ val reset_adds : unit -> unit
 val with_timer : [ `Freeze | `Waiting ] -> (unit -> unit Lwt.t) -> unit Lwt.t
 (** Either the duration of a freeze thread waiting on the freeze lock to start;
     or the duration of a freeze thread to complete a freeze. *)
+
+val skip : unit -> unit
+(** Increment the number of skips during a graph traversal. *)

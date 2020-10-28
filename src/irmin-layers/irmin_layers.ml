@@ -17,6 +17,12 @@
 open Lwt.Infix
 include Irmin_layers_intf
 
+let pp_layer_id =
+  Fmt.of_to_string (function
+    | `Upper0 -> "upper0"
+    | `Upper1 -> "upper1"
+    | `Lower -> "lower")
+
 module Make_ext
     (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
@@ -139,6 +145,8 @@ struct
   let async_freeze _ = failwith "not implemented"
 
   let upper_in_use _repo = failwith "not implemented"
+
+  let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
 
   module PrivateLayer = struct
     module Hook = struct

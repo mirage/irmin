@@ -26,43 +26,31 @@ module type CA = sig
   module Key : Irmin.Hash.TYPED with type t = key and type value = value
 end
 
-let return = Lwt.pause
+let pause = Lwt.pause
+
+let stats = function
+  | "Contents" -> Irmin_layers.Stats.copy_contents ()
+  | "Node" -> Irmin_layers.Stats.copy_nodes ()
+  | "Commit" -> Irmin_layers.Stats.copy_commits ()
+  | _ -> failwith "unexpected type in stats"
 
 module Copy
     (Key : Irmin.Hash.S)
     (SRC : Pack.S with type key = Key.t)
     (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
 struct
-  let add_to_dst add (k, v) = add k v
-
-  let stats = function
-    | "Contents" -> Irmin_layers.Stats.copy_contents ()
-    | "Node" -> Irmin_layers.Stats.copy_nodes ()
-    | "Commit" -> Irmin_layers.Stats.copy_commits ()
-    | _ -> failwith "unexpected type in stats"
-
-  let already_in_dst ~dst k =
-    DST.mem dst k >|= function
-    | true ->
-        Log.debug (fun l -> l "already in dst %a" (Irmin.Type.pp Key.t) k);
-        true
-    | false -> false
-
   let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
-    stats str;
     SRC.find src k >>= function
     | None ->
-        (* This can happen when we try to copy an object to lower, that is
-           already in lower and no longer in upper, due to a previous freeze. *)
-        return ()
+        Log.warn (fun l ->
+            l "Attempt to copy %s %a not contained in upper." str
+              (Irmin.Type.pp Key.t) k);
+        pause ()
     | Some v ->
-        aux v >>= return >>= fun () -> add_to_dst (DST.unsafe_add dst) (k, v)
-
-  let check_and_copy ~src ~dst ?aux str k =
-    already_in_dst ~dst k >>= function
-    | true -> return ()
-    | false -> copy ~src ~dst ?aux str k
+        aux v >>= pause >>= fun () ->
+        stats str;
+        DST.unsafe_add dst k v
 end
 
 module Content_addressable
@@ -138,6 +126,7 @@ struct
 
   let unsafe_append' t k v =
     Log.debug (fun l -> l "unsafe_append in %s" (log_current_upper t));
+    Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append upper k v;
     if Lwt_mutex.is_locked t.freeze_lock then (
@@ -147,7 +136,7 @@ struct
   let unsafe_append t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
         unsafe_append' t k v;
-        return ())
+        pause ())
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
@@ -296,30 +285,11 @@ struct
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let check_and_copy_to_lower t ~dst ?aux str k =
-    CopyLower.check_and_copy ~src:(current_upper t) ~dst ?aux str k
-
-  let check_and_copy_to_next t ~dst ?aux str (k : key) =
-    CopyUpper.check_and_copy ~src:(current_upper t) ~dst ?aux str k
-
   let copy_to_lower t ~dst ?aux str k =
     CopyLower.copy ~src:(current_upper t) ~dst ?aux str k
 
-  let copy_to_next t ~dst ?aux str (k : key) =
+  let copy_to_next t ~dst ?aux str k =
     CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
-
-  let check_and_copy :
-      type l.
-      l layer_type * l ->
-      [ `Read ] t ->
-      ?aux:(value -> unit Lwt.t) ->
-      string ->
-      key ->
-      unit Lwt.t =
-   fun (ltype, dst) ->
-    match ltype with
-    | Lower -> check_and_copy_to_lower ~dst
-    | Upper -> check_and_copy_to_next ~dst
 
   let copy :
       type l.
@@ -331,6 +301,21 @@ struct
       unit Lwt.t =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
+
+  (** The object [k] can be in either lower or upper. If already in upper then
+      do not copy it. *)
+  let copy_from_lower t ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+    let lower = lower t in
+    let current = current_upper t in
+    U.find current k >>= function
+    | Some v -> aux v
+    | None -> (
+        L.find lower k >>= function
+        | Some v ->
+            aux v >>= fun () ->
+            stats str;
+            U.unsafe_add dst k v
+        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
 
   let yield = Lwt_unix.auto_yield 0.1
 

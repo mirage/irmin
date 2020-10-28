@@ -178,7 +178,7 @@ module History (S : S.COMMIT_STORE) = struct
 
   let ignore_lwt _ = Lwt.return_unit
 
-  let iter t ~min ~max ?(commit = ignore_lwt) ?(edge = fun _ -> ignore_lwt)
+  let iter t ~min ~max ?(commit = ignore_lwt) ?edge
       ?(skip = fun _ -> Lwt.return_false) ?(rev = true) () =
     Log.debug (fun f ->
         f "iter on closure min=%a max=%a" pp_keys min pp_keys max);
@@ -190,12 +190,15 @@ module History (S : S.COMMIT_STORE) = struct
       | `Commit k -> parents t k >|= List.map (fun x -> `Commit x)
       | _ -> assert false
     in
-    let edge n pred =
-      match (n, pred) with
-      | `Commit src, `Commit dst -> edge src dst
-      | _ -> assert false
+    let edge =
+      Option.map
+        (fun edge n pred ->
+          match (n, pred) with
+          | `Commit src, `Commit dst -> edge src dst
+          | _ -> assert false)
+        edge
     in
-    Graph.iter ~pred ~min ~max ~node ~edge ~skip ~rev ()
+    Graph.iter ~pred ~min ~max ~node ?edge ~skip ~rev ()
 
   module K = struct
     type t = S.Key.t

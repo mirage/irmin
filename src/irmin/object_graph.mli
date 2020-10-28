@@ -53,7 +53,7 @@ module type S = sig
     min:vertex list ->
     max:vertex list ->
     node:(vertex -> unit Lwt.t) ->
-    edge:(vertex -> vertex -> unit Lwt.t) ->
+    ?edge:(vertex -> vertex -> unit Lwt.t) ->
     skip:(vertex -> bool Lwt.t) ->
     rev:bool ->
     unit ->

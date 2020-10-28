@@ -44,6 +44,11 @@ module type S = sig
       helpful when a single freeze is called, to check whether it completed or
       not. *)
 
+  val self_contained : ?min:commit list -> max:commit list -> repo -> unit Lwt.t
+  (** [self_contained min max t] copies the commits in the range of [min, max]
+      from lower into upper, in order to make the upper self contained. If [min]
+      is missing then only the [max] commits are copied. *)
+
   (** These modules should not be used. They are exposed purely for testing
       purposes. *)
   module PrivateLayer : sig
@@ -94,6 +99,8 @@ module type S_MAKER = functor
 
 module type Irmin_layers = sig
   type nonrec layer_id = layer_id
+
+  val pp_layer_id : layer_id Fmt.t
 
   module type S = S
 
