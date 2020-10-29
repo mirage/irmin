@@ -611,19 +611,19 @@ struct
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
 
-    let mem_commit_upper t = X.Commit.CA.mem_next t.X.Repo.commit
+    let mem_commit_next t = X.Commit.CA.mem_next t.X.Repo.commit
 
     let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
 
-    let mem_node_upper t = X.Node.CA.mem_next t.X.Repo.node
+    let mem_node_next t = X.Node.CA.mem_next t.X.Repo.node
 
     let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
 
-    let mem_contents_upper t = X.Contents.CA.mem_next t.X.Repo.contents
+    let mem_contents_next t = X.Contents.CA.mem_next t.X.Repo.contents
 
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
-        ~mem_commit_upper:(mem_commit_upper t) t.X.Repo.branch
+        ~mem_commit_upper:(mem_commit_next t) t.X.Repo.branch
 
     let skip_with_stats ~skip h =
       pause () >>= fun () ->
@@ -699,15 +699,14 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_upper t)
-          ~skip_contents:(mem_contents_upper t)
+        copy_commit ~skip:(mem_node_next t) ~skip_contents:(mem_contents_next t)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
           t
 
       let copy ~min ~max t =
-        let skip h = skip_with_stats ~skip:(mem_commit_upper t) h in
+        let skip h = skip_with_stats ~skip:(mem_commit_next t) h in
         on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
