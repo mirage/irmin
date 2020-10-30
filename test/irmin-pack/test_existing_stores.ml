@@ -305,8 +305,8 @@ module Test_corrupted_stores = struct
     setup_test ();
     let module S = Make_layered in
     let add_commit repo k v =
-      S.Tree.add S.Tree.empty k v >>= fun tree ->
-      S.Commit.v repo ~parents:[] ~info:(info ()) tree
+      S.Tree.add S.Tree.empty k v
+      >>= S.Commit.v repo ~parents:[] ~info:(info ())
     in
     let check_commit repo commit k v =
       commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
@@ -332,32 +332,37 @@ module Test_corrupted_stores = struct
     let* rw = S.Repo.v (config ~fresh:false root) in
     let* ro = S.Repo.v (config ~fresh:false ~readonly:true root) in
     Log.app (fun l -> l "Open a layered store aborted during a freeze");
-    Alcotest.(check bool) "Store needs recovery" (S.needs_recovery rw) true;
+    Alcotest.(check bool) "Store needs recovery" true (S.needs_recovery rw);
     check_upper rw "Upper before recovery" `Upper1;
-    add_commit rw [ "a" ] "x" >>= fun c ->
+    let* c = add_commit rw [ "a" ] "x" in
     S.sync ro;
-    check_commit ro c [ "a" ] "x" >>= fun () ->
+    let* () = check_commit ro c [ "a" ] "x" in
     Log.app (fun l -> l "Freeze with recovery flag set");
-    S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
-    S.PrivateLayer.wait_for_freeze () >>= fun () ->
+    let* () =
+      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+    in
     Alcotest.(check bool)
-      "Store doesn't need recovery" (S.needs_recovery rw) false;
+      "Store doesn't need recovery" false (S.needs_recovery rw);
     check_upper rw "Upper after recovery" `Upper0;
-    check_commit rw c [ "a" ] "x" >>= fun () ->
+    let* () = check_commit rw c [ "a" ] "x" in
     S.sync ro;
-    check_commit ro c [ "a" ] "x" >>= fun () ->
+    let* () = check_commit ro c [ "a" ] "x" in
     check_upper ro "RO upper after recovery" `Upper0;
-    add_commit rw [ "b" ] "y" >>= fun c ->
+    let* c = add_commit rw [ "b" ] "y" in
     Log.app (fun l ->
-        l "Freeze ignores the recovery flag when it doesn't need recovery ");
-    S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
-    S.PrivateLayer.wait_for_freeze () >>= fun () ->
+        l
+          "If recovery flag is set, freeze proceeds with recovery even when it \
+           isn't needed");
+    let* () =
+      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+    in
     check_upper rw "Upper after freeze" `Upper1;
-    check_commit rw c [ "b" ] "y" >>= fun () ->
+    let* () = check_commit rw c [ "b" ] "y" in
     S.sync ro;
     check_upper ro "RO upper after freeze" `Upper1;
-    check_commit ro c [ "b" ] "y" >>= fun () ->
-    S.Repo.close rw >>= fun () -> S.Repo.close ro
+    let* () = check_commit ro c [ "b" ] "y" in
+    let* () = S.Repo.close rw in
+    S.Repo.close ro
 end
 
 let tests =

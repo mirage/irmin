@@ -886,12 +886,7 @@ struct
       simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
       ?(min_upper = []) ?(heads = []) ?(recovery = false) ?hook t =
-    let lock_file = lock_path t.X.Repo.config in
-    if recovery && not (Lock.test lock_file) then
-      Log.warn (fun l ->
-          l "No lock file detected, ignoring the recovery set flag");
-    (if recovery && Lock.test lock_file then
-     X.Repo.clear_previous_upper ~keep_generation:true t
+    (if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
     else Lwt.return_unit)
     >>= fun () ->
     let copy_in_upper =

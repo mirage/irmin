@@ -58,7 +58,7 @@ module type S = sig
 
   val name : t -> string
 
-  val clear : ?keep_generation:bool -> t -> unit
+  val clear : ?keep_generation:unit -> t -> unit
 
   val append : t -> string -> unit
 
@@ -209,7 +209,7 @@ module Unix : S = struct
     Raw.Header.set raw header;
     raw
 
-  let unsafe_clear ?(keep_generation = false) t =
+  let unsafe_clear ?keep_generation t =
     if t.readonly then invalid_arg "Read-only IO cannot be cleared";
     Log.debug (fun l -> l "clear %s" t.file);
     Buffer.clear t.buf;
@@ -218,7 +218,7 @@ module Unix : S = struct
     if t.offset = 0L then ()
     else (
       t.offset <- 0L;
-      if not keep_generation then t.generation <- Int64.succ t.generation;
+      if keep_generation = None then t.generation <- Int64.succ t.generation;
       t.flushed <- header t.version;
       (* update the generation for concurrent readonly instance to
          notice that the file has been clear when they next sync. *)

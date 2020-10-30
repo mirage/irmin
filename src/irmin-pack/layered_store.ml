@@ -265,12 +265,13 @@ struct
 
   (** After clearing the previous upper, we also needs to flush current upper to
       disk, otherwise values are not found by the RO. *)
-  let clear_previous_upper ?(keep_generation = false) t =
+  let clear_previous_upper ?keep_generation t =
     let previous = next_upper t in
     let current = current_upper t in
     U.flush current;
-    if keep_generation then U.clear_keep_generation previous
-    else U.clear previous
+    match keep_generation with
+    | Some () -> U.clear_keep_generation previous
+    | None -> U.clear previous
 
   let version t = U.version (fst t.uppers)
 
@@ -550,12 +551,13 @@ struct
 
   (** After clearing the previous upper, we also needs to flush current upper to
       disk, otherwise values are not found by the RO. *)
-  let clear_previous_upper ?(keep_generation = false) t =
+  let clear_previous_upper ?keep_generation t =
     let current = current_upper t in
     let previous = next_upper t in
     U.flush current;
-    if keep_generation then U.clear_keep_generation previous
-    else U.clear previous
+    match keep_generation with
+    | Some () -> U.clear_keep_generation previous
+    | None -> U.clear previous
 
   let flush_next_lower t =
     let next = next_upper t in

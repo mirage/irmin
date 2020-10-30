@@ -149,7 +149,7 @@ module type LAYERED = sig
 
   val lower : 'a t -> [ `Read ] L.t
 
-  val clear_previous_upper : ?keep_generation:bool -> 'a t -> unit Lwt.t
+  val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
   val sync :
     ?on_generation_change:(unit -> unit) ->

@@ -87,5 +87,5 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
 
   val flush_next_lower : t -> unit
 
-  val clear_previous_upper : ?keep_generation:bool -> t -> unit Lwt.t
+  val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
 end

@@ -303,7 +303,7 @@ struct
 
     let clear_keep_generation t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_clear ~keep_generation:true t;
+          unsafe_clear ~keep_generation:() t;
           pause ())
 
     let clear_caches t =
