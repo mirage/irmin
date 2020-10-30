@@ -86,8 +86,8 @@ let with_lower conf = Conf.get conf with_lower_key
 let blocking_copy_size_key =
   Conf.key
     ~doc:
-      "Specify the size (in bytes) that can be copied in the blocking portion \
-       of the freeze."
+      "Specify the maximum size (in bytes) that can be copied in the blocking \
+       portion of the freeze."
     "blocking-copy" Conf.int Default.blocking_copy_size
 
 let blocking_copy_size conf = Conf.get conf blocking_copy_size_key

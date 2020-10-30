@@ -371,9 +371,10 @@ module type NODE_GRAPH = sig
       the closure of [t] as specified by {{!Irmin__Object_graph.S.closure}
       Object_graph.closure}.
 
-      It applies three functions while traversing the graph: [node] on the
-      nodes; [edge n predecessor_of_n] on the directed edges and [skip n] to not
-      include a node [n], its predecessors and the outgoing edges of [n].
+      It applies the following functions while traversing the graph: [node] on
+      the nodes; [edge n predecessor_of_n] on the directed edges; [skip_nodes n]
+      to not include a node [n], its predecessors and the outgoing edges of [n]
+      and [skip_contents c] to not include content [c].
 
       If [rev] is true (the default) then the graph is traversed in the reverse
       order: [node n] is applied only after it was applied on all its

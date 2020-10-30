@@ -36,8 +36,8 @@ val config_layers :
     copied back in upper. This option can be overriden when calling a freeze
     with the [copy_in_upper] argument set. By default it is set to false.
     @param with_lower if true (the default) use a lower layer during freezes.
-    @param blocking_copy_size specifies the size (in bytes) that can be copied
-    in the blocking portion of the freeze. *)
+    @param blocking_copy_size specifies the maximum size (in bytes) that can be
+    copied in the blocking portion of the freeze. *)
 
 module Make_ext
     (Config : Config.S)
