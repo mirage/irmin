@@ -100,14 +100,14 @@ struct
   (** Objects added during a freeze *)
   let newies : key list ref = ref []
 
-  let unsafe_get_newies () =
+  let unsafe_consume_newies () =
     let tmp = !newies in
     newies := [];
     tmp
 
-  let get_newies t =
+  let consume_newies t =
     Lwt_mutex.with_lock t.add_lock (fun () ->
-        let tmp = unsafe_get_newies () in
+        let tmp = unsafe_consume_newies () in
         Lwt.return tmp)
 
   let add' t v =
