@@ -55,6 +55,10 @@ module type S = sig
 
   val close : t -> unit
 
+  val exists : string -> bool
+
+  val size : t -> int
+
   val migrate :
     progress:(int64 -> unit) ->
     t ->
