@@ -33,9 +33,7 @@ end
 
 module Make (K : Irmin.Hash.S) = struct
   module Key = struct
-    type t = K.t
-
-    let pp ppf t = Irmin.Type.pp K.t ppf t
+    type t = K.t [@@deriving irmin]
 
     let hash t = Irmin.Type.short_hash K.t t
 
@@ -55,9 +53,7 @@ module Make (K : Irmin.Hash.S) = struct
   end
 
   module Val = struct
-    type t = int64 * int * char
-
-    let pp = Irmin.Type.(pp (triple int64 int char))
+    type t = int64 * int * char [@@deriving irmin]
 
     let to_bin_string =
       Irmin.Type.(unstage (to_bin_string (triple int64 int32 char)))
