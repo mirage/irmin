@@ -26,7 +26,21 @@ module Layout = struct
   let toplevel root = [ flip root; lower root; upper1 root; upper0 root ]
 end
 
-module Make (H : Irmin.Hash.S) (Index : Pack_index.S) = struct
+module Make
+    (Conf : Config.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
+    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+struct
+  module Index = Pack_index.Make (H)
+
   type size = Bytes of int [@@deriving irmin]
 
   let detect_layered_store ~root =
@@ -115,7 +129,30 @@ module Make (H : Irmin.Hash.S) (Index : Pack_index.S) = struct
   end
 
   module Check_containment = struct
-    let v ~root:_ = failwith "not implemented"
+    module Store =
+      Irmin_pack_layers.Make_ext (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
+
+    let conf root =
+      let conf = Config.v ~readonly:true root in
+      Irmin_pack_layers.config_layers ~conf ~with_lower:false ()
+
+    let check_store ~root (module S : Irmin_pack_layers.S) =
+      S.Repo.v (conf root) >>= fun repo ->
+      (S.check_self_contained repo >|= function
+       | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
+       | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg))
+      >>= fun () -> S.Repo.close repo
+
+    let v ~root =
+      if not (detect_layered_store ~root) then
+        Fmt.failwith "%s is not a layered store." root;
+      (read_flip ~root >|= function
+       | None | Some `Upper1 -> Layout.upper1 root
+       | Some `Upper0 -> Layout.upper0 root)
+      >>= fun upper ->
+      if detect_pack_layer ~layer_root:upper then
+        check_store ~root (module Store)
+      else Fmt.failwith "To fix"
   end
 
   module Cli = struct
