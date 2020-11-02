@@ -37,7 +37,7 @@ val version : string
 
 (** {1 Preliminaries} *)
 
-module Type = Type
+module Type = Repr
 (** Dynamic types for Irmin values. *)
 
 module Info = Info

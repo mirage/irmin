@@ -15,7 +15,7 @@
  *)
 
 open Lwt.Infix
-module Type = Type
+module Type = Repr
 module Diff = Diff
 module Content_addressable = Store.Content_addressable
 

@@ -1,7 +1,0 @@
-(library
- (name main)
- (public_name irmin-fuzz.rewriter)
- (kind ppx_rewriter)
- (libraries ppxlib)
- (preprocess
-  (pps ppxlib.metaquot)))

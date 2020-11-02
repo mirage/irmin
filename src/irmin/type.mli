@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Irmin_type.Type
+include module type of Repr
 (** @inline *)

@@ -92,6 +92,9 @@
   - The functions `Type.{v,like,map}` no longer take a `~cli` argument, and now
     take separate `~pp` and `~of_string` arguments instead. (#1103, @CraigFe)
 
+  - The `Irmin.Type` combinators are now supplied by the `repr` package. The
+    API of `Irmin.Type` is not changed. (#1106, @CraigFe)
+
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
     files on disk. (#1008, @icristescu)
