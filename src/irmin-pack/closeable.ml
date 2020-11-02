@@ -96,6 +96,10 @@ module Content_addressable (S : Pack.S) = struct
   let offset t =
     check_not_closed t;
     S.offset t.t
+
+  let clear_keep_generation t =
+    check_not_closed t;
+    S.clear_keep_generation t.t
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
@@ -161,4 +165,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   let flush t =
     check_not_closed t;
     AW.flush t.t
+
+  let clear_keep_generation t =
+    check_not_closed t;
+    AW.clear_keep_generation t.t
 end

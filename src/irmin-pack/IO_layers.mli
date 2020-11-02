@@ -27,3 +27,15 @@ module type S = sig
 end
 
 module IO : S
+
+module Lock : sig
+  type t
+
+  val v : string -> t Lwt.t
+
+  include S.CLOSEABLE with type _ t := t
+
+  val unlink : string -> unit Lwt.t
+
+  val test : string -> bool
+end

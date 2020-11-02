@@ -86,6 +86,8 @@ module type S = sig
   include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
 
   include Sigs.CLOSEABLE with type 'a t := 'a t
+
+  val clear_keep_generation : 'a t -> unit Lwt.t
 end
 
 module type MAKER = sig
@@ -147,7 +149,7 @@ module type LAYERED = sig
 
   val lower : 'a t -> [ `Read ] L.t
 
-  val clear_previous_upper : 'a t -> unit Lwt.t
+  val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
   val sync :
     ?on_generation_change:(unit -> unit) ->

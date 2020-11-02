@@ -26,6 +26,7 @@ module type S = sig
     ?copy_in_upper:bool ->
     ?min_upper:commit list ->
     ?heads:commit list ->
+    ?recovery:bool ->
     repo ->
     unit Lwt.t
 
@@ -49,6 +50,11 @@ module type S = sig
       from lower into upper, in order to make the upper self contained. If [min]
       is missing then only the [max] commits are copied. *)
 
+  val needs_recovery : repo -> bool
+  (** [needs_recovery repo] detects if an ongoing freeze was interrupted during
+      the last node crash. If it returns [true] then the next call to freeze
+      needs to have its [recovery] flag set. *)
+
   (** These modules should not be used. They are exposed purely for testing
       purposes. *)
   module PrivateLayer : sig
@@ -67,6 +73,7 @@ module type S = sig
       ?copy_in_upper:bool ->
       ?min_upper:commit list ->
       ?heads:commit list ->
+      ?recovery:bool ->
       ?hook:
         [ `After_Clear
         | `Before_Clear

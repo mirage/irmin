@@ -286,6 +286,83 @@ module Test_corrupted_stores = struct
          | Ok `No_error -> ()
          | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
+
+  let empty_store, root, lock_file =
+    let open Fpath in
+    ( v "test" / "irmin-pack" / "data" / "empty_store" |> to_string,
+      v "_build" / "test_freeze_lock" |> to_string,
+      v "_build" / "test_freeze_lock" / "lock" |> to_string )
+
+  let setup_test () =
+    goto_project_root ();
+    rm_dir root;
+    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; empty_store; root ] in
+    exec_cmd cmd;
+    let cmd = Filename.quote_command "touch" [ lock_file ] in
+    exec_cmd cmd
+
+  let test_freeze_lock () =
+    setup_test ();
+    let module S = Make_layered in
+    let add_commit repo k v =
+      S.Tree.add S.Tree.empty k v
+      >>= S.Commit.v repo ~parents:[] ~info:(info ())
+    in
+    let check_commit repo commit k v =
+      commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
+      | None ->
+          Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
+            commit
+      | Some commit ->
+          let tree = S.Commit.tree commit in
+          S.Tree.find tree k
+          >|= Alcotest.(check (option string))
+                (Fmt.strf "Expected binding [%a ↦ %s]"
+                   Fmt.(Dump.list string)
+                   k v)
+                (Some v)
+    in
+    let check_upper repo msg exp =
+      let got = S.PrivateLayer.upper_in_use repo in
+      let cast x = (x :> [ `Upper0 | `Upper1 | `Lower ]) in
+      if not (got = exp) then
+        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.pp_layer_id
+          (cast exp) Irmin_layers.pp_layer_id (cast got)
+    in
+    let* rw = S.Repo.v (config ~fresh:false root) in
+    let* ro = S.Repo.v (config ~fresh:false ~readonly:true root) in
+    Log.app (fun l -> l "Open a layered store aborted during a freeze");
+    Alcotest.(check bool) "Store needs recovery" true (S.needs_recovery rw);
+    check_upper rw "Upper before recovery" `Upper1;
+    let* c = add_commit rw [ "a" ] "x" in
+    S.sync ro;
+    let* () = check_commit ro c [ "a" ] "x" in
+    Log.app (fun l -> l "Freeze with recovery flag set");
+    let* () =
+      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+    in
+    Alcotest.(check bool)
+      "Store doesn't need recovery" false (S.needs_recovery rw);
+    check_upper rw "Upper after recovery" `Upper0;
+    let* () = check_commit rw c [ "a" ] "x" in
+    S.sync ro;
+    let* () = check_commit ro c [ "a" ] "x" in
+    check_upper ro "RO upper after recovery" `Upper0;
+    let* c = add_commit rw [ "b" ] "y" in
+    Log.app (fun l ->
+        l
+          "If recovery flag is set, freeze proceeds with recovery even when it \
+           isn't needed");
+    let* () =
+      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+    in
+    check_upper rw "Upper after freeze" `Upper1;
+    let* () = check_commit rw c [ "b" ] "y" in
+    S.sync ro;
+    check_upper ro "RO upper after freeze" `Upper1;
+    let* () = check_commit ro c [ "b" ] "y" in
+    let* () = S.Repo.close rw in
+    S.Repo.close ro
 end
 
 let tests =
@@ -298,4 +375,6 @@ let tests =
         Lwt_main.run (Test_corrupted_stores.test ()));
     Alcotest.test_case "Test integrity check on layered stores" `Quick
       (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
+    Alcotest.test_case "Test freeze lock on layered stores" `Quick (fun () ->
+        Lwt_main.run (Test_corrupted_stores.test_freeze_lock ()));
   ]

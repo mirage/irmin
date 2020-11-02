@@ -34,8 +34,6 @@ module type S = sig
 
   val lower : 'a t -> [ `Read ] L.t
 
-  val clear_previous_upper : 'a t -> unit Lwt.t
-
   include S.LAYERED_GENERAL with type 'a t := 'a t
 
   val clear_caches_next_upper : 'a t -> unit

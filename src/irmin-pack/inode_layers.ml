@@ -124,8 +124,6 @@ struct
 
   let update_flip = Inode.update_flip
 
-  let clear_previous_upper = Inode.clear_previous_upper
-
   let flush = Inode.flush
 
   let unsafe_find t k =

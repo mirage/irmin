@@ -60,9 +60,9 @@ struct
     mutable open_instances : int;
   }
 
-  let clear t =
+  let clear ?keep_generation t =
     Index.clear t.index;
-    IO.clear t.block;
+    IO.clear ?keep_generation t.block;
     Dict.clear t.dict
 
   let valid t =
@@ -110,8 +110,8 @@ struct
 
     type index = Index.t
 
-    let unsafe_clear t =
-      clear t.pack;
+    let unsafe_clear ?keep_generation t =
+      clear ?keep_generation t.pack;
       Tbl.clear t.staging;
       Lru.clear t.lru
 
@@ -299,6 +299,11 @@ struct
     let clear t =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
           unsafe_clear t;
+          pause ())
+
+    let clear_keep_generation t =
+      Lwt_mutex.with_lock t.pack.lock (fun () ->
+          unsafe_clear ~keep_generation:() t;
           pause ())
 
     let clear_caches t =
