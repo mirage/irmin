@@ -1,0 +1,19 @@
+NAME
+       irmin-fsck - Check Irmin data-stores.
+
+SYNOPSIS
+       irmin-fsck COMMAND ...
+
+COMMANDS
+       check
+           Check that the upper layer of the store is self contained.
+
+       stat
+           Print high-level statistics about the store.
+
+OPTIONS
+       --help[=FMT] (default=auto)
+           Show this help in format FMT. The value FMT must be one of `auto',
+           `pager', `groff' or `plain'. With `auto', the format is `pager` or
+           `plain' whenever the TERM env var is `dumb' or undefined.
+
