@@ -68,6 +68,9 @@
   - Added `Make_layered` functor, to construct layered stores from irmin-pack.
     (#882, @icristescu)
 
+  - Added `Make_checks`, which provides some offline checks for irmin-pack
+    stores. (#1117, @icristescu, @CraigFe)
+
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
