@@ -705,8 +705,9 @@ struct
             field "commit"
               ~typ:(non_null Lazy.(force commit))
               ~args:[]
-              ~resolve:(fun _ctx -> function
-                | `Added c | `Removed c | `Updated (_, c) -> c);
+              ~resolve:
+                (fun _ctx -> function
+                  | `Added c | `Removed c | `Updated (_, c) -> c);
           ]))
 
   let map_diff diff ~added ~removed ~updated =

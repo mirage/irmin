@@ -576,8 +576,7 @@ let dot =
                         your system and be sure it is available in your $PATH.");
                let i =
                  Sys.command
-                   (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename
-                      basename)
+                   (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
                in
                if i <> 0 then
                  Logs.err (fun f -> f "The %s.dot is corrupted" basename));

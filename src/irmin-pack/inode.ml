@@ -350,7 +350,8 @@ struct
         | Inodes t ->
             let _, entries =
               Array.fold_left
-                (fun (i, acc) -> function Empty -> (i + 1, acc)
+                (fun (i, acc) -> function
+                  | Empty -> (i + 1, acc)
                   | Inode inode ->
                       let hash = hash_of_inode inode in
                       (i + 1, { Bin.index = i; hash } :: acc))
