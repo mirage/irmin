@@ -27,22 +27,18 @@ let reset_stats () =
 
 type config = {
   ncommits : int;
-  nbatches : int;
+  ncycles : int;
   depth : int;
   root : string;
   clear : bool;
-  copy_in_upper : bool;
-  reader : bool;
   no_freeze : bool;
 }
 
-let index_log_size = Some 1_000
-
 let long_random_blob () = random_string 100
 
-let long_random_key () = random_string 100
+let random_blob () = random_string 10
 
-let keys : string list list ref = ref []
+let random_key () = random_string 3
 
 module Conf = struct
   let entries = 32
@@ -87,49 +83,21 @@ module FSHelper = struct
       (size upper1) (size upper0) (size lower)
 end
 
-module Concurrent = struct
-  (* Helpers for Unix pipe *)
-  let write input =
-    try
-      let m = Bytes.of_string (string_of_int (Unix.getpid ())) in
-      let n = Unix.write input m 0 (Bytes.length m) in
-      assert (n = Bytes.length m)
-    with Unix.Unix_error (n, f, arg) ->
-      Alcotest.failf "Unix error %s %s %s " f arg (Unix.error_message n)
+let configure_store root =
+  let conf =
+    Irmin_pack.config ~readonly:false ~fresh:true
+      ~index_throttle:`Overcommit_memory root
+  in
+  Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
+    ~copy_in_upper:true ()
 
-  let read output =
-    let buff = Bytes.create 5 in
-    match Unix.read output buff 0 5 with
-    | 0 -> Alcotest.fail "Something wrong when reading from the pipe"
-    | n -> int_of_string (Bytes.to_string (Bytes.sub buff 0 n))
-
-  let wait pid =
-    Lwt_unix.waitpid [ Unix.WUNTRACED ] pid >>= fun (pid', status) ->
-    if pid <> pid' then
-      Alcotest.failf "I'm %d, expecting child %d, but got %d instead"
-        (Unix.getpid ()) pid pid';
-    match status with
-    | Unix.WEXITED 0 ->
-        Logs.debug (fun l -> l "Child %d finished work" pid);
-        Lwt.return_unit
-    | Unix.WSTOPPED s ->
-        Alcotest.failf "Child %d died unexpectedly stopped by %d" pid s
-    | Unix.WEXITED s ->
-        Alcotest.failf "Child %d died unexpectedly exited with %d" pid s
-    | Unix.WSIGNALED s ->
-        Alcotest.failf "Child %d died unexpectedly signaled by %d" pid s
-end
-
-let configure_store ?(readonly = false) ?(fresh = true)
-    ?(copy_in_upper = Conf.copy_in_upper) root =
-  let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
-  Irmin_pack.config_layers ~conf ~copy_in_upper ()
+let verbose = ref false
 
 let init config =
   rm_dir config.root;
   Fmt_tty.setup_std_outputs ();
   Logs.set_level (Some Logs.App);
-  Logs.set_reporter (reporter ());
+  if !verbose then Logs.set_reporter (reporter ());
   reset_stats ()
 
 let info () =
@@ -137,40 +105,66 @@ let info () =
   let author = Printf.sprintf "TESTS" in
   Irmin.Info.v ~date ~author "commit "
 
-let key conf =
+let key depth =
   let rec go i acc =
-    if i = conf.depth then acc
+    if i >= depth then acc
     else
-      let k = long_random_key () in
+      let k = random_key () in
       go (i + 1) (k :: acc)
   in
   go 0 []
 
-let generate_keys conf =
-  let rec go i =
-    if i = conf.ncommits then ()
+let large_dir path tree width =
+  let rec aux i tree k =
+    if i >= width then Lwt.return (k, tree)
     else
-      let k = key conf in
-      keys := k :: !keys;
-      go (i + 1)
+      let k = path @ [ random_key (); random_key () ] in
+      Store.Tree.add tree k (random_blob ()) >>= fun tree ->
+      aux (i + 1) tree (Some k)
   in
-  go 0
+  aux 0 tree None >|= fun (path, tree) -> (Option.get path, tree)
 
-let add_tree ?i conf tree =
-  let k = match i with None -> key conf | Some i -> List.nth !keys i in
+let add_large_tree tree =
+  let path = key 5 in
+  (* large_dir path tree 256 >>= fun (path, tree) -> *)
+  (* let path = path @ key 5 in *)
+  large_dir path tree 256 >>= fun (path, tree) ->
+  let path = path @ key 5 in
+  Store.Tree.add tree path (long_random_blob ())
+
+(* large_dir path tree 256 >|= fun (_, tree) -> tree *)
+
+let chain_tree tree root depth =
+  let rec aux i tree =
+    if i >= depth / 2 then Lwt.return tree
+    else
+      let k = root :: key depth in
+      Store.Tree.add tree k (random_blob ()) >>= fun tree -> aux (i + 1) tree
+  in
+  aux 0 tree
+
+let add_small_tree conf tree =
   let tree = if conf.clear then Store.Tree.empty else tree in
-  Store.Tree.add tree k (long_random_blob ())
+  let k = random_key () in
+  chain_tree tree k conf.depth
+
+(* let rec aux i tree path =
+        if i >= conf.depth then Lwt.return tree
+        else large_dir path tree 9 >>= fun (path, tree) -> aux (i + 1) tree path
+      in
+   aux 0 tree [ random_key () ] *)
 
 let init_commit repo =
   Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
 
-let checkout_and_commit ?i config repo c =
+let checkout_and_commit config repo c nb =
   Store.Commit.of_hash repo c >>= function
   | None -> Lwt.fail_with "commit not found"
   | Some commit ->
       let tree = Store.Commit.tree commit in
-      add_tree ?i config tree >>= fun tree ->
-      Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
+      (if nb mod 1000 = 0 then add_large_tree tree
+      else add_small_tree config tree)
+      >>= fun tree -> Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
 
 let with_timer f =
   let t0 = Sys.time () in
@@ -178,9 +172,19 @@ let with_timer f =
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
+let total = ref 0
+
+let pp_commit_stats c i time =
+  let num_objects = Irmin_layers.Stats.get_adds () in
+  total := !total + num_objects;
+  Irmin_layers.Stats.reset_adds ();
+  if !verbose then
+    Logs.app (fun l ->
+        l "Commit %a %d in cycle completed in %f; objects created = %d"
+          Store.Commit.pp_hash c i time num_objects)
+  else Fmt.epr "%f\n%!" time
+
 let print_stats () =
-  let s = Irmin_pack.Stats.get () in
-  let i = Index.Stats.get () in
   let t = Irmin_layers.Stats.get () in
   let copied_objects =
     List.map2 (fun x y -> x + y) t.copied_contents t.copied_commits
@@ -188,176 +192,121 @@ let print_stats () =
     |> List.map2 (fun x y -> x + y) t.copied_branches
   in
   let pp_comma ppf () = Fmt.pf ppf "," in
-  Logs.app (fun l ->
-      l
-        "Irmin stats : finds = %d cache_misses= %d appended_hashes= %d \
-         appended_offsets= %d \n\
-         Index stats:         nb_reads = %d nb_writes = %d \n\
-         Irmin-layers stats : nb_freeze = %d copied_objects = %a \
-         waiting_freeze  = %a completed_freeze = %a \n\
-         Lwt engine stats: readable = %d, writable = %d, timer = %d" s.finds
-        s.cache_misses s.appended_hashes s.appended_offsets i.nb_reads
-        i.nb_writes t.nb_freeze
-        Fmt.(list ~sep:pp_comma int)
-        copied_objects
-        Fmt.(list ~sep:pp_comma float)
-        t.waiting_freeze
-        Fmt.(list ~sep:pp_comma float)
-        t.completed_freeze
-        (Lwt_engine.readable_count ())
-        (Lwt_engine.writable_count ())
-        (Lwt_engine.timer_count ()))
+  if !verbose then
+    Logs.app (fun l ->
+        l
+          "Irmin-layers stats: nb_freeze = %d copied_objects = %a \
+           waiting_freeze = %a completed_freeze = %a, objects added in upper \
+           since last freeze = %d"
+          t.nb_freeze
+          Fmt.(list ~sep:pp_comma int)
+          copied_objects
+          Fmt.(list ~sep:pp_comma float)
+          t.waiting_freeze
+          Fmt.(list ~sep:pp_comma float)
+          t.completed_freeze !total);
+  total := 0
 
-let write_batch ?(generated_keys = false) config repo init_commit =
-  let rec go (times, c) i =
-    if i = config.ncommits then Lwt.return (List.rev times, c)
+let write_cycle config repo init_commit =
+  let rec go c i =
+    if i = config.ncommits then Lwt.return c
     else
-      let hash_c = Store.Commit.hash c in
-      let commit =
-        if generated_keys then checkout_and_commit ~i config
-        else checkout_and_commit config
-      in
-      with_timer (fun () -> commit repo hash_c) >>= fun (time, c') ->
-      go (time :: times, c') (i + 1)
+      with_timer (fun () ->
+          checkout_and_commit config repo (Store.Commit.hash c) i)
+      >>= fun (time, c') ->
+      pp_commit_stats c' i time;
+      go c' (i + 1)
   in
-  go ([], init_commit) 0
-
-let write_keys config repo c = write_batch ~generated_keys:true config repo c
+  go init_commit 0
 
 let freeze ~min_upper ~max config repo =
   if config.no_freeze then Lwt.return_unit
   else Store.freeze ~max ~min_upper repo
 
-let read_batch store =
-  let find key =
-    Store.find store key >|= function
-    | None -> failwith "RO does not find key"
-    | Some _ -> ()
-  in
-  Lwt_list.fold_left_s
-    (fun acc key ->
-      with_timer (fun () -> find key) >|= fun (time, ()) -> time :: acc)
-    [] !keys
-  >|= List.rev
-
 let pp_float ppf x = Fmt.pf ppf "%f\n" x
 
-let run_batches config repo init_commit =
-  let rec go min i =
-    if i = config.nbatches then Lwt.return min
-    else
-      write_batch config repo min >>= fun (times, max) ->
-      if not config.reader then (
-        Fmt.epr "write batch :\n%a\n%!" (Fmt.list pp_float) times;
-        print_stats ());
-      with_timer (fun () -> freeze ~min_upper:[ min ] ~max:[ max ] config repo)
-      >>= fun (t, ()) ->
-      Fmt.epr "Freeze %f\n%!" t;
-      go max (i + 1)
+let min_uppers = Queue.create ()
+
+let add_min c = Queue.add c min_uppers
+
+let consume_min () = Queue.pop min_uppers
+
+let first_5_cycles config repo =
+  init_commit repo >>= fun c ->
+  pp_commit_stats c 0 0.0;
+  let rec aux i c =
+    add_min c;
+    if i >= 4 then Lwt.return c
+    else write_cycle config repo c >>= fun c -> aux (i + 1) c
   in
-  go init_commit 0
+  aux 0 c
+
+let run_cycles config repo head =
+  let rec run_one_cycle head i =
+    if i = config.ncycles then Lwt.return head
+    else
+      write_cycle config repo head >>= fun max ->
+      print_stats ();
+      let min = consume_min () in
+      add_min max;
+      with_timer (fun () -> freeze ~min_upper:[ min ] ~max:[ max ] config repo)
+      >>= fun (time, ()) ->
+      if !verbose then
+        Logs.app (fun l -> l "call to freeze completed in %f" time)
+      else Fmt.epr "%f\n%!" time;
+      run_one_cycle max (i + 1)
+  in
+  run_one_cycle head 0
 
 let rw config =
-  let conf = configure_store config.root ~copy_in_upper:config.copy_in_upper in
-  Store.Repo.v conf >>= fun repo ->
-  Store.master repo >|= fun store -> (repo, store)
-
-let worker_thread config r_pipe =
-  let ro_conf = configure_store ~readonly:true ~fresh:false config.root in
-  ignore (Concurrent.read r_pipe);
-  let rec read i =
-    if i = 20 then Lwt.return_unit
-    else
-      let sec = 0.2 *. float_of_int i in
-      Lwt_unix.sleep sec >>= fun () ->
-      Store.Repo.v ro_conf >>= fun repo ->
-      Store.master repo >>= fun store ->
-      read_batch store >>= fun times ->
-      Store.Repo.close repo >>= fun () ->
-      Fmt.epr "read batch :\n%a\n%!" (Fmt.list pp_float) times;
-      read (i + 1)
-  in
-  read 0
+  let conf = configure_store config.root in
+  Store.Repo.v conf
 
 let close repo =
   with_timer (fun () -> Store.Repo.close repo) >|= fun (t, ()) ->
-  Fmt.epr "close %f\n%!" t
-
-let concurrent_reads config =
-  generate_keys config;
-  let read_worker, write_main = Unix.pipe () in
-  match Lwt_unix.fork () with
-  | 0 ->
-      Printexc.record_backtrace true;
-      Fmt_tty.setup_std_outputs ();
-      Logs.set_level (Some Logs.App);
-      Logs.set_reporter (reporter ());
-      Logs.debug (fun l -> l "Worker %d created" (Unix.getpid ()));
-      worker_thread config read_worker >|= fun () -> exit 0
-  | pid ->
-      init config;
-      Logs.debug (fun l -> l "Main %d started" (Unix.getpid ()));
-      rw config >>= fun (repo, _store) ->
-      init_commit repo >>= fun c ->
-      Logs.debug (fun l -> l "Write keys to be read by the readonly process");
-      write_keys config repo c >>= fun (_times, c) ->
-      Store.Branch.set repo "master" c >>= fun () ->
-      Store.flush repo;
-      with_timer (fun () -> freeze ~min_upper:[] ~max:[ c ] config repo)
-      >>= fun (t, ()) ->
-      Fmt.epr "freeze %f\n%!" t;
-      Concurrent.write write_main;
-      run_batches config repo c >>= fun _ ->
-      Concurrent.wait pid >>= fun () ->
-      Unix.close read_worker;
-      Unix.close write_main;
-      close repo
+  if !verbose then Logs.app (fun l -> l "close %f" t)
 
 let run config =
-  (if config.reader then concurrent_reads config
-  else (
-    init config;
-    rw config >>= fun (repo, _store) ->
-    init_commit repo >>= fun c ->
-    run_batches config repo c >>= fun _ -> close repo))
-  >|= fun () ->
-  Fmt.epr "After freeze thread finished : ";
-  FSHelper.print_size config.root
+  init config;
+  rw config >>= fun repo ->
+  first_5_cycles config repo >>= fun c ->
+  Memtrace.trace_if_requested ();
+  run_cycles config repo c >>= fun _ ->
+  close repo >|= fun () ->
+  if !verbose then (
+    Fmt.epr "After freeze thread finished : ";
+    FSHelper.print_size config.root)
 
-let main ncommits nbatches depth clear copy_in_upper reader no_freeze =
+let main ncommits ncycles depth clear no_freeze vv =
+  verbose := vv;
   let config =
-    {
-      ncommits;
-      nbatches;
-      depth;
-      root = "test-bench";
-      clear;
-      copy_in_upper;
-      reader;
-      no_freeze;
-    }
+    { ncommits; ncycles; depth; root = "test-bench"; clear; no_freeze }
   in
-  Fmt.epr
-    "Benchmarking ./%s with depth = %d, ncommits/batch = %d, nbatches = %d, \
-     clear = %b, copy_in_upper  = %b reader = %b no_freeze = %b \n\
-     %!"
-    config.root config.depth config.ncommits config.nbatches config.clear
-    config.copy_in_upper config.reader config.no_freeze;
+  Logs.app (fun l ->
+      l
+        "Benchmarking ./%s with depth = %d, ncommits/cycle = %d, ncycles = %d, \
+         clear = %b, no_freeze = %b. Each commit adds small trees (9 * depth \
+         objects); every 100th commit adds\n\
+        \     a large tree (256 *3 + 8 objects). First 5 cycles run without \
+         freeze, after that each cycle calls freeze once and copies the last 5 \
+         cycles."
+        config.root config.depth config.ncommits config.ncycles config.clear
+        config.no_freeze);
   Lwt_main.run (run config)
 
 open Cmdliner
 
 let ncommits =
-  let doc = Arg.info ~doc:"Number of commits per batch." [ "n"; "ncommits" ] in
-  Arg.(value @@ opt int 50 doc)
+  let doc = Arg.info ~doc:"Number of commits per cycle." [ "n"; "ncommits" ] in
+  Arg.(value @@ opt int 4096 doc)
 
-let nbatches =
-  let doc = Arg.info ~doc:"Number of batches." [ "b"; "nbatches" ] in
-  Arg.(value @@ opt int 5 doc)
+let ncycles =
+  let doc = Arg.info ~doc:"Number of cycles." [ "b"; "ncycles" ] in
+  Arg.(value @@ opt int 10 doc)
 
 let depth =
   let doc = Arg.info ~doc:"Depth of a commit's tree." [ "d"; "depth" ] in
-  Arg.(value @@ opt int 1000 doc)
+  Arg.(value @@ opt int 10 doc)
 
 let clear =
   let doc =
@@ -365,30 +314,16 @@ let clear =
   in
   Arg.(value @@ opt bool false doc)
 
-let copy_in_upper =
-  let doc =
-    Arg.info ~doc:"Freeze with copy_in_upper." [ "k"; "copy_in_upper" ]
-  in
-  Arg.(value @@ opt bool true doc)
-
-let reader =
-  let doc = Arg.info ~doc:"Benchmark RO reads." [ "r"; "reader" ] in
-  Arg.(value @@ opt bool false doc)
-
 let no_freeze =
   let doc = Arg.info ~doc:"Without freeze." [ "f"; "no_freeze" ] in
   Arg.(value @@ opt bool false doc)
 
+let verbose =
+  let doc = Arg.info ~doc:"Report more stats." [ "v"; "verbose" ] in
+  Arg.(value @@ flag doc)
+
 let main_term =
-  Term.(
-    const main
-    $ ncommits
-    $ nbatches
-    $ depth
-    $ clear
-    $ copy_in_upper
-    $ reader
-    $ no_freeze)
+  Term.(const main $ ncommits $ ncycles $ depth $ clear $ no_freeze $ verbose)
 
 let () =
   let info = Term.info "Benchmarks for layered store" in
