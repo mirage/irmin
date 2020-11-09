@@ -20,6 +20,20 @@ include Tree_intf
 
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
+module Result_lwt = struct
+  let return x = Lwt.return (Ok x)
+
+  let fail x = Lwt.return (Error x)
+
+  let ( >>=? ) x f = x >>= function Ok x -> f x | Error _ as e -> Lwt.return e
+
+  let ( >>| ) x f = x >|= function Ok x -> Ok (f x) | Error _ as e -> e
+
+  let ( let*? ) = ( >>=? )
+
+  let ( let+? ) = ( >>| )
+end
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let option_of_result = function Ok x -> Some x | Error _ -> None
@@ -100,22 +114,30 @@ module Make (P : S.PRIVATE) = struct
 
   module StepMap = struct
     module X = struct
-      type t = Path.step
-
-      let t = Path.step_t
+      type t = Path.step [@@deriving irmin]
 
       let compare = Type.compare Path.step_t
     end
 
     include Map.Make (X)
     include Merge.Map (X)
+
+    let fold_result_lwt f m a =
+      let open Result_lwt in
+      fold (fun k v acc -> acc >>=? f k v) m a
+
+    let mapi_result_lwt f m =
+      let open Result_lwt in
+      fold_result_lwt
+        (fun k v acc -> f k v >>| fun v' -> add k v' acc)
+        m (return empty)
   end
 
   module Metadata = P.Node.Metadata
 
   type key = Path.t
 
-  type hash = P.Hash.t
+  type hash = P.Hash.t [@@deriving irmin]
 
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
 
@@ -124,7 +146,9 @@ module Make (P : S.PRIVATE) = struct
     | Error (`Dangling_hash hash) ->
         Fmt.failwith "Encountered dangling hash %a" (Type.pp P.Hash.t) hash
 
-  type step = Path.step
+  type step = Path.step [@@deriving irmin]
+
+  type metadata = Metadata.t [@@deriving irmin]
 
   type contents = P.Contents.value
 
@@ -838,8 +862,6 @@ module Make (P : S.PRIVATE) = struct
 
   type node = Node.t [@@deriving irmin]
 
-  type metadata = Metadata.t
-
   type t = [ `Node of node | `Contents of P.Contents.Val.t * Metadata.t ]
   [@@deriving irmin { name = "tree_t" }]
 
@@ -1434,4 +1456,167 @@ module Make (P : S.PRIVATE) = struct
           | Map _ -> `Map
           | Value _ -> `Value
           | Hash _ -> `Hash)
+
+  module Proof = struct
+    type blinded = [ `Node | `Contents of metadata ] * hash [@@deriving irmin]
+
+    type t =
+      | Hole
+      | Node of { unblinded : t StepMap.t; blinded : blinded StepMap.t }
+
+    type proof = t
+
+    type path_diff = { path : Path.t; computed : blinded; required : blinded }
+    [@@deriving irmin]
+
+    (** Simple view on proofs to be used for generic operations *)
+    module Concrete = struct
+      type t =
+        | Hole
+        | Node of (step * [ `Blinded of blinded | `Unblinded of t ]) list (* Sorted by [step] *)
+      [@@deriving irmin]
+
+      let rec of_proof : proof -> t = function
+        | Hole -> Hole
+        | Node { blinded; unblinded } ->
+            let map =
+              StepMap.union
+                (fun _ -> assert false)
+                (StepMap.map (fun x -> `Blinded x) blinded)
+                (StepMap.map (fun x -> `Unblinded (of_proof x)) unblinded)
+            in
+            Node (StepMap.bindings map)
+
+      let rec to_proof : t -> proof = function
+        | Hole -> Hole
+        | Node bs ->
+            let blinded, unblinded =
+              List.fold_left
+                (fun (blinded, unblinded) -> function
+                  | k, `Blinded b -> (StepMap.add k b blinded, unblinded)
+                  | k, `Unblinded x ->
+                      (blinded, StepMap.add k (to_proof x) unblinded))
+                (StepMap.empty, StepMap.empty)
+                bs
+            in
+            Node { blinded; unblinded }
+    end
+
+    let t = Type.map Concrete.t Concrete.to_proof Concrete.of_proof
+
+    let empty = Hole
+
+    let tree_of_node_elt =
+      let open Result_lwt in
+      function
+      | `Node n -> return (`Node n)
+      | `Contents (c, meta) -> Contents.force c >>| fun c -> `Contents (c, meta)
+
+    let node_elt_of_tree = function
+      | `Node n -> `Node n
+      | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
+
+    let blinded_of_node_hash = function
+      | `Node h -> (`Node, h)
+      | `Contents (h, meta) -> (`Contents meta, h)
+
+    let blinded_of_node_elt = function
+      | `Node n -> (`Node, Node.hash n)
+      | `Contents (c, meta) -> (`Contents meta, Contents.hash c)
+
+    let rec of_path tree path : (t, _) result Lwt.t =
+      let open Result_lwt in
+      match (tree, Path.decons path) with
+      | _, None -> return Hole
+      | `Contents _, Some _ -> fail `Invalid_path
+      | `Node n, Some (step, path) -> (
+          let*? m = Node.to_map n in
+          match StepMap.find_opt step m with
+          | None -> fail `Invalid_path
+          | Some node_elt ->
+              let blinded =
+                m |> StepMap.remove step |> StepMap.map blinded_of_node_elt
+              in
+              let*? child = tree_of_node_elt node_elt in
+              let+? unblinded = of_path child path >>| StepMap.singleton step in
+              Node { blinded; unblinded })
+
+    let rec full :
+        type a. [ `Contents of a | `Node of node ] -> (t, _) result Lwt.t =
+     fun tree ->
+      let open Result_lwt in
+      match tree with
+      | `Contents _ -> return Hole
+      | `Node n ->
+          let*? m = Node.to_map n in
+          let*? unblinded =
+            StepMap.mapi_result_lwt
+              (fun _ elt -> tree_of_node_elt elt >>=? full)
+              m
+          in
+          return @@ Node { unblinded; blinded = StepMap.empty }
+
+    let rec recompute rev_path p t : (blinded, _) result Lwt.t =
+      let open Result_lwt in
+      match (p, t) with
+      | Hole, n -> return (blinded_of_node_elt n)
+      | Node _, `Contents _ -> fail `Invalid_path
+      | Node { blinded; unblinded }, `Node n ->
+          let*? m = Node.to_map n in
+          let*? recomputed_blinds =
+            unblinded
+            |> StepMap.mapi_result_lwt (fun k sub_proof ->
+                   match StepMap.find_opt k m with
+                   | None -> fail `Invalid_path
+                   | Some elt -> recompute (k :: rev_path) sub_proof elt)
+          in
+          let blinded =
+            StepMap.union
+              (fun _ -> (* TODO: sensible error *) assert false)
+              recomputed_blinds blinded
+          in
+          if StepMap.cardinal blinded <> StepMap.cardinal m then
+            fail `Invalid_path
+          else
+            (* Hash each child in [m], and ensure that this is consistent with
+               the proof *)
+            let*? () =
+              StepMap.fold_result_lwt
+                (fun k v () ->
+                  match StepMap.find_opt k blinded with
+                  | None -> fail `Invalid_path
+                  | Some computed ->
+                      let required = blinded_of_node_elt v in
+                      if computed <> required then
+                        let path =
+                          let step_list = List.rev (k :: rev_path) in
+                          List.fold_right Path.cons step_list Path.empty
+                        in
+                        fail (`Different_hashes { path; computed; required })
+                      else return ())
+                m (return ())
+            in
+            return (blinded_of_node_elt t)
+
+    let verify =
+      let open Result_lwt in
+      fun p t ->
+        let*? computed_hash = recompute [] p (node_elt_of_tree t) in
+        let required_hash = blinded_of_node_hash (hash t) in
+        if computed_hash <> required_hash then
+          fail
+            (`Different_hashes
+              {
+                path = Path.empty;
+                computed = computed_hash;
+                required = required_hash;
+              })
+        else return ()
+
+    let verify_on_path _ = assert false
+
+    let blinding_of _ = assert false
+
+    let merge _ = assert false
+  end
 end

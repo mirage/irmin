@@ -73,7 +73,9 @@ module type S = sig
 
   (** {1 Manipulating Contents} *)
 
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
+  type dangling_hash := [ `Dangling_hash of hash ]
+
+  type 'a or_error = ('a, [ | dangling_hash ]) result
   (** Operations on lazy nodes can fail if the underlying store does not contain
       the expected hash. *)
 
@@ -144,6 +146,66 @@ module type S = sig
         cleared. *)
   end
 
+  (** Verifiable inclusion proofs for subtrees of an Irmin tree. *)
+  module Proof : sig
+    type tree
+
+    type t [@@deriving irmin]
+    (** The type of inclusion proofs that assert the existence of substructure
+        in a tree. *)
+
+    (** {2 Constructing inclusion proofs} *)
+
+    type invalid_path := [ `Invalid_path ]
+
+    val of_path :
+      tree -> key -> (t, [> dangling_hash | invalid_path ]) result Lwt.t
+    (** [of_path t k] is the proof that asserts the existence of the subtree at
+        key [k] in [t] (if it exists). *)
+
+    val merge : t -> t -> t option
+    (** [merge p1 p2] is the smallest inclusion proof that asserts the inclusion
+        of all subtrees asserted by [p1] and [p2], or [None] if the two proofs
+        have conflicting tree structures. *)
+
+    val empty : t
+    (** The empty inclusion proof. The identity element of {!merge}, and the
+        bottom element of the {!blinding_of} relation. *)
+
+    val full : tree -> (t, [> dangling_hash | invalid_path ]) result Lwt.t
+    (** The proof which asserts the entire structure of a given tree. *)
+
+    (** {2 Verifying inclusion proofs} *)
+
+    type binding := [ `Contents of metadata | `Node ] * hash
+
+    type path_diff = { path : key; computed : binding; required : binding }
+    [@@deriving irmin]
+
+    type verify_errors :=
+      [ dangling_hash | invalid_path | `Different_hashes of path_diff ]
+
+    val verify : t -> tree -> (unit, [> verify_errors ]) result Lwt.t
+    (** [verify p t] is [true] iff [p].
+
+        This is morally equivalent to [blinding_of p (full t)]. *)
+
+    val verify_on_path :
+      t -> tree -> key -> (unit, [> verify_errors ]) result Lwt.t
+    (** [verify_on_path p t k] is [true] iff [p] is a valid inclusion proof of
+        the subtree at [key] in [parent].
+
+        This is morally equivalent to [blinding_of (of_path t k) p], but more
+        performant. *)
+
+    val blinding_of : t -> t -> bool
+    (** [blinding_of p1 p2] is true iff [p1] asserts a subset of the inclusion
+        properties that [p2] asserts. That is, if [p1] is consistent with [p2]
+        and does not reveal any more information than [p2]. {!merge} computes
+        the least-upper-bound of this relation. *)
+  end
+  with type tree := t
+
   val mem_tree : t -> key -> bool Lwt.t
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
@@ -210,8 +272,8 @@ module type S = sig
   (** {1 Stats} *)
 
   type stats = {
-    nodes : int;  (** Number of node. *)
-    leafs : int;  (** Number of leafs. *)
+    nodes : int;  (** Number of nodes. *)
+    leafs : int;  (** Number of leaves. *)
     skips : int;  (** Number of lazy nodes. *)
     depth : int;  (** Maximal depth. *)
     width : int;  (** Maximal width. *)
@@ -229,10 +291,8 @@ module type S = sig
 
   type concrete =
     [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
+  [@@deriving irmin]
   (** The type for concrete trees. *)
-
-  val concrete_t : concrete Type.t
-  (** The value-type for {!concrete}. *)
 
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
