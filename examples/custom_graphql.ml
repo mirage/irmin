@@ -5,7 +5,7 @@ module Car = struct
 
   type t = {
     license : string;
-    year : int;
+    year : int32;
     make_and_model : string * string;
     color : color;
     owner : string;
@@ -41,7 +41,7 @@ module Custom_types = struct
               field "license" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> car.Car.license);
               field "year" ~typ:(non_null int) ~args:[] ~resolve:(fun _ car ->
-                  car.Car.year);
+                  Int32.to_int car.Car.year);
               field "make" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> fst car.Car.make_and_model);
               field "model" ~typ:(non_null string) ~args:[]
@@ -67,7 +67,13 @@ module Custom_types = struct
               arg "owner" ~typ:(non_null string);
             ]
           ~coerce:(fun license year make model color owner ->
-            { Car.license; year; make_and_model = (make, model); color; owner }))
+            {
+              Car.license;
+              year = Int32.of_int year;
+              make_and_model = (make, model);
+              color;
+              owner;
+            }))
   end
 end
 
