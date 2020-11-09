@@ -130,7 +130,8 @@ module type S = sig
       ?node:(hash -> unit Lwt.t) ->
       ?contents:(hash * metadata -> unit Lwt.t) ->
       ?edge:(hash -> hash -> unit Lwt.t) ->
-      ?skip:(hash -> bool Lwt.t) ->
+      ?skip_nodes:(hash -> bool Lwt.t) ->
+      ?skip_contents:(hash * metadata -> bool Lwt.t) ->
       ?rev:bool ->
       unit ->
       unit Lwt.t

@@ -108,6 +108,7 @@ val config_layers :
   ?upper_root0:string ->
   ?copy_in_upper:bool ->
   ?with_lower:bool ->
+  ?blocking_copy_size:int ->
   unit ->
   Irmin.config
 

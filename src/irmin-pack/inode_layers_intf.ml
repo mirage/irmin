@@ -55,6 +55,10 @@ module type S = sig
   val flush : ?index:bool -> 'a t -> unit
 
   val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
+
+  val unsafe_consume_newies : unit -> key list
+
+  val consume_newies : 'a t -> key list Lwt.t
 end
 
 module type Inode_layers = sig

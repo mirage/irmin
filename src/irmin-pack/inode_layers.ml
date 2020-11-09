@@ -118,9 +118,9 @@ struct
 
   let current_upper = Inode.current_upper
 
-  let copy_newies_to_next_upper = Inode.copy_newies_to_next_upper
+  let unsafe_consume_newies = Inode.unsafe_consume_newies
 
-  let copy_last_newies_to_next_upper = Inode.copy_last_newies_to_next_upper
+  let consume_newies = Inode.consume_newies
 
   let update_flip = Inode.update_flip
 

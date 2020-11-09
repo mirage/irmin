@@ -39,10 +39,6 @@ module type LAYERED_GENERAL = sig
   val update_flip : flip:bool -> _ t -> unit
 
   val flip_upper : _ t -> unit
-
-  val copy_newies_to_next_upper : _ t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : _ t -> unit Lwt.t
 end
 
 module type LAYERED = sig
@@ -88,4 +84,8 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
   val flush_next_lower : t -> unit
 
   val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
+
+  val copy_newies_to_next_upper : t -> unit Lwt.t
+
+  val copy_last_newies_to_next_upper : t -> unit Lwt.t
 end

@@ -936,4 +936,36 @@ module Make_Layered (S : LAYERED_STORE) = struct
       add_and_find_commit ~hook:after_clear t v6 >>= fun () -> S.Repo.close repo
     in
     run x test
+
+  let test_add_again x () =
+    let test repo =
+      S.master repo >>= fun t ->
+      S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 >>= fun tree ->
+      S.set_tree_exn ~parents:[] ~info:(infof "v1") t [] tree >>= fun () ->
+      S.Tree.add S.Tree.empty [ "a"; "d" ] v2 >>= fun tree ->
+      S.set_tree_exn ~parents:[] ~info:(infof "v2") t [] tree >>= fun () ->
+      let add_commit () =
+        S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 >>= fun tree ->
+        S.Tree.add tree [ "a"; "e" ] v3 >>= fun tree ->
+        S.set_tree_exn ~parents:[] ~info:(infof "v3") t [] tree
+      in
+      let hook, p = before_copy add_commit in
+      S.PrivateLayer.freeze' repo ~hook ~copy_in_upper:true ~squash:true
+      >>= fun () ->
+      p >>= fun () ->
+      S.PrivateLayer.wait_for_freeze () >>= fun () ->
+      S.Repo.close repo >>= fun () ->
+      S.Repo.v x.config >>= fun repo ->
+      S.master repo >>= fun t ->
+      S.Head.get t >>= fun c ->
+      fail_with_none
+        (S.Commit.of_hash repo (S.Commit.hash c))
+        "no hash found in repo"
+      >>= fun commit ->
+      let tree = S.Commit.tree commit in
+      S.Tree.find tree [ "a"; "b"; "c" ] >>= fun v' ->
+      Alcotest.(check (option string)) "v" v' (Some v1);
+      S.Repo.close repo
+    in
+    run x test
 end

@@ -24,8 +24,6 @@ let pp_version = IO.pp_version
 
 let ( // ) = Filename.concat
 
-let newies_limit = 64L
-
 let ( -- ) = Int64.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
@@ -50,6 +48,8 @@ module Default = struct
   let copy_in_upper = false
 
   let with_lower = true
+
+  let blocking_copy_size = 64
 end
 
 module Conf = Irmin.Private.Conf
@@ -83,15 +83,25 @@ let with_lower_key =
 
 let with_lower conf = Conf.get conf with_lower_key
 
+let blocking_copy_size_key =
+  Conf.key
+    ~doc:
+      "Specify the maximum size (in bytes) that can be copied in the blocking \
+       portion of the freeze."
+    "blocking-copy" Conf.int Default.blocking_copy_size
+
+let blocking_copy_size conf = Conf.get conf blocking_copy_size_key
+
 let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
     ?(upper_root1 = Default.upper_root1) ?(upper_root0 = Default.upper_root0)
     ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
-    () =
+    ?(blocking_copy_size = Default.blocking_copy_size) () =
   let config = Conf.add conf lower_root_key lower_root in
   let config = Conf.add config upper_root1_key upper_root1 in
   let config = Conf.add config upper_root0_key upper_root0 in
   let config = Conf.add config copy_in_upper_key copy_in_upper in
   let config = Conf.add config with_lower_key with_lower in
+  let config = Conf.add config blocking_copy_size_key blocking_copy_size in
   config
 
 let freeze_lock = Lwt_mutex.create ()
@@ -537,34 +547,6 @@ struct
       let upper_in_use t = if t.flip then `Upper1 else `Upper0
 
       let offset t = Contents.CA.offset t.contents
-
-      (** Newies are the objects added in current upper during the freeze. They
-          are copied to the next upper before the freeze ends. We do not lock
-          this operation if we have to copy more than [newies_limit] bytes. If
-          there are fewer newies than that then [copy_last_newies_to_next_upper]
-          is called right after. *)
-      let rec copy_newies_to_next_upper t former_offset =
-        let offset = offset t in
-        if offset -- former_offset >= newies_limit then
-          let f : unit Lwt.t Iterate.store_fn =
-            {
-              f =
-                (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
-                  C.copy_newies_to_next_upper x);
-            }
-          in
-          Iterate.iter_lwt f t >>= fun () -> copy_newies_to_next_upper t offset
-        else Lwt.return_unit
-
-      let copy_last_newies_to_next_upper t =
-        let f : unit Lwt.t Iterate.store_fn =
-          {
-            f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
-                C.copy_last_newies_to_next_upper x);
-          }
-        in
-        Iterate.iter_lwt f t
     end
   end
 
@@ -611,19 +593,19 @@ struct
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
 
-    let mem_commit_upper t = X.Commit.CA.mem_next t.X.Repo.commit
+    let mem_commit_next t = X.Commit.CA.mem_next t.X.Repo.commit
 
     let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
 
-    let mem_node_upper t = X.Node.CA.mem_next t.X.Repo.node
+    let mem_node_next t = X.Node.CA.mem_next t.X.Repo.node
 
     let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
 
-    let mem_contents_upper t = X.Contents.CA.mem_next t.X.Repo.contents
+    let mem_contents_next t = X.Contents.CA.mem_next t.X.Repo.contents
 
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
-        ~mem_commit_upper:(mem_commit_upper t) t.X.Repo.branch
+        ~mem_commit_upper:(mem_commit_next t) t.X.Repo.branch
 
     let skip_with_stats ~skip h =
       pause () >>= fun () ->
@@ -633,25 +615,25 @@ struct
           true
       | false -> false
 
-    let copy_tree ~skip ~skip_contents nodes contents t root =
-      (* if node are already in dst then they are skipped by Graph.iter; there
-         is no need to check this again when the node is copied *)
+    let copy_tree ~skip_nodes ~skip_contents nodes contents t root =
+      (* if node or contents are already in dst then they are skipped by
+         Graph.iter; there is no need to check this again when the object is
+         copied *)
       let node k =
         pause () >>= fun () -> X.Node.CA.copy nodes t.X.Repo.node k >>= pause
       in
-      (* we need to check that the contents is not already in dst, to avoid
-         copying it again *)
       let contents (k, _) =
-        skip_with_stats ~skip:skip_contents k >>= function
-        | false -> X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
-        | true -> Lwt.return_unit
+        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
       in
-      let skip h = skip_with_stats ~skip h in
-      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip ()
+      let skip_nodes h = skip_with_stats ~skip:skip_nodes h in
+      let skip_contents h = skip_with_stats ~skip:skip_contents h in
+      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_nodes
+        ~skip_contents ()
 
-    let copy_commit ~skip ~skip_contents contents nodes commits t k =
+    let copy_commit ~skip_nodes ~skip_contents contents nodes commits t k =
       let aux c =
-        copy_tree ~skip ~skip_contents nodes contents t (X.Commit.Val.node c)
+        copy_tree ~skip_nodes ~skip_contents nodes contents t
+          (X.Commit.Val.node c)
       in
       X.Commit.CA.copy commits t.X.Repo.commit ~aux "Commit" k
 
@@ -663,9 +645,8 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        let skip h = mem_node_lower t h in
-        let skip_contents h = mem_contents_lower t h in
-        copy_commit ~skip ~skip_contents
+        copy_commit ~skip_nodes:(mem_node_lower t)
+          ~skip_contents:(fun (k, _) -> mem_contents_lower t k)
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -699,15 +680,15 @@ struct
         f contents nodes commits
 
       let copy_commit contents nodes commits t =
-        copy_commit ~skip:(mem_node_upper t)
-          ~skip_contents:(mem_contents_upper t)
+        copy_commit ~skip_nodes:(mem_node_next t)
+          ~skip_contents:(fun (k, _) -> mem_contents_next t k)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
           t
 
       let copy ~min ~max t =
-        let skip h = skip_with_stats ~skip:(mem_commit_upper t) h in
+        let skip h = skip_with_stats ~skip:(mem_commit_next t) h in
         on_next_upper t (fun contents nodes commits ->
             let commit = copy_commit contents nodes commits t in
             Repo.iter_commits t ~min ~max ~commit ~skip ())
@@ -752,6 +733,91 @@ struct
               | false -> acc)
           [] heads
         >>= fun heads -> copy ~min:max ~max:heads t
+
+      (** Newies are the objects added in current upper during the freeze. They
+          are copied to the next upper before the freeze ends. When copying the
+          newies we have to traverse them as well, to ensure that all objects
+          used by a newies are also copied in the next upper. Newies can be
+          nodes (or contents) not yet attached to a commit (or a node resp.), so
+          we have to iter over the graph of commits, iter over the graph of
+          nodes, and lastly iter over contents. *)
+      let copy_newies_aux ~with_lock t =
+        Log.debug (fun l -> l "copy newies");
+        let newies_commits =
+          if with_lock then
+            X.Commit.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+          else X.Commit.CA.consume_newies t.X.Repo.commit >|= List.rev
+        in
+        let newies_nodes =
+          if with_lock then
+            X.Node.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+          else X.Node.CA.consume_newies t.X.Repo.node >|= List.rev
+        in
+        let newies_contents =
+          if with_lock then
+            X.Contents.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+          else X.Contents.CA.consume_newies t.X.Repo.contents >|= List.rev
+        in
+        let copy_contents contents t k =
+          X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        in
+        let copy_tree contents nodes t k =
+          let skip_nodes k = mem_node_next t k in
+          let skip_contents (k, _) = mem_contents_next t k in
+          copy_tree ~skip_nodes ~skip_contents nodes contents t k
+        in
+        let copy_commit contents nodes commits t k =
+          mem_commit_next t k >>= function
+          | true -> Lwt.return_unit
+          | false ->
+              let aux c = copy_tree contents nodes t (X.Commit.Val.node c) in
+              X.Commit.CA.copy commits t.X.Repo.commit ~aux "Commit" k
+        in
+        let iter ~mem_next ~copy t objs =
+          let rec aux objs =
+            Lwt_list.filter_s (fun k -> mem_next t k >|= not) objs >>= function
+            | [] -> Lwt.return_unit
+            | objs ->
+                Lwt_list.find_s (fun k -> mem_next t k >|= not) objs
+                >>= fun obj ->
+                copy t obj >>= fun () -> (aux objs [@tail])
+          in
+          aux objs
+        in
+        on_next_upper t (fun contents nodes commits ->
+            let contents = (X.Contents.CA.Upper, contents) in
+            let nodes = (X.Node.CA.Upper, nodes) in
+            let commits = (X.Commit.CA.Upper, commits) in
+            Log.debug (fun l -> l "copy newies: iter commits");
+            newies_commits
+            >>= Lwt_list.iter_s (fun k ->
+                    copy_commit contents nodes commits t k)
+            >>= fun () ->
+            Log.debug (fun l -> l "copy newies: iter nodes");
+            newies_nodes
+            >>= iter ~mem_next:mem_node_next ~copy:(copy_tree contents nodes) t
+            >>= fun () ->
+            Log.debug (fun l -> l "copy newies: iter contents");
+            newies_contents
+            >>= iter ~mem_next:mem_contents_next ~copy:(copy_contents contents)
+                  t)
+        >>= fun () ->
+        if with_lock then X.Branch.copy_last_newies_to_next_upper t.branch
+        else X.Branch.copy_newies_to_next_upper t.branch
+
+      (** If there are too many newies (more than newies_limit bytes added) then
+          copy them concurrently. *)
+      let rec copy_newies_to_next_upper t former_offset =
+        let newies_limit = blocking_copy_size t.X.Repo.config |> Int64.of_int in
+        let offset = X.Repo.offset t in
+        if offset -- former_offset >= newies_limit then
+          copy_newies_aux ~with_lock:false t >>= fun () ->
+          (copy_newies_to_next_upper t offset [@tail])
+        else Lwt.return_unit
+
+      (** If there are only a few newies left (less than newies_limit bytes
+          added) then copy them inside a lock. *)
+      let copy_last_newies_to_next_upper t = copy_newies_aux ~with_lock:true t
     end
 
     module CopyFromLower = struct
@@ -774,7 +840,11 @@ struct
           X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
             "Contents" k
         in
-        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
+        (* We cannot skip nodes, because a node in upper can have a predecessor
+           in lower. Contents do not have predecessors, so we can skip them. *)
+        let skip_contents (k, _) = mem_contents_next t k in
+        Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_contents
+          ()
 
       let copy_commit contents nodes commits t hash =
         let aux c = copy_tree contents nodes t (X.Commit.Val.node c) in
@@ -860,15 +930,17 @@ struct
       copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
-      X.Repo.copy_newies_to_next_upper t offset >>= fun () ->
+      Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       Lwt_mutex.with_lock add_lock (fun () ->
-          X.Repo.copy_last_newies_to_next_upper t >>= fun () ->
+          Log.app (fun l -> l "enter blocking portion of freeze");
+          Copy.CopyToUpper.copy_last_newies_to_next_upper t >>= fun () ->
           may (fun f -> f `Before_Flip) hook >>= fun () ->
           X.Repo.flip_upper t;
           may (fun f -> f `Before_Clear) hook >>= fun () ->
           X.Repo.clear_previous_upper t)
       >>= fun () ->
+      Log.app (fun l -> l "exit blocking portion of freeze");
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >>= fun () ->

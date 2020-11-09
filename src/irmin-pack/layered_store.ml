@@ -98,7 +98,17 @@ struct
   let mem_next t k = U.mem (next_upper t) k
 
   (** Objects added during a freeze *)
-  let newies : (key * value) list ref = ref []
+  let newies : key list ref = ref []
+
+  let unsafe_consume_newies () =
+    let tmp = !newies in
+    newies := [];
+    tmp
+
+  let consume_newies t =
+    Lwt_mutex.with_lock t.add_lock (fun () ->
+        let tmp = unsafe_consume_newies () in
+        Lwt.return tmp)
 
   let add' t v =
     Log.debug (fun l -> l "add in %s" (log_current_upper t));
@@ -107,7 +117,7 @@ struct
     U.add upper v >|= fun k ->
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := (k, v) :: !newies);
+      newies := k :: !newies);
     k
 
   let add t v = Lwt_mutex.with_lock t.add_lock (fun () -> add' t v)
@@ -119,7 +129,7 @@ struct
     U.unsafe_add upper k v >|= fun () ->
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := (k, v) :: !newies)
+      newies := k :: !newies)
 
   let unsafe_add t k v =
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
@@ -131,7 +141,7 @@ struct
     U.unsafe_append upper k v;
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := (k, v) :: !newies)
+      newies := k :: !newies)
 
   let unsafe_append t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
@@ -325,35 +335,6 @@ struct
             stats str;
             U.unsafe_add dst k v
         | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
-
-  let yield = Lwt_unix.auto_yield 0.1
-
-  (** Copy newies (objects added during the freeze) to the next upper. No lock
-      is used during this copy, so additional newies can be added during this
-      operation. *)
-  let copy_newies_to_next_upper t =
-    Log.debug (fun l ->
-        l "copy %d newies in %s " (List.length !newies) (log_next_upper t));
-    let next = next_upper t in
-    let tmp_newies : (key * value) list ref = ref [] in
-    Lwt_mutex.with_lock t.add_lock (fun () ->
-        tmp_newies := !newies;
-        newies := [];
-        Lwt.return_unit)
-    >>= fun () ->
-    Lwt_list.iter_s
-      (fun (k, v) -> yield () >|= fun () -> U.unsafe_append next k v)
-      (List.rev !tmp_newies)
-
-  (** As copy_newies_to_next_upper but inside a lock, which ensure that no
-      newies are added. *)
-  let copy_last_newies_to_next_upper t =
-    Log.debug (fun l ->
-        l "copy %d newies in %s " (List.length !newies) (log_next_upper t));
-    let next = next_upper t in
-    List.iter (fun (k, v) -> U.unsafe_append next k v) (List.rev !newies);
-    newies := [];
-    Lwt.return_unit
 end
 
 module Pack_Maker
