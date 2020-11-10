@@ -110,15 +110,13 @@ struct
     let v_layered ~root =
       match detect_layered_store ~root with
       | false -> Lwt.return (Simple (v_simple ~root))
-      | true -> (
+      | true ->
           Logs.app (fun f -> f "Layered store detected");
           read_flip ~root >|= fun flip ->
-          Layout.toplevel root
-          |> List.tl
-          |> List.map (fun root -> v_simple ~root)
-          |> function
-          | [ lower; upper1; upper0 ] -> Layered { flip; lower; upper1; upper0 }
-          | _ -> assert false)
+          let lower = v_simple ~root:(Layout.lower root)
+          and upper1 = v_simple ~root:(Layout.upper1 root)
+          and upper0 = v_simple ~root:(Layout.upper0 root) in
+          Layered { flip; lower; upper1; upper0 }
 
     let v ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);

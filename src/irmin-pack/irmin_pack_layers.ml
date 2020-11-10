@@ -995,12 +995,12 @@ struct
     Log.debug (fun l -> l "Check that the upper layer is self contained");
     let errors = ref 0 in
     let none () =
-      errors := succ !errors;
+      incr errors;
       Lwt.return_unit
     in
     let check_tree root =
       let node k = X.Node.CA.check t.X.Repo.node ~none k in
-      let contents (k, _) = X.Contents.CA.check t.X.Repo.contents ~none k in
+      let contents k = X.Contents.CA.check t.X.Repo.contents ~none k in
       Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
     in
     let check_commit commit =
@@ -1017,13 +1017,13 @@ struct
       Lwt.return
         (Ok
            (`Msg
-             (Fmt.str "Upper layer is self containded for heads %a" pp_commits
+             (Fmt.str "Upper layer is self contained for heads %a" pp_commits
                 heads)))
     else
       Lwt.return_error
         (`Msg
           (Fmt.str
-             "Upper layer is not self containded for heads %a: %n phantom \
+             "Upper layer is not self contained for heads %a: %n phantom \
               objects detected"
              pp_commits heads !errors))
 

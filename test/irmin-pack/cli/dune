@@ -1,30 +1,30 @@
 (executable
-  (name irmin_fsck)
-  (modules irmin_fsck)
-  (libraries irmin-pack))
+ (name irmin_fsck)
+ (modules irmin_fsck)
+ (libraries irmin-pack))
 
-  (executable
-  (name generate)
-  (modules generate)
-  (libraries irmin-pack))
+(executable
+ (name generate)
+ (modules generate)
+ (libraries irmin-pack))
 
-  (rule
-  (alias generate-cli-test-data)
-  (targets data)
-  (action
-   (run %{exe:generate.exe})))
+(rule
+ (alias generate-cli-test-data)
+ (targets data)
+ (action
+  (run %{exe:generate.exe})))
 
-  (cram
-  (deps
-   (file irmin_fsck.exe)
-   (file data)
-   (alias generate-cli-test-data)))
+(cram
+ (deps
+  (file irmin_fsck.exe)
+  (file data)
+  (alias generate-cli-test-data)))
 
-  (rule
-  (alias runtest)
-  (action
-   (progn
-    (with-stdout-to
-     irmin-fsck-help.txt.gen
-     (run %{exe:irmin_fsck.exe} --help=plain))
-    (diff? irmin-fsck-help.txt irmin-fsck-help.txt.gen))))
+(rule
+ (alias runtest)
+ (action
+  (progn
+   (with-stdout-to
+    irmin-fsck-help.txt.gen
+    (run %{exe:irmin_fsck.exe} --help=plain))
+   (diff? irmin-fsck-help.txt irmin-fsck-help.txt.gen))))
