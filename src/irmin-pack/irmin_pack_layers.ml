@@ -746,17 +746,23 @@ struct
         Log.debug (fun l -> l "copy newies");
         let newies_commits =
           if with_lock then
-            X.Commit.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+            X.Commit.CA.unsafe_consume_newies t.X.Repo.commit
+            |> List.rev
+            |> Lwt.return
           else X.Commit.CA.consume_newies t.X.Repo.commit >|= List.rev
         in
         let newies_nodes =
           if with_lock then
-            X.Node.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+            X.Node.CA.unsafe_consume_newies t.X.Repo.node
+            |> List.rev
+            |> Lwt.return
           else X.Node.CA.consume_newies t.X.Repo.node >|= List.rev
         in
         let newies_contents =
           if with_lock then
-            X.Contents.CA.unsafe_consume_newies () |> List.rev |> Lwt.return
+            X.Contents.CA.unsafe_consume_newies t.X.Repo.contents
+            |> List.rev
+            |> Lwt.return
           else X.Contents.CA.consume_newies t.X.Repo.contents >|= List.rev
         in
         let copy_contents contents t k =

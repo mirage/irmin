@@ -74,6 +74,7 @@ struct
     uppers : [ `Read ] U.t * [ `Read ] U.t;
     freeze_lock : Lwt_mutex.t;
     add_lock : Lwt_mutex.t;
+    mutable newies : key list;
   }
 
   module U = U
@@ -81,7 +82,14 @@ struct
 
   let v upper1 upper0 lower ~flip ~freeze_lock ~add_lock =
     Log.debug (fun l -> l "v flip = %b" flip);
-    { lower; flip; uppers = (upper1, upper0); freeze_lock; add_lock }
+    {
+      lower;
+      flip;
+      uppers = (upper1, upper0);
+      freeze_lock;
+      add_lock;
+      newies = [];
+    }
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
 
@@ -97,17 +105,14 @@ struct
 
   let mem_next t k = U.mem (next_upper t) k
 
-  (** Objects added during a freeze *)
-  let newies : key list ref = ref []
-
-  let unsafe_consume_newies () =
-    let tmp = !newies in
-    newies := [];
+  let unsafe_consume_newies t =
+    let tmp = t.newies in
+    t.newies <- [];
     tmp
 
   let consume_newies t =
     Lwt_mutex.with_lock t.add_lock (fun () ->
-        let tmp = unsafe_consume_newies () in
+        let tmp = unsafe_consume_newies t in
         Lwt.return tmp)
 
   let add' t v =
@@ -117,7 +122,7 @@ struct
     U.add upper v >|= fun k ->
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := k :: !newies);
+      t.newies <- k :: t.newies);
     k
 
   let add t v = Lwt_mutex.with_lock t.add_lock (fun () -> add' t v)
@@ -129,7 +134,7 @@ struct
     U.unsafe_add upper k v >|= fun () ->
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := k :: !newies)
+      t.newies <- k :: t.newies)
 
   let unsafe_add t k v =
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
@@ -141,7 +146,7 @@ struct
     U.unsafe_append upper k v;
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
-      newies := k :: !newies)
+      t.newies <- k :: t.newies)
 
   let unsafe_append t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
