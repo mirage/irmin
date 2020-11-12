@@ -368,8 +368,7 @@ module type NODE_GRAPH = sig
     unit ->
     unit Lwt.t
   (** [iter t min max node edge skip rev ()] iterates in topological order over
-      the closure of [t] as specified by {{!Irmin__Object_graph.S.closure}
-      Object_graph.closure}.
+      the closure of [t].
 
       It applies the following functions while traversing the graph: [node] on
       the nodes; [edge n predecessor_of_n] on the directed edges; [skip_nodes n]
