@@ -131,9 +131,14 @@ struct
 
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
 
+  let pp_vertices = Fmt.Dump.list (Type.pp X.t)
+
+  let pp_depth ppf d = if d <> max_int then Fmt.pf ppf "depth=%d,@ " d
+
   let iter ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip ~rev () =
     Log.debug (fun f ->
-        f "iter on closure depth=%d (%d elements)" depth (List.length max));
+        f "@[<2>iter:@ %arev=%b,@ min=%a,@ max=%a@]" pp_depth depth rev
+          pp_vertices min pp_vertices max);
     let marks = Table.create 1024 in
     let mark key level = Table.add marks key level in
     let has_mark key = Table.mem marks key in
@@ -183,8 +188,6 @@ struct
     visit ()
 
   let closure ?(depth = max_int) ~pred ~min ~max () =
-    Log.debug (fun f ->
-        f "closure depth=%d (%d elements)" depth (List.length max));
     let g = G.create ~size:1024 () in
     List.iter (G.add_vertex g) max;
     let node key =

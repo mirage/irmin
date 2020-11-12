@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let src = Logs.Src.create "irmin.layered" ~doc:"Irmin layered store"
+let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 

@@ -1,6 +1,6 @@
 include Store_intf
 
-let src = Logs.Src.create "irmin.pack.commons" ~doc:"irmin-pack backend"
+let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -281,7 +281,7 @@ let migrate_io_to_v2 ~progress src =
 
 let migrate config =
   if Config.readonly config then raise RO_Not_Allowed;
-  Log.info (fun l -> l "[%s] migrate" (Config.root config));
+  Log.debug (fun l -> l "[%s] migrate" (Config.root config));
   let root_old = Config.root config in
   [ "store.pack"; "store.branches"; "store.dict" ]
   |> List.map (fun name ->

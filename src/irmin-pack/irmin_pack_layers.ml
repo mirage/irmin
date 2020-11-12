@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let src = Logs.Src.create "irmin.pack.layers" ~doc:"irmin-pack backend"
+let src = Logs.Src.create "irmin.layers" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -875,40 +875,43 @@ struct
     end
   end
 
-  let pp_stats msg =
+  let dump_stats msg =
     let stats = Irmin_layers.Stats.get () in
-    Log.info (fun l ->
-        l "%s contents = %d, nodes = %d, commits = %d, skips = %d" msg
+    Log.debug (fun l ->
+        l "%s: contents=%d, nodes=%d, commits=%d, skips=%d" msg
           (List.hd stats.copied_contents)
           (List.hd stats.copied_nodes)
           (List.hd stats.copied_commits)
           stats.skips)
 
+  let with_stats msg f = f >|= fun () -> dump_stats msg
+
   let copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
     (if with_lower then
-     if squash then Copy.CopyToLower.copy_max_commits ~max t
-     else Copy.CopyToLower.copy ~min ~max t
+     with_stats "copied in lower"
+       (if squash then Copy.CopyToLower.copy_max_commits ~max t
+       else Copy.CopyToLower.copy ~min ~max t)
     else Lwt.return_unit)
     >>= fun () ->
-    pp_stats "end of copied in lower";
     (* Copy [min_upper, max] and [max, heads] to next_upper *)
     (if copy_in_upper then
-     Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
-     Copy.CopyToUpper.copy_heads ~max ~heads t
+     with_stats "copied in upper"
+       ( Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
+         Copy.CopyToUpper.copy_heads ~max ~heads t )
     else Lwt.return_unit)
     >>= fun () ->
-    pp_stats "end of copied in upper";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
+  let pp_commits = Fmt.Dump.list Commit.pp_hash
+
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
-    let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
     Log.info (fun l ->
         l
-          "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \
-           min_upper = %a heads = %a"
+          "@[<2>freeze:@ min=%a,@ max=%a,@ squash=%b,@ copy_in_upper=%b@ \
+           min_upper=%a,@ heads=%a@]"
           pp_commits min pp_commits max squash copy_in_upper pp_commits
           min_upper pp_commits heads);
     Irmin_layers.Stats.freeze ();

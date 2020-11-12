@@ -523,7 +523,7 @@ module Make (P : S.PRIVATE) = struct
   let pp_key = Type.pp Key.t
 
   let watch_key t key ?init fn =
-    Log.info (fun f -> f "watch-key %a" pp_key key);
+    Log.debug (fun f -> f "watch-key %a" pp_key key);
     let tree c = Tree.find_tree (Commit.tree c) key in
     watch t ?init (lift_tree_diff ~key tree fn)
 
