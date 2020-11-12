@@ -877,7 +877,7 @@ struct
 
   let pp_stats msg =
     let stats = Irmin_layers.Stats.get () in
-    Log.app (fun l ->
+    Log.info (fun l ->
         l "%s contents = %d, nodes = %d, commits = %d, skips = %d" msg
           (List.hd stats.copied_contents)
           (List.hd stats.copied_nodes)
@@ -905,7 +905,7 @@ struct
 
   let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
     let pp_commits ppf = List.iter (Commit.pp_hash ppf) in
-    Log.app (fun l ->
+    Log.info (fun l ->
         l
           "unsafe_freeze min = %a max = %a squash = %b copy_in_upper = %b \
            min_upper = %a heads = %a"
@@ -933,24 +933,23 @@ struct
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       Lwt_mutex.with_lock add_lock (fun () ->
-          Log.app (fun l -> l "enter blocking portion of freeze");
+          Log.debug (fun l -> l "freeze: enter blocking section");
           Copy.CopyToUpper.copy_last_newies_to_next_upper t >>= fun () ->
           may (fun f -> f `Before_Flip) hook >>= fun () ->
           X.Repo.flip_upper t;
           may (fun f -> f `Before_Clear) hook >>= fun () ->
           X.Repo.clear_previous_upper t)
       >>= fun () ->
-      Log.app (fun l -> l "exit blocking portion of freeze");
+      Log.debug (fun l -> l "freeze: exit blocking section");
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >>= fun () ->
       Lock.close lock_file >>= fun () ->
       Lwt_mutex.unlock freeze_lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
-      Log.app (fun l -> l "end freeze")
+      Log.debug (fun l -> l "freeze: end")
     in
     Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
-    Log.debug (fun l -> l "after async called to copy");
     Lwt.return_unit
 
   (** main thread takes the lock at the begining of freeze and async thread

@@ -293,7 +293,7 @@ let migrate config =
   |> List.partition (fun (_, _, v) -> v = current_version)
   |> function
   | migrated, [] ->
-      Log.app (fun l ->
+      Log.info (fun l ->
           l "Store at %s is already in current version (%a)"
             (Config.root config) pp_version current_version);
       List.iter (fun (_, io, _) -> IO.close io) migrated
