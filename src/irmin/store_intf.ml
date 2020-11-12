@@ -136,7 +136,7 @@ module type S = sig
       unit ->
       unit Lwt.t
     (** [iter t] iterates in reverse topological order over the closure graph of
-        [t] as specified by {{!Irmin__.S.NODE_GRAPH.iter} NODE_GRAPH.iter}. *)
+        [t]. *)
 
     val iter_commits :
       t ->
@@ -148,8 +148,7 @@ module type S = sig
       ?rev:bool ->
       unit ->
       unit Lwt.t
-    (** [iter t] iterates over the closure graph of [t] as specified by
-        {{!Irmin__.S.COMMIT_HISTORY.iter} COMMIT_HISTORY.iter}. *)
+    (** [iter t] iterates over the closure graph of [t]. *)
   end
 
   val empty : repo -> t Lwt.t
