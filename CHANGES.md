@@ -10,6 +10,8 @@
 - **irmin***
   - Improve performance of `last_modified` (#948, @pascutto)
 
+  - Use staged `compare` to speed-up generic operations (#1132, @samoht)
+
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
     namespacing. (#1083, @CraigFe)

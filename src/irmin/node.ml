@@ -70,7 +70,9 @@ struct
   module StepMap = Map.Make (struct
     type t = P.step
 
-    let compare (x : t) (y : t) = Type.compare P.step_t y x
+    let compare_step = Type.compare P.step_t
+
+    let compare (x : t) (y : t) = compare_step y x
   end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
