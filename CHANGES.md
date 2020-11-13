@@ -5,6 +5,8 @@
 - **irmin-pack***
   - Fix a major bug in the LRU which was never used (#1035, @samoht)
 
+  - Use staged `equal` to speed-up generic operations. (#1130, @samoht)
+
   - Use staged `short_hash` to speed-up generic operations. (#1131, @samoht)
 
 - **irmin***

@@ -31,7 +31,7 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
-  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
+  let equal = Irmin.Type.equal K.t
 end)
 
 module Cache (K : Irmin.Type.S) = Lru.Make (struct
@@ -39,7 +39,7 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
-  let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
+  let equal = Irmin.Type.equal K.t
 end)
 
 module IO_cache = IO.Cache
@@ -105,6 +105,8 @@ struct
     }
 
     type key = K.t
+
+    let equal_key = Irmin.Type.equal K.t
 
     type value = V.t
 
@@ -183,7 +185,7 @@ struct
 
     let check_key k v =
       let k' = V.hash v in
-      if Irmin.Type.equal K.t k k' then Ok () else Error (k, k')
+      if equal_key k k' then Ok () else Error (k, k')
 
     exception Invalid_read
 

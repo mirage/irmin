@@ -142,6 +142,14 @@ module Make (P : S.PRIVATE) = struct
     let equal = Type.equal P.Hash.t
   end)
 
+  let equal_contents = Type.equal P.Contents.Val.t
+
+  let equal_metadata = Type.equal Metadata.t
+
+  let equal_hash = Type.equal P.Hash.t
+
+  let equal_node = Type.equal P.Node.Val.t
+
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
 
@@ -245,9 +253,9 @@ module Make (P : S.PRIVATE) = struct
       x == y
       ||
       match (x.v, y.v) with
-      | Hash (_, x), Hash (_, y) -> Type.equal P.Hash.t x y
-      | Value x, Value y -> Type.equal P.Contents.Val.t x y
-      | _ -> Type.equal P.Hash.t (hash x) (hash y)
+      | Hash (_, x), Hash (_, y) -> equal_hash x y
+      | Value x, Value y -> equal_contents x y
+      | _ -> equal_hash (hash x) (hash y)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -299,7 +307,7 @@ module Make (P : S.PRIVATE) = struct
       variant "Node.value" (fun node contents contents_m -> function
         | `Node x -> node x
         | `Contents (c, m) ->
-            if Type.equal Metadata.t m Metadata.default then contents c
+            if equal_metadata m Metadata.default then contents c
             else contents_m (c, m))
       |~ case1 "Node" t (fun x -> `Node x)
       |~ case1 "Contents" Contents.t (fun x -> `Contents (x, Metadata.default))
@@ -567,10 +575,10 @@ module Make (P : S.PRIVATE) = struct
               | Error _ as e -> e
               | Ok v -> Ok (of_value repo v None)))
 
-    let hash_equal x y = x == y || Type.equal P.Hash.t x y
+    let hash_equal x y = x == y || equal_hash x y
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
-      x1 == x2 || (Contents.equal c1 c2 && Type.equal Metadata.t m1 m2)
+      x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
 
     let rec elt_equal (x : elt) (y : elt) =
       x == y
@@ -587,13 +595,13 @@ module Make (P : S.PRIVATE) = struct
       ||
       match (x.v, y.v) with
       | Hash (_, x), Hash (_, y) -> hash_equal x y
-      | Value (_, x, None), Value (_, y, None) -> Type.equal P.Node.Val.t x y
+      | Value (_, x, None), Value (_, y, None) -> equal_node x y
       | Map x, Map y -> map_equal x y
       | Value (_, x, Some a), Value (_, y, Some b) ->
-          Type.equal P.Node.Val.t x y && map_equal a b
+          equal_node x y && map_equal a b
       | _ -> (
           match (cached_value x, cached_value y) with
-          | Some x, Some y -> Type.equal P.Node.Val.t x y
+          | Some x, Some y -> equal_node x y
           | _ -> (
               match (cached_map x, cached_map y) with
               | Some x, Some y -> map_equal x y
@@ -854,7 +862,7 @@ module Make (P : S.PRIVATE) = struct
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
     || (c1 == c2 && m1 == m2)
-    || (Type.equal P.Contents.Val.t c1 c2 && Type.equal Metadata.t m1 m2)
+    || (equal_contents c1 c2 && equal_metadata m1 m2)
 
   let equal (x : t) (y : t) =
     x == y
@@ -1124,14 +1132,14 @@ module Make (P : S.PRIVATE) = struct
       cnt.node_add <- cnt.node_add + 1;
       P.Node.add node_t v >|= fun k ->
       let k' = Node.hash n in
-      assert (Type.equal P.Hash.t k k');
+      assert (equal_hash k k');
       Node.export ?clear repo n k
     in
     let add_contents c x () =
       cnt.contents_add <- cnt.contents_add + 1;
       P.Contents.add contents_t x >|= fun k ->
       let k' = Contents.hash c in
-      assert (Type.equal P.Hash.t k k');
+      assert (equal_hash k k');
       Contents.export ?clear repo c k
     in
     let add_node_map n x () = add_node n (Node.value_of_map n x) () in

@@ -86,6 +86,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     | Ok x -> x
     | Error _ -> assert false
 
+  let equal_val = Irmin.Type.equal V.t
+
   let refill t ~from =
     let len = IO.force_offset t.block in
     let rec aux offset =
@@ -105,7 +107,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         in
         let n, v = value_decode_bin buf len in
         assert (n = String.length buf);
-        if not (Irmin.Type.equal V.t v zero) then Tbl.add t.cache h v;
+        if not (equal_val v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
         (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size)))
     in

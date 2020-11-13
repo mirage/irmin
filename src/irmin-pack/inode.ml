@@ -267,6 +267,10 @@ struct
     module Val = struct
       open T
 
+      let equal_hash = Irmin.Type.equal hash_t
+
+      let equal_value = Irmin.Type.equal value_t
+
       type inode = { i_hash : hash Lazy.t; mutable tree : t option }
 
       and entry = Empty | Inode of inode
@@ -280,9 +284,7 @@ struct
       let hash_of_inode (i : inode) = Lazy.force i.i_hash
 
       let inode_t t : inode Irmin.Type.t =
-        let same_hash x y =
-          Irmin.Type.equal hash_t (hash_of_inode x) (hash_of_inode y)
-        in
+        let same_hash x y = equal_hash (hash_of_inode x) (hash_of_inode y) in
         let open Irmin.Type in
         record "Node.inode" (fun hash tree -> { i_hash = lazy hash; tree })
         |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
@@ -466,7 +468,7 @@ struct
 
       let rec add ~seed ~find ~copy t s v k =
         match find_value ~seed ~find t s with
-        | Some v' when Irmin.Type.equal value_t v v' -> k t
+        | Some v' when equal_value v v' -> k t
         | v' -> (
             match t.v with
             | Values vs ->
@@ -802,8 +804,10 @@ struct
     save t v.Val.v;
     Lwt.return (hash v)
 
+  let equal_hash = Irmin.Type.equal H.t
+
   let check_hash expected got =
-    if Irmin.Type.equal H.t expected got then ()
+    if equal_hash expected got then ()
     else
       Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
         expected Inode.pp_hash got

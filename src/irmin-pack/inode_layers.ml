@@ -69,8 +69,10 @@ struct
 
   let hash v = Inode.Val.hash v.Val.v
 
+  let equal_hash = Irmin.Type.equal H.t
+
   let check_hash expected got =
-    if Irmin.Type.equal H.t expected got then ()
+    if equal_hash expected got then ()
     else
       Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
         expected Inode.pp_hash got
