@@ -335,7 +335,7 @@ struct
         | Values vs -> StepMap.bindings vs @ acc
         | Inodes t -> list_inodes ~find acc t
 
-      let compare_step a b = Irmin.Type.compare step_t a b
+      let compare_step = Irmin.Type.compare step_t
 
       let compare_entry x y = compare_step (fst x) (fst y)
 

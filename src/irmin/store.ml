@@ -927,7 +927,9 @@ module Make (P : S.PRIVATE) = struct
 
     let hash h = P.Commit.Key.short_hash h.Commit.h
 
-    let compare x y = Type.compare P.Commit.Key.t x.Commit.h y.Commit.h
+    let compare_key = Type.compare P.Commit.Key.t
+
+    let compare x y = compare_key x.Commit.h y.Commit.h
 
     let equal x y = Type.equal P.Commit.Key.t x.Commit.h y.Commit.h
   end)
