@@ -31,7 +31,7 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
-  let equal = Irmin.Type.equal K.t
+  let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
 module Cache (K : Irmin.Type.S) = Lru.Make (struct
@@ -39,7 +39,7 @@ module Cache (K : Irmin.Type.S) = Lru.Make (struct
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
-  let equal = Irmin.Type.equal K.t
+  let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
 module IO_cache = IO.Cache
@@ -106,7 +106,7 @@ struct
 
     type key = K.t
 
-    let equal_key = Irmin.Type.equal K.t
+    let equal_key = Irmin.Type.(unstage (equal K.t))
 
     type value = V.t
 

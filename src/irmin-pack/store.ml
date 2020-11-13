@@ -28,7 +28,7 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
-  let equal = Irmin.Type.equal K.t
+  let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
@@ -86,7 +86,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     | Ok x -> x
     | Error _ -> assert false
 
-  let equal_val = Irmin.Type.equal V.t
+  let equal_val = Irmin.Type.(unstage (equal V.t))
 
   let refill t ~from =
     let len = IO.force_offset t.block in
@@ -232,9 +232,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
         Lwt.return_unit)
     >>= fun () -> W.notify t.w k (Some v)
 
+  let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
+
   let unsafe_test_and_set t k ~test ~set =
     let v = try Some (Tbl.find t.cache k) with Not_found -> None in
-    if not (Irmin.Type.(equal (option V.t)) v test) then Lwt.return_false
+    if not (equal_v_opt v test) then Lwt.return_false
     else
       let return () = Lwt.return_true in
       match set with

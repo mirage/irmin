@@ -145,12 +145,13 @@ type t = {
 
 let ( / ) = Filename.concat
 
-let testable t = Alcotest.testable (Irmin.Type.pp t) (Irmin.Type.equal t)
+let testable t =
+  Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
 
 let check t = Alcotest.check (testable t)
 
 let checks t =
-  let t = Alcotest.slist (testable t) Irmin.Type.(compare t) in
+  let t = Alcotest.slist (testable t) Irmin.Type.(unstage (compare t)) in
   Alcotest.check t
 
 (* also in test/irmin-pack/common.ml *)

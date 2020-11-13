@@ -35,7 +35,7 @@ struct
 
   let pp_key = Type.pp K.t
 
-  let equal_hash = Type.equal K.t
+  let equal_hash = Type.(unstage (equal K.t))
 
   let find t k =
     find t k >>= function
@@ -112,11 +112,11 @@ module Make (P : S.PRIVATE) = struct
 
   type repo = P.Repo.t
 
-  let equal_hash = Type.equal Hash.t
+  let equal_hash = Type.(unstage (equal Hash.t))
 
-  let equal_contents = Type.equal Contents.t
+  let equal_contents = Type.(unstage (equal Contents.t))
 
-  let equal_branch = Type.equal Branch_store.Key.t
+  let equal_branch = Type.(unstage (equal Branch_store.Key.t))
 
   let pp_key = Type.pp Key.t
 
@@ -275,7 +275,7 @@ module Make (P : S.PRIVATE) = struct
         let module KSet = Set.Make (struct
           type t = P.Contents.key
 
-          let compare = Type.compare P.Contents.Key.t
+          let compare = Type.(unstage (compare P.Contents.Key.t))
         end) in
         let contents = ref KSet.empty in
         Lwt_list.iter_p
@@ -989,7 +989,7 @@ module Make (P : S.PRIVATE) = struct
 
     let hash h = P.Commit.Key.short_hash h.Commit.h
 
-    let compare_key = Type.compare P.Commit.Key.t
+    let compare_key = Type.(unstage (compare P.Commit.Key.t))
 
     let compare x y = compare_key x.Commit.h y.Commit.h
 

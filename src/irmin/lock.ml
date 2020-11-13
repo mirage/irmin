@@ -34,7 +34,7 @@ module Make (K : Type.S) = struct
 
     let hash = Hashtbl.hash
 
-    let equal = Type.equal K.t
+    let equal = Type.(unstage (equal K.t))
   end
 
   module KHashtbl = Hashtbl.Make (K)

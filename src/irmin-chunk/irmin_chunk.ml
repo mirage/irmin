@@ -226,7 +226,7 @@ struct
     | None -> Lwt.return_none (* shallow objects *)
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
-  let equal_hash = Irmin.Type.equal K.t
+  let equal_hash = Irmin.Type.(unstage (equal K.t))
 
   let check_hash k v =
     let k' = K.hash (fun f -> f v) in

@@ -104,7 +104,7 @@ module Make (P : S.PRIVATE) = struct
 
       let t = Path.step_t
 
-      let compare = Type.compare Path.step_t
+      let compare = Type.(unstage (compare Path.step_t))
     end
 
     include Map.Make (X)
@@ -139,16 +139,16 @@ module Make (P : S.PRIVATE) = struct
 
     let hash = P.Hash.short_hash
 
-    let equal = Type.equal P.Hash.t
+    let equal = Type.(unstage (equal P.Hash.t))
   end)
 
-  let equal_contents = Type.equal P.Contents.Val.t
+  let equal_contents = Type.(unstage (equal P.Contents.Val.t))
 
-  let equal_metadata = Type.equal Metadata.t
+  let equal_metadata = Type.(unstage (equal Metadata.t))
 
-  let equal_hash = Type.equal P.Hash.t
+  let equal_hash = Type.(unstage (equal P.Hash.t))
 
-  let equal_node = Type.equal P.Node.Val.t
+  let equal_node = Type.(unstage (equal P.Node.Val.t))
 
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
@@ -1258,9 +1258,7 @@ module Make (P : S.PRIVATE) = struct
       (x : a or_error) (y : a or_error) : b =
     match (x, y) with
     | Error (`Dangling_hash h1), Error (`Dangling_hash h2) -> (
-        match Type.(equal P.Hash.t) h1 h2 with
-        | true -> empty
-        | false -> assert false)
+        match equal_hash h1 h2 with true -> empty | false -> assert false)
     | Error _, Ok _ -> assert false
     | Ok _, Error _ -> assert false
     | Ok x, Ok y -> diff_ok (x, y)
@@ -1272,6 +1270,8 @@ module Make (P : S.PRIVATE) = struct
       Contents.to_value (fst y) >|= fun cy ->
       diff_force_result cx cy ~empty:[] ~diff_ok:(fun (cx, cy) ->
           [ `Updated ((cx, snd x), (cy, snd y)) ])
+
+  let compare_step = Type.(unstage (compare Path.step_t))
 
   let diff_node (x : node) (y : node) =
     let bindings n =
@@ -1288,8 +1288,7 @@ module Make (P : S.PRIVATE) = struct
     let rec diff_bindings acc todo path x y =
       let acc = ref acc in
       let todo = ref todo in
-      alist_iter2_lwt
-        Type.(compare @@ Path.step_t)
+      alist_iter2_lwt compare_step
         (fun key v ->
           let path = Path.rcons path key in
           match v with

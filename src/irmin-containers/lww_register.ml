@@ -23,9 +23,9 @@ module LWW (T : Time.S) (V : Irmin.Type.S) :
   Irmin.Contents.S with type t = V.t * T.t = struct
   type t = V.t * T.t [@@deriving irmin]
 
-  let compare_t = Irmin.Type.compare T.t
+  let compare_t = Irmin.Type.(unstage (compare T.t))
 
-  let compare_v = Irmin.Type.compare V.t
+  let compare_v = Irmin.Type.(unstage (compare V.t))
 
   let compare (v1, t1) (v2, t2) =
     let res = compare_t t1 t2 in

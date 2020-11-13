@@ -5,14 +5,8 @@
 - **irmin-pack***
   - Fix a major bug in the LRU which was never used (#1035, @samoht)
 
-  - Use staged `equal` to speed-up generic operations. (#1130, @samoht)
-
-  - Use staged `short_hash` to speed-up generic operations. (#1131, @samoht)
-
 - **irmin***
   - Improve performance of `last_modified` (#948, @pascutto)
-
-  - Use staged `compare` to speed-up generic operations (#1132, @samoht)
 
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
@@ -102,6 +96,9 @@
 
   - The `Irmin.Type` combinators are now supplied by the `repr` package. The
     API of `Irmin.Type` is not changed. (#1106, @CraigFe)
+
+  - `Irmin.Type` uses staging for `equal`, `short_hash` and `compare` to
+    speed-up generic operations (#1130, #1131, #1132, @samoht)
 
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the

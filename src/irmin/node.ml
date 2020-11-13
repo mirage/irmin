@@ -43,7 +43,7 @@ struct
 
   type kind = [ `Node | `Contents of M.t ]
 
-  let equal_metadata = Type.equal M.t
+  let equal_metadata = Type.(unstage (equal M.t))
 
   let kind_t =
     let open Type in
@@ -58,7 +58,7 @@ struct
 
   type entry = { kind : kind; name : P.step; node : K.t } [@@deriving irmin]
 
-  let equal_entry_opt = Type.equal [%typ: entry option]
+  let equal_entry_opt = Type.(unstage (equal [%typ: entry option]))
 
   let to_entry (k, v) =
     match v with
@@ -74,7 +74,7 @@ struct
   module StepMap = Map.Make (struct
     type t = P.step
 
-    let compare_step = Type.compare P.step_t
+    let compare_step = Type.(unstage (compare P.step_t))
 
     let compare (x : t) (y : t) = compare_step y x
   end)
@@ -274,7 +274,7 @@ module Graph (S : S.NODE_STORE) = struct
 
   let pp_path = Type.pp S.Path.t
 
-  let equal_val = Type.equal S.Val.t
+  let equal_val = Type.(unstage (equal S.Val.t))
 
   let pred t = function
     | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
@@ -461,6 +461,8 @@ module V1 (N : S.NODE with type step = string) = struct
     in
     Type.(map (string_of `Int64)) of_string to_string
 
+  let is_default = Type.(unstage (equal N.metadata_t)) N.default
+
   let value_t =
     let open Type in
     record "node" (fun contents metadata node ->
@@ -473,7 +475,7 @@ module V1 (N : S.NODE with type step = string) = struct
          | `Contents (x, _) -> Some x
          | _ -> None)
     |+ field "metadata" (option N.metadata_t) (function
-         | `Contents (_, x) when not (equal N.metadata_t N.default x) -> Some x
+         | `Contents (_, x) when not (is_default x) -> Some x
          | _ -> None)
     |+ field "node" (option K.t) (function `Node n -> Some n | _ -> None)
     |> sealr

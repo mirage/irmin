@@ -21,7 +21,7 @@ type diffs = (string list * (Contents.String.t * Metadata.t) Diff.t) list
 module Alcotest = struct
   include Alcotest
 
-  let diffs = testable (Type.pp diffs_t) (Type.equal diffs_t)
+  let diffs = testable (Type.pp diffs_t) Type.(unstage (equal diffs_t))
 end
 
 let ( >> ) f g x = g (f x)
