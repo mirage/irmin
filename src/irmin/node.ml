@@ -43,18 +43,22 @@ struct
 
   type kind = [ `Node | `Contents of M.t ]
 
+  let equal_metadata = Type.equal M.t
+
   let kind_t =
     let open Type in
     variant "Tree.kind" (fun node contents contents_m -> function
       | `Node -> node
       | `Contents m ->
-          if Type.equal M.t m M.default then contents else contents_m m)
+          if equal_metadata m M.default then contents else contents_m m)
     |~ case0 "node" `Node
     |~ case0 "contents" (`Contents M.default)
     |~ case1 "contents" M.t (fun m -> `Contents m)
     |> sealv
 
   type entry = { kind : kind; name : P.step; node : K.t } [@@deriving irmin]
+
+  let equal_entry_opt = Type.equal [%typ: entry option]
 
   let to_entry (k, v) =
     match v with
@@ -99,8 +103,7 @@ struct
   let add t k v =
     let e = to_entry (k, v) in
     StepMap.update k
-      (fun e' ->
-        if Type.equal [%typ: entry option] (Some e) e' then e' else Some e)
+      (fun e' -> if equal_entry_opt (Some e) e' then e' else Some e)
       t
 
   let remove t k = StepMap.remove k t
@@ -111,7 +114,7 @@ struct
     let open Type in
     variant "value" (fun n c x -> function
       | `Node h -> n h
-      | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m))
+      | `Contents (h, m) -> if equal_metadata m M.default then c h else x (h, m))
     |~ case1 "node" K.t (fun k -> `Node k)
     |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
     |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
@@ -271,6 +274,8 @@ module Graph (S : S.NODE_STORE) = struct
 
   let pp_path = Type.pp S.Path.t
 
+  let equal_val = Type.equal S.Val.t
+
   let pred t = function
     | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
     | _ -> Lwt.return_nil
@@ -342,7 +347,7 @@ module Graph (S : S.NODE_STORE) = struct
         S.find t k >|= function None -> S.Val.empty | Some v -> v))
     >>= fun old_node ->
     f old_node >>= fun new_node ->
-    if Type.equal S.Val.t old_node new_node then Lwt.return node
+    if equal_val old_node new_node then Lwt.return node
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node

@@ -226,9 +226,11 @@ struct
     | None -> Lwt.return_none (* shallow objects *)
     | Some x -> Tree.find_leaves t x >|= fun v -> Some v
 
+  let equal_hash = Irmin.Type.equal K.t
+
   let check_hash k v =
     let k' = K.hash (fun f -> f v) in
-    if Irmin.Type.equal K.t k k' then Lwt.return_unit
+    if equal_hash k k' then Lwt.return_unit
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k

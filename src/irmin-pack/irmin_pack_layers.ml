@@ -705,8 +705,9 @@ struct
         in
         copy ~min ~max t
 
-      let includes commits k =
-        List.exists (fun k' -> Irmin.Type.equal Hash.t k k') commits
+      let equal_hash = Irmin.Type.equal Hash.t
+
+      let includes commits k = List.exists (fun k' -> equal_hash k k') commits
 
       let non_empty_intersection t min head =
         let ok = ref false in

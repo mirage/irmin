@@ -146,9 +146,11 @@ struct
       Log.debug (fun l -> l "add %a" pp_key k);
       Lwt.return k
 
+    let equal_hash = Irmin.Type.equal H.t
+
     let unsafe_add t k v =
       add t v >|= fun k' ->
-      if Irmin.Type.equal H.t k k' then ()
+      if equal_hash k k' then ()
       else
         Fmt.failwith
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
@@ -1146,9 +1148,11 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
 
   let pp_key = Irmin.Type.pp X.Key.t
 
+  let equal_key = Irmin.Type.equal X.Key.t
+
   let unsafe_add t k v =
     with_state X.add t v >|= fun k' ->
-    if Irmin.Type.equal X.Key.t k k' then ()
+    if equal_key k k' then ()
     else
       Fmt.failwith
         "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"

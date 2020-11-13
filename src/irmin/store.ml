@@ -35,12 +35,14 @@ struct
 
   let pp_key = Type.pp K.t
 
+  let equal_hash = Type.equal K.t
+
   let find t k =
     find t k >>= function
     | None -> Lwt.return_none
     | Some v as r ->
         let k' = hash v in
-        if Type.equal K.t k k' then Lwt.return r
+        if equal_hash k k' then Lwt.return r
         else
           Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
             pp_key k' pp_key k
@@ -110,6 +112,20 @@ module Make (P : S.PRIVATE) = struct
 
   type repo = P.Repo.t
 
+  let equal_hash = Type.equal Hash.t
+
+  let equal_contents = Type.equal Contents.t
+
+  let equal_branch = Type.equal Branch_store.Key.t
+
+  let pp_key = Type.pp Key.t
+
+  let pp_hash = Type.pp Hash.t
+
+  let pp_branch = Type.pp Branch_store.Key.t
+
+  let pp_option = Type.pp (Type.option Type.int)
+
   module Commit = struct
     type t = { r : repo; h : Hash.t; v : P.Commit.value }
 
@@ -133,7 +149,7 @@ module Make (P : S.PRIVATE) = struct
 
     let tree t = Tree.import_no_check t.r (node t) |> Tree.of_node
 
-    let equal x y = Type.equal Hash.t x.h y.h
+    let equal x y = equal_hash x.h y.h
 
     let hash t = t.h
 
@@ -291,14 +307,11 @@ module Make (P : S.PRIVATE) = struct
     let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
 
     let import t s =
-      let aux name add dk (k, v) =
+      let aux name add (k, v) =
         add v >>= fun k' ->
-        if not (Type.equal dk k k') then
-          import_error "%s import error: expected %a, got %a" name
-            Type.(pp dk)
-            k
-            Type.(pp dk)
-            k'
+        if not (equal_hash k k') then
+          import_error "%s import error: expected %a, got %a" name pp_hash k
+            pp_hash k'
         else Lwt.return_unit
       in
       let contents = ref [] in
@@ -318,15 +331,10 @@ module Make (P : S.PRIVATE) = struct
       P.Repo.batch t @@ fun contents_t node_t commit_t ->
       Lwt.catch
         (fun () ->
-          Lwt_list.iter_p
-            (aux "Contents" (P.Contents.add contents_t) P.Contents.Key.t)
-            !contents
+          Lwt_list.iter_p (aux "Contents" (P.Contents.add contents_t)) !contents
           >>= fun () ->
-          Lwt_list.iter_p (aux "Node" (P.Node.add node_t) P.Node.Key.t) !nodes
-          >>= fun () ->
-          Lwt_list.iter_p
-            (aux "Commit" (P.Commit.add commit_t) P.Commit.Key.t)
-            !commits
+          Lwt_list.iter_p (aux "Node" (P.Node.add node_t)) !nodes >>= fun () ->
+          Lwt_list.iter_p (aux "Commit" (P.Commit.add commit_t)) !commits
           >|= fun () -> Ok ())
         (function
           | Import_error e -> Lwt.return (Error (`Msg e))
@@ -387,8 +395,6 @@ module Make (P : S.PRIVATE) = struct
     let lock = Lwt_mutex.create () in
     Lwt.return { lock; head_ref; repo; tree = None }
 
-  let pp_branch = Type.pp Branch_store.Key.t
-
   let err_invalid_branch t =
     let err = Fmt.strf "%a is not a valid branch name." pp_branch t in
     Lwt.fail (Invalid_argument err)
@@ -402,10 +408,6 @@ module Make (P : S.PRIVATE) = struct
   let empty repo = of_ref repo (`Head (ref None))
 
   let of_commit c = of_ref c.Commit.r (`Head (ref (Some c)))
-
-  let pp_key = Type.pp Key.t
-
-  let pp_hash = Type.pp Hash.t
 
   let skip_key key =
     Log.debug (fun l -> l "[watch-key] key %a has not changed" pp_key key);
@@ -515,12 +517,9 @@ module Make (P : S.PRIVATE) = struct
           | Some head0 -> Some [ (name0, head0.Commit.h) ]
         in
         Branch_store.watch (branch_t t) ?init (fun name head ->
-            if Type.equal Branch_store.Key.t name0 name then
-              lift_head_diff t.repo fn head
+            if equal_branch name0 name then lift_head_diff t.repo fn head
             else Lwt.return_unit)
         >|= fun id () -> Branch_store.unwatch (branch_t t) id
-
-  let pp_key = Type.pp Key.t
 
   let watch_key t key ?init fn =
     Log.info (fun f -> f "watch-key %a" pp_key key);
@@ -575,7 +574,7 @@ module Make (P : S.PRIVATE) = struct
             H.lcas (history_t t) ?max_depth ?n new_head.Commit.h
               old_head.Commit.h
             >>= function
-            | Ok [ x ] when Type.equal Hash.t x old_head.Commit.h ->
+            | Ok [ x ] when equal_hash x old_head.Commit.h ->
                 (* we only update if new_head > old_head *)
                 test_and_set t ~test:(Some old_head) ~set:(Some new_head)
                 >|= return
@@ -931,7 +930,7 @@ module Make (P : S.PRIVATE) = struct
 
     let compare x y = compare_key x.Commit.h y.Commit.h
 
-    let equal x y = Type.equal P.Commit.Key.t x.Commit.h y.Commit.h
+    let equal x y = equal_hash x.Commit.h y.Commit.h
   end)
 
   module Gmap = struct
@@ -985,8 +984,6 @@ module Make (P : S.PRIVATE) = struct
       (function `Commit k -> Commit.of_hash t.repo k | _ -> Lwt.return_none)
       g
 
-  let pp_option = Type.pp (Type.option Type.int)
-
   module Heap = Binary_heap.Make (struct
     type t = commit * int
 
@@ -1031,7 +1028,7 @@ module Make (P : S.PRIVATE) = struct
                   let tree = Commit.tree commit in
                   Tree.find tree key >|= fun e ->
                   match (e, current_value) with
-                  | Some x, Some y -> not (Type.equal Contents.t x y)
+                  | Some x, Some y -> not (equal_contents x y)
                   | Some _, None -> true
                   | _, _ -> false)
               | None -> Lwt.return_false)
