@@ -29,7 +29,7 @@ open Lwt.Infix
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
 
-  let hash (t : t) = Irmin.Type.short_hash K.t t
+  let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
@@ -37,7 +37,7 @@ end)
 module Cache (K : Irmin.Type.S) = Lru.Make (struct
   type t = K.t
 
-  let hash (t : t) = Irmin.Type.short_hash K.t t
+  let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
 
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)

@@ -102,14 +102,22 @@ struct
 
     let compare = Type.compare t
 
+    let hash_contents = Type.(unstage (short_hash Contents.t))
+
+    let hash_node = Type.(unstage (short_hash Node.t))
+
+    let hash_commit = Type.(unstage (short_hash Commit.t))
+
+    let hash_branch = Type.(unstage (short_hash Branch.t))
+
     (* we are using cryptographic hashes here, so the first bytes
        are good enough to be used as short hashes. *)
     let hash (t : t) : int =
       match t with
-      | `Contents (c, _) -> Type.short_hash Contents.t c
-      | `Node n -> Type.short_hash Node.t n
-      | `Commit c -> Type.short_hash Commit.t c
-      | `Branch b -> Type.short_hash Branch.t b
+      | `Contents (c, _) -> hash_contents c
+      | `Node n -> hash_node n
+      | `Commit c -> hash_commit c
+      | `Branch b -> hash_branch b
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional (X)
