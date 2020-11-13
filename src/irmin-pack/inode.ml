@@ -378,8 +378,9 @@ struct
             in
             { hash; stable = true; v = t.v }
 
-      let index ~seed k =
-        abs (Irmin.Type.short_hash step_t ~seed k) mod Conf.entries
+      let hash_key = Irmin.Type.(unstage (short_hash step_t))
+
+      let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
 
       let inode ?tree i_hash = Inode { tree; i_hash }
 
