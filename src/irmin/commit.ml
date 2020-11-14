@@ -33,8 +33,10 @@ module Make (K : Type.S) = struct
 
   let info t = t.info
 
+  let compare_hash = Type.(unstage (compare K.t))
+
   let v ~info ~node ~parents =
-    let parents = List.fast_sort (Type.compare K.t) parents in
+    let parents = List.fast_sort compare_hash parents in
     { node; parents; info }
 end
 
@@ -79,7 +81,7 @@ struct
     | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
-  let equal_opt_keys = Type.(equal (option S.Key.t))
+  let equal_opt_keys = Type.(unstage (equal (option S.Key.t)))
 
   let merge_commit info t ~old k1 k2 =
     get t k1 >>= fun v1 ->
@@ -196,11 +198,11 @@ module History (S : S.COMMIT_STORE) = struct
   module K = struct
     type t = S.Key.t
 
-    let compare = Type.compare S.Key.t
+    let compare = Type.(unstage (compare S.Key.t))
 
     let hash = S.Key.short_hash
 
-    let equal = Type.equal S.Key.t
+    let equal = Type.(unstage (equal S.Key.t))
   end
 
   module KSet = Set.Make (K)
@@ -211,7 +213,7 @@ module History (S : S.COMMIT_STORE) = struct
     | None -> KSet.empty
     | Some c -> KSet.of_list (S.Val.parents c)
 
-  let equal_keys = Type.equal S.Key.t
+  let equal_keys = Type.(unstage (equal S.Key.t))
 
   let str_key k = String.sub (Type.to_string S.Key.t k) 0 4
 

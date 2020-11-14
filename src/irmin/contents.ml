@@ -89,12 +89,16 @@ module Json_value = struct
     let decoder = Jsonm.decoder (`String s) in
     match decode_json decoder with Ok obj -> Ok obj | Error _ as err -> err
 
+  let equal_bool = Type.(unstage (equal bool))
+
+  let equal_float = Type.(unstage (equal float))
+
   let rec equal a b =
     match (a, b) with
     | `Null, `Null -> true
-    | `Bool a, `Bool b -> Type.(equal bool) a b
+    | `Bool a, `Bool b -> equal_bool a b
     | `String a, `String b -> String.equal a b
-    | `Float a, `Float b -> Type.(equal float) a b
+    | `Float a, `Float b -> equal_float a b
     | `A a, `A b -> (
         try List.for_all2 (fun a' b' -> equal a' b') a b
         with Invalid_argument _ -> false)
@@ -107,7 +111,7 @@ module Json_value = struct
         with Invalid_argument _ -> false)
     | _, _ -> false
 
-  let t = Type.like ~equal ~pp ~of_string t
+  let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
 
   let rec merge_object ~old x y =
     let open Merge.Infix in
@@ -182,7 +186,7 @@ module Json = struct
 
   let equal a b = Json_value.equal (`O a) (`O b)
 
-  let t = Type.like ~equal ~pp ~of_string t
+  let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
 
   let merge =
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))

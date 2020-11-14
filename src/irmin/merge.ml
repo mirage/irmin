@@ -83,7 +83,7 @@ end
 open Infix
 
 let default (type a) (t : a Type.t) : a t =
-  let pp = Type.pp t and ( = ) = Type.equal t in
+  let pp = Type.pp t and equal = Type.(unstage (equal t)) in
   ( t,
     fun ~old t1 t2 ->
       let open Infix in
@@ -92,15 +92,15 @@ let default (type a) (t : a Type.t) : a t =
       | None -> conflict "default: add/add and no common ancestor"
       | Some old ->
           Log.debug (fun f -> f "default old=%a" pp t1);
-          if old = t1 && t1 = t2 then ok t1
-          else if old = t1 then ok t2
-          else if old = t2 then ok t1
+          if equal old t1 && equal t1 t2 then ok t1
+          else if equal old t1 then ok t2
+          else if equal old t2 then ok t1
           else conflict "default" )
 
 let idempotent dt =
-  let ( = ) = Type.equal dt in
+  let equal = Type.(unstage (equal dt)) in
   let default = default dt in
-  let f ~old x y = if x = y then ok x else f default ~old x y in
+  let f ~old x y = if equal x y then ok x else f default ~old x y in
   v dt f
 
 let seq = function
@@ -115,6 +115,7 @@ let seq = function
             ts )
 
 let option (type a) ((a, t) : a t) : a option t =
+  let pp_a = Type.pp a and equal = Type.(unstage (equal a)) in
   let dt = Type.option a in
   let pp = Type.pp dt in
   ( dt,
@@ -140,9 +141,9 @@ let option (type a) ((a, t) : a t) : a option t =
               old () >>=* function
               | None | Some None -> ok (Some x)
               | Some (Some o) ->
-                  let pp = Type.pp a and ( = ) = Type.equal a in
-                  Log.debug (fun f -> f "option old=%a" pp o);
-                  if x = o then ok (Some x) else conflict "option: add/del")) )
+                  Log.debug (fun f -> f "option old=%a" pp_a o);
+                  if equal x o then ok (Some x) else conflict "option: add/del")
+          ) )
 
 let pair (da, a) (db, b) =
   let dt = Type.pair da db in
@@ -235,13 +236,15 @@ let alist_merge_lwt compare_k f l1 l2 =
   alist_iter2_lwt compare_k f l1 l2 >>= fun () -> return !l3
 
 let alist dx dy merge_v =
-  let dt = Type.(list (pair dx dy)) in
+  let pair = Type.pair dx dy in
+  let compare_pair = Type.unstage (Type.compare pair) in
+  let compare_dx = Type.(unstage (compare dx)) in
+  let dt = Type.list pair in
   ( dt,
     fun ~old x y ->
-      let pair = Type.pair dx dy in
       let pp = Type.pp dt in
       Log.debug (fun l -> l "alist %a | %a" pp x pp y);
-      let sort = List.sort @@ Type.compare pair in
+      let sort = List.sort compare_pair in
       let x = sort x in
       let y = sort y in
       let old k =
@@ -255,7 +258,7 @@ let alist dx dy merge_v =
       let merge_v k = f (merge_v k) in
       Lwt.catch
         (fun () ->
-          alist_merge_lwt Type.(compare dx) (merge_elt merge_v old) x y >>= ok)
+          alist_merge_lwt compare_dx (merge_elt merge_v old) x y >>= ok)
         (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
 
 module MultiSet (K : sig

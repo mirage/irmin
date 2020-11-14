@@ -69,7 +69,7 @@ struct
 
   let hash v = Inode.Val.hash v.Val.v
 
-  let equal_hash = Irmin.Type.equal H.t
+  let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()

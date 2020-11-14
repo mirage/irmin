@@ -92,9 +92,9 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
       | `Branch of Branch.t ]
     [@@deriving irmin]
 
-    let equal = Type.equal t
+    let equal = Type.(unstage (equal t))
 
-    let compare = Type.compare t
+    let compare = Type.(unstage (compare t))
 
     let short_hash = Type.(unstage (short_hash Hash.t))
 

@@ -65,9 +65,9 @@ struct
 
   let read_key k = Store.get_store () >>= fun store -> Store.read_exn store k
 
-  let compare_times = Irmin.Type.compare T.t
+  let compare_t = Irmin.Type.(unstage (compare T.t))
 
-  let sort l = List.sort (fun i1 i2 -> compare_times i2.L.time i1.L.time) l
+  let sort l = List.sort (fun i1 i2 -> compare_t i2.L.time i1.L.time) l
 
   let merge ~old:_ v1 v2 =
     let open Irmin.Merge in
@@ -110,7 +110,7 @@ struct
   module Set_elt = struct
     type t = K.t
 
-    let compare = Irmin.Type.compare K.t
+    let compare = Irmin.Type.(unstage (compare K.t))
   end
 
   module HashSet = Set.Make (Set_elt)

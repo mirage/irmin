@@ -705,7 +705,7 @@ struct
         in
         copy ~min ~max t
 
-      let equal_hash = Irmin.Type.equal Hash.t
+      let equal_hash = Irmin.Type.(unstage (equal Hash.t))
 
       let includes commits k = List.exists (fun k' -> equal_hash k k') commits
 

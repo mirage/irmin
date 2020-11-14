@@ -24,7 +24,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module KMap = Map.Make (struct
     type t = K.t
 
-    let compare = Irmin.Type.compare K.t
+    let compare = Irmin.Type.(unstage (compare K.t))
   end)
 
   type key = K.t
@@ -119,11 +119,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
         Lwt.return_unit)
     >>= fun () -> W.notify t.w key None
 
+  let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
+
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set");
     L.with_lock t.lock key (fun () ->
         find t key >>= fun v ->
-        if Irmin.Type.(equal (option V.t)) test v then
+        if equal_v_opt test v then
           let () =
             match set with
             | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t

@@ -46,6 +46,6 @@ to browsers and Xen unikernels.
 """
 
 pin-depends: [
-  [ "repr.dev"     "git+https://github.com/mirage/repr#6b065fa7a114509302eeae020dd8190efe081ef9" ]
-  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#6b065fa7a114509302eeae020dd8190efe081ef9" ]
+  [ "repr.dev"     "git+https://github.com/samoht/repr#671f11040c84d508bd8cec71ee56fa1a903b165b" ]
+  [ "ppx_repr.dev" "git+https://github.com/samoht/repr#671f11040c84d508bd8cec71ee56fa1a903b165b" ]
 ]

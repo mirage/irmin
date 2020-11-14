@@ -146,7 +146,7 @@ struct
       Log.debug (fun l -> l "add %a" pp_key k);
       Lwt.return k
 
-    let equal_hash = Irmin.Type.equal H.t
+    let equal_hash = Irmin.Type.(unstage (equal H.t))
 
     let unsafe_add t k v =
       add t v >|= fun k' ->
@@ -1148,7 +1148,7 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
 
   let pp_key = Irmin.Type.pp X.Key.t
 
-  let equal_key = Irmin.Type.equal X.Key.t
+  let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
   let unsafe_add t k v =
     with_state X.add t v >|= fun k' ->

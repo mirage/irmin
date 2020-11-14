@@ -125,7 +125,7 @@ struct
   module KMap = Map.Make (struct
     type t = K.t
 
-    let compare = Type.compare K.t
+    let compare = Type.(unstage (compare K.t))
   end)
 
   module IMap = Map.Make (struct
@@ -140,9 +140,9 @@ struct
 
   let pp_value = Type.pp V.t
 
-  let equal_opt_values = Type.(equal (option V.t))
+  let equal_opt_values = Type.(unstage (equal (option V.t)))
 
-  let equal_keys = Type.equal K.t
+  let equal_keys = Type.(unstage (equal K.t))
 
   type t = {
     id : int;

@@ -55,7 +55,7 @@ struct
       include Map.Make (struct
         type t = T.step
 
-        let compare = Irmin.Type.compare T.step_t
+        let compare = Irmin.Type.(unstage (compare T.step_t))
       end)
 
       let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
@@ -169,7 +169,7 @@ struct
         | Contents of name * address * metadata
         | Node of name * address
 
-      let is_default = Irmin.Type.equal T.metadata_t T.default
+      let is_default = Irmin.Type.(unstage (equal T.metadata_t)) T.default
 
       let value : value Irmin.Type.t =
         let open Irmin.Type in
@@ -267,9 +267,9 @@ struct
     module Val = struct
       open T
 
-      let equal_hash = Irmin.Type.equal hash_t
+      let equal_hash = Irmin.Type.(unstage (equal hash_t))
 
-      let equal_value = Irmin.Type.equal value_t
+      let equal_value = Irmin.Type.(unstage (equal value_t))
 
       type inode = { i_hash : hash Lazy.t; mutable tree : t option }
 
@@ -284,7 +284,10 @@ struct
       let hash_of_inode (i : inode) = Lazy.force i.i_hash
 
       let inode_t t : inode Irmin.Type.t =
-        let same_hash x y = equal_hash (hash_of_inode x) (hash_of_inode y) in
+        let same_hash =
+          Irmin.Type.stage @@ fun x y ->
+          equal_hash (hash_of_inode x) (hash_of_inode y)
+        in
         let open Irmin.Type in
         record "Node.inode" (fun hash tree -> { i_hash = lazy hash; tree })
         |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
@@ -337,7 +340,7 @@ struct
         | Values vs -> StepMap.bindings vs @ acc
         | Inodes t -> list_inodes ~find acc t
 
-      let compare_step = Irmin.Type.compare step_t
+      let compare_step = Irmin.Type.(unstage (compare step_t))
 
       let compare_entry x y = compare_step (fst x) (fst y)
 
@@ -804,7 +807,7 @@ struct
     save t v.Val.v;
     Lwt.return (hash v)
 
-  let equal_hash = Irmin.Type.equal H.t
+  let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()

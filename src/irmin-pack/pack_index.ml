@@ -39,7 +39,7 @@ module Make (K : Irmin.Hash.S) = struct
 
     let hash_size = 30
 
-    let equal = Irmin.Type.equal K.t
+    let equal = Irmin.Type.(unstage (equal K.t))
 
     let encode = Irmin.Type.(unstage (to_bin_string K.t))
 

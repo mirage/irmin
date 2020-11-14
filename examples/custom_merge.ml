@@ -26,7 +26,8 @@ module Entry : sig
 end = struct
   type t = { timestamp : int64; message : string } [@@deriving irmin]
 
-  let compare x y = Int64.compare x.timestamp y.timestamp
+  let compare =
+    Irmin.Type.stage (fun x y -> Int64.compare x.timestamp y.timestamp)
 
   let v message =
     time := Int64.add 1L !time;
@@ -86,6 +87,8 @@ end = struct
     in
     aux [] file
 
+  let compare_entry = Irmin.Type.(unstage (compare Entry.t))
+
   let merge ~old t1 t2 =
     let open Irmin.Merge.Infix in
     old () >>=* fun old ->
@@ -93,7 +96,7 @@ end = struct
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in
-    let t3 = List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2) in
+    let t3 = List.sort compare_entry (List.rev_append t1 t2) in
     Irmin.Merge.ok (List.rev_append t3 old)
 
   let merge = Irmin.Merge.(option (v t merge))

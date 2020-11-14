@@ -23,7 +23,7 @@ module Key = struct
 
   let pp = Irmin.Type.pp t
 
-  let equal = Irmin.Type.equal t
+  let equal = Irmin.Type.(unstage (equal t))
 end
 
 module Value = struct
