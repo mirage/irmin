@@ -41,15 +41,16 @@ module Copy
 struct
   let copy ~src ~dst str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
-    SRC.find src k >>= function
+    match SRC.unsafe_find src k with
     | None ->
         Log.warn (fun l ->
             l "Attempt to copy %s %a not contained in upper." str
               (Irmin.Type.pp Key.t) k);
-        pause ()
+        Lwt.return_unit
     | Some v ->
         stats str;
-        DST.unsafe_add dst k v
+        DST.unsafe_append dst k v;
+        Lwt.return_unit
 end
 
 module Content_addressable
