@@ -32,6 +32,7 @@ type config = {
   root : string;
   clear : bool;
   no_freeze : bool;
+  show_stats : bool;
 }
 
 let long_random_blob () = random_string 100
@@ -91,13 +92,11 @@ let configure_store root =
   Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
     ~copy_in_upper:true ()
 
-let verbose = ref false
-
 let init config =
   rm_dir config.root;
   Fmt_tty.setup_std_outputs ();
   Logs.set_level (Some Logs.App);
-  if !verbose then Logs.set_reporter (reporter ());
+  if config.show_stats then Logs.set_reporter (reporter ());
   reset_stats ()
 
 let info () =
@@ -126,13 +125,9 @@ let large_dir path tree width =
 
 let add_large_tree tree =
   let path = key 5 in
-  (* large_dir path tree 256 >>= fun (path, tree) -> *)
-  (* let path = path @ key 5 in *)
   large_dir path tree 256 >>= fun (path, tree) ->
   let path = path @ key 5 in
   Store.Tree.add tree path (long_random_blob ())
-
-(* large_dir path tree 256 >|= fun (_, tree) -> tree *)
 
 let chain_tree tree root depth =
   let rec aux i tree =
@@ -147,12 +142,6 @@ let add_small_tree conf tree =
   let tree = if conf.clear then Store.Tree.empty else tree in
   let k = random_key () in
   chain_tree tree k conf.depth
-
-(* let rec aux i tree path =
-        if i >= conf.depth then Lwt.return tree
-        else large_dir path tree 9 >>= fun (path, tree) -> aux (i + 1) tree path
-      in
-   aux 0 tree [ random_key () ] *)
 
 let init_commit repo =
   Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
@@ -174,38 +163,36 @@ let with_timer f =
 
 let total = ref 0
 
-let pp_commit_stats c i time =
+let print_commit_stats config c i time =
   let num_objects = Irmin_layers.Stats.get_adds () in
   total := !total + num_objects;
   Irmin_layers.Stats.reset_adds ();
-  if !verbose then
+  if config.show_stats then
     Logs.app (fun l ->
-        l "Commit %a %d in cycle completed in %f; objects created = %d"
+        l "Commit %a %d in cycle completed in %f; objects created: %d"
           Store.Commit.pp_hash c i time num_objects)
-  else Fmt.epr "%f\n%!" time
 
-let print_stats () =
+let print_stats config =
   let t = Irmin_layers.Stats.get () in
   let copied_objects =
     List.map2 (fun x y -> x + y) t.copied_contents t.copied_commits
     |> List.map2 (fun x y -> x + y) t.copied_nodes
     |> List.map2 (fun x y -> x + y) t.copied_branches
   in
-  let pp_comma ppf () = Fmt.pf ppf "," in
-  if !verbose then
+  if config.show_stats then (
     Logs.app (fun l ->
         l
-          "Irmin-layers stats: nb_freeze = %d copied_objects = %a \
-           waiting_freeze = %a completed_freeze = %a, objects added in upper \
-           since last freeze = %d"
+          "Irmin-layers stats: nb_freeze=%d copied_objects=%a \
+           waiting_freeze=%a completed_freeze=%a \
+           objects_added_in_upper_since_last_freeze=%d"
           t.nb_freeze
-          Fmt.(list ~sep:pp_comma int)
+          Fmt.(Dump.list int)
           copied_objects
-          Fmt.(list ~sep:pp_comma float)
+          Fmt.(Dump.list float)
           t.waiting_freeze
-          Fmt.(list ~sep:pp_comma float)
+          Fmt.(Dump.list float)
           t.completed_freeze !total);
-  total := 0
+    total := 0)
 
 let write_cycle config repo init_commit =
   let rec go c i =
@@ -214,7 +201,7 @@ let write_cycle config repo init_commit =
       with_timer (fun () ->
           checkout_and_commit config repo (Store.Commit.hash c) i)
       >>= fun (time, c') ->
-      pp_commit_stats c' i time;
+      print_commit_stats config c' i time;
       go c' (i + 1)
   in
   go init_commit 0
@@ -233,7 +220,7 @@ let consume_min () = Queue.pop min_uppers
 
 let first_5_cycles config repo =
   init_commit repo >>= fun c ->
-  pp_commit_stats c 0 0.0;
+  print_commit_stats config c 0 0.0;
   let rec aux i c =
     add_min c;
     if i >= 4 then Lwt.return c
@@ -246,14 +233,13 @@ let run_cycles config repo head =
     if i = config.ncycles then Lwt.return head
     else
       write_cycle config repo head >>= fun max ->
-      print_stats ();
+      print_stats config;
       let min = consume_min () in
       add_min max;
       with_timer (fun () -> freeze ~min_upper:[ min ] ~max:[ max ] config repo)
       >>= fun (time, ()) ->
-      if !verbose then
-        Logs.app (fun l -> l "call to freeze completed in %f" time)
-      else Fmt.epr "%f\n%!" time;
+      if config.show_stats then
+        Logs.app (fun l -> l "call to freeze completed in %f" time);
       run_one_cycle max (i + 1)
   in
   run_one_cycle head 0
@@ -262,37 +248,41 @@ let rw config =
   let conf = configure_store config.root in
   Store.Repo.v conf
 
-let close repo =
+let close config repo =
   with_timer (fun () -> Store.Repo.close repo) >|= fun (t, ()) ->
-  if !verbose then Logs.app (fun l -> l "close %f" t)
+  if config.show_stats then Logs.app (fun l -> l "close %f" t)
 
 let run config =
-  init config;
   rw config >>= fun repo ->
   first_5_cycles config repo >>= fun c ->
   Memtrace.trace_if_requested ();
   run_cycles config repo c >>= fun _ ->
-  close repo >|= fun () ->
-  if !verbose then (
+  close config repo >|= fun () ->
+  if config.show_stats then (
     Fmt.epr "After freeze thread finished : ";
     FSHelper.print_size config.root)
 
-let main ncommits ncycles depth clear no_freeze vv =
-  verbose := vv;
+let main () ncommits ncycles depth clear no_freeze show_stats =
   let config =
-    { ncommits; ncycles; depth; root = "test-bench"; clear; no_freeze }
+    {
+      ncommits;
+      ncycles;
+      depth;
+      root = "test-bench";
+      clear;
+      no_freeze;
+      show_stats;
+    }
   in
+  init config;
+  let d, _ = Lwt_main.run (with_timer (fun () -> run config)) in
+  let all_commits = ncommits * ncycles in
+  let rate = d /. float all_commits in
+  let freq = 1. /. rate in
   Logs.app (fun l ->
       l
-        "Benchmarking ./%s with depth = %d, ncommits/cycle = %d, ncycles = %d, \
-         clear = %b, no_freeze = %b. Each commit adds small trees (9 * depth \
-         objects); every 100th commit adds\n\
-        \     a large tree (256 *3 + 8 objects). First 5 cycles run without \
-         freeze, after that each cycle calls freeze once and copies the last 5 \
-         cycles."
-        config.root config.depth config.ncommits config.ncycles config.clear
-        config.no_freeze);
-  Lwt_main.run (run config)
+        "%d commits completed in %.2fs.\n\
+         [%.3fs per commit, %.0f commits per second]" all_commits d rate freq)
 
 open Cmdliner
 
@@ -318,12 +308,29 @@ let no_freeze =
   let doc = Arg.info ~doc:"Without freeze." [ "f"; "no_freeze" ] in
   Arg.(value @@ opt bool false doc)
 
-let verbose =
-  let doc = Arg.info ~doc:"Report more stats." [ "v"; "verbose" ] in
+let stats =
+  let doc = Arg.info ~doc:"Show performance stats." [ "s"; "stats" ] in
   Arg.(value @@ flag doc)
 
+let setup_log style_renderer level =
+  Fmt_tty.setup_std_outputs ?style_renderer ();
+  Logs.set_level level;
+  Logs.set_reporter (Logs_fmt.reporter ());
+  ()
+
+let setup_log =
+  Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
+
 let main_term =
-  Term.(const main $ ncommits $ ncycles $ depth $ clear $ no_freeze $ verbose)
+  Term.(
+    const main
+    $ setup_log
+    $ ncommits
+    $ ncycles
+    $ depth
+    $ clear
+    $ no_freeze
+    $ stats)
 
 let () =
   let info = Term.info "Benchmarks for layered store" in
