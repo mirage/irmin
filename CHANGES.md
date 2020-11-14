@@ -127,7 +127,7 @@
     number. Version 1 of irmin-pack was used for the previous format, version 2
     is used with the new format. (#1047, @icristescu, @CraigFe, @samoht)
 
-  - Use `Repo.iter` to speed-up copies between layers (#1149, @samoht)
+  - Use `Repo.iter` to speed-up copies between layers (#1149, #1150 @samoht)
 
 - **ppx_irmin**:
 
