@@ -384,7 +384,7 @@ module Cache = struct
         let t = Hashtbl.find files (file, readonly) in
         if valid t then (
           Log.debug (fun l ->
-              l "Found in cache: { path = %s; readonly = %b }" file readonly);
+              l "found in cache: %s (readonly=%b)" file readonly);
           if fresh then clear t;
           t)
         else (

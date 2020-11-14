@@ -522,7 +522,7 @@ module Make (P : S.PRIVATE) = struct
         >|= fun id () -> Branch_store.unwatch (branch_t t) id
 
   let watch_key t key ?init fn =
-    Log.info (fun f -> f "watch-key %a" pp_key key);
+    Log.debug (fun f -> f "watch-key %a" pp_key key);
     let tree c = Tree.find_tree (Commit.tree c) key in
     watch t ?init (lift_tree_diff ~key tree fn)
 

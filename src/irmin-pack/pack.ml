@@ -199,10 +199,13 @@ struct
       let dict = Dict.find t.pack.dict in
       V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
 
+    let pp_io ppf t =
+      let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
+      let mode = if t.readonly then ":RO" else "" in
+      Fmt.pf ppf "%s%s" name mode
+
     let unsafe_find t k =
-      Log.debug (fun l ->
-          l "[pack] find %a in %s RO = %b" pp_hash k (IO.name t.pack.block)
-            t.readonly);
+      Log.debug (fun l -> l "[pack:%a] find %a" pp_io t pp_hash k);
       Stats.incr_finds ();
       match Tbl.find t.staging k with
       | v ->
