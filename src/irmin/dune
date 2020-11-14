@@ -3,5 +3,6 @@
  (public_name irmin)
  (libraries astring base64 bheap digestif fmt jsonm logs lwt ocamlgraph uri
    uutf repr ppx_irmin)
+ (foreign_stubs (language c) (names hash))
  (preprocess
   (pps ppx_irmin -- --lib "Type")))

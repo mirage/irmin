@@ -17,9 +17,9 @@
 module Make (H : Digestif.S) = struct
   type t = H.t
 
-  external get_64 : string -> int -> int64 = "%caml_string_get64u"
+  external hash_string4 : string -> int = "caml_hash_string4" [@@noalloc]
 
-  let short_hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
+  let short_hash c = hash_string4 (H.to_raw_string c)
 
   let hash_size = H.digest_size
 
