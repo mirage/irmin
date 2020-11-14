@@ -954,6 +954,7 @@ struct
     (match heads with [] -> Repo.heads t | m -> Lwt.return m) >>= fun heads ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
+    else if Lwt_mutex.is_locked freeze_lock then Lwt.return ()
     else
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
           Lwt_mutex.lock freeze_lock)
