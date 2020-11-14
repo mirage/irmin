@@ -28,4 +28,4 @@
 (executable
  (name bench_layers)
  (modules bench_layers)
- (libraries irmin-pack metrics metrics-unix metrics-lwt common logs))
+ (libraries irmin-pack common logs memtrace))

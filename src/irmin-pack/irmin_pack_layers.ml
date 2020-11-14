@@ -327,7 +327,7 @@ struct
         let fresh = Pack_config.fresh config in
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
-        let log_size = Pack_config.index_log_size config in
+        let log_size = 4 * Pack_config.index_log_size config in
         let throttle = Pack_config.index_throttle config in
         let f = ref (fun () -> ()) in
         let index =
