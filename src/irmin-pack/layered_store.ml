@@ -39,7 +39,7 @@ module Copy
     (SRC : Pack.S with type key = Key.t)
     (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
 struct
-  let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+  let copy ~src ~dst str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
     SRC.find src k >>= function
     | None ->
@@ -48,7 +48,6 @@ struct
               (Irmin.Type.pp Key.t) k);
         pause ()
     | Some v ->
-        aux v >>= pause >>= fun () ->
         stats str;
         DST.unsafe_add dst k v
 end
@@ -95,13 +94,16 @@ struct
 
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
 
-  let lower t = Option.get t.lower
+  let lower t =
+    if t.lower = None then failwith "lower";
+    Option.get t.lower
 
   let log_current_upper t = if t.flip then "upper1" else "upper0"
 
   let log_next_upper t = if t.flip then "upper0" else "upper1"
 
-  let mem_lower t k = Option.get t.lower |> fun lower -> L.mem lower k
+  let mem_lower t k =
+    match t.lower with None -> Lwt.return false | Some lower -> L.mem lower k
 
   let mem_next t k = U.mem (next_upper t) k
 
@@ -309,34 +311,28 @@ struct
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let copy_to_lower t ~dst ?aux str k =
-    CopyLower.copy ~src:(current_upper t) ~dst ?aux str k
+  let copy_to_lower t ~dst str k =
+    CopyLower.copy ~src:(current_upper t) ~dst str k
 
-  let copy_to_next t ~dst ?aux str k =
-    CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
+  let copy_to_next t ~dst str k =
+    CopyUpper.copy ~src:(current_upper t) ~dst str k
 
   let copy :
-      type l.
-      l layer_type * l ->
-      [ `Read ] t ->
-      ?aux:(value -> unit Lwt.t) ->
-      string ->
-      key ->
-      unit Lwt.t =
+      type l. l layer_type * l -> [ `Read ] t -> string -> key -> unit Lwt.t =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 
   (** The object [k] can be in either lower or upper. If already in upper then
       do not copy it. *)
-  let copy_from_lower t ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+  let copy_from_lower t ~dst str k =
+    (* FIXME(samoht): why does this function need to be different from the previous one? *)
     let lower = lower t in
     let current = current_upper t in
     U.find current k >>= function
-    | Some v -> aux v
+    | Some _ -> Lwt.return_unit
     | None -> (
         L.find lower k >>= function
         | Some v ->
-            aux v >>= fun () ->
             stats str;
             U.unsafe_add dst k v
         | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
