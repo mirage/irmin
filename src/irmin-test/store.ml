@@ -2118,14 +2118,13 @@ module Make (S : S) = struct
           Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
         skipped := step :: !skipped
       in
-      let skip_nodes k =
+      let skip_node k =
         P.Node.find n k >|= fun t ->
         mem k (get t) check_skip;
         if List.mem "b" !skipped then true else false
       in
       visited := [];
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip_nodes ~rev:false
-        ()
+      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip_node ~rev:false ()
       >>= fun () ->
       if List.mem "b" !visited then Alcotest.fail "b should be skipped";
       visited := [];

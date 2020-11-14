@@ -101,15 +101,10 @@ module type S = sig
 end
 
 (** Build a graph. *)
-module Make
-    (Contents : Type.S)
-    (Metadata : Type.S)
-    (Node : Type.S)
-    (Commit : Type.S)
-    (Branch : Type.S) :
+module Make (Hash : Type.S) (Branch : Type.S) :
   S
     with type V.t =
-          [ `Contents of Contents.t * Metadata.t
-          | `Node of Node.t
-          | `Commit of Commit.t
+          [ `Contents of Hash.t
+          | `Node of Hash.t
+          | `Commit of Hash.t
           | `Branch of Branch.t ]

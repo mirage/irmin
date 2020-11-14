@@ -58,6 +58,8 @@
   - Added `iter_commits` and `iter_nodes` functions to traverse the commits and
     nodes graphs (#1077, @icristescu)
 
+  - Added `Repo.iter` to traverse object graphs (#1128, @samoht)
+
 - **irmin-pack**:
   - Added `index_throttle` option to `Irmin_pack.config`, which exposes the
     memory throttle feature of `Index` in `Irmin-Pack`. (#1049, @icristescu)

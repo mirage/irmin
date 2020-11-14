@@ -261,11 +261,11 @@ module Graph (S : S.NODE_STORE) = struct
     type t = unit [@@deriving irmin]
   end
 
-  module Graph = Object_graph.Make (Contents) (Metadata) (S.Key) (U) (U)
+  module Graph = Object_graph.Make (S.Key) (U)
 
   let edges t =
     List.rev_map
-      (function _, `Node n -> `Node n | _, `Contents c -> `Contents c)
+      (function _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
       (S.Val.list t)
 
   let pp_key = Type.pp S.Key.t
@@ -292,7 +292,7 @@ module Graph (S : S.NODE_STORE) = struct
   let ignore_lwt _ = Lwt.return_unit
 
   let iter t ~min ~max ?(node = ignore_lwt) ?(contents = ignore_lwt) ?edge
-      ?(skip_nodes = fun _ -> Lwt.return_false)
+      ?(skip_node = fun _ -> Lwt.return_false)
       ?(skip_contents = fun _ -> Lwt.return_false) ?(rev = true) () =
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
@@ -310,7 +310,7 @@ module Graph (S : S.NODE_STORE) = struct
         edge
     in
     let skip = function
-      | `Node x -> skip_nodes x
+      | `Node x -> skip_node x
       | `Contents c -> skip_contents c
       | _ -> Lwt.return_false
     in
