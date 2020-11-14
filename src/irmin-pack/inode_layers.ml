@@ -134,7 +134,7 @@ struct
 
   let copy_from_lower ~dst t = Inode.copy_from_lower t "Node" ~dst
 
-  let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
+  let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit =
    fun (layer, dst) t ->
     match layer with
     | Lower -> Inode.copy (Lower, dst) t "Node"

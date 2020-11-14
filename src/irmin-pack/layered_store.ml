@@ -41,18 +41,16 @@ module Copy
 struct
   let ignore_lwt _ = Lwt.return_unit
 
-  let copy ~src ~dst ?(aux = ignore_lwt) str k =
+  let copy ~src ~dst str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
-    SRC.find src k >>= function
+    match SRC.unsafe_find src k with
     | None ->
         Log.warn (fun l ->
             l "Attempt to copy %s %a not contained in upper." str
-              (Irmin.Type.pp Key.t) k);
-        pause ()
+              (Irmin.Type.pp Key.t) k)
     | Some v ->
-        aux v >>= pause >>= fun () ->
         stats str;
-        DST.unsafe_add dst k v
+        DST.unsafe_append dst k v
 
   let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
     SRC.find src k >>= function None -> none () | Some v -> some v
@@ -310,23 +308,16 @@ struct
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let copy_to_lower t ~dst ?aux str k =
-    CopyLower.copy ~src:(current_upper t) ~dst ?aux str k
+  let copy_to_lower t ~dst str k =
+    CopyLower.copy ~src:(current_upper t) ~dst str k
 
-  let copy_to_next t ~dst ?aux str k =
-    CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
+  let copy_to_next t ~dst str k =
+    CopyUpper.copy ~src:(current_upper t) ~dst str k
 
   let check t ?none ?some k =
     CopyUpper.check ~src:(current_upper t) ?none ?some k
 
-  let copy :
-      type l.
-      l layer_type * l ->
-      [ `Read ] t ->
-      ?aux:(value -> unit Lwt.t) ->
-      string ->
-      key ->
-      unit Lwt.t =
+  let copy : type l. l layer_type * l -> [ `Read ] t -> string -> key -> unit =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 

@@ -629,10 +629,17 @@ struct
       (* if node or contents are already in dst then they are skipped by
          Graph.iter; there is no need to check this again when the object is
          copied *)
-      let commit k = X.Commit.CA.copy commits t.X.Repo.commit "Commit" k in
-      let node k = X.Node.CA.copy nodes t.X.Repo.node k in
+      let commit k =
+        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
+        Lwt.pause ()
+      in
+      let node k =
+        X.Node.CA.copy nodes t.X.Repo.node k;
+        Lwt.return_unit
+      in
       let contents k =
-        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
+        Lwt.return_unit
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in
