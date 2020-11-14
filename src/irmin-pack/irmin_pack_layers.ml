@@ -741,24 +741,18 @@ struct
       let copy_newies_aux ~with_lock t =
         let newies_commits =
           if with_lock then
-            X.Commit.CA.unsafe_consume_newies t.X.Repo.commit
-            |> List.rev
-            |> Lwt.return
-          else X.Commit.CA.consume_newies t.X.Repo.commit >|= List.rev
+            X.Commit.CA.unsafe_consume_newies t.X.Repo.commit |> Lwt.return
+          else X.Commit.CA.consume_newies t.X.Repo.commit
         in
         let newies_nodes =
           if with_lock then
-            X.Node.CA.unsafe_consume_newies t.X.Repo.node
-            |> List.rev
-            |> Lwt.return
-          else X.Node.CA.consume_newies t.X.Repo.node >|= List.rev
+            X.Node.CA.unsafe_consume_newies t.X.Repo.node |> Lwt.return
+          else X.Node.CA.consume_newies t.X.Repo.node
         in
         let newies_contents =
           if with_lock then
-            X.Contents.CA.unsafe_consume_newies t.X.Repo.contents
-            |> List.rev
-            |> Lwt.return
-          else X.Contents.CA.consume_newies t.X.Repo.contents >|= List.rev
+            X.Contents.CA.unsafe_consume_newies t.X.Repo.contents |> Lwt.return
+          else X.Contents.CA.consume_newies t.X.Repo.contents
         in
         newies_commits >>= fun newies_commits ->
         newies_nodes >>= fun newies_nodes ->
