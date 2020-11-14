@@ -148,14 +148,11 @@ module History (S : S.COMMIT_STORE) = struct
     Log.debug (fun f -> f "parents %a" pp_key c);
     S.find t c >|= function None -> [] | Some c -> S.Val.parents c
 
-  module Graph =
-    Object_graph.Make (S.Node.Contents.Key) (S.Node.Metadata) (S.Node.Key)
-      (S.Key)
-      (struct
-        type t = unit
+  module U = struct
+    type t = unit [@@deriving irmin]
+  end
 
-        let t = Type.unit
-      end)
+  module Graph = Object_graph.Make (S.Key) (U)
 
   let edges t =
     Log.debug (fun f -> f "edges");

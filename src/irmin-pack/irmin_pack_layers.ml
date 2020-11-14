@@ -622,12 +622,12 @@ struct
       let node k =
         pause () >>= fun () -> X.Node.CA.copy nodes t.X.Repo.node k >>= pause
       in
-      let contents (k, _) =
+      let contents k =
         X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
       in
-      let skip_nodes h = skip_with_stats ~skip:skip_nodes h in
+      let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in
-      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_nodes
+      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_node
         ~skip_contents ()
 
     let copy_commit ~skip_nodes ~skip_contents contents nodes commits t k =
@@ -646,7 +646,7 @@ struct
 
       let copy_commit contents nodes commits t =
         copy_commit ~skip_nodes:(mem_node_lower t)
-          ~skip_contents:(fun (k, _) -> mem_contents_lower t k)
+          ~skip_contents:(mem_contents_lower t)
           (X.Contents.CA.Lower, contents)
           (X.Node.CA.Lower, nodes)
           (X.Commit.CA.Lower, commits)
@@ -681,7 +681,7 @@ struct
 
       let copy_commit contents nodes commits t =
         copy_commit ~skip_nodes:(mem_node_next t)
-          ~skip_contents:(fun (k, _) -> mem_contents_next t k)
+          ~skip_contents:(mem_contents_next t)
           (X.Contents.CA.Upper, contents)
           (X.Node.CA.Upper, nodes)
           (X.Commit.CA.Upper, commits)
@@ -764,7 +764,7 @@ struct
         in
         let copy_tree contents nodes t k =
           let skip_nodes k = mem_node_next t k in
-          let skip_contents (k, _) = mem_contents_next t k in
+          let skip_contents k = mem_contents_next t k in
           copy_tree ~skip_nodes ~skip_contents nodes contents t k
         in
         let copy_commit contents nodes commits t k =
@@ -837,13 +837,13 @@ struct
              read it. *)
           X.Node.CA.flush t.node
         in
-        let contents (k, _) =
+        let contents k =
           X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
             "Contents" k
         in
         (* We cannot skip nodes, because a node in upper can have a predecessor
            in lower. Contents do not have predecessors, so we can skip them. *)
-        let skip_contents (k, _) = mem_contents_next t k in
+        let skip_contents k = mem_contents_next t k in
         Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ~skip_contents
           ()
 

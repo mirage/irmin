@@ -83,18 +83,12 @@ module type S = sig
   module Dump : Type.S with type t = dump
 end
 
-module Make
-    (Contents : Type.S)
-    (Metadata : Type.S)
-    (Node : Type.S)
-    (Commit : Type.S)
-    (Branch : Type.S) =
-struct
+module Make (Hash : Type.S) (Branch : Type.S) = struct
   module X = struct
     type t =
-      [ `Contents of Contents.t * Metadata.t
-      | `Node of Node.t
-      | `Commit of Commit.t
+      [ `Contents of Hash.t
+      | `Node of Hash.t
+      | `Commit of Hash.t
       | `Branch of Branch.t ]
     [@@deriving irmin]
 
@@ -102,11 +96,7 @@ struct
 
     let compare = Type.compare t
 
-    let hash_contents = Type.(unstage (short_hash Contents.t))
-
-    let hash_node = Type.(unstage (short_hash Node.t))
-
-    let hash_commit = Type.(unstage (short_hash Commit.t))
+    let short_hash = Type.(unstage (short_hash Hash.t))
 
     let hash_branch = Type.(unstage (short_hash Branch.t))
 
@@ -114,9 +104,9 @@ struct
        are good enough to be used as short hashes. *)
     let hash (t : t) : int =
       match t with
-      | `Contents (c, _) -> hash_contents c
-      | `Node n -> hash_node n
-      | `Commit c -> hash_commit c
+      | `Contents c -> short_hash c
+      | `Node n -> short_hash n
+      | `Commit c -> short_hash c
       | `Branch b -> hash_branch b
   end
 
@@ -151,6 +141,13 @@ struct
     let mark key level = Table.add marks key level in
     let has_mark key = Table.mem marks key in
     let todo = Stack.create () in
+    (* if a branch is in [min], add the commit it is pointing to too. *)
+    Lwt_list.fold_left_s
+      (fun acc -> function
+        | `Branch _ as x -> pred x >|= fun c -> (x :: c) @ acc
+        | x -> Lwt.return (x :: acc))
+      [] min
+    >>= fun min ->
     List.iter (fun k -> Stack.push (k, 0) todo) max;
     let treat key =
       Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
@@ -180,18 +177,28 @@ struct
           else
             skip key >>= function
             | true -> pop key level
-            | false ->
+            | false -> (
                 Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
                 (if not rev then treat key else Lwt.return_unit) >>= fun () ->
                 mark key level;
-                if List.mem key min then visit ()
-                else
+                let push_pred ~filter_history () =
                   pred key >>= fun keys ->
+                  (*if a commit is in [min] cut the history but still visit
+                     its nodes. *)
                   List.iter
-                    (fun k ->
-                      if not (has_mark k) then Stack.push (k, level + 1) todo)
+                    (function
+                      | `Commit _ when filter_history -> ()
+                      | k ->
+                          if not (has_mark k) then
+                            Stack.push (k, level + 1) todo)
                     keys;
-                  visit ())
+                  visit ()
+                in
+                match key with
+                | `Commit _ -> push_pred ~filter_history:(List.mem key min) ()
+                | _ ->
+                    if List.mem key min then visit ()
+                    else push_pred ~filter_history:false ()))
     in
     visit ()
 
@@ -235,10 +242,10 @@ struct
     let vertex_name k =
       let str t v = "\"" ^ Type.to_string t v ^ "\"" in
       match k with
-      | `Node n -> str Node.t n
-      | `Commit c -> str Commit.t c
+      | `Node n -> str Hash.t n
+      | `Commit c -> str Hash.t c
+      | `Contents c -> str Hash.t c
       | `Branch b -> str Branch.t b
-      | `Contents (c, _) -> str Contents.t c
 
     let vertex_attributes k = !vertex_attributes k
 

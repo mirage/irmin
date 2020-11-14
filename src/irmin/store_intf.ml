@@ -123,15 +123,71 @@ module type S = sig
     (** [import t s] imports the contents of the slice [s] in [t]. Does not
         modify branches. *)
 
+    type elt =
+      [ `Commit of hash | `Node of hash | `Contents of hash | `Branch of branch ]
+    [@@deriving irmin]
+    (** The type for elements iterated over by {!iter}. *)
+
+    val iter :
+      t ->
+      min:elt list ->
+      max:elt list ->
+      ?edge:(elt -> elt -> unit Lwt.t) ->
+      ?branch:(branch -> unit Lwt.t) ->
+      ?commit:(hash -> unit Lwt.t) ->
+      ?node:(hash -> unit Lwt.t) ->
+      ?contents:(hash -> unit Lwt.t) ->
+      ?skip_branch:(branch -> bool Lwt.t) ->
+      ?skip_commit:(hash -> bool Lwt.t) ->
+      ?skip_node:(hash -> bool Lwt.t) ->
+      ?skip_contents:(hash -> bool Lwt.t) ->
+      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
+      ?pred_commit:(t -> hash -> elt list Lwt.t) ->
+      ?pred_node:(t -> hash -> elt list Lwt.t) ->
+      ?pred_contents:(t -> hash -> elt list Lwt.t) ->
+      ?rev:bool ->
+      unit ->
+      unit Lwt.t
+    (** [iter t] iterates in topological order over the closure graph of [t]. If
+        [rev] is set (by default it is) the traversal is done in reverse order.
+
+        [skip_branch], [skip_commit], [skip_node] and [skip_contents] allow the
+        traversal to be stopped when the corresponding objects are traversed. By
+        default no objects are skipped.
+
+        The [branch], [commit], [node] and [contents] functions are called
+        whenever the corresponding objects are traversed. By default these
+        functions do nothing. These functions are not called on skipped objects.
+
+        [pred_branch], [pred_commit], [pred_node] and [pred_contents] implicitly
+        define the graph underlying the traversal. By default they exactly match
+        the underlying Merkle graph of the repository [t]. These functions can
+        be used to traverse a slightly modified version of that graph, for
+        instance by modifying [pred_contents] to implicitly link structured
+        contents with other objects in the graph.
+
+        The traversed objects are all included between [min] (included) and
+        [max] (included), following the Merkle graph order. Moreover, the [min]
+        boundary is extended as follows:
+
+        - contents and node objects in [min] stop the traversal; their
+          predecessors are not traversed.
+        - commit objects in [min] stop the traversal for their commit
+          predecessors, but their sub-node are still traversed. This allows
+          users to define an inclusive range of commit to iterate over.
+        - branch objects in [min] implicitly add to [min] the commit they are
+          pointing to; this allow users to define the iteration between two
+          branches. *)
+
     val iter_nodes :
       t ->
       min:hash list ->
       max:hash list ->
       ?node:(hash -> unit Lwt.t) ->
-      ?contents:(hash * metadata -> unit Lwt.t) ->
+      ?contents:(hash -> unit Lwt.t) ->
       ?edge:(hash -> hash -> unit Lwt.t) ->
-      ?skip_nodes:(hash -> bool Lwt.t) ->
-      ?skip_contents:(hash * metadata -> bool Lwt.t) ->
+      ?skip_node:(hash -> bool Lwt.t) ->
+      ?skip_contents:(hash -> bool Lwt.t) ->
       ?rev:bool ->
       unit ->
       unit Lwt.t

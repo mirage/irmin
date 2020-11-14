@@ -360,10 +360,10 @@ module type NODE_GRAPH = sig
     min:node list ->
     max:node list ->
     ?node:(node -> unit Lwt.t) ->
-    ?contents:(contents * metadata -> unit Lwt.t) ->
+    ?contents:(contents -> unit Lwt.t) ->
     ?edge:(node -> node -> unit Lwt.t) ->
-    ?skip_nodes:(node -> bool Lwt.t) ->
-    ?skip_contents:(contents * metadata -> bool Lwt.t) ->
+    ?skip_node:(node -> bool Lwt.t) ->
+    ?skip_contents:(contents -> bool Lwt.t) ->
     ?rev:bool ->
     unit ->
     unit Lwt.t
@@ -371,7 +371,7 @@ module type NODE_GRAPH = sig
       the closure of [t].
 
       It applies the following functions while traversing the graph: [node] on
-      the nodes; [edge n predecessor_of_n] on the directed edges; [skip_nodes n]
+      the nodes; [edge n predecessor_of_n] on the directed edges; [skip_node n]
       to not include a node [n], its predecessors and the outgoing edges of [n]
       and [skip_contents c] to not include content [c].
 

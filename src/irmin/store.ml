@@ -191,10 +191,7 @@ module Make (P : S.PRIVATE) = struct
 
   module OCamlGraph = Graph
   module Graph = Node.Graph (P.Node)
-  module KGraph =
-    Object_graph.Make (P.Contents.Key) (P.Node.Metadata) (P.Node.Key)
-      (P.Commit.Key)
-      (Branch_store.Key)
+  module KGraph = Object_graph.Make (Hash) (Branch_store.Key)
 
   type slice = P.Slice.t [@@deriving irmin]
 
@@ -339,6 +336,72 @@ module Make (P : S.PRIVATE) = struct
         (function
           | Import_error e -> Lwt.return (Error (`Msg e))
           | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+
+    type elt =
+      [ `Commit of Hash.t
+      | `Node of Hash.t
+      | `Contents of Hash.t
+      | `Branch of P.Branch.Key.t ]
+    [@@deriving irmin]
+
+    let ignore_lwt _ = Lwt.return_unit
+
+    let return_false _ = Lwt.return false
+
+    let default_pred_contents _ _ = Lwt.return []
+
+    let default_pred_node t k =
+      P.Node.find (node_t t) k >|= function
+      | None -> []
+      | Some v ->
+          List.rev_map
+            (function
+              | _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
+            (P.Node.Val.list v)
+
+    let default_pred_commit t c =
+      P.Commit.find (commit_t t) c >|= function
+      | None ->
+          Log.debug (fun l -> l "%a: not found" (Type.pp Hash.t) c);
+          []
+      | Some c ->
+          let node = P.Commit.Val.node c in
+          let parents = P.Commit.Val.parents c in
+          [ `Node node ] @ List.map (fun k -> `Commit k) parents
+
+    let default_pred_branch t b =
+      P.Branch.find (branch_t t) b >|= function
+      | None ->
+          Log.debug (fun l -> l "%a: not found" (Type.pp P.Branch.Key.t) b);
+          []
+      | Some b -> [ `Commit b ]
+
+    let iter t ~min ~max ?edge ?(branch = ignore_lwt) ?(commit = ignore_lwt)
+        ?(node = ignore_lwt) ?(contents = ignore_lwt)
+        ?(skip_branch = return_false) ?(skip_commit = return_false)
+        ?(skip_node = return_false) ?(skip_contents = return_false)
+        ?(pred_branch = default_pred_branch)
+        ?(pred_commit = default_pred_commit) ?(pred_node = default_pred_node)
+        ?(pred_contents = default_pred_contents) ?(rev = true) () =
+      let node = function
+        | `Commit x -> commit x
+        | `Node x -> node x
+        | `Contents x -> contents x
+        | `Branch x -> branch x
+      in
+      let skip = function
+        | `Commit x -> skip_commit x
+        | `Node x -> skip_node x
+        | `Contents x -> skip_contents x
+        | `Branch x -> skip_branch x
+      in
+      let pred = function
+        | `Commit x -> pred_commit t x
+        | `Node x -> pred_node t x
+        | `Contents x -> pred_contents t x
+        | `Branch x -> pred_branch t x
+      in
+      KGraph.iter ~pred ~min ~max ~node ?edge ~skip ~rev ()
 
     let iter_nodes t = Graph.iter (graph_t t)
 
@@ -934,10 +997,7 @@ module Make (P : S.PRIVATE) = struct
   end)
 
   module Gmap = struct
-    module Src =
-      Object_graph.Make (P.Contents.Key) (P.Node.Metadata) (P.Node.Key)
-        (P.Commit.Key)
-        (Branch_store.Key)
+    module Src = Object_graph.Make (Hash) (Branch_store.Key)
 
     module Dst = struct
       include History
