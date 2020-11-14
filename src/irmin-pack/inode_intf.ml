@@ -31,7 +31,11 @@ module type S = sig
 
   module Key : Irmin.Hash.S with type t = key
 
-  module Val : Irmin.Private.Node.S with type t = value and type hash = key
+  module Val : sig
+    include Irmin.Private.Node.S with type t = value and type hash = key
+
+    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+  end
 
   include S.CHECKABLE with type 'a t := 'a t and type key := key
 
@@ -52,6 +56,8 @@ module type INODE_INTER = sig
   module Val : sig
     type t
 
+    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+
     val of_bin : Elt.t -> t
 
     val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
@@ -71,9 +77,11 @@ module type VAL_INTER = sig
 
   type inode_val
 
-  type t = { mutable find : hash -> inode_val option; v : inode_val }
+  type t = { find : hash -> inode_val option; v : inode_val }
 
   include Irmin.Private.Node.S with type hash := hash and type t := t
+
+  val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 end
 
 module type PACK_INTER = sig

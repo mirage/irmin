@@ -281,6 +281,24 @@ struct
 
       and t = { hash : hash Lazy.t; stable : bool; v : v }
 
+      let pred t =
+        match t.v with
+        | Inodes i ->
+            Array.fold_left
+              (fun acc -> function Empty -> acc
+                | Inode i -> `Inode (Lazy.force i.i_hash) :: acc)
+              [] i.entries
+        | Values l ->
+            StepMap.fold
+              (fun _ v acc ->
+                let v =
+                  match v with
+                  | `Node k -> `Node k
+                  | `Contents (k, _) -> `Contents k
+                in
+                v :: acc)
+              l []
+
       let hash_of_inode (i : inode) = Lazy.force i.i_hash
 
       let inode_t t : inode Irmin.Type.t =
@@ -724,15 +742,19 @@ struct
 
     type inode_val = I.t
 
-    type t = { mutable find : H.t -> I.t option; v : I.t }
+    type t = { find : H.t -> I.t option; v : I.t }
+
+    let pred t = I.pred t.v
 
     let niet _ = assert false
 
-    let v l = { find = niet; v = I.v l }
+    let v l =
+      let v = I.v l in
+      { find = niet; v }
 
     let list t = I.list ~find:t.find t.v
 
-    let empty = { find = niet; v = Inode.Val.empty }
+    let empty = { find = niet; v = I.empty }
 
     let is_empty t = I.is_empty t.v
 
@@ -740,11 +762,11 @@ struct
 
     let add t s v =
       let v = I.add ~find:t.find t.v s v in
-      if v == t.v then t else { find = t.find; v }
+      if v == t.v then t else { t with v }
 
     let remove t s =
       let v = I.remove ~find:t.find t.v s in
-      if v == t.v then t else { find = t.find; v }
+      if v == t.v then t else { t with v }
 
     let pre_hash_i = Irmin.Type.(unstage (pre_hash I.t))
 

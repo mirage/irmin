@@ -128,75 +128,15 @@ struct
 
   let flush = Inode.flush
 
-  let unsafe_find t k =
-    match Inode.unsafe_find t k with
-    | None -> None
-    | Some v ->
-        let v = Inode.Val.of_bin v in
-        Some v
-
-  let lift t v =
-    let v = Inode.Val.of_bin v in
-    let find = unsafe_find t in
-    { Val.find; v }
-
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let pause = Lwt.pause
-
-  (** The object [k] can be in either lower or upper. If already in upper then
-      do not copy it. *)
-  let copy_from_lower ~dst t k =
-    let lower = lower t in
-    let current = current_upper t in
-    U.mem current k >>= function
-    | true -> Lwt.return_unit
-    | false -> (
-        L.find lower k >>= function
-        | None -> Fmt.failwith "Node %a not found" (Irmin.Type.pp H.t) k
-        | Some v ->
-            let add k v =
-              Irmin_layers.Stats.copy_nodes ();
-              Inode.U.unsafe_append dst k v
-            in
-            let mem k = Inode.U.unsafe_mem dst k in
-            let v' = lift t v in
-            List.iter ignore (Val.list v');
-            Inode.Val.save ~add ~mem v'.Val.v;
-            Lwt.return_unit)
-
-  let copy ~add ~mem t k =
-    Log.debug (fun l -> l "copy Node %a" (Irmin.Type.pp Key.t) k);
-    Inode.U.find (Inode.current_upper t) k >>= function
-    | None -> pause ()
-    | Some v ->
-        pause () >>= fun () ->
-        let v' = lift t v in
-        (* copy is called right after [of_bin] and the inodes have empty cached
-           trees. We call [list] here to add the cached tree to the inodes, so that
-           they are copied in the dst layer. *)
-        List.iter ignore (Val.list v');
-        let add k v =
-          Irmin_layers.Stats.copy_nodes ();
-          add k v;
-          pause ()
-        in
-        let mem k = mem k |> Lwt.return in
-        pause () >>= fun () -> Inode.Val.save_lwt ~add ~mem v'.Val.v
-
-  let copy_to_lower ~dst t k =
-    let add k v = Inode.L.unsafe_append dst k v in
-    let mem k = Inode.L.unsafe_mem dst k in
-    copy ~add ~mem t k
-
-  let copy_to_next ~dst t k =
-    let add k v = Inode.U.unsafe_append dst k v in
-    let mem k = Inode.U.unsafe_mem dst k in
-    copy ~add ~mem t k
+  let copy_from_lower ~dst t = Inode.copy_from_lower t "Node" ~dst
 
   let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
-   fun (ltype, dst) ->
-    match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
+   fun (layer, dst) t ->
+    match layer with
+    | Lower -> Inode.copy (Lower, dst) t "Node"
+    | Upper -> Inode.copy (Upper, dst) t "Node"
 end
