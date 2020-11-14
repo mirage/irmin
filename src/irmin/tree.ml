@@ -217,19 +217,17 @@ module Make (P : S.PRIVATE) = struct
           v
       | _, v -> v
 
-    let hash_of_value c v =
-      cnt.contents_hash <- cnt.contents_hash + 1;
-      let k = P.Contents.Key.hash v in
-      c.info.hash <- Some k;
-      match c.info.hash with Some k -> k | None -> k
-
     let hash c =
       match cached_hash c with
       | Some k -> k
       | None -> (
           match cached_value c with
           | None -> assert false
-          | Some v -> hash_of_value c v)
+          | Some v ->
+              cnt.contents_hash <- cnt.contents_hash + 1;
+              let k = P.Contents.Key.hash v in
+              c.info.hash <- Some k;
+              k)
 
     let value_of_hash t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
@@ -456,79 +454,67 @@ module Make (P : S.PRIVATE) = struct
           v
       | _, v -> v
 
-    let hash_of_value t v =
-      cnt.node_hash <- cnt.node_hash + 1;
-      let k = P.Node.Key.hash v in
-      t.info.hash <- Some k;
-      match t.info.hash with Some k -> k | None -> k
-
-    let hash ~value_of_adds ~value_of_map t =
+    let rec hash : type a. t -> (hash -> a) -> a =
+     fun t k ->
       match cached_hash t with
-      | Some h -> h
+      | Some h -> k h
       | None -> (
-          let of_value v = hash_of_value t v in
+          let a_of_value v =
+            cnt.node_hash <- cnt.node_hash + 1;
+            let h = P.Node.Key.hash v in
+            t.info.hash <- Some h;
+            k h
+          in
           match cached_value t with
-          | Some v -> of_value v
+          | Some v -> a_of_value v
           | None -> (
               match t.v with
-              | Hash (_, h) -> h
-              | Value (_, v, None) -> of_value v
-              | Value (_, v, Some a) -> of_value (value_of_adds t v a)
-              | Map m -> of_value (value_of_map t m)))
+              | Hash (_, h) -> k h
+              | Value (_, v, None) -> a_of_value v
+              | Value (_, v, Some a) -> value_of_adds t v a a_of_value
+              | Map m -> value_of_map t m a_of_value))
 
-    let rec value_of_map t ~value_of_adds map =
+    and value_of_map : type a. t -> map -> (value -> a) -> a =
+     fun t map k ->
       if StepMap.is_empty map then (
         t.info.value <- Some P.Node.Val.empty;
-        P.Node.Val.empty)
+        k P.Node.Val.empty)
       else
         let alist = StepMap.bindings map in
         let rec aux acc = function
           | [] ->
-              let alist = List.rev acc in
               cnt.node_val_v <- cnt.node_val_v + 1;
-              P.Node.Val.v alist
+              let v = P.Node.Val.v (List.rev acc) in
+              t.info.value <- Some v;
+              k v
           | (step, v) :: rest -> (
               match v with
               | `Contents (c, m) ->
                   let v = `Contents (Contents.hash c, m) in
                   (aux [@tailcall]) ((step, v) :: acc) rest
-              | `Node n ->
-                  let n =
-                    hash ~value_of_adds
-                      ~value_of_map:(value_of_map ~value_of_adds)
-                      n
-                  in
-                  let v = `Node n in
-                  (aux [@tailcall]) ((step, v) :: acc) rest)
+              | `Node n -> hash n (fun h -> aux ((step, `Node h) :: acc) rest))
         in
-        let v = aux [] alist in
-        t.info.value <- Some v;
-        v
+        aux [] alist
 
-    let value_of_elt ~value_of_adds e =
+    and value_of_elt : type a. elt -> (P.Node.Val.value -> a) -> a =
+     fun e k ->
       match e with
-      | `Contents (c, m) -> `Contents (Contents.hash c, m)
-      | `Node n ->
-          let h =
-            hash ~value_of_map:(value_of_map ~value_of_adds) ~value_of_adds n
-          in
-          `Node h
+      | `Contents (c, m) -> k (`Contents (Contents.hash c, m))
+      | `Node n -> hash n (fun h -> k (`Node h))
 
-    let rec value_of_adds t v added =
+    and value_of_adds : type a. t -> value -> _ -> (value -> a) -> a =
+     fun t v added k ->
       let added = StepMap.bindings added in
-      let v =
-        List.fold_left
-          (fun v (k, e) ->
-            let e = value_of_elt ~value_of_adds e in
-            P.Node.Val.add v k e)
-          v added
+      let rec aux acc = function
+        | [] ->
+            t.info.value <- Some acc;
+            k acc
+        | (k, e) :: rest ->
+            value_of_elt e (fun e -> aux (P.Node.Val.add acc k e) rest)
       in
-      t.info.value <- Some v;
-      v
+      aux v added
 
-    let value_of_map = value_of_map ~value_of_adds
-
-    let hash = hash ~value_of_adds ~value_of_map
+    let hash k = hash k (fun x -> x)
 
     let value_of_hash t repo k =
       match t.info.value with
@@ -542,15 +528,14 @@ module Make (P : S.PRIVATE) = struct
               Ok v)
 
     let to_value t =
+      let ok x = Lwt.return (Ok x) in
       match cached_value t with
-      | Some v -> Lwt.return (Ok v)
+      | Some v -> ok v
       | None -> (
           match t.v with
-          | Value (_, v, None) -> Lwt.return (Ok v)
-          | Value (_, v, Some m) ->
-              let v = value_of_adds t v m in
-              Lwt.return (Ok v)
-          | Map m -> Lwt.return (Ok (value_of_map t m))
+          | Value (_, v, None) -> ok v
+          | Value (_, v, Some m) -> value_of_adds t v m ok
+          | Map m -> value_of_map t m ok
           | Hash (repo, h) -> value_of_hash t repo h)
 
     let to_map t =
@@ -1126,6 +1111,8 @@ module Make (P : S.PRIVATE) = struct
 
   let import_no_check repo k = Node.of_hash repo k
 
+  let value_of_map t map = Node.value_of_map t map (fun x -> x)
+
   let export ?clear repo contents_t node_t n =
     let seen = Hashes.create 127 in
     let add_node n v () =
@@ -1142,7 +1129,7 @@ module Make (P : S.PRIVATE) = struct
       assert (equal_hash k k');
       Contents.export ?clear repo c k
     in
-    let add_node_map n x () = add_node n (Node.value_of_map n x) () in
+    let add_node_map n x () = add_node n (value_of_map n x) () in
     let todo = Stack.create () in
     let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
