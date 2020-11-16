@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Common
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
@@ -35,18 +34,29 @@ type config = {
   show_stats : bool;
 }
 
+let () = Random.self_init ()
+
+let random_char () = char_of_int (Random.int 256)
+
+let random_string n = String.init n (fun _i -> random_char ())
+
 let long_random_blob () = random_string 100
 
 let random_blob () = random_string 10
 
 let random_key () = random_string 3
 
+let rm_dir root =
+  if Sys.file_exists root then (
+    let cmd = Printf.sprintf "rm -rf %s" root in
+    Logs.info (fun l -> l "exec: %s\n%!" cmd);
+    let _ = Sys.command cmd in
+    ())
+
 module Conf = struct
   let entries = 32
 
   let stable_hash = 256
-
-  let copy_in_upper = true
 end
 
 module Hash = Irmin.Hash.SHA1
@@ -63,8 +73,6 @@ module FSHelper = struct
   let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
 
   let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
-
-  let branches root = file (Irmin_pack.Layout.branch ~root) / 1024 / 1024
 
   let index root =
     let index_dir = Filename.concat root "index" in
@@ -209,8 +217,6 @@ let write_cycle config repo init_commit =
 let freeze ~min_upper ~max config repo =
   if config.no_freeze then Lwt.return_unit
   else Store.freeze ~max ~min_upper repo
-
-let pp_float ppf x = Fmt.pf ppf "%f\n" x
 
 let min_uppers = Queue.create ()
 

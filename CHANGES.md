@@ -18,6 +18,10 @@
   - Created a new package, `irmin-layers` that includes common signatures for
     layered stores. It contains a stub `Make_layers` functor (#882, @icristescu)
 
+- **irmin-bench** (_new_):
+  - Created a new package to contain benchmarks for Irmin and its various
+    backends. (#1142, @CraigFe)
+
 - **irmin**
   - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
     contents and nodes respectively. (#1022, @CraigFe)
@@ -43,7 +47,6 @@
     let encode_bin = Type.(unstage (encode_bin ty))
     let _ = <begin loop> ... encode_bin foo ... <end loop>
     ```
-
   - Added a `clear` function for stores (#1071, @icristescu, @CraigFe)
 
   - Requires digestif>=0.9 to use digestif's default variants
