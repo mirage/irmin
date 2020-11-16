@@ -6,8 +6,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
 
-let ( // ) = Filename.concat
-
 let pp_version = IO.pp_version
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
@@ -207,7 +205,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let Cache.{ v = unsafe_v } =
     Cache.memoize ~clear:unsafe_clear ~valid
       ~v:(fun () -> unsafe_v)
-      "store.branches"
+      Layout.branch
 
   let v ?fresh ?readonly file =
     Lwt_mutex.with_lock create (fun () ->
@@ -286,14 +284,11 @@ let migrate_io_to_v2 ~progress src =
 let migrate config =
   if Config.readonly config then raise RO_Not_Allowed;
   Log.debug (fun l -> l "[%s] migrate" (Config.root config));
-  let root_old = Config.root config in
-  [ "store.pack"; "store.branches"; "store.dict" ]
-  |> List.map (fun name ->
-         let io =
-           IO.v ~version:None ~fresh:false ~readonly:true (root_old // name)
-         in
+  Layout.stores ~root:(Config.root config)
+  |> List.map (fun store ->
+         let io = IO.v ~version:None ~fresh:false ~readonly:true store in
          let version = IO.version io in
-         (name, io, version))
+         (store, io, version))
   |> List.partition (fun (_, _, v) -> v = current_version)
   |> function
   | migrated, [] ->
