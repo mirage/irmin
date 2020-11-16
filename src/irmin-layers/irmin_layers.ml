@@ -17,11 +17,16 @@
 open Lwt.Infix
 include Irmin_layers_intf
 
-let pp_layer_id =
-  Fmt.of_to_string (function
+module Layer_id = struct
+  type t = layer_id [@@deriving irmin]
+
+  let to_string = function
     | `Upper0 -> "upper0"
     | `Upper1 -> "upper1"
-    | `Lower -> "lower")
+    | `Lower -> "lower"
+
+  let pp = Fmt.of_to_string to_string
+end
 
 module Make_ext
     (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)

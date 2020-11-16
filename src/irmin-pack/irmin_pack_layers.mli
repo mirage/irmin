@@ -49,7 +49,8 @@ module type S = sig
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.Layer_id.t
+    )
     result
     list
 end

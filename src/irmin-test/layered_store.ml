@@ -243,10 +243,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     run x test
 
   let check_layer repo handler msg exp =
-    S.layer_id repo handler >|= fun got ->
-    if not (got = exp) then
-      Alcotest.failf "%s expected %a got %a" msg Irmin_layers.pp_layer_id exp
-        Irmin_layers.pp_layer_id got
+    S.layer_id repo handler >|= check Irmin_layers.Layer_id.t msg exp
 
   let check_layer_for_commits repo commit msg exp =
     check_layer repo (S.Commit_t (S.Commit.hash commit)) msg exp

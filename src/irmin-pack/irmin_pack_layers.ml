@@ -39,11 +39,11 @@ module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
 module Default = struct
-  let lower_root = "lower"
+  let lower_root = Irmin_layers.Layer_id.to_string `Lower
 
-  let upper_root1 = "upper1"
+  let upper0_root = Irmin_layers.Layer_id.to_string `Upper0
 
-  let upper_root0 = "upper0"
+  let upper1_root = Irmin_layers.Layer_id.to_string `Upper1
 
   let copy_in_upper = false
 
@@ -62,13 +62,13 @@ let lower_root conf = Conf.get conf lower_root_key
 
 let upper_root1_key =
   Conf.key ~doc:"The root directory for the upper layer." "root_upper"
-    Conf.string Default.upper_root1
+    Conf.string Default.upper1_root
 
 let upper_root1 conf = Conf.get conf upper_root1_key
 
 let upper_root0_key =
   Conf.key ~doc:"The root directory for the secondary upper layer."
-    "root_second" Conf.string Default.upper_root0
+    "root_second" Conf.string Default.upper0_root
 
 let upper_root0 conf = Conf.get conf upper_root0_key
 
@@ -93,7 +93,7 @@ let blocking_copy_size_key =
 let blocking_copy_size conf = Conf.get conf blocking_copy_size_key
 
 let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
-    ?(upper_root1 = Default.upper_root1) ?(upper_root0 = Default.upper_root0)
+    ?(upper_root1 = Default.upper1_root) ?(upper_root0 = Default.upper0_root)
     ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
     ?(blocking_copy_size = Default.blocking_copy_size) () =
   let config = Conf.add conf lower_root_key lower_root in
@@ -1053,7 +1053,8 @@ module type S = sig
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.Layer_id.t
+    )
     result
     list
 end
