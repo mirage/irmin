@@ -4,7 +4,7 @@ let test_short_hash () =
   let h = Hash.BLAKE2B.hash (fun f -> f "") in
   let () =
     Hash.BLAKE2B.short_hash h
-    |> Alcotest.(check int) "Specialised short hash" 241225442164632184
+    |> Alcotest.(check int) "Specialised short hash" 2020213495
   in
   let () =
     Type.(unstage (short_hash Hash.BLAKE2B.t)) ~seed:0 h
@@ -12,7 +12,7 @@ let test_short_hash () =
   in
   let () =
     Type.(unstage (short_hash Hash.BLAKE2B.t)) ?seed:None h
-    |> Alcotest.(check int) "Generic unseeded short hash" 674923654
+    |> Alcotest.(check int) "Generic unseeded short hash" 2020213495
   in
   ()
 
