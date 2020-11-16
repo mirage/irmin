@@ -27,9 +27,8 @@ module Bench = Irmin_bench.Make (KV)
 
 let file f =
   (* in MiB *)
-  try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
-
-let dict root = file (Filename.concat root "store.dict") / 1024 / 1024
+  try (Unix.stat f).st_size / 1024 / 1024
+  with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
 
 let index root =
   let rec aux acc i =
@@ -39,12 +38,12 @@ let index root =
       let s = file (Filename.concat root filename) in
       aux (acc + s) (i + 1)
   in
-  aux 0 0 / 1024 / 1024
+  aux 0 0
 
-let log root = file (Filename.concat root "store.log")
-
-let pack root = file (Filename.concat root "store.pack") / 1024 / 1024
-
-let size ~root = dict root + index root + pack root + log root
+let size ~root =
+  let index_size = index root in
+  Irmin_pack.Layout.stores ~root
+  |> List.map file
+  |> List.fold_left ( + ) index_size
 
 let () = Bench.run ~config ~size

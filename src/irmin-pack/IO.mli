@@ -76,6 +76,6 @@ module Cache : sig
     v:('a -> fresh:bool -> readonly:bool -> string -> 'v) ->
     clear:('v -> unit) ->
     valid:('v -> bool) ->
-    string ->
+    (root:string -> string) ->
     ('a, 'v) t
 end

@@ -17,7 +17,7 @@ let IO.Cache.{ v } =
   let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
   IO.Cache.memoize ~clear ~valid
     ~v:(fun capacity -> v_no_cache ~capacity)
-    "store.dict"
+    Layout.dict
 
 let v ?fresh ?readonly ?(capacity = 100_000) root =
   v capacity ?fresh ?readonly root

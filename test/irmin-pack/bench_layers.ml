@@ -60,11 +60,11 @@ module FSHelper = struct
   let file f =
     try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
 
-  let dict root = file (Filename.concat root "store.dict") / 1024 / 1024
+  let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
 
-  let pack root = file (Filename.concat root "store.pack") / 1024 / 1024
+  let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
 
-  let branches root = file (Filename.concat root "store.branches") / 1024 / 1024
+  let branches root = file (Irmin_pack.Layout.branch ~root) / 1024 / 1024
 
   let index root =
     let index_dir = Filename.concat root "index" in

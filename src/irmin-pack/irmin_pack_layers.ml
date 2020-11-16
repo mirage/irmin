@@ -22,8 +22,6 @@ let current_version = `V2
 
 let pp_version = IO.pp_version
 
-let ( // ) = Filename.concat
-
 let ( -- ) = Int64.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
@@ -388,7 +386,7 @@ struct
          v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
         else Lwt.return_none)
         >>= fun lower ->
-        let file = Filename.concat root "flip" in
+        let file = Layout.flip ~root in
         IO_layers.v file >>= fun flip_file ->
         IO_layers.read_flip flip_file >>= fun flip ->
         (* A fresh store has to unlink the lock file as well. *)
@@ -490,7 +488,7 @@ struct
                try
                  let io =
                    IO.v ~version:(Some current_version) ~fresh:false
-                     ~readonly:true (root // "store.pack")
+                     ~readonly:true (Layout.pack ~root)
                  in
                  (config, Some io)
                with

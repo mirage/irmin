@@ -18,8 +18,6 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let ( // ) = Filename.concat
-
 (* For every new version, update the [version] type and [versions]
    headers. *)
 
@@ -379,7 +377,7 @@ module Cache = struct
     let files = Hashtbl.create 13 in
     let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root
         =
-      let file = root // file in
+      let file = file ~root in
       if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
       try
         if not (Sys.file_exists file) then (

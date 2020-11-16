@@ -3,27 +3,20 @@ module T = Irmin.Type
 module IO = IO.Unix
 open Lwt.Infix
 
-let ( // ) = Filename.concat
-
 let current_version = `V2
 
-(** Only works for layered stores that use the default names for layers. *)
 module Layout = struct
-  let pack root = root // "store.pack"
+  include Layout
 
-  let branch root = root // "store.branches"
+  (** Only works for layered stores that use the default names for layers. *)
+  let lower, upper0, upper1 =
+    let of_id id ~root =
+      Filename.concat root (Irmin_layers.Layer_id.to_string id)
+    in
+    (of_id `Lower, of_id `Upper0, of_id `Upper1)
 
-  let dict root = root // "store.dict"
-
-  let flip root = root // "flip"
-
-  let lower root = root // "lower"
-
-  let upper1 root = root // "upper1"
-
-  let upper0 root = root // "upper0"
-
-  let toplevel root = [ flip root; lower root; upper1 root; upper0 root ]
+  let toplevel root =
+    [ Layout.flip ~root; lower ~root; upper1 ~root; upper0 ~root ]
 end
 
 module Make
@@ -44,12 +37,12 @@ struct
   type size = Bytes of int [@@deriving irmin]
 
   let detect_layered_store ~root =
-    root |> Layout.toplevel |> List.exists (fun path -> IO.exists path)
+    root |> Layout.toplevel |> List.exists IO.exists
 
-  let detect_pack_layer ~layer_root = Layout.dict layer_root |> IO.exists
+  let detect_pack_layer ~layer_root = Layout.dict ~root:layer_root |> IO.exists
 
   let read_flip ~root =
-    let path = Layout.flip root in
+    let path = Layout.flip ~root in
     match IO.exists path with
     | false -> Lwt.return_none
     | true ->
@@ -102,9 +95,9 @@ struct
       { size; offset; generation }
 
     let v_simple ~root =
-      let pack = Layout.pack root |> io in
-      let branch = Layout.branch root |> io in
-      let dict = Layout.dict root |> io in
+      let pack = Layout.pack ~root |> io in
+      let branch = Layout.branch ~root |> io in
+      let dict = Layout.dict ~root |> io in
       { pack; branch; dict }
 
     let v_layered ~root =
@@ -113,9 +106,9 @@ struct
       | true ->
           Logs.app (fun f -> f "Layered store detected");
           read_flip ~root >|= fun flip ->
-          let lower = v_simple ~root:(Layout.lower root)
-          and upper1 = v_simple ~root:(Layout.upper1 root)
-          and upper0 = v_simple ~root:(Layout.upper0 root) in
+          let lower = v_simple ~root:(Layout.lower ~root)
+          and upper1 = v_simple ~root:(Layout.upper1 ~root)
+          and upper0 = v_simple ~root:(Layout.upper0 ~root) in
           Layered { flip; lower; upper1; upper0 }
 
     let v ~root =
@@ -145,8 +138,8 @@ struct
       if not (detect_layered_store ~root) then
         Fmt.failwith "%s is not a layered store." root;
       (read_flip ~root >|= function
-       | None | Some `Upper1 -> Layout.upper1 root
-       | Some `Upper0 -> Layout.upper0 root)
+       | None | Some `Upper1 -> Layout.upper1 ~root
+       | Some `Upper0 -> Layout.upper0 ~root)
       >>= fun upper ->
       if detect_pack_layer ~layer_root:upper then
         check_store ~root (module Store)

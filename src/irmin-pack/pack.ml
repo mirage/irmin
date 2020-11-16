@@ -79,9 +79,7 @@ struct
     { block; index; lock; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
-    IO_cache.memoize ~clear ~valid
-      ~v:(fun index -> unsafe_v ~index)
-      "store.pack"
+    IO_cache.memoize ~clear ~valid ~v:(fun index -> unsafe_v ~index) Layout.pack
 
   type key = K.t
 

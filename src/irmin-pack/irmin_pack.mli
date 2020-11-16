@@ -96,6 +96,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
 end
 
 module Stats = Stats
+module Layout = Layout
 
 module Private : sig
   module Utils = Utils
