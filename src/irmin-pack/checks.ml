@@ -19,6 +19,12 @@ module Layout = struct
     [ Layout.flip ~root; lower ~root; upper1 ~root; upper0 ~root ]
 end
 
+let path =
+  let open Cmdliner.Arg in
+  required
+  @@ pos 0 (some string) None
+  @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
+
 module Make
     (Conf : Config.S)
     (M : Irmin.Metadata.S)
@@ -54,7 +60,7 @@ struct
         IO_layers.IO.close t >|= fun () -> Some a
 
   (** Read basic metrics from an existing store. *)
-  module Quick_stats = struct
+  module Stat = struct
     type io = { size : size; offset : int64; generation : int64 }
     [@@deriving irmin]
 
@@ -83,9 +89,7 @@ struct
             IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
               path
           in
-          let a = f io in
-          IO.close io;
-          Some a
+          Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
     let io path =
       with_io path @@ fun io ->
@@ -111,15 +115,18 @@ struct
           and upper0 = v_simple ~root:(Layout.upper0 ~root) in
           Layered { flip; lower; upper1; upper0 }
 
-    let v ~root =
+    let run ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
       v_layered ~root >>= fun files ->
       { hash_size = Bytes H.hash_size; files }
       |> T.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
+
+    let term =
+      Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
   end
 
-  module Check_containment = struct
+  module Check_self_contained = struct
     module Store =
       Irmin_pack_layers.Make_ext (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
 
@@ -134,7 +141,7 @@ struct
        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg))
       >>= fun () -> S.Repo.close repo
 
-    let v ~root =
+    let run ~root =
       if not (detect_layered_store ~root) then
         Fmt.failwith "%s is not a layered store." root;
       (read_flip ~root >|= function
@@ -144,24 +151,13 @@ struct
       if detect_pack_layer ~layer_root:upper then
         check_store ~root (module Store)
       else Fmt.failwith "To fix"
+
+    let term =
+      Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
   end
 
   module Cli = struct
     open Cmdliner
-
-    let path =
-      let open Arg in
-      required
-      @@ pos 0 (some string) None
-      @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
-
-    let quick_stats =
-      let run ~root = Lwt_main.run (Quick_stats.v ~root) in
-      Term.(const (fun root () -> run ~root) $ path)
-
-    let check_containment =
-      let run ~root = Lwt_main.run (Check_containment.v ~root) in
-      Term.(const (fun root () -> run ~root) $ path)
 
     let setup_log =
       let init style_renderer level =
@@ -188,6 +184,15 @@ struct
       in
       Term.(const init $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
+    let stat =
+      let doc = "Print high-level statistics about the store." in
+      Term.(Stat.term $ setup_log, info ~doc "stat")
+
+    let check_self_contained =
+      let doc = "Check that the upper layer of the store is self contained." in
+      Term.
+        (Check_self_contained.term $ setup_log, info ~doc "check-self-contained")
+
     let main () : empty =
       let default =
         let default_info =
@@ -197,17 +202,7 @@ struct
         Term.(ret (const (`Help (`Auto, None))), default_info)
       in
       Term.(
-        eval_choice default
-          [
-            ( quick_stats $ setup_log,
-              Term.info ~doc:"Print high-level statistics about the store."
-                "stat" );
-            ( check_containment $ setup_log,
-              Term.info
-                ~doc:
-                  "Check that the upper layer of the store is self contained."
-                "check" );
-          ]
+        eval_choice default [ stat; check_self_contained ]
         |> (exit : unit result -> _));
       assert false
   end

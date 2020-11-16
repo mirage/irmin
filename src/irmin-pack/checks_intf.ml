@@ -1,6 +1,22 @@
 type empty = |
 
 module type S = sig
+  module Stat : sig
+    val run : root:string -> unit Lwt.t
+    (** Reads basic metrics from an existing store and prints them to stdout. *)
+
+    val term : (unit -> unit) Cmdliner.Term.t
+    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+  end
+
+  module Check_self_contained : sig
+    val run : root:string -> unit Lwt.t
+    (** Ensure that the upper layer of the store is self-contained.*)
+
+    val term : (unit -> unit) Cmdliner.Term.t
+    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+  end
+
   val cli : unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks. *)
 end

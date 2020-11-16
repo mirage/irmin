@@ -5,7 +5,7 @@ SYNOPSIS
        irmin-fsck COMMAND ...
 
 COMMANDS
-       check
+       check-self-contained
            Check that the upper layer of the store is self contained.
 
        stat
