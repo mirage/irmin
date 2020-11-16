@@ -705,36 +705,6 @@ struct
         in
         copy ~min ~max t
 
-      let equal_hash = Irmin.Type.(unstage (equal Hash.t))
-
-      let includes commits k = List.exists (fun k' -> equal_hash k k') commits
-
-      let non_empty_intersection t min head =
-        let ok = ref false in
-        let commit x =
-          if includes min x then ok := true;
-          Lwt.return_unit
-        in
-        Repo.iter_commits t ~min ~max:[ head ] ~commit () >|= fun () -> !ok
-
-      (** Copy the heads that include a max commit *)
-      let copy_heads ~max ~heads t =
-        Log.debug (fun f ->
-            f "copy heads to current %s" (X.Repo.log_current_upper t));
-        let max = List.map (fun x -> Commit.hash x) max in
-        let heads = List.map (fun x -> Commit.hash x) heads in
-        Lwt_list.fold_left_s
-          (fun acc head ->
-            (*if a head is a max commit then already copied*)
-            if includes max head then Lwt.return acc
-            else
-              (*if a head is after the max commit then copy it*)
-              non_empty_intersection t max head >|= function
-              | true -> head :: acc
-              | false -> acc)
-          [] heads
-        >>= fun heads -> copy ~min:max ~max:heads t
-
       (** Newies are the objects added in current upper during the freeze. They
           are copied to the next upper before the freeze ends. When copying the
           newies we have to traverse them as well, to ensure that all objects
@@ -887,7 +857,7 @@ struct
 
   let with_stats msg f = f >|= fun () -> dump_stats msg
 
-  let copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t =
+  let copy ~min ~max ~squash ~copy_in_upper ~min_upper t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
     (if with_lower then
@@ -896,11 +866,10 @@ struct
        else Copy.CopyToLower.copy ~min ~max t)
     else Lwt.return_unit)
     >>= fun () ->
-    (* Copy [min_upper, max] and [max, heads] to next_upper *)
+    (* Copy [min_upper, max] to next_upper *)
     (if copy_in_upper then
      with_stats "copied in upper"
-       ( Copy.CopyToUpper.copy_commits ~min:min_upper ~max t >>= fun () ->
-         Copy.CopyToUpper.copy_heads ~max ~heads t )
+       (Copy.CopyToUpper.copy_commits ~min:min_upper ~max t)
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy branches to both lower and next_upper *)
@@ -908,13 +877,13 @@ struct
 
   let pp_commits = Fmt.Dump.list Commit.pp_hash
 
-  let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t =
+  let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t =
     Log.info (fun l ->
         l
           "@[<2>freeze:@ min=%a,@ max=%a,@ squash=%b,@ copy_in_upper=%b@ \
-           min_upper=%a,@ heads=%a@]"
+           min_upper=%a@]"
           pp_commits min pp_commits max squash copy_in_upper pp_commits
-          min_upper pp_commits heads);
+          min_upper);
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
     let async () =
@@ -931,7 +900,7 @@ struct
       lock_path t.X.Repo.config |> Lock.v >>= fun lock_file ->
       pause () >>= fun () ->
       may (fun f -> f `Before_Copy) hook >>= fun () ->
-      copy ~min ~max ~squash ~copy_in_upper ~min_upper ~heads t >>= fun () ->
+      copy ~min ~max ~squash ~copy_in_upper ~min_upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
@@ -960,7 +929,7 @@ struct
       releases it at the end. This is to ensure that no two freezes can run
       simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
-      ?(min_upper = []) ?(heads = []) ?(recovery = false) ?hook t =
+      ?(min_upper = []) ?(recovery = false) ?hook t =
     (if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
     else Lwt.return_unit)
     >>= fun () ->
@@ -970,14 +939,13 @@ struct
       | Some b -> b
     in
     (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
-    (match heads with [] -> Repo.heads t | m -> Lwt.return m) >>= fun heads ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
     else
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
           Lwt_mutex.lock freeze_lock)
       >>= fun () ->
-      unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ~heads ?hook t
+      unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t
 
   let layer_id = X.Repo.layer_id
 
