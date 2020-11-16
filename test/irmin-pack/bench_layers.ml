@@ -255,7 +255,6 @@ let close config repo =
 let run config =
   rw config >>= fun repo ->
   first_5_cycles config repo >>= fun c ->
-  Memtrace.trace_if_requested ();
   run_cycles config repo c >>= fun _ ->
   close config repo >|= fun () ->
   if config.show_stats then (
