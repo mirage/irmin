@@ -991,6 +991,42 @@ struct
 
   let needs_recovery t = lock_path t.X.Repo.config |> Lock.test
 
+  let check_self_contained ?heads t =
+    Log.debug (fun l -> l "Check that the upper layer is self contained");
+    let errors = ref 0 in
+    let none () =
+      incr errors;
+      Lwt.return_unit
+    in
+    let check_tree root =
+      let node k = X.Node.CA.check t.X.Repo.node ~none k in
+      let contents k = X.Contents.CA.check t.X.Repo.contents ~none k in
+      Repo.iter_nodes t ~min:[] ~max:[ root ] ~node ~contents ()
+    in
+    let check_commit commit =
+      let some c = check_tree (X.Commit.Val.node c) in
+      X.Commit.CA.check t.X.Repo.commit ~none ~some commit
+    in
+    (match heads with None -> Repo.heads t | Some m -> Lwt.return m)
+    >>= fun heads ->
+    let hashes = List.map (fun x -> Commit.hash x) heads in
+    Repo.iter_commits t ~min:[] ~max:hashes ~commit:check_commit ()
+    >>= fun () ->
+    let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
+    if !errors = 0 then
+      Lwt.return
+        (Ok
+           (`Msg
+             (Fmt.str "Upper layer is self contained for heads %a" pp_commits
+                heads)))
+    else
+      Lwt.return_error
+        (`Msg
+          (Fmt.str
+             "Upper layer is not self contained for heads %a: %n phantom \
+              objects detected"
+             pp_commits heads !errors))
+
   module PrivateLayer = struct
     module Hook = struct
       type 'a t = 'a -> unit Lwt.t
@@ -1005,6 +1041,21 @@ struct
 
     let upper_in_use = upper_in_use
   end
+end
+
+module type S = sig
+  include Irmin_layers.S
+
+  include Store.S with type repo := repo
+
+  val integrity_check :
+    ?ppf:Format.formatter ->
+    auto_repair:bool ->
+    repo ->
+    ( [> `Fixed of int | `No_error ],
+      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.layer_id )
+    result
+    list
 end
 
 module Make

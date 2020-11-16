@@ -59,6 +59,13 @@ module type S = sig
   val unsafe_consume_newies : unit -> key list
 
   val consume_newies : 'a t -> key list Lwt.t
+
+  val check :
+    'a t ->
+    ?none:(unit -> unit Lwt.t) ->
+    ?some:(U.value -> unit Lwt.t) ->
+    key ->
+    unit Lwt.t
 end
 
 module type Inode_layers = sig

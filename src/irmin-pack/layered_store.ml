@@ -39,7 +39,9 @@ module Copy
     (SRC : Pack.S with type key = Key.t)
     (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
 struct
-  let copy ~src ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+  let ignore_lwt _ = Lwt.return_unit
+
+  let copy ~src ~dst ?(aux = ignore_lwt) str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
     SRC.find src k >>= function
     | None ->
@@ -51,6 +53,9 @@ struct
         aux v >>= pause >>= fun () ->
         stats str;
         DST.unsafe_add dst k v
+
+  let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
+    SRC.find src k >>= function None -> none () | Some v -> some v
 end
 
 module Content_addressable
@@ -309,6 +314,9 @@ struct
 
   let copy_to_next t ~dst ?aux str k =
     CopyUpper.copy ~src:(current_upper t) ~dst ?aux str k
+
+  let check t ?none ?some k =
+    CopyUpper.check ~src:(current_upper t) ?none ?some k
 
   let copy :
       type l.

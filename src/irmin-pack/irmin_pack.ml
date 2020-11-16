@@ -292,3 +292,5 @@ module Make_ext_layered = Irmin_pack_layers.Make_ext
 module Make_layered = Irmin_pack_layers.Make
 
 let config_layers = Irmin_pack_layers.config_layers
+
+module Make_checks = Checks.Make

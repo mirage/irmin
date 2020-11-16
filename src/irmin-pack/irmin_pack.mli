@@ -114,3 +114,4 @@ val config_layers :
 
 module Make_ext_layered = Irmin_pack_layers.Make_ext
 module Make_layered = Irmin_pack_layers.Make
+module Make_checks = Checks.Make

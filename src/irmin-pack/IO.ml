@@ -82,6 +82,10 @@ module type S = sig
 
   val close : t -> unit
 
+  val exists : string -> bool
+
+  val size : t -> int
+
   val migrate :
     progress:(int64 -> unit) ->
     t ->
@@ -305,6 +309,10 @@ module Unix : S = struct
               v ~offset ~version:`V2 ~generation raw)
 
   let close t = Raw.close t.raw
+
+  let exists file = Sys.file_exists file
+
+  let size { raw; _ } = (Raw.fstat raw).st_size
 
   (* From a given offset in [src], transfer all data to [dst] (starting at
      [dst_off]). *)

@@ -15,7 +15,7 @@ build: [
 
 depends: [
   "ocaml"      {>= "4.03.0"}
-  "dune"       {>= "2.5.1"}
+  "dune"       {>= "2.7.0"}
   "mtime"      {>= "1.0.0"}
   "irmin"      {= version}
   "irmin-test" {with-test & post & = version}

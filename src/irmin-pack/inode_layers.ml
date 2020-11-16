@@ -199,4 +199,6 @@ struct
   let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit Lwt.t =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
+
+  let check = Inode.check
 end
