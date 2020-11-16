@@ -93,9 +93,9 @@ module type S = sig
   val read_buffer : chunk:int -> off:int64 -> t -> string
 end
 
-let ( ++ ) = Int64.add
+external ( ++ ) : int64 -> int64 -> int64 = "%int64_add"
 
-let ( -- ) = Int64.sub
+external ( -- ) : int64 -> int64 -> int64 = "%int64_sub"
 
 module Unix : S = struct
   exception RO_Not_Allowed
