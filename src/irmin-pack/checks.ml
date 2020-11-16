@@ -83,9 +83,7 @@ struct
             IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
               path
           in
-          let a = f io in
-          IO.close io;
-          Some a
+          Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
     let io path =
       with_io path @@ fun io ->
