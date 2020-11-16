@@ -23,7 +23,7 @@ module Conf = struct
 
   let lower_root = "_lower"
 
-  let upper_root0 = "0"
+  let upper0_root = "0"
 
   let copy_in_upper = true
 
@@ -44,7 +44,7 @@ module StoreSimple =
 
 let config ?(readonly = false) ?(fresh = true)
     ?(copy_in_upper = Conf.copy_in_upper) ?(lower_root = Conf.lower_root)
-    ?(upper_root0 = Conf.upper_root0) ?(with_lower = Conf.with_lower) root =
+    ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
   Irmin_pack.config_layers ~conf ~copy_in_upper ~lower_root ~upper_root0
     ~with_lower ()
@@ -331,7 +331,7 @@ module Test = struct
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
     rm_store_from_disk store_name Conf.lower_root;
-    rm_store_from_disk store_name Conf.upper_root0;
+    rm_store_from_disk store_name Conf.upper0_root;
     clone ~readonly:false store_name >>= fun ctxt ->
     check_block1 ctxt.index.repo block1 >>= fun () ->
     freeze ctxt block1 >>= fun ctxt ->
@@ -344,7 +344,7 @@ module Test = struct
     freeze ctxt block1a >>= fun ctxt ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
     rm_store_from_disk store_name Conf.lower_root;
-    rm_store_from_disk store_name Conf.upper_root0;
+    rm_store_from_disk store_name Conf.upper0_root;
     clone ~readonly:false store_name >>= fun ctxt ->
     check_block1a ctxt.index.repo block1a >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
@@ -467,10 +467,7 @@ module Test = struct
     Store.PrivateLayer.wait_for_freeze () >>= fun () ->
     let check_layer block msg exp =
       Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
-      >|= fun got ->
-      if not (got = exp) then
-        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.pp_layer_id exp
-          Irmin_layers.pp_layer_id got
+      >|= Irmin_test.check Irmin_layers.Layer_id.t msg exp
     in
     check_layer block1 "check layer of block1" `Lower >>= fun () ->
     check_layer block1a "check layer of block1a" `Upper1 >>= fun () ->

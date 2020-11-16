@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type layer_id = [ `Upper0 | `Upper1 | `Lower ]
+type layer_id = [ `Upper0 | `Upper1 | `Lower ] [@@deriving irmin]
 
 module type S = sig
   include Irmin.S
@@ -112,9 +112,13 @@ module type S_MAKER = functor
      and type hash = H.t
 
 module type Irmin_layers = sig
-  type nonrec layer_id = layer_id
+  module Layer_id : sig
+    type t = layer_id [@@deriving irmin]
 
-  val pp_layer_id : layer_id Fmt.t
+    val pp : Format.formatter -> t -> unit
+
+    val to_string : t -> string
+  end
 
   module type S = S
 

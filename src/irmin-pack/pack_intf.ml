@@ -117,7 +117,7 @@ module type LAYERED = sig
     add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
-  val layer_id : [ `Read ] t -> key -> Irmin_layers.layer_id Lwt.t
+  val layer_id : [ `Read ] t -> key -> Irmin_layers.Layer_id.t Lwt.t
 
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type
@@ -170,7 +170,7 @@ module type LAYERED = sig
   val integrity_check :
     offset:int64 ->
     length:int ->
-    layer:Irmin_layers.layer_id ->
+    layer:Irmin_layers.Layer_id.t ->
     key ->
     _ t ->
     (unit, Sigs.integrity_error) result

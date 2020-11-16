@@ -326,8 +326,8 @@ module Test_corrupted_stores = struct
       let got = S.PrivateLayer.upper_in_use repo in
       let cast x = (x :> [ `Upper0 | `Upper1 | `Lower ]) in
       if not (got = exp) then
-        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.pp_layer_id
-          (cast exp) Irmin_layers.pp_layer_id (cast got)
+        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.Layer_id.pp
+          (cast exp) Irmin_layers.Layer_id.pp (cast got)
     in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let* ro = S.Repo.v (config ~fresh:false ~readonly:true root) in
