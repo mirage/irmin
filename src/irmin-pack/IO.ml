@@ -89,6 +89,8 @@ module type S = sig
     t ->
     version ->
     (unit, [> `Msg of string ]) result
+
+  val read_buffer : chunk:int -> off:int64 -> t -> string
 end
 
 let ( ++ ) = Int64.add
@@ -368,6 +370,12 @@ module Unix : S = struct
         Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
           (Filename.basename src.file)
           pp_version src_v pp_version dst_v
+
+  let read_buffer ~chunk ~off src =
+    let off = header src.version ++ off in
+    let tmp = Bytes.create chunk in
+    let len = Raw.unsafe_read src.raw ~off ~len:chunk tmp in
+    Bytes.sub_string tmp 0 len
 end
 
 module Cache = struct

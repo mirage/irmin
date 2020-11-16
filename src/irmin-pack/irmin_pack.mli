@@ -65,6 +65,8 @@ module Make_ext
        and type Private.Sync.endpoint = unit
 
   include Store.S with type repo := repo
+
+  val reconstruct_index : Irmin.config -> unit
 end
 
 module Make
@@ -85,6 +87,8 @@ module Make
        and type Private.Sync.endpoint = unit
 
   include Store.S with type repo := repo
+
+  val reconstruct_index : Irmin.config -> unit
 end
 
 module KV (Config : Config.S) : Irmin.KV_MAKER

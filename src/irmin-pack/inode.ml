@@ -672,8 +672,8 @@ struct
 
       exception Exit of [ `Msg of string ]
 
-      let decode_bin ~dict ~hash t off : t =
-        let _, i = decode_compress t off in
+      let decode_bin_with_offset ~dict ~hash t off : int * t =
+        let off, i = decode_compress t off in
         let step : Compress.name -> T.step = function
           | Direct n -> n
           | Indirect s -> (
@@ -709,13 +709,22 @@ struct
               let entries = List.map inode entries in
               Inodes { seed; length; entries }
         in
-        if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
-        else Bin.inode ~hash:(lazy i.hash) (t i.v)
+        let t =
+          if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
+          else Bin.inode ~hash:(lazy i.hash) (t i.v)
+        in
+        (off, t)
+
+      let decode_bin ~dict ~hash t off =
+        decode_bin_with_offset ~dict ~hash t off |> snd
     end
 
     type hash = T.hash
 
     let pp_hash = T.pp_hash
+
+    let decode_bin ~dict ~hash t off =
+      Elt.decode_bin_with_offset ~dict ~hash t off
   end
 
   module Val = struct
@@ -833,6 +842,9 @@ struct
   let clear = Inode.clear
 
   let clear_caches = Inode.clear_caches
+
+  let decode_bin ~dict ~hash buff off =
+    Inode.decode_bin ~dict ~hash buff off |> fst
 end
 
 module Make
