@@ -731,11 +731,15 @@ module Make_Layered (S : LAYERED_STORE) = struct
           | _ -> assert false
       in
       setup 0 tree [] [] >>= fun (commits, contents) ->
-      S.freeze repo ~min:[ List.nth commits 1 ] ~max:[ List.nth commits 3 ]
+      S.freeze repo ~min:[ List.nth commits 1 ]
+        ~min_upper:[ List.nth commits 3 ]
+        ~max:[ List.nth commits 5; List.nth commits 6 ]
         ~copy_in_upper:true
       >>= fun () ->
       S.PrivateLayer.wait_for_freeze () >>= fun () ->
-      S.freeze repo ~min:[ List.nth commits 1 ] ~max:[ List.nth commits 3 ]
+      S.freeze repo ~min:[ List.nth commits 1 ]
+        ~min_upper:[ List.nth commits 3 ]
+        ~max:[ List.nth commits 5; List.nth commits 6 ]
         ~copy_in_upper:true
       >>= fun () ->
       S.PrivateLayer.wait_for_freeze () >>= fun () ->
