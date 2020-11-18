@@ -139,4 +139,6 @@ struct
     match layer with
     | Lower -> Inode.copy (Lower, dst) t "Node"
     | Upper -> Inode.copy (Upper, dst) t "Node"
+
+  let check = Inode.check
 end

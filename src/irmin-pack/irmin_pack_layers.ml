@@ -967,6 +967,37 @@ struct
 
   let needs_recovery t = lock_path t.X.Repo.config |> Lock.test
 
+  let check_self_contained ?heads t =
+    Log.debug (fun l -> l "Check that the upper layer is self contained");
+    let errors = ref 0 in
+    let none () =
+      incr errors;
+      Lwt.return_unit
+    in
+    let contents k = X.Contents.CA.check t.X.Repo.contents ~none k in
+    let node k = X.Node.CA.check t.X.Repo.node ~none k in
+    let commit k = X.Commit.CA.check t.X.Repo.commit ~none k in
+    (match heads with None -> Repo.heads t | Some m -> Lwt.return m)
+    >>= fun heads ->
+    let max = List.map (fun x -> `Commit (Commit.hash x)) heads in
+    Repo.iter t ~min:[] ~max ~commit ~node ~contents ~pred_node:Copy.pred_node
+      ()
+    >>= fun () ->
+    let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
+    if !errors = 0 then
+      Lwt.return
+        (Ok
+           (`Msg
+             (Fmt.str "Upper layer is self contained for heads %a" pp_commits
+                heads)))
+    else
+      Lwt.return_error
+        (`Msg
+          (Fmt.str
+             "Upper layer is not self contained for heads %a: %n phantom \
+              objects detected"
+             pp_commits heads !errors))
+
   module PrivateLayer = struct
     module Hook = struct
       type 'a t = 'a -> unit Lwt.t
