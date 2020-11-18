@@ -442,7 +442,7 @@ module Test = struct
     checkout_and_commit ctxt block1a commit_block2a >>= fun (ctxt, block2a) ->
     checkout_and_commit ctxt block2a commit_block3a >>= fun (ctxt, block3a) ->
     Store.freeze ctxt.index.repo ~min_upper:[ block1a; block1c ]
-      ~max:[ block2a; block1c ] ~heads:[ block3a ]
+      ~max:[ block2a; block1c; block3a ]
     >>= fun () ->
     Store.PrivateLayer.wait_for_freeze () >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
