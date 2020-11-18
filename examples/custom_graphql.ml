@@ -40,8 +40,8 @@ module Custom_types = struct
             [
               field "license" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> car.Car.license);
-              field "year" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ car -> car.Car.license);
+              field "year" ~typ:(non_null int) ~args:[] ~resolve:(fun _ car ->
+                  Int32.to_int car.Car.year);
               field "make" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> fst car.Car.make_and_model);
               field "model" ~typ:(non_null string) ~args:[]
