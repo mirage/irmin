@@ -51,6 +51,9 @@ struct
         stats str;
         DST.unsafe_append dst k v;
         Lwt.return_unit
+
+  let check ~src ?(none = fun _ -> Lwt.return_unit) k =
+    SRC.find src k >>= function None -> none () | Some _ -> Lwt.return_unit
 end
 
 module Content_addressable
@@ -317,6 +320,8 @@ struct
 
   let copy_to_next t ~dst str k =
     CopyUpper.copy ~src:(current_upper t) ~dst str k
+
+  let check t ?none k = CopyUpper.check ~src:(current_upper t) ?none k
 
   let copy :
       type l. l layer_type * l -> [ `Read ] t -> string -> key -> unit Lwt.t =

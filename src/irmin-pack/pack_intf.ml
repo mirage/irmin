@@ -166,6 +166,8 @@ module type LAYERED = sig
   val unsafe_consume_newies : _ t -> key list
 
   val consume_newies : 'a t -> key list Lwt.t
+
+  val check : 'a t -> ?none:(unit -> unit Lwt.t) -> key -> unit Lwt.t
 end
 
 module type LAYERED_MAKER = sig
