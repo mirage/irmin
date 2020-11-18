@@ -1,4 +1,4 @@
-.PHONY: all clean test fuzz bench-mem bench-pack bench doc examples
+.PHONY: all clean test fuzz bench-mem bench-pack bench-layers bench doc examples
 
 all:
 	dune build
@@ -12,7 +12,10 @@ bench-mem:
 bench-pack:
 	dune exec ./test/irmin-pack/bench.exe
 
-bench: bench-mem bench-pack
+bench-layers:
+	dune exec -- ./bench/irmin-pack/layers.exe -n 2005 -b 2 -j
+
+bench: bench-mem bench-pack bench-layers
 
 fuzz:
 	dune build @fuzz --no-buffer
