@@ -1,0 +1,25 @@
+# Appveyor CI temporarily disabled. See https://github.com/mirage/irmin/issues/963.
+branches:
+  only:
+  - explicitly-test-appveyor
+
+platform:
+  - x86
+
+environment:
+  global:
+    FORK_USER: ocaml
+    FORK_BRANCH: master
+    CYG_ROOT: C:\cygwin64
+    OPAM_SWITCH: 4.07.0+mingw64c
+    PINS: "irmin.dev:. irmin-mem.dev:. irmin-fs.dev:. irmin-http.dev:. irmin-git.dev:. irmin-graphql.dev:. irmin-mirage.dev:. irmin-mirage-git.dev:. irmin-mirage-graphql:. irmin-unix.dev:. irmin-test.dev:. irmin-chunk.dev:."
+  matrix:
+    - PACKAGE: "irmin-mirage.dev"
+    - PACKAGE: "irmin-mirage-git.dev"
+    - PACKAGE: "irmin-mirage-graphql.dev"
+
+install:
+  - ps: iex ((new-object net.webclient).DownloadString("https://raw.githubusercontent.com/$env:FORK_USER/ocaml-ci-scripts/$env:FORK_BRANCH/appveyor-install.ps1"))
+
+build_script:
+  - call %CYG_ROOT%\bin\bash.exe -l %APPVEYOR_BUILD_FOLDER%\appveyor-opam.sh
