@@ -267,7 +267,31 @@ let run config =
     Fmt.epr "After freeze thread finished : ";
     FSHelper.print_size config.root)
 
-let main () ncommits ncycles depth clear no_freeze show_stats =
+type result = {
+  number_of_commits : int;
+  total_time : float;
+  time_per_commit : float;
+  commits_per_sec : float;
+}
+[@@deriving yojson]
+
+let get_json_str number_of_commits total_time time_per_commit commits_per_sec =
+  let res =
+    { number_of_commits; total_time; time_per_commit; commits_per_sec }
+  in
+  let obj =
+    `Assoc
+      [
+        ( "results",
+          `Assoc
+            [
+              ("name", `String "benchmarks"); ("metrics", result_to_yojson res);
+            ] );
+      ]
+  in
+  Yojson.Safe.to_string obj
+
+let main () ncommits ncycles depth clear no_freeze show_stats json =
   let config =
     {
       ncommits;
@@ -284,10 +308,12 @@ let main () ncommits ncycles depth clear no_freeze show_stats =
   let all_commits = ncommits * ncycles in
   let rate = d /. float all_commits in
   let freq = 1. /. rate in
-  Logs.app (fun l ->
-      l
-        "%d commits completed in %.2fs.\n\
-         [%.3fs per commit, %.0f commits per second]" all_commits d rate freq)
+  if json then Logs.app (fun l -> l "%s" (get_json_str all_commits d rate freq))
+  else
+    Logs.app (fun l ->
+        l
+          "%d commits completed in %.2fs.\n\
+           [%.3fs per commit, %.0f commits per second]" all_commits d rate freq)
 
 open Cmdliner
 
@@ -317,6 +343,10 @@ let stats =
   let doc = Arg.info ~doc:"Show performance stats." [ "s"; "stats" ] in
   Arg.(value @@ flag doc)
 
+let json =
+  let doc = Arg.info ~doc:"Json output on command line." [ "j"; "json" ] in
+  Arg.(value @@ flag doc)
+
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
@@ -335,7 +365,8 @@ let main_term =
     $ depth
     $ clear
     $ no_freeze
-    $ stats)
+    $ stats
+    $ json)
 
 let () =
   let info = Term.info "Benchmarks for layered store" in

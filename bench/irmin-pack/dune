@@ -1,6 +1,9 @@
 (executables
  (names main layers)
- (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs))
+ (preprocess
+  (pps ppx_deriving_yojson))
+ (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs
+   yojson ppx_deriving_yojson))
 
 ;; Require the above executables to compile during tests
 
