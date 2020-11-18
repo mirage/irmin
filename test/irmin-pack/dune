@@ -15,17 +15,7 @@
  (action
   (run ./test.exe -q --color=always)))
 
-(executable
- (name bench)
- (modules bench)
- (libraries irmin_pack irmin-test.bench))
-
 (library
  (name common)
  (modules common)
  (libraries alcotest index irmin irmin-test irmin-pack logs lwt))
-
-(executable
- (name bench_layers)
- (modules bench_layers)
- (libraries irmin-pack common logs))

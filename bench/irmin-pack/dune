@@ -1,0 +1,11 @@
+(executables
+ (names main layers)
+ (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs))
+
+;; Require the above executables to compile during tests
+
+(rule
+ (alias runtest)
+ (package irmin-bench)
+ (deps main.exe layers.exe)
+ (action (progn)))
