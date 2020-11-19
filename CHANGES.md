@@ -21,6 +21,8 @@
 - **irmin-bench** (_new_):
   - Created a new package to contain benchmarks for Irmin and its various
     backends. (#1142, @CraigFe)
+  - Added ability to get json output and a make target to run layers benchmark.
+    (#1146, @gs0510)
 
 - **irmin**
   - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree

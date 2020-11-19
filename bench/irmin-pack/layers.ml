@@ -229,7 +229,7 @@ let first_5_cycles config repo =
   print_commit_stats config c 0 0.0;
   let rec aux i c =
     add_min c;
-    if i >= 4 then Lwt.return c
+    if i > 4 then Lwt.return c
     else write_cycle config repo c >>= fun c -> aux (i + 1) c
   in
   aux 0 c
@@ -268,17 +268,14 @@ let run config =
     FSHelper.print_size config.root)
 
 type result = {
-  number_of_commits : int;
   total_time : float;
   time_per_commit : float;
   commits_per_sec : float;
 }
 [@@deriving yojson]
 
-let get_json_str number_of_commits total_time time_per_commit commits_per_sec =
-  let res =
-    { number_of_commits; total_time; time_per_commit; commits_per_sec }
-  in
+let get_json_str total_time time_per_commit commits_per_sec =
+  let res = { total_time; time_per_commit; commits_per_sec } in
   let obj =
     `Assoc
       [
@@ -305,10 +302,10 @@ let main () ncommits ncycles depth clear no_freeze show_stats json =
   in
   init config;
   let d, _ = Lwt_main.run (with_timer (fun () -> run config)) in
-  let all_commits = ncommits * ncycles in
+  let all_commits = ncommits * (ncycles + 5) in
   let rate = d /. float all_commits in
   let freq = 1. /. rate in
-  if json then Logs.app (fun l -> l "%s" (get_json_str all_commits d rate freq))
+  if json then Logs.app (fun l -> l "%s" (get_json_str d rate freq))
   else
     Logs.app (fun l ->
         l
