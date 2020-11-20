@@ -229,7 +229,7 @@ let first_5_cycles config repo =
   print_commit_stats config c 0 0.0;
   let rec aux i c =
     add_min c;
-    if i >= 4 then Lwt.return c
+    if i > 4 then Lwt.return c
     else write_cycle config repo c >>= fun c -> aux (i + 1) c
   in
   aux 0 c
@@ -267,7 +267,28 @@ let run config =
     Fmt.epr "After freeze thread finished : ";
     FSHelper.print_size config.root)
 
-let main () ncommits ncycles depth clear no_freeze show_stats =
+type result = {
+  total_time : float;
+  time_per_commit : float;
+  commits_per_sec : float;
+}
+[@@deriving yojson]
+
+let get_json_str total_time time_per_commit commits_per_sec =
+  let res = { total_time; time_per_commit; commits_per_sec } in
+  let obj =
+    `Assoc
+      [
+        ( "results",
+          `Assoc
+            [
+              ("name", `String "benchmarks"); ("metrics", result_to_yojson res);
+            ] );
+      ]
+  in
+  Yojson.Safe.to_string obj
+
+let main () ncommits ncycles depth clear no_freeze show_stats json =
   let config =
     {
       ncommits;
@@ -281,13 +302,15 @@ let main () ncommits ncycles depth clear no_freeze show_stats =
   in
   init config;
   let d, _ = Lwt_main.run (with_timer (fun () -> run config)) in
-  let all_commits = ncommits * ncycles in
+  let all_commits = ncommits * (ncycles + 5) in
   let rate = d /. float all_commits in
   let freq = 1. /. rate in
-  Logs.app (fun l ->
-      l
-        "%d commits completed in %.2fs.\n\
-         [%.3fs per commit, %.0f commits per second]" all_commits d rate freq)
+  if json then Logs.app (fun l -> l "%s" (get_json_str d rate freq))
+  else
+    Logs.app (fun l ->
+        l
+          "%d commits completed in %.2fs.\n\
+           [%.3fs per commit, %.0f commits per second]" all_commits d rate freq)
 
 open Cmdliner
 
@@ -296,7 +319,13 @@ let ncommits =
   Arg.(value @@ opt int 4096 doc)
 
 let ncycles =
-  let doc = Arg.info ~doc:"Number of cycles." [ "b"; "ncycles" ] in
+  let doc =
+    Arg.info
+      ~doc:
+        "Number of cycles. This will be in addition to the 5 cycles that run \
+         to emulate freeze."
+      [ "b"; "ncycles" ]
+  in
   Arg.(value @@ opt int 10 doc)
 
 let depth =
@@ -317,6 +346,10 @@ let stats =
   let doc = Arg.info ~doc:"Show performance stats." [ "s"; "stats" ] in
   Arg.(value @@ flag doc)
 
+let json =
+  let doc = Arg.info ~doc:"Json output on command line." [ "j"; "json" ] in
+  Arg.(value @@ flag doc)
+
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
@@ -335,7 +368,8 @@ let main_term =
     $ depth
     $ clear
     $ no_freeze
-    $ stats)
+    $ stats
+    $ json)
 
 let () =
   let info = Term.info "Benchmarks for layered store" in

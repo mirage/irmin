@@ -19,6 +19,8 @@ depends: [
   "cmdliner"
   "logs"
   "lwt"
+  "ppx_deriving_yojson"
+  "yojson"
 ]
 
 synopsis: "Irmin benchmarking suite"
