@@ -319,7 +319,13 @@ let ncommits =
   Arg.(value @@ opt int 4096 doc)
 
 let ncycles =
-  let doc = Arg.info ~doc:"Number of cycles." [ "b"; "ncycles" ] in
+  let doc =
+    Arg.info
+      ~doc:
+        "Number of cycles. This will be in addition to the 5 cycles that run \
+         to emulate freeze."
+      [ "b"; "ncycles" ]
+  in
   Arg.(value @@ opt int 10 doc)
 
 let depth =
