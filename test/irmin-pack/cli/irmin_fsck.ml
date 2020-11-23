@@ -11,7 +11,7 @@ module Conf = struct
 end
 
 module Store =
-  Irmin_pack.Make_checks (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack.Checks.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Path)
     (Irmin.Branch.String)
     (Hash)

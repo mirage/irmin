@@ -16,7 +16,7 @@ module Conf = struct
 end
 
 module Store =
-  Irmin_pack.Make_layered (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack.Layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Irmin.Hash.BLAKE2B)

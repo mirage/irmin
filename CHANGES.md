@@ -70,10 +70,10 @@
 
   - Added a `flush` function for a repo (#1092, @icristescu)
 
-  - Added `Make_layered` functor, to construct layered stores from irmin-pack.
+  - Added `Layered.Make functor, to construct layered stores from irmin-pack.
     (#882, @icristescu)
 
-  - Added `Make_checks`, which provides some offline checks for irmin-pack
+  - Added `Checks.Make which provides some offline checks for irmin-pack
     stores. (#1117, @icristescu, @CraigFe)
 
   - Added `reconstruct_index` to reconstruct an index from a pack file. (#1097,
