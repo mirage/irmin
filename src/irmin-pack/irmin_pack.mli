@@ -101,6 +101,7 @@ end
 
 module Stats = Stats
 module Layout = Layout
+module Checks = Checks
 
 module Private : sig
   module Utils = Utils
@@ -117,6 +118,9 @@ val config_layers :
   unit ->
   Irmin.config
 
-module Make_ext_layered = Irmin_pack_layers.Make_ext
-module Make_layered = Irmin_pack_layers.Make
-module Make_checks = Checks.Make
+module Layered : sig
+  module type S = Irmin_pack_layers.S
+
+  module Make = Irmin_pack_layers.Make
+  module Make_ext = Irmin_pack_layers.Make_ext
+end

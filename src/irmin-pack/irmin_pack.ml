@@ -384,14 +384,12 @@ module KV (Config : Config.S) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 module Stats = Stats
 module Layout = Layout
+module Checks = Checks
 
 module Private = struct
   module Utils = Utils
 end
 
-module Make_ext_layered = Irmin_pack_layers.Make_ext
-module Make_layered = Irmin_pack_layers.Make
+module Layered = Irmin_pack_layers
 
 let config_layers = Irmin_pack_layers.config_layers
-
-module Make_checks = Checks.Make

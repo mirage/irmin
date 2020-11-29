@@ -268,7 +268,7 @@ module Config_layered_store = struct
 end
 
 module Make_layered =
-  Irmin_pack.Make_layered (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack.Layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
