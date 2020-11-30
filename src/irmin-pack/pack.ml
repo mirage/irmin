@@ -118,8 +118,6 @@ struct
 
     let roots = Hashtbl.create 10
 
-    let create = Lwt_mutex.create ()
-
     let valid t =
       if t.open_instances <> 0 then (
         t.open_instances <- t.open_instances + 1;
@@ -155,9 +153,8 @@ struct
         t
 
     let v ?fresh ?readonly ?lru_size ~index root =
-      Lwt_mutex.with_lock create (fun () ->
-          let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
-          Lwt.return t)
+      let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
+      Lwt.return t
 
     let pp_hash = Irmin.Type.pp K.t
 

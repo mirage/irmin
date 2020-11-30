@@ -170,8 +170,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     unsafe_clear ~keep_generation:() t;
     Lwt.return_unit
 
-  let create = Lwt_mutex.create ()
-
   let watches = W.v ()
 
   let valid t =
@@ -193,10 +191,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       ~v:(fun () -> unsafe_v)
       Layout.branch
 
-  let v ?fresh ?readonly file =
-    Lwt_mutex.with_lock create (fun () ->
-        let v = unsafe_v () ?fresh ?readonly file in
-        Lwt.return v)
+  let v ?fresh ?readonly file = Lwt.return (unsafe_v () ?fresh ?readonly file)
 
   let unsafe_set t k v =
     try
