@@ -127,6 +127,8 @@
     number. Version 1 of irmin-pack was used for the previous format, version 2
     is used with the new format. (#1047, @icristescu, @CraigFe, @samoht)
 
+  - Use `Repo.iter` to speed-up copies between layers (#1149, @samoht)
+
 - **ppx_irmin**:
 
   - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (#1082,
