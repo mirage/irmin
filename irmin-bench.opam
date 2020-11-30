@@ -21,6 +21,7 @@ depends: [
   "lwt"
   "ppx_deriving_yojson"
   "yojson"
+  "memtrace"
 ]
 
 synopsis: "Irmin benchmarking suite"

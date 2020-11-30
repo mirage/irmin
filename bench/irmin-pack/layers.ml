@@ -104,6 +104,7 @@ let init config =
   rm_dir config.root;
   Fmt_tty.setup_std_outputs ();
   Logs.set_level (Some Logs.App);
+  Memtrace.trace_if_requested ();
   if config.show_stats then Logs.set_reporter (reporter ());
   reset_stats ()
 
