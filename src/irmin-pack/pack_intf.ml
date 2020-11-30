@@ -39,6 +39,12 @@ end
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
+  val add : 'a t -> value -> key Lwt.t
+  (** Overwrite [add] to work with a read-only database hanlder. *)
+
+  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+  (** Overwrite [unsafe_add] to work with a read-only database hanlder. *)
+
   type index
 
   val v :
@@ -52,10 +58,6 @@ module type S = sig
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   val unsafe_append : ensure_unique:bool -> 'a t -> key -> value -> unit
-
-  val add : 'a t -> value -> key Lwt.t
-
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
 
   val unsafe_mem : 'a t -> key -> bool
 

@@ -56,7 +56,6 @@ struct
     mutable block : IO.t;
     index : Index.t;
     dict : Dict.t;
-    lock : Lwt_mutex.t;
     mutable open_instances : int;
   }
 
@@ -73,10 +72,9 @@ struct
 
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
-    let lock = Lwt_mutex.create () in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~version:(Some current_version) ~fresh ~readonly file in
-    { block; index; lock; dict; open_instances = 1 }
+    { block; index; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
     IO_cache.memoize ~clear ~valid ~v:(fun index -> unsafe_v ~index) Layout.pack
@@ -177,9 +175,8 @@ struct
       Tbl.mem t.staging k || Lru.mem t.lru k || Index.mem t.pack.index k
 
     let mem t k =
-      Lwt_mutex.with_lock create (fun () ->
-          let b = unsafe_mem t k in
-          Lwt.return b)
+      let b = unsafe_mem t k in
+      Lwt.return b
 
     let check_key k v =
       let k' = V.hash v in
@@ -228,9 +225,8 @@ struct
                   Some v))
 
     let find t k =
-      Lwt_mutex.with_lock t.pack.lock (fun () ->
-          let v = unsafe_find ~check_integrity:true t k in
-          Lwt.return v)
+      let v = unsafe_find ~check_integrity:true t k in
+      Lwt.return v
 
     let cast t = (t :> [ `Read | `Write ] t)
 
@@ -273,18 +269,14 @@ struct
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)
 
-    let pause = Lwt.pause
-
-    let append t k v =
-      Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_append ~ensure_unique:true t k v;
-          pause ())
-
     let add t v =
       let k = V.hash v in
-      append t k v >|= fun () -> k
+      unsafe_append ~ensure_unique:true t k v;
+      Lwt.return k
 
-    let unsafe_add t k v = append t k v
+    let unsafe_add t k v =
+      unsafe_append ~ensure_unique:true t k v;
+      Lwt.return ()
 
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
@@ -295,19 +287,16 @@ struct
         close t.pack)
 
     let close t =
-      Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_close t;
-          Lwt.return_unit)
+      unsafe_close t;
+      Lwt.return_unit
 
     let clear t =
-      Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_clear t;
-          pause ())
+      unsafe_clear t;
+      Lwt.return_unit
 
     let clear_keep_generation t =
-      Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_clear ~keep_generation:() t;
-          pause ())
+      unsafe_clear ~keep_generation:() t;
+      Lwt.return_unit
 
     let clear_caches t =
       Tbl.clear t.staging;
