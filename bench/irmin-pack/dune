@@ -3,7 +3,7 @@
  (preprocess
   (pps ppx_deriving_yojson))
  (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs
-   yojson ppx_deriving_yojson))
+   yojson ppx_deriving_yojson memtrace))
 
 ;; Require the above executables to compile during tests
 
