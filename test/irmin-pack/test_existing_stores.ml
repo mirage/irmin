@@ -395,7 +395,8 @@ module Test_corrupted_stores = struct
     let* () = check_commit ro c [ "a" ] "x" in
     Log.app (fun l -> l "Freeze with recovery flag set");
     let* () =
-      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+      S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
+      S.PrivateLayer.wait_for_freeze rw
     in
     Alcotest.(check bool)
       "Store doesn't need recovery" false (S.needs_recovery rw);
@@ -410,7 +411,8 @@ module Test_corrupted_stores = struct
           "If recovery flag is set, freeze proceeds with recovery even when it \
            isn't needed");
     let* () =
-      S.freeze ~recovery:true ~max:[ c ] rw >>= S.PrivateLayer.wait_for_freeze
+      S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
+      S.PrivateLayer.wait_for_freeze rw
     in
     check_upper rw "Upper after freeze" `Upper1;
     let* () = check_commit rw c [ "b" ] "y" in

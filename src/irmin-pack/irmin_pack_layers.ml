@@ -102,10 +102,6 @@ let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
   let config = Conf.add config blocking_copy_size_key blocking_copy_size in
   config
 
-let freeze_lock = Lwt_mutex.create ()
-
-let add_lock = Lwt_mutex.create ()
-
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 
 let lock_path config =
@@ -263,6 +259,8 @@ struct
         mutable flip : bool;
         mutable closed : bool;
         flip_file : IO_layers.t;
+        freeze_lock : Lwt_mutex.t;
+        add_lock : Lwt_mutex.t;
       }
 
       let contents_t t = t.contents
@@ -390,6 +388,8 @@ struct
         (* A fresh store has to unlink the lock file as well. *)
         let fresh = Pack_config.fresh config in
         let lock_file = lock_path config in
+        let freeze_lock = Lwt_mutex.create () in
+        let add_lock = Lwt_mutex.create () in
         (if fresh && Lock.test lock_file then Lock.unlink lock_file
         else Lwt.return_unit)
         >|= fun () ->
@@ -425,6 +425,8 @@ struct
           flip;
           closed = false;
           flip_file;
+          freeze_lock;
+          add_lock;
         }
 
       let unsafe_close t =
@@ -442,7 +444,7 @@ struct
         in
         Iterate.iter_lwt f t
 
-      let close t = Lwt_mutex.with_lock freeze_lock (fun () -> unsafe_close t)
+      let close t = Lwt_mutex.with_lock t.freeze_lock (fun () -> unsafe_close t)
 
       (** RO uses the generation to sync the stores, so to prevent races (async
           reads of flip and generation) the generation is used to update the
@@ -866,7 +868,7 @@ struct
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
-      Lwt_mutex.with_lock add_lock (fun () ->
+      Lwt_mutex.with_lock t.add_lock (fun () ->
           Log.debug (fun l -> l "freeze: enter blocking section");
           Copy.CopyToUpper.copy_last_newies_to_next_upper t >>= fun () ->
           may (fun f -> f `Before_Flip) hook >>= fun () ->
@@ -879,7 +881,7 @@ struct
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >>= fun () ->
       Lock.close lock_file >>= fun () ->
-      Lwt_mutex.unlock freeze_lock;
+      Lwt_mutex.unlock t.freeze_lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
       Log.debug (fun l -> l "freeze: end")
     in
@@ -904,7 +906,7 @@ struct
     else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
     else
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
-          Lwt_mutex.lock freeze_lock)
+          Lwt_mutex.lock t.freeze_lock)
       >>= fun () ->
       unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t
 
@@ -912,7 +914,7 @@ struct
 
   let freeze = freeze' ?hook:None
 
-  let async_freeze () = Lwt_mutex.is_locked freeze_lock
+  let async_freeze (t : Repo.t) = Lwt_mutex.is_locked t.freeze_lock
 
   let upper_in_use = X.Repo.upper_in_use
 
@@ -952,8 +954,8 @@ struct
       let v f = f
     end
 
-    let wait_for_freeze () =
-      Lwt_mutex.with_lock freeze_lock (fun () -> Lwt.return_unit)
+    let wait_for_freeze (t : Repo.t) =
+      Lwt_mutex.with_lock t.freeze_lock (fun () -> Lwt.return_unit)
 
     let freeze' = freeze'
 

@@ -225,7 +225,7 @@ module Test = struct
     checkout_and_commit ctxt block1 commit_block1b >>= fun (ctxt, block1b) ->
     freeze ctxt block1a >>= fun ctxt ->
     check_block1 ctxt.index.repo block1 >>= fun () ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1b "block1b" >>= fun () ->
     check_block1a ctxt.index.repo block1a >>= fun () ->
     Store.Repo.close ctxt.index.repo
@@ -242,7 +242,7 @@ module Test = struct
     check_upper "upper1.1" `Upper1 ctxt.index.repo;
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     freeze ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_upper "upper0.1" `Upper0 ctxt.index.repo;
     checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
@@ -269,7 +269,7 @@ module Test = struct
     Store.sync ro_ctxt.index.repo;
     Log.debug (fun l -> l "Freeze removes block1b but keeps block1, block1a");
     freeze ctxt block1a >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
     check_block1a ro_ctxt.index.repo block1a >>= fun () ->
     check_block1b ro_ctxt.index.repo block1b >>= fun () ->
@@ -282,7 +282,7 @@ module Test = struct
     Store.sync ro_ctxt.index.repo;
     Log.debug (fun l -> l "Freeze removes block1c but keeps block2a");
     freeze ctxt block2a >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block2a ro_ctxt.index.repo block2a >>= fun () ->
     check_block1c ro_ctxt.index.repo block1c >>= fun () ->
     Store.sync ro_ctxt.index.repo;
@@ -299,10 +299,10 @@ module Test = struct
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     Store.sync ro_ctxt.index.repo;
     freeze ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
     freeze ctxt block1a >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
     Store.Repo.close ro_ctxt.index.repo
@@ -355,7 +355,7 @@ module Test = struct
     init () >>= fun ctxt ->
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     freeze ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let hash1 = Store.Commit.hash block1 in
     Store.Repo.close ctxt.index.repo >>= fun () ->
     StoreSimple.Repo.v
@@ -405,21 +405,21 @@ module Test = struct
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     Log.debug (fun l -> l "Freeze removes block1 from upper");
     freeze ~copy_in_upper:false ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
     Store.sync ro_ctxt.index.repo;
     check_removed ro_ctxt block1 "block1" >>= fun () ->
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     Log.debug (fun l -> l "Freeze keeps block1 in upper");
     freeze ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block1 ctxt.index.repo block1 >>= fun () ->
     Store.sync ro_ctxt.index.repo;
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
     checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
     Log.debug (fun l -> l "Freeze removes block1, block1a from upper");
     freeze ~copy_in_upper:false ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
     check_removed ctxt block1a "block1a" >>= fun () ->
     Store.sync ro_ctxt.index.repo;
@@ -444,7 +444,7 @@ module Test = struct
     Store.freeze ctxt.index.repo ~min_upper:[ block1a; block1c ]
       ~max:[ block2a; block1c; block3a ]
     >>= fun () ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
     check_removed ctxt block1b "block1b" >>= fun () ->
     check_block1c ctxt.index.repo block1c >>= fun () ->
@@ -458,13 +458,13 @@ module Test = struct
     init ~with_lower:false () >>= fun ctxt ->
     commit_block1 ctxt >>= fun (ctxt, block1) ->
     freeze ctxt block1 >>= fun ctxt ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
     clone ~with_lower:true ctxt.index.root >>= fun ctxt ->
     check_block1 ctxt.index.repo block1 >>= fun () ->
     checkout_and_commit ctxt block1 commit_block1a >>= fun (ctxt, block1a) ->
     Store.freeze ctxt.index.repo ~max:[ block1a ] >>= fun () ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let check_layer block msg exp =
       Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
       >|= Irmin_test.check Irmin_layers.Layer_id.t msg exp
@@ -490,7 +490,7 @@ module Test = struct
       ~max:[ block2a; block1b; block1c ]
       ~copy_in_upper:false
     >>= fun () ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     checkout_and_commit ctxt block2a commit_block3a >>= fun (ctxt, block3a) ->
     Store.self_contained ~max:[ block3a; block1c ] ctxt.index.repo >>= fun () ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
@@ -523,7 +523,7 @@ module Test = struct
     Store.PrivateLayer.freeze' ctxt.index.repo ~max:[ block1 ]
       ~hook:(hook before after)
     >>= fun () ->
-    Store.PrivateLayer.wait_for_freeze () >>= fun () ->
+    Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     (* the commit is in lower *)
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
     Store.Repo.close ctxt.index.repo >>= fun () ->
