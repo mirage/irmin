@@ -106,7 +106,8 @@ struct
 
   let log_next_upper t = if t.flip then "upper0" else "upper1"
 
-  let mem_lower t k = Option.get t.lower |> fun lower -> L.mem lower k
+  let mem_lower t k =
+    match t.lower with None -> Lwt.return false | Some lower -> L.mem lower k
 
   let mem_next t k = U.mem (next_upper t) k
 
@@ -337,6 +338,7 @@ struct
   (** The object [k] can be in either lower or upper. If already in upper then
       do not copy it. *)
   let copy_from_lower t ~dst ?(aux = fun _ -> Lwt.return_unit) str k =
+    (* FIXME(samoht): why does this function need to be different from the previous one? *)
     let lower = lower t in
     let current = current_upper t in
     U.find current k >>= function
