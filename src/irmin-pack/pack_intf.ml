@@ -51,7 +51,7 @@ module type S = sig
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val unsafe_append : 'a t -> key -> value -> unit
+  val unsafe_append : ensure_unique:bool -> 'a t -> key -> value -> unit
 
   val add : 'a t -> value -> key Lwt.t
 
@@ -155,7 +155,7 @@ module type LAYERED = sig
 
   val clear_caches_next_upper : 'a t -> unit
 
-  val unsafe_append : 'a t -> key -> value -> unit Lwt.t
+  val unsafe_append : ensure_unique:bool -> 'a t -> key -> value -> unit Lwt.t
 
   val unsafe_mem : 'a t -> key -> bool Lwt.t
 

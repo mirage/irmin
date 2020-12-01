@@ -92,7 +92,7 @@ struct
   let clear_caches = Inode.clear_caches
 
   let save t v =
-    let add k v = Inode.unsafe_append t k v in
+    let add k v = Inode.unsafe_append ~ensure_unique:true t k v in
     Inode.Val.save_lwt ~add ~mem:(Inode.unsafe_mem t) v
 
   let add t v = save t v.Val.v >|= fun () -> hash v

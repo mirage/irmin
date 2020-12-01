@@ -50,7 +50,7 @@ struct
               (Irmin.Type.pp Key.t) k)
     | Some v ->
         stats str;
-        DST.unsafe_append dst k v
+        DST.unsafe_append ~ensure_unique:false dst k v
 
   let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
     SRC.find src k >>= function None -> none () | Some v -> some v
@@ -143,18 +143,18 @@ struct
   let unsafe_add t k v =
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
 
-  let unsafe_append' t k v =
+  let unsafe_append' ~ensure_unique t k v =
     Log.debug (fun l -> l "unsafe_append in %s" (log_current_upper t));
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    U.unsafe_append upper k v;
+    U.unsafe_append ~ensure_unique upper k v;
     if Lwt_mutex.is_locked t.freeze_lock then (
       Log.debug (fun l -> l "adds during freeze");
       t.newies <- k :: t.newies)
 
-  let unsafe_append t k v =
+  let unsafe_append ~ensure_unique t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
-        unsafe_append' t k v;
+        unsafe_append' ~ensure_unique t k v;
         pause ())
 
   (** Everything is in current upper, no need to look in next upper. *)
