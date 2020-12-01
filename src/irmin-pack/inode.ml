@@ -829,7 +829,7 @@ struct
         Some { Val.find; v }
 
   let save t v =
-    let add k v = Inode.unsafe_append t k v in
+    let add k v = Inode.unsafe_append ~ensure_unique:true t k v in
     Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
 
   let hash v = Inode.Val.hash v.Val.v

@@ -53,9 +53,9 @@ module Content_addressable (S : Pack.S) = struct
       t.closed := true;
       S.close t.t)
 
-  let unsafe_append t k v =
+  let unsafe_append ~ensure_unique t k v =
     check_not_closed t;
-    S.unsafe_append t.t k v
+    S.unsafe_append ~ensure_unique t.t k v
 
   let unsafe_mem t k =
     check_not_closed t;

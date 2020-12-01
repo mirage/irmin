@@ -251,34 +251,33 @@ struct
 
     let auto_flush = 1024
 
-    let unsafe_append t k v =
-      match unsafe_mem t k with
-      | true -> ()
-      | false ->
-          Log.debug (fun l -> l "[pack] append %a" pp_hash k);
-          let offset k =
-            match Index.find t.pack.index k with
-            | None ->
-                Stats.incr_appended_hashes ();
-                None
-            | Some (off, _, _) ->
-                Stats.incr_appended_offsets ();
-                Some off
-          in
-          let dict = Dict.index t.pack.dict in
-          let off = IO.offset t.pack.block in
-          V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
-          let len = Int64.to_int (IO.offset t.pack.block -- off) in
-          Index.add t.pack.index k (off, len, V.magic v);
-          if Tbl.length t.staging >= auto_flush then flush t
-          else Tbl.add t.staging k v;
-          Lru.add t.lru k v
+    let unsafe_append ~ensure_unique t k v =
+      if ensure_unique && unsafe_mem t k then ()
+      else (
+        Log.debug (fun l -> l "[pack] append %a" pp_hash k);
+        let offset k =
+          match Index.find t.pack.index k with
+          | None ->
+              Stats.incr_appended_hashes ();
+              None
+          | Some (off, _, _) ->
+              Stats.incr_appended_offsets ();
+              Some off
+        in
+        let dict = Dict.index t.pack.dict in
+        let off = IO.offset t.pack.block in
+        V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        let len = Int64.to_int (IO.offset t.pack.block -- off) in
+        Index.add t.pack.index k (off, len, V.magic v);
+        if Tbl.length t.staging >= auto_flush then flush t
+        else Tbl.add t.staging k v;
+        Lru.add t.lru k v)
 
     let pause = Lwt.pause
 
     let append t k v =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
-          unsafe_append t k v;
+          unsafe_append ~ensure_unique:true t k v;
           pause ())
 
     let add t v =
