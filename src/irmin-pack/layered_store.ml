@@ -43,7 +43,7 @@ struct
 
   let copy ~src ~dst str k =
     Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
-    match SRC.unsafe_find src k with
+    match SRC.unsafe_find ~check_integrity:false src k with
     | None ->
         Log.warn (fun l ->
             l "Attempt to copy %s %a not contained in upper." str
@@ -170,17 +170,17 @@ struct
             Log.debug (fun l -> l "find in lower");
             L.find lower k)
 
-  let unsafe_find t k =
+  let unsafe_find ~check_integrity t k =
     let current = current_upper t in
     Log.debug (fun l -> l "unsafe_find in %s" (log_current_upper t));
-    match U.unsafe_find current k with
+    match U.unsafe_find ~check_integrity current k with
     | Some v -> Some v
     | None -> (
         match t.lower with
         | None -> None
         | Some lower ->
             Log.debug (fun l -> l "unsafe_find in lower");
-            L.unsafe_find lower k)
+            L.unsafe_find ~check_integrity lower k)
 
   let mem t k =
     let current = current_upper t in

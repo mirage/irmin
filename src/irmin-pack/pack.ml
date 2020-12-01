@@ -202,7 +202,7 @@ struct
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    let unsafe_find t k =
+    let unsafe_find ~check_integrity t k =
       Log.debug (fun l -> l "[pack:%a] find %a" pp_io t pp_hash k);
       Stats.incr_finds ();
       match Tbl.find t.staging k with
@@ -218,7 +218,8 @@ struct
               | None -> None
               | Some (off, len, _) ->
                   let v = io_read_and_decode ~off ~len t in
-                  (check_key k v |> function
+                  (if check_integrity then
+                   check_key k v |> function
                    | Ok () -> ()
                    | Error (expected, got) ->
                        Fmt.failwith "corrupted value: got %a, expecting %a."
@@ -228,7 +229,7 @@ struct
 
     let find t k =
       Lwt_mutex.with_lock t.pack.lock (fun () ->
-          let v = unsafe_find t k in
+          let v = unsafe_find ~check_integrity:true t k in
           Lwt.return v)
 
     let cast t = (t :> [ `Read | `Write ] t)

@@ -129,6 +129,8 @@
 
   - Use `Repo.iter` to speed-up copies between layers (#1149, #1150 @samoht)
 
+  - Add an option to bypass data integrity checks on reads (#1154, @samoht)
+
 - **ppx_irmin**:
 
   - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (#1082,

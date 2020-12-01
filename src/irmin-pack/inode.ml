@@ -813,8 +813,8 @@ struct
 
   let mem t k = Inode.mem t k
 
-  let unsafe_find t k =
-    match Inode.unsafe_find t k with
+  let unsafe_find ~check_integrity t k =
+    match Inode.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
         let v = Inode.Val.of_bin v in
@@ -825,7 +825,7 @@ struct
     | None -> None
     | Some v ->
         let v = Inode.Val.of_bin v in
-        let find = unsafe_find t in
+        let find = unsafe_find ~check_integrity:true t in
         Some { Val.find; v }
 
   let save t v =
