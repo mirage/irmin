@@ -123,13 +123,7 @@ module type LAYERED = sig
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  val copy :
-    'l layer_type * 'l ->
-    [ `Read ] t ->
-    ?aux:(value -> unit Lwt.t) ->
-    string ->
-    key ->
-    unit Lwt.t
+  val copy : 'l layer_type * 'l -> [ `Read ] t -> string -> key -> unit
 
   val copy_from_lower :
     [ `Read ] t ->

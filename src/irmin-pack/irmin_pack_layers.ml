@@ -617,21 +617,37 @@ struct
 
     let no_skip _ = Lwt.return false
 
+    let pred_node t k =
+      let n = snd (X.Repo.node_t t) in
+      X.Node.CA.find n k >|= function
+      | None -> []
+      | Some v ->
+          List.rev_map
+            (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
+            (X.Node.CA.Val.pred v)
+
     let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
         ?(skip_nodes = no_skip) ?(skip_contents = no_skip) t ?(min = []) max =
       (* if node or contents are already in dst then they are skipped by
          Graph.iter; there is no need to check this again when the object is
          copied *)
-      let commit k = X.Commit.CA.copy commits t.X.Repo.commit "Commit" k in
-      let node k = X.Node.CA.copy nodes t.X.Repo.node k in
+      let commit k =
+        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
+        Lwt.pause ()
+      in
+      let node k =
+        X.Node.CA.copy nodes t.X.Repo.node k;
+        Lwt.return_unit
+      in
       let contents k =
-        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
+        Lwt.return_unit
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in
       let skip_commit h = skip_with_stats ~skip:skip_commits h in
       Repo.iter t ~min ~max ~commit ~node ~contents ~skip_node ~skip_contents
-        ~skip_commit ()
+        ~pred_node ~skip_commit ()
       >|= fun () -> X.Repo.flush t
 
     module CopyToLower = struct
@@ -779,7 +795,7 @@ struct
         let max = List.map (fun c -> `Commit c) cs in
         let min = List.map (fun c -> `Commit c) min in
         Repo.iter t ~min ~max ~commit ~node ~contents ~skip_node ~skip_contents
-          ~skip_commit ()
+          ~pred_node ~skip_commit ()
         >|= fun () -> X.Repo.flush t
 
       let on_current_upper t f =
