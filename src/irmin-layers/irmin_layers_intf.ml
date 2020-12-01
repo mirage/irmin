@@ -38,7 +38,7 @@ module type S = sig
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
 
-  val async_freeze : unit -> bool
+  val async_freeze : repo -> bool
   (** [async_freeze t] returns true if there is an ongoing freeze. To be used
       with caution, as a freeze can start (or stop) just after the test. It is
       helpful when a single freeze is called, to check whether it completed or
@@ -70,7 +70,7 @@ module type S = sig
       val v : ('a -> unit Lwt.t) -> 'a t
     end
 
-    val wait_for_freeze : unit -> unit Lwt.t
+    val wait_for_freeze : repo -> unit Lwt.t
 
     val freeze' :
       ?min:commit list ->
