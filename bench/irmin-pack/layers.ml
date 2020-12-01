@@ -11,9 +11,9 @@ let reporter ?(prefix = "") () =
       let dt = Unix.gettimeofday () in
       Fmt.kpf k ppf
         ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
-        prefix dt
+        prefix dt Logs_fmt.pp_header (level, h)
         Fmt.(styled `Magenta string)
-        (Logs.Src.name src) Logs_fmt.pp_header (level, h)
+        (Logs.Src.name src)
     in
     msgf @@ fun ?header ?tags fmt -> with_stamp header tags k fmt
   in
@@ -102,10 +102,7 @@ let configure_store root =
 
 let init config =
   rm_dir config.root;
-  Fmt_tty.setup_std_outputs ();
-  Logs.set_level (Some Logs.App);
   Memtrace.trace_if_requested ();
-  if config.show_stats then Logs.set_reporter (reporter ());
   reset_stats ()
 
 let info () =
@@ -354,7 +351,7 @@ let json =
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
-  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_reporter (reporter ());
   ()
 
 let setup_log =
