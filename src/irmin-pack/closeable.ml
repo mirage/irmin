@@ -61,9 +61,9 @@ module Content_addressable (S : Pack.S) = struct
     check_not_closed t;
     S.unsafe_mem t.t k
 
-  let unsafe_find t k =
+  let unsafe_find ~check_integrity t k =
     check_not_closed t;
-    S.unsafe_find t.t k
+    S.unsafe_find ~check_integrity t.t k
 
   let flush ?index t =
     check_not_closed t;
