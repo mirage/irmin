@@ -958,7 +958,8 @@ struct
         (fun x -> Ok (`Msg x))
         "Upper layer is self contained for heads %a" pp_commits heads
     else
-      Fmt.error_msg
+      Fmt.kstrf
+        (fun x -> Error (`Msg x))
         "Upper layer is not self contained for heads %a: %n phantom objects \
          detected"
         pp_commits heads !errors
