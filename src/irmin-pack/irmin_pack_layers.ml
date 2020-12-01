@@ -609,8 +609,6 @@ struct
 
   let flush = X.Repo.flush
 
-  let pause = Lwt.pause
-
   let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash
 
   module Copy = struct
@@ -631,7 +629,6 @@ struct
         ~mem_commit_upper:(mem_commit_next t) t.X.Repo.branch
 
     let skip_with_stats ~skip h =
-      pause () >>= fun () ->
       skip h >|= function
       | true ->
           Irmin_layers.Stats.skip ();
