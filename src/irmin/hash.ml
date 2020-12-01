@@ -17,15 +17,9 @@
 module Make (H : Digestif.S) = struct
   type t = H.t
 
-  let short_hash c =
-    let buf = Bytes.unsafe_of_string (H.to_raw_string c) in
-    Int32.to_int (Bytes.get_int32_be buf 0)
+  external get_64 : string -> int -> int64 = "%caml_string_get64u"
 
-  let short_hash_seeded =
-    Type.stage @@ fun ?seed c ->
-    match seed with
-    | None -> short_hash c
-    | Some seed -> Hashtbl.seeded_hash seed (H.to_raw_string c)
+  let short_hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
 
   let hash_size = H.digest_size
 
@@ -37,7 +31,7 @@ module Make (H : Digestif.S) = struct
   let pp_hex ppf x = Fmt.string ppf (H.to_hex x)
 
   let t =
-    Type.map ~pp:pp_hex ~of_string:of_hex ~short_hash:short_hash_seeded
+    Type.map ~pp:pp_hex ~of_string:of_hex
       Type.(string_of (`Fixed hash_size))
       H.of_raw_string H.to_raw_string
 
