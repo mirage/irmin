@@ -293,7 +293,7 @@ struct
               (fun _ v acc ->
                 let v =
                   match v with
-                  | `Node k -> `Node k
+                  | `Node _ as k -> k
                   | `Contents (k, _) -> `Contents k
                 in
                 v :: acc)
@@ -722,7 +722,7 @@ struct
               (name, `Node node)
         in
         let t : Compress.v -> Bin.v = function
-          | Values vs -> Values (List.map value vs)
+          | Values vs -> Values (List.rev_map value (List.rev vs))
           | Inodes { seed; length; entries } ->
               let entries = List.map inode entries in
               Inodes { seed; length; entries }
