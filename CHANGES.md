@@ -111,11 +111,6 @@
   - `Irmin.Type` uses staging for `equal`, `short_hash` and `compare` to
     speed-up generic operations (#1130, #1131, #1132, @samoht)
 
-  - Change the function used by `Type.short_hash ~seed:None` for hashes to
-    be more efficient. This changes the outputs of that function. The outputs
-    of the seeded hash function (as used by irmin-pack's inodes) is not
-    modified. (#1143, @samoht @CraigFe)
-
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
     files on disk. (#1008, @icristescu)
