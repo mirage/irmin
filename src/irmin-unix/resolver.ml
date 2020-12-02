@@ -57,7 +57,7 @@ let config_path_key =
 
 let ( / ) = Filename.concat
 
-let global_config_path = ".irmin" / "config.yml"
+let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
   match v with None -> config | Some _ -> Irmin.Private.Conf.add config k v
@@ -338,8 +338,15 @@ end
 
 (* Config *)
 
+let config_root () =
+  let xdg_config_home = Unix.getenv "XDG_CONFIG_HOME" in
+  if xdg_config_home = "" then
+    Unix.getenv "HOME" / ".config"
+  else
+    xdg_config_home
+
 let rec read_config_file path =
-  let home = Unix.getenv "HOME" / global_config_path in
+  let home = config_root () / global_config_path in
   let global = if String.equal path home then [] else read_config_file home in
   if not (Sys.file_exists path) then global
   else
