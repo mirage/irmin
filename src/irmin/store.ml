@@ -1086,6 +1086,7 @@ module Make (P : S.PRIVATE) = struct
                   match (e, current_value) with
                   | Some x, Some y -> not (equal_contents x y)
                   | Some _, None -> true
+                  | None, Some _ -> true
                   | _, _ -> false)
               | None -> Lwt.return_false)
             parents
