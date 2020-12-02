@@ -35,9 +35,10 @@ module Make (K : Irmin.Hash.S) = struct
   module Key = struct
     type t = K.t [@@deriving irmin]
 
-    let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
+    let hash t =
+      Irmin.Type.(unstage (short_hash K.t)) ?seed:None t land 0x7fffffff
 
-    let hash_size = 30
+    let hash_size = 31
 
     let equal = Irmin.Type.(unstage (equal K.t))
 
