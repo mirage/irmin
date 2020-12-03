@@ -22,6 +22,8 @@ depends: [
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
+  "repr"
+  "ppx_repr"
 ]
 
 synopsis: "Irmin benchmarking suite"
