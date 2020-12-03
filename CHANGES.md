@@ -8,6 +8,10 @@
 - **irmin***
   - Improve performance of `last_modified` (#948, @pascutto)
 
+  - Changed the pattern matching of the function `last_modified`. The case of a
+    created key is now considered a modification by the function. (#1167,
+    @clecat)
+
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
     namespacing. (#1083, @CraigFe)
