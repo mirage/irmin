@@ -170,10 +170,11 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes. [`False f] is applying [f] on every lazy
-      node instead. *)
+      node instead. [`And_clear] is like [`True] but also eagerly empty the Tree
+      caches when traversing sub-nodes. *)
 
   type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
@@ -184,12 +185,24 @@ module type S = sig
   type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
   (** The type for {!fold}'s [pre] and [post] parameters. *)
 
+  type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
+  [@@deriving irmin]
+  (** The type for fold depths.
+
+      - [Eq d] folds over nodes and contents of depth exactly [d].
+      - [Lt d] folds over nodes and contents of depth strictly less than [d].
+      - [Gt d] folds over nodes and contents of depth strictly more than [d].
+
+      [Le d] is [Eq d] and [Lt d]. [Ge d] is [Eq d] and [Gt d]. *)
+
   val fold :
     ?force:'a force ->
     ?uniq:uniq ->
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
-    (key -> contents -> 'a -> 'a Lwt.t) ->
+    ?depth:depth ->
+    ?contents:(key -> contents -> 'a -> 'a Lwt.t) ->
+    ?node:(key -> node -> 'a -> 'a Lwt.t) ->
     t ->
     'a ->
     'a Lwt.t
@@ -202,10 +215,12 @@ module type S = sig
       - Call [post path n]; By default [post] is the identity.
 
       See {!force} for details about the [force] parameters. By default it is
-      [`True].
+      [`And_clear].
 
       See {!uniq} for details about the [uniq] parameters. By default it is
-      [`False]. *)
+      [`False].
+
+      The fold depth is controlled by the [depth] parameter. *)
 
   (** {1 Stats} *)
 
