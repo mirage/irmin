@@ -338,12 +338,17 @@ end
 
 (* Config *)
 
+let home =
+  try Sys.getenv "HOME"
+  with Not_found -> (
+    try (Unix.getpwuid (Unix.getuid ())).Unix.pw_dir
+    with Unix.Unix_error _ | Not_found ->
+      if Sys.win32 then try Sys.getenv "AppData" with Not_found -> "" else "")
+
 let config_root () =
-  let xdg_config_home = Unix.getenv "XDG_CONFIG_HOME" in
-  if xdg_config_home = "" then
-    Unix.getenv "HOME" / ".config"
-  else
-    xdg_config_home
+  try Sys.getenv "XDG_CONFIG_HOME"
+  with Not_found ->
+    if Sys.win32 then home / "Local Settings" else home / ".config"
 
 let rec read_config_file path =
   let home = config_root () / global_config_path in
