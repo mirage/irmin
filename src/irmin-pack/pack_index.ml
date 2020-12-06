@@ -24,9 +24,11 @@ module type S = sig
 
   val find : t -> key -> value option
 
-  val add : t -> key -> value -> unit
+  val add : ?overcommit:bool -> t -> key -> value -> unit
 
   val close : t -> unit
+
+  val merge : t -> unit
 
   module Stats = Index.Stats
 end
@@ -80,7 +82,10 @@ module Make (K : Irmin.Hash.S) = struct
 
   let v = Index.v ~cache
 
-  let add t k v = replace t k v
+  let add ?overcommit t k v =
+    match overcommit with
+    | Some true -> replace ~overcommit:() t k v
+    | _ -> replace t k v
 
   let find t k = match find t k with exception Not_found -> None | h -> Some h
 

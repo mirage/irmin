@@ -50,7 +50,7 @@ struct
               (Irmin.Type.pp Key.t) k)
     | Some v ->
         stats str;
-        DST.unsafe_append ~ensure_unique:false dst k v
+        DST.unsafe_append ~ensure_unique:false ~overcommit:true dst k v
 
   let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
     SRC.find src k >>= function None -> none () | Some v -> some v
@@ -153,18 +153,18 @@ struct
   let unsafe_add t k v =
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
 
-  let unsafe_append' ~ensure_unique t k v =
+  let unsafe_append' ~ensure_unique ~overcommit t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    U.unsafe_append ~ensure_unique upper k v;
+    U.unsafe_append ~ensure_unique ~overcommit upper k v;
     if freeze then t.newies <- k :: t.newies
 
-  let unsafe_append ~ensure_unique t k v =
+  let unsafe_append ~ensure_unique ~overcommit t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
-        unsafe_append' ~ensure_unique t k v;
+        unsafe_append' ~ensure_unique ~overcommit t k v;
         pause ())
 
   (** Everything is in current upper, no need to look in next upper. *)
@@ -211,14 +211,14 @@ struct
 
   (** Only flush current upper, to prevent concurrent flushing and appends
       during copy. Next upper and lower are flushed at the end of a freeze. *)
-  let flush ?index t =
+  let flush ?index ?index_merge t =
     let current = current_upper t in
-    U.flush ?index current
+    U.flush ?index ?index_merge current
 
   let flush_next_lower t =
     let next = next_upper t in
-    U.flush next;
-    match t.lower with None -> () | Some x -> L.flush x
+    U.flush ~index_merge:true next;
+    match t.lower with None -> () | Some x -> L.flush ~index_merge:true x
 
   let cast t = (t :> [ `Read | `Write ] t)
 
