@@ -357,13 +357,14 @@ module Make (P : S.PRIVATE) = struct
 
     let elt_t = elt_t t
 
-    let rec clear_map ~max_depth depth m =
-      List.iter
-        (fun (_, v) ->
-          match v with
-          | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
-          | `Node t -> (clear [@tailcall]) ~max_depth (depth + 1) t)
-        m
+    let rec clear_elt ~max_depth depth (_, v) =
+      match v with
+      | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
+      | `Node t -> clear ~max_depth (depth + 1) t
+
+    and clear_map ~max_depth depth = List.iter (clear_elt ~max_depth depth)
+
+    and clear_maps ~max_depth depth = List.iter (clear_map ~max_depth depth)
 
     and clear_info ~max_depth ?v depth i =
       let added =
@@ -384,7 +385,7 @@ module Make (P : S.PRIVATE) = struct
         i.map <- None;
         i.hash <- None;
         i.findv_cache <- None);
-      (clear_map [@tailcall]) ~max_depth depth (map @ added @ findv)
+      clear_maps ~max_depth depth [ map; added; findv ]
 
     and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
