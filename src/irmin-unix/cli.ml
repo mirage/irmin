@@ -601,8 +601,9 @@ let config_man =
         "An $(b,irmin.yml) file lets the user specify repetitve command-line \
          options in a YAML file. The $(b,irmin.yml) is read by default if it \
          is found in the current working directory or defined globally as \
-         \\$HOME/.irmin/config.yml. The configuration file path can also be \
-         set using the $(b,--config) command-line flag. \n\
+         \\$HOME/.config/irmin/config.yml. The configuration file path can \
+         also be set using the $(b,--config) command-line flag or by setting \
+         \\$XDG_CONFIG_HOME. \n\
         \        The following keys are allowed: $(b,contents), $(b,store), \
          $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These \
          correspond to the irmin options of the same names.";

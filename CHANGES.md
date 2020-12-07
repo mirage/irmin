@@ -16,6 +16,9 @@
   - Fix a bug causing certain type derivations to be incorrect due to unsound
     namespacing. (#1083, @CraigFe)
 
+- **irmin-unix**
+  - Update irmin config path to respect `XDG_CONFIG_HOME`. (#1168, @zshipko)
+
 #### Added
 
 - **irmin-layers** (_new_):
