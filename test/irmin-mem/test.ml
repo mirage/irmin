@@ -14,4 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () = Irmin_test.Store.run "irmin-mem" ~misc:[] [ (`Quick, Test_mem.suite) ]
+let () =
+  Irmin_test.Store.run "irmin-mem" ~misc:[ Test_mem.misc ]
+    [ (`Quick, Test_mem.suite) ]

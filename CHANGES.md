@@ -12,6 +12,8 @@
     created key is now considered a modification by the function. (#1167,
     @clecat)
 
+  - Make Tree.clear tail-recursive (#1171, @samoht)
+
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
     namespacing. (#1083, @CraigFe)
