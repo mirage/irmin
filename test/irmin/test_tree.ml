@@ -74,8 +74,14 @@ let test_diff _ () =
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
 
+let test_clear _ () =
+  let x = List.init 830829 (fun i -> string_of_int i) in
+  Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) Tree.empty x
+  >|= fun large_tree -> Tree.clear large_tree
+
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
+    Alcotest_lwt.test_case "clear" `Quick test_clear;
   ]

@@ -42,22 +42,6 @@ let stats = None
 
 let lower_name = "lower"
 
-module S = Irmin_mem.KV (Irmin.Contents.String)
-
-module Tree = struct
-  let clear () =
-    let x = List.init 830829 (fun i -> string_of_int i) in
-    Lwt_list.fold_left_s (fun acc i -> S.Tree.add acc [ i ] i) S.Tree.empty x
-    (* Testing [Tree.remove] *)
-    >|= fun large_tree -> S.Tree.clear large_tree
-end
-
-let misc =
-  ( "tree",
-    [
-      Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (Tree.clear ()));
-    ] )
-
 let suite =
   {
     Irmin_test.name = "MEM";
