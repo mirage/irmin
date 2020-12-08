@@ -75,7 +75,7 @@ struct
     lower : [ `Read ] L.t option;
     mutable flip : bool;
     uppers : [ `Read ] U.t * [ `Read ] U.t;
-    freeze_lock : Lwt_mutex.t;
+    freeze_in_progress : unit -> bool;
     add_lock : Lwt_mutex.t;
     mutable newies : key list;
   }
@@ -83,13 +83,13 @@ struct
   module U = U
   module L = L
 
-  let v upper1 upper0 lower ~flip ~freeze_lock ~add_lock =
+  let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
     Log.debug (fun l -> l "v flip = %b" flip);
     {
       lower;
       flip;
       uppers = (upper1, upper0);
-      freeze_lock;
+      freeze_in_progress;
       add_lock;
       newies = [];
     }
@@ -119,36 +119,42 @@ struct
         let tmp = unsafe_consume_newies t in
         Lwt.return tmp)
 
+  let pp_during_freeze ppf = function
+    | true -> Fmt.string ppf " during freeze"
+    | false -> ()
+
   let add' t v =
-    Log.debug (fun l -> l "add in %s" (log_current_upper t));
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "add in %s%a" (log_current_upper t) pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v >|= fun k ->
-    if Lwt_mutex.is_locked t.freeze_lock then (
-      Log.debug (fun l -> l "adds during freeze");
-      t.newies <- k :: t.newies);
+    if freeze then t.newies <- k :: t.newies;
     k
 
   let add t v = Lwt_mutex.with_lock t.add_lock (fun () -> add' t v)
 
   let unsafe_add' t k v =
-    Log.debug (fun l -> l "unsafe_add in %s" (log_current_upper t));
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "unsafe_add in %s%a" (log_current_upper t) pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v >|= fun () ->
-    if Lwt_mutex.is_locked t.freeze_lock then (
-      Log.debug (fun l -> l "adds during freeze");
-      t.newies <- k :: t.newies)
+    if freeze then t.newies <- k :: t.newies
 
   let unsafe_add t k v =
     Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
 
   let unsafe_append' ~ensure_unique t k v =
-    Log.debug (fun l -> l "unsafe_append in %s" (log_current_upper t));
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "unsafe_append in %s%a" (log_current_upper t) pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique upper k v;
-    if Lwt_mutex.is_locked t.freeze_lock then (
+    if freeze then (
       Log.debug (fun l -> l "adds during freeze");
       t.newies <- k :: t.newies)
 
