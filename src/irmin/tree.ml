@@ -272,7 +272,10 @@ module Make (P : S.PRIVATE) = struct
 
     let fold ~force ~path f t acc =
       match force with
-      | `True -> to_value t >>= fun c -> f path (get_ok c) acc
+      | `True | `And_clear ->
+          to_value t >>= fun c ->
+          if force = `And_clear then clear t;
+          f path (get_ok c) acc
       | `False skip -> (
           match t.info.value with
           | None -> skip path acc
@@ -690,53 +693,79 @@ module Make (P : S.PRIVATE) = struct
 
     let empty_marks () = Hashes.create 39
 
-    let fold ~force ~uniq ~pre ~post ~path f t acc =
+    let fold ~force ~uniq ~pre ~post ~path ?depth ~node ~contents t acc =
       let marks =
         match uniq with
         | `False -> dummy_marks
         | `True -> empty_marks ()
         | `Marks n -> n
       in
-      let rec aux ~path acc t k =
-        match force with
-        | `True -> (
-            to_map t >>= function
-            | Ok m -> (map [@tailcall]) ~path acc (Some m) k
-            | Error (`Dangling_hash _) -> (map [@tailcall]) ~path acc None k)
-        | `False skip -> (
-            match t.info.map with
-            | Some n -> (map [@tailcall]) ~path acc (Some n) k
-            | _ -> skip path acc)
-      and aux_uniq ~path acc t k =
-        if uniq = `False then (aux [@tailcall]) ~path acc t k
+      let rec aux ~path acc d t k =
+        let apply acc = node path t acc in
+        let next acc =
+          match force with
+          | `True | `And_clear -> (
+              to_map t >>= function
+              | Ok m ->
+                  if force = `And_clear then clear ~depth:0 t;
+                  (map [@tailcall]) ~path acc d (Some m) k
+              | Error (`Dangling_hash _) -> (map [@tailcall]) ~path acc d None k
+              )
+          | `False skip -> (
+              match t.info.map with
+              | Some n -> (map [@tailcall]) ~path acc d (Some n) k
+              | _ -> skip path acc)
+        in
+        match depth with
+        | None -> apply acc >>= next
+        | Some (`Eq depth) -> if d < depth then next acc else apply acc >>= k
+        | Some (`Le depth) ->
+            if d < depth then apply acc >>= next else apply acc >>= k
+        | Some (`Lt depth) ->
+            if d < depth - 1 then apply acc >>= next else apply acc >>= k
+        | Some (`Ge depth) -> if d < depth then next acc else apply acc >>= next
+        | Some (`Gt depth) ->
+            if d <= depth then next acc else apply acc >>= next
+      and aux_uniq ~path acc d t k =
+        if uniq = `False then (aux [@tailcall]) ~path acc d t k
         else
           let h = hash t in
           if Hashes.mem marks h then k acc
           else (
             Hashes.add marks h ();
-            (aux [@tailcall]) ~path acc t k)
-      and step ~path acc (s, v) k =
+            (aux [@tailcall]) ~path acc d t k)
+      and step ~path acc d (s, v) k =
         let path = Path.rcons path s in
         match v with
-        | `Contents c -> Contents.fold ~force ~path f (fst c) acc >>= k
-        | `Node n -> (aux_uniq [@tailcall]) ~path acc n k
-      and steps ~path acc s k =
+        | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
+        | `Contents c -> (
+            let apply () =
+              Contents.fold ~force ~path contents (fst c) acc >>= k
+            in
+            match depth with
+            | None -> apply ()
+            | Some (`Eq depth) -> if d = depth - 1 then apply () else k acc
+            | Some (`Le depth) -> if d < depth then apply () else k acc
+            | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
+            | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
+            | Some (`Gt depth) -> if d >= depth then apply () else k acc)
+      and steps ~path acc d s k =
         match s with
         | [] -> k acc
         | h :: t ->
-            (step [@tailcall]) ~path acc h @@ fun acc ->
-            (steps [@tailcall]) ~path acc t k
-      and map ~path acc m k =
+            (step [@tailcall]) ~path acc d h @@ fun acc ->
+            (steps [@tailcall]) ~path acc d t k
+      and map ~path acc d m k =
         match m with
         | None -> k acc
         | Some m ->
             let bindings = StepMap.bindings m in
             let s = List.rev_map fst bindings in
             pre path s acc >>= fun acc ->
-            (steps [@tailcall]) ~path acc bindings @@ fun acc ->
+            (steps [@tailcall]) ~path acc d bindings @@ fun acc ->
             post path s acc >>= k
       in
-      aux_uniq ~path acc t Lwt.return
+      aux_uniq ~path acc 0 t Lwt.return
 
     let remove t step =
       to_map t >|= function
@@ -908,7 +937,7 @@ module Make (P : S.PRIVATE) = struct
 
   let empty_marks = Node.empty_marks
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
 
   type uniq = [ `False | `True | `Marks of marks ]
 
@@ -916,11 +945,16 @@ module Make (P : S.PRIVATE) = struct
 
   let id _ _ acc = Lwt.return acc
 
-  let fold ?(force = `True) ?(uniq = `False) ?(pre = id) ?(post = id) f (t : t)
-      acc =
+  type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
+  [@@deriving irmin]
+
+  let fold ?(force = `And_clear) ?(uniq = `False) ?(pre = id) ?(post = id)
+      ?depth ?(contents = id) ?(node = id) (t : t) acc =
     match t with
-    | `Contents v -> f Path.empty (fst v) acc
-    | `Node n -> Node.fold ~force ~uniq ~pre ~post ~path:Path.empty f n acc
+    | `Contents v -> contents Path.empty (fst v) acc
+    | `Node n ->
+        Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
+          ~node n acc
 
   type stats = {
     nodes : int;
@@ -1407,13 +1441,13 @@ module Make (P : S.PRIVATE) = struct
       if force then `True
       else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
     in
-    let f k _ s = set_depth k s |> incr_leafs |> Lwt.return in
+    let contents k _ s = set_depth k s |> incr_leafs |> Lwt.return in
     let pre k childs s =
       if childs = [] then Lwt.return s
       else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
     in
     let post _ _ acc = Lwt.return acc in
-    fold ~force ~pre ~post f t empty_stats
+    fold ~force ~pre ~post ~contents t empty_stats
 
   let counters () = cnt
 

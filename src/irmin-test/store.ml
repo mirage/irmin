@@ -1442,6 +1442,8 @@ module Make (S : S) = struct
     in
     run x test
 
+  let pp_depth = Irmin.Type.pp S.Tree.depth_t
+
   let test_trees x () =
     let test repo =
       S.master repo >>= fun t ->
@@ -1452,6 +1454,49 @@ module Make (S : S) = struct
       S.Tree.empty |> fun v1 ->
       S.Tree.add v1 [ "foo"; "toto" ] foo1 >>= fun v1 ->
       S.Tree.add v1 [ "foo"; "bar"; "toto" ] foo2 >>= fun v1 ->
+      S.Tree.fold ~depth:(`Eq 1) ~force:`True S.Tree.empty ()
+        ~contents:(fun k _ ->
+          assert (List.length k = 1);
+          Alcotest.fail "contents")
+        ~node:(fun k _ ->
+          assert (List.length k = 1);
+          Alcotest.fail "node")
+      >>= fun () ->
+      let fold depth ecs ens =
+        S.Tree.fold v1 ?depth ~force:`And_clear
+          ~contents:(fun path _ (cs, ns) -> Lwt.return (path :: cs, ns))
+          ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
+          ([], [])
+        >>= fun (cs, ns) ->
+        let paths = Alcotest.slist (testable S.Key.t) compare in
+        Alcotest.(check paths)
+          (Fmt.str "contents depth=%a" Fmt.(Dump.option pp_depth) depth)
+          ecs cs;
+        Alcotest.(check paths)
+          (Fmt.str "nodes depth=%a" Fmt.(Dump.option pp_depth) depth)
+          ens ns;
+        Lwt.return ()
+      in
+      fold None
+        [ [ "foo"; "bar"; "toto" ]; [ "foo"; "toto" ] ]
+        [ []; [ "foo" ]; [ "foo"; "bar" ] ]
+      >>= fun () ->
+      fold (Some (`Eq 0)) [] [ [] ] >>= fun () ->
+      fold (Some (`Eq 1)) [] [ [ "foo" ] ] >>= fun () ->
+      fold (Some (`Eq 2)) [ [ "foo"; "toto" ] ] [ [ "foo"; "bar" ] ]
+      >>= fun () ->
+      fold (Some (`Lt 2)) [] [ []; [ "foo" ] ] >>= fun () ->
+      fold
+        (Some (`Le 2))
+        [ [ "foo"; "toto" ] ]
+        [ []; [ "foo" ]; [ "foo"; "bar" ] ]
+      >>= fun () ->
+      fold
+        (Some (`Ge 2))
+        [ [ "foo"; "toto" ]; [ "foo"; "bar"; "toto" ] ]
+        [ [ "foo"; "bar" ] ]
+      >>= fun () ->
+      fold (Some (`Gt 2)) [ [ "foo"; "bar"; "toto" ] ] [] >>= fun () ->
       S.Tree.remove v1 [ "foo"; "bar"; "toto" ] >>= fun v1 ->
       S.Tree.find v1 [ "foo"; "toto" ] >>= fun v ->
       Alcotest.(check (option string)) "remove" (Some foo1) v;

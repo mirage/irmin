@@ -120,6 +120,9 @@
   - `Irmin.Type` uses staging for `equal`, `short_hash` and `compare` to
     speed-up generic operations (#1130, #1131, #1132, @samoht)
 
+  - Make `Tree.fold` more expressive and ensure it uses a bounded memory
+    (#1169, @samoht)
+
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the
     files on disk. (#1008, @icristescu)
