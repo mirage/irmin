@@ -44,10 +44,6 @@ module Make (S : S) = struct
     in
     aux [] n
 
-  let sleep ?(sleep_t = 0.01) () =
-    let sleep_t = min sleep_t 1. in
-    Lwt_unix.yield () >>= fun () -> Lwt_unix.sleep sleep_t
-
   let old k () = Lwt.return_ok (Some k)
 
   let may repo commits = function
@@ -74,18 +70,6 @@ module Make (S : S) = struct
         | Some head -> head)
       branches
     >>= fun heads -> may repo heads hook
-
-  let test_two_close x () =
-    try
-      Lwt_main.run
-        ( x.init () >>= fun () ->
-          S.Repo.v x.config >>= fun repo1 ->
-          S.Repo.v x.config >>= fun repo2 ->
-          S.Repo.close repo1 >>= fun () ->
-          kv1 ~repo:repo2 >>= fun _ -> x.clean () )
-    with e ->
-      Lwt_main.run (x.clean ());
-      raise e
 
   let test_contents x () =
     let test repo =
@@ -118,8 +102,6 @@ module Make (S : S) = struct
     run x test
 
   let get = function None -> Alcotest.fail "get" | Some v -> v
-
-  let get_node = function `Node n -> n | _ -> Alcotest.fail "get_node"
 
   module H_node = Irmin.Hash.Typed (P.Hash) (P.Node.Val)
 
@@ -963,10 +945,6 @@ module Make (S : S) = struct
 
   let empty_stats =
     { S.Tree.nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }
-
-  let save_tree repo t =
-    P.Repo.batch repo (fun x y _ -> S.save_tree ~clear:false repo x y t)
-    >|= fun _ -> ()
 
   let inspect =
     Alcotest.testable
