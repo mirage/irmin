@@ -60,6 +60,120 @@ module type LAYERED_STORE =
      and type contents = string
      and type branch = string
 
+let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
+ fun (module B) (module M) ->
+  let module S =
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
+  in
+  (module S)
+
+let layered_store :
+    (module Irmin_layers.S_MAKER) ->
+    (module Irmin.Metadata.S) ->
+    (module LAYERED_STORE) =
+ fun (module B) (module M) ->
+  let module LAYERED_STORE =
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
+  in
+  (module LAYERED_STORE)
+
+type t = {
+  name : string;
+  init : unit -> unit Lwt.t;
+  clean : unit -> unit Lwt.t;
+  config : Irmin.config;
+  store : (module S);
+  layered_store : (module LAYERED_STORE) option;
+  stats : (unit -> int * int) option;
+}
+
+module type STORE_TESTS = functor (S : S) -> sig
+  val tests : (string * (t -> unit -> unit)) list
+end
+
+module Make_helpers (S : S) = struct
+  module P = S.Private
+  module Graph = Irmin.Private.Node.Graph (P.Node)
+
+  let v repo = P.Repo.contents_t repo
+
+  let n repo = P.Repo.node_t repo
+
+  let ct repo = P.Repo.commit_t repo
+
+  let g repo = P.Repo.node_t repo
+
+  let h repo = P.Repo.commit_t repo
+
+  let b repo = P.Repo.branch_t repo
+
+  let v1 = long_random_string
+
+  let v2 = ""
+
+  let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
+
+  let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
+
+  let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+
+  let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
+
+  let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
+
+  let normal x = `Contents (x, S.Metadata.default)
+
+  let b1 = "foo"
+
+  let b2 = "bar/toto"
+
+  let n1 ~repo =
+    kv1 ~repo >>= fun kv1 ->
+    with_node repo (fun t -> Graph.v t [ ("x", normal kv1) ])
+
+  let n2 ~repo =
+    n1 ~repo >>= fun kn1 ->
+    with_node repo (fun t -> Graph.v t [ ("b", `Node kn1) ])
+
+  let n3 ~repo =
+    n2 ~repo >>= fun kn2 ->
+    with_node repo (fun t -> Graph.v t [ ("a", `Node kn2) ])
+
+  let n4 ~repo =
+    n1 ~repo >>= fun kn1 ->
+    kv2 ~repo >>= fun kv2 ->
+    with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) >>= fun kn4 ->
+    with_node repo (fun t -> Graph.v t [ ("b", `Node kn1); ("c", `Node kn4) ])
+    >>= fun kn5 -> with_node repo (fun t -> Graph.v t [ ("a", `Node kn5) ])
+
+  let r1 ~repo =
+    n2 ~repo >>= fun kn2 ->
+    S.Tree.of_hash repo kn2 >>= function
+    | None -> Alcotest.fail "r1"
+    | Some tree ->
+        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
+
+  let r2 ~repo =
+    n3 ~repo >>= fun kn3 ->
+    r1 ~repo >>= fun kr1 ->
+    S.Tree.of_hash repo kn3 >>= function
+    | None -> Alcotest.fail "r2"
+    | Some t3 ->
+        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[ S.Commit.hash kr1 ]
+          (t3 :> S.tree)
+
+  let run x test =
+    try
+      Lwt_main.run
+        ( x.init () >>= fun () ->
+          S.Repo.v x.config >>= fun repo -> test repo >>= x.clean )
+    with e ->
+      Lwt_main.run (x.clean ());
+      raise e
+end
+
 let ignore_srcs src =
   List.mem (Logs.Src.name src)
     [
@@ -113,35 +227,6 @@ let line msg =
   line ();
   Logs.info (fun f -> f "ASSERT %s" msg);
   line ()
-
-let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
- fun (module B) (module M) ->
-  let module S =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
-  (module S)
-
-let layered_store :
-    (module Irmin_layers.S_MAKER) ->
-    (module Irmin.Metadata.S) ->
-    (module LAYERED_STORE) =
- fun (module B) (module M) ->
-  let module LAYERED_STORE =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
-  (module LAYERED_STORE)
-
-type t = {
-  name : string;
-  init : unit -> unit Lwt.t;
-  clean : unit -> unit Lwt.t;
-  config : Irmin.config;
-  store : (module S);
-  layered_store : (module LAYERED_STORE) option;
-  stats : (unit -> int * int) option;
-}
 
 let ( / ) = Filename.concat
 
