@@ -21,10 +21,18 @@ type diffs = (string list * (Contents.String.t * Metadata.t) Diff.t) list
 module Alcotest = struct
   include Alcotest
 
-  let diffs = testable (Type.pp diffs_t) Type.(unstage (equal diffs_t))
+  let gtestable typ = testable (Type.pp_dump typ) Type.(unstage (equal typ))
+
+  let gcheck typ = check (gtestable typ)
+
+  let diffs = gtestable diffs_t
 end
 
 let ( >> ) f g x = g (f x)
+
+let ( let* ) = Lwt.bind
+
+let ( let+ ) x f = Lwt.map f x
 
 let get_ok = function
   | Ok x -> x
@@ -74,14 +82,107 @@ let test_diff _ () =
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
 
+(* Correct stats for a completely lazy tree *)
+let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
+
 let test_clear _ () =
-  let x = List.init 830829 (fun i -> string_of_int i) in
-  Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) Tree.empty x
-  >|= fun large_tree -> Tree.clear large_tree
+  let size = 830829 in
+  let* large_tree =
+    List.init size string_of_int
+    |> Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) Tree.empty
+  in
+  let* () =
+    Tree.stats ~force:false large_tree
+    >|= Alcotest.(gcheck Tree.stats_t)
+          "Before clear, root node is eagerly evaluated"
+          { nodes = 1; leafs = size; skips = 0; depth = 1; width = size }
+  in
+  Tree.clear large_tree;
+  let* () =
+    Tree.stats ~force:false large_tree
+    >|= Alcotest.(gcheck Tree.stats_t)
+          "After clear, root node is no longer cached" lazy_stats
+  in
+  Lwt.return_unit
+
+let with_binding k v t = Tree.add_tree t k v
+
+let clear_and_assert_lazy tree =
+  Tree.clear tree;
+  Tree.stats ~force:false tree
+  >|= Alcotest.(gcheck Tree.stats_t)
+        "Initially the tree is entirely lazy" lazy_stats
+
+let test_fold_force _ () =
+  let* invalid_tree =
+    let+ repo = Store.Repo.v (Irmin_mem.config ()) in
+    let hash = Store.Hash.hash (fun f -> f "") in
+    Tree.shallow repo hash
+  in
+
+  (* Ensure that [fold] doesn't force a lazy tree when [~force:(`False f)],
+     and that [f] is called the correct number of times. *)
+  let* () =
+    let* tree =
+      Lwt.return Tree.empty
+      >>= with_binding [ "existing"; "subtree" ] (Tree.of_contents "value")
+      >>= with_binding [ "dangling"; "subtree"; "hash" ] invalid_tree
+      >>= with_binding [ "other"; "lazy"; "path" ] invalid_tree
+    in
+    let force = `False (Lwt.wrap2 List.cons) in
+    Tree.fold ~force tree []
+    >|= Alcotest.(check (slist (list string) Stdlib.compare))
+          "Unforced paths"
+          [ [ "dangling"; "subtree"; "hash" ]; [ "other"; "lazy"; "path" ] ]
+  in
+  let sample_tree =
+    Tree.of_concrete
+      (`Tree
+        [
+          ("a", `Tree [ ("aa", c "v-aa"); ("ab", c "v-ab"); ("ac", c "v-ac") ]);
+          ("b", c "v-b");
+          ("c", c "v-c");
+        ])
+  in
+  let eager_stats =
+    Tree.{ nodes = 2; leafs = 5; skips = 0; depth = 2; width = 3 }
+  in
+
+  (* Ensure that [fold ~force:`True] forces all lazy trees. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    let* () = Tree.fold ~force:`True sample_tree () in
+    Tree.stats ~force:false sample_tree
+    >|= Alcotest.(gcheck Tree.stats_t)
+          "After folding, the tree is eagerly evaluated" eager_stats
+  in
+
+  (* Ensure that [fold ~force:`And_clear] visits all children and does not
+     leave them cached. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    let* contents =
+      Tree.fold ~force:`And_clear
+        ~contents:(fun _ -> Lwt.wrap2 List.cons)
+        sample_tree []
+    in
+    let+ () =
+      Tree.stats ~force:false sample_tree
+      >|= Alcotest.(gcheck Tree.stats_t)
+            "After folding, the tree is cleared" lazy_stats
+    in
+    Alcotest.(check (slist string compare))
+      "During forced fold, all contents were traversed"
+      [ "v-aa"; "v-ab"; "v-ac"; "v-b"; "v-c" ]
+      contents
+  in
+
+  Lwt.return_unit
 
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
+    Alcotest_lwt.test_case "fold" `Quick test_fold_force;
   ]
