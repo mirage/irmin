@@ -89,6 +89,11 @@ let print_commit_stats config c i time =
         l "Commit %a %d in cycle completed in %f; objects created: %d"
           Store.Commit.pp_hash c i time num_objects)
 
+let get_maxrss () =
+  let usage = Rusage.(get Self) in
+  let ( / ) = Int64.div in
+  Int64.to_int (usage.maxrss / 1024L / 1024L)
+
 let print_stats () = Logs.app (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
 let write_cycle config repo init_commit =
@@ -135,7 +140,8 @@ let run_cycles config repo head json =
             freeze ~min_upper:[ min ] ~max:[ max ] config repo)
       in
       if config.show_stats then
-        Logs.app (fun l -> l "call to freeze completed in %f" time);
+        Logs.app (fun l ->
+            l "call to freeze completed in %f, maxrss = %d" time (get_maxrss ()));
       run_one_cycle max (i + 1)
   in
   run_one_cycle head 0
@@ -148,7 +154,8 @@ let rw config =
 
 let close config repo =
   let+ t, () = with_timer (fun () -> Store.Repo.close repo) in
-  if config.show_stats then Logs.app (fun l -> l "close %f" t)
+  if config.show_stats then
+    Logs.app (fun l -> l "close %f, maxrss = %d" t (get_maxrss ()))
 
 let run config json =
   let* repo = rw config in
