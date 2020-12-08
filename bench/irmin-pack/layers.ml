@@ -32,6 +32,7 @@ type config = {
   clear : bool;
   no_freeze : bool;
   show_stats : bool;
+  freeze_throttle : Irmin_pack.throttle;
 }
 [@@deriving repr]
 
@@ -93,10 +94,10 @@ module FSHelper = struct
       (size upper1) (size upper0) (size lower)
 end
 
-let configure_store root =
+let configure_store root freeze_throttle =
   let conf =
     Irmin_pack.config ~readonly:false ~fresh:true
-      ~index_throttle:`Overcommit_memory root
+      ~index_throttle:`Overcommit_memory ~freeze_throttle root
   in
   Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
     ~copy_in_upper:true ()
@@ -250,7 +251,7 @@ let run_cycles config repo head =
   run_one_cycle head 0
 
 let rw config =
-  let conf = configure_store config.root in
+  let conf = configure_store config.root config.freeze_throttle in
   Store.Repo.v conf
 
 let close config repo =
@@ -287,7 +288,8 @@ let get_json_str total_time time_per_commit commits_per_sec =
   in
   Yojson.Safe.to_string obj
 
-let main () ncommits ncycles depth clear no_freeze show_stats json =
+let main () ncommits ncycles depth clear no_freeze show_stats json
+    freeze_throttle =
   let config =
     {
       ncommits;
@@ -297,6 +299,7 @@ let main () ncommits ncycles depth clear no_freeze show_stats json =
       clear;
       no_freeze;
       show_stats;
+      freeze_throttle;
     }
   in
   Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
@@ -351,6 +354,25 @@ let json =
   let doc = Arg.info ~doc:"Json output on command line." [ "j"; "json" ] in
   Arg.(value @@ flag doc)
 
+let throttle_converter =
+  let parse = function
+    | "block-writes" -> Ok `Block_writes
+    | "overcommit-memory" -> Ok `Overcommit_memory
+    | s ->
+        Fmt.error_msg
+          "invalid %s, expected one of: `block-writes' or `overcommit-memory'" s
+  in
+  let print =
+    Fmt.of_to_string (function
+      | `Block_writes -> "block-writes"
+      | `Overcommit_memory -> "overcommit-memory")
+  in
+  Cmdliner.Arg.conv (parse, print)
+
+let freeze_throttle =
+  let doc = Arg.info ~doc:"Freeze throttle" [ "freeze-throttle" ] in
+  Arg.(value @@ opt throttle_converter `Block_writes doc)
+
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
@@ -370,7 +392,8 @@ let main_term =
     $ clear
     $ no_freeze
     $ stats
-    $ json)
+    $ json
+    $ freeze_throttle)
 
 let () =
   let info = Term.info "Benchmarks for layered store" in

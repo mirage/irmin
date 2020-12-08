@@ -14,12 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type throttle = [ `Overcommit_memory | `Block_writes ] [@@deriving irmin]
+
 val config :
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
-  ?index_throttle:[ `Overcommit_memory | `Block_writes ] ->
+  ?index_throttle:throttle ->
+  ?freeze_throttle:throttle ->
   string ->
   Irmin.config
 (** Configuration options for stores.

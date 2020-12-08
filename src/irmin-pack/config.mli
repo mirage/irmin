@@ -25,8 +25,11 @@ val index_log_size : Irmin.Private.Conf.t -> int
 
 val readonly : Irmin.Private.Conf.t -> bool
 
-val index_throttle :
-  Irmin.Private.Conf.t -> [ `Block_writes | `Overcommit_memory ]
+type throttle = [ `Block_writes | `Overcommit_memory ]
+
+val index_throttle : Irmin.Private.Conf.t -> throttle
+
+val freeze_throttle : Irmin.Private.Conf.t -> throttle
 
 val root : Irmin.Private.Conf.t -> string
 
@@ -35,6 +38,7 @@ val v :
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
-  ?index_throttle:[ `Overcommit_memory | `Block_writes ] ->
+  ?index_throttle:throttle ->
+  ?freeze_throttle:throttle ->
   string ->
   Irmin.config
