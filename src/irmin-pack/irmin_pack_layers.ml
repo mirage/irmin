@@ -389,6 +389,7 @@ struct
         let fresh = Pack_config.fresh config in
         let lock_file = lock_path config in
         let freeze_lock = Lwt_mutex.create () in
+        let freeze_in_progress () = Lwt_mutex.is_locked freeze_lock in
         let add_lock = Lwt_mutex.create () in
         (if fresh && Lock.test lock_file then Lock.unlink lock_file
         else Lwt.return_unit)
@@ -396,17 +397,17 @@ struct
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
           Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
-            ~freeze_lock ~add_lock
+            ~freeze_in_progress ~add_lock
         in
         let lower_node = Option.map (fun x -> x.lnode) lower in
         let node =
-          Node.CA.v upper1.node upper0.node lower_node ~flip ~freeze_lock
+          Node.CA.v upper1.node upper0.node lower_node ~flip ~freeze_in_progress
             ~add_lock
         in
         let lower_commit = Option.map (fun x -> x.lcommit) lower in
         let commit =
           Commit.CA.v upper1.commit upper0.commit lower_commit ~flip
-            ~freeze_lock ~add_lock
+            ~freeze_in_progress ~add_lock
         in
         let lower_branch = Option.map (fun x -> x.lbranch) lower in
         let branch =

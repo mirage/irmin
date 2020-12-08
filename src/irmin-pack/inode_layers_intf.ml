@@ -12,7 +12,7 @@ module type S = sig
     [ `Read ] U.t ->
     [ `Read ] L.t option ->
     flip:bool ->
-    freeze_lock:Lwt_mutex.t ->
+    freeze_in_progress:(unit -> bool) ->
     add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
