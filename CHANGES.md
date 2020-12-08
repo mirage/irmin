@@ -14,6 +14,9 @@
 
   - Make Tree.clear tail-recursive (#1171, @samoht)
 
+  - Fix `Tree.fold ~force:(False f)` where results where partially skipped
+    (#1174, @Ngoguey42 and @samoht)
+
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
     namespacing. (#1083, @CraigFe)
