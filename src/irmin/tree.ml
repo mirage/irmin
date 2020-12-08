@@ -24,6 +24,10 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let option_of_result = function Ok x -> Some x | Error _ -> None
 
+type ('a, 'r) cont = ('a -> 'r) -> 'r
+
+type ('a, 'r) cont_lwt = ('a, 'r Lwt.t) cont
+
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
   let rec aux l1 l2 =
@@ -141,6 +145,21 @@ module Make (P : S.PRIVATE) = struct
 
     let equal = Type.(unstage (equal P.Hash.t))
   end)
+
+  let dummy_marks = Hashes.create 0
+
+  type marks = unit Hashes.t
+
+  let empty_marks () = Hashes.create 39
+
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+
+  type uniq = [ `False | `True | `Marks of marks ]
+
+  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+
+  type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
+  [@@deriving irmin]
 
   let equal_contents = Type.(unstage (equal P.Contents.Val.t))
 
@@ -478,7 +497,7 @@ module Make (P : S.PRIVATE) = struct
               | Value (_, v, Some a) -> value_of_adds t v a a_of_value
               | Map m -> value_of_map t m a_of_value))
 
-    and value_of_map : type a. t -> map -> (value -> a) -> a =
+    and value_of_map : type r. t -> map -> (value, r) cont =
      fun t map k ->
       if StepMap.is_empty map then (
         t.info.value <- Some P.Node.Val.empty;
@@ -500,13 +519,13 @@ module Make (P : S.PRIVATE) = struct
         in
         aux [] alist
 
-    and value_of_elt : type a. elt -> (P.Node.Val.value -> a) -> a =
+    and value_of_elt : type r. elt -> (P.Node.Val.value, r) cont =
      fun e k ->
       match e with
       | `Contents (c, m) -> k (`Contents (Contents.hash c, m))
       | `Node n -> hash n (fun h -> k (`Node h))
 
-    and value_of_adds : type a. t -> value -> _ -> (value -> a) -> a =
+    and value_of_adds : type r. t -> value -> _ -> (value, r) cont =
      fun t v added k ->
       let added = StepMap.bindings added in
       let rec aux acc = function
@@ -687,20 +706,33 @@ module Make (P : S.PRIVATE) = struct
               | None -> of_t ()
               | Some _ as r -> Lwt.return r))
 
-    let dummy_marks = Hashes.create 0
+    type ('v, 'acc, 'r) folder =
+      path:key -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
+    (** A ('val, 'acc, 'r) folder is a CPS, threaded fold function over values
+        of type ['v] producing an accumulator of type ['acc]. *)
 
-    type marks = unit Hashes.t
-
-    let empty_marks () = Hashes.create 39
-
-    let fold ~force ~uniq ~pre ~post ~path ?depth ~node ~contents t acc =
+    let fold :
+        type acc.
+        force:acc force ->
+        uniq:uniq ->
+        pre:acc node_fn ->
+        post:acc node_fn ->
+        path:Path.t ->
+        ?depth:depth ->
+        node:(key -> _ -> acc -> acc Lwt.t) ->
+        contents:(key -> contents -> acc -> acc Lwt.t) ->
+        t ->
+        acc ->
+        acc Lwt.t =
+     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents t acc ->
       let marks =
         match uniq with
         | `False -> dummy_marks
         | `True -> empty_marks ()
         | `Marks n -> n
       in
-      let rec aux ~path acc d t k =
+      let rec aux : type r. (t, acc, r) folder =
+       fun ~path acc d t k ->
         let apply acc = node path t acc in
         let next acc =
           match force with
@@ -726,7 +758,8 @@ module Make (P : S.PRIVATE) = struct
         | Some (`Ge depth) -> if d < depth then next acc else apply acc >>= next
         | Some (`Gt depth) ->
             if d <= depth then next acc else apply acc >>= next
-      and aux_uniq ~path acc d t k =
+      and aux_uniq : type r. (t, acc, r) folder =
+       fun ~path acc d t k ->
         if uniq = `False then (aux [@tailcall]) ~path acc d t k
         else
           let h = hash t in
@@ -734,7 +767,8 @@ module Make (P : S.PRIVATE) = struct
           else (
             Hashes.add marks h ();
             (aux [@tailcall]) ~path acc d t k)
-      and step ~path acc d (s, v) k =
+      and step : type r. (step * elt, acc, r) folder =
+       fun ~path acc d (s, v) k ->
         let path = Path.rcons path s in
         match v with
         | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
@@ -749,13 +783,15 @@ module Make (P : S.PRIVATE) = struct
             | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
-      and steps ~path acc d s k =
+      and steps : type r. ((step * elt) list, acc, r) folder =
+       fun ~path acc d s k ->
         match s with
         | [] -> k acc
         | h :: t ->
             (step [@tailcall]) ~path acc d h @@ fun acc ->
             (steps [@tailcall]) ~path acc d t k
-      and map ~path acc d m k =
+      and map : type r. (map option, acc, r) folder =
+       fun ~path acc d m k ->
         match m with
         | None -> k acc
         | Some m ->
@@ -821,7 +857,7 @@ module Make (P : S.PRIVATE) = struct
       in
       k (Merge.v t f)
 
-    and merge_elt : type a. (elt Merge.t -> a) -> a =
+    and merge_elt : type r. (elt Merge.t, r) cont =
      fun k ->
       let open Merge.Infix in
       let f : elt Merge.f =
@@ -933,20 +969,7 @@ module Make (P : S.PRIVATE) = struct
         | None -> Lwt.return_none
         | Some n -> Node.findv n file)
 
-  type marks = Node.marks
-
-  let empty_marks = Node.empty_marks
-
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
-
-  type uniq = [ `False | `True | `Marks of marks ]
-
-  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
-
   let id _ _ acc = Lwt.return acc
-
-  type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
-  [@@deriving irmin]
 
   let fold ?(force = `And_clear) ?(uniq = `False) ?(pre = id) ?(post = id)
       ?depth ?(contents = id) ?(node = id) (t : t) acc =
@@ -1112,7 +1135,8 @@ module Make (P : S.PRIVATE) = struct
         | `Contents c' when contents_equal c' (c, metadata) -> Lwt.return t
         | _ -> Lwt.return (`Contents (c, metadata)))
     | Some (path, file) -> (
-        let rec aux n path k =
+        let rec aux : type r. node -> key -> (node option, r) cont_lwt =
+         fun n path k ->
           let some n = k (Some n) in
           match Path.decons path with
           | None -> (
@@ -1386,47 +1410,56 @@ module Make (P : S.PRIVATE) = struct
   [@@deriving irmin]
 
   let of_concrete c =
-    let rec concrete k = function
+    let rec concrete : type r. concrete -> (t, r) cont =
+     fun t k ->
+      match t with
       | `Contents _ as v -> k v
-      | `Tree childs -> tree StepMap.empty (fun n -> k (`Node n)) childs
-    and contents k (c, m) = k (`Contents (Contents.of_value c, m))
-    and tree map k = function
+      | `Tree childs -> tree StepMap.empty childs (fun n -> k (`Node n))
+    and contents : type r. contents * metadata -> (Node.elt, r) cont =
+     fun (c, m) k -> k (`Contents (Contents.of_value c, m))
+    and tree :
+        type r. Node.elt StepMap.t -> (step * concrete) list -> (node, r) cont =
+     fun map t k ->
+      match t with
       | [] -> k (Node.of_map map)
       | (s, n) :: t ->
-          (concrete [@tailcall])
-            (function
-              | `Contents c ->
-                  (contents [@tailcall])
-                    (fun v -> (tree [@tailcall]) (StepMap.add s v map) k t)
-                    c
-              | `Node _ as v -> (tree [@tailcall]) (StepMap.add s v map) k t)
-            n
+          (concrete [@tailcall]) n (function
+            | `Contents c ->
+                (contents [@tailcall]) c (fun v ->
+                    (tree [@tailcall]) (StepMap.add s v map) t k)
+            | `Node _ as v -> (tree [@tailcall]) (StepMap.add s v map) t k)
     in
-    (concrete [@tailcall]) (fun x -> x) c
+    (concrete [@tailcall]) c (fun x -> x)
 
   let to_concrete t =
-    let rec tree k = function
+    let rec tree : type r. t -> (concrete, r) cont_lwt =
+     fun t k ->
+      match t with
       | `Contents _ as v -> k v
       | `Node n ->
           Node.to_map n >>= fun m ->
-          m
-          |> get_ok
-          |> StepMap.bindings
-          |> (node [@tailcall]) [] (fun n -> k (`Tree n))
-    and contents k (c, m) =
+          let bindings = m |> get_ok |> StepMap.bindings in
+          (node [@tailcall]) [] bindings (fun n -> k (`Tree n))
+    and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
+     fun (c, m) k ->
       Contents.to_value c >|= get_ok >>= fun c -> k (`Contents (c, m))
-    and node childs k = function
+    and node :
+        type r.
+        (step * concrete) list ->
+        (step * Node.elt) list ->
+        ((step * concrete) list, r) cont_lwt =
+     fun childs x k ->
+      match x with
       | [] -> k childs
       | (s, n) :: t -> (
           match n with
           | `Node _ as n ->
-              (tree [@tailcall]) (fun tree -> node ((s, tree) :: childs) k t) n
+              (tree [@tailcall]) n (fun tree -> node ((s, tree) :: childs) t k)
           | `Contents c ->
-              (contents [@tailcall])
-                (fun c -> (node [@tailcall]) ((s, c) :: childs) k t)
-                c)
+              (contents [@tailcall]) c (fun c ->
+                  (node [@tailcall]) ((s, c) :: childs) t k))
     in
-    tree (fun x -> Lwt.return x) t
+    tree t (fun x -> Lwt.return x)
 
   let hash (t : t) =
     Log.debug (fun l -> l "Tree.hash");
