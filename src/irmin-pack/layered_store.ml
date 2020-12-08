@@ -56,6 +56,10 @@ struct
     SRC.find src k >>= function None -> none () | Some v -> some v
 end
 
+let pp_during_freeze ppf = function
+  | true -> Fmt.string ppf " during freeze"
+  | false -> ()
+
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
@@ -118,10 +122,6 @@ struct
     Lwt_mutex.with_lock t.add_lock (fun () ->
         let tmp = unsafe_consume_newies t in
         Lwt.return tmp)
-
-  let pp_during_freeze ppf = function
-    | true -> Fmt.string ppf " during freeze"
-    | false -> ()
 
   let add' t v =
     let freeze = t.freeze_in_progress () in
@@ -380,7 +380,7 @@ struct
     lower : L.t option;
     mutable flip : bool;
     uppers : U.t * U.t;
-    freeze_lock : Lwt_mutex.t;
+    freeze_in_progress : unit -> bool;
     add_lock : Lwt_mutex.t;
   }
 
@@ -393,13 +393,17 @@ struct
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
 
-  let log_current_upper t = if t.flip then "upper1" else "upper0"
+  let pp_current_upper ppf t =
+    Fmt.string ppf (if t.flip then "upper1" else "upper0")
 
   let log_next_upper t = if t.flip then "upper0" else "upper1"
 
+  let pp_branch = Irmin.Type.pp K.t
+
   let mem t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "[branches] mem in %s" (log_current_upper t));
+    Log.debug (fun l ->
+        l "[branches] mem %a in %a" pp_branch k pp_current_upper t);
     U.mem current k >>= function
     | true -> Lwt.return_true
     | false -> (
@@ -411,7 +415,7 @@ struct
 
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "[branches] find in %s" (log_current_upper t));
+    Log.debug (fun l -> l "[branches] find in %a" pp_current_upper t);
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
@@ -422,18 +426,21 @@ struct
             L.find lower k)
 
   let set' t k v =
+    let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
-        l "set %a in %s" (Irmin.Type.pp K.t) k (log_current_upper t));
+        l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
+          pp_during_freeze freeze);
     let upper = current_upper t in
-    U.set upper k v >|= fun () ->
-    if Lwt_mutex.is_locked t.freeze_lock then (
-      Log.debug (fun l -> l "[branches] adds during freeze");
-      newies := (k, v) :: !newies)
+    U.set upper k v >|= fun () -> if freeze then newies := (k, v) :: !newies
 
   let set t k v = Lwt_mutex.with_lock t.add_lock (fun () -> set' t k v)
 
   (** Copy back into upper the branch against we want to do test and set. *)
   let test_and_set' t k ~test ~set =
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
+          pp_during_freeze freeze);
     let current = current_upper t in
     let find_in_lower () =
       (match t.lower with
@@ -449,12 +456,10 @@ struct
      | false -> find_in_lower ())
     >|= function
     | true ->
-        (if Lwt_mutex.is_locked t.freeze_lock then
+        (if freeze then
          match set with
          | None -> (*TODO : remove during freeze *) ()
-         | Some v ->
-             Log.debug (fun l -> l "[branches] adds during freeze");
-             newies := (k, v) :: !newies);
+         | Some v -> newies := (k, v) :: !newies);
         true
     | false -> false
 
@@ -492,8 +497,8 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
-  let v upper1 upper0 lower ~flip ~freeze_lock ~add_lock =
-    { lower; flip; uppers = (upper1, upper0); freeze_lock; add_lock }
+  let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
+    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; add_lock }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->

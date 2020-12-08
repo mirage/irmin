@@ -411,8 +411,8 @@ struct
         in
         let lower_branch = Option.map (fun x -> x.lbranch) lower in
         let branch =
-          Branch.v upper1.branch upper0.branch lower_branch ~flip ~freeze_lock
-            ~add_lock
+          Branch.v upper1.branch upper0.branch lower_branch ~flip
+            ~freeze_in_progress ~add_lock
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
         {

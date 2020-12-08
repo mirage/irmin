@@ -69,7 +69,7 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
     U.t ->
     L.t option ->
     flip:bool ->
-    freeze_lock:Lwt_mutex.t ->
+    freeze_in_progress:(unit -> bool) ->
     add_lock:Lwt_mutex.t ->
     t
 
