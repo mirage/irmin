@@ -43,7 +43,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     index : int64 Tbl.t;
     cache : V.t Tbl.t;
     mutable block : IO.t;
-    lock : Lwt_mutex.t;
     w : W.t;
     mutable open_instances : int;
   }
@@ -133,15 +132,15 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
     if IO.readonly t.block then sync_offset t;
-    try Lwt.return_some (Tbl.find t.cache k) with Not_found -> Lwt.return_none
+    try Some (Tbl.find t.cache k) with Not_found -> None
 
-  let find t k = Lwt_mutex.with_lock t.lock (fun () -> unsafe_find t k)
+  let find t k = Lwt.return (unsafe_find t k)
 
   let unsafe_mem t k =
     Log.debug (fun l -> l "[branches] mem %a" pp_branch k);
-    try Lwt.return (Tbl.mem t.cache k) with Not_found -> Lwt.return_false
+    try Tbl.mem t.cache k with Not_found -> false
 
-  let mem t v = Lwt_mutex.with_lock t.lock (fun () -> unsafe_mem t v)
+  let mem t v = Lwt.return (unsafe_mem t v)
 
   let unsafe_remove t k =
     Tbl.remove t.cache k;
@@ -152,10 +151,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let remove t k =
     Log.debug (fun l -> l "[branches] remove %a" pp_branch k);
-    Lwt_mutex.with_lock t.lock (fun () ->
-        unsafe_remove t k;
-        Lwt.return_unit)
-    >>= fun () -> W.notify t.w k None
+    unsafe_remove t k;
+    W.notify t.w k None
 
   let unsafe_clear ?keep_generation t =
     Lwt.async (fun () -> W.clear t.w);
@@ -165,17 +162,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let clear t =
     Log.debug (fun l -> l "[branches] clear");
-    Lwt_mutex.with_lock t.lock (fun () ->
-        unsafe_clear t;
-        Lwt.return_unit)
+    unsafe_clear t;
+    Lwt.return_unit
 
   let clear_keep_generation t =
     Log.debug (fun l -> l "[branches] clear");
-    Lwt_mutex.with_lock t.lock (fun () ->
-        unsafe_clear ~keep_generation:() t;
-        Lwt.return_unit)
-
-  let create = Lwt_mutex.create ()
+    unsafe_clear ~keep_generation:() t;
+    Lwt.return_unit
 
   let watches = W.v ()
 
@@ -189,16 +182,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let t =
-      {
-        cache;
-        index;
-        block;
-        w = watches;
-        lock = Lwt_mutex.create ();
-        open_instances = 1;
-      }
-    in
+    let t = { cache; index; block; w = watches; open_instances = 1 } in
     refill t ~from:0L;
     t
 
@@ -207,10 +191,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       ~v:(fun () -> unsafe_v)
       Layout.branch
 
-  let v ?fresh ?readonly file =
-    Lwt_mutex.with_lock create (fun () ->
-        let v = unsafe_v () ?fresh ?readonly file in
-        Lwt.return v)
+  let v ?fresh ?readonly file = Lwt.return (unsafe_v () ?fresh ?readonly file)
 
   let unsafe_set t k v =
     try
@@ -225,10 +206,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let set t k v =
     Log.debug (fun l -> l "[branches %s] set %a" (IO.name t.block) pp_branch k);
-    Lwt_mutex.with_lock t.lock (fun () ->
-        unsafe_set t k v;
-        Lwt.return_unit)
-    >>= fun () -> W.notify t.w k (Some v)
+    unsafe_set t k v;
+    W.notify t.w k (Some v)
 
   let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
 
@@ -243,8 +222,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let test_and_set t k ~test ~set =
     Log.debug (fun l -> l "[branches] test-and-set %a" pp_branch k);
-    Lwt_mutex.with_lock t.lock (fun () -> unsafe_test_and_set t k ~test ~set)
-    >>= function
+    unsafe_test_and_set t k ~test ~set >>= function
     | true -> W.notify t.w k set >|= fun () -> true
     | false -> Lwt.return_false
 
@@ -269,7 +247,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       W.clear t.w)
     else Lwt.return_unit
 
-  let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
+  let close t = unsafe_close t
 
   let flush t = IO.flush t.block
 end
