@@ -254,6 +254,7 @@ module Private : sig
       stores. *)
 
   module Lock = Lock
+  module Lru = Lru
 
   (** [Node] provides functions to describe the graph-like structured values.
 

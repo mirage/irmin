@@ -356,6 +356,7 @@ module Private = struct
 
   module Watch = Watch
   module Lock = Lock
+  module Lru = Lru
 end
 
 let version = Version.current

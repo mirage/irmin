@@ -34,14 +34,6 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module Cache (K : Irmin.Type.S) = Lru.Make (struct
-  type t = K.t
-
-  let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
-
-  let equal = Irmin.Type.(unstage (equal K.t))
-end)
-
 module IO_cache = IO.Cache
 module IO = IO.Unix
 
@@ -90,7 +82,7 @@ struct
 
   module Make (V : ELT with type hash := K.t) = struct
     module Tbl = Table (K)
-    module Lru = Cache (K)
+    module Lru = Irmin.Private.Lru.Make (K)
 
     type nonrec 'a t = {
       pack : 'a t;

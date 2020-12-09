@@ -376,13 +376,13 @@ module Make (P : S.PRIVATE) = struct
           []
       | Some b -> [ `Commit b ]
 
-    let iter t ~min ~max ?edge ?(branch = ignore_lwt) ?(commit = ignore_lwt)
-        ?(node = ignore_lwt) ?(contents = ignore_lwt)
+    let iter ?cache_size ~min ~max ?edge ?(branch = ignore_lwt)
+        ?(commit = ignore_lwt) ?(node = ignore_lwt) ?(contents = ignore_lwt)
         ?(skip_branch = return_false) ?(skip_commit = return_false)
         ?(skip_node = return_false) ?(skip_contents = return_false)
         ?(pred_branch = default_pred_branch)
         ?(pred_commit = default_pred_commit) ?(pred_node = default_pred_node)
-        ?(pred_contents = default_pred_contents) ?(rev = true) () =
+        ?(pred_contents = default_pred_contents) ?(rev = true) t =
       let node = function
         | `Commit x -> commit x
         | `Node x -> node x
@@ -401,7 +401,7 @@ module Make (P : S.PRIVATE) = struct
         | `Contents x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
-      KGraph.iter ~pred ~min ~max ~node ?edge ~skip ~rev ()
+      KGraph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
   end
 
   type t = {

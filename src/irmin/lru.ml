@@ -13,7 +13,15 @@
 (* Extracted from https://github.com/pqwy/lru
    Copyright (c) 2016 David Kaloper Meršinjak *)
 
-module Make (H : Hashtbl.HashedType) = struct
+module Make (K : Type.S) = struct
+  module H = struct
+    type t = K.t
+
+    let hash = Type.(unstage (short_hash K.t)) ?seed:None
+
+    let equal = Type.(unstage (equal K.t))
+  end
+
   module HT = Hashtbl.Make (H)
 
   module Q = struct

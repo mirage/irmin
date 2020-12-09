@@ -129,7 +129,7 @@ module type S = sig
     (** The type for elements iterated over by {!iter}. *)
 
     val iter :
-      t ->
+      ?cache_size:int ->
       min:elt list ->
       max:elt list ->
       ?edge:(elt -> elt -> unit Lwt.t) ->
@@ -146,7 +146,7 @@ module type S = sig
       ?pred_node:(t -> hash -> elt list Lwt.t) ->
       ?pred_contents:(t -> hash -> elt list Lwt.t) ->
       ?rev:bool ->
-      unit ->
+      t ->
       unit Lwt.t
     (** [iter t] iterates in topological order over the closure graph of [t]. If
         [rev] is set (by default it is) the traversal is done in reverse order.
@@ -177,7 +177,13 @@ module type S = sig
           users to define an inclusive range of commit to iterate over.
         - branch objects in [min] implicitly add to [min] the commit they are
           pointing to; this allow users to define the iteration between two
-          branches. *)
+          branches.
+
+        [cache_size] is the size of the LRU used to store traversed objects. If
+        an entry is evicted from the LRU, it can be traversed multiple times by
+        {!Repo.iter}. When [cache_size] is [None] (the default), no entries is
+        ever evicted from the cache; hence every object is only traversed once,
+        at the cost of having to store all the traversed objects in memory. *)
   end
 
   val empty : repo -> t Lwt.t
