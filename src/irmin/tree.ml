@@ -714,7 +714,7 @@ module Make (P : S.PRIVATE) = struct
           | `False skip -> (
               match t.info.map with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
-              | _ -> skip path acc)
+              | _ -> skip path acc >>= k)
         in
         match depth with
         | None -> apply acc >>= next
