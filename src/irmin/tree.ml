@@ -986,12 +986,9 @@ module Make (P : S.PRIVATE) = struct
     depth : int;
     width : int;
   }
+  [@@deriving irmin]
 
   let empty_stats = { nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }
-
-  let pp_stats ppf { nodes; leafs; skips; depth; width } =
-    Fmt.pf ppf "{@[nodes=%d; leafs=%d; skips=%d; depth=%d; width=%d]}" nodes
-      leafs skips depth width
 
   let incr_nodes s = { s with nodes = s.nodes + 1 }
 

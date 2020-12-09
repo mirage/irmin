@@ -941,7 +941,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  let stats_t = Alcotest.testable S.Tree.pp_stats ( = )
+  let stats_t = Alcotest.testable (Irmin.Type.pp_dump S.Tree.stats_t) ( = )
 
   let empty_stats =
     { S.Tree.nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }

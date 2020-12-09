@@ -94,7 +94,7 @@
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
-    parameters. Type `'a t` generateseara representation of type
+    parameters. Type `'a t` generates a representation of type
     `'a Type.t -> 'a t Type.t` (#1085, @CraigFe)
 
   - Added a `--lib` command-line option which has the same behaviour as the
@@ -109,6 +109,8 @@
 
 - **irmin**
   - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
+
+  - Replaced `Tree.pp_stats` with the type representation `Tree.stats_t`. (#TODO, @CraigFe)
 
   - Changed the JSON encoding of special floats. `Float.nan`, `Float.infinity`
     and `Float.neg_infinity` are now encoded as `"nan"`, `"inf"` and `"-inf"`

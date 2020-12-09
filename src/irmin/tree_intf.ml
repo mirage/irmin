@@ -231,10 +231,8 @@ module type S = sig
     depth : int;  (** Maximal depth. *)
     width : int;  (** Maximal width. *)
   }
+  [@@deriving irmin]
   (** The type for tree stats. *)
-
-  val pp_stats : stats Fmt.t
-  (** [pp_stats] is the pretty printer for tree statistics. *)
 
   val stats : ?force:bool -> t -> stats Lwt.t
   (** [stats ~force t] are [t]'s statistics. If [force] is true, this will force
@@ -250,16 +248,16 @@ module type S = sig
   (** The value-type for {!concrete}. *)
 
   val of_concrete : concrete -> t
-  (** [of_concrete c] is the subtree equivalent to the concrete tree [c]. *)
+  (** [of_concrete c] is the subtree equivalent of the concrete tree [c]. *)
 
   val to_concrete : t -> concrete Lwt.t
-  (** [to_concrete t] is the concrete tree equivalent to the subtree [t]. *)
+  (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
 
   (** {1 Caches} *)
 
   val clear : ?depth:int -> t -> unit
-  (** [clear ?depth t] clears all the cache in the tree [t] for subtrees with a
-      depth higher than [depth]. If [depth] is not set, all the subtrees are
+  (** [clear ?depth t] clears all caches in the tree [t] for subtrees with a
+      depth higher than [depth]. If [depth] is not set, all of the subtrees are
       cleared. *)
 
   (** {1 Performance counters} *)
