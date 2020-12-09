@@ -30,6 +30,8 @@ exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
 exception Unsupported_version = Store.Unsupported_version
 
+type throttle = [ `Overcommit_memory | `Block_writes ] [@@deriving irmin]
+
 let ( ++ ) = Int64.add
 
 let () =

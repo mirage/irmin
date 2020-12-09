@@ -248,6 +248,14 @@ struct
         lindex : Index.t;
       }
 
+      type freeze_throttle = [ `Overcommit_memory | `Block_writes ]
+
+      type freeze_info = {
+        throttle : freeze_throttle;
+        lock : Lwt_mutex.t;
+        mutable state : [ `None | `Running ];
+      }
+
       type t = {
         config : Irmin.Private.Conf.t;
         contents : [ `Read ] Contents.CA.t;
@@ -259,8 +267,8 @@ struct
         mutable flip : bool;
         mutable closed : bool;
         flip_file : IO_layers.t;
-        freeze_lock : Lwt_mutex.t;
         add_lock : Lwt_mutex.t;
+        freeze : freeze_info;
       }
 
       let contents_t t = t.contents
@@ -370,6 +378,9 @@ struct
                 Lwt.fail (Unsupported_version found)
             | e -> Lwt.fail e)
 
+      let freeze_info throttle =
+        { throttle; state = `None; lock = Lwt_mutex.create () }
+
       let v config =
         let root = Pack_config.root config in
         let upper1 = Filename.concat root (upper_root1 config) in
@@ -387,9 +398,9 @@ struct
         IO_layers.read_flip flip_file >>= fun flip ->
         (* A fresh store has to unlink the lock file as well. *)
         let fresh = Pack_config.fresh config in
+        let freeze = freeze_info (Pack_config.freeze_throttle config) in
         let lock_file = lock_path config in
-        let freeze_lock = Lwt_mutex.create () in
-        let freeze_in_progress () = Lwt_mutex.is_locked freeze_lock in
+        let freeze_in_progress () = freeze.state = `Running in
         let add_lock = Lwt_mutex.create () in
         (if fresh && Lock.test lock_file then Lock.unlink lock_file
         else Lwt.return_unit)
@@ -426,7 +437,7 @@ struct
           flip;
           closed = false;
           flip_file;
-          freeze_lock;
+          freeze;
           add_lock;
         }
 
@@ -445,7 +456,7 @@ struct
         in
         Iterate.iter_lwt f t
 
-      let close t = Lwt_mutex.with_lock t.freeze_lock (fun () -> unsafe_close t)
+      let close t = Lwt_mutex.with_lock t.freeze.lock (fun () -> unsafe_close t)
 
       (** RO uses the generation to sync the stores, so to prevent races (async
           reads of flip and generation) the generation is used to update the
@@ -898,7 +909,8 @@ struct
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >>= fun () ->
       Lock.close lock_file >>= fun () ->
-      Lwt_mutex.unlock t.freeze_lock;
+      t.freeze.state <- `None;
+      Lwt_mutex.unlock t.freeze.lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
       Log.debug (fun l -> l "freeze: end")
     in
@@ -918,20 +930,25 @@ struct
       | None -> get_copy_in_upper t.X.Repo.config
       | Some b -> b
     in
-    (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
     else
-      Irmin_layers.Stats.with_timer `Waiting (fun () ->
-          Lwt_mutex.lock t.freeze_lock)
-      >>= fun () ->
-      unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t
+      match (t.freeze.state, t.freeze.throttle) with
+      | `Running, `Overcommit_memory -> Lwt.return ()
+      | _ ->
+          Irmin_layers.Stats.with_timer `Waiting (fun () ->
+              Lwt_mutex.lock t.freeze.lock >|= fun () ->
+              t.freeze.state <- `Running)
+          >>= fun () ->
+          (match max with [] -> Repo.heads t | m -> Lwt.return m)
+          >>= fun max ->
+          unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t
 
   let layer_id = X.Repo.layer_id
 
   let freeze = freeze' ?hook:None
 
-  let async_freeze (t : Repo.t) = Lwt_mutex.is_locked t.freeze_lock
+  let async_freeze (t : Repo.t) = t.freeze.state = `Running
 
   let upper_in_use = X.Repo.upper_in_use
 
@@ -973,7 +990,7 @@ struct
     end
 
     let wait_for_freeze (t : Repo.t) =
-      Lwt_mutex.with_lock t.freeze_lock (fun () -> Lwt.return_unit)
+      Lwt_mutex.with_lock t.freeze.lock (fun () -> Lwt.return_unit)
 
     let freeze' = freeze'
 
