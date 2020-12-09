@@ -291,8 +291,8 @@ module Graph (S : S.NODE_STORE) = struct
 
   let ignore_lwt _ = Lwt.return_unit
 
-  let iter t ~min ~max ?(node = ignore_lwt) ?(contents = ignore_lwt) ?edge
-      ?(skip_node = fun _ -> Lwt.return_false)
+  let iter' ~graph_iter (t : [> `Read ] t) ~min ~max ?(node = ignore_lwt)
+      ?(contents = ignore_lwt) ?edge ?(skip_node = fun _ -> Lwt.return_false)
       ?(skip_contents = fun _ -> Lwt.return_false) ?(rev = true) () =
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
@@ -314,7 +314,12 @@ module Graph (S : S.NODE_STORE) = struct
       | `Contents c -> skip_contents c
       | _ -> Lwt.return_false
     in
-    Graph.iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
+    graph_iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
+
+  let iter t = iter' ~graph_iter:(Graph.iter ?depth:None) t
+
+  let iter_track_visited t =
+    iter' ~graph_iter:(Graph.iter_track_visited ?depth:None) t
 
   let v t xs = S.add t (S.Val.v xs)
 

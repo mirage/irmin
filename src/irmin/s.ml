@@ -380,6 +380,19 @@ module type NODE_GRAPH = sig
       predecessors; [edge n p] is applied after [node n]. Note that [edge n p]
       is applied even if [p] is skipped. *)
 
+  val iter_track_visited :
+    [> `Read ] t ->
+    min:node list ->
+    max:node list ->
+    ?node:(node -> unit Lwt.t) ->
+    ?contents:(contents -> unit Lwt.t) ->
+    ?edge:(node -> node -> unit Lwt.t) ->
+    ?skip_node:(node -> bool Lwt.t) ->
+    ?skip_contents:(contents -> bool Lwt.t) ->
+    ?rev:bool ->
+    unit ->
+    unit Lwt.t
+
   (** {1 Value Types} *)
 
   val metadata_t : metadata Type.t

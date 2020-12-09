@@ -178,6 +178,29 @@ module type S = sig
         - branch objects in [min] implicitly add to [min] the commit they are
           pointing to; this allow users to define the iteration between two
           branches. *)
+
+    val iter_nodes :
+      t ->
+      min:hash list ->
+      max:hash list ->
+      ?node:(hash -> unit Lwt.t) ->
+      ?contents:(hash -> unit Lwt.t) ->
+      ?skip_node:(hash -> bool Lwt.t) ->
+      ?skip_contents:(hash -> bool Lwt.t) ->
+      unit ->
+      unit Lwt.t
+    (** [iter t] iterates in reverse topological order over the closure graph of
+        [t]. *)
+
+    val iter_commits :
+      t ->
+      min:hash list ->
+      max:hash list ->
+      ?commit:(hash -> unit Lwt.t) ->
+      ?skip:(hash -> bool Lwt.t) ->
+      unit ->
+      unit Lwt.t
+    (** [iter t] iterates over the closure graph of [t]. *)
   end
 
   val empty : repo -> t Lwt.t

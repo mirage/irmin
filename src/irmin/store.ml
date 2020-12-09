@@ -402,6 +402,10 @@ module Make (P : S.PRIVATE) = struct
         | `Branch x -> pred_branch t x
       in
       KGraph.iter ~pred ~min ~max ~node ?edge ~skip ~rev ()
+
+    let iter_nodes t = Graph.iter ?edge:None ~rev:true (graph_t t)
+
+    let iter_commits t = H.iter ?edge:None ~rev:true (history_t t)
   end
 
   type t = {

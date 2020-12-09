@@ -47,6 +47,18 @@ module type S = sig
 
       {b Note:} Both [min] and [max] are subsets of [n]. *)
 
+  val iter_track_visited :
+    ?depth:int ->
+    pred:(vertex -> vertex list Lwt.t) ->
+    min:vertex list ->
+    max:vertex list ->
+    node:(vertex -> unit Lwt.t) ->
+    ?edge:(vertex -> vertex -> unit Lwt.t) ->
+    skip:(vertex -> bool Lwt.t) ->
+    rev:bool ->
+    unit ->
+    unit Lwt.t
+
   val iter :
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
