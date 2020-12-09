@@ -157,17 +157,20 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
         | x -> Lwt.return (x :: acc))
       [] min
     >>= fun min ->
-    let treat key =
-      Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
-      node key >>= fun () ->
-      if not (List.mem key min) then
-        (* the edge function is optional to prevent an unnecessary computation
-           of the preds .*)
-        match edge with
-        | None -> Lwt.return_unit
-        | Some edge ->
-            pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
-      else Lwt.return_unit
+    let treat = function
+      | None -> Lwt.return_unit
+      | Some key ->
+          Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
+          node key >>= fun () ->
+          if not (List.mem key min) then
+            (* the edge function is optional to prevent an unnecessary computation
+               of the preds .*)
+            match edge with
+            | None -> Lwt.return_unit
+            | Some edge ->
+                pred key >>= fun keys ->
+                Lwt_list.iter_p (fun k -> edge key k) keys
+          else Lwt.return_unit
     in
     let rec visit parent = function
       | [] -> (
@@ -182,42 +185,29 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
               if level >= depth then Lwt.return_unit
               else (
                 Log.debug (fun f -> f "VISIT %a" Type.(pp X.t) key);
-                if List.mem key min then
-                  treat key >>= fun () -> (visit parent tl [@tail])
-                else
-                  (if not rev then treat key else Lwt.return_unit) >>= fun () ->
-                  Stack.push (parent, tl) todo;
-                  let prepare_pred ~filter_history () =
-                    pred key >|= fun keys ->
-                    (*if a commit is in [min] cut the history but still visit
-                       its nodes. *)
-                    List.filter
-                      (function
-                        | `Commit _ when filter_history -> false | _ -> true)
-                      keys
-                  in
-                  (match key with
-                  | `Commit _ ->
-                      prepare_pred ~filter_history:(List.mem key min) ()
-                  | _ -> prepare_pred ~filter_history:false ())
-                  >>= fun keys ->
-                  let keys = List.map (fun k -> (k, level + 1)) keys in
-                  (visit key keys [@tail])))
+                (if not rev then treat (Some key) else Lwt.return_unit)
+                >>= fun () ->
+                Stack.push (parent, tl) todo;
+                let prepare_pred ~filter_history () =
+                  pred key >|= fun keys ->
+                  (*if a commit is in [min] cut the history but still visit
+                     its nodes. *)
+                  List.filter
+                    (function
+                      | `Commit _ when filter_history -> false | _ -> true)
+                    keys
+                in
+                (match key with
+                | `Commit _ ->
+                    prepare_pred ~filter_history:(List.mem key min) ()
+                | _ ->
+                    if List.mem key min then Lwt.return_nil
+                    else prepare_pred ~filter_history:false ())
+                >>= fun keys ->
+                let keys = List.map (fun k -> (k, level + 1)) keys in
+                (visit (Some key) keys [@tail])))
     in
-    let visit_max key =
-      skip key >>= function
-      | true -> Lwt.return_unit
-      | false ->
-          if depth = 0 then Lwt.return_unit
-          else (
-            Log.debug (fun f -> f "VISIT %a" Type.(pp X.t) key);
-            if List.mem key min then treat key
-            else
-              (if not rev then treat key else Lwt.return_unit) >>= fun () ->
-              pred key >>= fun keys ->
-              List.map (fun k -> (k, 1)) keys |> visit key)
-    in
-    Lwt_list.iter_s (fun m -> visit_max m) max
+    List.map (fun k -> (k, 0)) max |> visit None
 
   let iter_track_visited ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip
       ~rev () =
