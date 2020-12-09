@@ -56,6 +56,16 @@ struct
     SRC.find src k >>= function None -> none () | Some v -> some v
 end
 
+let pp_during_freeze ppf = function
+  | true -> Fmt.string ppf " during freeze"
+  | false -> ()
+
+let pp_layer_id = Irmin.Type.pp Irmin_layers.Layer_id.t
+
+let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
+
+let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
+
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
@@ -100,9 +110,9 @@ struct
 
   let lower t = Option.get t.lower
 
-  let log_current_upper t = if t.flip then "upper1" else "upper0"
+  let pp_current_upper ppf t = pp_current_upper ppf t.flip
 
-  let log_next_upper t = if t.flip then "upper0" else "upper1"
+  let pp_next_upper ppf t = pp_next_upper ppf t.flip
 
   let mem_lower t k =
     match t.lower with None -> Lwt.return false | Some lower -> L.mem lower k
@@ -119,14 +129,10 @@ struct
         let tmp = unsafe_consume_newies t in
         Lwt.return tmp)
 
-  let pp_during_freeze ppf = function
-    | true -> Fmt.string ppf " during freeze"
-    | false -> ()
-
   let add' t v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
-        l "add in %s%a" (log_current_upper t) pp_during_freeze freeze);
+        l "add in %a%a" pp_current_upper t pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v >|= fun k ->
@@ -138,7 +144,7 @@ struct
   let unsafe_add' t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
-        l "unsafe_add in %s%a" (log_current_upper t) pp_during_freeze freeze);
+        l "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v >|= fun () ->
@@ -150,7 +156,7 @@ struct
   let unsafe_append' ~ensure_unique t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
-        l "unsafe_append in %s%a" (log_current_upper t) pp_during_freeze freeze);
+        l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique upper k v;
@@ -166,7 +172,7 @@ struct
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "find in %s" (log_current_upper t));
+    Log.debug (fun l -> l "find in %a" pp_current_upper t);
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
@@ -178,7 +184,7 @@ struct
 
   let unsafe_find ~check_integrity t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "unsafe_find in %s" (log_current_upper t));
+    Log.debug (fun l -> l "unsafe_find in %a" pp_current_upper t);
     match U.unsafe_find ~check_integrity current k with
     | Some v -> Some v
     | None -> (
@@ -227,7 +233,7 @@ struct
       assumption is ok for now, but does not hold if the RW store is opened
       after the RO or if RW is closed in the meantime. *)
   let sync ?on_generation_change ?on_generation_change_next_upper t =
-    Log.debug (fun l -> l "sync %s" (log_current_upper t));
+    Log.debug (fun l -> l "sync %a" pp_current_upper t);
     (* a first implementation where only the current upper is synced *)
     let current = current_upper t in
     let former_generation = U.generation current in
@@ -309,7 +315,7 @@ struct
     U.offset current
 
   let flip_upper t =
-    Log.debug (fun l -> l "flip_upper to %s" (log_next_upper t));
+    Log.debug (fun l -> l "flip_upper to %a" pp_next_upper t);
     t.flip <- not t.flip
 
   module CopyUpper = Copy (H) (U) (U)
@@ -380,7 +386,7 @@ struct
     lower : L.t option;
     mutable flip : bool;
     uppers : U.t * U.t;
-    freeze_lock : Lwt_mutex.t;
+    freeze_in_progress : unit -> bool;
     add_lock : Lwt_mutex.t;
   }
 
@@ -393,13 +399,16 @@ struct
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
 
-  let log_current_upper t = if t.flip then "upper1" else "upper0"
+  let pp_current_upper ppf t = pp_current_upper ppf t.flip
 
-  let log_next_upper t = if t.flip then "upper0" else "upper1"
+  let pp_next_upper ppf t = pp_next_upper ppf t.flip
+
+  let pp_branch = Irmin.Type.pp K.t
 
   let mem t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "[branches] mem in %s" (log_current_upper t));
+    Log.debug (fun l ->
+        l "[branches] mem %a in %a" pp_branch k pp_current_upper t);
     U.mem current k >>= function
     | true -> Lwt.return_true
     | false -> (
@@ -411,7 +420,7 @@ struct
 
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "[branches] find in %s" (log_current_upper t));
+    Log.debug (fun l -> l "[branches] find in %a" pp_current_upper t);
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
@@ -422,18 +431,21 @@ struct
             L.find lower k)
 
   let set' t k v =
+    let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
-        l "set %a in %s" (Irmin.Type.pp K.t) k (log_current_upper t));
+        l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
+          pp_during_freeze freeze);
     let upper = current_upper t in
-    U.set upper k v >|= fun () ->
-    if Lwt_mutex.is_locked t.freeze_lock then (
-      Log.debug (fun l -> l "[branches] adds during freeze");
-      newies := (k, v) :: !newies)
+    U.set upper k v >|= fun () -> if freeze then newies := (k, v) :: !newies
 
   let set t k v = Lwt_mutex.with_lock t.add_lock (fun () -> set' t k v)
 
   (** Copy back into upper the branch against we want to do test and set. *)
   let test_and_set' t k ~test ~set =
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
+          pp_during_freeze freeze);
     let current = current_upper t in
     let find_in_lower () =
       (match t.lower with
@@ -449,12 +461,10 @@ struct
      | false -> find_in_lower ())
     >|= function
     | true ->
-        (if Lwt_mutex.is_locked t.freeze_lock then
+        (if freeze then
          match set with
          | None -> (*TODO : remove during freeze *) ()
-         | Some v ->
-             Log.debug (fun l -> l "[branches] adds during freeze");
-             newies := (k, v) :: !newies);
+         | Some v -> newies := (k, v) :: !newies);
         true
     | false -> false
 
@@ -492,8 +502,8 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
-  let v upper1 upper0 lower ~flip ~freeze_lock ~add_lock =
-    { lower; flip; uppers = (upper1, upper0); freeze_lock; add_lock }
+  let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
+    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; add_lock }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
@@ -539,7 +549,7 @@ struct
       branches
 
   let flip_upper t =
-    Log.debug (fun l -> l "[branches] flip to %s" (log_next_upper t));
+    Log.debug (fun l -> l "[branches] flip to %a" pp_next_upper t);
     t.flip <- not t.flip
 
   (** After clearing the previous upper, we also needs to flush current upper to
@@ -559,16 +569,16 @@ struct
 
   let copy_last_newies_to_next_upper t =
     Log.debug (fun l ->
-        l "[branches] copy %d newies %s" (List.length !newies)
-          (log_next_upper t));
+        l "[branches] copy %d newies to %a" (List.length !newies) pp_next_upper
+          t);
     let next = next_upper t in
     Lwt_list.iter_s (fun (k, v) -> U.set next k v) (List.rev !newies)
     >|= fun () -> newies := []
 
   let copy_newies_to_next_upper t =
     Log.debug (fun l ->
-        l "[branches] copy %d newies %s" (List.length !newies)
-          (log_next_upper t));
+        l "[branches] copy %d newies to %a" (List.length !newies) pp_next_upper
+          t);
     let next = next_upper t in
     let tmp_newies : (key * value) list ref = ref [] in
     Lwt_mutex.with_lock t.add_lock (fun () ->
