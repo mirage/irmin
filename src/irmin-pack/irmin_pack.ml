@@ -242,7 +242,11 @@ struct
       module Reconstruct_index = struct
         let pp_hash = Irmin.Type.pp Hash.t
 
-        let decode_value value_t = Irmin.Type.(unstage (decode_bin value_t))
+        let decode_contents =
+          Irmin.Type.(unstage (decode_bin (value_t Contents.Val.t)))
+
+        let decode_commit =
+          Irmin.Type.(unstage (decode_bin (value_t Commit.Val.t)))
 
         let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
 
@@ -253,8 +257,8 @@ struct
             try
               let len =
                 match magic with
-                | 'B' -> decode_value (value_t Contents.Val.t) buf 0 |> fst
-                | 'C' -> decode_value (value_t Commit.Val.t) buf 0 |> fst
+                | 'B' -> decode_contents buf 0 |> fst
+                | 'C' -> decode_commit buf 0 |> fst
                 | 'N' | 'I' ->
                     let hash off =
                       let buf =
