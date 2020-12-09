@@ -24,85 +24,8 @@ let src = Logs.Src.create "test" ~doc:"Irmin tests"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (S : S) = struct
-  module P = S.Private
-  module Graph = Irmin.Private.Node.Graph (P.Node)
+  include Common.Make_helpers (S)
   module History = Irmin.Private.Commit.History (P.Commit)
-
-  let v repo = P.Repo.contents_t repo
-
-  let n repo = P.Repo.node_t repo
-
-  let ct repo = P.Repo.commit_t repo
-
-  let g repo = P.Repo.node_t repo
-
-  let h repo = P.Repo.commit_t repo
-
-  let b repo = P.Repo.branch_t repo
-
-  let v1 = long_random_string
-
-  let v2 = ""
-
-  let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
-
-  let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
-
-  let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
-
-  let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
-
-  let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
-
-  let normal x = `Contents (x, S.Metadata.default)
-
-  let b1 = "foo"
-
-  let b2 = "bar/toto"
-
-  let n1 ~repo =
-    kv1 ~repo >>= fun kv1 ->
-    with_node repo (fun t -> Graph.v t [ ("x", normal kv1) ])
-
-  let n2 ~repo =
-    n1 ~repo >>= fun kn1 ->
-    with_node repo (fun t -> Graph.v t [ ("b", `Node kn1) ])
-
-  let n3 ~repo =
-    n2 ~repo >>= fun kn2 ->
-    with_node repo (fun t -> Graph.v t [ ("a", `Node kn2) ])
-
-  let n4 ~repo =
-    n1 ~repo >>= fun kn1 ->
-    kv2 ~repo >>= fun kv2 ->
-    with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) >>= fun kn4 ->
-    with_node repo (fun t -> Graph.v t [ ("b", `Node kn1); ("c", `Node kn4) ])
-    >>= fun kn5 -> with_node repo (fun t -> Graph.v t [ ("a", `Node kn5) ])
-
-  let r1 ~repo =
-    n2 ~repo >>= fun kn2 ->
-    S.Tree.of_hash repo kn2 >>= function
-    | None -> Alcotest.fail "r1"
-    | Some tree ->
-        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
-
-  let r2 ~repo =
-    n3 ~repo >>= fun kn3 ->
-    r1 ~repo >>= fun kr1 ->
-    S.Tree.of_hash repo kn3 >>= function
-    | None -> Alcotest.fail "r2"
-    | Some t3 ->
-        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[ S.Commit.hash kr1 ]
-          (t3 :> S.tree)
-
-  let run x test =
-    try
-      Lwt_main.run
-        ( x.init () >>= fun () ->
-          S.Repo.v x.config >>= fun repo -> test repo >>= x.clean )
-    with e ->
-      Lwt_main.run (x.clean ());
-      raise e
 
   let random_value value = random_string value
 
@@ -120,31 +43,6 @@ module Make (S : S) = struct
       | n -> aux (random_node ~label ~path ~value :: acc) (n - 1)
     in
     aux [] n
-
-  let sleep ?(sleep_t = 0.01) () =
-    let sleep_t = min sleep_t 1. in
-    Lwt_unix.yield () >>= fun () -> Lwt_unix.sleep sleep_t
-
-  (* Re-apply [f] at intervals of [sleep_t] while [f] raises exceptions and
-     [while_ ()] holds. *)
-  let retry ?(timeout = 15.) ?(sleep_t = 0.) ~while_ fn =
-    let sleep_t = max sleep_t 0.001 in
-    let time = Unix.gettimeofday in
-    let t = time () in
-    let str i = Fmt.strf "%d, %.3fs" i (time () -. t) in
-    let rec aux i =
-      if time () -. t > timeout || not (while_ ()) then fn (str i);
-      try
-        fn (str i);
-        Lwt.return_unit
-      with ex ->
-        Log.debug (fun f -> f "retry ex: %s" (Printexc.to_string ex));
-        let sleep_t = sleep_t *. (1. +. (float i ** 2.)) in
-        sleep ~sleep_t () >>= fun () ->
-        Log.debug (fun f -> f "Test.retry %s" (str i));
-        aux (i + 1)
-    in
-    aux 0
 
   let old k () = Lwt.return_ok (Some k)
 
@@ -172,18 +70,6 @@ module Make (S : S) = struct
         | Some head -> head)
       branches
     >>= fun heads -> may repo heads hook
-
-  let test_two_close x () =
-    try
-      Lwt_main.run
-        ( x.init () >>= fun () ->
-          S.Repo.v x.config >>= fun repo1 ->
-          S.Repo.v x.config >>= fun repo2 ->
-          S.Repo.close repo1 >>= fun () ->
-          kv1 ~repo:repo2 >>= fun _ -> x.clean () )
-    with e ->
-      Lwt_main.run (x.clean ());
-      raise e
 
   let test_contents x () =
     let test repo =
@@ -216,8 +102,6 @@ module Make (S : S) = struct
     run x test
 
   let get = function None -> Alcotest.fail "get" | Some v -> v
-
-  let get_node = function `Node n -> n | _ -> Alcotest.fail "get_node"
 
   module H_node = Irmin.Hash.Typed (P.Hash) (P.Node.Val)
 
@@ -584,321 +468,6 @@ module Make (S : S) = struct
       check_hash "1 level" bindings1 >>= fun () ->
       let bindings2 = [ ([ "a"; "b" ], "x"); ([ "a"; "c" ], "y") ] in
       check_hash "2 levels" bindings2 >>= fun () -> S.Repo.close repo
-    in
-    run x test
-
-  let test_watch_exn x () =
-    let test repo =
-      S.master repo >>= fun t ->
-      S.Head.find t >>= fun h ->
-      let key = [ "a" ] in
-      let v1 = "bar" in
-      let v2 = "foo" in
-      let r = ref 0 in
-      let eq = Irmin.Type.(unstage (equal (Irmin.Diff.t (S.commit_t repo)))) in
-      let old_head = ref h in
-      let check x =
-        S.Head.get t >|= fun h2 ->
-        match !old_head with
-        | None -> if eq (`Added h2) x then incr r
-        | Some h -> if eq (`Updated (h, h2)) x then incr r
-      in
-      S.watch ?init:h t (fun v -> check v >|= fun () -> failwith "test")
-      >>= fun u ->
-      S.watch ?init:h t (fun v -> check v >>= fun () -> Lwt.fail_with "test")
-      >>= fun v ->
-      S.watch ?init:h t (fun v -> check v) >>= fun w ->
-      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 3)
-        (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r)
-      >>= fun () ->
-      S.Head.find t >>= fun h ->
-      old_head := h;
-      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 6)
-        (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r)
-      >>= fun () ->
-      S.unwatch u >>= fun () ->
-      S.unwatch v >>= fun () ->
-      S.unwatch w >>= fun () ->
-      S.Head.get t >>= fun h ->
-      old_head := Some h;
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          failwith "test")
-      >>= fun u ->
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          Lwt.fail_with "test")
-      >>= fun v ->
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          Lwt.return_unit)
-      >>= fun w ->
-      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 9)
-        (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r)
-      >>= fun () ->
-      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 12)
-        (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
-      >>= fun () ->
-      S.unwatch u >>= fun () ->
-      S.unwatch v >>= fun () ->
-      S.unwatch w >>= fun () ->
-      Alcotest.(check unit) "ok!" () ();
-      P.Repo.close repo
-    in
-    run x test
-
-  let test_watches x () =
-    let pp_w ppf (p, w) = Fmt.pf ppf "%d/%d" p w in
-    let pp_s ppf = function
-      | None -> Fmt.string ppf "*"
-      | Some w -> pp_w ppf (w ())
-    in
-    let check_workers msg p w =
-      match x.stats with
-      | None -> Lwt.return_unit
-      | Some stats ->
-          retry
-            ~while_:(fun _ -> true)
-            (fun s ->
-              let got = stats () in
-              let exp = (p, w) in
-              let msg = Fmt.strf "workers: %s %a (%s)" msg pp_w got s in
-              if got = exp then line msg
-              else (
-                Log.debug (fun f ->
-                    f "check-worker: expected %a, got %a" pp_w exp pp_w got);
-                Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp))
-    in
-    let module State = struct
-      type t = {
-        mutable adds : int;
-        mutable updates : int;
-        mutable removes : int;
-      }
-
-      let pp ppf { adds; updates; removes } =
-        Fmt.pf ppf "{ adds=%d; updates=%d; removes=%d }" adds updates removes
-
-      let empty () = { adds = 0; updates = 0; removes = 0 }
-
-      let add t =
-        Log.debug (fun l -> l "add %a" pp t);
-        t.adds <- t.adds + 1
-
-      let update t =
-        Log.debug (fun l -> l "update %a" pp t);
-        t.updates <- t.updates + 1
-
-      let remove t =
-        Log.debug (fun l -> l "remove %a" pp t);
-        t.removes <- t.removes + 1
-
-      let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
-
-      let xpp ppf (a, u, r) = Fmt.pf ppf "%d/%d/%d" a u r
-
-      let xadd (a, u, r) = (a + 1, u, r)
-
-      let xupdate (a, u, r) = (a, u + 1, r)
-
-      let xremove (a, u, r) = (a, u, r + 1)
-
-      let less_than a b =
-        a.adds <= b.adds
-        && a.updates <= b.updates
-        && a.removes <= b.removes
-        && not (a = b)
-
-      let check ?sleep_t msg (p, w) (a_adds, a_updates, a_removes) b =
-        let a = { adds = a_adds; updates = a_updates; removes = a_removes } in
-        check_workers msg p w >>= fun () ->
-        retry ?sleep_t
-          ~while_:(fun () -> less_than b a (* While [b] converges toward [a] *))
-          (fun s ->
-            let msg = Fmt.strf "state: %s (%s)" msg s in
-            if a = b then line msg
-            else Alcotest.failf "%s: %a / %a" msg pp a pp b)
-
-      let process ?sleep_t t head =
-        (match sleep_t with
-        | None -> Lwt.return_unit
-        | Some s -> Lwt_unix.sleep s)
-        >>= fun () ->
-        let () =
-          match head with
-          | `Added _ -> add t
-          | `Updated _ -> update t
-          | `Removed _ -> remove t
-        in
-        Lwt.return_unit
-
-      let apply msg state kind fn ?(first = false) on s n =
-        let msg mode n w s =
-          let kind =
-            match kind with
-            | `Add -> "add"
-            | `Update -> "update"
-            | `Remove -> "remove"
-          in
-          let mode =
-            match mode with `Pre -> "[pre-condition]" | `Post -> ""
-          in
-          Fmt.strf "%s %s %s %d on=%b expected=%a:%a current=%a:%a" mode msg
-            kind n on xpp s pp_w w pretty state pp_s x.stats
-        in
-        let check mode n w s = check (msg mode n w s) w s state in
-        let incr =
-          match kind with
-          | `Add -> xadd
-          | `Update -> xupdate
-          | `Remove -> xremove
-        in
-        let rec aux pre = function
-          | 0 -> Lwt.return_unit
-          | i ->
-              let pre_w =
-                if on then (1, if i = n && first then 0 else 1) else (0, 0)
-              in
-              let post_w = if on then (1, 1) else (0, 0) in
-              let post = if on then incr pre else pre in
-              check `Pre (n - i) pre_w pre >>= fun () ->
-              (* check pre-condition *)
-              Log.debug (fun f ->
-                  f "[waiting for] %s" (msg `Post (n - i) post_w post));
-              fn (n - i) >>= fun () ->
-              check `Post (n - i) post_w post >>= fun () ->
-              (* check post-condition *)
-              aux post (i - 1)
-        in
-        aux s n
-    end in
-    let test repo1 =
-      S.master repo1 >>= fun t1 ->
-      S.Repo.v x.config >>= fun repo ->
-      S.master repo >>= fun t2 ->
-      Log.debug (fun f -> f "WATCH");
-      let state = State.empty () in
-      let sleep_t = 0.02 in
-      let process = State.process ~sleep_t state in
-      let stops_0 = ref [] in
-      let stops_1 = ref [] in
-      let rec watch = function
-        | 0 -> Lwt.return_unit
-        | n ->
-            let t = if n mod 2 = 0 then t1 else t2 in
-            S.watch t process >>= fun s ->
-            if n mod 2 = 0 then stops_0 := s :: !stops_0
-            else stops_1 := s :: !stops_1;
-            watch (n - 1)
-      in
-      let v1 = "X1" in
-      let v2 = "X2" in
-      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      S.Branch.remove repo1 S.Branch.master >>= fun () ->
-      State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
-      watch 100 >>= fun () ->
-      State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
-      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      State.check "watches adds" (1, 1) (100, 0, 0) state >>= fun () ->
-      S.set_exn t2 ~info:(infof "update") [ "a"; "c" ] v1 >>= fun () ->
-      State.check "watches updates" (1, 1) (100, 100, 0) state >>= fun () ->
-      S.Branch.remove repo S.Branch.master >>= fun () ->
-      State.check "watches removes" (1, 1) (100, 100, 100) state >>= fun () ->
-      Lwt_list.iter_s (fun f -> S.unwatch f) !stops_0 >>= fun () ->
-      S.set_exn t2 ~info:(infof "update") [ "a" ] v1 >>= fun () ->
-      State.check "watches half off" (1, 1) (150, 100, 100) state >>= fun () ->
-      Lwt_list.iter_s (fun f -> S.unwatch f) !stops_1 >>= fun () ->
-      S.set_exn t1 ~info:(infof "update") [ "a" ] v2 >>= fun () ->
-      State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
-      Log.debug (fun f -> f "WATCH-ALL");
-      let state = State.empty () in
-      r1 ~repo >>= fun head ->
-      let add =
-        State.apply "branch-watch-all" state `Add (fun n ->
-            let tag = Fmt.strf "t%d" n in
-            S.Branch.set repo tag head)
-      in
-      let remove =
-        State.apply "branch-watch-all" state `Remove (fun n ->
-            let tag = Fmt.strf "t%d" n in
-            S.Branch.remove repo tag)
-      in
-      S.Branch.get repo "master" >>= fun master ->
-      S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
-          State.process state)
-      >>= fun u ->
-      add true (0, 0, 0) 10 ~first:true >>= fun () ->
-      remove true (10, 0, 0) 5 >>= fun () ->
-      S.unwatch u >>= fun () ->
-      add false (10, 0, 5) 4 >>= fun () ->
-      remove false (10, 0, 5) 4 >>= fun () ->
-      Log.debug (fun f -> f "WATCH-KEY");
-      let state = State.empty () in
-      let path1 = [ "a"; "b"; "c" ] in
-      let path2 = [ "a"; "d" ] in
-      let path3 = [ "a"; "b"; "d" ] in
-      let add =
-        State.apply "branch-key" state `Add (fun _ ->
-            let v = "" in
-            S.set_exn t1 ~info:(infof "set1") path1 v >>= fun () ->
-            S.set_exn t1 ~info:(infof "set2") path2 v >>= fun () ->
-            S.set_exn t1 ~info:(infof "set3") path3 v >>= fun () ->
-            Lwt.return_unit)
-      in
-      let update =
-        State.apply "branch-key" state `Update (fun n ->
-            let v = string_of_int n in
-            S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
-            Lwt.return_unit)
-      in
-      let remove =
-        State.apply "branch-key" state `Remove (fun _ ->
-            S.remove_exn t1 ~info:(infof "remove1") path1 >>= fun () ->
-            S.remove_exn t1 ~info:(infof "remove2") path2 >>= fun () ->
-            S.remove_exn t1 ~info:(infof "remove3") path3 >>= fun () ->
-            Lwt.return_unit)
-      in
-      S.remove_exn t1 ~info:(infof "clean") [] >>= fun () ->
-      S.Head.get t1 >>= fun init ->
-      S.watch_key t1 ~init path1 (State.process state) >>= fun u ->
-      add true (0, 0, 0) 1 ~first:true >>= fun () ->
-      update true (1, 0, 0) 10 >>= fun () ->
-      remove true (1, 10, 0) 1 >>= fun () ->
-      S.unwatch u >>= fun () ->
-      add false (1, 10, 1) 3 >>= fun () ->
-      update false (1, 10, 1) 5 >>= fun () ->
-      remove false (1, 10, 1) 4 >>= fun () ->
-      Log.debug (fun f -> f "WATCH-MORE");
-      let state = State.empty () in
-      let update =
-        State.apply "watch-more" state `Update (fun n ->
-            let v = string_of_int n in
-            let path1 = [ "a"; "b"; "c"; string_of_int n; "1" ] in
-            let path2 = [ "a"; "x"; "c"; string_of_int n; "1" ] in
-            let path3 = [ "a"; "y"; "c"; string_of_int n; "1" ] in
-            S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
-            Lwt.return_unit)
-      in
-      S.remove_exn t1 ~info:(infof "remove") [ "a" ] >>= fun () ->
-      S.set_exn t1 ~info:(infof "prepare") [ "a"; "b"; "c" ] "" >>= fun () ->
-      S.Head.get t1 >>= fun h ->
-      S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) >>= fun u ->
-      update true (0, 0, 0) 10 ~first:true >>= fun () ->
-      S.unwatch u >>= fun () ->
-      update false (0, 10, 0) 10 >>= fun () ->
-      P.Repo.close repo >>= fun () -> P.Repo.close repo1
     in
     run x test
 
@@ -1376,10 +945,6 @@ module Make (S : S) = struct
 
   let empty_stats =
     { S.Tree.nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }
-
-  let save_tree repo t =
-    P.Repo.batch repo (fun x y _ -> S.save_tree ~clear:false repo x y t)
-    >|= fun _ -> ()
 
   let inspect =
     Alcotest.testable
@@ -2139,86 +1704,6 @@ module Make (S : S) = struct
     in
     run x test
 
-  let test_iter x () =
-    let test repo =
-      let n = n repo in
-      let check_key = check P.Node.Key.t in
-      let check_val = check Graph.value_t in
-      let foo = normal (P.Contents.Key.hash "foo") in
-      let v = P.Node.Val.add P.Node.Val.empty "b" foo in
-      with_node repo (fun n -> P.Node.add n v) >>= fun k1 ->
-      with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) >>= fun k2 ->
-      with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) >>= fun k3 ->
-      let visited = ref [] in
-      let check_mem order_test step h1 h2 v1 v2 =
-        check_key "find key" h1 h2;
-        check_val "find value" v1 v2;
-        if List.mem step !visited then
-          Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Hash.t) h1;
-        order_test step;
-        visited := step :: !visited
-      in
-      let mem hash value check_node =
-        match P.Node.Val.find value "a" with
-        | Some k -> check_node "a" hash k2 k (`Node k1)
-        | None -> (
-            match P.Node.Val.find value "c" with
-            | Some k -> check_node "c" hash k3 k (`Node k1)
-            | None -> (
-                match P.Node.Val.find value "b" with
-                | Some k -> check_node "b" hash k1 k foo
-                | None -> Alcotest.fail "unexpected node"))
-      in
-      let rev_order step =
-        if !visited = [] && step <> "b" then
-          Alcotest.fail "traversal should start with oldest node"
-      in
-      let node k =
-        P.Node.find n k >|= fun t -> mem k (get t) (check_mem rev_order)
-      in
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~rev:true ()
-      >>= fun () ->
-      let inorder step =
-        if !visited = [] && step = "b" then
-          Alcotest.fail "traversal should start with newest nodes"
-      in
-      let node k =
-        P.Node.find n k >|= fun t -> mem k (get t) (check_mem inorder)
-      in
-      let skipped = ref [] in
-      let check_skip step h1 _ _ _ =
-        if List.mem step !skipped then
-          Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
-        skipped := step :: !skipped
-      in
-      let skip_node k =
-        P.Node.find n k >|= fun t ->
-        mem k (get t) check_skip;
-        if List.mem "b" !skipped then true else false
-      in
-      visited := [];
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip_node ~rev:false ()
-      >>= fun () ->
-      if List.mem "b" !visited then Alcotest.fail "b should be skipped";
-      visited := [];
-      let node k =
-        P.Node.find n k >|= fun t -> mem k (get t) (check_mem inorder)
-      in
-      Graph.iter (g repo) ~min:[ k1 ] ~max:[ k2 ] ~node ~rev:false ()
-      >>= fun () ->
-      if not (List.mem "b" !visited) then
-        Alcotest.fail "k1 should have been visited";
-      if List.mem "c" !visited then
-        Alcotest.fail "k3 shouldn't have been visited";
-      visited := [];
-      Graph.iter (g repo) ~min:[ k2; k3 ] ~max:[ k2; k3 ] ~node ~rev:false ()
-      >>= fun () ->
-      if (not (List.mem "a" !visited)) || not (List.mem "c" !visited) then
-        Alcotest.fail "k1, k2 should have been visited";
-      P.Repo.close repo
-    in
-    run x test
-
   let test_clear x () =
     let test repo =
       let vt = v repo and b = b repo and ct = ct repo and n = n repo in
@@ -2276,6 +1761,8 @@ end
 let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make (S) in
+  let module T_graph = Store_graph.Make (S) in
+  let module T_watch = Store_watch.Make (Log) (S) in
   ( x.name,
     [
       ("Basic operations on contents", speed, T.test_contents x);
@@ -2283,8 +1770,6 @@ let suite (speed, x) =
       ("Basic operations on commits", speed, T.test_commits x);
       ("Basic operations on branches", speed, T.test_branches x);
       ("Hash operations on trees", speed, T.test_tree_hashes x);
-      ("Watch callbacks and exceptions", speed, T.test_watch_exn x);
-      ("Basic operations on watches", speed, T.test_watches x);
       ("Basic merge operations", speed, T.test_simple_merges x);
       ("Basic operations on slices", speed, T.test_slice x);
       ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
@@ -2303,10 +1788,11 @@ let suite (speed, x) =
       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
       ("Concurrent merges", speed, T.test_concurrent_merges x);
       ("Shallow objects", speed, T.test_shallow_objects x);
-      ("Test iter", speed, T.test_iter x);
       ("Closure with disconnected commits", speed, T.test_closure x);
       ("Clear", speed, T.test_clear x);
-    ] )
+    ]
+    @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
+    @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests )
 
 let layered_suite (speed, x) =
   ( "LAYERED_" ^ x.name,
