@@ -157,7 +157,7 @@ struct
   end
 
   module Rebuild_index = struct
-    module Store = Ext.Make_ext (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
+    module Store = Ext.Make (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
 
     let conf root = Config.v ~readonly:false ~fresh:false root
 

@@ -26,6 +26,8 @@ module Metadata = Irmin.Metadata.None
 
 type throttle = [ `Overcommit_memory | `Block_writes ] [@@deriving irmin]
 
+module Make_ext = Ext.Make
+
 module Make
     (Config : Config.S)
     (M : Irmin.Metadata.S)
@@ -36,7 +38,7 @@ module Make
 struct
   module XNode = Irmin.Private.Node.Make (H) (P) (M)
   module XCommit = Irmin.Private.Commit.Make (H)
-  include Ext.Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
+  include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
 module KV (Config : Config.S) (C : Irmin.Contents.S) =
