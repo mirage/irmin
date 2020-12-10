@@ -159,10 +159,7 @@ struct
   module Rebuild_index = struct
     module Store = Ext.Make_ext (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
 
-    let conf root =
-      let conf = Config.v ~readonly:false ~fresh:false root in
-      Irmin_pack_layers.config_layers ~conf ~with_lower:true
-        ~copy_in_upper:false ~lower_root:"lower" ()
+    let conf root = Config.v ~readonly:false ~fresh:false root
 
     let run ~root =
       let conf = conf root in
