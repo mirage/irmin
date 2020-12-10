@@ -47,5 +47,5 @@ module Make
 
   include Store.S with type repo := repo
 
-  val reconstruct_index : Irmin.config -> unit
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
 end

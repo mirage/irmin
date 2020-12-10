@@ -161,11 +161,19 @@ struct
 
     let conf root = Config.v ~readonly:false ~fresh:false root
 
-    let run ~root =
-      let conf = conf root in
-      Store.reconstruct_index conf
+    let dest =
+      let open Cmdliner.Arg in
+      value
+      & pos 1 (some string) None
+        @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
 
-    let term = Cmdliner.Term.(const (fun root () -> run ~root) $ path)
+    let run ~root ~output =
+      let conf = conf root in
+      Store.reconstruct_index ?output conf
+
+    let term =
+      Cmdliner.Term.(
+        const (fun root output () -> run ~root ~output) $ path $ dest)
   end
 
   module Cli = struct

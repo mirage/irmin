@@ -309,13 +309,14 @@ struct
           in
           read_buffer 0L
 
-        let reconstruct config =
+        let reconstruct ?output config =
           if Pack_config.readonly config then raise RO_Not_Allowed;
           Log.info (fun l ->
               l "[%s] reconstructing index" (Pack_config.root config));
           let root = Pack_config.root config in
+          let dest = match output with Some path -> path | None -> root in
           let log_size = Pack_config.index_log_size config in
-          let index = Index.v ~fresh:true ~readonly:false ~log_size root in
+          let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
           let pack_file = Filename.concat root "store.pack" in
           let pack =
             IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
