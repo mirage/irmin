@@ -91,7 +91,7 @@
   - Added `reconstruct_index` to reconstruct an index from a pack file. (#1097,
     @icristescu)
 
-  - Added `rebuild-index` command to `irmin-fsck` for reconstructing an index from
+  - Added `reconstruct-index` command to `irmin-fsck` for reconstructing an index from
     the command line (#1189, @zshipko)
 
 - **ppx_irmin**:

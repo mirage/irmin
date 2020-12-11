@@ -8,7 +8,7 @@ COMMANDS
        check-self-contained
            Check that the upper layer of the store is self contained.
 
-       rebuild-index
+       reconstruct-index
            Reconstruct index from an existing pack file.
 
        stat
