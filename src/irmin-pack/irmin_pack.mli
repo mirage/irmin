@@ -69,7 +69,7 @@ module Make_ext
 
   include Store.S with type repo := repo
 
-  val reconstruct_index : Irmin.config -> unit
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
 module Make
@@ -91,7 +91,7 @@ module Make
 
   include Store.S with type repo := repo
 
-  val reconstruct_index : Irmin.config -> unit
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
 module KV (Config : Config.S) : Irmin.KV_MAKER

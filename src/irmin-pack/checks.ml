@@ -156,6 +156,26 @@ struct
       Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
   end
 
+  module Reconstruct_index = struct
+    module Store = Ext.Make (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
+
+    let conf root = Config.v ~readonly:false ~fresh:false root
+
+    let dest =
+      let open Cmdliner.Arg in
+      value
+      & pos 1 (some string) None
+        @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
+
+    let run ~root ~output =
+      let conf = conf root in
+      Store.reconstruct_index ?output conf
+
+    let term =
+      Cmdliner.Term.(
+        const (fun root output () -> run ~root ~output) $ path $ dest)
+  end
+
   module Cli = struct
     open Cmdliner
 
@@ -193,6 +213,10 @@ struct
       Term.
         (Check_self_contained.term $ setup_log, info ~doc "check-self-contained")
 
+    let reconstruct_index =
+      let doc = "Reconstruct index from an existing pack file." in
+      Term.(Reconstruct_index.term $ setup_log, info ~doc "reconstruct-index")
+
     let main () : empty =
       let default =
         let default_info =
@@ -202,7 +226,7 @@ struct
         Term.(ret (const (`Help (`Auto, None))), default_info)
       in
       Term.(
-        eval_choice default [ stat; check_self_contained ]
+        eval_choice default [ stat; check_self_contained; reconstruct_index ]
         |> (exit : unit result -> _));
       assert false
   end
