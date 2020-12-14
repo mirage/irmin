@@ -6,81 +6,156 @@ module Make (S : S) = struct
 
   let test_iter x () =
     let test repo =
-      let n = n repo in
-      let check_key = check P.Node.Key.t in
-      let check_val = check Graph.value_t in
-      let foo = normal (P.Contents.Key.hash "foo") in
-      let v = P.Node.Val.add P.Node.Val.empty "b" foo in
-      with_node repo (fun n -> P.Node.add n v) >>= fun k1 ->
-      with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) >>= fun k2 ->
-      with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) >>= fun k3 ->
+      let eq = Irmin.Type.(unstage (equal P.Hash.t)) in
+      let mem k ls = List.exists (fun k' -> eq k k') ls in
       let visited = ref [] in
-      let check_mem order_test step h1 h2 v1 v2 =
-        check_key "find key" h1 h2;
-        check_val "find value" v1 v2;
-        if List.mem step !visited then
-          Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Hash.t) h1;
-        order_test step;
-        visited := step :: !visited
-      in
-      let mem hash value check_node =
-        match P.Node.Val.find value "a" with
-        | Some k -> check_node "a" hash k2 k (`Node k1)
-        | None -> (
-            match P.Node.Val.find value "c" with
-            | Some k -> check_node "c" hash k3 k (`Node k1)
-            | None -> (
-                match P.Node.Val.find value "b" with
-                | Some k -> check_node "b" hash k1 k foo
-                | None -> Alcotest.fail "unexpected node"))
-      in
-      let rev_order step =
-        if !visited = [] && step <> "b" then
+      let skipped = ref [] in
+      let rev_order oldest k =
+        if !visited = [] && not (eq k oldest) then
           Alcotest.fail "traversal should start with oldest node"
       in
-      let node k =
-        P.Node.find n k >|= fun t -> mem k (Option.get t) (check_mem rev_order)
-      in
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~rev:true ()
-      >>= fun () ->
-      let inorder step =
-        if !visited = [] && step = "b" then
-          Alcotest.fail "traversal should start with newest nodes"
+      let in_order oldest k =
+        if !visited = [] && eq k oldest then
+          Alcotest.fail "traversal shouldn't start with oldest node"
       in
       let node k =
-        P.Node.find n k >|= fun t -> mem k (Option.get t) (check_mem inorder)
+        if mem k !visited then
+          Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Hash.t) k;
+        visited := k :: !visited;
+        Lwt.return_unit
       in
-      let skipped = ref [] in
-      let check_skip step h1 _ _ _ =
-        if List.mem step !skipped then
-          Alcotest.failf "node %a skipped twice" (Irmin.Type.pp P.Hash.t) h1;
-        skipped := step :: !skipped
+      let contents ?order k =
+        if mem k !visited then
+          Alcotest.failf "contents %a visited twice" (Irmin.Type.pp P.Hash.t) k;
+        (match order with None -> () | Some f -> f k);
+        visited := k :: !visited;
+        Lwt.return_unit
       in
-      let skip_node k =
-        P.Node.find n k >|= fun t ->
-        mem k (Option.get t) check_skip;
-        if List.mem "b" !skipped then true else false
+      let test_rev_order ~nodes ~max =
+        let oldest = List.hd nodes in
+        let contents = contents ~order:(rev_order oldest) in
+        Graph.iter (g repo) ~min:[] ~max ~node ~contents ~rev:true ()
+        >|= fun () ->
+        List.iter
+          (fun k ->
+            if not (mem k !visited) then
+              Alcotest.failf "%a should be visited" (Irmin.Type.pp P.Hash.t) k)
+          nodes
       in
-      visited := [];
-      Graph.iter (g repo) ~min:[] ~max:[ k2; k3 ] ~node ~skip_node ~rev:false ()
-      >>= fun () ->
-      if List.mem "b" !visited then Alcotest.fail "b should be skipped";
-      visited := [];
-      let node k =
-        P.Node.find n k >|= fun t -> mem k (Option.get t) (check_mem inorder)
+      let test_in_order ~nodes ~max =
+        let oldest = List.hd nodes in
+        let contents = contents ~order:(in_order oldest) in
+        Graph.iter (g repo) ~min:[] ~max ~node ~contents ~rev:false ()
+        >|= fun () ->
+        List.iter
+          (fun k ->
+            if not (mem k !visited) then
+              Alcotest.failf "%a should be visited" (Irmin.Type.pp P.Hash.t) k)
+          nodes
       in
-      Graph.iter (g repo) ~min:[ k1 ] ~max:[ k2 ] ~node ~rev:false ()
-      >>= fun () ->
-      if not (List.mem "b" !visited) then
-        Alcotest.fail "k1 should have been visited";
-      if List.mem "c" !visited then
-        Alcotest.fail "k3 shouldn't have been visited";
-      visited := [];
-      Graph.iter (g repo) ~min:[ k2; k3 ] ~max:[ k2; k3 ] ~node ~rev:false ()
-      >>= fun () ->
-      if (not (List.mem "a" !visited)) || not (List.mem "c" !visited) then
-        Alcotest.fail "k1, k2 should have been visited";
-      P.Repo.close repo
+      let test_skip ~max ~to_skip ~not_visited =
+        let skip_node k =
+          if mem k to_skip then (
+            skipped := k :: !skipped;
+            Lwt.return_true)
+          else Lwt.return_false
+        in
+        Graph.iter (g repo) ~min:[] ~max ~node ~contents ~skip_node ~rev:false
+          ()
+        >|= fun () ->
+        List.iter
+          (fun k ->
+            if mem k !visited || not (mem k !skipped) then
+              Alcotest.failf "%a should be skipped" (Irmin.Type.pp P.Hash.t) k)
+          to_skip;
+        List.iter
+          (fun k ->
+            if mem k !visited || mem k !skipped then
+              Alcotest.failf "%a should not be skipped nor visited"
+                (Irmin.Type.pp P.Hash.t) k)
+          not_visited
+      in
+      let test_min_max ~nodes ~min ~max ~not_visited =
+        Graph.iter (g repo) ~min ~max ~node ~contents ~rev:false ()
+        >|= fun () ->
+        List.iter
+          (fun k ->
+            if mem k not_visited && mem k !visited then
+              Alcotest.failf "%a should not be visited" (Irmin.Type.pp P.Hash.t)
+                k;
+            if (not (mem k not_visited)) && not (mem k !visited) then
+              Alcotest.failf "%a should not be visited" (Irmin.Type.pp P.Hash.t)
+                k)
+          nodes
+      in
+      let test1 () =
+        let foo = P.Contents.Key.hash "foo" in
+        with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) >>= fun k1 ->
+        with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) >>= fun k2 ->
+        with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) >>= fun k3 ->
+        let nodes = [ foo; k1; k2; k3 ] in
+        visited := [];
+        test_rev_order ~nodes ~max:[ k2; k3 ] >>= fun () ->
+        visited := [];
+        test_in_order ~nodes ~max:[ k2; k3 ] >>= fun () ->
+        visited := [];
+        skipped := [];
+        test_skip ~max:[ k2; k3 ] ~to_skip:[ k1 ] ~not_visited:[] >>= fun () ->
+        visited := [];
+        test_min_max ~nodes ~min:[ k1 ] ~max:[ k2 ] ~not_visited:[ foo; k3 ]
+        >>= fun () ->
+        visited := [];
+        test_min_max ~nodes ~min:[ k2; k3 ] ~max:[ k2; k3 ]
+          ~not_visited:[ foo; k1 ]
+      in
+      let test2 () =
+        (* Graph.iter requires a node as max, we cannot test a graph with only
+           contents. *)
+        let foo = P.Contents.Key.hash "foo" in
+        with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) >>= fun k1 ->
+        visited := [];
+        test_rev_order ~nodes:[ foo; k1 ] ~max:[ k1 ] >>= fun () ->
+        visited := [];
+        skipped := [];
+        test_skip ~max:[ k1 ] ~to_skip:[ k1 ] ~not_visited:[ foo ]
+      in
+      let test3 () =
+        let foo = P.Contents.Key.hash "foo" in
+        with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ])
+        >>= fun kb1 ->
+        with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) >>= fun ka1 ->
+        with_node repo (fun g -> Graph.v g [ ("a2", `Node kb1) ]) >>= fun ka2 ->
+        with_node repo (fun g -> Graph.v g [ ("b2", normal foo) ])
+        >>= fun kb2 ->
+        with_node repo (fun g ->
+            Graph.v g
+              [ ("c1", `Node ka1); ("c2", `Node ka2); ("c3", `Node kb2) ])
+        >>= fun kc ->
+        let nodes = [ foo; kb1; ka1; ka2; kb2; kc ] in
+        visited := [];
+        test_rev_order ~nodes ~max:[ kc ] >>= fun () ->
+        visited := [];
+        test_in_order ~nodes ~max:[ kc ] >>= fun () ->
+        visited := [];
+        skipped := [];
+        test_skip ~max:[ kc ] ~to_skip:[ ka1; ka2 ] ~not_visited:[ kb1 ]
+        >>= fun () ->
+        visited := [];
+        skipped := [];
+        test_skip ~max:[ kc ] ~to_skip:[ ka1; ka2; kb2 ]
+          ~not_visited:[ kb1; foo ]
+        >>= fun () ->
+        visited := [];
+        test_min_max ~nodes ~min:[ kb1 ] ~max:[ ka1 ]
+          ~not_visited:[ foo; ka2; kb2; kc ]
+        >>= fun () ->
+        visited := [];
+        test_min_max ~nodes ~min:[ kc ] ~max:[ kc ]
+          ~not_visited:[ foo; kb1; ka1; ka2; kb2 ]
+      in
+      test1 () >>= fun () ->
+      test2 () >>= fun () ->
+      test3 () >>= fun () -> P.Repo.close repo
     in
     run x test
 
