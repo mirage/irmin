@@ -598,8 +598,6 @@ struct
 
   let flush = X.Repo.flush
 
-  let pause = Lwt.pause
-
   let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash
 
   module Copy = struct
@@ -618,6 +616,8 @@ struct
     let copy_branches t =
       X.Branch.copy ~mem_commit_lower:(mem_commit_lower t)
         ~mem_commit_upper:(mem_commit_next t) t.X.Repo.branch
+
+    let pause () = Lwt.return_unit
 
     let skip_with_stats ~skip h =
       pause () >>= fun () ->
@@ -638,22 +638,31 @@ struct
             (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
             (X.Node.CA.Val.pred v)
 
+    let pause =
+      let total_len = ref 0 in
+      fun len ->
+        total_len := !total_len + len;
+        if !total_len > 1000 then (
+          total_len := 0;
+          Lwt_main.yield ())
+        else Lwt.return_unit
+
     let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
         ?(skip_nodes = no_skip) ?(skip_contents = no_skip) t ?(min = []) max =
       (* if node or contents are already in dst then they are skipped by
          Graph.iter; there is no need to check this again when the object is
          copied *)
       let commit k =
-        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
-        Lwt.pause ()
+        let len = X.Commit.CA.copy commits t.X.Repo.commit "Commit" k in
+        pause len
       in
       let node k =
-        X.Node.CA.copy nodes t.X.Repo.node k;
-        Lwt.return_unit
+        let len = X.Node.CA.copy nodes t.X.Repo.node k in
+        pause len
       in
       let contents k =
-        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
-        Lwt.return_unit
+        let len = X.Contents.CA.copy contents t.X.Repo.contents "Contents" k in
+        pause len
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in

@@ -22,7 +22,7 @@ module type S = sig
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> unit
+  val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> int
 
   val mem_lower : 'a t -> key -> bool Lwt.t
 

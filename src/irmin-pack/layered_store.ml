@@ -47,7 +47,8 @@ struct
     | None ->
         Log.warn (fun l ->
             l "Attempt to copy %s %a not contained in upper." str
-              (Irmin.Type.pp Key.t) k)
+              (Irmin.Type.pp Key.t) k);
+        0
     | Some v ->
         stats str;
         DST.unsafe_append ~ensure_unique:false dst k v
@@ -159,7 +160,7 @@ struct
         l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    U.unsafe_append ~ensure_unique upper k v;
+    ignore (U.unsafe_append ~ensure_unique upper k v : int);
     if freeze then (
       Log.debug (fun l -> l "adds during freeze");
       t.newies <- k :: t.newies)
@@ -334,7 +335,7 @@ struct
   let check t ?none ?some k =
     CopyUpper.check ~src:(current_upper t) ?none ?some k
 
-  let copy : type l. l layer_type * l -> [ `Read ] t -> string -> key -> unit =
+  let copy : type l. l layer_type * l -> [ `Read ] t -> string -> key -> int =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 

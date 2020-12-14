@@ -262,7 +262,10 @@ module Pack = struct
     t.clone_index_pack ~readonly:true >>= fun (i, r) ->
     let test w =
       let adds l =
-        List.iter (fun (k, v) -> Pack.unsafe_append ~ensure_unique:true w k v) l
+        List.iter
+          (fun (k, v) ->
+            ignore (Pack.unsafe_append ~ensure_unique:true w k v : int))
+          l
       in
       let x1 = "foo" in
       let x2 = "bar" in
@@ -297,7 +300,7 @@ module Pack = struct
     Pack.v ~fresh:true ~index (Context.fresh_name "pack") >>= fun w1 ->
     let x1 = "foo" in
     let h1 = sha1 x1 in
-    Pack.unsafe_append ~ensure_unique:true w1 h1 x1;
+    ignore (Pack.unsafe_append ~ensure_unique:true w1 h1 x1 : int);
     Pack.find w1 h1 >|= get >>= fun y1 ->
     Alcotest.(check string) "x1" x1 y1;
     Index.close index;
@@ -309,7 +312,7 @@ module Pack = struct
     let w = t.pack in
     let x1 = "foo" in
     let h1 = sha1 x1 in
-    Pack.unsafe_append ~ensure_unique:true w h1 x1;
+    ignore (Pack.unsafe_append ~ensure_unique:true w h1 x1 : int);
     Pack.flush w;
     Index.close t.index;
     Pack.close w >>= fun () ->
@@ -351,7 +354,7 @@ module Pack = struct
     (*open and close two packs *)
     let x3 = "toto" in
     let h3 = sha1 x3 in
-    Pack.unsafe_append ~ensure_unique:true w h3 x3;
+    ignore (Pack.unsafe_append ~ensure_unique:true w h3 x3 : int);
     t.clone_pack ~readonly:false >>= fun w2 ->
     Pack.close w >>= fun () ->
     Pack.find w2 h2 >|= get >>= fun y2 ->
@@ -386,7 +389,7 @@ module Pack = struct
     let test w =
       let x1 = "foo" in
       let h1 = sha1 x1 in
-      Pack.unsafe_append ~ensure_unique:true w h1 x1;
+      ignore (Pack.unsafe_append ~ensure_unique:true w h1 x1 : int);
       Pack.sync r;
       Pack.find r h1 >>= fun y1 ->
       Alcotest.(check (option string)) "sync before filter" None y1;
@@ -396,7 +399,7 @@ module Pack = struct
       Alcotest.(check (option string)) "sync after filter" (Some x1) y1;
       let x2 = "foo" in
       let h2 = sha1 x2 in
-      Pack.unsafe_append ~ensure_unique:true w h2 x2;
+      ignore (Pack.unsafe_append ~ensure_unique:true w h2 x2 : int);
       Index.flush t.index;
       Pack.find r h2 >|= fun y2 ->
       Alcotest.(check (option string)) "sync after flush" (Some x2) y2
@@ -413,7 +416,7 @@ module Pack = struct
     let test w =
       let x1 = "foo" in
       let h1 = sha1 x1 in
-      Pack.unsafe_append ~ensure_unique:true w h1 x1;
+      ignore (Pack.unsafe_append ~ensure_unique:true w h1 x1 : int);
       Pack.flush t.pack;
       Pack.sync r;
       check h1 x1 "find before filter" >>= fun () ->
@@ -421,13 +424,13 @@ module Pack = struct
       check h1 x1 "find after filter" >>= fun () ->
       let x2 = "bar" in
       let h2 = sha1 x2 in
-      Pack.unsafe_append ~ensure_unique:true w h2 x2;
+      ignore (Pack.unsafe_append ~ensure_unique:true w h2 x2 : int);
       Pack.flush t.pack;
       Pack.sync r;
       check h2 x2 "find before flush" >>= fun () ->
       let x3 = "toto" in
       let h3 = sha1 x3 in
-      Pack.unsafe_append ~ensure_unique:true w h3 x3;
+      ignore (Pack.unsafe_append ~ensure_unique:true w h3 x3 : int);
       Index.flush t.index;
       check h2 x2 "find after flush" >>= fun () ->
       Pack.flush t.pack;
@@ -441,7 +444,7 @@ module Pack = struct
     Context.get_pack ~lru_size:10 () >>= fun t ->
     let v = "foo" in
     let k = sha1 v in
-    Pack.unsafe_append ~ensure_unique:true t.pack k v;
+    ignore (Pack.unsafe_append ~ensure_unique:true t.pack k v : int);
     Pack.flush t.pack;
     Pack.find t.pack k >>= fun v1 ->
     Alcotest.(check (option string)) "before clear" (Some v) v1;
@@ -463,7 +466,7 @@ module Pack = struct
     let x1 = "foo" in
     let h1 = sha1 x1 in
     let find_before_and_after_sync persist file =
-      Pack.unsafe_append ~ensure_unique:true t.pack h1 x1;
+      ignore (Pack.unsafe_append ~ensure_unique:true t.pack h1 x1 : int);
       persist ();
       Pack.sync r;
       Pack.clear t.pack >>= fun () ->
@@ -494,11 +497,11 @@ module Pack = struct
     let x2 = "bar" in
     let h2 = sha1 x2 in
     let find_before_and_after_sync persist file =
-      Pack.unsafe_append ~ensure_unique:true t.pack h1 x1;
+      ignore (Pack.unsafe_append ~ensure_unique:true t.pack h1 x1 : int);
       persist ();
       Pack.sync r;
       Pack.clear t.pack >>= fun () ->
-      Pack.unsafe_append ~ensure_unique:true t.pack h2 x2;
+      ignore (Pack.unsafe_append ~ensure_unique:true t.pack h2 x2 : int);
       persist ();
       check h1 (Some x1)
         ("find old values in " ^ file ^ " after clear but before sync")

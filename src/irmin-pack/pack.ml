@@ -245,7 +245,7 @@ struct
     let auto_flush = 1024
 
     let unsafe_append ~ensure_unique t k v =
-      if ensure_unique && unsafe_mem t k then ()
+      if ensure_unique && unsafe_mem t k then 0
       else (
         Log.debug (fun l -> l "[pack] append %a" pp_hash k);
         let offset k =
@@ -264,15 +264,16 @@ struct
         Index.add t.pack.index k (off, len, V.magic v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
-        Lru.add t.lru k v)
+        Lru.add t.lru k v;
+        len)
 
     let add t v =
       let k = V.hash v in
-      unsafe_append ~ensure_unique:true t k v;
+      ignore (unsafe_append ~ensure_unique:true t k v : int);
       Lwt.return k
 
     let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true t k v;
+      ignore (unsafe_append ~ensure_unique:true t k v : int);
       Lwt.return ()
 
     let unsafe_close t =
