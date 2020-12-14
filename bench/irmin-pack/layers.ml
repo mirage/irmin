@@ -96,8 +96,7 @@ end
 
 let configure_store root freeze_throttle =
   let conf =
-    Irmin_pack.config ~readonly:false ~fresh:true
-      ~index_throttle:`Overcommit_memory ~freeze_throttle root
+    Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle root
   in
   Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
     ~copy_in_upper:true ()
