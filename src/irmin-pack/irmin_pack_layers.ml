@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let src = Logs.Src.create "irmin.layers" ~doc:"irmin-pack backend"
+let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -600,7 +600,7 @@ struct
 
   let pause = Lwt.pause
 
-  let pp_commits = Fmt.Dump.list Commit.pp_hash
+  let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash
 
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
@@ -850,7 +850,7 @@ struct
 
   let with_stats msg f = f >|= fun () -> dump_stats msg
 
-  let copy ~min ~max ~squash ~copy_in_upper ~min_upper t =
+  let copy ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
     (if with_lower then
@@ -866,32 +866,23 @@ struct
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
-  let pp_commits = Fmt.Dump.list Commit.pp_hash
+  let pp_field ppf (k, v) =
+    match v with [] -> () | v -> Fmt.pf ppf "%s=%a; " k pp_commits v
 
-  let unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t =
+  let pp_upper ppf (k, (b, v)) = if b then pp_field ppf (k, v)
+
+  let pp_bool ppf (k, v) = if v then Fmt.pf ppf "%s; " k
+
+  let unsafe_freeze ~min ~max ~squash ~upper ?hook ~id ~start_time t =
     Log.info (fun l ->
-        l
-          "@[<2>freeze:@ min=%a,@ max=%a,@ squash=%b,@ copy_in_upper=%b@ \
-           min_upper=%a@]"
-          pp_commits min pp_commits max squash copy_in_upper pp_commits
-          min_upper);
+        l "freeze started { id=%d; %a%a%a%a}" id pp_field ("min", min) pp_field
+          ("max", max) pp_bool ("squash", squash) pp_upper ("min_upper", upper));
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
-    let async () =
-      let waiting =
-        (Irmin_layers.Stats.get ()).waiting_freeze |> List.hd |> fun w ->
-        w *. 0.000001
-      in
-      if waiting >= 1.0 then
-        Log.warn (fun l ->
-            l
-              "freeze blocked for %f seconds due to a previous unfinished \
-               freeze"
-              waiting);
+    let copy () =
+      (* FIXME(samoht): why do we need to take the lock file here? *)
       lock_path t.X.Repo.config |> Lock.v >>= fun lock_file ->
-      pause () >>= fun () ->
-      may (fun f -> f `Before_Copy) hook >>= fun () ->
-      copy ~min ~max ~squash ~copy_in_upper ~min_upper t >>= fun () ->
+      copy ~min ~max ~squash ~upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
@@ -904,18 +895,32 @@ struct
           may (fun f -> f `Before_Clear) hook >>= fun () ->
           X.Repo.clear_previous_upper t)
       >>= fun () ->
-      Log.debug (fun l -> l "freeze: exit blocking section");
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
-      X.Repo.write_flip t >>= fun () ->
-      Lock.close lock_file >>= fun () ->
+      X.Repo.write_flip t >>= fun () -> Lock.close lock_file
+    in
+    let finalize waiting () =
       t.freeze.state <- `None;
       Lwt_mutex.unlock t.freeze.lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
-      Log.debug (fun l -> l "freeze: end")
+      let duration = Mtime_clock.count start_time in
+      Log.info (fun l ->
+          l "freeze { id=%d; waiting=%a; duration=%a }" id Mtime.Span.pp waiting
+            Mtime.Span.pp duration)
+    in
+    let async () =
+      let waiting = Mtime_clock.count start_time in
+      may (fun f -> f `Before_Copy) hook >>= fun () ->
+      Lwt.finalize copy (finalize waiting)
     in
     Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
     Lwt.return_unit
+
+  let freeze_counter =
+    let n = ref 0 in
+    fun () ->
+      incr n;
+      !n
 
   (** main thread takes the lock at the begining of freeze and async thread
       releases it at the end. This is to ensure that no two freezes can run
@@ -925,24 +930,27 @@ struct
     (if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
     else Lwt.return_unit)
     >>= fun () ->
-    let copy_in_upper =
-      match copy_in_upper with
-      | None -> get_copy_in_upper t.X.Repo.config
-      | Some b -> b
+    let freeze () =
+      let id = freeze_counter () in
+      let start_time = Mtime_clock.counter () in
+      let upper =
+        ( (match copy_in_upper with
+          | None -> get_copy_in_upper t.X.Repo.config
+          | Some b -> b),
+          min_upper )
+      in
+      Irmin_layers.Stats.with_timer `Waiting (fun () ->
+          Lwt_mutex.lock t.freeze.lock >|= fun () -> t.freeze.state <- `Running)
+      >>= fun () ->
+      (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
+      unsafe_freeze ~min ~max ~squash ~upper ?hook ~start_time ~id t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
     else
       match (t.freeze.state, t.freeze.throttle) with
       | `Running, `Overcommit_memory -> Lwt.return ()
-      | _ ->
-          Irmin_layers.Stats.with_timer `Waiting (fun () ->
-              Lwt_mutex.lock t.freeze.lock >|= fun () ->
-              t.freeze.state <- `Running)
-          >>= fun () ->
-          (match max with [] -> Repo.heads t | m -> Lwt.return m)
-          >>= fun max ->
-          unsafe_freeze ~min ~max ~squash ~copy_in_upper ~min_upper ?hook t
+      | _ -> freeze ()
 
   let layer_id = X.Repo.layer_id
 
