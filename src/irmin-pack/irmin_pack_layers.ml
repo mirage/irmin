@@ -866,52 +866,76 @@ struct
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
-  let pp_field ppf (k, v) =
-    match v with [] -> () | v -> Fmt.pf ppf "%s=%a; " k pp_commits v
+  module Field = struct
+    type t = F : 'a Fmt.t * string * 'a -> t | E
 
-  let pp_upper ppf (k, (b, v)) = if b then pp_field ppf (k, v)
+    let pp ppf = function E -> () | F (pp, k, v) -> Fmt.pf ppf "%s=%a" k pp v
 
-  let pp_bool ppf (k, v) = if v then Fmt.pf ppf "%s; " k
+    let pps ppf t =
+      Fmt.list ~sep:(Fmt.unit "; ") pp ppf (List.filter (fun x -> x <> E) t)
+
+    let commits k = function [] -> E | v -> F (pp_commits, k, v)
+
+    let bool k v = if not v then E else F (Fmt.bool, k, v)
+
+    let int k v = F (Fmt.int, k, v)
+
+    let upper k = function false, _ | true, [] -> E | _, v -> commits k v
+  end
 
   let unsafe_freeze ~min ~max ~squash ~upper ?hook ~id ~start_time t =
     Log.info (fun l ->
-        l "freeze started { id=%d; %a%a%a%a}" id pp_field ("min", min) pp_field
-          ("max", max) pp_bool ("squash", squash) pp_upper ("min_upper", upper));
+        l "freeze starts { %a }" Field.pps
+          [
+            Field.int "id" id;
+            Field.commits "min" min;
+            Field.commits "max" max;
+            Field.bool "squash" squash;
+            Field.upper "min_upper" upper;
+          ]);
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
+    let lock_file = lock_path t.X.Repo.config in
+    (* we take a lock here to signal that a freeze was in progess in
+       case of crash, to trigger the recovery path. *)
+    Lock.v lock_file >>= fun lock_file ->
     let copy () =
-      (* FIXME(samoht): why do we need to take the lock file here? *)
-      lock_path t.X.Repo.config |> Lock.v >>= fun lock_file ->
+      may (fun f -> f `Before_Copy) hook >>= fun () ->
       copy ~min ~max ~squash ~upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
+      let before_add_lock = Mtime_clock.count start_time in
       Lwt_mutex.with_lock t.add_lock (fun () ->
-          Log.debug (fun l -> l "freeze: enter blocking section");
+          let after_add_lock = Mtime_clock.count start_time in
           Copy.CopyToUpper.copy_last_newies_to_next_upper t >>= fun () ->
           may (fun f -> f `Before_Flip) hook >>= fun () ->
           X.Repo.flip_upper t;
           may (fun f -> f `Before_Clear) hook >>= fun () ->
-          X.Repo.clear_previous_upper t)
-      >>= fun () ->
+          X.Repo.clear_previous_upper t >|= fun () ->
+          Mtime.Span.abs_diff after_add_lock before_add_lock)
+      >>= fun waiting_add ->
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
-      X.Repo.write_flip t >>= fun () -> Lock.close lock_file
+      X.Repo.write_flip t >|= fun () -> waiting_add
     in
-    let finalize waiting () =
+    let finalize waiting_freeze waiting_add =
       t.freeze.state <- `None;
+      Lock.close lock_file >>= fun () ->
       Lwt_mutex.unlock t.freeze.lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
       let duration = Mtime_clock.count start_time in
       Log.info (fun l ->
-          l "freeze { id=%d; waiting=%a; duration=%a }" id Mtime.Span.pp waiting
-            Mtime.Span.pp duration)
+          l
+            "freeze ends   { id=%d; total-duration=%a; freeze-lock=%a; \
+             add-lock=%a }"
+            id Mtime.Span.pp duration Mtime.Span.pp waiting_freeze Mtime.Span.pp
+            waiting_add)
     in
     let async () =
-      let waiting = Mtime_clock.count start_time in
-      may (fun f -> f `Before_Copy) hook >>= fun () ->
-      Lwt.finalize copy (finalize waiting)
+      let waiting_freeze = Mtime_clock.count start_time in
+      copy () >>= fun waiting_add -> finalize waiting_freeze waiting_add
     in
     Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
     Lwt.return_unit
