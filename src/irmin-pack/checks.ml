@@ -185,17 +185,17 @@ struct
       let open Cmdliner.Arg in
       value
       & flag
-        @@ info ~doc:"Automatically repair issues" ~docv:"REPAIR"
+        @@ info ~doc:"Automatically repair issues" ~docv:"AUTOREPAIR"
              [ "auto-repair" ]
 
     let run ~root ~auto_repair =
       let conf = conf root in
       Store.Repo.v conf >|= fun repo ->
       match Store.integrity_check ~auto_repair repo with
-      | Ok (`Fixed n) -> Printf.printf "OK. fixed %d\n%!" n
-      | Ok `No_error -> print_endline "OK"
-      | Error (`Cannot_fix x) -> Printf.eprintf "ERROR cannot fix: %s\n%!" x
-      | Error (`Corrupted x) -> Printf.eprintf "ErrOR corrupted: %d\n%!" x
+      | Ok (`Fixed n) -> Printf.printf "Ok -- fixed %d\n%!" n
+      | Ok `No_error -> print_endline "Ok"
+      | Error (`Cannot_fix x) -> Printf.eprintf "Error -- cannot fix: %s\n%!" x
+      | Error (`Corrupted x) -> Printf.eprintf "Error -- corrupted: %d\n%!" x
 
     let term =
       Cmdliner.Term.(
