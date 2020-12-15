@@ -17,6 +17,22 @@ module type S = sig
     (** A pre-packaged [Cmdliner] term for executing {!run}. *)
   end
 
+  module Reconstruct_index : sig
+    val run : root:string -> output:string option -> unit
+    (** Rebuilds an index for an existing pack file *)
+
+    val term : (unit -> unit) Cmdliner.Term.t
+    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+  end
+
+  module Integrity_check : sig
+    val run : root:string -> auto_repair:bool -> unit Lwt.t
+    (** Checks the integrity of a store *)
+
+    val term : (unit -> unit) Cmdliner.Term.t
+    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+  end
+
   val cli : unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks. *)
 end
