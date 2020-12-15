@@ -176,6 +176,34 @@ struct
         const (fun root output () -> run ~root ~output) $ path $ dest)
   end
 
+  module Integrity_check = struct
+    module Store = Ext.Make (Conf) (M) (C) (P) (B) (H) (Node) (Commit)
+
+    let conf root = Config.v ~readonly:false ~fresh:false root
+
+    let auto_repair =
+      let open Cmdliner.Arg in
+      value
+      & flag
+        @@ info ~doc:"Automatically repair issues" ~docv:"REPAIR"
+             [ "auto-repair" ]
+
+    let run ~root ~auto_repair =
+      let conf = conf root in
+      Store.Repo.v conf >|= fun repo ->
+      match Store.integrity_check ~auto_repair repo with
+      | Ok (`Fixed n) -> Printf.printf "OK. fixed %d\n%!" n
+      | Ok `No_error -> print_endline "OK"
+      | Error (`Cannot_fix x) -> Printf.eprintf "ERROR cannot fix: %s\n%!" x
+      | Error (`Corrupted x) -> Printf.eprintf "ErrOR corrupted: %d\n%!" x
+
+    let term =
+      Cmdliner.Term.(
+        const (fun root auto_repair () -> Lwt_main.run (run ~root ~auto_repair))
+        $ path
+        $ auto_repair)
+  end
+
   module Cli = struct
     open Cmdliner
 
@@ -217,6 +245,10 @@ struct
       let doc = "Reconstruct index from an existing pack file." in
       Term.(Reconstruct_index.term $ setup_log, info ~doc "reconstruct-index")
 
+    let integrity_check =
+      let doc = "Check integrity of an existing store." in
+      Term.(Integrity_check.term $ setup_log, info ~doc "integrity-check")
+
     let main () : empty =
       let default =
         let default_info =
@@ -226,7 +258,8 @@ struct
         Term.(ret (const (`Help (`Auto, None))), default_info)
       in
       Term.(
-        eval_choice default [ stat; check_self_contained; reconstruct_index ]
+        eval_choice default
+          [ stat; check_self_contained; reconstruct_index; integrity_check ]
         |> (exit : unit result -> _));
       assert false
   end
