@@ -82,10 +82,7 @@ module Make (K : Irmin.Hash.S) = struct
 
   let v = Index.v ~cache
 
-  let add ?overcommit t k v =
-    match overcommit with
-    | Some true -> replace ~overcommit:() t k v
-    | _ -> replace t k v
+  let add ?overcommit t k v = replace ?overcommit t k v
 
   let find t k = match find t k with exception Not_found -> None | h -> Some h
 
