@@ -13,20 +13,22 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.08.0"}
-  "dune"       {>= "2.7.0"}
-  "irmin"      {= version}
+  "ocaml"        {>= "4.08.0"}
+  "dune"         {>= "2.7.0"}
+  "irmin"        {= version}
   "irmin-layers" {= version}
-  "ppx_irmin"  {= version}
-  "index"      {>= "1.2.1"}
+  "ppx_irmin"    {= version}
+  "index"        {>= "1.2.1"}
   "fmt"
   "logs"
   "lwt"
   "mtime"
-  "irmin-test" {with-test & = version}
+  "cmdliner"
+  "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}
-  "astring" {with-test}
-  "fpath" {with-test}
+  "astring"      {with-test}
+  "fpath"        {with-test}
+  "alcotest"     {with-test}
 ]
 
 pin-depends: [

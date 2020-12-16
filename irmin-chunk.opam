@@ -21,6 +21,7 @@ depends: [
   "lwt"
   "irmin-mem"  {with-test & = version}
   "irmin-test" {with-test & = version}
+  "alcotest"   {with-test}
 ]
 
 synopsis: "Irmin backend which allow to store values into chunks"

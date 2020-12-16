@@ -37,7 +37,13 @@ depends: [
   "conduit-lwt-unix"
   "logs"
   "uri"
-  "irmin-test"    {with-test & = version}
+  "cmdliner"
+  "cohttp-lwt-unix"
+  "fmt"
+  "git"
+  "lwt"
+  "irmin-test" {with-test & = version}
+  "alcotest"   {with-test}
 ]
 
 synopsis: "Unix backends for Irmin"

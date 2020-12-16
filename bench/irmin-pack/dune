@@ -1,5 +1,7 @@
 (executables
  (names main layers)
+ (public_names bench-pack bench-pack-layers)
+ (package irmin-bench)
  (preprocess
   (pps ppx_deriving_yojson ppx_repr))
  (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs

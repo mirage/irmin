@@ -17,9 +17,11 @@ depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "2.7.0"}
   "irmin"      {= version}
+  "astring"
   "logs"
   "lwt"
   "irmin-test" {with-test & = version}
+  "alcotest"   {with-test}
 ]
 
 synopsis: "Generic file-system backend for Irmin"
