@@ -48,11 +48,11 @@ module type S = sig
     ?ppf:Format.formatter ->
     auto_repair:bool ->
     repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.Layer_id.t
-    )
-    result
-    list
+    (( [> `Fixed of int | `No_error ],
+       [> `Cannot_fix of string | `Corrupted of int ]
+     )
+       result * Irmin_layers.Layer_id.t)
+      list
 end
 
 module Make_ext
@@ -63,18 +63,18 @@ module Make_ext
     (Branch : Irmin.Branch.S)
     (Hash : Irmin.Hash.S)
     (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
+     with type metadata = Metadata.t
+      and type hash = Hash.t
+      and type step = Path.step)
     (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
   S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
+  with type key = Path.t
+   and type contents = Contents.t
+   and type branch = Branch.t
+   and type hash = Hash.t
+   and type step = Path.step
+   and type metadata = Metadata.t
+   and type Key.step = Path.step
 
 module Make
     (Config : Config.S)
@@ -84,9 +84,9 @@ module Make
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S) :
   S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+  with type key = P.t
+   and type step = P.step
+   and type metadata = M.t
+   and type contents = C.t
+   and type branch = B.t
+   and type hash = H.t

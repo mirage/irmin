@@ -94,6 +94,9 @@
   - Added `reconstruct-index` command to `irmin-fsck` for reconstructing an index from
     the command line (#1189, @zshipko)
 
+  - Added `integrity-check` command to `irmin-fsck` for checking the integrity of
+    an `irmin-pack` store (#1196, @zshipko)
+
 - **ppx_irmin**:
 
   - Added support for deriving type representations for types with type
