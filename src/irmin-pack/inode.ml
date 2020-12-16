@@ -285,7 +285,8 @@ struct
         match t.v with
         | Inodes i ->
             Array.fold_left
-              (fun acc -> function Empty -> acc
+              (fun acc -> function
+                | Empty -> acc
                 | Inode i -> `Inode (Lazy.force i.i_hash) :: acc)
               [] i.entries
         | Values l ->
