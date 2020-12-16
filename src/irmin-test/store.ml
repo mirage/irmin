@@ -948,7 +948,8 @@ module Make (S : S) = struct
 
   let inspect =
     Alcotest.testable
-      (fun ppf -> function `Contents -> Fmt.string ppf "contents"
+      (fun ppf -> function
+        | `Contents -> Fmt.string ppf "contents"
         | `Node `Hash -> Fmt.string ppf "hash"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value")

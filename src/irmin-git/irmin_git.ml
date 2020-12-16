@@ -1241,13 +1241,13 @@ struct
      probably not necessary and we could use Git.Value.Raw instead. *)
   module G = Mem
   module S = Make (G) (No_sync (G)) (C) (P) (B)
-  include Irmin.Make_ext (CA) (AW) (S.Private.Node.Metadata)
-            (S.Private.Contents.Val)
-            (S.Private.Node.Path)
-            (S.Branch)
-            (S.Private.Hash)
-            (S.Private.Node.Val)
-            (S.Private.Commit.Val)
+  include
+    Irmin.Make_ext (CA) (AW) (S.Private.Node.Metadata) (S.Private.Contents.Val)
+      (S.Private.Node.Path)
+      (S.Branch)
+      (S.Private.Hash)
+      (S.Private.Node.Val)
+      (S.Private.Commit.Val)
 end
 
 module Generic_KV
