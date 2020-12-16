@@ -13,11 +13,19 @@ build: [
 ]
 
 depends: [
-  "dune"       {>= "2.7.0"}
+  "dune"         {>= "2.7.0"}
   "irmin-mirage" {= version}
-  "irmin-git"  {= version}
-  "git-mirage" {>= "2.1.2"}
-  "mirage-kv" {>= "3.0.0"}
+  "irmin-git"    {= version}
+  "git-mirage"   {>= "2.1.2"}
+  "mirage-kv"    {>= "3.0.0"}
+  "cohttp"
+  "conduit-lwt"
+  "conduit-mirage"
+  "fmt"
+  "git"
+  "lwt"
+  "mirage-clock"
+  "uri"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"

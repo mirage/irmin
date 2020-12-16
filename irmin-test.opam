@@ -13,13 +13,13 @@ build: [
 ]
 
 depends: [
-  "ocaml"    {>= "4.02.3"}
-  "dune"     {>= "2.7.0"}
-  "irmin"    {= version}
+  "irmin"        {= version}
   "irmin-layers" {= version}
-  "ppx_irmin" {= version}
-  "alcotest" {>= "1.0.1"}
-  "mtime"    {>= "1.0.0"}
+  "ppx_irmin"    {= version}
+  "ocaml"        {>= "4.02.3"}
+  "dune"         {>= "2.7.0"}
+  "alcotest"     {>= "1.0.1"}
+  "mtime"        {>= "1.0.0"}
   "astring"
   "fmt"
   "jsonm"
@@ -27,6 +27,8 @@ depends: [
   "lwt"
   "metrics-unix"
   "ocaml-syntax-shims"
+  "cmdliner"
+  "metrics" {>= "0.2.0"}
 ]
 
 synopsis: "Irmin test suite"

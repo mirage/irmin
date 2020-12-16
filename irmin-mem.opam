@@ -14,11 +14,14 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.03.0"}
-  "dune"       {>= "2.7.0"}
-  "irmin"      {= version}
+  "ocaml"        {>= "4.03.0"}
+  "dune"         {>= "2.7.0"}
+  "irmin"        {= version}
   "irmin-layers" {= version}
+  "logs"
+  "lwt"
   "irmin-test" {with-test & = version}
+  "alcotest"   {with-test & >= "1.2.3"}
 ]
 
 

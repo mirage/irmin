@@ -18,6 +18,8 @@ depends: [
   "dune"       {>= "2.7.0"}
   "mtime"      {>= "1.0.0"}
   "irmin"      {= version}
+  "logs"
+  "lwt"
   "irmin-test" {with-test & post & = version}
 ]
 

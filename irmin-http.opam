@@ -21,6 +21,13 @@ depends: [
   "irmin"      {= version}
   "ppx_irmin"  {= version}
   "cohttp-lwt" {>= "1.0.0"}
+  "astring"
+  "cohttp"
+  "fmt"
+  "jsonm"
+  "logs"
+  "lwt"
+  "uri"
   "irmin-git"  {with-test & = version}
   "irmin-mem"  {with-test & = version}
   "irmin-test" {with-test & = version}
