@@ -176,6 +176,60 @@ struct
         const (fun root output () -> run ~root ~output) $ path $ dest)
   end
 
+  module Integrity_check = struct
+    let conf root = Config.v ~readonly:false ~fresh:false root
+
+    let auto_repair =
+      let open Cmdliner.Arg in
+      value & (flag @@ info ~doc:"Automatically repair issues" [ "auto-repair" ])
+
+    let handle_result name res =
+      let name = match name with Some x -> x ^ ": " | None -> "" in
+      match res with
+      | Ok (`Fixed n) -> Printf.printf "%sOk -- fixed %d\n%!" name n
+      | Ok `No_error -> Printf.printf "%sOk\n%!" name
+      | Error (`Cannot_fix x) ->
+          Printf.eprintf "%sError -- cannot fix: %s\n%!" name x
+      | Error (`Corrupted x) ->
+          Printf.eprintf "%sError -- corrupted: %d\n%!" name x
+
+    let run_simple ~root ~auto_repair =
+      let module Store = Ext.Make (Conf) (M) (C) (P) (B) (H) (Node) (Commit) in
+      let conf = conf root in
+      Store.Repo.v conf >|= fun repo ->
+      Store.integrity_check ~auto_repair repo |> handle_result None
+
+    let run ~root ~auto_repair =
+      match detect_layered_store ~root with
+      | false -> run_simple ~root ~auto_repair
+      | true ->
+          let module Store =
+            Irmin_pack_layers.Make_ext (Conf) (M) (C) (P) (B) (H) (Node)
+              (Commit)
+          in
+          Logs.app (fun f -> f "Layered store detected");
+          let conf = conf root in
+          let lower_root = Layout.lower ~root in
+          let upper_root1 = Layout.upper1 ~root in
+          let upper_root0 = Layout.upper0 ~root in
+          let conf =
+            Irmin_pack_layers.config_layers ~conf ~lower_root ~upper_root1
+              ~upper_root0 ()
+          in
+          Store.Repo.v conf >|= fun repo ->
+          let res = Store.integrity_check ~auto_repair repo in
+          List.iter
+            (fun (r, id) ->
+              handle_result (Some (Irmin_layers.Layer_id.to_string id)) r)
+            res
+
+    let term =
+      Cmdliner.Term.(
+        const (fun root auto_repair () -> Lwt_main.run (run ~root ~auto_repair))
+        $ path
+        $ auto_repair)
+  end
+
   module Cli = struct
     open Cmdliner
 
@@ -217,6 +271,10 @@ struct
       let doc = "Reconstruct index from an existing pack file." in
       Term.(Reconstruct_index.term $ setup_log, info ~doc "reconstruct-index")
 
+    let integrity_check =
+      let doc = "Check integrity of an existing store." in
+      Term.(Integrity_check.term $ setup_log, info ~doc "integrity-check")
+
     let main () : empty =
       let default =
         let default_info =
@@ -226,7 +284,8 @@ struct
         Term.(ret (const (`Help (`Auto, None))), default_info)
       in
       Term.(
-        eval_choice default [ stat; check_self_contained; reconstruct_index ]
+        eval_choice default
+          [ stat; check_self_contained; reconstruct_index; integrity_check ]
         |> (exit : unit result -> _));
       assert false
   end

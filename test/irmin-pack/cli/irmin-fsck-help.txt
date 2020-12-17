@@ -8,6 +8,9 @@ COMMANDS
        check-self-contained
            Check that the upper layer of the store is self contained.
 
+       integrity-check
+           Check integrity of an existing store.
+
        reconstruct-index
            Reconstruct index from an existing pack file.
 

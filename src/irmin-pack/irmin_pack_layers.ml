@@ -583,10 +583,8 @@ struct
     ]
     |> List.map (fun (layer, index) ->
            match index with
-           | Some index ->
-               integrity_check_layer ~layer index
-               |> Result.map_error (function e -> (e, layer))
-           | None -> Ok `No_error)
+           | Some index -> (integrity_check_layer ~layer index, layer)
+           | None -> (Ok `No_error, layer))
 
   include Irmin.Of_private (X)
 
@@ -1039,10 +1037,10 @@ module type S = sig
     ?ppf:Format.formatter ->
     auto_repair:bool ->
     repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.Layer_id.t
-    )
-    result
+    (( [> `Fixed of int | `No_error ],
+       [> `Cannot_fix of string | `Corrupted of int ] )
+     result
+    * Irmin_layers.Layer_id.t)
     list
 end
 

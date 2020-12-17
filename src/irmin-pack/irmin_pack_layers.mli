@@ -48,10 +48,10 @@ module type S = sig
     ?ppf:Format.formatter ->
     auto_repair:bool ->
     repo ->
-    ( [> `Fixed of int | `No_error ],
-      [> `Cannot_fix of string | `Corrupted of int ] * Irmin_layers.Layer_id.t
-    )
-    result
+    (( [> `Fixed of int | `No_error ],
+       [> `Cannot_fix of string | `Corrupted of int ] )
+     result
+    * Irmin_layers.Layer_id.t)
     list
 end
 

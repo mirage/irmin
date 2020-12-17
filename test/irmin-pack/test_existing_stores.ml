@@ -329,17 +329,17 @@ module Test_corrupted_stores = struct
            the pack file of each layer");
     S.integrity_check ~auto_repair:false rw
     |> List.iter (function
-         | Ok `No_error ->
+         | Ok `No_error, _ ->
              Alcotest.fail "Store is corrupted, the check should fail"
-         | Error (`Corrupted 3, _) -> ()
+         | Error (`Corrupted 3), _ -> ()
          | _ -> Alcotest.fail "With auto_repair:false should not match");
     S.integrity_check ~auto_repair:true rw
     |> List.iter (function
-         | Ok (`Fixed 3) -> ()
+         | Ok (`Fixed 3), _ -> ()
          | _ -> Alcotest.fail "Integrity check should repair the store");
     S.integrity_check ~auto_repair:false rw
     |> List.iter (function
-         | Ok `No_error -> ()
+         | Ok `No_error, _ -> ()
          | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
 
