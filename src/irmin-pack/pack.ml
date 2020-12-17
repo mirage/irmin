@@ -124,7 +124,8 @@ struct
         true)
       else false
 
-    let flush ?(index = true) t =
+    let flush ?(index = true) ?(index_merge = false) t =
+      if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
       if index then Index.flush ~no_callback:() t.pack.index;
@@ -244,7 +245,7 @@ struct
 
     let auto_flush = 1024
 
-    let unsafe_append ~ensure_unique t k v =
+    let unsafe_append ~ensure_unique ~overcommit t k v =
       if ensure_unique && unsafe_mem t k then ()
       else (
         Log.debug (fun l -> l "[pack] append %a" pp_hash k);
@@ -261,18 +262,18 @@ struct
         let off = IO.offset t.pack.block in
         V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
         let len = Int64.to_int (IO.offset t.pack.block -- off) in
-        Index.add t.pack.index k (off, len, V.magic v);
+        Index.add ~overcommit t.pack.index k (off, len, V.magic v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)
 
     let add t v =
       let k = V.hash v in
-      unsafe_append ~ensure_unique:true t k v;
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
       Lwt.return k
 
     let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true t k v;
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
       Lwt.return ()
 
     let unsafe_close t =

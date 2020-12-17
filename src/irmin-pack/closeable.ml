@@ -53,9 +53,9 @@ module Content_addressable (S : Pack.S) = struct
       t.closed := true;
       S.close t.t)
 
-  let unsafe_append ~ensure_unique t k v =
+  let unsafe_append ~ensure_unique ~overcommit t k v =
     check_not_closed t;
-    S.unsafe_append ~ensure_unique t.t k v
+    S.unsafe_append ~ensure_unique ~overcommit t.t k v
 
   let unsafe_mem t k =
     check_not_closed t;
@@ -65,9 +65,9 @@ module Content_addressable (S : Pack.S) = struct
     check_not_closed t;
     S.unsafe_find ~check_integrity t.t k
 
-  let flush ?index t =
+  let flush ?index ?index_merge t =
     check_not_closed t;
-    S.flush ?index t.t
+    S.flush ?index ?index_merge t.t
 
   let sync ?on_generation_change t =
     check_not_closed t;

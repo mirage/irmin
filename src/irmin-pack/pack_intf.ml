@@ -57,13 +57,14 @@ module type S = sig
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
-  val unsafe_append : ensure_unique:bool -> 'a t -> key -> value -> unit
+  val unsafe_append :
+    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
 
   val unsafe_mem : 'a t -> key -> bool
 
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
 
-  val flush : ?index:bool -> 'a t -> unit
+  val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   (** syncs a readonly instance with the files on disk. The same file instance
@@ -157,7 +158,8 @@ module type LAYERED = sig
 
   val clear_caches_next_upper : 'a t -> unit
 
-  val unsafe_append : ensure_unique:bool -> 'a t -> key -> value -> unit Lwt.t
+  val unsafe_append :
+    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit Lwt.t
 
   val unsafe_mem : 'a t -> key -> bool Lwt.t
 

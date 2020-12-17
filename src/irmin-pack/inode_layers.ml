@@ -92,7 +92,9 @@ struct
   let clear_caches = Inode.clear_caches
 
   let save t v =
-    let add k v = Inode.unsafe_append ~ensure_unique:true t k v in
+    let add k v =
+      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+    in
     Inode.Val.save_lwt ~add ~mem:(Inode.unsafe_mem t) v
 
   let add t v = save t v.Val.v >|= fun () -> hash v
@@ -126,7 +128,7 @@ struct
 
   let update_flip = Inode.update_flip
 
-  let flush = Inode.flush
+  let flush ?index t = Inode.flush ?index t
 
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type

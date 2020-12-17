@@ -25,9 +25,11 @@ module type S = sig
 
   val find : t -> key -> value option
 
-  val add : t -> key -> value -> unit
+  val add : ?overcommit:bool -> t -> key -> value -> unit
 
   val close : t -> unit
+
+  val merge : t -> unit
 
   module Stats = Index.Stats
 end
