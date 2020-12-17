@@ -183,8 +183,7 @@ struct
       let open Cmdliner.Arg in
       value
       & flag
-        @@ info ~doc:"Automatically repair issues" ~docv:"AUTOREPAIR"
-             [ "auto-repair" ]
+        @@ info ~doc:"Automatically repair issues" [ "auto-repair" ]
 
     let handle_result name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
