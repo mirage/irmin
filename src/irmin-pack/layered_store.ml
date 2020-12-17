@@ -160,9 +160,7 @@ struct
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique upper k v;
-    if freeze then (
-      Log.debug (fun l -> l "adds during freeze");
-      t.newies <- k :: t.newies)
+    if freeze then t.newies <- k :: t.newies
 
   let unsafe_append ~ensure_unique t k v =
     Lwt_mutex.with_lock t.add_lock (fun () ->
