@@ -386,12 +386,8 @@ struct
     uppers : U.t * U.t;
     freeze_in_progress : unit -> bool;
     add_lock : Lwt_mutex.t;
+    mutable newies : (key * value option) list;
   }
-
-  (** Branches added during a freeze *)
-  let newies : (key * value) list ref = ref []
-
-  (*TODO : branches removed during freeze *)
 
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
 
@@ -434,7 +430,8 @@ struct
         l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
           pp_during_freeze freeze);
     let upper = current_upper t in
-    U.set upper k v >|= fun () -> if freeze then newies := (k, v) :: !newies
+    U.set upper k v >|= fun () ->
+    if freeze then t.newies <- (k, Some v) :: t.newies
 
   let set t k v = Lwt_mutex.with_lock t.add_lock (fun () -> set' t k v)
 
@@ -457,21 +454,21 @@ struct
     (U.mem current k >>= function
      | true -> U.test_and_set current k ~test ~set
      | false -> find_in_lower ())
-    >|= function
-    | true ->
-        (if freeze then
-         match set with
-         | None -> (*TODO : remove during freeze *) ()
-         | Some v -> newies := (k, v) :: !newies);
-        true
-    | false -> false
+    >|= fun update ->
+    if update && freeze then t.newies <- (k, set) :: t.newies;
+    update
 
   let test_and_set t k ~test ~set =
     Lwt_mutex.with_lock t.add_lock (fun () -> test_and_set' t k ~test ~set)
 
   let remove' t k =
+    let freeze = t.freeze_in_progress () in
+    Log.debug (fun l ->
+        l "[branches] remove %a in %a%a" pp_branch k pp_current_upper t
+          pp_during_freeze freeze);
     U.remove (fst t.uppers) k >>= fun () ->
     U.remove (snd t.uppers) k >>= fun () ->
+    if freeze then t.newies <- (k, None) :: t.newies;
     match t.lower with
     | None -> Lwt.return_unit
     | Some lower -> L.remove lower k
@@ -501,7 +498,14 @@ struct
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
   let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
-    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; add_lock }
+    {
+      lower;
+      flip;
+      uppers = (upper1, upper0);
+      freeze_in_progress;
+      add_lock;
+      newies = [];
+    }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
@@ -567,24 +571,27 @@ struct
 
   let copy_last_newies_to_next_upper t =
     Log.debug (fun l ->
-        l "[branches] copy %d newies to %a" (List.length !newies) pp_next_upper
+        l "[branches] copy %d newies to %a" (List.length t.newies) pp_next_upper
           t);
     let next = next_upper t in
-    Lwt_list.iter_s (fun (k, v) -> U.set next k v) (List.rev !newies)
-    >|= fun () -> newies := []
+    let newies = t.newies in
+    t.newies <- [];
+    Lwt_list.iter_s
+      (fun (k, v) ->
+        match v with Some v -> U.set next k v | None -> U.remove next k)
+      (List.rev newies)
 
   let copy_newies_to_next_upper t =
     Log.debug (fun l ->
-        l "[branches] copy %d newies to %a" (List.length !newies) pp_next_upper
+        l "[branches] copy %d newies to %a" (List.length t.newies) pp_next_upper
           t);
     let next = next_upper t in
-    let tmp_newies : (key * value) list ref = ref [] in
-    Lwt_mutex.with_lock t.add_lock (fun () ->
-        tmp_newies := !newies;
-        newies := [];
-        Lwt.return_unit)
-    >>= fun () ->
-    Lwt_list.iter_s (fun (k, v) -> U.set next k v) (List.rev !tmp_newies)
+    let newies = t.newies in
+    t.newies <- [];
+    Lwt_list.iter_s
+      (fun (k, v) ->
+        match v with None -> U.remove next k | Some v -> U.set next k v)
+      (List.rev newies)
 
   (** RO syncs the branch store at every find call, but it still needs to update
       the upper in use.*)
