@@ -116,9 +116,9 @@ module Make_ext
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S
-     with type metadata = M.t
-      and type hash = H.t
-      and type step = P.step)
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
@@ -148,28 +148,28 @@ struct
         module Val = C
 
         module CA_Pack = Pack.Make (struct
-            include Val
-            module H = Irmin.Hash.Typed (H) (Val)
+          include Val
+          module H = Irmin.Hash.Typed (H) (Val)
 
-            let hash = H.hash
+          let hash = H.hash
 
-            let magic = 'B'
+          let magic = 'B'
 
-            let value = value Val.t
+          let value = value Val.t
 
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
+          let encode_value = Irmin.Type.(unstage (encode_bin value))
 
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
+          let decode_value = Irmin.Type.(unstage (decode_bin value))
 
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { magic; hash; v }
+          let encode_bin ~dict:_ ~offset:_ v hash =
+            encode_value { magic; hash; v }
 
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, t = decode_value s off in
-              t.v
+          let decode_bin ~dict:_ ~hash:_ s off =
+            let _, t = decode_value s off in
+            t.v
 
-            let magic _ = magic
-          end)
+          let magic _ = magic
+        end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
@@ -190,28 +190,28 @@ struct
         module Val = Commit
 
         module CA_Pack = Pack.Make (struct
-            include Val
-            module H = Irmin.Hash.Typed (H) (Val)
+          include Val
+          module H = Irmin.Hash.Typed (H) (Val)
 
-            let hash = H.hash
+          let hash = H.hash
 
-            let value = value Val.t
+          let value = value Val.t
 
-            let magic = 'C'
+          let magic = 'C'
 
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
+          let encode_value = Irmin.Type.(unstage (encode_bin value))
 
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
+          let decode_value = Irmin.Type.(unstage (decode_bin value))
 
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { magic; hash; v }
+          let encode_bin ~dict:_ ~offset:_ v hash =
+            encode_value { magic; hash; v }
 
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, v = decode_value s off in
-              v.v
+          let decode_bin ~dict:_ ~hash:_ s off =
+            let _, v = decode_value s off in
+            v.v
 
-            let magic _ = magic
-          end)
+          let magic _ = magic
+        end)
 
         module CA = Closeable.Content_addressable (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
@@ -335,7 +335,7 @@ struct
         let index =
           Index.v
             ~flush_callback:(fun () -> !f ())
-            (* backpatching to add pack flush before an index flush *)
+              (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
         Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
@@ -372,10 +372,10 @@ struct
           (function
             | I.Invalid_version { expected; found }
               when expected = current_version ->
-              Log.err (fun m ->
-                  m "[%s] Attempted to open store of unsupported version %a"
-                    root pp_version found);
-              Lwt.fail (Unsupported_version found)
+                Log.err (fun m ->
+                    m "[%s] Attempted to open store of unsupported version %a"
+                      root pp_version found);
+                Lwt.fail (Unsupported_version found)
             | e -> Lwt.fail e)
 
       let freeze_info throttle =
@@ -390,8 +390,8 @@ struct
         let with_lower = with_lower config in
         let lower_root = Filename.concat root (lower_root config) in
         (if with_lower then
-           v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
-         else Lwt.return_none)
+         v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
+        else Lwt.return_none)
         >>= fun lower ->
         let file = Layout.flip ~root in
         IO_layers.v file >>= fun flip_file ->
@@ -403,7 +403,7 @@ struct
         let freeze_in_progress () = freeze.state = `Running in
         let add_lock = Lwt_mutex.create () in
         (if fresh && Lock.test lock_file then Lock.unlink lock_file
-         else Lwt.return_unit)
+        else Lwt.return_unit)
         >|= fun () ->
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
@@ -451,7 +451,7 @@ struct
           {
             f =
               (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
-                 C.close x);
+                C.close x);
           }
         in
         Iterate.iter_lwt f t
@@ -480,7 +480,7 @@ struct
           {
             f =
               (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
-                 C.update_flip ~flip x);
+                C.update_flip ~flip x);
           }
         in
         Iterate.iter f t
@@ -495,25 +495,25 @@ struct
         let root = Pack_config.root config in
         [ upper_root1; upper_root0; lower_root ]
         |> List.map (fun name ->
-            let root = Filename.concat root (name config) in
-            let config = Conf.add config Pack_config.root_key (Some root) in
-            try
-              let io =
-                IO.v ~version:(Some current_version) ~fresh:false
-                  ~readonly:true (Layout.pack ~root)
-              in
-              (config, Some io)
-            with
-            | I.Invalid_version _ -> (config, None)
-            | e -> raise e)
+               let root = Filename.concat root (name config) in
+               let config = Conf.add config Pack_config.root_key (Some root) in
+               try
+                 let io =
+                   IO.v ~version:(Some current_version) ~fresh:false
+                     ~readonly:true (Layout.pack ~root)
+                 in
+                 (config, Some io)
+               with
+               | I.Invalid_version _ -> (config, None)
+               | e -> raise e)
         |> List.fold_left
-          (fun to_migrate (config, io) ->
-             match io with
-             | None -> config :: to_migrate
-             | Some io ->
-               IO.close io;
-               to_migrate)
-          []
+             (fun to_migrate (config, io) ->
+               match io with
+               | None -> config :: to_migrate
+               | Some io ->
+                   IO.close io;
+                   to_migrate)
+             []
         |> List.iter (fun config -> Store.migrate config)
 
       let layer_id t store_handler =
@@ -547,7 +547,7 @@ struct
           {
             f =
               (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
-                 C.flip_upper x);
+                C.flip_upper x);
           }
         in
         Iterate.iter f t
@@ -569,10 +569,10 @@ struct
       let check ~kind ~offset ~length k =
         match kind with
         | `Contents ->
-          X.Contents.CA.integrity_check ~offset ~length ~layer k contents
+            X.Contents.CA.integrity_check ~offset ~length ~layer k contents
         | `Node -> X.Node.CA.integrity_check ~offset ~length ~layer k nodes
         | `Commit ->
-          X.Commit.CA.integrity_check ~offset ~length ~layer k commits
+            X.Commit.CA.integrity_check ~offset ~length ~layer k commits
       in
       Checks.integrity_check ?ppf ~auto_repair ~check index
     in
@@ -582,10 +582,9 @@ struct
       (`Lower, t.lower_index);
     ]
     |> List.map (fun (layer, index) ->
-        match index with
-        | Some index ->
-          (integrity_check_layer ~layer index), layer
-        | None -> (Ok `No_error), layer)
+           match index with
+           | Some index -> (integrity_check_layer ~layer index, layer)
+           | None -> (Ok `No_error, layer))
 
   include Irmin.Of_private (X)
 
@@ -622,8 +621,8 @@ struct
       pause () >>= fun () ->
       skip h >|= function
       | true ->
-        Irmin_layers.Stats.skip ();
-        true
+          Irmin_layers.Stats.skip ();
+          true
       | false -> false
 
     let no_skip _ = Lwt.return false
@@ -633,9 +632,9 @@ struct
       X.Node.CA.find n k >|= function
       | None -> []
       | Some v ->
-        List.rev_map
-          (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
-          (X.Node.CA.Val.pred v)
+          List.rev_map
+            (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
+            (X.Node.CA.Val.pred v)
 
     let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
         ?(skip_nodes = no_skip) ?(skip_contents = no_skip) t ?(min = []) max =
@@ -853,14 +852,14 @@ struct
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
     (if with_lower then
-       let min = if squash then max else min in
-       with_stats "copied in lower" (Copy.CopyToLower.copy t ~min max)
-     else Lwt.return_unit)
+     let min = if squash then max else min in
+     with_stats "copied in lower" (Copy.CopyToLower.copy t ~min max)
+    else Lwt.return_unit)
     >>= fun () ->
     (* Copy [min_upper, max] to next_upper *)
     (if copy_in_upper then
-       with_stats "copied in upper" (Copy.CopyToUpper.copy t ~min:min_upper max)
-     else Lwt.return_unit)
+     with_stats "copied in upper" (Copy.CopyToUpper.copy t ~min:min_upper max)
+    else Lwt.return_unit)
     >>= fun () ->
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
@@ -951,15 +950,15 @@ struct
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
       ?(min_upper = []) ?(recovery = false) ?hook t =
     (if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
-     else Lwt.return_unit)
+    else Lwt.return_unit)
     >>= fun () ->
     let freeze () =
       let id = freeze_counter () in
       let start_time = Mtime_clock.counter () in
       let upper =
         ( (match copy_in_upper with
-              | None -> get_copy_in_upper t.X.Repo.config
-              | Some b -> b),
+          | None -> get_copy_in_upper t.X.Repo.config
+          | Some b -> b),
           min_upper )
       in
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
@@ -1039,10 +1038,10 @@ module type S = sig
     auto_repair:bool ->
     repo ->
     (( [> `Fixed of int | `No_error ],
-       [> `Cannot_fix of string | `Corrupted of int ]
-     )
-       result * Irmin_layers.Layer_id.t)
-      list
+       [> `Cannot_fix of string | `Corrupted of int ] )
+     result
+    * Irmin_layers.Layer_id.t)
+    list
 end
 
 module Make

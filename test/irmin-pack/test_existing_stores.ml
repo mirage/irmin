@@ -23,8 +23,8 @@ let goto_project_root () =
   let cwd = Fpath.v (Sys.getcwd ()) in
   match cwd |> Fpath.segs |> List.rev with
   | "irmin-pack" :: "test" :: "default" :: "_build" :: _ ->
-    let root = cwd |> repeat 4 Fpath.parent in
-    Unix.chdir (Fpath.to_string root)
+      let root = cwd |> repeat 4 Fpath.parent in
+      Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
 let archive =
@@ -38,50 +38,50 @@ let exec_cmd cmd =
   match Sys.command cmd with
   | 0 -> ()
   | n ->
-    Fmt.failwith
-      "Failed to set up the test environment: command `%s' exited with \
-       non-zero exit code %d"
-      cmd n
+      Fmt.failwith
+        "Failed to set up the test environment: command `%s' exited with \
+         non-zero exit code %d"
+        cmd n
 
 module type Migrate_store = sig
   include
     Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
 
   val migrate : Irmin.config -> unit
 end
 
 module Test
     (S : Migrate_store) (Config : sig
-                           val setup_test_env : unit -> unit
+      val setup_test_env : unit -> unit
 
-                           val root_v1 : string
-                         end) =
+      val root_v1 : string
+    end) =
 struct
   let check_commit repo commit bindings =
     commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
     | None ->
-      Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash commit
+        Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash commit
     | Some commit ->
-      let tree = S.Commit.tree commit in
-      bindings
-      |> Lwt_list.iter_s (fun (key, value) ->
-          S.Tree.find tree key
-          >|= Alcotest.(check (option string))
-            (Fmt.strf "Expected binding [%a ↦ %s]"
-               Fmt.(Dump.list string)
-               key value)
-            (Some value))
+        let tree = S.Commit.tree commit in
+        bindings
+        |> Lwt_list.iter_s (fun (key, value) ->
+               S.Tree.find tree key
+               >|= Alcotest.(check (option string))
+                     (Fmt.strf "Expected binding [%a ↦ %s]"
+                        Fmt.(Dump.list string)
+                        key value)
+                     (Some value))
 
   let check_repo repo structure =
     structure
     |> Lwt_list.iter_s @@ fun (branch, bindings) ->
-    S.Branch.find repo branch >>= function
-    | None -> Alcotest.failf "Couldn't find expected branch `%s'" branch
-    | Some commit -> check_commit repo commit bindings
+       S.Branch.find repo branch >>= function
+       | None -> Alcotest.failf "Couldn't find expected branch `%s'" branch
+       | Some commit -> check_commit repo commit bindings
 
   let pair_map f (a, b) = (f a, f b)
 
@@ -145,10 +145,10 @@ module Config_store = struct
     match Sys.command cmd with
     | 0 -> ()
     | n ->
-      Fmt.failwith
-        "Failed to set up the test environment: command `%s' exited with \
-         non-zero exit code %d"
-        cmd n
+        Fmt.failwith
+          "Failed to set up the test environment: command `%s' exited with \
+           non-zero exit code %d"
+          cmd n
 end
 
 module Hash = Irmin.Hash.SHA1
@@ -199,10 +199,10 @@ module Test_reconstruct = struct
     match Sys.command cmd with
     | 0 -> ()
     | n ->
-      Fmt.failwith
-        "Failed to set up the test environment: command `%s' exited with \
-         non-zero exit code %d"
-        cmd n
+        Fmt.failwith
+          "Failed to set up the test environment: command `%s' exited with \
+           non-zero exit code %d"
+          cmd n
 
   let test_reconstruct () =
     setup_test_env ();
@@ -218,16 +218,16 @@ module Test_reconstruct = struct
     in
     Index.iter
       (fun k (offset, length, magic) ->
-         Log.debug (fun l ->
-             l "index find k = %a (off, len, magic) = (%Ld, %d, %c)"
-               (Irmin.Type.pp Hash.t) k offset length magic);
-         match Index.find index_new k with
-         | Some (offset', length', magic') ->
-           Alcotest.(check int64) "check offset" offset offset';
-           Alcotest.(check int) "check length" length length';
-           Alcotest.(check char) "check magic" magic magic'
-         | None ->
-           Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
+        Log.debug (fun l ->
+            l "index find k = %a (off, len, magic) = (%Ld, %d, %c)"
+              (Irmin.Type.pp Hash.t) k offset length magic);
+        match Index.find index_new k with
+        | Some (offset', length', magic') ->
+            Alcotest.(check int64) "check offset" offset offset';
+            Alcotest.(check int) "check length" length length';
+            Alcotest.(check char) "check magic" magic magic'
+        | None ->
+            Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
       index_old;
     Index.close index_old;
     Index.close index_new;
@@ -308,15 +308,15 @@ module Test_corrupted_stores = struct
     Log.app (fun l ->
         l "integrity check on a store where 3 entries are missing from pack");
     (match S.integrity_check ~auto_repair:false rw with
-     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
-     | Error (`Corrupted 3) -> ()
-     | _ -> Alcotest.fail "With auto_repair:false should not match");
+    | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
+    | Error (`Corrupted 3) -> ()
+    | _ -> Alcotest.fail "With auto_repair:false should not match");
     (match S.integrity_check ~auto_repair:true rw with
-     | Ok (`Fixed 3) -> ()
-     | _ -> Alcotest.fail "Integrity check should repair the store");
+    | Ok (`Fixed 3) -> ()
+    | _ -> Alcotest.fail "Integrity check should repair the store");
     (match S.integrity_check ~auto_repair:false rw with
-     | Ok `No_error -> ()
-     | _ -> Alcotest.fail "Store is repaired, should return Ok");
+    | Ok `No_error -> ()
+    | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
 
   let test_layered_store () =
@@ -329,18 +329,18 @@ module Test_corrupted_stores = struct
            the pack file of each layer");
     S.integrity_check ~auto_repair:false rw
     |> List.iter (function
-        | Ok `No_error, _ ->
-          Alcotest.fail "Store is corrupted, the check should fail"
-        | Error (`Corrupted 3), _ -> ()
-        | _ -> Alcotest.fail "With auto_repair:false should not match");
+         | Ok `No_error, _ ->
+             Alcotest.fail "Store is corrupted, the check should fail"
+         | Error (`Corrupted 3), _ -> ()
+         | _ -> Alcotest.fail "With auto_repair:false should not match");
     S.integrity_check ~auto_repair:true rw
     |> List.iter (function
-        | Ok (`Fixed 3), _ -> ()
-        | _ -> Alcotest.fail "Integrity check should repair the store");
+         | Ok (`Fixed 3), _ -> ()
+         | _ -> Alcotest.fail "Integrity check should repair the store");
     S.integrity_check ~auto_repair:false rw
     |> List.iter (function
-        | Ok `No_error, _ -> ()
-        | _ -> Alcotest.fail "Store is repaired, should return Ok");
+         | Ok `No_error, _ -> ()
+         | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
 
   let empty_store, root, lock_file =
@@ -367,16 +367,16 @@ module Test_corrupted_stores = struct
     let check_commit repo commit k v =
       commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
       | None ->
-        Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
-          commit
+          Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
+            commit
       | Some commit ->
-        let tree = S.Commit.tree commit in
-        S.Tree.find tree k
-        >|= Alcotest.(check (option string))
-          (Fmt.strf "Expected binding [%a ↦ %s]"
-             Fmt.(Dump.list string)
-             k v)
-          (Some v)
+          let tree = S.Commit.tree commit in
+          S.Tree.find tree k
+          >|= Alcotest.(check (option string))
+                (Fmt.strf "Expected binding [%a ↦ %s]"
+                   Fmt.(Dump.list string)
+                   k v)
+                (Some v)
     in
     let check_upper repo msg exp =
       let got = S.PrivateLayer.upper_in_use repo in
