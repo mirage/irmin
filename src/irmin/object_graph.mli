@@ -48,6 +48,7 @@ module type S = sig
       {b Note:} Both [min] and [max] are subsets of [n]. *)
 
   val iter :
+    ?cache_size:int ->
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
     min:vertex list ->
@@ -69,7 +70,11 @@ module type S = sig
       If [rev] is true (the default) then the graph is traversed in the reverse
       order: [node n] is applied only after it was applied on all its
       predecessors; [edge n p] is applied after [node n]. Note that [edge n p]
-      is applied even if [p] is skipped. *)
+      is applied even if [p] is skipped.
+
+      [cache_size] is the size of the LRU cache used to store nodes already
+      seen. If [None] (by default) every traversed nodes is stored (and thus no
+      entries are never removed from the LRU). *)
 
   val output :
     Format.formatter ->

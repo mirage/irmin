@@ -52,6 +52,7 @@ module type S = sig
     t Lwt.t
 
   val iter :
+    ?cache_size:int ->
     ?depth:int ->
     pred:(vertex -> vertex list Lwt.t) ->
     min:vertex list ->
@@ -113,7 +114,31 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
   module G = Graph.Imperative.Digraph.ConcreteBidirectional (X)
   module GO = Graph.Oper.I (G)
   module Topological = Graph.Topological.Make (G)
-  module Table = Hashtbl.Make (X)
+
+  module Table : sig
+    type t
+
+    val create : int option -> t
+
+    val add : t -> X.t -> int -> unit
+
+    val mem : t -> X.t -> bool
+  end = struct
+    module Lru = Lru.Make (X)
+    module Tbl = Hashtbl.Make (X)
+
+    type t = L of int Lru.t | T of int Tbl.t
+
+    let create = function
+      | None -> T (Tbl.create 1024)
+      | Some n -> L (Lru.create n)
+
+    let add t k v = match t with L t -> Lru.add t k v | T t -> Tbl.add t k v
+
+    let mem t k = match t with L t -> Lru.mem t k | T t -> Tbl.mem t k
+  end
+
+  module Set = Set.Make (X)
   include G
   include GO
 
@@ -133,13 +158,17 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
 
   let pp_depth ppf d = if d <> max_int then Fmt.pf ppf "depth=%d,@ " d
 
-  let iter ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip ~rev () =
+  type action = Visit of (X.t * int) | Treat of X.t
+
+  let iter ?cache_size ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip ~rev
+      () =
     Log.debug (fun f ->
-        f "@[<2>iter:@ %arev=%b,@ min=%a,@ max=%a@]" pp_depth depth rev
-          pp_vertices min pp_vertices max);
-    let marks = Table.create 1024 in
+        f "@[<2>iter:@ %arev=%b,@ min=%a,@ max=%a@, cache=%a@]" pp_depth depth
+          rev pp_vertices min pp_vertices max
+          Fmt.(Dump.option int)
+          cache_size);
+    let marks = Table.create cache_size in
     let mark key level = Table.add marks key level in
-    let has_mark key = Table.mem marks key in
     let todo = Stack.create () in
     (* if a branch is in [min], add the commit it is pointing to too. *)
     Lwt_list.fold_left_s
@@ -148,11 +177,13 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
         | x -> Lwt.return (x :: acc))
       [] min
     >>= fun min ->
-    List.iter (fun k -> Stack.push (k, 0) todo) max;
+    let min = Set.of_list min in
+    let has_mark key = Table.mem marks key in
+    List.iter (fun k -> Stack.push (Visit (k, 0)) todo) max;
     let treat key =
       Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
       node key >>= fun () ->
-      if not (List.mem key min) then
+      if not (Set.mem key min) then
         (* the edge function is optional to prevent an unnecessary computation
            of the preds .*)
         match edge with
@@ -161,46 +192,42 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
             pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
       else Lwt.return_unit
     in
-    let rec pop key level =
-      ignore (Stack.pop todo);
-      mark key level;
-      visit ()
-    and visit () =
-      match Stack.top todo with
-      | exception Stack.Empty -> Lwt.return_unit
-      | key, level -> (
-          if level >= depth then pop key level
-          else if has_mark key then (
-            (if rev then treat key else Lwt.return_unit) >>= fun () ->
-            ignore (Stack.pop todo);
-            visit ())
-          else
-            skip key >>= function
-            | true -> pop key level
-            | false -> (
-                Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-                (if not rev then treat key else Lwt.return_unit) >>= fun () ->
-                mark key level;
-                let push_pred ~filter_history () =
-                  pred key >>= fun keys ->
-                  (*if a commit is in [min] cut the history but still visit
-                     its nodes. *)
-                  List.iter
-                    (function
-                      | `Commit _ when filter_history -> ()
-                      | k ->
-                          if not (has_mark k) then
-                            Stack.push (k, level + 1) todo)
-                    keys;
-                  visit ()
-                in
-                match key with
-                | `Commit _ -> push_pred ~filter_history:(List.mem key min) ()
-                | _ ->
-                    if List.mem key min then visit ()
-                    else push_pred ~filter_history:false ()))
+    let visit_predecessors ~filter_history key level =
+      pred key >|= fun keys ->
+      (*if a commit is in [min] cut the history but still visit
+        its nodes. *)
+      List.iter
+        (function
+          | `Commit _ when filter_history -> ()
+          | k -> Stack.push (Visit (k, level + 1)) todo)
+        keys
     in
-    visit ()
+    let visit key level =
+      if level >= depth then Lwt.return_unit
+      else if has_mark key then Lwt.return_unit
+      else
+        skip key >>= function
+        | true -> Lwt.return_unit
+        | false ->
+            (Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
+             mark key level;
+             if rev then Stack.push (Treat key) todo;
+             match key with
+             | `Commit _ ->
+                 visit_predecessors ~filter_history:(Set.mem key min) key level
+             | _ ->
+                 if Set.mem key min then Lwt.return_unit
+                 else visit_predecessors ~filter_history:false key level)
+            >|= fun () -> if not rev then Stack.push (Treat key) todo
+    in
+
+    let rec pop () =
+      match Stack.pop todo with
+      | exception Stack.Empty -> Lwt.return_unit
+      | Treat key -> treat key >>= pop
+      | Visit (key, level) -> visit key level >>= pop
+    in
+    pop ()
 
   let closure ?(depth = max_int) ~pred ~min ~max () =
     let g = G.create ~size:1024 () in

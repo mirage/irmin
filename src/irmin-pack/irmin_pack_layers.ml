@@ -28,6 +28,8 @@ exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
 exception Unsupported_version = Store.Unsupported_version
 
+let cache_size = 10_000
+
 module I = IO
 module IO = IO.Unix
 open Lwt.Infix
@@ -656,8 +658,8 @@ struct
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in
       let skip_commit h = skip_with_stats ~skip:skip_commits h in
-      Repo.iter t ~min ~max ~commit ~node ~contents ~skip_node ~skip_contents
-        ~pred_node ~skip_commit ()
+      Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
+        ~skip_contents ~pred_node ~skip_commit t
       >|= fun () -> X.Repo.flush t
 
     module CopyToLower = struct
@@ -804,8 +806,8 @@ struct
         let skip_commit h = skip_with_stats ~skip:skip_commits h in
         let max = List.map (fun c -> `Commit c) cs in
         let min = List.map (fun c -> `Commit c) min in
-        Repo.iter t ~min ~max ~commit ~node ~contents ~skip_node ~skip_contents
-          ~pred_node ~skip_commit ()
+        Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
+          ~skip_contents ~pred_node ~skip_commit t
         >|= fun () -> X.Repo.flush t
 
       let on_current_upper t f =
@@ -999,7 +1001,8 @@ struct
     (match heads with None -> Repo.heads t | Some m -> Lwt.return m)
     >>= fun heads ->
     let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
-    Repo.iter t ~min:[] ~max:hashes ~commit ~node ~contents () >|= fun () ->
+    Repo.iter ~cache_size ~min:[] ~max:hashes ~commit ~node ~contents t
+    >|= fun () ->
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
     if !errors = 0 then
       Fmt.kstrf
