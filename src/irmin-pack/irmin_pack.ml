@@ -15,17 +15,15 @@
  *)
 
 include Ext
-module Pack = Pack
-module Atomic_write = Store.Atomic_write
+include Config
 
 let config = Config.v
 
+module Pack = Pack
+module Atomic_write = Store.Atomic_write
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-
-type throttle = [ `Overcommit_memory | `Block_writes ] [@@deriving irmin]
-
 module Make_ext = Ext.Make
 
 module Make
@@ -54,3 +52,5 @@ end
 module Layered = Irmin_pack_layers
 
 let config_layers = Irmin_pack_layers.config_layers
+
+module Config = Config

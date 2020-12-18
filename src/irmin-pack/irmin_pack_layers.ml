@@ -30,6 +30,8 @@ exception Unsupported_version = Store.Unsupported_version
 
 let cache_size = 10_000
 
+exception Cancelled
+
 module I = IO
 module IO = IO.Unix
 open Lwt.Infix
@@ -111,7 +113,7 @@ let lock_path config =
   Filename.concat root "lock"
 
 module Make_ext
-    (Config : Config.S)
+    (Inode_config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -182,7 +184,7 @@ struct
 
     module Node = struct
       module Pa = Layered_store.Pack_Maker (H) (Index) (Pack)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
+      module CA = Inode_layers.Make (Inode_config) (H) (Pa) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -250,12 +252,10 @@ struct
         lindex : Index.t;
       }
 
-      type freeze_throttle = [ `Overcommit_memory | `Block_writes ]
-
       type freeze_info = {
-        throttle : freeze_throttle;
+        throttle : Config.freeze_throttle;
         lock : Lwt_mutex.t;
-        mutable state : [ `None | `Running ];
+        mutable state : [ `None | `Running | `Cancel ];
       }
 
       type t = {
@@ -332,7 +332,7 @@ struct
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
         let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.index_throttle config in
+        let throttle = Pack_config.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -353,7 +353,7 @@ struct
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
         let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.index_throttle config in
+        let throttle = Pack_config.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -638,20 +638,28 @@ struct
             (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
             (X.Node.CA.Val.pred v)
 
+    let always_false _ = false
+
+    let with_cancel cancel f = if cancel () then Lwt.fail Cancelled else f ()
+
     let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
-        ?(skip_nodes = no_skip) ?(skip_contents = no_skip) t ?(min = []) max =
+        ?(cancel = always_false) ?(skip_nodes = no_skip)
+        ?(skip_contents = no_skip) t ?(min = []) max =
       (* if node or contents are already in dst then they are skipped by
          Graph.iter; there is no need to check this again when the object is
          copied *)
       let commit k =
+        with_cancel cancel @@ fun () ->
         X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
         Lwt.pause ()
       in
       let node k =
+        with_cancel cancel @@ fun () ->
         X.Node.CA.copy nodes t.X.Repo.node k;
         Lwt.return_unit
       in
       let contents k =
+        with_cancel cancel @@ fun () ->
         X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
         Lwt.return_unit
       in
@@ -671,14 +679,14 @@ struct
         let commits = (X.Commit.CA.Lower, X.Commit.CA.lower t.X.Repo.commit) in
         f (contents, nodes, commits)
 
-      let copy ?(min = []) t commits =
+      let copy ?cancel ?(min = []) t commits =
         Log.debug (fun f ->
             f "@[<2>copy to lower:@ min=%a,@ max=%a@]" pp_commits min pp_commits
               commits);
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
         let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_lower t (fun l ->
-            iter_copy l ~skip_commits:(mem_commit_lower t)
+            iter_copy ?cancel l ~skip_commits:(mem_commit_lower t)
               ~skip_nodes:(mem_node_lower t)
               ~skip_contents:(mem_contents_lower t) t ~min max)
     end
@@ -694,7 +702,7 @@ struct
         in
         f (contents, nodes, commits)
 
-      let copy ?(min = []) t commits =
+      let copy ?cancel ?(min = []) t commits =
         Log.debug (fun f ->
             f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
               pp_commits commits);
@@ -707,7 +715,7 @@ struct
           | min -> min
         in
         on_next_upper t (fun u ->
-            iter_copy u ~skip_commits:(mem_commit_next t)
+            iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
               ~min t max)
 
@@ -718,7 +726,7 @@ struct
           nodes (or contents) not yet attached to a commit (or a node resp.), so
           we have to iter over the graph of commits, iter over the graph of
           nodes, and lastly iter over contents. *)
-      let copy_newies_aux ~with_lock t =
+      let copy_newies_aux ?cancel ~with_lock t =
         let newies_commits =
           if with_lock then
             X.Commit.CA.unsafe_consume_newies t.X.Repo.commit
@@ -765,7 +773,7 @@ struct
         (* FIXME(samoht): do we need to traverse the newies
            recursively if we don't need self-contained uppers. *)
         on_next_upper t (fun u ->
-            iter_copy u ~skip_commits ~skip_nodes:(mem_node_next t)
+            iter_copy u ?cancel ~skip_commits ~skip_nodes:(mem_node_next t)
               ~skip_contents:(mem_contents_next t) t newies)
         >>= fun () ->
         if with_lock then X.Branch.copy_last_newies_to_next_upper t.branch
@@ -789,15 +797,21 @@ struct
     module CopyFromLower = struct
       (* FIXME(samoht): copy/paste from iter_copy with s/copy/copy_from_lower *)
       let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
-          ?(skip_nodes = no_skip) ?(skip_contents = no_skip) t ?(min = []) cs =
+          ?(cancel = always_false) ?(skip_nodes = no_skip)
+          ?(skip_contents = no_skip) t ?(min = []) cs =
         (* if node or contents are already in dst then they are skipped by
            Graph.iter; there is no need to check this again when the object is
            copied *)
         let commit k =
+          with_cancel cancel @@ fun () ->
           X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
         in
-        let node k = X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k in
+        let node k =
+          with_cancel cancel @@ fun () ->
+          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+        in
         let contents k =
+          with_cancel cancel @@ fun () ->
           X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
             "Contents" k
         in
@@ -850,17 +864,18 @@ struct
 
   let with_stats msg f = f >|= fun () -> dump_stats msg
 
-  let copy ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
+  let copy ?cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     let with_lower = with_lower t.X.Repo.config in
     (if with_lower then
      let min = if squash then max else min in
-     with_stats "copied in lower" (Copy.CopyToLower.copy t ~min max)
+     with_stats "copied in lower" (Copy.CopyToLower.copy ?cancel t ~min max)
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy [min_upper, max] to next_upper *)
     (if copy_in_upper then
-     with_stats "copied in upper" (Copy.CopyToUpper.copy t ~min:min_upper max)
+     with_stats "copied in upper"
+       (Copy.CopyToUpper.copy t ?cancel ~min:min_upper max)
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy branches to both lower and next_upper *)
@@ -879,6 +894,9 @@ struct
     let bool k v = if not v then E else F (Fmt.bool, k, v)
 
     let int k v = F (Fmt.int, k, v)
+
+    let span k v =
+      if Mtime.Span.equal v Mtime.Span.zero then E else F (Mtime.Span.pp, k, v)
 
     let upper k = function false, _ | true, [] -> E | _, v -> commits k v
   end
@@ -899,9 +917,10 @@ struct
     (* we take a lock here to signal that a freeze was in progess in
        case of crash, to trigger the recovery path. *)
     Lock.v lock_file >>= fun lock_file ->
+    let cancel () = t.freeze.state = `Cancel in
     let copy () =
       may (fun f -> f `Before_Copy) hook >>= fun () ->
-      copy ~min ~max ~squash ~upper t >>= fun () ->
+      copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
@@ -920,22 +939,31 @@ struct
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >|= fun () -> waiting_add
     in
-    let finalize waiting_freeze waiting_add =
+    let finalize cancelled waiting_freeze waiting_add =
       t.freeze.state <- `None;
+      (if cancelled then X.Repo.clear_previous_upper ~keep_generation:() t
+      else Lwt.return_unit)
+      >>= fun () ->
       Lock.close lock_file >>= fun () ->
       Lwt_mutex.unlock t.freeze.lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
       let duration = Mtime_clock.count start_time in
       Log.info (fun l ->
-          l
-            "freeze ends   { id=%d; total-duration=%a; freeze-lock=%a; \
-             add-lock=%a }"
-            id Mtime.Span.pp duration Mtime.Span.pp waiting_freeze Mtime.Span.pp
-            waiting_add)
+          l "freeze %-6s { %a }"
+            (if cancelled then "cancelled" else "ends")
+            Field.pps
+            [
+              Field.int "id" id;
+              Field.span "total-duration" duration;
+              Field.span "freeze-lock" waiting_freeze;
+              Field.span "add-lock" waiting_add;
+            ])
     in
     let async () =
       let waiting_freeze = Mtime_clock.count start_time in
-      copy () >>= fun waiting_add -> finalize waiting_freeze waiting_add
+      Lwt.try_bind copy (finalize false waiting_freeze) (function
+        | Cancelled -> finalize true waiting_freeze Mtime.Span.zero
+        | e -> Lwt.fail e)
     in
     Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
     Lwt.return_unit
@@ -974,6 +1002,9 @@ struct
     else
       match (t.freeze.state, t.freeze.throttle) with
       | `Running, `Overcommit_memory -> Lwt.return ()
+      | `Running, `Cancel_existing ->
+          t.freeze.state <- `Cancel;
+          freeze ()
       | _ -> freeze ()
 
   let layer_id = X.Repo.layer_id

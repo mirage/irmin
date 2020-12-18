@@ -14,15 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type throttle = [ `Overcommit_memory | `Block_writes ] [@@deriving irmin]
+module Pack = Pack
+module Dict = Pack_dict
+module Index = Pack_index
+module Config = Config
 
 val config :
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
-  ?index_throttle:throttle ->
-  ?freeze_throttle:throttle ->
+  ?merge_throttle:Config.merge_throttle ->
+  ?freeze_throttle:Config.freeze_throttle ->
   string ->
   Irmin.config
 (** Configuration options for stores.
@@ -35,10 +38,6 @@ val config :
     an async [Index.merge] in already in progress. [Block_writes] (the default)
     blocks any new writes until the merge is completed. [Overcommit_memory] does
     not block but indefinitely expands the in-memory cache. *)
-
-module Pack = Pack
-module Dict = Pack_dict
-module Index = Pack_index
 
 exception RO_Not_Allowed
 
