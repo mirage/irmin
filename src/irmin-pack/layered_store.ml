@@ -58,7 +58,7 @@ let pp_during_freeze ppf = function
   | true -> Fmt.string ppf " during freeze"
   | false -> ()
 
-let pp_layer_id = Irmin.Type.pp Irmin_layers.Layer_id.t
+let pp_layer_id = Irmin_layers.Layer_id.pp
 
 let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
 

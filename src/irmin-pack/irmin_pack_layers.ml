@@ -78,7 +78,7 @@ let copy_in_upper_key =
   Conf.key ~doc:"Copy the max commits in upper after a freeze." "copy_in_upper"
     Conf.bool false
 
-let get_copy_in_upper conf = Conf.get conf copy_in_upper_key
+let copy_in_upper conf = Conf.get conf copy_in_upper_key
 
 let with_lower_key =
   Conf.key ~doc:"Use a lower layer." "with-lower" Conf.bool Default.with_lower
@@ -108,9 +108,7 @@ let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 
-let lock_path config =
-  let root = Pack_config.root config in
-  Filename.concat root "lock"
+let lock_path root = Filename.concat root "lock"
 
 module Make_ext
     (Inode_config : Config.S)
@@ -259,7 +257,11 @@ struct
       }
 
       type t = {
-        config : Irmin.Private.Conf.t;
+        root : string;
+        readonly : bool;
+        blocking_copy_size : int;
+        with_lower : bool;
+        copy_in_upper : bool;
         contents : [ `Read ] Contents.CA.t;
         node : [ `Read ] Node.CA.t;
         branch : Branch.t;
@@ -402,7 +404,7 @@ struct
         (* A fresh store has to unlink the lock file as well. *)
         let fresh = Pack_config.fresh config in
         let freeze = freeze_info (Pack_config.freeze_throttle config) in
-        let lock_file = lock_path config in
+        let lock_file = lock_path root in
         let freeze_in_progress () = freeze.state = `Running in
         let always_false () = false in
         let batch_lock = Lwt_mutex.create () in
@@ -430,12 +432,19 @@ struct
             ~freeze_in_progress
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
+        let readonly = Pack_config.readonly config in
+        let copy_in_upper = copy_in_upper config in
+        let blocking_copy_size = blocking_copy_size config in
         {
           contents;
           node;
           commit;
           branch;
-          config;
+          root;
+          readonly;
+          with_lower;
+          blocking_copy_size;
+          copy_in_upper;
           lower_index;
           uppers_index = (upper1.index, upper0.index);
           flip;
@@ -746,7 +755,7 @@ struct
       (** If there are too many newies (more than newies_limit bytes added) then
           copy them concurrently. *)
       let rec copy_newies_to_next_upper t former_offset =
-        let newies_limit = blocking_copy_size t.X.Repo.config |> Int64.of_int in
+        let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then
           copy_newies t >>= fun () ->
@@ -826,8 +835,7 @@ struct
 
   let copy ?cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
     (* Copy commits to lower: if squash then copy only the max commits *)
-    let with_lower = with_lower t.X.Repo.config in
-    (if with_lower then
+    (if t.X.Repo.with_lower then
      let min = if squash then max else min in
      with_stats "copied in lower" (Copy.CopyToLower.copy ?cancel t ~min max)
     else Lwt.return_unit)
@@ -861,9 +869,12 @@ struct
     let upper k = function false, _ | true, [] -> E | _, v -> commits k v
   end
 
+  let pp_repo ppf t =
+    Fmt.pf ppf "%a" Layered_store.pp_current_upper t.X.Repo.flip
+
   let unsafe_freeze ~min ~max ~squash ~upper ?hook ~id ~start_time t =
     Log.info (fun l ->
-        l "freeze starts { %a }" Field.pps
+        l "[%a] freeze starts { %a }" pp_repo t Field.pps
           [
             Field.int "id" id;
             Field.commits "min" min;
@@ -873,7 +884,7 @@ struct
           ]);
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
-    let lock_file = lock_path t.X.Repo.config in
+    let lock_file = lock_path t.root in
     (* we take a lock here to signal that a freeze was in progess in
        case of crash, to trigger the recovery path. *)
     Lock.v lock_file >>= fun lock_file ->
@@ -912,7 +923,7 @@ struct
       may (fun f -> f `After_Clear) hook >|= fun () ->
       let duration = Mtime_clock.count start_time in
       Log.info (fun l ->
-          l "freeze %-6s { %a }"
+          l "[%a] freeze %-6s { %a }" pp_repo t
             (if cancelled then "cancelled" else "ends")
             Field.pps
             [
@@ -949,9 +960,7 @@ struct
       let id = freeze_counter () in
       let start_time = Mtime_clock.counter () in
       let upper =
-        ( (match copy_in_upper with
-          | None -> get_copy_in_upper t.X.Repo.config
-          | Some b -> b),
+        ( (match copy_in_upper with None -> t.copy_in_upper | Some b -> b),
           min_upper )
       in
       Irmin_layers.Stats.with_timer `Waiting (fun () ->
@@ -961,7 +970,7 @@ struct
       unsafe_freeze ~min ~max ~squash ~upper ?hook ~start_time ~id t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
-    else if Pack_config.readonly t.X.Repo.config then raise RO_Not_Allowed
+    else if t.readonly then raise RO_Not_Allowed
     else
       match (t.freeze.state, t.freeze.throttle) with
       | `Running, `Overcommit_memory -> Lwt.return ()
@@ -980,7 +989,7 @@ struct
 
   let self_contained = Copy.CopyFromLower.self_contained
 
-  let needs_recovery t = lock_path t.X.Repo.config |> Lock.test
+  let needs_recovery t = Lock.test (lock_path t.X.Repo.root)
 
   let check_self_contained ?heads t =
     Log.debug (fun l -> l "Check that the upper layer is self contained");

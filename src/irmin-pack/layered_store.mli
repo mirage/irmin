@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+val pp_current_upper : bool Fmt.t
+
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Pack_index.S)
