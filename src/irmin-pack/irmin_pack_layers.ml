@@ -269,7 +269,7 @@ struct
         mutable flip : bool;
         mutable closed : bool;
         flip_file : IO_layers.t;
-        add_lock : Lwt_mutex.t;
+        batch_lock : Lwt_mutex.t;
         freeze : freeze_info;
       }
 
@@ -319,6 +319,7 @@ struct
       end
 
       let batch t f =
+        Lwt_mutex.with_lock t.batch_lock @@ fun () ->
         Contents.CA.batch t.contents (fun contents ->
             Node.CA.batch t.node (fun node ->
                 Commit.CA.batch t.commit (fun commit ->
@@ -403,29 +404,30 @@ struct
         let freeze = freeze_info (Pack_config.freeze_throttle config) in
         let lock_file = lock_path config in
         let freeze_in_progress () = freeze.state = `Running in
-        let add_lock = Lwt_mutex.create () in
+        let always_false () = false in
+        let batch_lock = Lwt_mutex.create () in
         (if fresh && Lock.test lock_file then Lock.unlink lock_file
         else Lwt.return_unit)
         >|= fun () ->
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
           Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
-            ~freeze_in_progress ~add_lock
+            ~freeze_in_progress:always_false
         in
         let lower_node = Option.map (fun x -> x.lnode) lower in
         let node =
-          Node.CA.v upper1.node upper0.node lower_node ~flip ~freeze_in_progress
-            ~add_lock
+          Node.CA.v upper1.node upper0.node lower_node ~flip
+            ~freeze_in_progress:always_false
         in
         let lower_commit = Option.map (fun x -> x.lcommit) lower in
         let commit =
           Commit.CA.v upper1.commit upper0.commit lower_commit ~flip
-            ~freeze_in_progress ~add_lock
+            ~freeze_in_progress
         in
         let lower_branch = Option.map (fun x -> x.lbranch) lower in
         let branch =
           Branch.v upper1.branch upper0.branch lower_branch ~flip
-            ~freeze_in_progress ~add_lock
+            ~freeze_in_progress
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
         {
@@ -440,7 +442,7 @@ struct
           closed = false;
           flip_file;
           freeze;
-          add_lock;
+          batch_lock;
         }
 
       let unsafe_close t =
@@ -722,46 +724,12 @@ struct
       (** Newies are the objects added in current upper during the freeze. They
           are copied to the next upper before the freeze ends. When copying the
           newies we have to traverse them as well, to ensure that all objects
-          used by a newies are also copied in the next upper. Newies can be
-          nodes (or contents) not yet attached to a commit (or a node resp.), so
-          we have to iter over the graph of commits, iter over the graph of
-          nodes, and lastly iter over contents. *)
-      let copy_newies_aux ?cancel ~with_lock t =
-        let newies_commits =
-          if with_lock then
-            X.Commit.CA.unsafe_consume_newies t.X.Repo.commit
-            |> List.rev
-            |> Lwt.return
-          else X.Commit.CA.consume_newies t.X.Repo.commit >|= List.rev
-        in
-        let newies_nodes =
-          if with_lock then
-            X.Node.CA.unsafe_consume_newies t.X.Repo.node
-            |> List.rev
-            |> Lwt.return
-          else X.Node.CA.consume_newies t.X.Repo.node >|= List.rev
-        in
-        let newies_contents =
-          if with_lock then
-            X.Contents.CA.unsafe_consume_newies t.X.Repo.contents
-            |> List.rev
-            |> Lwt.return
-          else X.Contents.CA.consume_newies t.X.Repo.contents >|= List.rev
-        in
-        newies_commits >>= fun newies_commits ->
-        newies_nodes >>= fun newies_nodes ->
-        newies_contents >>= fun newies_contents ->
-        let newies_commits = List.rev_map (fun x -> `Commit x) newies_commits in
-        let newies_nodes = List.rev_map (fun x -> `Node x) newies_nodes in
-        let newies_contents =
-          List.rev_map (fun x -> `Contents x) newies_contents
-        in
-        let newies =
-          (* mewies_node can grow very large so do not traverse it (it
-             should always be the 2nd argument of rev_append) *)
-          List.rev_append newies_commits
-            (List.rev_append newies_contents newies_nodes)
-        in
+          used by a newies are also copied in the next upper. We only keep track
+          of commit newies and rely on `Repo.iter` to compute the transitive
+          closures of all the newies. *)
+      let copy_newies ?cancel t =
+        let newies = X.Commit.CA.consume_newies t.X.Repo.commit in
+        let newies = List.rev_map (fun x -> `Commit x) newies in
         Log.debug (fun l -> l "copy newies");
         (* we want to copy all the new commits; stop whenever one
            commmit already in the other upper or in lower. *)
@@ -770,14 +738,10 @@ struct
           | true -> Lwt.return true
           | false -> mem_commit_lower t k
         in
-        (* FIXME(samoht): do we need to traverse the newies
-           recursively if we don't need self-contained uppers. *)
         on_next_upper t (fun u ->
             iter_copy u ?cancel ~skip_commits ~skip_nodes:(mem_node_next t)
               ~skip_contents:(mem_contents_next t) t newies)
-        >>= fun () ->
-        if with_lock then X.Branch.copy_last_newies_to_next_upper t.branch
-        else X.Branch.copy_newies_to_next_upper t.branch
+        >>= fun () -> X.Branch.copy_newies_to_next_upper t.branch
 
       (** If there are too many newies (more than newies_limit bytes added) then
           copy them concurrently. *)
@@ -785,13 +749,9 @@ struct
         let newies_limit = blocking_copy_size t.X.Repo.config |> Int64.of_int in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then
-          copy_newies_aux ~with_lock:false t >>= fun () ->
+          copy_newies t >>= fun () ->
           (copy_newies_to_next_upper t offset [@tail])
         else Lwt.return_unit
-
-      (** If there are only a few newies left (less than newies_limit bytes
-          added) then copy them inside a lock. *)
-      let copy_last_newies_to_next_upper t = copy_newies_aux ~with_lock:true t
     end
 
     module CopyFromLower = struct
@@ -926,9 +886,12 @@ struct
       Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       let before_add_lock = Mtime_clock.count start_time in
-      Lwt_mutex.with_lock t.add_lock (fun () ->
+      (* At this point there are only a few newies left (less than
+         [newies_limit] bytes) so it's fine to take the batch lock to
+         copy them. *)
+      Lwt_mutex.with_lock t.batch_lock (fun () ->
           let after_add_lock = Mtime_clock.count start_time in
-          Copy.CopyToUpper.copy_last_newies_to_next_upper t >>= fun () ->
+          Copy.CopyToUpper.copy_newies t >>= fun () ->
           may (fun f -> f `Before_Flip) hook >>= fun () ->
           X.Repo.flip_upper t;
           may (fun f -> f `Before_Clear) hook >>= fun () ->

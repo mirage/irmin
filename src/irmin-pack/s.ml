@@ -70,7 +70,6 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
     L.t option ->
     flip:bool ->
     freeze_in_progress:(unit -> bool) ->
-    add_lock:Lwt_mutex.t ->
     t
 
   val copy :
@@ -86,6 +85,4 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
   val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
 
   val copy_newies_to_next_upper : t -> unit Lwt.t
-
-  val copy_last_newies_to_next_upper : t -> unit Lwt.t
 end

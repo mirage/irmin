@@ -93,7 +93,8 @@ struct
 
   let save t v =
     let add k v =
-      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v;
+      Lwt.return_unit
     in
     Inode.Val.save_lwt ~add ~mem:(Inode.unsafe_mem t) v
 
@@ -121,8 +122,6 @@ struct
   let next_upper = Inode.next_upper
 
   let current_upper = Inode.current_upper
-
-  let unsafe_consume_newies = Inode.unsafe_consume_newies
 
   let consume_newies = Inode.consume_newies
 
