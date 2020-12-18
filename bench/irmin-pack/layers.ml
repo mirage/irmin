@@ -32,7 +32,8 @@ type config = {
   clear : bool;
   no_freeze : bool;
   show_stats : bool;
-  freeze_throttle : Irmin_pack.throttle;
+  merge_throttle : Irmin_pack.Config.merge_throttle;
+  freeze_throttle : Irmin_pack.Config.freeze_throttle;
 }
 [@@deriving repr]
 
@@ -94,9 +95,10 @@ module FSHelper = struct
       (size upper1) (size upper0) (size lower)
 end
 
-let configure_store root freeze_throttle =
+let configure_store root merge_throttle freeze_throttle =
   let conf =
-    Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle root
+    Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
+      ~merge_throttle root
   in
   Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
     ~copy_in_upper:true ()
@@ -250,7 +252,9 @@ let run_cycles config repo head =
   run_one_cycle head 0
 
 let rw config =
-  let conf = configure_store config.root config.freeze_throttle in
+  let conf =
+    configure_store config.root config.merge_throttle config.freeze_throttle
+  in
   Store.Repo.v conf
 
 let close config repo =
@@ -288,7 +292,7 @@ let get_json_str total_time time_per_commit commits_per_sec =
   Yojson.Safe.to_string obj
 
 let main () ncommits ncycles depth clear no_freeze show_stats json
-    freeze_throttle =
+    merge_throttle freeze_throttle =
   let config =
     {
       ncommits;
@@ -298,6 +302,7 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
       clear;
       no_freeze;
       show_stats;
+      merge_throttle;
       freeze_throttle;
     }
   in
@@ -353,24 +358,22 @@ let json =
   let doc = Arg.info ~doc:"Json output on command line." [ "j"; "json" ] in
   Arg.(value @@ flag doc)
 
-let throttle_converter =
-  let parse = function
-    | "block-writes" -> Ok `Block_writes
-    | "overcommit-memory" -> Ok `Overcommit_memory
-    | s ->
-        Fmt.error_msg
-          "invalid %s, expected one of: `block-writes' or `overcommit-memory'" s
+let merge_throttle =
+  [ ("block-writes", `Block_writes); ("overcommit-memory", `Overcommit_memory) ]
+
+let freeze_throttle = ("cancel-existing", `Cancel_existing) :: merge_throttle
+
+let merge_throttle =
+  let doc =
+    Arg.info ~doc:(Arg.doc_alts_enum merge_throttle) [ "merge-throttle" ]
   in
-  let print =
-    Fmt.of_to_string (function
-      | `Block_writes -> "block-writes"
-      | `Overcommit_memory -> "overcommit-memory")
-  in
-  Cmdliner.Arg.conv (parse, print)
+  Arg.(value @@ opt (Arg.enum merge_throttle) `Block_writes doc)
 
 let freeze_throttle =
-  let doc = Arg.info ~doc:"Freeze throttle" [ "freeze-throttle" ] in
-  Arg.(value @@ opt throttle_converter `Block_writes doc)
+  let doc =
+    Arg.info ~doc:(Arg.doc_alts_enum freeze_throttle) [ "freeze-throttle" ]
+  in
+  Arg.(value @@ opt (Arg.enum freeze_throttle) `Block_writes doc)
 
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
@@ -392,6 +395,7 @@ let main_term =
     $ no_freeze
     $ stats
     $ json
+    $ merge_throttle
     $ freeze_throttle)
 
 let () =

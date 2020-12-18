@@ -181,7 +181,7 @@ struct
         let lru_size = Pack_config.lru_size config in
         let readonly = Pack_config.readonly config in
         let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.index_throttle config in
+        let throttle = Pack_config.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v

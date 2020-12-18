@@ -13,7 +13,7 @@ module Default = struct
 
   let readonly = false
 
-  let index_throttle = `Block_writes
+  let merge_throttle = `Block_writes
 
   let freeze_throttle = `Block_writes
 end
@@ -34,9 +34,9 @@ let readonly_key =
   Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
     Irmin.Private.Conf.bool Default.readonly
 
-type throttle = [ `Block_writes | `Overcommit_memory ]
+type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 
-let throttle_converter : throttle Irmin.Private.Conf.converter =
+let merge_throttle_converter : merge_throttle Irmin.Private.Conf.converter =
   let parse = function
     | "block-writes" -> Ok `Block_writes
     | "overcommit-memory" -> Ok `Overcommit_memory
@@ -51,14 +51,36 @@ let throttle_converter : throttle Irmin.Private.Conf.converter =
   in
   (parse, print)
 
-let index_throttle_key =
+type freeze_throttle = [ `Block_writes | `Overcommit_memory | `Cancel_existing ]
+[@@deriving irmin]
+
+let freeze_throttle_converter : freeze_throttle Irmin.Private.Conf.converter =
+  let parse = function
+    | "block-writes" -> Ok `Block_writes
+    | "overcommit-memory" -> Ok `Overcommit_memory
+    | "cancel-existing" -> Ok `Cancel_existing
+    | s ->
+        Fmt.error_msg
+          "invalid %s, expected one of: `block-writes, `overcommit-memory' or \
+           `cancel-existing'"
+          s
+  in
+  let print =
+    Fmt.of_to_string (function
+      | `Block_writes -> "block-writes"
+      | `Overcommit_memory -> "overcommit-memory"
+      | `Cancel_existing -> "cancel-existing")
+  in
+  (parse, print)
+
+let merge_throttle_key =
   Irmin.Private.Conf.key
     ~doc:"Strategy to use for large writes when index caches are full."
-    "index-throttle" throttle_converter Default.index_throttle
+    "merge-throttle" merge_throttle_converter Default.merge_throttle
 
 let freeze_throttle_key =
   Irmin.Private.Conf.key ~doc:"Strategy to use for long-running freezes."
-    "freeze-throttle" throttle_converter Default.freeze_throttle
+    "freeze-throttle" freeze_throttle_converter Default.freeze_throttle
 
 let fresh config = Irmin.Private.Conf.get config fresh_key
 
@@ -68,7 +90,7 @@ let readonly config = Irmin.Private.Conf.get config readonly_key
 
 let index_log_size config = Irmin.Private.Conf.get config index_log_size_key
 
-let index_throttle config = Irmin.Private.Conf.get config index_throttle_key
+let merge_throttle config = Irmin.Private.Conf.get config merge_throttle_key
 
 let freeze_throttle config = Irmin.Private.Conf.get config freeze_throttle_key
 
@@ -81,7 +103,7 @@ let root config =
 
 let v ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
-    ?(index_throttle = Default.index_throttle)
+    ?(merge_throttle = Default.merge_throttle)
     ?(freeze_throttle = Default.freeze_throttle) root =
   let config = Irmin.Private.Conf.empty in
   let config = Irmin.Private.Conf.add config fresh_key fresh in
@@ -92,7 +114,7 @@ let v ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   in
   let config = Irmin.Private.Conf.add config readonly_key readonly in
   let config =
-    Irmin.Private.Conf.add config index_throttle_key index_throttle
+    Irmin.Private.Conf.add config merge_throttle_key merge_throttle
   in
   let config =
     Irmin.Private.Conf.add config freeze_throttle_key freeze_throttle
