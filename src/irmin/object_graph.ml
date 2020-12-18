@@ -84,7 +84,13 @@ module type S = sig
   module Dump : Type.S with type t = dump
 end
 
-module Make (Hash : Type.S) (Branch : Type.S) = struct
+module type HASH = sig
+  include Type.S
+
+  val short_hash : t -> int
+end
+
+module Make (Hash : HASH) (Branch : Type.S) = struct
   module X = struct
     type t =
       [ `Contents of Hash.t
@@ -97,17 +103,15 @@ module Make (Hash : Type.S) (Branch : Type.S) = struct
 
     let compare = Type.(unstage (compare t))
 
-    let short_hash = Type.(unstage (short_hash Hash.t))
-
     let hash_branch = Type.(unstage (short_hash Branch.t))
 
     (* we are using cryptographic hashes here, so the first bytes
        are good enough to be used as short hashes. *)
     let hash (t : t) : int =
       match t with
-      | `Contents c -> short_hash c
-      | `Node n -> short_hash n
-      | `Commit c -> short_hash c
+      | `Contents c -> Hash.short_hash c
+      | `Node n -> Hash.short_hash n
+      | `Commit c -> Hash.short_hash c
       | `Branch b -> hash_branch b
   end
 

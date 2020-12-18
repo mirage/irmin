@@ -13,7 +13,7 @@
 (* Extracted from https://github.com/pqwy/lru
    Copyright (c) 2016 David Kaloper Meršinjak *)
 
-module Make (H : Type.S) : sig
+module Make (H : Hashtbl.HashedType) : sig
   type 'a t
 
   val create : int -> 'a t

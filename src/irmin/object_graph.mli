@@ -105,8 +105,14 @@ module type S = sig
   (** The base functions over graph internals. *)
 end
 
+module type HASH = sig
+  include Type.S
+
+  val short_hash : t -> int
+end
+
 (** Build a graph. *)
-module Make (Hash : Type.S) (Branch : Type.S) :
+module Make (Hash : HASH) (Branch : Type.S) :
   S
     with type V.t =
           [ `Contents of Hash.t

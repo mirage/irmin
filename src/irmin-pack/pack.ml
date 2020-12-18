@@ -26,10 +26,10 @@ let ( -- ) = Int64.sub
 
 open Lwt.Infix
 
-module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
+module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
-  let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
+  let hash = K.short_hash
 
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
@@ -81,8 +81,16 @@ struct
       Dict.close t.dict)
 
   module Make (V : ELT with type hash := K.t) = struct
+    module H = struct
+      include K
+
+      let hash = K.short_hash
+
+      let equal = Irmin.Type.(unstage (equal K.t))
+    end
+
     module Tbl = Table (K)
-    module Lru = Irmin.Private.Lru.Make (K)
+    module Lru = Irmin.Private.Lru.Make (H)
 
     type nonrec 'a t = {
       pack : 'a t;
