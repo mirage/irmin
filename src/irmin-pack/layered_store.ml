@@ -26,8 +26,6 @@ module type CA = sig
   module Key : Irmin.Hash.TYPED with type t = key and type value = value
 end
 
-let pause = Lwt.pause
-
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
   | "Node" -> Irmin_layers.Stats.copy_nodes ()
@@ -86,23 +84,15 @@ struct
     mutable flip : bool;
     uppers : [ `Read ] U.t * [ `Read ] U.t;
     freeze_in_progress : unit -> bool;
-    add_lock : Lwt_mutex.t;
     mutable newies : key list;
   }
 
   module U = U
   module L = L
 
-  let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
+  let v upper1 upper0 lower ~flip ~freeze_in_progress =
     Log.debug (fun l -> l "v flip = %b" flip);
-    {
-      lower;
-      flip;
-      uppers = (upper1, upper0);
-      freeze_in_progress;
-      add_lock;
-      newies = [];
-    }
+    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
 
@@ -119,17 +109,12 @@ struct
 
   let mem_next t k = U.mem (next_upper t) k
 
-  let unsafe_consume_newies t =
-    let tmp = t.newies in
-    t.newies <- [];
-    tmp
-
   let consume_newies t =
-    Lwt_mutex.with_lock t.add_lock (fun () ->
-        let tmp = unsafe_consume_newies t in
-        Lwt.return tmp)
+    let newies = t.newies in
+    t.newies <- [];
+    newies
 
-  let add' t v =
+  let add t v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "add in %a%a" pp_current_upper t pp_during_freeze freeze);
@@ -139,9 +124,7 @@ struct
     if freeze then t.newies <- k :: t.newies;
     k
 
-  let add t v = Lwt_mutex.with_lock t.add_lock (fun () -> add' t v)
-
-  let unsafe_add' t k v =
+  let unsafe_add t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze);
@@ -150,10 +133,7 @@ struct
     U.unsafe_add upper k v >|= fun () ->
     if freeze then t.newies <- k :: t.newies
 
-  let unsafe_add t k v =
-    Lwt_mutex.with_lock t.add_lock (fun () -> unsafe_add' t k v)
-
-  let unsafe_append' ~ensure_unique ~overcommit t k v =
+  let unsafe_append ~ensure_unique ~overcommit t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
@@ -161,11 +141,6 @@ struct
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique ~overcommit upper k v;
     if freeze then t.newies <- k :: t.newies
-
-  let unsafe_append ~ensure_unique ~overcommit t k v =
-    Lwt_mutex.with_lock t.add_lock (fun () ->
-        unsafe_append' ~ensure_unique ~overcommit t k v;
-        pause ())
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
@@ -385,7 +360,6 @@ struct
     mutable flip : bool;
     uppers : U.t * U.t;
     freeze_in_progress : unit -> bool;
-    add_lock : Lwt_mutex.t;
     mutable newies : (key * value option) list;
   }
 
@@ -424,7 +398,7 @@ struct
             Log.debug (fun l -> l "[branches] find in lower");
             L.find lower k)
 
-  let set' t k v =
+  let set t k v =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
@@ -433,10 +407,8 @@ struct
     U.set upper k v >|= fun () ->
     if freeze then t.newies <- (k, Some v) :: t.newies
 
-  let set t k v = Lwt_mutex.with_lock t.add_lock (fun () -> set' t k v)
-
   (** Copy back into upper the branch against we want to do test and set. *)
-  let test_and_set' t k ~test ~set =
+  let test_and_set t k ~test ~set =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
@@ -458,10 +430,7 @@ struct
     if update && freeze then t.newies <- (k, set) :: t.newies;
     update
 
-  let test_and_set t k ~test ~set =
-    Lwt_mutex.with_lock t.add_lock (fun () -> test_and_set' t k ~test ~set)
-
-  let remove' t k =
+  let remove t k =
     let freeze = t.freeze_in_progress () in
     Log.debug (fun l ->
         l "[branches] remove %a in %a%a" pp_branch k pp_current_upper t
@@ -472,8 +441,6 @@ struct
     match t.lower with
     | None -> Lwt.return_unit
     | Some lower -> L.remove lower k
-
-  let remove t k = Lwt_mutex.with_lock t.add_lock (fun () -> remove' t k)
 
   let list t =
     let current = current_upper t in
@@ -497,15 +464,8 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
-  let v upper1 upper0 lower ~flip ~freeze_in_progress ~add_lock =
-    {
-      lower;
-      flip;
-      uppers = (upper1, upper0);
-      freeze_in_progress;
-      add_lock;
-      newies = [];
-    }
+  let v upper1 upper0 lower ~flip ~freeze_in_progress =
+    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
@@ -568,18 +528,6 @@ struct
     let next = next_upper t in
     U.flush next;
     match t.lower with None -> () | Some x -> L.flush x
-
-  let copy_last_newies_to_next_upper t =
-    Log.debug (fun l ->
-        l "[branches] copy %d newies to %a" (List.length t.newies) pp_next_upper
-          t);
-    let next = next_upper t in
-    let newies = t.newies in
-    t.newies <- [];
-    Lwt_list.iter_s
-      (fun (k, v) ->
-        match v with Some v -> U.set next k v | None -> U.remove next k)
-      (List.rev newies)
 
   let copy_newies_to_next_upper t =
     Log.debug (fun l ->

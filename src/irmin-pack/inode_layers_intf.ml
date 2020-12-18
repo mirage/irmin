@@ -13,7 +13,6 @@ module type S = sig
     [ `Read ] L.t option ->
     flip:bool ->
     freeze_in_progress:(unit -> bool) ->
-    add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
   val layer_id : [ `Read ] t -> key -> Irmin_layers.Layer_id.t Lwt.t
@@ -56,9 +55,7 @@ module type S = sig
 
   val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
 
-  val unsafe_consume_newies : 'a t -> key list
-
-  val consume_newies : 'a t -> key list Lwt.t
+  val consume_newies : 'a t -> key list
 
   val check :
     'a t ->

@@ -117,7 +117,6 @@ module type LAYERED = sig
     [ `Read ] L.t option ->
     flip:bool ->
     freeze_in_progress:(unit -> bool) ->
-    add_lock:Lwt_mutex.t ->
     [ `Read ] t
 
   val layer_id : [ `Read ] t -> key -> Irmin_layers.Layer_id.t Lwt.t
@@ -159,7 +158,7 @@ module type LAYERED = sig
   val clear_caches_next_upper : 'a t -> unit
 
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit Lwt.t
+    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
 
   val unsafe_mem : 'a t -> key -> bool Lwt.t
 
@@ -173,9 +172,7 @@ module type LAYERED = sig
     _ t ->
     (unit, Sigs.integrity_error) result
 
-  val unsafe_consume_newies : _ t -> key list
-
-  val consume_newies : 'a t -> key list Lwt.t
+  val consume_newies : 'a t -> key list
 
   val check :
     'a t ->
