@@ -134,14 +134,30 @@ struct
       let conf = Config.v ~readonly:true root in
       Irmin_pack_layers.config_layers ~conf ~with_lower:false ()
 
-    let check_store ~root (module S : Irmin_pack_layers.S) =
+    let heads =
+      let open Cmdliner.Arg in
+      value
+      & opt (some (list ~sep:',' string)) None
+      & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
+
+    let check_store ~root ~heads (module S : Irmin_pack_layers.S) =
       S.Repo.v (conf root) >>= fun repo ->
-      (S.check_self_contained repo >|= function
+      (match heads with
+      | None -> S.Repo.heads repo
+      | Some heads ->
+          Lwt_list.filter_map_s
+            (fun x ->
+              match Repr.of_string S.Hash.t x with
+              | Ok x -> S.Commit.of_hash repo x
+              | _ -> Lwt.return None)
+            heads)
+      >>= fun heads ->
+      (S.check_self_contained ~heads repo >|= function
        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg))
       >>= fun () -> S.Repo.close repo
 
-    let run ~root =
+    let run ~root ~heads =
       if not (detect_layered_store ~root) then
         Fmt.failwith "%s is not a layered store." root;
       (read_flip ~root >|= function
@@ -149,11 +165,14 @@ struct
        | Some `Upper0 -> Layout.upper0 ~root)
       >>= fun upper ->
       if detect_pack_layer ~layer_root:upper then
-        check_store ~root (module Store)
+        check_store ~root ~heads (module Store)
       else Fmt.failwith "To fix"
 
     let term =
-      Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
+      Cmdliner.Term.(
+        const (fun root heads () -> Lwt_main.run (run ~root ~heads))
+        $ path
+        $ heads)
   end
 
   module Reconstruct_index = struct
