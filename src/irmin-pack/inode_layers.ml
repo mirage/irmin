@@ -93,16 +93,18 @@ struct
 
   let save t v =
     let add k v =
-      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v;
-      Lwt.return_unit
+      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inode.Val.save_lwt ~add ~mem:(Inode.unsafe_mem t) v
+    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
 
-  let add t v = save t v.Val.v >|= fun () -> hash v
+  let add t v =
+    save t v.Val.v;
+    Lwt.return (hash v)
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v.Val.v
+    save t v.Val.v;
+    Lwt.return ()
 
   let clear_caches_next_upper = Inode.clear_caches_next_upper
 

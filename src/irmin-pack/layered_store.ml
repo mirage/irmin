@@ -178,11 +178,8 @@ struct
 
   let unsafe_mem t k =
     let current = current_upper t in
-    let b =
-      U.unsafe_mem current k
-      || match t.lower with None -> false | Some lower -> L.unsafe_mem lower k
-    in
-    Lwt.return b
+    U.unsafe_mem current k
+    || match t.lower with None -> false | Some lower -> L.unsafe_mem lower k
 
   (** Only flush current upper, to prevent concurrent flushing and appends
       during copy. Next upper and lower are flushed at the end of a freeze. *)
