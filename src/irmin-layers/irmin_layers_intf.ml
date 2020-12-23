@@ -35,9 +35,8 @@ module type S = sig
       Let [o] be the set of objects (i.e. commits, nodes and contents) reachable
       from the [max] commits and bounded by the [min] commits. During the
       freeze, all objects in [o] are copied to the lower layer, if there is one.
-      Setting [squash] to [true] is equivalent to setting [min] to [max],
-      {e i.e.} all other commits that are not already in the lower layer are
-      discarded from the repo. Both [min] and [max] default to the empty list.
+      Setting [squash] to [true] is equivalent to setting [min] to [max]. Both
+      [min] and [max] default to the empty list.
 
       Let [o'] be the set of objects reachable from the [max] commits and
       bounded by the [min_upper] commits. When the freeze is over, if
