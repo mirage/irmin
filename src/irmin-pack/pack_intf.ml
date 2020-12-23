@@ -160,8 +160,6 @@ module type LAYERED = sig
   val unsafe_append :
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
 
-  val unsafe_mem : 'a t -> key -> bool Lwt.t
-
   val flush_next_lower : 'a t -> unit
 
   val integrity_check :
