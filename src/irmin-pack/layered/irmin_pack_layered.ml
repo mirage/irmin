@@ -682,12 +682,12 @@ struct
 
       (** If there are too many newies (more than newies_limit bytes added) then
           copy them concurrently. *)
-      let rec copy_newies_to_next_upper t former_offset =
+      let rec copy_newies_to_next_upper ?cancel t former_offset =
         let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then
-          copy_newies t >>= fun () ->
-          (copy_newies_to_next_upper t offset [@tail])
+          copy_newies ?cancel t >>= fun () ->
+          (copy_newies_to_next_upper ?cancel t offset [@tail])
         else Lwt.return_unit
     end
 
@@ -822,7 +822,7 @@ struct
       copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
-      Copy.CopyToUpper.copy_newies_to_next_upper t offset >>= fun () ->
+      Copy.CopyToUpper.copy_newies_to_next_upper ~cancel t offset >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       let before_add_lock = Mtime_clock.count start_time in
       (* At this point there are only a few newies left (less than
