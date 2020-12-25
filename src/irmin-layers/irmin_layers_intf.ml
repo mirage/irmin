@@ -41,8 +41,8 @@ module type S = sig
 
       Let [o'] be the set of objects reachable from the [max] commits and
       bounded by the [min_upper] commits. When the freeze is over, if
-      [copy_in_upper] is true, then the upper layer will only contain the
-      objects of [o'], otherwise the upper layer will left be empty. [min_upper]
+      [copy_in_upper] is true, then the new upper layer will only contain the
+      objects of [o'], otherwise the new upper layer will be empty. [min_upper]
       defaults to the empty list and [copy_in_upper] defaults to the repo's
       configuration.
 
