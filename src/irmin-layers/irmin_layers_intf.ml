@@ -30,14 +30,14 @@ module type S = sig
     unit Lwt.t
   (** [freeze ?min ?max ?squash ?copy_in_upper ?min_upper ?recovery t] launches
       an asynchronous freezing operation on the repo [t] to reduce the size of
-      the upper layer.
+      the upper layer and discard unnecessary branches of objects (i.e. commits,
+      nodes and contents).
 
-      Let [o] be the set of objects (i.e. commits, nodes and contents) reachable
-      from the [max] commits and bounded by the [min] commits. During the
-      freeze, all objects in [o] are copied to the lower layer, if there is one.
-      Setting [squash] to [true] is equivalent to setting [min] to [max]. [min]
-      defaults to the empty list and [max] defaults to the head commits of the
-      repo.
+      Let [o] be the set of objects reachable from the [max] commits and bounded
+      by the [min] commits. During the freeze, all objects in [o] are copied to
+      the lower layer, if there is one. Setting [squash] to [true] is equivalent
+      to setting [min] to [max]. [min] defaults to the empty list and [max]
+      defaults to the head commits of the repo.
 
       Let [o'] be the set of objects reachable from the [max] commits and
       bounded by the [min_upper] commits. When the freeze is over, if
