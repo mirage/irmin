@@ -192,8 +192,11 @@ struct
     r
 
   (** If the generation changed, then the upper changed too. TODO: This
-      assumption is ok for now, but does not hold if the RW store is opened
-      after the RO or if RW is closed in the meantime. *)
+      assumption is ok for now, but does not hold if:
+
+      - the RW store is opened after the RO,
+      - if RW is closed in the meantime,
+      - if the RW freezes an even number of times before an RO sync. *)
   let sync ?on_generation_change ?on_generation_change_next_upper t =
     Log.debug (fun l -> l "sync %a" pp_current_upper t);
     (* a first implementation where only the current upper is synced *)
