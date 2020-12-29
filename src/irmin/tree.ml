@@ -198,12 +198,6 @@ module Make (P : S.PRIVATE) = struct
         match v with Hash (_, k) -> (Some k, None) | Value v -> (None, Some v)
       in
       let info = { hash; value } in
-      let v =
-        match (v, info.value, info.hash) with
-        | Value _, Some v, _ -> Value v
-        | Hash (r, _), _, Some h -> Hash (r, h)
-        | _ -> v
-      in
       { v; info }
 
     let export ?clear:(c = true) repo t k =
