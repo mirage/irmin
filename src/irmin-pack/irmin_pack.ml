@@ -51,6 +51,6 @@ end
 
 module Layered = Irmin_pack_layers
 
-let config_layers = Irmin_pack_layers.config_layers
+let config_layers = Config.Layered.v
 
 module Config = Config

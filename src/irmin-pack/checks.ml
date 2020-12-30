@@ -132,7 +132,7 @@ struct
 
     let conf root =
       let conf = Config.v ~readonly:true root in
-      Irmin_pack_layers.config_layers ~conf ~with_lower:false ()
+      Config.Layered.v ~conf ~with_lower:false ()
 
     let check_store ~root (module S : Irmin_pack_layers.S) =
       S.Repo.v (conf root) >>= fun repo ->
@@ -213,8 +213,7 @@ struct
           let upper_root1 = Layout.upper1 ~root in
           let upper_root0 = Layout.upper0 ~root in
           let conf =
-            Irmin_pack_layers.config_layers ~conf ~lower_root ~upper_root1
-              ~upper_root0 ()
+            Config.Layered.v ~conf ~lower_root ~upper_root1 ~upper_root0 ()
           in
           Store.Repo.v conf >|= fun repo ->
           let res = Store.integrity_check ~auto_repair repo in

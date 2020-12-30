@@ -119,6 +119,20 @@ val config_layers :
   ?blocking_copy_size:int ->
   unit ->
   Irmin.config
+(** Configuration options for layered stores.
+
+    @param conf is an irmin-pack configuration.
+    @param lower_root is the root of the lower store, "lower" is the default.
+    @param upper_root1 is the root of one of the upper stores, "upper1" is the
+    default.
+    @param upper_root0 is the root of one of the upper stores, "upper0" is the
+    default.
+    @param copy_in_upper if true then at the end of a freee the max commits are
+    copied back in upper. This option can be overriden when calling a freeze
+    with the [copy_in_upper] argument set. By default it is set to false.
+    @param with_lower if true (the default) use a lower layer during freezes.
+    @param blocking_copy_size specifies the maximum size (in bytes) that can be
+    copied in the blocking portion of the freeze. *)
 
 module Layered : sig
   module type S = Irmin_pack_layers.S

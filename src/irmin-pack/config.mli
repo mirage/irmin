@@ -45,3 +45,40 @@ val v :
   ?freeze_throttle:freeze_throttle ->
   string ->
   Irmin.config
+
+module Layered : sig
+  val lower_root_key : string Irmin.Private.Conf.key
+
+  val lower_root : Irmin.Private.Conf.t -> string
+
+  val upper_root1_key : string Irmin.Private.Conf.key
+
+  val upper_root1 : Irmin.Private.Conf.t -> string
+
+  val upper_root0_key : string Irmin.Private.Conf.key
+
+  val upper_root0 : Irmin.Private.Conf.t -> string
+
+  val copy_in_upper_key : bool Irmin.Private.Conf.key
+
+  val copy_in_upper : Irmin.Private.Conf.t -> bool
+
+  val with_lower_key : bool Irmin.Private.Conf.key
+
+  val with_lower : Irmin.Private.Conf.t -> bool
+
+  val blocking_copy_size_key : int Irmin.Private.Conf.key
+
+  val blocking_copy_size : Irmin.Private.Conf.t -> int
+
+  val v :
+    ?conf:Irmin.config ->
+    ?lower_root:string ->
+    ?upper_root1:string ->
+    ?upper_root0:string ->
+    ?copy_in_upper:bool ->
+    ?with_lower:bool ->
+    ?blocking_copy_size:int ->
+    unit ->
+    Irmin.config
+end
