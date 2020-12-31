@@ -173,11 +173,11 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
           cache_size);
     let marks = Table.create cache_size in
     let mark key level = Table.add marks key level in
-    let todo = Stack.create () in
+    let todo (* ISSUE *) = Stack.create () in
     (* if a branch is in [min], add the commit it is pointing to too. *)
     Lwt_list.fold_left_s
       (fun acc -> function
-        | `Branch _ as x -> pred x >|= fun c -> (x :: c) @ acc
+        | `Branch _ as x -> pred x >|= fun c -> (* ISSUE *) (x :: c) @ acc
         | x -> Lwt.return (x :: acc))
       [] min
     >>= fun min ->
@@ -193,7 +193,8 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
         match edge with
         | None -> Lwt.return_unit
         | Some edge ->
-            pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
+            pred key >>= fun keys ->
+            Lwt_list.iter_p (* ISSUE *) (fun k -> edge key k) keys
       else Lwt.return_unit
     in
     let visit_predecessors ~filter_history key level =
@@ -207,11 +208,11 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
         keys
     in
     let visit key level =
-      if level >= depth then Lwt.return_unit
+      if (* ISSUE *) level >= depth then Lwt.return_unit
       else if has_mark key then Lwt.return_unit
       else
         skip key >>= function
-        | true -> Lwt.return_unit
+        | true -> Lwt.return_unit (* ISSUE *)
         | false ->
             (Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
              mark key level;
