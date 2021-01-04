@@ -33,9 +33,9 @@ module Make
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S
-     with type metadata = M.t
-      and type hash = H.t
-      and type step = P.step)
+              with type metadata = M.t
+               and type hash = H.t
+               and type step = P.step)
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
@@ -52,12 +52,12 @@ struct
     match IO.exists path with
     | false -> Lwt.return_none
     | true ->
-      IO_layers.IO.v path >>= fun t ->
-      (IO_layers.IO.read_flip t >|= function
-        | true -> `Upper1
-        | false -> `Upper0)
-      >>= fun a ->
-      IO_layers.IO.close t >|= fun () -> Some a
+        IO_layers.IO.v path >>= fun t ->
+        (IO_layers.IO.read_flip t >|= function
+         | true -> `Upper1
+         | false -> `Upper0)
+        >>= fun a ->
+        IO_layers.IO.close t >|= fun () -> Some a
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct
@@ -81,15 +81,15 @@ struct
     type t = { hash_size : size; files : files_store } [@@deriving irmin]
 
     let with_io : type a. string -> (IO.t -> a) -> a option =
-      fun path f ->
+     fun path f ->
       match IO.exists path with
       | false -> None
       | true ->
-        let io =
-          IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
-            path
-        in
-        Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
+          let io =
+            IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+              path
+          in
+          Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
     let io path =
       with_io path @@ fun io ->
@@ -108,12 +108,12 @@ struct
       match detect_layered_store ~root with
       | false -> Lwt.return (Simple (v_simple ~root))
       | true ->
-        Logs.app (fun f -> f "Layered store detected");
-        read_flip ~root >|= fun flip ->
-        let lower = v_simple ~root:(Layout.lower ~root)
-        and upper1 = v_simple ~root:(Layout.upper1 ~root)
-        and upper0 = v_simple ~root:(Layout.upper0 ~root) in
-        Layered { flip; lower; upper1; upper0 }
+          Logs.app (fun f -> f "Layered store detected");
+          read_flip ~root >|= fun flip ->
+          let lower = v_simple ~root:(Layout.lower ~root)
+          and upper1 = v_simple ~root:(Layout.upper1 ~root)
+          and upper0 = v_simple ~root:(Layout.upper0 ~root) in
+          Layered { flip; lower; upper1; upper0 }
 
     let run ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
@@ -143,29 +143,29 @@ struct
     let check_store ~root ~heads (module S : Irmin_pack_layers.S) =
       S.Repo.v (conf root) >>= fun repo ->
       (match heads with
-       | None ->
-         print_endline "NONE";
-         S.Repo.heads repo
-       | Some heads ->
-         Lwt_list.filter_map_s
-           (fun x ->
+      | None ->
+          print_endline "NONE";
+          S.Repo.heads repo
+      | Some heads ->
+          Lwt_list.filter_map_s
+            (fun x ->
               print_endline x;
               match Repr.of_string S.Hash.t x with
               | Ok x -> S.Commit.of_hash repo x
               | _ -> Lwt.return None)
-           heads)
+            heads)
       >>= fun heads ->
       (S.check_self_contained ~heads repo >|= function
-        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
-        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg))
+       | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
+       | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg))
       >>= fun () -> S.Repo.close repo
 
     let run ~root ~heads =
       if not (detect_layered_store ~root) then
         Fmt.failwith "%s is not a layered store." root;
       (read_flip ~root >|= function
-        | None | Some `Upper1 -> Layout.upper1 ~root
-        | Some `Upper0 -> Layout.upper0 ~root)
+       | None | Some `Upper1 -> Layout.upper1 ~root
+       | Some `Upper0 -> Layout.upper0 ~root)
       >>= fun upper ->
       if detect_pack_layer ~layer_root:upper then
         check_store ~root ~heads (module Store)
@@ -187,7 +187,7 @@ struct
       let open Cmdliner.Arg in
       value
       & pos 1 (some string) None
-      @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
+        @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
 
     let run ~root ~output =
       let conf = conf root in
@@ -211,9 +211,9 @@ struct
       | Ok (`Fixed n) -> Printf.printf "%sOk -- fixed %d\n%!" name n
       | Ok `No_error -> Printf.printf "%sOk\n%!" name
       | Error (`Cannot_fix x) ->
-        Printf.eprintf "%sError -- cannot fix: %s\n%!" name x
+          Printf.eprintf "%sError -- cannot fix: %s\n%!" name x
       | Error (`Corrupted x) ->
-        Printf.eprintf "%sError -- corrupted: %d\n%!" name x
+          Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
     let run_simple ~root ~auto_repair =
       let module Store = Ext.Make (Conf) (M) (C) (P) (B) (H) (Node) (Commit) in
@@ -225,25 +225,25 @@ struct
       match detect_layered_store ~root with
       | false -> run_simple ~root ~auto_repair
       | true ->
-        let module Store =
-          Irmin_pack_layers.Make_ext (Conf) (M) (C) (P) (B) (H) (Node)
-            (Commit)
-        in
-        Logs.app (fun f -> f "Layered store detected");
-        let conf = conf root in
-        let lower_root = Layout.lower ~root in
-        let upper_root1 = Layout.upper1 ~root in
-        let upper_root0 = Layout.upper0 ~root in
-        let conf =
-          Irmin_pack_layers.config_layers ~conf ~lower_root ~upper_root1
-            ~upper_root0 ()
-        in
-        Store.Repo.v conf >|= fun repo ->
-        let res = Store.integrity_check ~auto_repair repo in
-        List.iter
-          (fun (r, id) ->
-             handle_result (Some (Irmin_layers.Layer_id.to_string id)) r)
-          res
+          let module Store =
+            Irmin_pack_layers.Make_ext (Conf) (M) (C) (P) (B) (H) (Node)
+              (Commit)
+          in
+          Logs.app (fun f -> f "Layered store detected");
+          let conf = conf root in
+          let lower_root = Layout.lower ~root in
+          let upper_root1 = Layout.upper1 ~root in
+          let upper_root0 = Layout.upper0 ~root in
+          let conf =
+            Irmin_pack_layers.config_layers ~conf ~lower_root ~upper_root1
+              ~upper_root0 ()
+          in
+          Store.Repo.v conf >|= fun repo ->
+          let res = Store.integrity_check ~auto_repair repo in
+          List.iter
+            (fun (r, id) ->
+              handle_result (Some (Irmin_layers.Layer_id.to_string id)) r)
+            res
 
     let term =
       Cmdliner.Term.(
@@ -266,10 +266,10 @@ struct
             msgf @@ fun ?header:_ ?tags:_ fmt ->
             match level with
             | Logs.App ->
-              Fmt.kpf k Fmt.stderr
-                ("@[<v 0>%a" ^^ fmt ^^ "@]@.")
-                Fmt.(styled `Bold (styled (`Fg `Cyan) string))
-                ">> "
+                Fmt.kpf k Fmt.stderr
+                  ("@[<v 0>%a" ^^ fmt ^^ "@]@.")
+                  Fmt.(styled `Bold (styled (`Fg `Cyan) string))
+                  ">> "
             | _ -> Fmt.kpf k Fmt.stdout ("@[<v 0>" ^^ fmt ^^ "@]@.")
           in
           { Logs.report }
