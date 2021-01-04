@@ -143,13 +143,10 @@ struct
     let check_store ~root ~heads (module S : Irmin_pack_layers.S) =
       S.Repo.v (conf root) >>= fun repo ->
       (match heads with
-      | None ->
-          print_endline "NONE";
-          S.Repo.heads repo
+      | None -> S.Repo.heads repo
       | Some heads ->
           Lwt_list.filter_map_s
             (fun x ->
-              print_endline x;
               match Repr.of_string S.Hash.t x with
               | Ok x -> S.Commit.of_hash repo x
               | _ -> Lwt.return None)
