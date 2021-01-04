@@ -55,9 +55,10 @@ module type S = sig
       - When [`Overcommit_memory], the function returns without launching a new
         freeze.
       - When [`Cancel_existing], the function blocks until the ongoing freeze
-        safely cancels and then a new one is started afterwards. Objects that
-        have been copied to the lower layer during the canceled freeze will not
-        have to be copied again.
+        safely cancels and then a new one is started afterwards. The time spent
+        doing the canceled freeze is not completely wasted, objects copied to
+        the lower layer will not have to be copied again, but objects copied to
+        the next upper layer are discarded from that layer.
       - When [`Block_writes], the function blocks until the ongoing freeze ends
         and then a new one is started afterwards. *)
 
