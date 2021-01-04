@@ -149,6 +149,8 @@
 
   - Add an option to bypass data integrity checks on reads (#1154, @samoht)
 
+  - Add `heads` parameter to `check-self-contained` command in `Checks` (#1224, @zshipko)
+
 - **ppx_irmin**:
 
   - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (#1082,
