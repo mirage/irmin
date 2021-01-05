@@ -1030,7 +1030,7 @@ module Make (P : S.PRIVATE) = struct
     Log.debug (fun l -> l "Tree.kind %a" pp_path path);
     match (t, Path.rdecons path) with
     | `Contents _, None -> Lwt.return_some `Contents
-    | _, None -> Lwt.return_none
+    | `Node _, None -> Lwt.return_some `Node
     | _, Some (dir, file) -> (
         sub t dir >>= function
         | None -> Lwt.return_none

@@ -18,6 +18,8 @@ module Tree = Store.Tree
 type diffs = (string list * (Contents.String.t * Metadata.t) Diff.t) list
 [@@deriving irmin]
 
+type kind = [ `Contents | `Node ] [@@deriving irmin]
+
 module Alcotest = struct
   include Alcotest
 
@@ -179,10 +181,26 @@ let test_fold_force _ () =
 
   Lwt.return_unit
 
+let test_kind_empty_path _ () =
+  let cont = c "c" |> Tree.of_concrete in
+  let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
+  let* k = Tree.kind cont [] in
+  Alcotest.(check (option (gtestable kind_t)))
+    "Kind of empty path in content"
+    (Some `Contents)
+    k;
+  let* k = Tree.kind tree [] in
+  Alcotest.(check (option (gtestable kind_t)))
+    "Kind of empty path in tree"
+    (Some `Node)
+    k;
+  Lwt.return_unit
+
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
+    Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
   ]
