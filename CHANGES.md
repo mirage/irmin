@@ -18,7 +18,7 @@
     (#1174, @Ngoguey42, @samoht and @CraigFe )
 
   - Fix `Tree.kind`. Empty path on a tree used to return a None instead of a
-	\`Node. (#1218, @Ngoguey42)
+	`` `Node``. (#1218, @Ngoguey42)
 
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
