@@ -770,32 +770,33 @@ end
 module Make_ext
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inode : INODE_EXT with type hash = H.t)
+    (Inode : INODE_INTER with type hash = H.t)
     (Val : VAL_INTER
              with type hash = H.t
               and type inode_val = Inode.Val.t
               and type metadata = Node.metadata
-              and type step = Node.step) =
+              and type step = Node.step)
+    (Pack : Pack.S with type value = Inode.Elt.t and type key = Inode.hash) =
 struct
   module Key = H
 
-  type 'a t = 'a Inode.t
+  type 'a t = 'a Pack.t
 
   type key = Key.t
 
   type value = Val.t
 
-  let mem t k = Inode.mem t k
+  let mem t k = Pack.mem t k
 
   let unsafe_find ~check_integrity t k =
-    match Inode.unsafe_find ~check_integrity t k with
+    match Pack.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
         let v = Inode.Val.of_bin v in
         Some v
 
   let find t k =
-    Inode.find t k >|= function
+    Pack.find t k >|= function
     | None -> None
     | Some v ->
         let v = Inode.Val.of_bin v in
@@ -804,9 +805,9 @@ struct
 
   let save t v =
     let add k v =
-      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+      Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
+    Inode.Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
   let hash v = Inode.Val.hash v.Val.v
 
@@ -827,19 +828,19 @@ struct
     save t v.Val.v;
     Lwt.return_unit
 
-  let batch = Inode.batch
+  let batch = Pack.batch
 
-  let v = Inode.v
+  let v = Pack.v
 
-  let integrity_check = Inode.integrity_check
+  let integrity_check = Pack.integrity_check
 
-  let close = Inode.close
+  let close = Pack.close
 
-  let sync = Inode.sync
+  let sync = Pack.sync
 
-  let clear = Inode.clear
+  let clear = Pack.clear
 
-  let clear_caches = Inode.clear_caches
+  let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
     Inode.decode_bin ~dict ~hash buff off |> fst
@@ -854,11 +855,6 @@ struct
   type index = Pack.index
 
   include Make_intermediate (Conf) (H) (Node)
-
-  module Inode = struct
-    include Inode
-    include Pack.Make (Elt)
-  end
-
-  include Make_ext (H) (Node) (Inode) (Val)
+  module Pack = Pack.Make (Inode.Elt)
+  include Make_ext (H) (Node) (Inode) (Val) (Pack)
 end

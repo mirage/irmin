@@ -85,12 +85,6 @@ module type VAL_INTER = sig
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 end
 
-module type INODE_EXT = sig
-  include INODE_INTER
-
-  include Pack.S with type value = Elt.t and type key = hash
-end
-
 module type S_EXT = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
@@ -111,8 +105,6 @@ end
 
 module type Inode = sig
   module type S = S
-
-  module type INODE_EXT = INODE_EXT
 
   module type VAL_INTER = VAL_INTER
 
@@ -135,13 +127,14 @@ module type Inode = sig
   module Make_ext
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
-      (Inode : INODE_EXT with type hash = H.t)
+      (Inode : INODE_INTER with type hash = H.t)
       (Val : VAL_INTER
                with type hash = H.t
                 and type inode_val = Inode.Val.t
                 and type metadata = Node.metadata
-                and type step = Node.step) :
-    S_EXT with type key = H.t and type 'a t = 'a Inode.t and type value = Val.t
+                and type step = Node.step)
+      (Pack : Pack.S with type value = Inode.Elt.t and type key = Inode.hash) :
+    S_EXT with type key = H.t and type value = Val.t
 
   module Make
       (Conf : Config.S)
