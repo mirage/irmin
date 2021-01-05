@@ -10,7 +10,7 @@ module type S = sig
   end
 
   module Check_self_contained : sig
-    val run : root:string -> unit Lwt.t
+    val run : root:string -> heads:string list option -> unit Lwt.t
     (** Ensure that the upper layer of the store is self-contained.*)
 
     val term : (unit -> unit) Cmdliner.Term.t
