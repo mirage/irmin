@@ -85,30 +85,6 @@ module type VAL_INTER = sig
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 end
 
-module type PACK_INTER = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
-  val add : 'a t -> value -> key Lwt.t
-
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-
-  val unsafe_find : 'a t -> key -> value option
-
-  val flush : ?index:bool -> 'a t -> unit
-
-  val version : 'a t -> IO.version
-
-  val clear : ?keep_generation:unit -> 'a t -> unit Lwt.t
-
-  val clear_caches : 'a t -> unit
-
-  include S.CHECKABLE with type 'a t := 'a t and type key := key
-
-  include S.CLOSEABLE with type 'a t := 'a t
-end
-
 module type INODE_EXT = sig
   include INODE_INTER
 
