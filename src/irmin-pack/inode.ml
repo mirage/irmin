@@ -854,7 +854,8 @@ module Make
 struct
   type index = Pack.index
 
-  include Make_intermediate (Conf) (H) (Node)
-  module Pack = Pack.Make (Inode.Elt)
-  include Make_ext (H) (Node) (Inode) (Val) (Pack)
+  module Inter = Make_intermediate (Conf) (H) (Node)
+  module Pack = Pack.Make (Inter.Inode.Elt)
+  module Val = Inter.Val
+  include Make_ext (H) (Node) (Inter.Inode) (Inter.Val) (Pack)
 end
