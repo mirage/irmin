@@ -56,10 +56,11 @@ let v ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
     ?(upper_root1 = Default.upper1_root) ?(upper_root0 = Default.upper0_root)
     ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
     ?(blocking_copy_size = Default.blocking_copy_size) () =
-  let config = Conf.add conf lower_root_key lower_root in
-  let config = Conf.add config upper_root1_key upper_root1 in
-  let config = Conf.add config upper_root0_key upper_root0 in
-  let config = Conf.add config copy_in_upper_key copy_in_upper in
-  let config = Conf.add config with_lower_key with_lower in
-  let config = Conf.add config blocking_copy_size_key blocking_copy_size in
-  config
+  let with_binding k v c = Conf.add c k v in
+  conf
+  |> with_binding lower_root_key lower_root
+  |> with_binding upper_root1_key upper_root1
+  |> with_binding upper_root0_key upper_root0
+  |> with_binding copy_in_upper_key copy_in_upper
+  |> with_binding with_lower_key with_lower
+  |> with_binding blocking_copy_size_key blocking_copy_size
