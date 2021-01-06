@@ -723,8 +723,6 @@ struct
     include T
     module I = Inode.Val
 
-    type inode_val = I.t
-
     type t = { find : H.t -> I.t option; v : I.t }
 
     let pred t = I.pred t.v
@@ -770,13 +768,12 @@ end
 module Make_ext
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inode : INODE_INTER with type hash = H.t)
-    (Val : VAL_INTER
-             with type hash = H.t
-              and type inode_val = Inode.Val.t
-              and type metadata = Node.metadata
-              and type step = Node.step)
-    (Pack : Pack.S with type value = Inode.Elt.t and type key = Inode.hash) =
+    (Inter : INTER
+               with type Inode.hash = H.t
+                and type Val.hash = H.t
+                and type Val.metadata = Node.metadata
+                and type Val.step = Node.step)
+    (Pack : Pack.S with type value = Inter.Inode.Elt.t and type key = H.t) =
 struct
   module Key = H
 
@@ -784,7 +781,7 @@ struct
 
   type key = Key.t
 
-  type value = Val.t
+  type value = Inter.Val.t
 
   let mem t k = Pack.mem t k
 
@@ -792,27 +789,27 @@ struct
     match Pack.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
-        let v = Inode.Val.of_bin v in
+        let v = Inter.Inode.Val.of_bin v in
         Some v
 
   let find t k =
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let v = Inode.Val.of_bin v in
+        let v = Inter.Inode.Val.of_bin v in
         let find = unsafe_find ~check_integrity:true t in
-        Some { Val.find; v }
+        Some { Inter.Val.find; v }
 
   let save t v =
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inode.Val.save ~add ~mem:(Pack.unsafe_mem t) v
+    Inter.Inode.Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Inode.Val.hash v.Val.v
+  let hash v = Inter.Inode.Val.hash v.Inter.Val.v
 
   let add t v =
-    save t v.Val.v;
+    save t v.Inter.Val.v;
     Lwt.return (hash v)
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))
@@ -820,12 +817,12 @@ struct
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
-        expected Inode.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a"
+        Inter.Inode.pp_hash expected Inter.Inode.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v.Val.v;
+    save t v.Inter.Val.v;
     Lwt.return_unit
 
   let batch = Pack.batch
@@ -843,7 +840,7 @@ struct
   let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
-    Inode.decode_bin ~dict ~hash buff off |> fst
+    Inter.Inode.decode_bin ~dict ~hash buff off |> fst
 end
 
 module Make
@@ -857,5 +854,5 @@ struct
   module Inter = Make_intermediate (Conf) (H) (Node)
   module Pack = Pack.Make (Inter.Inode.Elt)
   module Val = Inter.Val
-  include Make_ext (H) (Node) (Inter.Inode) (Inter.Val) (Pack)
+  include Make_ext (H) (Node) (Inter) (Pack)
 end
