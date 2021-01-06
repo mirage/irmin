@@ -196,7 +196,9 @@ struct
 
       - the RW store is opened after the RO,
       - if RW is closed in the meantime,
-      - if the RW freezes an even number of times before an RO sync. *)
+      - if the RW freezes an even number of times before an RO sync.
+
+      See https://github.com/mirage/irmin/issues/1225 *)
   let sync ?on_generation_change ?on_generation_change_next_upper t =
     Log.debug (fun l -> l "sync %a" pp_current_upper t);
     (* a first implementation where only the current upper is synced *)
