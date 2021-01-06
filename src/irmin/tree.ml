@@ -373,6 +373,16 @@ module Make (P : S.PRIVATE) = struct
 
     let elt_t = elt_t t
 
+    let _info_t : info Type.t =
+      let open Type in
+      record "Node.info" (fun value map hash findv_cache ->
+          { value; map; hash; findv_cache })
+      |+ field "value" (option P.Node.Val.t) (fun v -> v.value)
+      |+ field "map" (option (map_t elt_t)) (fun v -> v.map)
+      |+ field "hash" (option P.Hash.t) (fun v -> v.hash)
+      |+ field "findv_cache" (option (map_t elt_t)) (fun v -> v.findv_cache)
+      |> sealr
+
     let rec clear_elt ~max_depth depth (_, v) =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
