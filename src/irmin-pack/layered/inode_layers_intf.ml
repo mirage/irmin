@@ -83,7 +83,7 @@ module type Inode_layers = sig
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index = Irmin_pack.Private.Pack_index.Make(H).t
+       and type index = Pack_index.Make(H).t
        and type U.index = Pack_index.Make(H).t
        and type L.index = Pack_index.Make(H).t
 end

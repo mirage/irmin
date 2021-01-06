@@ -329,14 +329,15 @@ struct
         { throttle; state = `None; lock = Lwt_mutex.create () }
 
       let v config =
-        let module Config = Config_layered in
         let root = Pack_config.root config in
-        let upper1 = Filename.concat root (Config.upper_root1 config) in
+        let upper1 = Filename.concat root (Config_layered.upper_root1 config) in
         v_layer ~v:unsafe_v_upper upper1 config >>= fun upper1 ->
-        let upper0 = Filename.concat root (Config.upper_root0 config) in
+        let upper0 = Filename.concat root (Config_layered.upper_root0 config) in
         v_layer ~v:unsafe_v_upper upper0 config >>= fun upper0 ->
-        let with_lower = Config.with_lower config in
-        let lower_root = Filename.concat root (Config.lower_root config) in
+        let with_lower = Config_layered.with_lower config in
+        let lower_root =
+          Filename.concat root (Config_layered.lower_root config)
+        in
         (if with_lower then
          v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
         else Lwt.return_none)
@@ -376,8 +377,8 @@ struct
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
         let readonly = Pack_config.readonly config in
-        let copy_in_upper = Config.copy_in_upper config in
-        let blocking_copy_size = Config.blocking_copy_size config in
+        let copy_in_upper = Config_layered.copy_in_upper config in
+        let blocking_copy_size = Config_layered.blocking_copy_size config in
         {
           contents;
           node;
