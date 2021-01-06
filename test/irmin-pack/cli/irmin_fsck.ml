@@ -10,12 +10,15 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Store =
-  Irmin_pack.Checks.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Path)
-    (Irmin.Branch.String)
-    (Hash)
-    (Node)
-    (Commit)
+module Store = Irmin_pack.Checks.Make (struct
+  module Hash = Hash
+  module Store =
+    Irmin_pack.Make_ext (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Path)
+      (Irmin.Branch.String)
+      (Hash)
+      (Node)
+      (Commit)
+end)
 
 let () = match Store.cli () with _ -> .

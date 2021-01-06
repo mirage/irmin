@@ -32,7 +32,7 @@ end
 
 module Hash = Irmin.Hash.SHA1
 module Store =
-  Irmin_pack.Layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -46,7 +46,7 @@ let config ?(readonly = false) ?(fresh = true)
     ?(copy_in_upper = Conf.copy_in_upper) ?(lower_root = Conf.lower_root)
     ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
-  Irmin_pack.config_layers ~conf ~copy_in_upper ~lower_root ~upper_root0
+  Irmin_pack_layered.config ~conf ~copy_in_upper ~lower_root ~upper_root0
     ~with_lower ()
 
 module Test = struct

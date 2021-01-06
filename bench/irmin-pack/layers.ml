@@ -64,7 +64,7 @@ end
 
 module Hash = Irmin.Hash.SHA1
 module Store =
-  Irmin_pack.Layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -100,7 +100,7 @@ let configure_store root merge_throttle freeze_throttle =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
       ~merge_throttle root
   in
-  Irmin_pack.config_layers ~conf ~with_lower:false ~blocking_copy_size:1000
+  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000
     ~copy_in_upper:true ()
 
 let init config =

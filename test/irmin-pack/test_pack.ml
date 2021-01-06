@@ -33,7 +33,7 @@ let suite =
   in
   let layered_store =
     Irmin_test.layered_store
-      (module Irmin_pack.Layered.Make (Config))
+      (module Irmin_pack_layered.Make (Config))
       (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in

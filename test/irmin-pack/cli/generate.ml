@@ -16,14 +16,14 @@ module Conf = struct
 end
 
 module Store =
-  Irmin_pack.Layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Irmin.Hash.BLAKE2B)
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-  Irmin_pack.config_layers ~conf ~copy_in_upper:true ~with_lower:true ()
+  Irmin_pack_layered.config ~conf ~copy_in_upper:true ~with_lower:true ()
 
 let info = Irmin.Info.v ~date:0L ~author:"" ""
 

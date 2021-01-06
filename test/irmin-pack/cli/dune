@@ -1,12 +1,12 @@
 (executable
  (name irmin_fsck)
  (modules irmin_fsck)
- (libraries irmin-pack))
+ (libraries irmin-pack irmin-pack.layered))
 
 (executable
  (name generate)
  (modules generate)
- (libraries irmin-pack))
+ (libraries irmin-pack irmin-pack.layered))
 
 (rule
  (alias generate-cli-test-data)
@@ -22,6 +22,7 @@
 
 (rule
  (alias runtest)
+ (package irmin-pack)
  (action
   (progn
    (with-stdout-to
