@@ -28,11 +28,32 @@ depends: [
   "logs"
   "lwt"
   "uri"
+  "conduit"    {>= "2.1.0" & with-test}
   "irmin-git"  {with-test & = version}
   "irmin-mem"  {with-test & = version}
   "irmin-test" {with-test & = version}
   "git-unix"   {with-test}
   "digestif"   {with-test & >= "0.9.0"}
+  "alcotest"   {>= "1.2.3" & with-test}
+  "cohttp-lwt-unix" {>= "2.5.4" & with-test}
+  "conduit-lwt-unix" {>= "2.2.2" & with-test}
+  "fpath"      {>= "0.7.3" & with-test}
+  "git"        {>= "2.1.3" & with-test}
+  "git-cohttp-unix" {>= "~dev" & with-test}
+]
+
+pin-depends: [
+  [ "git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-nss.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-cohttp.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-cohttp-unix.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-unix.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-lwt.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "mimic.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "awa.dev" "git+https://github.com/mirage/awa-ssh.git#c337fbac71e3699ba4bcefe9382c9842354b3bee" ]
+  [ "awa-mirage.dev" "git+https://github.com/mirage/awa-ssh.git#c337fbac71e3699ba4bcefe9382c9842354b3bee" ]
 ]
 
 synopsis: "HTTP client and server for Irmin"

@@ -16,11 +16,15 @@ depends: [
   "dune"          {>= "2.7.0"}
   "irmin-mirage"  {= version}
   "irmin-graphql" {= version}
-  "git-mirage"    {>= "2.1.1"}
   "mirage-clock"
   "cohttp-lwt"
   "lwt"
   "uri"
+  "git-nss"
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
+
+pin-depends: [
+  [ "git-nss.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+]

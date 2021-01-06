@@ -19,10 +19,8 @@ open Lwt.Infix
 let test_db = Filename.concat "_build" "test-db-git"
 
 let config =
-  let head = Git.Reference.of_string "refs/heads/test" in
+  let head = Git.Reference.v "refs/heads/test" in
   Irmin_git.config ~head ~bare:true test_db
-
-module Net = Git_unix.Net
 
 module type S = sig
   include Irmin_test.S
@@ -50,7 +48,7 @@ module type X =
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module S = Irmin_git.KV (G) (Git_unix.Sync (G)) (C)
+  module S = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
   include S
 
   let init () =
@@ -146,7 +144,10 @@ let test_sort_order (module S : S) =
   Lwt.return_unit
 
 module Ref (S : Irmin_git.G) =
-  Irmin_git.Ref (S) (Git_unix.Sync (S)) (Irmin.Contents.String)
+  Irmin_git.Ref
+    (S)
+    (Git_unix.Sync (S) (Git_cohttp_unix))
+    (Irmin.Contents.String)
 
 let pp_reference ppf = function
   | `Branch s -> Fmt.pf ppf "branch: %s" s

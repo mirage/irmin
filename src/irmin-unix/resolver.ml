@@ -244,7 +244,9 @@ type hash = Hash.t
 (* Store *)
 
 module Store = struct
-  type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  type remote_fn =
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+
   type t = T : (module Irmin.S) * remote_fn option -> t
 
   type store_functor =
@@ -419,7 +421,7 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       | None -> Irmin.Private.Conf.default Irmin_git.bare
       | Some b -> b
     in
-    let head = assoc "head" (fun x -> Git.Reference.of_string x) in
+    let head = assoc "head" (fun x -> Git.Reference.v x) in
     let uri = assoc "uri" Uri.of_string in
     let add k v config = Irmin.Private.Conf.add config k v in
     Irmin.Private.Conf.empty

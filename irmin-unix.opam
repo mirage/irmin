@@ -24,7 +24,7 @@ depends: [
   "irmin-pack"    {= version}
   "irmin-graphql" {= version}
   "irmin-layers"  {= version}
-  "git-unix"      {>= "1.11.4"}
+  "git-unix"
   "digestif"      {>= "0.9.0"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
@@ -32,6 +32,7 @@ depends: [
   "astring"
   "cohttp"
   "cohttp-lwt"
+  "cohttp-lwt-unix"
   "conduit"
   "conduit-lwt"
   "conduit-lwt-unix"
@@ -41,9 +42,25 @@ depends: [
   "cohttp-lwt-unix"
   "fmt"
   "git"
+  "git-cohttp-unix"
   "lwt"
-  "irmin-test" {with-test & = version}
-  "alcotest"   {with-test}
+  "irmin-test"    {with-test & = version}
+  "alcotest"      {with-test}
+  "fpath"         {>= "0.7.3" & with-test}
+]
+
+pin-depends: [
+  [ "git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-nss.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-cohttp.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-cohttp-unix.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-unix.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-lwt.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "mimic.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "awa.dev" "git+https://github.com/mirage/awa-ssh.git#c337fbac71e3699ba4bcefe9382c9842354b3bee" ]
+  [ "awa-mirage.dev" "git+https://github.com/mirage/awa-ssh.git#c337fbac71e3699ba4bcefe9382c9842354b3bee" ]
 ]
 
 synopsis: "Unix backends for Irmin"

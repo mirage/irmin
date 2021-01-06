@@ -83,7 +83,7 @@ module Git = struct
     Lwt.return_unit
 
   let config =
-    let head = Git.Reference.of_string "refs/heads/test" in
+    let head = Git.Reference.v "refs/heads/test" in
     Irmin_git.config ~head ~bare:true test_db
 
   let suite =

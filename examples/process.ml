@@ -87,7 +87,8 @@ let images = [| (*ubuntu; *) wordpress; mysql |]
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
-let head = Store.Git.Reference.of_string ("refs/heads/" ^ branch images.(0))
+let head = Git.Reference.v ("refs/heads/" ^ branch images.(0))
+
 let config = Irmin_git.config ~bare:true ~head Config.root
 
 let info image msg () =

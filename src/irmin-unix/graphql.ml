@@ -19,7 +19,11 @@ module Server = struct
       (Cohttp_lwt_unix.Server)
       (struct
         let info = Info.v
-        let remote = Remote.remote
+
+        let remote =
+          match Remote.remote with
+          | Some fn -> Some (fun ?headers v -> fn ?headers v)
+          | None -> None
       end)
       (S)
       (T)
@@ -32,7 +36,11 @@ module Server = struct
       (Cohttp_lwt_unix.Server)
       (struct
         let info = Info.v
-        let remote = Remote.remote
+
+        let remote =
+          match Remote.remote with
+          | Some fn -> Some (fun ?headers v -> fn ?headers v)
+          | None -> None
       end)
       (S)
 end

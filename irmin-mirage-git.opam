@@ -16,11 +16,11 @@ depends: [
   "dune"         {>= "2.7.0"}
   "irmin-mirage" {= version}
   "irmin-git"    {= version}
-  "git-mirage"   {>= "2.1.2"}
   "mirage-kv"    {>= "3.0.0"}
   "cohttp"
   "conduit-lwt"
   "conduit-mirage"
+  "git-cohttp-mirage"
   "fmt"
   "git"
   "lwt"
@@ -29,3 +29,13 @@ depends: [
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
+
+pin-depends: [
+  [ "git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-nss.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "git-cohttp-mirage.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-git.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "carton-lwt.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+  [ "mimic.dev" "git+https://github.com/mirage/ocaml-git.git#b8a1d07147cbc8d5f8a563055b84fd166da9d0a0" ]
+]
