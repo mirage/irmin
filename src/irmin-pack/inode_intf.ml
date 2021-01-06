@@ -35,6 +35,7 @@ module type S = sig
     include Irmin.Private.Node.S with type t = value and type hash = key
 
     val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+    val hash : t -> hash
   end
 
   include S.CHECKABLE with type 'a t := 'a t and type key := key
@@ -74,6 +75,7 @@ module type INTER = sig
     include Irmin.Private.Node.S with type hash := hash and type t := t
 
     val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+    val hash : t -> hash
   end
 end
 

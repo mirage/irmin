@@ -126,6 +126,11 @@ module Alcotest = struct
               "Fail %s: expected function to raise %s, but it raised %s \
                instead."
               msg (Printexc.to_string exn) (Printexc.to_string e))
+
+  let testable_repr t =
+    Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
+
+  let check_repr t = Alcotest.check (testable_repr t)
 end
 
 module Filename = struct

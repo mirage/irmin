@@ -722,6 +722,8 @@ struct
           pre_hash_node (Node.v vs)
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
+
+    let hash t = I.hash t.v
   end
 end
 
