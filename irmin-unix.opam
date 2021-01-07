@@ -46,7 +46,6 @@ depends: [
   "lwt"
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}
-  "fpath"         {>= "0.7.3" & with-test}
 ]
 
 pin-depends: [
