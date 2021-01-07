@@ -512,89 +512,85 @@ struct
 
     let find ~find t s = find_value ~seed:0 ~find t s
 
-    let rec add ~seed ~find ~copy t s v k =
-      match find_value ~seed ~find t s with
-      | Some v' when equal_value v v' -> k t
-      | v' -> (
-          match t.v with
-          | Values vs ->
-              let length =
-                match v' with
-                | None -> StepMap.cardinal vs + 1
-                | Some _ -> StepMap.cardinal vs
+    let rec add ~seed ~find ~copy ~replace t s v k =
+      match t.v with
+      | Values vs ->
+          let length =
+            if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
+          in
+          let t =
+            if length <= Conf.entries then values (StepMap.add s v vs)
+            else
+              let vs = StepMap.bindings (StepMap.add s v vs) in
+              let empty =
+                inodes
+                  { length = 0; seed; entries = Array.make Conf.entries Empty }
               in
-              let t =
-                if length <= Conf.entries then values (StepMap.add s v vs)
-                else
-                  let vs = StepMap.bindings (StepMap.add s v vs) in
-                  let empty =
-                    inodes
-                      {
-                        length = 0;
-                        seed;
-                        entries = Array.make Conf.entries Empty;
-                      }
-                  in
-                  let aux t (s, v) =
-                    (add [@tailcall]) ~seed ~find ~copy:false t s v (fun x -> x)
-                  in
-                  List.fold_left aux empty vs
+              let aux t (s, v) =
+                (add [@tailcall]) ~seed ~find ~copy:false ~replace t s v
+                  (fun x -> x)
               in
+              List.fold_left aux empty vs
+          in
+          k t
+      | Inodes t -> (
+          let length = if replace then t.length else t.length + 1 in
+          let entries = if copy then Array.copy t.entries else t.entries in
+          let i = index ~seed s in
+          match entries.(i) with
+          | Empty ->
+              let tree = values (StepMap.singleton s v) in
+              entries.(i) <- inode ~tree tree.hash;
+              let t = inodes { seed; length; entries } in
               k t
-          | Inodes t -> (
-              let length =
-                match v' with None -> t.length + 1 | Some _ -> t.length
-              in
-              let entries = if copy then Array.copy t.entries else t.entries in
-              let i = index ~seed s in
-              match entries.(i) with
-              | Empty ->
-                  let tree = values (StepMap.singleton s v) in
-                  entries.(i) <- inode ~tree tree.hash;
-                  let t = inodes { seed; length; entries } in
-                  k t
-              | Inode n ->
-                  let t = get_tree ~find n in
-                  add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
-                  entries.(i) <- inode ~tree tree.hash;
-                  let t = inodes { seed; length; entries } in
-                  k t))
+          | Inode n ->
+              let t = get_tree ~find n in
+              add ~seed:(seed + 1) ~find ~copy ~replace t s v @@ fun tree ->
+              entries.(i) <- inode ~tree tree.hash;
+              let t = inodes { seed; length; entries } in
+              k t)
 
-    let add ~find ~copy t s v = add ~seed:0 ~find ~copy t s v (stabilize ~find)
+    let add ~find ~copy t s v =
+      (* XXX: [find_value ~seed:42] should break the unit tests. It doesn't. *)
+      match find_value ~seed:0 ~find t s with
+      | Some v' when equal_value v v' -> stabilize ~find t
+      | Some _ -> add ~seed:0 ~find ~copy ~replace:true t s v (stabilize ~find)
+      | None -> add ~seed:0 ~find ~copy ~replace:false t s v (stabilize ~find)
 
     let rec remove ~seed ~find t s k =
-      match find_value ~seed ~find t s with
-      | None -> k t
-      | Some _ -> (
-          match t.v with
-          | Values vs ->
-              let t = values (StepMap.remove s vs) in
-              k t
-          | Inodes t -> (
-              let length = t.length - 1 in
-              if length <= Conf.entries then
-                let vs =
-                  list_inodes ~offset:0 ~length:t.length ~find
-                    (empty_acc t.length) t
-                in
-                let vs = List.concat (List.rev vs.values) in
-                let vs = StepMap.of_list vs in
-                let vs = StepMap.remove s vs in
-                let t = values vs in
-                k t
-              else
-                let entries = Array.copy t.entries in
-                let i = index ~seed s in
-                match entries.(i) with
-                | Empty -> assert false
-                | Inode t ->
-                    let t = get_tree ~find t in
-                    remove ~seed:(seed + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- inode ~tree (lazy (hash tree));
-                    let t = inodes { seed; length; entries } in
-                    k t))
+      match t.v with
+      | Values vs ->
+          let t = values (StepMap.remove s vs) in
+          k t
+      | Inodes t -> (
+          let length = t.length - 1 in
+          if length <= Conf.entries then
+            let vs =
+              list_inodes ~offset:0 ~length:t.length ~find (empty_acc t.length)
+                t
+            in
+            let vs = List.concat (List.rev vs.values) in
+            let vs = StepMap.of_list vs in
+            let vs = StepMap.remove s vs in
+            let t = values vs in
+            k t
+          else
+            let entries = Array.copy t.entries in
+            let i = index ~seed s in
+            match entries.(i) with
+            | Empty -> assert false
+            | Inode t ->
+                let t = get_tree ~find t in
+                remove ~seed:(seed + 1) ~find t s @@ fun tree ->
+                entries.(i) <- inode ~tree (lazy (hash tree));
+                let t = inodes { seed; length; entries } in
+                k t)
 
-    let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
+    let remove ~find t s =
+      (* XXX: [find_value ~seed:42] should break the unit tests. It doesn't. *)
+      match find_value ~seed:0 ~find t s with
+      | None -> stabilize ~find t
+      | Some _ -> remove ~find ~seed:0 t s (stabilize ~find)
 
     let v l : t =
       let len = List.length l in
