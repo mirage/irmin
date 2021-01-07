@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Checks = Checks
+
 let config = Config.v
 
 let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"

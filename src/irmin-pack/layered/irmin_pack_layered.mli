@@ -79,3 +79,5 @@ module Make
      and type contents = C.t
      and type branch = B.t
      and type hash = H.t
+
+module Checks = Checks
