@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val config_layers :
+val config :
   ?conf:Irmin.config ->
   ?lower_root:string ->
   ?upper_root1:string ->
@@ -40,23 +40,12 @@ val config_layers :
     copied in the blocking portion of the freeze. *)
 
 module type S = sig
-  include Irmin_layers.S
-
-  include Store.S with type repo := repo
-
-  val integrity_check :
-    ?ppf:Format.formatter ->
-    auto_repair:bool ->
-    repo ->
-    (( [> `Fixed of int | `No_error ],
-       [> `Cannot_fix of string | `Corrupted of int ] )
-     result
-    * Irmin_layers.Layer_id.t)
-    list
+  include S.STORE
+  (** @inline *)
 end
 
 module Make_ext
-    (Config : Config.S)
+    (Config : Irmin_pack.Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
     (Path : Irmin.Path.S)
@@ -77,7 +66,7 @@ module Make_ext
      and type Key.step = Path.step
 
 module Make
-    (Config : Config.S)
+    (Config : Irmin_pack.Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -90,3 +79,5 @@ module Make
      and type contents = C.t
      and type branch = B.t
      and type hash = H.t
+
+module Checks = Checks

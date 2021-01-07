@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Irmin_pack
+
 let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -66,7 +68,7 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
     (H : Irmin.Hash.S)
-    (Index : Pack_index.S)
+    (Index : Private.Pack_index.S)
     (U : Pack.S with type index = Index.t and type key = H.t)
     (L : Pack.S
            with type index = U.index
@@ -327,7 +329,7 @@ end
 
 module Pack_Maker
     (H : Irmin.Hash.S)
-    (Index : Pack_index.S)
+    (Index : Private.Pack_index.S)
     (P : Pack.MAKER with type key = H.t and type index = Index.t) =
 struct
   type index = P.index

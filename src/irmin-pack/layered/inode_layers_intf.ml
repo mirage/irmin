@@ -1,4 +1,6 @@
 module Sigs = S
+module Inode = Irmin_pack.Private.Inode
+module Pack = Irmin_pack.Pack
 
 module type S = sig
   include Inode.S
@@ -65,13 +67,15 @@ module type S = sig
     unit Lwt.t
 end
 
+module Pack_index = Irmin_pack.Private.Pack_index
+
 module type Inode_layers = sig
   module type S = S
 
   module Make
-      (Conf : Config.S)
+      (Conf : Irmin_pack.Config.S)
       (H : Irmin.Hash.S)
-      (P : Pack.LAYERED_MAKER
+      (P : Sigs.LAYERED_PACK_MAKER
              with type key = H.t
               and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :

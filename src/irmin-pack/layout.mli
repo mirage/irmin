@@ -3,6 +3,9 @@
 
 type path := root:string -> string
 
+val toplevel : string -> path
+(** A file in the top-level directory of a store *)
+
 val pack : path
 
 val branch : path
@@ -10,5 +13,3 @@ val branch : path
 val dict : path
 
 val stores : root:string -> string list
-
-val flip : path

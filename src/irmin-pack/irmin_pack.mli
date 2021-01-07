@@ -104,25 +104,13 @@ end
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
+module Store = Store
 
 module Private : sig
+  module Closeable = Closeable
+  module Inode = Inode
+  module IO = IO
+  module Pack_index = Pack_index
+  module Sigs = S
   module Utils = Utils
-end
-
-val config_layers :
-  ?conf:Irmin.config ->
-  ?lower_root:string ->
-  ?upper_root1:string ->
-  ?upper_root0:string ->
-  ?copy_in_upper:bool ->
-  ?with_lower:bool ->
-  ?blocking_copy_size:int ->
-  unit ->
-  Irmin.config
-
-module Layered : sig
-  module type S = Irmin_pack_layers.S
-
-  module Make = Irmin_pack_layers.Make
-  module Make_ext = Irmin_pack_layers.Make_ext
 end

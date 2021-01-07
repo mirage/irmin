@@ -26,9 +26,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module I = Inode
 
 module Make
-    (Conf : Config.S)
+    (Conf : Irmin_pack.Config.S)
     (H : Irmin.Hash.S)
-    (Pack : Pack.LAYERED_MAKER
+    (Pack : S.LAYERED_PACK_MAKER
               with type key = H.t
                and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
