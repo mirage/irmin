@@ -25,6 +25,7 @@ module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Make_ext = Ext.Make
+module Store = Store
 
 module Make
     (Config : Config.S)
@@ -46,11 +47,12 @@ module Layout = Layout
 module Checks = Checks
 
 module Private = struct
+  module Closeable = Closeable
+  module Inode = Inode
+  module IO = IO
+  module Pack_index = Pack_index
+  module Sigs = S
   module Utils = Utils
 end
-
-module Layered = Irmin_pack_layers
-
-let config_layers = Irmin_pack_layers.config_layers
 
 module Config = Config

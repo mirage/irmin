@@ -7,16 +7,26 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESIrmin. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Checks = Checks
+
+let config = Config.v
+
 let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
+
+(* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
+module Config_layered = Config
+module Layout_layered = Layout
+open Irmin_pack
+open Private
 
 let current_version = `V2
 
@@ -39,72 +49,6 @@ module Atomic_write = Store.Atomic_write
 module Pack_config = Config
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
-
-module Default = struct
-  let lower_root = Irmin_layers.Layer_id.to_string `Lower
-
-  let upper0_root = Irmin_layers.Layer_id.to_string `Upper0
-
-  let upper1_root = Irmin_layers.Layer_id.to_string `Upper1
-
-  let copy_in_upper = false
-
-  let with_lower = true
-
-  let blocking_copy_size = 64
-end
-
-module Conf = Irmin.Private.Conf
-
-let lower_root_key =
-  Conf.key ~doc:"The root directory for the lower layer." "root_lower"
-    Conf.string Default.lower_root
-
-let lower_root conf = Conf.get conf lower_root_key
-
-let upper_root1_key =
-  Conf.key ~doc:"The root directory for the upper layer." "root_upper"
-    Conf.string Default.upper1_root
-
-let upper_root1 conf = Conf.get conf upper_root1_key
-
-let upper_root0_key =
-  Conf.key ~doc:"The root directory for the secondary upper layer."
-    "root_second" Conf.string Default.upper0_root
-
-let upper_root0 conf = Conf.get conf upper_root0_key
-
-let copy_in_upper_key =
-  Conf.key ~doc:"Copy the max commits in upper after a freeze." "copy_in_upper"
-    Conf.bool false
-
-let copy_in_upper conf = Conf.get conf copy_in_upper_key
-
-let with_lower_key =
-  Conf.key ~doc:"Use a lower layer." "with-lower" Conf.bool Default.with_lower
-
-let with_lower conf = Conf.get conf with_lower_key
-
-let blocking_copy_size_key =
-  Conf.key
-    ~doc:
-      "Specify the maximum size (in bytes) that can be copied in the blocking \
-       portion of the freeze."
-    "blocking-copy" Conf.int Default.blocking_copy_size
-
-let blocking_copy_size conf = Conf.get conf blocking_copy_size_key
-
-let config_layers ?(conf = Conf.empty) ?(lower_root = Default.lower_root)
-    ?(upper_root1 = Default.upper1_root) ?(upper_root0 = Default.upper0_root)
-    ?(copy_in_upper = Default.copy_in_upper) ?(with_lower = Default.with_lower)
-    ?(blocking_copy_size = Default.blocking_copy_size) () =
-  let config = Conf.add conf lower_root_key lower_root in
-  let config = Conf.add config upper_root1_key upper_root1 in
-  let config = Conf.add config upper_root0_key upper_root0 in
-  let config = Conf.add config copy_in_upper_key copy_in_upper in
-  let config = Conf.add config with_lower_key with_lower in
-  let config = Conf.add config blocking_copy_size_key blocking_copy_size in
-  config
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 
@@ -388,17 +332,19 @@ struct
 
       let v config =
         let root = Pack_config.root config in
-        let upper1 = Filename.concat root (upper_root1 config) in
+        let upper1 = Filename.concat root (Config_layered.upper_root1 config) in
         v_layer ~v:unsafe_v_upper upper1 config >>= fun upper1 ->
-        let upper0 = Filename.concat root (upper_root0 config) in
+        let upper0 = Filename.concat root (Config_layered.upper_root0 config) in
         v_layer ~v:unsafe_v_upper upper0 config >>= fun upper0 ->
-        let with_lower = with_lower config in
-        let lower_root = Filename.concat root (lower_root config) in
+        let with_lower = Config_layered.with_lower config in
+        let lower_root =
+          Filename.concat root (Config_layered.lower_root config)
+        in
         (if with_lower then
          v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
         else Lwt.return_none)
         >>= fun lower ->
-        let file = Layout.flip ~root in
+        let file = Layout_layered.flip ~root in
         IO_layers.v file >>= fun flip_file ->
         IO_layers.read_flip flip_file >>= fun flip ->
         (* A fresh store has to unlink the lock file as well. *)
@@ -433,8 +379,8 @@ struct
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
         let readonly = Pack_config.readonly config in
-        let copy_in_upper = copy_in_upper config in
-        let blocking_copy_size = blocking_copy_size config in
+        let copy_in_upper = Config_layered.copy_in_upper config in
+        let blocking_copy_size = Config_layered.blocking_copy_size config in
         {
           contents;
           node;
@@ -506,10 +452,12 @@ struct
       let migrate config =
         if Pack_config.readonly config then raise RO_Not_Allowed;
         let root = Pack_config.root config in
-        [ upper_root1; upper_root0; lower_root ]
+        Config_layered.[ upper_root1; upper_root0; lower_root ]
         |> List.map (fun name ->
                let root = Filename.concat root (name config) in
-               let config = Conf.add config Pack_config.root_key (Some root) in
+               let config =
+                 Irmin.Private.Conf.add config Pack_config.root_key (Some root)
+               in
                try
                  let io =
                    IO.v ~version:(Some current_version) ~fresh:false

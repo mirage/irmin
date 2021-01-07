@@ -1,57 +1,84 @@
 type empty = |
 
+module type Subcommand = sig
+  type run
+
+  val run : run
+
+  val term_internal : (unit -> unit) Cmdliner.Term.t
+  (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+
+  val term : unit Cmdliner.Term.t * Cmdliner.Term.info
+  (** [term] is {!term_internal} plus documentation and logs initialisation *)
+end
+
 module type S = sig
+  (** Reads basic metrics from an existing store and prints them to stdout. *)
   module Stat : sig
-    val run : root:string -> unit Lwt.t
-    (** Reads basic metrics from an existing store and prints them to stdout. *)
+    include Subcommand with type run := root:string -> unit Lwt.t
 
-    val term : (unit -> unit) Cmdliner.Term.t
-    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+    (** Internal implementation utilities exposed for use in other integrity
+        checks. *)
+
+    type size = Bytes of int [@@deriving irmin]
+
+    type io = { size : size; offset : int64; generation : int64 }
+    [@@deriving irmin]
+
+    type files = { pack : io option; branch : io option; dict : io option }
+    [@@deriving irmin]
+
+    val v : root:string -> files
   end
 
-  module Check_self_contained : sig
-    val run : root:string -> unit Lwt.t
-    (** Ensure that the upper layer of the store is self-contained.*)
+  module Reconstruct_index :
+    Subcommand with type run := root:string -> output:string option -> unit
+  (** Rebuilds an index for an existing pack file *)
 
-    val term : (unit -> unit) Cmdliner.Term.t
-    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
-  end
-
-  module Reconstruct_index : sig
-    val run : root:string -> output:string option -> unit
-    (** Rebuilds an index for an existing pack file *)
-
-    val term : (unit -> unit) Cmdliner.Term.t
-    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
-  end
-
+  (** Checks the integrity of a store *)
   module Integrity_check : sig
-    val run : root:string -> auto_repair:bool -> unit Lwt.t
-    (** Checks the integrity of a store *)
+    include
+      Subcommand with type run := root:string -> auto_repair:bool -> unit Lwt.t
 
-    val term : (unit -> unit) Cmdliner.Term.t
-    (** A pre-packaged [Cmdliner] term for executing {!run}. *)
+    val handle_result :
+      ?name:string ->
+      ( [< `Fixed of int | `No_error ],
+        [< `Cannot_fix of string | `Corrupted of int ] )
+      result ->
+      unit
   end
 
-  val cli : unit -> empty
-  (** Run a [Cmdliner] binary containing tools for running offline checks. *)
+  val cli :
+    ?terms:(unit Cmdliner.Term.t * Cmdliner.Term.info) list -> unit -> empty
+  (** Run a [Cmdliner] binary containing tools for running offline checks.
+      [terms] defaults to the set of checks in this module. *)
+end
+
+module type Make_args = sig
+  module Hash : Irmin.Hash.S
+
+  module Store : sig
+    include Irmin.S with type hash = Hash.t
+
+    include Store.S with type repo := repo
+
+    (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
+    val reconstruct_index : ?output:string -> Irmin.config -> unit
+  end
 end
 
 module type Checks = sig
   type nonrec empty = empty
 
+  val setup_log : unit Cmdliner.Term.t
+
+  val path : string Cmdliner.Term.t
+
+  module type Subcommand = Subcommand
+
   module type S = S
 
-  module Make
-      (Conf : Config.S)
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S
-                with type metadata = M.t
-                 and type hash = H.t
-                 and type step = P.step)
-      (Commit : Irmin.Private.Commit.S with type hash = H.t) : S
+  module type Make_args = Make_args
+
+  module Make (_ : Make_args) : S
 end

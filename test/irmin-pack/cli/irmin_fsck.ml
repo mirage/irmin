@@ -10,12 +10,30 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Store =
-  Irmin_pack.Checks.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Path)
-    (Irmin.Branch.String)
-    (Hash)
-    (Node)
-    (Commit)
+module Store = Irmin_pack.Checks.Make (struct
+  module Hash = Hash
+  module Store =
+    Irmin_pack.Make_ext (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Path)
+      (Irmin.Branch.String)
+      (Hash)
+      (Node)
+      (Commit)
+end)
 
-let () = match Store.cli () with _ -> .
+module Store_layered = Irmin_pack_layered.Checks.Make (struct
+  module Hash = Hash
+  module Store =
+    Irmin_pack_layered.Make_ext (Conf) (Irmin.Metadata.None)
+      (Irmin.Contents.String)
+      (Path)
+      (Irmin.Branch.String)
+      (Hash)
+      (Node)
+      (Commit)
+end)
+
+let () =
+  match Sys.getenv_opt "PACK_LAYERED" with
+  | Some "true" -> ( match Store_layered.cli () with _ -> .)
+  | _ -> ( match Store.cli () with _ -> .)

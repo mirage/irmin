@@ -31,22 +31,6 @@ module type CHECKABLE = sig
     offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
 end
 
-module type LAYERED_GENERAL = sig
-  type 'a t
-
-  include CLOSEABLE with type 'a t := 'a t
-
-  val update_flip : flip:bool -> _ t -> unit
-
-  val flip_upper : _ t -> unit
-end
-
-module type LAYERED = sig
-  type t
-
-  include LAYERED_GENERAL with type _ t := t
-end
-
 module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
@@ -55,34 +39,4 @@ module type ATOMIC_WRITE_STORE = sig
   val flush : t -> unit
 
   val clear_keep_generation : t -> unit Lwt.t
-end
-
-module type LAYERED_ATOMIC_WRITE_STORE = sig
-  include ATOMIC_WRITE_STORE
-
-  module U : ATOMIC_WRITE_STORE
-
-  module L : ATOMIC_WRITE_STORE
-
-  val v :
-    U.t ->
-    U.t ->
-    L.t option ->
-    flip:bool ->
-    freeze_in_progress:(unit -> bool) ->
-    t
-
-  val copy :
-    mem_commit_lower:(value -> bool Lwt.t) ->
-    mem_commit_upper:(value -> bool Lwt.t) ->
-    t ->
-    unit Lwt.t
-
-  include LAYERED with type t := t
-
-  val flush_next_lower : t -> unit
-
-  val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
-
-  val copy_newies_to_next_upper : t -> unit Lwt.t
 end
