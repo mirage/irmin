@@ -47,38 +47,35 @@ module type S = sig
 end
 
 module type INTER = sig
-  module Inode : sig
-    type hash
+  type hash
 
-    val pp_hash : hash Fmt.t
+  val pp_hash : hash Fmt.t
 
-    module Elt : Pack.ELT with type hash := hash
+  module Elt : Pack.ELT with type hash := hash
 
-    val decode_bin :
-      dict:(int -> string option) ->
-      hash:(int64 -> hash) ->
-      string ->
-      int ->
-      int * Elt.t
+  val decode_bin :
+    dict:(int -> string option) ->
+    hash:(int64 -> hash) ->
+    string ->
+    int ->
+    int * Elt.t
 
-    module Val_impl : sig
-      type t
+  module Val_impl : sig
+    type t
 
-      val pred :
-        t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 
-      val of_bin : Elt.t -> t
+    val of_bin : Elt.t -> t
 
-      val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
+    val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
 
-      val hash : t -> hash
-    end
+    val hash : t -> hash
   end
 
   module Val : sig
-    type hash
+    type nonrec hash = hash
 
-    type t = { find : hash -> Inode.Val_impl.t option; v : Inode.Val_impl.t }
+    type t = { find : hash -> Val_impl.t option; v : Val_impl.t }
 
     include Irmin.Private.Node.S with type hash := hash and type t := t
 
@@ -116,8 +113,7 @@ module type Inode = sig
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     INTER
-      with type Inode.hash = H.t
-       and type Val.hash = H.t
+      with type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
 
@@ -125,11 +121,10 @@ module type Inode = sig
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
       (Inter : INTER
-                 with type Inode.hash = H.t
-                  and type Val.hash = H.t
+                 with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (Pack : Pack.S with type value = Inter.Inode.Elt.t and type key = H.t) :
+      (Pack : Pack.S with type value = Inter.Elt.t and type key = H.t) :
     S_EXT with type key = H.t and type value = Inter.Val.t
 
   module Make
