@@ -316,6 +316,8 @@ struct
     let length t =
       match t.v with Values vs -> StepMap.cardinal vs | Inodes vs -> vs.length
 
+    let stable t = t.stable
+
     let get_tree ~find t =
       match t.tree with
       | Some t -> t
@@ -734,7 +736,11 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
 
-    let hash t = I.hash t.v
+    module Private = struct
+      let hash t = I.hash t.v
+      let stable t = I.stable t.v
+      let length t = I.length t.v
+    end
   end
 end
 

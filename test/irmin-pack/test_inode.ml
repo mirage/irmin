@@ -18,6 +18,7 @@ module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
 module Inode = Irmin_pack.Inode.Make (Conf) (H) (P) (Node)
+module Private = Inode.Val.Private
 
 module Context = struct
   type t = {
@@ -57,7 +58,7 @@ let check_hash = Alcotest.check_repr Inode.Val.hash_t
 let check_values = Alcotest.check_repr Inode.Val.t
 
 let check_node msg v t =
-  let h = Inode.Val.hash v in
+  let h = Private.hash v in
   Inode.batch t.Context.store (fun i -> Inode.add i v) >|= fun h' ->
   check_hash msg h h'
 
@@ -83,6 +84,8 @@ let test_add_inodes () =
     Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
+  Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
+  Alcotest.(check bool) "v2 stable" (Private.stable v2) true;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
   let v5 =
     Inode.Val.v
@@ -94,6 +97,7 @@ let test_add_inodes () =
       ]
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
+  Alcotest.(check bool) "v4 not stable" (Private.stable v4) false;
   Context.close t
 
 (** Test remove values on an empty node. *)
@@ -132,6 +136,8 @@ let test_remove_inodes () =
   in
   let v5 = Inode.Val.remove v4 "a" in
   check_values "node x+y+z obtained two ways" v1 v5;
+  Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
+  Alcotest.(check bool) "v5 stable" (Private.stable v5) true;
   Context.close t
 
 let tests =
