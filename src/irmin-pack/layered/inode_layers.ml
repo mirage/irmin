@@ -29,8 +29,8 @@ module Make
     (Conf : Irmin_pack.Config.S)
     (H : Irmin.Hash.S)
     (Pack_maker : S.LAYERED_PACK_MAKER
-              with type key = H.t
-               and type index = Pack_index.Make(H).t)
+                    with type key = H.t
+                     and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   type index = Pack_maker.index
