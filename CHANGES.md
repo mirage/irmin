@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **irmin-git**
+  - Update `irmin` to the last version of `ocaml-git` (#1065)
+    It fixes an issue on serialization/deserialization of big tree object
+    (see #1001) 
+
 - **irmin-pack***
   - Fix a major bug in the LRU which was never used (#1035, @samoht)
 
