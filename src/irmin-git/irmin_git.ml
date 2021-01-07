@@ -1021,9 +1021,6 @@ module No_sync (G : Git.S) = struct
 
   type store = G.t
 
-  (* XXX(samoht): so much boilerplate... *)
-  (* XXX(dinosaure): not anymore. *)
-
   type error =
     [ `Not_found | `Msg of string | `Exn of exn | `Cycle | `Invalid_flow ]
 
