@@ -523,8 +523,8 @@ struct
               let t = values (StepMap.remove s vs) in
               k t
           | Inodes t -> (
-              let length = t.length - 1 in
-              if length <= Conf.entries then
+              let len = t.length - 1 in
+              if len <= Conf.entries then
                 let vs = list_inodes ~find [] t in
                 let vs = StepMap.of_list vs in
                 let vs = StepMap.remove s vs in
@@ -537,12 +537,23 @@ struct
                 | Empty -> assert false
                 | Inode t ->
                     let t = get_tree ~find t in
-                    remove ~seed:(seed + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- inode ~tree (lazy (hash tree));
-                    let t = inodes { seed; length; entries } in
-                    k t))
+                    if length t = 1 then (
+                      entries.(i) <- Empty;
+                      let t = inodes { seed; length = len; entries } in
+                      k t)
+                    else
+                      (remove [@tailrec]) ~seed:(seed + 1) ~find t s
+                      @@ fun tree ->
+                      entries.(i) <- inode ~tree (lazy (hash tree));
+                      let t = inodes { seed; length = len; entries } in
+                      k t))
 
-    let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
+    let remove ~find t s =
+      (* XXX: What if [t] only contains [s]? We should make sure that the output
+         in that case is the same as [empty] (the function above). In general we
+         might want to change the types so that case cannot happen.
+      *)
+      remove ~find ~seed:0 t s (stabilize ~find)
 
     let v l : t =
       let len = List.length l in
