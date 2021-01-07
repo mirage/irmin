@@ -61,7 +61,7 @@ module type INTER = sig
       int ->
       int * Elt.t
 
-    module Val : sig
+    module Val_impl : sig
       type t
 
       val pred :
@@ -78,7 +78,7 @@ module type INTER = sig
   module Val : sig
     type hash
 
-    type t = { find : hash -> Inode.Val.t option; v : Inode.Val.t }
+    type t = { find : hash -> Inode.Val_impl.t option; v : Inode.Val_impl.t }
 
     include Irmin.Private.Node.S with type hash := hash and type t := t
 

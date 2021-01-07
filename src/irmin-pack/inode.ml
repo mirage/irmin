@@ -264,7 +264,7 @@ struct
         |> sealr
     end
 
-    module Val = struct
+    module Val_impl = struct
       open T
 
       let equal_hash = Irmin.Type.(unstage (equal hash_t))
@@ -722,7 +722,7 @@ struct
 
   module Val = struct
     include T
-    module I = Inode.Val
+    module I = Inode.Val_impl
 
     type t = { find : H.t -> I.t option; v : I.t }
 
@@ -790,14 +790,14 @@ struct
     match Pack.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
-        let v = Inter.Inode.Val.of_bin v in
+        let v = Inter.Inode.Val_impl.of_bin v in
         Some v
 
   let find t k =
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let v = Inter.Inode.Val.of_bin v in
+        let v = Inter.Inode.Val_impl.of_bin v in
         let find = unsafe_find ~check_integrity:true t in
         Some { Inter.Val.find; v }
 
@@ -805,9 +805,9 @@ struct
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inter.Inode.Val.save ~add ~mem:(Pack.unsafe_mem t) v
+    Inter.Inode.Val_impl.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Inter.Inode.Val.hash v.Inter.Val.v
+  let hash v = Inter.Inode.Val_impl.hash v.Inter.Val.v
 
   let add t v =
     save t v.Inter.Val.v;
