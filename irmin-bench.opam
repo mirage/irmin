@@ -27,6 +27,10 @@ depends: [
   "ppx_repr"
 ]
 
+pin-depends: [
+  [ "dataset.dev" "git+https://github.com/icristescu/dataset#3874b30cf856645726642781a99156ed4494610c" ]
+]
+
 synopsis: "Irmin benchmarking suite"
 description: """
 `irmin-bench` provides access to the Irmin suite for benchmarking storage backend

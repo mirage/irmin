@@ -1,28 +1,11 @@
 open! Import
-
-let reporter ?(prefix = "") () =
-  let report src level ~over k msgf =
-    let k _ =
-      over ();
-      k ()
-    in
-    let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
-    let with_stamp h _tags k fmt =
-      let dt = Unix.gettimeofday () in
-      Fmt.kpf k ppf
-        ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
-        prefix dt Logs_fmt.pp_header (level, h)
-        Fmt.(styled `Magenta string)
-        (Logs.Src.name src)
-    in
-    msgf @@ fun ?header ?tags fmt -> with_stamp header tags k fmt
-  in
-  { Logs.report }
+open Bench_common
 
 let reset_stats () =
-  Index.Stats.reset_stats ();
-  Irmin_pack.Stats.reset_stats ();
+  reset_stats ();
   Irmin_layers.Stats.reset_stats ()
+
+let () = Random.self_init ()
 
 type config = {
   ncommits : int;
@@ -37,25 +20,6 @@ type config = {
 }
 [@@deriving repr]
 
-let () = Random.self_init ()
-let random_char () = char_of_int (Random.int 256)
-let random_string n = String.init n (fun _i -> random_char ())
-let long_random_blob () = random_string 100
-let random_blob () = random_string 10
-let random_key () = random_string 3
-
-let rm_dir root =
-  if Sys.file_exists root then (
-    let cmd = Printf.sprintf "rm -rf %s" root in
-    Logs.info (fun l -> l "exec: %s\n%!" cmd);
-    let _ = Sys.command cmd in
-    ())
-
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
 module Hash = Irmin.Hash.SHA1
 
 module Store =
@@ -63,31 +27,6 @@ module Store =
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
-
-module FSHelper = struct
-  let file f =
-    try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
-
-  let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
-  let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
-
-  let index root =
-    let index_dir = Filename.concat root "index" in
-    let a = file (Filename.concat index_dir "data") in
-    let b = file (Filename.concat index_dir "log") in
-    let c = file (Filename.concat index_dir "log_async") in
-    (a + b + c) / 1024 / 1024
-
-  let size root = dict root + pack root + index root
-
-  let print_size root =
-    let dt = Unix.gettimeofday () in
-    let upper1 = Filename.concat root "upper1" in
-    let upper0 = Filename.concat root "upper0" in
-    let lower = Filename.concat root "lower" in
-    Fmt.epr "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
-      (size upper1) (size upper0) (size lower)
-end
 
 let configure_store root merge_throttle freeze_throttle =
   let conf =
@@ -98,55 +37,11 @@ let configure_store root merge_throttle freeze_throttle =
     ~copy_in_upper:true ()
 
 let init config =
-  rm_dir config.root;
+  FSHelper.rm_dir config.root;
   Memtrace.trace_if_requested ();
   reset_stats ()
 
-let info () =
-  let date = Int64.of_float (Unix.gettimeofday ()) in
-  let author = Printf.sprintf "TESTS" in
-  Irmin.Info.v ~date ~author "commit "
-
-let key depth =
-  let rec go i acc =
-    if i >= depth then acc
-    else
-      let k = random_key () in
-      go (i + 1) (k :: acc)
-  in
-  go 0 []
-
-let large_dir path tree width =
-  let rec aux i tree k =
-    if i >= width then Lwt.return (k, tree)
-    else
-      let k = path @ [ random_key (); random_key () ] in
-      let* tree = Store.Tree.add tree k (random_blob ()) in
-      aux (i + 1) tree (Some k)
-  in
-  let+ path, tree = aux 0 tree None in
-  (Option.get path, tree)
-
-let add_large_tree tree =
-  let path = key 5 in
-  let* path, tree = large_dir path tree 256 in
-  let path = path @ key 5 in
-  Store.Tree.add tree path (long_random_blob ())
-
-let chain_tree tree root depth =
-  let rec aux i tree =
-    if i >= depth / 2 then Lwt.return tree
-    else
-      let k = root :: key depth in
-      let* tree = Store.Tree.add tree k (random_blob ()) in
-      aux (i + 1) tree
-  in
-  aux 0 tree
-
-let add_small_tree conf tree =
-  let tree = if conf.clear then Store.Tree.empty else tree in
-  let k = random_key () in
-  chain_tree tree k conf.depth
+module Trees = Generate_trees (Store)
 
 let init_commit repo =
   Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
@@ -157,16 +52,10 @@ let checkout_and_commit config repo c nb =
   | Some commit ->
       let tree = Store.Commit.tree commit in
       let* tree =
-        if nb mod 1000 = 0 then add_large_tree tree
-        else add_small_tree config tree
+        if nb mod 1000 = 0 then Trees.add_large_trees 256 2 tree
+        else Trees.add_chain_trees config.depth (config.depth / 2) tree
       in
       Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
-
-let with_timer f =
-  let t0 = Sys.time () in
-  let+ a = f () in
-  let t1 = Sys.time () -. t0 in
-  (t1, a)
 
 let total = ref 0
 
@@ -267,7 +156,7 @@ let run config =
   close config repo >|= fun () ->
   if config.show_stats then (
     Fmt.epr "After freeze thread finished : ";
-    FSHelper.print_size config.root)
+    FSHelper.print_size_layers config.root)
 
 type result = {
   total_time : float;
