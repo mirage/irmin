@@ -38,15 +38,10 @@ type config = {
 [@@deriving repr]
 
 let () = Random.self_init ()
-
 let random_char () = char_of_int (Random.int 256)
-
 let random_string n = String.init n (fun _i -> random_char ())
-
 let long_random_blob () = random_string 100
-
 let random_blob () = random_string 10
-
 let random_key () = random_string 3
 
 let rm_dir root =
@@ -58,11 +53,11 @@ let rm_dir root =
 
 module Conf = struct
   let entries = 32
-
   let stable_hash = 256
 end
 
 module Hash = Irmin.Hash.SHA1
+
 module Store =
   Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
@@ -74,7 +69,6 @@ module FSHelper = struct
     try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
 
   let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
-
   let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
 
   let index root =
@@ -220,9 +214,7 @@ let freeze ~min_upper ~max config repo =
   else Store.freeze ~max ~min_upper repo
 
 let min_uppers = Queue.create ()
-
 let add_min c = Queue.add c min_uppers
-
 let consume_min () = Queue.pop min_uppers
 
 let first_5_cycles config repo =

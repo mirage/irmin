@@ -25,9 +25,7 @@ module Version = struct
   type t = [ `V1 | `V2 ]
 
   let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
-
   let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
-
   let to_bin v = List.assoc v enum
 
   let raise_invalid v =
@@ -53,35 +51,20 @@ module type S = sig
   exception RO_Not_Allowed
 
   val v : version:version option -> fresh:bool -> readonly:bool -> string -> t
-
   val name : t -> string
-
   val clear : ?keep_generation:unit -> t -> unit
-
   val append : t -> string -> unit
-
   val set : t -> off:int64 -> string -> unit
-
   val read : t -> off:int64 -> bytes -> int
-
   val offset : t -> int64
-
   val force_offset : t -> int64
-
   val generation : t -> int64
-
   val force_generation : t -> int64
-
   val readonly : t -> bool
-
   val version : t -> version
-
   val flush : t -> unit
-
   val close : t -> unit
-
   val exists : string -> bool
-
   val size : t -> int
 
   val migrate :
@@ -94,7 +77,6 @@ module type S = sig
 end
 
 external ( ++ ) : int64 -> int64 -> int64 = "%int64_add"
-
 external ( -- ) : int64 -> int64 -> int64 = "%int64_sub"
 
 module Unix : S = struct
@@ -190,7 +172,6 @@ module Unix : S = struct
     | e -> raise e
 
   let protect f x = try f x with e -> protect_unix_exn e
-
   let safe f x = try f x with e -> ignore_enoent e
 
   let mkdir dirname =
@@ -309,9 +290,7 @@ module Unix : S = struct
               v ~offset ~version:`V2 ~generation raw)
 
   let close t = Raw.close t.raw
-
   let exists file = Sys.file_exists file
-
   let size { raw; _ } = (Raw.fstat raw).st_size
 
   (* From a given offset in [src], transfer all data to [dst] (starting at

@@ -27,9 +27,7 @@ end
 module L = Irmin_containers.Lww_register.Mem (In)
 
 let merge_into_exn = merge_into_exn (module L.Store)
-
 let path = [ "tmp"; "lww" ]
-
 let config () = L.Store.Repo.v (Irmin_mem.config ())
 
 let test_empty_read _ () =

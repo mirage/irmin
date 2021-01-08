@@ -19,19 +19,14 @@ let () = Random.self_init ()
 open Lwt.Infix
 
 let ( / ) = Filename.concat
-
 let test_http_dir = "test-http"
-
 let uri = Uri.of_string "http://irmin"
 
 type id = { name : string; id : int }
 
 let pp ppf t = Fmt.pf ppf "%s-%d" t.name t.id
-
 let socket t = test_http_dir / Fmt.strf "irmin-%a.sock" pp t
-
 let pid_file t = test_http_dir / Fmt.strf "irmin-test-%a.pid" pp t
-
 let tmp_file file = file ^ ".tmp"
 
 module Client (P : sig
@@ -100,7 +95,6 @@ let wait_for_the_server_to_start id =
   aux 1
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
-
 let root c = Irmin.Private.Conf.(get c root)
 
 let mkdir d =

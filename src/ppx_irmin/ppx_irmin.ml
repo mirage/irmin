@@ -16,7 +16,6 @@
 
 module Plugins = Ppx_repr_lib.Plugins.Make (struct
   let default_library = "Irmin.Type"
-
   let namespace = "irmin"
 end)
 

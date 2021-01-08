@@ -18,14 +18,12 @@
 open Lwt.Infix
 
 let return = Lwt.return
-
 let empty_info = Irmin.Info.none
 
 module Counter : Irmin.Contents.S with type t = int64 = struct
   type t = int64
 
   let t = Irmin.Type.int64
-
   let merge = Irmin.Merge.(option counter)
 end
 

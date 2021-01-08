@@ -22,7 +22,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module IO = struct
   let mkdir_pool = Lwt_pool.create 1 (fun () -> Lwt.return_unit)
-
   let mmap_threshold = 4096
 
   (* Files smaller than this are loaded using [read].  Use of mmap is
@@ -46,7 +45,6 @@ module IO = struct
     | e -> Lwt.fail e
 
   let protect f x = Lwt.catch (fun () -> f x) protect_unix_exn
-
   let safe f x = Lwt.catch (fun () -> f x) ignore_enoent
 
   let mkdir dirname =
@@ -131,7 +129,6 @@ module IO = struct
   type lock = path
 
   let lock_file x = x
-
   let file_exists = file_exists
 
   let list_files kind dir =

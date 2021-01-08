@@ -25,7 +25,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let option_of_result = function Ok x -> Some x | Error _ -> None
 
 type ('a, 'r) cont = ('a -> 'r) -> 'r
-
 type ('a, 'r) cont_lwt = ('a, 'r Lwt.t) cont
 
 (* assume l1 and l2 are key-sorted *)
@@ -107,7 +106,6 @@ module Make (P : S.PRIVATE) = struct
       type t = Path.step
 
       let t = Path.step_t
-
       let compare = Type.(unstage (compare Path.step_t))
     end
 
@@ -118,9 +116,7 @@ module Make (P : S.PRIVATE) = struct
   module Metadata = P.Node.Metadata
 
   type key = Path.t
-
   type hash = P.Hash.t
-
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
 
   let get_ok : type a. a or_error -> a = function
@@ -129,20 +125,16 @@ module Make (P : S.PRIVATE) = struct
         Fmt.failwith "Encountered dangling hash %a" (Type.pp P.Hash.t) hash
 
   type step = Path.step
-
   type contents = P.Contents.value
-
   type repo = P.Repo.t
 
   let pp_hash = Type.pp P.Hash.t
-
   let pp_path = Type.pp Path.t
 
   module Hashes = Hashtbl.Make (struct
     type t = hash
 
     let hash = P.Hash.short_hash
-
     let equal = Type.(unstage (equal P.Hash.t))
   end)
 
@@ -153,27 +145,20 @@ module Make (P : S.PRIVATE) = struct
   let empty_marks () = Hashes.create 39
 
   type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
-
   type uniq = [ `False | `True | `Marks of marks ]
-
   type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
 
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
 
   let equal_contents = Type.(unstage (equal P.Contents.Val.t))
-
   let equal_metadata = Type.(unstage (equal Metadata.t))
-
   let equal_hash = Type.(unstage (equal P.Hash.t))
-
   let equal_node = Type.(unstage (equal P.Node.Val.t))
 
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
-
     type info = { mutable hash : hash option; mutable value : contents option }
-
     type t = { mutable v : v; mutable info : info }
 
     let info_is_empty i = i.hash = None && i.value = None
@@ -209,9 +194,7 @@ module Make (P : S.PRIVATE) = struct
       | Value _, Some k -> t.v <- Hash (repo, k)
 
     let t = Type.map v of_v (fun t -> t.v)
-
     let of_value c = of_v (Value c)
-
     let of_hash repo k = of_v (Hash (repo, k))
 
     let cached_hash t =
@@ -379,7 +362,6 @@ module Make (P : S.PRIVATE) = struct
       | `Node t -> clear ~max_depth (depth + 1) t
 
     and clear_map ~max_depth depth = List.iter (clear_elt ~max_depth depth)
-
     and clear_maps ~max_depth depth = List.iter (clear_map ~max_depth depth)
 
     and clear_info ~max_depth ?v depth i =
@@ -424,11 +406,8 @@ module Make (P : S.PRIVATE) = struct
           | Some k -> t.v <- Hash (repo, k))
 
     let dump = Type.pp_json ~minify:false t
-
     let of_map m = of_v (Map m)
-
     let of_hash repo k = of_v (Hash (repo, k))
-
     let of_value ?added repo v = of_v (Value (repo, v, added))
 
     let empty = function
@@ -890,14 +869,12 @@ module Make (P : S.PRIVATE) = struct
   end
 
   type node = Node.t [@@deriving irmin]
-
   type metadata = Metadata.t
 
   type t = [ `Node of node | `Contents of P.Contents.Val.t * Metadata.t ]
   [@@deriving irmin { name = "tree_t" }]
 
   let of_private_node repo n = Node.of_value repo n
-
   let to_private_node = Node.to_value
 
   let dump ppf = function
@@ -927,9 +904,7 @@ module Make (P : S.PRIVATE) = struct
     | `Contents _ -> Lwt.return_false
 
   let of_node n = `Node n
-
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
-
   let v = function `Contents c -> `Contents c | `Node n -> `Node n
 
   let destruct : t -> [> `Node of node | `Contents of contents * metadata ] =
@@ -983,11 +958,8 @@ module Make (P : S.PRIVATE) = struct
   [@@deriving irmin]
 
   let empty_stats = { nodes = 0; leafs = 0; skips = 0; depth = 0; width = 0 }
-
   let incr_nodes s = { s with nodes = s.nodes + 1 }
-
   let incr_leafs s = { s with leafs = s.leafs + 1 }
-
   let incr_skips s = { s with skips = s.skips + 1 }
 
   let set_depth p s =
@@ -1021,9 +993,7 @@ module Make (P : S.PRIVATE) = struct
     | Some v -> Lwt.return v
 
   let get t k = get_all t k >|= fun (c, _) -> c
-
   let mem t k = find t k >|= function None -> false | _ -> true
-
   let mem_tree t k = find_tree t k >|= function None -> false | _ -> true
 
   let kind t path =
@@ -1160,7 +1130,6 @@ module Make (P : S.PRIVATE) = struct
     | false -> None
 
   let import_no_check repo k = Node.of_hash repo k
-
   let value_of_map t map = Node.value_of_map t map (fun x -> x)
 
   let export ?clear repo contents_t node_t n =
@@ -1474,9 +1443,7 @@ module Make (P : S.PRIVATE) = struct
     fold ~force ~pre ~post ~contents t empty_stats
 
   let counters () = cnt
-
   let dump_counters ppf () = dump_counters ppf cnt
-
   let reset_counters () = reset_counters cnt
 
   let inspect = function

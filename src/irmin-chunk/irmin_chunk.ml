@@ -85,18 +85,14 @@ module Chunk (K : Irmin.Hash.S) = struct
   type t = { len : int; v : v }
 
   let size_of = Irmin.Type.unstage (Irmin.Type.size_of v)
-
   let to_bin_string = Irmin.Type.unstage (Irmin.Type.to_bin_string v)
-
   let decode_bin = Irmin.Type.unstage (Irmin.Type.decode_bin v)
-
   let encode_bin = Irmin.Type.unstage (Irmin.Type.encode_bin v)
 
   let size_of_v t =
     match size_of t with Some n -> n | None -> String.length (to_bin_string t)
 
   let size_of_data_header = size_of_v (Data "")
-
   let size_of_index_header = size_of_v (Index [])
 
   let of_string b =
@@ -216,9 +212,7 @@ struct
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit
-
   let clear t = CA.clear t.db
-
   let batch t f = CA.batch t.db (fun db -> f { t with db })
 
   let find_leaves t key =

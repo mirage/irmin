@@ -32,7 +32,6 @@ end
 
 module type G = sig
   include S
-
   module Git : Irmin_git.G
 end
 

@@ -27,9 +27,7 @@ end
 module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String) ()
 
 let merge_into_exn = merge_into_exn (module L.Store)
-
 let path = [ "tmp"; "link" ]
-
 let config () = L.Store.Repo.v (Irmin_mem.config ())
 
 let test_empty_read _ () =

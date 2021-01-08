@@ -20,9 +20,7 @@ module Make
     (Commit : S.COMMIT_STORE) =
 struct
   type contents = Contents.Key.t * Contents.Val.t [@@deriving irmin]
-
   type node = Node.Key.t * Node.Val.t [@@deriving irmin]
-
   type commit = Commit.Key.t * Commit.Val.t [@@deriving irmin]
 
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]

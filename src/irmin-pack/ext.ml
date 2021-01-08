@@ -24,11 +24,9 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
-
 let pp_version = IO.pp_version
 
 exception Unsupported_version = Store.Unsupported_version
-
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
 let ( ++ ) = Int64.add
@@ -73,13 +71,9 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let magic = 'B'
-
           let value = value_t Val.t
-
           let encode_value = Irmin.Type.(unstage (encode_bin value))
-
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -113,13 +107,9 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let value = value_t Val.t
-
           let magic = 'C'
-
           let encode_value = Irmin.Type.(unstage (encode_bin value))
-
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -159,11 +149,8 @@ struct
       }
 
       let contents_t t : 'a Contents.t = t.contents
-
       let node_t t : 'a Node.t = (contents_t t, t.node)
-
       let commit_t t : 'a Commit.t = (node_t t, t.commit)
-
       let branch_t t = t.branch
 
       let batch t f =
@@ -244,7 +231,6 @@ struct
           Irmin.Type.(unstage (decode_bin (value_t Commit.Val.t)))
 
         let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
-
         let decode_magic = Irmin.Type.(unstage (decode_bin char))
 
         let decode_buffer ~progress ~total pack dict index =
@@ -353,12 +339,8 @@ struct
   include Irmin.Of_private (X)
 
   let sync = X.Repo.sync
-
   let clear = X.Repo.clear
-
   let migrate = Store.migrate
-
   let flush = X.Repo.flush
-
   let reconstruct_index = X.Repo.Reconstruct_index.reconstruct
 end

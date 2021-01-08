@@ -22,7 +22,6 @@ let src =
     ~doc:"layered inodes for the irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module I = Inode
 
 module Make
@@ -45,9 +44,7 @@ struct
   module Key = H
 
   type 'a t = 'a Inode.t
-
   type key = Key.t
-
   type value = Val.t
 
   let mem t k = Inode.mem t k
@@ -68,7 +65,6 @@ struct
         Some { Val.find; v }
 
   let hash v = Inode.Val.hash v.Val.v
-
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
@@ -78,17 +74,11 @@ struct
         expected Inode.pp_hash got
 
   let batch = Inode.batch
-
   let v = Inode.v
-
   let integrity_check = Inode.integrity_check
-
   let close = Inode.close
-
   let sync = Inode.sync
-
   let clear = Inode.clear
-
   let clear_caches = Inode.clear_caches
 
   let save t v =
@@ -112,23 +102,14 @@ struct
   module L = Inode.L
 
   let layer_id = Inode.layer_id
-
   let mem_lower = Inode.mem_lower
-
   let lower = Inode.lower
-
   let mem_next = Inode.mem_next
-
   let flip_upper = Inode.flip_upper
-
   let next_upper = Inode.next_upper
-
   let current_upper = Inode.current_upper
-
   let consume_newies = Inode.consume_newies
-
   let update_flip = Inode.update_flip
-
   let flush ?index t = Inode.flush ?index t
 
   type 'a layer_type =

@@ -2,7 +2,6 @@ open Lwt.Infix
 open Common
 
 let ( let* ) x f = Lwt.bind x f
-
 let src = Logs.Src.create "tests.migration" ~doc:"Test migrations"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -57,7 +56,6 @@ end
 module Test
     (S : Migrate_store) (Config : sig
       val setup_test_env : unit -> unit
-
       val root_v1 : string
     end) =
 struct
@@ -152,6 +150,7 @@ module Config_store = struct
 end
 
 module Hash = Irmin.Hash.SHA1
+
 module Make () =
   Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
@@ -160,7 +159,6 @@ module Make () =
 
 module Test_store = struct
   module S = Make ()
-
   include Test (S) (Config_store)
 
   let uncached_instance_check_idempotent () =
@@ -185,7 +183,6 @@ end
 
 module Test_reconstruct = struct
   module S = Make ()
-
   include Test (S) (Config_store)
 
   let setup_test_env () =
@@ -272,6 +269,7 @@ module Make_layered =
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
+
 module Test_layered_store = Test (Make_layered) (Config_layered_store)
 
 module Test_corrupted_stores = struct

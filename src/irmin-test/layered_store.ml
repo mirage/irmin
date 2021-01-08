@@ -11,33 +11,19 @@ module Make_Layered (S : LAYERED_STORE) = struct
   module History = Irmin.Private.Commit.History (P.Commit)
 
   let v1 = "X1"
-
   let v2 = "X2"
-
   let v3 = "X3"
-
   let v4 = "X4"
-
   let v5 = "X5"
-
   let v6 = "X6"
-
   let b1 = "foo"
-
   let b2 = "bar/toto"
-
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
-
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
-
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
-
   let with_info repo n f = with_commit repo (fun h -> f h ~info:(info n))
-
   let normal x = `Contents (x, S.Metadata.default)
-
   let h repo = P.Repo.commit_t repo
-
   let n repo = P.Repo.node_t repo
 
   let n1 ~repo =

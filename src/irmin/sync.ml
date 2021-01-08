@@ -22,9 +22,7 @@ module None (H : Type.S) (R : Type.S) = struct
   let v _ = Lwt.return_unit
 
   type endpoint = unit
-
   type commit = H.t
-
   type branch = R.t
 
   let fetch () ?depth:_ _ _br =

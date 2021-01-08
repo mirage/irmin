@@ -26,7 +26,6 @@ let stats =
 
 module FS = struct
   let test_db = Test_fs.test_db
-
   let config = Test_fs.config
 
   let store =

@@ -17,7 +17,6 @@
 module Checks = Checks
 
 let config = Config.v
-
 let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -29,13 +28,10 @@ open Irmin_pack
 open Private
 
 let current_version = `V2
-
 let pp_version = IO.pp_version
-
 let ( -- ) = Int64.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-
 exception Unsupported_version = Store.Unsupported_version
 
 let cache_size = 10_000
@@ -51,7 +47,6 @@ module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
-
 let lock_path root = Filename.concat root "lock"
 
 module Make_ext
@@ -98,13 +93,9 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let magic = 'B'
-
           let value = value Val.t
-
           let encode_value = Irmin.Type.(unstage (encode_bin value))
-
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -140,13 +131,9 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let value = value Val.t
-
           let magic = 'C'
-
           let encode_value = Irmin.Type.(unstage (encode_bin value))
-
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -220,11 +207,8 @@ struct
       }
 
       let contents_t t = t.contents
-
       let node_t t = (contents_t t, t.node)
-
       let commit_t t = (node_t t, t.commit)
-
       let branch_t t = t.branch
 
       module Iterate = struct
@@ -514,9 +498,7 @@ struct
         Iterate.iter f t
 
       let write_flip t = IO_layers.write_flip t.flip t.flip_file
-
       let upper_in_use t = if t.flip then `Upper1 else `Upper0
-
       let offset t = Contents.CA.offset t.contents
     end
   end
@@ -550,26 +532,17 @@ struct
   include Irmin.Of_private (X)
 
   let sync = X.Repo.sync
-
   let clear = X.Repo.clear
-
   let migrate = X.Repo.migrate
-
   let flush = X.Repo.flush
-
   let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash
 
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
-
     let mem_commit_next t = X.Commit.CA.mem_next t.X.Repo.commit
-
     let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
-
     let mem_node_next t = X.Node.CA.mem_next t.X.Repo.node
-
     let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
-
     let mem_contents_next t = X.Contents.CA.mem_next t.X.Repo.contents
 
     let copy_branches t =
@@ -595,7 +568,6 @@ struct
             (X.Node.CA.Val.pred v)
 
     let always_false _ = false
-
     let with_cancel cancel f = if cancel () then Lwt.fail Cancelled else f ()
 
     let iter_copy (contents, nodes, commits) ?(skip_commits = no_skip)
@@ -803,9 +775,7 @@ struct
       Fmt.list ~sep:(Fmt.unit "; ") pp ppf (List.filter (fun x -> x <> E) t)
 
     let commits k = function [] -> E | v -> F (pp_commits, k, v)
-
     let bool k v = if not v then E else F (Fmt.bool, k, v)
-
     let int k v = F (Fmt.int, k, v)
 
     let span k v =
@@ -925,15 +895,10 @@ struct
       | _ -> freeze ()
 
   let layer_id = X.Repo.layer_id
-
   let freeze = freeze' ?hook:None
-
   let async_freeze (t : Repo.t) = t.freeze.state = `Running
-
   let upper_in_use = X.Repo.upper_in_use
-
   let self_contained = Copy.CopyFromLower.self_contained
-
   let needs_recovery t = Lock.test (lock_path t.X.Repo.root)
 
   let check_self_contained ?heads t =
@@ -974,14 +939,12 @@ struct
       Lwt_mutex.with_lock t.freeze.lock (fun () -> Lwt.return_unit)
 
     let freeze' = freeze'
-
     let upper_in_use = upper_in_use
   end
 end
 
 module type S = sig
   include Irmin_layers.S
-
   include Store.S with type repo := repo
 
   val integrity_check :

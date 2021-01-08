@@ -18,7 +18,6 @@
 open Lwt.Infix
 
 let return = Lwt.return
-
 let empty_info = Irmin.Info.none
 
 module Blob_log (T : Time.S) (V : Irmin.Type.S) :
@@ -26,7 +25,6 @@ module Blob_log (T : Time.S) (V : Irmin.Type.S) :
   type t = (V.t * T.t) list [@@deriving irmin]
 
   let compare_t = Irmin.Type.(unstage (compare T.t))
-
   let compare (_, t1) (_, t2) = compare_t t1 t2
 
   let newer_than timestamp entries =
@@ -59,7 +57,6 @@ module type S = sig
   type value
 
   val append : path:Store.key -> Store.t -> value -> unit Lwt.t
-
   val read_all : path:Store.key -> Store.t -> value list Lwt.t
 end
 

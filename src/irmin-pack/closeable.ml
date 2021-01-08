@@ -14,11 +14,8 @@ open Lwt.Infix
 
 module Content_addressable (S : Pack.S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
-
   type key = S.key
-
   type value = S.value
-
   type index = S.index
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -104,9 +101,7 @@ end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   type t = { closed : bool ref; t : AW.t }
-
   type key = AW.key
-
   type value = AW.value
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed

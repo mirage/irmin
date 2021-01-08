@@ -25,7 +25,6 @@ module No_metadata = struct
   type t = unit [@@deriving irmin]
 
   let default = ()
-
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
@@ -36,11 +35,8 @@ module Make
     (M : S.METADATA) =
 struct
   type hash = K.t [@@deriving irmin]
-
   type step = P.step [@@deriving irmin]
-
   type metadata = M.t [@@deriving irmin]
-
   type kind = [ `Node | `Contents of M.t ]
 
   let equal_metadata = Type.(unstage (equal M.t))
@@ -75,12 +71,10 @@ struct
     type t = P.step
 
     let compare_step = Type.(unstage (compare P.step_t))
-
     let compare (x : t) (y : t) = compare_step y x
   end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
-
   type t = entry StepMap.t
 
   let v l =
@@ -97,7 +91,6 @@ struct
     with Not_found -> None
 
   let empty = StepMap.empty
-
   let is_empty e = list e = []
 
   let add t k v =
@@ -107,7 +100,6 @@ struct
       t
 
   let remove t k = StepMap.remove k t
-
   let default = M.default
 
   let value_t =
@@ -121,9 +113,7 @@ struct
     |> sealv
 
   let of_entries e = v (List.rev_map of_entry e)
-
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
-
   let t = Type.map Type.(list entry_t) of_entries entries
 end
 
@@ -132,7 +122,6 @@ module Store
     (P : S.PATH)
     (M : S.METADATA) (S : sig
       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
-
       module Key : S.HASH with type t = key
 
       module Val :
@@ -149,19 +138,13 @@ struct
   module Metadata = M
 
   type 'a t = 'a C.t * 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let mem (_, t) = S.mem t
-
   let find (_, t) = S.find t
-
   let clear (_, t) = S.clear t
-
   let add (_, t) = S.add t
-
   let unsafe_add (_, t) = S.unsafe_add t
 
   let all_contents t =
@@ -177,9 +160,7 @@ struct
       [] kvs
 
   let contents_t = C.Key.t
-
   let metadata_t = M.t
-
   let step_t = Path.step_t
 
   (* [Merge.alist] expects us to return an option. [C.merge] does
@@ -238,17 +219,11 @@ module Graph (S : S.NODE_STORE) = struct
   module Metadata = S.Metadata
 
   type step = Path.step [@@deriving irmin]
-
   type metadata = Metadata.t [@@deriving irmin]
-
   type contents = Contents.t [@@deriving irmin]
-
   type node = S.Key.t [@@deriving irmin]
-
   type path = Path.t [@@deriving irmin]
-
   type 'a t = 'a S.t
-
   type value = [ `Contents of contents * metadata | `Node of node ]
 
   let empty t = S.add t S.Val.empty
@@ -269,11 +244,8 @@ module Graph (S : S.NODE_STORE) = struct
       (S.Val.list t)
 
   let pp_key = Type.pp S.Key.t
-
   let pp_keys = Fmt.(Dump.list pp_key)
-
   let pp_path = Type.pp S.Path.t
-
   let equal_val = Type.(unstage (equal S.Val.t))
 
   let pred t = function
@@ -385,9 +357,7 @@ end
 module V1 (N : S.NODE with type step = string) = struct
   module K = struct
     let h = Type.string_of `Int64
-
     let to_bin_string = Type.(unstage (to_bin_string N.hash_t))
-
     let of_bin_string = Type.(unstage (of_bin_string N.hash_t))
 
     let size_of =
@@ -411,17 +381,12 @@ module V1 (N : S.NODE with type step = string) = struct
   end
 
   type step = N.step
-
   type hash = N.hash [@@deriving irmin]
-
   type metadata = N.metadata [@@deriving irmin]
-
   type value = N.value
-
   type t = { n : N.t; entries : (step * value) list }
 
   let import n = { n; entries = N.list n }
-
   let export t = t.n
 
   let v entries =
@@ -429,13 +394,9 @@ module V1 (N : S.NODE with type step = string) = struct
     { n; entries }
 
   let list t = t.entries
-
   let empty = { n = N.empty; entries = [] }
-
   let is_empty t = t.entries = []
-
   let default = N.default
-
   let find t k = N.find t.n k
 
   let add t k v =
@@ -447,9 +408,7 @@ module V1 (N : S.NODE with type step = string) = struct
     if t.n == n then t else { n; entries = N.list n }
 
   let v1_step = Type.string_of `Int64
-
   let step_to_bin_string = Type.(unstage (to_bin_string v1_step))
-
   let step_of_bin_string = Type.(unstage (of_bin_string v1_step))
 
   let step_t : step Type.t =

@@ -59,7 +59,6 @@ module type Make_args = sig
 
   module Store : sig
     include Irmin.S with type hash = Hash.t
-
     include Store.S with type repo := repo
 
     (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
@@ -71,13 +70,10 @@ module type Checks = sig
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t
-
   val path : string Cmdliner.Term.t
 
   module type Subcommand = Subcommand
-
   module type S = S
-
   module type Make_args = Make_args
 
   module Make (_ : Make_args) : S

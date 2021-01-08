@@ -114,12 +114,10 @@ module type Irmin_layers = sig
     type t = layer_id [@@deriving irmin]
 
     val pp : Format.formatter -> t -> unit
-
     val to_string : t -> string
   end
 
   module type S = S
-
   module type S_MAKER = S_MAKER
 
   module Make_ext

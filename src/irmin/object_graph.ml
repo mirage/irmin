@@ -32,7 +32,6 @@ let list_partition_map f t =
 
 module type S = sig
   include Graph.Sig.I
-
   include Graph.Oper.S with type g := t
 
   module Topological : sig
@@ -40,7 +39,6 @@ module type S = sig
   end
 
   val vertex : t -> vertex list
-
   val edges : t -> (vertex * vertex) list
 
   val closure :
@@ -72,13 +70,11 @@ module type S = sig
     unit
 
   val min : t -> vertex list
-
   val max : t -> vertex list
 
   type dump = vertex list * (vertex * vertex) list
 
   val export : t -> dump
-
   val import : dump -> t
 
   module Dump : Type.S with type t = dump
@@ -100,9 +96,7 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     [@@deriving irmin]
 
     let equal = Type.(unstage (equal t))
-
     let compare = Type.(unstage (compare t))
-
     let hash_branch = Type.(unstage (short_hash Branch.t))
 
     (* we are using cryptographic hashes here, so the first bytes
@@ -123,9 +117,7 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     type t
 
     val create : int option -> t
-
     val add : t -> X.t -> int -> unit
-
     val mem : t -> X.t -> bool
   end = struct
     module Lru = Lru.Make (X)
@@ -138,7 +130,6 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
       | Some n -> L (Lru.create n)
 
     let add t k v = match t with L t -> Lru.add t k v | T t -> Tbl.add t k v
-
     let mem t k = match t with L t -> Lru.mem t k | T t -> Tbl.mem t k
   end
 
@@ -155,11 +146,8 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
   end
 
   let vertex g = G.fold_vertex (fun k set -> k :: set) g []
-
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
-
   let pp_vertices = Fmt.Dump.list (Type.pp X.t)
-
   let pp_depth ppf d = if d <> max_int then Fmt.pf ppf "depth=%d,@ " d
 
   type action = Visit of (X.t * int) | Treat of X.t
@@ -258,16 +246,13 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
       g []
 
   let vertex_attributes = ref (fun _ -> [])
-
   let edge_attributes = ref (fun _ -> [])
-
   let graph_name = ref None
 
   module Dot = Graph.Graphviz.Dot (struct
     include G
 
     let edge_attributes k = !edge_attributes k
-
     let default_edge_attributes _ = []
 
     let vertex_name k =
@@ -279,9 +264,7 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
       | `Branch b -> str Branch.t b
 
     let vertex_attributes k = !vertex_attributes k
-
     let default_vertex_attributes _ = []
-
     let get_subgraph _ = None
 
     let graph_attributes _ =

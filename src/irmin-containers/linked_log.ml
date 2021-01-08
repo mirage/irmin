@@ -18,7 +18,6 @@
 open Lwt.Infix
 
 let return = Lwt.return
-
 let empty_info = Irmin.Info.none
 
 module Log_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
@@ -64,9 +63,7 @@ struct
     Store.add store (Value { time = T.now (); msg; prev })
 
   let read_key k = Store.get_store () >>= fun store -> Store.read_exn store k
-
   let compare_t = Irmin.Type.(unstage (compare T.t))
-
   let sort l = List.sort (fun i1 i2 -> compare_t i2.L.time i1.L.time) l
 
   let merge ~old:_ v1 v2 =
@@ -92,7 +89,6 @@ module type S = sig
   type cursor
 
   val get_cursor : path:Store.key -> Store.t -> cursor Lwt.t
-
   val read : num_items:int -> cursor -> (value list * cursor) Lwt.t
 end
 
@@ -159,7 +155,6 @@ struct
                   (num_items - 1) (msg :: acc))
 
   let read ~num_items cursor = read_log cursor num_items []
-
   let read_all ~path t = get_cursor t ~path >>= read ~num_items:max_int >|= fst
 end
 
