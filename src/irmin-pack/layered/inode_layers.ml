@@ -27,65 +27,59 @@ module I = Inode
 module Make
     (Conf : Irmin_pack.Config.S)
     (H : Irmin.Hash.S)
-    (Pack : S.LAYERED_PACK_MAKER
-              with type key = H.t
-               and type index = Pack_index.Make(H).t)
+    (Pack_maker : S.LAYERED_PACK_MAKER
+                    with type key = H.t
+                     and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack.index
+  type index = Pack_maker.index
 
-  include Inode.Make_intermediate (Conf) (H) (Node)
-
-  module Inode = struct
-    include Inode
-    include Pack.Make (Elt)
-  end
-
+  module Inter = Inode.Make_intermediate (Conf) (H) (Node)
+  module P = Pack_maker.Make (Inter.Elt)
+  module Val = Inter.Val
   module Key = H
 
-  type 'a t = 'a Inode.t
+  type 'a t = 'a P.t
   type key = Key.t
   type value = Val.t
 
-  let mem t k = Inode.mem t k
+  let mem t k = P.mem t k
 
   let unsafe_find ~check_integrity t k =
-    match Inode.unsafe_find ~check_integrity t k with
+    match P.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
-        let v = Inode.Val.of_bin v in
+        let v = Inter.Val_impl.of_bin v in
         Some v
 
   let find t k =
-    Inode.find t k >|= function
+    P.find t k >|= function
     | None -> None
     | Some v ->
-        let v = Inode.Val.of_bin v in
+        let v = Inter.Val_impl.of_bin v in
         let find = unsafe_find ~check_integrity:true t in
         Some { Val.find; v }
 
-  let hash v = Inode.Val.hash v.Val.v
+  let hash v = Inter.Val_impl.hash v.Val.v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inode.pp_hash
-        expected Inode.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
+        expected Inter.pp_hash got
 
-  let batch = Inode.batch
-  let v = Inode.v
-  let integrity_check = Inode.integrity_check
-  let close = Inode.close
-  let sync = Inode.sync
-  let clear = Inode.clear
-  let clear_caches = Inode.clear_caches
+  let batch = P.batch
+  let v = P.v
+  let integrity_check = P.integrity_check
+  let close = P.close
+  let sync = P.sync
+  let clear = P.clear
+  let clear_caches = P.clear_caches
 
   let save t v =
-    let add k v =
-      Inode.unsafe_append ~ensure_unique:true ~overcommit:false t k v
-    in
-    Inode.Val.save ~add ~mem:(Inode.unsafe_mem t) v
+    let add k v = P.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
+    Inter.Val_impl.save ~add ~mem:(P.unsafe_mem t) v
 
   let add t v =
     save t v.Val.v;
@@ -96,33 +90,33 @@ struct
     save t v.Val.v;
     Lwt.return ()
 
-  let clear_caches_next_upper = Inode.clear_caches_next_upper
+  let clear_caches_next_upper = P.clear_caches_next_upper
 
-  module U = Inode.U
-  module L = Inode.L
+  module U = P.U
+  module L = P.L
 
-  let layer_id = Inode.layer_id
-  let mem_lower = Inode.mem_lower
-  let lower = Inode.lower
-  let mem_next = Inode.mem_next
-  let flip_upper = Inode.flip_upper
-  let next_upper = Inode.next_upper
-  let current_upper = Inode.current_upper
-  let consume_newies = Inode.consume_newies
-  let update_flip = Inode.update_flip
-  let flush ?index t = Inode.flush ?index t
+  let layer_id = P.layer_id
+  let mem_lower = P.mem_lower
+  let lower = P.lower
+  let mem_next = P.mem_next
+  let flip_upper = P.flip_upper
+  let next_upper = P.next_upper
+  let current_upper = P.current_upper
+  let consume_newies = P.consume_newies
+  let update_flip = P.update_flip
+  let flush ?index t = P.flush ?index t
 
   type 'a layer_type =
     | Upper : [ `Read ] U.t layer_type
     | Lower : [ `Read ] L.t layer_type
 
-  let copy_from_lower ~dst t = Inode.copy_from_lower t "Node" ~dst
+  let copy_from_lower ~dst t = P.copy_from_lower t "Node" ~dst
 
   let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit =
    fun (layer, dst) t ->
     match layer with
-    | Lower -> Inode.copy (Lower, dst) t "Node"
-    | Upper -> Inode.copy (Upper, dst) t "Node"
+    | Lower -> P.copy (Lower, dst) t "Node"
+    | Upper -> P.copy (Upper, dst) t "Node"
 
-  let check = Inode.check
+  let check = P.check
 end
