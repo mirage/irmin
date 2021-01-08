@@ -522,8 +522,7 @@ struct
                   k t
               | Inode n ->
                   let t = get_tree ~find n in
-                  (add [@tailrec]) ~seed:(seed + 1) ~find ~copy t s v
-                  @@ fun tree ->
+                  add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
                   entries.(i) <- inode ~tree tree.hash;
                   let t = inodes { seed; length; entries } in
                   k t))
@@ -553,8 +552,7 @@ struct
                 | Empty -> assert false
                 | Inode t ->
                     let t = get_tree ~find t in
-                    (remove [@tailrec]) ~seed:(seed + 1) ~find t s
-                    @@ fun tree ->
+                    remove ~seed:(seed + 1) ~find t s @@ fun tree ->
                     entries.(i) <- inode ~tree (lazy (hash tree));
                     let t = inodes { seed; length; entries } in
                     k t))
