@@ -32,9 +32,7 @@ struct
   module H = Hash.Typed (K) (V)
 
   let hash = H.hash
-
   let pp_key = Type.pp K.t
-
   let equal_hash = Type.(unstage (equal K.t))
 
   let find t k =
@@ -62,9 +60,7 @@ module Make (P : S.PRIVATE) = struct
   module Hash = P.Hash
 
   type hash = Hash.t
-
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
-
   type ff_error = [ `No_change | `Rejected | lca_error ]
 
   module Key = P.Node.Path
@@ -80,7 +76,6 @@ module Make (P : S.PRIVATE) = struct
     include P.Contents.Val
 
     let of_hash r h = P.Contents.find (P.Repo.contents_t r) h
-
     let hash c = P.Contents.Key.hash c
   end
 
@@ -88,7 +83,6 @@ module Make (P : S.PRIVATE) = struct
     include Tree.Make (P)
 
     let of_hash r h = import r h >|= Option.map of_node
-
     let shallow r h = import_no_check r h |> of_node
 
     let hash : t -> hash =
@@ -103,27 +97,17 @@ module Make (P : S.PRIVATE) = struct
     | `Node n -> Tree.export ~clear r x y n
 
   type node = Tree.node [@@deriving irmin]
-
   type contents = Contents.t [@@deriving irmin]
-
   type metadata = Metadata.t [@@deriving irmin]
-
   type tree = Tree.t
-
   type repo = P.Repo.t
 
   let equal_hash = Type.(unstage (equal Hash.t))
-
   let equal_contents = Type.(unstage (equal Contents.t))
-
   let equal_branch = Type.(unstage (equal Branch_store.Key.t))
-
   let pp_key = Type.pp Key.t
-
   let pp_hash = Type.pp Hash.t
-
   let pp_branch = Type.pp Branch_store.Key.t
-
   let pp_option = Type.pp (Type.option Type.int)
 
   module Commit = struct
@@ -146,17 +130,11 @@ module Make (P : S.PRIVATE) = struct
       P.Commit.add commit_t v >|= fun h -> { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-
     let tree t = Tree.import_no_check t.r (node t) |> Tree.of_node
-
     let equal x y = equal_hash x.h y.h
-
     let hash t = t.h
-
     let info t = P.Commit.Val.info t.v
-
     let parents t = P.Commit.Val.parents t.v
-
     let pp_hash ppf t = Type.pp Hash.t ppf t.h
 
     let of_hash r h =
@@ -180,11 +158,8 @@ module Make (P : S.PRIVATE) = struct
   type commit = Commit.t
 
   let to_private_node = Tree.to_private_node
-
   let of_private_node = Tree.of_private_node
-
   let to_private_commit = Commit.to_private_commit
-
   let of_private_commit = Commit.of_private_commit
 
   type head_ref = [ `Branch of branch | `Head of commit option ref ]
@@ -194,7 +169,6 @@ module Make (P : S.PRIVATE) = struct
   module KGraph = Object_graph.Make (Hash) (Branch_store.Key)
 
   type slice = P.Slice.t [@@deriving irmin]
-
   type watch = unit -> unit Lwt.t
 
   let unwatch w = w ()
@@ -203,21 +177,13 @@ module Make (P : S.PRIVATE) = struct
     type t = repo
 
     let v = P.Repo.v
-
     let close = P.Repo.close
-
     let graph_t t = P.Repo.node_t t
-
     let history_t t = P.Repo.commit_t t
-
     let branch_t t = P.Repo.branch_t t
-
     let commit_t t = P.Repo.commit_t t
-
     let node_t t = P.Repo.node_t t
-
     let contents_t t = P.Repo.contents_t t
-
     let branches t = P.Branch.list (branch_t t)
 
     let heads repo =
@@ -345,9 +311,7 @@ module Make (P : S.PRIVATE) = struct
     [@@deriving irmin]
 
     let ignore_lwt _ = Lwt.return_unit
-
     let return_false _ = Lwt.return false
-
     let default_pred_contents _ _ = Lwt.return []
 
     let default_pred_node t k =
@@ -415,11 +379,8 @@ module Make (P : S.PRIVATE) = struct
   type step = Key.step [@@deriving irmin]
 
   let repo t = t.repo
-
   let branch_t t = Repo.branch_t t.repo
-
   let commit_t t = Repo.commit_t t.repo
-
   let history_t t = commit_t t
 
   let status t =
@@ -463,9 +424,7 @@ module Make (P : S.PRIVATE) = struct
     else err_invalid_branch id
 
   let master repo = of_branch repo Branch_store.Key.master
-
   let empty repo = of_ref repo (`Head (ref None))
-
   let of_commit c = of_ref c.Commit.r (`Head (ref (Some c)))
 
   let skip_key key =
@@ -587,7 +546,6 @@ module Make (P : S.PRIVATE) = struct
 
   module Head = struct
     let list = Repo.heads
-
     let find = head
 
     let get t =
@@ -721,7 +679,6 @@ module Make (P : S.PRIVATE) = struct
           t
 
   let write_error e : ('a, write_error) result Lwt.t = Lwt.return (Error e)
-
   let err_test v = write_error (`Test_was v)
 
   type snapshot = {
@@ -857,17 +814,11 @@ module Make (P : S.PRIVATE) = struct
     merge ?retries ?allow_empty ?parents ~info ~old t k v >>= fail "merge_exn"
 
   let mem t k = tree t >>= fun tree -> Tree.mem tree k
-
   let mem_tree t k = tree t >>= fun tree -> Tree.mem_tree tree k
-
   let find_all t k = tree t >>= fun tree -> Tree.find_all tree k
-
   let find t k = tree t >>= fun tree -> Tree.find tree k
-
   let get t k = tree t >>= fun tree -> Tree.get tree k
-
   let find_tree t k = tree t >>= fun tree -> Tree.find_tree tree k
-
   let get_tree t k = tree t >>= fun tree -> Tree.get_tree tree k
 
   let hash t k =
@@ -876,9 +827,7 @@ module Make (P : S.PRIVATE) = struct
     | Some tree -> Some (Tree.hash tree)
 
   let get_all t k = tree t >>= fun tree -> Tree.get_all tree k
-
   let list t k = tree t >>= fun tree -> Tree.list tree k
-
   let kind t k = tree t >>= fun tree -> Tree.kind tree k
 
   let with_tree ?(retries = 13) ?allow_empty ?parents
@@ -984,11 +933,8 @@ module Make (P : S.PRIVATE) = struct
     type t = commit
 
     let hash h = P.Commit.Key.short_hash h.Commit.h
-
     let compare_key = Type.(unstage (compare P.Commit.Key.t))
-
     let compare x y = compare_key x.Commit.h y.Commit.h
-
     let equal x y = equal_hash x.Commit.h y.Commit.h
   end)
 
@@ -1105,9 +1051,7 @@ module Make (P : S.PRIVATE) = struct
       | Some h -> Commit.of_hash t h
 
     let set t br h = P.Branch.set (P.Repo.branch_t t) br (Commit.hash h)
-
     let remove t = P.Branch.remove (P.Repo.branch_t t)
-
     let list = Repo.branches
 
     let watch t k ?init f =
@@ -1151,9 +1095,7 @@ module Make (P : S.PRIVATE) = struct
   end
 
   let tree_t = Tree.tree_t
-
   let commit_t = Commit.t
-
   let branch_t = Branch.t
 
   type kind = [ `Contents | `Node ] [@@deriving irmin]
@@ -1184,5 +1126,4 @@ end
 type S.remote += Store : (module Store_intf.S with type t = 'a) * 'a -> S.remote
 
 module type S = Store_intf.S
-
 module type MAKER = Store_intf.MAKER

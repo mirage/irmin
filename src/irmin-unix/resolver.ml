@@ -56,7 +56,6 @@ let config_path_key =
     "config" Irmin.Private.Conf.string "irmin.yml"
 
 let ( / ) = Filename.concat
-
 let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
@@ -113,7 +112,6 @@ type contents = Contents.t
 
 module Hash = struct
   type t = (module Irmin.Hash.S)
-
   type hash_function = Fixed of t | Variable_size of (int option -> t)
 
   module type SIZEABLE = functor
@@ -247,7 +245,6 @@ type hash = Hash.t
 
 module Store = struct
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
-
   type t = T : (module Irmin.S) * remote_fn option -> t
 
   type store_functor =
@@ -261,7 +258,6 @@ module Store = struct
   end
 
   let v ?remote s = T (s, remote)
-
   let v_git (module S : G) = v (module S) ~remote:S.remote
 
   let create : (module Irmin.S_MAKER) -> hash -> contents -> t =
@@ -273,18 +269,13 @@ module Store = struct
     T ((module S), None)
 
   let mem = create (module Irmin_mem.Make)
-
   let irf = create (module Fs.Make)
-
   let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
-
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
-
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
   module Inode_config = struct
     let entries = 32
-
     let stable_hash = 256
   end
 

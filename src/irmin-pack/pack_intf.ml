@@ -21,7 +21,6 @@ module type ELT = sig
   type hash
 
   val hash : t -> hash
-
   val magic : t -> char
 
   val encode_bin :
@@ -61,9 +60,7 @@ module type S = sig
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
 
   val unsafe_mem : 'a t -> key -> bool
-
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
-
   val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
@@ -74,9 +71,7 @@ module type S = sig
       generation change. *)
 
   val version : 'a t -> IO.version
-
   val generation : 'a t -> int64
-
   val offset : 'a t -> int64
 
   val clear : 'a t -> unit Lwt.t
@@ -87,7 +82,6 @@ module type S = sig
       are not removed. *)
 
   include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
-
   include Sigs.CLOSEABLE with type 'a t := 'a t
 
   val clear_keep_generation : 'a t -> unit Lwt.t
@@ -95,7 +89,6 @@ end
 
 module type MAKER = sig
   type key
-
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be
@@ -106,9 +99,7 @@ end
 
 module type Pack = sig
   module type ELT = ELT
-
   module type S = S
-
   module type MAKER = MAKER
 
   module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :

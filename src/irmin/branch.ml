@@ -18,7 +18,6 @@ module String = struct
   type t = string
 
   let t = Type.string
-
   let master = "master"
 
   let is_valid s =

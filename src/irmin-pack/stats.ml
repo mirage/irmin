@@ -18,9 +18,7 @@ let reset_stats () =
   ()
 
 let get () = stats
-
 let incr_finds () = stats.finds <- succ stats.finds
-
 let incr_cache_misses () = stats.cache_misses <- succ stats.cache_misses
 
 let incr_appended_hashes () =
@@ -30,7 +28,6 @@ let incr_appended_offsets () =
   stats.appended_offsets <- succ stats.appended_offsets
 
 type cache_stats = { cache_misses : float }
-
 type offset_stats = { offset_ratio : float; offset_significance : int }
 
 let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b

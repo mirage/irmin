@@ -22,7 +22,6 @@ let src = Logs.Src.create "irmin.merge" ~doc:"Irmin merging"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type conflict = [ `Conflict of string ]
-
 type 'a promise = unit -> ('a option, conflict) result Lwt.t
 
 let promise t : 'a promise = fun () -> Lwt.return (Ok (Some t))
@@ -38,11 +37,9 @@ let memo fn =
         Lwt.return x
 
 type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
-
 type 'a t = 'a Type.t * 'a f
 
 let v t f = (t, f)
-
 let f (x : 'a t) = snd x
 
 let conflict fmt =
@@ -53,7 +50,6 @@ let conflict fmt =
     fmt
 
 let bind x f = x >>= function Error e -> Lwt.return (Error e) | Ok x -> f x
-
 let map f x = x >|= function Error _ as x -> x | Ok x -> Ok (f x)
 
 let map_promise f t () =
@@ -72,11 +68,8 @@ let ok x = Lwt.return (Ok x)
 
 module Infix = struct
   let ( >>=* ) = bind
-
   let ( >|=* ) x f = map f x
-
   let ( >>=? ) = bind_promise
-
   let ( >|=? ) x f = map_promise f x
 end
 
@@ -270,7 +263,6 @@ struct
   module M = Map.Make (K)
 
   let of_alist l = List.fold_left (fun map (k, v) -> M.add k v map) M.empty l
-
   let t = Type.map Type.(list (pair K.t int64)) of_alist M.bindings
 
   let merge ~old m1 m2 =
@@ -301,9 +293,7 @@ struct
   module S = Set.Make (K)
 
   let of_list l = List.fold_left (fun set elt -> S.add elt set) S.empty l
-
   let t = Type.(map @@ list K.t) of_list S.elements
-
   let pp = Type.pp t
 
   let merge ~old x y =
@@ -327,9 +317,7 @@ struct
   module M = Map.Make (K)
 
   let of_alist l = List.fold_left (fun map (k, v) -> M.add k v map) M.empty l
-
   let t x = Type.map Type.(list @@ pair K.t x) of_alist M.bindings
-
   let iter2 f t1 t2 = alist_iter2 K.compare f (M.bindings t1) (M.bindings t2)
 
   let iter2 f m1 m2 =
@@ -401,17 +389,11 @@ let like_lwt (type a b) da (t : b t) (a_to_b : a -> b Lwt.t)
   seq [ default da; (da, merge) ]
 
 let unit = default Type.unit
-
 let bool = default Type.bool
-
 let char = default Type.char
-
 let int32 = default Type.int32
-
 let int64 = default Type.int64
-
 let float = default Type.float
-
 let string = default Type.string
 
 type counter = int64

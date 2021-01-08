@@ -18,20 +18,15 @@ module type S = sig
   type t
 
   val find : t -> int -> string option
-
   val index : t -> string -> int option
-
   val flush : t -> unit
 
   val sync : t -> unit
   (** syncs a readonly dict with the file on disk. *)
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-
   val clear : t -> unit
-
   val close : t -> unit
-
   val valid : t -> bool
 end
 

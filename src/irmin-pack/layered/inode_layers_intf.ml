@@ -4,9 +4,7 @@ module Pack = Irmin_pack.Pack
 
 module type S = sig
   include Inode.S
-
   module U : Pack.S
-
   module L : Pack.S
 
   val v :
@@ -24,15 +22,10 @@ module type S = sig
     | Lower : [ `Read ] L.t layer_type
 
   val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> unit
-
   val mem_lower : 'a t -> key -> bool Lwt.t
-
   val mem_next : [> `Read ] t -> key -> bool Lwt.t
-
   val next_upper : 'a t -> [ `Read ] U.t
-
   val current_upper : 'a t -> [ `Read ] U.t
-
   val lower : 'a t -> [ `Read ] L.t
 
   include S.LAYERED_GENERAL with type 'a t := 'a t
@@ -54,9 +47,7 @@ module type S = sig
     (unit, S.integrity_error) result
 
   val flush : ?index:bool -> 'a t -> unit
-
   val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
-
   val consume_newies : 'a t -> key list
 
   val check :

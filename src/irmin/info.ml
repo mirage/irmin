@@ -15,11 +15,9 @@
  *)
 
 type t = { date : int64; author : string; message : string } [@@deriving irmin]
-
 type f = unit -> t
 
 let create ~date ~author message = { date; message; author }
-
 let empty = { date = 0L; author = ""; message = "" }
 
 let v ~date ~author message =
@@ -27,9 +25,6 @@ let v ~date ~author message =
   else create ~date ~author message
 
 let date t = t.date
-
 let author t = t.author
-
 let message t = t.message
-
 let none () = empty

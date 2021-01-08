@@ -5,11 +5,9 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
-
 let pp_version = IO.pp_version
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-
 exception Unsupported_version of IO.version
 
 let ( ++ ) = Int64.add
@@ -25,7 +23,6 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
 
   let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
-
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
@@ -34,9 +31,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   module W = Irmin.Private.Watch.Make (K) (V)
 
   type key = K.t
-
   type value = V.t
-
   type watch = W.watch
 
   type t = {
@@ -58,15 +53,10 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
-
   let key_to_bin_string = Irmin.Type.(unstage (to_bin_string K.t))
-
   let key_of_bin_string = Irmin.Type.(unstage (of_bin_string K.t))
-
   let entry_to_bin_string = Irmin.Type.(unstage (to_bin_string entry))
-
   let value_of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
-
   let value_decode_bin = Irmin.Type.(unstage (decode_bin V.t))
 
   let set_entry t ?off k v =
@@ -232,9 +222,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Lwt.return keys
 
   let watch_key t = W.watch_key t.w
-
   let watch t = W.watch t.w
-
   let unwatch t = W.unwatch t.w
 
   let unsafe_close t =
@@ -248,7 +236,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     else Lwt.return_unit
 
   let close t = unsafe_close t
-
   let flush t = IO.flush t.block
 end
 

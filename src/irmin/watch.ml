@@ -22,19 +22,13 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   type key
-
   type value
-
   type watch
-
   type t
 
   val stats : t -> int * int
-
   val notify : t -> key -> value option -> unit Lwt.t
-
   val v : unit -> t
-
   val clear : t -> unit Lwt.t
 
   val watch_key :
@@ -74,9 +68,7 @@ let id () =
     !c
 
 let global = id ()
-
 let workers_r = ref 0
-
 let workers () = !workers_r
 
 let scheduler () =
@@ -117,9 +109,7 @@ end) (V : sig
 end) =
 struct
   type key = K.t
-
   type value = V.t
-
   type watch = int
 
   module KMap = Map.Make (struct
@@ -135,13 +125,10 @@ struct
   end)
 
   type key_handler = value Diff.t -> unit Lwt.t
-
   type all_handler = key -> value Diff.t -> unit Lwt.t
 
   let pp_value = Type.pp V.t
-
   let equal_opt_values = Type.(unstage (equal (option V.t)))
-
   let equal_keys = Type.(unstage (equal K.t))
 
   type t = {
@@ -232,7 +219,6 @@ struct
         Lwt.return_unit)
 
   let pp_option = Fmt.option ~none:(Fmt.any "<none>")
-
   let pp_key = Type.pp K.t
 
   let notify_all_unsafe t key value =

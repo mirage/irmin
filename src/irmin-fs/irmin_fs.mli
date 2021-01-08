@@ -67,11 +67,8 @@ module type IO = sig
 end
 
 module Append_only (IO : IO) : Irmin.APPEND_ONLY_STORE_MAKER
-
 module Atomic_write (IO : IO) : Irmin.ATOMIC_WRITE_STORE_MAKER
-
 module Make (IO : IO) : Irmin.S_MAKER
-
 module KV (IO : IO) : Irmin.KV_MAKER
 
 (** {2 Advanced configuration} *)
@@ -90,9 +87,7 @@ module type Config = sig
 end
 
 module Append_only_ext (IO : IO) (C : Config) : Irmin.APPEND_ONLY_STORE_MAKER
-
 module Atomic_write_ext (IO : IO) (C : Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
-
 module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.S_MAKER
 
 (** {1 In-memory IO mocks} *)
@@ -101,6 +96,5 @@ module IO_mem : sig
   include IO
 
   val clear : unit -> unit Lwt.t
-
   val set_listen_hook : unit -> unit
 end

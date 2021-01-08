@@ -19,7 +19,6 @@ open Common
 
 module Config = struct
   let entries = 2
-
   let stable_hash = 3
 end
 

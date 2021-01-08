@@ -38,11 +38,9 @@ module type S = sig
   end
 
   include S.CHECKABLE with type 'a t := 'a t and type key := key
-
   include S.CLOSEABLE with type 'a t := 'a t
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-
   val clear_caches : 'a t -> unit
 end
 
@@ -64,17 +62,13 @@ module type INTER = sig
     type t
 
     val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
-
     val of_bin : Elt.t -> t
-
     val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
-
     val hash : t -> hash
   end
 
   module Val : sig
     type nonrec hash = hash
-
     type t = { find : hash -> Val_impl.t option; v : Val_impl.t }
 
     include Irmin.Private.Node.S with type hash := hash and type t := t
@@ -89,23 +83,17 @@ module type S_EXT = sig
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   module Key : Irmin.Hash.S with type t = key
-
   include S.CHECKABLE with type 'a t := 'a t and type key := key
-
   include S.CLOSEABLE with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
-
   val hash : value -> key
-
   val check_hash : key -> key -> unit
 end
 
 module type Inode = sig
   module type S = S
-
   module type INTER = INTER
-
   module type S_EXT = S_EXT
 
   module Make_intermediate

@@ -2,4 +2,4 @@ version = 0.16.0
 profile = conventional
 break-infix = fit-or-vertical
 parse-docstrings = true
-indicate-multiline-delimiters = no
+module-item-spacing = compact

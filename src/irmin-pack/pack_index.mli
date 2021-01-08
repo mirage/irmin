@@ -24,11 +24,8 @@ module type S = sig
   (** Constructor for indices, memoized by [(path, readonly)] pairs. *)
 
   val find : t -> key -> value option
-
   val add : ?overcommit:bool -> t -> key -> value -> unit
-
   val close : t -> unit
-
   val merge : t -> unit
 
   module Stats = Index.Stats

@@ -36,9 +36,7 @@ struct
 
   module T = struct
     type hash = H.t [@@deriving irmin]
-
     type step = Node.step [@@deriving irmin]
-
     type metadata = Node.metadata [@@deriving irmin]
 
     let default = Node.default
@@ -46,7 +44,6 @@ struct
     type value = Node.value
 
     let value_t = Node.value_t
-
     let pp_hash = Irmin.Type.(pp hash_t)
   end
 
@@ -69,9 +66,7 @@ struct
     open T
 
     type inode = { index : int; hash : H.t }
-
     type inodes = { seed : int; length : int; entries : inode list }
-
     type v = Values of (step * value) list | Inodes of inodes
 
     let inode : inode Irmin.Type.t =
@@ -121,9 +116,7 @@ struct
       |> like ~pre_hash
 
     let node ~hash v = { stable = true; hash; v }
-
     let inode ~hash v = { stable = false; hash; v }
-
     let hash t = Lazy.force t.hash
   end
 
@@ -132,7 +125,6 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-
     type address = Indirect of int64 | Direct of H.t
 
     let address : address Irmin.Type.t =
@@ -237,11 +229,8 @@ struct
     type t = { hash : H.t; stable : bool; v : v }
 
     let node ~hash v = { hash; stable = true; v }
-
     let inode ~hash v = { hash; stable = false; v }
-
     let magic_node = 'N'
-
     let magic_inode = 'I'
 
     let stable : bool Irmin.Type.t =
@@ -262,7 +251,6 @@ struct
     open T
 
     let equal_hash = Irmin.Type.(unstage (equal hash_t))
-
     let equal_value = Irmin.Type.(unstage (equal value_t))
 
     type inode = { i_hash : hash Lazy.t; mutable tree : t option }
@@ -352,7 +340,6 @@ struct
       | Inodes t -> list_inodes ~find acc t
 
     let compare_step = Irmin.Type.(unstage (compare step_t))
-
     let compare_entry x y = compare_step (fst x) (fst y)
 
     let list ~find t =
@@ -396,9 +383,7 @@ struct
           { hash; stable = true; v = t.v }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
-
     let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
-
     let inode ?tree i_hash = Inode { tree; i_hash }
 
     let of_bin t =
@@ -599,13 +584,9 @@ struct
       if t.stable then Compress.magic_node else Compress.magic_inode
 
     let hash t = Bin.hash t
-
     let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
-
     let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
-
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
-
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
     let encode_bin ~dict ~offset (t : t) k =
@@ -710,7 +691,6 @@ struct
     type t = { find : H.t -> I.t option; v : I.t }
 
     let pred t = I.pred t.v
-
     let niet _ = assert false
 
     let v l =
@@ -718,11 +698,8 @@ struct
       { find = niet; v }
 
     let list t = I.list ~find:t.find t.v
-
     let empty = { find = niet; v = I.empty }
-
     let is_empty t = I.is_empty t.v
-
     let find t s = I.find ~find:t.find t.v s
 
     let add t s v =
@@ -734,7 +711,6 @@ struct
       if v == t.v then t else { t with v }
 
     let pre_hash_i = Irmin.Type.(unstage (pre_hash I.t))
-
     let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
 
     let t : t Irmin.Type.t =
@@ -761,9 +737,7 @@ struct
   module Key = H
 
   type 'a t = 'a Pack.t
-
   type key = Key.t
-
   type value = Inter.Val.t
 
   let mem t k = Pack.mem t k
@@ -809,17 +783,11 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-
   let v = Pack.v
-
   let integrity_check = Pack.integrity_check
-
   let close = Pack.close
-
   let sync = Pack.sync
-
   let clear = Pack.clear
-
   let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =

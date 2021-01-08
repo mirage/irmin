@@ -23,11 +23,8 @@ module type S = sig
     t
 
   val find : t -> key -> value option
-
   val add : ?overcommit:bool -> t -> key -> value -> unit
-
   val close : t -> unit
-
   val merge : t -> unit
 
   module Stats = Index.Stats
@@ -38,15 +35,10 @@ module Make (K : Irmin.Hash.S) = struct
     type t = K.t [@@deriving irmin]
 
     let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
-
     let hash_size = 30
-
     let equal = Irmin.Type.(unstage (equal K.t))
-
     let encode = Irmin.Type.(unstage (to_bin_string K.t))
-
     let encoded_size = K.hash_size
-
     let decode_bin = Irmin.Type.(unstage (decode_bin K.t))
 
     let decode s off =
@@ -61,7 +53,6 @@ module Make (K : Irmin.Hash.S) = struct
       Irmin.Type.(unstage (to_bin_string (triple int64 int32 char)))
 
     let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
-
     let decode_bin = Irmin.Type.(unstage (decode_bin (triple int64 int32 char)))
 
     let decode s off =
@@ -81,10 +72,7 @@ module Make (K : Irmin.Hash.S) = struct
   let cache = Index.empty_cache ()
 
   let v = Index.v ~cache
-
   let add ?overcommit t k v = replace ?overcommit t k v
-
   let find t k = match find t k with exception Not_found -> None | h -> Some h
-
   let close t = Index.close t
 end

@@ -20,9 +20,7 @@ open Lwt.Infix
 module C = Irmin_containers.Counter.Mem
 
 let path = [ "tmp"; "counter" ]
-
 let config () = C.Store.Repo.v (Irmin_mem.config ())
-
 let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc _ () =

@@ -22,7 +22,6 @@ let src =
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
-
 let ( -- ) = Int64.sub
 
 module Make (IO : IO.S) : S = struct
@@ -35,7 +34,6 @@ module Make (IO : IO.S) : S = struct
   }
 
   let int32_to_bin = Irmin.Type.(unstage (to_bin_string int32))
-
   let decode_int32 = Irmin.Type.(unstage (decode_bin int32))
 
   let append_string t v =

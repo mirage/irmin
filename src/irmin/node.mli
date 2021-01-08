@@ -31,7 +31,6 @@ module Store
     (P : S.PATH)
     (M : S.METADATA) (N : sig
       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
-
       module Key : S.HASH with type t = key
 
       module Val :
@@ -67,6 +66,5 @@ module V1 (N : S.NODE with type step = string) : sig
        and type metadata = N.metadata
 
   val import : N.t -> t
-
   val export : t -> N.t
 end

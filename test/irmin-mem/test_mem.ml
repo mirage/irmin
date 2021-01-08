@@ -37,9 +37,7 @@ let clean () =
   clear repo >>= fun () -> S.Repo.close repo
 
 let init () = Lwt.return_unit
-
 let stats = None
-
 let lower_name = "lower"
 
 let suite =

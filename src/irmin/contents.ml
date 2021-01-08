@@ -90,7 +90,6 @@ module Json_value = struct
     match decode_json decoder with Ok obj -> Ok obj | Error _ as err -> err
 
   let equal_bool = Type.(unstage (equal bool))
-
   let equal_float = Type.(unstage (equal float))
 
   let rec equal a b =
@@ -162,7 +161,6 @@ module Json_value = struct
     | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
 
   let merge_json = Merge.(v t merge_value)
-
   let merge = Merge.(option merge_json)
 end
 
@@ -185,7 +183,6 @@ module Json = struct
     | Error _ as err -> err
 
   let equal a b = Json_value.equal (`O a) (`O b)
-
   let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
 
   let merge =
@@ -248,9 +245,7 @@ module type STORE = S.CONTENTS_STORE
 
 module Store (S : sig
   include S.CONTENT_ADDRESSABLE_STORE
-
   module Key : S.HASH with type t = key
-
   module Val : S.CONTENTS with type t = value
 end) =
 struct
@@ -258,21 +253,14 @@ struct
   module Val = S.Val
 
   type 'a t = 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let find = S.find
-
   let add = S.add
-
   let unsafe_add = S.unsafe_add
-
   let mem = S.mem
-
   let clear = S.clear
-
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
 
   let add_opt t = function
@@ -288,15 +276,10 @@ module V1 = struct
     include String
 
     let t = Type.(boxed (string_of `Int64))
-
     let size_of = Type.size_of t
-
     let decode_bin = Type.decode_bin t
-
     let encode_bin = Type.encode_bin t
-
     let pre_hash = Type.pre_hash t
-
     let t = Type.like t ~bin:(encode_bin, decode_bin, size_of) ~pre_hash
   end
 end

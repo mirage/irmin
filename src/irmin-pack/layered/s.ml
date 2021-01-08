@@ -2,7 +2,6 @@ include Irmin_pack.Private.Sigs
 
 module type STORE = sig
   include Irmin_layers.S
-
   include Irmin_pack.Store.S with type repo := repo
 
   val integrity_check :
@@ -22,7 +21,6 @@ module type LAYERED_GENERAL = sig
   include CLOSEABLE with type 'a t := 'a t
 
   val update_flip : flip:bool -> _ t -> unit
-
   val flip_upper : _ t -> unit
 end
 
@@ -34,9 +32,7 @@ end
 
 module type LAYERED_ATOMIC_WRITE_STORE = sig
   include ATOMIC_WRITE_STORE
-
   module U : ATOMIC_WRITE_STORE
-
   module L : ATOMIC_WRITE_STORE
 
   val v :
@@ -56,19 +52,14 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
   include LAYERED with type t := t
 
   val flush_next_lower : t -> unit
-
   val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
-
   val copy_newies_to_next_upper : t -> unit Lwt.t
 end
 
 module type LAYERED_PACK = sig
   open Irmin_pack.Pack
-
   include S
-
   module U : S with type value = value
-
   module L : S
 
   val v :
@@ -96,15 +87,10 @@ module type LAYERED_PACK = sig
     unit Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
-
   val mem_next : [> `Read ] t -> key -> bool Lwt.t
-
   val current_upper : 'a t -> [ `Read ] U.t
-
   val next_upper : 'a t -> [ `Read ] U.t
-
   val lower : 'a t -> [ `Read ] L.t
-
   val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
   val sync :
@@ -144,7 +130,6 @@ module type LAYERED_PACK_MAKER = sig
   open Irmin_pack.Pack
 
   type key
-
   type index
 
   module Make (V : ELT with type hash := key) :

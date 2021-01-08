@@ -18,7 +18,6 @@ open Lwt.Infix
 open S
 
 let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
-
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -29,7 +28,6 @@ module Make (S : Store.S) = struct
   module B = S.Private.Sync
 
   type db = S.t
-
   type commit = S.commit
 
   let conv dx dy =
@@ -78,7 +76,6 @@ module Make (S : Store.S) = struct
       [] l
 
   let pp_branch = Type.pp S.Branch.t
-
   let pp_hash = Type.pp S.Hash.t
 
   type status = [ `Empty | `Head of commit ]

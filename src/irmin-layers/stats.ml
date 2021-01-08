@@ -50,7 +50,6 @@ let fresh_stats_i () =
   { contents = 0; nodes = 0; commits = 0; branches = 0; adds = 0 }
 
 let stats_t = fresh_stats_t ()
-
 let stats_i = fresh_stats_i ()
 
 let reset_stats_i () =
@@ -111,19 +110,12 @@ let freeze () =
     drop_last_elements (limit_length_list / 2)
 
 let copy_contents () = stats_i.contents <- succ stats_i.contents
-
 let copy_nodes () = stats_i.nodes <- succ stats_i.nodes
-
 let copy_commits () = stats_i.commits <- succ stats_i.commits
-
 let copy_branches () = stats_i.branches <- succ stats_i.branches
-
 let skip () = stats_t.skips <- succ stats_t.skips
-
 let add () = stats_i.adds <- succ stats_i.adds
-
 let get_adds () = stats_i.adds
-
 let reset_adds () = stats_i.adds <- 0
 
 let with_timer (operation : [ `Freeze | `Waiting ]) f =

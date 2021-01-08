@@ -20,9 +20,7 @@ open Lwt.Infix
 module B = Irmin_containers.Blob_log.Mem (Irmin.Contents.String)
 
 let path = [ "tmp"; "blob" ]
-
 let config () = B.Store.Repo.v (Irmin_mem.config ())
-
 let merge_into_exn = merge_into_exn (module B.Store)
 
 let test_empty_read _ () =

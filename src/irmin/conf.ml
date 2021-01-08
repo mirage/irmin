@@ -16,17 +16,12 @@
  *)
 
 type 'a parser = string -> ('a, [ `Msg of string ]) result
-
 type 'a printer = 'a Fmt.t
-
 type 'a converter = 'a parser * 'a printer
 
 let parser (p, _) = p
-
 let printer (_, p) = p
-
 let str = Printf.sprintf
-
 let quote s = str "`%s'" s
 
 module Err = struct
@@ -35,7 +30,6 @@ module Err = struct
     | alts -> str "one of: %s" (String.concat ", " alts)
 
   let invalid kind s exp = str "invalid %s %s, %s" kind (quote s) exp
-
   let invalid_val = invalid "value"
 end
 
@@ -50,7 +44,6 @@ let parse_with t_of_str exp s =
   try Ok (t_of_str s) with Failure _ -> Error (`Msg (Err.invalid_val s exp))
 
 let int = (parse_with int_of_string "expected an integer", Fmt.int)
-
 let string = ((fun s -> Ok s), Fmt.string)
 
 let some (parse, print) =
@@ -87,15 +80,10 @@ type 'a key = {
 }
 
 let name t = t.name
-
 let doc t = t.doc
-
 let docv t = t.docv
-
 let docs t = t.docs
-
 let conv t = t.conv
-
 let default t = t.default
 
 let key ?docs ?docv ?doc name conv default =
@@ -121,19 +109,12 @@ module M = Map.Make (Id)
 type t = Univ.t M.t
 
 let empty = M.empty
-
 let singleton k v = M.singleton k.id (k.to_univ v)
-
 let is_empty = M.is_empty
-
 let mem d k = M.mem k.id d
-
 let add d k v = M.add k.id (k.to_univ v) d
-
 let union r s = M.fold M.add r s
-
 let rem d k = M.remove k.id d
-
 let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
 
 let get d k =

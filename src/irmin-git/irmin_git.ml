@@ -33,7 +33,6 @@ module Metadata = struct
   include X
 
   let default = `Normal
-
   let merge = Irmin.Merge.default X.t
 end
 
@@ -108,17 +107,13 @@ struct
     type t
 
     val type_eq : [ `Commit | `Blob | `Tree | `Tag ] -> bool
-
     val to_git : t -> G.Value.t
-
     val of_git : G.Value.t -> t option
   end
 
   module Content_addressable (V : V) = Closeable.Content_addressable (struct
     type 'a t = G.t
-
     type key = H.t
-
     type value = V.t
 
     let pp_key = Irmin.Type.pp H.t
@@ -208,7 +203,6 @@ struct
         | Error e -> Fmt.invalid_arg "error %a" Raw.DecoderRaw.pp_error e
 
       let size_of = Irmin.Type.stage (fun _ -> None)
-
       let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
     end
 
@@ -225,18 +219,14 @@ struct
       module Metadata = Metadata
 
       type t = G.Value.Tree.t
-
       type metadata = Metadata.t [@@deriving irmin]
-
       type hash = Key.t [@@deriving irmin]
-
       type step = Path.step [@@deriving irmin]
 
       type value = [ `Node of hash | `Contents of hash * metadata ]
       [@@deriving irmin]
 
       let default = Metadata.default
-
       let of_step = Irmin.Type.to_string P.step_t
 
       let to_step str =
@@ -269,7 +259,6 @@ struct
         aux (G.Value.Tree.to_list t)
 
       let remove t step = G.Value.Tree.remove ~name:(of_step step) t
-
       let is_empty = G.Value.Tree.is_empty
 
       let add t name value =
@@ -298,7 +287,6 @@ struct
               G.Value.Tree.of_list (entry :: entries)
 
       let empty = G.Value.Tree.of_list []
-
       let to_git perm (name, node) = G.Value.Tree.entry (of_step name) perm node
 
       let v alist =
@@ -334,7 +322,6 @@ struct
       module N = Irmin.Private.Node.Make (H) (P) (Metadata)
 
       let to_n t = N.v (alist t)
-
       let of_n n = v (N.list n)
 
       let to_bin t =
@@ -368,9 +355,7 @@ struct
       type t = Val.t
 
       let type_eq = function `Tree -> true | _ -> false
-
       let to_git t = G.Value.tree t
-
       let of_git = function G.Value.Tree t -> Some t | _ -> None
     end)
   end
@@ -380,7 +365,6 @@ struct
   module XCommit = struct
     module Val = struct
       type t = G.Value.Commit.t
-
       type hash = H.t [@@deriving irmin]
 
       let info_of_git author message =
@@ -432,11 +416,8 @@ struct
           ~committer:author message
 
       let v ~info ~node ~parents = to_git info node parents
-
       let xnode g = G.Value.Commit.tree g
-
       let node t = xnode t
-
       let parents g = G.Value.Commit.parents g
 
       let info g =
@@ -485,9 +466,7 @@ struct
       type t = Val.t
 
       let type_eq = function `Commit -> true | _ -> false
-
       let of_git = function G.Value.Commit c -> Some c | _ -> None
-
       let to_git c = G.Value.commit c
     end)
   end
@@ -499,7 +478,6 @@ module type BRANCH = sig
   include Irmin.Branch.S
 
   val pp_ref : t Fmt.t
-
   val of_ref : string -> (t, [ `Msg of string ]) result
 end
 
@@ -508,7 +486,6 @@ module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
   include B
 
   let pp = Irmin.Type.pp B.t
-
   let pp_ref ppf b = Fmt.pf ppf "refs/heads/%a" pp b
 
   let of_ref str =
@@ -520,9 +497,7 @@ end
 
 module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
   module Key : BRANCH with type t = B.t
-
   module Val : Irmin.Hash.S with type t = G.Hash.t
-
   module W : Irmin.Private.Watch.S with type key = Key.t and type value = Val.t
 
   include
@@ -562,9 +537,7 @@ functor
     let watches = Hashtbl.create 10
 
     type key = Key.t
-
     type value = Val.t
-
     type watch = W.watch * (unit -> unit Lwt.t)
 
     let branch_of_git r =
@@ -572,7 +545,6 @@ functor
       match B.of_ref str with Ok r -> Some r | Error (`Msg _) -> None
 
     let git_of_branch r = G.Reference.of_string (Fmt.to_to_string B.pp_ref r)
-
     let pp_key = Irmin.Type.pp Key.t
 
     let mem { t; _ } r =
@@ -742,17 +714,12 @@ struct
   module H = Irmin.Hash.Make (G.Hash)
 
   type t = G.t
-
   type commit = H.t
-
   type branch = B.t
-
   type endpoint = S.Endpoint.t
 
   let git_of_branch_str str = G.Reference.of_string ("refs/heads/" ^ str)
-
   let git_of_branch r = git_of_branch_str (Irmin.Type.to_string B.t r)
-
   let o_head_of_git = function None -> Ok None | Some k -> Ok (Some k)
 
   let fetch t ?depth e br =
@@ -840,7 +807,6 @@ module Reference : BRANCH with type t = reference = struct
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
 
   let t = Irmin.Type.like t ~pp:pp_ref ~of_string:of_ref
-
   let master = `Branch Irmin.Branch.String.master
 
   let is_valid = function
@@ -850,11 +816,9 @@ end
 
 module type S = sig
   module Git : Git.S
-
   include Irmin.S with type metadata = Metadata.t and type hash = Git.Hash.t
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
-
   val git_of_repo : Repo.t -> Git.t
 
   val repo_of_git :
@@ -888,9 +852,7 @@ functor
     module S = AW (G) (B)
 
     type t = { closed : bool ref; t : S.t }
-
     type key = S.key
-
     type value = S.value
 
     let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -976,13 +938,9 @@ struct
       type t = r
 
       let branch_t t = t.b
-
       let contents_t t : 'a Contents.t = (t.closed, t.g)
-
       let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
-
       let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
-
       let batch t f = f (contents_t t) (node_t t) (commit_t t)
 
       type config = {
@@ -1048,7 +1006,6 @@ module Mem = struct
   include Git.Mem.Store
 
   let confs = Hashtbl.create 10
-
   let find_conf c = Hashtbl.find_opt confs c
 
   let add_conf c t =
@@ -1096,25 +1053,15 @@ module No_sync (G : Git.S) = struct
     | `Update of Store.Hash.t * Store.Hash.t * Store.Reference.t ]
 
   let pp_command _ _ = assert false
-
   let pp_fetch_one _ _ = assert false
-
   let pp_update_and_create _ _ = assert false
-
   let push _ = assert false
-
   let ls _ = assert false
-
   let fetch _ = assert false
-
   let fetch_one _ = assert false
-
   let fetch_some _ = assert false
-
   let fetch_all _ = assert false
-
   let clone _ = assert false
-
   let update_and_create _ = assert false
 end
 
@@ -1137,17 +1084,12 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
   let state t = M.repo_of_git (snd t) >|= fun r -> M.Private.Repo.contents_t r
 
   type 'a t = bool ref * G.t
-
   type key = X.key
-
   type value = X.value
 
   let with_state f t x = state t >>= fun t -> f t x
-
   let add = with_state X.add
-
   let pp_key = Irmin.Type.pp X.Key.t
-
   let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
   let unsafe_add t k v =
@@ -1159,9 +1101,7 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
         pp_key k pp_key k'
 
   let find = with_state X.find
-
   let mem = with_state X.mem
-
   let clear _ = Lwt.fail_with "not implemented"
 end
 
@@ -1180,6 +1120,7 @@ end
 
 module KV (G : G) (S : Git.Sync.S with module Store := G) (C : Irmin.Contents.S) =
   Make (G) (S) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+
 module Ref
     (G : G)
     (S : Git.Sync.S with module Store := G)
@@ -1241,6 +1182,7 @@ struct
      probably not necessary and we could use Git.Value.Raw instead. *)
   module G = Mem
   module S = Make (G) (No_sync (G)) (C) (P) (B)
+
   include
     Irmin.Make_ext (CA) (AW) (S.Private.Node.Metadata) (S.Private.Contents.Val)
       (S.Private.Node.Path)

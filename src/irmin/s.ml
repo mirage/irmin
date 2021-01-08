@@ -84,7 +84,6 @@ end
 
 module type TYPED_HASH = sig
   type t
-
   type value
 
   val hash : value -> t
@@ -161,9 +160,7 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val v : Conf.t -> [ `Read ] t Lwt.t
-
   val close : 'a t -> unit Lwt.t
 end
 
@@ -201,9 +198,7 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val v : Conf.t -> [ `Read ] t Lwt.t
-
   val close : 'a t -> unit Lwt.t
 end
 
@@ -429,7 +424,6 @@ module type NODE_STORE = sig
 end
 
 type config = Conf.t
-
 type 'a diff = 'a Diff.t
 
 module type COMMIT = sig
@@ -760,13 +754,9 @@ end
 
 module type PRIVATE = sig
   module Hash : HASH
-
   module Contents : CONTENTS_STORE with type key = Hash.t
-
   module Node : NODE_STORE with type key = Hash.t
-
   module Commit : COMMIT_STORE with type key = Hash.t
-
   module Branch : BRANCH_STORE with type value = Hash.t
 
   module Slice :
@@ -779,15 +769,10 @@ module type PRIVATE = sig
     type t
 
     val v : Conf.t -> t Lwt.t
-
     val close : t -> unit Lwt.t
-
     val contents_t : t -> [ `Read ] Contents.t
-
     val node_t : t -> [ `Read ] Node.t
-
     val commit_t : t -> [ `Read ] Commit.t
-
     val branch_t : t -> Branch.t
 
     val batch :

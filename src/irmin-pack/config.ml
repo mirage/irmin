@@ -1,20 +1,14 @@
 module type S = sig
   val entries : int
-
   val stable_hash : int
 end
 
 module Default = struct
   let fresh = false
-
   let lru_size = 100_000
-
   let index_log_size = 500_000
-
   let readonly = false
-
   let merge_throttle = `Block_writes
-
   let freeze_throttle = `Block_writes
 end
 
@@ -83,17 +77,11 @@ let freeze_throttle_key =
     "freeze-throttle" freeze_throttle_converter Default.freeze_throttle
 
 let fresh config = Irmin.Private.Conf.get config fresh_key
-
 let lru_size config = Irmin.Private.Conf.get config lru_size_key
-
 let readonly config = Irmin.Private.Conf.get config readonly_key
-
 let index_log_size config = Irmin.Private.Conf.get config index_log_size_key
-
 let merge_throttle config = Irmin.Private.Conf.get config merge_throttle_key
-
 let freeze_throttle config = Irmin.Private.Conf.get config freeze_throttle_key
-
 let root_key = Irmin.Private.Conf.root
 
 let root config =
