@@ -18,9 +18,7 @@
 open Lwt.Infix
 
 let () = Printexc.record_backtrace true
-
 let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
-
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
 let run f () =
@@ -29,7 +27,6 @@ let run f () =
   flush stdout
 
 let hash x = Test_chunk.Key.hash (fun l -> l x)
-
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =

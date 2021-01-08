@@ -18,24 +18,21 @@ let index_log_size = Some 4
 
 module Conf = struct
   let entries = 32
-
   let stable_hash = 256
-
   let lower_root = "_lower"
-
   let upper0_root = "0"
-
   let copy_in_upper = true
-
   let with_lower = true
 end
 
 module Hash = Irmin.Hash.SHA1
+
 module Store =
   Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
+
 module StoreSimple =
   Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)

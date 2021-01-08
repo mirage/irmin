@@ -195,9 +195,7 @@ module Contents : sig
   (** [Store] creates a contents store. *)
   module Store (S : sig
     include CONTENT_ADDRESSABLE_STORE
-
     module Key : Hash.S with type t = key
-
     module Val : S with type t = value
   end) :
     STORE with type 'a t = 'a S.t and type key = S.key and type value = S.value
@@ -289,7 +287,6 @@ module Private : sig
            and type metadata = S.metadata
 
       val import : S.t -> t
-
       val export : t -> S.t
     end
 
@@ -302,7 +299,6 @@ module Private : sig
         (P : Path.S)
         (M : Metadata.S) (S : sig
           include CONTENT_ADDRESSABLE_STORE with type key = C.key
-
           module Key : Hash.S with type t = key
 
           module Val :
@@ -355,7 +351,6 @@ module Private : sig
       include S with type hash = S.hash
 
       val import : S.t -> t
-
       val export : t -> S.t
     end
 
@@ -366,9 +361,7 @@ module Private : sig
     module Store
         (N : Node.STORE) (S : sig
           include CONTENT_ADDRESSABLE_STORE with type key = N.key
-
           module Key : Hash.S with type t = key
-
           module Val : S with type t = value and type hash = key
         end) :
       STORE
@@ -439,15 +432,10 @@ module Private : sig
       type t
 
       val v : config -> t Lwt.t
-
       val close : t -> unit Lwt.t
-
       val contents_t : t -> [ `Read ] Contents.t
-
       val node_t : t -> [ `Read ] Node.t
-
       val commit_t : t -> [ `Read ] Commit.t
-
       val branch_t : t -> Branch.t
 
       val batch :
@@ -501,7 +489,6 @@ module Json_tree (Store : S with type contents = Contents.json) : sig
   include Contents.S with type t = Contents.json
 
   val to_concrete_tree : t -> Store.Tree.concrete
-
   val of_concrete_tree : Store.Tree.concrete -> t
 
   val get_tree : Store.tree -> Store.key -> t Lwt.t
@@ -612,7 +599,6 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
       open Astring
 
       let time = ref 0L
-
       let failure fmt = Fmt.kstrf failwith fmt
 
       (* A log entry *)
@@ -620,7 +606,6 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
         include Irmin.Type.S
 
         val v : string -> t
-
         val timestamp : t -> int64
       end = struct
         type t = { timestamp : int64; message : string } [@@deriving irmin]
@@ -657,15 +642,12 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
         include Irmin.Contents.S
 
         val add : t -> Entry.t -> t
-
         val empty : t
       end = struct
         type t = Entry.t list [@@deriving irmin]
 
         let empty = []
-
         let pp_entry = Irmin.Type.pp Entry.t
-
         let lines ppf l = List.iter (Fmt.pf ppf "%a\n" pp_entry) (List.rev l)
 
         let of_string str =
@@ -681,7 +663,6 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
           with Failure e -> Error (`Msg e)
 
         let t = Irmin.Type.like ~pp:lines ~of_string t
-
         let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
 
         let newer_than timestamp file =
@@ -705,7 +686,6 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
           Irmin.Merge.ok (List.rev_append t3 old)
 
         let merge = Irmin.Merge.(option (v t merge))
-
         let add t e = e :: t
       end
     ]}

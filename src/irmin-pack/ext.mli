@@ -19,7 +19,6 @@ module Dict = Pack_dict
 module Index = Pack_index
 
 exception RO_Not_Allowed
-
 exception Unsupported_version of IO.version
 
 module Make

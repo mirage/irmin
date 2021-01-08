@@ -40,9 +40,7 @@ module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and module Git = G
 
 module Make : S_MAKER
-
 module KV : KV_MAKER
-
 module Ref : REF_MAKER
 
 module type KV_RO = sig
@@ -131,6 +129,5 @@ module Mem : sig
        and module Git = G
 
   module KV_RO : KV_RO with type git := G.t
-
   module KV_RW (C : Mirage_clock.PCLOCK) : KV_RW with type git := G.t
 end

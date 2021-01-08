@@ -1,14 +1,9 @@
 module Default = struct
   let lower_root = Irmin_layers.Layer_id.to_string `Lower
-
   let upper0_root = Irmin_layers.Layer_id.to_string `Upper0
-
   let upper1_root = Irmin_layers.Layer_id.to_string `Upper1
-
   let copy_in_upper = false
-
   let with_lower = true
-
   let blocking_copy_size = 64
 end
 

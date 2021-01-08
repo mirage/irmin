@@ -11,7 +11,6 @@ let rm_dir () =
 
 module Conf = struct
   let entries = 32
-
   let stable_hash = 256
 end
 

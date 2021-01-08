@@ -24,7 +24,6 @@ end
 
 module type CHECKABLE = sig
   type 'a t
-
   type key
 
   val integrity_check :
@@ -35,8 +34,6 @@ module type ATOMIC_WRITE_STORE = sig
   include Irmin.ATOMIC_WRITE_STORE
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-
   val flush : t -> unit
-
   val clear_keep_generation : t -> unit Lwt.t
 end

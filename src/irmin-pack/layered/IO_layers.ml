@@ -28,7 +28,6 @@ module type S = sig
   include S.CLOSEABLE with type _ t := t
 
   val read_flip : t -> bool Lwt.t
-
   val write_flip : bool -> t -> unit Lwt.t
 end
 
@@ -90,8 +89,6 @@ module Lock = struct
     else Lwt.return { file; fd }
 
   let test = Sys.file_exists
-
   let unlink = Lwt_unix.unlink
-
   let close { fd; file } = Lwt_unix.close fd >>= fun () -> unlink file
 end

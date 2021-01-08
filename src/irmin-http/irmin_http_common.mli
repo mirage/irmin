@@ -21,7 +21,6 @@ val irmin_version : string
 type 'a set = { test : 'a option; set : 'a option; v : 'a option }
 
 val status_t : string Irmin.Type.t
-
 val set_t : 'a Irmin.Type.t -> 'a set Irmin.Type.t
 
 val event_t :

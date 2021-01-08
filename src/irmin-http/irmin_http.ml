@@ -21,7 +21,6 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module T = Irmin.Type
 
 (* ~uri *)
@@ -120,7 +119,6 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
   Lwt_stream.from open_and_get
 
 let of_json = Irmin.Type.of_json_string
-
 let to_json = Irmin.Type.to_json_string
 
 module Helper (Client : Cohttp_lwt.S.Client) :
@@ -213,17 +211,13 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   }
 
   let uri t = t.uri
-
   let item t = t.item
-
   let items t = t.items
 
   type key = K.t
-
   type value = V.t
 
   let key_str = Irmin.Type.to_string K.t
-
   let val_of_str = Irmin.Type.of_string V.t
 
   let find t key =
@@ -280,11 +274,8 @@ functor
     module W = Irmin.Private.Watch.Make (K) (V)
 
     type key = RO.key
-
     type value = RO.value
-
     type watch = W.watch
-
     type ctx = Client.ctx
 
     (* cache the stream connections to the server: we open only one
@@ -296,11 +287,8 @@ functor
     type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
 
     let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
-
     let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
-
     let get_stream t = HTTP.call_stream `GET (RO.uri t.t) t.t.ctx
-
     let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
 
     let v ?ctx uri item items =
@@ -311,11 +299,8 @@ functor
       Lwt.return { t; w; keys; glob }
 
     let find t = RO.find t.t
-
     let mem t = RO.mem t.t
-
     let key_str = Irmin.Type.to_string K.t
-
     let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
 
     let set t key value =
@@ -345,7 +330,6 @@ functor
               Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" pp_key key b)
 
     let nb_keys t = fst (W.stats t.w)
-
     let nb_glob t = snd (W.stats t.w)
 
     (* run [t] and returns an handler to stop the task. *)
@@ -423,7 +407,6 @@ functor
       Lwt.return_unit
 
     let close _ = Lwt.return_unit
-
     let clear t = RO.clear t.t
   end
 
@@ -509,11 +492,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       }
 
       let branch_t t = t.branch
-
       let commit_t t = t.commit
-
       let node_t t = t.node
-
       let contents_t t = t.contents
 
       let batch t f =

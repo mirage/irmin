@@ -3,7 +3,6 @@ open Irmin_pack.Checks
 module IO = Irmin_pack.Private.IO.Unix
 
 let ( let+ ) x f = Lwt.map f x
-
 let ( let* ) = Lwt.bind
 
 module type S = sig
@@ -37,7 +36,6 @@ end
 
 module Make (Args : sig
   module Hash : Irmin.Hash.S
-
   module Store : S.STORE with type hash = Hash.t
 end) =
 struct
@@ -52,7 +50,6 @@ struct
 
       (* Quick hack to shim functionality that we don't intend to use. *)
       let integrity_check ?ppf:_ ~auto_repair:_ _ = assert false
-
       let reconstruct_index ?output:_ _ = assert false
     end
   end)

@@ -144,13 +144,9 @@ module Make (Log : Logs.LOG) (S : S) = struct
         t.removes <- t.removes + 1
 
       let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
-
       let xpp ppf (a, u, r) = Fmt.pf ppf "%d/%d/%d" a u r
-
       let xadd (a, u, r) = (a + 1, u, r)
-
       let xupdate (a, u, r) = (a, u + 1, r)
-
       let xremove (a, u, r) = (a, u, r + 1)
 
       let less_than a b =

@@ -5,7 +5,6 @@ module type S = sig
   module IO : Cohttp_lwt.S.IO
 
   type repo
-
   type server
 
   type response_action =
@@ -36,30 +35,21 @@ module type CUSTOM_TYPE = sig
   type t
 
   val schema_typ : (unit, t option) Schema.typ
-
   val arg_typ : t option Schema.Arg.arg_typ
 end
 
 (** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch). *)
 module type CUSTOM_TYPES = sig
   type key
-
   type metadata
-
   type contents
-
   type hash
-
   type branch
 
   module Key : CUSTOM_TYPE with type t := key
-
   module Metadata : CUSTOM_TYPE with type t := metadata
-
   module Contents : CUSTOM_TYPE with type t := contents
-
   module Hash : CUSTOM_TYPE with type t := hash
-
   module Branch : CUSTOM_TYPE with type t := branch
 end
 

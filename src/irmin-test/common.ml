@@ -17,7 +17,6 @@
 open Lwt.Infix
 
 let () = Random.self_init ()
-
 let random_char () = char_of_int (Random.int 256)
 
 let random_ascii () =
@@ -25,11 +24,8 @@ let random_ascii () =
   chars.[Random.int @@ String.length chars]
 
 let random_string n = String.init n (fun _i -> random_char ())
-
 let long_random_string = random_string (* 1024_000 *) 10
-
 let random_ascii_string n = String.init n (fun _i -> random_ascii ())
-
 let long_random_ascii_string = random_ascii_string 1024_000
 
 let merge_exn msg x =
@@ -98,35 +94,20 @@ module Make_helpers (S : S) = struct
   module Graph = Irmin.Private.Node.Graph (P.Node)
 
   let v repo = P.Repo.contents_t repo
-
   let n repo = P.Repo.node_t repo
-
   let ct repo = P.Repo.commit_t repo
-
   let g repo = P.Repo.node_t repo
-
   let h repo = P.Repo.commit_t repo
-
   let b repo = P.Repo.branch_t repo
-
   let v1 = long_random_string
-
   let v2 = ""
-
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
-
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
-
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
-
   let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
-
   let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
-
   let normal x = `Contents (x, S.Metadata.default)
-
   let b1 = "foo"
-
   let b2 = "bar/toto"
 
   let n1 ~repo =

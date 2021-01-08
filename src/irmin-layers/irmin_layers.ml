@@ -102,11 +102,8 @@ struct
       }
 
       let contents_t t = t.contents
-
       let node_t t = t.nodes
-
       let commit_t t = t.commits
-
       let branch_t t = t.branch
 
       let batch t f =
@@ -146,15 +143,10 @@ struct
     | Content_t : hash -> store_handle
 
   let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
-
   let async_freeze _ = failwith "not implemented"
-
   let upper_in_use _repo = failwith "not implemented"
-
   let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
-
   let check_self_contained ?heads:_ _ = failwith "not implemented"
-
   let needs_recovery _ = failwith "not implemented"
 
   module PrivateLayer = struct

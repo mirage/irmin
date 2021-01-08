@@ -13,6 +13,7 @@ end
 module Store =
   Irmin_mem.Make (Metadata) (Contents.String) (Path.String_list) (Branch.String)
     (Hash.BLAKE2B)
+
 module Tree = Store.Tree
 
 type diffs = (string list * (Contents.String.t * Metadata.t) Diff.t) list
@@ -24,16 +25,12 @@ module Alcotest = struct
   include Alcotest
 
   let gtestable typ = testable (Type.pp_dump typ) Type.(unstage (equal typ))
-
   let gcheck typ = check (gtestable typ)
-
   let diffs = gtestable diffs_t
 end
 
 let ( >> ) f g x = g (f x)
-
 let ( let* ) = Lwt.bind
-
 let ( let+ ) x f = Lwt.map f x
 
 let get_ok = function

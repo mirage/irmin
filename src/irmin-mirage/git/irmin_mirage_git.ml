@@ -116,7 +116,6 @@ module KV_RO (G : Git.S) = struct
     | #S.write_error as e -> Irmin.Type.pp S.write_error_t ppf e
 
   let err e : ('a, error) result = Error e
-
   let err_not_found k = err (`Not_found k)
 
   let path x =
@@ -191,11 +190,8 @@ module KV_RO (G : Git.S) = struct
     >|= fun tree -> { Tree.repo; tree }
 
   let exists t k = tree t >>= fun t -> Tree.exists t k
-
   let get t k = tree t >>= fun t -> Tree.get t k
-
   let list t k = tree t >>= fun t -> Tree.list t k
-
   let digest t k = tree t >>= fun t -> Tree.digest t k
 
   let get t k =
@@ -246,11 +242,9 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   }
 
   type key = RO.key
-
   type error = RO.error
 
   let pp_error = RO.pp_error
-
   let default_author () = "irmin <irmin@mirage.io>"
 
   let default_msg = function
@@ -285,11 +279,8 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Batch b -> Lwt.return { Tree.tree = b.tree; repo = repo t }
 
   let digest t k = tree t >>= fun t -> Tree.digest t k
-
   let exists t k = tree t >>= fun t -> Tree.exists t k
-
   let get t k = tree t >>= fun t -> Tree.get t k
-
   let list t k = tree t >>= fun t -> Tree.list t k
 
   type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
@@ -304,7 +295,6 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | #Mirage_kv.write_error as e -> Mirage_kv.pp_write_error ppf e
 
   let info t op = Info.f ~author:(t.author ()) "%s" (t.msg op)
-
   let path = RO.path
 
   let set t k v =

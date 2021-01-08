@@ -17,7 +17,6 @@
 (** Irmin store resolver. *)
 
 val global_option_section : string
-
 val branch : string option Cmdliner.Term.t
 
 (** {1 Hash} *)
@@ -25,9 +24,7 @@ module Hash : sig
   type t = (module Irmin.Hash.S)
 
   val add : string -> ?default:bool -> (module Irmin.Hash.S) -> unit
-
   val find : string -> t
-
   val term : t option Cmdliner.Term.t
 end
 
@@ -38,9 +35,7 @@ module Contents : sig
   type t = (module Irmin.Contents.S)
 
   val add : string -> ?default:bool -> (module Irmin.Contents.S) -> unit
-
   val find : string -> t
-
   val term : string option Cmdliner.Term.t
 end
 
@@ -62,17 +57,11 @@ module Store : sig
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
   val v : ?remote:remote_fn -> (module Irmin.S) -> t
-
   val mem : hash -> contents -> t
-
   val irf : hash -> contents -> t
-
   val http : t -> t
-
   val git : contents -> t
-
   val find : string -> store_functor
-
   val add : string -> ?default:bool -> store_functor -> unit
 end
 

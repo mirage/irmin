@@ -83,13 +83,11 @@ let mysql =
   }
 
 let branch image = String.map (function ':' -> '/' | c -> c) image.name
-
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 let head = Store.Git.Reference.of_string ("refs/heads/" ^ branch images.(0))
-
 let config = Irmin_git.config ~bare:true ~head Config.root
 
 let info image msg () =
@@ -109,7 +107,6 @@ let init () =
     (Array.to_list images)
 
 let random_array a = a.(Random.int (Array.length a))
-
 let random_list l = random_array (Array.of_list l)
 
 let rec process image =

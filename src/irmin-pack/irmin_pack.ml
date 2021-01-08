@@ -42,6 +42,7 @@ end
 
 module KV (Config : Config.S) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks

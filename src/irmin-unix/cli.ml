@@ -19,7 +19,6 @@ open Cmdliner
 open Resolver
 
 let () = Hook.init ()
-
 let info ?(author = "irmin") fmt = Info.v ~author fmt
 
 (* Help sections common to all commands *)
@@ -86,7 +85,6 @@ let print_exc exc =
   exit 1
 
 let run t = Lwt_main.run (Lwt.catch (fun () -> t) print_exc)
-
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -158,11 +156,8 @@ let get name f x =
   | Error (`Msg e) -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
 
 let key f x = get "key" f x
-
 let value f x = get "value" f x
-
 let branch f x = get "branch" f x
-
 let commit f x = get "commit" f x
 
 (* GET *)

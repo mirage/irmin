@@ -28,11 +28,8 @@ module Make (K : Type.S) = struct
   [@@deriving irmin]
 
   let parents t = t.parents
-
   let node t = t.node
-
   let info t = t.info
-
   let compare_hash = Type.(unstage (compare K.t))
 
   let v ~info ~node ~parents =
@@ -43,32 +40,22 @@ end
 module Store
     (N : S.NODE_STORE) (S : sig
       include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
-
       module Key : S.HASH with type t = key
-
       module Val : S.COMMIT with type t = value and type hash = key
     end) =
 struct
   module Node = N
 
   type 'a t = 'a N.t * 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let add (_, t) = S.add t
-
   let unsafe_add (_, t) = S.unsafe_add t
-
   let mem (_, t) = S.mem t
-
   let find (_, t) = S.find t
-
   let clear (_, t) = S.clear t
-
   let merge_node (t, _) = Merge.f (N.merge t)
-
   let pp_key = Type.pp S.Key.t
 
   let err_not_found k =
@@ -123,11 +110,8 @@ end
 
 module History (S : S.COMMIT_STORE) = struct
   type commit = S.Key.t [@@deriving irmin]
-
   type node = S.Node.key
-
   type 'a t = 'a S.t
-
   type v = S.Val.t
 
   let merge t ~info =
@@ -199,9 +183,7 @@ module History (S : S.COMMIT_STORE) = struct
     type t = S.Key.t
 
     let compare = Type.(unstage (compare S.Key.t))
-
     let hash = S.Key.short_hash
-
     let equal = Type.(unstage (equal S.Key.t))
   end
 
@@ -214,9 +196,7 @@ module History (S : S.COMMIT_STORE) = struct
     | Some c -> KSet.of_list (S.Val.parents c)
 
   let equal_keys = Type.(unstage (equal S.Key.t))
-
   let str_key k = String.sub (Type.to_string S.Key.t k) 0 4
-
   let pp_key = Fmt.of_to_string str_key
 
   let pp_keys ppf keys =
@@ -224,7 +204,6 @@ module History (S : S.COMMIT_STORE) = struct
     Fmt.pf ppf "[%a]" Fmt.(list ~sep:(unit " ") pp_key) keys
 
   let str_keys = Fmt.to_to_string pp_keys
-
   let lca_calls = ref 0
 
   let rec unqueue todo seen =
@@ -311,11 +290,8 @@ module History (S : S.COMMIT_STORE) = struct
                t.layers [])))
 
   let get_mark_exn t elt = KHashtbl.find t.marks elt
-
   let get_mark t elt = try Some (get_mark_exn t elt) with Not_found -> None
-
   let set_mark t elt mark = KHashtbl.replace t.marks elt mark
-
   let get_layer t d = try Hashtbl.find t.layers d with Not_found -> KSet.empty
 
   let add_to_layer t d k =
@@ -327,7 +303,6 @@ module History (S : S.COMMIT_STORE) = struct
     try KHashtbl.find t.parents c with Not_found -> KSet.empty
 
   let incr_lcas t = t.lcas <- t.lcas + 1
-
   let decr_lcas t = t.lcas <- t.lcas - 1
 
   let both_seen t k =
@@ -500,9 +475,7 @@ end
 module V1 (C : S.COMMIT) = struct
   module K = struct
     let h = Type.string_of `Int64
-
     let hash_to_bin_string = Type.(unstage (to_bin_string C.hash_t))
-
     let hash_of_bin_string = Type.(unstage (of_bin_string C.hash_t))
 
     let size_of =
@@ -526,21 +499,14 @@ module V1 (C : S.COMMIT) = struct
   end
 
   type hash = C.hash [@@deriving irmin]
-
   type t = { parents : hash list; c : C.t }
 
   let import c = { c; parents = C.parents c }
-
   let export t = t.c
-
   let node t = C.node t.c
-
   let parents t = t.parents
-
   let info t = C.info t.c
-
   let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
-
   let make = v
 
   let info_t : Info.t Type.t =

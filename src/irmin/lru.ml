@@ -53,7 +53,6 @@ module Make (H : Hashtbl.HashedType) = struct
           t.last <- on
 
     let node x = { value = x; prev = None; next = None }
-
     let create () = { first = None; last = None }
 
     let clear t =
@@ -71,7 +70,6 @@ module Make (H : Hashtbl.HashedType) = struct
   }
 
   let weight t = t.w
-
   let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
 
   let drop_lru t =

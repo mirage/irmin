@@ -17,15 +17,10 @@
 
 module type S = sig
   type key
-
   type step
-
   type metadata
-
   type contents
-
   type node
-
   type hash
 
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
@@ -276,11 +271,8 @@ module type S = sig
   }
 
   val counters : unit -> counters
-
   val dump_counters : unit Fmt.t
-
   val reset_counters : unit -> unit
-
   val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
 end
 
@@ -300,7 +292,6 @@ module type Tree = sig
          and type hash = P.Hash.t
 
     val import : P.Repo.t -> P.Node.key -> node option Lwt.t
-
     val import_no_check : P.Repo.t -> P.Node.key -> node
 
     val export :
@@ -312,17 +303,11 @@ module type Tree = sig
       P.Node.key Lwt.t
 
     val dump : t Fmt.t
-
     val equal : t -> t -> bool
-
     val node_t : node Type.t
-
     val tree_t : t Type.t
-
     val hash : t -> [ `Contents of hash * metadata | `Node of hash ]
-
     val of_private_node : P.Repo.t -> P.Node.value -> node
-
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end
 end

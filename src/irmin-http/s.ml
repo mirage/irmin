@@ -20,9 +20,7 @@ module type HELPER = sig
   type ctx
 
   val err_bad_version : string option -> 'a Lwt.t
-
   val check_version : Cohttp.Response.t -> unit Lwt.t
-
   val is_success : Cohttp.Response.t -> bool
 
   val map_string_response :
@@ -66,61 +64,38 @@ end
 
 module type READ_ONLY_STORE = sig
   type ctx
-
   type 'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
-
   type key
-
   type value
 
   module HTTP : HELPER with type ctx = ctx
 
   val uri : 'a t -> Uri.t
-
   val item : 'a t -> string
-
   val items : 'a t -> string
-
   val key_str : key -> string
-
   val val_of_str : value T.of_string
-
   val find : 'a t -> key -> value option Lwt.t
-
   val mem : 'a t -> key -> bool Lwt.t
-
   val cast : 'a t -> [ `Read | `Write ] t
-
   val batch : 'a t -> ([ `Read | `Write ] t -> 'b) -> 'b
-
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-
   val clear : 'a t -> unit Lwt.t
 end
 
 module type APPEND_ONLY_STORE = sig
   type 'a t
-
   type key
-
   type value
-
   type ctx
 
   val mem : [> `Read ] t -> key -> bool Lwt.t
-
   val find : [> `Read ] t -> key -> value option Lwt.t
-
   val add : 'a t -> value -> key Lwt.t
-
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-
   val close : 'a t -> unit Lwt.t
-
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val clear : 'a t -> unit Lwt.t
 end
 
@@ -148,9 +123,7 @@ module type ATOMIC_WRITE_STORE_MAKER = functor
   (V : Irmin.Hash.S)
   -> sig
   module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
-
   module RO : READ_ONLY_STORE
-
   module HTTP = RO.HTTP
 
   include

@@ -19,12 +19,10 @@ open Irmin_pack
 let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 open Lwt.Infix
 
 module type CA = sig
   include Pack.S
-
   module Key : Irmin.Hash.TYPED with type t = key and type value = value
 end
 
@@ -61,9 +59,7 @@ let pp_during_freeze ppf = function
   | false -> ()
 
 let pp_layer_id = Irmin_layers.Layer_id.pp
-
 let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
-
 let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
@@ -76,9 +72,7 @@ module Content_addressable
             and type value = U.value) =
 struct
   type index = U.index
-
   type key = U.key
-
   type value = U.value
 
   type 'a t = {
@@ -97,13 +91,9 @@ struct
     { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
-
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
-
   let lower t = Option.get t.lower
-
   let pp_current_upper ppf t = pp_current_upper ppf t.flip
-
   let pp_next_upper ppf t = pp_next_upper ppf t.flip
 
   let mem_lower t k =
@@ -333,7 +323,6 @@ module Pack_Maker
     (P : Pack.MAKER with type key = H.t and type index = Index.t) =
 struct
   type index = P.index
-
   type key = P.key
 
   module Make (V : Pack.ELT with type hash := key) = struct
@@ -348,7 +337,6 @@ module Atomic_write
     (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) =
 struct
   type key = U.key
-
   type value = U.value
 
   module U = U
@@ -363,13 +351,9 @@ struct
   }
 
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
-
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
-
   let pp_current_upper ppf t = pp_current_upper ppf t.flip
-
   let pp_next_upper ppf t = pp_next_upper ppf t.flip
-
   let pp_branch = Irmin.Type.pp K.t
 
   let mem t k =
@@ -453,9 +437,7 @@ struct
   type watch = U.watch
 
   let watch t = U.watch (current_upper t)
-
   let watch_key t = U.watch_key (current_upper t)
-
   let unwatch t = U.unwatch (current_upper t)
 
   let close t =

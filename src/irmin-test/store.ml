@@ -18,7 +18,6 @@ open Lwt.Infix
 open Common
 
 let ( let* ) x f = Lwt.bind x f
-
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -1523,7 +1522,6 @@ module Make (S : S) = struct
     run x test
 
   let pp_write_error = Irmin.Type.pp S.write_error_t
-
   let tree_t = testable S.tree_t
 
   let test_with_tree x () =

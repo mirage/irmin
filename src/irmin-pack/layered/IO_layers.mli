@@ -22,7 +22,6 @@ module type S = sig
   include S.CLOSEABLE with type _ t := t
 
   val read_flip : t -> bool Lwt.t
-
   val write_flip : bool -> t -> unit Lwt.t
 end
 
@@ -36,6 +35,5 @@ module Lock : sig
   include S.CLOSEABLE with type _ t := t
 
   val unlink : string -> unit Lwt.t
-
   val test : string -> bool
 end

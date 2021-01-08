@@ -28,35 +28,20 @@ module type S = sig
   exception RO_Not_Allowed
 
   val v : version:version option -> fresh:bool -> readonly:bool -> path -> t
-
   val name : t -> string
-
   val clear : ?keep_generation:unit -> t -> unit
-
   val append : t -> string -> unit
-
   val set : t -> off:int64 -> string -> unit
-
   val read : t -> off:int64 -> bytes -> int
-
   val offset : t -> int64
-
   val force_offset : t -> int64
-
   val generation : t -> int64
-
   val force_generation : t -> int64
-
   val readonly : t -> bool
-
   val version : t -> version
-
   val flush : t -> unit
-
   val close : t -> unit
-
   val exists : string -> bool
-
   val size : t -> int
 
   val migrate :

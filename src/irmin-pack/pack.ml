@@ -21,7 +21,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = `V2
-
 let ( -- ) = Int64.sub
 
 open Lwt.Infix
@@ -30,7 +29,6 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
   let hash = K.short_hash
-
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
@@ -85,7 +83,6 @@ struct
       include K
 
       let hash = K.short_hash
-
       let equal = Irmin.Type.(unstage (equal K.t))
     end
 
@@ -105,7 +102,6 @@ struct
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     type value = V.t
-
     type index = Index.t
 
     let unsafe_clear ?keep_generation t =
@@ -158,7 +154,6 @@ struct
       Lwt.return t
 
     let pp_hash = Irmin.Type.pp K.t
-
     let decode_key = Irmin.Type.(unstage (decode_bin K.t))
 
     let io_read_and_decode_hash ~off t =
@@ -318,9 +313,7 @@ struct
       Index.sync t.pack.index
 
     let version t = IO.version t.pack.block
-
     let generation t = IO.generation t.pack.block
-
     let offset t = IO.offset t.pack.block
   end
 end

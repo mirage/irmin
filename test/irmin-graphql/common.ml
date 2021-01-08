@@ -2,11 +2,8 @@ open Lwt.Infix
 module Store = Irmin_mem.KV (Irmin.Contents.String)
 
 let ( / ) = Filename.concat
-
 let http_graphql_dir = "test-graphql"
-
 let socket = http_graphql_dir / "irmin.sock"
-
 let host = "irmin"
 
 let ctx =

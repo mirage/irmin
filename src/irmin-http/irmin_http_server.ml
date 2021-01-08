@@ -19,16 +19,13 @@ open Irmin_http_common
 module T = Irmin.Type
 
 let to_json = Irmin.Type.to_json_string
-
 let of_json = Irmin.Type.of_json_string
-
 let src = Logs.Src.create "irmin.http-srv" ~doc:"Irmin REST API server"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   type repo
-
   type t
 
   val v : ?strict:bool -> repo -> t
@@ -380,7 +377,6 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Branch = Atomic_write (P.Branch) (P.Branch.Key) (P.Branch.Val)
 
   type repo = S.Repo.t
-
   type t = HTTP.t
 
   let v ?strict:_ db =

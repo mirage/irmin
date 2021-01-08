@@ -42,7 +42,6 @@ type t = {
     the case, you should discard the last 0.*)
 
 val reset_stats : unit -> unit
-
 val get : unit -> t
 
 val copy_contents : unit -> unit
