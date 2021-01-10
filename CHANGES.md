@@ -7,6 +7,9 @@
     yet. (#1247, @Ngoguey42, @icristescu)
 
 #### Added
+- **irmin-bench**
+  - Added benchmarks for trees operations. (#1237, @icristescu, @Ngoguey42,
+  @Craigfe)
 
 #### Changed
 
