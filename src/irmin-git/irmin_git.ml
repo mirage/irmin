@@ -183,7 +183,6 @@ struct
       include C
 
       let to_bin t = Raw.to_raw (GitContents.to_git t)
-
       let encode_bin = Irmin.Type.stage (fun (t : t) k -> k (to_bin t))
 
       let decode_bin =
@@ -319,7 +318,6 @@ struct
 
       let to_n t = N.v (alist t)
       let of_n n = v (N.list n)
-
       let to_bin t = Raw.to_raw (G.Value.tree t)
 
       let encode_bin =
@@ -529,7 +527,6 @@ functor
       match B.of_ref str with Ok r -> Some r | Error (`Msg _) -> None
 
     let git_of_branch r = Git.Reference.v (Fmt.to_to_string B.pp_ref r)
-
     let pp_key = Irmin.Type.pp Key.t
 
     let mem { t; _ } r =
@@ -701,17 +698,14 @@ struct
   let src = Logs.Src.create "irmin.git-output" ~doc:"Git output"
 
   module Gitlog = (val Logs.src_log src : Logs.LOG)
-
   module H = Irmin.Hash.Make (G.Hash)
 
   type t = G.t
   type commit = H.t
   type branch = B.t
-
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   let git_of_branch_str str = Git.Reference.v ("refs/heads/" ^ str)
-
   let git_of_branch r = git_of_branch_str (Irmin.Type.to_string B.t r)
 
   (* let o_head_of_git = function None -> Ok None | Some k -> Ok (Some k) *)
@@ -720,7 +714,6 @@ struct
     x >>= function Ok x -> f x | Error err -> Lwt.return (Error err)
 
   let msgf fmt = Fmt.kstrf (fun err -> `Msg err) fmt
-
   let reword_error f = function Ok _ as v -> v | Error err -> Error (f err)
 
   let fetch t ?depth (ctx, e) br =
@@ -1018,7 +1011,6 @@ module Make
 
 module No_sync (G : Git.S) = struct
   type hash = G.hash
-
   type store = G.t
 
   type error =
