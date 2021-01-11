@@ -151,9 +151,12 @@ struct
 
   let unsafe_clear ?keep_generation t =
     Lwt.async (fun () -> W.clear t.w);
-    IO.clear ?keep_generation t.block;
-    Tbl.clear t.cache;
-    Tbl.clear t.index
+    match current_version with
+    | `V1 -> IO.truncate t.block
+    | `V2 ->
+        IO.clear ?keep_generation t.block;
+        Tbl.clear t.cache;
+        Tbl.clear t.index
 
   let clear t =
     Log.debug (fun l -> l "[branches] clear");

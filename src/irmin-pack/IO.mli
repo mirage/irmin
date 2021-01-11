@@ -48,6 +48,11 @@ module type S = sig
   val exists : string -> bool
   val size : t -> int
 
+  val truncate : t -> unit
+  (** Sets the length of the underlying IO to be 0, without actually purging the
+      associated data. Not supported for stores beyond [`V1], which should use
+      {!clear} instead. *)
+
   val migrate :
     progress:(int64 -> unit) ->
     t ->

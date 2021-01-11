@@ -70,6 +70,7 @@ module type S = sig
   val close : t -> unit
   val exists : string -> bool
   val size : t -> int
+  val truncate : t -> unit
 
   val migrate :
     progress:(int64 -> unit) ->
@@ -223,8 +224,16 @@ module Unix : S = struct
 
   let clear ?keep_generation t =
     match t.version with
-    | `V1 -> invalid_arg "V1 stores cannot be cleared"
+    | `V1 -> invalid_arg "V1 stores cannot be cleared; use [truncate] instead"
     | `V2 -> unsafe_clear ?keep_generation t
+
+  let truncate t =
+    match t.version with
+    | `V2 -> invalid_arg "V2 stores cannot be truncated; use [clear] instead"
+    | `V1 ->
+        t.offset <- 0L;
+        t.flushed <- header `V1;
+        Buffer.clear t.buf
 
   let v ~version ~fresh ~readonly file =
     let get_version () =

@@ -103,9 +103,12 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
     v
 
   let clear t =
-    IO.clear t.io;
-    Hashtbl.clear t.cache;
-    Hashtbl.clear t.index
+    match current_version with
+    | `V1 -> IO.truncate t.io
+    | `V2 ->
+        IO.clear t.io;
+        Hashtbl.clear t.cache;
+        Hashtbl.clear t.index
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
     let io = IO.v ~fresh ~version:(Some current_version) ~readonly file in

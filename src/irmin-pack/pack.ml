@@ -54,8 +54,11 @@ struct
 
   let clear ?keep_generation t =
     Index.clear t.index;
-    IO.clear ?keep_generation t.block;
-    Dict.clear t.dict
+    match current_version with
+    | `V1 -> IO.truncate t.block
+    | `V2 ->
+        IO.clear ?keep_generation t.block;
+        Dict.clear t.dict
 
   let valid t =
     if t.open_instances <> 0 then (
