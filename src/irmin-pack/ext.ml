@@ -54,7 +54,12 @@ module Make
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H)
+
+  module Pack =
+    Pack.File (Index) (H)
+      (struct
+        let io_version = current_version
+      end)
 
   module X = struct
     module Hash = H

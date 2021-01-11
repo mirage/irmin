@@ -63,7 +63,12 @@ module Make_ext
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H)
+
+  module Pack =
+    Pack.File (Index) (H)
+      (struct
+        let io_version = current_version
+      end)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
