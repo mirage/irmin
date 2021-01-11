@@ -308,17 +308,12 @@ struct
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
                   Store.Tree.list tree Store.Key.empty
-                  >>= Lwt_list.map_p (fun (step, kind) ->
-                          let relative_key = Store.Key.v [ step ] in
+                  >|= List.map (fun (step, tree) ->
                           let absolute_key = Store.Key.rcons tree_key step in
-                          match kind with
-                          | `Contents ->
-                              Store.Tree.get_all tree relative_key
-                              >|= fun (c, m) ->
+                          match Store.Tree.destruct tree with
+                          | `Contents (c, m) ->
                               Lazy.(force contents_as_node (c, m, absolute_key))
-                          | `Node ->
-                              Store.Tree.get_tree tree relative_key >|= fun t ->
-                              Lazy.(force tree_as_node (t, absolute_key)))
+                          | _ -> Lazy.(force tree_as_node (tree, absolute_key)))
                   >>= fun r -> Lwt.return (Ok r));
             ]))
 

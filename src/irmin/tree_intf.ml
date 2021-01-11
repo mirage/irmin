@@ -48,18 +48,18 @@ module type S = sig
   val of_node : node -> t
   (** [of_node n] is the subtree built from the node [n]. *)
 
-  val v : [< `Node of node | `Contents of contents * metadata ] -> t
+  type elt = [ `Node of node | `Contents of contents * metadata ]
+  (** The type for tree elements. *)
+
+  val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  val destruct : t -> [> `Node of node | `Contents of contents * metadata ]
+  val destruct : t -> elt
   (** General-purpose destructor for trees. *)
 
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
-
-  val list : t -> key -> (step * [ `Contents | `Node ]) list Lwt.t
-  (** [list t key] is the list of files and sub-nodes stored under [k] in [t]. *)
 
   (** {1 Diffs} *)
 
@@ -102,6 +102,12 @@ module type S = sig
   val get_all : t -> key -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
+  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list Lwt.t
+  (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
+      The result order is not specified but is stable.
+
+      [offset] and [length] are used for pagination. *)
+
   val get : t -> key -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
 
@@ -114,30 +120,6 @@ module type S = sig
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
-
-  (** Operations on {{!node} lazy tree nodes}. *)
-  module Node : sig
-    type t = node
-    (** The type of lazy tree nodes. *)
-
-    val hash : t -> hash
-    (** [hash t] is the hash of the underlying (non-lazy) form of [t] when
-        serialised in the underlying store.*)
-
-    val list : t -> (step * [ `Contents | `Node ]) list or_error Lwt.t
-    (** [list t] is the list of keys in [t], and their corresponding kinds. *)
-
-    val bindings :
-      t ->
-      (step * [ `Node of t | `Contents of Contents.t * metadata ]) list or_error
-      Lwt.t
-    (** [bindings t] is the list of bindings in [t]. *)
-
-    val clear : ?depth:int -> t -> unit
-    (** [clear ?depth t] clears all the cache in the tree [t] for subtrees with
-        a depth higher than [depth]. If [depth] is not set, all the subtrees are
-        cleared. *)
-  end
 
   val mem_tree : t -> key -> bool Lwt.t
   (** [mem_tree t k] is false iff [find_tree k = None]. *)

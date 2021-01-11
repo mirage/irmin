@@ -21,6 +21,20 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let rec drop n (l : 'a Seq.t) () =
+  match l () with
+  | l' when n = 0 -> l'
+  | Nil -> Nil
+  | Cons (_, l') -> drop (n - 1) l' ()
+
+let take : type a. int -> a Seq.t -> a list =
+  let rec aux acc n (l : a Seq.t) =
+    if n = 0 then acc
+    else
+      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
+  in
+  fun n s -> List.rev (aux [] n s)
+
 module No_metadata = struct
   type t = unit [@@deriving irmin]
 
@@ -70,8 +84,7 @@ struct
   module StepMap = Map.Make (struct
     type t = P.step
 
-    let compare_step = Type.(unstage (compare P.step_t))
-    let compare (x : t) (y : t) = compare_step y x
+    let compare = Type.(unstage (compare P.step_t))
   end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
@@ -82,7 +95,14 @@ struct
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
 
-  let list t = List.rev_map (fun (_, e) -> of_entry e) (StepMap.bindings t)
+  let list ?(offset = 0) ?length (t : t) =
+    let take_length seq =
+      match length with None -> List.of_seq seq | Some n -> take n seq
+    in
+    StepMap.to_seq t
+    |> drop offset
+    |> Seq.map (fun (_, e) -> of_entry e)
+    |> take_length
 
   let find t s =
     try
@@ -91,7 +111,7 @@ struct
     with Not_found -> None
 
   let empty = StepMap.empty
-  let is_empty e = list e = []
+  let is_empty e = StepMap.is_empty e
 
   let add t k v =
     let e = to_entry (k, v) in
@@ -393,7 +413,12 @@ module V1 (N : S.NODE with type step = string) = struct
     let n = N.v entries in
     { n; entries }
 
-  let list t = t.entries
+  let list ?(offset = 0) ?length t =
+    let take_length seq =
+      match length with None -> List.of_seq seq | Some n -> take n seq
+    in
+    List.to_seq t.entries |> drop offset |> take_length
+
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
   let default = N.default

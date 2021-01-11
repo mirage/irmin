@@ -235,8 +235,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
     check_layer repo (S.Commit_t (S.Commit.hash commit)) msg exp
 
   let test_set x () =
-    let check_list = checks T.(pair S.Key.step_t S.kind_t) in
+    let check_list = checks T.(pair S.Key.step_t S.tree_t) in
     let check_parents = checks S.Hash.t in
+    let contents v = S.Tree.v (`Contents (v, S.Metadata.default)) in
     let test repo =
       S.master repo >>= fun t ->
       S.set_exn t [ "a"; "b"; "c" ] v1 ~info:(infof "commit 1") >>= fun () ->
@@ -244,8 +245,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.freeze repo ~max:[ c1 ] ~copy_in_upper:false >>= fun () ->
       S.set_exn t [ "a"; "d" ] v2 ~info:(infof "commit 2") >>= fun () ->
       S.list t [ "a" ] >>= fun ks ->
+      S.get_tree t [ "a"; "b" ] >>= fun b ->
       (* list sees a merged tree from lower and upper layers *)
-      check_list "path" [ ("d", `Contents); ("b", `Node) ] ks;
+      check_list "path" [ ("d", contents v2); ("b", b) ] ks;
       S.PrivateLayer.wait_for_freeze repo >>= fun () ->
       check_layer_for_commits repo c1 "layer id of commit 1" `Lower
       >>= fun () ->
