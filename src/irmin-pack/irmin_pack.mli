@@ -94,7 +94,11 @@ end
 
 module KV (Config : Config.S) : Irmin.KV_MAKER
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
+module Atomic_write
+    (K : Irmin.Type.S)
+    (V : Irmin.Hash.S) (C : sig
+      val io_version : IO.version
+    end) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t

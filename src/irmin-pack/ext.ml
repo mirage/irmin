@@ -23,7 +23,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
+let current_version = `V1
 let pp_version = IO.pp_version
 
 exception Unsupported_version = Store.Unsupported_version
@@ -40,6 +40,10 @@ let () =
 module I = IO
 module IO = IO.Unix
 
+module IO_version = struct
+  let io_version = current_version
+end
+
 module Make
     (Config : Config.S)
     (M : Irmin.Metadata.S)
@@ -54,12 +58,7 @@ module Make
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-
-  module Pack =
-    Pack.File (Index) (H)
-      (struct
-        let io_version = current_version
-      end)
+  module Pack = Pack.File (Index) (H) (IO_version)
 
   module X = struct
     module Hash = H
@@ -136,7 +135,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Store.Atomic_write (Key) (Val)
+      module AW = Store.Atomic_write (Key) (Val) (IO_version)
       include Closeable.Atomic_write (AW)
     end
 

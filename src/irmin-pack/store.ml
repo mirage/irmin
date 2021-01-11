@@ -4,9 +4,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
-let pp_version = IO.pp_version
-
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 exception Unsupported_version of IO.version
 
@@ -17,7 +14,6 @@ open Lwt.Infix
 module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
-module IO = IO.Unix
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -26,9 +22,19 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
+let pp_version = IO.pp_version
+
+module Atomic_write
+    (K : Irmin.Type.S)
+    (V : Irmin.Hash.S) (C : sig
+      val io_version : IO.version
+    end) =
+struct
+  let current_version = C.io_version
+
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
+  module IO = IO.Unix
 
   type key = K.t
   type value = V.t
@@ -239,6 +245,10 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let flush t = IO.flush t.block
 end
 
+module IO = IO.Unix
+
+let latest_version = `V2
+
 (** Migrate data from the IO [src] (with [name] in path [root_old]) into the
     temporary dir [root_tmp], then swap in the replaced version. *)
 let migrate_io_to_v2 ~progress src =
@@ -254,12 +264,12 @@ let migrate config =
          let io = IO.v ~version:None ~fresh:false ~readonly:true store in
          let version = IO.version io in
          (store, io, version))
-  |> List.partition (fun (_, _, v) -> v = current_version)
+  |> List.partition (fun (_, _, v) -> v = latest_version)
   |> function
   | migrated, [] ->
       Log.info (fun l ->
           l "Store at %s is already in current version (%a)"
-            (Config.root config) pp_version current_version);
+            (Config.root config) pp_version latest_version);
       List.iter (fun (_, io, _) -> IO.close io) migrated
   | migrated, to_migrate ->
       List.iter (fun (_, io, _) -> IO.close io) migrated;

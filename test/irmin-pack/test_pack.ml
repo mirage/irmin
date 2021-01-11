@@ -544,6 +544,9 @@ end
 module Branch = struct
   module Branch =
     Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
+      (struct
+        let io_version = `V1
+      end)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 
