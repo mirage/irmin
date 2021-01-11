@@ -62,6 +62,11 @@ let check_node msg v t =
   Inode.batch t.Context.store (fun i -> Inode.add i v) >|= fun h' ->
   check_hash msg h h'
 
+let check_hardcoded_hash msg h v =
+  h |> Irmin.Type.of_string Inode.Val.hash_t |> function
+  | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
+  | Ok hash -> check_hash msg hash (Private.hash v)
+
 (** Test add values from an empty node. *)
 let test_add_values () =
   rm_dir root;
@@ -69,7 +74,8 @@ let test_add_values () =
   check_node "hash empty node" Inode.Val.empty t >>= fun () ->
   let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
-  check_node "node x y" v1 t >>= fun () ->
+  check_node "node x+y" v2 t >>= fun () ->
+  check_hardcoded_hash "hash v2" "3a588e27cc6256906fe46cadb53137c2b89bc9f7" v2;
   let v3 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
@@ -84,6 +90,7 @@ let test_add_inodes () =
     Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
+  check_hardcoded_hash "hash v3" "9e455b571805ec9d3404d9ac86009757382db687" v3;
   Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
   Alcotest.(check bool) "v2 stable" (Private.stable v2) true;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
@@ -97,6 +104,7 @@ let test_add_inodes () =
       ]
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
+  check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
   Alcotest.(check bool) "v4 not stable" (Private.stable v4) false;
   Context.close t
 
@@ -108,10 +116,12 @@ let test_remove_values () =
   let v2 = Inode.Val.remove v1 "y" in
   let v3 = Inode.Val.v [ ("x", normal foo) ] in
   check_values "node x obtained two ways" v2 v3;
+  check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
   check_node "remove results in an empty node" Inode.Val.empty t >>= fun () ->
   let v5 = Inode.Val.remove v4 "x" in
   check_values "remove on an already empty node" v4 v5;
+  check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
   Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
   Context.close t
 
@@ -122,9 +132,11 @@ let test_remove_inodes () =
   let v1 =
     Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in
+  check_hardcoded_hash "hash v1" "9e455b571805ec9d3404d9ac86009757382db687" v1;
   let v2 = Inode.Val.remove v1 "x" in
   let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
   check_values "node y+z obtained two ways" v2 v3;
+  check_hardcoded_hash "hash v2" "75d043f00ef5368e667eaf768f89a35addf73fb9" v2;
   let v4 =
     Inode.Val.v
       [
