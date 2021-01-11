@@ -71,9 +71,12 @@ module Git : sig
   (** {1 Git Store} *)
 
   module type S = sig
-    include Irmin_git.S with type Private.Sync.endpoint = Git_unix.endpoint
+    include
+      Irmin_git.S
+        with type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-    val remote : ?headers:Cohttp.Header.t -> string -> Irmin.remote
+    val remote :
+      ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
   end
 
   module Make

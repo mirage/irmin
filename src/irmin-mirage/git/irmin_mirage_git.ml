@@ -1,14 +1,12 @@
 open Lwt.Infix
 
 module type S = sig
-  include Irmin_git.S with type Private.Sync.endpoint = Git_mirage.endpoint
+  include
+    Irmin_git.S
+      with type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val remote :
-    ?conduit:Conduit_mirage.conduit ->
-    ?resolver:Resolver_lwt.t ->
-    ?headers:Cohttp.Header.t ->
-    string ->
-    Irmin.remote
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 end
 
 module type S_MAKER = functor
@@ -41,39 +39,40 @@ module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and type branch = Irmin_git.reference
      and module Git = G
 
+let remote ?(ctx = Mimic.empty) ?headers uri =
+  let ( ! ) f a b = f b a in
+  let headers = Option.map Cohttp.Header.to_list headers in
+  match Smart_git.Endpoint.of_string uri with
+  | Ok edn ->
+      let edn =
+        Option.fold ~none:edn
+          ~some:(!Smart_git.Endpoint.with_headers_if_http edn)
+          headers
+      in
+      (ctx, edn)
+  | Error (`Msg err) -> Fmt.invalid_arg "remote: %s" err
+
 module Make
     (G : Irmin_git.G)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
 struct
-  include Irmin_git.Make (G) (Git_mirage.Sync (G)) (C) (P) (B)
+  include Irmin_git.Make (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C) (P) (B)
 
-  let remote ?conduit ?resolver ?headers uri =
-    let e =
-      Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
-    in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.Ref (G) (Git_mirage.Sync (G)) (C)
+  include Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C)
 
-  let remote ?conduit ?resolver ?headers uri =
-    let e =
-      Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
-    in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module KV (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.KV (G) (Git_mirage.Sync (G)) (C)
+  include Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C)
 
-  let remote ?conduit ?resolver ?headers uri =
-    let e =
-      Git_mirage.endpoint ?headers ?conduit ?resolver (Uri.of_string uri)
-    in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module type KV_RO = sig
@@ -85,8 +84,7 @@ module type KV_RO = sig
     ?depth:int ->
     ?branch:string ->
     ?root:key ->
-    ?conduit:Conduit_mirage.t ->
-    ?resolver:Resolver_lwt.t ->
+    ?ctx:Mimic.ctx ->
     ?headers:Cohttp.Header.t ->
     git ->
     string ->
@@ -101,7 +99,7 @@ module KV_RO (G : Git.S) = struct
   module G = struct
     include G
 
-    let v ?dotgit:_ ?compression:_ ?buffers:_ _root = assert false
+    let v ?dotgit:_ _root = assert false
   end
 
   module S = KV (G) (Irmin.Contents.String)
@@ -172,13 +170,13 @@ module KV_RO (G : Git.S) = struct
     | [] -> Error (`Not_found key)
     | h :: _ -> Ok (0, Irmin.Info.date (S.Commit.info h))
 
-  let connect ?(depth = 1) ?(branch = "master") ?(root = Mirage_kv.Key.empty)
-      ?conduit ?resolver ?headers t uri =
-    let remote = S.remote ?conduit ?resolver ?headers uri in
-    let head = G.Reference.of_string ("refs/heads/" ^ branch) in
+  let connect ?depth ?(branch = "master") ?(root = Mirage_kv.Key.empty) ?ctx
+      ?headers t uri =
+    let remote = S.remote ?ctx ?headers uri in
+    let head = Git.Reference.v ("refs/heads/" ^ branch) in
     S.repo_of_git ~bare:true ~head t >>= fun repo ->
     S.of_branch repo branch >>= fun t ->
-    Sync.pull_exn t ~depth remote `Set >|= fun _ ->
+    Sync.pull_exn t ?depth remote `Set >|= fun _ ->
     let root = path root in
     { t; root }
 
@@ -209,8 +207,7 @@ module type KV_RW = sig
     ?depth:int ->
     ?branch:string ->
     ?root:key ->
-    ?conduit:Conduit_mirage.t ->
-    ?resolver:Resolver_lwt.t ->
+    ?ctx:Mimic.ctx ->
     ?headers:Cohttp.Header.t ->
     ?author:(unit -> string) ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
@@ -252,11 +249,10 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | `Remove k -> Fmt.strf "Removing %a" Mirage_kv.Key.pp k
     | `Batch -> "Commmiting batch operation"
 
-  let connect ?depth ?branch ?root ?conduit ?resolver ?headers
-      ?(author = default_author) ?(msg = default_msg) git uri =
-    RO.connect ?depth ?branch ?root ?conduit ?resolver ?headers git uri
-    >|= fun t ->
-    let remote = S.remote ?conduit ?resolver ?headers uri in
+  let connect ?depth ?branch ?root ?ctx ?headers ?(author = default_author)
+      ?(msg = default_msg) git uri =
+    RO.connect ?depth ?branch ?root ?ctx ?headers git uri >|= fun t ->
+    let remote = S.remote ?ctx ?headers uri in
     { store = Store t; author; msg; remote }
 
   let disconnect t =

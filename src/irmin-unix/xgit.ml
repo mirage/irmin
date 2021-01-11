@@ -19,9 +19,12 @@ let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
-  include Irmin_git.S with type Private.Sync.endpoint = Git_unix.endpoint
+  include
+    Irmin_git.S
+      with type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-  val remote : ?headers:Cohttp.Header.t -> string -> Irmin.remote
+  val remote :
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 end
 
 module type S_MAKER = functor
@@ -54,46 +57,45 @@ module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and type branch = Irmin_git.reference
      and module Git = G
 
+let remote ?(ctx = Mimic.empty) ?headers uri =
+  let ( ! ) f a b = f b a in
+  let headers = Option.map Cohttp.Header.to_list headers in
+  match Smart_git.Endpoint.of_string uri with
+  | Ok edn ->
+      let edn =
+        Option.fold ~none:edn
+          ~some:(!Smart_git.Endpoint.with_headers_if_http edn)
+          headers
+      in
+      (ctx, edn)
+  | Error (`Msg err) -> Fmt.invalid_arg "remote: %s" err
+
 module Make
     (G : Irmin_git.G)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
 struct
-  include Irmin_git.Make (G) (Git_unix.Sync (G)) (C) (P) (B)
+  include Irmin_git.Make (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C) (P) (B)
 
-  let remote ?headers uri =
-    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module KV (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.KV (G) (Git_unix.Sync (G)) (C)
+  include Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
 
-  let remote ?headers uri =
-    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.Ref (G) (Git_unix.Sync (G)) (C)
+  include Irmin_git.Ref (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
 
-  let remote ?headers uri =
-    let e = Git_unix.endpoint ?headers (Uri.of_string uri) in
-    E e
+  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module FS = struct
-  module G = struct
-    include Git_unix.Store
-
-    let v ?dotgit ?compression ?buffers root =
-      let buffer =
-        match buffers with None -> None | Some p -> Some (Lwt_pool.use p)
-      in
-      v ?dotgit ?compression ?buffer root
-  end
-
+  module G = Git_unix.Store
+  module S = Git_unix.Sync (G) (Git_cohttp_unix)
   module Make = Make (G)
   module Ref = Ref (G)
   module KV = KV (G)
@@ -101,6 +103,7 @@ end
 
 module Mem = struct
   module G = Irmin_git.Mem
+  module S = Git.Mem.Sync (G) (Git_cohttp_unix)
   module Content_addressable = Irmin_git.Content_addressable (G)
   module Atomic_write = Irmin_git.Atomic_write (G)
   module Make = Make (G)

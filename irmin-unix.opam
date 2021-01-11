@@ -24,7 +24,7 @@ depends: [
   "irmin-pack"    {= version}
   "irmin-graphql" {= version}
   "irmin-layers"  {= version}
-  "git-unix"      {>= "1.11.4"}
+  "git-unix"
   "digestif"      {>= "0.9.0"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
@@ -32,6 +32,7 @@ depends: [
   "astring"
   "cohttp"
   "cohttp-lwt"
+  "cohttp-lwt-unix"
   "conduit"
   "conduit-lwt"
   "conduit-lwt-unix"
@@ -40,10 +41,11 @@ depends: [
   "cmdliner"
   "cohttp-lwt-unix"
   "fmt"
-  "git"
+  "git"             {>= "3.0.0"}
+  "git-cohttp-unix" {>= "3.0.0"}
   "lwt"
-  "irmin-test" {with-test & = version}
-  "alcotest"   {with-test}
+  "irmin-test"    {with-test & = version}
+  "alcotest"      {with-test}
 ]
 
 synopsis: "Unix backends for Irmin"

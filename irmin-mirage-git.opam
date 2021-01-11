@@ -16,13 +16,13 @@ depends: [
   "dune"         {>= "2.7.0"}
   "irmin-mirage" {= version}
   "irmin-git"    {= version}
-  "git-mirage"   {>= "2.1.2"}
   "mirage-kv"    {>= "3.0.0"}
   "cohttp"
   "conduit-lwt"
   "conduit-mirage"
+  "git-cohttp-mirage" {>= "3.0.0"}
   "fmt"
-  "git"
+  "git"               {>= "3.0.0"}
   "lwt"
   "mirage-clock"
   "uri"

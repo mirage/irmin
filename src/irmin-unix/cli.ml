@@ -311,7 +311,7 @@ let remove =
 
 let apply e f =
   match (e, f) with
-  | R (h, e), Some f -> f ?headers:h e
+  | R (h, e), Some f -> f ?ctx:None ?headers:h e
   | R _, None -> Fmt.failwith "invalid remote for that kind of store"
   | r, _ -> r
 

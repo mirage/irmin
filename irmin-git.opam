@@ -18,7 +18,7 @@ depends: [
   "dune"       {>= "2.7.0"}
   "irmin"      {= version}
   "ppx_irmin"  {= version}
-  "git"        {>= "2.1.1"}
+  "git"        {>= "3.0.0"}
   "digestif"   {>= "0.9.0"}
   "cstruct"
   "fmt"
@@ -27,9 +27,10 @@ depends: [
   "logs"
   "lwt"
   "uri"
+  "git-cohttp-unix" {with-test}
   "irmin-test" {with-test & = version}
   "irmin-mem"  {with-test & = version}
-  "git-unix"   {with-test & >= "2.1.1"}
+  "git-unix"   {with-test}
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}
 ]

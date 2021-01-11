@@ -1,5 +1,5 @@
 (library
  (name irmin_mirage_graphql)
  (public_name irmin-mirage-graphql)
- (libraries cohttp-lwt git-mirage irmin irmin-mirage irmin-graphql lwt
+ (libraries git.nss.git cohttp-lwt irmin irmin-mirage irmin-graphql lwt
    mirage-clock uri))

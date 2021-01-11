@@ -16,11 +16,11 @@ depends: [
   "dune"          {>= "2.7.0"}
   "irmin-mirage"  {= version}
   "irmin-graphql" {= version}
-  "git-mirage"    {>= "2.1.1"}
   "mirage-clock"
   "cohttp-lwt"
   "lwt"
   "uri"
+  "git"           {>= "3.0.0"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
