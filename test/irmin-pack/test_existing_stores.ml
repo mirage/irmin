@@ -152,7 +152,7 @@ end
 module Hash = Irmin.Hash.SHA1
 
 module Make () =
-  Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack.Make_V2 (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)

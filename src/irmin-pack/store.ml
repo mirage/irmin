@@ -26,11 +26,10 @@ let pp_version = IO.pp_version
 
 module Atomic_write
     (K : Irmin.Type.S)
-    (V : Irmin.Hash.S) (C : sig
-      val io_version : IO.version
-    end) =
+    (V : Irmin.Hash.S)
+    (IO_version : IO.VERSION) =
 struct
-  let current_version = C.io_version
+  let current_version = IO_version.io_version
 
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)

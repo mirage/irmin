@@ -1,5 +1,8 @@
 open Lwt.Infix
-module Dict = Irmin_pack.Dict
+
+module Dict = Irmin_pack.Dict.Make (struct
+  let io_version = `V2
+end)
 
 let ( let* ) x f = Lwt.bind x f
 let get = function Some x -> x | None -> Alcotest.fail "None"

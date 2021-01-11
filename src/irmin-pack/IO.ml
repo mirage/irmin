@@ -41,6 +41,10 @@ end
 
 type version = Version.t
 
+module type VERSION = sig
+  val io_version : version
+end
+
 let pp_version = Version.pp
 
 exception Invalid_version of { expected : version; found : version }

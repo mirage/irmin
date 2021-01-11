@@ -16,11 +16,26 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module S =
-  Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
+module S = struct
+  module P = Irmin.Path.String_list
+  module M = Irmin.Metadata.None
+  module XNode = Irmin.Private.Node.Make (Hash) (P) (M)
+  module XCommit = Irmin.Private.Commit.Make (Hash)
+
+  include
+    Irmin_pack.Make_ext
+      (struct
+        let io_version = `V2
+      end)
+      (Conf)
+      (M)
+      (Irmin.Contents.String)
+      (P)
+      (Irmin.Branch.String)
+      (Hash)
+      (XNode)
+      (XCommit)
+end
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root

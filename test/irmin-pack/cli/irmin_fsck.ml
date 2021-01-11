@@ -13,7 +13,13 @@ module Store = Irmin_pack.Checks.Make (struct
   module Hash = Hash
 
   module Store =
-    Irmin_pack.Make_ext (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    Irmin_pack.Make_ext
+      (struct
+        let io_version = `V1
+      end)
+      (Conf)
+      (Irmin.Metadata.None)
+      (Irmin.Contents.String)
       (Path)
       (Irmin.Branch.String)
       (Hash)

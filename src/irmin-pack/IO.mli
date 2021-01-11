@@ -22,6 +22,10 @@ exception Invalid_version of { expected : version; found : version }
 
 type path := string
 
+module type VERSION = sig
+  val io_version : version
+end
+
 module type S = sig
   type t
 

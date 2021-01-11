@@ -16,14 +16,12 @@
 
 open Lwt.Infix
 module Pack_config = Config
-module Dict = Pack_dict
 module Index = Pack_index
 
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V1
 let pp_version = IO.pp_version
 
 exception Unsupported_version = Store.Unsupported_version
@@ -40,11 +38,8 @@ let () =
 module I = IO
 module IO = IO.Unix
 
-module IO_version = struct
-  let io_version = current_version
-end
-
 module Make
+    (IO_version : I.VERSION)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -59,6 +54,9 @@ module Make
 struct
   module Index = Pack_index.Make (H)
   module Pack = Pack.File (Index) (H) (IO_version)
+  module Dict = Pack_dict.Make (IO_version)
+
+  let current_version = IO_version.io_version
 
   module X = struct
     module Hash = H

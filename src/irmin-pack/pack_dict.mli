@@ -10,6 +10,10 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-include Dict.S
+module type S = sig
+  include Dict.S
 
-val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+end
+
+module Make (_ : IO.VERSION) : S

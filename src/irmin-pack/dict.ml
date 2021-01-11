@@ -21,10 +21,11 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
 let ( -- ) = Int64.sub
 
-module Make (IO : IO.S) : S = struct
+module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
+  let current_version = IO_version.io_version
+
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;

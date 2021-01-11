@@ -104,7 +104,6 @@ module type Pack = sig
 
   module File
       (Index : Pack_index.S)
-      (K : Irmin.Hash.S with type t = Index.key) (C : sig
-        val io_version : IO.version
-      end) : MAKER with type key = K.t and type index = Index.t
+      (K : Irmin.Hash.S with type t = Index.key)
+      (_ : IO.VERSION) : MAKER with type key = K.t and type index = Index.t
 end

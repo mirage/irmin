@@ -33,18 +33,17 @@ end)
 
 module File
     (Index : Pack_index.S)
-    (K : Irmin.Hash.S with type t = Index.key) (C : sig
-      val io_version : IO.version
-    end) =
+    (K : Irmin.Hash.S with type t = Index.key)
+    (IO_version : IO.VERSION) =
 struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
-  module Dict = Pack_dict
+  module Dict = Pack_dict.Make (IO_version)
 
   type index = Index.t
 
-  let current_version = C.io_version
+  let current_version = IO_version.io_version
 
   type 'a t = {
     mutable block : IO.t;

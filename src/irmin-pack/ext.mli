@@ -15,13 +15,13 @@
  *)
 
 module Pack_config = Config
-module Dict = Pack_dict
 module Index = Pack_index
 
 exception RO_Not_Allowed
 exception Unsupported_version of IO.version
 
 module Make
+    (_ : IO.VERSION)
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
