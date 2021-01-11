@@ -21,10 +21,11 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
 let ( -- ) = Int64.sub
 
-module Make (IO : IO.S) : S = struct
+module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
+  let current_version = IO_version.io_version
+
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
@@ -102,9 +103,12 @@ module Make (IO : IO.S) : S = struct
     v
 
   let clear t =
-    IO.clear t.io;
-    Hashtbl.clear t.cache;
-    Hashtbl.clear t.index
+    match current_version with
+    | `V1 -> IO.truncate t.io
+    | `V2 ->
+        IO.clear t.io;
+        Hashtbl.clear t.cache;
+        Hashtbl.clear t.index
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
     let io = IO.v ~fresh ~version:(Some current_version) ~readonly file in

@@ -22,6 +22,10 @@ exception Invalid_version of { expected : version; found : version }
 
 type path := string
 
+module type VERSION = sig
+  val io_version : version
+end
+
 module type S = sig
   type t
 
@@ -43,6 +47,11 @@ module type S = sig
   val close : t -> unit
   val exists : string -> bool
   val size : t -> int
+
+  val truncate : t -> unit
+  (** Sets the length of the underlying IO to be 0, without actually purging the
+      associated data. Not supported for stores beyond [`V1], which should use
+      {!clear} instead. *)
 
   val migrate :
     progress:(int64 -> unit) ->

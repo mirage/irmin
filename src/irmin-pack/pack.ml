@@ -20,7 +20,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let current_version = `V2
 let ( -- ) = Int64.sub
 
 open Lwt.Infix
@@ -32,15 +31,19 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module IO_cache = IO.Cache
-module IO = IO.Unix
-
-module File (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
+module File
+    (Index : Pack_index.S)
+    (K : Irmin.Hash.S with type t = Index.key)
+    (IO_version : IO.VERSION) =
 struct
+  module IO_cache = IO.Cache
+  module IO = IO.Unix
   module Tbl = Table (K)
-  module Dict = Pack_dict
+  module Dict = Pack_dict.Make (IO_version)
 
   type index = Index.t
+
+  let current_version = IO_version.io_version
 
   type 'a t = {
     mutable block : IO.t;
@@ -51,8 +54,11 @@ struct
 
   let clear ?keep_generation t =
     Index.clear t.index;
-    IO.clear ?keep_generation t.block;
-    Dict.clear t.dict
+    match current_version with
+    | `V1 -> IO.truncate t.block
+    | `V2 ->
+        IO.clear ?keep_generation t.block;
+        Dict.clear t.dict
 
   let valid t =
     if t.open_instances <> 0 then (

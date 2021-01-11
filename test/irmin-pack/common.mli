@@ -1,4 +1,4 @@
-module Dict = Irmin_pack.Dict
+module Dict : Irmin_pack.Dict.S
 module H = Irmin.Hash.SHA1
 module I = Index
 

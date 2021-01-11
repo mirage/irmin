@@ -43,6 +43,7 @@ exception RO_Not_Allowed
 exception Unsupported_version of IO.version
 
 module Make_ext
+    (_ : IO.VERSION)
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -70,13 +71,14 @@ module Make_ext
   val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
-module Make
-    (Config : Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) : sig
+module type MAKER = functor
+  (Config : Config.S)
+  (M : Irmin.Metadata.S)
+  (C : Irmin.Contents.S)
+  (P : Irmin.Path.S)
+  (B : Irmin.Branch.S)
+  (H : Irmin.Hash.S)
+  -> sig
   include
     Irmin.S
       with type key = P.t
@@ -92,9 +94,11 @@ module Make
   val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
+module Make : MAKER
+module Make_V2 : MAKER
 module KV (Config : Config.S) : Irmin.KV_MAKER
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
+module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.VERSION) : sig
   include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t

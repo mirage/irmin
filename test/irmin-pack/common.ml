@@ -1,5 +1,8 @@
 open Lwt.Infix
-module Dict = Irmin_pack.Dict
+
+module Dict = Irmin_pack.Dict.Make (struct
+  let io_version = `V2
+end)
 
 let ( let* ) x f = Lwt.bind x f
 let get = function Some x -> x | None -> Alcotest.fail "None"
@@ -42,7 +45,13 @@ end
 module H = Irmin.Hash.SHA1
 module I = Index
 module Index = Irmin_pack.Index.Make (H)
-module P = Irmin_pack.Pack.File (Index) (H)
+
+module P =
+  Irmin_pack.Pack.File (Index) (H)
+    (struct
+      let io_version = `V2
+    end)
+
 module Pack = P.Make (S)
 module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (H)
 

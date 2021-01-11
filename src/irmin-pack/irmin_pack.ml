@@ -20,6 +20,7 @@ include Config
 let config = Config.v
 
 module Pack = Pack
+module Dict = Pack_dict
 module Atomic_write = Store.Atomic_write
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
@@ -27,7 +28,31 @@ module Metadata = Irmin.Metadata.None
 module Make_ext = Ext.Make
 module Store = Store
 
-module Make
+module type MAKER = functor
+  (Config : Config.S)
+  (M : Irmin.Metadata.S)
+  (C : Irmin.Contents.S)
+  (P : Irmin.Path.S)
+  (B : Irmin.Branch.S)
+  (H : Irmin.Hash.S)
+  -> sig
+  include
+    Irmin.S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Private.Sync.endpoint = unit
+
+  include Store.S with type repo := repo
+
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
+end
+
+module Make_with_version
+    (IO_version : IO.VERSION)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -37,8 +62,16 @@ module Make
 struct
   module XNode = Irmin.Private.Node.Make (H) (P) (M)
   module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
+  include Make_ext (IO_version) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
+
+module Make = Make_with_version (struct
+  let io_version = `V1
+end)
+
+module Make_V2 = Make_with_version (struct
+  let io_version = `V2
+end)
 
 module KV (Config : Config.S) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)

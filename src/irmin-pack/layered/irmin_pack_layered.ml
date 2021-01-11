@@ -28,6 +28,11 @@ open Irmin_pack
 open Private
 
 let current_version = `V2
+
+module IO_version = struct
+  let io_version = current_version
+end
+
 let pp_version = IO.pp_version
 let ( -- ) = Int64.sub
 
@@ -63,7 +68,7 @@ module Make_ext
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H)
+  module Pack = Pack.File (Index) (H) (IO_version)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
@@ -156,7 +161,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Atomic_write (Key) (Val)
+      module AW = Atomic_write (Key) (Val) (IO_version)
       module Closeable_AW = Closeable.Atomic_write (AW)
       include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
     end

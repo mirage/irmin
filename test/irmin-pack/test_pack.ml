@@ -24,11 +24,34 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
+module Irmin_pack_maker
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
+struct
+  module XNode = Irmin.Private.Node.Make (H) (P) (M)
+  module XCommit = Irmin.Private.Commit.Make (H)
+
+  include
+    Irmin_pack.Make_ext
+      (struct
+        let io_version = `V2
+      end)
+      (Config)
+      (M)
+      (C)
+      (P)
+      (B)
+      (H)
+      (XNode)
+      (XCommit)
+end
+
 let suite =
   let store =
-    Irmin_test.store
-      (module Irmin_pack.Make (Config))
-      (module Irmin.Metadata.None)
+    Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
   in
   let layered_store =
     Irmin_test.layered_store
@@ -544,6 +567,9 @@ end
 module Branch = struct
   module Branch =
     Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
+      (struct
+        let io_version = `V2
+      end)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 
