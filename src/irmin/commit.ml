@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Merge.Infix
 
 let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
@@ -71,8 +71,8 @@ struct
   let equal_opt_keys = Type.(unstage (equal (option S.Key.t)))
 
   let merge_commit info t ~old k1 k2 =
-    get t k1 >>= fun v1 ->
-    get t k2 >>= fun v2 ->
+    let* v1 = get t k1 in
+    let* v2 = get t k2 in
     if List.mem k1 (S.Val.parents v2) then Merge.ok k2
     else if List.mem k2 (S.Val.parents v1) then Merge.ok k1
     else
@@ -80,12 +80,13 @@ struct
          assume that there is no common ancestor. Maybe we want to
          expose this to the user in a more structured way. But maybe
          that's too much low-level details. *)
-      (old () >>= function
-       | Error (`Conflict msg) ->
-           Log.debug (fun f -> f "old: conflict %s" msg);
-           Lwt.return_none
-       | Ok o -> Lwt.return o)
-      >>= fun old ->
+      let* old =
+        old () >>= function
+        | Error (`Conflict msg) ->
+            Log.debug (fun f -> f "old: conflict %s" msg);
+            Lwt.return_none
+        | Ok o -> Lwt.return o
+      in
       if equal_opt_keys old (Some k1) then Merge.ok k2
       else if equal_opt_keys old (Some k2) then Merge.ok k1
       else
@@ -93,14 +94,16 @@ struct
           match old with
           | None -> Merge.ok None
           | Some old ->
-              get t old >>= fun vold -> Merge.ok (Some (Some (S.Val.node vold)))
+              let* vold = get t old in
+              Merge.ok (Some (Some (S.Val.node vold)))
         in
         merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>=* fun node ->
-        empty_if_none t node >>= fun node ->
+        let* node = empty_if_none t node in
         let parents = [ k1; k2 ] in
         let commit = S.Val.v ~node ~parents ~info:(info ()) in
-        add t commit >>= fun key -> Merge.ok key
+        let* key = add t commit in
+        Merge.ok key
 
   let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
 
@@ -126,7 +129,8 @@ module History (S : S.COMMIT_STORE) = struct
 
   let v t ~node ~parents ~info =
     let commit = S.Val.v ~node ~parents ~info in
-    S.add t commit >|= fun hash -> (hash, commit)
+    let+ hash = S.add t commit in
+    (hash, commit)
 
   let pp_key = Type.pp S.Key.t
 
@@ -152,7 +156,7 @@ module History (S : S.COMMIT_STORE) = struct
     in
     let min = List.map (fun k -> `Commit k) min in
     let max = List.map (fun k -> `Commit k) max in
-    Graph.closure ~pred ~min ~max () >|= fun g ->
+    let+ g = Graph.closure ~pred ~min ~max () in
     List.fold_left
       (fun acc -> function `Commit k -> k :: acc | _ -> acc)
       [] (Graph.vertex g)
@@ -231,7 +235,7 @@ module History (S : S.COMMIT_STORE) = struct
               (* Log.debug "lca %d: %s.%d %a"
                  !lca_calls (pp_key commit) depth force (pp ()); *)
               let seen = KSet.add commit seen in
-              read_parents t commit >>= fun parents ->
+              let* parents = read_parents t commit in
               let () = f depth commit parents in
               let parents = KSet.diff parents seen in
               KSet.iter (add_todo (depth + 1)) parents;
@@ -423,7 +427,7 @@ module History (S : S.COMMIT_STORE) = struct
     Log.debug (fun f -> f "3-way merge between %a and %a" pp_key c1 pp_key c2);
     if equal_keys c1 c2 then Merge.ok c1
     else
-      lcas t ?max_depth ?n c1 c2 >>= fun lcas ->
+      let* lcas = lcas t ?max_depth ?n c1 c2 in
       let old () =
         match lcas with
         | Error `Too_many_lcas -> Merge.conflict "Too many lcas"

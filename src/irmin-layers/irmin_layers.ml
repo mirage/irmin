@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 include Irmin_layers_intf
 
 module Layer_id = struct
@@ -116,12 +116,12 @@ struct
         f contents_t node_t commit_t
 
       let v config =
-        Contents.CA.v config >>= fun contents ->
-        Node.CA.v config >>= fun nodes ->
-        Commit.CA.v config >>= fun commits ->
+        let* contents = Contents.CA.v config in
+        let* nodes = Node.CA.v config in
+        let* commits = Commit.CA.v config in
         let nodes = (contents, nodes) in
         let commits = (nodes, commits) in
-        Branch.v config >|= fun branch ->
+        let+ branch = Branch.v config in
         { contents; nodes; commits; branch; config }
 
       let close t =

@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 module Store = Irmin_mem.KV (Irmin.Contents.String)
 
 let ( / ) = Filename.concat
@@ -36,10 +36,11 @@ let mkdir d =
 let server_of_repo : type a. Store.repo -> a Lwt.t =
  fun repo ->
   let server = Server.v repo in
-  Lwt.catch
-    (fun () -> Lwt_unix.unlink socket)
-    (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
-  >>= fun () ->
+  let* () =
+    Lwt.catch
+      (fun () -> Lwt_unix.unlink socket)
+      (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
+  in
   mkdir http_graphql_dir >>= fun () ->
   let on_exn = raise and mode = `Unix_domain_socket (`File socket) in
   Cohttp_lwt_unix.Server.create ~on_exn ~mode server >>= fun () ->
@@ -52,8 +53,8 @@ type server = {
 
 let spawn_graphql_server () =
   let config = Irmin_mem.config () in
-  Store.Repo.v config >>= fun repo ->
-  Store.master repo >|= fun master ->
+  let* repo = Store.Repo.v config in
+  let+ master = Store.master repo in
   let event_loop = server_of_repo repo
   and set_tree tree =
     Store.Tree.of_concrete tree
@@ -79,12 +80,13 @@ let send_query : string -> (string, [ `Msg of string ]) result Lwt.t =
     Yojson.Safe.to_string (`Assoc [ ("query", `String query) ])
     |> Cohttp_lwt.Body.of_string
   in
-  retry 10 (fun () ->
-      Cohttp_lwt_unix.Client.post ~headers ~body ~ctx
-        (Uri.make ~scheme:"http" ~host ~path:"graphql" ()))
-  >>= fun (response, body) ->
+  let* response, body =
+    retry 10 (fun () ->
+        Cohttp_lwt_unix.Client.post ~headers ~body ~ctx
+          (Uri.make ~scheme:"http" ~host ~path:"graphql" ()))
+  in
   let status = Cohttp_lwt.Response.status response in
-  Cohttp_lwt.Body.to_string body >|= fun body ->
+  let+ body = Cohttp_lwt.Body.to_string body in
   match Cohttp.Code.(status |> code_of_status |> is_success) with
   | true -> Ok body
   | false ->

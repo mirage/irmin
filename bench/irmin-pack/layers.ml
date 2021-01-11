@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
@@ -121,14 +121,15 @@ let large_dir path tree width =
     if i >= width then Lwt.return (k, tree)
     else
       let k = path @ [ random_key (); random_key () ] in
-      Store.Tree.add tree k (random_blob ()) >>= fun tree ->
+      let* tree = Store.Tree.add tree k (random_blob ()) in
       aux (i + 1) tree (Some k)
   in
-  aux 0 tree None >|= fun (path, tree) -> (Option.get path, tree)
+  let+ path, tree = aux 0 tree None in
+  (Option.get path, tree)
 
 let add_large_tree tree =
   let path = key 5 in
-  large_dir path tree 256 >>= fun (path, tree) ->
+  let* path, tree = large_dir path tree 256 in
   let path = path @ key 5 in
   Store.Tree.add tree path (long_random_blob ())
 
@@ -137,7 +138,8 @@ let chain_tree tree root depth =
     if i >= depth / 2 then Lwt.return tree
     else
       let k = root :: key depth in
-      Store.Tree.add tree k (random_blob ()) >>= fun tree -> aux (i + 1) tree
+      let* tree = Store.Tree.add tree k (random_blob ()) in
+      aux (i + 1) tree
   in
   aux 0 tree
 
@@ -154,13 +156,15 @@ let checkout_and_commit config repo c nb =
   | None -> Lwt.fail_with "commit not found"
   | Some commit ->
       let tree = Store.Commit.tree commit in
-      (if nb mod 1000 = 0 then add_large_tree tree
-      else add_small_tree config tree)
-      >>= fun tree -> Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
+      let* tree =
+        if nb mod 1000 = 0 then add_large_tree tree
+        else add_small_tree config tree
+      in
+      Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
 
 let with_timer f =
   let t0 = Sys.time () in
-  f () >|= fun a ->
+  let+ a = f () in
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
@@ -201,9 +205,10 @@ let write_cycle config repo init_commit =
   let rec go c i =
     if i = config.ncommits then Lwt.return c
     else
-      with_timer (fun () ->
-          checkout_and_commit config repo (Store.Commit.hash c) i)
-      >>= fun (time, c') ->
+      let* time, c' =
+        with_timer (fun () ->
+            checkout_and_commit config repo (Store.Commit.hash c) i)
+      in
       print_commit_stats config c' i time;
       go c' (i + 1)
   in
@@ -218,7 +223,7 @@ let add_min c = Queue.add c min_uppers
 let consume_min () = Queue.pop min_uppers
 
 let first_5_cycles config repo =
-  init_commit repo >>= fun c ->
+  let* c = init_commit repo in
   print_commit_stats config c 0 0.0;
   let rec aux i c =
     add_min c;
@@ -231,12 +236,14 @@ let run_cycles config repo head =
   let rec run_one_cycle head i =
     if i = config.ncycles then Lwt.return head
     else
-      write_cycle config repo head >>= fun max ->
+      let* max = write_cycle config repo head in
       print_stats config;
       let min = consume_min () in
       add_min max;
-      with_timer (fun () -> freeze ~min_upper:[ min ] ~max:[ max ] config repo)
-      >>= fun (time, ()) ->
+      let* time, () =
+        with_timer (fun () ->
+            freeze ~min_upper:[ min ] ~max:[ max ] config repo)
+      in
       if config.show_stats then
         Logs.app (fun l -> l "call to freeze completed in %f" time);
       run_one_cycle max (i + 1)
@@ -250,13 +257,13 @@ let rw config =
   Store.Repo.v conf
 
 let close config repo =
-  with_timer (fun () -> Store.Repo.close repo) >|= fun (t, ()) ->
+  let+ t, () = with_timer (fun () -> Store.Repo.close repo) in
   if config.show_stats then Logs.app (fun l -> l "close %f" t)
 
 let run config =
-  rw config >>= fun repo ->
-  first_5_cycles config repo >>= fun c ->
-  run_cycles config repo c >>= fun _ ->
+  let* repo = rw config in
+  let* c = first_5_cycles config repo in
+  let* _ = run_cycles config repo c in
   close config repo >|= fun () ->
   if config.show_stats then (
     Fmt.epr "After freeze thread finished : ";

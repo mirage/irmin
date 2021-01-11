@@ -3,6 +3,8 @@
 open Lwt.Infix
 open Printf
 
+let ( let* ) x f = Lwt.bind x f
+
 let fin () =
   let _ = Sys.command (sprintf "cd %s && git reset HEAD --hard" Config.root) in
   Lwt.return_unit
@@ -99,11 +101,13 @@ let master = branch images.(0)
 
 let init () =
   Config.init ();
-  Store.Repo.v config >>= fun repo ->
-  Store.of_branch repo master >>= fun t ->
+  let* repo = Store.Repo.v config in
+  let* t = Store.of_branch repo master in
   Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" >>= fun () ->
   Lwt_list.iter_s
-    (fun i -> Store.clone ~src:t ~dst:(branch i) >>= fun _ -> Lwt.return_unit)
+    (fun i ->
+      let* _ = Store.clone ~src:t ~dst:(branch i) in
+      Lwt.return_unit)
     (Array.to_list images)
 
 let random_array a = a.(Random.int (Array.length a))
@@ -118,26 +122,27 @@ let rec process image =
     with _ ->
       ([ "log"; id; "0" ], fun () -> id ^ string_of_int (Random.int 10))
   in
-  Store.Repo.v config >>= fun repo ->
-  Store.of_branch repo id >>= fun t ->
-  Store.set_exn t ~info:(info image actions.message) key (value ())
-  >>= fun () ->
-  (if Random.int 3 = 0 then
-   let branch = branch (random_array images) in
-   if branch <> id then (
-     Printf.printf "Merging ...%!";
-     Store.merge_with_branch t
-       ~info:(info image @@ Fmt.strf "Merging with %s" branch)
-       branch
-     >>= function
-     | Ok () ->
-         Printf.printf "ok!\n%!";
-         Lwt.return_unit
-     | Error _ -> Lwt.fail_with "conflict!")
-   else Lwt.return_unit
-  else Lwt.return_unit)
-  >>= fun () ->
-  Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () -> process image
+  let* repo = Store.Repo.v config in
+  let* t = Store.of_branch repo id in
+  let* () = Store.set_exn t ~info:(info image actions.message) key (value ()) in
+  let* () =
+    if Random.int 3 = 0 then
+      let branch = branch (random_array images) in
+      if branch <> id then (
+        Printf.printf "Merging ...%!";
+        Store.merge_with_branch t
+          ~info:(info image @@ Fmt.strf "Merging with %s" branch)
+          branch
+        >>= function
+        | Ok () ->
+            Printf.printf "ok!\n%!";
+            Lwt.return_unit
+        | Error _ -> Lwt.fail_with "conflict!")
+      else Lwt.return_unit
+    else Lwt.return_unit
+  in
+  let* () = Lwt_unix.sleep (max 0.1 (Random.float 0.3)) in
+  process image
 
 let rec protect fn x =
   Lwt.catch
@@ -148,7 +153,8 @@ let rec protect fn x =
 
 let rec watchdog () =
   Printf.printf "I'm alive!\n%!";
-  Lwt_unix.sleep 1. >>= fun () -> watchdog ()
+  let* () = Lwt_unix.sleep 1. in
+  watchdog ()
 
 let () =
   let aux () =

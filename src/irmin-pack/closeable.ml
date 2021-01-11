@@ -10,7 +10,7 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-open Lwt.Infix
+open! Import
 
 module Content_addressable (S : Pack.S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
@@ -41,7 +41,7 @@ module Content_addressable (S : Pack.S) = struct
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
   let v ?fresh ?readonly ?lru_size ~index root =
-    S.v ?fresh ?readonly ?lru_size ~index root >|= fun t ->
+    let+ t = S.v ?fresh ?readonly ?lru_size ~index root in
     { closed = ref false; t }
 
   let close t =
@@ -145,7 +145,8 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     AW.unwatch t.t w
 
   let v ?fresh ?readonly root =
-    AW.v ?fresh ?readonly root >|= fun t -> { closed = ref false; t }
+    let+ t = AW.v ?fresh ?readonly root in
+    { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit

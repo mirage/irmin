@@ -22,7 +22,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let ( -- ) = Int64.sub
 
-open Lwt.Infix
+open! Import
 
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
@@ -238,7 +238,7 @@ struct
       with Invalid_read -> Error `Absent_value
 
     let batch t f =
-      f (cast t) >>= fun r ->
+      let* r = f (cast t) in
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
         flush ~index_merge:true t;

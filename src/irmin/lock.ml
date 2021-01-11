@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( >>= ) = Lwt.bind
+open! Import
 
 module type S = sig
   type key
@@ -60,7 +60,7 @@ module Make (K : Type.S) = struct
     Lwt.return_unit
 
   let with_lock t k fn =
-    Lwt_mutex.with_lock t.global (lock t k) >>= fun lock ->
-    Lwt_mutex.with_lock lock fn >>= fun r ->
+    let* lock = Lwt_mutex.with_lock t.global (lock t k) in
+    let* r = Lwt_mutex.with_lock lock fn in
     Lwt_mutex.with_lock t.global (unlock t k) >>= fun () -> Lwt.return r
 end

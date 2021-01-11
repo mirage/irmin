@@ -1,5 +1,4 @@
-open Lwt.Infix
-
+let ( let* ) x f = Lwt.bind x f
 let data_dir = "data/layered_pack_upper"
 
 let rm_dir () =
@@ -28,15 +27,16 @@ let info = Irmin.Info.v ~date:0L ~author:"" ""
 
 let create_store () =
   rm_dir ();
-  Store.Repo.v (config data_dir) >>= fun repo ->
-  Store.master repo >>= fun _t ->
-  Store.Tree.add Store.Tree.empty [ "a"; "b"; "c" ] "x1" >>= fun tree ->
-  Store.Commit.v repo ~info ~parents:[] tree >>= fun c ->
-  Store.freeze ~max:[ c ] ~copy_in_upper:false repo >>= fun () ->
-  Store.PrivateLayer.wait_for_freeze repo >>= fun () ->
-  Store.Tree.add tree [ "a"; "b"; "d" ] "x2" >>= fun tree ->
+  let* repo = Store.Repo.v (config data_dir) in
+  let* _t = Store.master repo in
+  let* tree = Store.Tree.add Store.Tree.empty [ "a"; "b"; "c" ] "x1" in
+  let* c = Store.Commit.v repo ~info ~parents:[] tree in
+  let* () = Store.freeze ~max:[ c ] ~copy_in_upper:false repo in
+  let* () = Store.PrivateLayer.wait_for_freeze repo in
+  let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
   let hash = Store.Commit.hash c in
-  Store.Commit.v repo ~info ~parents:[ hash ] tree >>= fun c3 ->
-  Store.Branch.set repo "master" c3 >>= fun () -> Store.Repo.close repo
+  let* c3 = Store.Commit.v repo ~info ~parents:[ hash ] tree in
+  let* () = Store.Branch.set repo "master" c3 in
+  Store.Repo.close repo
 
 let () = Lwt_main.run (create_store ())

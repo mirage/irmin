@@ -1,5 +1,6 @@
 open Lwt.Infix
 
+let ( let* ) x f = Lwt.bind x f
 let info = Irmin_unix.info
 
 let url, user, token =
@@ -18,18 +19,18 @@ let remote = Store.remote ~headers url
 let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
-  Store.Repo.v config >>= fun repo ->
-  Store.master repo >>= fun t ->
-  Sync.pull_exn t remote `Set >>= fun _ ->
-  Store.get t [ "README.md" ] >>= fun readme ->
-  Store.get_tree t [] >>= fun tree ->
-  Store.Tree.add tree [ "BAR.md" ] "Hoho!" >>= fun tree ->
-  Store.Tree.add tree [ "FOO.md" ] "Hihi!" >>= fun tree ->
+  let* repo = Store.Repo.v config in
+  let* t = Store.master repo in
+  let* _ = Sync.pull_exn t remote `Set in
+  let* readme = Store.get t [ "README.md" ] in
+  let* tree = Store.get_tree t [] in
+  let* tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
+  let* tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
   Store.set_tree_exn t ~info:(info "merge") [] tree >>= fun () ->
   Printf.printf "%s\n%!" readme;
-  Store.get t [ "BAR.md" ] >>= fun bar ->
+  let* bar = Store.get t [ "BAR.md" ] in
   Printf.printf "%s\n%!" bar;
-  Store.get t [ "FOO.md" ] >>= fun foo ->
+  let* foo = Store.get t [ "FOO.md" ] in
   Printf.printf "%s\n%!" foo;
   Sync.push_exn t remote >|= ignore
 

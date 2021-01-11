@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
 
@@ -77,7 +77,7 @@ module IO = struct
     let is_stale max_age file =
       Lwt.catch
         (fun () ->
-          Lwt_unix.stat file >|= fun s ->
+          let+ s = Lwt_unix.stat file in
           if s.Unix.st_mtime < 1.0 (* ??? *) then false
           else Unix.gettimeofday () -. s.Unix.st_mtime > max_age)
         (function
@@ -89,7 +89,7 @@ module IO = struct
     let lock ?(max_age = 10. *. 60. (* 10 minutes *)) ?(sleep = 0.001) file =
       let rec aux i =
         Log.debug (fun f -> f "lock %s %d" file i);
-        is_stale max_age file >>= fun is_stale ->
+        let* is_stale = is_stale max_age file in
         if is_stale then (
           Log.err (fun f -> f "%s is stale, removing it." file);
           unlock file >>= fun () -> aux 1)
@@ -97,10 +97,11 @@ module IO = struct
           let create () =
             let pid = Unix.getpid () in
             mkdir (Filename.dirname file) >>= fun () ->
-            Lwt_unix.openfile file
-              [ Unix.O_CREAT; Unix.O_RDWR; Unix.O_EXCL ]
-              0o600
-            >>= fun fd ->
+            let* fd =
+              Lwt_unix.openfile file
+                [ Unix.O_CREAT; Unix.O_RDWR; Unix.O_EXCL ]
+                0o600
+            in
             let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
             Lwt_io.write_int oc pid >>= fun () -> Lwt_unix.close fd
           in
@@ -151,7 +152,7 @@ module IO = struct
 
   let write_string fd b =
     let rec rwrite fd buf ofs len =
-      Lwt_unix.write_string fd buf ofs len >>= fun n ->
+      let* n = Lwt_unix.write_string fd buf ofs len in
       if len = 0 then Lwt.fail End_of_file
       else if n < len then rwrite fd buf (ofs + n) (len - n)
       else Lwt.return_unit
@@ -200,7 +201,7 @@ module IO = struct
             | Unix.Unix_error (Unix.EACCES, _, _) as e ->
                 if i >= Array.length delays then Lwt.fail e
                 else
-                  file_exists file >>= fun exists ->
+                  let* exists = file_exists file in
                   if exists && Sys.is_directory file then
                     remove_dir file >>= fun () -> aux (i + 1)
                   else (
@@ -212,30 +213,32 @@ module IO = struct
       aux 0
 
   let with_write_file ?temp_dir file fn =
-    (match temp_dir with None -> Lwt.return_unit | Some d -> mkdir d)
-    >>= fun () ->
+    let* () =
+      match temp_dir with None -> Lwt.return_unit | Some d -> mkdir d
+    in
     let dir = Filename.dirname file in
     mkdir dir >>= fun () ->
     let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
     Lwt_pool.use openfile_pool (fun () ->
         Log.debug (fun l -> l "Writing %s (%s)" file tmp);
-        Lwt_unix.(openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644)
-        >>= fun fd ->
-        Lwt.finalize (fun () -> protect fn fd) (fun () -> Lwt_unix.close fd)
-        >>= fun () -> rename tmp file)
+        let* fd =
+          let open Lwt_unix in
+          openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644
+        in
+        let* () =
+          Lwt.finalize (fun () -> protect fn fd) (fun () -> Lwt_unix.close fd)
+        in
+        rename tmp file)
 
   let read_file_with_read file size =
     let chunk_size = max 4096 (min size 0x100000) in
     let buf = Bytes.create size in
     let flags = [ Unix.O_RDONLY ] in
     let perm = 0o0 in
-    Lwt_unix.openfile file flags perm >>= fun fd ->
+    let* fd = Lwt_unix.openfile file flags perm in
     let rec aux off =
       let read_size = min chunk_size (size - off) in
-      Lwt_unix.read fd buf off read_size >>= fun read ->
-      (* It should test for read = 0 in case size is larger than the
-         real size of the file. This may happen for instance if the
-         file was truncated while reading. *)
+      let* read = Lwt_unix.read fd buf off read_size in
       let off = off + read in
       if off >= size then Lwt.return (Bytes.unsafe_to_string buf) else aux off
     in
@@ -254,11 +257,13 @@ module IO = struct
       (fun () ->
         Lwt_pool.use openfile_pool (fun () ->
             Log.debug (fun l -> l "Reading %s" file);
-            Lwt_unix.stat file >>= fun stats ->
+            let* stats = Lwt_unix.stat file in
             let size = stats.Lwt_unix.st_size in
-            (if size >= mmap_threshold then read_file_with_mmap file
-            else read_file_with_read file size)
-            >|= fun buf -> Some buf))
+            let+ buf =
+              if size >= mmap_threshold then read_file_with_mmap file
+              else read_file_with_read file size
+            in
+            Some buf))
       (function
         | Unix.Unix_error _ | Sys_error _ -> Lwt.return_none | e -> Lwt.fail e)
 
@@ -273,7 +278,7 @@ module IO = struct
 
   let test_and_set_file ?temp_dir ~lock file ~test ~set =
     Lock.with_lock (Some lock) (fun () ->
-        read_file file >>= fun v ->
+        let* v = read_file file in
         let equal =
           match (test, v) with
           | None, None -> true
@@ -282,15 +287,18 @@ module IO = struct
         in
         if not equal then Lwt.return_false
         else
-          (match set with
-          | None -> remove_file file
-          | Some v -> write_file ?temp_dir file v)
-          >|= fun () -> true)
+          let+ () =
+            match set with
+            | None -> remove_file file
+            | Some v -> write_file ?temp_dir file v
+          in
+          true)
 
   let rec_files dir =
     let rec aux accu dir =
-      directories dir >>= fun ds ->
-      files dir >>= fun fs -> Lwt_list.fold_left_s aux (fs @ accu) ds
+      let* ds = directories dir in
+      let* fs = files dir in
+      Lwt_list.fold_left_s aux (fs @ accu) ds
     in
     aux [] dir
 end

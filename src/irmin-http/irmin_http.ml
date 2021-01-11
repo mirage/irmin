@@ -16,7 +16,7 @@
 
 open Irmin_http_common
 open Astring
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
 
@@ -89,7 +89,7 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
     let objs = ref 0 in
     let arrs = ref 0 in
     let rec aux () =
-      lexeme e >>= fun l ->
+      let* l = lexeme e in
       lexemes := l :: !lexemes;
       let () =
         match l with
@@ -101,7 +101,8 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
       in
       if !objs > 0 || !arrs > 0 then aux () else Lwt.return_unit
     in
-    aux () >|= fun () -> List.rev !lexemes
+    let+ () = aux () in
+    List.rev !lexemes
   in
   let open_stream () =
     lexeme () >>= function
@@ -113,8 +114,8 @@ let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
     if not !opened then (
       open_stream () >>= fun () ->
       opened := true;
-      lexemes () >|= fun ls -> Some ls)
-    else lexemes () >|= fun ls -> Some ls
+      lexemes () >|= Option.some)
+    else lexemes () >|= Option.some
   in
   Lwt_stream.from open_and_get
 
@@ -140,7 +141,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
 
   let map_string_response parse (r, b) =
     check_version r >>= fun () ->
-    Cohttp_lwt.Body.to_string b >>= fun b ->
+    let* b = Cohttp_lwt.Body.to_string b in
     if is_success r then
       match parse b with
       | Ok x -> Lwt.return x
@@ -151,7 +152,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
   let map_stream_response t (r, b) =
     check_version r >>= fun () ->
     if not (is_success r) then
-      Cohttp_lwt.Body.to_string b >>= fun b ->
+      let* b = Cohttp_lwt.Body.to_string b in
       Lwt.fail_with ("Server error: " ^ b)
     else
       let stream = Cohttp_lwt.Body.to_stream b in
@@ -224,7 +225,7 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
       (fun ((r, _) as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
-        else HTTP.map_string_response val_of_str x >|= fun x -> Some x)
+        else HTTP.map_string_response val_of_str x >|= Option.some)
 
   let mem t key =
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
@@ -292,7 +293,7 @@ functor
     let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
 
     let v ?ctx uri item items =
-      RO.v ?ctx uri item items >>= fun t ->
+      let* t = RO.v ?ctx uri item items in
       let w = W.v () in
       let keys = empty_cache () in
       let glob = empty_cache () in
@@ -326,7 +327,7 @@ functor
           match Cohttp.Response.status r with
           | `Not_found | `OK -> Lwt.return_unit
           | _ ->
-              Cohttp_lwt.Body.to_string b >>= fun b ->
+              let* b = Cohttp_lwt.Body.to_string b in
               Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" pp_key key b)
 
     let nb_keys t = fst (W.stats t.w)
@@ -343,12 +344,13 @@ functor
       let init_stream () =
         if nb_keys t <> 0 then Lwt.return_unit
         else
-          (match init with
-          | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
-          | Some init ->
-              let body = to_json V.t init in
-              post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t))
-          >>= fun s ->
+          let* s =
+            match init with
+            | None -> get_stream t [ "watch"; key_str ] (event_t K.t V.t)
+            | Some init ->
+                let body = to_json V.t init in
+                post_stream t [ "watch"; key_str ] ~body (event_t K.t V.t)
+          in
           let stop () =
             Lwt_stream.iter_s
               (fun (_, v) ->
@@ -363,18 +365,20 @@ functor
           t.keys.stop <- stoppable stop;
           Lwt.return_unit
       in
-      init_stream () >>= fun () -> W.watch_key t.w key ?init f
+      let* () = init_stream () in
+      W.watch_key t.w key ?init f
 
     let watch t ?init f =
       let init_stream () =
         if nb_glob t <> 0 then Lwt.return_unit
         else
-          (match init with
-          | None -> get_stream t [ "watches" ] (event_t K.t V.t)
-          | Some init ->
-              let body = to_json T.(list (init_t K.t V.t)) init in
-              post_stream t [ "watches" ] ~body (event_t K.t V.t))
-          >>= fun s ->
+          let* s =
+            match init with
+            | None -> get_stream t [ "watches" ] (event_t K.t V.t)
+            | Some init ->
+                let body = to_json T.(list (init_t K.t V.t)) init in
+                post_stream t [ "watches" ] ~body (event_t K.t V.t)
+          in
           let stop () =
             Lwt_stream.iter_s
               (fun (k, v) ->
@@ -394,7 +398,8 @@ functor
           t.glob.stop <- stoppable stop;
           Lwt.return_unit
       in
-      init_stream () >>= fun () -> W.watch t.w ?init f
+      let* () = init_stream () in
+      W.watch t.w ?init f
 
     let stop x =
       let () = try x.stop () with _e -> () in
@@ -442,11 +447,12 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
       let merge t =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =
-          (old () >|= function
-           | Ok (Some old) -> old
-           | Ok None -> None
-           | Error _ -> None)
-          >>= fun old ->
+          let* old =
+            old () >|= function
+            | Ok (Some old) -> old
+            | Ok None -> None
+            | Error _ -> None
+          in
           let body =
             Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
@@ -506,16 +512,17 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let v config =
         let uri = get_uri config in
         let ctx = Client.ctx () in
-        Contents.v ?ctx uri >>= fun contents ->
-        Node.v ?ctx uri >>= fun node ->
-        Commit.v ?ctx uri >>= fun commit ->
-        Branch.v ?ctx uri >|= fun branch ->
+        let* contents = Contents.v ?ctx uri in
+        let* node = Node.v ?ctx uri in
+        let* commit = Commit.v ?ctx uri in
+        let+ branch = Branch.v ?ctx uri in
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
 
       let close t =
-        Contents.X.close t.contents >>= fun () ->
-        Branch.close t.branch >>= fun () -> Commit.X.close (snd t.commit)
+        let* () = Contents.X.close t.contents in
+        let* () = Branch.close t.branch in
+        Commit.X.close (snd t.commit)
     end
   end
 

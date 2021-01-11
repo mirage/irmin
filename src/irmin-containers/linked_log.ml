@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let return = Lwt.return
 let empty_info = Irmin.Info.none
@@ -59,18 +59,21 @@ struct
   end
 
   let append prev msg =
-    Store.get_store () >>= fun store ->
+    let* store = Store.get_store () in
     Store.add store (Value { time = T.now (); msg; prev })
 
-  let read_key k = Store.get_store () >>= fun store -> Store.read_exn store k
+  let read_key k =
+    let* store = Store.get_store () in
+    Store.read_exn store k
+
   let compare_t = Irmin.Type.(unstage (compare T.t))
   let sort l = List.sort (fun i1 i2 -> compare_t i2.L.time i1.L.time) l
 
   let merge ~old:_ v1 v2 =
     let open Irmin.Merge in
-    Store.get_store () >>= fun store ->
-    Store.read store v1 >>= fun v1 ->
-    Store.read store v2 >>= fun v2 ->
+    let* store = Store.get_store () in
+    let* v1 = Store.read store v1 in
+    let* v2 = Store.read store v2 in
     let convert_to_list = function
       | None -> []
       | Some (S.Value v) -> [ v ]
@@ -120,8 +123,9 @@ struct
   }
 
   let append ~path t e =
-    Store.find t path >>= fun prev ->
-    L.append prev e >>= fun v -> Store.set_exn ~info:empty_info t path v
+    let* prev = Store.find t path in
+    let* v = L.append prev e in
+    Store.set_exn ~info:empty_info t path v
 
   let get_cursor ~path store =
     let mk_cursor seen cache = { seen; cache; store } in

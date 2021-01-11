@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 module Append_only (S : S.APPEND_ONLY_STORE) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
@@ -41,7 +41,8 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
     S.unsafe_add t.t k v
 
   let v ?ctx uri item items =
-    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
+    let+ t = S.v ?ctx uri item items in
+    { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit
@@ -105,7 +106,8 @@ module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
     S.unwatch t.t w
 
   let v ?ctx uri item items =
-    S.v ?ctx uri item items >|= fun t -> { closed = ref false; t }
+    let+ t = S.v ?ctx uri item items in
+    { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit

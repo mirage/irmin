@@ -2,6 +2,7 @@
 open Lwt.Infix
 open Printf
 
+let ( let* ) x f = Lwt.bind x f
 let info = Irmin_unix.info
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
@@ -19,13 +20,13 @@ let read_exn t k =
 let main () =
   Config.init ();
   let config = Irmin_git.config ~bare:true Config.root in
-  Store.Repo.v config >>= fun repo ->
-  Store.master repo >>= fun t ->
+  let* repo = Store.Repo.v config in
+  let* t = Store.master repo in
   update t [ "root"; "misc"; "1.txt" ] "Hello world!" >>= fun () ->
   update t [ "root"; "misc"; "2.txt" ] "Hi!" >>= fun () ->
   update t [ "root"; "misc"; "3.txt" ] "How are you ?" >>= fun () ->
-  read_exn t [ "root"; "misc"; "2.txt" ] >>= fun _ ->
-  Store.clone ~src:t ~dst:"test" >>= fun x ->
+  let* _ = read_exn t [ "root"; "misc"; "2.txt" ] in
+  let* x = Store.clone ~src:t ~dst:"test" in
   print_endline "cloning ...";
   update t [ "root"; "misc"; "3.txt" ] "Hohoho" >>= fun () ->
   update x [ "root"; "misc"; "2.txt" ] "Cool!" >>= fun () ->
@@ -33,8 +34,9 @@ let main () =
   | Error _ -> failwith "conflict!"
   | Ok () ->
       print_endline "merging ...";
-      read_exn t [ "root"; "misc"; "2.txt" ] >>= fun _ ->
-      read_exn t [ "root"; "misc"; "3.txt" ] >>= fun _ -> Lwt.return_unit
+      let* _ = read_exn t [ "root"; "misc"; "2.txt" ] in
+      let* _ = read_exn t [ "root"; "misc"; "3.txt" ] in
+      Lwt.return_unit
 
 let () =
   Printf.printf

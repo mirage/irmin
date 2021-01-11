@@ -45,7 +45,7 @@ exception Cancelled
 
 module I = IO
 module IO = IO.Unix
-open Lwt.Infix
+open! Import
 module Atomic_write = Store.Atomic_write
 module Pack_config = Config
 module Lock = IO_layers.Lock
@@ -276,11 +276,12 @@ struct
               (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
-        >>= fun contents ->
-        Node.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
-        Branch.U.v ~fresh ~readonly root >|= fun branch ->
+        let* contents =
+          Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
+        in
+        let* node = Node.CA.U.v ~fresh ~readonly ~lru_size ~index root in
+        let* commit = Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root in
+        let+ branch = Branch.U.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.U.flush ~index:false contents);
         ({ index; contents; node; commit; branch } : upper_layer)
 
@@ -296,11 +297,12 @@ struct
             ~flush_callback:(fun () -> !f ())
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
-        >>= fun lcontents ->
-        Node.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lnode ->
-        Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root >>= fun lcommit ->
-        Branch.L.v ~fresh ~readonly root >|= fun lbranch ->
+        let* lcontents =
+          Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
+        in
+        let* lnode = Node.CA.L.v ~fresh ~readonly ~lru_size ~index root in
+        let* lcommit = Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root in
+        let+ lbranch = Branch.L.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
         ({ lindex = index; lcontents; lnode; lcommit; lbranch } : lower_layer)
 
@@ -322,20 +324,21 @@ struct
       let v config =
         let root = Pack_config.root config in
         let upper1 = Filename.concat root (Config_layered.upper_root1 config) in
-        v_layer ~v:unsafe_v_upper upper1 config >>= fun upper1 ->
+        let* upper1 = v_layer ~v:unsafe_v_upper upper1 config in
         let upper0 = Filename.concat root (Config_layered.upper_root0 config) in
-        v_layer ~v:unsafe_v_upper upper0 config >>= fun upper0 ->
+        let* upper0 = v_layer ~v:unsafe_v_upper upper0 config in
         let with_lower = Config_layered.with_lower config in
         let lower_root =
           Filename.concat root (Config_layered.lower_root config)
         in
-        (if with_lower then
-         v_layer ~v:unsafe_v_lower lower_root config >|= fun lower -> Some lower
-        else Lwt.return_none)
-        >>= fun lower ->
+        let* lower =
+          if with_lower then
+            v_layer ~v:unsafe_v_lower lower_root config >|= Option.some
+          else Lwt.return_none
+        in
         let file = Layout_layered.flip ~root in
-        IO_layers.v file >>= fun flip_file ->
-        IO_layers.read_flip flip_file >>= fun flip ->
+        let* flip_file = IO_layers.v file in
+        let* flip = IO_layers.read_flip flip_file in
         (* A fresh store has to unlink the lock file as well. *)
         let fresh = Pack_config.fresh config in
         let freeze = freeze_info (Pack_config.freeze_throttle config) in
@@ -343,9 +346,10 @@ struct
         let freeze_in_progress () = freeze.state = `Running in
         let always_false () = false in
         let batch_lock = Lwt_mutex.create () in
-        (if fresh && Lock.test lock_file then Lock.unlink lock_file
-        else Lwt.return_unit)
-        >|= fun () ->
+        let+ () =
+          if fresh && Lock.test lock_file then Lock.unlink lock_file
+          else Lwt.return_unit
+        in
         let lower_contents = Option.map (fun x -> x.lcontents) lower in
         let contents =
           Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
@@ -599,9 +603,11 @@ struct
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
       let skip_contents h = skip_with_stats ~skip:skip_contents h in
       let skip_commit h = skip_with_stats ~skip:skip_commits h in
-      Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
-        ~skip_contents ~pred_node ~skip_commit t
-      >|= fun () -> X.Repo.flush t
+      let+ () =
+        Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
+          ~skip_contents ~pred_node ~skip_commit t
+      in
+      X.Repo.flush t
 
     module CopyToLower = struct
       let on_lower t f =
@@ -711,9 +717,11 @@ struct
         let skip_commit h = skip_with_stats ~skip:skip_commits h in
         let max = List.map (fun c -> `Commit c) cs in
         let min = List.map (fun c -> `Commit c) min in
-        Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
-          ~skip_contents ~pred_node ~skip_commit t
-        >|= fun () -> X.Repo.flush t
+        let+ () =
+          Repo.iter ~cache_size ~min ~max ~commit ~node ~contents ~skip_node
+            ~skip_contents ~pred_node ~skip_commit t
+        in
+        X.Repo.flush t
 
       let on_current_upper t f =
         let contents = X.Contents.CA.current_upper t.X.Repo.contents in
@@ -807,7 +815,7 @@ struct
     let lock_file = lock_path t.root in
     (* we take a lock here to signal that a freeze was in progess in
        case of crash, to trigger the recovery path. *)
-    Lock.v lock_file >>= fun lock_file ->
+    let* lock_file = Lock.v lock_file in
     let cancel () = t.freeze.state = `Cancel in
     let copy () =
       may (fun f -> f `Before_Copy) hook >>= fun () ->
@@ -820,15 +828,16 @@ struct
       (* At this point there are only a few newies left (less than
          [newies_limit] bytes) so it's fine to take the batch lock to
          copy them. *)
-      Lwt_mutex.with_lock t.batch_lock (fun () ->
-          let after_add_lock = Mtime_clock.count start_time in
-          Copy.CopyToUpper.copy_newies t >>= fun () ->
-          may (fun f -> f `Before_Flip) hook >>= fun () ->
-          X.Repo.flip_upper t;
-          may (fun f -> f `Before_Clear) hook >>= fun () ->
-          X.Repo.clear_previous_upper t >|= fun () ->
-          Mtime.Span.abs_diff after_add_lock before_add_lock)
-      >>= fun waiting_add ->
+      let* waiting_add =
+        Lwt_mutex.with_lock t.batch_lock (fun () ->
+            let after_add_lock = Mtime_clock.count start_time in
+            Copy.CopyToUpper.copy_newies t >>= fun () ->
+            may (fun f -> f `Before_Flip) hook >>= fun () ->
+            X.Repo.flip_upper t;
+            may (fun f -> f `Before_Clear) hook >>= fun () ->
+            X.Repo.clear_previous_upper t >|= fun () ->
+            Mtime.Span.abs_diff after_add_lock before_add_lock)
+      in
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
       X.Repo.write_flip t >|= fun () -> waiting_add
@@ -873,9 +882,10 @@ struct
       simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
       ?(min_upper = []) ?(recovery = false) ?hook t =
-    (if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
-    else Lwt.return_unit)
-    >>= fun () ->
+    let* () =
+      if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
+      else Lwt.return_unit
+    in
     let freeze () =
       let id = freeze_counter () in
       let start_time = Mtime_clock.counter () in
@@ -883,10 +893,12 @@ struct
         ( (match copy_in_upper with None -> t.copy_in_upper | Some b -> b),
           min_upper )
       in
-      Irmin_layers.Stats.with_timer `Waiting (fun () ->
-          Lwt_mutex.lock t.freeze.lock >|= fun () -> t.freeze.state <- `Running)
-      >>= fun () ->
-      (match max with [] -> Repo.heads t | m -> Lwt.return m) >>= fun max ->
+      let* () =
+        Irmin_layers.Stats.with_timer `Waiting (fun () ->
+            Lwt_mutex.lock t.freeze.lock >|= fun () ->
+            t.freeze.state <- `Running)
+      in
+      let* max = match max with [] -> Repo.heads t | m -> Lwt.return m in
       unsafe_freeze ~min ~max ~squash ~upper ?hook ~start_time ~id t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
@@ -916,11 +928,13 @@ struct
     let node k = X.Node.CA.check t.X.Repo.node ~none k in
     let contents k = X.Contents.CA.check t.X.Repo.contents ~none k in
     let commit k = X.Commit.CA.check t.X.Repo.commit ~none k in
-    (match heads with None -> Repo.heads t | Some m -> Lwt.return m)
-    >>= fun heads ->
+    let* heads =
+      match heads with None -> Repo.heads t | Some m -> Lwt.return m
+    in
     let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
-    Repo.iter ~cache_size ~min:[] ~max:hashes ~commit ~node ~contents t
-    >|= fun () ->
+    let+ () =
+      Repo.iter ~cache_size ~min:[] ~max:hashes ~commit ~node ~contents t
+    in
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
     if !errors = 0 then
       Fmt.kstrf

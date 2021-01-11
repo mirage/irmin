@@ -1,7 +1,6 @@
-open Lwt.Infix
+open! Import
 open Common
 
-let ( let* ) x f = Lwt.bind x f
 let src = Logs.Src.create "tests.migration" ~doc:"Test migrations"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -118,12 +117,11 @@ struct
         S.Tree.add S.Tree.empty [ "c" ] "x"
         >>= S.Commit.v rw ~parents:[] ~info:(info ())
       in
-      let* () = check_commit rw new_commit [ ([ "c" ], "x") ] in
-      let* () = S.Repo.close rw in
-      Lwt.return new_commit
+      check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
+      let+ () = S.Repo.close rw in
+      new_commit
     in
-    let* () = uncached_instance_check_commit new_commit in
-    Lwt.return_unit
+    uncached_instance_check_commit new_commit
 end
 
 module Config_store = struct
@@ -173,9 +171,8 @@ module Test_store = struct
     let module S = Make () in
     let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
     let* ro = S.Repo.v conf in
-    let* () = check_repo ro archive in
-    let* () = check_commit ro new_commit [ ([ "c" ], "x") ] in
-    S.Repo.close ro
+    check_repo ro archive >>= fun () ->
+    check_commit ro new_commit [ ([ "c" ], "x") ] >>= fun () -> S.Repo.close ro
 
   let v1_to_v2 =
     v1_to_v2 ~uncached_instance_check_idempotent ~uncached_instance_check_commit
@@ -231,8 +228,7 @@ module Test_reconstruct = struct
     Log.app (fun m ->
         m "Checking old bindings are still reachable post index reconstruction)");
     let* r = S.Repo.v conf in
-    let* () = check_repo r archive in
-    S.Repo.close r
+    check_repo r archive >>= fun () -> S.Repo.close r
 end
 
 module Config_layered_store = struct
@@ -390,7 +386,7 @@ module Test_corrupted_stores = struct
     check_upper rw "Upper before recovery" `Upper1;
     let* c = add_commit rw [ "a" ] "x" in
     S.sync ro;
-    let* () = check_commit ro c [ "a" ] "x" in
+    check_commit ro c [ "a" ] "x" >>= fun () ->
     Log.app (fun l -> l "Freeze with recovery flag set");
     let* () =
       S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
@@ -399,9 +395,9 @@ module Test_corrupted_stores = struct
     Alcotest.(check bool)
       "Store doesn't need recovery" false (S.needs_recovery rw);
     check_upper rw "Upper after recovery" `Upper0;
-    let* () = check_commit rw c [ "a" ] "x" in
+    check_commit rw c [ "a" ] "x" >>= fun () ->
     S.sync ro;
-    let* () = check_commit ro c [ "a" ] "x" in
+    check_commit ro c [ "a" ] "x" >>= fun () ->
     check_upper ro "RO upper after recovery" `Upper0;
     let* c = add_commit rw [ "b" ] "y" in
     Log.app (fun l ->
@@ -413,12 +409,11 @@ module Test_corrupted_stores = struct
       S.PrivateLayer.wait_for_freeze rw
     in
     check_upper rw "Upper after freeze" `Upper1;
-    let* () = check_commit rw c [ "b" ] "y" in
+    check_commit rw c [ "b" ] "y" >>= fun () ->
     S.sync ro;
     check_upper ro "RO upper after freeze" `Upper1;
     let* () = check_commit ro c [ "b" ] "y" in
-    let* () = S.Repo.close rw in
-    S.Repo.close ro
+    S.Repo.close rw >>= fun () -> S.Repo.close ro
 end
 
 let tests =

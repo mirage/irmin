@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let return = Lwt.return
 let empty_info = Irmin.Info.none

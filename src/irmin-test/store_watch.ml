@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 open Common
 
 module Make (Log : Logs.LOG) (S : S) = struct
@@ -31,8 +31,8 @@ module Make (Log : Logs.LOG) (S : S) = struct
 
   let test_watch_exn x () =
     let test repo =
-      S.master repo >>= fun t ->
-      S.Head.find t >>= fun h ->
+      let* t = S.master repo in
+      let* h = S.Head.find t in
       let key = [ "a" ] in
       let v1 = "bar" in
       let v2 = "foo" in
@@ -40,55 +40,64 @@ module Make (Log : Logs.LOG) (S : S) = struct
       let eq = Irmin.Type.(unstage (equal (Irmin.Diff.t (S.commit_t repo)))) in
       let old_head = ref h in
       let check x =
-        S.Head.get t >|= fun h2 ->
+        let+ h2 = S.Head.get t in
         match !old_head with
         | None -> if eq (`Added h2) x then incr r
         | Some h -> if eq (`Updated (h, h2)) x then incr r
       in
-      S.watch ?init:h t (fun v -> check v >|= fun () -> failwith "test")
-      >>= fun u ->
-      S.watch ?init:h t (fun v -> check v >>= fun () -> Lwt.fail_with "test")
-      >>= fun v ->
-      S.watch ?init:h t (fun v -> check v) >>= fun w ->
+      let* u =
+        S.watch ?init:h t (fun v -> check v >|= fun () -> failwith "test")
+      in
+      let* v =
+        S.watch ?init:h t (fun v -> check v >>= fun () -> Lwt.fail_with "test")
+      in
+      let* w = S.watch ?init:h t (fun v -> check v) in
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 3)
-        (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r)
-      >>= fun () ->
-      S.Head.find t >>= fun h ->
+      let* () =
+        retry
+          ~while_:(fun () -> !r < 3)
+          (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r)
+      in
+      let* h = S.Head.find t in
       old_head := h;
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 6)
-        (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r)
-      >>= fun () ->
+      let* () =
+        retry
+          ~while_:(fun () -> !r < 6)
+          (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r)
+      in
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
-      S.Head.get t >>= fun h ->
+      let* h = S.Head.get t in
       old_head := Some h;
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          failwith "test")
-      >>= fun u ->
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          Lwt.fail_with "test")
-      >>= fun v ->
-      S.watch_key ~init:h t key (fun _ ->
-          incr r;
-          Lwt.return_unit)
-      >>= fun w ->
+      let* u =
+        S.watch_key ~init:h t key (fun _ ->
+            incr r;
+            failwith "test")
+      in
+      let* v =
+        S.watch_key ~init:h t key (fun _ ->
+            incr r;
+            Lwt.fail_with "test")
+      in
+      let* w =
+        S.watch_key ~init:h t key (fun _ ->
+            incr r;
+            Lwt.return_unit)
+      in
       S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 9)
-        (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r)
-      >>= fun () ->
+      let* () =
+        retry
+          ~while_:(fun () -> !r < 9)
+          (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r)
+      in
       S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      retry
-        ~while_:(fun () -> !r < 12)
-        (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
-      >>= fun () ->
+      let* () =
+        retry
+          ~while_:(fun () -> !r < 12)
+          (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
+      in
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
@@ -166,10 +175,11 @@ module Make (Log : Logs.LOG) (S : S) = struct
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
       let process ?sleep_t t head =
-        (match sleep_t with
-        | None -> Lwt.return_unit
-        | Some s -> Lwt_unix.sleep s)
-        >>= fun () ->
+        let* () =
+          match sleep_t with
+          | None -> Lwt.return_unit
+          | Some s -> Lwt_unix.sleep s
+        in
         let () =
           match head with
           | `Added _ -> add t
@@ -207,21 +217,20 @@ module Make (Log : Logs.LOG) (S : S) = struct
               in
               let post_w = if on then (1, 1) else (0, 0) in
               let post = if on then incr pre else pre in
-              check `Pre (n - i) pre_w pre >>= fun () ->
               (* check pre-condition *)
+              check `Pre (n - i) pre_w pre >>= fun () ->
               Log.debug (fun f ->
                   f "[waiting for] %s" (msg `Post (n - i) post_w post));
               fn (n - i) >>= fun () ->
-              check `Post (n - i) post_w post >>= fun () ->
               (* check post-condition *)
-              aux post (i - 1)
+              check `Post (n - i) post_w post >>= fun () -> aux post (i - 1)
         in
         aux s n
     end in
     let test repo1 =
-      S.master repo1 >>= fun t1 ->
-      S.Repo.v x.config >>= fun repo ->
-      S.master repo >>= fun t2 ->
+      let* t1 = S.master repo1 in
+      let* repo = S.Repo.v x.config in
+      let* t2 = S.master repo in
       Log.debug (fun f -> f "WATCH");
       let state = State.empty () in
       let sleep_t = 0.02 in
@@ -232,7 +241,7 @@ module Make (Log : Logs.LOG) (S : S) = struct
         | 0 -> Lwt.return_unit
         | n ->
             let t = if n mod 2 = 0 then t1 else t2 in
-            S.watch t process >>= fun s ->
+            let* s = S.watch t process in
             if n mod 2 = 0 then stops_0 := s :: !stops_0
             else stops_1 := s :: !stops_1;
             watch (n - 1)
@@ -258,7 +267,7 @@ module Make (Log : Logs.LOG) (S : S) = struct
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
       Log.debug (fun f -> f "WATCH-ALL");
       let state = State.empty () in
-      r1 ~repo >>= fun head ->
+      let* head = r1 ~repo in
       let add =
         State.apply "branch-watch-all" state `Add (fun n ->
             let tag = Fmt.strf "t%d" n in
@@ -269,10 +278,11 @@ module Make (Log : Logs.LOG) (S : S) = struct
             let tag = Fmt.strf "t%d" n in
             S.Branch.remove repo tag)
       in
-      S.Branch.get repo "master" >>= fun master ->
-      S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
-          State.process state)
-      >>= fun u ->
+      let* master = S.Branch.get repo "master" in
+      let* u =
+        S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
+            State.process state)
+      in
       add true (0, 0, 0) 10 ~first:true >>= fun () ->
       remove true (10, 0, 0) 5 >>= fun () ->
       S.unwatch u >>= fun () ->
@@ -307,8 +317,8 @@ module Make (Log : Logs.LOG) (S : S) = struct
             Lwt.return_unit)
       in
       S.remove_exn t1 ~info:(infof "clean") [] >>= fun () ->
-      S.Head.get t1 >>= fun init ->
-      S.watch_key t1 ~init path1 (State.process state) >>= fun u ->
+      let* init = S.Head.get t1 in
+      let* u = S.watch_key t1 ~init path1 (State.process state) in
       add true (0, 0, 0) 1 ~first:true >>= fun () ->
       update true (1, 0, 0) 10 >>= fun () ->
       remove true (1, 10, 0) 1 >>= fun () ->
@@ -331,8 +341,8 @@ module Make (Log : Logs.LOG) (S : S) = struct
       in
       S.remove_exn t1 ~info:(infof "remove") [ "a" ] >>= fun () ->
       S.set_exn t1 ~info:(infof "prepare") [ "a"; "b"; "c" ] "" >>= fun () ->
-      S.Head.get t1 >>= fun h ->
-      S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) >>= fun u ->
+      let* h = S.Head.get t1 in
+      let* u = S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) in
       update true (0, 0, 0) 10 ~first:true >>= fun () ->
       S.unwatch u >>= fun () ->
       update false (0, 10, 0) 10 >>= fun () ->

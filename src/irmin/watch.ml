@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.watch" ~doc:"Irmin watch notifications"
 
@@ -325,20 +325,22 @@ struct
     let init () =
       if t.listeners = 0 then (
         Log.debug (fun f -> f "%s: start listening to %s" (to_string t) dir);
-        !listen_dir_hook t.id dir (fun file ->
-            match key file with
-            | None -> Lwt.return_unit
-            | Some key ->
-                let rec read n =
-                  value key >>= fun value ->
-                  let n' = t.notifications in
-                  if n = n' then notify t key value
-                  else (
-                    Log.debug (fun l -> l "Stale event, trying reading again");
-                    read n')
-                in
-                read t.notifications)
-        >|= fun f -> t.stop_listening <- f)
+        let+ f =
+          !listen_dir_hook t.id dir (fun file ->
+              match key file with
+              | None -> Lwt.return_unit
+              | Some key ->
+                  let rec read n =
+                    let* value = value key in
+                    let n' = t.notifications in
+                    if n = n' then notify t key value
+                    else (
+                      Log.debug (fun l -> l "Stale event, trying reading again");
+                      read n')
+                  in
+                  read t.notifications)
+        in
+        t.stop_listening <- f)
       else (
         Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
         Lwt.return_unit)

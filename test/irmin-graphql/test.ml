@@ -1,5 +1,5 @@
+open! Import
 open Common
-open Lwt.Infix
 
 type concrete = Store.Tree.concrete
 
@@ -45,7 +45,7 @@ let test_get_contents_list : test_case =
 }|}
   in
   set_tree data >>= fun () ->
-  send_query query >|= assert_ok >|= Yojson.Safe.from_string >|= fun result ->
+  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
   let result : (string * Yojson.Safe.t) list =
     let open Yojson.Safe.Util in
     result |> members [ "data"; "master"; "tree"; "get_contents" ] |> to_assoc
@@ -77,7 +77,7 @@ let test_get_tree_list : test_case =
 }|}
   in
   set_tree data >>= fun () ->
-  send_query query >|= assert_ok >|= Yojson.Safe.from_string >|= fun result ->
+  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
   let key_data : (string * Yojson.Safe.t) list list =
     let open Yojson.Safe.Util in
     result
@@ -109,7 +109,7 @@ let suite ~set_tree =
 let () =
   Random.self_init ();
   let main =
-    spawn_graphql_server () >>= fun { event_loop; set_tree } ->
+    let* { event_loop; set_tree } = spawn_graphql_server () in
     Lwt.pick [ event_loop; Alcotest_lwt.run "irmin-graphql" (suite ~set_tree) ]
   in
   Lwt_main.run main

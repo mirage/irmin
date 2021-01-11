@@ -62,19 +62,26 @@ let test_paginated_bindings _ () =
     Alcotest.(check (list string))
       "Bindings are reported in lexicographic order" expected
   in
-  Tree.list ~offset:0 ~length:2 tree []
-  >|= (List.map fst >> check_sorted [ "a"; "aa" ])
-  >>= fun () ->
-  Tree.list ~offset:2 ~length:3 tree []
-  >|= (List.map fst >> check_sorted [ "aaa"; "b"; "bbb" ])
-  >>= fun () ->
-  Tree.list ~offset:1 ~length:1 tree []
-  >|= (List.map fst >> check_sorted [ "aa" ])
-  >>= fun () ->
-  Tree.list ~offset:4 ~length:2 tree []
-  >|= (List.map fst >> check_sorted [ "bbb" ])
-  >>= fun () ->
-  Tree.list ~offset:5 ~length:2 tree [] >|= (List.map fst >> check_sorted [])
+  let* () =
+    Tree.list ~offset:0 ~length:2 tree []
+    >|= (List.map fst >> check_sorted [ "a"; "aa" ])
+  in
+  let* () =
+    Tree.list ~offset:2 ~length:3 tree []
+    >|= (List.map fst >> check_sorted [ "aaa"; "b"; "bbb" ])
+  in
+  let* () =
+    Tree.list ~offset:1 ~length:1 tree []
+    >|= (List.map fst >> check_sorted [ "aa" ])
+  in
+  let* () =
+    Tree.list ~offset:4 ~length:2 tree []
+    >|= (List.map fst >> check_sorted [ "bbb" ])
+  in
+  let* () =
+    Tree.list ~offset:5 ~length:2 tree [] >|= (List.map fst >> check_sorted [])
+  in
+  Lwt.return_unit
 
 (** Basic tests of the [Tree.diff] operation. *)
 let test_diff _ () =
@@ -83,17 +90,19 @@ let test_diff _ () =
   let single = tree [ ("k", c "v") ] in
 
   (* Adding a single key *)
-  Tree.diff empty single
-  >|= Alcotest.(check diffs)
-        "Added [k → v]"
-        [ ([ "k" ], `Added ("v", Default)) ]
-  >>= fun () ->
+  let* () =
+    Tree.diff empty single
+    >|= Alcotest.(check diffs)
+          "Added [k \226\134\146 v]"
+          [ ([ "k" ], `Added ("v", Default)) ]
+  in
   (* Removing a single key *)
-  Tree.diff single empty
-  >|= Alcotest.(check diffs)
-        "Removed [k → v]"
-        [ ([ "k" ], `Removed ("v", Default)) ]
-  >>= fun () ->
+  let* () =
+    Tree.diff single empty
+    >|= Alcotest.(check diffs)
+          "Removed [k \226\134\146 v]"
+          [ ([ "k" ], `Removed ("v", Default)) ]
+  in
   (* Changing metadata *)
   Tree.diff
     (tree [ ("k", c ~info:Left "v") ])
@@ -170,8 +179,8 @@ let test_fold_force _ () =
 
   (* Ensure that [fold ~force:`True] forces all lazy trees. *)
   let* () =
-    let* () = clear_and_assert_lazy sample_tree in
-    let* () = Tree.fold ~force:`True sample_tree () in
+    clear_and_assert_lazy sample_tree >>= fun () ->
+    Tree.fold ~force:`True sample_tree () >>= fun () ->
     Tree.stats ~force:false sample_tree
     >|= Alcotest.(gcheck Tree.stats_t)
           "After folding, the tree is eagerly evaluated" eager_stats
@@ -180,7 +189,7 @@ let test_fold_force _ () =
   (* Ensure that [fold ~force:`And_clear] visits all children and does not
      leave them cached. *)
   let* () =
-    let* () = clear_and_assert_lazy sample_tree in
+    clear_and_assert_lazy sample_tree >>= fun () ->
     let* contents =
       Tree.fold ~force:`And_clear
         ~contents:(fun _ -> Lwt.wrap2 List.cons)

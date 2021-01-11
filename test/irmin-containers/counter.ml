@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 open Common
-open Lwt.Infix
 module C = Irmin_containers.Counter.Mem
 
 let path = [ "tmp"; "counter" ]
@@ -24,51 +24,56 @@ let config () = C.Store.Repo.v (Irmin_mem.config ())
 let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc _ () =
-  config () >>= C.Store.master >>= fun t ->
+  let* t = config () >>= C.Store.master in
   C.inc ~path t >>= fun () ->
-  C.read ~path t
-  >|= Alcotest.(check int64) "checked - increment without using by" 1L
-  >>= fun () ->
+  let* () =
+    C.read ~path t
+    >|= Alcotest.(check int64) "checked - increment without using by" 1L
+  in
   C.inc ~by:2L ~path t >>= fun () ->
   C.read ~path t >|= Alcotest.(check int64) "checked - increment using by" 3L
 
 let test_dec _ () =
-  config () >>= C.Store.master >>= fun t ->
+  let* t = config () >>= C.Store.master in
   C.dec ~path t >>= fun () ->
-  C.read ~path t
-  >|= Alcotest.(check int64) "checked - decrement without using by" 2L
-  >>= fun () ->
+  let* () =
+    C.read ~path t
+    >|= Alcotest.(check int64) "checked - decrement without using by" 2L
+  in
   C.dec ~by:2L ~path t >>= fun () ->
   C.read ~path t >|= Alcotest.(check int64) "checked - decrement using by" 0L
 
 let test_clone_merge _ () =
-  config () >>= C.Store.master >>= fun t ->
+  let* t = config () >>= C.Store.master in
   C.inc ~by:5L ~path t >>= fun () ->
-  C.Store.clone ~src:t ~dst:"cl" >>= fun b ->
+  let* b = C.Store.clone ~src:t ~dst:"cl" in
   C.inc ~by:2L ~path b >>= fun () ->
   C.dec ~by:4L ~path t >>= fun () ->
-  C.read ~path t >|= Alcotest.(check int64) "checked - value of master" 1L
-  >>= fun () ->
-  C.read ~path b >|= Alcotest.(check int64) "checked - value of clone" 7L
-  >>= fun () ->
+  let* () =
+    C.read ~path t >|= Alcotest.(check int64) "checked - value of master" 1L
+  in
+  let* () =
+    C.read ~path b >|= Alcotest.(check int64) "checked - value of clone" 7L
+  in
   merge_into_exn b ~into:t >>= fun () ->
   C.read t ~path
   >|= Alcotest.(check int64) "checked - value of master after merging" 3L
 
 let test_branch_merge _ () =
-  config () >>= fun r ->
-  C.Store.of_branch r "b1" >>= fun b1 ->
-  C.Store.of_branch r "b2" >>= fun b2 ->
-  C.Store.of_branch r "b3" >>= fun b3 ->
-  C.Store.of_branch r "b4" >>= fun b4 ->
+  let* r = config () in
+  let* b1 = C.Store.of_branch r "b1" in
+  let* b2 = C.Store.of_branch r "b2" in
+  let* b3 = C.Store.of_branch r "b3" in
+  let* b4 = C.Store.of_branch r "b4" in
   C.inc ~by:5L ~path b1 >>= fun () ->
   C.dec ~by:2L ~path b2 >>= fun () ->
   merge_into_exn b1 ~into:b3 >>= fun () ->
   merge_into_exn b2 ~into:b3 >>= fun () ->
   merge_into_exn b2 ~into:b4 >>= fun () ->
   merge_into_exn b1 ~into:b4 >>= fun () ->
-  C.read ~path b3 >|= Alcotest.(check int64) "checked - value of b3" 3L
-  >>= fun () ->
+  let* () =
+    C.read ~path b3 >|= Alcotest.(check int64) "checked - value of b3" 3L
+  in
   C.read ~path b4 >|= Alcotest.(check int64) "checked - value of b4" 3L
 
 let test_cases =

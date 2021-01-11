@@ -15,7 +15,7 @@
  *)
 
 include Inode_layers_intf
-open Lwt.Infix
+open! Import
 
 let src =
   Logs.Src.create "irmin.pack.i.layers"

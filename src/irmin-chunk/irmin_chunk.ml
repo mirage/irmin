@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.chunk" ~doc:"Irmin chunks"
 
@@ -208,7 +208,7 @@ struct
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
           chunk_size K.hash_size max_data max_children);
-    CA.v config >|= fun db ->
+    let+ db = CA.v config in
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit
@@ -218,7 +218,7 @@ struct
   let find_leaves t key =
     AO.find t.db key >>= function
     | None -> Lwt.return_none (* shallow objects *)
-    | Some x -> Tree.find_leaves t x >|= fun v -> Some v
+    | Some x -> Tree.find_leaves t x >|= Option.some
 
   let equal_hash = Irmin.Type.(unstage (equal K.t))
 
@@ -257,7 +257,7 @@ struct
         let payload = String.sub buf off len in
         CA.add t.db (data t payload)
       in
-      Lwt_list.map_s aux offs >>= Tree.add ~key t >|= fun k ->
+      let+ k = Lwt_list.map_s aux offs >>= Tree.add ~key t in
       Log.debug (fun l -> l "add -> %a (split)" pp_key k)
 
   let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
@@ -265,7 +265,8 @@ struct
   let add t v =
     let buf = to_bin_string v in
     let key = K.hash (fun f -> f buf) in
-    unsafe_add_buffer t key buf >|= fun () -> key
+    let+ () = unsafe_add_buffer t key buf in
+    key
 
   let unsafe_add t key v =
     let buf = to_bin_string v in

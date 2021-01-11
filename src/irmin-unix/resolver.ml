@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Cmdliner
 open Astring
 
@@ -506,8 +506,9 @@ let infer_remote hash contents headers str =
           |> add_opt Irmin_http.uri (Some (Uri.of_string str))
           |> add_opt Irmin.Private.Conf.root (Some str)
         in
-        R.Repo.v config >>= fun repo ->
-        R.master repo >|= fun r -> Irmin.remote_store (module R) r
+        let* repo = R.Repo.v config in
+        let+ r = R.master repo in
+        Irmin.remote_store (module R) r
   else
     let headers =
       match headers with [] -> None | h -> Some (Cohttp.Header.of_list h)
