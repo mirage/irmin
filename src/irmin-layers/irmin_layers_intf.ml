@@ -28,6 +28,39 @@ module type S = sig
     ?recovery:bool ->
     repo ->
     unit Lwt.t
+  (** [freeze ?min ?max ?squash ?copy_in_upper ?min_upper ?recovery t] launches
+      an asynchronous freezing operation on the repo [t] to reduce the size of
+      the upper layer and discard unnecessary branches of objects (i.e. commits,
+      nodes and contents).
+
+      Let [o] be the set of objects reachable from the [max] commits and bounded
+      by the [min] commits. During the freeze, all objects in [o] are copied to
+      the lower layer, if there is one. Setting [squash] to [true] is equivalent
+      to setting [min] to [max]. [min] defaults to the empty list and [max]
+      defaults to the head commits of the repo.
+
+      Let [o'] be the set of objects reachable from the [max] commits and
+      bounded by the [min_upper] commits. When the freeze is over, if
+      [copy_in_upper] is true, then the new upper layer will only contain the
+      objects of [o'], otherwise the new upper layer will be empty. [min_upper]
+      defaults to the empty list and [copy_in_upper] defaults to the repo's
+      configuration.
+
+      If [recovery] is true then the function will first try to recover from a
+      previously interrupted freeze. See {!needs_recovery}.
+
+      If a freeze is already ongoing, the behavior depends on the
+      freeze_throttle configuration of the repo:
+
+      - When [`Overcommit_memory], the function returns without launching a new
+        freeze.
+      - When [`Cancel_existing], the function blocks until the ongoing freeze
+        safely cancels and then a new one is started afterwards. The time spent
+        doing the canceled freeze is not completely wasted, objects copied to
+        the lower layer will not have to be copied again, but objects copied to
+        the next upper layer are discarded from that layer.
+      - When [`Block_writes], the function blocks until the ongoing freeze ends
+        and then a new one is started afterwards. *)
 
   type store_handle =
     | Commit_t : hash -> store_handle
