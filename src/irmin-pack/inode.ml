@@ -269,7 +269,7 @@ struct
 
     type inode = { i_hash : hash Lazy.t; mutable tree : t option }
 
-    and entry = Empty | Inode of inode
+    and entry = Empty | Inhabited of inode
 
     and branch = { seed : int; length : int; entries : entry array }
 
@@ -283,7 +283,7 @@ struct
           Array.fold_left
             (fun acc -> function
               | Empty -> acc
-              | Inode i -> `Inode (Lazy.force i.i_hash) :: acc)
+              | Inhabited i -> `Inode (Lazy.force i.i_hash) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
@@ -313,9 +313,9 @@ struct
     let entry_t inode : entry Irmin.Type.t =
       let open Irmin.Type in
       variant "Node.entry" (fun empty inode -> function
-        | Empty -> empty | Inode i -> inode i)
+        | Empty -> empty | Inhabited i -> inode i)
       |~ case0 "Empty" Empty
-      |~ case1 "Inode" inode (fun i -> Inode i)
+      |~ case1 "Inhabited" inode (fun i -> Inhabited i)
       |> sealv
 
     let branch entry : branch Irmin.Type.t =
@@ -351,7 +351,7 @@ struct
 
     let rec list_entry ~offset ~length ~find acc = function
       | Empty -> acc
-      | Inode i -> list_values ~offset ~length ~find acc (get_tree ~find i)
+      | Inhabited i -> list_values ~offset ~length ~find acc (get_tree ~find i)
 
     and list_branch ~offset ~length ~find acc t =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
@@ -403,7 +403,7 @@ struct
             Array.fold_left
               (fun (i, acc) -> function
                 | Empty -> (i + 1, acc)
-                | Inode inode ->
+                | Inhabited inode ->
                     let hash = hash_of_inode inode in
                     (i + 1, { Bin.index = i; hash } :: acc))
               (0, []) t.entries
@@ -432,7 +432,7 @@ struct
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
-    let inode ?tree i_hash = Inode { tree; i_hash }
+    let inode ?tree i_hash = Inhabited { tree; i_hash }
 
     let of_bin t =
       let v =
@@ -455,7 +455,7 @@ struct
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
       let entry = entry_t (inode_t t) in
-      variant "Inode.t" (fun values branch -> function
+      variant "Inhabited.t" (fun values branch -> function
         | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
       |~ case1 "Branch" (branch entry) (fun t -> Branch t)
@@ -506,7 +506,7 @@ struct
             let x = t.entries.(i) in
             match x with
             | Empty -> None
-            | Inode i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
+            | Inhabited i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
       in
       aux ~seed t.v
 
@@ -553,7 +553,7 @@ struct
                   entries.(i) <- inode ~tree tree.hash;
                   let t = branch { seed; length; entries } in
                   k t
-              | Inode n ->
+              | Inhabited n ->
                   let t = get_tree ~find n in
                   add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
                   entries.(i) <- inode ~tree tree.hash;
@@ -587,7 +587,7 @@ struct
                 let i = index ~seed s in
                 match entries.(i) with
                 | Empty -> assert false
-                | Inode t ->
+                | Inhabited t ->
                     let t = get_tree ~find t in
                     remove ~seed:(seed + 1) ~find t s @@ fun tree ->
                     entries.(i) <- inode ~tree (lazy (hash tree));
@@ -617,8 +617,8 @@ struct
         | Branch n ->
             Array.iter
               (function
-                | Empty | Inode { tree = None; _ } -> ()
-                | Inode ({ tree = Some t; _ } as i) ->
+                | Empty | Inhabited { tree = None; _ } -> ()
+                | Inhabited ({ tree = Some t; _ } as i) ->
                     let hash = hash_of_inode i in
                     if mem hash then () else aux ~seed:(seed + 1) t)
               n.entries;
