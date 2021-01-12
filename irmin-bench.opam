@@ -23,7 +23,7 @@ depends: [
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
-  "repr"
+  "repr" {>= "0.2.0"}
   "ppx_repr"
 ]
 

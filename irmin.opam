@@ -16,7 +16,7 @@ build: [
 depends: [
   "ocaml"   {>= "4.07.0"}
   "dune"    {>= "2.7.0"}
-  "repr"
+  "repr"    {>= "0.2.0"}
   "fmt"     {>= "0.8.0"}
   "uri"     {>= "1.3.12"}
   "uutf"
@@ -44,8 +44,3 @@ variety of backends. Irmin is written in pure OCaml and does not
 depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
-
-pin-depends: [
-  [ "repr.dev"     "git+https://github.com/samoht/repr#671f11040c84d508bd8cec71ee56fa1a903b165b" ]
-  [ "ppx_repr.dev" "git+https://github.com/samoht/repr#671f11040c84d508bd8cec71ee56fa1a903b165b" ]
-]
