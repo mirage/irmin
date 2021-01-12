@@ -302,7 +302,7 @@ struct
         equal_hash (hash_of_inode_ptr x) (hash_of_inode_ptr y)
       in
       let open Irmin.Type in
-      record "Node.inode_ptr" (fun hash tree -> { i_hash = lazy hash; tree })
+      record "Inode.inode_ptr" (fun hash tree -> { i_hash = lazy hash; tree })
       |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
       |+ field "tree" (option t) (fun t -> t.tree)
       |> sealr
@@ -310,7 +310,7 @@ struct
 
     let entry_t entry : entry Irmin.Type.t =
       let open Irmin.Type in
-      variant "Node.entry" (fun empty entry -> function
+      variant "Inode.entry" (fun empty entry -> function
         | Empty -> empty | Inhabited i -> entry i)
       |~ case0 "Empty" Empty
       |~ case1 "Inhabited" entry (fun i -> Inhabited i)
@@ -318,7 +318,7 @@ struct
 
     let branch_t entry : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Node.entries" (fun seed length entries ->
+      record "Inode.branch" (fun seed length entries ->
           { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
@@ -453,7 +453,7 @@ struct
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
       let entry = entry_t (inode_ptr_t t) in
-      variant "Inhabited.t" (fun values branch -> function
+      variant "Inode.v" (fun values branch -> function
         | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
       |~ case1 "Branch" (branch_t entry) (fun t -> Branch t)
@@ -465,7 +465,7 @@ struct
       mu @@ fun t ->
       let v = v_t t in
       let t =
-        record "hash" (fun hash stable v -> { hash = lazy hash; stable; v })
+        record "Inode.t" (fun hash stable v -> { hash = lazy hash; stable; v })
         |+ field "hash" H.t (fun t -> Lazy.force t.hash)
         |+ field "stable" bool (fun t -> t.stable)
         |+ field "v" v (fun t -> t.v)
