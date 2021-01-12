@@ -81,7 +81,7 @@ struct
 
     type inode = { index : int; hash : H.t }
     type inodes = { seed : int; length : int; entries : inode list }
-    type v = Values of (step * value) list | Inodes of inodes
+    type v = Values of (step * value) list | Branch of inodes
 
     let inode : inode Irmin.Type.t =
       let open Irmin.Type in
@@ -101,9 +101,9 @@ struct
     let v_t : v Irmin.Type.t =
       let open Irmin.Type in
       variant "Bin.v" (fun values inodes -> function
-        | Values l -> values l | Inodes i -> inodes i)
+        | Values l -> values l | Branch i -> inodes i)
       |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Inodes" inodes (fun t -> Inodes t)
+      |~ case1 "Branch" inodes (fun t -> Branch t)
       |> sealv
 
     module V =
@@ -230,14 +230,14 @@ struct
              Node (Direct n, Direct i))
       |> sealv
 
-    type v = Values of value list | Inodes of inodes
+    type v = Values of value list | Branch of inodes
 
     let v_t : v Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.v" (fun values inodes -> function
-        | Values x -> values x | Inodes x -> inodes x)
+        | Values x -> values x | Branch x -> inodes x)
       |~ case1 "Values" (list value) (fun x -> Values x)
-      |~ case1 "Inodes" inodes (fun x -> Inodes x)
+      |~ case1 "Branch" inodes (fun x -> Branch x)
       |> sealv
 
     type t = { hash : H.t; stable : bool; v : v }
@@ -273,13 +273,13 @@ struct
 
     and inodes = { seed : int; length : int; entries : entry array }
 
-    and v = Values of value StepMap.t | Inodes of inodes
+    and v = Values of value StepMap.t | Branch of inodes
 
     and t = { hash : hash Lazy.t; stable : bool; v : v }
 
     let pred t =
       match t.v with
-      | Inodes i ->
+      | Branch i ->
           Array.fold_left
             (fun acc -> function
               | Empty -> acc
@@ -328,7 +328,7 @@ struct
       |> sealr
 
     let length t =
-      match t.v with Values vs -> StepMap.cardinal vs | Inodes vs -> vs.length
+      match t.v with Values vs -> StepMap.cardinal vs | Branch vs -> vs.length
 
     let get_tree ~find t =
       match t.tree with
@@ -380,7 +380,7 @@ struct
                 cursor = acc.cursor + len;
                 remaining = acc.remaining - n;
               }
-        | Inodes t -> list_inodes ~offset ~length ~find acc t
+        | Branch t -> list_inodes ~offset ~length ~find acc t
 
     let list ?(offset = 0) ?length ~find t =
       let length =
@@ -389,7 +389,7 @@ struct
         | None -> (
             match t.v with
             | Values vs -> StepMap.cardinal vs - offset
-            | Inodes i -> i.length - offset)
+            | Branch i -> i.length - offset)
       in
       let entries = list_values ~offset ~length ~find (empty_acc length) t in
       List.concat (List.rev entries.values)
@@ -398,7 +398,7 @@ struct
       | Values vs ->
           let vs = StepMap.bindings vs in
           Bin.Values vs
-      | Inodes t ->
+      | Branch t ->
           let _, entries =
             Array.fold_left
               (fun (i, acc) -> function
@@ -409,7 +409,7 @@ struct
               (0, []) t.entries
           in
           let entries = List.rev entries in
-          Bin.Inodes { seed = t.seed; length = t.length; entries }
+          Bin.Branch { seed = t.seed; length = t.length; entries }
 
     let to_bin t =
       let v = to_bin_v t.v in
@@ -440,12 +440,12 @@ struct
         | Bin.Values vs ->
             let vs = StepMap.of_list vs in
             Values vs
-        | Inodes t ->
+        | Branch t ->
             let entries = Array.make Conf.entries Empty in
             List.iter
               (fun { Bin.index; hash } -> entries.(index) <- inode (lazy hash))
               t.entries;
-            Inodes { seed = t.Bin.seed; length = t.length; entries }
+            Branch { seed = t.Bin.seed; length = t.length; entries }
       in
       { hash = t.Bin.hash; stable = t.Bin.stable; v }
 
@@ -456,9 +456,9 @@ struct
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
       let entry = entry_t (inode_t t) in
       variant "Inode.t" (fun values inodes -> function
-        | Values v -> values v | Inodes i -> inodes i)
+        | Values v -> values v | Branch i -> inodes i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
-      |~ case1 "Inodes" (inodes entry) (fun t -> Inodes t)
+      |~ case1 "Branch" (inodes entry) (fun t -> Branch t)
       |> sealv
       |> like ~pre_hash
 
@@ -489,19 +489,19 @@ struct
         { hash; stable = false; v }
 
     let inodes is =
-      let v = Inodes is in
+      let v = Branch is in
       let hash = lazy (Bin.V.hash (to_bin_v v)) in
       { hash; stable = false; v }
 
     let of_values l = values (StepMap.of_list l)
 
     let is_empty t =
-      match t.v with Values vs -> StepMap.is_empty vs | Inodes _ -> false
+      match t.v with Values vs -> StepMap.is_empty vs | Branch _ -> false
 
     let find_value ~seed ~find t s =
       let rec aux ~seed = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
-        | Inodes t -> (
+        | Branch t -> (
             let i = index ~seed s in
             let x = t.entries.(i) in
             match x with
@@ -541,7 +541,7 @@ struct
                   List.fold_left aux empty vs
               in
               k t
-          | Inodes t -> (
+          | Branch t -> (
               let length =
                 match v' with None -> t.length + 1 | Some _ -> t.length
               in
@@ -570,7 +570,7 @@ struct
           | Values vs ->
               let t = values (StepMap.remove s vs) in
               k t
-          | Inodes t -> (
+          | Branch t -> (
               let length = t.length - 1 in
               if length <= Conf.entries then
                 let vs =
@@ -614,7 +614,7 @@ struct
         Log.debug (fun l -> l "save seed:%d" seed);
         match t.v with
         | Values _ -> add (Lazy.force t.hash) (to_bin t)
-        | Inodes n ->
+        | Branch n ->
             Array.iter
               (function
                 | Empty | Inode { tree = None; _ } -> ()
@@ -670,9 +670,9 @@ struct
       (* List.map is fine here as the number of entries is small *)
       let v : Bin.v -> Compress.v = function
         | Values vs -> Values (List.map value vs)
-        | Inodes { seed; length; entries } ->
+        | Branch { seed; length; entries } ->
             let entries = List.map inode entries in
-            Inodes { Compress.seed; length; entries }
+            Branch { Compress.seed; length; entries }
       in
       let t =
         if t.stable then Compress.node ~hash:k (v t.v)
@@ -715,9 +715,9 @@ struct
       in
       let t : Compress.v -> Bin.v = function
         | Values vs -> Values (List.rev_map value (List.rev vs))
-        | Inodes { seed; length; entries } ->
+        | Branch { seed; length; entries } ->
             let entries = List.map inode entries in
-            Inodes { seed; length; entries }
+            Branch { seed; length; entries }
       in
       let t =
         if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
