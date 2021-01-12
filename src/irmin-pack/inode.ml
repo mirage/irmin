@@ -80,8 +80,8 @@ struct
     open T
 
     type inode = { index : int; hash : H.t }
-    type inodes = { seed : int; length : int; entries : inode list }
-    type v = Values of (step * value) list | Branch of inodes
+    type branch = { seed : int; length : int; entries : inode list }
+    type v = Values of (step * value) list | Branch of branch
 
     let inode : inode Irmin.Type.t =
       let open Irmin.Type in
@@ -90,9 +90,9 @@ struct
       |+ field "hash" H.t (fun (t : inode) -> t.hash)
       |> sealr
 
-    let inodes : inodes Irmin.Type.t =
+    let branch : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Bin.inodes" (fun seed length entries -> { seed; length; entries })
+      record "Bin.branch" (fun seed length entries -> { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
       |+ field "entries" (list inode) (fun t -> t.entries)
@@ -100,10 +100,10 @@ struct
 
     let v_t : v Irmin.Type.t =
       let open Irmin.Type in
-      variant "Bin.v" (fun values inodes -> function
-        | Values l -> values l | Branch i -> inodes i)
+      variant "Bin.v" (fun values branch -> function
+        | Values l -> values l | Branch i -> branch i)
       |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Branch" inodes (fun t -> Branch t)
+      |~ case1 "Branch" branch (fun t -> Branch t)
       |> sealv
 
     module V =
@@ -158,11 +158,11 @@ struct
       |+ field "hash" address (fun t -> t.hash)
       |> sealr
 
-    type inodes = { seed : int; length : int; entries : inode list }
+    type branch = { seed : int; length : int; entries : inode list }
 
-    let inodes : inodes Irmin.Type.t =
+    let branch : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Compress.inodes" (fun seed length entries ->
+      record "Compress.branch" (fun seed length entries ->
           { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
@@ -230,14 +230,14 @@ struct
              Node (Direct n, Direct i))
       |> sealv
 
-    type v = Values of value list | Branch of inodes
+    type v = Values of value list | Branch of branch
 
     let v_t : v Irmin.Type.t =
       let open Irmin.Type in
-      variant "Compress.v" (fun values inodes -> function
-        | Values x -> values x | Branch x -> inodes x)
+      variant "Compress.v" (fun values branch -> function
+        | Values x -> values x | Branch x -> branch x)
       |~ case1 "Values" (list value) (fun x -> Values x)
-      |~ case1 "Branch" inodes (fun x -> Branch x)
+      |~ case1 "Branch" branch (fun x -> Branch x)
       |> sealv
 
     type t = { hash : H.t; stable : bool; v : v }
@@ -271,9 +271,9 @@ struct
 
     and entry = Empty | Inode of inode
 
-    and inodes = { seed : int; length : int; entries : entry array }
+    and branch = { seed : int; length : int; entries : entry array }
 
-    and v = Values of value StepMap.t | Branch of inodes
+    and v = Values of value StepMap.t | Branch of branch
 
     and t = { hash : hash Lazy.t; stable : bool; v : v }
 
@@ -318,7 +318,7 @@ struct
       |~ case1 "Inode" inode (fun i -> Inode i)
       |> sealv
 
-    let inodes entry : inodes Irmin.Type.t =
+    let branch entry : branch Irmin.Type.t =
       let open Irmin.Type in
       record "Node.entries" (fun seed length entries ->
           { seed; length; entries })
@@ -353,7 +353,7 @@ struct
       | Empty -> acc
       | Inode i -> list_values ~offset ~length ~find acc (get_tree ~find i)
 
-    and list_inodes ~offset ~length ~find acc t =
+    and list_branch ~offset ~length ~find acc t =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
       else if acc.cursor + t.length < offset then
         { acc with cursor = t.length + acc.cursor }
@@ -380,7 +380,7 @@ struct
                 cursor = acc.cursor + len;
                 remaining = acc.remaining - n;
               }
-        | Branch t -> list_inodes ~offset ~length ~find acc t
+        | Branch t -> list_branch ~offset ~length ~find acc t
 
     let list ?(offset = 0) ?length ~find t =
       let length =
@@ -455,10 +455,10 @@ struct
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
       let entry = entry_t (inode_t t) in
-      variant "Inode.t" (fun values inodes -> function
-        | Values v -> values v | Branch i -> inodes i)
+      variant "Inode.t" (fun values branch -> function
+        | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
-      |~ case1 "Branch" (inodes entry) (fun t -> Branch t)
+      |~ case1 "Branch" (branch entry) (fun t -> Branch t)
       |> sealv
       |> like ~pre_hash
 
@@ -488,7 +488,7 @@ struct
         let hash = lazy (Bin.V.hash (to_bin_v v)) in
         { hash; stable = false; v }
 
-    let inodes is =
+    let branch is =
       let v = Branch is in
       let hash = lazy (Bin.V.hash (to_bin_v v)) in
       { hash; stable = false; v }
@@ -528,7 +528,7 @@ struct
                 else
                   let vs = StepMap.bindings (StepMap.add s v vs) in
                   let empty =
-                    inodes
+                    branch
                       {
                         length = 0;
                         seed;
@@ -551,13 +551,13 @@ struct
               | Empty ->
                   let tree = values (StepMap.singleton s v) in
                   entries.(i) <- inode ~tree tree.hash;
-                  let t = inodes { seed; length; entries } in
+                  let t = branch { seed; length; entries } in
                   k t
               | Inode n ->
                   let t = get_tree ~find n in
                   add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
                   entries.(i) <- inode ~tree tree.hash;
-                  let t = inodes { seed; length; entries } in
+                  let t = branch { seed; length; entries } in
                   k t))
 
     let add ~find ~copy t s v = add ~seed:0 ~find ~copy t s v (stabilize ~find)
@@ -574,7 +574,7 @@ struct
               let length = t.length - 1 in
               if length <= Conf.entries then
                 let vs =
-                  list_inodes ~offset:0 ~length:t.length ~find
+                  list_branch ~offset:0 ~length:t.length ~find
                     (empty_acc t.length) t
                 in
                 let vs = List.concat (List.rev vs.values) in
@@ -591,7 +591,7 @@ struct
                     let t = get_tree ~find t in
                     remove ~seed:(seed + 1) ~find t s @@ fun tree ->
                     entries.(i) <- inode ~tree (lazy (hash tree));
-                    let t = inodes { seed; length; entries } in
+                    let t = branch { seed; length; entries } in
                     k t))
 
     let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
