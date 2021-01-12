@@ -703,12 +703,12 @@ struct
       let value : Compress.value -> T.step * T.value = function
         | Contents (n, h, metadata) ->
             let name = step n in
-            let node = hash h in
-            (name, `Contents (node, metadata))
+            let hash = hash h in
+            (name, `Contents (hash, metadata))
         | Node (n, h) ->
             let name = step n in
-            let node = hash h in
-            (name, `Node node)
+            let hash = hash h in
+            (name, `Node hash)
       in
       let t : Compress.v -> Bin.v = function
         | Values vs -> Values (List.rev_map value (List.rev vs))
