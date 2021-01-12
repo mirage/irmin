@@ -79,23 +79,23 @@ struct
   module Bin = struct
     open T
 
-    type inode = { index : int; hash : H.t }
-    type branch = { seed : int; length : int; entries : inode list }
+    type inode_ptr = { index : int; hash : H.t }
+    type branch = { seed : int; length : int; entries : inode_ptr list }
     type v = Values of (step * value) list | Branch of branch
 
-    let inode : inode Irmin.Type.t =
+    let inode_ptr_t : inode_ptr Irmin.Type.t =
       let open Irmin.Type in
-      record "Bin.inode" (fun index hash -> { index; hash })
+      record "Bin.inode_ptr" (fun index hash -> { index; hash })
       |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : inode) -> t.hash)
+      |+ field "hash" H.t (fun (t : inode_ptr) -> t.hash)
       |> sealr
 
-    let branch : branch Irmin.Type.t =
+    let branch_t : branch Irmin.Type.t =
       let open Irmin.Type in
       record "Bin.branch" (fun seed length entries -> { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list inode) (fun t -> t.entries)
+      |+ field "entries" (list inode_ptr_t) (fun t -> t.entries)
       |> sealr
 
     let v_t : v Irmin.Type.t =
@@ -103,7 +103,7 @@ struct
       variant "Bin.v" (fun values branch -> function
         | Values l -> values l | Branch i -> branch i)
       |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Branch" branch (fun t -> Branch t)
+      |~ case1 "Branch" branch_t (fun t -> Branch t)
       |> sealv
 
     module V =
@@ -141,7 +141,7 @@ struct
     type name = Indirect of int | Direct of step
     type address = Indirect of int64 | Direct of H.t
 
-    let address : address Irmin.Type.t =
+    let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
@@ -149,24 +149,24 @@ struct
       |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
-    type inode = { index : int; hash : address }
+    type inode_ptr = { index : int; hash : address }
 
-    let inode : inode Irmin.Type.t =
+    let inode_ptr_t : inode_ptr Irmin.Type.t =
       let open Irmin.Type in
-      record "Compress.inode" (fun index hash -> { index; hash })
+      record "Compress.inode_ptr" (fun index hash -> { index; hash })
       |+ field "index" int (fun t -> t.index)
-      |+ field "hash" address (fun t -> t.hash)
+      |+ field "hash" address_t (fun t -> t.hash)
       |> sealr
 
-    type branch = { seed : int; length : int; entries : inode list }
+    type branch = { seed : int; length : int; entries : inode_ptr list }
 
-    let branch : branch Irmin.Type.t =
+    let branch_t : branch Irmin.Type.t =
       let open Irmin.Type in
       record "Compress.branch" (fun seed length entries ->
           { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list inode) (fun t -> t.entries)
+      |+ field "entries" (list inode_ptr_t) (fun t -> t.entries)
       |> sealr
 
     type value =
@@ -175,7 +175,7 @@ struct
 
     let is_default = Irmin.Type.(unstage (equal T.metadata_t)) T.default
 
-    let value : value Irmin.Type.t =
+    let value_t : value Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.value"
         (fun
@@ -236,8 +236,8 @@ struct
       let open Irmin.Type in
       variant "Compress.v" (fun values branch -> function
         | Values x -> values x | Branch x -> branch x)
-      |~ case1 "Values" (list value) (fun x -> Values x)
-      |~ case1 "Branch" branch (fun x -> Branch x)
+      |~ case1 "Values" (list value_t) (fun x -> Values x)
+      |~ case1 "Branch" branch_t (fun x -> Branch x)
       |> sealv
 
     type t = { hash : H.t; stable : bool; v : v }
@@ -247,7 +247,7 @@ struct
     let magic_node = 'N'
     let magic_inode = 'I'
 
-    let stable : bool Irmin.Type.t =
+    let stable_t : bool Irmin.Type.t =
       Irmin.Type.(map char)
         (fun n -> n = magic_node)
         (function true -> magic_node | false -> magic_inode)
@@ -256,7 +256,7 @@ struct
       let open Irmin.Type in
       record "Compress.t" (fun hash stable v -> { hash; stable; v })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable (fun t -> t.stable)
+      |+ field "stable" stable_t (fun t -> t.stable)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
   end
@@ -267,9 +267,9 @@ struct
     let equal_hash = Irmin.Type.(unstage (equal hash_t))
     let equal_value = Irmin.Type.(unstage (equal value_t))
 
-    type inode = { i_hash : hash Lazy.t; mutable tree : t option }
+    type inode_ptr = { i_hash : hash Lazy.t; mutable tree : t option }
 
-    and entry = Empty | Inhabited of inode
+    and entry = Empty | Inhabited of inode_ptr
 
     and branch = { seed : int; length : int; entries : entry array }
 
@@ -296,29 +296,29 @@ struct
               v :: acc)
             l []
 
-    let hash_of_inode (i : inode) = Lazy.force i.i_hash
+    let hash_of_inode_ptr (i : inode_ptr) = Lazy.force i.i_hash
 
-    let inode_t t : inode Irmin.Type.t =
+    let inode_ptr_t t : inode_ptr Irmin.Type.t =
       let same_hash =
         Irmin.Type.stage @@ fun x y ->
-        equal_hash (hash_of_inode x) (hash_of_inode y)
+        equal_hash (hash_of_inode_ptr x) (hash_of_inode_ptr y)
       in
       let open Irmin.Type in
-      record "Node.inode" (fun hash tree -> { i_hash = lazy hash; tree })
+      record "Node.inode_ptr" (fun hash tree -> { i_hash = lazy hash; tree })
       |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
       |+ field "tree" (option t) (fun t -> t.tree)
       |> sealr
       |> like ~equal:same_hash
 
-    let entry_t inode : entry Irmin.Type.t =
+    let entry_t entry : entry Irmin.Type.t =
       let open Irmin.Type in
-      variant "Node.entry" (fun empty inode -> function
-        | Empty -> empty | Inhabited i -> inode i)
+      variant "Node.entry" (fun empty entry -> function
+        | Empty -> empty | Inhabited i -> entry i)
       |~ case0 "Empty" Empty
-      |~ case1 "Inhabited" inode (fun i -> Inhabited i)
+      |~ case1 "Inhabited" entry (fun i -> Inhabited i)
       |> sealv
 
-    let branch entry : branch Irmin.Type.t =
+    let branch_t entry : branch Irmin.Type.t =
       let open Irmin.Type in
       record "Node.entries" (fun seed length entries ->
           { seed; length; entries })
@@ -334,7 +334,7 @@ struct
       match t.tree with
       | Some t -> t
       | None -> (
-          let h = hash_of_inode t in
+          let h = hash_of_inode_ptr t in
           match find h with
           | None -> Fmt.failwith "%a: unknown key" pp_hash h
           | Some x ->
@@ -403,8 +403,8 @@ struct
             Array.fold_left
               (fun (i, acc) -> function
                 | Empty -> (i + 1, acc)
-                | Inhabited inode ->
-                    let hash = hash_of_inode inode in
+                | Inhabited ptr ->
+                    let hash = hash_of_inode_ptr ptr in
                     (i + 1, { Bin.index = i; hash } :: acc))
               (0, []) t.entries
           in
@@ -432,7 +432,7 @@ struct
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
-    let inode ?tree i_hash = Inhabited { tree; i_hash }
+    let inhabited_entry ?tree i_hash = Inhabited { tree; i_hash }
 
     let of_bin t =
       let v =
@@ -443,7 +443,7 @@ struct
         | Branch t ->
             let entries = Array.make Conf.entries Empty in
             List.iter
-              (fun { Bin.index; hash } -> entries.(index) <- inode (lazy hash))
+              (fun { Bin.index; hash } -> entries.(index) <- inhabited_entry (lazy hash))
               t.entries;
             Branch { seed = t.Bin.seed; length = t.length; entries }
       in
@@ -454,11 +454,11 @@ struct
     let v_t t : v Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
-      let entry = entry_t (inode_t t) in
+      let entry = entry_t (inode_ptr_t t) in
       variant "Inhabited.t" (fun values branch -> function
         | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
-      |~ case1 "Branch" (branch entry) (fun t -> Branch t)
+      |~ case1 "Branch" (branch_t entry) (fun t -> Branch t)
       |> sealv
       |> like ~pre_hash
 
@@ -550,13 +550,13 @@ struct
               match entries.(i) with
               | Empty ->
                   let tree = values (StepMap.singleton s v) in
-                  entries.(i) <- inode ~tree tree.hash;
+                  entries.(i) <- inhabited_entry ~tree tree.hash;
                   let t = branch { seed; length; entries } in
                   k t
               | Inhabited n ->
                   let t = get_tree ~find n in
                   add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
-                  entries.(i) <- inode ~tree tree.hash;
+                  entries.(i) <- inhabited_entry ~tree tree.hash;
                   let t = branch { seed; length; entries } in
                   k t))
 
@@ -590,7 +590,7 @@ struct
                 | Inhabited t ->
                     let t = get_tree ~find t in
                     remove ~seed:(seed + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- inode ~tree (lazy (hash tree));
+                    entries.(i) <- inhabited_entry ~tree (lazy (hash tree));
                     let t = branch { seed; length; entries } in
                     k t))
 
@@ -619,7 +619,7 @@ struct
               (function
                 | Empty | Inhabited { tree = None; _ } -> ()
                 | Inhabited ({ tree = Some t; _ } as i) ->
-                    let hash = hash_of_inode i in
+                    let hash = hash_of_inode_ptr i in
                     if mem hash then () else aux ~seed:(seed + 1) t)
               n.entries;
             add (Lazy.force t.hash) (to_bin t)
@@ -652,7 +652,7 @@ struct
         | None -> Compress.Direct h
         | Some off -> Compress.Indirect off
       in
-      let inode : Bin.inode -> Compress.inode =
+      let inode_ptr : Bin.inode_ptr -> Compress.inode_ptr =
        fun n ->
         let hash = hash n.hash in
         { index = n.index; hash }
@@ -671,7 +671,7 @@ struct
       let v : Bin.v -> Compress.v = function
         | Values vs -> Values (List.map value vs)
         | Branch { seed; length; entries } ->
-            let entries = List.map inode entries in
+            let entries = List.map inode_ptr entries in
             Branch { Compress.seed; length; entries }
       in
       let t =
@@ -698,7 +698,7 @@ struct
         | Indirect off -> hash off
         | Direct n -> n
       in
-      let inode : Compress.inode -> Bin.inode =
+      let inode_ptr : Compress.inode_ptr -> Bin.inode_ptr =
        fun n ->
         let hash = hash n.hash in
         { index = n.index; hash }
@@ -716,7 +716,7 @@ struct
       let t : Compress.v -> Bin.v = function
         | Values vs -> Values (List.rev_map value (List.rev vs))
         | Branch { seed; length; entries } ->
-            let entries = List.map inode entries in
+            let entries = List.map inode_ptr entries in
             Branch { seed; length; entries }
       in
       let t =
