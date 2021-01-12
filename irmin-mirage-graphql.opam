@@ -8,7 +8,7 @@ dev-repo:     "git+https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
- ["dune" "subst"] {pinned}
+ ["dune" "subst"] {dev}
  ["dune" "build" "-p" name "-j" jobs]
 ]
 
