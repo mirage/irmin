@@ -16,6 +16,7 @@ depends: [
   "dune"         {>= "2.7.0"}
   "irmin-pack"   {= version}
   "irmin-layers" {= version}
+  "irmin-test"   {= version}
   "cmdliner"
   "logs"
   "lwt"
