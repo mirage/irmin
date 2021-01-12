@@ -129,8 +129,7 @@ struct
       |> sealr
       |> like ~pre_hash
 
-    let node ~hash v = { stable = true; hash; v }
-    let inode ~hash v = { stable = false; hash; v }
+    let v ~stable ~hash v = { stable; hash; v }
     let hash t = Lazy.force t.hash
   end
 
@@ -242,8 +241,7 @@ struct
 
     type t = { hash : H.t; stable : bool; v : v }
 
-    let node ~hash v = { hash; stable = true; v }
-    let inode ~hash v = { hash; stable = false; v }
+    let v ~stable ~hash v = { hash; stable; v }
     let magic_node = 'N'
     let magic_inode = 'I'
 
@@ -413,7 +411,7 @@ struct
 
     let to_bin t =
       let v = to_bin_v t.v in
-      if t.stable then Bin.node ~hash:t.hash v else Bin.inode ~hash:t.hash v
+      Bin.v ~stable:t.stable ~hash:t.hash v
 
     let hash t = Lazy.force t.hash
 
@@ -675,8 +673,7 @@ struct
             Branch { Compress.seed; length; entries }
       in
       let t =
-        if t.stable then Compress.node ~hash:k (v t.v)
-        else Compress.inode ~hash:k (v t.v)
+        Compress.v ~stable:t.stable ~hash:k (v t.v)
       in
       encode_compress t
 
@@ -720,8 +717,7 @@ struct
             Branch { seed; length; entries }
       in
       let t =
-        if i.stable then Bin.node ~hash:(lazy i.hash) (t i.v)
-        else Bin.inode ~hash:(lazy i.hash) (t i.v)
+        Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
       in
       (off, t)
 
