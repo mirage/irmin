@@ -1,5 +1,7 @@
 (executable
  (name irmin_fsck)
+ (public_name irmin_fsck)
+ (package irmin-pack)
  (modules irmin_fsck)
  (libraries irmin-pack irmin-pack.layered))
 
@@ -15,7 +17,11 @@
   (run %{exe:generate.exe})))
 
 (cram
+ ;; TODO: attach these to the irmin-pack package
+ (enabled_if
+  (= %{profile} dev))
  (deps
+  (package irmin-pack)
   (file irmin_fsck.exe)
   (file data)
   (alias generate-cli-test-data)))
