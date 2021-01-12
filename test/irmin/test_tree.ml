@@ -32,11 +32,6 @@ end
 let ( >> ) f g x = g (f x)
 let ( let* ) = Lwt.bind
 let ( let+ ) x f = Lwt.map f x
-
-let get_ok = function
-  | Ok x -> x
-  | Error (`Dangling_hash _) -> Alcotest.fail "Unexpected dangling hash"
-
 let c ?(info = Metadata.Default) blob = `Contents (blob, info)
 
 let test_bindings _ () =
@@ -49,11 +44,37 @@ let test_bindings _ () =
       "Bindings are reported in lexicographic order" [ "a"; "aa"; "ab"; "b" ]
   in
   (* [Tree.list] returns all keys in lexicographic order *)
-  Tree.list tree [] >|= (List.map fst >> check_sorted) >>= fun () ->
-  (* [Tree.Node.bindings] returns all bindings in lexicographic order *)
-  Tree.destruct tree |> function
-  | `Contents _ -> Alcotest.fail "Received `Contents but expected `Node"
-  | `Node n -> Tree.Node.bindings n >|= (get_ok >> List.map fst >> check_sorted)
+  Tree.list tree [] >|= (List.map fst >> check_sorted)
+
+let test_paginated_bindings _ () =
+  let tree =
+    Tree.of_concrete
+      (`Tree
+        [
+          ("aa", c "0");
+          ("a", `Tree []);
+          ("bbb", c "3");
+          ("b", c "3");
+          ("aaa", `Tree []);
+        ])
+  in
+  let check_sorted expected =
+    Alcotest.(check (list string))
+      "Bindings are reported in lexicographic order" expected
+  in
+  Tree.list ~offset:0 ~length:2 tree []
+  >|= (List.map fst >> check_sorted [ "a"; "aa" ])
+  >>= fun () ->
+  Tree.list ~offset:2 ~length:3 tree []
+  >|= (List.map fst >> check_sorted [ "aaa"; "b"; "bbb" ])
+  >>= fun () ->
+  Tree.list ~offset:1 ~length:1 tree []
+  >|= (List.map fst >> check_sorted [ "aa" ])
+  >>= fun () ->
+  Tree.list ~offset:4 ~length:2 tree []
+  >|= (List.map fst >> check_sorted [ "bbb" ])
+  >>= fun () ->
+  Tree.list ~offset:5 ~length:2 tree [] >|= (List.map fst >> check_sorted [])
 
 (** Basic tests of the [Tree.diff] operation. *)
 let test_diff _ () =
@@ -196,6 +217,7 @@ let test_kind_empty_path _ () =
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
+    Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;

@@ -227,16 +227,25 @@ struct
         | Ok x -> x
         | Error (`Msg e) -> failwith e
 
-      let list t =
-        List.fold_left
-          (fun acc { Git.Tree.perm; name; node } ->
-            let name = to_step name in
-            match perm with
-            | `Dir -> (name, `Node node) :: acc
-            | `Commit -> acc (* FIXME *)
-            | #Metadata.t as p -> (name, `Contents (node, p)) :: acc)
-          [] (G.Value.Tree.to_list t)
-        |> List.rev
+      exception Exit of (step * value) list
+
+      let list ?(offset = 0) ?length t =
+        let t = G.Value.Tree.to_list t in
+        let length = match length with None -> List.length t | Some n -> n in
+        try
+          List.fold_left
+            (fun (i, acc) { Git.Tree.perm; name; node } ->
+              if i < offset then (i + 1, acc)
+              else if i >= offset + length then raise (Exit acc)
+              else
+                let name = to_step name in
+                match perm with
+                | `Dir -> (i + 1, (name, `Node node) :: acc)
+                | `Commit -> (i + 1, acc) (* FIXME *)
+                | #Metadata.t as p -> (i + 1, (name, `Contents (node, p)) :: acc))
+            (0, []) t
+          |> fun (_, acc) -> List.rev acc
+        with Exit acc -> List.rev acc
 
       let find t s =
         let s = of_step s in

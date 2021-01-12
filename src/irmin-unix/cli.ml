@@ -194,9 +194,9 @@ let list =
              S.list t (key S.Key.t path) >>= fun paths ->
              let pp_step = Irmin.Type.pp S.Key.step_t in
              let pp ppf (s, k) =
-               match k with
-               | `Contents -> Fmt.pf ppf "FILE %a" pp_step s
-               | `Node -> Fmt.pf ppf "DIR  %a" pp_step s
+               match S.Tree.destruct k with
+               | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
+               | `Node _ -> Fmt.pf ppf "DIR  %a" pp_step s
              in
              List.iter (print "%a" pp) paths;
              Lwt.return_unit )
@@ -225,11 +225,11 @@ let tree =
                    Lwt_list.iter_p
                      (fun (s, c) ->
                        let k = S.Key.rcons k s in
-                       match c with
-                       | `Node ->
+                       match S.Tree.destruct c with
+                       | `Node _ ->
                            todo := k :: !todo;
                            Lwt.return_unit
-                       | `Contents ->
+                       | `Contents _ ->
                            S.get t k >|= fun v -> all := (k, v) :: !all)
                      childs
                    >>= walk

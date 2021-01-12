@@ -254,8 +254,9 @@ module type NODE = sig
   val v : (step * value) list -> t
   (** [create l] is a new node. *)
 
-  val list : t -> (step * value) list
-  (** [list t] is the contents of [t]. *)
+  val list : ?offset:int -> ?length:int -> t -> (step * value) list
+  (** [list t] is the contents of [t]. [offset] and [length] are used to
+      paginate results.*)
 
   val empty : t
   (** [empty] is the empty node. *)

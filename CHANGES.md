@@ -5,7 +5,7 @@
 - **irmin-git**
   - Update `irmin` to the last version of `ocaml-git` (#1065)
     It fixes an issue on serialization/deserialization of big tree object
-    (see #1001) 
+    (see #1001)
 
 - **irmin-pack***
   - Fix a major bug in the LRU which was never used (#1035, @samoht)
@@ -23,7 +23,7 @@
     (#1174, @Ngoguey42, @samoht and @CraigFe )
 
   - Fix `Tree.kind`. Empty path on a tree used to return a None instead of a
-	`` `Node``. (#1218, @Ngoguey42)
+    `` `Node``. (#1218, @Ngoguey42)
 
 - **ppx_irmin**
   - Fix a bug causing certain type derivations to be incorrect due to unsound
@@ -45,8 +45,8 @@
     (#1146, @gs0510)
 
 - **irmin**
-  - Added `Tree.{Contents,Node}` modules exposing operations over lazy tree
-    contents and nodes respectively. (#1022, @CraigFe)
+  - Added `Tree.Contents` module exposing operations over lazy tree contents.
+    (#1022 #1241, @CraigFe @samoht)
 
   - Added `Type.Unboxed.{encode_bin,decode_bin,size_of}` to work with unboxed
     values (#1030, @samoht)
@@ -141,6 +141,11 @@
 
   - Make `Tree.fold` more expressive and ensure it uses a bounded memory
     (#1169, @samoht)
+
+  - Changed `list` and `Tree.list` to take optional `offset` and `length`
+    arguments to help with pagination. Also return direct pointers to the
+    subtrees to speed up subsequent accesses (#1241, @samoht, @zshipko,
+    @CraigFe, @Ngoguey42 and @icristescu)
 
 - **irmin-pack**:
   - `sync` has to be called by the read-only instance to synchronise with the

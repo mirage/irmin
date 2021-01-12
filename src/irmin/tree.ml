@@ -18,6 +18,20 @@
 open Lwt.Infix
 include Tree_intf
 
+let rec drop n (l : 'a Seq.t) () =
+  match l () with
+  | l' when n = 0 -> l'
+  | Nil -> Nil
+  | Cons (_, l') -> drop (n - 1) l' ()
+
+let take : type a. int -> a Seq.t -> a list =
+  let rec aux acc n (l : a Seq.t) =
+    if n = 0 then acc
+    else
+      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
+  in
+  fun n s -> List.rev (aux [] n s)
+
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -26,6 +40,8 @@ let option_of_result = function Ok x -> Some x | Error _ -> None
 
 type ('a, 'r) cont = ('a -> 'r) -> 'r
 type ('a, 'r) cont_lwt = ('a, 'r Lwt.t) cont
+
+let ok x = Lwt.return (Ok x)
 
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
@@ -524,7 +540,6 @@ module Make (P : S.PRIVATE) = struct
               Ok v)
 
     let to_value t =
-      let ok x = Lwt.return (Ok x) in
       match cached_value t with
       | Some v -> ok v
       | None -> (
@@ -599,29 +614,6 @@ module Make (P : S.PRIVATE) = struct
               | Error _ as e -> e
               | Ok n -> Ok (P.Node.Val.is_empty n)))
 
-    let list t =
-      let trim l =
-        List.rev_map
-          (fun (s, v) ->
-            (s, match v with `Contents _ -> `Contents | `Node _ -> `Node))
-          l
-        |> List.rev
-        |> fun l -> Ok l
-      in
-      match cached_map t with
-      | Some m -> Lwt.return (trim (StepMap.bindings m))
-      | None -> (
-          to_value t >|= function
-          | Error _ as e -> e
-          | Ok v ->
-              cnt.node_val_list <- cnt.node_val_list + 1;
-              trim (P.Node.Val.list v))
-
-    let bindings t =
-      to_map t >|= function
-      | Error _ as e -> e
-      | Ok m -> Ok (StepMap.bindings m)
-
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
       | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
@@ -678,6 +670,46 @@ module Make (P : S.PRIVATE) = struct
               of_map m >>= function
               | None -> of_t ()
               | Some _ as r -> Lwt.return r))
+
+    let list_of_map ?(offset = 0) ?length m : (step * elt) list =
+      let take_length seq =
+        match length with None -> List.of_seq seq | Some n -> take n seq
+      in
+      StepMap.to_seq m |> drop offset |> take_length
+
+    let list_of_value repo ?offset ?length v : (step * elt) list =
+      cnt.node_val_list <- cnt.node_val_list + 1;
+      let t = P.Node.Val.list ?offset ?length v in
+      List.fold_left
+        (fun acc (k, v) ->
+          match v with
+          | `Node n ->
+              let n = `Node (of_hash repo n) in
+              (k, n) :: acc
+          | `Contents (c, m) ->
+              let c = Contents.of_hash repo c in
+              (k, `Contents (c, m)) :: acc)
+        [] (List.rev t)
+
+    let list ?offset ?length t : (step * elt) list or_error Lwt.t =
+      match cached_map t with
+      | Some m -> ok (list_of_map ?offset ?length m)
+      | None -> (
+          match t.v with
+          | Value (repo, n, None) -> ok (list_of_value ?offset ?length repo n)
+          | Hash (repo, h) -> (
+              value_of_hash t repo h >>= function
+              | Error _ as e -> Lwt.return e
+              | Ok v -> ok (list_of_value ?offset ?length repo v))
+          | _ -> (
+              to_map t >>= function
+              | Error _ as e -> Lwt.return e
+              | Ok m -> ok (list_of_map ?offset ?length m)))
+
+    let bindings t =
+      to_map t >|= function
+      | Error _ as e -> e
+      | Ok m -> Ok (StepMap.bindings m)
 
     type ('v, 'acc, 'r) folder =
       path:key -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
@@ -903,12 +935,13 @@ module Make (P : S.PRIVATE) = struct
               (Type.pp P.Hash.t) hash)
     | `Contents _ -> Lwt.return_false
 
+  type elt = [ `Node of node | `Contents of contents * metadata ]
+
   let of_node n = `Node n
   let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
-  let v = function `Contents c -> `Contents c | `Node n -> `Node n
+  let v : elt -> t = function `Contents c -> `Contents c | `Node n -> `Node n
 
-  let destruct : t -> [> `Node of node | `Contents of contents * metadata ] =
-    function
+  let destruct : t -> elt = function
     | `Node n -> `Node n
     | `Contents c -> `Contents c
 
@@ -1010,11 +1043,23 @@ module Make (P : S.PRIVATE) = struct
             | Some (`Contents _) -> Lwt.return_some `Contents
             | Some (`Node _) -> Lwt.return_some `Node))
 
-  let list t path =
+  let list t ?offset ?length path : (step * t) list Lwt.t =
     Log.debug (fun l -> l "Tree.list %a" pp_path path);
     sub t path >>= function
-    | None -> Lwt.return_nil
-    | Some n -> Node.list n >|= get_ok
+    | None -> Lwt.return []
+    | Some n -> (
+        Node.list ?offset ?length n >>= function
+        | Error _ -> Lwt.return []
+        | Ok l ->
+            Lwt_list.fold_left_s
+              (fun acc (k, v) ->
+                match v with
+                | `Contents (c, m) -> (
+                    Contents.to_value c >|= function
+                    | Error _ -> acc
+                    | Ok c -> (k, `Contents (c, m)) :: acc)
+                | `Node n -> Lwt.return ((k, `Node n) :: acc))
+              [] (List.rev l))
 
   let may_remove t k =
     Node.findv t k >>= function

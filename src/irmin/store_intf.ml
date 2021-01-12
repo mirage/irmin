@@ -372,7 +372,7 @@ module type S = sig
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
-  val list : t -> key -> (step * [ `Contents | `Node ]) list Lwt.t
+  val list : t -> key -> (step * tree) list Lwt.t
   (** [list t] is {!Tree.list} applied to [t]'s root tree. *)
 
   val mem : t -> key -> bool Lwt.t

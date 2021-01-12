@@ -70,6 +70,8 @@ module Make (S : S) = struct
       branches
     >>= fun heads -> may repo heads hook
 
+  let contents c = S.Tree.v (`Contents (c, S.Metadata.default))
+
   let test_contents x () =
     let test repo =
       let t = P.Repo.contents_t repo in
@@ -110,6 +112,7 @@ module Make (S : S) = struct
       let k = normal (P.Contents.Key.hash "foo") in
       let check_key = check P.Node.Key.t in
       let check_val = check [%typ: Graph.value option] in
+      let check_list = checks [%typ: S.step * P.Node.Val.value] in
       let check_node msg v =
         let h' = H_node.hash v in
         with_node repo (fun n -> P.Node.add n v) >|= fun h ->
@@ -140,10 +143,13 @@ module Make (S : S) = struct
       let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
       let l = P.Node.Val.list u in
-      check
-        Irmin.Type.(list (pair P.Node.Path.step_t P.Node.Val.value_t))
-        "list" l
-        [ ("x", k); ("y", k); ("z", k) ];
+      check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
+      let l = P.Node.Val.list ~length:1 u in
+      check_list "list length=1" [ ("x", k) ] l;
+      let l = P.Node.Val.list ~offset:1 u in
+      check_list "list offset=1" [ ("y", k); ("z", k) ] l;
+      let l = P.Node.Val.list ~offset:1 ~length:1 u in
+      check_list "list offset=1 length=1" [ ("y", k) ] l;
       let u = P.Node.Val.add u "a" k in
       check_node "node: x+y+z+a" u >>= fun () ->
       let u = P.Node.Val.add u "b" k in
@@ -850,7 +856,7 @@ module Make (S : S) = struct
   let test_stores x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
-      let check_list = checks [%typ: S.Key.step * S.kind] in
+      let check_list = checks [%typ: S.Key.step * S.tree] in
       S.master repo >>= fun t ->
       S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
       S.mem t [ "a"; "b" ] >>= fun b0 ->
@@ -882,7 +888,7 @@ module Make (S : S) = struct
       S.find t [ "a"; "b" ] >>= fun v1'' ->
       check_val "v1.3" (Some v1) v1'';
       S.list t [ "a" ] >>= fun ks ->
-      check_list "path" [ ("b", `Contents) ] ks;
+      check_list "path" [ ("b", contents v1) ] ks;
       S.set_exn t ~info:(infof "update2") [ "a"; long_random_ascii_string ] v1
       >>= fun () ->
       S.remove_exn t ~info:(infof "remove rec") [ "a" ] >>= fun () ->
@@ -1088,11 +1094,11 @@ module Make (S : S) = struct
       check T.(option P.Node.Val.t) "empty tree" (Some P.Node.Val.empty) node;
 
       (* Testing [Tree.diff] *)
-      let contents = T.pair S.contents_t S.metadata_t in
-      let diff = T.(pair S.key_t (Irmin.Diff.t contents)) in
+      let contents_t = T.pair S.contents_t S.metadata_t in
+      let diff = T.(pair S.key_t (Irmin.Diff.t contents_t)) in
       let check_diffs = checks diff in
-      let check_val = check T.(option contents) in
-      let check_ls = check T.(list (pair S.step_t S.kind_t)) in
+      let check_val = check T.(option contents_t) in
+      let check_ls = checks T.(pair S.step_t S.tree_t) in
       let normal c = Some (c, S.Metadata.default) in
       let d0 = S.Metadata.default in
       S.Tree.empty |> fun v0 ->
@@ -1125,6 +1131,72 @@ module Make (S : S) = struct
       check_diffs "diff 4" [ ([ "foo"; "bar"; "1" ], `Added (foo1, d0)) ] d4;
       S.Tree.diff v3 v2 >>= fun d5 ->
       check_diffs "diff 4" [ ([ "foo"; "bar"; "1" ], `Removed (foo1, d0)) ] d5;
+
+      (* Testing paginated lists *)
+      let tree =
+        let c ?(info = S.Metadata.default) blob = `Contents (blob, info) in
+        S.Tree.of_concrete
+          (`Tree
+            [
+              ("aa", c "0");
+              ("a", `Tree []);
+              ("bbb", c "3");
+              ("b", c "3");
+              ("aaa", `Tree []);
+            ])
+      in
+      S.set_tree_exn t ~info:(infof "add tree") [] tree >>= fun _ ->
+      S.Tree.get_tree tree [ "a" ] >>= fun e ->
+      let ls =
+        [
+          ("aa", contents "0");
+          ("a", e);
+          ("bbb", contents "3");
+          ("b", contents "3");
+          ("aaa", e);
+        ]
+      in
+      S.Tree.list ~offset:0 ~length:2 tree [] >>= fun l1 ->
+      Alcotest.(check int) "size l1" 2 (List.length l1);
+      S.Tree.list ~offset:2 ~length:2 tree [] >>= fun l2 ->
+      Alcotest.(check int) "size l2" 2 (List.length l2);
+      S.Tree.list ~offset:4 ~length:2 tree [] >>= fun l3 ->
+      Alcotest.(check int) "size l3" 1 (List.length l3);
+      check_ls "2 paginated list" ls (l1 @ l2 @ l3);
+      S.Tree.list ~offset:0 ~length:3 tree [] >>= fun l1 ->
+      Alcotest.(check int) "size l1" 3 (List.length l1);
+      S.Tree.list ~offset:3 ~length:6 tree [] >>= fun l2 ->
+      Alcotest.(check int) "size l2" 2 (List.length l2);
+      check_ls "3 paginated list" ls (l1 @ l2);
+      S.Tree.list ~offset:0 ~length:4 tree [] >>= fun l1 ->
+      Alcotest.(check int) "size l1" 4 (List.length l1);
+      S.Tree.list ~offset:4 ~length:4 tree [] >>= fun l2 ->
+      Alcotest.(check int) "size l2" 1 (List.length l2);
+      check_ls "4 paginated list" ls (l1 @ l2);
+      S.Tree.list ~offset:0 ~length:5 tree [] >>= fun l1 ->
+      Alcotest.(check int) "size l1" 5 (List.length l1);
+      S.Tree.list ~offset:5 ~length:5 tree [] >>= fun l2 ->
+      Alcotest.(check int) "size l2" 0 (List.length l2);
+      check_ls "5 paginated list" ls (l1 @ l2);
+
+      let c0 = S.Tree.empty in
+      S.Tree.add c0 [ "foo"; "a" ] "1" >>= fun c0 ->
+      S.Tree.add c0 [ "foo"; "b"; "c" ] "2" >>= fun c0 ->
+      S.Tree.add c0 [ "foo"; "c" ] "3" >>= fun c0 ->
+      S.Tree.add c0 [ "foo"; "d" ] "4" >>= fun c0 ->
+      S.Tree.get_tree c0 [ "foo"; "b" ] >>= fun b ->
+      S.Tree.list c0 [ "foo" ] >>= fun ls ->
+      check_ls "list all"
+        [
+          ("a", contents "1"); ("b", b); ("c", contents "3"); ("d", contents "4");
+        ]
+        ls;
+      S.Tree.list ~offset:2 c0 [ "foo" ] >>= fun ls ->
+      check_ls "list offset=2" [ ("c", contents "3"); ("d", contents "4") ] ls;
+      S.Tree.list ~offset:2 ~length:1 c0 [ "foo" ] >>= fun ls ->
+      check_ls "list offset=2 length=1" [ ("c", contents "3") ] ls;
+      S.Tree.list ~length:1 c0 [ "foo" ] >>= fun ls ->
+      check_ls "list length=1" [ ("a", contents "1") ] ls;
 
       (* Testing concrete representation *)
       let c0 = S.Tree.empty in
@@ -1163,7 +1235,7 @@ module Make (S : S) = struct
       check_val "read foo/2" (normal foo2) foo2';
       let check_tree v =
         S.Tree.list v [ "foo" ] >>= fun ls ->
-        check_ls "path1" [ ("1", `Contents); ("2", `Contents) ] ls;
+        check_ls "path1" [ ("1", contents foo1); ("2", contents foo2) ] ls;
         S.Tree.find_all v [ "foo"; "1" ] >>= fun foo1' ->
         check_val "foo1" (normal foo1) foo1';
         S.Tree.find_all v [ "foo"; "2" ] >>= fun foo2' ->
@@ -1176,7 +1248,7 @@ module Make (S : S) = struct
       S.set_tree_exn t ~info:(infof "update_path b/") [ "b" ] v0 >>= fun () ->
       S.set_tree_exn t ~info:(infof "update_path a/") [ "a" ] v0 >>= fun () ->
       S.list t [ "b"; "foo" ] >>= fun ls ->
-      check_ls "path2" [ ("1", `Contents); ("2", `Contents) ] ls;
+      check_ls "path2" [ ("1", contents foo1); ("2", contents foo2) ] ls;
       S.find_all t [ "b"; "foo"; "1" ] >>= fun foo1' ->
       check_val "foo1" (normal foo1) foo1';
       S.find_all t [ "a"; "foo"; "2" ] >>= fun foo2' ->

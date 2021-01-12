@@ -136,7 +136,10 @@ module KV_RO (G : Git.S) = struct
       let l =
         List.map
           (fun (s, k) ->
-            (s, match k with `Contents -> `Value | `Node -> `Dictionary))
+            ( s,
+              match S.Tree.destruct k with
+              | `Contents _ -> `Value
+              | `Node _ -> `Dictionary ))
           l
       in
       Ok l

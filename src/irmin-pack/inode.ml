@@ -22,6 +22,20 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let rec drop n (l : 'a Seq.t) () =
+  match l () with
+  | l' when n = 0 -> l'
+  | Nil -> Nil
+  | Cons (_, l') -> drop (n - 1) l' ()
+
+let take : type a. int -> a Seq.t -> a list =
+  let rec aux acc n (l : a Seq.t) =
+    if n = 0 then acc
+    else
+      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
+  in
+  fun n s -> List.rev (aux [] n s)
+
 module Make_intermediate
     (Conf : Config.S)
     (H : Irmin.Hash.S)
@@ -327,24 +341,58 @@ struct
               t.tree <- Some x;
               x)
 
-    let rec list_entry ~find acc = function
+    type acc = {
+      cursor : int;
+      values : (step * value) list list;
+      remaining : int;
+    }
+
+    let empty_acc n = { cursor = 0; values = []; remaining = n }
+
+    let rec list_entry ~offset ~length ~find acc = function
       | Empty -> acc
-      | Inode i -> list_values ~find acc (get_tree ~find i)
+      | Inode i -> list_values ~offset ~length ~find acc (get_tree ~find i)
 
-    and list_inodes ~find acc t =
-      Array.fold_left (list_entry ~find) acc t.entries
+    and list_inodes ~offset ~length ~find acc t =
+      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+      else if acc.cursor + t.length < offset then
+        { acc with cursor = t.length + acc.cursor }
+      else Array.fold_left (list_entry ~offset ~length ~find) acc t.entries
 
-    and list_values ~find acc t =
-      match t.v with
-      | Values vs -> StepMap.bindings vs @ acc
-      | Inodes t -> list_inodes ~find acc t
+    and list_values ~offset ~length ~find acc t =
+      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+      else
+        match t.v with
+        | Values vs ->
+            let len = StepMap.cardinal vs in
+            if acc.cursor + len < offset then
+              { acc with cursor = len + acc.cursor }
+            else
+              let to_drop =
+                if acc.cursor > offset then 0 else offset - acc.cursor
+              in
+              let vs =
+                StepMap.to_seq vs |> drop to_drop |> take acc.remaining
+              in
+              let n = List.length vs in
+              {
+                values = vs :: acc.values;
+                cursor = acc.cursor + len;
+                remaining = acc.remaining - n;
+              }
+        | Inodes t -> list_inodes ~offset ~length ~find acc t
 
-    let compare_step = Irmin.Type.(unstage (compare step_t))
-    let compare_entry x y = compare_step (fst x) (fst y)
-
-    let list ~find t =
-      let entries = list_values ~find [] t in
-      List.fast_sort compare_entry entries
+    let list ?(offset = 0) ?length ~find t =
+      let length =
+        match length with
+        | Some n -> n
+        | None -> (
+            match t.v with
+            | Values vs -> StepMap.cardinal vs - offset
+            | Inodes i -> i.length - offset)
+      in
+      let entries = list_values ~offset ~length ~find (empty_acc length) t in
+      List.concat (List.rev entries.values)
 
     let to_bin_v = function
       | Values vs ->
@@ -525,7 +573,11 @@ struct
           | Inodes t -> (
               let length = t.length - 1 in
               if length <= Conf.entries then
-                let vs = list_inodes ~find [] t in
+                let vs =
+                  list_inodes ~offset:0 ~length:t.length ~find
+                    (empty_acc t.length) t
+                in
+                let vs = List.concat (List.rev vs.values) in
                 let vs = StepMap.of_list vs in
                 let vs = StepMap.remove s vs in
                 let t = values vs in
@@ -697,7 +749,7 @@ struct
       let v = I.v l in
       { find = niet; v }
 
-    let list t = I.list ~find:t.find t.v
+    let list ?offset ?length t = I.list ~find:t.find ?offset ?length t.v
     let empty = { find = niet; v = I.empty }
     let is_empty t = I.is_empty t.v
     let find t s = I.find ~find:t.find t.v s
