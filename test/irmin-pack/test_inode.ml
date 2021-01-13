@@ -133,8 +133,11 @@ let test_remove_inodes () =
     Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in
   check_hardcoded_hash "hash v1" "9e455b571805ec9d3404d9ac86009757382db687" v1;
+  Private.pp v1;
   let v2 = Inode.Val.remove v1 "x" in
+  Private.pp v2;
   let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
+  Private.pp ~nomore:true v3;
   check_values "node y+z obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "75d043f00ef5368e667eaf768f89a35addf73fb9" v2;
   let v4 =

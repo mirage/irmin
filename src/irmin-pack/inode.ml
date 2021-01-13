@@ -740,6 +740,91 @@ struct
       let hash t = I.hash t.v
       let stable t = I.stable t.v
       let length t = I.length t.v
+
+      let ht = Hashtbl.create 19
+
+      let pp_hash_hr =
+        let cpt = ref 0 in
+        let new_id () =
+          incr cpt;
+          Fmt.str "hash_%d" !cpt
+        in
+        fun ppf h ->
+          let id = match Hashtbl.find_opt ht h with
+            | None ->
+              let id = new_id () in
+              Hashtbl.add ht h id;
+              id
+            | Some id -> id
+          in Fmt.pf ppf "%s" id
+
+      let mdrp_surround s1 s2 pp_v ppf v =
+        Fmt.pf ppf "@[<v 2>%s %a@]@,%s" s1 pp_v v s2
+
+      let array_brackets pp_v =
+        Fmt.(vbox ~indent:2 (mdrp_surround "[" "]" pp_v))
+
+      let mdrp_array pp_elt =
+        let open Fmt in
+        array_brackets (iter ?sep:(Some semi) Array.iter (vbox ~indent:2 pp_elt))
+
+      let mdrp_field l prj pp_v ppf v =
+        Fmt.(pf ppf "@[<h>%s =@ %a@]" l pp_v (prj v))
+
+      let mdrp_record v pps =
+        let open Fmt in
+        let s1, s2 = if v then "{", "}" else "(", ")" in
+        vbox ~indent:2 (mdrp_surround s1 s2 @@ concat ~sep:(any ";@,") pps)
+
+      let rec pp_inode f i =
+        let open I in
+        let l = [
+          mdrp_field "i_hash" (fun i -> I.hash_of_inode i) pp_hash_hr;
+          mdrp_field "tree" (fun i -> i.tree) pp_opt_t;
+        ] in
+        mdrp_record false l f i
+
+      and pp_entry fmt = function
+        | I.Empty -> Fmt.pf fmt "∅"
+        | I.Inode i -> Fmt.pf fmt "%a" pp_inode i
+
+      and pp_inodes f i =
+        let open Fmt in
+        let open I in
+        let l = [
+          mdrp_field "seed" (fun i -> i.seed) int;
+          mdrp_field "length" (fun i -> i.length) int;
+          mdrp_field "entries" (fun i -> i.entries) (mdrp_array pp_entry);
+        ] in
+        mdrp_record true l f i
+          
+      and pp_values ppf (s, v) =
+        Fmt.pf ppf "Step: %a " (Irmin.Type.pp step_t) s;
+        match v with
+        | `Contents (h, _) -> Fmt.pf ppf "Cont: %a" pp_hash_hr h
+        | `Node h -> Fmt.pf ppf "Node: %a" pp_hash_hr h
+
+      and pp_v fmt = function
+        | I.Values vs ->
+          Fmt.pf fmt "@[<v 0>@[<v 2>/@,%a@]@,/"
+            (Format.pp_print_list pp_values) (StepMap.bindings vs)
+        | I.Inodes i -> Fmt.pf fmt "@[<v 2>Inodes: %a@]" pp_inodes i
+
+      and pp_t fmt t =
+        Fmt.pf fmt "@[<v 2>I.t {@,%a@,stable: %b@,%a@]@,}" pp_hash_hr (I.hash t) t.stable pp_v t.v
+
+      and pp_opt_t fmt = function
+        | None -> Fmt.pf fmt "⦰"
+        | Some t -> Fmt.pf fmt "@[<v 0>%a@]" pp_t t
+
+      let pp ?(nomore=false) t =
+        Format.pp_set_geometry Format.err_formatter ~max_indent:500 ~margin:1000;
+        Fmt.epr "@[<v 0>%a@]@." pp_t t.v;
+        if nomore then begin
+          Fmt.epr "Id -> Hash bindings:@.";
+          Hashtbl.iter (fun h id ->
+              Fmt.epr "  %s -> %a@." id pp_hash h) ht
+        end
     end
   end
 end
