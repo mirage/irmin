@@ -267,9 +267,7 @@ struct
 
     type ptr = { i_hash : hash Lazy.t; mutable tree : t option }
 
-    and entry = Empty | Inhabited of ptr
-
-    and branch = { seed : int; length : int; entries : entry array }
+    and branch = { seed : int; length : int; entries : ptr option array }
 
     and v = Values of value StepMap.t | Branch of branch
 
@@ -280,8 +278,8 @@ struct
       | Branch i ->
           Array.fold_left
             (fun acc -> function
-              | Empty -> acc
-              | Inhabited i -> `Inode (Lazy.force i.i_hash) :: acc)
+              | None -> acc
+              | Some i -> `Inode (Lazy.force i.i_hash) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
@@ -307,14 +305,6 @@ struct
       |+ field "tree" (option t) (fun t -> t.tree)
       |> sealr
       |> like ~equal:same_hash
-
-    let entry_t entry : entry Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Inode.entry" (fun empty entry -> function
-        | Empty -> empty | Inhabited i -> entry i)
-      |~ case0 "Empty" Empty
-      |~ case1 "Inhabited" entry (fun i -> Inhabited i)
-      |> sealv
 
     let branch_t entry : branch Irmin.Type.t =
       let open Irmin.Type in
@@ -348,8 +338,8 @@ struct
     let empty_acc n = { cursor = 0; values = []; remaining = n }
 
     let rec list_entry ~offset ~length ~find acc = function
-      | Empty -> acc
-      | Inhabited i -> list_values ~offset ~length ~find acc (get_tree ~find i)
+      | None -> acc
+      | Some i -> list_values ~offset ~length ~find acc (get_tree ~find i)
 
     and list_branch ~offset ~length ~find acc t =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
@@ -400,8 +390,8 @@ struct
           let _, entries =
             Array.fold_left
               (fun (i, acc) -> function
-                | Empty -> (i + 1, acc)
-                | Inhabited ptr ->
+                | None -> (i + 1, acc)
+                | Some ptr ->
                     let hash = hash_of_ptr ptr in
                     (i + 1, { Bin.index = i; hash } :: acc))
               (0, []) t.entries
@@ -430,7 +420,7 @@ struct
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
-    let inhabited_entry ?tree i_hash = Inhabited { tree; i_hash }
+    let entry ?tree i_hash = Some { tree; i_hash }
 
     let of_bin t =
       let v =
@@ -439,9 +429,9 @@ struct
             let vs = StepMap.of_list vs in
             Values vs
         | Branch t ->
-            let entries = Array.make Conf.entries Empty in
+            let entries = Array.make Conf.entries None in
             List.iter
-              (fun { Bin.index; hash } -> entries.(index) <- inhabited_entry (lazy hash))
+              (fun { Bin.index; hash } -> entries.(index) <- entry (lazy hash))
               t.entries;
             Branch { seed = t.Bin.seed; length = t.length; entries }
       in
@@ -452,7 +442,7 @@ struct
     let v_t t : v Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
-      let entry = entry_t (ptr_t t) in
+      let entry = option (ptr_t t) in
       variant "Inode.v" (fun values branch -> function
         | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
@@ -503,8 +493,8 @@ struct
             let i = index ~seed s in
             let x = t.entries.(i) in
             match x with
-            | Empty -> None
-            | Inhabited i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
+            | None -> None
+            | Some i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
       in
       aux ~seed t.v
 
@@ -530,7 +520,7 @@ struct
                       {
                         length = 0;
                         seed;
-                        entries = Array.make Conf.entries Empty;
+                        entries = Array.make Conf.entries None;
                       }
                   in
                   let aux t (s, v) =
@@ -546,15 +536,15 @@ struct
               let entries = if copy then Array.copy t.entries else t.entries in
               let i = index ~seed s in
               match entries.(i) with
-              | Empty ->
+              | None ->
                   let tree = values (StepMap.singleton s v) in
-                  entries.(i) <- inhabited_entry ~tree tree.hash;
+                  entries.(i) <- entry ~tree tree.hash;
                   let t = branch { seed; length; entries } in
                   k t
-              | Inhabited n ->
+              | Some n ->
                   let t = get_tree ~find n in
                   add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
-                  entries.(i) <- inhabited_entry ~tree tree.hash;
+                  entries.(i) <- entry ~tree tree.hash;
                   let t = branch { seed; length; entries } in
                   k t))
 
@@ -584,11 +574,11 @@ struct
                 let entries = Array.copy t.entries in
                 let i = index ~seed s in
                 match entries.(i) with
-                | Empty -> assert false
-                | Inhabited t ->
+                | None -> assert false
+                | Some t ->
                     let t = get_tree ~find t in
                     remove ~seed:(seed + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- inhabited_entry ~tree (lazy (hash tree));
+                    entries.(i) <- entry ~tree (lazy (hash tree));
                     let t = branch { seed; length; entries } in
                     k t))
 
@@ -615,8 +605,8 @@ struct
         | Branch n ->
             Array.iter
               (function
-                | Empty | Inhabited { tree = None; _ } -> ()
-                | Inhabited ({ tree = Some t; _ } as i) ->
+                | None | Some { tree = None; _ } -> ()
+                | Some ({ tree = Some t; _ } as i) ->
                     let hash = hash_of_ptr i in
                     if mem hash then () else aux ~seed:(seed + 1) t)
               n.entries;
