@@ -18,6 +18,7 @@ module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
 module Config = Config
+module Inode = Inode
 
 val config :
   ?fresh:bool ->

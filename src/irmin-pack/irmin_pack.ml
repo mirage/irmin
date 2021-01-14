@@ -90,3 +90,4 @@ module Private = struct
 end
 
 module Config = Config
+module Inode = Inode
