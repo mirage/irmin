@@ -80,7 +80,7 @@ struct
     open T
 
     type ptr = { index : int; hash : H.t }
-    type branch = { seed : int; length : int; entries : ptr list }
+    type branch = { depth : int; length : int; entries : ptr list }
     type v = Values of (step * value) list | Branch of branch
 
     let ptr_t : ptr Irmin.Type.t =
@@ -92,8 +92,8 @@ struct
 
     let branch_t : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Bin.branch" (fun seed length entries -> { seed; length; entries })
-      |+ field "seed" int (fun t -> t.seed)
+      record "Bin.branch" (fun depth length entries -> { depth; length; entries })
+      |+ field "depth" int (fun t -> t.depth)
       |+ field "length" int (fun t -> t.length)
       |+ field "entries" (list ptr_t) (fun t -> t.entries)
       |> sealr
@@ -157,13 +157,13 @@ struct
       |+ field "hash" address_t (fun t -> t.hash)
       |> sealr
 
-    type branch = { seed : int; length : int; entries : ptr list }
+    type branch = { depth : int; length : int; entries : ptr list }
 
     let branch_t : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Compress.branch" (fun seed length entries ->
-          { seed; length; entries })
-      |+ field "seed" int (fun t -> t.seed)
+      record "Compress.branch" (fun depth length entries ->
+          { depth; length; entries })
+      |+ field "depth" int (fun t -> t.depth)
       |+ field "length" int (fun t -> t.length)
       |+ field "entries" (list ptr_t) (fun t -> t.entries)
       |> sealr
@@ -267,7 +267,7 @@ struct
 
     type ptr = { i_hash : hash Lazy.t; mutable tree : t option }
 
-    and branch = { seed : int; length : int; entries : ptr option array }
+    and branch = { depth : int; length : int; entries : ptr option array }
 
     and v = Values of value StepMap.t | Branch of branch
 
@@ -308,9 +308,9 @@ struct
 
     let branch_t entry : branch Irmin.Type.t =
       let open Irmin.Type in
-      record "Inode.branch" (fun seed length entries ->
-          { seed; length; entries })
-      |+ field "seed" int (fun t -> t.seed)
+      record "Inode.branch" (fun depth length entries ->
+          { depth; length; entries })
+      |+ field "depth" int (fun t -> t.depth)
       |+ field "length" int (fun t -> t.length)
       |+ field "entries" (array entry) (fun t -> t.entries)
       |> sealr
@@ -397,7 +397,7 @@ struct
               (0, []) t.entries
           in
           let entries = List.rev entries in
-          Bin.Branch { seed = t.seed; length = t.length; entries }
+          Bin.Branch { depth = t.depth; length = t.length; entries }
 
     let to_bin t =
       let v = to_bin_v t.v in
@@ -433,7 +433,7 @@ struct
             List.iter
               (fun { Bin.index; hash } -> entries.(index) <- entry (lazy hash))
               t.entries;
-            Branch { seed = t.Bin.seed; length = t.length; entries }
+            Branch { depth = t.Bin.depth; length = t.length; entries }
       in
       { hash = t.Bin.hash; stable = t.Bin.stable; v }
 
@@ -486,22 +486,22 @@ struct
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Branch _ -> false
 
-    let find_value ~seed ~find t s =
-      let rec aux ~seed = function
+    let find_value ~depth ~find t s =
+      let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Branch t -> (
-            let i = index ~seed s in
+            let i = index ~seed:depth s in
             let x = t.entries.(i) in
             match x with
             | None -> None
-            | Some i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
+            | Some i -> aux ~depth:(depth + 1) (get_tree ~find i).v)
       in
-      aux ~seed t.v
+      aux ~depth t.v
 
-    let find ~find t s = find_value ~seed:0 ~find t s
+    let find ~find t s = find_value ~depth:0 ~find t s
 
-    let rec add ~seed ~find ~copy t s v k =
-      match find_value ~seed ~find t s with
+    let rec add ~depth ~find ~copy t s v k =
+      match find_value ~depth ~find t s with
       | Some v' when equal_value v v' -> k t
       | v' -> (
           match t.v with
@@ -519,12 +519,12 @@ struct
                     branch
                       {
                         length = 0;
-                        seed;
+                        depth;
                         entries = Array.make Conf.entries None;
                       }
                   in
                   let aux t (s, v) =
-                    (add [@tailcall]) ~seed ~find ~copy:false t s v (fun x -> x)
+                    (add [@tailcall]) ~depth ~find ~copy:false t s v (fun x -> x)
                   in
                   List.fold_left aux empty vs
               in
@@ -534,24 +534,24 @@ struct
                 match v' with None -> t.length + 1 | Some _ -> t.length
               in
               let entries = if copy then Array.copy t.entries else t.entries in
-              let i = index ~seed s in
+              let i = index ~seed:depth s in
               match entries.(i) with
               | None ->
                   let tree = values (StepMap.singleton s v) in
                   entries.(i) <- entry ~tree tree.hash;
-                  let t = branch { seed; length; entries } in
+                  let t = branch { depth; length; entries } in
                   k t
               | Some n ->
                   let t = get_tree ~find n in
-                  add ~seed:(seed + 1) ~find ~copy t s v @@ fun tree ->
+                  add ~depth:(depth + 1) ~find ~copy t s v @@ fun tree ->
                   entries.(i) <- entry ~tree tree.hash;
-                  let t = branch { seed; length; entries } in
+                  let t = branch { depth; length; entries } in
                   k t))
 
-    let add ~find ~copy t s v = add ~seed:0 ~find ~copy t s v (stabilize ~find)
+    let add ~find ~copy t s v = add ~depth:0 ~find ~copy t s v (stabilize ~find)
 
-    let rec remove ~seed ~find t s k =
-      match find_value ~seed ~find t s with
+    let rec remove ~depth ~find t s k =
+      match find_value ~depth ~find t s with
       | None -> k t
       | Some _ -> (
           match t.v with
@@ -572,17 +572,17 @@ struct
                 k t
               else
                 let entries = Array.copy t.entries in
-                let i = index ~seed s in
+                let i = index ~seed:depth s in
                 match entries.(i) with
                 | None -> assert false
                 | Some t ->
                     let t = get_tree ~find t in
-                    remove ~seed:(seed + 1) ~find t s @@ fun tree ->
+                    remove ~depth:(depth + 1) ~find t s @@ fun tree ->
                     entries.(i) <- entry ~tree (lazy (hash tree));
-                    let t = branch { seed; length; entries } in
+                    let t = branch { depth; length; entries } in
                     k t))
 
-    let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
+    let remove ~find t s = remove ~find ~depth:0 t s (stabilize ~find)
 
     let v l : t =
       let len = List.length l in
@@ -598,8 +598,8 @@ struct
     let add ~find t s v = add ~find ~copy:true t s v
 
     let save ~add ~mem t =
-      let rec aux ~seed t =
-        Log.debug (fun l -> l "save seed:%d" seed);
+      let rec aux ~depth t =
+        Log.debug (fun l -> l "save depth:%d" depth);
         match t.v with
         | Values _ -> add (Lazy.force t.hash) (to_bin t)
         | Branch n ->
@@ -608,11 +608,11 @@ struct
                 | None | Some { tree = None; _ } -> ()
                 | Some ({ tree = Some t; _ } as i) ->
                     let hash = hash_of_ptr i in
-                    if mem hash then () else aux ~seed:(seed + 1) t)
+                    if mem hash then () else aux ~depth:(depth + 1) t)
               n.entries;
             add (Lazy.force t.hash) (to_bin t)
       in
-      aux ~seed:0 t
+      aux ~depth:0 t
   end
 
   module Elt = struct
@@ -658,9 +658,9 @@ struct
       (* List.map is fine here as the number of entries is small *)
       let v : Bin.v -> Compress.v = function
         | Values vs -> Values (List.map value vs)
-        | Branch { seed; length; entries } ->
+        | Branch { depth; length; entries } ->
             let entries = List.map ptr entries in
-            Branch { Compress.seed; length; entries }
+            Branch { Compress.depth; length; entries }
       in
       let t =
         Compress.v ~stable:t.stable ~hash:k (v t.v)
@@ -702,9 +702,9 @@ struct
       in
       let t : Compress.v -> Bin.v = function
         | Values vs -> Values (List.rev_map value (List.rev vs))
-        | Branch { seed; length; entries } ->
+        | Branch { depth; length; entries } ->
             let entries = List.map ptr entries in
-            Branch { seed; length; entries }
+            Branch { depth; length; entries }
       in
       let t =
         Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
