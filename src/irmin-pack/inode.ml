@@ -79,15 +79,15 @@ struct
   module Bin = struct
     open T
 
-    type inode_ptr = { index : int; hash : H.t }
-    type branch = { seed : int; length : int; entries : inode_ptr list }
+    type ptr = { index : int; hash : H.t }
+    type branch = { seed : int; length : int; entries : ptr list }
     type v = Values of (step * value) list | Branch of branch
 
-    let inode_ptr_t : inode_ptr Irmin.Type.t =
+    let ptr_t : ptr Irmin.Type.t =
       let open Irmin.Type in
-      record "Bin.inode_ptr" (fun index hash -> { index; hash })
+      record "Bin.ptr" (fun index hash -> { index; hash })
       |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : inode_ptr) -> t.hash)
+      |+ field "hash" H.t (fun (t : ptr) -> t.hash)
       |> sealr
 
     let branch_t : branch Irmin.Type.t =
@@ -95,7 +95,7 @@ struct
       record "Bin.branch" (fun seed length entries -> { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list inode_ptr_t) (fun t -> t.entries)
+      |+ field "entries" (list ptr_t) (fun t -> t.entries)
       |> sealr
 
     let v_t : v Irmin.Type.t =
@@ -148,16 +148,16 @@ struct
       |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
-    type inode_ptr = { index : int; hash : address }
+    type ptr = { index : int; hash : address }
 
-    let inode_ptr_t : inode_ptr Irmin.Type.t =
+    let ptr_t : ptr Irmin.Type.t =
       let open Irmin.Type in
-      record "Compress.inode_ptr" (fun index hash -> { index; hash })
+      record "Compress.ptr" (fun index hash -> { index; hash })
       |+ field "index" int (fun t -> t.index)
       |+ field "hash" address_t (fun t -> t.hash)
       |> sealr
 
-    type branch = { seed : int; length : int; entries : inode_ptr list }
+    type branch = { seed : int; length : int; entries : ptr list }
 
     let branch_t : branch Irmin.Type.t =
       let open Irmin.Type in
@@ -165,7 +165,7 @@ struct
           { seed; length; entries })
       |+ field "seed" int (fun t -> t.seed)
       |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list inode_ptr_t) (fun t -> t.entries)
+      |+ field "entries" (list ptr_t) (fun t -> t.entries)
       |> sealr
 
     type value =
@@ -265,9 +265,9 @@ struct
     let equal_hash = Irmin.Type.(unstage (equal hash_t))
     let equal_value = Irmin.Type.(unstage (equal value_t))
 
-    type inode_ptr = { i_hash : hash Lazy.t; mutable tree : t option }
+    type ptr = { i_hash : hash Lazy.t; mutable tree : t option }
 
-    and entry = Empty | Inhabited of inode_ptr
+    and entry = Empty | Inhabited of ptr
 
     and branch = { seed : int; length : int; entries : entry array }
 
@@ -294,15 +294,15 @@ struct
               v :: acc)
             l []
 
-    let hash_of_inode_ptr (i : inode_ptr) = Lazy.force i.i_hash
+    let hash_of_ptr (i : ptr) = Lazy.force i.i_hash
 
-    let inode_ptr_t t : inode_ptr Irmin.Type.t =
+    let ptr_t t : ptr Irmin.Type.t =
       let same_hash =
         Irmin.Type.stage @@ fun x y ->
-        equal_hash (hash_of_inode_ptr x) (hash_of_inode_ptr y)
+        equal_hash (hash_of_ptr x) (hash_of_ptr y)
       in
       let open Irmin.Type in
-      record "Inode.inode_ptr" (fun hash tree -> { i_hash = lazy hash; tree })
+      record "Inode.ptr" (fun hash tree -> { i_hash = lazy hash; tree })
       |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
       |+ field "tree" (option t) (fun t -> t.tree)
       |> sealr
@@ -332,7 +332,7 @@ struct
       match t.tree with
       | Some t -> t
       | None -> (
-          let h = hash_of_inode_ptr t in
+          let h = hash_of_ptr t in
           match find h with
           | None -> Fmt.failwith "%a: unknown key" pp_hash h
           | Some x ->
@@ -402,7 +402,7 @@ struct
               (fun (i, acc) -> function
                 | Empty -> (i + 1, acc)
                 | Inhabited ptr ->
-                    let hash = hash_of_inode_ptr ptr in
+                    let hash = hash_of_ptr ptr in
                     (i + 1, { Bin.index = i; hash } :: acc))
               (0, []) t.entries
           in
@@ -452,7 +452,7 @@ struct
     let v_t t : v Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_bin (to_bin_v x)) in
-      let entry = entry_t (inode_ptr_t t) in
+      let entry = entry_t (ptr_t t) in
       variant "Inode.v" (fun values branch -> function
         | Values v -> values v | Branch i -> branch i)
       |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
@@ -617,7 +617,7 @@ struct
               (function
                 | Empty | Inhabited { tree = None; _ } -> ()
                 | Inhabited ({ tree = Some t; _ } as i) ->
-                    let hash = hash_of_inode_ptr i in
+                    let hash = hash_of_ptr i in
                     if mem hash then () else aux ~seed:(seed + 1) t)
               n.entries;
             add (Lazy.force t.hash) (to_bin t)
@@ -650,7 +650,7 @@ struct
         | None -> Compress.Direct h
         | Some off -> Compress.Indirect off
       in
-      let inode_ptr : Bin.inode_ptr -> Compress.inode_ptr =
+      let ptr : Bin.ptr -> Compress.ptr =
        fun n ->
         let hash = hash n.hash in
         { index = n.index; hash }
@@ -669,7 +669,7 @@ struct
       let v : Bin.v -> Compress.v = function
         | Values vs -> Values (List.map value vs)
         | Branch { seed; length; entries } ->
-            let entries = List.map inode_ptr entries in
+            let entries = List.map ptr entries in
             Branch { Compress.seed; length; entries }
       in
       let t =
@@ -695,7 +695,7 @@ struct
         | Indirect off -> hash off
         | Direct n -> n
       in
-      let inode_ptr : Compress.inode_ptr -> Bin.inode_ptr =
+      let ptr : Compress.ptr -> Bin.ptr =
        fun n ->
         let hash = hash n.hash in
         { index = n.index; hash }
@@ -713,7 +713,7 @@ struct
       let t : Compress.v -> Bin.v = function
         | Values vs -> Values (List.rev_map value (List.rev vs))
         | Branch { seed; length; entries } ->
-            let entries = List.map inode_ptr entries in
+            let entries = List.map ptr entries in
             Branch { seed; length; entries }
       in
       let t =
