@@ -20,9 +20,14 @@ module type Val_intf = sig
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 
   module Private : sig
+    type sexp = Sexplib.Sexp.t
+      
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
+    val parse_from_string : string -> sexp
+    val parse_from_file : string -> sexp
+    val sexp_of_t : t -> sexp
   end
 end
 

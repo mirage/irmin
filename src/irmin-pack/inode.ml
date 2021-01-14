@@ -777,6 +777,142 @@ struct
       let hash t = I.hash t.v
       let stable t = I.stable t.v
       let length t = I.length t.v
+
+      type sexp = Sexplib.Sexp.t
+      (* type inode = { i_hash : hash Lazy.t; mutable tree : t option }
+       * and entry = Empty | Inode of inode
+       * and inodes = { seed : int; length : int; entries : entry array }
+       * and v = Values of value StepMap.t | Inodes of inodes
+       * and t = { hash : hash Lazy.t; stable : bool; v : v } *)
+      let parse_from_string s =
+        let lexbuf = Lexing.from_string s in
+        Sexplib.Sexp.scan_sexp lexbuf
+
+      let parse_from_file f = Sexplib.Sexp.load_sexp f
+
+      let sexp_of_hash _ =
+        Sexplib__Std.sexp_of_string "h"
+          (* Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h)) *)
+
+      let sexp_of_ihash h =
+        Sexplib.Sexp.(List [
+            Atom "i_hash";
+            Sexplib__Std.sexp_of_lazy_t sexp_of_hash h
+          ]
+          )
+
+      let rec sexp_of_tree t =
+        Sexplib.Sexp.List [
+          Sexplib.Sexp.Atom "tree";
+          match t with
+          | None -> Sexplib.Sexp.(List [Atom "empty"])
+          | Some t -> sexp_of_t t
+        ]
+
+      and sexp_of_inode i =
+        Sexplib.Sexp.(List [
+            sexp_of_ihash i.I.i_hash;
+            sexp_of_tree i.I.tree
+          ]
+          )
+
+      and sexp_of_entry e =
+        match e with
+        | I.Empty -> Sexplib.Sexp.List []
+        | I.Inode i -> sexp_of_inode i
+
+      and sexp_of_entries a =
+        Sexplib.Sexp.List (
+          List.rev @@
+          Array.fold_left (fun acc e -> sexp_of_entry e :: acc) [] a
+        )
+
+      and sexp_of_seed s =
+        Sexplib.Sexp.(
+          List [
+            Atom "seed";
+            Sexplib__Std.sexp_of_int s
+          ]
+        )
+
+      and sexp_of_length l =
+        Sexplib.Sexp.(
+          List [
+            Atom "length";
+            Sexplib__Std.sexp_of_int l
+          ]
+        )
+
+      and sexp_of_inodes i =
+        let open Sexplib.Sexp in
+        List [
+          sexp_of_seed i.I.seed;
+          sexp_of_length i.I.length;
+          sexp_of_entries i.I.entries
+        ]
+
+      and sexp_of_kind k =
+        let open Sexplib.Sexp in
+        match k with
+        | `Contents (h, _) ->
+          List [
+            Atom "contents";
+            sexp_of_hash h
+          ]
+        | `Node h ->
+          List [
+            Atom "contents";
+            sexp_of_hash h
+          ]
+
+      and sexp_of_step s =
+        Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
+
+      and sexp_of_stepmap vs =
+        let open Sexplib.Sexp in
+        List (
+          StepMap.fold (fun s k acc ->
+              List [
+                sexp_of_step s;
+                sexp_of_kind k
+              ] :: acc
+            ) vs []
+        )
+
+      and sexp_of_v v =
+        let open Sexplib.Sexp in
+        match v with
+        | I.Values vs ->
+          List [
+            Atom "values";
+            sexp_of_stepmap vs
+          ]
+        | Inodes i ->
+          List [
+            Atom "inodes";
+            sexp_of_inodes i
+          ]
+
+      and sexp_of_t t =
+        Sexplib.Sexp.(
+          List [
+            List [
+              Atom "hash";
+              Sexplib__Std.sexp_of_lazy_t sexp_of_hash t.hash
+            ];
+            List [
+              Atom "stable";
+              Sexplib__Std.sexp_of_bool t.stable
+            ];
+            List [
+              Atom "v";
+              sexp_of_v t.v
+            ]
+          ]
+        )
+
+      let sexp_of_t t = sexp_of_t t.v
+          
     end
   end
 end

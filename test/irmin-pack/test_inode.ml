@@ -155,6 +155,26 @@ let test_remove_inodes () =
   Alcotest.(check bool) "v5 stable" (Private.stable v5) true;
   Context.close t
 
+
+(** Test remove and add values to go from stable to unstable inodes. *)
+let test_serde_inodes () =
+  rm_dir root;
+  Context.get_store () >>= fun t ->
+  let st = "((a 3)(b 2))" in
+  let se = Private.parse_from_string st in
+  Alcotest.(check string) "same string" st
+    (Format.asprintf "%a" Sexplib.Sexp.pp se);
+  let v1 =
+    Inode.Val.v []
+  in
+  let s1 = Private.sexp_of_t v1 in
+  let st1 = Sexplib__Std.string_of_sexp s1 in
+  Format.eprintf "ST1 : %s@." st1;
+  Format.eprintf "S1 : %a@." Sexplib.Sexp.pp s1;
+  Alcotest.(check string) "sexp of v1 is (true)" "true"
+     (Format.asprintf "%a" Sexplib.Sexp.pp s1);
+  Context.close t
+
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
@@ -165,4 +185,6 @@ let tests =
         Lwt_main.run (test_remove_values ()));
     Alcotest.test_case "remove inodes" `Quick (fun () ->
         Lwt_main.run (test_remove_inodes ()));
+    Alcotest.test_case "serde inodes" `Quick (fun () ->
+        Lwt_main.run (test_serde_inodes ()));
   ]
