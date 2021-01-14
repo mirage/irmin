@@ -147,7 +147,10 @@ let test_remove_inodes () =
       ]
   in
   let v5 = Inode.Val.remove v4 "a" in
-  check_values "node x+y+z obtained two ways" v1 v5;
+  let h1 = Private.hash v1 in
+  let h5 = Private.hash v5 in
+  check_hash
+    "v1 and v5 have different internal representations but the same hash" h1 h5;
   Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
   Alcotest.(check bool) "v5 stable" (Private.stable v5) true;
   Context.close t
