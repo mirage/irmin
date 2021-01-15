@@ -616,6 +616,42 @@ struct
             add (Lazy.force t.hash) (to_bin t)
       in
       aux ~depth:0 t
+
+    let check_stable ~find t =
+      let rec check t stable =
+        let stable = t.stable || stable in
+        match t.v with
+        | Values _ -> true
+        | Tree tree ->
+            Array.fold_left
+              (fun ok entry ->
+                match entry with
+                | None -> ok && true
+                | Some t ->
+                    let t = get_target ~find t in
+                    ok
+                    && (if stable then not t.stable else true)
+                    && check t stable)
+              true tree.entries
+      in
+      check t t.stable
+
+    let contains_empty_map ~find t =
+      let rec check_lower t =
+        match t.v with
+        | Values l when StepMap.is_empty l -> true
+        | Values _ -> false
+        | Tree inodes ->
+            Array.fold_left
+              (fun ok entry ->
+                match entry with
+                | None -> ok || false
+                | Some t ->
+                    let t = get_target ~find t in
+                    ok || check_lower t)
+              false inodes.entries
+      in
+      match t.v with Values _ -> false | Tree _ -> check_lower t
   end
 
   module Elt = struct
@@ -773,6 +809,8 @@ struct
     let stable t = I.stable t.v
     let length t = I.length t.v
     let index = I.index
+    let check_stable t = I.check_stable ~find:t.find t.v
+    let contains_empty_map t = I.contains_empty_map ~find:t.find t.v
   end
 end
 
