@@ -265,7 +265,7 @@ struct
     let equal_hash = Irmin.Type.(unstage (equal hash_t))
     let equal_value = Irmin.Type.(unstage (equal value_t))
 
-    type ptr = { i_hash : hash Lazy.t; mutable tree : t option }
+    type ptr = { target_hash : hash Lazy.t; mutable target : t option }
 
     and branch = { depth : int; length : int; entries : ptr option array }
 
@@ -279,7 +279,7 @@ struct
           Array.fold_left
             (fun acc -> function
               | None -> acc
-              | Some i -> `Inode (Lazy.force i.i_hash) :: acc)
+              | Some i -> `Inode (Lazy.force i.target_hash) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
@@ -292,7 +292,7 @@ struct
               v :: acc)
             l []
 
-    let hash_of_ptr (i : ptr) = Lazy.force i.i_hash
+    let hash_of_ptr (i : ptr) = Lazy.force i.target_hash
 
     let ptr_t t : ptr Irmin.Type.t =
       let same_hash =
@@ -300,9 +300,9 @@ struct
         equal_hash (hash_of_ptr x) (hash_of_ptr y)
       in
       let open Irmin.Type in
-      record "Inode.ptr" (fun hash tree -> { i_hash = lazy hash; tree })
-      |+ field "hash" hash_t (fun t -> Lazy.force t.i_hash)
-      |+ field "tree" (option t) (fun t -> t.tree)
+      record "Inode.ptr" (fun hash target -> { target_hash = lazy hash; target })
+      |+ field "hash" hash_t (fun t -> Lazy.force t.target_hash)
+      |+ field "target" (option t) (fun t -> t.target)
       |> sealr
       |> like ~equal:same_hash
 
@@ -318,15 +318,15 @@ struct
     let length t =
       match t.v with Values vs -> StepMap.cardinal vs | Branch vs -> vs.length
 
-    let get_tree ~find t =
-      match t.tree with
+    let get_target ~find t =
+      match t.target with
       | Some t -> t
       | None -> (
           let h = hash_of_ptr t in
           match find h with
           | None -> Fmt.failwith "%a: unknown key" pp_hash h
           | Some x ->
-              t.tree <- Some x;
+              t.target <- Some x;
               x)
 
     type acc = {
@@ -339,7 +339,7 @@ struct
 
     let rec list_entry ~offset ~length ~find acc = function
       | None -> acc
-      | Some i -> list_values ~offset ~length ~find acc (get_tree ~find i)
+      | Some i -> list_values ~offset ~length ~find acc (get_target ~find i)
 
     and list_branch ~offset ~length ~find acc t =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
@@ -420,7 +420,7 @@ struct
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
-    let entry ?tree i_hash = Some { tree; i_hash }
+    let entry ?target target_hash = Some { target; target_hash }
 
     let of_bin t =
       let v =
@@ -494,7 +494,7 @@ struct
             let x = t.entries.(i) in
             match x with
             | None -> None
-            | Some i -> aux ~depth:(depth + 1) (get_tree ~find i).v)
+            | Some i -> aux ~depth:(depth + 1) (get_target ~find i).v)
       in
       aux ~depth t.v
 
@@ -537,14 +537,14 @@ struct
               let i = index ~seed:depth s in
               match entries.(i) with
               | None ->
-                  let tree = values (StepMap.singleton s v) in
-                  entries.(i) <- entry ~tree tree.hash;
+                  let target = values (StepMap.singleton s v) in
+                  entries.(i) <- entry ~target target.hash;
                   let t = branch { depth; length; entries } in
                   k t
               | Some n ->
-                  let t = get_tree ~find n in
-                  add ~depth:(depth + 1) ~find ~copy t s v @@ fun tree ->
-                  entries.(i) <- entry ~tree tree.hash;
+                  let t = get_target ~find n in
+                  add ~depth:(depth + 1) ~find ~copy t s v @@ fun target ->
+                  entries.(i) <- entry ~target target.hash;
                   let t = branch { depth; length; entries } in
                   k t))
 
@@ -576,9 +576,9 @@ struct
                 match entries.(i) with
                 | None -> assert false
                 | Some t ->
-                    let t = get_tree ~find t in
-                    remove ~depth:(depth + 1) ~find t s @@ fun tree ->
-                    entries.(i) <- entry ~tree (lazy (hash tree));
+                    let t = get_target ~find t in
+                    remove ~depth:(depth + 1) ~find t s @@ fun target ->
+                    entries.(i) <- entry ~target (lazy (hash target));
                     let t = branch { depth; length; entries } in
                     k t))
 
@@ -605,8 +605,8 @@ struct
         | Branch n ->
             Array.iter
               (function
-                | None | Some { tree = None; _ } -> ()
-                | Some ({ tree = Some t; _ } as i) ->
+                | None | Some { target = None; _ } -> ()
+                | Some ({ target = Some t; _ } as i) ->
                     let hash = hash_of_ptr i in
                     if mem hash then () else aux ~depth:(depth + 1) t)
               n.entries;
