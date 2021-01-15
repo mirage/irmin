@@ -790,9 +790,8 @@ struct
 
       let parse_from_file f = Sexplib.Sexp.load_sexp f
 
-      let sexp_of_hash _ =
-        Sexplib__Std.sexp_of_string "h"
-          (* Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h)) *)
+      let sexp_of_hash h =
+        Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h))
 
       let sexp_of_ihash h =
         Sexplib.Sexp.(List [
@@ -801,24 +800,72 @@ struct
           ]
           )
 
+      let sexp_of_metadata m =
+        Sexplib.Sexp.(Atom (Fmt.str "%a" (Irmin.Type.pp metadata_t) m))
+
+      let sexp_of_kind k =
+        let open Sexplib.Sexp in
+        match k with
+        | `Contents (h, m) ->
+          List [
+            Atom "B";
+            (* List [
+             *   Atom "hash"; *)
+            sexp_of_hash h;
+            (* ]; *)
+            (* List [
+             *   Atom "metadata"; *)
+              sexp_of_metadata m
+            (* ] *)
+          ]
+        | `Node h ->
+          List [
+            Atom "N";
+            sexp_of_hash h
+          ]
+
+      let sexp_of_step s =
+        Sexplib.Sexp.((* List [
+             * Atom "step"; *)
+            Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
+          (* ] *)
+          )
+
+      let sexp_of_seed s =
+        Sexplib.Sexp.(
+          List [
+            Atom "seed";
+            Sexplib__Std.sexp_of_int s
+          ]
+        )
+
+      let sexp_of_length l =
+        Sexplib.Sexp.(
+          List [
+            Atom "length";
+            Sexplib__Std.sexp_of_int l
+          ]
+        )
+
       let rec sexp_of_tree t =
-        Sexplib.Sexp.List [
-          Sexplib.Sexp.Atom "tree";
+        (* Sexplib.Sexp.List [
+         *   Sexplib.Sexp.Atom "tree"; *)
           match t with
-          | None -> Sexplib.Sexp.(List [Atom "empty"])
+          | None -> Sexplib.Sexp.Atom "None"
           | Some t -> sexp_of_t t
-        ]
+        (* ]                        *)
 
       and sexp_of_inode i =
-        Sexplib.Sexp.(List [
-            sexp_of_ihash i.I.i_hash;
+        (* Sexplib.Sexp.( *)
+          (* List [ *)
+            (* sexp_of_ihash i.I.i_hash; *)
             sexp_of_tree i.I.tree
-          ]
-          )
+          (* ] *)
+          (* ) *)
 
       and sexp_of_entry e =
         match e with
-        | I.Empty -> Sexplib.Sexp.List []
+        | I.Empty -> Sexplib.Sexp.Atom "E" (* Sexplib.Sexp.List [] *)
         | I.Inode i -> sexp_of_inode i
 
       and sexp_of_entries a =
@@ -827,46 +874,13 @@ struct
           Array.fold_left (fun acc e -> sexp_of_entry e :: acc) [] a
         )
 
-      and sexp_of_seed s =
-        Sexplib.Sexp.(
-          List [
-            Atom "seed";
-            Sexplib__Std.sexp_of_int s
-          ]
-        )
-
-      and sexp_of_length l =
-        Sexplib.Sexp.(
-          List [
-            Atom "length";
-            Sexplib__Std.sexp_of_int l
-          ]
-        )
-
       and sexp_of_inodes i =
         let open Sexplib.Sexp in
-        List [
-          sexp_of_seed i.I.seed;
-          sexp_of_length i.I.length;
+        (* List [ *)
+          (* sexp_of_seed i.I.seed; *)
+          (* sexp_of_length i.I.length; *)
           sexp_of_entries i.I.entries
-        ]
-
-      and sexp_of_kind k =
-        let open Sexplib.Sexp in
-        match k with
-        | `Contents (h, _) ->
-          List [
-            Atom "contents";
-            sexp_of_hash h
-          ]
-        | `Node h ->
-          List [
-            Atom "contents";
-            sexp_of_hash h
-          ]
-
-      and sexp_of_step s =
-        Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
+        (* ] *)
 
       and sexp_of_stepmap vs =
         let open Sexplib.Sexp in
@@ -875,7 +889,8 @@ struct
               List [
                 sexp_of_step s;
                 sexp_of_kind k
-              ] :: acc
+              ]
+                :: acc
             ) vs []
         )
 
@@ -884,35 +899,70 @@ struct
         match v with
         | I.Values vs ->
           List [
-            Atom "values";
+            Atom "V";
             sexp_of_stepmap vs
           ]
         | Inodes i ->
           List [
-            Atom "inodes";
+            Atom "I";
             sexp_of_inodes i
           ]
 
       and sexp_of_t t =
         Sexplib.Sexp.(
           List [
-            List [
-              Atom "hash";
-              Sexplib__Std.sexp_of_lazy_t sexp_of_hash t.hash
-            ];
-            List [
-              Atom "stable";
-              Sexplib__Std.sexp_of_bool t.stable
-            ];
-            List [
-              Atom "v";
+            (* List [ *)
+              (* Atom "hash"; *)
+            Sexplib__Std.sexp_of_lazy_t sexp_of_hash t.hash;
+            (* ]; *)
+            (* List [
+             *   Atom "stable";
+             *   Sexplib__Std.sexp_of_bool t.stable
+             * ]; *)
+            (* List [
+             *   Atom "v"; *)
               sexp_of_v t.v
-            ]
+            (* ] *)
           ]
         )
 
       let sexp_of_t t = sexp_of_t t.v
-          
+
+      exception Misconstructed_Sexp of string
+
+      (* let stepmap_of_sexp ss =
+       *   let open Sexplib.Sexp in
+       *   match ss with
+       *   | List l ->
+       *     List.fold_left (fun acc sk ->
+       *         let s, k =
+       *           match sk with
+       *           | List [ List [ Atom "step"; Atom st ];
+       *                    List [ Atom k; Atom sk ] ] ->
+       *             match k with
+       *             | "contents" ->  *)
+
+      let v_of_sexp _vs = I.Values StepMap.empty
+        (* let open Sexplib.Sexp in
+         * match vs with
+         * | List [ Atom "values"; s ] -> I.Values (stepmap_of_sexp s)
+         * | List [ Atom "inodes"; s ] -> I.Inodes (inodes_of_sexp s)
+         * | _ -> raise (Misconstructed_Sexp (to_string vs)) *)
+
+      let t_of_sexp ts =
+        let open Sexplib.Sexp in
+        let open I in
+        match ts with
+        | Atom s -> raise (Misconstructed_Sexp s)
+        | List [ List [ Atom "hash"; Atom h ];
+                 List [ Atom "stable"; Atom s ];
+                 List [ Atom "v"; sv ]
+               ] -> {hash = lazy (Result.get_ok (Irmin.Type.of_string hash_t h));
+                     stable = bool_of_string s;
+                     v = v_of_sexp sv}
+        | _ -> raise (Misconstructed_Sexp (to_string ts))
+
+      let t_of_sexp s = {find = niet; v = t_of_sexp s}
     end
   end
 end

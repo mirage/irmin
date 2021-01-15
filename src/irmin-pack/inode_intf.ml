@@ -28,6 +28,7 @@ module type Val_intf = sig
     val parse_from_string : string -> sexp
     val parse_from_file : string -> sexp
     val sexp_of_t : t -> sexp
+    val t_of_sexp : sexp -> t
   end
 end
 
