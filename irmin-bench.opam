@@ -8,7 +8,7 @@ dev-repo:     "git+https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
 build: [
- ["dune" "subst"] {pinned}
+ ["dune" "subst"] {dev}
  ["dune" "build" "-p" name "-j" jobs]
 ]
 
@@ -16,13 +16,14 @@ depends: [
   "dune"         {>= "2.7.0"}
   "irmin-pack"   {= version}
   "irmin-layers" {= version}
+  "irmin-test"   {= version}
   "cmdliner"
   "logs"
   "lwt"
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
-  "repr"
+  "repr" {>= "0.2.0"}
   "ppx_repr"
 ]
 

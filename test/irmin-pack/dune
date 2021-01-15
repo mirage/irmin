@@ -1,6 +1,7 @@
 (library
  (name test_pack)
- (modules test_pack multiple_instances test_existing_stores layered)
+ (modules test_pack multiple_instances test_existing_stores layered
+   test_inode)
  (libraries alcotest fmt common index irmin irmin-test irmin-pack
    irmin-pack.layered logs lwt lwt.unix fpath))
 

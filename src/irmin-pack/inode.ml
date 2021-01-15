@@ -318,6 +318,8 @@ struct
     let length t =
       match t.v with Values vs -> StepMap.cardinal vs | Tree vs -> vs.length
 
+    let stable t = t.stable
+
     let get_target ~find t =
       match t.target with
       | Some t -> t
@@ -500,89 +502,85 @@ struct
 
     let find ~find t s = find_value ~depth:0 ~find t s
 
-    let rec add ~depth ~find ~copy t s v k =
-      match find_value ~depth ~find t s with
-      | Some v' when equal_value v v' -> k t
-      | v' -> (
-          match t.v with
-          | Values vs ->
-              let length =
-                match v' with
-                | None -> StepMap.cardinal vs + 1
-                | Some _ -> StepMap.cardinal vs
+    let rec add ~depth ~find ~copy ~replace t s v k =
+      match t.v with
+      | Values vs ->
+          let length =
+            if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
+          in
+          let t =
+            if length <= Conf.entries then values (StepMap.add s v vs)
+            else
+              let vs = StepMap.bindings (StepMap.add s v vs) in
+              let empty =
+                tree
+                  { length = 0; depth; entries = Array.make Conf.entries None }
               in
-              let t =
-                if length <= Conf.entries then values (StepMap.add s v vs)
-                else
-                  let vs = StepMap.bindings (StepMap.add s v vs) in
-                  let empty =
-                    tree
-                      {
-                        length = 0;
-                        depth;
-                        entries = Array.make Conf.entries None;
-                      }
-                  in
-                  let aux t (s, v) =
-                    (add [@tailcall]) ~depth ~find ~copy:false t s v (fun x -> x)
-                  in
-                  List.fold_left aux empty vs
+              let aux t (s, v) =
+                (add [@tailcall]) ~depth ~find ~copy:false ~replace t s v
+                  (fun x -> x)
               in
+              List.fold_left aux empty vs
+          in
+          k t
+      | Tree t -> (
+          let length = if replace then t.length else t.length + 1 in
+          let entries = if copy then Array.copy t.entries else t.entries in
+          let i = index ~seed:depth s in
+          match entries.(i) with
+          | None ->
+              let target = values (StepMap.singleton s v) in
+              entries.(i) <- entry ~target target.hash;
+              let t = tree { depth; length; entries } in
               k t
-          | Tree t -> (
-              let length =
-                match v' with None -> t.length + 1 | Some _ -> t.length
-              in
-              let entries = if copy then Array.copy t.entries else t.entries in
-              let i = index ~seed:depth s in
-              match entries.(i) with
-              | None ->
-                  let target = values (StepMap.singleton s v) in
-                  entries.(i) <- entry ~target target.hash;
-                  let t = tree { depth; length; entries } in
-                  k t
-              | Some n ->
-                  let t = get_target ~find n in
-                  add ~depth:(depth + 1) ~find ~copy t s v @@ fun target ->
-                  entries.(i) <- entry ~target target.hash;
-                  let t = tree { depth; length; entries } in
-                  k t))
+          | Some n ->
+              let t = get_target ~find n in
+              add ~depth:(depth + 1) ~find ~copy ~replace t s v @@ fun target ->
+              entries.(i) <- entry ~target target.hash;
+              let t = tree { depth; length; entries } in
+              k t)
 
-    let add ~find ~copy t s v = add ~depth:0 ~find ~copy t s v (stabilize ~find)
+    let add ~find ~copy t s v =
+      (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+      match find_value ~depth:0 ~find t s with
+      | Some v' when equal_value v v' -> stabilize ~find t
+      | Some _ -> add ~depth:0 ~find ~copy ~replace:true t s v (stabilize ~find)
+      | None -> add ~depth:0 ~find ~copy ~replace:false t s v (stabilize ~find)
 
     let rec remove ~depth ~find t s k =
-      match find_value ~depth ~find t s with
-      | None -> k t
-      | Some _ -> (
-          match t.v with
-          | Values vs ->
-              let t = values (StepMap.remove s vs) in
-              k t
-          | Tree t -> (
-              let length = t.length - 1 in
-              if length <= Conf.entries then
-                let vs =
-                  list_tree ~offset:0 ~length:t.length ~find
-                    (empty_acc t.length) t
-                in
-                let vs = List.concat (List.rev vs.values) in
-                let vs = StepMap.of_list vs in
-                let vs = StepMap.remove s vs in
-                let t = values vs in
-                k t
-              else
-                let entries = Array.copy t.entries in
-                let i = index ~seed:depth s in
-                match entries.(i) with
-                | None -> assert false
-                | Some t ->
-                    let t = get_target ~find t in
-                    remove ~depth:(depth + 1) ~find t s @@ fun target ->
-                    entries.(i) <- entry ~target (lazy (hash target));
-                    let t = tree { depth; length; entries } in
-                    k t))
+      match t.v with
+      | Values vs ->
+          let t = values (StepMap.remove s vs) in
+          k t
+      | Tree t -> (
+          let length = t.length - 1 in
+          if length <= Conf.entries then
+            let vs =
+              list_tree ~offset:0 ~length:t.length ~find (empty_acc t.length)
+                t
+            in
+            let vs = List.concat (List.rev vs.values) in
+            let vs = StepMap.of_list vs in
+            let vs = StepMap.remove s vs in
+            let t = values vs in
+            k t
+          else
+            let entries = Array.copy t.entries in
+            let i = index ~seed:depth s in
+            match entries.(i) with
+            | None -> assert false
+            | Some t ->
+                let t = get_target ~find t in
+                remove ~depth:(depth + 1) ~find t s @@ fun target ->
+                entries.(i) <- entry ~target (lazy (hash target));
+                let t = tree { depth; length; entries } in
+                k t)
 
-    let remove ~find t s = remove ~find ~depth:0 t s (stabilize ~find)
+    let remove ~find t s =
+      (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+      match find_value ~depth:0 ~find t s with
+      | None -> stabilize ~find t
+      | Some _ -> remove ~find ~depth:0 t s (stabilize ~find)
 
     let v l : t =
       let len = List.length l in
@@ -760,6 +758,12 @@ struct
           pre_hash_node (Node.v vs)
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
+
+    module Private = struct
+      let hash t = I.hash t.v
+      let stable t = I.stable t.v
+      let length t = I.length t.v
+    end
   end
 end
 

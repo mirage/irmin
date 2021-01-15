@@ -14,6 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type Val_intf = sig
+  include Irmin.Private.Node.S
+
+  val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+
+  module Private : sig
+    val hash : t -> hash
+    val stable : t -> bool
+    val length : t -> int
+  end
+end
+
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
@@ -30,13 +42,7 @@ module type S = sig
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 
   module Key : Irmin.Hash.S with type t = key
-
-  module Val : sig
-    include Irmin.Private.Node.S with type t = value and type hash = key
-
-    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
-  end
-
+  module Val : Val_intf with type t = value and type hash = key
   include S.CHECKABLE with type 'a t := 'a t and type key := key
   include S.CLOSEABLE with type 'a t := 'a t
 
@@ -71,9 +77,7 @@ module type INTER = sig
     type nonrec hash = hash
     type t = { find : hash -> Val_impl.t option; v : Val_impl.t }
 
-    include Irmin.Private.Node.S with type hash := hash and type t := t
-
-    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+    include Val_intf with type hash := hash and type t := t
   end
 end
 

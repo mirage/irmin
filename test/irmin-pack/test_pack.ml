@@ -659,4 +659,5 @@ let misc =
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
     ("layers", Layered.tests);
+    ("inodes", Test_inode.tests);
   ]
