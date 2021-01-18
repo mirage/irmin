@@ -300,7 +300,8 @@ struct
         equal_hash (hash_of_ptr x) (hash_of_ptr y)
       in
       let open Irmin.Type in
-      record "Inode.ptr" (fun hash target -> { target_hash = lazy hash; target })
+      record "Inode.ptr" (fun hash target ->
+          { target_hash = lazy hash; target })
       |+ field "hash" hash_t (fun t -> Lazy.force t.target_hash)
       |+ field "target" (option t) (fun t -> t.target)
       |> sealr
@@ -556,8 +557,7 @@ struct
           let length = t.length - 1 in
           if length <= Conf.entries then
             let vs =
-              list_tree ~offset:0 ~length:t.length ~find (empty_acc t.length)
-                t
+              list_tree ~offset:0 ~length:t.length ~find (empty_acc t.length) t
             in
             let vs = List.concat (List.rev vs.values) in
             let vs = StepMap.of_list vs in
@@ -660,9 +660,7 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t =
-        Compress.v ~stable:t.stable ~hash:k (v t.v)
-      in
+      let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
@@ -704,9 +702,7 @@ struct
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      let t =
-        Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
-      in
+      let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
       (off, t)
 
     let decode_bin ~dict ~hash t off =
