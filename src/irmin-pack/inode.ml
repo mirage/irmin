@@ -421,7 +421,7 @@ struct
           { hash; stable = true; v = t.v }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
-    let index ~seed k = abs (hash_key ~seed k) mod Conf.entries
+    let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
     let entry ?target target_hash = Some { target; target_hash }
 
     let of_bin t =
@@ -492,7 +492,7 @@ struct
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
-            let i = index ~seed:depth s in
+            let i = index ~depth s in
             let x = t.entries.(i) in
             match x with
             | None -> None
@@ -526,7 +526,7 @@ struct
       | Tree t -> (
           let length = if replace then t.length else t.length + 1 in
           let entries = if copy then Array.copy t.entries else t.entries in
-          let i = index ~seed:depth s in
+          let i = index ~depth s in
           match entries.(i) with
           | None ->
               let target = values (StepMap.singleton s v) in
@@ -566,7 +566,7 @@ struct
             k t
           else
             let entries = Array.copy t.entries in
-            let i = index ~seed:depth s in
+            let i = index ~depth s in
             match entries.(i) with
             | None -> assert false
             | Some t ->
