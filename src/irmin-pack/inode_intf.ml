@@ -81,11 +81,8 @@ module type INTER = sig
     val length : t -> int
     val index : depth:int -> step -> int
 
-    val check_stable : t -> bool
-    (** checks if stability invariants hold *)
-
-    val contains_empty_map : t -> bool
-    (** checks if an inode's children contain an empty map. *)
+    val integrity_check : t -> bool
+    (** Checks the integrity of an inode. *)
   end
 end
 

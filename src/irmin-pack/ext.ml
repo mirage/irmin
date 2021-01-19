@@ -353,7 +353,7 @@ struct
       match heads with None -> Repo.heads t | Some m -> Lwt.return m
     in
     let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
-    let+ () = Repo.iter ~cache_size:10_000 ~min:[] ~max:hashes ~node t in
+    let+ () = Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node t in
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
     if !errors = [] then
       Fmt.kstrf (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
