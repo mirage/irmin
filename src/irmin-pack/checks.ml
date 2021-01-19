@@ -148,12 +148,59 @@ module Make (Args : Make_args) = struct
       Cmdliner.Term.(term_internal $ setup_log, info ~doc "integrity-check")
   end
 
+  module Integrity_check_inodes = struct
+    let conf root = Config.v ~readonly:true ~fresh:false root
+
+    let heads =
+      let open Cmdliner.Arg in
+      value
+      & opt (some (list ~sep:',' string)) None
+      & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
+
+    let run ~root ~heads =
+      let conf = conf root in
+      let* repo = Store.Repo.v conf in
+      let* heads =
+        match heads with
+        | None -> Store.Repo.heads repo
+        | Some heads ->
+            Lwt_list.filter_map_s
+              (fun x ->
+                match Repr.of_string Store.Hash.t x with
+                | Ok x -> Store.Commit.of_hash repo x
+                | _ -> Lwt.return None)
+              heads
+      in
+      let* () =
+        Store.integrity_check_inodes ~heads repo >|= function
+        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
+        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg)
+      in
+      Store.Repo.close repo
+
+    let term_internal =
+      Cmdliner.Term.(
+        const (fun root heads () -> Lwt_main.run (run ~root ~heads))
+        $ path
+        $ heads)
+
+    let term =
+      let doc = "Check integrity of inodes in an existing store." in
+      Cmdliner.Term.
+        (term_internal $ setup_log, info ~doc "integrity-check-inodes")
+  end
+
   module Cli = struct
     open Cmdliner
 
     let main
-        ?(terms = [ Stat.term; Reconstruct_index.term; Integrity_check.term ])
-        () : empty =
+        ?(terms =
+          [
+            Stat.term;
+            Reconstruct_index.term;
+            Integrity_check.term;
+            Integrity_check_inodes.term;
+          ]) () : empty =
       let default =
         let default_info =
           let doc = "Check Irmin data-stores." in

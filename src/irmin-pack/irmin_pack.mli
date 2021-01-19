@@ -70,6 +70,11 @@ module Make_ext
   include Store.S with type repo := repo
 
   val reconstruct_index : ?output:string -> Irmin.config -> unit
+
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
 module type MAKER = functor
@@ -93,6 +98,11 @@ module type MAKER = functor
   include Store.S with type repo := repo
 
   val reconstruct_index : ?output:string -> Irmin.config -> unit
+
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
 module Make : MAKER

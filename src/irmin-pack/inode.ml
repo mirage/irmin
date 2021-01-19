@@ -878,6 +878,22 @@ struct
     Inter.decode_bin ~dict ~hash buff off |> fst
 
   module Val = Inter.Val
+
+  let integrity_check_inodes t k =
+    find t k >|= function
+    | None ->
+        (* we are traversing the node graph, should find all values *)
+        assert false
+    | Some v ->
+        if
+          Inter.Val.check_stable v
+          && not (Inter.Val.contains_empty_map v)
+        then Ok ()
+        else
+          let msg =
+            Fmt.str "Problematic inode %a" (Irmin.Type.pp Inter.Val.t) v
+          in
+          Error msg
 end
 
 module Make

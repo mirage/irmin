@@ -116,4 +116,6 @@ struct
 
   let decode_bin ~dict ~hash buff off =
     Inter.decode_bin ~dict ~hash buff off |> fst
+
+  let integrity_check_inodes _ _ = failwith "TODO"
 end

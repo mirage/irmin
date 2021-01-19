@@ -48,6 +48,13 @@ module type S = sig
       unit
   end
 
+  (** Checks the integrity of inodes in a store *)
+  module Integrity_check_inodes : sig
+    include
+      Subcommand
+        with type run := root:string -> heads:string list option -> unit Lwt.t
+  end
+
   val cli :
     ?terms:(unit Cmdliner.Term.t * Cmdliner.Term.info) list -> unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
@@ -63,6 +70,11 @@ module type Make_args = sig
 
     (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
     val reconstruct_index : ?output:string -> Irmin.config -> unit
+
+    val integrity_check_inodes :
+      ?heads:commit list ->
+      repo ->
+      ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
   end
 end
 
