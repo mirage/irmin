@@ -14,8 +14,6 @@ build: [
 
 depends: [
   "dune" {>= "2.7.0"}
-  "ocaml" {>= "4.08.0"}
-  "ppxlib" {>= "0.12.0" & < "0.18.0"}
   "ppx_repr" {>= "0.2.0"}
   "irmin" {with-test & post & = version}
 ]
