@@ -1,3 +1,15 @@
+### Unreleased
+
+#### Fixed
+- **irmin-pack**
+  - Fix a bug in `inode` where the `remove` function could cause hashing
+    instabilities. No user-facing change since this function is not being used
+    yet. (#1247, @Ngoguey42, @icristescu)
+
+#### Added
+
+#### Changed
+
 ### 2.3.0 (2020-01-12)
 
 ### Fixed

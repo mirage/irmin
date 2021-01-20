@@ -23,6 +23,7 @@ module type Val_intf = sig
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
+    val index : depth:int -> step -> int
   end
 end
 

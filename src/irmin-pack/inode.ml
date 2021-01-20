@@ -554,8 +554,8 @@ struct
           let t = values (StepMap.remove s vs) in
           k t
       | Tree t -> (
-          let length = t.length - 1 in
-          if length <= Conf.entries then
+          let len = t.length - 1 in
+          if len <= Conf.entries then
             let vs =
               list_tree ~offset:0 ~length:t.length ~find (empty_acc t.length) t
             in
@@ -571,10 +571,15 @@ struct
             | None -> assert false
             | Some t ->
                 let t = get_target ~find t in
-                remove ~depth:(depth + 1) ~find t s @@ fun target ->
-                entries.(i) <- entry ~target (lazy (hash target));
-                let t = tree { depth; length; entries } in
-                k t)
+                if length t = 1 then (
+                  entries.(i) <- None;
+                  let t = tree { depth; length = len; entries } in
+                  k t)
+                else
+                  remove ~depth:(depth + 1) ~find t s @@ fun target ->
+                  entries.(i) <- entry ~target (lazy (hash target));
+                  let t = tree { depth; length = len; entries } in
+                  k t)
 
     let remove ~find t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
@@ -759,6 +764,7 @@ struct
       let hash t = I.hash t.v
       let stable t = I.stable t.v
       let length t = I.length t.v
+      let index = I.index
     end
   end
 end
