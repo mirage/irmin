@@ -155,24 +155,20 @@ let test_remove_inodes () =
   Alcotest.(check bool) "v5 stable" (Private.stable v5) true;
   Context.close t
 
-
 (** Test remove and add values to go from stable to unstable inodes. *)
 let test_serde_inodes () =
   rm_dir root;
   Context.get_store () >>= fun t ->
-  let st = "((a 3)(b 2))" in
-  let se = Private.parse_from_string st in
-  Alcotest.(check string) "same string" st
-    (Format.asprintf "%a" Sexplib.Sexp.pp se);
-  let v1 =
-    Inode.Val.v []
-  in
-  let s1 = Private.sexp_of_t v1 in
-  let st1 = Sexplib__Std.string_of_sexp s1 in
-  Format.eprintf "ST1 : %s@." st1;
-  Format.eprintf "S1 : %a@." Sexplib.Sexp.pp s1;
-  Alcotest.(check string) "sexp of v1 is (true)" "true"
-     (Format.asprintf "%a" Sexplib.Sexp.pp s1);
+  let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal foo) ] in
+  let v2 = Inode.Val.add v1 "z" (normal foo) in
+  let s1 = Private.Serde.sexp_of_t v1 in
+  let s2 = Private.Serde.sexp_of_t v2 in
+  let v1s, v1h = Private.Serde.t_of_sexp s1 in
+  let v2s, v2h = Private.Serde.t_of_sexp s2 in
+  check_values "check v1 and t_of_sexp @@ sexp_of_t v1" v1 v1s;
+  check_hardcoded_hash "hash v1" v1h v1s;
+  check_values "check v2 and t_of_sexp @@ sexp_of_t v2" v2 v2s;
+  check_hardcoded_hash "hash v1" v2h v2s;
   Context.close t
 
 let tests =
