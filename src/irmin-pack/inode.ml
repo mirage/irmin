@@ -790,33 +790,8 @@ struct
         let sexp_of_step s =
           Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
 
-        let rec list_of_entries a =
-          Array.fold_left
-            (fun acc e ->
-              match e with
-              | None -> acc
-              | Some p -> (
-                  match p.I.target with
-                  | None -> acc
-                  | Some t -> List.rev_append (list_of_t t) acc))
-            [] a
-
-        and list_of_tree t = list_of_entries t.I.entries
-
-        and list_of_stepmap vs =
-          let open Sexplib.Sexp in
-          StepMap.fold
-            (fun s k acc -> List [ sexp_of_step s; sexp_of_kind k ] :: acc)
-            vs []
-
-        and list_of_v v =
-          match v with
-          | I.Values vs -> list_of_stepmap vs
-          | Tree t -> list_of_tree t
-
-        and list_of_t t = list_of_v t.I.v
-
         let sexp_of_t t =
+          let l = I.list ~find:t.find t.v in
           Sexplib.Sexp.(
             List
               ([
@@ -824,7 +799,9 @@ struct
                  Atom (string_of_int Conf.stable_hash);
                  sexp_of_lazy_hash t.v.I.hash;
                ]
-              @ list_of_t t.v))
+              @ List.map
+                  (fun (s, k) -> List [ sexp_of_step s; sexp_of_kind k ])
+                  l))
 
         exception Misconstructed_Sexp of string
         exception Wrong_Config of (int * int) * (int * int)
@@ -834,23 +811,26 @@ struct
         let step_value_list_of_sexp (s : sexp list) =
           let rec aux acc = function
             | [] -> acc
-            | Sexplib.Sexp.(List [ Atom step; List value ]) :: tl ->
+            | Sexplib.Sexp.(List [ Atom step; values ]) :: tl ->
                 let value =
-                  match value with
-                  | [ Atom "B"; Atom hash; Atom metadata ] ->
+                  match values with
+                  | List [ Atom "B"; Atom hash; Atom metadata ] ->
                       let hash = ?>=(Irmin.Type.of_string hash_t hash) in
                       let meta =
                         ?>=(Irmin.Type.of_string metadata_t metadata)
                       in
                       `Contents (hash, meta)
-                  | [ Atom "N"; Atom hash ] ->
+                  | List [ Atom "N"; Atom hash ] ->
                       let hash = ?>=(Irmin.Type.of_string hash_t hash) in
                       `Node hash
-                  | _ -> raise Exit
+                  | _ ->
+                      raise
+                        (Misconstructed_Sexp (Sexplib.Sexp.to_string values))
                 in
                 aux ((?>=(Irmin.Type.of_string step_t step), value) :: acc) tl
-            | _ -> raise Exit
+            | hd :: _ -> raise (Misconstructed_Sexp (Sexplib.Sexp.to_string hd))
           in
+
           aux [] s
 
         let t_of_sexp ts =
