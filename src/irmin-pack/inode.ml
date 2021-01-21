@@ -755,101 +755,212 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
 
+    module type DATA_FORMAT = sig
+      type vt
+      type t
+
+      exception Misconstructed_Data of string
+
+      val of_int : ?label:string -> int -> t
+      val to_int : ?label:string -> t -> int
+      val of_string : ?label:string -> string -> t
+      val to_string : ?label:string -> t -> string
+      val of_hash : ?label:string -> hash -> t
+      val to_hash : ?label:string -> t -> hash
+      val of_lazy_hash : ?label:string -> hash lazy_t -> t
+      val to_lazy_hash : ?label:string -> t -> hash lazy_t
+      val of_metadata : ?label:string -> metadata -> t
+      val to_metadata : ?label:string -> t -> metadata
+
+      val of_value :
+        ?label:string ->
+        ?label_hash:string ->
+        ?label_metadata:string ->
+        [< `Contents of hash * metadata | `Node of hash ] ->
+        t
+
+      val to_value :
+        ?label:string ->
+        ?label_hash:string ->
+        ?label_metadata:string ->
+        t ->
+        [> `Contents of hash * metadata | `Node of hash ]
+
+      val of_step : ?label:string -> step -> t
+      val to_step : ?label:string -> t -> step
+      val join : ?label:string -> t list -> t
+      val disjoin : ?label:string -> t -> t list
+      val parse_from_file : string -> t
+      val parse_from_string : string -> t
+    end
+
+    module Sexp : DATA_FORMAT with type t = Sexplib.Sexp.t = struct
+      open Sexplib.Sexp
+
+      type vt = t
+      type t = Sexplib.Sexp.t
+
+      exception Misconstructed_Data of string
+      exception Wrong_label of string * string
+
+      let ( ?>= ) v = match v with Ok v -> v | Error (`Msg e) -> failwith e
+
+      let parse_from_string s =
+        let lexbuf = Lexing.from_string s in
+        Sexplib.Sexp.scan_sexp lexbuf
+
+      (* If a label is provided, construct a sexp starting with this label *)
+      let ( >?= ) l s =
+        match l with None -> s | Some lbl -> List [ Atom lbl; s ]
+
+      (* If a label is provided, checks that the sexp starts with the
+       * proper label and returns the rest of the sexp *)
+      let ( <?= ) l s =
+        match l with
+        | None -> s
+        | Some l1 -> (
+            match s with
+            | List [ Atom l2; s ] when l1 = l2 -> s
+            | List [ Atom l2; _ ] -> raise (Wrong_label (l1, l2))
+            | s -> raise (Misconstructed_Data (to_string s)))
+
+      let parse_from_file f = Sexplib.Sexp.load_sexp f
+
+      let of_hash ?label h =
+        label >?= Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h))
+
+      let to_hash ?label h =
+        match label <?= h with
+        | Atom h -> ?>=(Irmin.Type.of_string hash_t h)
+        | s -> raise (Misconstructed_Data (to_string s))
+
+      let of_int ?label i = label >?= Sexplib.Std.sexp_of_int i
+      let to_int ?label i = Sexplib.Std.int_of_sexp (label <?= i)
+      let of_string ?label s = label >?= Sexplib.Std.sexp_of_string s
+      let to_string ?label s = Sexplib.Std.string_of_sexp (label <?= s)
+      let of_lazy_hash ?label h = label >?= Sexplib.Std.sexp_of_lazy_t of_hash h
+
+      let to_lazy_hash ?label h =
+        match label <?= h with
+        | Atom h -> lazy ?>=(Irmin.Type.of_string hash_t h)
+        | s -> raise (Misconstructed_Data (to_string s))
+
+      let of_metadata ?label m =
+        label >?= Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp metadata_t) m)
+
+      let to_metadata ?label m =
+        match label <?= m with
+        | Atom m -> ?>=(Irmin.Type.of_string metadata_t m)
+        | s -> raise (Misconstructed_Data (to_string s))
+
+      (* A value is either a Content (B for blob) or a Node (N) *)
+      let of_value ?label ?label_hash ?label_metadata v =
+        label
+        >?=
+        match v with
+        | `Contents (h, m) ->
+            List
+              [
+                Atom "B";
+                of_hash ?label:label_hash h;
+                of_metadata ?label:label_metadata m;
+              ]
+        | `Node h -> List [ Atom "N"; of_hash ?label:label_hash h ]
+
+      let to_value ?label ?label_hash ?label_metadata v =
+        match label <?= v with
+        | List [ Atom "B"; h; m ] ->
+            let h = to_hash ?label:label_hash h in
+            let m = to_metadata ?label:label_metadata m in
+            `Contents (h, m)
+        | List [ Atom "N"; h ] ->
+            let h = to_hash ?label:label_hash h in
+            `Node h
+        | v -> raise (Misconstructed_Data (Sexplib.Sexp.to_string v))
+
+      let of_step ?label s =
+        label >?= Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
+
+      let to_step ?label s =
+        match label <?= s with
+        | Atom s -> ?>=(Irmin.Type.of_string step_t s)
+        | s -> raise (Misconstructed_Data (to_string s))
+
+      let join ?label tl = label >?= List tl
+      let disjoin ?label t = match label <?= t with List l -> l | _ -> [ t ]
+    end
+
+    module type SERDE = sig
+      exception Wrong_Config of (int * int) * (int * int)
+
+      type d
+
+      val of_t : t -> d
+      val to_t : d -> t * hash
+    end
+
+    module MinimalSerde (D : DATA_FORMAT) : SERDE with type d = D.t = struct
+      exception Wrong_Config of (int * int) * (int * int)
+
+      type d = D.t
+
+      (* This function combines the minimal number of elements needed to serialise
+       * an inode. It will use the D.join function to create a data composed of
+       * a list of the following form
+       * (considering we have (s1, k1)...(sn, kn) bindings:
+       * [D.of_int Conf.entries;
+       *  D.of_int Conf.stable_hash;
+       *  D.of_lazy_hash hash;
+       *  D.join [ D.of_step s1; D.of_value k1 ];
+       *  D.join [ D.of_step s2; D.of_value k2 ];
+       *  ...
+       *  D.join [ D.of_step sn; D.of_value kn ];
+       * ]
+       *)
+      let of_t t =
+        let l = I.list ~find:t.find t.v in
+        D.join
+          (D.of_int Conf.entries
+          :: D.of_int Conf.stable_hash
+          :: D.of_lazy_hash t.v.I.hash
+          :: List.map (fun (s, k) -> D.join [ D.of_step s; D.of_value k ]) l)
+
+      (* svl should represent a list of step * value that were serialized as
+       * D.join [ D.of_step step; D.of_kind value ] *)
+      let step_value_list_of_sexp svl =
+        let rec aux acc svl =
+          match svl with
+          | [] -> acc
+          | hd :: tl -> (
+              match D.disjoin hd with
+              | [ step; value ] ->
+                  let step = D.to_step step in
+                  let value = D.to_value value in
+                  aux ((step, value) :: acc) tl
+              | _ -> raise (D.Misconstructed_Data (D.to_string hd)))
+        in
+
+        aux [] svl
+
+      let to_t ts =
+        match D.disjoin ts with
+        | entries :: stable_hash :: hash :: step_value_list ->
+            let entries = D.to_int entries in
+            let stable_hash = D.to_int stable_hash in
+            if Conf.stable_hash <> stable_hash || Conf.entries <> entries then
+              raise
+                (Wrong_Config
+                   ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
+            else (v @@ step_value_list_of_sexp step_value_list, D.to_hash hash)
+        | _ -> raise (D.Misconstructed_Data (D.to_string ts))
+    end
+
+    module MinimalSerdeSexp = MinimalSerde (Sexp)
+
     module Private = struct
       let hash t = I.hash t.v
       let stable t = I.stable t.v
       let length t = I.length t.v
-
-      module Serde = struct
-        type sexp = Sexplib.Sexp.t
-
-        (* type ptr = { target_hash : hash Lazy.t; mutable target : t option }
-         * and tree = { depth : int; length : int; entries : ptr option array }
-         * and v = Values of value StepMap.t | Tree of tree
-         * and t = { hash : hash Lazy.t; stable : bool; v : v } *)
-
-        let parse_from_string s =
-          let lexbuf = Lexing.from_string s in
-          Sexplib.Sexp.scan_sexp lexbuf
-
-        let parse_from_file f = Sexplib.Sexp.load_sexp f
-        let sexp_of_hash h = Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h))
-        let sexp_of_lazy_hash h = Sexplib.Std.sexp_of_lazy_t sexp_of_hash h
-
-        let sexp_of_metadata m =
-          Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp metadata_t) m)
-
-        (* A kind is either a Content (B for blob) or a Node (N) *)
-        let sexp_of_kind k =
-          let open Sexplib.Sexp in
-          match k with
-          | `Contents (h, m) ->
-              List [ Atom "B"; sexp_of_hash h; sexp_of_metadata m ]
-          | `Node h -> List [ Atom "N"; sexp_of_hash h ]
-
-        let sexp_of_step s =
-          Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
-
-        let sexp_of_t t =
-          let l = I.list ~find:t.find t.v in
-          Sexplib.Sexp.(
-            List
-              ([
-                 Atom (string_of_int Conf.entries);
-                 Atom (string_of_int Conf.stable_hash);
-                 sexp_of_lazy_hash t.v.I.hash;
-               ]
-              @ List.map
-                  (fun (s, k) -> List [ sexp_of_step s; sexp_of_kind k ])
-                  l))
-
-        exception Misconstructed_Sexp of string
-        exception Wrong_Config of (int * int) * (int * int)
-
-        let ( ?>= ) v = match v with Ok v -> v | Error (`Msg e) -> failwith e
-
-        let step_value_list_of_sexp (s : sexp list) =
-          let rec aux acc = function
-            | [] -> acc
-            | Sexplib.Sexp.(List [ Atom step; values ]) :: tl ->
-                let value =
-                  match values with
-                  | List [ Atom "B"; Atom hash; Atom metadata ] ->
-                      let hash = ?>=(Irmin.Type.of_string hash_t hash) in
-                      let meta =
-                        ?>=(Irmin.Type.of_string metadata_t metadata)
-                      in
-                      `Contents (hash, meta)
-                  | List [ Atom "N"; Atom hash ] ->
-                      let hash = ?>=(Irmin.Type.of_string hash_t hash) in
-                      `Node hash
-                  | _ ->
-                      raise
-                        (Misconstructed_Sexp (Sexplib.Sexp.to_string values))
-                in
-                aux ((?>=(Irmin.Type.of_string step_t step), value) :: acc) tl
-            | hd :: _ -> raise (Misconstructed_Sexp (Sexplib.Sexp.to_string hd))
-          in
-
-          aux [] s
-
-        let t_of_sexp ts =
-          let open Sexplib.Sexp in
-          match ts with
-          | List
-              (Atom entries :: Atom stable_hash :: Atom hash :: step_value_list)
-            ->
-              let entries = int_of_string entries in
-              let stable_hash = int_of_string stable_hash in
-              if Conf.stable_hash <> stable_hash || Conf.entries <> entries then
-                raise
-                  (Wrong_Config
-                     ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
-              else
-                ( v @@ step_value_list_of_sexp step_value_list,
-                  ?>=(Irmin.Type.of_string hash_t hash) )
-          | _ -> raise (Misconstructed_Sexp (to_string ts))
-      end
     end
   end
 end
