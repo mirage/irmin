@@ -845,10 +845,10 @@ struct
                 raise
                   (Wrong_Config
                      ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
-              else (v @@ step_value_list_of_sexp step_value_list, hash)
+              else
+                ( v @@ step_value_list_of_sexp step_value_list,
+                  ?>=(Irmin.Type.of_string hash_t hash) )
           | _ -> raise (Misconstructed_Sexp (to_string ts))
-
-        (* let t_of_sexp s = { find = niet; v = t_of_sexp s } *)
       end
     end
   end
