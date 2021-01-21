@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
@@ -224,15 +224,17 @@ module Json_tree (Store : Store.S with type contents = json) = struct
     Store.Tree.add_tree tree key c
 
   let get_tree (tree : Store.tree) key =
-    Store.Tree.get_tree tree key >>= fun t ->
-    Store.Tree.to_concrete t >|= fun c -> of_concrete_tree c
+    let* t = Store.Tree.get_tree tree key in
+    let+ c = Store.Tree.to_concrete t in
+    of_concrete_tree c
 
   let set t key j ~info =
     set_tree Store.Tree.empty Store.Key.empty j >>= function
     | tree -> Store.set_tree_exn ~info t key tree
 
   let get t key =
-    Store.get_tree t key >>= fun tree -> get_tree tree Store.Key.empty
+    let* tree = Store.get_tree t key in
+    get_tree tree Store.Key.empty
 end
 
 module String = struct
@@ -265,7 +267,7 @@ struct
 
   let add_opt t = function
     | None -> Lwt.return_none
-    | Some v -> add t v >>= fun k -> Lwt.return_some k
+    | Some v -> add t v >>= Lwt.return_some
 
   let merge t =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)

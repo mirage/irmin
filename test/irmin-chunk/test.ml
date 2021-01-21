@@ -15,8 +15,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
-
+let ( >>= ) = Lwt.Infix.( >>= )
+let ( >|= ) = Lwt.Infix.( >|= )
+let ( let* ) = ( >>= )
+let ( let+ ) = ( >|= )
 let () = Printexc.record_backtrace true
 let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
@@ -30,15 +32,15 @@ let hash x = Test_chunk.Key.hash (fun l -> l x)
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
-  AO.v () >>= fun t ->
+  let* t = AO.v () in
   let test size =
     let name = Printf.sprintf "size %d" size in
     let v = String.make size 'x' in
-    AO.batch t (fun t -> AO.add t v) >>= fun k ->
+    let* k = AO.batch t (fun t -> AO.add t v) in
     (if stable then
      let str = value_to_bin v in
      Alcotest.(check key_t) (name ^ " is stable") k (hash str));
-    AO.find t k >|= fun v' ->
+    let+ v' = AO.find t k in
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
   let x = 40 in

@@ -1,7 +1,8 @@
 (library
  (name irmin_test)
  (public_name irmin-test)
- (modules Irmin_test Store Store_graph Store_watch Common Layered_store)
+ (modules Irmin_test Store Store_graph Store_watch Common Layered_store
+   Import)
  (preprocess
   (pps ppx_irmin))
  (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt

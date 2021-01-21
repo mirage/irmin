@@ -15,7 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+let ( >>= ) = Lwt.Infix.( >>= )
+let ( >|= ) = Lwt.Infix.( >|= )
+let ( let* ) = ( >>= )
 
 type t = {
   root : string;
@@ -167,31 +169,34 @@ module Make (Store : Irmin.KV with type contents = string) = struct
      [t.tree_add] files + one directory going to the next levele. *)
   let init t config =
     let tree = Store.Tree.empty in
-    Store.Repo.v config >>= Store.master >>= fun v ->
-    times ~n:t.depth ~init:tree (fun depth tree ->
-        let paths = Array.init (t.tree_add + 1) (path ~depth) in
-        times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) "init"))
-    >>= fun tree ->
+    let* v = Store.Repo.v config >>= Store.master in
+    let* tree =
+      times ~n:t.depth ~init:tree (fun depth tree ->
+          let paths = Array.init (t.tree_add + 1) (path ~depth) in
+          times ~n:t.tree_add ~init:tree (fun n tree ->
+              Store.Tree.add tree paths.(n) "init"))
+    in
     Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
 
   let run t config size =
-    Store.Repo.v config >>= fun r ->
-    Store.master r >>= fun v ->
+    let* r = Store.Repo.v config in
+    let* v = Store.master r in
     Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
-    times ~n:t.ncommits ~init:() (fun i () ->
-        Store.get_tree v [] >>= fun tree ->
-        if i mod t.gc = 0 then Gc.full_major ();
-        if i mod t.display = 0 then (
-          plot_progress i t.ncommits;
-          print_stats ~size ~commits:i);
-        times ~n:t.tree_add ~init:tree (fun n tree ->
-            Store.Tree.add tree paths.(n) (string_of_int i))
-        >>= fun tree ->
-        Store.set_tree_exn v ~info [] tree >|= fun () ->
-        if t.clear then Store.Tree.clear tree)
-    >>= fun () ->
+    let* () =
+      times ~n:t.ncommits ~init:() (fun i () ->
+          let* tree = Store.get_tree v [] in
+          if i mod t.gc = 0 then Gc.full_major ();
+          if i mod t.display = 0 then (
+            plot_progress i t.ncommits;
+            print_stats ~size ~commits:i);
+          let* tree =
+            times ~n:t.tree_add ~init:tree (fun n tree ->
+                Store.Tree.add tree paths.(n) (string_of_int i))
+          in
+          Store.set_tree_exn v ~info [] tree >|= fun () ->
+          if t.clear then Store.Tree.clear tree)
+    in
     Store.Repo.close r >|= fun () -> Fmt.epr "\n[run done]\n%!"
 
   let main t config size =

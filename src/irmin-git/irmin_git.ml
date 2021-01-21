@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 module Metadata = struct
   module X = struct
@@ -137,14 +137,14 @@ struct
 
     let add t v =
       let v = V.to_git v in
-      G.write t v >>= handle_git_err >>= fun (k, _) ->
+      let* k, _ = G.write t v >>= handle_git_err in
       Log.debug (fun l -> l "add %a" pp_key k);
       Lwt.return k
 
     let equal_hash = Irmin.Type.(unstage (equal H.t))
 
     let unsafe_add t k v =
-      add t v >|= fun k' ->
+      let+ k' = add t v in
       if equal_hash k k' then ()
       else
         Fmt.failwith
@@ -565,13 +565,15 @@ functor
 
     let watch_key t key ?init f =
       Log.debug (fun l -> l "watch_key %a" pp_key key);
-      listen_dir t >>= fun stop ->
-      W.watch_key t.w key ?init f >|= fun w -> (w, stop)
+      let* stop = listen_dir t in
+      let+ w = W.watch_key t.w key ?init f in
+      (w, stop)
 
     let watch t ?init f =
       Log.debug (fun l -> l "watch");
-      listen_dir t >>= fun stop ->
-      W.watch t.w ?init f >|= fun w -> (w, stop)
+      let* stop = listen_dir t in
+      let+ w = W.watch t.w ?init f in
+      (w, stop)
 
     let unwatch t (w, stop) = stop () >>= fun () -> W.unwatch t.w w
 
@@ -580,24 +582,28 @@ functor
       let dot_git = G.dotgit t in
       let write_head head =
         let head = Git.Reference.Ref head in
-        ((if G.has_global_checkout then
-          Lwt_mutex.with_lock m (fun () ->
-              G.Ref.write t Git.Reference.head head)
-         else Lwt.return (Ok ()))
-         >|= function
-         | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
-         | Ok () -> ())
-        >|= fun () -> head
+        let+ () =
+          (if G.has_global_checkout then
+           Lwt_mutex.with_lock m (fun () ->
+               G.Ref.write t Git.Reference.head head)
+          else Lwt.return (Ok ()))
+          >|= function
+          | Error e ->
+              Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
+          | Ok () -> ()
+        in
+        head
       in
-      (match head with
-      | Some h -> write_head h
-      | None -> (
-          G.Ref.read t Git.Reference.head >>= function
-          | Error (`Reference_not_found _ | `Not_found _) ->
-              write_head (git_of_branch B.master)
-          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
-          | Ok r -> Lwt.return r))
-      >|= fun git_head ->
+      let+ git_head =
+        match head with
+        | Some h -> write_head h
+        | None -> (
+            G.Ref.read t Git.Reference.head >>= function
+            | Error (`Reference_not_found _ | `Not_found _) ->
+                write_head (git_of_branch B.master)
+            | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+            | Ok r -> Lwt.return r)
+      in
       let w =
         try Hashtbl.find watches (G.dotgit t)
         with Not_found ->
@@ -609,7 +615,7 @@ functor
 
     let list { t; _ } =
       Log.debug (fun l -> l "list");
-      G.Ref.list t >|= fun refs ->
+      let+ refs = G.Ref.list t in
       List.fold_left
         (fun acc (r, _) ->
           match branch_of_git r with None -> acc | Some r -> r :: acc)
@@ -635,8 +641,9 @@ functor
       Log.debug (fun f -> f "set %a" pp_branch r);
       let gr = git_of_branch r in
       Lwt_mutex.with_lock t.m @@ fun () ->
-      G.Ref.write t.t gr (Git.Reference.Uid k) >>= handle_git_err >>= fun () ->
-      W.notify t.w r (Some k) >>= fun () -> write_index t gr k
+      let* () = G.Ref.write t.t gr (Git.Reference.Uid k) >>= handle_git_err in
+      let* () = W.notify t.w r (Some k) in
+      write_index t gr k
 
     let remove t r =
       Log.debug (fun f -> f "remove %a" pp_branch r);
@@ -658,38 +665,45 @@ functor
       let c = function None -> None | Some h -> Some (Git.Reference.Uid h) in
       let ok r = handle_git_err r >|= fun () -> true in
       Lwt_mutex.with_lock t.m (fun () ->
-          (G.Ref.read t.t gr >>= function
-           | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
-           | Ok x -> Lwt.return_some x
-           | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e)
-          >>= fun x ->
-          (if not (eq_head_contents_opt x (c test)) then Lwt.return_false
-          else
-            match c set with
-            | None -> G.Ref.remove t.t gr >>= ok
-            | Some h -> G.Ref.write t.t gr h >>= ok)
-          >>= fun b ->
-          (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
-          (if
-           (* We do not protect [write_index] because it can take a long
-              time and we don't want to hold the lock for too long. Would
-              be safer to grab a lock, although the expanded filesystem
-              is not critical for Irmin consistency (it's only a
-              convenience for the user). *)
-           b
-          then
-           match set with
-           | None -> Lwt.return_unit
-           | Some v -> write_index t gr v
-          else Lwt.return_unit)
-          >|= fun () -> b)
+          let* x =
+            G.Ref.read t.t gr >>= function
+            | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
+            | Ok x -> Lwt.return_some x
+            | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+          in
+          let* b =
+            if not (eq_head_contents_opt x (c test)) then Lwt.return_false
+            else
+              match c set with
+              | None -> G.Ref.remove t.t gr >>= ok
+              | Some h -> G.Ref.write t.t gr h >>= ok
+          in
+          let* () =
+            if
+              (* We do not protect [write_index] because it can take a long
+                 time and we don't want to hold the lock for too long. Would
+                 be safer to grab a lock, although the expanded filesystem
+                 is not critical for Irmin consistency (it's only a
+                 convenience for the user). *)
+              b
+            then W.notify t.w r set
+            else Lwt.return_unit
+          in
+          let+ () =
+            if b then
+              match set with
+              | None -> Lwt.return_unit
+              | Some v -> write_index t gr v
+            else Lwt.return_unit
+          in
+          b)
 
     let close _ = Lwt.return_unit
 
     let clear t =
       Log.debug (fun l -> l "clear");
       Lwt_mutex.with_lock t.m (fun () ->
-          G.Ref.list t.t >>= fun refs ->
+          let* refs = G.Ref.list t.t in
           Lwt_list.iter_p
             (fun (r, _) ->
               G.Ref.remove t.t r >>= handle_git_err >>= fun () ->
@@ -893,7 +907,8 @@ functor
       S.unwatch t.t w
 
     let v ?lock ~head ~bare t =
-      S.v ?lock ~head ~bare t >|= fun t -> { closed = ref false; t }
+      let+ t = S.v ?lock ~head ~bare t in
+      { closed = ref false; t }
 
     let close t =
       if !(t.closed) then Lwt.return_unit
@@ -968,8 +983,8 @@ struct
         let { root; dot_git; head; bare; _ } = config conf in
         let dotgit = fopt Fpath.v dot_git in
         let root = Fpath.v root in
-        G.v ?dotgit root >>= handle_git_err >>= fun g ->
-        R.v ~head ~bare g >|= fun b ->
+        let* g = G.v ?dotgit root >>= handle_git_err in
+        let+ b = R.v ~head ~bare g in
         { g; b; closed = ref false; config = conf }
 
       let close t = R.close t.b >|= fun () -> t.closed := true
@@ -985,7 +1000,7 @@ struct
   let git_of_repo r = r.g
 
   let repo_of_git ?head ?(bare = true) ?lock g =
-    R.v ?lock ~head ~bare g >|= fun b ->
+    let+ b = R.v ?lock ~head ~bare g in
     { config = Irmin.Private.Conf.empty; closed = ref false; g; b }
 
   module Git = G
@@ -1050,19 +1065,24 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
   module M = Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
   module X = M.Private.Contents
 
-  let state t = M.repo_of_git (snd t) >|= fun r -> M.Private.Repo.contents_t r
+  let state t =
+    let+ r = M.repo_of_git (snd t) in
+    M.Private.Repo.contents_t r
 
   type 'a t = bool ref * G.t
   type key = X.key
   type value = X.value
 
-  let with_state f t x = state t >>= fun t -> f t x
+  let with_state f t x =
+    let* t = state t in
+    f t x
+
   let add = with_state X.add
   let pp_key = Irmin.Type.pp X.Key.t
   let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
   let unsafe_add t k v =
-    with_state X.add t v >|= fun k' ->
+    let+ k' = with_state X.add t v in
     if equal_key k k' then ()
     else
       Fmt.failwith

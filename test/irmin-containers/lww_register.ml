@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 open Common
-open Lwt.Infix
 
 module In = struct
   type t = int
@@ -38,43 +38,46 @@ let test_empty_read _ () =
         "checked - reading register without writing" None
 
 let test_write _ () =
-  config () >>= L.Store.master >>= fun t ->
+  let* t = config () >>= L.Store.master in
   L.write ~path t 1 >>= fun () ->
   L.write ~path t 3 >>= fun () ->
   L.read ~path t
   >|= Alcotest.(check (option int)) "checked - writing to register" (Some 3)
 
 let test_clone_merge _ () =
-  config () >>= L.Store.master >>= fun t ->
-  L.Store.clone ~src:t ~dst:"cl" >>= fun b ->
+  let* t = config () >>= L.Store.master in
+  let* b = L.Store.clone ~src:t ~dst:"cl" in
   L.write ~path t 5 >>= fun () ->
   L.write ~path b 10 >>= fun () ->
-  L.read ~path t
-  >|= Alcotest.(check (option int)) "checked - value of master" (Some 5)
-  >>= fun () ->
-  L.read ~path b
-  >|= Alcotest.(check (option int)) "checked - value of clone" (Some 10)
-  >>= fun () ->
+  let* () =
+    L.read ~path t
+    >|= Alcotest.(check (option int)) "checked - value of master" (Some 5)
+  in
+  let* () =
+    L.read ~path b
+    >|= Alcotest.(check (option int)) "checked - value of clone" (Some 10)
+  in
   merge_into_exn b ~into:t >>= fun () ->
   L.read ~path t
   >|= Alcotest.(check (option int))
         "checked - value of master after merging" (Some 10)
 
 let test_branch_merge _ () =
-  config () >>= fun r ->
-  L.Store.of_branch r "b1" >>= fun b1 ->
-  L.Store.of_branch r "b2" >>= fun b2 ->
-  L.Store.of_branch r "b3" >>= fun b3 ->
-  L.Store.of_branch r "b4" >>= fun b4 ->
+  let* r = config () in
+  let* b1 = L.Store.of_branch r "b1" in
+  let* b2 = L.Store.of_branch r "b2" in
+  let* b3 = L.Store.of_branch r "b3" in
+  let* b4 = L.Store.of_branch r "b4" in
   L.write ~path b1 6 >>= fun () ->
   L.write ~path b2 3 >>= fun () ->
   merge_into_exn b1 ~into:b3 >>= fun () ->
   merge_into_exn b2 ~into:b3 >>= fun () ->
   merge_into_exn b2 ~into:b4 >>= fun () ->
   merge_into_exn b1 ~into:b4 >>= fun () ->
-  L.read ~path b3
-  >|= Alcotest.(check (option int)) "checked - value of b3" (Some 3)
-  >>= fun () ->
+  let* () =
+    L.read ~path b3
+    >|= Alcotest.(check (option int)) "checked - value of b3" (Some 3)
+  in
   L.read ~path b4
   >|= Alcotest.(check (option int)) "checked - value of b4" (Some 3)
 

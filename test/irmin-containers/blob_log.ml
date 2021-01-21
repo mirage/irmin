@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 open Common
-open Lwt.Infix
 module B = Irmin_containers.Blob_log.Mem (Irmin.Contents.String)
 
 let path = [ "tmp"; "blob" ]
@@ -30,7 +30,7 @@ let test_empty_read _ () =
   >|= Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append _ () =
-  config () >>= B.Store.master >>= fun t ->
+  let* t = config () >>= B.Store.master in
   B.append ~path t "master.1" >>= fun () ->
   B.append ~path t "master.2" >>= fun () ->
   B.read_all ~path t
@@ -38,8 +38,8 @@ let test_append _ () =
         "checked - log after appending" [ "master.2"; "master.1" ]
 
 let test_clone_merge _ () =
-  config () >>= B.Store.master >>= fun t ->
-  B.Store.clone ~src:t ~dst:"cl" >>= fun b ->
+  let* t = config () >>= B.Store.master in
+  let* b = B.Store.clone ~src:t ~dst:"cl" in
   B.append ~path b "clone.1" >>= fun () ->
   B.append ~path t "master.3" >>= fun () ->
   merge_into_exn b ~into:t >>= fun () ->
@@ -49,11 +49,11 @@ let test_clone_merge _ () =
         [ "master.3"; "clone.1"; "master.2"; "master.1" ]
 
 let test_branch_merge _ () =
-  config () >>= fun r ->
-  B.Store.of_branch r "b1" >>= fun b1 ->
-  B.Store.of_branch r "b2" >>= fun b2 ->
-  B.Store.of_branch r "b3" >>= fun b3 ->
-  B.Store.of_branch r "b4" >>= fun b4 ->
+  let* r = config () in
+  let* b1 = B.Store.of_branch r "b1" in
+  let* b2 = B.Store.of_branch r "b2" in
+  let* b3 = B.Store.of_branch r "b3" in
+  let* b4 = B.Store.of_branch r "b4" in
   B.append ~path b1 "b1.1" >>= fun () ->
   B.append ~path b2 "b2.1" >>= fun () ->
   B.append ~path b1 "b1.2" >>= fun () ->
@@ -64,11 +64,12 @@ let test_branch_merge _ () =
   merge_into_exn b2 ~into:b3 >>= fun () ->
   merge_into_exn b2 ~into:b4 >>= fun () ->
   merge_into_exn b1 ~into:b4 >>= fun () ->
-  B.read_all ~path b3
-  >|= Alcotest.(check (list string))
-        "checked - value of b3"
-        [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
-  >>= fun () ->
+  let* () =
+    B.read_all ~path b3
+    >|= Alcotest.(check (list string))
+          "checked - value of b3"
+          [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
+  in
   B.read_all ~path b4
   >|= Alcotest.(check (list string))
         "checked - value of b4"

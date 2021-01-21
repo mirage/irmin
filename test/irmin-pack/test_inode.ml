@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 open Common
 
 let root = Filename.concat "_build" "test-inode"
@@ -30,7 +30,7 @@ module Context = struct
   let get_store ?(lru_size = 0) () =
     rm_dir root;
     let index = Index.v ~log_size ~fresh:true root in
-    Inode.v ~fresh:true ~lru_size ~index root >|= fun store ->
+    let+ store = Inode.v ~fresh:true ~lru_size ~index root in
     let clone ~readonly =
       Inode.v ~lru_size ~fresh:false ~readonly ~index root
     in
@@ -186,7 +186,7 @@ end
 
 let check_node msg v t =
   let h = Private.hash v in
-  Inode.batch t.Context.store (fun i -> Inode.add i v) >|= fun h' ->
+  let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
 let check_hardcoded_hash msg h v =
@@ -197,7 +197,7 @@ let check_hardcoded_hash msg h v =
 (** Test add values from an empty node. *)
 let test_add_values () =
   rm_dir root;
-  Context.get_store () >>= fun t ->
+  let* t = Context.get_store () in
   check_node "hash empty node" Inode.Val.empty t >>= fun () ->
   let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
@@ -210,7 +210,7 @@ let test_add_values () =
 (** Test add to inodes. *)
 let test_add_inodes () =
   rm_dir root;
-  Context.get_store () >>= fun t ->
+  let* t = Context.get_store () in
   let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
   let v3 =
@@ -238,7 +238,7 @@ let test_add_inodes () =
 (** Test remove values on an empty node. *)
 let test_remove_values () =
   rm_dir root;
-  Context.get_store () >>= fun t ->
+  let* t = Context.get_store () in
   let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
   let v3 = Inode.Val.v [ ("x", normal foo) ] in
@@ -255,7 +255,7 @@ let test_remove_values () =
 (** Test remove and add values to go from stable to unstable inodes. *)
 let test_remove_inodes () =
   rm_dir root;
-  Context.get_store () >>= fun t ->
+  let* t = Context.get_store () in
   let v1 =
     Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in

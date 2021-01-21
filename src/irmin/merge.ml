@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Printf
 
 let src = Logs.Src.create "irmin.merge" ~doc:"Irmin merging"
@@ -32,7 +32,7 @@ let memo fn =
     match !r with
     | Some x -> x
     | None ->
-        fn () >>= fun x ->
+        let* x = fn () in
         r := Some (Lwt.return x);
         Lwt.return x
 
@@ -207,10 +207,9 @@ let alist_iter2 compare_k f l1 l2 =
 
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2_lwt compare_k f l1 l2 =
-  let open Lwt in
   let l3 = ref [] in
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
-  Lwt_list.iter_p (fun b -> b >>= fun () -> return_unit) (List.rev !l3)
+  Lwt_list.iter_p Fun.id (List.rev !l3)
 
 (* DO NOT assume l1 and l2 are key-sorted *)
 let alist_merge_lwt compare_k f l1 l2 =
@@ -375,13 +374,15 @@ let like_lwt (type a b) da (t : b t) (a_to_b : a -> b Lwt.t)
   let merge ~old a1 a2 =
     Log.debug (fun f -> f "biject' %a | %a" pp a1 pp a2);
     try
-      a_to_b a1 >>= fun b1 ->
-      a_to_b a2 >>= fun b2 ->
+      let* b1 = a_to_b a1 in
+      let* b2 = a_to_b a2 in
       let old =
         memo (fun () ->
             bind (old ()) @@ function
             | None -> ok None
-            | Some a -> a_to_b a >|= fun b -> Ok (Some b))
+            | Some a ->
+                let+ b = a_to_b a in
+                Ok (Some b))
       in
       bind ((f t) ~old b1 b2) @@ fun b3 -> b_to_a b3 >>= ok
     with Not_found -> conflict "biject'"

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.graph" ~doc:"Irmin graph support"
 
@@ -163,12 +163,13 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     let mark key level = Table.add marks key level in
     let todo = Stack.create () in
     (* if a branch is in [min], add the commit it is pointing to too. *)
-    Lwt_list.fold_left_s
-      (fun acc -> function
-        | `Branch _ as x -> pred x >|= fun c -> (x :: c) @ acc
-        | x -> Lwt.return (x :: acc))
-      [] min
-    >>= fun min ->
+    let* min =
+      Lwt_list.fold_left_s
+        (fun acc -> function
+          | `Branch _ as x -> pred x >|= fun c -> (x :: c) @ acc
+          | x -> Lwt.return (x :: acc))
+        [] min
+    in
     let min = Set.of_list min in
     let has_mark key = Table.mem marks key in
     List.iter (fun k -> Stack.push (Visit (k, 0)) todo) max;
@@ -181,11 +182,12 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
         match edge with
         | None -> Lwt.return_unit
         | Some edge ->
-            pred key >>= fun keys -> Lwt_list.iter_p (fun k -> edge key k) keys
+            let* keys = pred key in
+            Lwt_list.iter_p (fun k -> edge key k) keys
       else Lwt.return_unit
     in
     let visit_predecessors ~filter_history key level =
-      pred key >|= fun keys ->
+      let+ keys = pred key in
       (*if a commit is in [min] cut the history but still visit
         its nodes. *)
       List.iter
@@ -201,18 +203,19 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
         skip key >>= function
         | true -> Lwt.return_unit
         | false ->
-            (Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-             mark key level;
-             if rev then Stack.push (Treat key) todo;
-             match key with
-             | `Commit _ ->
-                 visit_predecessors ~filter_history:(Set.mem key min) key level
-             | _ ->
-                 if Set.mem key min then Lwt.return_unit
-                 else visit_predecessors ~filter_history:false key level)
-            >|= fun () -> if not rev then Stack.push (Treat key) todo
+            let+ () =
+              Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
+              mark key level;
+              if rev then Stack.push (Treat key) todo;
+              match key with
+              | `Commit _ ->
+                  visit_predecessors ~filter_history:(Set.mem key min) key level
+              | _ ->
+                  if Set.mem key min then Lwt.return_unit
+                  else visit_predecessors ~filter_history:false key level
+            in
+            if not rev then Stack.push (Treat key) todo
     in
-
     let rec pop () =
       match Stack.pop todo with
       | exception Stack.Empty -> Lwt.return_unit

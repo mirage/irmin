@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 module Type = Repr
 module Diff = Diff
 module Content_addressable = Store.Content_addressable
@@ -88,7 +88,9 @@ functor
       check_not_closed t;
       S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
-    let v conf = S.v conf >|= fun t -> { closed = ref false; t }
+    let v conf =
+      let+ t = S.v conf in
+      { closed = ref false; t }
 
     let close t =
       if !(t.closed) then Lwt.return_unit
@@ -154,7 +156,9 @@ functor
       check_not_closed t;
       S.unwatch t.t w
 
-    let v conf = S.v conf >|= fun t -> { closed = ref false; t }
+    let v conf =
+      let+ t = S.v conf in
+      { closed = ref false; t }
 
     let close t =
       if !(t.closed) then Lwt.return_unit
@@ -250,12 +254,12 @@ struct
         f contents_t node_t commit_t
 
       let v config =
-        Contents.CA.v config >>= fun contents ->
-        Node.CA.v config >>= fun nodes ->
-        Commit.CA.v config >>= fun commits ->
+        let* contents = Contents.CA.v config in
+        let* nodes = Node.CA.v config in
+        let* commits = Commit.CA.v config in
         let nodes = (contents, nodes) in
         let commits = (nodes, commits) in
-        Branch.v config >|= fun branch ->
+        let+ branch = Branch.v config in
         { contents; nodes; commits; branch; config }
 
       let close t =

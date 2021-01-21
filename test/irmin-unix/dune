@@ -1,6 +1,6 @@
 (library
  (name test_unix)
- (modules test_unix)
+ (modules test_unix import)
  (libraries alcotest fpath git git-unix irmin irmin-git irmin-test irmin-unix
    irmin-watcher lwt lwt.unix test_fs test_git test_http))
 

@@ -1,4 +1,7 @@
 open Lwt.Infix
+
+let ( let* ) x f = Lwt.bind x f
+
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 let config =
@@ -14,40 +17,44 @@ let info ~user msg () =
 let provision repo =
   Config.init ();
   let provision = info ~user:"Automatic VM provisioning" in
-  Store.of_branch repo "upstream" >>= fun t ->
-  Store.Tree.empty |> fun v ->
-  Store.Tree.add v [ "etc"; "manpath" ] "/usr/share/man\n/usr/local/share/man"
-  >>= fun v ->
-  Store.Tree.add v [ "bin"; "sh" ]
-    "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT \
-     [...]"
-  >>= fun v ->
+  let* t = Store.of_branch repo "upstream" in
+  let v = Store.Tree.empty in
+  let* v =
+    Store.Tree.add v [ "etc"; "manpath" ] "/usr/share/man\n/usr/local/share/man"
+  in
+  let* v =
+    Store.Tree.add v [ "bin"; "sh" ]
+      "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT \
+       [...]"
+  in
   Store.set_tree_exn t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
 let sysadmin = info ~user:"Bob the sysadmin"
 
 let configure repo =
-  Store.of_branch repo "upstream" >>= fun t ->
-  Lwt_unix.sleep 2. >>= fun () ->
-  Store.clone ~src:t ~dst:"dev" >>= fun t ->
-  Lwt_unix.sleep 2. >>= fun () ->
-  Store.set_exn t
-    ~info:(sysadmin "DNS configuration")
-    [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23"
-  >>= fun () ->
-  Lwt_unix.sleep 2. >>= fun () ->
-  Store.clone ~src:t ~dst:"prod" >>= fun _ -> Lwt.return_unit
+  let* t = Store.of_branch repo "upstream" in
+  let* () = Lwt_unix.sleep 2. in
+  let* t = Store.clone ~src:t ~dst:"dev" in
+  let* () = Lwt_unix.sleep 2. in
+  let* () =
+    Store.set_exn t
+      ~info:(sysadmin "DNS configuration")
+      [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23"
+  in
+  let* () = Lwt_unix.sleep 2. in
+  Store.clone ~src:t ~dst:"prod" >|= ignore
 
 let attack repo =
   let info = info ~user:"Remote connection from 132.443.12.444" in
   (* 3. Attacker. *)
-  Store.of_branch repo "prod" >>= fun t ->
+  let* t = Store.of_branch repo "prod" in
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.set_exn t
-    ~info:(info "$ vim /etc/resolv.conf")
-    [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 12.221.130.23"
-  >>= fun () ->
+  let* () =
+    Store.set_exn t
+      ~info:(info "$ vim /etc/resolv.conf")
+      [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 12.221.130.23"
+  in
   Lwt_unix.sleep 2. >>= fun () ->
   Store.set_exn t
     ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
@@ -56,10 +63,10 @@ let attack repo =
      [...]"
 
 let revert repo =
-  Store.of_branch repo "prod" >>= fun prod ->
-  Store.of_branch repo "dev" >>= fun dev ->
-  Store.Head.get prod >>= fun h1 ->
-  Store.Head.get dev >>= fun h2 ->
+  let* prod = Store.of_branch repo "prod" in
+  let* dev = Store.of_branch repo "dev" in
+  let* h1 = Store.Head.get prod in
+  let* h2 = Store.Head.get dev in
   if h1 <> h2 then (
     Printf.printf
       "WARNING: the filesystem is different in dev and prod, intrusion detected!\n\

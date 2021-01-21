@@ -15,7 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+let ( let* ) x f = Lwt.bind x f
+
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct
@@ -88,8 +89,9 @@ let clean () =
         P.Branch.clear (P.Repo.branch_t repo);
       ]
   in
-  S.Repo.v config >>= fun repo ->
-  clear repo >>= fun () -> S.Repo.close repo
+  let* repo = S.Repo.v config in
+  let* () = clear repo in
+  S.Repo.close repo
 
 let suite =
   {

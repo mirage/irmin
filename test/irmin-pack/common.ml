@@ -1,10 +1,9 @@
-open Lwt.Infix
-
 module Dict = Irmin_pack.Dict.Make (struct
   let io_version = `V2
 end)
 
 let ( let* ) x f = Lwt.bind x f
+let ( let+ ) x f = Lwt.map f x
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 
@@ -93,14 +92,14 @@ struct
     let index =
       Index.v ~flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    Pack.v ~fresh:true ~lru_size ~index name >|= fun pack ->
+    let+ pack = Pack.v ~fresh:true ~lru_size ~index name in
     (f := fun () -> Pack.flush ~index:false pack);
     let clone_pack ~readonly =
       Pack.v ~lru_size ~fresh:false ~readonly ~index name
     in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      Pack.v ~lru_size ~fresh:false ~readonly ~index name >|= fun pack ->
+      let+ pack = Pack.v ~lru_size ~fresh:false ~readonly ~index name in
       (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }
@@ -117,7 +116,7 @@ module Alcotest = struct
   let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
     Lwt.catch
       (fun x ->
-        f x >>= fun (_ : a) ->
+        let* (_ : a) = f x in
         Alcotest.failf
           "Fail %s: expected function to raise %s, but it returned instead." msg
           (Printexc.to_string exn))

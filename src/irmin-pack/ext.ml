@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 module Pack_config = Config
 module Index = Pack_index
 
@@ -178,10 +178,10 @@ struct
               (* backpatching to add pack flush before an index flush *)
             ~fresh ~readonly ~throttle ~log_size root
         in
-        Contents.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun contents ->
-        Node.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun node ->
-        Commit.CA.v ~fresh ~readonly ~lru_size ~index root >>= fun commit ->
-        Branch.v ~fresh ~readonly root >|= fun branch ->
+        let* contents = Contents.CA.v ~fresh ~readonly ~lru_size ~index root in
+        let* node = Node.CA.v ~fresh ~readonly ~lru_size ~index root in
+        let* commit = Commit.CA.v ~fresh ~readonly ~lru_size ~index root in
+        let+ branch = Branch.v ~fresh ~readonly root in
         (* Stores share instances in memory, one flush is enough. In case of a
            system crash, the flush_callback might not make with the disk. In
            this case, when the store is reopened, [integrity_check] needs to be

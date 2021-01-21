@@ -1,7 +1,7 @@
 include Checks_intf
 module T = Irmin.Type
 module IO = IO.Unix
-open Lwt.Infix
+open! Import
 
 let current_version = `V2
 
@@ -129,7 +129,7 @@ module Make (Args : Make_args) = struct
 
     let run ~root ~auto_repair =
       let conf = conf root in
-      Store.Repo.v conf >|= fun repo ->
+      let+ repo = Store.Repo.v conf in
       Store.integrity_check ~auto_repair repo |> handle_result ?name:None
 
     let term_internal =

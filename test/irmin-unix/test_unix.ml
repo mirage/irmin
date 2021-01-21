@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let stats =
   Some
@@ -62,12 +62,14 @@ module Git = struct
 
   let init () =
     assert (test_db <> ".git");
-    (if Sys.file_exists test_db then
-     Git_unix.Store.v (Fpath.v test_db) >>= function
-     | Ok t -> Git_unix.Store.reset t >|= fun _ -> ()
-     | Error _ -> Lwt.return_unit
-    else Lwt.return_unit)
-    >|= fun () -> Irmin_unix.set_listen_dir_hook ()
+    let+ () =
+      if Sys.file_exists test_db then
+        Git_unix.Store.v (Fpath.v test_db) >>= function
+        | Ok t -> Git_unix.Store.reset t >|= fun _ -> ()
+        | Error _ -> Lwt.return_unit
+      else Lwt.return_unit
+    in
+    Irmin_unix.set_listen_dir_hook ()
 
   module S = struct
     module G = Git_unix.Store
@@ -102,8 +104,8 @@ module Git = struct
     init () >>= fun () ->
     let config = Irmin_git.config ~bare:false test_db in
     let info = Irmin_unix.info in
-    S.Repo.v config >>= fun repo ->
-    S.master repo >>= fun t ->
+    let* repo = S.Repo.v config in
+    let* t = S.master repo in
     S.set_exn t ~info:(info "fst one") [ "fst" ] "ok" >>= fun () ->
     S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?" >>= fun () ->
     S.set_exn t ~info:(info "fst one") [ "fst" ] "hoho"

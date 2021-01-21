@@ -1,7 +1,6 @@
-open Lwt.Infix
+open! Import
 open Common
 
-let ( let* ) x f = Lwt.bind x f
 let root = Filename.concat "_build" "test-instances"
 let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
@@ -47,9 +46,9 @@ let open_ro_after_rw_closed () =
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* t = S.master rw in
   let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
-  let* () = S.set_tree_exn ~parents:[] ~info t [] tree in
+  S.set_tree_exn ~parents:[] ~info t [] tree >>= fun () ->
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let* () = S.Repo.close rw in
+  S.Repo.close rw >>= fun () ->
   let* t = S.master ro in
   let* c = S.Head.get t in
   S.Commit.of_hash ro (S.Commit.hash c) >>= function
@@ -76,7 +75,7 @@ let check_binding ?msg repo commit key value =
   | None -> Alcotest.failf "commit not found"
   | Some commit ->
       let tree = S.Commit.tree commit in
-      S.Tree.find tree key >|= fun x ->
+      let+ x = S.Tree.find tree key in
       Alcotest.(check (option string)) msg (Some value) x
 
 let ro_sync_after_add () =
@@ -85,7 +84,7 @@ let ro_sync_after_add () =
     | None -> Alcotest.failf "commit not found"
     | Some commit ->
         let tree = S.Commit.tree commit in
-        S.Tree.find tree [ k ] >|= fun x ->
+        let+ x = S.Tree.find tree [ k ] in
         Alcotest.(check (option string)) "RO find" (Some v) x
   in
   rm_dir root;
@@ -94,19 +93,18 @@ let ro_sync_after_add () =
   let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.sync ro;
-  let* () = check ro c1 "a" "x" in
+  check ro c1 "a" "x" >>= fun () ->
   let* tree = S.Tree.add S.Tree.empty [ "a" ] "y" in
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  let* () = check ro c1 "a" "x" in
+  check ro c1 "a" "x" >>= fun () ->
   let* () =
     S.Commit.of_hash ro (S.Commit.hash c2) >|= function
     | None -> ()
     | Some _ -> Alcotest.failf "should not find branch by"
   in
   S.sync ro;
-  let* () = check ro c2 "a" "y" in
-  let* () = S.Repo.close ro in
-  S.Repo.close rw
+  check ro c2 "a" "y" >>= fun () ->
+  S.Repo.close ro >>= fun () -> S.Repo.close rw
 
 let ro_sync_after_close () =
   let binding f = f [ "a" ] "x" in
@@ -115,10 +113,9 @@ let ro_sync_after_close () =
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
   let* tree = binding (S.Tree.add S.Tree.empty ?metadata:None) in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  let* () = S.Repo.close rw in
+  S.Repo.close rw >>= fun () ->
   S.sync ro;
-  let* () = binding (check_binding ro c1) in
-  S.Repo.close ro
+  binding (check_binding ro c1) >>= fun () -> S.Repo.close ro
 
 module P = S.Private
 
@@ -138,11 +135,10 @@ let clear_rw_open_ro () =
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  let* () = clear_all rw in
+  clear_all rw >>= fun () ->
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let* () = check_commit_absent ro c in
-  let* () = S.Repo.close rw in
-  S.Repo.close ro
+  check_commit_absent ro c >>= fun () ->
+  S.Repo.close rw >>= fun () -> S.Repo.close ro
 
 (** RO looks for values before and after sync but after RW was cleared. *)
 let clear_rw_find_ro () =
@@ -152,8 +148,8 @@ let clear_rw_find_ro () =
   let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.sync ro;
-  let* () = check_binding ro c1 ~msg:"RO finds value" [ "a" ] "x" in
-  let* () = clear_all rw in
+  check_binding ro c1 ~msg:"RO finds value" [ "a" ] "x" >>= fun () ->
+  clear_all rw >>= fun () ->
   let* tree = S.Tree.add S.Tree.empty [ "b" ] "y" in
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let* () =
@@ -164,9 +160,8 @@ let clear_rw_find_ro () =
   let* () =
     check_binding ro c2 ~msg:"RO finds value added after clear" [ "b" ] "y"
   in
-  let* () = check_commit_absent ro c1 in
-  let* () = S.Repo.close rw in
-  S.Repo.close ro
+  check_commit_absent ro c1 >>= fun () ->
+  S.Repo.close rw >>= fun () -> S.Repo.close ro
 
 let clear_rw_twice () =
   rm_dir root;
@@ -178,21 +173,20 @@ let clear_rw_twice () =
     | Some _ -> Alcotest.fail "should be empty"
   in
   let add () =
-    let* () = check_empty () in
+    check_empty () >>= fun () ->
     let* tree = S.Tree.add S.Tree.empty [ "a" ] "x" in
     S.set_tree_exn ~parents:[] ~info t [] tree
   in
   let add_after_clear () =
-    let* () = add () in
+    add () >>= fun () ->
     let* c = S.Head.get t in
     check_binding rw c ~msg:"RW finds value added after clear" [ "a" ] "x"
   in
-  let* () = add () in
-  let* () = clear_all rw in
-  let* () = add_after_clear () in
-  let* () = clear_all rw in
-  let* () = check_empty () in
-  S.Repo.close rw
+  add () >>= fun () ->
+  clear_all rw >>= fun () ->
+  add_after_clear () >>= fun () ->
+  clear_all rw >>= fun () ->
+  check_empty () >>= fun () -> S.Repo.close rw
 
 let dict_sync_after_clear_same_offset () =
   rm_dir root;
@@ -203,7 +197,7 @@ let dict_sync_after_clear_same_offset () =
     | None -> Alcotest.fail "no hash"
     | Some commit ->
         let tree = S.Commit.tree commit in
-        S.Tree.find tree [ key ] >|= fun x ->
+        let+ x = S.Tree.find tree [ key ] in
         Alcotest.(check (option string)) "RO find" (Some value) x
   in
   let long_string = random_string 200 in
@@ -211,16 +205,15 @@ let dict_sync_after_clear_same_offset () =
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let h = S.Commit.hash c in
   S.sync ro;
-  let* () = find_key h long_string "x" in
-  let* () = clear_all rw in
+  find_key h long_string "x" >>= fun () ->
+  clear_all rw >>= fun () ->
   let long_string = random_string 200 in
   let* tree = S.Tree.add S.Tree.empty [ long_string ] "y" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let h = S.Commit.hash c in
   S.sync ro;
-  let* () = find_key h long_string "y" in
-  let* () = S.Repo.close rw in
-  S.Repo.close ro
+  find_key h long_string "y" >>= fun () ->
+  S.Repo.close rw >>= fun () -> S.Repo.close ro
 
 let tests =
   let tc name test =

@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 include Tree_intf
 
 let rec drop n (l : 'a Seq.t) () =
@@ -271,10 +271,11 @@ module Make (P : S.PRIVATE) = struct
       let f ~old x y =
         let old =
           Merge.bind_promise old (fun old () ->
-              to_value old >|= option_of_result >|= fun c -> Ok (Some c))
+              let+ c = to_value old >|= option_of_result in
+              Ok (Some c))
         in
-        to_value x >|= option_of_result >>= fun x ->
-        to_value y >|= option_of_result >>= fun y ->
+        let* x = to_value x >|= option_of_result in
+        let* y = to_value y >|= option_of_result in
         Merge.(f P.Contents.Val.merge) ~old x y >|= function
         | Ok (Some c) -> Ok (of_value c)
         | Ok None -> Error (`Conflict "empty contents")
@@ -285,7 +286,7 @@ module Make (P : S.PRIVATE) = struct
     let fold ~force ~path f t acc =
       match force with
       | `True | `And_clear ->
-          to_value t >>= fun c ->
+          let* c = to_value t in
           if force = `And_clear then clear t;
           f path (get_ok c) acc
       | `False skip -> (
@@ -802,7 +803,7 @@ module Make (P : S.PRIVATE) = struct
         | Some m ->
             let bindings = StepMap.bindings m in
             let s = List.rev_map fst bindings in
-            pre path s acc >>= fun acc ->
+            let* acc = pre path s acc in
             (steps [@tailcall]) ~path acc d bindings @@ fun acc ->
             post path s acc >>= k
       in
@@ -837,20 +838,23 @@ module Make (P : S.PRIVATE) = struct
           | Some v, _ -> Lwt.return (of_value repo v StepMap.empty)
           | _, Some m -> Lwt.return (of_map m)
           | None, None ->
-              (value_of_hash t repo h >|= function
-               | Ok v -> v
-               | Error (`Dangling_hash _) -> P.Node.Val.empty)
-              >|= fun v -> of_value repo v StepMap.empty)
+              let+ v =
+                value_of_hash t repo h >|= function
+                | Ok v -> v
+                | Error (`Dangling_hash _) -> P.Node.Val.empty
+              in
+              of_value repo v StepMap.empty)
 
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
       let f ~old x y =
         let old =
           Merge.bind_promise old (fun old () ->
-              to_map old >|= option_of_result >|= fun m -> Ok (Some m))
+              let+ m = to_map old >|= option_of_result in
+              Ok (Some m))
         in
-        to_map x >|= option_of_result >>= fun x ->
-        to_map y >|= option_of_result >>= fun y ->
+        let* x = to_map x >|= option_of_result in
+        let* y = to_map y >|= option_of_result in
         let m =
           StepMap.merge elt_t (fun _step ->
               (merge_elt [@tailcall]) Merge.option)
@@ -1064,7 +1068,7 @@ module Make (P : S.PRIVATE) = struct
   let may_remove t k =
     Node.findv t k >>= function
     | None -> Lwt.return_none
-    | Some _ -> Node.remove t k >>= fun t -> Lwt.return_some t
+    | Some _ -> Node.remove t k >>= Lwt.return_some
 
   let empty = `Node (Node.of_map StepMap.empty)
 
@@ -1077,7 +1081,7 @@ module Make (P : S.PRIVATE) = struct
     let empty = empty_node t in
     match Path.rdecons k with
     | None ->
-        is_empty t >>= fun is_empty ->
+        let* is_empty = is_empty t in
         if is_empty then Lwt.return t else Lwt.return (`Node empty)
     | Some (path, file) -> (
         let rec aux view path k =
@@ -1181,14 +1185,14 @@ module Make (P : S.PRIVATE) = struct
     let seen = Hashes.create 127 in
     let add_node n v () =
       cnt.node_add <- cnt.node_add + 1;
-      P.Node.add node_t v >|= fun k ->
+      let+ k = P.Node.add node_t v in
       let k' = Node.hash n in
       assert (equal_hash k k');
       Node.export ?clear repo n k
     in
     let add_contents c x () =
       cnt.contents_add <- cnt.contents_add + 1;
-      P.Contents.add contents_t x >|= fun k ->
+      let+ k = P.Contents.add contents_t x in
       let k' = Contents.hash c in
       assert (equal_hash k k');
       Contents.export ?clear repo c k
@@ -1222,13 +1226,14 @@ module Make (P : S.PRIVATE) = struct
                     k ()
                 | Map children | Value (_, _, Some children) ->
                     (* 1. convert partial values to total values *)
-                    (match n.v with
-                    | Value (_, _, Some _) -> (
-                        Node.to_value n >|= function
-                        | Error (`Dangling_hash _) -> ()
-                        | Ok v -> n.v <- Value (repo, v, None))
-                    | _ -> Lwt.return_unit)
-                    >>= fun () ->
+                    let* () =
+                      match n.v with
+                      | Value (_, _, Some _) -> (
+                          Node.to_value n >|= function
+                          | Error (`Dangling_hash _) -> ()
+                          | Ok v -> n.v <- Value (repo, v, None))
+                      | _ -> Lwt.return_unit
+                    in
                     (* 2. push the current node job on the stack. *)
                     let () =
                       match (n.v, Node.cached_value n) with
@@ -1302,7 +1307,7 @@ module Make (P : S.PRIVATE) = struct
     let rec aux acc = function
       | [] -> Lwt.return acc
       | (path, h) :: todo ->
-          Node.bindings h >|= get_ok >>= fun childs ->
+          let* childs = Node.bindings h >|= get_ok in
           let acc, todo =
             List.fold_left
               (fun (acc, todo) (k, v) ->
@@ -1330,8 +1335,8 @@ module Make (P : S.PRIVATE) = struct
   let diff_contents x y =
     if Node.contents_equal x y then Lwt.return_nil
     else
-      Contents.to_value (fst x) >>= fun cx ->
-      Contents.to_value (fst y) >|= fun cy ->
+      let* cx = Contents.to_value (fst x) in
+      let+ cy = Contents.to_value (fst y) in
       diff_force_result cx cy ~empty:[] ~diff_ok:(fun (cx, cy) ->
           [ `Updated ((cx, snd x), (cy, snd y)) ])
 
@@ -1344,52 +1349,66 @@ module Make (P : S.PRIVATE) = struct
       | Error _ as e -> e
     in
     let removed acc (k, (c, m)) =
-      Contents.to_value c >|= get_ok >|= fun c -> (k, `Removed (c, m)) :: acc
+      let+ c = Contents.to_value c >|= get_ok in
+      (k, `Removed (c, m)) :: acc
     in
     let added acc (k, (c, m)) =
-      Contents.to_value c >|= get_ok >|= fun c -> (k, `Added (c, m)) :: acc
+      let+ c = Contents.to_value c >|= get_ok in
+      (k, `Added (c, m)) :: acc
     in
     let rec diff_bindings acc todo path x y =
       let acc = ref acc in
       let todo = ref todo in
-      alist_iter2_lwt compare_step
-        (fun key v ->
-          let path = Path.rcons path key in
-          match v with
-          (* Left *)
-          | `Left (`Contents x) -> removed !acc (path, x) >|= fun x -> acc := x
-          | `Left (`Node x) ->
-              entries path x >>= fun xs ->
-              Lwt_list.fold_left_s removed !acc xs >|= fun xs -> acc := xs
-          (* Right *)
-          | `Right (`Contents y) -> added !acc (path, y) >|= fun y -> acc := y
-          | `Right (`Node y) ->
-              entries path y >>= fun ys ->
-              Lwt_list.fold_left_s added !acc ys >|= fun ys -> acc := ys
-          (* Both *)
-          | `Both (`Node x, `Node y) ->
-              todo := (path, x, y) :: !todo;
-              Lwt.return_unit
-          | `Both (`Contents x, `Node y) ->
-              entries path y >>= fun ys ->
-              removed !acc (path, x) >>= fun x ->
-              Lwt_list.fold_left_s added x ys >|= fun ys -> acc := ys
-          | `Both (`Node x, `Contents y) ->
-              entries path x >>= fun xs ->
-              added !acc (path, y) >>= fun y ->
-              Lwt_list.fold_left_s removed y xs >|= fun ys -> acc := ys
-          | `Both (`Contents x, `Contents y) ->
-              diff_contents x y >|= List.map (fun d -> (path, d))
-              >|= fun content_diffs -> acc := content_diffs @ !acc)
-        x y
-      >>= fun () -> (diff_node [@tailcall]) !acc !todo
+      let* () =
+        alist_iter2_lwt compare_step
+          (fun key v ->
+            let path = Path.rcons path key in
+            match v with
+            (* Left *)
+            | `Left (`Contents x) ->
+                let+ x = removed !acc (path, x) in
+                acc := x
+            | `Left (`Node x) ->
+                let* xs = entries path x in
+                let+ xs = Lwt_list.fold_left_s removed !acc xs in
+                acc := xs
+            (* Right *)
+            | `Right (`Contents y) ->
+                let+ y = added !acc (path, y) in
+                acc := y
+            | `Right (`Node y) ->
+                let* ys = entries path y in
+                let+ ys = Lwt_list.fold_left_s added !acc ys in
+                acc := ys
+            (* Both *)
+            | `Both (`Node x, `Node y) ->
+                todo := (path, x, y) :: !todo;
+                Lwt.return_unit
+            | `Both (`Contents x, `Node y) ->
+                let* ys = entries path y in
+                let* x = removed !acc (path, x) in
+                let+ ys = Lwt_list.fold_left_s added x ys in
+                acc := ys
+            | `Both (`Node x, `Contents y) ->
+                let* xs = entries path x in
+                let* y = added !acc (path, y) in
+                let+ ys = Lwt_list.fold_left_s removed y xs in
+                acc := ys
+            | `Both (`Contents x, `Contents y) ->
+                let+ content_diffs =
+                  diff_contents x y >|= List.map (fun d -> (path, d))
+                in
+                acc := content_diffs @ !acc)
+          x y
+      in
+      (diff_node [@tailcall]) !acc !todo
     and diff_node acc = function
       | [] -> Lwt.return acc
       | (path, x, y) :: todo ->
           if Node.equal x y then (diff_node [@tailcall]) acc todo
           else
-            bindings x >>= fun x ->
-            bindings y >>= fun y ->
+            let* x = bindings x in
+            let* y = bindings y in
             diff_force_result ~empty:Lwt.return_nil
               ~diff_ok:(fun (x, y) -> diff_bindings acc todo path x y)
               x y
@@ -1404,10 +1423,12 @@ module Make (P : S.PRIVATE) = struct
     | `Node x, `Node y -> diff_node x y
     | `Contents x, `Node y ->
         let empty = Node.empty y in
-        diff_node empty y >|= fun diff -> (Path.empty, `Removed x) :: diff
+        let+ diff = diff_node empty y in
+        (Path.empty, `Removed x) :: diff
     | `Node x, `Contents y ->
         let empty = Node.empty x in
-        diff_node x empty >|= fun diff -> (Path.empty, `Added y) :: diff
+        let+ diff = diff_node x empty in
+        (Path.empty, `Added y) :: diff
 
   type concrete =
     [ `Tree of (Path.step * concrete) list
@@ -1442,12 +1463,13 @@ module Make (P : S.PRIVATE) = struct
       match t with
       | `Contents _ as v -> k v
       | `Node n ->
-          Node.to_map n >>= fun m ->
+          let* m = Node.to_map n in
           let bindings = m |> get_ok |> StepMap.bindings in
           (node [@tailcall]) [] bindings (fun n -> k (`Tree n))
     and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
      fun (c, m) k ->
-      Contents.to_value c >|= get_ok >>= fun c -> k (`Contents (c, m))
+      let* c = Contents.to_value c >|= get_ok in
+      k (`Contents (c, m))
     and node :
         type r.
         (step * concrete) list ->

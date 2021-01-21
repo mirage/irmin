@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 module Schema = Graphql_lwt.Schema
 
 module type S = sig
@@ -152,7 +152,7 @@ struct
               >>= Lwt.return_some
           | None -> Lwt.return_none
         in
-        parents >|= fun parents ->
+        let+ parents = parents in
         ( Config.info ?author "%s" message,
           input.retries,
           input.allow_empty,
@@ -299,7 +299,7 @@ struct
                           acc l
                         |> List.rev
                   in
-                  Store.Tree.to_concrete tree >|= fun concrete_tree ->
+                  let+ concrete_tree = Store.Tree.to_concrete tree in
                   Ok (tree_list concrete_tree key));
               field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                 ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
@@ -314,7 +314,7 @@ struct
                           | `Contents (c, m) ->
                               Lazy.(force contents_as_node (c, m, absolute_key))
                           | _ -> Lazy.(force tree_as_node (tree, absolute_key)))
-                  >>= fun r -> Lwt.return (Ok r));
+                  >|= Result.ok);
             ]))
 
   and branch : ('ctx, (Store.t * Store.Branch.t) option) Schema.typ Lazy.t =
@@ -325,13 +325,12 @@ struct
               field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, b) -> b);
               io_field "head" ~args:[] ~typ:(Lazy.force commit)
-                ~resolve:(fun _ (t, _) ->
-                  Store.Head.find t >>= fun r -> Lwt.return (Ok r));
+                ~resolve:(fun _ (t, _) -> Store.Head.find t >|= Result.ok);
               io_field "tree" ~args:[]
                 ~typ:(non_null Lazy.(force tree))
                 ~resolve:(fun _ (t, _) ->
-                  Store.tree t >>= fun tree ->
-                  Lwt.return (Ok (tree, Store.Key.empty)));
+                  let+ tree = Store.tree t in
+                  Ok (tree, Store.Key.empty));
               io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[ arg "commit" ~typ:(non_null Input.commit_hash) ]
@@ -390,7 +389,7 @@ struct
                     arg "remote" ~typ:(non_null Input.remote);
                   ]
               ~resolve:(fun _ _src branch remote ->
-                mk_branch s branch >>= fun t ->
+                let* t = mk_branch s branch in
                 Sync.fetch t remote >>= function
                 | Ok (`Head d) -> Store.Head.set t d >|= fun () -> Ok (Some d)
                 | Ok `Empty -> Lwt.return (Ok None)
@@ -404,7 +403,7 @@ struct
                     arg "depth" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote depth ->
-                mk_branch s branch >>= fun t ->
+                let* t = mk_branch s branch in
                 Sync.push t ?depth remote >>= function
                 | Ok (`Head commit) -> Lwt.return (Ok (Some commit))
                 | Ok `Empty -> Lwt.return (Ok None)
@@ -421,11 +420,11 @@ struct
                     arg "depth" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote info depth ->
-                mk_branch s branch >>= fun t ->
+                let* t = mk_branch s branch in
                 let strategy =
                   match info with
                   | Some info ->
-                      txn_args s (Some info) >|= fun (info, _, _, _) ->
+                      let+ info, _, _, _ = txn_args s (Some info) in
                       `Merge info
                   | None -> Lwt.return `Set
                 in
@@ -459,10 +458,10 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
             Store.set t ?retries ?allow_empty ?parents k v ~info >>= function
-            | Ok () -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+            | Ok () -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
         io_field "set_tree" ~typ:(Lazy.force commit)
           ~args:
@@ -474,15 +473,15 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k items i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
             Lwt.catch
               (fun () ->
                 let tree = Store.Tree.empty in
-                to_tree tree items >>= fun tree ->
+                let* tree = to_tree tree items in
                 Store.set_tree t ?retries ?allow_empty ?parents ~info k tree
                 >>= function
-                | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+                | Ok _ -> Store.Head.find t >|= Result.ok
                 | Error e -> err_write e)
               (function Failure e -> Lwt.return (Error e) | e -> raise e));
         io_field "update_tree" ~typ:(Lazy.force commit)
@@ -495,8 +494,8 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k items i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
             Lwt.catch
               (fun () ->
                 Store.with_tree t ?retries ?allow_empty ?parents k ~info
@@ -506,7 +505,7 @@ struct
                     in
                     to_tree tree items >>= Lwt.return_some)
                 >>= function
-                | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+                | Ok _ -> Store.Head.find t >|= Result.ok
                 | Error e -> err_write e)
               (function Failure e -> Lwt.return (Error e) | e -> raise e));
         io_field "set_all" ~typ:(Lazy.force commit)
@@ -520,16 +519,17 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v m i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
-            (Store.find_tree t k >>= function
-             | Some tree -> Lwt.return tree
-             | None -> Lwt.return Store.Tree.empty)
-            >>= fun tree ->
-            Store.Tree.add tree k ?metadata:m v >>= fun tree ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
+            let* tree =
+              Store.find_tree t k >>= function
+              | Some tree -> Lwt.return tree
+              | None -> Lwt.return Store.Tree.empty
+            in
+            let* tree = Store.Tree.add tree k ?metadata:m v in
             Store.set_tree t ?retries ?allow_empty ?parents k tree ~info
             >>= function
-            | Ok () -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+            | Ok () -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
         io_field "test_and_set" ~typ:(Lazy.force commit)
           ~args:
@@ -542,12 +542,12 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k test set i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
             Store.test_and_set ?retries ?allow_empty ?parents ~info t k ~test
               ~set
             >>= function
-            | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+            | Ok _ -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
         io_field "test_and_set_branch" ~typ:(non_null bool)
           ~args:
@@ -560,7 +560,7 @@ struct
           ~resolve:(fun _ _src branch test set ->
             let branches = Store.Private.Repo.branch_t s in
             Store.Private.Branch.test_and_set branches branch ~test ~set
-            >>= fun r -> Lwt.return (Ok r));
+            >|= Result.ok);
         io_field "remove" ~typ:(Lazy.force commit)
           ~args:
             Arg.
@@ -570,10 +570,10 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key i ->
-            mk_branch s branch >>= fun t ->
-            txn_args s i >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
             Store.remove t ?retries ?allow_empty ?parents key ~info >>= function
-            | Ok () -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+            | Ok () -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
         io_field "merge" ~typ:Types.Hash.schema_typ
           ~args:
@@ -586,11 +586,11 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
-            mk_branch s branch >>= fun t ->
-            txn_args s info >>= fun (info, retries, allow_empty, parents) ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s info in
             Store.merge t key ~info ?retries ?allow_empty ?parents ~old value
             >>= function
-            | Ok _ -> Store.hash t key >>= fun r -> Lwt.return (Ok r)
+            | Ok _ -> Store.hash t key >|= Result.ok
             | Error e -> err_write e);
         io_field "merge_tree" ~typ:(Lazy.force commit)
           ~args:
@@ -603,24 +603,26 @@ struct
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
-            mk_branch s branch >>= fun t ->
-            txn_args s info >>= fun (info, retries, allow_empty, parents) ->
-            (match old with
-            | Some old ->
-                let tree = Store.Tree.empty in
-                to_tree tree old >>= Lwt.return_some
-            | None -> Lwt.return_none)
-            >>= fun old ->
-            (match value with
-            | Some value ->
-                let tree = Store.Tree.empty in
-                to_tree tree value >>= Lwt.return_some
-            | None -> Lwt.return_none)
-            >>= fun value ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s info in
+            let* old =
+              match old with
+              | Some old ->
+                  let tree = Store.Tree.empty in
+                  to_tree tree old >>= Lwt.return_some
+              | None -> Lwt.return_none
+            in
+            let* value =
+              match value with
+              | Some value ->
+                  let tree = Store.Tree.empty in
+                  to_tree tree value >>= Lwt.return_some
+              | None -> Lwt.return_none
+            in
             Store.merge_tree t key ~info ?retries ?allow_empty ?parents ~old
               value
             >>= function
-            | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+            | Ok _ -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
         io_field "merge_with_branch" ~typ:(Lazy.force commit)
           ~args:
@@ -633,10 +635,10 @@ struct
                 arg "n" ~typ:int;
               ]
           ~resolve:(fun _ _src into from i max_depth n ->
-            mk_branch s into >>= fun t ->
-            txn_args s i >>= fun (info, _, _, _) ->
-            Store.merge_with_branch t from ~info ?max_depth ?n >>= fun _ ->
-            Store.Head.find t >>= fun r -> Lwt.return (Ok r));
+            let* t = mk_branch s into in
+            let* info, _, _, _ = txn_args s i in
+            let* _ = Store.merge_with_branch t from ~info ?max_depth ?n in
+            Store.Head.find t >|= Result.ok);
         io_field "merge_with_commit" ~typ:(Lazy.force commit)
           ~args:
             Arg.
@@ -648,12 +650,12 @@ struct
                 arg "n" ~typ:int;
               ]
           ~resolve:(fun _ _src into from i max_depth n ->
-            mk_branch s into >>= fun t ->
-            txn_args s i >>= fun (info, _, _, _) ->
+            let* t = mk_branch s into in
+            let* info, _, _, _ = txn_args s i in
             Store.Commit.of_hash (Store.repo t) from >>= function
             | Some from -> (
                 Store.merge_with_commit t from ~info ?max_depth ?n >>= function
-                | Ok _ -> Store.Head.find t >>= fun r -> Lwt.return (Ok r)
+                | Ok _ -> Store.Head.find t >|= Result.ok
                 | Error e ->
                     Lwt.return
                       (Error (Irmin.Type.to_string Irmin.Merge.conflict_t e)))
@@ -668,9 +670,8 @@ struct
           ~resolve:(fun _ _src branch commit ->
             Store.Commit.of_hash s commit >>= function
             | Some commit ->
-                mk_branch s branch >>= fun t ->
-                Store.Head.set t commit >>= fun () ->
-                Lwt.return (Ok (Some commit))
+                let* t = mk_branch s branch in
+                Store.Head.set t commit >|= fun () -> Ok (Some commit)
             | None -> Lwt.return (Ok None));
       ]
 
@@ -698,7 +699,7 @@ struct
         subscription_field "watch" ~typ:(non_null diff)
           ~args:Arg.[ arg "branch" ~typ:Input.branch; arg "key" ~typ:Input.key ]
           ~resolve:(fun _ctx branch key ->
-            mk_branch s branch >>= fun t ->
+            let* t = mk_branch s branch in
             let stream, push = Lwt_stream.create () in
             let destroy_stream watch () =
               push None;
@@ -706,21 +707,25 @@ struct
             in
             match key with
             | None ->
-                Store.watch t (fun diff ->
-                    push (Some diff);
-                    Lwt.return_unit)
-                >|= fun watch -> Ok (stream, destroy_stream watch)
+                let+ watch =
+                  Store.watch t (fun diff ->
+                      push (Some diff);
+                      Lwt.return_unit)
+                in
+                Ok (stream, destroy_stream watch)
             | Some key ->
-                Store.watch_key t key (function diff ->
-                    push
-                      (Some
-                         (map_diff diff
-                            ~added:(fun (c, _) -> c)
-                            ~removed:(fun (c, _) -> c)
-                            ~updated:(fun (before, _) (after, _) ->
-                              (before, after))));
-                    Lwt.return_unit)
-                >|= fun watch -> Ok (stream, destroy_stream watch));
+                let+ watch =
+                  Store.watch_key t key (function diff ->
+                      push
+                        (Some
+                           (map_diff diff
+                              ~added:(fun (c, _) -> c)
+                              ~removed:(fun (c, _) -> c)
+                              ~updated:(fun (before, _) (after, _) ->
+                                (before, after))));
+                      Lwt.return_unit)
+                in
+                Ok (stream, destroy_stream watch));
       ]
 
   let schema s =
@@ -732,24 +737,25 @@ struct
           io_field "commit" ~typ:(Lazy.force commit)
             ~args:Arg.[ arg "hash" ~typ:(non_null Input.commit_hash) ]
             ~resolve:(fun _ _src hash ->
-              Store.Commit.of_hash s hash >>= fun r -> Lwt.return (Ok r));
+              Store.Commit.of_hash s hash >|= Result.ok);
           io_field "branches"
             ~typ:(non_null (list (non_null Lazy.(force branch))))
             ~args:[]
             ~resolve:(fun _ _ ->
               Store.Branch.list s
               >>= Lwt_list.map_p (fun branch ->
-                      Store.of_branch s branch >|= fun store -> (store, branch))
+                      let+ store = Store.of_branch s branch in
+                      (store, branch))
               >|= Result.ok);
           io_field "master" ~typ:(Lazy.force branch) ~args:[]
             ~resolve:(fun _ _ ->
-              Store.master s >>= fun t ->
-              Lwt.return (Ok (Some (t, Store.Branch.master))));
+              let+ t = Store.master s in
+              Ok (Some (t, Store.Branch.master)));
           io_field "branch" ~typ:(Lazy.force branch)
             ~args:Arg.[ arg "name" ~typ:(non_null Input.branch) ]
             ~resolve:(fun _ _ branch ->
-              Store.of_branch s branch >>= fun t ->
-              Lwt.return (Ok (Some (t, branch))));
+              let+ t = Store.of_branch s branch in
+              Ok (Some (t, branch)));
         ])
 
   let execute_request ctx req = Graphql_server.execute_request ctx () req

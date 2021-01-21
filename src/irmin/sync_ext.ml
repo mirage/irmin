@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open S
 
 let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
@@ -47,27 +47,29 @@ module Make (S : Store.S) = struct
     let conv_node_v = Type.unstage (conv RP.Node.Val.t SP.Node.Val.t) in
     let conv_commit_k = Type.unstage (conv RP.Commit.Key.t SP.Commit.Key.t) in
     let conv_commit_v = Type.unstage (conv RP.Commit.Val.t SP.Commit.Val.t) in
-    SP.Slice.empty () >>= fun s ->
-    RP.Slice.iter r (function
-      | `Contents (k, v) -> (
-          let k = conv_contents_k k in
-          let v = conv_contents_v v in
-          match (k, v) with
-          | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
-          | _ -> Lwt.return_unit)
-      | `Node (k, v) -> (
-          let k = conv_node_k k in
-          let v = conv_node_v v in
-          match (k, v) with
-          | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
-          | _ -> Lwt.return_unit)
-      | `Commit (k, v) -> (
-          let k = conv_commit_k k in
-          let v = conv_commit_v v in
-          match (k, v) with
-          | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
-          | _ -> Lwt.return_unit))
-    >>= fun () -> Lwt.return s
+    let* s = SP.Slice.empty () in
+    let* () =
+      RP.Slice.iter r (function
+        | `Contents (k, v) -> (
+            let k = conv_contents_k k in
+            let v = conv_contents_v v in
+            match (k, v) with
+            | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
+            | _ -> Lwt.return_unit)
+        | `Node (k, v) -> (
+            let k = conv_node_k k in
+            let v = conv_node_v v in
+            match (k, v) with
+            | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
+            | _ -> Lwt.return_unit)
+        | `Commit (k, v) -> (
+            let k = conv_commit_k k in
+            let v = conv_commit_v v in
+            match (k, v) with
+            | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
+            | _ -> Lwt.return_unit))
+    in
+    Lwt.return s
 
   let convs src dst l =
     let conv = Type.unstage (conv src dst) in
@@ -101,15 +103,17 @@ module Make (S : Store.S) = struct
         let conv =
           Type.unstage (conv R.(commit_t r_repo) S.(commit_t s_repo))
         in
-        S.Repo.heads s_repo >>= fun min ->
+        let* min = S.Repo.heads s_repo in
         let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
         R.Head.find r >>= function
         | None -> Lwt.return (Ok `Empty)
         | Some h -> (
-            R.Repo.export (R.repo r) ?depth ~min ~max:(`Max [ h ])
-            >>= fun r_slice ->
-            convert_slice (module R.Private) (module S.Private) r_slice
-            >>= fun s_slice ->
+            let* r_slice =
+              R.Repo.export (R.repo r) ?depth ~min ~max:(`Max [ h ])
+            in
+            let* s_slice =
+              convert_slice (module R.Private) (module S.Private) r_slice
+            in
             S.Repo.import s_repo s_slice >|= function
             | Error e -> Error e
             | Ok () -> (
@@ -119,7 +123,7 @@ module Make (S : Store.S) = struct
         | `Empty | `Commit _ -> Lwt.return (Ok `Empty)
         | `Branch br -> (
             Log.debug (fun l -> l "Fetching branch %a" pp_branch br);
-            B.v (S.repo t) >>= fun g ->
+            let* g = B.v (S.repo t) in
             B.fetch g ?depth e br >>= function
             | Error _ as e -> Lwt.return e
             | Ok (Some c) -> (
@@ -175,16 +179,17 @@ module Make (S : Store.S) = struct
         | None -> Lwt.return (Ok `Empty)
         | Some h -> (
             Log.debug (fun f -> f "push store");
-            R.Repo.heads (R.repo r) >>= fun min ->
+            let* min = R.Repo.heads (R.repo r) in
             let r_repo = R.repo r in
             let s_repo = S.repo t in
             let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
             let conv =
               Type.unstage (conv S.(commit_t s_repo) R.(commit_t r_repo))
             in
-            S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
-            convert_slice (module S.Private) (module R.Private) s_slice
-            >>= fun r_slice ->
+            let* s_slice = S.Repo.export (S.repo t) ?depth ~min in
+            let* r_slice =
+              convert_slice (module S.Private) (module R.Private) s_slice
+            in
             R.Repo.import (R.repo r) r_slice >>= function
             | Error e -> Lwt.return (Error (e :> push_error))
             | Ok () -> (
@@ -192,14 +197,15 @@ module Make (S : Store.S) = struct
                 | Error e -> Lwt.return (Error (e :> push_error))
                 | Ok h ->
                     R.Head.set r h >>= fun () ->
-                    S.Head.get t >|= fun head -> Ok (`Head head))))
+                    let+ head = S.Head.get t in
+                    Ok (`Head head))))
     | S.E e -> (
         match S.status t with
         | `Empty -> Lwt.return (Ok `Empty)
         | `Commit _ -> Lwt.return (Error `Detached_head)
         | `Branch br -> (
-            S.of_branch (S.repo t) br >>= S.Head.get >>= fun head ->
-            B.v (S.repo t) >>= fun g ->
+            let* head = S.of_branch (S.repo t) br >>= S.Head.get in
+            let* g = B.v (S.repo t) in
             B.push g ?depth e br >>= function
             | Ok () -> Lwt.return (Ok (`Head head))
             | Error err -> Lwt.return (Error (err :> push_error))))

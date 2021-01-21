@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Astring
 
 let src = Logs.Src.create "irmin.fs" ~doc:"Irmin disk persistence"
@@ -111,7 +111,7 @@ struct
 
   let list t =
     Log.debug (fun f -> f "list");
-    IO.rec_files (S.dir t.path) >|= fun files ->
+    let+ files = IO.rec_files (S.dir t.path) in
     let files =
       let p = String.length t.path in
       List.fold_left
@@ -188,7 +188,7 @@ struct
   let watches = E.create 10
 
   let v config =
-    RO.v config >|= fun t ->
+    let+ t = RO.v config in
     let w =
       let path = RO.get_path config in
       try E.find watches path
@@ -216,12 +216,14 @@ struct
     W.listen_dir t.w dir ~key ~value:(RO.find t.t)
 
   let watch_key t key ?init f =
-    listen_dir t >>= fun stop ->
-    W.watch_key t.w key ?init f >|= fun w -> (w, stop)
+    let* stop = listen_dir t in
+    let+ w = W.watch_key t.w key ?init f in
+    (w, stop)
 
   let watch t ?init f =
-    listen_dir t >>= fun stop ->
-    W.watch t.w ?init f >|= fun w -> (w, stop)
+    let* stop = listen_dir t in
+    let+ w = W.watch t.w ?init f in
+    (w, stop)
 
   let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
   let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
@@ -238,7 +240,8 @@ struct
     Log.debug (fun f -> f "remove %a" RO.pp_key key);
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
-    IO.remove_file ~lock file >>= fun () -> W.notify t.w key None
+    let* () = IO.remove_file ~lock file in
+    W.notify t.w key None
 
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
@@ -246,10 +249,12 @@ struct
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
     let raw_value = function None -> None | Some v -> Some (raw_value v) in
-    IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
-      ~set:(raw_value set)
-    >>= fun b ->
-    (if b then W.notify t.w key set else Lwt.return_unit) >|= fun () -> b
+    let* b =
+      IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
+        ~set:(raw_value set)
+    in
+    let+ () = if b then W.notify t.w key set else Lwt.return_unit in
+    b
 
   let clear t =
     Log.debug (fun f -> f "clear");
@@ -382,10 +387,12 @@ module IO_mem = struct
     with Not_found -> Lwt.return_none
 
   let write_file ?temp_dir:_ ?lock file v =
-    with_lock lock (fun () ->
-        Hashtbl.replace t.files file v;
-        Lwt.return_unit)
-    >>= fun () -> notify file
+    let* () =
+      with_lock lock (fun () ->
+          Hashtbl.replace t.files file v;
+          Lwt.return_unit)
+    in
+    notify file
 
   let equal x y =
     match (x, y) with
@@ -407,7 +414,8 @@ module IO_mem = struct
               Hashtbl.replace t.files file v;
               true
       in
-      (if b then notify file else Lwt.return_unit) >|= fun () -> b
+      let+ () = if b then notify file else Lwt.return_unit in
+      b
     in
     with_lock (Some lock) f
 

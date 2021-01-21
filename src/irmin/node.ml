@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
@@ -225,8 +225,7 @@ struct
       | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v)
     in
     let add v =
-      if S.Val.is_empty v then Lwt.return_none
-      else add t v >>= fun k -> Lwt.return_some k
+      if S.Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
     in
     Merge.like_lwt [%typ: S.Key.t option] merge read add
 
@@ -276,7 +275,7 @@ module Graph (S : S.NODE_STORE) = struct
     Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    Graph.closure ~pred:(pred t) ~min ~max () >|= fun g ->
+    let+ g = Graph.closure ~pred:(pred t) ~min ~max () in
     List.fold_left
       (fun acc -> function `Node x -> x :: acc | _ -> acc)
       [] (Graph.vertex g)
@@ -331,17 +330,20 @@ module Graph (S : S.NODE_STORE) = struct
   let map_one t node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
     let old_key = S.Val.find node label in
-    (match old_key with
-    | None | Some (`Contents _) -> Lwt.return S.Val.empty
-    | Some (`Node k) -> (
-        S.find t k >|= function None -> S.Val.empty | Some v -> v))
-    >>= fun old_node ->
-    f old_node >>= fun new_node ->
+    let* old_node =
+      match old_key with
+      | None | Some (`Contents _) -> Lwt.return S.Val.empty
+      | Some (`Node k) -> (
+          S.find t k >|= function None -> S.Val.empty | Some v -> v)
+    in
+    let* new_node = f old_node in
     if equal_val old_node new_node then Lwt.return node
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
-    else S.add t new_node >|= fun k -> S.Val.add node label (`Node k)
+    else
+      let+ k = S.add t new_node in
+      S.Val.add node label (`Node k)
 
   let map t node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
@@ -350,8 +352,10 @@ module Graph (S : S.NODE_STORE) = struct
       | None -> Lwt.return (f node)
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
-    (S.find t node >|= function None -> S.Val.empty | Some n -> n)
-    >>= fun node -> aux node path >>= S.add t
+    let* node =
+      S.find t node >|= function None -> S.Val.empty | Some n -> n
+    in
+    aux node path >>= S.add t
 
   let add t node path n =
     Log.debug (fun f -> f "add %a %a" pp_key node pp_path path);

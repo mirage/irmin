@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
@@ -111,34 +111,36 @@ module Make_helpers (S : S) = struct
   let b2 = "bar/toto"
 
   let n1 ~repo =
-    kv1 ~repo >>= fun kv1 ->
+    let* kv1 = kv1 ~repo in
     with_node repo (fun t -> Graph.v t [ ("x", normal kv1) ])
 
   let n2 ~repo =
-    n1 ~repo >>= fun kn1 ->
+    let* kn1 = n1 ~repo in
     with_node repo (fun t -> Graph.v t [ ("b", `Node kn1) ])
 
   let n3 ~repo =
-    n2 ~repo >>= fun kn2 ->
+    let* kn2 = n2 ~repo in
     with_node repo (fun t -> Graph.v t [ ("a", `Node kn2) ])
 
   let n4 ~repo =
-    n1 ~repo >>= fun kn1 ->
-    kv2 ~repo >>= fun kv2 ->
-    with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) >>= fun kn4 ->
-    with_node repo (fun t -> Graph.v t [ ("b", `Node kn1); ("c", `Node kn4) ])
-    >>= fun kn5 -> with_node repo (fun t -> Graph.v t [ ("a", `Node kn5) ])
+    let* kn1 = n1 ~repo in
+    let* kv2 = kv2 ~repo in
+    let* kn4 = with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) in
+    let* kn5 =
+      with_node repo (fun t -> Graph.v t [ ("b", `Node kn1); ("c", `Node kn4) ])
+    in
+    with_node repo (fun t -> Graph.v t [ ("a", `Node kn5) ])
 
   let r1 ~repo =
-    n2 ~repo >>= fun kn2 ->
+    let* kn2 = n2 ~repo in
     S.Tree.of_hash repo kn2 >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
 
   let r2 ~repo =
-    n3 ~repo >>= fun kn3 ->
-    r1 ~repo >>= fun kr1 ->
+    let* kn3 = n3 ~repo in
+    let* kr1 = r1 ~repo in
     S.Tree.of_hash repo kn3 >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
@@ -148,8 +150,9 @@ module Make_helpers (S : S) = struct
   let run x test =
     try
       Lwt_main.run
-        ( x.init () >>= fun () ->
-          S.Repo.v x.config >>= fun repo -> test repo >>= x.clean )
+        (let* () = x.init () in
+         let* repo = S.Repo.v x.config in
+         test repo >>= x.clean)
     with e ->
       Lwt_main.run (x.clean ());
       raise e
@@ -224,7 +227,7 @@ let checks t =
 let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
   Lwt.catch
     (fun x ->
-      f x >>= fun (_ : a) ->
+      let* (_ : a) = f x in
       Alcotest.failf
         "Fail %s: expected function to raise %s, but it returned instead." msg
         (Printexc.to_string exn))

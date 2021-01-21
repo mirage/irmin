@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Printf
 open Astring
 
@@ -61,7 +61,7 @@ module Make (S : Store.S) = struct
           (match depth with None -> "<none>" | Some d -> string_of_int d)
           html
           (match full with None -> "<none>" | Some b -> string_of_bool b));
-    S.Repo.export ?full ?depth (S.repo t) >>= fun slice ->
+    let* slice = S.Repo.export ?full ?depth (S.repo t) in
     let vertex = Hashtbl.create 102 in
     let add_vertex v l = Hashtbl.add vertex v l in
     let mem_vertex v = Hashtbl.mem vertex v in
@@ -144,17 +144,18 @@ module Make (S : Store.S) = struct
     let contents = ref [] in
     let nodes = ref [] in
     let commits = ref [] in
-    Slice.iter slice (function
-      | `Contents c ->
-          contents := c :: !contents;
-          Lwt.return_unit
-      | `Node n ->
-          nodes := n :: !nodes;
-          Lwt.return_unit
-      | `Commit c ->
-          commits := c :: !commits;
-          Lwt.return_unit)
-    >>= fun () ->
+    let* () =
+      Slice.iter slice (function
+        | `Contents c ->
+            contents := c :: !contents;
+            Lwt.return_unit
+        | `Node n ->
+            nodes := n :: !nodes;
+            Lwt.return_unit
+        | `Commit c ->
+            commits := c :: !commits;
+            Lwt.return_unit)
+    in
     List.iter
       (fun (k, c) ->
         add_vertex (`Contents k) [ `Shape `Box; label_of_contents k c ])
@@ -189,22 +190,23 @@ module Make (S : Store.S) = struct
         add_edge (`Commit k) [ `Style `Dashed ] (`Node (Commit.Val.node r)))
       !commits;
     let branch_t = S.Private.Repo.branch_t (S.repo t) in
-    Branch.list branch_t >>= fun bs ->
-    Lwt_list.iter_s
-      (fun r ->
-        Branch.find branch_t r >|= function
-        | None -> ()
-        | Some k ->
-            add_vertex (`Branch r)
-              [ `Shape `Plaintext; label_of_tag r; `Style `Filled ];
-            add_edge (`Branch r) [ `Style `Bold ] (`Commit k))
-      bs
-    >|= fun () ->
+    let* bs = Branch.list branch_t in
+    let+ () =
+      Lwt_list.iter_s
+        (fun r ->
+          Branch.find branch_t r >|= function
+          | None -> ()
+          | Some k ->
+              add_vertex (`Branch r)
+                [ `Shape `Plaintext; label_of_tag r; `Style `Filled ];
+              add_edge (`Branch r) [ `Style `Bold ] (`Commit k))
+        bs
+    in
     let vertex = Hashtbl.fold (fun k v acc -> (k, v) :: acc) vertex [] in
     fun ppf -> Graph.output ppf vertex !edges name
 
   let output_buffer t ?html ?depth ?full ~date buf =
-    fprintf t ?depth ?full ?html ~date "graph" >|= fun fprintf ->
+    let+ fprintf = fprintf t ?depth ?full ?html ~date "graph" in
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf
 end

@@ -1,4 +1,4 @@
-open Lwt.Infix
+open! Import
 open Irmin_pack.Checks
 module IO = Irmin_pack.Private.IO.Unix
 
@@ -65,8 +65,7 @@ struct
           | true -> `Upper1
           | false -> `Upper0
         in
-        let+ () = IO_layers.IO.close t in
-        Some a
+        IO_layers.IO.close t >|= fun () -> Some a
 
   module Stat = struct
     module Layer_stat = Simple.Stat

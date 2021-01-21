@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 open Irmin_http_common
 module T = Irmin.Type
 
@@ -68,7 +68,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       method content_types_accepted rd = Wm.continue [] rd
 
       method! process_post rd =
-        Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun _ ->
+        let* _ = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
         op repo >>= fun () ->
         let resp_body = `String "" in
         Wm.continue true { rd with Wm.Rd.resp_body }
@@ -92,17 +92,17 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       | Error _ -> Wm.respond 404 rd
 
     let add rd repo =
-      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+      let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
       match Irmin.Type.of_string V.t body with
       | Error e -> parse_error rd body e
       | Ok body ->
           S.batch repo @@ fun db ->
-          S.add db body >>= fun new_id ->
+          let* new_id = S.add db body in
           let resp_body = `String (Irmin.Type.to_string K.t new_id) in
           Wm.continue true { rd with Wm.Rd.resp_body }
 
     let unsafe_add rd repo key =
-      Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+      let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
       match Irmin.Type.of_string V.t body with
       | Error e -> parse_error rd body e
       | Ok body ->
@@ -151,13 +151,13 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method content_types_accepted rd = Wm.continue [] rd
 
         method! process_post rd =
-          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
-          match Irmin.Type.(of_string (merge_t (option K.t)) body) with
+          let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
+          match Irmin.Type.(of_string (merge_t (option K.t))) body with
           | Error e -> parse_error rd body e
           | Ok { old; left; right } ->
               S.batch repo @@ fun db ->
               let old = Irmin.Merge.promise old in
-              Irmin.Merge.f (merge db) ~old left right >>= fun m ->
+              let* m = Irmin.Merge.f (merge db) ~old left right in
               let result = Irmin.Merge.result_t (Irmin.Type.option K.t) in
               let resp_body = `String Irmin.(Type.to_string result m) in
               Wm.continue true { rd with Wm.Rd.resp_body }
@@ -180,7 +180,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method! resource_exists rd =
           with_key rd (fun key ->
-              S.mem db key >>= fun mem -> Wm.continue mem rd)
+              let* mem = S.mem db key in
+              Wm.continue mem rd)
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#to_json) ] rd
@@ -203,7 +204,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method content_types_accepted rd = Wm.continue [] rd
 
         method private to_json rd =
-          S.list db >>= fun keys ->
+          let* keys = S.list db in
           let json = to_json T.(list K.t) keys in
           Wm.continue (`String json) rd
 
@@ -221,7 +222,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         inherit resource
 
         method private of_json rd =
-          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+          let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
           match of_json (set_t V.t) body with
           | Error e -> parse_error rd body e
           | Ok v ->
@@ -233,7 +234,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
                       let rd = { rd with Wm.Rd.resp_body } in
                       Wm.continue true rd
                   | None ->
-                      S.test_and_set db key ~test:v.test ~set:v.set >>= fun b ->
+                      let* b = S.test_and_set db key ~test:v.test ~set:v.set in
                       let resp_body =
                         `String (to_json status_t (string_of_bool b))
                       in
@@ -249,7 +250,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method! resource_exists rd =
           with_key rd (fun key ->
-              S.mem db key >>= fun mem -> Wm.continue mem rd)
+              let* mem = S.mem db key in
+              Wm.continue mem rd)
 
         method! allowed_methods rd =
           Wm.continue [ `GET; `HEAD; `PUT; `DELETE ] rd
@@ -277,27 +279,29 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method private stream ?init () =
           let stream, push = Lwt_stream.create () in
-          S.watch ?init db (fun key diff ->
-              let v = to_json (event_t K.t V.t) (key, diff) in
-              push (Some v);
-              push (Some ",");
-              Lwt.return_unit)
-          >|= fun w ->
+          let+ w =
+            S.watch ?init db (fun key diff ->
+                let v = to_json (event_t K.t V.t) (key, diff) in
+                push (Some v);
+                push (Some ",");
+                Lwt.return_unit)
+          in
           Lwt.async (fun () ->
               Lwt_stream.closed stream >>= fun () -> S.unwatch db w);
           push (Some "[");
           `Stream stream
 
         method! process_post rd =
-          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+          let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
           match of_json T.(list (init_t K.t V.t)) body with
           | Error e -> parse_error rd body e
           | Ok init ->
-              self#stream ~init () >>= fun resp_body ->
+              let* resp_body = self#stream ~init () in
               Wm.continue true { rd with Wm.Rd.resp_body }
 
         method private of_json rd =
-          self#stream () >>= fun body -> Wm.continue body rd
+          let* body = self#stream () in
+          Wm.continue body rd
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#of_json) ] rd
@@ -313,29 +317,31 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method private stream ?init key =
           let stream, push = Lwt_stream.create () in
-          S.watch_key ?init db key (fun diff ->
-              let v = to_json (event_t K.t V.t) (key, diff) in
-              push (Some v);
-              push (Some ",");
-              Lwt.return_unit)
-          >|= fun w ->
+          let+ w =
+            S.watch_key ?init db key (fun diff ->
+                let v = to_json (event_t K.t V.t) (key, diff) in
+                push (Some v);
+                push (Some ",");
+                Lwt.return_unit)
+          in
           Lwt.async (fun () ->
               Lwt_stream.closed stream >>= fun () -> S.unwatch db w);
           push (Some "[");
           `Stream stream
 
         method! process_post rd =
-          Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body >>= fun body ->
+          let* body = Cohttp_lwt.Body.to_string rd.Wm.Rd.req_body in
           match of_json V.t body with
           | Error e -> parse_error rd body e
           | Ok init ->
               with_key rd (fun key ->
-                  self#stream ~init key >>= fun resp_body ->
+                  let* resp_body = self#stream ~init key in
                   Wm.continue true { rd with Wm.Rd.resp_body })
 
         method private of_json rd =
           with_key rd (fun key ->
-              self#stream key >>= fun body -> Wm.continue body rd)
+              let* body = self#stream key in
+              Wm.continue body rd)
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", self#of_json) ] rd
@@ -410,10 +416,11 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let callback (_ch, conn) request body =
       let open Cohttp in
       Log.debug (fun l -> l "new connection %a" pp_con conn);
-      (Wm.dispatch' routes ~body ~request >|= function
-       | None -> (`Not_found, Header.init (), `String "Not found", [])
-       | Some result -> result)
-      >>= fun (status, headers, body, _path) ->
+      let* status, headers, body, _path =
+        Wm.dispatch' routes ~body ~request >|= function
+        | None -> (`Not_found, Header.init (), `String "Not found", [])
+        | Some result -> result
+      in
       Log.info (fun l ->
           l "[%a] %d - %s %s" pp_con conn
             (Code.code_of_status status)

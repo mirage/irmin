@@ -15,9 +15,10 @@
  *)
 
 let () = Random.self_init ()
-
-open Lwt.Infix
-
+let ( >>= ) = Lwt.Infix.( >>= )
+let ( >|= ) = Lwt.Infix.( >|= )
+let ( let* ) = ( >>= )
+let ( let+ ) = ( >|= )
 let ( / ) = Filename.concat
 let test_http_dir = "test-http"
 let uri = Uri.of_string "http://irmin"
@@ -110,13 +111,14 @@ let rec lock id =
   let pid_file_tmp = tmp_file pid_file in
   (* [fd] is used to write the actual PID file; the file is renamed
      bellow to ensure atomicity. *)
-  Lwt_unix.openfile pid_file_tmp [ Unix.O_CREAT; Unix.O_RDWR ] 0o600
-  >>= fun fd ->
+  let* fd =
+    Lwt_unix.openfile pid_file_tmp [ Unix.O_CREAT; Unix.O_RDWR ] 0o600
+  in
   Lwt.catch
     (fun () ->
       Lwt_unix.lockf fd Unix.F_LOCK 0 >>= fun () ->
       Logs.debug (fun l -> l "write PID %s in %s" pid pid_file);
-      Lwt_unix.write fd (Bytes.of_string pid) 0 pid_len >>= fun len ->
+      let* len = Lwt_unix.write fd (Bytes.of_string pid) 0 pid_len in
       if len <> pid_len then
         Lwt_unix.close fd >>= fun () ->
         Lwt.fail_with "Unable to write PID to lock file"
@@ -142,19 +144,22 @@ let serve servers n id =
   let socket = socket test in
   let server () =
     server.init () >>= fun () ->
-    Server.Repo.v server.config >>= fun repo ->
-    lock test >>= fun lock ->
+    let* repo = Server.Repo.v server.config in
+    let* lock = lock test in
     let spec = HTTP.v repo ~strict:false in
-    Lwt.catch
-      (fun () -> Lwt_unix.unlink socket)
-      (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
-    >>= fun () ->
+    let* () =
+      Lwt.catch
+        (fun () -> Lwt_unix.unlink socket)
+        (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
+    in
     let mode = `Unix_domain_socket (`File socket) in
     Conduit_lwt_unix.set_max_active 100;
-    Cohttp_lwt_unix.Server.create
-      ~on_exn:(Fmt.pr "Async exception caught: %a" Fmt.exn)
-      ~mode spec
-    >>= fun () -> unlock lock
+    let* () =
+      Cohttp_lwt_unix.Server.create
+        ~on_exn:(Fmt.pr "Async exception caught: %a" Fmt.exn)
+        ~mode spec
+    in
+    unlock lock
   in
   Lwt_main.run (server ())
 
@@ -193,7 +198,8 @@ let suite i server =
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in
-        wait_for_the_server_to_start id >|= fun pid -> server_pid := pid);
+        let+ pid = wait_for_the_server_to_start id in
+        server_pid := pid);
     stats = None;
     clean =
       (fun () ->

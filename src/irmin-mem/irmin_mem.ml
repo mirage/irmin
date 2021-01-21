@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 
@@ -77,7 +77,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let watches = W.v ()
   let lock = L.v ()
-  let v config = RO.v config >>= fun t -> Lwt.return { t; w = watches; lock }
+
+  let v config =
+    let* t = RO.v config in
+    Lwt.return { t; w = watches; lock }
+
   let close t = W.clear t.w >>= fun () -> RO.close t.t
   let find t = RO.find t.t
   let mem t = RO.mem t.t
@@ -91,35 +95,40 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let set t key value =
     Log.debug (fun f -> f "update");
-    L.with_lock t.lock key (fun () ->
-        t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-        Lwt.return_unit)
-    >>= fun () -> W.notify t.w key (Some value)
+    let* () =
+      L.with_lock t.lock key (fun () ->
+          t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
+          Lwt.return_unit)
+    in
+    W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug (fun f -> f "remove");
-    L.with_lock t.lock key (fun () ->
-        t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-        Lwt.return_unit)
-    >>= fun () -> W.notify t.w key None
+    let* () =
+      L.with_lock t.lock key (fun () ->
+          t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
+          Lwt.return_unit)
+    in
+    W.notify t.w key None
 
   let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
 
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set");
-    L.with_lock t.lock key (fun () ->
-        find t key >>= fun v ->
-        if equal_v_opt test v then
-          let () =
-            match set with
-            | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
-            | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
-          in
-          Lwt.return_true
-        else Lwt.return_false)
-    >>= fun updated ->
-    (if updated then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
-    Lwt.return updated
+    let* updated =
+      L.with_lock t.lock key (fun () ->
+          let+ v = find t key in
+          if equal_v_opt test v then
+            let () =
+              match set with
+              | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
+              | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
+            in
+            true
+          else false)
+    in
+    let+ () = if updated then W.notify t.w key set else Lwt.return_unit in
+    updated
 
   let clear t = W.clear t.w >>= fun () -> RO.clear t.t
 end

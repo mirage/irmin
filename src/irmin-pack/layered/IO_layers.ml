@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
+open! Import
 
 let src = Logs.Src.create "irmin.layers.io" ~doc:"IO for irmin-layers"
 
@@ -35,19 +35,19 @@ module IO = struct
   type t = { file : string; fd : Lwt_unix.file_descr }
 
   let lseek ~offset t =
-    Lwt_unix.lseek t.fd offset Lwt_unix.SEEK_SET >>= fun off ->
+    let* off = Lwt_unix.lseek t.fd offset Lwt_unix.SEEK_SET in
     if off <> offset then Lwt.fail_with "invalid lseek" else Lwt.return_unit
 
   let write ~offset t buf =
     lseek ~offset t >>= fun () ->
     let len = Bytes.length buf in
-    Lwt_unix.write t.fd buf 0 len >>= fun n ->
+    let* n = Lwt_unix.write t.fd buf 0 len in
     if n <> len then Lwt.fail_with "invalid write" else Lwt.return_unit
 
   let read ~offset t buf =
     lseek ~offset t >>= fun () ->
     let len = Bytes.length buf in
-    Lwt_unix.read t.fd buf 0 len >>= fun n ->
+    let* n = Lwt_unix.read t.fd buf 0 len in
     if n <> len then Lwt.fail_with "invalid read" else Lwt.return_unit
 
   let close t = Lwt_unix.close t.fd
@@ -68,8 +68,9 @@ module IO = struct
   let v file =
     match Sys.file_exists file with
     | false ->
-        Lwt_unix.openfile file Lwt_unix.[ O_CREAT; O_RDWR; O_CLOEXEC ] 0o644
-        >>= fun fd ->
+        let* fd =
+          Lwt_unix.openfile file Lwt_unix.[ O_CREAT; O_RDWR; O_CLOEXEC ] 0o644
+        in
         let t = { file; fd } in
         write_flip true t >|= fun () -> t
     | true ->
@@ -82,9 +83,10 @@ module Lock = struct
 
   let v file =
     let pid = string_of_int (Unix.getpid ()) in
-    Lwt_unix.openfile file Unix.[ O_CREAT; O_WRONLY; O_TRUNC ] 0o644
-    >>= fun fd ->
-    Lwt_unix.write_string fd pid 0 (String.length pid) >>= fun n ->
+    let* fd =
+      Lwt_unix.openfile file Unix.[ O_CREAT; O_WRONLY; O_TRUNC ] 0o644
+    in
+    let* n = Lwt_unix.write_string fd pid 0 (String.length pid) in
     if n <> String.length pid then Lwt.fail_with "invalid write for lock file"
     else Lwt.return { file; fd }
 

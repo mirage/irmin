@@ -10,7 +10,7 @@ exception Unsupported_version of IO.version
 let ( ++ ) = Int64.add
 
 module Cache = IO.Cache
-open Lwt.Infix
+open! Import
 module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
