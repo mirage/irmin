@@ -2046,6 +2046,7 @@ let layered_suite (speed, x) =
         ] )
 
 let run name ~misc tl =
+  Printexc.record_backtrace true;
   let tl1 = List.map suite tl in
   let tl2 = List.map layered_suite tl in
   Alcotest.run name (tl1 @ tl2 @ misc)
