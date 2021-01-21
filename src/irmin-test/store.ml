@@ -1209,6 +1209,7 @@ module Make (S : S) = struct
       in
       let* () =
         let* l1 = S.Tree.list ~offset:0 ~length:2 tree [] in
+        let* () = S.Tree.fold ~force:`True tree () in
         let* l2 = S.Tree.list ~offset:2 ~length:2 tree [] in
         let+ l3 = S.Tree.list ~offset:4 ~length:2 tree [] in
         Alcotest.(check int) "size l1" 2 (List.length l1);
