@@ -790,7 +790,6 @@ struct
       val to_step : ?label:string -> t -> step
       val join : ?label:string -> t list -> t
       val disjoin : ?label:string -> t -> t list
-      val parse_from_file : string -> t
       val parse_from_string : string -> t
     end
 
