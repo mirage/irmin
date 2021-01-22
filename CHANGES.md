@@ -6,6 +6,10 @@
     instabilities. No user-facing change since this function is not being used
     yet. (#1247, @Ngoguey42, @icristescu)
 
+  - Fix a regression for `Node.list`, which changed the order of returned
+    bindings when using the `irmin-pack` backend. The ordering is now
+    consistent with pre-2.3.0 releases of `irmin-pack`. (#1259, @CraigFe)
+
 #### Added
 
 #### Changed
