@@ -148,14 +148,15 @@ module Make_helpers (S : S) = struct
           (t3 :> S.tree)
 
   let run x test =
-    try
-      Lwt_main.run
-        (let* () = x.init () in
-         let* repo = S.Repo.v x.config in
-         test repo >>= x.clean)
-    with e ->
-      Lwt_main.run (x.clean ());
-      raise e
+    Lwt_main.run
+      (Lwt.catch
+         (fun () ->
+           let* () = x.init () in
+           let* repo = S.Repo.v x.config in
+           test repo >>= x.clean)
+         (fun exn ->
+           let bt = Printexc.get_raw_backtrace () in
+           x.clean () >>= fun () -> Printexc.raise_with_backtrace exn bt))
 end
 
 let ignore_srcs src =
