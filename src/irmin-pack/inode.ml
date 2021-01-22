@@ -755,50 +755,163 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
 
-    module type DATA_FORMAT = sig
-      type vt
-      type t
+    module MinimalSerde
+        (D : DATA_FORMAT
+               with type hash = T.hash
+                and type metadata = T.metadata
+                and type step = T.step) :
+      SERDE with type t = t and type d = D.t and type hash = T.hash = struct
+      exception Wrong_Config of (int * int) * (int * int)
 
-      exception Misconstructed_Data of string
+      type nonrec t = t
+      type d = D.t
+      type nonrec hash = T.hash
 
-      val of_int : ?label:string -> int -> t
-      val to_int : ?label:string -> t -> int
-      val of_string : ?label:string -> string -> t
-      val to_string : ?label:string -> t -> string
-      val of_hash : ?label:string -> hash -> t
-      val to_hash : ?label:string -> t -> hash
-      val of_lazy_hash : ?label:string -> hash lazy_t -> t
-      val to_lazy_hash : ?label:string -> t -> hash lazy_t
-      val of_metadata : ?label:string -> metadata -> t
-      val to_metadata : ?label:string -> t -> metadata
+      (* This function combines the minimal number of elements needed to serialise
+       * an inode. It will use the D.join function to create a data composed of
+       * a list of the following form
+       * (considering we have (s1, k1)...(sn, kn) bindings:
+       * [D.of_int Conf.entries;
+       *  D.of_int Conf.stable_hash;
+       *  D.of_lazy_hash hash;
+       *  D.join [ D.of_step s1; D.of_value k1 ];
+       *  D.join [ D.of_step s2; D.of_value k2 ];
+       *  ...
+       *  D.join [ D.of_step sn; D.of_value kn ];
+       * ]
+       *)
+      let of_t t =
+        let l = I.list ~find:t.find t.v in
+        D.join
+          (D.of_int Conf.entries
+          :: D.of_int Conf.stable_hash
+          :: D.of_lazy_hash t.v.I.hash
+          :: List.map (fun (s, k) -> D.join [ D.of_step s; D.of_value k ]) l)
 
-      val of_value :
-        ?label:string ->
-        ?label_hash:string ->
-        ?label_metadata:string ->
-        [< `Contents of hash * metadata | `Node of hash ] ->
-        t
+      (* svl should represent a list of step * value that were serialized as
+       * D.join [ D.of_step step; D.of_kind value ] *)
+      let step_value_list_of_sexp svl =
+        let rec aux acc svl =
+          match svl with
+          | [] -> acc
+          | hd :: tl -> (
+              match D.disjoin hd with
+              | [ step; value ] ->
+                  let step = D.to_step step in
+                  let value = D.to_value value in
+                  aux ((step, value) :: acc) tl
+              | _ -> raise (D.Misconstructed_Data (D.to_string hd)))
+        in
 
-      val to_value :
-        ?label:string ->
-        ?label_hash:string ->
-        ?label_metadata:string ->
-        t ->
-        [> `Contents of hash * metadata | `Node of hash ]
+        aux [] svl
 
-      val of_step : ?label:string -> step -> t
-      val to_step : ?label:string -> t -> step
-      val join : ?label:string -> t list -> t
-      val disjoin : ?label:string -> t -> t list
-      val parse_from_file : string -> t
-      val parse_from_string : string -> t
+      let to_t ts =
+        match D.disjoin ts with
+        | entries :: stable_hash :: hash :: step_value_list ->
+            let entries = D.to_int entries in
+            let stable_hash = D.to_int stable_hash in
+            if Conf.stable_hash <> stable_hash || Conf.entries <> entries then
+              raise
+                (Wrong_Config
+                   ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
+            else (v @@ step_value_list_of_sexp step_value_list, D.to_hash hash)
+        | _ -> raise (D.Misconstructed_Data (D.to_string ts))
     end
 
-    module Sexp : DATA_FORMAT with type t = Sexplib.Sexp.t = struct
+    (* module StructuralSerde (D : DATA_FORMAT) :
+     *   SERDE with type d = D.t and module D = D = struct
+     *   exception Wrong_Config of (int * int) * (int * int)
+     *
+     *   module D = D
+     *
+     *   type d = D.t
+     *
+     *   let rec sexp_of_tree t =
+     *     match t with None -> Sexplib.Sexp.Atom "None" | Some t -> sexp_of_t t
+     *
+     *   and sexp_of_inode i = sexp_of_tree i.I.tree
+     *
+     *   and sexp_of_entry e =
+     *     match e with
+     *     | I.Empty -> Sexplib.Sexp.Atom "E" (\* Sexplib.Sexp.List [] *\)
+     *     | I.Inode i -> sexp_of_inode i
+     *
+     *   and sexp_of_entries a =
+     *     Sexplib.Sexp.List
+     *       (List.rev
+     *       @@ Array.fold_left (fun acc e -> sexp_of_entry e :: acc) [] a)
+     *
+     *   and sexp_of_inodes i = sexp_of_entries i.I.entries
+     *
+     *   and sexp_of_stepmap vs =
+     *     let open Sexplib.Sexp in
+     *     List
+     *       (StepMap.fold
+     *          (fun s k acc -> List [ sexp_of_step s; sexp_of_kind k ] :: acc)
+     *          vs [])
+     *
+     *   and sexp_of_v v =
+     *     let open Sexplib.Sexp in
+     *     match v with
+     *     | I.Values vs -> List [ Atom "V"; sexp_of_stepmap vs ]
+     *     | Inodes i -> List [ Atom "I"; sexp_of_inodes i ]
+     *
+     *   and sexp_of_t t =
+     *     Sexplib.Sexp.(
+     *       List
+     *         [ Sexplib__Std.sexp_of_lazy_t sexp_of_hash t.hash; sexp_of_v t.v ])
+     *
+     *   let sexp_of_t t = sexp_of_t t.v
+     *
+     *   exception Misconstructed_Sexp of string
+     *
+     *   let v_of_sexp _vs = I.Values StepMap.empty
+     *
+     *   let t_of_sexp ts =
+     *     let open Sexplib.Sexp in
+     *     let open I in
+     *     match ts with
+     *     | Atom s -> raise (Misconstructed_Sexp s)
+     *     | List
+     *         [
+     *           List [ Atom "hash"; Atom h ];
+     *           List [ Atom "stable"; Atom s ];
+     *           List [ Atom "v"; sv ];
+     *         ] ->
+     *         {
+     *           hash = lazy (Result.get_ok (Irmin.Type.of_string hash_t h));
+     *           stable = bool_of_string s;
+     *           v = v_of_sexp sv;
+     *         }
+     *     | _ -> raise (Misconstructed_Sexp (to_string ts))
+     *
+     *   let t_of_sexp s = { find = niet; v = t_of_sexp s }
+     *
+     *   let of_t t =
+     *     let l = I.list ~find:t.find t.v in
+     *     D.join
+     *       (D.of_int Conf.entries
+     *       :: D.of_int Conf.stable_hash
+     *       :: D.of_lazy_hash t.v.I.hash
+     *       :: List.map (fun (s, k) -> D.join [ D.of_step s; D.of_value k ]) l)
+     *
+     *   let to_t _ = failwith "TODO"
+     * end *)
+
+    module Sexp :
+      DATA_FORMAT
+        with type t = Sexplib.Sexp.t
+         and type metadata = T.metadata
+         and type hash = T.hash
+         and type step = T.step = struct
       open Sexplib.Sexp
 
-      type vt = t
       type t = Sexplib.Sexp.t
+      type nonrec metadata = T.metadata
+      type nonrec hash = T.hash
+      type nonrec step = T.step
+
+      let _pp = Sexplib.Sexp.pp_hum
 
       exception Misconstructed_Data of string
       exception Wrong_label of string * string
@@ -888,71 +1001,6 @@ struct
 
       let join ?label tl = label >?= List tl
       let disjoin ?label t = match label <?= t with List l -> l | _ -> [ t ]
-    end
-
-    module type SERDE = sig
-      exception Wrong_Config of (int * int) * (int * int)
-
-      type d
-
-      val of_t : t -> d
-      val to_t : d -> t * hash
-    end
-
-    module MinimalSerde (D : DATA_FORMAT) : SERDE with type d = D.t = struct
-      exception Wrong_Config of (int * int) * (int * int)
-
-      type d = D.t
-
-      (* This function combines the minimal number of elements needed to serialise
-       * an inode. It will use the D.join function to create a data composed of
-       * a list of the following form
-       * (considering we have (s1, k1)...(sn, kn) bindings:
-       * [D.of_int Conf.entries;
-       *  D.of_int Conf.stable_hash;
-       *  D.of_lazy_hash hash;
-       *  D.join [ D.of_step s1; D.of_value k1 ];
-       *  D.join [ D.of_step s2; D.of_value k2 ];
-       *  ...
-       *  D.join [ D.of_step sn; D.of_value kn ];
-       * ]
-       *)
-      let of_t t =
-        let l = I.list ~find:t.find t.v in
-        D.join
-          (D.of_int Conf.entries
-          :: D.of_int Conf.stable_hash
-          :: D.of_lazy_hash t.v.I.hash
-          :: List.map (fun (s, k) -> D.join [ D.of_step s; D.of_value k ]) l)
-
-      (* svl should represent a list of step * value that were serialized as
-       * D.join [ D.of_step step; D.of_kind value ] *)
-      let step_value_list_of_sexp svl =
-        let rec aux acc svl =
-          match svl with
-          | [] -> acc
-          | hd :: tl -> (
-              match D.disjoin hd with
-              | [ step; value ] ->
-                  let step = D.to_step step in
-                  let value = D.to_value value in
-                  aux ((step, value) :: acc) tl
-              | _ -> raise (D.Misconstructed_Data (D.to_string hd)))
-        in
-
-        aux [] svl
-
-      let to_t ts =
-        match D.disjoin ts with
-        | entries :: stable_hash :: hash :: step_value_list ->
-            let entries = D.to_int entries in
-            let stable_hash = D.to_int stable_hash in
-            if Conf.stable_hash <> stable_hash || Conf.entries <> entries then
-              raise
-                (Wrong_Config
-                   ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
-            else (v @@ step_value_list_of_sexp step_value_list, D.to_hash hash)
-        | _ -> raise (D.Misconstructed_Data (D.to_string ts))
     end
 
     module MinimalSerdeSexp = MinimalSerde (Sexp)

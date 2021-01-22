@@ -14,63 +14,78 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type DATA_FORMAT = sig
+  type t
+  type hash
+  type metadata
+  type step
+
+  exception Misconstructed_Data of string
+
+  val of_int : ?label:string -> int -> t
+  val to_int : ?label:string -> t -> int
+  val of_string : ?label:string -> string -> t
+  val to_string : ?label:string -> t -> string
+  val of_hash : ?label:string -> hash -> t
+  val to_hash : ?label:string -> t -> hash
+  val of_lazy_hash : ?label:string -> hash lazy_t -> t
+  val to_lazy_hash : ?label:string -> t -> hash lazy_t
+  val of_metadata : ?label:string -> metadata -> t
+  val to_metadata : ?label:string -> t -> metadata
+
+  val of_value :
+    ?label:string ->
+    ?label_hash:string ->
+    ?label_metadata:string ->
+    [< `Contents of hash * metadata | `Node of hash ] ->
+    t
+
+  val to_value :
+    ?label:string ->
+    ?label_hash:string ->
+    ?label_metadata:string ->
+    t ->
+    [> `Contents of hash * metadata | `Node of hash ]
+
+  val of_step : ?label:string -> step -> t
+  val to_step : ?label:string -> t -> step
+  val join : ?label:string -> t list -> t
+  val disjoin : ?label:string -> t -> t list
+  val parse_from_file : string -> t
+  val parse_from_string : string -> t
+end
+
+module type SERDE = sig
+  exception Wrong_Config of (int * int) * (int * int)
+
+  type t
+  type d
+  type hash
+
+  val of_t : t -> d
+  val to_t : d -> t * hash
+end
+
 module type Val_intf = sig
   include Irmin.Private.Node.S
 
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 
-  module type DATA_FORMAT = sig
-    type vt
-    type t
+  module MinimalSerde
+      (D : DATA_FORMAT
+             with type hash = hash
+              and type metadata = metadata
+              and type step = step) :
+    SERDE with type t = t and type d = D.t and type hash = hash
 
-    exception Misconstructed_Data of string
+  module Sexp :
+    DATA_FORMAT
+      with type t = Sexplib.Sexp.t
+       and type metadata = metadata
+       and type hash = hash
+       and type step = step
 
-    val of_int : ?label:string -> int -> t
-    val to_int : ?label:string -> t -> int
-    val of_string : ?label:string -> string -> t
-    val to_string : ?label:string -> t -> string
-    val of_hash : ?label:string -> hash -> t
-    val to_hash : ?label:string -> t -> hash
-    val of_lazy_hash : ?label:string -> hash lazy_t -> t
-    val to_lazy_hash : ?label:string -> t -> hash lazy_t
-    val of_metadata : ?label:string -> metadata -> t
-    val to_metadata : ?label:string -> t -> metadata
-
-    val of_value :
-      ?label:string ->
-      ?label_hash:string ->
-      ?label_metadata:string ->
-      [< `Contents of hash * metadata | `Node of hash ] ->
-      t
-
-    val to_value :
-      ?label:string ->
-      ?label_hash:string ->
-      ?label_metadata:string ->
-      t ->
-      [> `Contents of hash * metadata | `Node of hash ]
-
-    val of_step : ?label:string -> step -> t
-    val to_step : ?label:string -> t -> step
-    val join : ?label:string -> t list -> t
-    val disjoin : ?label:string -> t -> t list
-    val parse_from_file : string -> t
-    val parse_from_string : string -> t
-  end
-
-  module Sexp : DATA_FORMAT with type t = Sexplib.Sexp.t
-
-  module type SERDE = sig
-    exception Wrong_Config of (int * int) * (int * int)
-
-    type d
-
-    val of_t : t -> d
-    val to_t : d -> t * hash
-  end
-
-  module MinimalSerde (D : DATA_FORMAT) : SERDE with type d = D.t
-  module MinimalSerdeSexp : SERDE with type d = Sexplib.Sexp.t
+  module MinimalSerdeSexp : SERDE with type t = t and type hash = hash
 
   module Private : sig
     val hash : t -> hash
