@@ -664,7 +664,7 @@ struct
           used by a newies are also copied in the next upper. We only keep track
           of commit newies and rely on `Repo.iter` to compute the transitive
           closures of all the newies. *)
-      let copy_newies ?cancel t =
+      let copy_newies ~cancel t =
         let newies = X.Commit.CA.consume_newies t.X.Repo.commit in
         let newies = List.rev_map (fun x -> `Commit x) newies in
         Log.debug (fun l -> l "copy newies");
@@ -682,12 +682,12 @@ struct
 
       (** If there are too many newies (more than newies_limit bytes added) then
           copy them concurrently. *)
-      let rec copy_newies_to_next_upper ?cancel t former_offset =
+      let rec copy_newies_to_next_upper ~cancel t former_offset =
         let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then
-          copy_newies ?cancel t >>= fun () ->
-          (copy_newies_to_next_upper ?cancel t offset [@tail])
+          copy_newies ~cancel t >>= fun () ->
+          (copy_newies_to_next_upper ~cancel t offset [@tail])
         else Lwt.return_unit
     end
 
@@ -763,17 +763,17 @@ struct
 
   let with_stats msg f = f >|= fun () -> dump_stats msg
 
-  let copy ?cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
+  let copy ~cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
     (* Copy commits to lower: if squash then copy only the max commits *)
     (if t.X.Repo.with_lower then
      let min = if squash then max else min in
-     with_stats "copied in lower" (Copy.CopyToLower.copy ?cancel t ~min max)
+     with_stats "copied in lower" (Copy.CopyToLower.copy ~cancel t ~min max)
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy [min_upper, max] to next_upper *)
     (if copy_in_upper then
      with_stats "copied in upper"
-       (Copy.CopyToUpper.copy t ?cancel ~min:min_upper max)
+       (Copy.CopyToUpper.copy t ~cancel ~min:min_upper max)
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy branches to both lower and next_upper *)
@@ -822,7 +822,8 @@ struct
       copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
-      Copy.CopyToUpper.copy_newies_to_next_upper ~cancel t offset >>= fun () ->
+      Copy.CopyToUpper.copy_newies_to_next_upper ~cancel:(Some cancel) t offset
+      >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       let before_add_lock = Mtime_clock.count start_time in
       (* At this point there are only a few newies left (less than
@@ -831,7 +832,7 @@ struct
       let* waiting_add =
         Lwt_mutex.with_lock t.batch_lock (fun () ->
             let after_add_lock = Mtime_clock.count start_time in
-            Copy.CopyToUpper.copy_newies t >>= fun () ->
+            Copy.CopyToUpper.copy_newies ~cancel:None t >>= fun () ->
             may (fun f -> f `Before_Flip) hook >>= fun () ->
             X.Repo.flip_upper t;
             may (fun f -> f `Before_Clear) hook >>= fun () ->
