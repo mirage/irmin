@@ -767,8 +767,8 @@ struct
       val to_string : ?label:string -> t -> string
       val of_hash : ?label:string -> hash -> t
       val to_hash : ?label:string -> t -> hash
-      val of_lazy_hash : ?label:string -> hash lazy_t -> t
-      val to_lazy_hash : ?label:string -> t -> hash lazy_t
+      val of_lazy_hash : ?label:string -> hash Lazy.t -> t
+      val to_lazy_hash : ?label:string -> t -> hash Lazy.t
       val of_metadata : ?label:string -> metadata -> t
       val to_metadata : ?label:string -> t -> metadata
 
