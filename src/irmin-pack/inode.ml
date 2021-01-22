@@ -373,7 +373,12 @@ struct
               }
         | Tree t -> list_tree ~offset ~length ~find acc t
 
-    let list ?(offset = 0) ?length ~find t =
+    let compare_step = Irmin.Type.(unstage (compare step_t))
+    let compare_entry x y = compare_step (fst x) (fst y)
+
+    let list ?offset ?length ~find t =
+      let paginated = Option.is_some offset || Option.is_some length in
+      let offset = Option.value offset ~default:0 in
       let length =
         match length with
         | Some n -> n
@@ -382,8 +387,11 @@ struct
             | Values vs -> StepMap.cardinal vs - offset
             | Tree i -> i.length - offset)
       in
-      let entries = list_values ~offset ~length ~find (empty_acc length) t in
-      List.concat (List.rev entries.values)
+      let bindings =
+        let entries = list_values ~offset ~length ~find (empty_acc length) t in
+        List.concat (List.rev entries.values)
+      in
+      if paginated then bindings else List.fast_sort compare_entry bindings
 
     let to_bin_v = function
       | Values vs ->
