@@ -23,7 +23,7 @@ module type Val_intf = sig
     type vt
     type t
 
-    exception Misconstructed_Data of string
+    exception Misconstructed_data of string
 
     val of_int : ?label:string -> int -> t
     val to_int : ?label:string -> t -> int
