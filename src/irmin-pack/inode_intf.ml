@@ -20,7 +20,7 @@ module type DATA_FORMAT = sig
   type metadata
   type step
 
-  exception Misconstructed_Data of string
+  exception Misconstructed_data of string
 
   val of_int : ?label:string -> int -> t
   val to_int : ?label:string -> t -> int

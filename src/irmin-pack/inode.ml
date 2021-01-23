@@ -800,7 +800,7 @@ struct
                   let step = D.to_step step in
                   let value = D.to_value value in
                   aux ((step, value) :: acc) tl
-              | _ -> raise (D.Misconstructed_Data (D.to_string hd)))
+              | _ -> raise (D.Misconstructed_data (D.to_string hd)))
         in
 
         aux [] svl
@@ -815,7 +815,7 @@ struct
                 (Wrong_Config
                    ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
             else (v @@ step_value_list_of_sexp step_value_list, D.to_hash hash)
-        | _ -> raise (D.Misconstructed_Data (D.to_string ts))
+        | _ -> raise (D.Misconstructed_data (D.to_string ts))
     end
 
     (* module StructuralSerde (D : DATA_FORMAT) :
@@ -913,7 +913,7 @@ struct
 
       let _pp = Sexplib.Sexp.pp_hum
 
-      exception Misconstructed_Data of string
+      exception Misconstructed_data of string
       exception Wrong_label of string * string
 
       let ( ?>= ) v = match v with Ok v -> v | Error (`Msg e) -> failwith e
@@ -935,7 +935,7 @@ struct
             match s with
             | List [ Atom l2; s ] when l1 = l2 -> s
             | List [ Atom l2; _ ] -> raise (Wrong_label (l1, l2))
-            | s -> raise (Misconstructed_Data (to_string s)))
+            | s -> raise (Misconstructed_data (to_string s)))
 
       let parse_from_file f = Sexplib.Sexp.load_sexp f
 
@@ -945,7 +945,7 @@ struct
       let to_hash ?label h =
         match label <?= h with
         | Atom h -> ?>=(Irmin.Type.of_string hash_t h)
-        | s -> raise (Misconstructed_Data (to_string s))
+        | s -> raise (Misconstructed_data (to_string s))
 
       let of_int ?label i = label >?= Sexplib.Std.sexp_of_int i
       let to_int ?label i = Sexplib.Std.int_of_sexp (label <?= i)
@@ -956,7 +956,7 @@ struct
       let to_lazy_hash ?label h =
         match label <?= h with
         | Atom h -> lazy ?>=(Irmin.Type.of_string hash_t h)
-        | s -> raise (Misconstructed_Data (to_string s))
+        | s -> raise (Misconstructed_data (to_string s))
 
       let of_metadata ?label m =
         label >?= Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp metadata_t) m)
@@ -964,7 +964,7 @@ struct
       let to_metadata ?label m =
         match label <?= m with
         | Atom m -> ?>=(Irmin.Type.of_string metadata_t m)
-        | s -> raise (Misconstructed_Data (to_string s))
+        | s -> raise (Misconstructed_data (to_string s))
 
       (* A value is either a Content (B for blob) or a Node (N) *)
       let of_value ?label ?label_hash ?label_metadata v =
@@ -989,7 +989,7 @@ struct
         | List [ Atom "N"; h ] ->
             let h = to_hash ?label:label_hash h in
             `Node h
-        | v -> raise (Misconstructed_Data (Sexplib.Sexp.to_string v))
+        | v -> raise (Misconstructed_data (Sexplib.Sexp.to_string v))
 
       let of_step ?label s =
         label >?= Sexplib.Sexp.Atom (Fmt.str "%a" (Irmin.Type.pp step_t) s)
@@ -997,7 +997,7 @@ struct
       let to_step ?label s =
         match label <?= s with
         | Atom s -> ?>=(Irmin.Type.of_string step_t s)
-        | s -> raise (Misconstructed_Data (to_string s))
+        | s -> raise (Misconstructed_data (to_string s))
 
       let join ?label tl = label >?= List tl
       let disjoin ?label t = match label <?= t with List l -> l | _ -> [ t ]
