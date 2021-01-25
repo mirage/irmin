@@ -51,19 +51,20 @@ module type DATA_FORMAT = sig
   val to_step : ?label:string -> t -> step
   val join : ?label:string -> t list -> t
   val disjoin : ?label:string -> t -> t list
-  val parse_from_file : string -> t
   val parse_from_string : string -> t
+  val pp : Format.formatter -> t -> unit
 end
 
 module type SERDE = sig
-  exception Wrong_Config of (int * int) * (int * int)
+  exception Wrong_config of (int * int) * (int * int)
+
+  module Data : DATA_FORMAT
 
   type t
-  type d
   type hash
 
-  val of_t : t -> d
-  val to_t : d -> t * hash
+  val of_t : t -> Data.t
+  val to_t : Data.t -> t * hash
 end
 
 module type Val_intf = sig
@@ -76,7 +77,14 @@ module type Val_intf = sig
              with type hash = hash
               and type metadata = metadata
               and type step = step) :
-    SERDE with type t = t and type d = D.t and type hash = hash
+    SERDE with module Data = D and type t = t and type hash = hash
+
+  module StructuralSerde
+      (D : DATA_FORMAT
+             with type hash = hash
+              and type metadata = metadata
+              and type step = step) :
+    SERDE with module Data = D and type t = t and type hash = hash
 
   module Sexp :
     DATA_FORMAT
@@ -85,7 +93,11 @@ module type Val_intf = sig
        and type hash = hash
        and type step = step
 
-  module MinimalSerdeSexp : SERDE with type t = t and type hash = hash
+  module MinimalSerdeSexp :
+    SERDE with module Data = Sexp and type t = t and type hash = hash
+
+  module StructuralSerdeSexp :
+    SERDE with module Data = Sexp and type t = t and type hash = hash
 
   module Private : sig
     val hash : t -> hash

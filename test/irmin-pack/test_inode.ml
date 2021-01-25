@@ -20,6 +20,7 @@ module Index = Irmin_pack.Index.Make (H)
 module Inode = Irmin_pack.Inode.Make (Conf) (H) (P) (Node)
 module Private = Inode.Val.Private
 module MSS = Inode.Val.MinimalSerdeSexp
+module SSS = Inode.Val.StructuralSerdeSexp
 
 module Context = struct
   type t = {
@@ -161,12 +162,17 @@ let test_serde_inodes () =
   rm_dir root;
   Context.get_store () >>= fun t ->
   let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal foo) ] in
-  Fmt.epr "%a@." Irmin.Type.(pp Inode.Val.t) v1;
   let v2 = Inode.Val.add v1 "z" (normal foo) in
-  let s1 = MSS.of_t v1 in
-  let s2 = MSS.of_t v2 in
-  let v1s, v1h = MSS.to_t s1 in
-  let v2s, v2h = MSS.to_t s2 in
+  let ms1 = MSS.of_t v1 in
+  let ms2 = MSS.of_t v2 in
+  (* let ss1 = SSS.of_t v1 in
+   * Fmt.epr "ss1 : %a@." SSS.Data.pp ss1;
+   * Fmt.epr "%a@." Irmin.Type.(pp Inode.Val.t) v1;
+   * let ss2 = SSS.of_t v2 in
+   * Fmt.epr "ss2 : %a@." SSS.Data.pp ss2;
+   * Fmt.epr "%a@." Irmin.Type.(pp Inode.Val.t) v2; *)
+  let v1s, v1h = MSS.to_t ms1 in
+  let v2s, v2h = MSS.to_t ms2 in
   check_values "check v1 and t_of_sexp @@ sexp_of_t v1" v1 v1s;
   check_hardcoded_hash "hash v1" (Irmin.Type.to_string Inode.Val.hash_t v1h) v1s;
   check_values "check v2 and t_of_sexp @@ sexp_of_t v2" v2 v2s;

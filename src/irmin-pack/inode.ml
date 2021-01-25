@@ -760,11 +760,12 @@ struct
                with type hash = T.hash
                 and type metadata = T.metadata
                 and type step = T.step) :
-      SERDE with type t = t and type d = D.t and type hash = T.hash = struct
-      exception Wrong_Config of (int * int) * (int * int)
+      SERDE with module Data = D and type t = t and type hash = T.hash = struct
+      exception Wrong_config of (int * int) * (int * int)
+
+      module Data = D
 
       type nonrec t = t
-      type d = D.t
       type nonrec hash = T.hash
 
       (* This function combines the minimal number of elements needed to serialise
@@ -812,91 +813,66 @@ struct
             let stable_hash = D.to_int stable_hash in
             if Conf.stable_hash <> stable_hash || Conf.entries <> entries then
               raise
-                (Wrong_Config
+                (Wrong_config
                    ((Conf.entries, Conf.stable_hash), (entries, stable_hash)))
             else (v @@ step_value_list_of_sexp step_value_list, D.to_hash hash)
         | _ -> raise (D.Misconstructed_data (D.to_string ts))
     end
 
-    (* module StructuralSerde (D : DATA_FORMAT) :
-     *   SERDE with type d = D.t and module D = D = struct
-     *   exception Wrong_Config of (int * int) * (int * int)
-     *
-     *   module D = D
-     *
-     *   type d = D.t
-     *
-     *   let rec sexp_of_tree t =
-     *     match t with None -> Sexplib.Sexp.Atom "None" | Some t -> sexp_of_t t
-     *
-     *   and sexp_of_inode i = sexp_of_tree i.I.tree
-     *
-     *   and sexp_of_entry e =
-     *     match e with
-     *     | I.Empty -> Sexplib.Sexp.Atom "E" (\* Sexplib.Sexp.List [] *\)
-     *     | I.Inode i -> sexp_of_inode i
-     *
-     *   and sexp_of_entries a =
-     *     Sexplib.Sexp.List
-     *       (List.rev
-     *       @@ Array.fold_left (fun acc e -> sexp_of_entry e :: acc) [] a)
-     *
-     *   and sexp_of_inodes i = sexp_of_entries i.I.entries
-     *
-     *   and sexp_of_stepmap vs =
-     *     let open Sexplib.Sexp in
-     *     List
-     *       (StepMap.fold
-     *          (fun s k acc -> List [ sexp_of_step s; sexp_of_kind k ] :: acc)
-     *          vs [])
-     *
-     *   and sexp_of_v v =
-     *     let open Sexplib.Sexp in
-     *     match v with
-     *     | I.Values vs -> List [ Atom "V"; sexp_of_stepmap vs ]
-     *     | Inodes i -> List [ Atom "I"; sexp_of_inodes i ]
-     *
-     *   and sexp_of_t t =
-     *     Sexplib.Sexp.(
-     *       List
-     *         [ Sexplib__Std.sexp_of_lazy_t sexp_of_hash t.hash; sexp_of_v t.v ])
-     *
-     *   let sexp_of_t t = sexp_of_t t.v
-     *
-     *   exception Misconstructed_Sexp of string
-     *
-     *   let v_of_sexp _vs = I.Values StepMap.empty
-     *
-     *   let t_of_sexp ts =
-     *     let open Sexplib.Sexp in
-     *     let open I in
-     *     match ts with
-     *     | Atom s -> raise (Misconstructed_Sexp s)
-     *     | List
-     *         [
-     *           List [ Atom "hash"; Atom h ];
-     *           List [ Atom "stable"; Atom s ];
-     *           List [ Atom "v"; sv ];
-     *         ] ->
-     *         {
-     *           hash = lazy (Result.get_ok (Irmin.Type.of_string hash_t h));
-     *           stable = bool_of_string s;
-     *           v = v_of_sexp sv;
-     *         }
-     *     | _ -> raise (Misconstructed_Sexp (to_string ts))
-     *
-     *   let t_of_sexp s = { find = niet; v = t_of_sexp s }
-     *
-     *   let of_t t =
-     *     let l = I.list ~find:t.find t.v in
-     *     D.join
-     *       (D.of_int Conf.entries
-     *       :: D.of_int Conf.stable_hash
-     *       :: D.of_lazy_hash t.v.I.hash
-     *       :: List.map (fun (s, k) -> D.join [ D.of_step s; D.of_value k ]) l)
-     *
-     *   let to_t _ = failwith "TODO"
-     * end *)
+    module StructuralSerde
+        (D : DATA_FORMAT
+               with type hash = T.hash
+                and type metadata = T.metadata
+                and type step = T.step) :
+      SERDE with module Data = D and type t = t and type hash = T.hash = struct
+      exception Wrong_config of (int * int) * (int * int)
+
+      module Data = D
+
+      type nonrec t = t
+      type nonrec hash = T.hash
+
+      let of_kind k =
+        match k with
+        | `Contents (h, m) ->
+            D.join [ D.of_string "B"; D.of_hash h; D.of_metadata m ]
+        | `Node h -> D.join [ D.of_string "N"; D.of_hash h ]
+
+      let rec of_ptr f p =
+        match p.I.target with
+        | None -> (
+            let hash = Lazy.force p.I.target_hash in
+            match f hash with
+            | None ->
+                failwith
+                  (Fmt.str "Can't find an inode corresponding to %a"
+                     (Irmin.Type.pp hash_t) hash)
+            | Some t -> of_t f t)
+        | Some t -> of_t f t
+
+      and of_entry f (p : I.ptr option) =
+        match p with None -> D.of_string "E" | Some p -> of_ptr f p
+
+      and of_entries f a =
+        D.join
+          (List.rev @@ Array.fold_left (fun acc p -> of_entry f p :: acc) [] a)
+
+      and of_stepmap vs =
+        D.join
+          (StepMap.fold
+             (fun s k acc -> D.join [ D.of_step s; of_kind k ] :: acc)
+             vs [])
+
+      and of_v f v =
+        match v with
+        | I.Values vs -> D.join [ D.of_string "V"; of_stepmap vs ]
+        | Tree t -> D.join [ D.of_string "T"; of_entries f t.entries ]
+
+      and of_t f (t : I.t) = D.join [ D.of_lazy_hash t.hash; of_v f t.v ]
+
+      let of_t t = of_t t.find t.v
+      let to_t _ = failwith "TODO"
+    end
 
     module Sexp :
       DATA_FORMAT
@@ -911,7 +887,7 @@ struct
       type nonrec hash = T.hash
       type nonrec step = T.step
 
-      let _pp = Sexplib.Sexp.pp_hum
+      let pp = Sexplib.Sexp.pp_hum
 
       exception Misconstructed_data of string
       exception Wrong_label of string * string
@@ -936,8 +912,6 @@ struct
             | List [ Atom l2; s ] when l1 = l2 -> s
             | List [ Atom l2; _ ] -> raise (Wrong_label (l1, l2))
             | s -> raise (Misconstructed_data (to_string s)))
-
-      let parse_from_file f = Sexplib.Sexp.load_sexp f
 
       let of_hash ?label h =
         label >?= Sexplib.Sexp.(Atom (Fmt.str "%a" pp_hash h))
@@ -1004,6 +978,7 @@ struct
     end
 
     module MinimalSerdeSexp = MinimalSerde (Sexp)
+    module StructuralSerdeSexp = StructuralSerde (Sexp)
 
     module Private = struct
       let hash t = I.hash t.v
