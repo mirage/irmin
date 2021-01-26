@@ -329,7 +329,7 @@ module type S = sig
 
   (** [Contents] provides base functions for the store's contents. *)
   module Contents : sig
-    include S.CONTENTS with type t = contents
+    include Contents.S with type t = contents
 
     (** {1 Import/Export} *)
 
@@ -851,7 +851,7 @@ module type S = sig
   (** Private functions, which might be used by the backends. *)
   module Private : sig
     include
-      S.PRIVATE
+      Private.S
         with type Contents.value = contents
          and module Hash = Hash
          and module Node.Path = Key
@@ -894,7 +894,7 @@ end
 
 module type MAKER = functor
   (M : S.METADATA)
-  (C : S.CONTENTS)
+  (C : Contents.S)
   (P : S.PATH)
   (B : S.BRANCH)
   (H : S.HASH)
@@ -908,13 +908,35 @@ module type MAKER = functor
      and type hash = H.t
      and type Private.Sync.endpoint = unit
 
+module type JSON_TREE = functor
+  (Store : S with type contents = Contents.json)
+  -> sig
+  include Contents.S with type t = Contents.json
+
+  val to_concrete_tree : t -> Store.Tree.concrete
+  val of_concrete_tree : Store.Tree.concrete -> t
+
+  val get_tree : Store.tree -> Store.key -> t Lwt.t
+  (** Extract a [json] value from tree at the given key. *)
+
+  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
+  (** Project a [json] value onto a tree at the given key. *)
+
+  val get : Store.t -> Store.key -> t Lwt.t
+  (** Extract a [json] value from a store at the given key. *)
+
+  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
+  (** Project a [json] value onto a store at the given key. *)
+end
+
 module type Store = sig
   module type S = S
   module type MAKER = MAKER
+  module type JSON_TREE = JSON_TREE
 
   type Sigs.remote += Store : (module S with type t = 'a) * 'a -> Sigs.remote
 
-  module Make (P : Sigs.PRIVATE) :
+  module Make (P : Private.S) :
     S
       with type key = P.Node.Path.t
        and type contents = P.Contents.value
@@ -926,6 +948,11 @@ module type Store = sig
        and module Key = P.Node.Path
        and type repo = P.Repo.t
        and module Private = P
+
+  module Json_tree : JSON_TREE
+  (** [Json_tree] is used to project JSON values onto trees. Instead of the
+      entire object being stored under one key, it is split across several keys
+      starting at the specified root key. *)
 
   module Content_addressable
       (X : Sigs.APPEND_ONLY_STORE_MAKER)

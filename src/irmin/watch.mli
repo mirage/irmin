@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** {1 Watch Helpers} *)
+(** [Watch] provides helpers to register event notifications on read-write
+    stores. *)
 
 (** The signature for watch helpers. *)
 module type S = sig

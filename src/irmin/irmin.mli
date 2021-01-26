@@ -156,7 +156,7 @@ end
     {{!Contents.Json} JSON} contents are provided. *)
 module Contents : sig
   module type S = sig
-    include S.CONTENTS
+    include Contents.S
     (** @inline *)
   end
 
@@ -188,7 +188,7 @@ module Contents : sig
 
   (** Contents store. *)
   module type STORE = sig
-    include S.CONTENTS_STORE
+    include Contents.STORE
     (** @inline *)
   end
 
@@ -248,212 +248,15 @@ module Private : sig
       values. Backends define their own keys. *)
 
   module Watch = Watch
-  (** [Watch] provides helpers to register event notifications on read-write
-      stores. *)
-
   module Lock = Lock
   module Lru = Lru
-
-  (** [Node] provides functions to describe the graph-like structured values.
-
-      The node blocks form a labeled directed acyclic graph, labeled by
-      {{!Path.S.step} steps}: a list of steps defines a unique path from one
-      node to an other.
-
-      Each node can point to user-defined {{!Contents.S} contents} values. *)
-  module Node : sig
-    module type S = sig
-      include S.NODE
-      (** @inline *)
-    end
-
-    (** [Make] provides a simple node implementation, parameterized by the
-        contents and notes keys [K], paths [P] and metadata [M]. *)
-    module Make
-        (K : Type.S) (P : sig
-          type step
-
-          val step_t : step Type.t
-        end)
-        (M : Metadata.S) :
-      S with type hash = K.t and type step = P.step and type metadata = M.t
-
-    (** v1 serialisation *)
-    module V1 (S : S with type step = string) : sig
-      include
-        S
-          with type hash = S.hash
-           and type step = S.step
-           and type metadata = S.metadata
-
-      val import : S.t -> t
-      val export : t -> S.t
-    end
-
-    module type STORE = S.NODE_STORE
-    (** [STORE] specifies the signature for node stores. *)
-
-    (** [Store] creates node stores. *)
-    module Store
-        (C : Contents.STORE)
-        (P : Path.S)
-        (M : Metadata.S) (S : sig
-          include CONTENT_ADDRESSABLE_STORE with type key = C.key
-          module Key : Hash.S with type t = key
-
-          module Val :
-            S
-              with type t = value
-               and type hash = key
-               and type metadata = M.t
-               and type step = P.step
-        end) :
-      STORE
-        with type 'a t = 'a C.t * 'a S.t
-         and type key = S.key
-         and type value = S.value
-         and module Path = P
-         and module Metadata = M
-         and type Key.t = S.Key.t
-         and module Val = S.Val
-
-    module type GRAPH = S.NODE_GRAPH
-    (** [Graph] specifies the signature for node graphs. A node graph is a
-        deterministic DAG, labeled by steps. *)
-
-    module Graph (S : STORE) :
-      GRAPH
-        with type 'a t = 'a S.t
-         and type contents = S.Contents.key
-         and type metadata = S.Metadata.t
-         and type node = S.key
-         and type path = S.Path.t
-         and type step = S.Path.step
-  end
-
-  (** Commit values represent the store history.
-
-      Every commit contains a list of predecessor commits, and the collection of
-      commits form an acyclic directed graph.
-
-      Every commit also can contain an optional key, pointing to a
-      {{!Private.Commit.STORE} node} value. See the {{!Private.Node.STORE} Node}
-      signature for more details on node values. *)
-  module Commit : sig
-    module type S = S.COMMIT
-
-    (** [Make] provides a simple implementation of commit values, parameterized
-        by the commit and node keys [K]. *)
-    module Make (K : Type.S) : S with type hash = K.t
-
-    (** V1 serialisation. *)
-    module V1 (S : S) : sig
-      include S with type hash = S.hash
-
-      val import : S.t -> t
-      val export : t -> S.t
-    end
-
-    module type STORE = S.COMMIT_STORE
-    (** [STORE] specifies the signature for commit stores. *)
-
-    (** [Store] creates a new commit store. *)
-    module Store
-        (N : Node.STORE) (S : sig
-          include CONTENT_ADDRESSABLE_STORE with type key = N.key
-          module Key : Hash.S with type t = key
-          module Val : S with type t = value and type hash = key
-        end) :
-      STORE
-        with type 'a t = 'a N.t * 'a S.t
-         and type key = S.key
-         and type value = S.value
-         and type Key.t = S.Key.t
-         and module Val = S.Val
-
-    module type HISTORY = S.COMMIT_HISTORY
-    (** [History] specifies the signature for commit history. The history is
-        represented as a partial-order of commits and basic functions to search
-        through that history are provided.
-
-        Every commit can point to an entry point in a node graph, where
-        user-defined contents are stored. *)
-
-    (** Build a commit history. *)
-    module History (S : STORE) :
-      HISTORY
-        with type 'a t = 'a S.t
-         and type node = S.Node.key
-         and type commit = S.key
-  end
-
-  (** The signature for slices. *)
-  module Slice : sig
-    module type S = S.SLICE
-
-    (** Build simple slices. *)
-    module Make (C : Contents.STORE) (N : Node.STORE) (H : Commit.STORE) :
-      S
-        with type contents = C.key * C.value
-         and type node = N.key * N.value
-         and type commit = H.key * H.value
-  end
-
+  module Node = Node
+  module Commit = Commit
+  module Slice = Slice
   module Sync = Sync
 
+  module type S = Private.S
   (** The complete collection of private implementations. *)
-  module type S = sig
-    (** {1 Private Implementations} *)
-
-    module Hash : Hash.S
-    (** Internal hashes. *)
-
-    module Contents : Contents.STORE with type key = Hash.t
-    (** Private content store. *)
-
-    module Node : Node.STORE with type key = Hash.t
-    (** Private node store. *)
-
-    module Commit : Commit.STORE with type key = Hash.t
-    (** Private commit store. *)
-
-    module Branch : Branch.STORE with type value = Hash.t
-    (** Private branch store. *)
-
-    (** Private slices. *)
-    module Slice :
-      Slice.S
-        with type contents = Contents.key * Contents.value
-         and type node = Node.key * Node.value
-         and type commit = Commit.key * Commit.value
-
-    (** Private repositories. *)
-    module Repo : sig
-      type t
-
-      val v : config -> t Lwt.t
-      val close : t -> unit Lwt.t
-      val contents_t : t -> [ `Read ] Contents.t
-      val node_t : t -> [ `Read ] Node.t
-      val commit_t : t -> [ `Read ] Commit.t
-      val branch_t : t -> Branch.t
-
-      val batch :
-        t ->
-        ([ `Read | `Write ] Contents.t ->
-        [ `Read | `Write ] Node.t ->
-        [ `Read | `Write ] Commit.t ->
-        'a Lwt.t) ->
-        'a Lwt.t
-    end
-
-    (** URI-based low-level sync. *)
-    module Sync : sig
-      include Sync.S with type commit = Commit.key and type branch = Branch.key
-
-      val v : Repo.t -> t Lwt.t
-    end
-  end
 end
 
 (** {1 High-level Stores}
@@ -482,27 +285,7 @@ module type S = sig
   (** @inline *)
 end
 
-(** [Json_tree] is used to project JSON values onto trees. Instead of the entire
-    object being stored under one key, it is split across several keys starting
-    at the specified root key. *)
-module Json_tree (Store : S with type contents = Contents.json) : sig
-  include Contents.S with type t = Contents.json
-
-  val to_concrete_tree : t -> Store.Tree.concrete
-  val of_concrete_tree : Store.Tree.concrete -> t
-
-  val get_tree : Store.tree -> Store.key -> t Lwt.t
-  (** Extract a [json] value from tree at the given key. *)
-
-  val set_tree : Store.tree -> Store.key -> t -> Store.tree Lwt.t
-  (** Project a [json] value onto a tree at the given key. *)
-
-  val get : Store.t -> Store.key -> t Lwt.t
-  (** Extract a [json] value from a store at the given key. *)
-
-  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
-  (** Project a [json] value onto a store at the given key. *)
-end
+module Json_tree : Store.JSON_TREE
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
     implementations. [M] is the implementation of user-defined metadata, [C] is

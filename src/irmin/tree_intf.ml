@@ -264,7 +264,7 @@ module type Tree = sig
     (** @inline *)
   end
 
-  module Make (P : S.PRIVATE) : sig
+  module Make (P : Private.S) : sig
     include
       S
         with type key = P.Node.Path.t

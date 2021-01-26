@@ -15,6 +15,7 @@
  *)
 
 open! Import
+include Store_intf
 open Merge.Infix
 
 let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
@@ -51,7 +52,7 @@ struct
     add t k v >|= fun () -> k
 end
 
-module Make (P : S.PRIVATE) = struct
+module Make (P : Private.S) = struct
   module Branch_store = P.Branch
 
   type branch = Branch_store.key
@@ -1144,7 +1145,54 @@ module Make (P : S.PRIVATE) = struct
     Type.like ~pp:pp_write_error ~of_string write_error_t
 end
 
-type S.remote += Store : (module Store_intf.S with type t = 'a) * 'a -> S.remote
+module Json_tree (Store : S with type contents = Contents.json) = struct
+  include Contents.Json_value
 
-module type S = Store_intf.S
-module type MAKER = Store_intf.MAKER
+  type json = Contents.json
+
+  let to_concrete_tree j : Store.Tree.concrete =
+    let rec obj j acc =
+      match j with
+      | [] -> `Tree acc
+      | (k, v) :: l -> (
+          match Type.of_string Store.Key.step_t k with
+          | Ok key -> obj l ((key, node v []) :: acc)
+          | _ -> obj l acc)
+    and node j acc =
+      match j with
+      | `O j -> obj j acc
+      | _ -> `Contents (j, Store.Metadata.default)
+    in
+    node j []
+
+  let of_concrete_tree c : json =
+    let step = Type.to_string Store.Key.step_t in
+    let rec tree t acc =
+      match t with
+      | [] -> `O acc
+      | (k, v) :: l -> tree l ((step k, contents v []) :: acc)
+    and contents t acc =
+      match t with `Contents (c, _) -> c | `Tree c -> tree c acc
+    in
+    contents c []
+
+  let set_tree (tree : Store.tree) key j : Store.tree Lwt.t =
+    let c = to_concrete_tree j in
+    let c = Store.Tree.of_concrete c in
+    Store.Tree.add_tree tree key c
+
+  let get_tree (tree : Store.tree) key =
+    let* t = Store.Tree.get_tree tree key in
+    let+ c = Store.Tree.to_concrete t in
+    of_concrete_tree c
+
+  let set t key j ~info =
+    set_tree Store.Tree.empty Store.Key.empty j >>= function
+    | tree -> Store.set_tree_exn ~info t key tree
+
+  let get t key =
+    let* tree = Store.get_tree t key in
+    get_tree tree Store.Key.empty
+end
+
+type S.remote += Store : (module S with type t = 'a) * 'a -> S.remote

@@ -18,14 +18,7 @@ open! Import
 module Type = Repr
 module Diff = Diff
 module Content_addressable = Store.Content_addressable
-
-module Contents = struct
-  include Contents
-
-  module type S = S.CONTENTS
-  module type STORE = S.CONTENTS_STORE
-end
-
+module Contents = Contents
 module Merge = Merge
 
 module Branch = struct
@@ -179,11 +172,11 @@ module Make_ext
     (P : Path.S)
     (B : Branch.S)
     (H : Hash.S)
-    (N : S.NODE
+    (N : Node.S
            with type metadata = M.t
             and type hash = H.t
             and type step = P.step)
-    (CT : S.COMMIT with type hash = H.t) =
+    (CT : Commit.S with type hash = H.t) =
 struct
   module CA = CA_check_closed (CA)
   module AW = AW_check_closed (AW)
@@ -276,7 +269,7 @@ module Make
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
-    (C : S.CONTENTS)
+    (C : Contents.S)
     (P : S.PATH)
     (B : S.BRANCH)
     (H : S.HASH) =
@@ -309,32 +302,12 @@ module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 
 module Private = struct
   module Conf = Conf
-
-  module Node = struct
-    include Node
-
-    module type S = S.NODE
-    module type GRAPH = S.NODE_GRAPH
-    module type STORE = S.NODE_STORE
-  end
-
-  module Commit = struct
-    include Commit
-
-    module type S = S.COMMIT
-    module type STORE = S.COMMIT_STORE
-    module type HISTORY = S.COMMIT_HISTORY
-  end
-
-  module Slice = struct
-    include Slice
-
-    module type S = S.SLICE
-  end
-
+  module Node = Node
+  module Commit = Commit
+  module Slice = Slice
   module Sync = Sync
 
-  module type S = S.PRIVATE
+  module type S = Private.S
 
   module Watch = Watch
   module Lock = Lock
@@ -359,4 +332,4 @@ module Metadata = struct
   module None = Node.No_metadata
 end
 
-module Json_tree = Contents.Json_tree
+module Json_tree = Store.Json_tree

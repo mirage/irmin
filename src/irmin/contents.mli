@@ -16,39 +16,5 @@
 
 (** Values. *)
 
-type json =
-  [ `Null
-  | `Bool of bool
-  | `String of string
-  | `Float of float
-  | `O of (string * json) list
-  | `A of json list ]
-
-module String : S.CONTENTS with type t = string
-module Json : S.CONTENTS with type t = (string * json) list
-module Json_value : S.CONTENTS with type t = json
-
-module Json_tree (Store : Store.S with type contents = json) : sig
-  include S.CONTENTS with type t = json
-
-  val to_concrete_tree : t -> Store.Tree.concrete
-  val of_concrete_tree : Store.Tree.concrete -> t
-  val get_tree : Store.tree -> Store.key -> json Lwt.t
-  val set_tree : Store.tree -> Store.key -> json -> Store.tree Lwt.t
-  val get : Store.t -> Store.key -> json Lwt.t
-  val set : Store.t -> Store.key -> json -> info:Info.f -> unit Lwt.t
-end
-
-module V1 : sig
-  module String : S.CONTENTS with type t = string
-end
-
-module Store (C : sig
-  include S.CONTENT_ADDRESSABLE_STORE
-  module Key : S.HASH with type t = key
-  module Val : S.CONTENTS with type t = value
-end) :
-  S.CONTENTS_STORE
-    with type 'a t = 'a C.t
-     and type key = C.key
-     and type value = C.value
+include Contents_intf.Contents
+(** @inline *)

@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open S
 
 let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
@@ -35,8 +34,8 @@ module Make (S : Store.S) = struct
     let dy_of_bin_string = Type.(unstage (of_bin_string dy)) in
     Type.stage (fun x -> dy_of_bin_string (dx_to_bin_string x))
 
-  let convert_slice (type r s) (module RP : PRIVATE with type Slice.t = r)
-      (module SP : PRIVATE with type Slice.t = s) r =
+  let convert_slice (type r s) (module RP : Private.S with type Slice.t = r)
+      (module SP : Private.S with type Slice.t = s) r =
     let conv_contents_k =
       Type.unstage (conv RP.Contents.Key.t SP.Contents.Key.t)
     in

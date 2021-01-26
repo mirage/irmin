@@ -14,10 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Slice_intf
+
 module Make
-    (Contents : S.CONTENTS_STORE)
-    (Node : S.NODE_STORE)
-    (Commit : S.COMMIT_STORE) =
+    (Contents : Contents.STORE)
+    (Node : Node.STORE)
+    (Commit : Commit.STORE) =
 struct
   type contents = Contents.Key.t * Contents.Val.t [@@deriving irmin]
   type node = Node.Key.t * Node.Val.t [@@deriving irmin]
