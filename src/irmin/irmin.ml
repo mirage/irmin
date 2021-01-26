@@ -289,6 +289,7 @@ module Private = struct
   module Commit = Commit
   module Slice = Slice
   module Sync = Sync
+  module Sigs = S
 
   module type S = Private.S
 

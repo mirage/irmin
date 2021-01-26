@@ -55,15 +55,40 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   (** Clear the store. This operation is expected to be slow. *)
 end
 
+module type BATCH = sig
+  type 'a t
+
+  val batch : [ | read ] t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] applies the writes in [f] in a separate batch. The exact
+      guarantees depends on the backends. *)
+end
+
+module type CLOSEABLE = sig
+  type 'a t
+
+  val close : 'a t -> unit Lwt.t
+  (** [close t] frees up all the resources associated to [t]. Any operations run
+      on a closed store will raise {!Closed}. *)
+end
+
+type config = Conf.t
+
+module type OF_CONFIG = sig
+  type 'a t
+
+  val v : config -> [ | read ] t Lwt.t
+  (** [v config] is a function returning fresh store handles, with the
+      configuration [config], which is provided by the backend. *)
+end
+
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (K : Hash.S)
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val v : Conf.t -> [ `Read ] t Lwt.t
-  val close : 'a t -> unit Lwt.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -98,10 +123,9 @@ end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val v : Conf.t -> [ `Read ] t Lwt.t
-  val close : 'a t -> unit Lwt.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 end
 
 module type METADATA = sig
@@ -115,7 +139,6 @@ module type METADATA = sig
   (** The default metadata to attach, for APIs that don't care about metadata. *)
 end
 
-type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type ATOMIC_WRITE_STORE = sig
@@ -182,9 +205,7 @@ module type ATOMIC_WRITE_STORE = sig
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
-  val close : t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
+  include CLOSEABLE with type _ t := t
 
   val clear : t -> unit Lwt.t
   (** [clear t] clears the store. This operation is expected to be slow. *)
@@ -192,8 +213,7 @@ end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-
-  val v : Conf.t -> t Lwt.t
+  include OF_CONFIG with type _ t := t
 end
 
 type remote = ..
