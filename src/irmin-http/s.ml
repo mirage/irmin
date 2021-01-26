@@ -66,7 +66,7 @@ end
 
 module type READ_ONLY_STORE = sig
   type ctx
-  type 'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
+  type -'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
   type key
   type value
 
@@ -88,7 +88,7 @@ module type READ_ONLY_STORE = sig
 end
 
 module type APPEND_ONLY_STORE = sig
-  type 'a t
+  type -'a t
   type key
   type value
   type ctx

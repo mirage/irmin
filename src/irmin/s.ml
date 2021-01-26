@@ -62,7 +62,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       new values. Keys are derived from the values raw contents and hence are
       deterministic. *)
 
-  type 'a t
+  type -'a t
   (** The type for content-addressable backend stores. The ['a] phantom type
       carries information about the store mutability. *)
 
@@ -107,7 +107,7 @@ module type APPEND_ONLY_STORE = sig
       Append-onlye stores are store where it is possible to read and add new
       values. *)
 
-  type 'a t
+  type -'a t
   (** The type for append-only backend stores. The ['a] phantom type carries
       information about the store mutability. *)
 
