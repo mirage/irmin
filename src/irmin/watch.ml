@@ -15,40 +15,11 @@
  *)
 
 open! Import
+include Watch_intf
 
 let src = Logs.Src.create "irmin.watch" ~doc:"Irmin watch notifications"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
-module type S = sig
-  type key
-  type value
-  type watch
-  type t
-
-  val stats : t -> int * int
-  val notify : t -> key -> value option -> unit Lwt.t
-  val v : unit -> t
-  val clear : t -> unit Lwt.t
-
-  val watch_key :
-    t -> key -> ?init:value -> (value Diff.t -> unit Lwt.t) -> watch Lwt.t
-
-  val watch :
-    t ->
-    ?init:(key * value) list ->
-    (key -> value Diff.t -> unit Lwt.t) ->
-    watch Lwt.t
-
-  val unwatch : t -> watch -> unit Lwt.t
-
-  val listen_dir :
-    t ->
-    string ->
-    key:(string -> key option) ->
-    value:(key -> value option Lwt.t) ->
-    (unit -> unit Lwt.t) Lwt.t
-end
 
 let none _ _ =
   Printf.eprintf "Listen hook not set!\n%!";
