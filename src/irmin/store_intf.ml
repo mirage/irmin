@@ -797,7 +797,7 @@ module type S = sig
     (** [watch_all t f] calls [f] on every branch-related change in [t],
         including creation/deletion events. *)
 
-    include S.BRANCH with type t = branch
+    include Branch.S with type t = branch
     (** Base functions for branches. *)
   end
 
@@ -896,8 +896,8 @@ module type MAKER = functor
   (M : S.METADATA)
   (C : Contents.S)
   (P : S.PATH)
-  (B : S.BRANCH)
   (H : S.HASH)
+  (B : Branch.S)
   ->
   S
     with type key = P.t

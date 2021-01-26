@@ -11,7 +11,7 @@ module type S = sig
   module Commit : Commit.STORE with type key = Hash.t
   (** Private commit store. *)
 
-  module Branch : S.BRANCH_STORE with type value = Hash.t
+  module Branch : Branch.STORE with type value = Hash.t
   (** Private branch store. *)
 
   (** Private slices. *)

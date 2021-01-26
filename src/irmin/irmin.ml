@@ -20,14 +20,7 @@ module Diff = Diff
 module Content_addressable = Store.Content_addressable
 module Contents = Contents
 module Merge = Merge
-
-module Branch = struct
-  include Branch
-
-  module type S = S.BRANCH
-  module type STORE = S.BRANCH_STORE
-end
-
+module Branch = Branch
 module Info = Info
 module Dot = Dot.Make
 
@@ -271,8 +264,8 @@ module Make
     (M : S.METADATA)
     (C : Contents.S)
     (P : S.PATH)
-    (B : S.BRANCH)
     (H : S.HASH) =
+    (B : Branch.S)
 struct
   module N = Node.Make (H) (P) (M)
   module CT = Commit.Make (H)

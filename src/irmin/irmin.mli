@@ -201,32 +201,7 @@ module Contents : sig
     STORE with type 'a t = 'a S.t and type key = S.key and type value = S.value
 end
 
-(** User-defined branches. *)
-module Branch : sig
-  (** {1 Branches} *)
-
-  (** The signature for branches. Irmin branches are similar to Git branches:
-      they are used to associated user-defined names to head commits. Branches
-      have a default value: the {{!Branch.S.master} master} branch. *)
-  module type S = sig
-    include S.BRANCH
-    (** @inline *)
-  end
-
-  module String : S with type t = string
-  (** [String] is an implementation of {{!Branch.S} S} where branches are
-      strings. The [master] branch is ["master"]. Valid branch names contain
-      only alpha-numeric characters, [-], [_], [.], and [/]. *)
-
-  (** [STORE] specifies the signature for branch stores.
-
-      A {i branch store} is a mutable and reactive key / value store, where keys
-      are branch names created by users and values are keys are head commmits. *)
-  module type STORE = sig
-    include S.BRANCH_STORE
-    (** @inline *)
-  end
-end
+module Branch = Branch
 
 type remote = S.remote = ..
 (** The type for remote stores. *)

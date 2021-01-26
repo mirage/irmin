@@ -202,19 +202,6 @@ end
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type BRANCH = sig
-  (** {1 Signature for Branches} *)
-
-  type t [@@deriving irmin]
-  (** The type for branches. *)
-
-  val master : t
-  (** The name of the master branch. *)
-
-  val is_valid : t -> bool
-  (** Check if the branch is valid. *)
-end
-
 module type ATOMIC_WRITE_STORE = sig
   (** {1 Atomic write stores}
 
@@ -291,18 +278,6 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
 
   val v : Conf.t -> t Lwt.t
-end
-
-module type BRANCH_STORE = sig
-  (** {1 Branch Store} *)
-
-  include ATOMIC_WRITE_STORE
-
-  module Key : BRANCH with type t = key
-  (** Base functions on keys. *)
-
-  module Val : HASH with type t = value
-  (** Base functions on values. *)
 end
 
 type remote = ..
