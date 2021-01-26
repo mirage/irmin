@@ -16,7 +16,4 @@
 
 (** Store Synchronisation. *)
 
-val remote_store : (module Store.S with type t = 'a) -> 'a -> S.remote
-
-module Make (X : Store.S) :
-  S.SYNC_STORE with type db = X.t and type commit = X.commit
+include Sync_ext_intf.Sync_ext

@@ -298,7 +298,7 @@ end
 
 let version = Version.current
 
-module type SYNC = S.SYNC_STORE
+module type SYNC = Sync_ext.SYNC_STORE
 
 module Sync = Sync_ext.Make
 

@@ -274,7 +274,7 @@ val remote_store : (module S with type t = 'a) -> 'a -> remote
 (** [SYNC] provides functions to synchronize an Irmin store with local and
     remote Irmin stores. *)
 module type SYNC = sig
-  include S.SYNC_STORE
+  include Sync_ext.SYNC_STORE
   (** @inline *)
 end
 
