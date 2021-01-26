@@ -43,7 +43,7 @@ module type S = sig
 
   (** URI-based low-level sync. *)
   module Sync : sig
-    include S.SYNC with type commit = Commit.key and type branch = Branch.key
+    include Sync.S with type commit = Commit.key and type branch = Branch.key
 
     val v : Repo.t -> t Lwt.t
   end
