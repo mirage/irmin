@@ -16,6 +16,8 @@
 
 (** Irmin signatures *)
 
+open! Import
+
 module type CONTENT_ADDRESSABLE_STORE = sig
   (** {1 Content-addressable stores}
 
@@ -33,18 +35,18 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   type value
   (** The type for raw values. *)
 
-  val mem : [> `Read ] t -> key -> bool Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : [> `Read ] t -> key -> value option Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> value -> key Lwt.t
+  val add : [> write ] t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the responsibility of the
       content-addressable store to generate a consistent key. *)
 
-  val unsafe_add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
   (** Same as {!add} but allows to specify the key directly. The backend might
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
@@ -80,14 +82,14 @@ module type APPEND_ONLY_STORE = sig
   type value
   (** The type for raw values. *)
 
-  val mem : [> `Read ] t -> key -> bool Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : [> `Read ] t -> key -> value option Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val add : [> write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
   val clear : 'a t -> unit Lwt.t

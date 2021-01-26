@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 open S
 
 module type S = sig
@@ -90,7 +91,7 @@ module type STORE = sig
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
-  val merge : [ `Read | `Write ] t -> key option Merge.t
+  val merge : [> read_write ] t -> key option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
 
   (** [Key] provides base functions for node keys. *)
@@ -135,28 +136,27 @@ module type GRAPH = sig
   type value = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store values. *)
 
-  val empty : [> `Write ] t -> node Lwt.t
+  val empty : [> write ] t -> node Lwt.t
   (** The empty node. *)
 
-  val v : [> `Write ] t -> (step * value) list -> node Lwt.t
+  val v : [> write ] t -> (step * value) list -> node Lwt.t
   (** [v t n] is a new node containing [n]. *)
 
-  val list : [> `Read ] t -> node -> (step * value) list Lwt.t
+  val list : [> read ] t -> node -> (step * value) list Lwt.t
   (** [list t n] is the contents of the node [n]. *)
 
-  val find : [> `Read ] t -> node -> path -> value option Lwt.t
+  val find : [> read ] t -> node -> path -> value option Lwt.t
   (** [find t n p] is the contents of the path [p] starting form [n]. *)
 
-  val add : [ `Read | `Write ] t -> node -> path -> value -> node Lwt.t
+  val add : [> read_write ] t -> node -> path -> value -> node Lwt.t
   (** [add t n p v] is the node [x] such that [find t x p] is [Some v] and it
       behaves the same [n] for other operations. *)
 
-  val remove : [ `Read | `Write ] t -> node -> path -> node Lwt.t
+  val remove : [> read_write ] t -> node -> path -> node Lwt.t
   (** [remove t n path] is the node [x] such that [find t x] is [None] and it
       behhaves then same as [n] for other operations. *)
 
-  val closure :
-    [> `Read ] t -> min:node list -> max:node list -> node list Lwt.t
+  val closure : [> read ] t -> min:node list -> max:node list -> node list Lwt.t
   (** [closure t min max] is the unordered list of nodes [n] reachable from a
       node of [max] along a path which: (i) either contains no [min] or (ii) it
       ends with a [min].
@@ -164,7 +164,7 @@ module type GRAPH = sig
       {b Note:} Both [min] and [max] are subsets of [n]. *)
 
   val iter :
-    [> `Read ] t ->
+    [> read ] t ->
     min:node list ->
     max:node list ->
     ?node:(node -> unit Lwt.t) ->

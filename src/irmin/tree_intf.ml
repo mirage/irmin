@@ -279,8 +279,8 @@ module type Tree = sig
     val export :
       ?clear:bool ->
       P.Repo.t ->
-      [> `Write ] P.Contents.t ->
-      [ `Read | `Write ] P.Node.t ->
+      [> write ] P.Contents.t ->
+      [> read_write ] P.Node.t ->
       node ->
       P.Node.key Lwt.t
 

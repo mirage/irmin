@@ -1,3 +1,4 @@
+open! Import
 open S
 
 module type S = sig
@@ -17,7 +18,7 @@ end
 module type STORE = sig
   include CONTENT_ADDRESSABLE_STORE
 
-  val merge : [ `Read | `Write ] t -> key option Merge.t
+  val merge : [> read_write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
       key. The merge function will: {e (i)} read the values associated with the
       given keys, {e (ii)} use the merge function defined on values and

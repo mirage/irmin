@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 module Sigs = S
 
 module type S = sig
@@ -878,14 +879,14 @@ module type S = sig
   (** [of_private_commit r c] is the commit associated with the private commit
       object [c]. *)
 
-  val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
+  val save_contents : [> write ] Private.Contents.t -> contents -> hash Lwt.t
   (** Save a content into the database *)
 
   val save_tree :
     ?clear:bool ->
     repo ->
-    [> `Write ] Private.Contents.t ->
-    [ `Read | `Write ] Private.Node.t ->
+    [> write ] Private.Contents.t ->
+    [> read_write ] Private.Node.t ->
     tree ->
     hash Lwt.t
   (** Save a tree into the database. Does not do any reads. If [clear] is set

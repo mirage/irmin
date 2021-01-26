@@ -25,6 +25,7 @@ module Info = Info
 module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
+module Perms = Perms
 
 exception Closed
 
@@ -208,9 +209,9 @@ struct
     module Repo = struct
       type t = {
         config : Conf.t;
-        contents : [ `Read ] Contents.t;
-        nodes : [ `Read ] Node.t;
-        commits : [ `Read ] Commit.t;
+        contents : read Contents.t;
+        nodes : read Node.t;
+        commits : read Commit.t;
         branch : Branch.t;
       }
 

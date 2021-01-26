@@ -1,3 +1,6 @@
+open! Import
+open S
+
 module type S = sig
   module Hash : Hash.S
   (** Internal hashes. *)
@@ -25,18 +28,22 @@ module type S = sig
   module Repo : sig
     type t
 
-    val v : Conf.t -> t Lwt.t
-    val close : t -> unit Lwt.t
-    val contents_t : t -> [ `Read ] Contents.t
-    val node_t : t -> [ `Read ] Node.t
-    val commit_t : t -> [ `Read ] Commit.t
+    include OF_CONFIG with type _ t := t
+    (** @inline *)
+
+    include CLOSEABLE with type _ t := t
+    (** @inline *)
+
+    val contents_t : t -> read Contents.t
+    val node_t : t -> read Node.t
+    val commit_t : t -> read Commit.t
     val branch_t : t -> Branch.t
 
     val batch :
       t ->
-      ([ `Read | `Write ] Contents.t ->
-      [ `Read | `Write ] Node.t ->
-      [ `Read | `Write ] Commit.t ->
+      (read_write Contents.t ->
+      read_write Node.t ->
+      read_write Commit.t ->
       'a Lwt.t) ->
       'a Lwt.t
   end
