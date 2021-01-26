@@ -1,5 +1,9 @@
-open! Import
 open Bench_common
+
+let ( >>= ) = Lwt.Infix.( >>= )
+let ( >|= ) = Lwt.Infix.( >|= )
+let ( let* ) x f = Lwt.bind x f
+let ( let+ ) x f = Lwt.map f x
 
 type key = string list [@@deriving yojson]
 type hash = string [@@deriving yojson]
