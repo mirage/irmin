@@ -31,11 +31,7 @@ module Hash = struct
   module type TYPED = S.TYPED_HASH
 end
 
-module Path = struct
-  include Path
-
-  module type S = S.PATH
-end
+module Path = Path
 
 exception Closed
 
@@ -263,8 +259,8 @@ module Make
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
     (C : Contents.S)
-    (P : S.PATH)
     (H : S.HASH) =
+    (P : Path.S)
     (B : Branch.S)
 struct
   module N = Node.Make (H) (P) (M)

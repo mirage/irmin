@@ -87,7 +87,7 @@ end
 module type STORE = sig
   include CONTENT_ADDRESSABLE_STORE
 
-  module Path : PATH
+  module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
   val merge : [ `Read | `Write ] t -> key option Merge.t
@@ -239,7 +239,7 @@ module type Node = sig
   (** [Store] creates node stores. *)
   module Store
       (C : Contents.STORE)
-      (P : PATH)
+      (P : Path.S)
       (M : METADATA) (N : sig
         include CONTENT_ADDRESSABLE_STORE with type key = C.key
         module Key : HASH with type t = key

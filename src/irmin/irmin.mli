@@ -81,24 +81,13 @@ end
 
 (** {1 User-Defined Contents} *)
 
+module Path = Path
 (** Store paths.
 
     An Irmin {{!Irmin.S} store} binds {{!Path.S.t} paths} to user-defined
     {{!Contents.S} contents}. Paths are composed by basic elements, that we call
     {{!Path.S.step} steps}. The following [Path] module provides functions to
     manipulate steps and paths. *)
-module Path : sig
-  (** {1 Path} *)
-
-  (** Signature for path implementations.*)
-  module type S = sig
-    include S.PATH
-    (** @inline *)
-  end
-
-  (** An implementation of paths as string lists. *)
-  module String_list : S with type step = string and type t = string list
-end
 
 (** Hashing functions.
 

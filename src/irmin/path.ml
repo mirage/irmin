@@ -15,6 +15,7 @@
  *)
 
 open Astring
+include Path_intf
 
 module String_list = struct
   type step = string [@@deriving irmin]
