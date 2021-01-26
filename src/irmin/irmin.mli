@@ -112,6 +112,7 @@ module Metadata : sig
   (** A metadata definition for systems that don't use metadata. *)
 end
 
+module Contents = Contents
 (** [Contents] specifies how user-defined contents need to be {e serializable}
     and {e mergeable}.
 
@@ -125,52 +126,6 @@ end
 
     Default implementations for {{!Contents.String} idempotent string} and
     {{!Contents.Json} JSON} contents are provided. *)
-module Contents : sig
-  module type S = sig
-    include Contents.S
-    (** @inline *)
-  end
-
-  module String : S with type t = string
-  (** Contents of type [string], with the {{!Irmin.Merge.default} default} 3-way
-      merge strategy: assume that update operations are idempotent and conflict
-      iff values are modified concurrently. *)
-
-  type json =
-    [ `Null
-    | `Bool of bool
-    | `String of string
-    | `Float of float
-    | `O of (string * json) list
-    | `A of json list ]
-
-  module Json : S with type t = (string * json) list
-  (** [Json] contents are associations from strings to [json] values stored as
-      JSON encoded strings. If the same JSON key has been modified concurrently
-      with different values then the [merge] function conflicts. *)
-
-  module Json_value : S with type t = json
-  (** [Json_value] allows any kind of json value to be stored, not only objects. *)
-
-  module V1 : sig
-    module String : S with type t = string
-    (** Same as {!String} but use v1 serialisation format. *)
-  end
-
-  (** Contents store. *)
-  module type STORE = sig
-    include Contents.STORE
-    (** @inline *)
-  end
-
-  (** [Store] creates a contents store. *)
-  module Store (S : sig
-    include CONTENT_ADDRESSABLE_STORE
-    module Key : Hash.S with type t = key
-    module Val : S with type t = value
-  end) :
-    STORE with type 'a t = 'a S.t and type key = S.key and type value = S.value
-end
 
 module Branch = Branch
 
