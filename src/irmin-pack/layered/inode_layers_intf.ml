@@ -1,3 +1,4 @@
+open! Import
 module Sigs = S
 module Inode = Irmin_pack.Private.Inode
 module Pack = Irmin_pack.Pack
@@ -8,25 +9,25 @@ module type S = sig
   module L : Pack.S
 
   val v :
-    [ `Read ] U.t ->
-    [ `Read ] U.t ->
-    [ `Read ] L.t option ->
+    read U.t ->
+    read U.t ->
+    read L.t option ->
     flip:bool ->
     freeze_in_progress:(unit -> bool) ->
-    [ `Read ] t
+    read t
 
-  val layer_id : [ `Read ] t -> key -> Irmin_layers.Layer_id.t Lwt.t
+  val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t
 
   type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
+    | Upper : read U.t layer_type
+    | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> [ `Read ] t -> key -> unit
+  val copy : 'l layer_type * 'l -> read t -> key -> unit
   val mem_lower : 'a t -> key -> bool Lwt.t
-  val mem_next : [> `Read ] t -> key -> bool Lwt.t
-  val next_upper : 'a t -> [ `Read ] U.t
-  val current_upper : 'a t -> [ `Read ] U.t
-  val lower : 'a t -> [ `Read ] L.t
+  val mem_next : [> read ] t -> key -> bool Lwt.t
+  val next_upper : 'a t -> read U.t
+  val current_upper : 'a t -> read U.t
+  val lower : 'a t -> read L.t
 
   include S.LAYERED_GENERAL with type 'a t := 'a t
 
@@ -47,7 +48,7 @@ module type S = sig
     (unit, S.integrity_error) result
 
   val flush : ?index:bool -> 'a t -> unit
-  val copy_from_lower : dst:'a U.t -> [ `Read ] t -> key -> unit Lwt.t
+  val copy_from_lower : dst:'a U.t -> read t -> key -> unit Lwt.t
   val consume_newies : 'a t -> key list
 
   val check :

@@ -1,3 +1,5 @@
+open! Import
+open Store_properties
 include Irmin_pack.Private.Sigs
 
 module type STORE = sig
@@ -63,23 +65,23 @@ module type LAYERED_PACK = sig
   module L : S
 
   val v :
-    [ `Read ] U.t ->
-    [ `Read ] U.t ->
-    [ `Read ] L.t option ->
+    read U.t ->
+    read U.t ->
+    read L.t option ->
     flip:bool ->
     freeze_in_progress:(unit -> bool) ->
-    [ `Read ] t
+    read t
 
-  val layer_id : [ `Read ] t -> key -> Irmin_layers.Layer_id.t Lwt.t
+  val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t
 
   type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
+    | Upper : read U.t layer_type
+    | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> [ `Read ] t -> string -> key -> unit
+  val copy : 'l layer_type * 'l -> read t -> string -> key -> unit
 
   val copy_from_lower :
-    [ `Read ] t ->
+    read t ->
     dst:'a U.t ->
     ?aux:(value -> unit Lwt.t) ->
     string ->
@@ -87,10 +89,10 @@ module type LAYERED_PACK = sig
     unit Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
-  val mem_next : [> `Read ] t -> key -> bool Lwt.t
-  val current_upper : 'a t -> [ `Read ] U.t
-  val next_upper : 'a t -> [ `Read ] U.t
-  val lower : 'a t -> [ `Read ] L.t
+  val mem_next : [> read ] t -> key -> bool Lwt.t
+  val current_upper : 'a t -> read U.t
+  val next_upper : 'a t -> read U.t
+  val lower : 'a t -> read L.t
   val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
   val sync :

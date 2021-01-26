@@ -143,9 +143,9 @@ struct
     module Repo = struct
       type t = {
         config : Irmin.Private.Conf.t;
-        contents : [ `Read ] Contents.CA.t;
-        node : [ `Read ] Node.CA.t;
-        commit : [ `Read ] Commit.CA.t;
+        contents : read Contents.CA.t;
+        node : read Node.CA.t;
+        commit : read Commit.CA.t;
         branch : Branch.t;
         index : Index.t;
       }

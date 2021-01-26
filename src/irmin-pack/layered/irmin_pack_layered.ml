@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 module Checks = Checks
 
 let config = Config.v
@@ -171,17 +172,17 @@ struct
 
     module Repo = struct
       type upper_layer = {
-        contents : [ `Read ] Contents.CA.U.t;
-        node : [ `Read ] Node.CA.U.t;
-        commit : [ `Read ] Commit.CA.U.t;
+        contents : read Contents.CA.U.t;
+        node : read Node.CA.U.t;
+        commit : read Commit.CA.U.t;
         branch : Branch.U.t;
         index : Index.t;
       }
 
       type lower_layer = {
-        lcontents : [ `Read ] Contents.CA.L.t;
-        lnode : [ `Read ] Node.CA.L.t;
-        lcommit : [ `Read ] Commit.CA.L.t;
+        lcontents : read Contents.CA.L.t;
+        lnode : read Node.CA.L.t;
+        lcommit : read Commit.CA.L.t;
         lbranch : Branch.L.t;
         lindex : Index.t;
       }
@@ -198,10 +199,10 @@ struct
         blocking_copy_size : int;
         with_lower : bool;
         copy_in_upper : bool;
-        contents : [ `Read ] Contents.CA.t;
-        node : [ `Read ] Node.CA.t;
+        contents : read Contents.CA.t;
+        node : read Node.CA.t;
         branch : Branch.t;
-        commit : [ `Read ] Commit.CA.t;
+        commit : read Commit.CA.t;
         lower_index : Index.t option;
         uppers_index : Index.t * Index.t;
         mutable flip : bool;
@@ -220,19 +221,19 @@ struct
         module Contents = struct
           include Contents.CA
 
-          type t = [ `Read ] Contents.CA.t
+          type t = read Contents.CA.t
         end
 
         module Nodes = struct
           include Node.CA
 
-          type t = [ `Read ] Node.CA.t
+          type t = read Node.CA.t
         end
 
         module Commits = struct
           include Commit.CA
 
-          type t = [ `Read ] Commit.CA.t
+          type t = read Commit.CA.t
         end
 
         type 'a store_fn = {

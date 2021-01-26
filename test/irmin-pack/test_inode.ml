@@ -23,8 +23,8 @@ module Private = Inode.Val.Private
 module Context = struct
   type t = {
     index : Index.t;
-    store : [ `Read ] Inode.t;
-    clone : readonly:bool -> [ `Read ] Inode.t Lwt.t;
+    store : read Inode.t;
+    clone : readonly:bool -> read Inode.t Lwt.t;
   }
 
   let get_store ?(lru_size = 0) () =

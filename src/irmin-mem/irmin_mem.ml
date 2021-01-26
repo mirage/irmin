@@ -43,7 +43,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Log.debug (fun f -> f "close");
     Lwt.return_unit
 
-  let cast t = (t :> [ `Read | `Write ] t)
+  let cast t = (t :> read_write t)
   let batch t f = f (cast t)
   let pp_key = Irmin.Type.pp K.t
 

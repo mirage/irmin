@@ -227,7 +227,7 @@ struct
       let v = unsafe_find ~check_integrity:true t k in
       Lwt.return v
 
-    let cast t = (t :> [ `Read | `Write ] t)
+    let cast t = (t :> read_write t)
 
     let integrity_check ~offset ~length k t =
       try

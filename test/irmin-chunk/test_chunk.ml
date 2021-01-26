@@ -45,8 +45,11 @@ module type S = sig
       with type key = Key.t
        and type value = Value.t
 
-  val v : unit -> [ `Read ] t Lwt.t
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  open Irmin.Export_for_backends
+
+  val v : unit -> read t Lwt.t
+
+  include Store_properties.BATCH with type 'a t := 'a t
 end
 
 module Append_only = Irmin_mem.Append_only

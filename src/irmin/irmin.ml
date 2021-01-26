@@ -317,3 +317,4 @@ module Metadata = struct
 end
 
 module Json_tree = Store.Json_tree
+module Export_for_backends = Export_for_backends

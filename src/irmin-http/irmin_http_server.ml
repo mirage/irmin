@@ -81,7 +81,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Content_addressable (S : sig
     include Irmin.CONTENT_ADDRESSABLE_STORE
 
-    val batch : P.Repo.t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+    val batch : P.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
   end)
   (K : Irmin.Type.S with type t = S.key)
   (V : Irmin.Type.S with type t = S.value) =

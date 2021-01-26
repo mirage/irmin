@@ -14,12 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
+open Store_properties
+
 module type CA = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val v : Irmin.Private.Conf.t -> [ `Read ] t Lwt.t
-  val close : 'a t -> unit Lwt.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 end
 
 module Content_addressable

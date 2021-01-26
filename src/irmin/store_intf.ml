@@ -16,6 +16,7 @@
 
 open! Import
 module Sigs = S
+open Sigs.Store_properties
 
 module type S = sig
   (** {1 Irmin stores}
@@ -89,9 +90,8 @@ module type S = sig
     val v : S.config -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
-    val close : t -> unit Lwt.t
-    (** [close t] frees up all resources associated with [t]. Any operations run
-        on a closed repository will raise {!Closed}. *)
+    include CLOSEABLE with type _ t := t
+    (** @inline *)
 
     val heads : t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -965,8 +965,8 @@ module type Store = sig
          and type key = K.t
          and type value = V.t
 
-    include Sigs.BATCH with type 'a t := 'a t
-    include Sigs.OF_CONFIG with type 'a t := 'a t
-    include Sigs.CLOSEABLE with type 'a t := 'a t
+    include BATCH with type 'a t := 'a t
+    include OF_CONFIG with type 'a t := 'a t
+    include CLOSEABLE with type 'a t := 'a t
   end
 end

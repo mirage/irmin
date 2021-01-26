@@ -79,7 +79,7 @@ struct
     IO.mkdir path >|= fun () -> { path }
 
   let close _ = Lwt.return_unit
-  let cast t = (t :> [ `Read | `Write ] t)
+  let cast t = (t :> read_write t)
   let batch t f = f (cast t)
 
   let file_of_key { path; _ } key =

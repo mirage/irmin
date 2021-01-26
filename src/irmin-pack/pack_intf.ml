@@ -13,6 +13,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+open! Import
+open Store_properties
 module Sigs = S
 
 module type ELT = sig
@@ -52,9 +55,10 @@ module type S = sig
     ?lru_size:int ->
     index:index ->
     string ->
-    [ `Read ] t Lwt.t
+    read t Lwt.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
 
   val unsafe_append :
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
@@ -74,15 +78,13 @@ module type S = sig
   val generation : 'a t -> int64
   val offset : 'a t -> int64
 
-  val clear : 'a t -> unit Lwt.t
-  (** [clear t] removes all the data from [t]. *)
+  include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
+  include CLOSEABLE with type 'a t := 'a t
+  include CLEARABLE with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
       are not removed. *)
-
-  include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
-  include Sigs.CLOSEABLE with type 'a t := 'a t
 
   val clear_keep_generation : 'a t -> unit Lwt.t
 end

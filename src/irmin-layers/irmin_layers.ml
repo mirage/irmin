@@ -95,9 +95,9 @@ struct
     module Repo = struct
       type t = {
         config : Irmin.Private.Conf.t;
-        contents : [ `Read ] Contents.t;
-        nodes : [ `Read ] Node.t;
-        commits : [ `Read ] Commit.t;
+        contents : read Contents.t;
+        nodes : read Node.t;
+        commits : read Commit.t;
         branch : Branch.t;
       }
 

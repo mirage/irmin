@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
+open Store_properties
+
 module type Val_intf = sig
   include Irmin.Private.Node.S
 
@@ -38,14 +41,13 @@ module type S = sig
     ?lru_size:int ->
     index:index ->
     string ->
-    [ `Read ] t Lwt.t
+    read t Lwt.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
+  include BATCH with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
   module Val : Val_intf with type t = value and type hash = key
   include S.CHECKABLE with type 'a t := 'a t and type key := key
-  include S.CLOSEABLE with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit
@@ -84,12 +86,10 @@ end
 
 module type S_EXT = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
+  include BATCH with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
   include S.CHECKABLE with type 'a t := 'a t and type key := key
-  include S.CLOSEABLE with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
   val hash : value -> key

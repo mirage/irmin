@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Perms
+open! Import
+open Store_properties
 module T = Irmin.Type
 
 module type HELPER = sig
@@ -78,10 +79,12 @@ module type READ_ONLY_STORE = sig
   val val_of_str : value T.of_string
   val find : 'a t -> key -> value option Lwt.t
   val mem : 'a t -> key -> bool Lwt.t
-  val cast : 'a t -> [ `Read | `Write ] t
-  val batch : 'a t -> ([ `Read | `Write ] t -> 'b) -> 'b
+  val cast : 'a t -> read_write t
+  val batch : 'a t -> (read_write t -> 'b) -> 'b
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-  val clear : 'a t -> unit Lwt.t
+
+  include CLEARABLE with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -90,14 +93,20 @@ module type APPEND_ONLY_STORE = sig
   type value
   type ctx
 
-  val mem : [> `Read ] t -> key -> bool Lwt.t
-  val find : [> `Read ] t -> key -> value option Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
   val add : 'a t -> value -> key Lwt.t
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-  val close : 'a t -> unit Lwt.t
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val clear : 'a t -> unit Lwt.t
+
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
+
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
+
+  include CLEARABLE with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor

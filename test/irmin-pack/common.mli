@@ -1,3 +1,4 @@
+open Irmin.Perms
 module Dict : Irmin_pack.Dict.S
 module H = Irmin.Hash.SHA1
 module I = Index
@@ -48,16 +49,16 @@ end) : sig
 
   type t = {
     index : Index.t;
-    pack : [ `Read ] Pack.t;
-    clone_pack : readonly:bool -> [ `Read ] Pack.t Lwt.t;
-    clone_index_pack : readonly:bool -> (Index.t * [ `Read ] Pack.t) Lwt.t;
+    pack : read Pack.t;
+    clone_pack : readonly:bool -> read Pack.t Lwt.t;
+    clone_index_pack : readonly:bool -> (Index.t * read Pack.t) Lwt.t;
   }
 
   val get_pack : ?lru_size:int -> unit -> t Lwt.t
   (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
       same location, [clone_index_pack] opens a clone of the index and the pack. *)
 
-  val close : Index.t -> [ `Read ] Pack.t -> unit Lwt.t
+  val close : Index.t -> read Pack.t -> unit Lwt.t
 end
 
 val ( let* ) : 'a Lwt.t -> ('a -> 'b Lwt.t) -> 'b Lwt.t

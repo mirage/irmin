@@ -76,9 +76,9 @@ struct
   type value = U.value
 
   type 'a t = {
-    lower : [ `Read ] L.t option;
+    lower : read L.t option;
     mutable flip : bool;
-    uppers : [ `Read ] U.t * [ `Read ] U.t;
+    uppers : read U.t * read U.t;
     freeze_in_progress : unit -> bool;
     mutable newies : key list;
   }
@@ -184,7 +184,7 @@ struct
     U.flush ~index_merge:true next;
     match t.lower with None -> () | Some x -> L.flush ~index_merge:true x
 
-  let cast t = (t :> [ `Read | `Write ] t)
+  let cast t = (t :> read_write t)
 
   let batch t f =
     f (cast t) >|= fun r ->
@@ -289,8 +289,8 @@ struct
   module CopyLower = Copy (H) (U) (L)
 
   type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
+    | Upper : read U.t layer_type
+    | Lower : read L.t layer_type
 
   let copy_to_lower t ~dst str k =
     CopyLower.copy ~src:(current_upper t) ~dst str k
@@ -301,7 +301,7 @@ struct
   let check t ?none ?some k =
     CopyUpper.check ~src:(current_upper t) ?none ?some k
 
-  let copy : type l. l layer_type * l -> [ `Read ] t -> string -> key -> unit =
+  let copy : type l. l layer_type * l -> read t -> string -> key -> unit =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 

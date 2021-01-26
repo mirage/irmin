@@ -18,6 +18,43 @@
 
 open! Import
 
+type config = Conf.t
+
+module Store_properties = struct
+  module type BATCH = sig
+    type 'a t
+
+    val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+    (** [batch t f] applies the writes in [f] in a separate batch. The exact
+        guarantees depend on the implementation. *)
+  end
+
+  module type CLOSEABLE = sig
+    type 'a t
+
+    val close : 'a t -> unit Lwt.t
+    (** [close t] frees up all the resources associated with [t]. Any operations
+        run on a closed handle will raise {!Closed}. *)
+  end
+
+  module type OF_CONFIG = sig
+    type 'a t
+
+    val v : config -> read t Lwt.t
+    (** [v config] is a function returning fresh store handles, with the
+        configuration [config], which is provided by the backend. *)
+  end
+
+  module type CLEARABLE = sig
+    type 'a t
+
+    val clear : 'a t -> unit Lwt.t
+    (** Clear the store. This operation is expected to be slow. *)
+  end
+end
+
+open Store_properties
+
 module type CONTENT_ADDRESSABLE_STORE = sig
   (** {1 Content-addressable stores}
 
@@ -51,34 +88,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
-  val clear : 'a t -> unit Lwt.t
-  (** Clear the store. This operation is expected to be slow. *)
-end
-
-module type BATCH = sig
-  type 'a t
-
-  val batch : [ | read ] t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The exact
-      guarantees depends on the backends. *)
-end
-
-module type CLOSEABLE = sig
-  type 'a t
-
-  val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
-end
-
-type config = Conf.t
-
-module type OF_CONFIG = sig
-  type 'a t
-
-  val v : config -> [ | read ] t Lwt.t
-  (** [v config] is a function returning fresh store handles, with the
-      configuration [config], which is provided by the backend. *)
+  include CLEARABLE with type 'a t := 'a t
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
@@ -117,8 +127,7 @@ module type APPEND_ONLY_STORE = sig
   val add : [> write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
-  val clear : 'a t -> unit Lwt.t
-  (** Clear the store. This operation is expected to be slow. *)
+  include CLEARABLE with type 'a t := 'a t
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
@@ -206,9 +215,7 @@ module type ATOMIC_WRITE_STORE = sig
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
   include CLOSEABLE with type _ t := t
-
-  val clear : t -> unit Lwt.t
-  (** [clear t] clears the store. This operation is expected to be slow. *)
+  include CLEARABLE with type _ t := t
 end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig

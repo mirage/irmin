@@ -107,12 +107,12 @@ struct
   let flush ?index t = P.flush ?index t
 
   type 'a layer_type =
-    | Upper : [ `Read ] U.t layer_type
-    | Lower : [ `Read ] L.t layer_type
+    | Upper : read U.t layer_type
+    | Lower : read L.t layer_type
 
   let copy_from_lower ~dst t = P.copy_from_lower t "Node" ~dst
 
-  let copy : type l. l layer_type * l -> [ `Read ] t -> key -> unit =
+  let copy : type l. l layer_type * l -> read t -> key -> unit =
    fun (layer, dst) t ->
     match layer with
     | Lower -> P.copy (Lower, dst) t "Node"
