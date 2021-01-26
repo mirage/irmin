@@ -55,7 +55,7 @@ module type STORE = sig
   (** [merge] is the 3-way merge function for commit keys. *)
 
   (** [Key] provides base functions for commit keys. *)
-  module Key : TYPED_HASH with type t = key and type value = value
+  module Key : Hash.TYPED with type t = key and type value = value
 
   (** [Val] provides functions for commit values. *)
   module Val : S with type t = value and type hash = key
@@ -178,7 +178,7 @@ module type Commit = sig
   module Store
       (N : Node.STORE) (C : sig
         include CONTENT_ADDRESSABLE_STORE with type key = N.key
-        module Key : HASH with type t = key
+        module Key : Hash.S with type t = key
         module Val : S with type t = value and type hash = key
       end) :
     STORE

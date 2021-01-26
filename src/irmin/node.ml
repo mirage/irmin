@@ -144,7 +144,7 @@ module Store
     (P : Path.S)
     (M : METADATA) (S : sig
       include CONTENT_ADDRESSABLE_STORE with type key = C.key
-      module Key : HASH with type t = key
+      module Key : Hash.S with type t = key
 
       module Val :
         S

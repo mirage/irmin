@@ -24,7 +24,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Content_addressable
     (AO : S.APPEND_ONLY_STORE_MAKER)
-    (K : S.HASH)
+    (K : Hash.S)
     (V : Type.S) =
 struct
   include AO (K) (V)

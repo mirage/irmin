@@ -287,7 +287,7 @@ module type S = sig
         limit the search space of the lowest common ancestors (see {!lcas}). *)
   end
 
-  module Hash : S.HASH with type t = hash
+  module Hash : Hash.S with type t = hash
   (** Object hashes. *)
 
   (** [Commit] defines immutable objects to describe store updates. *)
@@ -895,9 +895,9 @@ end
 module type MAKER = functor
   (M : S.METADATA)
   (C : Contents.S)
-  (H : S.HASH)
   (P : Path.S)
   (B : Branch.S)
+  (H : Hash.S)
   ->
   S
     with type key = P.t
@@ -956,7 +956,7 @@ module type Store = sig
 
   module Content_addressable
       (X : Sigs.APPEND_ONLY_STORE_MAKER)
-      (K : Sigs.HASH)
+      (K : Hash.S)
       (V : Type.S) : sig
     include
       Sigs.CONTENT_ADDRESSABLE_STORE

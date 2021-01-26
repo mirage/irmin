@@ -1,5 +1,5 @@
 module type S = sig
-  module Hash : S.HASH
+  module Hash : Hash.S
   (** Internal hashes. *)
 
   module Contents : Contents.STORE with type key = Hash.t

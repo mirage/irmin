@@ -23,14 +23,7 @@ module Merge = Merge
 module Branch = Branch
 module Info = Info
 module Dot = Dot.Make
-
-module Hash = struct
-  include Hash
-
-  module type S = S.HASH
-  module type TYPED = S.TYPED_HASH
-end
-
+module Hash = Hash
 module Path = Path
 
 exception Closed
@@ -38,7 +31,7 @@ exception Closed
 module CA_check_closed (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER) :
   S.CONTENT_ADDRESSABLE_STORE_MAKER =
 functor
-  (K : S.HASH)
+  (K : Hash.S)
   (V : Type.S)
   ->
   struct
@@ -259,9 +252,9 @@ module Make
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
     (C : Contents.S)
-    (H : S.HASH) =
     (P : Path.S)
     (B : Branch.S)
+    (H : Hash.S) =
 struct
   module N = Node.Make (H) (P) (M)
   module CT = Commit.Make (H)

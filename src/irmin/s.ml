@@ -16,48 +16,6 @@
 
 (** Irmin signatures *)
 
-module type HASH = sig
-  (** Signature for digest hashes, inspired by Digestif. *)
-
-  type t
-  (** The type for digest hashes. *)
-
-  val hash : ((string -> unit) -> unit) -> t
-  (** Compute a deterministic store key from a sequence of strings. *)
-
-  val short_hash : t -> int
-  (** [short_hash h] is a small hash of [h], to be used for instance as the
-      `hash` function of an OCaml [Hashtbl]. *)
-
-  val hash_size : int
-  (** [hash_size] is the size of hash results, in bytes. *)
-
-  (** {1 Value Types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-end
-
-module type TYPED_HASH = sig
-  type t
-  type value
-
-  val hash : value -> t
-  (** Compute a deterministic store key from a string. *)
-
-  val short_hash : t -> int
-  (** [short_hash h] is a small hash of [h], to be used for instance as the
-      `hash` function of an OCaml [Hashtbl]. *)
-
-  val hash_size : int
-  (** [hash_size] is the size of hash results, in bytes. *)
-
-  (** {1 Value Types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-end
-
 module type CONTENT_ADDRESSABLE_STORE = sig
   (** {1 Content-addressable stores}
 
@@ -96,7 +54,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
-  (K : HASH)
+  (K : Hash.S)
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t

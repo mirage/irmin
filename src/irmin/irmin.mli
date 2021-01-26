@@ -89,6 +89,7 @@ module Path = Path
     {{!Path.S.step} steps}. The following [Path] module provides functions to
     manipulate steps and paths. *)
 
+module Hash = Hash
 (** Hashing functions.
 
     [Hash] provides user-defined hash functions to digest serialized contents.
@@ -97,25 +98,6 @@ module Path = Path
     {{!Hash.SHA1} SHA1}).
 
     A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
-module Hash : sig
-  (** {1 Contents Hashing} *)
-
-  (** Signature for hash values. *)
-  module type S = sig
-    include S.HASH
-    (** @inline *)
-  end
-
-  (** Signature for typed hashes, where [hash] directly takes a value as
-      argument and incremental hashing is not possible. *)
-  module type TYPED = sig
-    include S.TYPED_HASH
-    (** @inline *)
-  end
-
-  include module type of Hash
-  (** @inline *)
-end
 
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. The Git backend uses this to indicate the type of file (normal,

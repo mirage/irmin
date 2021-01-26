@@ -94,7 +94,7 @@ module type STORE = sig
   (** [merge] is the 3-way merge function for nodes keys. *)
 
   (** [Key] provides base functions for node keys. *)
-  module Key : TYPED_HASH with type t = key and type value = value
+  module Key : Hash.TYPED with type t = key and type value = value
 
   module Metadata : METADATA
   (** [Metadata] provides base functions for node metadata. *)
@@ -242,7 +242,7 @@ module type Node = sig
       (P : Path.S)
       (M : METADATA) (N : sig
         include CONTENT_ADDRESSABLE_STORE with type key = C.key
-        module Key : HASH with type t = key
+        module Key : Hash.S with type t = key
 
         module Val :
           S

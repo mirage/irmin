@@ -42,7 +42,7 @@ end
 module Store
     (N : Node.STORE) (S : sig
       include CONTENT_ADDRESSABLE_STORE with type key = N.key
-      module Key : HASH with type t = key
+      module Key : Hash.S with type t = key
       module Val : S with type t = value and type hash = key
     end) =
 struct
