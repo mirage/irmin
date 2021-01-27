@@ -335,6 +335,69 @@ let test_representation_uniqueness_maxdepth_3 () =
     (P.trees p);
   Lwt.return_unit
 
+let test_truncated_inodes () =
+  let to_truncated inode =
+    let encode, decode =
+      let t = Inode.Val.t in
+      Irmin.Type.(encode_bin t |> unstage, decode_bin t |> unstage)
+    in
+    let encode inode =
+      let buf = Buffer.create 0 in
+      encode inode (Buffer.add_string buf);
+      Buffer.contents buf
+    in
+    let decode str = decode str 0 |> snd in
+    inode |> encode |> decode
+  in
+  let with_failure f =
+    Alcotest.check_raises
+      "Iteration on that Truncated inode with broken pointers was expected to \
+       fail."
+      (Failure
+         "Impossible to load the subtree on an inode deserialized using Repr") f
+  in
+  let s00, s01, s11, s10 =
+    Inode_permutations_generator.
+      ( gen_step [ 0; 0 ],
+        gen_step [ 0; 1 ],
+        gen_step [ 1; 1 ],
+        gen_step [ 1; 0 ] )
+  in
+  let iter_steps f =
+    List.iter (fun step -> f step |> ignore) [ s00; s01; s11; s10 ]
+  in
+  let iter_steps_with_failure f =
+    List.iter
+      (fun step -> with_failure (fun () -> f step |> ignore))
+      [ s00; s01; s11; s10 ]
+  in
+  (* v1 is a Truncated inode of tag Values. No pointers. *)
+  let v1 =
+    Inode.Val.v [ (s00, normal foo); (s10, normal foo) ] |> to_truncated
+  in
+  Inode.Val.list v1 |> ignore;
+  (iter_steps @@ fun step -> Inode.Val.find v1 step);
+  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal bar));
+  (iter_steps @@ fun step -> Inode.Val.remove v1 step);
+  (* v2 is just a Truncated inode of tag Tree. The pointers are built after
+     the call to [to_truncated], they are [Intact]. *)
+  let v2 = Inode.Val.add v1 s01 (normal foo) in
+  Inode.Val.list v2 |> ignore;
+  (iter_steps @@ fun step -> Inode.Val.find v1 step);
+  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal bar));
+  (iter_steps @@ fun step -> Inode.Val.remove v1 step);
+  (* v3 is just a Truncated inode of tag Tree. The pointers are built before
+     the call to [to_truncated], they are [Broken]. *)
+  let v3 =
+    Inode.Val.v [ (s00, normal foo); (s10, normal bar); (s01, normal bar) ]
+    |> to_truncated
+  in
+  (with_failure @@ fun () -> Inode.Val.list v3 |> ignore);
+  (iter_steps_with_failure @@ fun step -> Inode.Val.find v3 step);
+  (iter_steps_with_failure @@ fun step -> Inode.Val.add v3 step (normal bar));
+  (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);
+  Lwt.return_unit
+
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
@@ -347,4 +410,6 @@ let tests =
         Lwt_main.run (test_remove_inodes ()));
     Alcotest.test_case "test representation uniqueness" `Quick (fun () ->
         Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
+    Alcotest.test_case "test truncated inodes" `Quick (fun () ->
+        Lwt_main.run (test_truncated_inodes ()));
   ]
