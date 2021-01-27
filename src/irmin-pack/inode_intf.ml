@@ -21,13 +21,6 @@ module type Val_intf = sig
   include Irmin.Private.Node.S
 
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
-
-  module Private : sig
-    val hash : t -> hash
-    val stable : t -> bool
-    val length : t -> int
-    val index : depth:int -> step -> int
-  end
 end
 
 module type S = sig
@@ -51,8 +44,13 @@ module type S = sig
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit
+
+  val decode_bin :
+    dict:(int -> string option) -> hash:(int64 -> key) -> string -> int -> int
 end
 
+(** Unstable internal API agnostic about the underlying storage. Use it only to
+    implement or test inodes. *)
 module type INTER = sig
   type hash
 
@@ -67,39 +65,25 @@ module type INTER = sig
     int ->
     int * Elt.t
 
-  module Val_impl : sig
-    type t
-
-    val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
-    val of_bin : Elt.t -> t
-    val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
-    val hash : t -> hash
-  end
-
   module Val : sig
     type nonrec hash = hash
-    type t = { find : hash -> Val_impl.t option; v : Val_impl.t }
+    type t
 
     include Val_intf with type hash := hash and type t := t
+
+    val of_bin : (hash -> Elt.t option) -> Elt.t -> t
+    val to_bin : t -> Elt.t
+    val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
+    val hash : t -> hash
+    val stable : t -> bool
+    val length : t -> int
+    val index : depth:int -> step -> int
   end
-end
-
-module type S_EXT = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-  include BATCH with type 'a t := 'a t
-  module Key : Irmin.Hash.S with type t = key
-  include S.CHECKABLE with type 'a t := 'a t and type key := key
-  include CLOSEABLE with type 'a t := 'a t
-
-  val clear_caches : 'a t -> unit
-  val hash : value -> key
-  val check_hash : key -> key -> unit
 end
 
 module type Inode = sig
   module type S = S
   module type INTER = INTER
-  module type S_EXT = S_EXT
 
   module Make_intermediate
       (Conf : Config.S)
@@ -117,8 +101,15 @@ module type Inode = sig
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (Pack : Pack.S with type value = Inter.Elt.t and type key = H.t) :
-    S_EXT with type key = H.t and type value = Inter.Val.t
+      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) : sig
+    include
+      S
+        with type key = H.t
+         and type Val.metadata = Node.metadata
+         and type Val.step = Node.step
+         and type index = Pack_index.Make(H).t
+         and type value = Inter.Val.t
+  end
 
   module Make
       (Conf : Config.S)
@@ -131,8 +122,5 @@ module type Inode = sig
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
          and type index = Pack_index.Make(H).t
-
-    val decode_bin :
-      dict:(int -> string option) -> hash:(int64 -> key) -> string -> int -> int
   end
 end
