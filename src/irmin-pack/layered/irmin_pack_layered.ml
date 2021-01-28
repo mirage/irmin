@@ -680,8 +680,8 @@ struct
               ~skip_contents:(mem_contents_next t) t newies)
         >>= fun () -> X.Branch.copy_newies_to_next_upper t.branch
 
-      (** If there are too many newies (more than newies_limit bytes added) then
-          copy them concurrently. *)
+      (** Repeatedly call [copy_newies] as long as there are many newies (more
+          than newies_limit bytes added). *)
       let rec copy_newies_to_next_upper ~cancel t former_offset =
         let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
@@ -729,8 +729,8 @@ struct
         let commits = X.Commit.CA.current_upper t.X.Repo.commit in
         f (contents, nodes, commits)
 
-      (** The commits can be in either lower or upper. We don't skip an object
-          already in upper as its predecessors could be in lower. *)
+      (** An object can be in either lower or upper or both. We can't skip an
+          object already in upper as some predecessors could still be in lower. *)
       let self_contained ?min ~max t =
         let max = List.map (fun x -> Commit.hash x) max in
         let min =
@@ -739,7 +739,10 @@ struct
           | Some min -> List.map (fun x -> Commit.hash x) min
         in
         (* FIXME(samoht): do this in 2 steps: 1/ find the shallow
-           hashes in upper 2/ iterates with max=shallow *)
+           hashes in upper 2/ iterates with max=shallow
+
+           (ngoguey): we could stop at the uppers directly following a lower.
+        *)
         Log.debug (fun l ->
             l
               "self_contained: copy commits min:%a; max:%a from lower into \
@@ -764,13 +767,17 @@ struct
   let with_stats msg f = f >|= fun () -> dump_stats msg
 
   let copy ~cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
-    (* Copy commits to lower: if squash then copy only the max commits *)
+    (* Copy commits to lower: if squash then copy only the max commits.
+       In case cancellation of the freeze, copies to the lower layer will not
+       be reverted. Since the copying is performed in the [rev] order, the next
+       freeze will resume copying where the previous freeze stopped. *)
     (if t.X.Repo.with_lower then
      let min = if squash then max else min in
      with_stats "copied in lower" (Copy.CopyToLower.copy ~cancel t ~min max)
     else Lwt.return_unit)
     >>= fun () ->
-    (* Copy [min_upper, max] to next_upper *)
+    (* Copy [min_upper, max] to next_upper. In case of cancellation of the
+       freeze, the next upper will be cleared. *)
     (if copy_in_upper then
      with_stats "copied in upper"
        (Copy.CopyToUpper.copy t ~cancel ~min:min_upper max)
@@ -813,7 +820,7 @@ struct
     Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
     let lock_file = lock_path t.root in
-    (* we take a lock here to signal that a freeze was in progess in
+    (* We take a file lock here to signal that a freeze was in progess in
        case of crash, to trigger the recovery path. *)
     let* lock_file = Lock.v lock_file in
     let cancel () = t.freeze.state = `Cancel in
@@ -826,9 +833,10 @@ struct
       >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
       let before_add_lock = Mtime_clock.count start_time in
-      (* At this point there are only a few newies left (less than
-         [newies_limit] bytes) so it's fine to take the batch lock to
-         copy them. *)
+      (* Let's finish the freeze under the batch lock so that no concurrent
+         modifications occur until the uppers are flipped. No more cancellations
+         from this point on. There are only a few newies left (less than
+         [newies_limit] bytes) so this lock should be quickly released. *)
       let* waiting_add =
         Lwt_mutex.with_lock t.batch_lock (fun () ->
             let after_add_lock = Mtime_clock.count start_time in
@@ -878,9 +886,9 @@ struct
       incr n;
       !n
 
-  (** main thread takes the lock at the begining of freeze and async thread
-      releases it at the end. This is to ensure that no two freezes can run
-      simultaneously. *)
+  (** Main thread takes the [t.freeze.lock] at the begining of freeze and async
+      thread releases it at the end. This is to ensure that no two freezes can
+      run simultaneously. *)
   let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
       ?(min_upper = []) ?(recovery = false) ?hook t =
     let* () =
