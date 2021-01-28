@@ -54,6 +54,8 @@ module Diff = Diff
 type 'a diff = 'a Diff.t
 (** The type for representing differences betwen values. *)
 
+module Perms = Perms
+
 (** {1 Low-level Stores} *)
 
 (** An Irmin store is automatically built from a number of lower-level stores,
@@ -155,6 +157,7 @@ module Private : sig
   module Commit = Commit
   module Slice = Slice
   module Sync = Sync
+  module Sigs = S
 
   module type S = Private.S
   (** The complete collection of private implementations. *)
@@ -468,18 +471,16 @@ module Dot (S : S) : Dot.S with type db = S.t
     values. *)
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+  open Private.Sigs.Store_properties
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The exact
-      guarantees depends on the backends. *)
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
 
-  val v : config -> [ `Read ] t Lwt.t
-  (** [v config] is a function returning fresh store handles, with the
-      configuration [config], which is provided by the backend. *)
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
 
-  val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
 end
 
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
@@ -490,18 +491,16 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+  open Private.Sigs.Store_properties
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The exact
-      guarantees depends on the backends. *)
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
 
-  val v : config -> [ `Read ] t Lwt.t
-  (** [v config] is a function returning fresh store handles, with the
-      configuration [config], which is provided by the backend. *)
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
 
-  val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
 end
 
 module Content_addressable
@@ -514,17 +513,16 @@ module Content_addressable
        and type key = K.t
        and type value = V.t
 
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  (** [batch t f] applies the writes in [f] in a separate batch. The exact
-      guarantees depends on the backends. *)
+  open Private.Sigs.Store_properties
 
-  val v : config -> [ `Read ] t Lwt.t
-  (** [v config] is a function returning fresh store handles, with the
-      configuration [config], which is provided by the backend. *)
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
 
-  val close : 'a t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
+
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store
@@ -532,10 +530,10 @@ end
     values.*)
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
+  open Private.Sigs.Store_properties
 
-  val v : config -> t Lwt.t
-  (** [v config] is a function returning fresh store handles, with the
-      configuration [config], which is provided by the backend. *)
+  include OF_CONFIG with type _ t := t
+  (** @inline *)
 end
 
 (** Simple store creator. Use the same type of all of the internal keys and
@@ -580,3 +578,6 @@ module Of_private (P : Private.S) :
      and type repo = P.Repo.t
      and type slice = P.Slice.t
      and module Private = P
+
+module Export_for_backends = Export_for_backends
+(** Helper module containing useful top-level types for defining Irmin backends. *)

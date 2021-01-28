@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
 module Sigs = S
+open Sigs.Store_properties
 
 module type S = sig
   (** {1 Irmin stores}
@@ -88,9 +90,8 @@ module type S = sig
     val v : S.config -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
-    val close : t -> unit Lwt.t
-    (** [close t] frees up all resources associated with [t]. Any operations run
-        on a closed repository will raise {!Closed}. *)
+    include CLOSEABLE with type _ t := t
+    (** @inline *)
 
     val heads : t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -878,14 +879,14 @@ module type S = sig
   (** [of_private_commit r c] is the commit associated with the private commit
       object [c]. *)
 
-  val save_contents : [> `Write ] Private.Contents.t -> contents -> hash Lwt.t
+  val save_contents : [> write ] Private.Contents.t -> contents -> hash Lwt.t
   (** Save a content into the database *)
 
   val save_tree :
     ?clear:bool ->
     repo ->
-    [> `Write ] Private.Contents.t ->
-    [ `Read | `Write ] Private.Node.t ->
+    [> write ] Private.Contents.t ->
+    [> read_write ] Private.Node.t ->
     tree ->
     hash Lwt.t
   (** Save a tree into the database. Does not do any reads. If [clear] is set
@@ -964,8 +965,8 @@ module type Store = sig
          and type key = K.t
          and type value = V.t
 
-    val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-    val v : Conf.t -> [ `Read ] t Lwt.t
-    val close : 'a t -> unit Lwt.t
+    include BATCH with type 'a t := 'a t
+    include OF_CONFIG with type 'a t := 'a t
+    include CLOSEABLE with type 'a t := 'a t
   end
 end

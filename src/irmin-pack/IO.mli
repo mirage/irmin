@@ -15,3 +15,4 @@
  *)
 
 include IO_intf.IO
+(** @inline *)

@@ -25,6 +25,7 @@ module Info = Info
 module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
+module Perms = Perms
 
 exception Closed
 
@@ -208,9 +209,9 @@ struct
     module Repo = struct
       type t = {
         config : Conf.t;
-        contents : [ `Read ] Contents.t;
-        nodes : [ `Read ] Node.t;
-        commits : [ `Read ] Commit.t;
+        contents : read Contents.t;
+        nodes : read Node.t;
+        commits : read Commit.t;
         branch : Branch.t;
       }
 
@@ -288,6 +289,7 @@ module Private = struct
   module Commit = Commit
   module Slice = Slice
   module Sync = Sync
+  module Sigs = S
 
   module type S = Private.S
 
@@ -315,3 +317,4 @@ module Metadata = struct
 end
 
 module Json_tree = Store.Json_tree
+module Export_for_backends = Export_for_backends

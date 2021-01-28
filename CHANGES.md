@@ -11,6 +11,13 @@
   - Added benchmarks for trees operations. (#1237, @icristescu, @Ngoguey42,
   @Craigfe)
 
+- **irmin**
+  - Added a `Perms` module containing helper types for using phantom-typed
+    capabilities as used by the store backends. (#1262, @CraigFe)
+
+  - Added an `Exported_for_stores` module containing miscellaneous helper types
+    for building backends. (#1262, @CraigFe)
+
 #### Changed
 
 ### 2.3.0 (2020-01-12)

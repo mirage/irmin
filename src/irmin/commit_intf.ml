@@ -15,6 +15,7 @@
  *)
 
 open S
+open! Import
 
 module type S = sig
   (** {1 Commit values} *)
@@ -51,7 +52,7 @@ module type STORE = sig
 
   include CONTENT_ADDRESSABLE_STORE
 
-  val merge : [ `Read | `Write ] t -> info:Info.f -> key option Merge.t
+  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
   (** [merge] is the 3-way merge function for commit keys. *)
 
   (** [Key] provides base functions for commit keys. *)
@@ -80,25 +81,25 @@ module type HISTORY = sig
   (** The type for commit objects. *)
 
   val v :
-    [> `Write ] t ->
+    [> write ] t ->
     node:node ->
     parents:commit list ->
     info:Info.t ->
     (commit * v) Lwt.t
   (** Create a new commit. *)
 
-  val parents : [> `Read ] t -> commit -> commit list Lwt.t
+  val parents : [> read ] t -> commit -> commit list Lwt.t
   (** Get the commit parents.
 
       Commits form a append-only, fully functional, partial-order
       data-structure: every commit carries the list of its immediate
       predecessors. *)
 
-  val merge : [ `Read | `Write ] t -> info:Info.f -> commit Merge.t
+  val merge : [> read_write ] t -> info:Info.f -> commit Merge.t
   (** [merge t] is the 3-way merge function for commit. *)
 
   val lcas :
-    [> `Read ] t ->
+    [> read ] t ->
     ?max_depth:int ->
     ?n:int ->
     commit ->
@@ -109,7 +110,7 @@ module type HISTORY = sig
       commits. *)
 
   val lca :
-    [ `Read | `Write ] t ->
+    [> read_write ] t ->
     info:Info.f ->
     ?max_depth:int ->
     ?n:int ->
@@ -123,7 +124,7 @@ module type HISTORY = sig
       the function returns the same error. *)
 
   val three_way_merge :
-    [ `Read | `Write ] t ->
+    [> read_write ] t ->
     info:Info.f ->
     ?max_depth:int ->
     ?n:int ->
@@ -133,12 +134,12 @@ module type HISTORY = sig
   (** Compute the {!lcas} of the two commit and 3-way merge the result. *)
 
   val closure :
-    [> `Read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
+    [> read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
   (** Same as {{!NODE_GRAPH.closure} NODE_GRAPH.closure} but for the history
       graph. *)
 
   val iter :
-    [> `Read ] t ->
+    [> read ] t ->
     min:node list ->
     max:node list ->
     ?commit:(commit -> unit Lwt.t) ->

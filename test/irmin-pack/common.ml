@@ -1,3 +1,5 @@
+open Irmin.Perms
+
 module Dict = Irmin_pack.Dict.Make (struct
   let io_version = `V2
 end)
@@ -79,9 +81,9 @@ struct
 
   type t = {
     index : Index.t;
-    pack : [ `Read ] Pack.t;
-    clone_pack : readonly:bool -> [ `Read ] Pack.t Lwt.t;
-    clone_index_pack : readonly:bool -> (Index.t * [ `Read ] Pack.t) Lwt.t;
+    pack : read Pack.t;
+    clone_pack : readonly:bool -> read Pack.t Lwt.t;
+    clone_index_pack : readonly:bool -> (Index.t * read Pack.t) Lwt.t;
   }
 
   let log_size = 10_000_000

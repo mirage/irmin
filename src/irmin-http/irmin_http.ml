@@ -233,7 +233,7 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
 
-  let cast t = (t :> [ `Read | `Write ] t)
+  let cast t = (t :> read_write t)
 
   let batch t f =
     (* TODO:cache the writes locally and send everything in one batch *)
@@ -491,9 +491,9 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Repo = struct
       type t = {
         config : Irmin.config;
-        contents : [ `Read ] Contents.t;
-        node : [ `Read ] Node.t;
-        commit : [ `Read ] Commit.t;
+        contents : read Contents.t;
+        node : read Node.t;
+        commit : read Commit.t;
         branch : Branch.t;
       }
 

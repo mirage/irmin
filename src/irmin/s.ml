@@ -16,6 +16,45 @@
 
 (** Irmin signatures *)
 
+open! Import
+
+type config = Conf.t
+
+module Store_properties = struct
+  module type BATCH = sig
+    type 'a t
+
+    val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+    (** [batch t f] applies the writes in [f] in a separate batch. The exact
+        guarantees depend on the implementation. *)
+  end
+
+  module type CLOSEABLE = sig
+    type 'a t
+
+    val close : 'a t -> unit Lwt.t
+    (** [close t] frees up all the resources associated with [t]. Any operations
+        run on a closed handle will raise {!Closed}. *)
+  end
+
+  module type OF_CONFIG = sig
+    type 'a t
+
+    val v : config -> read t Lwt.t
+    (** [v config] is a function returning fresh store handles, with the
+        configuration [config], which is provided by the backend. *)
+  end
+
+  module type CLEARABLE = sig
+    type 'a t
+
+    val clear : 'a t -> unit Lwt.t
+    (** Clear the store. This operation is expected to be slow. *)
+  end
+end
+
+open Store_properties
+
 module type CONTENT_ADDRESSABLE_STORE = sig
   (** {1 Content-addressable stores}
 
@@ -23,7 +62,7 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       new values. Keys are derived from the values raw contents and hence are
       deterministic. *)
 
-  type 'a t
+  type -'a t
   (** The type for content-addressable backend stores. The ['a] phantom type
       carries information about the store mutability. *)
 
@@ -33,24 +72,23 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   type value
   (** The type for raw values. *)
 
-  val mem : [> `Read ] t -> key -> bool Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : [> `Read ] t -> key -> value option Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> value -> key Lwt.t
+  val add : [> write ] t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the responsibility of the
       content-addressable store to generate a consistent key. *)
 
-  val unsafe_add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
   (** Same as {!add} but allows to specify the key directly. The backend might
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
-  val clear : 'a t -> unit Lwt.t
-  (** Clear the store. This operation is expected to be slow. *)
+  include CLEARABLE with type 'a t := 'a t
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
@@ -58,10 +96,9 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val v : Conf.t -> [ `Read ] t Lwt.t
-  val close : 'a t -> unit Lwt.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -70,7 +107,7 @@ module type APPEND_ONLY_STORE = sig
       Append-onlye stores are store where it is possible to read and add new
       values. *)
 
-  type 'a t
+  type -'a t
   (** The type for append-only backend stores. The ['a] phantom type carries
       information about the store mutability. *)
 
@@ -80,26 +117,24 @@ module type APPEND_ONLY_STORE = sig
   type value
   (** The type for raw values. *)
 
-  val mem : [> `Read ] t -> key -> bool Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : [> `Read ] t -> key -> value option Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> `Write ] t -> key -> value -> unit Lwt.t
+  val add : [> write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
-  val clear : 'a t -> unit Lwt.t
-  (** Clear the store. This operation is expected to be slow. *)
+  include CLEARABLE with type 'a t := 'a t
 end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-
-  val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-  val v : Conf.t -> [ `Read ] t Lwt.t
-  val close : 'a t -> unit Lwt.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
 end
 
 module type METADATA = sig
@@ -113,7 +148,6 @@ module type METADATA = sig
   (** The default metadata to attach, for APIs that don't care about metadata. *)
 end
 
-type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type ATOMIC_WRITE_STORE = sig
@@ -180,18 +214,13 @@ module type ATOMIC_WRITE_STORE = sig
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
-  val close : t -> unit Lwt.t
-  (** [close t] frees up all the resources associated to [t]. Any operations run
-      on a closed store will raise {!Closed}. *)
-
-  val clear : t -> unit Lwt.t
-  (** [clear t] clears the store. This operation is expected to be slow. *)
+  include CLOSEABLE with type _ t := t
+  include CLEARABLE with type _ t := t
 end
 
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-
-  val v : Conf.t -> t Lwt.t
+  include OF_CONFIG with type _ t := t
 end
 
 type remote = ..

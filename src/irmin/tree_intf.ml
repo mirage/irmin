@@ -15,6 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
+
 module type S = sig
   type key
   type step
@@ -279,8 +281,8 @@ module type Tree = sig
     val export :
       ?clear:bool ->
       P.Repo.t ->
-      [> `Write ] P.Contents.t ->
-      [ `Read | `Write ] P.Node.t ->
+      [> write ] P.Contents.t ->
+      [> read_write ] P.Node.t ->
       node ->
       P.Node.key Lwt.t
 

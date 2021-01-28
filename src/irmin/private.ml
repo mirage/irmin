@@ -1,3 +1,22 @@
+(*
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+open! Import
+open S.Store_properties
+
 module type S = sig
   module Hash : Hash.S
   (** Internal hashes. *)
@@ -25,18 +44,22 @@ module type S = sig
   module Repo : sig
     type t
 
-    val v : Conf.t -> t Lwt.t
-    val close : t -> unit Lwt.t
-    val contents_t : t -> [ `Read ] Contents.t
-    val node_t : t -> [ `Read ] Node.t
-    val commit_t : t -> [ `Read ] Commit.t
+    include OF_CONFIG with type _ t := t
+    (** @inline *)
+
+    include CLOSEABLE with type _ t := t
+    (** @inline *)
+
+    val contents_t : t -> read Contents.t
+    val node_t : t -> read Node.t
+    val commit_t : t -> read Commit.t
     val branch_t : t -> Branch.t
 
     val batch :
       t ->
-      ([ `Read | `Write ] Contents.t ->
-      [ `Read | `Write ] Node.t ->
-      [ `Read | `Write ] Commit.t ->
+      (read_write Contents.t ->
+      read_write Node.t ->
+      read_write Commit.t ->
       'a Lwt.t) ->
       'a Lwt.t
   end

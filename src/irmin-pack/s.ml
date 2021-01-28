@@ -16,12 +16,6 @@
 
 type integrity_error = [ `Wrong_hash | `Absent_value ]
 
-module type CLOSEABLE = sig
-  type 'a t
-
-  val close : _ t -> unit Lwt.t
-end
-
 module type CHECKABLE = sig
   type 'a t
   type key
