@@ -14,21 +14,24 @@ Running stat on a layered store after a first freeze
             "Bytes": 466
           },
           "offset": 442,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         },
         "branch": {
           "size": {
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         },
         "dict": {
           "size": {
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         }
       },
       "upper1": {
@@ -37,21 +40,24 @@ Running stat on a layered store after a first freeze
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 1
+          "generation": 1,
+          "version": "V2"
         },
         "branch": {
           "size": {
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         },
         "dict": {
           "size": {
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         }
       },
       "upper0": {
@@ -60,21 +66,24 @@ Running stat on a layered store after a first freeze
             "Bytes": 597
           },
           "offset": 573,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         },
         "branch": {
           "size": {
             "Bytes": 98
           },
           "offset": 74,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         },
         "dict": {
           "size": {
             "Bytes": 24
           },
           "offset": 0,
-          "generation": 0
+          "generation": 0,
+          "version": "V2"
         }
       }
     }

@@ -44,8 +44,14 @@ module Make (Args : Make_args) = struct
   (** Read basic metrics from an existing store. *)
   module Stat = struct
     type size = Bytes of int [@@deriving irmin]
+    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = { size : size; offset : int64; generation : int64 }
+    type io = {
+      size : size;
+      offset : int64;
+      generation : int64;
+      version : version;
+    }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
@@ -69,7 +75,8 @@ module Make (Args : Make_args) = struct
       let offset = IO.offset io in
       let generation = IO.generation io in
       let size = Bytes (IO.size io) in
-      { size; offset; generation }
+      let version = IO.version io in
+      { size; offset; generation; version }
 
     let v ~root =
       let pack = Layout.pack ~root |> io in

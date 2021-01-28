@@ -21,8 +21,14 @@ module type S = sig
         checks. *)
 
     type size = Bytes of int [@@deriving irmin]
+    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = { size : size; offset : int64; generation : int64 }
+    type io = {
+      size : size;
+      offset : int64;
+      generation : int64;
+      version : version;
+    }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
