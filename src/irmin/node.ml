@@ -16,6 +16,8 @@
  *)
 
 open! Import
+open S
+include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
@@ -46,7 +48,7 @@ module Make
     (K : Type.S) (P : sig
       type step [@@deriving irmin]
     end)
-    (M : S.METADATA) =
+    (M : METADATA) =
 struct
   type hash = K.t [@@deriving irmin]
   type step = P.step [@@deriving irmin]
@@ -138,14 +140,14 @@ struct
 end
 
 module Store
-    (C : S.CONTENTS_STORE)
-    (P : S.PATH)
-    (M : S.METADATA) (S : sig
-      include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
-      module Key : S.HASH with type t = key
+    (C : Contents.STORE)
+    (P : Path.S)
+    (M : METADATA) (S : sig
+      include CONTENT_ADDRESSABLE_STORE with type key = C.key
+      module Key : Hash.S with type t = key
 
       module Val :
-        S.NODE
+        S
           with type t = value
            and type hash = key
            and type metadata = M.t
@@ -232,7 +234,7 @@ struct
   module Val = S.Val
 end
 
-module Graph (S : S.NODE_STORE) = struct
+module Graph (S : STORE) = struct
   module Path = S.Path
   module Contents = S.Contents.Key
   module Metadata = S.Metadata
@@ -378,7 +380,7 @@ module Graph (S : S.NODE_STORE) = struct
   let value_t = S.Val.value_t
 end
 
-module V1 (N : S.NODE with type step = string) = struct
+module V1 (N : S with type step = string) = struct
   module K = struct
     let h = Type.string_of `Int64
     let to_bin_string = Type.(unstage (to_bin_string N.hash_t))

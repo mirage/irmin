@@ -70,7 +70,7 @@ let alist_iter2_lwt compare_k f l1 l2 =
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
   Lwt_list.iter_s (fun b -> b >>= fun () -> Lwt.return_unit) (List.rev !l3)
 
-module Make (P : S.PRIVATE) = struct
+module Make (P : Private.S) = struct
   type counters = {
     mutable contents_hash : int;
     mutable contents_find : int;

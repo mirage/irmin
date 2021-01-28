@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include IO_intf
+
 let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -22,8 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
    headers. *)
 
 module Version = struct
-  type t = [ `V1 | `V2 ]
-
   let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
   let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
   let to_bin v = List.assoc v enum
@@ -39,47 +39,9 @@ module Version = struct
     with Not_found -> None
 end
 
-type version = Version.t
-
-module type VERSION = sig
-  val io_version : version
-end
-
 let pp_version = Version.pp
 
 exception Invalid_version of { expected : version; found : version }
-
-module type S = sig
-  type t
-
-  exception RO_Not_Allowed
-
-  val v : version:version option -> fresh:bool -> readonly:bool -> string -> t
-  val name : t -> string
-  val clear : ?keep_generation:unit -> t -> unit
-  val append : t -> string -> unit
-  val set : t -> off:int64 -> string -> unit
-  val read : t -> off:int64 -> bytes -> int
-  val offset : t -> int64
-  val force_offset : t -> int64
-  val generation : t -> int64
-  val force_generation : t -> int64
-  val readonly : t -> bool
-  val version : t -> version
-  val flush : t -> unit
-  val close : t -> unit
-  val exists : string -> bool
-  val size : t -> int
-  val truncate : t -> unit
-
-  val migrate :
-    progress:(int64 -> unit) ->
-    t ->
-    version ->
-    (unit, [> `Msg of string ]) result
-
-  val read_buffer : chunk:int -> off:int64 -> t -> string
-end
 
 external ( ++ ) : int64 -> int64 -> int64 = "%int64_add"
 external ( -- ) : int64 -> int64 -> int64 = "%int64_sub"

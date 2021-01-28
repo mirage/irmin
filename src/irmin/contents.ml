@@ -15,6 +15,7 @@
  *)
 
 open! Import
+include Contents_intf
 
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
@@ -189,66 +190,16 @@ module Json = struct
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
 end
 
-module Json_tree (Store : Store.S with type contents = json) = struct
-  include Json_value
-
-  let to_concrete_tree j : Store.Tree.concrete =
-    let rec obj j acc =
-      match j with
-      | [] -> `Tree acc
-      | (k, v) :: l -> (
-          match Type.of_string Store.Key.step_t k with
-          | Ok key -> obj l ((key, node v []) :: acc)
-          | _ -> obj l acc)
-    and node j acc =
-      match j with
-      | `O j -> obj j acc
-      | _ -> `Contents (j, Store.Metadata.default)
-    in
-    node j []
-
-  let of_concrete_tree c : json =
-    let step = Type.to_string Store.Key.step_t in
-    let rec tree t acc =
-      match t with
-      | [] -> `O acc
-      | (k, v) :: l -> tree l ((step k, contents v []) :: acc)
-    and contents t acc =
-      match t with `Contents (c, _) -> c | `Tree c -> tree c acc
-    in
-    contents c []
-
-  let set_tree (tree : Store.tree) key j : Store.tree Lwt.t =
-    let c = to_concrete_tree j in
-    let c = Store.Tree.of_concrete c in
-    Store.Tree.add_tree tree key c
-
-  let get_tree (tree : Store.tree) key =
-    let* t = Store.Tree.get_tree tree key in
-    let+ c = Store.Tree.to_concrete t in
-    of_concrete_tree c
-
-  let set t key j ~info =
-    set_tree Store.Tree.empty Store.Key.empty j >>= function
-    | tree -> Store.set_tree_exn ~info t key tree
-
-  let get t key =
-    let* tree = Store.get_tree t key in
-    get_tree tree Store.Key.empty
-end
-
 module String = struct
   type t = string [@@deriving irmin]
 
   let merge = Merge.idempotent Type.(option string)
 end
 
-module type STORE = S.CONTENTS_STORE
-
 module Store (S : sig
   include S.CONTENT_ADDRESSABLE_STORE
-  module Key : S.HASH with type t = key
-  module Val : S.CONTENTS with type t = value
+  module Key : Hash.S with type t = key
+  module Val : S with type t = value
 end) =
 struct
   module Key = Hash.Typed (S.Key) (S.Val)

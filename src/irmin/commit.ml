@@ -15,6 +15,8 @@
  *)
 
 open! Import
+open S
+include Commit_intf
 open Merge.Infix
 
 let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
@@ -38,10 +40,10 @@ module Make (K : Type.S) = struct
 end
 
 module Store
-    (N : S.NODE_STORE) (S : sig
-      include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
-      module Key : S.HASH with type t = key
-      module Val : S.COMMIT with type t = value and type hash = key
+    (N : Node.STORE) (S : sig
+      include CONTENT_ADDRESSABLE_STORE with type key = N.key
+      module Key : Hash.S with type t = key
+      module Val : S with type t = value and type hash = key
     end) =
 struct
   module Node = N
@@ -111,7 +113,7 @@ struct
   module Val = S.Val
 end
 
-module History (S : S.COMMIT_STORE) = struct
+module History (S : STORE) = struct
   type commit = S.Key.t [@@deriving irmin]
   type node = S.Node.key
   type 'a t = 'a S.t
@@ -476,7 +478,7 @@ module History (S : S.COMMIT_STORE) = struct
         | Some c -> lca t ~info ?max_depth ?n (c :: cs))
 end
 
-module V1 (C : S.COMMIT) = struct
+module V1 (C : S) = struct
   module K = struct
     let h = Type.string_of `Int64
     let hash_to_bin_string = Type.(unstage (to_bin_string C.hash_t))

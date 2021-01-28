@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Handling of branches. *)
+(** User-defined branches. *)
 
-module String : S.BRANCH with type t = string
+include Branch_intf.Branch
+(** @inline *)

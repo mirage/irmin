@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Hash_intf
+
 module Make (H : Digestif.S) = struct
   type t = H.t
 
@@ -56,7 +58,7 @@ module SHA512 = Make (Digestif.SHA512)
 module BLAKE2B = Make (Digestif.BLAKE2B)
 module BLAKE2S = Make (Digestif.BLAKE2S)
 
-module Typed (K : S.HASH) (V : Type.S) = struct
+module Typed (K : S) (V : Type.S) = struct
   include K
 
   type value = V.t
@@ -65,7 +67,7 @@ module Typed (K : S.HASH) (V : Type.S) = struct
   let hash v = K.hash (pre_hash v)
 end
 
-module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
+module V1 (K : S) : S with type t = K.t = struct
   type t = K.t
 
   let hash = K.hash

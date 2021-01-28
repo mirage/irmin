@@ -15,6 +15,7 @@
  *)
 
 open! Import
+include Object_graph_intf
 
 let src = Logs.Src.create "irmin.graph" ~doc:"Irmin graph support"
 
@@ -29,62 +30,6 @@ let list_partition_map f t =
         | `Snd x -> aux fst (x :: snd) t)
   in
   aux [] [] t
-
-module type S = sig
-  include Graph.Sig.I
-  include Graph.Oper.S with type g := t
-
-  module Topological : sig
-    val fold : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
-  end
-
-  val vertex : t -> vertex list
-  val edges : t -> (vertex * vertex) list
-
-  val closure :
-    ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
-    min:vertex list ->
-    max:vertex list ->
-    unit ->
-    t Lwt.t
-
-  val iter :
-    ?cache_size:int ->
-    ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
-    min:vertex list ->
-    max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
-    ?edge:(vertex -> vertex -> unit Lwt.t) ->
-    skip:(vertex -> bool Lwt.t) ->
-    rev:bool ->
-    unit ->
-    unit Lwt.t
-
-  val output :
-    Format.formatter ->
-    (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->
-    (vertex * Graph.Graphviz.DotAttributes.edge list * vertex) list ->
-    string ->
-    unit
-
-  val min : t -> vertex list
-  val max : t -> vertex list
-
-  type dump = vertex list * (vertex * vertex) list
-
-  val export : t -> dump
-  val import : dump -> t
-
-  module Dump : Type.S with type t = dump
-end
-
-module type HASH = sig
-  include Type.S
-
-  val short_hash : t -> int
-end
 
 module Make (Hash : HASH) (Branch : Type.S) = struct
   module X = struct

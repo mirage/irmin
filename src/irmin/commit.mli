@@ -14,33 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Manage the database history. *)
+(** Commit values represent the store history.
 
-module Make (K : Type.S) : S.COMMIT with type hash = K.t
+    Every commit contains a list of predecessor commits, and the collection of
+    commits form an acyclic directed graph.
 
-module Store
-    (N : S.NODE_STORE) (C : sig
-      include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
-      module Key : S.HASH with type t = key
-      module Val : S.COMMIT with type t = value and type hash = key
-    end) :
-  S.COMMIT_STORE
-    with type 'a t = 'a N.t * 'a C.t
-     and type key = C.key
-     and type value = C.value
-     and type Key.t = C.Key.t
-     and module Val = C.Val
+    Every commit also can contain an optional key, pointing to a
+    {{!Private.Commit.STORE} node} value. See the {{!Private.Node.STORE} Node}
+    signature for more details on node values. *)
 
-module History (C : S.COMMIT_STORE) :
-  S.COMMIT_HISTORY
-    with type 'a t = 'a C.t
-     and type v = C.Val.t
-     and type node = C.Node.key
-     and type commit = C.key
-
-module V1 (C : S.COMMIT) : sig
-  include S.COMMIT with type hash = C.hash
-
-  val import : C.t -> t
-  val export : t -> C.t
-end
+include Commit_intf.Commit
+(** @inline *)
