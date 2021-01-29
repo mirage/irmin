@@ -6,6 +6,10 @@
     instabilities. No user-facing change since this function is not being used
     yet. (#1247, @Ngoguey42, @icristescu)
 
+- **irmin**
+  Ensure that `Tree.add_tree t k v` complexity does not depend on `v` size.
+  (#1267, @samoht @Ngoguey42 and @CraigFe)
+
 #### Added
 - **irmin-bench**
   - Added benchmarks for trees operations. (#1237, @icristescu, @Ngoguey42,

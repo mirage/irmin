@@ -262,10 +262,12 @@ module Make (P : Private.S) = struct
     let equal (x : t) (y : t) =
       x == y
       ||
-      match (x.v, y.v) with
-      | Hash (_, x), Hash (_, y) -> equal_hash x y
-      | Value x, Value y -> equal_contents x y
-      | _ -> equal_hash (hash x) (hash y)
+      match (cached_hash x, cached_hash y) with
+      | Some x, Some y -> equal_hash x y
+      | _ -> (
+          match (cached_value x, cached_value y) with
+          | Some x, Some y -> equal_contents x y
+          | _ -> equal_hash (hash x) (hash y))
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -590,12 +592,8 @@ module Make (P : Private.S) = struct
     and equal (x : t) (y : t) =
       x == y
       ||
-      match (x.v, y.v) with
-      | Hash (_, x), Hash (_, y) -> hash_equal x y
-      | Value (_, x, None), Value (_, y, None) -> equal_node x y
-      | Map x, Map y -> map_equal x y
-      | Value (_, x, Some a), Value (_, y, Some b) ->
-          equal_node x y && map_equal a b
+      match (cached_hash x, cached_hash y) with
+      | Some x, Some y -> equal_hash x y
       | _ -> (
           match (cached_value x, cached_value y) with
           | Some x, Some y -> equal_node x y
@@ -603,6 +601,18 @@ module Make (P : Private.S) = struct
               match (cached_map x, cached_map y) with
               | Some x, Some y -> map_equal x y
               | _ -> hash_equal (hash x) (hash y)))
+
+    (* same as [equal] but do not compare in-memory maps
+       recursively. *)
+    let maybe_equal (x : t) (y : t) =
+      if x == y then `True
+      else
+        match (cached_hash x, cached_hash y) with
+        | Some x, Some y -> if equal_hash x y then `True else `False
+        | _ -> (
+            match (cached_value x, cached_value y) with
+            | Some x, Some y -> if equal_node x y then `True else `False
+            | _ -> `Maybe)
 
     let is_empty t =
       match cached_map t with
@@ -930,6 +940,13 @@ module Make (P : Private.S) = struct
     | `Contents x, `Contents y -> contents_equal x y
     | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
+  let maybe_equal (x : t) (y : t) =
+    if x == y then `True
+    else
+      match (x, y) with
+      | `Node x, `Node y -> Node.maybe_equal x y
+      | _ -> if equal x y then `True else `False
+
   let is_empty = function
     | `Node n -> (
         Node.is_empty n >|= function
@@ -1119,7 +1136,8 @@ module Make (P : Private.S) = struct
               Node.findv n file >>= function
               | None -> Node.add n file v >>= some
               | Some old ->
-                  if equal old v then k None else Node.add n file v >>= some)
+                  if maybe_equal old v = `True then k None
+                  else Node.add n file v >>= some)
           | Some (h, p) -> (
               Node.findv n h >>= function
               | None | Some (`Contents _) ->
