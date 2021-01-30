@@ -27,6 +27,11 @@ module Alcotest = struct
   let gtestable typ = testable (Type.pp_dump typ) Type.(unstage (equal typ))
   let gcheck typ = check (gtestable typ)
   let diffs = gtestable diffs_t
+
+  let check_tree_lwt =
+    let concrete_tree = gtestable Tree.concrete_t in
+    fun msg ~expected b_lwt ->
+      b_lwt >>= Tree.to_concrete >|= Alcotest.check concrete_tree msg expected
 end
 
 let ( >> ) f g x = g (f x)
@@ -83,9 +88,10 @@ let test_paginated_bindings _ () =
   in
   Lwt.return_unit
 
+let tree bs = Tree.of_concrete (`Tree bs)
+
 (** Basic tests of the [Tree.diff] operation. *)
 let test_diff _ () =
-  let tree bs = Tree.of_concrete (`Tree bs) in
   let empty = tree [] in
   let single = tree [ ("k", c "v") ] in
 
@@ -110,6 +116,45 @@ let test_diff _ () =
   >|= Alcotest.(check diffs)
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
+
+let test_remove _ () =
+  let tree =
+    Tree.of_concrete
+      (`Tree [ ("a", `Tree [ ("aa", c "0"); ("ab", c "1") ]); ("b", c "3") ])
+  in
+
+  let* () =
+    let t = Tree.empty in
+    let+ t' = Tree.remove t [] in
+    Alcotest.(check bool)
+      "Removing in an empty tree preserves physical equality" true (t == t')
+  in
+
+  let* () =
+    let+ tree' = Tree.remove tree [ "a"; "non"; "existent"; "path" ] in
+    Alcotest.(check bool)
+      "Removing at a non-existent path in a non-empty tree preserves physical \
+       equality"
+      true (tree == tree')
+  in
+
+  let* () =
+    let tree = Tree.of_concrete (c "1") in
+    let+ tree' = Tree.remove tree [ "a"; "non"; "existent"; "path" ] in
+    Alcotest.(check bool)
+      "Removing at a non-existent path in a root contents value preserves \
+       physical equality"
+      true (tree == tree')
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Removing a root contents value results in an empty root node."
+      ~expected:(`Tree [])
+      (Tree.remove (Tree.of_concrete (c "1")) [])
+  in
+
+  Lwt.return_unit
 
 (* Correct stats for a completely lazy tree *)
 let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
@@ -228,6 +273,7 @@ let suite =
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
+    Alcotest_lwt.test_case "remove" `Quick test_remove;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
