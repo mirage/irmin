@@ -1277,80 +1277,16 @@ module Make (P : Private.S) = struct
             (* TODO: None on empty_node should return empty_node *)
         | Changed node -> Lwt.return (`Node node))
 
-  let update root_tree path ?(metadata = Metadata.default) f =
-    Log.debug (fun l -> l "Tree.update %a" pp_path path);
-    let empty_node = empty_node root_tree in
-    match Path.rdecons path with
-    | None -> (
-        let old_root =
-          match root_tree with `Contents c -> Some (fst c) | `Node _ -> None
+  let update t k ?(metadata = Metadata.default) f =
+    update_tree t k (fun t ->
+        let old_contents =
+          match t with
+          | Some (`Node _) | None -> None
+          | Some (`Contents (c, _)) -> Some c
         in
-        match f old_root with
-        | None -> (
-            (* Here we consider "deleting" a root contents value or node to
-               consist of changing it to an empty node. Note that this
-               introduces sensitivity to ordering of subtree operations:
-               updating in a subtree and adding the subtree are not
-               commutative. *)
-            is_empty root_tree
-            >|= function
-            | true -> root_tree
-            | false -> `Node empty_node)
-        | Some c' ->
-            let c' = (c', metadata) in
-            let t =
-              match root_tree with
-              | `Contents c when contents_equal c c' -> root_tree
-              | _ -> `Contents c'
-            in
-            Lwt.return t)
-    | Some (path, file) -> (
-        let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
-         fun path n k ->
-          let changed n = k (Changed n) in
-          match Path.decons path with
-          | None -> (
-              let* old_binding = Node.findv n file in
-              let old_contents =
-                match old_binding with
-                | Some (`Contents old) -> Some (fst old)
-                | Some (`Node _) | None -> None
-              in
-              let new_contents = f old_contents in
-              match (old_binding, new_contents) with
-              | None, None -> k Unchanged
-              | Some _, None -> Node.remove n file >>= changed
-              | Some (`Contents c), Some c' ->
-                  let c' = (c', metadata) in
-                  if contents_equal c c' then k Unchanged
-                  else Node.add n file (`Contents c') >>= changed
-              | (None | Some (`Node _)), Some c' ->
-                  let new_binding = `Contents (c', metadata) in
-                  Node.add n file new_binding >>= changed)
-          | Some (h, p) -> (
-              let* old_binding = Node.findv n h in
-              let to_recurse =
-                match old_binding with
-                | Some (`Node child) -> child
-                | None | Some (`Contents _) -> empty_node
-              in
-              (aux [@tailcall]) p to_recurse @@ function
-              | Unchanged -> k Unchanged
-              | Changed child -> (
-                  (* Prune empty directories *)
-                  Node.is_empty child >|= get_ok
-                  >>= function
-                  | true -> Node.remove n h >>= changed
-                  | false -> Node.add n h (`Node child) >>= changed))
-        in
-        let top_node =
-          match root_tree with `Node n -> n | `Contents _ -> empty_node
-        in
-        aux path top_node @@ function
-        | Unchanged ->
-            Lwt.return root_tree
-            (* TODO: None on empty_node should return empty_node *)
-        | Changed node -> Lwt.return (`Node node))
+        match f old_contents with
+        | None -> None
+        | Some c -> Some (`Contents (c, metadata)))
 
   let import repo k =
     cnt.node_mem <- cnt.node_mem + 1;
