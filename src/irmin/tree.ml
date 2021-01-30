@@ -1235,17 +1235,23 @@ module Make (P : Private.S) = struct
               | None, None -> k Unchanged
               | None, Some (`Contents _ as t) -> Node.add n file t >>= changed
               | None, Some (`Node n as t) -> (
-                  (* Prune empty directories *)
-                  Node.is_empty n >|= get_ok
-                  >>= function
-                  | true -> k Unchanged
+                  Node.is_empty n >|= get_ok >>= function
+                  | true ->
+                      (* Prune empty directories *)
+                      k Unchanged
                   | false -> Node.add n file t >>= changed)
-              | Some _, Some (`Node n as t) -> (
-                  (* Prune empty directories *)
-                  Node.is_empty n >|= get_ok
-                  >>= function
-                  | true -> Node.remove n file >>= changed
-                  | false -> Node.add n file t >>= changed)
+              | Some old_value, Some (`Node n) -> (
+                  Node.is_empty n >|= get_ok >>= function
+                  | true ->
+                      (* Prune empty directories *)
+                      Node.remove n file >>= changed
+                  | false -> (
+                      match old_value with
+                      | `Contents _ -> changed n
+                      | `Node old -> (
+                          match Node.maybe_equal old n with
+                          | `True -> k Unchanged
+                          | `Maybe | `False -> changed n)))
               | Some _, None -> Node.remove n file >>= changed
               | Some (`Contents c), Some (`Contents c' as t) ->
                   if contents_equal c c' then k Unchanged

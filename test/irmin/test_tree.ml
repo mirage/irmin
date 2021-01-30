@@ -263,6 +263,18 @@ let test_update _ () =
   in
 
   let* () =
+    let+ abc1' =
+      Tree.update_tree abc1 [ "a"; "b" ] (function
+        | Some t -> Some t
+        | None -> None)
+    in
+    Alcotest.(check bool)
+      "Replacing a subtree node with a physically-equal one preserves physical \
+       equality"
+      true (abc1 == abc1')
+  in
+
+  let* () =
     Alcotest.check_tree_lwt
       "Changing the metadata of an existing contents value updates the tree."
       ~expected:(abc ~info:Metadata.Left "1")
