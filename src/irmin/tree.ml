@@ -1483,7 +1483,9 @@ module Make (P : Private.S) = struct
       | `Node n ->
           let* m = Node.to_map n in
           let bindings = m |> get_ok |> StepMap.bindings in
-          (node [@tailcall]) [] bindings (fun n -> k (`Tree n))
+          (node [@tailcall]) [] bindings (fun n ->
+              let n = List.sort (fun (s, _) (s', _) -> compare_step s s') n in
+              k (`Tree n))
     and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
      fun (c, m) k ->
       let* c = Contents.to_value c >|= get_ok in
