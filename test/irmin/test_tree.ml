@@ -117,6 +117,51 @@ let test_diff _ () =
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
 
+let test_add _ () =
+  let sample_tree ?(ab = "ab_v") ?ac () : Tree.concrete =
+    let ac = match ac with Some ac -> [ ("ac", ac) ] | None -> [] in
+    `Tree [ ("a", `Tree ([ ("aa", c "0"); ("ab", c ab) ] @ ac)); ("b", c "3") ]
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt "Adding a root value to an empty tree"
+      ~expected:(c "1")
+      (Tree.add Tree.empty [] "1")
+  in
+
+  let* () =
+    let t = Tree.of_concrete (sample_tree ()) in
+    let expected = sample_tree ~ab:"new_value" () in
+    Alcotest.check_tree_lwt "Replacing an existing value in a tree" ~expected
+      (Tree.add t [ "a"; "ab" ] "new_value")
+  in
+
+  let* () =
+    let t = Tree.of_concrete (sample_tree ()) in
+    let expected = sample_tree ~ac:(`Tree [ ("aca", c "new_value") ]) () in
+    Alcotest.check_tree_lwt
+      "Adding at a non-existent path in a tree creates necessary intermediate \
+       nodes"
+      ~expected
+      (Tree.add t [ "a"; "ac"; "aca" ] "new_value")
+  in
+
+  let* () =
+    let t = Tree.of_concrete (c "1") in
+    let+ t' = Tree.add t [] "1" in
+    Alcotest.(check bool)
+      "Re-adding a root value preserves physical equality" true (t == t')
+  in
+
+  let* () =
+    let t = tree [ ("a", `Tree [ ("b", c "1") ]) ] in
+    let+ t' = Tree.add t [ "a"; "b" ] "1" in
+    Alcotest.(check bool)
+      "Re-adding a non-root value preserves physical equality" true (t == t')
+  in
+
+  Lwt.return_unit
+
 let test_remove _ () =
   let tree =
     Tree.of_concrete
@@ -396,6 +441,7 @@ let suite =
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
+    Alcotest_lwt.test_case "add" `Quick test_add;
     Alcotest_lwt.test_case "remove" `Quick test_remove;
     Alcotest_lwt.test_case "update" `Quick test_update;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
