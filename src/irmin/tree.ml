@@ -1154,42 +1154,6 @@ module Make (P : Private.S) = struct
         | None -> Lwt.return t
         | Some node -> Lwt.return (`Node node))
 
-  let add t k ?(metadata = Metadata.default) c =
-    Log.debug (fun l -> l "Tree.add %a" pp_path k);
-    let empty = empty_node t in
-    match Path.rdecons k with
-    | None -> (
-        match t with
-        | `Contents c' when contents_equal c' (c, metadata) -> Lwt.return t
-        | _ -> Lwt.return (`Contents (c, metadata)))
-    | Some (path, file) -> (
-        let rec aux : type r. node -> key -> (node option, r) cont_lwt =
-         fun n path k ->
-          let some n = k (Some n) in
-          match Path.decons path with
-          | None -> (
-              Node.findv n file >>= function
-              | Some (`Node _) | None ->
-                  Node.add n file (`Contents (c, metadata)) >>= some
-              | Some (`Contents _ as old) ->
-                  if equal old (`Contents (c, metadata)) then k None
-                  else Node.add n file (`Contents (c, metadata)) >>= some)
-          | Some (h, p) -> (
-              Node.findv n h >>= function
-              | None | Some (`Contents _) ->
-                  (aux [@tailcall]) empty p (function
-                    | None -> assert false
-                    | Some child -> Node.add n h (`Node child) >>= some)
-              | Some (`Node child) ->
-                  (aux [@tailcall]) child p (function
-                    | None -> k None
-                    | Some child' -> Node.add n h (`Node child') >>= some))
-        in
-        let n = match t with `Node n -> n | _ -> empty in
-        (aux [@tailcall]) n path @@ function
-        | None -> Lwt.return t
-        | Some n -> Lwt.return (`Node n))
-
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
       objects. *)
@@ -1293,6 +1257,9 @@ module Make (P : Private.S) = struct
         match f old_contents with
         | None -> None
         | Some c -> Some (`Contents (c, metadata)))
+
+  let add t k ?(metadata = Metadata.default) c =
+    update_tree t k (fun _ -> Some (`Contents (c, metadata)))
 
   let import repo k =
     cnt.node_mem <- cnt.node_mem + 1;
