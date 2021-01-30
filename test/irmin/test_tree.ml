@@ -156,6 +156,129 @@ let test_remove _ () =
 
   Lwt.return_unit
 
+(* Build a function that requires a given input, always returns a given output,
+   and can be called at most once. *)
+let transform_once : type a b. a Type.t -> a -> b -> a -> b =
+ fun typ ->
+  let equal = Type.(unstage (equal typ)) in
+  let pp = Type.pp_dump typ in
+  fun source target ->
+    let called = ref false in
+    fun x ->
+      if !called then Alcotest.failf "Transformation called more than once";
+      called := true;
+      if equal source x then target
+      else Alcotest.failf "Expected %a but got %a" pp source pp x
+
+let test_update _ () =
+  let unrelated_binding = ("a_unrelated", c "<>") in
+  let abc ?info v =
+    `Tree
+      [ ("a", `Tree [ ("b", `Tree [ ("c", c ?info v) ]) ]); unrelated_binding ]
+  in
+  let abc1 = Tree.of_concrete (abc "1") in
+  let ( --> ) = transform_once [%typ: string option] in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Changing the value of a root contents node results in a new contents \
+       node."
+      ~expected:(c "2")
+      (Tree.update (Tree.of_concrete (c "1")) [] (Some "1" --> Some "2"))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Removing a root contents node results in an empty root node."
+      ~expected:(`Tree [])
+      (Tree.update (Tree.of_concrete (c "1")) [] (Some "1" --> None))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Updating a root node to a contents value removes all bindings and sets \
+       the correct metadata."
+      ~expected:(c ~info:Metadata.Right "2")
+      (Tree.update ~metadata:Metadata.Right abc1 [] (None --> Some "2"))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Updating at an existing contents path changes the contents value \
+       appropriately."
+      ~expected:(abc "2")
+      (Tree.update abc1 [ "a"; "b"; "c" ] (Some "1" --> Some "2"))
+  in
+
+  let* () =
+    let+ abc1' = Tree.update abc1 [ "a"; "b"; "c" ] (Some "1" --> Some "1") in
+    Alcotest.(check bool)
+      "Performing a no-op change to tree contents preserves physical equality"
+      true (abc1 == abc1')
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Changing the metadata of an existing contents value updates the tree."
+      ~expected:(abc ~info:Metadata.Left "1")
+      (Tree.update ~metadata:Metadata.Left abc1 [ "a"; "b"; "c" ]
+         (Some "1" --> Some "1"))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Removing a siblingless contents value causes newly-empty directories to \
+       be pruned."
+      ~expected:(`Tree [ unrelated_binding ])
+      (Tree.update abc1 [ "a"; "b"; "c" ] (Some "1" --> None))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Updating at a non-existent contents path adds a new directory entry."
+      ~expected:
+        (`Tree
+          [
+            ("a", `Tree [ ("b", `Tree [ ("c", c "1"); ("c'", c "new_value") ]) ]);
+            unrelated_binding;
+          ])
+      (Tree.update abc1 [ "a"; "b"; "c'" ] (None --> Some "new_value"))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Updating at an existing node path replaces the subtree with the given \
+       element."
+      ~expected:
+        (`Tree [ ("a", `Tree [ ("b", c "new_value") ]); unrelated_binding ])
+      (Tree.update abc1 [ "a"; "b" ] (None --> Some "new_value"))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Updating at a path in an empty tree creates the necessary intermediate \
+       nodes with the new contents."
+      ~expected:(`Tree [ ("a", `Tree [ ("b", `Tree [ ("c", c "1") ]) ]) ])
+      (Tree.update Tree.empty [ "a"; "b"; "c" ] (None --> Some "1"))
+  in
+
+  let* () =
+    let+ abc1' = Tree.update abc1 [ "a"; "b"; "c"; "d"; "e" ] (None --> None) in
+    Alcotest.(check bool)
+      "Removing at a non-existent path in a non-empty tree preserves physical \
+       equality."
+      true (abc1 == abc1')
+  in
+
+  let* () =
+    let t = Tree.empty in
+    let+ t' = Tree.update t [] (None --> None) in
+    Alcotest.(check bool)
+      "Removing from an empty tree preserves physical equality" true (t == t')
+  in
+
+  Lwt.return_unit
+
 (* Correct stats for a completely lazy tree *)
 let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
 
@@ -274,6 +397,7 @@ let suite =
     Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
     Alcotest_lwt.test_case "remove" `Quick test_remove;
+    Alcotest_lwt.test_case "update" `Quick test_update;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
