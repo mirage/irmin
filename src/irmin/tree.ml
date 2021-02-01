@@ -38,6 +38,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let option_of_result = function Ok x -> Some x | Error _ -> None
 
+type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
 type ('a, 'r) cont_lwt = ('a, 'r Lwt.t) cont
 
@@ -605,14 +606,14 @@ module Make (P : Private.S) = struct
     (* same as [equal] but do not compare in-memory maps
        recursively. *)
     let maybe_equal (x : t) (y : t) =
-      if x == y then `True
+      if x == y then True
       else
         match (cached_hash x, cached_hash y) with
-        | Some x, Some y -> if equal_hash x y then `True else `False
+        | Some x, Some y -> if equal_hash x y then True else False
         | _ -> (
             match (cached_value x, cached_value y) with
-            | Some x, Some y -> if equal_node x y then `True else `False
-            | _ -> `Maybe)
+            | Some x, Some y -> if equal_node x y then True else False
+            | _ -> Maybe)
 
     let is_empty t =
       match cached_map t with
@@ -1086,16 +1087,31 @@ module Make (P : Private.S) = struct
       objects. *)
   type 'a updated = Changed of 'a | Unchanged
 
-  let update_tree root_tree path f =
-    Log.debug (fun l -> l "Tree.update_tree %a" pp_path path);
+  let maybe_equal (x : t) (y : t) =
+    if x == y then True
+    else
+      match (x, y) with
+      | `Node x, `Node y -> Node.maybe_equal x y
+      | _ -> if equal x y then True else False
+
+  let update_tree ~f_might_return_empty_node ~f root_tree path =
     let empty_node = empty_node root_tree in
-    let* empty_tree =
-      is_empty root_tree >|= function
-      | true -> root_tree
-      | false -> `Node empty_node
+    (* User-introduced empty nodes will be removed immediately if necessary. *)
+    let prune_empty : node -> fuzzy_bool Lwt.t =
+      if not f_might_return_empty_node then Fun.const (Lwt.return Maybe)
+      else fun n ->
+        Node.is_empty n >|= function
+        | Ok true -> True
+        | Ok false -> False
+        | Error (`Dangling_hash _) -> Maybe
     in
     match Path.rdecons path with
     | None -> (
+        let* empty_tree =
+          is_empty root_tree >|= function
+          | true -> root_tree
+          | false -> `Node empty_node
+        in
         match f (Some root_tree) with
         (* Here we consider "deleting" a root contents value or node to consist
            of changing it to an empty node. Note that this introduces
@@ -1103,9 +1119,7 @@ module Make (P : Private.S) = struct
            and adding the subtree are not necessarily commutative. *)
         | None -> Lwt.return empty_tree
         | Some (`Node n as t) -> (
-            Node.is_empty n >|= function
-            | Ok true -> empty_tree
-            | Ok false | Error (`Dangling_hash _) -> t)
+            prune_empty n >|= function True -> empty_tree | Maybe | False -> t)
         | Some (`Contents c' as t) ->
             let t =
               match root_tree with
@@ -1126,30 +1140,22 @@ module Make (P : Private.S) = struct
               | None, None -> k Unchanged
               | None, Some (`Contents _ as t) -> with_new_child t
               | None, Some (`Node n as t) -> (
-                  Node.is_empty n >>= function
-                  | Ok true ->
-                      (* Prune empty node introduced by the user. *)
-                      k Unchanged
-                  | Ok false | Error (`Dangling_hash _) -> with_new_child t)
+                  prune_empty n >>= function
+                  | True -> k Unchanged
+                  | Maybe | False -> with_new_child t)
               | Some _, None -> Node.remove parent_node file >>= changed
               | Some old_value, Some (`Node n as t) -> (
-                  Node.is_empty n >>= function
-                  | Ok true ->
-                      (* Prune empty node introduced by the user. *)
-                      Node.remove parent_node file >>= changed
-                  | Ok false | Error (`Dangling_hash _) -> (
-                      match old_value with
-                      | `Contents _ -> with_new_child t
-                      | `Node old -> (
-                          match Node.maybe_equal old n with
-                          | `True -> k Unchanged
-                          | `Maybe | `False -> with_new_child t)))
+                  prune_empty n >>= function
+                  | True -> Node.remove parent_node file >>= changed
+                  | Maybe | False -> (
+                      match maybe_equal old_value t with
+                      | True -> k Unchanged
+                      | Maybe | False -> with_new_child t))
               | Some (`Contents c), Some (`Contents c' as t) -> (
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
-              | Some (`Node _), Some (`Contents _ as t) ->
-                  Node.add parent_node file t >>= changed)
+              | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) -> (
               let* old_binding = Node.findv parent_node step in
               let to_recurse =
@@ -1179,7 +1185,8 @@ module Make (P : Private.S) = struct
         | Changed node -> Lwt.return (`Node node))
 
   let update t k ?(metadata = Metadata.default) f =
-    update_tree t k (fun t ->
+    Log.debug (fun l -> l "Tree.update %a" pp_path k);
+    update_tree t k ~f_might_return_empty_node:false ~f:(fun t ->
         let old_contents =
           match t with
           | Some (`Node _) | None -> None
@@ -1190,10 +1197,23 @@ module Make (P : Private.S) = struct
         | Some c -> Some (`Contents (c, metadata)))
 
   let add t k ?(metadata = Metadata.default) c =
-    update_tree t k (fun _ -> Some (`Contents (c, metadata)))
+    Log.debug (fun l -> l "Tree.add %a" pp_path k);
+    update_tree t k
+      ~f:(fun _ -> Some (`Contents (c, metadata)))
+      ~f_might_return_empty_node:false
 
-  let add_tree t k v = update_tree t k (fun _ -> Some v)
-  let remove t k = update_tree t k (fun _ -> None)
+  let add_tree t k v =
+    Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
+    (* NOTE: we require the user not to pass empty subtrees *)
+    update_tree t k ~f:(fun _ -> Some v) ~f_might_return_empty_node:false
+
+  let remove t k =
+    Log.debug (fun l -> l "Tree.remove %a" pp_path k);
+    update_tree t k ~f:(fun _ -> None) ~f_might_return_empty_node:false
+
+  let update_tree t k f =
+    Log.debug (fun l -> l "Tree.update_tree %a" pp_path k);
+    update_tree t k ~f ~f_might_return_empty_node:true
 
   let import repo k =
     cnt.node_mem <- cnt.node_mem + 1;
