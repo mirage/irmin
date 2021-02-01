@@ -1088,37 +1088,6 @@ module Make (P : Private.S) = struct
     | `Node n -> Node.empty n
     | `Contents _ -> Node.of_map StepMap.empty
 
-  let add_tree t k v =
-    Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
-    let empty = empty_node t in
-    match Path.rdecons k with
-    | None -> Lwt.return v
-    | Some (path, file) -> (
-        let rec aux n path k =
-          let some n = k (Some n) in
-          match Path.decons path with
-          | None -> (
-              Node.findv n file >>= function
-              | None -> Node.add n file v >>= some
-              | Some old ->
-                  if maybe_equal old v = `True then k None
-                  else Node.add n file v >>= some)
-          | Some (h, p) -> (
-              Node.findv n h >>= function
-              | None | Some (`Contents _) ->
-                  (aux [@tailcall]) empty p (function
-                    | None -> k None
-                    | Some child' -> Node.add n h (`Node child') >>= some)
-              | Some (`Node child) ->
-                  (aux [@tailcall]) child p (function
-                    | None -> k None
-                    | Some child' -> Node.add n h (`Node child') >>= some))
-        in
-        let n = match t with `Node n -> n | _ -> empty in
-        (aux [@tailcall]) n path @@ function
-        | None -> Lwt.return t
-        | Some node -> Lwt.return (`Node node))
-
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
       objects. *)
@@ -1226,6 +1195,7 @@ module Make (P : Private.S) = struct
   let add t k ?(metadata = Metadata.default) c =
     update_tree t k (fun _ -> Some (`Contents (c, metadata)))
 
+  let add_tree t k v = update_tree t k (fun _ -> Some v)
   let remove t k = update_tree t k (fun _ -> None)
 
   let import repo k =
