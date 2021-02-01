@@ -1082,46 +1082,11 @@ module Make (P : Private.S) = struct
                 | `Node n -> Lwt.return ((k, `Node n) :: acc))
               [] (List.rev l))
 
-  let may_remove t k =
-    Node.findv t k >>= function
-    | None -> Lwt.return_none
-    | Some _ -> Node.remove t k >>= Lwt.return_some
-
   let empty = `Node (Node.of_map StepMap.empty)
 
   let empty_node = function
     | `Node n -> Node.empty n
     | `Contents _ -> Node.of_map StepMap.empty
-
-  let remove t k =
-    Log.debug (fun l -> l "Tree.remove %a" pp_path k);
-    let empty = empty_node t in
-    match Path.rdecons k with
-    | None ->
-        let* is_empty = is_empty t in
-        if is_empty then Lwt.return t else Lwt.return (`Node empty)
-    | Some (path, file) -> (
-        let rec aux view path k =
-          let some n = k (Some n) in
-          match Path.decons path with
-          | None -> may_remove view file >>= k
-          | Some (h, p) -> (
-              Node.findv view h >>= function
-              | None | Some (`Contents _) -> k None
-              | Some (`Node child) ->
-                  (aux [@tailcall]) child p (function
-                    | None -> k None
-                    | Some child' -> (
-                        (* remove empty dirs *)
-                        Node.is_empty child' >|= get_ok
-                        >>= function
-                        | true -> may_remove view h >>= k
-                        | false -> Node.add view h (`Node child') >>= some)))
-        in
-        let n = match t with `Node n -> n | _ -> empty in
-        (aux [@tailcall]) n path @@ function
-        | None -> Lwt.return t
-        | Some n -> Lwt.return (`Node n))
 
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
@@ -1260,6 +1225,8 @@ module Make (P : Private.S) = struct
 
   let add t k ?(metadata = Metadata.default) c =
     update_tree t k (fun _ -> Some (`Contents (c, metadata)))
+
+  let remove t k = update_tree t k (fun _ -> None)
 
   let import repo k =
     cnt.node_mem <- cnt.node_mem + 1;
