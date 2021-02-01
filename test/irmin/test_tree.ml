@@ -27,6 +27,7 @@ module Alcotest = struct
   let gtestable typ = testable (Type.pp_dump typ) Type.(unstage (equal typ))
   let gcheck typ = check (gtestable typ)
   let diffs = gtestable diffs_t
+  let assert_ msg b = check bool msg true b
 
   let check_tree_lwt =
     let concrete_tree = gtestable Tree.concrete_t in
@@ -38,6 +39,11 @@ let ( >> ) f g x = g (f x)
 let ( let* ) = Lwt.bind
 let ( let+ ) x f = Lwt.map f x
 let c ?(info = Metadata.Default) blob = `Contents (blob, info)
+
+let invalid_tree () =
+  let+ repo = Store.Repo.v (Irmin_mem.config ()) in
+  let hash = Store.Hash.hash (fun f -> f "") in
+  Tree.shallow repo hash
 
 let test_bindings _ () =
   let tree =
@@ -149,15 +155,15 @@ let test_add _ () =
   let* () =
     let t = Tree.of_concrete (c "1") in
     let+ t' = Tree.add t [] "1" in
-    Alcotest.(check bool)
-      "Re-adding a root value preserves physical equality" true (t == t')
+    Alcotest.assert_ "Re-adding a root value preserves physical equality"
+      (t == t')
   in
 
   let* () =
     let t = tree [ ("a", `Tree [ ("b", c "1") ]) ] in
     let+ t' = Tree.add t [ "a"; "b" ] "1" in
-    Alcotest.(check bool)
-      "Re-adding a non-root value preserves physical equality" true (t == t')
+    Alcotest.assert_ "Re-adding a non-root value preserves physical equality"
+      (t == t')
   in
 
   Lwt.return_unit
@@ -171,25 +177,25 @@ let test_remove _ () =
   let* () =
     let t = Tree.empty in
     let+ t' = Tree.remove t [] in
-    Alcotest.(check bool)
-      "Removing in an empty tree preserves physical equality" true (t == t')
+    Alcotest.assert_ "Removing in an empty tree preserves physical equality"
+      (t == t')
   in
 
   let* () =
     let+ tree' = Tree.remove tree [ "a"; "non"; "existent"; "path" ] in
-    Alcotest.(check bool)
+    Alcotest.assert_
       "Removing at a non-existent path in a non-empty tree preserves physical \
        equality"
-      true (tree == tree')
+      (tree == tree')
   in
 
   let* () =
     let tree = Tree.of_concrete (c "1") in
     let+ tree' = Tree.remove tree [ "a"; "non"; "existent"; "path" ] in
-    Alcotest.(check bool)
+    Alcotest.assert_
       "Removing at a non-existent path in a root contents value preserves \
        physical equality"
-      true (tree == tree')
+      (tree == tree')
   in
 
   let* () =
@@ -266,22 +272,24 @@ let test_update _ () =
   in
 
   let* () =
-    let+ abc1' = Tree.update abc1 [ "a"; "b"; "c" ] (Some "1" --> Some "1") in
-    Alcotest.(check bool)
+    let s = "1" and s' = "1" ^ "" in
+    assert (s != s');
+    let+ abc1' = Tree.update abc1 [ "a"; "b"; "c" ] (Some s --> Some s') in
+    Alcotest.assert_
       "Performing a no-op change to tree contents preserves physical equality"
-      true (abc1 == abc1')
+      (abc1 == abc1')
   in
 
   let* () =
     let+ abc1' =
       Tree.update_tree abc1 [ "a"; "b" ] (function
         | Some t -> Some t
-        | None -> None)
+        | None -> assert false)
     in
-    Alcotest.(check bool)
+    Alcotest.assert_
       "Replacing a subtree node with a physically-equal one preserves physical \
        equality"
-      true (abc1 == abc1')
+      (abc1 == abc1')
   in
 
   let* () =
@@ -298,6 +306,15 @@ let test_update _ () =
        be pruned."
       ~expected:(`Tree [ unrelated_binding ])
       (Tree.update abc1 [ "a"; "b"; "c" ] (Some "1" --> None))
+  in
+
+  let* () =
+    Alcotest.check_tree_lwt
+      "Removing a siblingless node causes newly-empty directories to be pruned"
+      ~expected:(`Tree [ unrelated_binding ])
+      (Tree.update_tree abc1 [ "a"; "b" ] (function
+        | Some _ -> None
+        | None -> assert false))
   in
 
   let* () =
@@ -331,17 +348,28 @@ let test_update _ () =
 
   let* () =
     let+ abc1' = Tree.update abc1 [ "a"; "b"; "c"; "d"; "e" ] (None --> None) in
-    Alcotest.(check bool)
+    Alcotest.assert_
       "Removing at a non-existent path in a non-empty tree preserves physical \
        equality."
-      true (abc1 == abc1')
+      (abc1 == abc1')
   in
 
   let* () =
     let t = Tree.empty in
     let+ t' = Tree.update t [] (None --> None) in
-    Alcotest.(check bool)
-      "Removing from an empty tree preserves physical equality" true (t == t')
+    Alcotest.assert_ "Removing from an empty tree preserves physical equality"
+      (t == t')
+  in
+
+  let* () =
+    let+ abc1' =
+      Tree.update_tree abc1 [ "a"; "b"; "d" ] (function
+        | None -> Some Tree.empty
+        | Some _ -> assert false)
+    in
+    Alcotest.assert_
+      "Adding an empty tree at an empty location preserves physical equality"
+      (abc1 == abc1')
   in
 
   Lwt.return_unit
