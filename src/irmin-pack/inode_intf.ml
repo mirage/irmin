@@ -83,6 +83,51 @@ module type INTER = sig
 
     val integrity_check : t -> bool
     (** Checks the integrity of an inode. *)
+
+    module Concrete : sig
+      (** {1 Concrete trees} *)
+
+      (** The type for pointer kinds. *)
+      type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
+
+      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+      (** The type for entries. *)
+
+      type 'a pointer = { index : int; pointer : hash; tree : 'a }
+      [@@deriving irmin]
+      (** The type for pointers. *)
+
+      type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+      [@@deriving irmin]
+      (** The type for trees. *)
+
+      (** The type for concrete trees. *)
+      type t = Tree of t tree | Value of entry list [@@deriving irmin]
+
+      type error =
+        [ `Invalid_hash of hash * hash * t
+        | `Invalid_depth of int * int * t
+        | `Invalid_length of int * int * t
+        | `Duplicated_entries of t
+        | `Duplicated_pointers of t
+        | `Unsorted_entries of t
+        | `Unsorted_pointers of t
+        | `Empty ]
+      [@@deriving irmin]
+      (** The type for errors. *)
+
+      val pp_error : error Fmt.t
+      (** [pp_error] is the pretty-printer for errors. *)
+    end
+
+    val to_concrete : t -> Concrete.t
+    (** [to_concrete t] is the concrete inode tree equivalent to [t]. *)
+
+    val of_concrete : Concrete.t -> (t, Concrete.error) result
+    (** [of_concrete c] is [Ok t] iff [c] and [t] are equivalent.
+
+        The result is [Error e] when a subtree tree of [c] has an integrity
+        error. *)
   end
 end
 

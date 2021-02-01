@@ -10,6 +10,11 @@
     complete. We will revisit that feature in future once we fix
     `Index.try_merge` (#1409, @CraigFe)
 
+### Added
+
+- **irmin-pack**
+  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+
 ## 2.5.3 (2021-04-13)
 
 ### Fixed
