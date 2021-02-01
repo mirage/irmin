@@ -162,7 +162,8 @@ module Make (M : MAKER) = struct
         =
       let conf = conf root in
       let+ repo = Store.Repo.v conf in
-      Store.integrity_check ~auto_repair repo |> handle_result ?name:None
+      Store.integrity_check ~ppf:Format.err_formatter ~auto_repair repo
+      |> handle_result ?name:None
 
     let run ~root ~auto_repair =
       match Stat.detect_version ~root with
