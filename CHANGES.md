@@ -22,6 +22,9 @@
   - Added an `Exported_for_stores` module containing miscellaneous helper types
     for building backends. (#1262, @CraigFe)
 
+  - Added new operations `Tree.update` and `Tree.update_tree` for efficient
+    read-and-set on trees. (#1274, @CraigFe)
+    
 - **irmin-pack**:
   - Added `integrity-check-inodes` command to `irmin-fsck` for checking the
     integrity of inodes. (#1253, @icristescu, @Ngoguey42)
