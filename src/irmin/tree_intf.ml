@@ -148,8 +148,9 @@ module type S = sig
       but is similar to [t] for other bindings *)
 
   val update_tree : t -> key -> (t option -> t option) -> t Lwt.t
-  (** [update t k f] is the tree [t'] that is the same as [t] for all keys
-      except [k], and whose subtree at [k] is determined by [f (find_tree t k)]. *)
+  (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
+      subtrees except under [k], and whose subtree at [k] is determined by
+      [f (find_tree t k)]. *)
 
   val merge : t Merge.t
   (** [merge] is the 3-way merge function for trees. *)
