@@ -47,4 +47,9 @@ module Make
   include Store.S with type repo := repo
 
   val reconstruct_index : ?output:string -> Irmin.config -> unit
+
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end

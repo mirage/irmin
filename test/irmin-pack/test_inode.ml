@@ -207,6 +207,13 @@ let test_add_values () =
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
 
+let integrity_check ?(stable = true) v =
+  Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
+  if not (Inter.Val.integrity_check v) then
+    Alcotest.failf "node does not satisfy stability invariants %a"
+      (Irmin.Type.pp Inode.Val.t)
+      v
+
 (** Test add to inodes. *)
 let test_add_inodes () =
   rm_dir root;
@@ -218,8 +225,8 @@ let test_add_inodes () =
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
   check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
-  Alcotest.(check bool) "v1 stable" (Inter.Val.stable v1) true;
-  Alcotest.(check bool) "v2 stable" (Inter.Val.stable v2) true;
+  integrity_check v1;
+  integrity_check v2;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
   let v5 =
     Inode.Val.v
@@ -232,7 +239,7 @@ let test_add_inodes () =
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
   check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
-  Alcotest.(check bool) "v4 not stable" (Inter.Val.stable v4) false;
+  integrity_check v4 ~stable:false;
   Context.close t
 
 (** Test remove values on an empty node. *)
@@ -275,8 +282,8 @@ let test_remove_inodes () =
   in
   let v5 = Inode.Val.remove v4 "a" in
   check_values "node x+y+z obtained two ways" v1 v5;
-  Alcotest.(check bool) "v1 stable" (Inter.Val.stable v1) true;
-  Alcotest.(check bool) "v5 stable" (Inter.Val.stable v5) true;
+  integrity_check v1;
+  integrity_check v5;
   Context.close t
 
 (** For each of the 256 possible inode trees with [depth <= 3] and

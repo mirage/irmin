@@ -416,6 +416,65 @@ module Test_corrupted_stores = struct
     S.Repo.close rw >>= fun () -> S.Repo.close ro
 end
 
+module Test_corrupted_inode = struct
+  let root_archive, root =
+    let open Fpath in
+    ( v "test" / "irmin-pack" / "data" / "corrupted_inode" |> to_string,
+      v "_build" / "test_integrity_inode" |> to_string )
+
+  let setup_test_env () =
+    goto_project_root ();
+    rm_dir root;
+    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
+    exec_cmd cmd
+
+  module Conf = struct
+    let entries = 2
+    let stable_hash = 3
+  end
+
+  module Make () =
+    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Hash)
+
+  let test () =
+    setup_test_env ();
+    let module S = Make () in
+    let* rw = S.Repo.v (config ~fresh:false root) in
+    let get_head c =
+      match Irmin.Type.of_string Hash.t c with
+      | Ok x -> (
+          let* commit = S.Commit.of_hash rw x in
+          match commit with
+          | None -> Alcotest.fail "could not find commit in store"
+          | Some x -> Lwt.return [ x ])
+      | _ -> Alcotest.fail "could not read hash"
+    in
+    Log.app (fun l ->
+        l "integrity check of inodes on a store with one corrupted inode");
+    let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
+    let* heads = get_head c2 in
+    let* result = S.integrity_check_inodes ~heads rw in
+    (match result with
+    | Ok (`Msg msg) ->
+        Alcotest.failf
+          "Store is corrupted for second commit, the check should fail %s" msg
+    | Error _ -> ());
+    let c1 = "1b1e259ca4e7bb8dc32c73ade93d8181c29cebe6" in
+    let* heads = get_head c1 in
+    let* result = S.integrity_check_inodes ~heads rw in
+    (match result with
+    | Error (`Msg msg) ->
+        Alcotest.failf
+          "Store is not corrupted for first commit, the check should not fail \
+           %s"
+          msg
+    | Ok _ -> ());
+    S.Repo.close rw
+end
+
 let tests =
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
@@ -430,4 +489,6 @@ let tests =
       (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
     Alcotest.test_case "Test freeze lock on layered stores" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_stores.test_freeze_lock ()));
+    Alcotest.test_case "Test integrity check for inodes" `Quick (fun () ->
+        Lwt_main.run (Test_corrupted_inode.test ()));
   ]

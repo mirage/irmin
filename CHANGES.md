@@ -22,6 +22,10 @@
   - Added an `Exported_for_stores` module containing miscellaneous helper types
     for building backends. (#1262, @CraigFe)
 
+- **irmin-pack**:
+  - Added `integrity-check-inodes` command to `irmin-fsck` for checking the
+    integrity of inodes. (#1253, @icristescu, @Ngoguey42)
+
 #### Changed
 
 ### 2.3.0 (2020-01-12)

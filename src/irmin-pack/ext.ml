@@ -340,6 +340,41 @@ struct
 
   include Irmin.Of_private (X)
 
+  let integrity_check_inodes ?heads t =
+    Log.debug (fun l -> l "Check integrity for inodes");
+    let bar, (_, progress_nodes, progress_commits) =
+      Utils.Progress.increment ()
+    in
+    let errors = ref [] in
+    let nodes = X.Repo.node_t t |> snd in
+    let node k =
+      progress_nodes ();
+      X.Node.CA.integrity_check_inodes nodes k >|= function
+      | Ok () -> ()
+      | Error msg -> errors := msg :: !errors
+    in
+    let commit _ =
+      progress_commits ();
+      Lwt.return_unit
+    in
+    let* heads =
+      match heads with None -> Repo.heads t | Some m -> Lwt.return m
+    in
+    let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
+    let+ () =
+      Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
+    in
+    Utils.Progress.finalise bar;
+    let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
+    if !errors = [] then
+      Fmt.kstrf (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
+    else
+      Fmt.kstrf
+        (fun x -> Error (`Msg x))
+        "Inconsistent inodes found for heads %a: %a" pp_commits heads
+        Fmt.(list ~sep:comma string)
+        !errors
+
   let sync = X.Repo.sync
   let clear = X.Repo.clear
   let migrate = Store.migrate

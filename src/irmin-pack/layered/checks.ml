@@ -51,6 +51,7 @@ struct
       (* Quick hack to shim functionality that we don't intend to use. *)
       let integrity_check ?ppf:_ ~auto_repair:_ _ = assert false
       let reconstruct_index ?output:_ _ = assert false
+      let integrity_check_inodes ?heads:_ _ = assert false
     end
   end)
 

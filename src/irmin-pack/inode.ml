@@ -616,6 +616,40 @@ struct
             add (Lazy.force t.hash) (to_bin t)
       in
       aux ~depth:0 t
+
+    let check_stable ~find t =
+      let rec check t any_stable_ancestor =
+        let stable = t.stable || any_stable_ancestor in
+        match t.v with
+        | Values _ -> true
+        | Tree tree ->
+            Array.for_all
+              (function
+                | None -> true
+                | Some t ->
+                    let t = get_target ~find t in
+                    (if stable then not t.stable else true) && check t stable)
+              tree.entries
+      in
+      check t t.stable
+
+    let contains_empty_map ~find t =
+      let rec check_lower t =
+        match t.v with
+        | Values l when StepMap.is_empty l -> true
+        | Values _ -> false
+        | Tree inodes ->
+            Array.exists
+              (function
+                | None -> false
+                | Some t ->
+                    let t = get_target ~find t in
+                    check_lower t)
+              inodes.entries
+      in
+      check_lower t
+
+    let is_tree t = match t.v with Tree _ -> true | Values _ -> false
   end
 
   module Elt = struct
@@ -773,6 +807,20 @@ struct
     let stable t = I.stable t.v
     let length t = I.length t.v
     let index = I.index
+
+    let integrity_check t =
+      let check_stable t =
+        let check t = I.check_stable ~find:t.find t.v in
+        let n = length t in
+        if n > Conf.stable_hash then (not (stable t)) && check t
+        else stable t && check t
+      in
+      let contains_empty_map_non_root t =
+        let check t = I.contains_empty_map ~find:t.find t.v in
+        (* we are only looking for empty maps that are not at the root *)
+        if I.is_tree t.v then check t else false
+      in
+      check_stable t && not (contains_empty_map_non_root t)
   end
 end
 
@@ -840,6 +888,19 @@ struct
     Inter.decode_bin ~dict ~hash buff off |> fst
 
   module Val = Inter.Val
+
+  let integrity_check_inodes t k =
+    find t k >|= function
+    | None ->
+        (* we are traversing the node graph, should find all values *)
+        assert false
+    | Some v ->
+        if Inter.Val.integrity_check v then Ok ()
+        else
+          let msg =
+            Fmt.str "Problematic inode %a" (Irmin.Type.pp Inter.Val.t) v
+          in
+          Error msg
 end
 
 module Make

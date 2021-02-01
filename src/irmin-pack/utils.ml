@@ -33,6 +33,11 @@ module Progress : sig
       @param ppf Defaults to {!Format.err_formatter} *)
 
   val finalise : t -> unit
+
+  val increment :
+    ?ppf:Format.formatter ->
+    unit ->
+    t * ((unit -> unit) * (unit -> unit) * (unit -> unit))
 end = struct
   type t = { ppf : Format.formatter; update : unit -> unit }
 
@@ -76,6 +81,26 @@ end = struct
     in
     update ~first:true;
     ({ ppf; update = (fun () -> update ~first:false) }, progress)
+
+  let increment ?(ppf = Format.err_formatter) () =
+    let nb_commits = ref 0 in
+    let nb_nodes = ref 0 in
+    let nb_contents = ref 0 in
+    let update ~first =
+      if first then Format.pp_open_box ppf 0 else Fmt.pf ppf "\r";
+      Fmt.pf ppf "\t%dk contents / %dk nodes / %dk commits%!"
+        (!nb_contents / 1000) (!nb_nodes / 1000) (!nb_commits / 1000)
+    in
+    let progress count =
+      incr count;
+      if !count mod 1000 = 0 then update ~first:false
+    in
+    let commits () = progress nb_commits in
+    let nodes () = progress nb_nodes in
+    let contents () = progress nb_contents in
+    update ~first:true;
+    ( { ppf; update = (fun () -> update ~first:false) },
+      (contents, nodes, commits) )
 
   let finalise { ppf; update } =
     update ();
