@@ -38,7 +38,13 @@ module type S = sig
 
   module Key : Irmin.Hash.S with type t = key
 
-  module Val : Irmin.Private.Node.S with type t = value and type hash = key
+  module Val : sig
+    include Irmin.Private.Node.S with type t = value and type hash = key
+
+    val stable : t -> bool
+
+    val hash : t -> Key.t
+  end
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -46,6 +52,45 @@ module type S = sig
     offset:int64 -> length:int -> key -> 'a t -> (unit, integrity_error) result
 
   val close : 'a t -> unit Lwt.t
+
+  module Concrete : sig
+    type hash = Key.t [@@deriving irmin]
+
+    type step = Val.step [@@deriving irmin]
+
+    type metadata = Val.metadata [@@deriving irmin]
+
+    type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
+
+    type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+
+    type 'a pointer = { index : int; pointer : hash; tree : 'a }
+
+    val pointer_t : 'a Irmin.Type.t -> 'a pointer Irmin.Type.t
+
+    type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+
+    val tree_t : 'a Irmin.Type.t -> 'a tree Irmin.Type.t
+
+    type t = Tree of t tree | Value of entry list [@@deriving irmin]
+
+    type error =
+      [ `Invalid_hash of hash * hash * t
+      | `Invalid_depth of int * int * t
+      | `Invalid_length of int * int * t
+      | `Duplicated_entries of t
+      | `Duplicated_pointers of t
+      | `Unsorted_entries of t
+      | `Unsorted_pointers of t
+      | `Empty ]
+    [@@deriving irmin]
+
+    val pp_error : error Fmt.t
+  end
+
+  val to_concrete : Val.t -> Concrete.t
+
+  val of_concrete : Concrete.t -> (Val.t, Concrete.error) result
 end
 
 module type CONFIG = sig
@@ -346,10 +391,11 @@ struct
         |+ field "entries" (array entry) (fun t -> t.entries)
         |> sealr
 
-      let length t =
-        match t.v with
+      let length_of_v = function
         | Values vs -> StepMap.cardinal vs
         | Inodes vs -> vs.length
+
+      let length t = length_of_v t.v
 
       let get_tree ~find t =
         match t.tree with
@@ -369,18 +415,21 @@ struct
       and list_inodes ~find acc t =
         Array.fold_left (list_entry ~find) acc t.entries
 
-      and list_values ~find acc t =
-        match t.v with
+      and list_values_v ~find acc = function
         | Values vs -> StepMap.bindings vs @ acc
         | Inodes t -> list_inodes ~find acc t
+
+      and list_values ~find acc t = list_values_v ~find acc t.v
 
       let compare_step a b = Irmin.Type.compare step_t a b
 
       let compare_entry x y = compare_step (fst x) (fst y)
 
-      let list ~find t =
-        let entries = list_values ~find [] t in
+      let list_v ~find v =
+        let entries = list_values_v ~find [] v in
         List.fast_sort compare_entry entries
+
+      let list ~find t = list_v ~find t.v
 
       let to_bin_v = function
         | Values vs ->
@@ -735,6 +784,10 @@ struct
       let v = I.remove ~find:t.find t.v s in
       if v == t.v then t else { find = t.find; v }
 
+    let stable t = t.v.I.stable
+
+    let hash t = Lazy.force t.v.I.hash
+
     let t : t Irmin.Type.t =
       let pre_hash x =
         if not x.v.stable then Irmin.Type.pre_hash I.t x.v
@@ -800,4 +853,205 @@ struct
   let integrity_check = Inode.integrity_check
 
   let close = Inode.close
+
+  module Concrete = struct
+    type hash = H.t [@@deriving irmin]
+
+    type step = Node.step [@@deriving irmin]
+
+    type metadata = Node.metadata [@@deriving irmin]
+
+    type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
+
+    type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+
+    type 'a pointer = { index : int; pointer : hash; tree : 'a }
+
+    let pointer_t a =
+      let open Irmin.Type in
+      record "pointer" (fun index pointer tree -> { index; pointer; tree })
+      |+ field "index" int (fun t -> t.index)
+      |+ field "pointer" hash_t (fun t -> t.pointer)
+      |+ field "tree" a (fun t -> t.tree)
+      |> sealr
+
+    type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+
+    let tree_t a =
+      let open Irmin.Type in
+      record "tree" (fun depth length pointers -> { depth; length; pointers })
+      |+ field "depth" int (fun t -> t.depth)
+      |+ field "length" int (fun t -> t.length)
+      |+ field "pointers" (list (pointer_t a)) (fun t -> t.pointers)
+      |> sealr
+
+    type t = Tree of t tree | Value of entry list [@@deriving irmin]
+
+    let metadata_equal = Irmin.Type.(equal metadata_t)
+
+    let to_entry (name, v) =
+      match v with
+      | `Contents (hash, m) ->
+          if metadata_equal m Node.default then { name; kind = Contents; hash }
+          else { name; kind = Contents_x m; hash }
+      | `Node hash -> { name; kind = Node; hash }
+
+    let of_entry e =
+      ( e.name,
+        match e.kind with
+        | Contents -> `Contents (e.hash, Node.default)
+        | Contents_x m -> `Contents (e.hash, m)
+        | Node -> `Node e.hash )
+
+    type error =
+      [ `Invalid_hash of hash * hash * t
+      | `Invalid_depth of int * int * t
+      | `Invalid_length of int * int * t
+      | `Duplicated_entries of t
+      | `Duplicated_pointers of t
+      | `Unsorted_entries of t
+      | `Unsorted_pointers of t
+      | `Empty ]
+    [@@deriving irmin]
+
+    let rec length = function
+      | Value l -> List.length l
+      | Tree t -> List.fold_left (fun acc p -> acc + length p.tree) 0 t.pointers
+
+    let pp = Irmin.Type.pp_json t
+
+    let pp_hash = Irmin.Type.pp hash_t
+
+    let pp_error ppf = function
+      | `Invalid_hash (got, expected, t) ->
+          Fmt.pf ppf "invalid hash for %a@,got: %a@,expecting: %a" pp t pp_hash
+            got pp_hash expected
+      | `Invalid_depth (got, expected, t) ->
+          Fmt.pf ppf "invalid depth for %a@,got: %d@,expecting: %d" pp t got
+            expected
+      | `Invalid_length (got, expected, t) ->
+          Fmt.pf ppf "invalid length for %a@,got: %d@,expecting: %d" pp t got
+            expected
+      | `Duplicated_entries t -> Fmt.pf ppf "duplicated entries: %a" pp t
+      | `Duplicated_pointers t -> Fmt.pf ppf "duplicated pointers: %a" pp t
+      | `Unsorted_entries t -> Fmt.pf ppf "entries should be sorted: %a" pp t
+      | `Unsorted_pointers t -> Fmt.pf ppf "pointers should be sorted: %a" pp t
+      | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
+  end
+
+  let to_concrete (t : Val.t) =
+    let find = t.find in
+    let rec aux (t : Inode.Val.t) =
+      match t.v with
+      | Inodes tr ->
+          ( Lazy.force t.hash,
+            Concrete.Tree
+              {
+                depth = tr.seed;
+                length = tr.length;
+                pointers =
+                  Array.fold_left
+                    (fun (i, acc) (e : Inode.Val.entry) ->
+                      match e with
+                      | Empty -> (i + 1, acc)
+                      | Inode t ->
+                          let tree = Inode.Val.get_tree ~find t in
+                          let pointer, tree = aux tree in
+                          (i + 1, { Concrete.index = i; tree; pointer } :: acc))
+                    (0, []) tr.entries
+                  |> snd
+                  |> List.rev;
+              } )
+      | Values l ->
+          ( Lazy.force t.hash,
+            Concrete.Value
+              (List.map Concrete.to_entry (Inode.StepMap.bindings l)) )
+    in
+    snd (aux t.v)
+
+  exception Invalid_hash of H.t * H.t * Concrete.t
+
+  exception Invalid_depth of int * int * Concrete.t
+
+  exception Invalid_length of int * int * Concrete.t
+
+  exception Empty
+
+  exception Duplicated_entries of Concrete.t
+
+  exception Duplicated_pointers of Concrete.t
+
+  exception Unsorted_entries of Concrete.t
+
+  exception Unsorted_pointers of Concrete.t
+
+  let hash_equal = Irmin.Type.(equal H.t)
+
+  let of_concrete_exn t =
+    let sort_entries =
+      List.sort_uniq (fun x y -> compare x.Concrete.name y.Concrete.name)
+    in
+    let sort_pointers =
+      List.sort_uniq (fun x y -> compare x.Concrete.index y.Concrete.index)
+    in
+    let check_entries t es =
+      if es = [] then raise Empty;
+      let s = sort_entries es in
+      if List.length s <> List.length es then raise (Duplicated_entries t);
+      if s <> es then raise (Unsorted_entries t)
+    in
+    let check_pointers t ps =
+      if ps = [] then raise Empty;
+      let s = sort_pointers ps in
+      if List.length s <> List.length ps then raise (Duplicated_pointers t);
+      if s <> ps then raise (Unsorted_pointers t)
+    in
+    let hash v = Inode.Bin.V.hash (Inode.Val.to_bin_v v) in
+    let rec aux depth t =
+      match t with
+      | Concrete.Value l ->
+          check_entries t l;
+          Inode.Val.Values
+            (Inode.StepMap.of_list (List.map Concrete.of_entry l))
+      | Concrete.Tree tr ->
+          let entries = Array.make Conf.entries Inode.Val.Empty in
+          check_pointers t tr.pointers;
+          List.iter
+            (fun { Concrete.index; pointer; tree } ->
+              let v = aux (depth + 1) tree in
+              let hash = hash v in
+              if not (hash_equal hash pointer) then
+                raise (Invalid_hash (hash, pointer, t));
+              let t = { Inode.Val.hash = lazy pointer; stable = false; v } in
+              let i = { Inode.Val.i_hash = lazy pointer; tree = Some t } in
+              entries.(index) <- Inode.Val.Inode i)
+            tr.pointers;
+          let length = Concrete.length t in
+          if depth <> tr.depth then raise (Invalid_depth (depth, tr.depth, t));
+          if length <> tr.length then
+            raise (Invalid_length (length, tr.length, t));
+          Inode.Val.Inodes { seed = tr.depth; length = tr.length; entries }
+    in
+    let v = aux 0 t in
+    let length = Inode.Val.length_of_v v in
+    let stable, hash =
+      if length > Conf.stable_hash then (false, hash v)
+      else
+        let find _ = None in
+        let node = Node.v (Inode.Val.list_v ~find v) in
+        (true, Node.hash node)
+    in
+    let v = { Inode.Val.hash = lazy hash; stable; v } in
+    { Val.v; find = (fun _ -> None) }
+
+  let of_concrete t =
+    try Ok (of_concrete_exn t) with
+    | Invalid_hash (x, y, z) -> Error (`Invalid_hash (x, y, z))
+    | Invalid_depth (x, y, z) -> Error (`Invalid_depth (x, y, z))
+    | Invalid_length (x, y, z) -> Error (`Invalid_length (x, y, z))
+    | Empty -> Error `Empty
+    | Duplicated_entries t -> Error (`Duplicated_entries t)
+    | Duplicated_pointers t -> Error (`Duplicated_pointers t)
+    | Unsorted_entries t -> Error (`Unsorted_entries t)
+    | Unsorted_pointers t -> Error (`Unsorted_pointers t)
 end
