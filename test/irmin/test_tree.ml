@@ -361,17 +361,6 @@ let test_update _ () =
       (t == t')
   in
 
-  let* () =
-    let+ abc1' =
-      Tree.update_tree abc1 [ "a"; "b"; "d" ] (function
-        | None -> Some Tree.empty
-        | Some _ -> assert false)
-    in
-    Alcotest.assert_
-      "Adding an empty tree at an empty location preserves physical equality"
-      (abc1 == abc1')
-  in
-
   Lwt.return_unit
 
 (* Correct stats for a completely lazy tree *)
