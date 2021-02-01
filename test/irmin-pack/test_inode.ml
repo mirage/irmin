@@ -17,8 +17,8 @@ module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
-module Inode = Irmin_pack.Inode.Make (Conf) (H) (P) (Node)
-module Private = Inode.Val.Private
+module Inter = Irmin_pack.Inode.Make_intermediate (Conf) (H) (Node)
+module Inode = Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (P)
 
 module Context = struct
   type t = {
@@ -90,7 +90,7 @@ module Inode_permutations_generator = struct
   }
 
   (** [gen_step index_list] uses brute force to generate a step such that
-      [Private.index ~depth:i] maps to the ith index in the [index_list]. *)
+      [Inter.Val.index ~depth:i] maps to the ith index in the [index_list]. *)
   let gen_step : int list -> Path.step =
     let tbl = Hashtbl.create 10 in
     let max_brute_force_iterations = 100 in
@@ -104,7 +104,7 @@ module Inode_permutations_generator = struct
           let is_valid =
             indices
             |> List.mapi (fun depth i -> (depth, i))
-            |> List.for_all (fun (depth, i) -> Private.index ~depth s = i)
+            |> List.for_all (fun (depth, i) -> Inter.Val.index ~depth s = i)
           in
           if is_valid then s else aux (i + 1)
       in
@@ -185,14 +185,14 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let h = Private.hash v in
+  let h = Inter.Val.hash v in
   let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
 let check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-  | Ok hash -> check_hash msg hash (Private.hash v)
+  | Ok hash -> check_hash msg hash (Inter.Val.hash v)
 
 (** Test add values from an empty node. *)
 let test_add_values () =
@@ -218,8 +218,8 @@ let test_add_inodes () =
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
   check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
-  Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
-  Alcotest.(check bool) "v2 stable" (Private.stable v2) true;
+  Alcotest.(check bool) "v1 stable" (Inter.Val.stable v1) true;
+  Alcotest.(check bool) "v2 stable" (Inter.Val.stable v2) true;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
   let v5 =
     Inode.Val.v
@@ -232,7 +232,7 @@ let test_add_inodes () =
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
   check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
-  Alcotest.(check bool) "v4 not stable" (Private.stable v4) false;
+  Alcotest.(check bool) "v4 not stable" (Inter.Val.stable v4) false;
   Context.close t
 
 (** Test remove values on an empty node. *)
@@ -275,8 +275,8 @@ let test_remove_inodes () =
   in
   let v5 = Inode.Val.remove v4 "a" in
   check_values "node x+y+z obtained two ways" v1 v5;
-  Alcotest.(check bool) "v1 stable" (Private.stable v1) true;
-  Alcotest.(check bool) "v5 stable" (Private.stable v5) true;
+  Alcotest.(check bool) "v1 stable" (Inter.Val.stable v1) true;
+  Alcotest.(check bool) "v5 stable" (Inter.Val.stable v5) true;
   Context.close t
 
 (** For each of the 256 possible inode trees with [depth <= 3] and

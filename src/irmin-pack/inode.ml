@@ -760,12 +760,19 @@ struct
       in
       Irmin.Type.map I.t ~pre_hash (fun v -> { find = niet; v }) (fun t -> t.v)
 
-    module Private = struct
-      let hash t = I.hash t.v
-      let stable t = I.stable t.v
-      let length t = I.length t.v
-      let index = I.index
-    end
+    let hash t = I.hash t.v
+    let save ~add ~mem { v; _ } = I.save ~add ~mem v
+
+    let of_bin find v =
+      let find h =
+        match find h with None -> None | Some v -> Some (I.of_bin v)
+      in
+      { v = I.of_bin v; find }
+
+    let to_bin { v; _ } = I.to_bin v
+    let stable t = I.stable t.v
+    let length t = I.length t.v
+    let index = I.index
   end
 end
 
@@ -776,41 +783,36 @@ module Make_ext
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (Pack : Pack.S with type value = Inter.Elt.t and type key = H.t) =
+    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) =
 struct
   module Key = H
+  module Pack = P.Make (Inter.Elt)
 
   type 'a t = 'a Pack.t
   type key = Key.t
   type value = Inter.Val.t
+  type index = Pack.index
 
   let mem t k = Pack.mem t k
-
-  let unsafe_find ~check_integrity t k =
-    match Pack.unsafe_find ~check_integrity t k with
-    | None -> None
-    | Some v ->
-        let v = Inter.Val_impl.of_bin v in
-        Some v
 
   let find t k =
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let v = Inter.Val_impl.of_bin v in
-        let find = unsafe_find ~check_integrity:true t in
-        Some { Inter.Val.find; v }
+        let find = Pack.unsafe_find ~check_integrity:true t in
+        let v = Inter.Val.of_bin find v in
+        Some v
 
   let save t v =
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inter.Val_impl.save ~add ~mem:(Pack.unsafe_mem t) v
+    Inter.Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Inter.Val_impl.hash v.Inter.Val.v
+  let hash v = Inter.Val.hash v
 
   let add t v =
-    save t v.Inter.Val.v;
+    save t v;
     Lwt.return (hash v)
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))
@@ -823,7 +825,7 @@ struct
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v.Inter.Val.v;
+    save t v;
     Lwt.return_unit
 
   let batch = Pack.batch
@@ -836,18 +838,16 @@ struct
 
   let decode_bin ~dict ~hash buff off =
     Inter.decode_bin ~dict ~hash buff off |> fst
+
+  module Val = Inter.Val
 end
 
 module Make
     (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (Pack : Pack.MAKER with type key = H.t)
+    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack.index
-
   module Inter = Make_intermediate (Conf) (H) (Node)
-  module Pack = Pack.Make (Inter.Elt)
-  module Val = Inter.Val
-  include Make_ext (H) (Node) (Inter) (Pack)
+  include Make_ext (H) (Node) (Inter) (P)
 end
