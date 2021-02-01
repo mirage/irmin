@@ -940,13 +940,6 @@ module Make (P : Private.S) = struct
     | `Contents x, `Contents y -> contents_equal x y
     | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
-  let maybe_equal (x : t) (y : t) =
-    if x == y then `True
-    else
-      match (x, y) with
-      | `Node x, `Node y -> Node.maybe_equal x y
-      | _ -> if equal x y then `True else `False
-
   let is_empty = function
     | `Node n -> (
         Node.is_empty n >|= function
@@ -1104,16 +1097,15 @@ module Make (P : Private.S) = struct
     match Path.rdecons path with
     | None -> (
         match f (Some root_tree) with
-        (* Here we consider "deleting" a root contents value or node to
-           consist of changing it to an empty node. Note that this
-           introduces sensitivity to ordering of subtree operations:
-           updating in a subtree and adding the subtree are not
-           commutative. *)
+        (* Here we consider "deleting" a root contents value or node to consist
+           of changing it to an empty node. Note that this introduces
+           sensitivity to ordering of subtree operations: updating in a subtree
+           and adding the subtree are not necessarily commutative. *)
         | None -> Lwt.return empty_tree
         | Some (`Node n as t) -> (
-            Node.is_empty n >|= get_ok >|= function
-            | true -> empty_tree
-            | false -> t)
+            Node.is_empty n >|= function
+            | Ok true -> empty_tree
+            | Ok false | Error (`Dangling_hash _) -> t)
         | Some (`Contents c' as t) ->
             let t =
               match root_tree with
@@ -1123,62 +1115,67 @@ module Make (P : Private.S) = struct
             Lwt.return t)
     | Some (path, file) -> (
         let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
-         fun path n k ->
+         fun path parent_node k ->
           let changed n = k (Changed n) in
           match Path.decons path with
           | None -> (
-              let* old_binding = Node.findv n file in
+              let with_new_child t = Node.add parent_node file t >>= changed in
+              let* old_binding = Node.findv parent_node file in
               let new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
-              | None, Some (`Contents _ as t) -> Node.add n file t >>= changed
+              | None, Some (`Contents _ as t) -> with_new_child t
               | None, Some (`Node n as t) -> (
-                  Node.is_empty n >|= get_ok >>= function
-                  | true ->
-                      (* Prune empty directories *)
+                  Node.is_empty n >>= function
+                  | Ok true ->
+                      (* Prune empty node introduced by the user. *)
                       k Unchanged
-                  | false -> Node.add n file t >>= changed)
-              | Some old_value, Some (`Node n) -> (
-                  Node.is_empty n >|= get_ok >>= function
-                  | true ->
-                      (* Prune empty directories *)
-                      Node.remove n file >>= changed
-                  | false -> (
+                  | Ok false | Error (`Dangling_hash _) -> with_new_child t)
+              | Some _, None -> Node.remove parent_node file >>= changed
+              | Some old_value, Some (`Node n as t) -> (
+                  Node.is_empty n >>= function
+                  | Ok true ->
+                      (* Prune empty node introduced by the user. *)
+                      Node.remove parent_node file >>= changed
+                  | Ok false | Error (`Dangling_hash _) -> (
                       match old_value with
-                      | `Contents _ -> changed n
+                      | `Contents _ -> with_new_child t
                       | `Node old -> (
                           match Node.maybe_equal old n with
                           | `True -> k Unchanged
-                          | `Maybe | `False -> changed n)))
-              | Some _, None -> Node.remove n file >>= changed
-              | Some (`Contents c), Some (`Contents c' as t) ->
-                  if contents_equal c c' then k Unchanged
-                  else Node.add n file t >>= changed
+                          | `Maybe | `False -> with_new_child t)))
+              | Some (`Contents c), Some (`Contents c' as t) -> (
+                  match contents_equal c c' with
+                  | true -> k Unchanged
+                  | false -> with_new_child t)
               | Some (`Node _), Some (`Contents _ as t) ->
-                  Node.add n file t >>= changed)
-          | Some (h, p) -> (
-              let* old_binding = Node.findv n h in
+                  Node.add parent_node file t >>= changed)
+          | Some (step, key_suffix) -> (
+              let* old_binding = Node.findv parent_node step in
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
                 | None | Some (`Contents _) -> empty_node
               in
-              (aux [@tailcall]) p to_recurse @@ function
-              | Unchanged -> k Unchanged
+              (aux [@tailcall]) key_suffix to_recurse @@ function
+              | Unchanged ->
+                  (* This includes [remove]s in an empty node, in which case we
+                     want to avoid adding a binding anyway. *)
+                  k Unchanged
               | Changed child -> (
-                  (* Prune empty directories *)
-                  Node.is_empty child >|= get_ok
-                  >>= function
-                  | true -> Node.remove n h >>= changed
-                  | false -> Node.add n h (`Node child) >>= changed))
+                  Node.is_empty child >>= function
+                  | Ok true ->
+                      (* A [remove] has emptied previously non-empty child with
+                         binding [h], so we remove the binding. *)
+                      Node.remove parent_node step >>= changed
+                  | Ok false | Error (`Dangling_hash _) ->
+                      Node.add parent_node step (`Node child) >>= changed))
         in
         let top_node =
           match root_tree with `Node n -> n | `Contents _ -> empty_node
         in
         aux path top_node @@ function
-        | Unchanged ->
-            Lwt.return root_tree
-            (* TODO: None on empty_node should return empty_node *)
+        | Unchanged -> Lwt.return root_tree
         | Changed node -> Lwt.return (`Node node))
 
   let update t k ?(metadata = Metadata.default) f =

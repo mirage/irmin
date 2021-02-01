@@ -248,6 +248,16 @@ let test_update _ () =
   in
 
   let* () =
+    (* Replacing a root node with a dangling hash does not raise an
+       exception. *)
+    let* invalid_tree = invalid_tree () in
+    Tree.update_tree abc1 [] (function
+      | Some _ -> Some invalid_tree
+      | None -> assert false)
+    >|= ignore
+  in
+
+  let* () =
     Alcotest.check_tree_lwt
       "Updating at an existing contents path changes the contents value \
        appropriately."
