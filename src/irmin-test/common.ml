@@ -216,7 +216,7 @@ let line msg =
 let ( / ) = Filename.concat
 
 let testable t =
-  Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
+  Alcotest.testable (Irmin.Type.pp_dump t) Irmin.Type.(unstage (equal t))
 
 let check t = Alcotest.check (testable t)
 
