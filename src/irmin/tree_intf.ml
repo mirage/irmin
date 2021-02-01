@@ -124,7 +124,10 @@ module type S = sig
     (contents option -> contents option) ->
     t Lwt.t
   (** [update t k f] is the tree [t'] that is the same as [t] for all keys
-      except [k], and whose binding for [k] is determined by [f (find t k)]. *)
+      except [k], and whose binding for [k] is determined by [f (find t k)].
+
+      If [k] refers to an internal node of [t], [f] is called with [None] to
+      determine the value with which to replace it. *)
 
   val remove : t -> key -> t Lwt.t
   (** [remove t k] is the tree where [k] bindings has been removed but is
