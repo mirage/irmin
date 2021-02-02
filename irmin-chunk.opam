@@ -19,7 +19,6 @@ depends: [
   "fmt"
   "logs"
   "lwt"
-  "irmin-mem"  {with-test & = version}
   "irmin-test" {with-test & = version}
   "alcotest"   {with-test}
 ]

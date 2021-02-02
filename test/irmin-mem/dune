@@ -1,7 +1,7 @@
 (library
  (name test_mem)
  (modules test_mem)
- (libraries irmin irmin-test irmin-mem lwt))
+ (libraries irmin irmin-test irmin.mem lwt))
 
 (executable
  (name test)
@@ -10,11 +10,11 @@
 
 (rule
  (alias runtest)
- (package irmin-mem)
+ (package irmin)
  (action
   (run ./test.exe -q --color=always)))
 
 (executable
  (name bench)
  (modules bench)
- (libraries irmin-mem irmin-test.bench))
+ (libraries irmin.mem irmin-test.bench))
