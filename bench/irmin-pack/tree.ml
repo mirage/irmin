@@ -21,8 +21,8 @@ type op =
 [@@deriving yojson]
 
 module Parse_trace = struct
-  let read_commits commits ncommits =
-    let json = Dataset.get_stream () in
+  let read_commits commits ncommits path =
+    let json = Yojson.Safe.stream_from_file path in
     let rec aux index_op index_commit operations =
       if index_commit >= ncommits then index_commit
       else
@@ -43,9 +43,9 @@ module Parse_trace = struct
     in
     aux 0 0 []
 
-  let populate_array ncommits =
+  let populate_array ncommits path =
     let commits = Array.init ncommits (fun _ -> []) in
-    let n = read_commits commits ncommits in
+    let n = read_commits commits ncommits path in
     (commits, n)
 end
 
@@ -154,6 +154,7 @@ type config = {
   operations_file : string;
   root : string;
   quick : bool;
+  commit_data_file : string;
 }
 
 module Benchmark = struct
@@ -227,7 +228,9 @@ struct
   let run_read_trace ?quick config =
     reset_stats ();
     let ncommits = if quick = Some () then 10000 else config.ncommits_trace in
-    let commits, n = Parse_trace.populate_array ncommits in
+    let commits, n =
+      Parse_trace.populate_array ncommits config.commit_data_file
+    in
     let config = { config with ncommits_trace = n } in
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
     let* repo = Store.Repo.v conf in
@@ -321,7 +324,7 @@ let pp_config b config fmt () =
         config.width
 
 let main ncommits ncommits_trace operations_file quick depth width nchain_trees
-    nlarge_trees =
+    nlarge_trees commit_data_file =
   let config =
     {
       ncommits;
@@ -333,6 +336,7 @@ let main ncommits ncommits_trace operations_file quick depth width nchain_trees
       width;
       nchain_trees;
       nlarge_trees;
+      commit_data_file;
     }
   in
   Printexc.record_backtrace true;
@@ -411,6 +415,14 @@ let operations_file =
   in
   Arg.(value @@ opt string "bench/irmin-pack/tezos_log.tar.gz" doc)
 
+let commit_data_file =
+  let doc =
+    Arg.info ~docv:"PATH"
+      ~doc:"Path to the JSON-encoded commit data to use for the benchmark run."
+      []
+  in
+  Arg.(required @@ pos 0 (some string) None doc)
+
 let main_term =
   Term.(
     const main
@@ -421,7 +433,8 @@ let main_term =
     $ depth
     $ width
     $ nchain_trees
-    $ nlarge_trees)
+    $ nlarge_trees
+    $ commit_data_file)
 
 let () =
   let info = Term.info "Benchmarks for tree operations" in
