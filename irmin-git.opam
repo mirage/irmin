@@ -29,7 +29,6 @@ depends: [
   "uri"
   "git-cohttp-unix" {with-test}
   "irmin-test" {with-test & = version}
-  "irmin-mem"  {with-test & = version}
   "git-unix"   {with-test}
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}

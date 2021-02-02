@@ -35,22 +35,17 @@ Unpinning *irmin-unix* package,
     opam info irmin-unix // to get available versions
     opam pin -s | grep irmin | xargs opam unpin
 
-A minimal installation, with no storage backends can be installed by running:
+A minimal installation, containing the reference in-memory backend, can be installed by running:
 
     opam install irmin
 
-To only install the in-memory storage backend:
-
-    opam install irmin-mem
-
 The following packages have been made available on `opam`:
-- `irmin` - the base package, no storage implementations
+- `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
 - `irmin-fs` - filesystem-based storage using `bin_prot`
 - `irmin-git` - Git compatible storage
 - `irmin-graphql` - GraphQL server
 - `irmin-http` - a simple REST interface
-- `irmin-mem` - in-memory storage implementation
 - `irmin-mirage` - mirage compatibility
 - `irmin-mirage-git` - Git compatible storage for mirage
 - `irmin-mirage-graphql` - mirage compatible GraphQL server

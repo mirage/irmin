@@ -31,6 +31,10 @@
 
 #### Changed
 
+- The `irmin-mem` package is now included with the `irmin` package under the
+  library name `irmin.mem`. It keeps the same top-level module name of
+  `Irmin_mem`. (#1276, @CraigFe)
+
 ### 2.3.0 (2020-01-12)
 
 ### Fixed

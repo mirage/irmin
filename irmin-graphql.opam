@@ -25,7 +25,6 @@ depends: [
   "cohttp"
   "fmt"
   "lwt"
-  "irmin-mem"       {with-test & = version}
   "alcotest-lwt"    {with-test & >= "1.1.0"}
   "yojson"          {with-test}
   "cohttp-lwt-unix" {with-test}
