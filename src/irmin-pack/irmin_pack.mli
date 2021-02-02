@@ -20,6 +20,8 @@ module Index = Pack_index
 module Config = Config
 module Inode = Inode
 
+module type VERSION = IO.VERSION
+
 val config :
   ?fresh:bool ->
   ?readonly:bool ->

@@ -21,14 +21,21 @@ module type S = sig
         checks. *)
 
     type size = Bytes of int [@@deriving irmin]
+    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = { size : size; offset : int64; generation : int64 }
+    type io = {
+      size : size;
+      offset : int64;
+      generation : int64;
+      version : version;
+    }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
     [@@deriving irmin]
 
-    val v : root:string -> files
+    val v : root:string -> version:IO.version -> files
+    val detect_version : root:string -> IO.version
   end
 
   module Reconstruct_index :
@@ -61,22 +68,20 @@ module type S = sig
       [terms] defaults to the set of checks in this module. *)
 end
 
-module type Make_args = sig
-  module Hash : Irmin.Hash.S
+module type Versioned_store = sig
+  include Irmin.S
+  include Store.S with type repo := repo
 
-  module Store : sig
-    include Irmin.S with type hash = Hash.t
-    include Store.S with type repo := repo
+  (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
 
-    (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
-    val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-    val integrity_check_inodes :
-      ?heads:commit list ->
-      repo ->
-      ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-  end
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
+
+module type MAKER = functor (_ : IO.VERSION) -> Versioned_store
 
 module type Checks = sig
   type nonrec empty = empty
@@ -86,7 +91,8 @@ module type Checks = sig
 
   module type Subcommand = Subcommand
   module type S = S
-  module type Make_args = Make_args
+  module type Versioned_store = Versioned_store
+  module type MAKER = MAKER
 
-  module Make (_ : Make_args) : S
+  module Make (_ : MAKER) : S
 end

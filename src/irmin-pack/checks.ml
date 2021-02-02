@@ -1,9 +1,8 @@
 include Checks_intf
 module T = Irmin.Type
+module I = IO
 module IO = IO.Unix
 open! Import
-
-let current_version = `V2
 
 let setup_log =
   let init style_renderer level =
@@ -36,16 +35,33 @@ let path =
   @@ pos 0 (some string) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-module Make (Args : Make_args) = struct
-  module Hash = Args.Hash
-  module Store = Args.Store
+module Make (M : MAKER) = struct
+  module V1 = struct
+    let io_version = `V1
+  end
+
+  module V2 = struct
+    let io_version = `V2
+  end
+
+  module Store_V1 = M (V1)
+  module Store_V2 = M (V2)
+  module Hash = Store_V1.Hash
   module Index = Pack_index.Make (Hash)
+
+  let current_version = `V1
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct
     type size = Bytes of int [@@deriving irmin]
+    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = { size : size; offset : int64; generation : int64 }
+    type io = {
+      size : size;
+      offset : int64;
+      generation : int64;
+      version : version;
+    }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
@@ -53,36 +69,46 @@ module Make (Args : Make_args) = struct
 
     type t = { hash_size : size; files : files } [@@deriving irmin]
 
-    let with_io : type a. string -> (IO.t -> a) -> a option =
-     fun path f ->
+    let with_io : type a. I.version -> string -> (IO.t -> a) -> a option =
+     fun version path f ->
       match IO.exists path with
       | false -> None
       | true ->
           let io =
-            IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
-              path
+            IO.v ~fresh:false ~readonly:true ~version:(Some version) path
           in
           Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
-    let io path =
-      with_io path @@ fun io ->
+    let detect_version ~root =
+      try
+        let path = Layout.pack ~root in
+        match with_io current_version path Fun.id with
+        | None -> Fmt.failwith "cannot read pack file"
+        | Some _ -> current_version
+      with I.Invalid_version { expected = _; found } -> found
+
+    let io ~version path =
+      with_io version path @@ fun io ->
       let offset = IO.offset io in
       let generation = IO.generation io in
       let size = Bytes (IO.size io) in
-      { size; offset; generation }
+      let version = IO.version io in
+      { size; offset; generation; version }
 
-    let v ~root =
-      let pack = Layout.pack ~root |> io in
-      let branch = Layout.branch ~root |> io in
-      let dict = Layout.dict ~root |> io in
+    let v ~root ~version =
+      let pack = Layout.pack ~root |> io ~version in
+      let branch = Layout.branch ~root |> io ~version in
+      let dict = Layout.dict ~root |> io ~version in
       { pack; branch; dict }
 
-    let run ~root =
+    let run_versioned_store ~root version =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
-      let files = v ~root in
+      let files = v ~root ~version in
       { hash_size = Bytes Hash.hash_size; files }
       |> T.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
+
+    let run ~root = detect_version ~root |> run_versioned_store ~root
 
     let term_internal =
       Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
@@ -101,9 +127,14 @@ module Make (Args : Make_args) = struct
       & pos 1 (some string) None
         @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
 
-    let run ~root ~output =
+    let run_versioned_store ~root ~output (module Store : Versioned_store) =
       let conf = conf root in
       Store.reconstruct_index ?output conf
+
+    let run ~root ~output =
+      match Stat.detect_version ~root with
+      | `V1 -> run_versioned_store ~root ~output (module Store_V1)
+      | `V2 -> run_versioned_store ~root ~output (module Store_V2)
 
     let term_internal =
       Cmdliner.Term.(
@@ -127,10 +158,17 @@ module Make (Args : Make_args) = struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run ~root ~auto_repair =
+    let run_versioned_store ~root ~auto_repair (module Store : Versioned_store)
+        =
       let conf = conf root in
       let+ repo = Store.Repo.v conf in
-      Store.integrity_check ~auto_repair repo |> handle_result ?name:None
+      Store.integrity_check ~ppf:Format.err_formatter ~auto_repair repo
+      |> handle_result ?name:None
+
+    let run ~root ~auto_repair =
+      match Stat.detect_version ~root with
+      | `V1 -> run_versioned_store ~root ~auto_repair (module Store_V1)
+      | `V2 -> run_versioned_store ~root ~auto_repair (module Store_V2)
 
     let term_internal =
       let auto_repair =
@@ -157,7 +195,7 @@ module Make (Args : Make_args) = struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let run ~root ~heads =
+    let run_versioned_store ~root ~heads (module Store : Versioned_store) =
       let conf = conf root in
       let* repo = Store.Repo.v conf in
       let* heads =
@@ -177,6 +215,11 @@ module Make (Args : Make_args) = struct
         | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg)
       in
       Store.Repo.close repo
+
+    let run ~root ~heads =
+      match Stat.detect_version ~root with
+      | `V1 -> run_versioned_store ~root ~heads (module Store_V1)
+      | `V2 -> run_versioned_store ~root ~heads (module Store_V2)
 
     let term_internal =
       Cmdliner.Term.(

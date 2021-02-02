@@ -1,5 +1,6 @@
 open! Import
 open Irmin_pack.Checks
+module I = Irmin_pack.Private.IO
 module IO = Irmin_pack.Private.IO.Unix
 
 let ( let+ ) x f = Lwt.map f x
@@ -34,26 +35,9 @@ module Layout = struct
     [ Layout.flip ~root; lower ~root; upper1 ~root; upper0 ~root ]
 end
 
-module Make (Args : sig
-  module Hash : Irmin.Hash.S
-  module Store : S.STORE with type hash = Hash.t
-end) =
-struct
-  module Hash = Args.Hash
-  module Store = Args.Store
-
-  module Simple = Make (struct
-    include Args
-
-    module Store = struct
-      include Store
-
-      (* Quick hack to shim functionality that we don't intend to use. *)
-      let integrity_check ?ppf:_ ~auto_repair:_ _ = assert false
-      let reconstruct_index ?output:_ _ = assert false
-      let integrity_check_inodes ?heads:_ _ = assert false
-    end
-  end)
+module Make (M : MAKER) (Store : S.STORE) = struct
+  module Simple = Make (M)
+  module Hash = Store.Hash
 
   let read_flip ~root =
     let path = Layout.flip ~root in
@@ -82,11 +66,13 @@ struct
     type t = { hash_size : Layer_stat.size; files : files_layer }
     [@@deriving irmin]
 
+    let v = Layer_stat.v ~version:`V2
+
     let v ~root =
       read_flip ~root >|= fun flip ->
-      let lower = Layer_stat.v ~root:(Layout.lower ~root)
-      and upper1 = Layer_stat.v ~root:(Layout.upper1 ~root)
-      and upper0 = Layer_stat.v ~root:(Layout.upper0 ~root) in
+      let lower = v ~root:(Layout.lower ~root)
+      and upper1 = v ~root:(Layout.upper1 ~root)
+      and upper0 = v ~root:(Layout.upper0 ~root) in
       { flip; lower; upper1; upper0 }
 
     let run ~root =
