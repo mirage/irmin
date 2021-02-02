@@ -10,7 +10,7 @@
 
 (rule
  (alias runtest)
- (package irmin)
+ (package irmin-test)
  (action
   (run ./test.exe -q --color=always)))
 
