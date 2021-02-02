@@ -1110,14 +1110,10 @@ module Make (P : Private.S) = struct
            sensitivity to ordering of subtree operations: updating in a subtree
            and adding the subtree are not necessarily commutative. *)
         | None -> Lwt.return empty_tree
-        | Some (`Node _ as t) -> Lwt.return t
-        | Some (`Contents c' as t) ->
-            let t =
-              match root_tree with
-              | `Contents c when contents_equal c c' -> root_tree
-              | _ -> t
-            in
-            Lwt.return t)
+        | Some new_root -> (
+            match maybe_equal root_tree new_root with
+            | True -> Lwt.return root_tree
+            | Maybe | False -> Lwt.return new_root))
     | Some (path, file) -> (
         let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
          fun path parent_node k ->
