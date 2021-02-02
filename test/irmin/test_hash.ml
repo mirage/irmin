@@ -4,7 +4,9 @@ let test_short_hash () =
   let h = Hash.BLAKE2B.hash (fun f -> f "") in
   let () =
     Hash.BLAKE2B.short_hash h
-    |> Alcotest.(check int) "Specialised short hash" 241225442164632184
+    |> Alcotest.(check int)
+         "Specialised short hash"
+         (Int64.to_int 241225442164632184L)
   in
   let () =
     Type.(unstage (short_hash Hash.BLAKE2B.t)) ~seed:0 h
