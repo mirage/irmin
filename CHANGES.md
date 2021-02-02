@@ -1,4 +1,4 @@
-### Unreleased
+### 2.4.0 (2021-02-02)
 
 #### Fixed
 - **irmin-pack**
@@ -7,13 +7,10 @@
     yet. (#1247, @Ngoguey42, @icristescu)
 
 - **irmin**
-  Ensure that `Tree.add_tree t k v` complexity does not depend on `v` size.
-  (#1267, @samoht @Ngoguey42 and @CraigFe)
+  - Ensure that `Tree.add_tree t k v` complexity does not depend on `v` size.
+    (#1267, @samoht @Ngoguey42 and @CraigFe)
 
 #### Added
-- **irmin-bench**
-  - Added benchmarks for trees operations. (#1237, @icristescu, @Ngoguey42,
-  @Craigfe)
 
 - **irmin**
   - Added a `Perms` module containing helper types for using phantom-typed
@@ -29,6 +26,10 @@
   - Added `integrity-check-inodes` command to `irmin-fsck` for checking the
     integrity of inodes. (#1253, @icristescu, @Ngoguey42)
 
+- **irmin-bench**
+  - Added benchmarks for tree operations. (#1237, @icristescu, @Ngoguey42,
+    @Craigfe)
+
 #### Changed
 
 - The `irmin-mem` package is now included with the `irmin` package under the
@@ -40,7 +41,7 @@
 - `Irmin_mem` no longer provides the layered in-memory store `Make_layered`.
   This can be constructed manually via `Irmin_layers.Make`. (#1276, @CraigFe)
 
-### 2.3.0 (2020-01-12)
+### 2.3.0 (2021-01-12)
 
 ### Fixed
 
