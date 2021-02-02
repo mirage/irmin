@@ -144,6 +144,3 @@ module KV (C : Irmin.Contents.S) =
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_MAKER}. *)
 module KV_is_a_KV_MAKER : Irmin.KV_MAKER = KV
-
-module Make_layered =
-  Irmin_layers.Make (Irmin.Content_addressable (Append_only)) (Atomic_write)

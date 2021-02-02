@@ -38,6 +38,3 @@ module KV (C : Irmin.Contents.S) :
     with type contents = C.t
      and type metadata = unit
      and type Private.Sync.endpoint = unit
-
-module Make_layered : Irmin_layers.S_MAKER
-(** Constructor for in-memory Irmin store. *)
