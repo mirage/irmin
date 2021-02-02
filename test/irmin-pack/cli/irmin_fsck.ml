@@ -9,7 +9,7 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Simple_Maker (V : Irmin_pack.Private.IO.VERSION) =
+module Simple_Maker (V : Irmin_pack.VERSION) =
   Irmin_pack.Make_ext (V) (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Path)
     (Irmin.Branch.String)

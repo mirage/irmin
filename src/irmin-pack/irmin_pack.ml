@@ -28,6 +28,8 @@ module Metadata = Irmin.Metadata.None
 module Make_ext = Ext.Make
 module Store = Store
 
+module type VERSION = IO.VERSION
+
 module type MAKER = functor
   (Config : Config.S)
   (M : Irmin.Metadata.S)
