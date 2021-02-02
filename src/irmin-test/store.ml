@@ -26,6 +26,7 @@ module Make (S : S) = struct
   include Common.Make_helpers (S)
   module History = Irmin.Private.Commit.History (P.Commit)
 
+  let with_binding k v t = S.Tree.add t k v
   let random_value value = random_string value
 
   let random_path ~label ~path =
@@ -1257,24 +1258,33 @@ module Make (S : S) = struct
       check_ls "list length=1" [ ("a", contents "1") ] ls;
 
       (* Testing concrete representation *)
-      let c0 = S.Tree.empty in
-      let* c0 = S.Tree.add c0 [ "foo"; "a" ] "1" in
-      let* c0 = S.Tree.add c0 [ "foo"; "b"; "c" ] "2" in
-      let* c0 = S.Tree.add c0 [ "bar"; "d" ] "3" in
-      let* c0 = S.Tree.add c0 [ "e" ] "4" in
-      let* t0 = S.Tree.to_concrete c0 in
-      let t0 = S.Tree.of_concrete t0 in
-      let* d0 = S.Tree.diff c0 t0 in
-      check_diffs "concrete roundtrip" [] d0;
-      let* c0' = S.Tree.list c0 [] in
-      let* t0' = S.Tree.list t0 [] in
-      check_ls "concrete list /" c0' t0';
-      let* c0' = S.Tree.list c0 [ "foo" ] in
-      let* t0' = S.Tree.list t0 [ "foo" ] in
-      check_ls "concrete tree list /foo" c0' t0';
-      let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
-      let* t0' = S.Tree.list t0 [ "bar"; "d" ] in
-      check_ls "concrete tree list /bar/d" c0' t0';
+      let* c0 =
+        Lwt.return S.Tree.empty
+        >>= with_binding [ "foo"; "a" ] "1"
+        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        >>= with_binding [ "bar"; "d" ] "3"
+        >>= with_binding [ "e" ] "4"
+      in
+      let* t0 = c0 |> S.Tree.to_concrete >|= S.Tree.of_concrete in
+      let* () =
+        let+ d0 = S.Tree.diff c0 t0 in
+        check_diffs "concrete roundtrip" [] d0
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [] in
+        let+ t0' = S.Tree.list t0 [] in
+        check_ls "concrete list /" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "foo" ] in
+        let+ t0' = S.Tree.list t0 [ "foo" ] in
+        check_ls "concrete tree list /foo" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
+        let+ t0' = S.Tree.list t0 [ "bar"; "d" ] in
+        check_ls "concrete tree list /bar/d" c0' t0'
+      in
 
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->

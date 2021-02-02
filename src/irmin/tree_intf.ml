@@ -117,6 +117,18 @@ module type S = sig
   (** [add t k c] is the tree where the key [k] is bound to the contents [c] but
       is similar to [t] for other bindings. *)
 
+  val update :
+    t ->
+    key ->
+    ?metadata:metadata ->
+    (contents option -> contents option) ->
+    t Lwt.t
+  (** [update t k f] is the tree [t'] that is the same as [t] for all keys
+      except [k], and whose binding for [k] is determined by [f (find t k)].
+
+      If [k] refers to an internal node of [t], [f] is called with [None] to
+      determine the value with which to replace it. *)
+
   val remove : t -> key -> t Lwt.t
   (** [remove t k] is the tree where [k] bindings has been removed but is
       similar to [t] for other bindings. *)
@@ -137,6 +149,11 @@ module type S = sig
   val add_tree : t -> key -> t -> t Lwt.t
   (** [add_tree t k v] is the tree where the key [k] is bound to the tree [v]
       but is similar to [t] for other bindings *)
+
+  val update_tree : t -> key -> (t option -> t option) -> t Lwt.t
+  (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
+      subtrees except under [k], and whose subtree at [k] is determined by
+      [f (find_tree t k)]. *)
 
   val merge : t Merge.t
   (** [merge] is the 3-way merge function for trees. *)
