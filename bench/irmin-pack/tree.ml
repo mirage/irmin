@@ -20,8 +20,57 @@ type op =
   | Copy of key * key
 [@@deriving yojson]
 
+let pp_inode_config fmt = function
+  | `Entries_2 -> Format.fprintf fmt "[2, 5]"
+  | `Entries_32 -> Format.fprintf fmt "[32, 256]"
+
 module Parse_trace = struct
-  let read_commits commits ncommits path =
+  let is_hex_char = function
+    | '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' -> true
+    | _ -> false
+
+  let is_2char_hex s =
+    if String.length s <> 2 then false
+    else s |> String.to_seq |> List.of_seq |> List.for_all is_hex_char
+
+  let is_30char_hex s =
+    if String.length s <> 30 then false
+    else s |> String.to_seq |> List.of_seq |> List.for_all is_hex_char
+
+  let rec flatten_key_suffix = function
+    | a :: b :: c :: d :: e :: f :: tl
+      when is_2char_hex a
+           && is_2char_hex b
+           && is_2char_hex c
+           && is_2char_hex d
+           && is_2char_hex e
+           && is_30char_hex f ->
+        (a ^ b ^ c ^ d ^ e ^ f) :: flatten_key_suffix tl
+    | hd :: tl -> hd :: flatten_key_suffix tl
+    | [] -> []
+
+  (** This function flattens all the 6 step-long chunks forming 38 byte-long
+      hashes to a single step.
+
+      The paths in tezos:
+      https://www.dailambda.jp/blog/2020-05-11-plebeia/#tezos-path *)
+  let flatten_key = flatten_key_suffix
+
+  let flatten_op = function
+    | Add (key, v) -> Add (flatten_key key, v)
+    | Remove keys -> Remove (flatten_key keys)
+    | Find (keys, b) -> Find (flatten_key keys, b)
+    | Mem (keys, b) -> Mem (flatten_key keys, b)
+    | Mem_tree (keys, b) -> Mem_tree (flatten_key keys, b)
+    | Checkout _ as op -> op
+    | Copy (from, to_) -> Copy (flatten_key from, flatten_key to_)
+    | Commit _ as op -> op
+
+  let read_commits commits ncommits flatten path =
+    let parse_op op =
+      if flatten then op_of_yojson op |> Result.map flatten_op
+      else op_of_yojson op
+    in
     let json = Yojson.Safe.stream_from_file path in
     let rec aux index_op index_commit operations =
       if index_commit >= ncommits then index_commit
@@ -33,7 +82,7 @@ module Parse_trace = struct
               index_commit;
             index_commit
         | op -> (
-            match op_of_yojson op with
+            match parse_op op with
             | Ok (Commit _ as x) ->
                 commits.(index_commit) <- List.rev (x :: operations);
                 (aux [@tailcall]) (index_op + 1) (index_commit + 1) []
@@ -43,9 +92,9 @@ module Parse_trace = struct
     in
     aux 0 0 []
 
-  let populate_array ncommits path =
+  let populate_array ncommits flatten path =
     let commits = Array.init ncommits (fun _ -> []) in
-    let n = read_commits commits ncommits path in
+    let n = read_commits commits ncommits flatten path in
     (commits, n)
 end
 
@@ -54,19 +103,98 @@ module Generate_trees_from_trace
 struct
   type t = { mutable tree : Store.tree }
 
-  type stats = {
-    mutable adds : int;
-    mutable removes : int;
-    mutable finds : int;
-    mutable mems : int;
-    mutable mem_tree : int;
-    mutable copies : int;
-  }
+  type stat_entry =
+    [ `Add | `Remove | `Find | `Mem | `Mem_tree | `Checkout | `Copy | `Commit ]
+  [@@deriving repr]
 
-  let stats =
-    { adds = 0; removes = 0; finds = 0; mems = 0; mem_tree = 0; copies = 0 }
+  let op_tags =
+    [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit ]
 
-  let get_stats () = stats
+  (** One running histogram for each trace base operartions.
+
+      The histograms are computed using https://github.com/barko/bentov.
+
+      [Bentov] does exactly what's needed here, i.e. compute dynamic histograms
+      without any a-priori informations on the timings distribution being
+      available while keeping a constant memory space and a marginal cpu
+      footprint.
+
+      [Bentov] does exactly the right thing here, i.e. computing dynamic
+      histograms without the need for a priori information on the distributions,
+      while maintaining a constant memory space and a marginal CPU footprint.
+
+      The implementation of that library is pretty straightforward, but not
+      perfect; it doesn't scale well with the number of bins. I chose 32
+      randomly.
+
+      The computed histogram depends on the order of the operations, some
+      maginal unsabilities are to be expected. *)
+  let histo_per_op =
+    op_tags
+    |> List.map (fun which -> (which, Bentov.create 32))
+    |> List.to_seq
+    |> Hashtbl.of_seq
+
+  (** Find and print the largest directory. This may be useful in the future to
+      make sure that we are benching on million-sized directories. *)
+  let _largest_directory { tree } =
+    let rec aux : _ -> Store.step list * int = function
+      | `Contents _ -> ([], 0)
+      | `Tree l ->
+          List.fold_left
+            (fun acc (step, concrete) ->
+              let steps, n = aux concrete in
+              if n > snd acc then (step :: steps, n) else acc)
+            ([], List.length l)
+            l
+    in
+    let+ concrete = Store.Tree.to_concrete tree in
+    aux concrete
+
+  let pp_stats fmt (as_json, flatten, inode_config) =
+    let total =
+      Hashtbl.to_seq histo_per_op
+      |> Seq.map snd
+      |> Seq.map (fun histo ->
+             Bentov.mean histo *. float_of_int (Bentov.total_count histo))
+      |> Seq.fold_left ( +. ) 0.
+    in
+    let total = if total = 0. then 1. else total in
+    let pp_stat fmt which =
+      let histo = Hashtbl.find histo_per_op which in
+      let n = Bentov.total_count histo in
+      let el = Bentov.mean histo *. float_of_int n in
+      if as_json then
+        let pp_bar fmt (bin : Bentov.bin) =
+          Format.fprintf fmt "[%2d,%.3e]" bin.count bin.center
+        in
+        Format.fprintf fmt "%a:[%a]" (Repr.pp stat_entry_t) which
+          Fmt.(list ~sep:(any ",") pp_bar)
+          (Bentov.bins histo)
+      else
+        Format.fprintf fmt "%d %a %.3f sec (%.1f%%)" n (Repr.pp stat_entry_t)
+          which el
+          (el /. total *. 100.)
+    in
+    if as_json then
+      Fmt.pf fmt
+        "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", @\n\
+         \"points\":{%a}}"
+        "missing"
+        (if flatten then 1 else 0)
+        pp_inode_config inode_config
+        Fmt.(list ~sep:(any ",@\n") pp_stat)
+        op_tags
+    else Fmt.pf fmt "%a" Fmt.(list ~sep:(any "@\n") pp_stat) op_tags
+
+  let with_monitoring which f =
+    let histo0 = Hashtbl.find histo_per_op which in
+    let t0 = Mtime_clock.counter () in
+    let+ res = f () in
+    let el1 = Mtime_clock.count t0 in
+    let histo1 = Bentov.add (Mtime.Span.to_s el1) histo0 in
+    Hashtbl.replace histo_per_op which histo1;
+    res
 
   let error_find op k b n_op n_c =
     Fmt.failwith
@@ -75,70 +203,92 @@ struct
       Fmt.(list ~sep:comma string)
       k b
 
+  let exec_add t _repo prev_commit _n i key v () =
+    let+ tree = Store.Tree.add t.tree key v in
+    t.tree <- tree;
+    (i + 1, prev_commit)
+
+  let exec_remove t _repo prev_commit _n i keys () =
+    let+ tree = Store.Tree.remove t.tree keys in
+    t.tree <- tree;
+    (i + 1, prev_commit)
+
+  let exec_find t _repo prev_commit n i keys b () =
+    Store.Tree.find t.tree keys >|= function
+    | None when not b -> (i + 1, prev_commit)
+    | Some _ when b -> (i + 1, prev_commit)
+    | _ -> error_find "find" keys b i n
+
+  let exec_mem t _repo prev_commit n i keys b () =
+    let+ b' = Store.Tree.mem t.tree keys in
+    if b <> b' then error_find "mem" keys b i n;
+    (i + 1, prev_commit)
+
+  let exec_mem_tree t _repo prev_commit n i keys b () =
+    let+ b' = Store.Tree.mem_tree t.tree keys in
+    if b <> b' then error_find "mem_tree" keys b i n;
+    (i + 1, prev_commit)
+
+  let exec_checkout t repo prev_commit _n i () =
+    Option.get prev_commit |> Store.Commit.of_hash repo >|= function
+    | None -> Fmt.failwith "prev commit not found"
+    | Some commit ->
+        let tree = Store.Commit.tree commit in
+        t.tree <- tree;
+        (i + 1, prev_commit)
+
+  let exec_copy t _repo prev_commit _n i from to_ () =
+    Store.Tree.find_tree t.tree from >>= function
+    | None -> Lwt.return (i + 1, prev_commit)
+    | Some sub_tree ->
+        let+ tree = Store.Tree.add_tree t.tree to_ sub_tree in
+        t.tree <- tree;
+        (i + 1, prev_commit)
+
+  let exec_commit t repo prev_commit _n i date message () =
+    (* in tezos commits call Tree.list first for the unshallow operation *)
+    let* _ = Store.Tree.list t.tree [] in
+    let info = Irmin.Info.v ~date ~author:"Tezos" message in
+    let parents = match prev_commit with None -> [] | Some p -> [ p ] in
+    let+ commit = Store.Commit.v repo ~info ~parents t.tree in
+    Store.Tree.clear t.tree;
+    (i + 1, Some (Store.Commit.hash commit))
+
   let add_operations t repo prev_commit operations n =
     Lwt_list.fold_left_s
       (fun (i, prev_commit) (operation : op) ->
         match operation with
         | Add (key, v) ->
-            stats.adds <- succ stats.adds;
-            let+ tree = Store.Tree.add t.tree key v in
-            t.tree <- tree;
-            (i + 1, prev_commit)
+            exec_add t repo prev_commit n i key v |> with_monitoring `Add
         | Remove keys ->
-            stats.removes <- succ stats.removes;
-            let+ tree = Store.Tree.remove t.tree keys in
-            t.tree <- tree;
-            (i + 1, prev_commit)
-        | Find (keys, b) -> (
-            stats.finds <- succ stats.finds;
-            Store.Tree.find t.tree keys >|= function
-            | None when not b -> (i + 1, prev_commit)
-            | Some _ when b -> (i + 1, prev_commit)
-            | _ -> error_find "find" keys b i n)
+            exec_remove t repo prev_commit n i keys |> with_monitoring `Remove
+        | Find (keys, b) ->
+            exec_find t repo prev_commit n i keys b |> with_monitoring `Find
         | Mem (keys, b) ->
-            stats.mems <- succ stats.mems;
-            let+ b' = Store.Tree.mem t.tree keys in
-            if b <> b' then error_find "mem" keys b i n;
-            (i + 1, prev_commit)
+            exec_mem t repo prev_commit n i keys b |> with_monitoring `Mem
         | Mem_tree (keys, b) ->
-            stats.mem_tree <- succ stats.mem_tree;
-            let+ b' = Store.Tree.mem_tree t.tree keys in
-            if b <> b' then error_find "mem_tree" keys b i n;
-            (i + 1, prev_commit)
-        | Checkout _ -> (
-            Option.get prev_commit |> Store.Commit.of_hash repo >|= function
-            | None -> Fmt.failwith "prev commit not found"
-            | Some commit ->
-                let tree = Store.Commit.tree commit in
-                t.tree <- tree;
-                (i + 1, prev_commit))
-        | Copy (from, to_) -> (
-            stats.copies <- succ stats.copies;
-            Store.Tree.find_tree t.tree from >>= function
-            | None -> Lwt.return (i + 1, prev_commit)
-            | Some sub_tree ->
-                let+ tree = Store.Tree.add_tree t.tree to_ sub_tree in
-                t.tree <- tree;
-                (i + 1, prev_commit))
+            exec_mem_tree t repo prev_commit n i keys b
+            |> with_monitoring `Mem_tree
+        | Checkout _ ->
+            exec_checkout t repo prev_commit n i |> with_monitoring `Checkout
+        | Copy (from, to_) ->
+            exec_copy t repo prev_commit n i from to_ |> with_monitoring `Copy
         | Commit (_, date, message, _) ->
-            (* in tezos commits call Tree.list first for the unshallow operation *)
-            let* _ = Store.Tree.list t.tree [] in
-            let info = Irmin.Info.v ~date ~author:"Tezos" message in
-            let parents =
-              match prev_commit with None -> [] | Some p -> [ p ]
-            in
-            let+ commit = Store.Commit.v repo ~info ~parents t.tree in
-            Store.Tree.clear t.tree;
-            (i + 1, Some (Store.Commit.hash commit)))
+            exec_commit t repo prev_commit n i date message
+            |> with_monitoring `Commit)
       (0, prev_commit) operations
 
   let add_commits repo commits () =
+    with_progress_bar ~message:"Replaying trace" ~n:(Array.length commits)
+      ~unit:"commits" ~sampling_interval:50
+    @@ fun prog ->
     let t = { tree = Store.Tree.empty } in
     let rec array_iter_lwt prev_commit i =
       if i >= Array.length commits then Lwt.return_unit
       else
         let operations = commits.(i) in
         let* _, prev_commit = add_operations t repo prev_commit operations i in
+        prog Int64.one;
         array_iter_lwt prev_commit (i + 1)
     in
     array_iter_lwt None 0
@@ -153,7 +303,8 @@ type config = {
   nlarge_trees : int;
   operations_file : string;
   root : string;
-  quick : bool;
+  flatten : bool;
+  inode_config : [ `Entries_32 | `Entries_2 ];
   commit_data_file : string;
 }
 
@@ -197,39 +348,61 @@ struct
         let* tree = f tree in
         Store.Commit.v repo ~info:(info ()) ~parents:[ prev_commit ] tree
 
-  let add_commits repo ncommits f () =
+  let add_commits ~message repo ncommits f () =
+    with_progress_bar ~message ~n:ncommits ~unit:"commits" ~sampling_interval:1
+    @@ fun prog ->
     let* c = init_commit repo in
     let rec aux c i =
       if i >= ncommits then Lwt.return c
       else
         let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
+        prog Int64.one;
         aux c' (i + 1)
     in
     let+ _ = aux c 0 in
     ()
 
-  let run ~mode config =
+  let run_large config =
     reset_stats ();
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
     let* repo = Store.Repo.v conf in
     let* result =
-      (match mode with
-      | `Large ->
-          Trees.add_large_trees config.width config.nlarge_trees
-          |> add_commits repo config.ncommits
-      | `Chains ->
-          Trees.add_chain_trees config.depth config.nchain_trees
-          |> add_commits repo config.ncommits)
+      Trees.add_large_trees config.width config.nlarge_trees
+      |> add_commits ~message:"Playing large mode" repo config.ncommits
       |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
-    (config, result)
+    fun fmt ->
+      Format.fprintf fmt
+        "Large trees mode on inode config %a: %d commits, each consisting of \
+         %d large trees of %d entries\n\
+         %a"
+        pp_inode_config config.inode_config config.ncommits config.nlarge_trees
+        config.width Benchmark.pp_results result
 
-  let run_read_trace ?quick config =
+  let run_chains config =
     reset_stats ();
-    let ncommits = if quick = Some () then 10000 else config.ncommits_trace in
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let* repo = Store.Repo.v conf in
+    let* result =
+      Trees.add_chain_trees config.depth config.nchain_trees
+      |> add_commits ~message:"Playing chain mode" repo config.ncommits
+      |> Benchmark.run config
+    in
+    let+ () = Store.Repo.close repo in
+    fun fmt ->
+      Format.fprintf fmt
+        "Chain trees mode on inode config %a: %d commits, each consisting of \
+         %d chains of depth %d\n\
+         %a"
+        pp_inode_config config.inode_config config.ncommits config.nchain_trees
+        config.depth Benchmark.pp_results result
+
+  let run_read_trace config =
+    reset_stats ();
     let commits, n =
-      Parse_trace.populate_array ncommits config.commit_data_file
+      Parse_trace.populate_array config.ncommits_trace config.flatten
+        config.commit_data_file
     in
     let config = { config with ncommits_trace = n } in
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
@@ -238,7 +411,13 @@ struct
       Trees_trace.add_commits repo commits |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
-    (config, result)
+    fun fmt ->
+      Format.fprintf fmt
+        "Tezos_log mode on inode config %a: %d commits @\n%a@\n%a"
+        pp_inode_config config.inode_config config.ncommits_trace
+        Trees_trace.pp_stats
+        (true, config.flatten, config.inode_config)
+        Benchmark.pp_results result
 end
 
 module Bench_inodes_32 = Bench_suite (Conf)
@@ -252,9 +431,8 @@ type mode_elt = [ `Read_trace | `Chains | `Large ]
 
 type suite_elt = {
   mode : mode_elt;
-  speed : [ `Quick | `Slow ];
-  inode_config : [ `Entries_32 | `Entries_2 ];
-  run : config -> (config * Benchmark.result) Lwt.t;
+  speed : [ `Quick | `Slow | `Custom ];
+  run : config -> (Format.formatter -> unit) Lwt.t;
 }
 
 let suite : suite_elt list =
@@ -262,111 +440,179 @@ let suite : suite_elt list =
     {
       mode = `Read_trace;
       speed = `Quick;
-      inode_config = `Entries_32;
-      run = Bench_inodes_32.run_read_trace ~quick:();
+      run =
+        (fun config ->
+          Bench_inodes_32.run_read_trace
+            {
+              config with
+              ncommits_trace = 10000;
+              flatten = false;
+              inode_config = `Entries_32;
+            });
     };
     {
       mode = `Read_trace;
       speed = `Slow;
-      inode_config = `Entries_32;
-      run = Bench_inodes_32.run_read_trace;
+      run =
+        (fun config ->
+          Bench_inodes_32.run_read_trace
+            {
+              config with
+              ncommits_trace = 13315;
+              flatten = false;
+              inode_config = `Entries_32;
+            });
     };
     {
       mode = `Chains;
       speed = `Quick;
-      inode_config = `Entries_32;
-      run = Bench_inodes_32.run ~mode:`Chains;
+      run =
+        (fun config ->
+          Bench_inodes_32.run_chains
+            {
+              config with
+              ncommits = 2;
+              depth = 1000;
+              nchain_trees = 1;
+              inode_config = `Entries_32;
+            });
     };
     {
       mode = `Chains;
       speed = `Slow;
-      inode_config = `Entries_2;
-      run = Bench_inodes_2.run ~mode:`Chains;
+      run =
+        (fun config ->
+          Bench_inodes_2.run_chains
+            {
+              config with
+              ncommits = 2;
+              depth = 1000;
+              nchain_trees = 1;
+              inode_config = `Entries_2;
+            });
     };
     {
       mode = `Large;
       speed = `Quick;
-      inode_config = `Entries_32;
-      run = Bench_inodes_32.run ~mode:`Large;
+      run =
+        (fun config ->
+          Bench_inodes_32.run_large
+            {
+              config with
+              ncommits = 2;
+              width = 1_000_000;
+              nlarge_trees = 1;
+              inode_config = `Entries_32;
+            });
     };
     {
       mode = `Large;
       speed = `Slow;
-      inode_config = `Entries_2;
-      run = Bench_inodes_2.run ~mode:`Large;
+      run =
+        (fun config ->
+          Bench_inodes_2.run_large
+            {
+              config with
+              ncommits = 2;
+              width = 1_000_000;
+              nlarge_trees = 1;
+              inode_config = `Entries_2;
+            });
+    };
+    {
+      mode = `Read_trace;
+      speed = `Custom;
+      run =
+        (fun config ->
+          match config.inode_config with
+          | `Entries_2 -> Bench_inodes_2.run_read_trace config
+          | `Entries_32 -> Bench_inodes_32.run_read_trace config);
+    };
+    {
+      mode = `Chains;
+      speed = `Custom;
+      run =
+        (fun config ->
+          match config.inode_config with
+          | `Entries_2 -> Bench_inodes_2.run_chains config
+          | `Entries_32 -> Bench_inodes_32.run_chains config);
+    };
+    {
+      mode = `Large;
+      speed = `Custom;
+      run =
+        (fun config ->
+          match config.inode_config with
+          | `Entries_2 -> Bench_inodes_2.run_large config
+          | `Entries_32 -> Bench_inodes_32.run_large config);
     };
   ]
 
-let pp_inode_config fmt = function
-  | `Entries_2 -> Format.fprintf fmt "[2, 5]"
-  | `Entries_32 -> Format.fprintf fmt "[32, 256]"
+let get_suite suite_filter =
+  List.filter
+    (fun { mode; speed; _ } ->
+      match (suite_filter, speed, mode) with
+      | `Slow, `Quick, `Read_trace ->
+          (* The suite contains two `Read_trace benchmarks, let's keep the
+                `Slow one only *)
+          false
+      | `Slow, (`Slow | `Quick), _ -> true
+      | `Quick, `Quick, _ -> true
+      | `Custom_trace, `Custom, `Read_trace -> true
+      | `Custom_chains, `Custom, `Chains -> true
+      | `Custom_large, `Custom, `Large -> true
+      | _, _, _ -> false)
+    suite
 
-let pp_config b config fmt () =
-  match b.mode with
-  | `Read_trace ->
-      let stats = Bench_inodes_32.Trees_trace.get_stats () in
-      Format.fprintf fmt
-        "Tezos_log mode on inode config %a: %d commits (%d adds; %d removes; \
-         %d finds; %d mems; %d mem_tree; %d copies)"
-        pp_inode_config b.inode_config config.ncommits_trace stats.adds
-        stats.removes stats.finds stats.mems stats.mem_tree stats.copies
-  | `Chains ->
-      Format.fprintf fmt
-        "Chain trees mode on inode config %a: %d commits, each consisting of \
-         %d chains of depth %d"
-        pp_inode_config b.inode_config config.ncommits config.nchain_trees
-        config.depth
-  | `Large ->
-      Format.fprintf fmt
-        "Large trees mode on inode config %a: %d commits, each consisting of \
-         %d large trees of %d entries"
-        pp_inode_config b.inode_config config.ncommits config.nlarge_trees
-        config.width
-
-let main ncommits ncommits_trace operations_file quick depth width nchain_trees
-    nlarge_trees commit_data_file =
+let main ncommits ncommits_trace operations_file suite_filter inode_config
+    flatten depth width nchain_trees nlarge_trees commit_data_file =
   let config =
     {
       ncommits;
       ncommits_trace;
       operations_file;
       root = "test-bench";
-      quick;
+      flatten;
       depth;
       width;
       nchain_trees;
       nlarge_trees;
       commit_data_file;
+      inode_config;
     }
   in
   Printexc.record_backtrace true;
   Random.self_init ();
   FSHelper.rm_dir config.root;
-  let suite =
-    (* The suite contains two `Read_trace benchmarks. To prevent running both of
-       them when `Quick is not set, we remove the first one (which is the head
-       of the suite as well). *)
-    if config.quick then List.filter (fun b -> b.speed = `Quick) suite
-    else List.tl suite
-  in
-  let run_benchmarks () =
-    Lwt_list.fold_left_s
-      (fun (config, results) (b : suite_elt) ->
-        let+ config, result = b.run config in
-        (config, (b, result) :: results))
-      (config, []) suite
-  in
-  let config, results = Lwt_main.run (run_benchmarks ()) in
-  let pp_result fmt (b, result) =
-    Format.fprintf fmt "Configuration:@\n @[%a@]@\n@\nResults:@\n @[%a@]@\n"
-      (pp_config b config) () Benchmark.pp_results result
-  in
-  Fmt.pr "%a@." Fmt.(list ~sep:(any "@\n@\n") pp_result) results
+  let suite = get_suite suite_filter in
+  let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
+  let results = Lwt_main.run (run_benchmarks ()) in
+  Fmt.pr "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun fmt f -> f fmt)) results
 
 open Cmdliner
 
-let quick =
-  let doc = Arg.info ~doc:"Run the quick benchmarks" [ "quick" ] in
+let mode =
+  let mode =
+    [
+      ("slow", `Slow);
+      ("quick", `Quick);
+      ("trace", `Custom_trace);
+      ("chains", `Custom_chains);
+      ("large", `Custom_large);
+    ]
+  in
+  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "mode" ] in
+  Arg.(value @@ opt (Arg.enum mode) `Slow doc)
+
+let inode_config =
+  let mode = [ ("2", `Entries_2); ("32", `Entries_32) ] in
+  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "inode-config" ] in
+  Arg.(value @@ opt (Arg.enum mode) `Entries_32 doc)
+
+let flatten =
+  let doc =
+    Arg.info ~doc:"Flatten the paths in the trace benchmarks" [ "flatten" ]
+  in
   Arg.(value @@ flag doc)
 
 let ncommits =
@@ -429,7 +675,9 @@ let main_term =
     $ ncommits
     $ ncommits_trace
     $ operations_file
-    $ quick
+    $ mode
+    $ inode_config
+    $ flatten
     $ depth
     $ width
     $ nchain_trees

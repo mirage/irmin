@@ -35,6 +35,19 @@ let with_timer f =
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
+let with_progress_bar ~message ~n ~unit ~sampling_interval =
+  let bar =
+    let w =
+      if n = 0 then 1
+      else float_of_int n |> log10 |> floor |> int_of_float |> succ
+    in
+    let pp fmt i = Format.fprintf fmt "%*Ld/%*d %s" w i w n unit in
+    let pp f = f ~width:(w + 1 + w + 1 + String.length unit) pp in
+    Progress_unix.counter ~mode:`ASCII ~width:79 ~total:(Int64.of_int n)
+      ~sampling_interval ~message ~pp ()
+  in
+  Progress_unix.with_reporters bar
+
 module Conf = struct
   let entries = 32
   let stable_hash = 256
