@@ -114,11 +114,6 @@ struct
 
       The histograms are computed using https://github.com/barko/bentov.
 
-      [Bentov] does exactly what's needed here, i.e. compute dynamic histograms
-      without any a-priori informations on the timings distribution being
-      available while keeping a constant memory space and a marginal cpu
-      footprint.
-
       [Bentov] does exactly the right thing here, i.e. computing dynamic
       histograms without the need for a priori information on the distributions,
       while maintaining a constant memory space and a marginal CPU footprint.
