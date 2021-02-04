@@ -41,6 +41,8 @@ module Make_intermediate
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
+  let () = assert (Conf.entries <= Conf.stable_hash)
+
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
@@ -487,6 +489,27 @@ struct
 
     let hash t = Lazy.force t.hash
 
+    let is_root t =
+      match t.v with
+      | Tree { depth; _ } when depth = 0 -> true
+      | Tree _ -> false
+      | Values _ ->
+          (* Those 3 facts imply [t is stable => t is root]:
+              - Only 2 functions produce stable inodes: [stabilize] and [empty].
+              - Only the roots are output of [stabilize].
+              - An empty map can only be located at the root.
+
+             Those 3 facts imply [(t is Values /\ t is root) => t is stable]:
+             - All the roots are output of [stabilize].
+             - When an unstable inode enters [stabilize], it becomes stable if
+               it has at most [Conf.stable_hash] leaves.
+             - A [Value] has at most [Conf.stable_hash] leaves because
+               [Conf.entries <= Conf.stable_hash] is enforced somewhere.
+
+             Then [t is Values => (t is root = t is stable)].
+          *)
+          t.stable
+
     let stabilize layout t =
       if t.stable then t
       else
@@ -872,9 +895,25 @@ struct
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
     let add t s value =
-      map t { f = (fun layout v -> I.add ~copy:true layout v s value) }
+      let f layout v =
+        if not @@ I.is_root v then
+          failwith
+            "Can't add anything to an inode that is not a root. You obtained \
+             that inode through the [find] function."
+        else I.add ~copy:true layout v s value
+      in
+      map t { f }
 
-    let remove t s = map t { f = (fun layout v -> I.remove layout v s) }
+    let remove t s =
+      let f layout v =
+        if not @@ I.is_root v then
+          failwith
+            "Can't remove anything from an inode that is not a root. You \
+             obtained that inode through the [find] function."
+        else I.remove layout v s
+      in
+      map t { f }
+
     let pre_hash_binv = Irmin.Type.(unstage (pre_hash Bin.v_t))
     let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
 
@@ -896,7 +935,14 @@ struct
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
     let save ~add ~mem t =
-      apply t { f = (fun layout v -> I.save layout ~add ~mem v) }
+      let f layout v =
+        if not @@ I.is_root v then
+          failwith
+            "Can't save to backend an inode that is not a root. You obtained \
+             that inode through the [find] function."
+        else I.save layout ~add ~mem v
+      in
+      apply t { f }
 
     let of_bin find' v =
       let rec find h =
