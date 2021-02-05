@@ -172,9 +172,9 @@ module type S = sig
 
   type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
-      the objects of the lazy nodes. [`False f] is applying [f] on every lazy
-      node instead. [`And_clear] is like [`True] but also eagerly empty the Tree
-      caches when traversing sub-nodes. *)
+      the objects of the lazy nodes and contents. [`False f] is applying [f] on
+      every lazy node and content value instead. [`And_clear] is like [`True]
+      but also eagerly empties the Tree caches when traversing sub-nodes. *)
 
   type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the

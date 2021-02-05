@@ -986,11 +986,7 @@ module Make (P : Private.S) = struct
   let fold ?(force = `And_clear) ?(uniq = `False) ?(pre = id) ?(post = id)
       ?depth ?(contents = id) ?(node = id) (t : t) acc =
     match t with
-    | `Contents (c, _) -> (
-        (* TODO: respect {!force} here? *)
-        Contents.to_value c >>= function
-        | Error (`Dangling_hash _) -> assert false
-        | Ok v -> contents Path.empty v acc)
+    | `Contents (c, _) -> Contents.fold ~force ~path:Path.empty contents c acc
     | `Node n ->
         Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
           ~node n acc
