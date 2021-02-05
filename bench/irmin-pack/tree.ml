@@ -20,9 +20,9 @@ type op =
   | Copy of key * key
 [@@deriving yojson]
 
-let pp_inode_config fmt = function
-  | `Entries_2 -> Format.fprintf fmt "[2, 5]"
-  | `Entries_32 -> Format.fprintf fmt "[32, 256]"
+let pp_inode_config ppf = function
+  | `Entries_2 -> Format.fprintf ppf "[2, 5]"
+  | `Entries_32 -> Format.fprintf ppf "[32, 256]"
 
 module Parse_trace = struct
   let is_hex_char = function
@@ -154,7 +154,7 @@ struct
     let+ concrete = Store.Tree.to_concrete tree in
     aux concrete
 
-  let pp_stats fmt (as_json, flatten, inode_config) =
+  let pp_stats ppf (as_json, flatten, inode_config) =
     let total =
       Hashtbl.to_seq histo_per_op
       |> Seq.map snd
@@ -163,24 +163,24 @@ struct
       |> Seq.fold_left ( +. ) 0.
     in
     let total = if total = 0. then 1. else total in
-    let pp_stat fmt which =
+    let pp_stat ppf which =
       let histo = Hashtbl.find histo_per_op which in
       let n = Bentov.total_count histo in
       let el = Bentov.mean histo *. float_of_int n in
       if as_json then
-        let pp_bar fmt (bin : Bentov.bin) =
-          Format.fprintf fmt "[%2d,%.3e]" bin.count bin.center
+        let pp_bar ppf (bin : Bentov.bin) =
+          Format.fprintf ppf "[%2d,%.3e]" bin.count bin.center
         in
-        Format.fprintf fmt "%a:[%a]" (Repr.pp stat_entry_t) which
-          Fmt.(list ~sep:(any ",") pp_bar)
+        Format.fprintf ppf "%a:[%a]" (Repr.pp stat_entry_t) which
+          Ppf.(list ~sep:(any ",") pp_bar)
           (Bentov.bins histo)
       else
-        Format.fprintf fmt "%d %a %.3f sec (%.1f%%)" n (Repr.pp stat_entry_t)
+        Format.fprintf ppf "%d %a %.3f sec (%.1f%%)" n (Repr.pp stat_entry_t)
           which el
           (el /. total *. 100.)
     in
     if as_json then
-      Fmt.pf fmt
+      Fmt.pf ppf
         "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", @\n\
          \"points\":{%a}}"
         "missing"
@@ -188,7 +188,7 @@ struct
         pp_inode_config inode_config
         Fmt.(list ~sep:(any ",@\n") pp_stat)
         op_tags
-    else Fmt.pf fmt "%a" Fmt.(list ~sep:(any "@\n") pp_stat) op_tags
+    else Fmt.pf ppf "%a" Fmt.(list ~sep:(any "@\n") pp_stat) op_tags
 
   let with_monitoring which f =
     let histo0 = Hashtbl.find histo_per_op which in
@@ -317,8 +317,8 @@ module Benchmark = struct
     let size = FSHelper.get_size config.root in
     { time; size }
 
-  let pp_results fmt result =
-    Format.fprintf fmt "Total time: %f@\nSize on disk: %d M" result.time
+  let pp_results ppf result =
+    Format.fprintf ppf "Total time: %f@\nSize on disk: %d M" result.time
       result.size
 end
 
@@ -373,8 +373,8 @@ struct
       |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
-    fun fmt ->
-      Format.fprintf fmt
+    fun ppf ->
+      Format.fprintf ppf
         "Large trees mode on inode config %a: %d commits, each consisting of \
          %d large trees of %d entries\n\
          %a"
@@ -391,8 +391,8 @@ struct
       |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
-    fun fmt ->
-      Format.fprintf fmt
+    fun ppf ->
+      Format.fprintf ppf
         "Chain trees mode on inode config %a: %d commits, each consisting of \
          %d chains of depth %d\n\
          %a"
@@ -423,8 +423,8 @@ struct
       (true, config.flatten, config.inode_config);
     close_out json_channel;
 
-    fun fmt ->
-      Format.fprintf fmt
+    fun ppf ->
+      Format.fprintf ppf
         "Tezos_log mode on inode config %a: %d commits @\n%a@\n%a"
         pp_inode_config config.inode_config config.ncommits_trace
         Trees_trace.pp_stats
@@ -564,16 +564,19 @@ let get_suite suite_filter =
   List.filter
     (fun { mode; speed; _ } ->
       match (suite_filter, speed, mode) with
-      | `Slow, `Quick, `Read_trace ->
-          (* The suite contains two `Read_trace benchmarks, let's keep the
-                `Slow one only *)
-          false
+      | `Slow, `Slow, `Read_trace ->
+          (* The suite contains several `Read_trace benchmarks, let's keep the
+             slow one only *)
+          true
+      | `Slow, _, `Read_trace -> false
       | `Slow, (`Slow | `Quick), _ -> true
       | `Quick, `Quick, _ -> true
       | `Custom_trace, `Custom, `Read_trace -> true
       | `Custom_chains, `Custom, `Chains -> true
       | `Custom_large, `Custom, `Large -> true
-      | (`Slow | `Quick | `Custom_trace | `Custom_chains | `Custom_large), _, _ -> false)
+      | (`Slow | `Quick | `Custom_trace | `Custom_chains | `Custom_large), _, _
+        ->
+          false)
     suite
 
 let main ncommits ncommits_trace suite_filter inode_config flatten depth width
@@ -599,7 +602,7 @@ let main ncommits ncommits_trace suite_filter inode_config flatten depth width
   let suite = get_suite suite_filter in
   let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
   let results = Lwt_main.run (run_benchmarks ()) in
-  Fmt.pr "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun fmt f -> f fmt)) results
+  Fmt.pr "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results
 
 open Cmdliner
 
@@ -670,8 +673,8 @@ let commit_data_file =
   let doc =
     Arg.info ~docv:"PATH"
       ~doc:
-        "Path to the JSON-encoded commit data to use for the benchmark run. \
-         An example of this data is available at\n\
+        "Path to the JSON-encoded commit data to use for the benchmark run. An \
+         example of this data is available at\n\
          https://github.com/icristescu/dataset"
       []
   in
