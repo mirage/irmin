@@ -306,6 +306,7 @@ type config = {
   flatten : bool;
   inode_config : [ `Entries_32 | `Entries_2 ];
   commit_data_file : string;
+  results_dir : string;
 }
 
 module Benchmark = struct
@@ -411,12 +412,23 @@ struct
       Trees_trace.add_commits repo commits |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
+    prepare_results_dir config.results_dir;
+    let json_channel =
+      let ( / ) = Filename.concat in
+      config.results_dir / "boostrap_trace.json" |> open_out
+    in
+    Format.fprintf
+      (Format.formatter_of_out_channel json_channel)
+      "%a" Trees_trace.pp_stats
+      (true, config.flatten, config.inode_config);
+    close_out json_channel;
+
     fun fmt ->
       Format.fprintf fmt
         "Tezos_log mode on inode config %a: %d commits @\n%a@\n%a"
         pp_inode_config config.inode_config config.ncommits_trace
         Trees_trace.pp_stats
-        (true, config.flatten, config.inode_config)
+        (false, config.flatten, config.inode_config)
         Benchmark.pp_results result
 end
 
@@ -565,7 +577,7 @@ let get_suite suite_filter =
     suite
 
 let main ncommits ncommits_trace suite_filter inode_config flatten depth width
-    nchain_trees nlarge_trees commit_data_file =
+    nchain_trees nlarge_trees commit_data_file results_dir =
   let config =
     {
       ncommits;
@@ -578,6 +590,7 @@ let main ncommits ncommits_trace suite_filter inode_config flatten depth width
       nlarge_trees;
       commit_data_file;
       inode_config;
+      results_dir;
     }
   in
   Printexc.record_backtrace true;
@@ -664,6 +677,13 @@ let commit_data_file =
   in
   Arg.(required @@ pos 0 (some string) None doc)
 
+let results_dir =
+  let doc =
+    Arg.info ~docv:"PATH" ~doc:"Destination of the bench artefacts."
+      [ "results" ]
+  in
+  Arg.(value @@ opt string default_results_dir doc)
+
 let main_term =
   Term.(
     const main
@@ -676,7 +696,8 @@ let main_term =
     $ width
     $ nchain_trees
     $ nlarge_trees
-    $ commit_data_file)
+    $ commit_data_file
+    $ results_dir)
 
 let () =
   let info = Term.info "Benchmarks for tree operations" in

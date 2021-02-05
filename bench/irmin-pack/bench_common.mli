@@ -1,3 +1,5 @@
+val default_results_dir : string
+val prepare_results_dir : string -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter
 val reset_stats : unit -> unit
 val with_timer : (unit -> 'a Lwt.t) -> (float * 'a) Lwt.t

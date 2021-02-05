@@ -29,6 +29,21 @@ let random_string n = String.init n (fun _i -> random_char ())
 let random_blob () = random_string 10
 let random_key () = random_string 5
 
+let default_results_dir =
+  let ( / ) = Filename.concat in
+  Unix.getcwd () / "_results" / Uuidm.to_string (Uuidm.v `V4)
+
+let prepare_results_dir path =
+  let rec mkdir_p path =
+    if Sys.file_exists path then ()
+    else
+      let path' = Filename.dirname path in
+      if path' = path then failwith "Failed to prepare result dir";
+      mkdir_p path';
+      Unix.mkdir path 0o755
+  in
+  mkdir_p path
+
 let with_timer f =
   let t0 = Sys.time () in
   let+ a = f () in
