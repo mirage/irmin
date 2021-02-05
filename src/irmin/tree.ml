@@ -259,6 +259,12 @@ module Make (P : Private.S) = struct
 
     let force = to_value
 
+    let force_exn t =
+      force t >|= function
+      | Ok v -> v
+      | Error (`Dangling_hash h) ->
+          Fmt.failwith "Can't force dangling contents hash: %a" pp_hash h
+
     let equal (x : t) (y : t) =
       x == y
       ||

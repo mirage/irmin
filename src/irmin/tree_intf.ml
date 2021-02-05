@@ -84,6 +84,10 @@ module type S = sig
     (** [force t] forces evaluation of the lazy content value [t], or returns an
         error if no such value exists in the underlying repository. *)
 
+    val force_exn : t -> contents Lwt.t
+    (** Equivalent to {!force}, but raises an exception if the lazy content
+        value is not present in the underlying repository. *)
+
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
   end

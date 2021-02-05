@@ -93,12 +93,9 @@ module Make (P : Private.S) = struct
 
   let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
-    | `Contents (c, _) -> (
-        Tree.Contents.force c >>= function
-        | Ok c -> save_contents x c
-        | Error (`Dangling_hash h) ->
-            Fmt.failwith "Can't save tree with danging contents hash: %a"
-              (Type.pp_dump Hash.t) h)
+    | `Contents (c, _) ->
+        let* c = Tree.Contents.force_exn c in
+        save_contents x c
     | `Node n -> Tree.export ~clear r x y n
 
   type node = Tree.node [@@deriving irmin]

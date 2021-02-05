@@ -311,16 +311,9 @@ struct
                   >>= Lwt_list.map_s (fun (step, tree) ->
                           let absolute_key = Store.Key.rcons tree_key step in
                           match Store.Tree.destruct tree with
-                          | `Contents (c, m) -> (
-                              Store.Tree.Contents.force c >|= function
-                              | Ok c ->
-                                  Lazy.(
-                                    force contents_as_node (c, m, absolute_key))
-                              | Error (`Dangling_hash h) ->
-                                  Fmt.failwith
-                                    "Can't force dangling contents hash: %a"
-                                    (Irmin.Type.pp_dump Store.Hash.t)
-                                    h)
+                          | `Contents (c, m) ->
+                              let+ c = Store.Tree.Contents.force_exn c in
+                              Lazy.(force contents_as_node (c, m, absolute_key))
                           | _ ->
                               Lwt.return
                                 Lazy.(force tree_as_node (tree, absolute_key)))
