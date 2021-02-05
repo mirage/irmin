@@ -1,19 +1,16 @@
-### Unreleased
+## 2.4.0 (2021-02-02)
 
-#### Fixed
+### Fixed
 - **irmin-pack**
   - Fix a bug in `inode` where the `remove` function could cause hashing
     instabilities. No user-facing change since this function is not being used
     yet. (#1247, @Ngoguey42, @icristescu)
 
 - **irmin**
-  Ensure that `Tree.add_tree t k v` complexity does not depend on `v` size.
-  (#1267, @samoht @Ngoguey42 and @CraigFe)
+  - Ensure that `Tree.add_tree t k v` complexity does not depend on `v` size.
+    (#1267, @samoht @Ngoguey42 and @CraigFe)
 
-#### Added
-- **irmin-bench**
-  - Added benchmarks for trees operations. (#1237, @icristescu, @Ngoguey42,
-  @Craigfe)
+### Added
 
 - **irmin**
   - Added a `Perms` module containing helper types for using phantom-typed
@@ -29,6 +26,10 @@
   - Added `integrity-check-inodes` command to `irmin-fsck` for checking the
     integrity of inodes. (#1253, @icristescu, @Ngoguey42)
 
+- **irmin-bench**
+  - Added benchmarks for tree operations. (#1237, @icristescu, @Ngoguey42,
+    @Craigfe)
+
 #### Changed
 
 - The `irmin-mem` package is now included with the `irmin` package under the
@@ -40,7 +41,7 @@
 - `Irmin_mem` no longer provides the layered in-memory store `Make_layered`.
   This can be constructed manually via `Irmin_layers.Make`. (#1276, @CraigFe)
 
-### 2.3.0 (2020-01-12)
+## 2.3.0 (2021-01-12)
 
 ### Fixed
 
@@ -74,7 +75,7 @@
 - **irmin-unix**
   - Update irmin config path to respect `XDG_CONFIG_HOME`. (#1168, @zshipko)
 
-#### Added
+### Added
 
 - **irmin-layers** (_new_):
   - Created a new package, `irmin-layers` that includes common signatures for
@@ -161,7 +162,7 @@
   - Added an extension point `[typ: <core-type>]` for deriving type
     representations inline. (#1087, @CraigFe)
 
-#### Changed
+### Changed
 
 - **irmin**
   - Renamed the `Tree.tree` type to `Tree.t`. (#1022, @CraigFe)
@@ -211,9 +212,9 @@
   - The `[@generic ...]` attribute has been renamed to `[@repr ...]`. (#1082,
     @CraigFe)
 
-### 2.2.0 (2020-06-26)
+## 2.2.0 (2020-06-26)
 
-#### Added
+### Added
 
 - **irmin**:
   - Added `Irmin.Type.empty` to represent an uninhabited type. (#961, @CraigFe)
@@ -231,7 +232,7 @@
   - Added support for a `lib` argument, which can be used to supply primitive
     type representations from modules other than `Irmin.Type`. (#994, @CraigFe)
 
-#### Changed
+### Changed
 
 - **irmin**:
   - Require OCaml 4.07 (#961, @CraigFe)
@@ -260,15 +261,15 @@
   - Stores created with `KV` now expose their unit metadata type. (#995,
     @CraigFe)
 
-#### Fixed
+### Fixed
 
 - **irmin-graphql**
   - Fixed an issue with keys inside `get_{contents,tree}` fields having
     incorrect ordering (#989, @CraigFe)
 
-### 2.1.0 (2020-02-01)
+## 2.1.0 (2020-02-01)
 
-#### Added
+### Added
 
 - **ppx_irmin** (_new_):
   - Created a new package, `ppx_irmin`, which provides a PPX deriving plugin
@@ -288,7 +289,7 @@
   - Added `Merge.with_conflict` for modifying the conflict error message of a
     merge function. (#926, @craigfe)
 
-#### Changed
+### Changed
 
 - **irmin-pack**:
   - Changed the bit-length of serialized hashes from 60 to 30. (#897,
@@ -298,9 +299,9 @@
 - **irmin-graphql**:
   - Changed default GraphQL type names to ensure uniqueness. (#944, @andreas)
 
-### 2.0.0
+## 2.0.0
 
-#### Added
+### Added
 
 - **irmin-pack** (_new_):
   - Created a new Irmin backend, `irmin-pack`, which uses a space-optimised
@@ -360,7 +361,7 @@
   - `Private.Lock` now exposes a `stats` function returning the number of held
     locks. (#704, @samoht)
 
-#### Changed
+### Changed
 
 - **irmin-unix**:
   - Rename `irmin read` to `irmin get` and `irmin write` to `irmin set`. (#501,
@@ -432,7 +433,7 @@
 
   - Rename `Node.update` to `Node.add`. (#713, @samoht)
 
-#### Fixed
+### Fixed
 
 - **irmin-unix**:
    - Fix parsing of commit hashes in `revert` command. (#496, @zshipko)
@@ -447,7 +448,7 @@
   - Fix a bug whereby `S.History.is_empty` would return `true` for a store with
     exactly one commit. (#865, @pascutto)
 
-#### Removed
+### Removed
 
 - **irmin**:
   - Remove `pp` and `of_string` functions from `Irmin.Contents.S` in favour of
@@ -459,27 +460,27 @@
     `Irmin.Contents.String` or else use `Irmin.Type.map` to wrap the Cstruct
     type. (#544, @samoht)
 
-### 1.4.0 (2018-06-06)
+## 1.4.0 (2018-06-06)
 
 - Add types for `Contents.hash`, `Tree.hash` and `Commit.hash` (#512, @samoht)
 - `Tree.hash` and `Tree.of_hash` now work on leaf nodes. To do this, `Tree.hash`
   has to return a more complex type (#512, @samoht)
 - support for webmachine 0.6.0 (#505, @ansiwen)
 
-### 1.3.3 (2018-01-03)
+## 1.3.3 (2018-01-03)
 
 - complete support for OCaml 4.06 (#484, @samoht)
 - support cohttp 1.0 (#484, @samoht)
 
-### 1.3.2 (2017-11-22)
+## 1.3.2 (2017-11-22)
 
 - support OCaml 4.06 where `-safe-string` is enabled by default (#477, @djs55)
 
-### 1.3.1 (2017-08-25)
+## 1.3.1 (2017-08-25)
 
 - irmin-http: update to cohttp.0.99 (#467, @samoht)
 
-### 1.3.0 (2017-07-27)
+## 1.3.0 (2017-07-27)
 
 **irmin-chunk**
 
@@ -518,7 +519,7 @@ That releases saw a nice series of patches to improve the performance of
   Intead use the more explicit (and portable) `{Type,Merge}.int32` or
   `{Type,Merge}.int64` (#469, @samoht)
 
-### 1.2.0 (2017-06-06)
+## 1.2.0 (2017-06-06)
 
 This release changes the build system to use
 [jbuilder](https://github.com/janestreet/jbuilder). By doing so, it introduces
@@ -550,7 +551,7 @@ introduced in the big 1.0 rewrite.
 
 - Fix watches (#446, @samoht)
 
-### 1.1.0 (2017-04-24)
+## 1.1.0 (2017-04-24)
 
 **irmin**
 
@@ -573,7 +574,7 @@ introduced in the big 1.0 rewrite.
 
 - Update to irmin.1.1.0 API changes (@samoht)
 
-### 1.0.2 (2017-03-27)
+## 1.0.2 (2017-03-27)
 
 **irmin**
 
@@ -586,7 +587,7 @@ introduced in the big 1.0 rewrite.
 
 - Add irminconfig man page (#427, @dudelson)
 
-### 1.0.1 (2017-03-14)
+## 1.0.1 (2017-03-14)
 
 **irmin**
 
@@ -599,7 +600,7 @@ introduced in the big 1.0 rewrite.
 
 - Support all versions of cmdliner, 1.0.0 included (@samoht)
 
-### 1.0.0 (2017-02-21)
+## 1.0.0 (2017-02-21)
 
 Major API changes:
 
@@ -749,7 +750,7 @@ More detailled changes:
 - Rename `Irmin_git` into `Git` (#405, @samoht)
 - Rename `Irmin_http` into `Http` (#405, @samoht)
 
-### 0.12.0 (2016-11-17)
+## 0.12.0 (2016-11-17)
 
 * Depends on irmin-watcher 0.2.0 to use portable file-system watches
   (fsevents on OSX or inotify on Linux) to replace the slow and CPU
@@ -765,11 +766,11 @@ More detailled changes:
 * Remove mentions of private modules from the public interface
   (#364, @samoht)
 
-### 0.11.1 (2016-06-14)
+## 0.11.1 (2016-06-14)
 
 * Fix compilation of examples (#359, @samoht)
 
-### 0.11.0 (2016-05-04)
+## 0.11.0 (2016-05-04)
 
 * Use Logs (#342, @talex5)
 * Improve non-unix portablity of `Irmin_fs` (#345, @samoht)
@@ -784,7 +785,7 @@ More detailled changes:
 * Fix performance problem in the computation of LCAs (#351, @talex5)
 * Fix sort order for Git trees (#352, @talex5)
 
-### 0.10.1 (2015-11-26)
+## 0.10.1 (2015-11-26)
 
 * Support for launchd: the `--address` argument of the CLI now
   supports a URI `launchd://<name>` where `<name>` corresponds
@@ -793,7 +794,7 @@ More detailled changes:
 * Expose Store.Key = Contents.Path in Irmin.Maker. Otherwise,
   the type of steps is abstract. (#327, by @talex5)
 
-### 0.10.0 (2015-10-14)
+## 0.10.0 (2015-10-14)
 
 * Fix the `Irmin_mem` backend to work when equal keys might be not
   structurally equal (`Pervasives.(=)` is evil)
@@ -876,7 +877,7 @@ More detailled changes:
   `task_of_commit_id`, `Internals.commit_of_head` is now
   `Internals.commit_of_id` and `BC.Head` is now `BC.Hash`.
 
-### 0.9.10 (2015-10-01)
+## 0.9.10 (2015-10-01)
 
 * Expose the Git compression level (#104, #298 by @samoht)
 * Add an optional `config` argument to all the backend's config
@@ -905,7 +906,7 @@ More detailled changes:
 * Remove the first-class module API. It's confusing to duplicate the API
   (#293, by @talex5)
 
-### 0.9.9 (2015-08-14)
+## 0.9.9 (2015-08-14)
 
 * Allow raw bodies in queries and responses for the REST API. This is
   controlled by the `Content-type` field set by the client:
@@ -928,7 +929,7 @@ More detailled changes:
 * Make the HTTP backend re-raise the `Invalid_argument` and `Failure`
   exceptions that were raised by the server.
 
-### 0.9.8 (2015-07-17)
+## 0.9.8 (2015-07-17)
 
 * Fix wrong interaction of in-memory views and temporary branches in the store
   (#237)
@@ -950,7 +951,7 @@ More detailled changes:
 * Escpate double quotes in the output of commit messages to workaround
   HTML display issues. (#222)
 
-### 0.9.7 (2015-07-06)
+## 0.9.7 (2015-07-06)
 
 * Add a version check for HTTP client and server. The client might add the
   version in the HTTP headers using the `X-IrminVersion` header - the server
@@ -965,7 +966,7 @@ More detailled changes:
   index. The regression has been introduced while trying to fix #190 (the fix
   is in #229)
 
-#### 0.9.6 (2015-07-03)
+## 0.9.6 (2015-07-03)
 
 * Fix the datamodel: it is not possible to store data in intermediate nodes
   anymore (#209)
@@ -981,7 +982,7 @@ More detailled changes:
   `OUnit` and `nocrypto` for the tests.
 * Make the file-locking code a bit more robust
 
-### 0.9.5 (2015-06-11)
+## 0.9.5 (2015-06-11)
 
 * Fix `Irmin.export` for the HTTP backend (#196, patch from Alex Zatelepin)
 * Fix a race in `Irmin.export` (#196, patch from Alex Zatelepin)
@@ -1017,7 +1018,7 @@ More detailled changes:
 * By default, explore the full graph when computing the LCAs. The previous
   behavior was to limit the depth of the exploration to be 256 by default.
 
-### 0.9.4 (2015-03-16)
+## 0.9.4 (2015-03-16)
 
 * Ensure that `Irmin.update` and `Irmin.merge` are atomic.
 * Fix `Irmin.clone` of an empty branch
@@ -1033,7 +1034,7 @@ More detailled changes:
 * Fix performance of lcas computation (#160)
 * Add `Irmin.Merge.promise` combinators
 
-### 0.9.3 (2015-01-04)
+## 0.9.3 (2015-01-04)
 
 * Fix the invalidation of the view caches (report by @gregtatcam).
   This was causing some confusing issues where views' sub-keys where
@@ -1061,7 +1062,7 @@ More detailled changes:
 * Expose `S.lca` to get the least common ancestors
 * Update to ocaml-git 1.4.6
 
-### 0.9.2 (2015-01-19)
+## 0.9.2 (2015-01-19)
 
 * Fix `S.of_head` for the HTTP client (regression introduced in 0.9.0)
 * Fix regression in displaying the store's graph over HTTP introduced by
@@ -1086,11 +1087,11 @@ More detailled changes:
   the resulting Irmin store will be of type `Path.t`.
 * Fix `irmin init --help`. (#103)
 
-### 0.9.1 (2014-12-26)
+## 0.9.1 (2014-12-26)
 
 * Port to Cohttp 0.14.0+ HTTP interface (#102)
 
-### 0.9.0 (2014-12-20)
+## 0.9.0 (2014-12-20)
 
 * Improve the efficiency of the Git backend
 * Expose a cleaner API for the Unix backends
@@ -1106,7 +1107,7 @@ More detailled changes:
 * Fix writing contents at the root of the store (#73)
 * More efficient synchronization protocol between Irmin stores (#11)
 
-### 0.8.3 (2014-06-25)
+## 0.8.3 (2014-06-25)
 
 * Views now keep track of their parent commits - this makes
   View.merge_path looks like a merge between branches. All the
@@ -1118,7 +1119,7 @@ More detailled changes:
   command-line. `dot` does not like big graphs, but that's
   still useful to have the `.dot` file to analyze it.
 
-### 0.8.2 (2014-06-11)
+## 0.8.2 (2014-06-11)
 
 * Support backend specific protocols for push/pull
 * The Irmin Git backend can now sync with remote Git repositories
@@ -1128,7 +1129,7 @@ More detailled changes:
   at the top of your file and use less functor in your code (again,
   check the examples)
 
-### 0.8.1 (2014-06-02)
+## 0.8.1 (2014-06-02)
 
 * Fix the behavior of `IrminMemory.Make` to return an hanlder to a
   shared datastore instead of creating a fresh one. Add
@@ -1139,7 +1140,7 @@ More detailled changes:
   everything by `refs/heads/` anymore)
 * Partial support for recursive stores (WIP)
 
-### 0.8.0 (2014-05-27)
+## 0.8.0 (2014-05-27)
 
 * Spring clean-ups in the API. Separation in IrminBranch for
   fork/join operations, IrminSnapshot for snapshot/revert
@@ -1156,7 +1157,7 @@ More detailled changes:
   an already existing branch
 * Fix order of arguments in Irmin.merge
 
-### 0.7.0 (2014-05-02)
+## 0.7.0 (2014-05-02)
 
 * Feature: support for in-memory transactions. They are built
   on top of views.
@@ -1177,7 +1178,7 @@ More detailled changes:
 * Speed-up IrminValue.Mux
 * Deps: use ocaml-sha instead of cryptokit
 
-### 0.6.0 (2014-04-12)
+## 0.6.0 (2014-04-12)
 
 * Support for user-defined contents (with custom merge operators)
 * Support for merge operations
@@ -1188,11 +1189,11 @@ More detailled changes:
   we also support structured contents (as JSON objects)
 * Support for linking the library without linking to camlp4 as well (#23)
 
-### 0.5.1 (2014-03-02)
+## 0.5.1 (2014-03-02)
 
 * Port to use Cohttp 0.10.0 interface.
 
-### 0.5.0 (2014-02-21)
+## 0.5.0 (2014-02-21)
 
 * More consistent support for notifications. `irmin watch` works
   now for all backends.
@@ -1207,7 +1208,7 @@ More detailled changes:
 * Improve the output graph when objects of different kinds might have
   the same SHA1
 
-### 0.4 (2014-01-21)
+## 0.4 (2014-01-21)
 
 * The command-line tool now looks in the environment for the variable
   `IRMIN` to configure its default backend
@@ -1222,14 +1223,14 @@ More detailled changes:
 * Use `mstruct` (mutable buffers on top of `cstruct`) which is now
   released independently
 
-### 0.3 (2013-12-13)
+## 0.3 (2013-12-13)
 
 * Fix a fd leak in the filesystem bakend
 * Functorize the CRUD interface over the HTTP client implementation
 * Use oasis to build the project
 * Use the now released separately `ezjsonm` and `alcotest` libraries
 
-### 0.2 (2013-11-23)
+## 0.2 (2013-11-23)
 
 * Fix the HTTP server responses
 * More high-level tests
@@ -1243,7 +1244,7 @@ More detailled changes:
 * Improve and make the CLI easier to use
 * Implement clone/pull/push/snapshot/revert in the CLI
 
-### 0.1 (2013-10-30)
+## 0.1 (2013-10-30)
 
 * Use an HTTP server as a front-end
 * Initial support for in-memory and filesystem backends
