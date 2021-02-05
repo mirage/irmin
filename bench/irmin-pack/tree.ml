@@ -114,7 +114,7 @@ struct
 
       The histograms are computed using https://github.com/barko/bentov.
 
-      [Bentov] does exactly the right thing here, i.e. computing dynamic
+      [Bentov] computes dynamic
       histograms without the need for a priori information on the distributions,
       while maintaining a constant memory space and a marginal CPU footprint.
 
@@ -123,7 +123,7 @@ struct
       randomly.
 
       The computed histogram depends on the order of the operations, some
-      maginal unsabilities are to be expected. *)
+      marginal unsabilities are to be expected. *)
   let histo_per_op =
     op_tags
     |> List.map (fun which -> (which, Bentov.create 32))
