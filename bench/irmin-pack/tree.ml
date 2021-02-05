@@ -198,33 +198,33 @@ struct
       Fmt.(list ~sep:comma string)
       k b
 
-  let exec_add t _repo prev_commit _n i key v () =
+  let exec_add t prev_commit i key v () =
     let+ tree = Store.Tree.add t.tree key v in
     t.tree <- tree;
     (i + 1, prev_commit)
 
-  let exec_remove t _repo prev_commit _n i keys () =
+  let exec_remove t prev_commit i keys () =
     let+ tree = Store.Tree.remove t.tree keys in
     t.tree <- tree;
     (i + 1, prev_commit)
 
-  let exec_find t _repo prev_commit n i keys b () =
+  let exec_find t prev_commit n i keys b () =
     Store.Tree.find t.tree keys >|= function
     | None when not b -> (i + 1, prev_commit)
     | Some _ when b -> (i + 1, prev_commit)
     | _ -> error_find "find" keys b i n
 
-  let exec_mem t _repo prev_commit n i keys b () =
+  let exec_mem t prev_commit n i keys b () =
     let+ b' = Store.Tree.mem t.tree keys in
     if b <> b' then error_find "mem" keys b i n;
     (i + 1, prev_commit)
 
-  let exec_mem_tree t _repo prev_commit n i keys b () =
+  let exec_mem_tree t prev_commit n i keys b () =
     let+ b' = Store.Tree.mem_tree t.tree keys in
     if b <> b' then error_find "mem_tree" keys b i n;
     (i + 1, prev_commit)
 
-  let exec_checkout t repo prev_commit _n i () =
+  let exec_checkout t repo prev_commit i () =
     Option.get prev_commit |> Store.Commit.of_hash repo >|= function
     | None -> Fmt.failwith "prev commit not found"
     | Some commit ->
@@ -232,7 +232,7 @@ struct
         t.tree <- tree;
         (i + 1, prev_commit)
 
-  let exec_copy t _repo prev_commit _n i from to_ () =
+  let exec_copy t prev_commit i from to_ () =
     Store.Tree.find_tree t.tree from >>= function
     | None -> Lwt.return (i + 1, prev_commit)
     | Some sub_tree ->
@@ -240,7 +240,7 @@ struct
         t.tree <- tree;
         (i + 1, prev_commit)
 
-  let exec_commit t repo prev_commit _n i date message () =
+  let exec_commit t repo prev_commit i date message () =
     (* in tezos commits call Tree.list first for the unshallow operation *)
     let* _ = Store.Tree.list t.tree [] in
     let info = Irmin.Info.v ~date ~author:"Tezos" message in
@@ -253,23 +253,21 @@ struct
     Lwt_list.fold_left_s
       (fun (i, prev_commit) (operation : op) ->
         match operation with
-        | Add (key, v) ->
-            exec_add t repo prev_commit n i key v |> with_monitoring `Add
+        | Add (key, v) -> exec_add t prev_commit i key v |> with_monitoring `Add
         | Remove keys ->
-            exec_remove t repo prev_commit n i keys |> with_monitoring `Remove
+            exec_remove t prev_commit i keys |> with_monitoring `Remove
         | Find (keys, b) ->
-            exec_find t repo prev_commit n i keys b |> with_monitoring `Find
+            exec_find t prev_commit n i keys b |> with_monitoring `Find
         | Mem (keys, b) ->
-            exec_mem t repo prev_commit n i keys b |> with_monitoring `Mem
+            exec_mem t prev_commit n i keys b |> with_monitoring `Mem
         | Mem_tree (keys, b) ->
-            exec_mem_tree t repo prev_commit n i keys b
-            |> with_monitoring `Mem_tree
+            exec_mem_tree t prev_commit n i keys b |> with_monitoring `Mem_tree
         | Checkout _ ->
-            exec_checkout t repo prev_commit n i |> with_monitoring `Checkout
+            exec_checkout t repo prev_commit i |> with_monitoring `Checkout
         | Copy (from, to_) ->
-            exec_copy t repo prev_commit n i from to_ |> with_monitoring `Copy
+            exec_copy t prev_commit i from to_ |> with_monitoring `Copy
         | Commit (_, date, message, _) ->
-            exec_commit t repo prev_commit n i date message
+            exec_commit t repo prev_commit i date message
             |> with_monitoring `Commit)
       (0, prev_commit) operations
 
