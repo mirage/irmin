@@ -302,7 +302,6 @@ type config = {
   nchain_trees : int;
   width : int;
   nlarge_trees : int;
-  operations_file : string;
   root : string;
   flatten : bool;
   inode_config : [ `Entries_32 | `Entries_2 ];
@@ -565,13 +564,12 @@ let get_suite suite_filter =
       | _, _, _ -> false)
     suite
 
-let main ncommits ncommits_trace operations_file suite_filter inode_config
-    flatten depth width nchain_trees nlarge_trees commit_data_file =
+let main ncommits ncommits_trace suite_filter inode_config flatten depth width
+    nchain_trees nlarge_trees commit_data_file =
   let config =
     {
       ncommits;
       ncommits_trace;
-      operations_file;
       root = "test-bench";
       flatten;
       depth;
@@ -655,17 +653,13 @@ let nlarge_trees =
   in
   Arg.(value @@ opt int 1 doc)
 
-let operations_file =
-  let doc =
-    Arg.info ~doc:"Compressed file containing the tree operations."
-      [ "f"; "file" ]
-  in
-  Arg.(value @@ opt string "bench/irmin-pack/tezos_log.tar.gz" doc)
-
 let commit_data_file =
   let doc =
     Arg.info ~docv:"PATH"
-      ~doc:"Path to the JSON-encoded commit data to use for the benchmark run."
+      ~doc:
+        "Path to the JSON-encoded commit data to use for the benchmark run. \
+         This json can be found in a tarball at\n\
+         https://github.com/icristescu/dataset"
       []
   in
   Arg.(required @@ pos 0 (some string) None doc)
@@ -675,7 +669,6 @@ let main_term =
     const main
     $ ncommits
     $ ncommits_trace
-    $ operations_file
     $ mode
     $ inode_config
     $ flatten
