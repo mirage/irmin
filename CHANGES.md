@@ -1,3 +1,13 @@
+## Unreleased
+
+### Changed
+
+- Changed `Store.Tree.{of_hash, shallow}` to take kinded hashes, allowing the
+  creation of unforced contents values.
+
+- Changed `Tree.destruct` to return _lazy_ contents values, which may be forced
+  with `Tree.Contents.force`.
+
 ## 2.4.0 (2021-02-02)
 
 ### Fixed

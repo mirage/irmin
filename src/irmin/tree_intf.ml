@@ -56,9 +56,6 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  val destruct : t -> elt
-  (** General-purpose destructor for trees. *)
-
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
@@ -86,6 +83,10 @@ module type S = sig
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an
         error if no such value exists in the underlying repository. *)
+
+    val force_exn : t -> contents Lwt.t
+    (** Equivalent to {!force}, but raises an exception if the lazy content
+        value is not present in the underlying repository. *)
 
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
@@ -160,6 +161,9 @@ module type S = sig
 
   (** {1 Folds} *)
 
+  val destruct : t -> [ `Node of node | `Contents of Contents.t * metadata ]
+  (** General-purpose destructor for trees. *)
+
   type marks
   (** The type for fold marks. *)
 
@@ -168,9 +172,9 @@ module type S = sig
 
   type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
-      the objects of the lazy nodes. [`False f] is applying [f] on every lazy
-      node instead. [`And_clear] is like [`True] but also eagerly empty the Tree
-      caches when traversing sub-nodes. *)
+      the objects of the lazy nodes and contents. [`False f] is applying [f] on
+      every lazy node and content value instead. [`And_clear] is like [`True]
+      but also eagerly empties the Tree caches when traversing sub-nodes. *)
 
   type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
@@ -292,8 +296,10 @@ module type Tree = sig
          and type contents = P.Contents.value
          and type hash = P.Hash.t
 
-    val import : P.Repo.t -> P.Node.key -> node option Lwt.t
-    val import_no_check : P.Repo.t -> P.Node.key -> node
+    type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
+
+    val import : P.Repo.t -> kinded_hash -> t option Lwt.t
+    val import_no_check : P.Repo.t -> kinded_hash -> t
 
     val export :
       ?clear:bool ->
@@ -307,7 +313,7 @@ module type Tree = sig
     val equal : t -> t -> bool
     val node_t : node Type.t
     val tree_t : t Type.t
-    val hash : t -> [ `Contents of hash * metadata | `Node of hash ]
+    val hash : t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end

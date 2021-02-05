@@ -308,12 +308,15 @@ struct
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
                   Store.Tree.list tree Store.Key.empty
-                  >|= List.map (fun (step, tree) ->
+                  >>= Lwt_list.map_s (fun (step, tree) ->
                           let absolute_key = Store.Key.rcons tree_key step in
                           match Store.Tree.destruct tree with
                           | `Contents (c, m) ->
+                              let+ c = Store.Tree.Contents.force_exn c in
                               Lazy.(force contents_as_node (c, m, absolute_key))
-                          | _ -> Lazy.(force tree_as_node (tree, absolute_key)))
+                          | _ ->
+                              Lwt.return
+                                Lazy.(force tree_as_node (tree, absolute_key)))
                   >|= Result.ok);
             ]))
 

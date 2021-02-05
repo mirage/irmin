@@ -29,6 +29,7 @@ depends: [
   "yojson"          {with-test}
   "cohttp-lwt-unix" {with-test}
   "alcotest"        {with-test & >= "1.2.3"}
+  "logs"            {with-test}
 ]
 
 
