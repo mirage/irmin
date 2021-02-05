@@ -133,7 +133,7 @@ module Make_helpers (S : S) = struct
 
   let r1 ~repo =
     let* kn2 = n2 ~repo in
-    S.Tree.of_hash repo kn2 >>= function
+    S.Tree.of_hash repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
@@ -141,7 +141,7 @@ module Make_helpers (S : S) = struct
   let r2 ~repo =
     let* kn3 = n3 ~repo in
     let* kr1 = r1 ~repo in
-    S.Tree.of_hash repo kn3 >>= function
+    S.Tree.of_hash repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
         S.Commit.v repo ~info:Irmin.Info.empty ~parents:[ S.Commit.hash kr1 ]

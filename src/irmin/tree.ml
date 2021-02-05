@@ -210,7 +210,6 @@ module Make (P : Private.S) = struct
       | Value _, None -> t.v <- Hash (repo, k)
       | Value _, Some k -> t.v <- Hash (repo, k)
 
-    let t = Type.map v of_v (fun t -> t.v)
     let of_value c = of_v (Value c)
     let of_hash repo k = of_v (Hash (repo, k))
 
@@ -269,6 +268,8 @@ module Make (P : Private.S) = struct
           match (cached_value x, cached_value y) with
           | Some x, Some y -> equal_contents x y
           | _ -> equal_hash (hash x) (hash y))
+
+    let t = Type.map ~equal:(Type.stage equal) v of_v (fun t -> t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -632,54 +633,44 @@ module Make (P : Private.S) = struct
       | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
     let findv t step =
-      let of_map m =
-        match StepMap.find step m with
-        | exception Not_found -> Lwt.return_none
-        | `Node n -> Lwt.return_some (`Node n)
-        | `Contents (c, m) -> (
-            Contents.to_value c >|= function
-            | Error _ -> None
-            | Ok c -> Some (`Contents (c, m)))
-      in
+      let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
         match P.Node.Val.find v step with
-        | None -> Lwt.return_none
-        | Some (`Contents (c, m)) -> (
+        | None -> None
+        | Some (`Contents (c, m)) ->
             let c = Contents.of_hash repo c in
             let (v : elt) = `Contents (c, m) in
             add_to_findv_cache t step v;
-            Contents.to_value c >|= function
-            | Error _ -> None
-            | Ok c -> Some (`Contents (c, m)))
+            Some v
         | Some (`Node n) ->
             let n = of_hash repo n in
             let v = `Node n in
             add_to_findv_cache t step v;
-            Lwt.return_some v
+            Some v
       in
       let of_t () =
         match t.v with
-        | Map m -> of_map m
-        | Value (repo, v, None) -> of_value repo v
+        | Map m -> Lwt.return (of_map m)
+        | Value (repo, v, None) -> Lwt.return (of_value repo v)
         | Value (repo, v, Some m) -> (
-            of_map m >>= function
+            match of_map m with
             | Some _ as v -> Lwt.return v
-            | None -> of_value repo v)
+            | None -> Lwt.return (of_value repo v))
         | Hash (repo, h) -> (
             match cached_value t with
-            | Some v -> of_value repo v
+            | Some v -> Lwt.return (of_value repo v)
             | None -> (
-                value_of_hash t repo h >>= function
-                | Error (`Dangling_hash _) -> Lwt.return_none
+                value_of_hash t repo h >|= function
+                | Error (`Dangling_hash _) -> None
                 | Ok v -> of_value repo v))
       in
       match cached_map t with
-      | Some m -> of_map m
+      | Some m -> Lwt.return (of_map m)
       | None -> (
           match t.info.findv_cache with
           | None -> of_t ()
           | Some m -> (
-              of_map m >>= function
+              match of_map m with
               | None -> of_t ()
               | Some _ as r -> Lwt.return r))
 
@@ -827,11 +818,6 @@ module Make (P : Private.S) = struct
           if not (StepMap.mem step n) then t else of_map (StepMap.remove step n)
 
     let add t step v =
-      let v =
-        match v with
-        | `Node _ as n -> n
-        | `Contents (c, m) -> `Contents (Contents.of_value c, m)
-      in
       let of_map m =
         let m' = StepMap.add step v m in
         if m == m' then t else of_map m'
@@ -918,7 +904,7 @@ module Make (P : Private.S) = struct
   type node = Node.t [@@deriving irmin]
   type metadata = Metadata.t
 
-  type t = [ `Node of node | `Contents of P.Contents.Val.t * Metadata.t ]
+  type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin { name = "tree_t" }]
 
   let of_private_node repo n = Node.of_value repo n
@@ -926,12 +912,12 @@ module Make (P : Private.S) = struct
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n
-    | `Contents (c, _) -> Fmt.pf ppf "contents: %a" (Type.pp P.Contents.Val.t) c
+    | `Contents (c, _) -> Fmt.pf ppf "contents: %a" (Type.pp Contents.t) c
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
     || (c1 == c2 && m1 == m2)
-    || (equal_contents c1 c2 && equal_metadata m1 m2)
+    || (Contents.equal c1 c2 && equal_metadata m1 m2)
 
   let equal (x : t) (y : t) =
     x == y
@@ -953,12 +939,15 @@ module Make (P : Private.S) = struct
   type elt = [ `Node of node | `Contents of contents * metadata ]
 
   let of_node n = `Node n
-  let of_contents ?(metadata = Metadata.default) c = `Contents (c, metadata)
-  let v : elt -> t = function `Contents c -> `Contents c | `Node n -> `Node n
 
-  let destruct : t -> elt = function
+  let of_contents ?(metadata = Metadata.default) c =
+    `Contents (Contents.of_value c, metadata)
+
+  let v : elt -> t = function
+    | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
     | `Node n -> `Node n
-    | `Contents c -> `Contents c
+
+  let destruct x = x
 
   let clear ?depth = function
     | `Node n -> Node.clear ?depth n
@@ -991,7 +980,11 @@ module Make (P : Private.S) = struct
   let fold ?(force = `And_clear) ?(uniq = `False) ?(pre = id) ?(post = id)
       ?depth ?(contents = id) ?(node = id) (t : t) acc =
     match t with
-    | `Contents v -> contents Path.empty (fst v) acc
+    | `Contents (c, _) -> (
+        (* TODO: respect {!force} here? *)
+        Contents.to_value c >>= function
+        | Error (`Dangling_hash _) -> assert false
+        | Ok v -> contents Path.empty v acc)
     | `Node n ->
         Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
           ~node n acc
@@ -1028,9 +1021,11 @@ module Make (P : Private.S) = struct
     | Some v -> v
 
   let find_all t k =
-    find_tree t k >|= function
-    | None | Some (`Node _) -> None
-    | Some (`Contents c) -> Some c
+    find_tree t k >>= function
+    | None | Some (`Node _) -> Lwt.return_none
+    | Some (`Contents (c, m)) ->
+        let+ c = Contents.to_value c in
+        Some (get_ok c, m)
 
   let find t k =
     find_all t k >|= function None -> None | Some (c, _) -> Some c
@@ -1063,18 +1058,7 @@ module Make (P : Private.S) = struct
     sub t path >>= function
     | None -> Lwt.return []
     | Some n -> (
-        Node.list ?offset ?length n >>= function
-        | Error _ -> Lwt.return []
-        | Ok l ->
-            Lwt_list.fold_left_s
-              (fun acc (k, v) ->
-                match v with
-                | `Contents (c, m) -> (
-                    Contents.to_value c >|= function
-                    | Error _ -> acc
-                    | Ok c -> (k, `Contents (c, m)) :: acc)
-                | `Node n -> Lwt.return ((k, `Node n) :: acc))
-              [] (List.rev l))
+        Node.list ?offset ?length n >|= function Error _ -> [] | Ok l -> l)
 
   let empty = `Node (Node.of_map StepMap.empty)
 
@@ -1104,7 +1088,7 @@ module Make (P : Private.S) = struct
           | true -> root_tree
           | false -> `Node empty_node
         in
-        match f (Some root_tree) with
+        f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
            of changing it to an empty node. Note that this introduces
            sensitivity to ordering of subtree operations: updating in a subtree
@@ -1122,7 +1106,7 @@ module Make (P : Private.S) = struct
           | None -> (
               let with_new_child t = Node.add parent_node file t >>= changed in
               let* old_binding = Node.findv parent_node file in
-              let new_binding = f old_binding in
+              let* new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
               | None, Some t -> with_new_child t
@@ -1162,38 +1146,49 @@ module Make (P : Private.S) = struct
   let update t k ?(metadata = Metadata.default) f =
     Log.debug (fun l -> l "Tree.update %a" pp_path k);
     update_tree t k (fun t ->
-        let old_contents =
+        let+ old_contents =
           match t with
-          | Some (`Node _) | None -> None
-          | Some (`Contents (c, _)) -> Some c
+          | Some (`Node _) | None -> Lwt.return_none
+          | Some (`Contents (c, _)) ->
+              let+ c = Contents.to_value c in
+              Some (get_ok c)
         in
         match f old_contents with
         | None -> None
-        | Some c -> Some (`Contents (c, metadata)))
+        | Some c -> Some (`Contents (Contents.of_value c, metadata)))
 
   let add t k ?(metadata = Metadata.default) c =
     Log.debug (fun l -> l "Tree.add %a" pp_path k);
-    update_tree t k (fun _ -> Some (`Contents (c, metadata)))
+    update_tree t k (fun _ ->
+        Lwt.return_some (`Contents (Contents.of_value c, metadata)))
 
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
-    update_tree t k (fun _ -> Some v)
+    update_tree t k (fun _ -> Lwt.return_some v)
 
   let remove t k =
     Log.debug (fun l -> l "Tree.remove %a" pp_path k);
-    update_tree t k (fun _ -> None)
+    update_tree t k (fun _ -> Lwt.return_none)
 
   let update_tree t k f =
     Log.debug (fun l -> l "Tree.update_tree %a" pp_path k);
-    update_tree t k f
+    update_tree t k (Lwt.wrap1 f)
 
-  let import repo k =
-    cnt.node_mem <- cnt.node_mem + 1;
-    P.Node.mem (P.Repo.node_t repo) k >|= function
-    | true -> Some (Node.of_hash repo k)
-    | false -> None
+  let import repo = function
+    | `Contents (k, m) -> (
+        P.Contents.mem (P.Repo.contents_t repo) k >|= function
+        | true -> Some (`Contents (Contents.of_hash repo k, m))
+        | false -> None)
+    | `Node k -> (
+        cnt.node_mem <- cnt.node_mem + 1;
+        P.Node.mem (P.Repo.node_t repo) k >|= function
+        | true -> Some (`Node (Node.of_hash repo k))
+        | false -> None)
 
-  let import_no_check repo k = Node.of_hash repo k
+  let import_no_check repo = function
+    | `Node k -> `Node (Node.of_hash repo k)
+    | `Contents (k, m) -> `Contents (Contents.of_hash repo k, m)
+
   let value_of_map t map = Node.value_of_map t map (fun x -> x)
 
   let export ?clear repo contents_t node_t n =
@@ -1298,22 +1293,8 @@ module Make (P : Private.S) = struct
 
   let merge : t Merge.t =
     let f ~old (x : t) y =
-      let to_node x =
-        match x with
-        | `Node _ as x -> x
-        | `Contents (c, m) -> `Contents (Contents.of_value c, m)
-      in
-      let x = to_node x in
-      let y = to_node y in
-      let old =
-        Merge.bind_promise old (fun old -> Merge.promise (to_node old))
-      in
       Merge.(f Node.merge_elt) ~old x y >>= function
-      | Ok (`Contents (c, m)) -> (
-          Contents.to_value c >>= function
-          | Error _ -> Merge.conflict "conflict: contents"
-          | Ok c -> Merge.ok (`Contents (c, m)))
-      | Ok (`Node _ as n) -> Merge.ok n
+      | Ok t -> Merge.ok t
       | Error e -> Lwt.return (Error e)
     in
     Merge.v tree_t f
@@ -1432,18 +1413,23 @@ module Make (P : Private.S) = struct
 
   let diff (x : t) (y : t) =
     match (x, y) with
-    | `Contents x, `Contents y ->
+    | `Contents ((c1, m1) as x), `Contents ((c2, m2) as y) ->
         if contents_equal x y then Lwt.return_nil
-        else Lwt.return [ (Path.empty, `Updated (y, x)) ]
+        else
+          let* c1 = Contents.to_value c1 >|= get_ok in
+          let* c2 = Contents.to_value c2 >|= get_ok in
+          Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
-    | `Contents x, `Node y ->
+    | `Contents (x, m), `Node y ->
         let empty = Node.empty y in
-        let+ diff = diff_node empty y in
-        (Path.empty, `Removed x) :: diff
-    | `Node x, `Contents y ->
+        let* diff = diff_node empty y in
+        let+ x = Contents.to_value x >|= get_ok in
+        (Path.empty, `Removed (x, m)) :: diff
+    | `Node x, `Contents (y, m) ->
         let empty = Node.empty x in
-        let+ diff = diff_node x empty in
-        (Path.empty, `Added y) :: diff
+        let* diff = diff_node x empty in
+        let+ y = Contents.to_value y >|= get_ok in
+        (Path.empty, `Added (y, m)) :: diff
 
   type concrete =
     [ `Tree of (Path.step * concrete) list
@@ -1454,21 +1440,16 @@ module Make (P : Private.S) = struct
     let rec concrete : type r. concrete -> (t, r) cont =
      fun t k ->
       match t with
-      | `Contents _ as v -> k v
+      | `Contents (c, m) -> k (`Contents (Contents.of_value c, m))
       | `Tree childs -> tree StepMap.empty childs (fun n -> k (`Node n))
-    and contents : type r. contents * metadata -> (Node.elt, r) cont =
-     fun (c, m) k -> k (`Contents (Contents.of_value c, m))
     and tree :
         type r. Node.elt StepMap.t -> (step * concrete) list -> (node, r) cont =
      fun map t k ->
       match t with
       | [] -> k (Node.of_map map)
       | (s, n) :: t ->
-          (concrete [@tailcall]) n (function
-            | `Contents c ->
-                (contents [@tailcall]) c (fun v ->
-                    (tree [@tailcall]) (StepMap.add s v map) t k)
-            | `Node _ as v -> (tree [@tailcall]) (StepMap.add s v map) t k)
+          (concrete [@tailcall]) n (fun v ->
+              (tree [@tailcall]) (StepMap.add s v map) t k)
     in
     (concrete [@tailcall]) c (fun x -> x)
 
@@ -1476,7 +1457,7 @@ module Make (P : Private.S) = struct
     let rec tree : type r. t -> (concrete, r) cont_lwt =
      fun t k ->
       match t with
-      | `Contents _ as v -> k v
+      | `Contents (c, m) -> contents (c, m) k
       | `Node n ->
           let* m = Node.to_map n in
           let bindings = m |> get_ok |> StepMap.bindings in
@@ -1509,9 +1490,7 @@ module Make (P : Private.S) = struct
     Log.debug (fun l -> l "Tree.hash");
     match t with
     | `Node n -> `Node (Node.hash n)
-    | `Contents (c, m) ->
-        cnt.contents_hash <- cnt.contents_hash + 1;
-        `Contents (P.Contents.Key.hash c, m)
+    | `Contents (c, m) -> `Contents (Contents.hash c, m)
 
   let stats ?(force = false) (t : t) =
     let force =

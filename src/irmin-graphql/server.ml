@@ -308,12 +308,22 @@ struct
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
                   Store.Tree.list tree Store.Key.empty
-                  >|= List.map (fun (step, tree) ->
+                  >>= Lwt_list.map_s (fun (step, tree) ->
                           let absolute_key = Store.Key.rcons tree_key step in
                           match Store.Tree.destruct tree with
-                          | `Contents (c, m) ->
-                              Lazy.(force contents_as_node (c, m, absolute_key))
-                          | _ -> Lazy.(force tree_as_node (tree, absolute_key)))
+                          | `Contents (c, m) -> (
+                              Store.Tree.Contents.force c >|= function
+                              | Ok c ->
+                                  Lazy.(
+                                    force contents_as_node (c, m, absolute_key))
+                              | Error (`Dangling_hash h) ->
+                                  Fmt.failwith
+                                    "Can't force dangling contents hash: %a"
+                                    (Irmin.Type.pp_dump Store.Hash.t)
+                                    h)
+                          | _ ->
+                              Lwt.return
+                                Lazy.(force tree_as_node (tree, absolute_key)))
                   >|= Result.ok);
             ]))
 

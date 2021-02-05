@@ -43,7 +43,7 @@ let c ?(info = Metadata.Default) blob = `Contents (blob, info)
 let invalid_tree () =
   let+ repo = Store.Repo.v (Irmin_mem.config ()) in
   let hash = Store.Hash.hash (fun f -> f "") in
-  Tree.shallow repo hash
+  Tree.shallow repo (`Node hash)
 
 let test_bindings _ () =
   let tree =
@@ -398,7 +398,7 @@ let test_fold_force _ () =
   let* invalid_tree =
     let+ repo = Store.Repo.v (Irmin_mem.config ()) in
     let hash = Store.Hash.hash (fun f -> f "") in
-    Tree.shallow repo hash
+    Tree.shallow repo (`Node hash)
   in
 
   (* Ensure that [fold] doesn't force a lazy tree when [~force:(`False f)],
@@ -468,7 +468,7 @@ let test_shallow _ () =
     let leaf = Tree.of_concrete (c "0") in
     let* shallow_leaf =
       let+ repo = Store.Repo.v (Irmin_mem.config ()) in
-      Tree.shallow repo (Tree.hash leaf)
+      Tree.shallow repo (`Contents (Tree.hash leaf, Metadata.default))
     in
     let* hash = compute_hash ~subtree:leaf in
     let+ hash_shallow = compute_hash ~subtree:shallow_leaf in

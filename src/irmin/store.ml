@@ -82,8 +82,8 @@ module Make (P : Private.S) = struct
   module Tree = struct
     include Tree.Make (P)
 
-    let of_hash r h = import r h >|= Option.map of_node
-    let shallow r h = import_no_check r h |> of_node
+    let of_hash r h = import r h
+    let shallow r h = import_no_check r h
 
     let hash : t -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
@@ -93,7 +93,12 @@ module Make (P : Private.S) = struct
 
   let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
-    | `Contents (c, _) -> save_contents x c
+    | `Contents (c, _) -> (
+        Tree.Contents.force c >>= function
+        | Ok c -> save_contents x c
+        | Error (`Dangling_hash h) ->
+            Fmt.failwith "Can't save tree with danging contents hash: %a"
+              (Type.pp_dump Hash.t) h)
     | `Node n -> Tree.export ~clear r x y n
 
   type node = Tree.node [@@deriving irmin]
@@ -132,7 +137,7 @@ module Make (P : Private.S) = struct
       { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-    let tree t = Tree.import_no_check t.r (node t) |> Tree.of_node
+    let tree t = Tree.import_no_check t.r (`Node (node t))
     let equal x y = equal_hash x.h y.h
     let hash t = t.h
     let info t = P.Commit.Val.info t.v
@@ -508,8 +513,7 @@ module Make (P : Private.S) = struct
             t.tree <- None;
 
             (* the tree cache needs to be invalidated *)
-            let n = Tree.import_no_check (repo t) (Commit.node h) in
-            let tree = Tree.of_node n in
+            let tree = Tree.import_no_check (repo t) (`Node (Commit.node h)) in
             t.tree <- Some (h, tree);
             Some (h, tree))
 
