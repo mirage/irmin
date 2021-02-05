@@ -1463,7 +1463,7 @@ module Make (P : Private.S) = struct
     let rec tree : type r. t -> (concrete, r) cont_lwt =
      fun t k ->
       match t with
-      | `Contents (c, m) -> contents (c, m) k
+      | `Contents c -> contents c k
       | `Node n ->
           let* m = Node.to_map n in
           let bindings = m |> get_ok |> StepMap.bindings in
