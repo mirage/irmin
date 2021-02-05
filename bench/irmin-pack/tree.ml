@@ -419,7 +419,7 @@ struct
     in
     Format.fprintf
       (Format.formatter_of_out_channel json_channel)
-      "%a" Trees_trace.pp_stats
+      "%a%!" Trees_trace.pp_stats
       (true, config.flatten, config.inode_config);
     close_out json_channel;
 
@@ -573,7 +573,7 @@ let get_suite suite_filter =
       | `Custom_trace, `Custom, `Read_trace -> true
       | `Custom_chains, `Custom, `Chains -> true
       | `Custom_large, `Custom, `Large -> true
-      | _, _, _ -> false)
+      | (`Slow | `Quick | `Custom_trace | `Custom_chains | `Custom_large), _, _ -> false)
     suite
 
 let main ncommits ncommits_trace suite_filter inode_config flatten depth width
@@ -671,7 +671,7 @@ let commit_data_file =
     Arg.info ~docv:"PATH"
       ~doc:
         "Path to the JSON-encoded commit data to use for the benchmark run. \
-         This json can be found in a tarball at\n\
+         An example of this data is available at\n\
          https://github.com/icristescu/dataset"
       []
   in

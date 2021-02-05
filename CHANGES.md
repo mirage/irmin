@@ -1,14 +1,14 @@
-# Unreleased
+## Unreleased
 
-#### Fixed
+### Fixed
 
-#### Added
+### Added
 
-#### Changed
+### Changed
 - **irmin-bench**
   - New features in benchmarks for tree operations (#1269, @Ngoguey42)
 
-#### Removed
+### Removed
 
 ## 2.4.0 (2021-02-02)
 
