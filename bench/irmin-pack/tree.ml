@@ -53,7 +53,15 @@ module Parse_trace = struct
       hashes to a single step.
 
       The paths in tezos:
-      https://www.dailambda.jp/blog/2020-05-11-plebeia/#tezos-path *)
+      https://www.dailambda.jp/blog/2020-05-11-plebeia/#tezos-path
+
+      A chopped hash has this form:
+
+      {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v}
+
+      and is flattened to that form:
+
+      {v [0-9a-f]{40} v} *)
   let flatten_key = flatten_key_suffix
 
   let flatten_op = function
@@ -114,9 +122,9 @@ struct
 
       The histograms are computed using https://github.com/barko/bentov.
 
-      [Bentov] computes dynamic
-      histograms without the need for a priori information on the distributions,
-      while maintaining a constant memory space and a marginal CPU footprint.
+      [Bentov] computes dynamic histograms without the need for a priori
+      information on the distributions, while maintaining a constant memory
+      space and a marginal CPU footprint.
 
       The implementation of that library is pretty straightforward, but not
       perfect; it doesn't scale well with the number of bins. I chose 32
