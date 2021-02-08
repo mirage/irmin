@@ -824,22 +824,20 @@ struct
   end
 end
 
-module Make_ext
+module Make_with_pack
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
     (Inter : INTER
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) =
+    (Pack : Pack.S with type key = H.t and type value = Inter.Elt.t) =
 struct
   module Key = H
-  module Pack = P.Make (Inter.Elt)
 
   type 'a t = 'a Pack.t
   type key = Key.t
   type value = Inter.Val.t
-  type index = Pack.index
 
   let mem t k = Pack.mem t k
 
@@ -877,7 +875,6 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-  let v = Pack.v
   let integrity_check = Pack.integrity_check
   let close = Pack.close
   let sync = Pack.sync
@@ -903,12 +900,50 @@ struct
           Error msg
 end
 
-module Make
+module Make_ext_indexed_store
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inter : INTER
+               with type hash = H.t
+                and type Val.metadata = Node.metadata
+                and type Val.step = Node.step)
+    (P : Pack.INDEXED_MAKER with type key = H.t) =
+struct
+  module Indexed_pack = P.Make (Inter.Elt)
+
+  module Pack = struct
+    include Indexed_pack
+
+    (* temporarly shadow the v function *)
+    let v ?fresh:_ ?readonly:_ _ = Lwt.fail_with "not implemented"
+  end
+
+  include Make_with_pack (H) (Node) (Inter) (Pack)
+
+  type index = Indexed_pack.index
+
+  let v = Indexed_pack.v
+end
+
+module Make_indexed_store
     (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+    (P : Pack.INDEXED_MAKER with type key = H.t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   module Inter = Make_intermediate (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (P)
+  include Make_ext_indexed_store (H) (Node) (Inter) (P)
+end
+
+module Make
+    (Conf : Config.S)
+    (H : Irmin.Hash.S)
+    (P : Pack.MAKER with type key = H.t)
+    (Node : Irmin.Private.Node.S with type hash = H.t) =
+struct
+  module Inter = Make_intermediate (Conf) (H) (Node)
+  module Pack = P.Make (Inter.Elt)
+  include Make_with_pack (H) (Node) (Inter) (Pack)
+
+  let v = Pack.v
 end

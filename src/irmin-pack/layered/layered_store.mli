@@ -19,8 +19,8 @@ val pp_current_upper : bool Fmt.t
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Private.Pack_index.S)
-    (U : Irmin_pack.Pack.S with type index = Index.t and type key = H.t)
-    (L : Irmin_pack.Pack.S
+    (U : Irmin_pack.Pack.INDEXED_S with type index = Index.t and type key = H.t)
+    (L : Irmin_pack.Pack.INDEXED_S
            with type index = U.index
             and type key = U.key
             and type value = U.value) :
@@ -43,5 +43,7 @@ module Atomic_write
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Private.Pack_index.S)
-    (P : Irmin_pack.Pack.MAKER with type key = H.t and type index = Index.t) :
+    (P : Irmin_pack.Pack.INDEXED_MAKER
+           with type key = H.t
+            and type index = Index.t) :
   S.LAYERED_PACK_MAKER with type key = P.key and type index = P.index

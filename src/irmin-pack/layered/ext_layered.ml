@@ -113,7 +113,7 @@ struct
           let magic _ = magic
         end)
 
-        module CA = Closeable.Content_addressable (CA_Pack)
+        module CA = Closeable.Content_addressable_indexed (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
@@ -151,7 +151,7 @@ struct
           let magic _ = magic
         end)
 
-        module CA = Closeable.Content_addressable (CA_Pack)
+        module CA = Closeable.Content_addressable_indexed (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 

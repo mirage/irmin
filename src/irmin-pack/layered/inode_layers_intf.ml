@@ -4,9 +4,9 @@ module Inode = Irmin_pack.Private.Inode
 module Pack = Irmin_pack.Pack
 
 module type S = sig
-  include Inode.S
-  module U : Pack.S
-  module L : Pack.S
+  include Inode.INDEXED_S
+  module U : Pack.INDEXED_S
+  module L : Pack.INDEXED_S
 
   val v :
     read U.t ->

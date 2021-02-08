@@ -26,15 +26,7 @@ end
 module type S = sig
   include Irmin.CONTENT_ADDRESSABLE_STORE
 
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    read t Lwt.t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> read t Lwt.t
 
   include BATCH with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
@@ -49,6 +41,20 @@ module type S = sig
     dict:(int -> string option) -> hash:(int64 -> key) -> string -> int -> int
 
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+end
+
+module type INDEXED_S = sig
+  include S
+
+  type index
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    index:index ->
+    string ->
+    read t Lwt.t
 end
 
 (** Unstable internal API agnostic about the underlying storage. Use it only to
@@ -87,6 +93,7 @@ module type INTER = sig
 end
 
 module type Inode = sig
+  module type INDEXED_S = INDEXED_S
   module type S = S
   module type INTER = INTER
 
@@ -99,33 +106,45 @@ module type Inode = sig
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
 
-  module Make_ext
+  module Make_ext_indexed_store
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
       (Inter : INTER
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) : sig
+      (P : Pack.INDEXED_MAKER with type key = H.t) : sig
     include
-      S
+      INDEXED_S
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
-         and type index = Pack_index.Make(H).t
+         and type index = P.index
          and type value = Inter.Val.t
+  end
+
+  module Make_indexed_store
+      (Conf : Config.S)
+      (H : Irmin.Hash.S)
+      (P : Pack.INDEXED_MAKER with type key = H.t)
+      (Node : Irmin.Private.Node.S with type hash = H.t) : sig
+    include
+      INDEXED_S
+        with type key = H.t
+         and type Val.metadata = Node.metadata
+         and type Val.step = Node.step
+         and type index = P.index
   end
 
   module Make
       (Conf : Config.S)
       (H : Irmin.Hash.S)
-      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+      (P : Pack.MAKER with type key = H.t)
       (Node : Irmin.Private.Node.S with type hash = H.t) : sig
     include
       S
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
-         and type index = Pack_index.Make(H).t
   end
 end

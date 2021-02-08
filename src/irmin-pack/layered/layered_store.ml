@@ -34,8 +34,8 @@ let stats = function
 
 module Copy
     (Key : Irmin.Hash.S)
-    (SRC : Pack.S with type key = Key.t)
-    (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
+    (SRC : Pack.INDEXED_S with type key = Key.t)
+    (DST : Pack.INDEXED_S with type key = SRC.key and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
 
@@ -65,8 +65,8 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Private.Pack_index.S)
-    (U : Pack.S with type index = Index.t and type key = H.t)
-    (L : Pack.S
+    (U : Pack.INDEXED_S with type index = Index.t and type key = H.t)
+    (L : Pack.INDEXED_S
            with type index = U.index
             and type key = U.key
             and type value = U.value) =
@@ -325,7 +325,7 @@ end
 module Pack_Maker
     (H : Irmin.Hash.S)
     (Index : Private.Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) =
+    (P : Pack.INDEXED_MAKER with type key = H.t and type index = Index.t) =
 struct
   type index = P.index
   type key = P.key

@@ -88,14 +88,14 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Content_addressable (CA_Pack)
+        include Closeable.Content_addressable_indexed (CA_Pack)
       end
 
       include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
-      module CA = Inode.Make (Config) (H) (Pack) (Node)
+      module CA = Inode.Make_indexed_store (Config) (H) (Pack) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
@@ -124,7 +124,7 @@ struct
           let magic _ = magic
         end)
 
-        include Closeable.Content_addressable (CA_Pack)
+        include Closeable.Content_addressable_indexed (CA_Pack)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)

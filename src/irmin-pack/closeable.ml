@@ -16,7 +16,6 @@ module Content_addressable (S : Pack.S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
   type key = S.key
   type value = S.value
-  type index = S.index
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
@@ -40,8 +39,8 @@ module Content_addressable (S : Pack.S) = struct
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
-  let v ?fresh ?readonly ?lru_size ~index root =
-    let+ t = S.v ?fresh ?readonly ?lru_size ~index root in
+  let v ?fresh ?readonly root =
+    let+ t = S.v ?fresh ?readonly root in
     { closed = ref false; t }
 
   let close t =
@@ -97,6 +96,25 @@ module Content_addressable (S : Pack.S) = struct
   let clear_keep_generation t =
     check_not_closed t;
     S.clear_keep_generation t.t
+end
+
+module Content_addressable_indexed (S : Pack.INDEXED_S) = struct
+  module Indexed_S = S
+
+  module S = struct
+    include Indexed_S
+
+    (* temporarly shadow the v function *)
+    let v ?fresh:_ ?readonly:_ _ = Lwt.fail_with "not implemented"
+  end
+
+  include Content_addressable (S)
+
+  type index = S.index
+
+  let v ?fresh ?readonly ?lru_size ~index root =
+    let+ t = Indexed_S.v ?fresh ?readonly ?lru_size ~index root in
+    { closed = ref false; t }
 end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct

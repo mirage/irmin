@@ -60,9 +60,9 @@ end
 
 module type LAYERED_PACK = sig
   open Irmin_pack.Pack
-  include S
-  module U : S with type value = value
-  module L : S
+  include INDEXED_S
+  module U : INDEXED_S with type value = value
+  module L : INDEXED_S
 
   val v :
     read U.t ->

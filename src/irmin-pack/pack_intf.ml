@@ -47,15 +47,7 @@ module type S = sig
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   (** Overwrite [unsafe_add] to work with a read-only database handler. *)
 
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    read t Lwt.t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> read t Lwt.t
 
   include BATCH with type 'a t := 'a t
   (** @inline *)
@@ -89,23 +81,48 @@ module type S = sig
   val clear_keep_generation : 'a t -> unit Lwt.t
 end
 
+module type INDEXED_S = sig
+  include S
+
+  type index
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    index:index ->
+    string ->
+    read t Lwt.t
+end
+
 module type MAKER = sig
+  type key
+
+  (** Save multiple kind of values in the same pack file. Values will be
+      distinguished using [V.magic], so they have to all be different. *)
+  module Make (V : ELT with type hash := key) :
+    S with type key = key and type value = V.t
+end
+
+module type INDEXED_MAKER = sig
   type key
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
   module Make (V : ELT with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    INDEXED_S with type key = key and type value = V.t and type index = index
 end
 
 module type Pack = sig
   module type ELT = ELT
+  module type INDEXED_S = INDEXED_S
   module type S = S
+  module type INDEXED_MAKER = INDEXED_MAKER
   module type MAKER = MAKER
 
   module File
       (Index : Pack_index.S)
       (K : Irmin.Hash.S with type t = Index.key)
-      (_ : IO.VERSION) : MAKER with type key = K.t and type index = Index.t
+      (_ : IO.VERSION) : INDEXED_MAKER with type key = K.t and type index = Index.t
 end
