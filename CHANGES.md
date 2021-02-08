@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+### Added
+
 ### Changed
 
 - Changed `Store.Tree.{of_hash, shallow}` to take kinded hashes, allowing the
@@ -7,6 +11,11 @@
 
 - Changed `Tree.destruct` to return _lazy_ contents values, which may be forced
   with `Tree.Contents.force`.
+
+- **irmin-bench**
+  - New features in benchmarks for tree operations (#1269, @Ngoguey42)
+
+### Removed
 
 ## 2.4.0 (2021-02-02)
 
@@ -31,7 +40,7 @@
 
   - Added new operations `Tree.update` and `Tree.update_tree` for efficient
     read-and-set on trees. (#1274, @CraigFe)
-    
+
 - **irmin-pack**:
   - Added `integrity-check-inodes` command to `irmin-fsck` for checking the
     integrity of inodes. (#1253, @icristescu, @Ngoguey42)

@@ -29,11 +29,39 @@ let random_string n = String.init n (fun _i -> random_char ())
 let random_blob () = random_string 10
 let random_key () = random_string 5
 
+let default_results_dir =
+  let ( / ) = Filename.concat in
+  Unix.getcwd () / "_results" / Uuidm.to_string (Uuidm.v `V4)
+
+let prepare_results_dir path =
+  let rec mkdir_p path =
+    if Sys.file_exists path then ()
+    else
+      let path' = Filename.dirname path in
+      if path' = path then failwith "Failed to prepare result dir";
+      mkdir_p path';
+      Unix.mkdir path 0o755
+  in
+  mkdir_p path
+
 let with_timer f =
   let t0 = Sys.time () in
   let+ a = f () in
   let t1 = Sys.time () -. t0 in
   (t1, a)
+
+let with_progress_bar ~message ~n ~unit ~sampling_interval =
+  let bar =
+    let w =
+      if n = 0 then 1
+      else float_of_int n |> log10 |> floor |> int_of_float |> succ
+    in
+    let pp fmt i = Format.fprintf fmt "%*Ld/%*d %s" w i w n unit in
+    let pp f = f ~width:(w + 1 + w + 1 + String.length unit) pp in
+    Progress_unix.counter ~mode:`ASCII ~width:79 ~total:(Int64.of_int n)
+      ~sampling_interval ~message ~pp ()
+  in
+  Progress_unix.with_reporters bar
 
 module Conf = struct
   let entries = 32
