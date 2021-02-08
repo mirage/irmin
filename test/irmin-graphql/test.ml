@@ -108,6 +108,8 @@ let suite ~set_tree =
 
 let () =
   Random.self_init ();
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Debug);
   let main =
     let* { event_loop; set_tree } = spawn_graphql_server () in
     Lwt.pick [ event_loop; Alcotest_lwt.run "irmin-graphql" (suite ~set_tree) ]

@@ -5,6 +5,13 @@
 ### Added
 
 ### Changed
+
+- Changed `Store.Tree.{of_hash, shallow}` to take kinded hashes, allowing the
+  creation of unforced contents values.
+
+- Changed `Tree.destruct` to return _lazy_ contents values, which may be forced
+  with `Tree.Contents.force`.
+
 - **irmin-bench**
   - New features in benchmarks for tree operations (#1269, @Ngoguey42)
 

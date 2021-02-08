@@ -43,7 +43,7 @@ let c ?(info = Metadata.Default) blob = `Contents (blob, info)
 let invalid_tree () =
   let+ repo = Store.Repo.v (Irmin_mem.config ()) in
   let hash = Store.Hash.hash (fun f -> f "") in
-  Tree.shallow repo hash
+  Tree.shallow repo (`Node hash)
 
 let test_bindings _ () =
   let tree =
@@ -398,7 +398,7 @@ let test_fold_force _ () =
   let* invalid_tree =
     let+ repo = Store.Repo.v (Irmin_mem.config ()) in
     let hash = Store.Hash.hash (fun f -> f "") in
-    Tree.shallow repo hash
+    Tree.shallow repo (`Node hash)
   in
 
   (* Ensure that [fold] doesn't force a lazy tree when [~force:(`False f)],
@@ -460,6 +460,26 @@ let test_fold_force _ () =
 
   Lwt.return_unit
 
+let test_shallow _ () =
+  let* () =
+    let compute_hash ~subtree =
+      Tree.(add_tree empty) [ "key" ] subtree >|= Tree.hash
+    in
+    let leaf = Tree.of_concrete (c "0") in
+    let* shallow_leaf =
+      let+ repo = Store.Repo.v (Irmin_mem.config ()) in
+      Tree.shallow repo (`Contents (Tree.hash leaf, Metadata.default))
+    in
+    let* hash = compute_hash ~subtree:leaf in
+    let+ hash_shallow = compute_hash ~subtree:shallow_leaf in
+    Alcotest.(gcheck Store.Hash.t)
+      "Hashing a shallow contents value is equivalent to hashing the \
+       non-shallow contents"
+      hash hash_shallow
+  in
+
+  Lwt.return_unit
+
 let test_kind_empty_path _ () =
   let cont = c "c" |> Tree.of_concrete in
   let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
@@ -485,5 +505,6 @@ let suite =
     Alcotest_lwt.test_case "update" `Quick test_update;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
+    Alcotest_lwt.test_case "shallow" `Quick test_shallow;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
   ]

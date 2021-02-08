@@ -1032,7 +1032,7 @@ module Make (S : S) = struct
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
 
       (* Test caching (makesure that no tree is lying in scope) *)
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "foo-x") in
+      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "foo-x")) in
       S.Tree.reset_counters ();
       let foo = "foo-x" in
       let* v0 = S.Tree.add v0 [ "foo" ] foo in
@@ -1043,7 +1043,7 @@ module Make (S : S) = struct
       let _ = S.Tree.hash v0 in
       let* _v0 = S.Tree.add v0 [ "foo" ] foo in
       let _k = S.Tree.hash v0 in
-      let v0 = S.Tree.shallow repo (P.Contents.Key.hash "bar-x") in
+      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "bar-x")) in
       let xxx = "xxx" in
       let yyy = "yyy" in
       let zzz = "zzz" in
@@ -1898,8 +1898,8 @@ module Make (S : S) = struct
     let test repo =
       let foo_k = S.Private.Contents.Key.hash "foo" in
       let bar_k = S.Private.Contents.Key.hash "bar" in
-      let tree_1 = S.Tree.shallow repo foo_k in
-      let tree_2 = S.Tree.shallow repo bar_k in
+      let tree_1 = S.Tree.shallow repo (`Node foo_k) in
+      let tree_2 = S.Tree.shallow repo (`Node bar_k) in
       let node_3 =
         S.Private.Node.Val.v
           [

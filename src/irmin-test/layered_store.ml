@@ -33,7 +33,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
 
   let r1 ~repo =
     let* kn2 = n1 ~repo in
-    S.Tree.of_hash repo kn2 >>= function
+    S.Tree.of_hash repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:(info "r1") ~parents:[] (tree :> S.tree)
@@ -42,7 +42,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let* kn2 = n1 ~repo in
     let* kn3 = with_node repo (fun t -> Graph.v t [ ("a", `Node kn2) ]) in
     let* kr1 = r1 ~repo in
-    S.Tree.of_hash repo kn3 >>= function
+    S.Tree.of_hash repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
         S.Commit.v repo ~info:(info "r2") ~parents:[ S.Commit.hash kr1 ]

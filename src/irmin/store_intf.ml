@@ -359,11 +359,16 @@ module type S = sig
     val hash : tree -> hash
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
-    val of_hash : Repo.t -> hash -> tree option Lwt.t
+    type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
+    (** Hashes in the Irmin store are tagged with the type of the value they
+        reference (either {!contents} or {!node}). In the [contents] case, the
+        hash is paired with corresponding {!metadata}. *)
+
+    val of_hash : Repo.t -> kinded_hash -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as hash, or
         [None] is no such tree object exists. *)
 
-    val shallow : Repo.t -> hash -> tree
+    val shallow : Repo.t -> kinded_hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No check is
         performed to verify if [h] actually exists in [r]. *)
   end
