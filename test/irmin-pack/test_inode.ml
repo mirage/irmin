@@ -18,7 +18,16 @@ module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_intermediate (Conf) (H) (Node)
-module Inode = Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (P)
+module Inode = Irmin_pack.Inode.Make_ext_indexed_store (H) (Node) (Inter) (P)
+
+module Inode_mem =
+  Irmin_pack.Inode.Make (Conf) (H)
+    (Irmin_pack_mem.Pack.File
+       (H)
+       (struct
+         let io_version = `V2
+       end))
+    (Node)
 
 module Context = struct
   type t = {
@@ -182,169 +191,170 @@ module Inode_permutations_generator = struct
       E.g, [tree_of_steps t StepSet.empty] is the empty inode. *)
   let tree_of_steps : t -> StepSet.t -> Inode.value =
    fun { tree_per_steps; _ } steps -> StepSetMap.find steps tree_per_steps
+
+  (** For each of the 256 possible inode trees with [depth <= 3] and
+      [width = Conf.entries = 2] built by [Inode.Val.v], assert that
+      independently, all the possible [Inode.Val.add]/[Inode.Val.remove]
+      operations yield a tree computable by [Inode.Val.v].
+
+      In other words. Let [T] be the set of all possible trees (256). Let [O] be
+      the set of unitary [tree -> tree] operations (8). If all the combinations
+      of [T] and [O] yield trees in [T] then, by induction, the representation
+      is unique.
+
+      Caveats
+
+      If something breaks at [depth > 3 || entries <> 2], this won't be caught
+      here.
+
+      If a corrupted tree is constructed using [Elt.decode_bin] and
+      [Val.of_bin], this won't be caught here.
+
+      If a corrupted subtree is loaded through the [find] function when an inode
+      lazily loads subtrees, this won't be caught here. *)
+  let test_representation_uniqueness_maxdepth_3 () =
+    let p = v ~entries:Conf.entries ~maxdepth_of_test:3 in
+    let f steps tree s =
+      (* [steps, tree] is one of the known pair built using [Val.v]. Let's try to
+         add or remove [s] from it and see if something breaks. *)
+      if StepSet.mem s steps then
+        let steps' = StepSet.remove s steps in
+        let tree'_ref = tree_of_steps p steps' in
+        let tree'_new = Inode.Val.remove tree s in
+        check_values
+          "The representation of the received tree obtained through [remove] \
+           differs from the expected one obtained through [v]."
+          tree'_ref tree'_new
+      else
+        let steps' = StepSet.add s steps in
+        let c = content_of_step p s in
+        let tree'_ref = tree_of_steps p steps' in
+        let tree'_new = Inode.Val.add tree s c in
+        check_values
+          "The representation of the received tree obtained through [remove] \
+           differs from the expected one obtained through [v]."
+          tree'_ref tree'_new
+    in
+    List.iter (fun (ss, t) -> List.iter (fun s -> f ss t s) (steps p)) (trees p);
+    Lwt.return_unit
 end
 
-let check_node msg v t =
-  let h = Inter.Val.hash v in
-  let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
-  check_hash msg h h'
+module Test = struct
+  let check_node msg v t =
+    let h = Inter.Val.hash v in
+    let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
+    check_hash msg h h'
 
-let check_hardcoded_hash msg h v =
-  h |> Irmin.Type.of_string Inode.Val.hash_t |> function
-  | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-  | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+  let check_hardcoded_hash msg h v =
+    h |> Irmin.Type.of_string Inode.Val.hash_t |> function
+    | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
+    | Ok hash -> check_hash msg hash (Inter.Val.hash v)
 
-(** Test add values from an empty node. *)
-let test_add_values () =
-  rm_dir root;
-  let* t = Context.get_store () in
-  check_node "hash empty node" Inode.Val.empty t >>= fun () ->
-  let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
-  let v2 = Inode.Val.add v1 "y" (normal bar) in
-  check_node "node x+y" v2 t >>= fun () ->
-  check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
-  let v3 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
-  check_values "add x+y vs v x+y" v2 v3;
-  Context.close t
+  (** Test add values from an empty node. *)
+  let test_add_values () =
+    rm_dir root;
+    let* t = Context.get_store () in
+    check_node "hash empty node" Inode.Val.empty t >>= fun () ->
+    let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
+    let v2 = Inode.Val.add v1 "y" (normal bar) in
+    check_node "node x+y" v2 t >>= fun () ->
+    check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
+    let v3 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+    check_values "add x+y vs v x+y" v2 v3;
+    Context.close t
 
-let integrity_check ?(stable = true) v =
-  Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
-  if not (Inter.Val.integrity_check v) then
-    Alcotest.failf "node does not satisfy stability invariants %a"
-      (Irmin.Type.pp Inode.Val.t)
-      v
+  let integrity_check ?(stable = true) v =
+    Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
+    if not (Inter.Val.integrity_check v) then
+      Alcotest.failf "node does not satisfy stability invariants %a"
+        (Irmin.Type.pp Inode.Val.t)
+        v
 
-(** Test add to inodes. *)
-let test_add_inodes () =
-  rm_dir root;
-  let* t = Context.get_store () in
-  let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
-  let v2 = Inode.Val.add v1 "z" (normal foo) in
-  let v3 =
-    Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
-  in
-  check_values "add x+y+z vs v x+z+y" v2 v3;
-  check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
-  integrity_check v1;
-  integrity_check v2;
-  let v4 = Inode.Val.add v2 "a" (normal foo) in
-  let v5 =
-    Inode.Val.v
-      [
-        ("x", normal foo);
-        ("z", normal foo);
-        ("a", normal foo);
-        ("y", normal bar);
-      ]
-  in
-  check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
-  check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
-  integrity_check v4 ~stable:false;
-  Context.close t
+  (** Test add to inodes. *)
+  let test_add_inodes () =
+    rm_dir root;
+    let* t = Context.get_store () in
+    let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+    let v2 = Inode.Val.add v1 "z" (normal foo) in
+    let v3 =
+      Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
+    in
+    check_values "add x+y+z vs v x+z+y" v2 v3;
+    check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
+    integrity_check v1;
+    integrity_check v2;
+    let v4 = Inode.Val.add v2 "a" (normal foo) in
+    let v5 =
+      Inode.Val.v
+        [
+          ("x", normal foo);
+          ("z", normal foo);
+          ("a", normal foo);
+          ("y", normal bar);
+        ]
+    in
+    check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
+    check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
+    integrity_check v4 ~stable:false;
+    Context.close t
 
-(** Test remove values on an empty node. *)
-let test_remove_values () =
-  rm_dir root;
-  let* t = Context.get_store () in
-  let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
-  let v2 = Inode.Val.remove v1 "y" in
-  let v3 = Inode.Val.v [ ("x", normal foo) ] in
-  check_values "node x obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
-  let v4 = Inode.Val.remove v2 "x" in
-  check_node "remove results in an empty node" Inode.Val.empty t >>= fun () ->
-  let v5 = Inode.Val.remove v4 "x" in
-  check_values "remove on an already empty node" v4 v5;
-  check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
-  Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
-  Context.close t
+  (** Test remove values on an empty node. *)
+  let test_remove_values () =
+    rm_dir root;
+    let* t = Context.get_store () in
+    let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+    let v2 = Inode.Val.remove v1 "y" in
+    let v3 = Inode.Val.v [ ("x", normal foo) ] in
+    check_values "node x obtained two ways" v2 v3;
+    check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
+    let v4 = Inode.Val.remove v2 "x" in
+    check_node "remove results in an empty node" Inode.Val.empty t >>= fun () ->
+    let v5 = Inode.Val.remove v4 "x" in
+    check_values "remove on an already empty node" v4 v5;
+    check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
+    Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
+    Context.close t
 
-(** Test remove and add values to go from stable to unstable inodes. *)
-let test_remove_inodes () =
-  rm_dir root;
-  let* t = Context.get_store () in
-  let v1 =
-    Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
-  in
-  check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
-  let v2 = Inode.Val.remove v1 "x" in
-  let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
-  check_values "node y+z obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
-  let v4 =
-    Inode.Val.v
-      [
-        ("x", normal foo);
-        ("z", normal foo);
-        ("a", normal foo);
-        ("y", normal bar);
-      ]
-  in
-  let v5 = Inode.Val.remove v4 "a" in
-  check_values "node x+y+z obtained two ways" v1 v5;
-  integrity_check v1;
-  integrity_check v5;
-  Context.close t
-
-(** For each of the 256 possible inode trees with [depth <= 3] and
-    [width = Conf.entries = 2] built by [Inode.Val.v], assert that
-    independently, all the possible [Inode.Val.add]/[Inode.Val.remove]
-    operations yield a tree computable by [Inode.Val.v].
-
-    In other words. Let [T] be the set of all possible trees (256). Let [O] be
-    the set of unitary [tree -> tree] operations (8). If all the combinations of
-    [T] and [O] yield trees in [T] then, by induction, the representation is
-    unique.
-
-    Caveats
-
-    If something breaks at [depth > 3 || entries <> 2], this won't be caught
-    here.
-
-    If a corrupted tree is constructed using [Elt.decode_bin] and [Val.of_bin],
-    this won't be caught here.
-
-    If a corrupted subtree is loaded through the [find] function when an inode
-    lazily loads subtrees, this won't be caught here. *)
-let test_representation_uniqueness_maxdepth_3 () =
-  let module P = Inode_permutations_generator in
-  let p = P.v ~entries:Conf.entries ~maxdepth_of_test:3 in
-  let f steps tree s =
-    (* [steps, tree] is one of the known pair built using [Val.v]. Let's try to
-       add or remove [s] from it and see if something breaks. *)
-    if P.StepSet.mem s steps then
-      let steps' = P.StepSet.remove s steps in
-      let tree'_ref = P.tree_of_steps p steps' in
-      let tree'_new = Inode.Val.remove tree s in
-      check_values
-        "The representation of the received tree obtained through [remove] \
-         differs from the expected one obtained through [v]."
-        tree'_ref tree'_new
-    else
-      let steps' = P.StepSet.add s steps in
-      let c = P.content_of_step p s in
-      let tree'_ref = P.tree_of_steps p steps' in
-      let tree'_new = Inode.Val.add tree s c in
-      check_values
-        "The representation of the received tree obtained through [remove] \
-         differs from the expected one obtained through [v]."
-        tree'_ref tree'_new
-  in
-  List.iter
-    (fun (ss, t) -> List.iter (fun s -> f ss t s) (P.steps p))
-    (P.trees p);
-  Lwt.return_unit
+  (** Test remove and add values to go from stable to unstable inodes. *)
+  let test_remove_inodes () =
+    rm_dir root;
+    let* t = Context.get_store () in
+    let v1 =
+      Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
+    in
+    check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
+    let v2 = Inode.Val.remove v1 "x" in
+    let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
+    check_values "node y+z obtained two ways" v2 v3;
+    check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
+    let v4 =
+      Inode.Val.v
+        [
+          ("x", normal foo);
+          ("z", normal foo);
+          ("a", normal foo);
+          ("y", normal bar);
+        ]
+    in
+    let v5 = Inode.Val.remove v4 "a" in
+    check_values "node x+y+z obtained two ways" v1 v5;
+    integrity_check v1;
+    integrity_check v5;
+    Context.close t
+end
 
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
-        Lwt_main.run (test_add_values ()));
+        Lwt_main.run (Test.test_add_values ()));
     Alcotest.test_case "add values to inodes" `Quick (fun () ->
-        Lwt_main.run (test_add_inodes ()));
+        Lwt_main.run (Test.test_add_inodes ()));
     Alcotest.test_case "remove values" `Quick (fun () ->
-        Lwt_main.run (test_remove_values ()));
+        Lwt_main.run (Test.test_remove_values ()));
     Alcotest.test_case "remove inodes" `Quick (fun () ->
-        Lwt_main.run (test_remove_inodes ()));
+        Lwt_main.run (Test.test_remove_inodes ()));
     Alcotest.test_case "test representation uniqueness" `Quick (fun () ->
-        Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
+        Lwt_main.run
+          (Inode_permutations_generator
+           .test_representation_uniqueness_maxdepth_3 ()));
   ]
