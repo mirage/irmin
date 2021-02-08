@@ -172,7 +172,7 @@ struct
           Format.fprintf ppf "[%2d,%.3e]" bin.count bin.center
         in
         Format.fprintf ppf "%a:[%a]" (Repr.pp stat_entry_t) which
-          Ppf.(list ~sep:(any ",") pp_bar)
+          Fmt.(list ~sep:(any ",") pp_bar)
           (Bentov.bins histo)
       else
         Format.fprintf ppf "%d %a %.3f sec (%.1f%%)" n (Repr.pp stat_entry_t)
