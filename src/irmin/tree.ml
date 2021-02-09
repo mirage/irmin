@@ -323,6 +323,19 @@ module Make (P : Private.S) = struct
       | Value of repo * value * updatemap option
 
     and t = { mutable v : v; mutable info : info }
+    (** [t.v] has 3 possible states:
+
+        - A [Map], only after a [Tree.of_concrete] operation.
+        - A [Value], only after an add, a remove, temporarily during an export
+          or at the end of a merge.
+        - It is otherwise a [Hash].
+
+        [t.info.map] is only populated during a call to [Node.to_map] which only
+        happens during a call to one of those traversal functions:
+
+        - Traversal: [Node.list], [Node.bindings], [Node.fold]
+        - Conversion: [Tree.to_concrete]
+        - Misc: [Node.merge], [Tree.diff_node] *)
 
     let elt_t (t : t Type.t) : elt Type.t =
       let open Type in
