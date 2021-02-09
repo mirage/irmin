@@ -873,19 +873,17 @@ module Make (P : Private.S) = struct
       in
       aux_uniq ~path acc 0 t Lwt.return
 
-    let remove t step =
-      to_map t >|= function
-      | Error (`Dangling_hash _) -> t
-      | Ok n ->
-          if not (StepMap.mem step n) then t else of_map (StepMap.remove step n)
-
-    let add t step v =
+    let update t step up =
       let of_map m =
-        let m' = StepMap.add step v m in
+        let m' =
+          match up with
+          | Remove -> StepMap.remove step m
+          | Add v -> StepMap.add step v m
+        in
         if m == m' then t else of_map m'
       in
       let of_value repo n updates =
-        let updates' = StepMap.add step (Add v) updates in
+        let updates' = StepMap.add step up updates in
         if updates == updates' then t else of_value repo n ~updates:updates'
       in
       match t.v with
@@ -903,6 +901,9 @@ module Make (P : Private.S) = struct
                 | Error (`Dangling_hash _) -> P.Node.Val.empty
               in
               of_value repo v StepMap.empty)
+
+    let remove t step = update t step Remove
+    let add t step v = update t step (Add v)
 
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
