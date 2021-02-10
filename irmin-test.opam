@@ -29,6 +29,7 @@ depends: [
   "ocaml-syntax-shims"
   "cmdliner"
   "metrics" {>= "0.2.0"}
+  "crowbar"
 ]
 
 synopsis: "Irmin test suite"
