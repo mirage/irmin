@@ -155,18 +155,21 @@ struct
     aux concrete
 
   let pp_stats ppf (as_json, flatten, inode_config) =
+    let mean histo =
+      if Bentov.total_count histo > 0 then Bentov.mean histo else 0.
+    in
     let total =
       Hashtbl.to_seq histo_per_op
       |> Seq.map snd
       |> Seq.map (fun histo ->
-             Bentov.mean histo *. float_of_int (Bentov.total_count histo))
+             mean histo *. float_of_int (Bentov.total_count histo))
       |> Seq.fold_left ( +. ) 0.
     in
     let total = if total = 0. then 1. else total in
     let pp_stat ppf which =
       let histo = Hashtbl.find histo_per_op which in
       let n = Bentov.total_count histo in
-      let el = Bentov.mean histo *. float_of_int n in
+      let el = mean histo *. float_of_int n in
       if as_json then
         let pp_bar ppf (bin : Bentov.bin) =
           Format.fprintf ppf "[%2d,%.3e]" bin.count bin.center
