@@ -588,7 +588,10 @@ struct
       let commit k =
         with_cancel cancel @@ fun () ->
         X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
-        Lwt.pause ()
+        Irmin_layers.Stats.freeze_yield ();
+        let* () = Lwt.pause () in
+        Irmin_layers.Stats.freeze_yield_end ();
+        Lwt.return_unit
       in
       let node k =
         with_cancel cancel @@ fun () ->
@@ -685,9 +688,10 @@ struct
       let rec copy_newies_to_next_upper ~cancel t former_offset =
         let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
-        if offset -- former_offset >= newies_limit then
+        if offset -- former_offset >= newies_limit then (
+          Irmin_layers.Stats.copy_newies_loop ();
           copy_newies ~cancel t >>= fun () ->
-          (copy_newies_to_next_upper ~cancel t offset [@tail])
+          (copy_newies_to_next_upper ~cancel t offset [@tail]))
         else Lwt.return_unit
     end
 
@@ -755,34 +759,24 @@ struct
     end
   end
 
-  let dump_stats msg =
-    let stats = Irmin_layers.Stats.get () in
-    Log.debug (fun l ->
-        l "%s: contents=%d, nodes=%d, commits=%d, skips=%d" msg
-          (List.hd stats.copied_contents)
-          (List.hd stats.copied_nodes)
-          (List.hd stats.copied_commits)
-          stats.skips)
-
-  let with_stats msg f = f >|= fun () -> dump_stats msg
-
   let copy ~cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
     (* Copy commits to lower: if squash then copy only the max commits.
        In case cancellation of the freeze, copies to the lower layer will not
        be reverted. Since the copying is performed in the [rev] order, the next
        freeze will resume copying where the previous freeze stopped. *)
+    Irmin_layers.Stats.freeze_section "copy to lower";
     (if t.X.Repo.with_lower then
      let min = if squash then max else min in
-     with_stats "copied in lower" (Copy.CopyToLower.copy ~cancel t ~min max)
+     Copy.CopyToLower.copy ~cancel t ~min max
     else Lwt.return_unit)
     >>= fun () ->
     (* Copy [min_upper, max] to next_upper. In case of cancellation of the
        freeze, the next upper will be cleared. *)
-    (if copy_in_upper then
-     with_stats "copied in upper"
-       (Copy.CopyToUpper.copy t ~cancel ~min:min_upper max)
+    Irmin_layers.Stats.freeze_section "copy to next upper";
+    (if copy_in_upper then Copy.CopyToUpper.copy t ~cancel ~min:min_upper max
     else Lwt.return_unit)
     >>= fun () ->
+    Irmin_layers.Stats.freeze_section "copy branches";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
 
@@ -796,28 +790,21 @@ struct
 
     let commits k = function [] -> E | v -> F (pp_commits, k, v)
     let bool k v = if not v then E else F (Fmt.bool, k, v)
-    let int k v = F (Fmt.int, k, v)
-
-    let span k v =
-      if Mtime.Span.equal v Mtime.Span.zero then E else F (Mtime.Span.pp, k, v)
-
     let upper k = function false, _ | true, [] -> E | _, v -> commits k v
   end
 
   let pp_repo ppf t =
     Fmt.pf ppf "%a" Layered_store.pp_current_upper t.X.Repo.flip
 
-  let unsafe_freeze ~min ~max ~squash ~upper ?hook ~id ~start_time t =
+  let unsafe_freeze ~min ~max ~squash ~upper ?hook t =
     Log.info (fun l ->
         l "[%a] freeze starts { %a }" pp_repo t Field.pps
           [
-            Field.int "id" id;
             Field.commits "min" min;
             Field.commits "max" max;
             Field.bool "squash" squash;
             Field.upper "min_upper" upper;
           ]);
-    Irmin_layers.Stats.freeze ();
     let offset = X.Repo.offset t in
     let lock_file = lock_path t.root in
     (* We take a file lock here to signal that a freeze was in progess in
@@ -827,31 +814,35 @@ struct
     let copy () =
       may (fun f -> f `Before_Copy) hook >>= fun () ->
       copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
+      Irmin_layers.Stats.freeze_section "flush lower";
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
+      Irmin_layers.Stats.freeze_section "copy newies (loop)";
       Copy.CopyToUpper.copy_newies_to_next_upper ~cancel:(Some cancel) t offset
       >>= fun () ->
       may (fun f -> f `Before_Copy_Last_Newies) hook >>= fun () ->
-      let before_add_lock = Mtime_clock.count start_time in
       (* Let's finish the freeze under the batch lock so that no concurrent
          modifications occur until the uppers are flipped. No more cancellations
          from this point on. There are only a few newies left (less than
          [newies_limit] bytes) so this lock should be quickly released. *)
-      let* waiting_add =
-        Lwt_mutex.with_lock t.batch_lock (fun () ->
-            let after_add_lock = Mtime_clock.count start_time in
-            Copy.CopyToUpper.copy_newies ~cancel:None t >>= fun () ->
-            may (fun f -> f `Before_Flip) hook >>= fun () ->
-            X.Repo.flip_upper t;
-            may (fun f -> f `Before_Clear) hook >>= fun () ->
-            X.Repo.clear_previous_upper t >|= fun () ->
-            Mtime.Span.abs_diff after_add_lock before_add_lock)
-      in
+      Irmin_layers.Stats.freeze_section "wait for batch lock";
+      Irmin_layers.Stats.freeze_yield ();
+      Lwt_mutex.with_lock t.batch_lock (fun () ->
+          Irmin_layers.Stats.freeze_yield_end ();
+          Irmin_layers.Stats.freeze_section "copy newies (last)";
+          Copy.CopyToUpper.copy_newies ~cancel:None t >>= fun () ->
+          Irmin_layers.Stats.freeze_section "misc";
+          may (fun f -> f `Before_Flip) hook >>= fun () ->
+          X.Repo.flip_upper t;
+          may (fun f -> f `Before_Clear) hook >>= fun () ->
+          X.Repo.clear_previous_upper t)
+      >>= fun () ->
       (* RO reads generation from pack file to detect a flip change, so it's
          ok to write the flip file outside the lock *)
-      X.Repo.write_flip t >|= fun () -> waiting_add
+      X.Repo.write_flip t
     in
-    let finalize cancelled waiting_freeze waiting_add =
+    let finalize cancelled () =
+      Irmin_layers.Stats.freeze_section "finalize";
       t.freeze.state <- `None;
       (if cancelled then X.Repo.clear_previous_upper ~keep_generation:() t
       else Lwt.return_unit)
@@ -859,32 +850,17 @@ struct
       Lock.close lock_file >>= fun () ->
       Lwt_mutex.unlock t.freeze.lock;
       may (fun f -> f `After_Clear) hook >|= fun () ->
-      let duration = Mtime_clock.count start_time in
-      Log.info (fun l ->
-          l "[%a] freeze %-6s { %a }" pp_repo t
-            (if cancelled then "cancelled" else "ends")
-            Field.pps
-            [
-              Field.int "id" id;
-              Field.span "total-duration" duration;
-              Field.span "freeze-lock" waiting_freeze;
-              Field.span "add-lock" waiting_add;
-            ])
+      Irmin_layers.Stats.freeze_stop ();
+      (* Fmt.pr "\n%a%!" Irmin_layers.Stats.pp_latest (); *)
+      ()
     in
     let async () =
-      let waiting_freeze = Mtime_clock.count start_time in
-      Lwt.try_bind copy (finalize false waiting_freeze) (function
-        | Cancelled -> finalize true waiting_freeze Mtime.Span.zero
+      Lwt.try_bind copy (finalize false) (function
+        | Cancelled -> finalize true ()
         | e -> Lwt.fail e)
     in
-    Lwt.async (fun () -> Irmin_layers.Stats.with_timer `Freeze async);
+    Lwt.async async;
     Lwt.return_unit
-
-  let freeze_counter =
-    let n = ref 0 in
-    fun () ->
-      incr n;
-      !n
 
   (** Main thread takes the [t.freeze.lock] at the begining of freeze and async
       thread releases it at the end. This is to ensure that no two freezes can
@@ -896,19 +872,17 @@ struct
       else Lwt.return_unit
     in
     let freeze () =
-      let id = freeze_counter () in
-      let start_time = Mtime_clock.counter () in
+      let t0 = Mtime_clock.now () in
       let upper =
         ( (match copy_in_upper with None -> t.copy_in_upper | Some b -> b),
           min_upper )
       in
-      let* () =
-        Irmin_layers.Stats.with_timer `Waiting (fun () ->
-            Lwt_mutex.lock t.freeze.lock >|= fun () ->
-            t.freeze.state <- `Running)
-      in
+      Lwt_mutex.lock t.freeze.lock >>= fun () ->
+      t.freeze.state <- `Running;
+      Irmin_layers.Stats.freeze_start t0 "wait for freeze lock";
+      Irmin_layers.Stats.freeze_section "misc";
       let* max = match max with [] -> Repo.heads t | m -> Lwt.return m in
-      unsafe_freeze ~min ~max ~squash ~upper ?hook ~start_time ~id t
+      unsafe_freeze ~min ~max ~squash ~upper ?hook t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if t.readonly then raise RO_Not_Allowed
