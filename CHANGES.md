@@ -2,13 +2,15 @@
 
 ### Added
 
-- **irmin-pack**
-  - It is no longer possible to modify an `inode` that doesn't point to the root
-    of a directory. (#1292, @Ngoguey42)
+- **irmin-bench**
+  - Benchmarks for tree operations now support layered stores
+    (#1293, @Ngoguey42)
 
 ### Changed
 
 - **irmin-pack**
+  - It is no longer possible to modify an `inode` that doesn't point to the root
+    of a directory. (#1292, @Ngoguey42)
   - When configuring a store, is it no longer possible to set `entries` to a
     value larger than `stable_hash`. (#1292, @Ngoguey42)
 
