@@ -18,25 +18,9 @@
 open! Import
 include Tree_intf
 
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
-
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
-let option_of_result = function Ok x -> Some x | Error _ -> None
 
 type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
@@ -281,11 +265,11 @@ module Make (P : Private.S) = struct
       let f ~old x y =
         let old =
           Merge.bind_promise old (fun old () ->
-              let+ c = to_value old >|= option_of_result in
+              let+ c = to_value old >|= Option.of_result in
               Ok (Some c))
         in
-        let* x = to_value x >|= option_of_result in
-        let* y = to_value y >|= option_of_result in
+        let* x = to_value x >|= Option.of_result in
+        let* y = to_value y >|= Option.of_result in
         Merge.(f P.Contents.Val.merge) ~old x y >|= function
         | Ok (Some c) -> Ok (of_value c)
         | Ok None -> Error (`Conflict "empty contents")
@@ -682,9 +666,9 @@ module Make (P : Private.S) = struct
 
     let list_of_map ?(offset = 0) ?length m : (step * elt) list =
       let take_length seq =
-        match length with None -> List.of_seq seq | Some n -> take n seq
+        match length with None -> List.of_seq seq | Some n -> Seq.take n seq
       in
-      StepMap.to_seq m |> drop offset |> take_length
+      StepMap.to_seq m |> Seq.drop offset |> take_length
 
     let list_of_value repo ?offset ?length v : (step * elt) list =
       cnt.node_val_list <- cnt.node_val_list + 1;
@@ -853,11 +837,11 @@ module Make (P : Private.S) = struct
       let f ~old x y =
         let old =
           Merge.bind_promise old (fun old () ->
-              let+ m = to_map old >|= option_of_result in
+              let+ m = to_map old >|= Option.of_result in
               Ok (Some m))
         in
-        let* x = to_map x >|= option_of_result in
-        let* y = to_map y >|= option_of_result in
+        let* x = to_map x >|= Option.of_result in
+        let* y = to_map y >|= Option.of_result in
         let m =
           StepMap.merge elt_t (fun _step ->
               (merge_elt [@tailcall]) Merge.option)
