@@ -494,19 +494,20 @@ struct
       | Tree { depth; _ } when depth = 0 -> true
       | Tree _ -> false
       | Values _ ->
-          (* Those 3 facts imply [t is stable => t is root]:
+          (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
+             is implied by the following.
+
+             When [t] is stable, then [t] is a root, because:
               - Only 2 functions produce stable inodes: [stabilize] and [empty].
               - Only the roots are output of [stabilize].
               - An empty map can only be located at the root.
 
-             Those 3 facts imply [(t is Values /\ t is root) => t is stable]:
+             When [t] is a root of tag [Value], then [t] is stable, because:
              - All the roots are output of [stabilize].
              - When an unstable inode enters [stabilize], it becomes stable if
                it has at most [Conf.stable_hash] leaves.
              - A [Value] has at most [Conf.stable_hash] leaves because
-               [Conf.entries <= Conf.stable_hash] is enforced somewhere.
-
-             Then [t is Values => (t is root = t is stable)].
+               [Conf.entries <= Conf.stable_hash] is enforced.
           *)
           t.stable
 
