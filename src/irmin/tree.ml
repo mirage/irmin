@@ -337,7 +337,8 @@ module Make (P : Private.S) = struct
       |~ case1 "Contents-x" (pair Contents.t Metadata.t) (fun x -> `Contents x)
       |> sealv
 
-    let map_t (elt : elt Type.t) : map Type.t =
+    let stepmap_t : 'a. 'a Type.t -> 'a StepMap.t Type.t =
+     fun elt ->
       let open Type in
       let to_map x =
         List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
@@ -353,10 +354,9 @@ module Make (P : Private.S) = struct
       |~ case0 "remove" Remove
       |> sealv
 
-    let updatemap_t (elt : elt Type.t) : updatemap Type.t =
-      map_t (update_t elt) to_map of_map
-
-    let v_t (m : map Type.t) (um : updatemap Type.t) : v Type.t =
+    let v_t (elt : elt Type.t) : v Type.t =
+      let m = stepmap_t elt in
+      let um = stepmap_t (update_t elt) in
       let open Type in
       variant "Node.node" (fun map hash value -> function
         | Map m -> map m
@@ -387,7 +387,7 @@ module Make (P : Private.S) = struct
     let _, t =
       Type.mu2 (fun _ y ->
           let elt = elt_t y in
-          let v = v_t (map_t elt) (updatemap_t elt) in
+          let v = v_t elt in
           let t = t v in
           (v, t))
 
