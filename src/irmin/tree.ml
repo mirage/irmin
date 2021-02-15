@@ -330,12 +330,7 @@ module Make (P : Private.S) = struct
           or at the end of a merge.
         - It is otherwise a [Hash].
 
-        [t.info.map] is only populated during a call to [Node.to_map] which only
-        happens during a call to one of those traversal functions:
-
-        - Traversal: [Node.list], [Node.bindings], [Node.fold]
-        - Conversion: [Tree.to_concrete]
-        - Misc: [Node.merge], [Tree.diff_node] *)
+        [t.info.map] is only populated during a call to [Node.to_map]. *)
 
     let elt_t (t : t Type.t) : elt Type.t =
       let open Type in
@@ -366,12 +361,7 @@ module Make (P : Private.S) = struct
       |> sealv
 
     let updatemap_t (elt : elt Type.t) : updatemap Type.t =
-      let open Type in
-      let to_map x =
-        List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
-      in
-      let of_map m = StepMap.fold (fun k v acc -> (k, v) :: acc) m [] in
-      map (list (pair Path.step_t (update_t elt))) to_map of_map
+      map_t (update_t elt) to_map of_map
 
     let v_t (m : map Type.t) (um : updatemap Type.t) : v Type.t =
       let open Type in
@@ -680,13 +670,7 @@ module Make (P : Private.S) = struct
             let entries = P.Node.Val.list v in
             if List.length entries > remove_count then false
             else
-              let any_kept =
-                (* Would converting to [Set] and use [subset : t -> t -> bool]
-                   be quicker? *)
-                List.exists (fun (step, _) -> not (StepMap.mem step um)) entries
-              in
-              let res = not any_kept in
-              res)
+              List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let is_empty t =
       match cached_map t with
