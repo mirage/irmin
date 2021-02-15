@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Extensions to the default namespsace, opened throughout the Irmin codebase. *)
+(** Extensions to the default namespace, opened throughout the Irmin codebase. *)
 
 module Option = struct
   include Option
