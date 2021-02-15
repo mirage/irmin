@@ -39,6 +39,13 @@ module Seq = struct
         match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
     in
     fun n s -> List.rev (aux [] n s)
+
+  let exists : type a. (a -> bool) -> a Seq.t -> bool =
+   fun f s ->
+    let rec aux s =
+      match s () with Seq.Nil -> false | Seq.Cons (v, s) -> f v || aux s
+    in
+    aux s
 end
 
 type read = Perms.read

@@ -18,13 +18,6 @@
 open! Import
 include Tree_intf
 
-let seq_exists : ('a -> bool) -> 'a Seq.t -> bool =
- fun f s ->
-  let rec aux s =
-    match s () with Seq.Nil -> false | Seq.Cons (v, s) -> f v || aux s
-  in
-  aux s
-
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -409,7 +402,7 @@ module Make (P : Private.S) = struct
     and clear_maps ~max_depth depth = List.iter (clear_map ~max_depth depth)
 
     and clear_info ~max_depth ?v depth i =
-      let updates =
+      let added =
         match v with
         | Some (Value (_, _, Some um)) ->
             StepMap.bindings um
@@ -431,7 +424,7 @@ module Make (P : Private.S) = struct
         i.map <- None;
         i.hash <- None;
         i.findv_cache <- None);
-      clear_maps ~max_depth depth [ map; updates; findv ]
+      clear_maps ~max_depth depth [ map; added; findv ]
 
     and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
@@ -652,10 +645,13 @@ module Make (P : Private.S) = struct
             | Some x, Some y -> if equal_node x y then True else False
             | _ -> Maybe)
 
-    let is_updatemap_empty v um =
+    (** Does [um] empties [v]?
+
+        Gotcha: Some [Remove] entries in [um] might not be in [v]. *)
+    let is_empty_after_updates v um =
       let any_add =
         StepMap.to_seq um
-        |> seq_exists (function _, Remove -> false | _, Add _ -> true)
+        |> Seq.exists (function _, Remove -> false | _, Add _ -> true)
       in
       if any_add then false
       else
@@ -665,12 +661,12 @@ module Make (P : Private.S) = struct
           let remove_count = StepMap.cardinal um in
           if (not val_is_empty) && remove_count = 0 then false
           else (
-            (* This is expensive from this point but there is no alternative *)
+            (* Starting from this point the function is expensive, but there is
+               no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
             let entries = P.Node.Val.list v in
             if List.length entries > remove_count then false
-            else
-              List.for_all (fun (step, _) -> StepMap.mem step um) entries)
+            else List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let is_empty t =
       match cached_map t with
@@ -678,7 +674,7 @@ module Make (P : Private.S) = struct
       | None -> (
           match t.v with
           | Value (_, v, Some um) ->
-              let res = is_updatemap_empty v um in
+              let res = is_empty_after_updates v um in
               Lwt.return_ok res
           | _ -> (
               to_value t >|= function
