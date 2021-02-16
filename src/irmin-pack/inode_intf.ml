@@ -17,7 +17,7 @@
 open! Import
 open Store_properties
 
-module type Val_intf = sig
+module type VAL = sig
   include Irmin.Private.Node.S
 
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
@@ -38,7 +38,7 @@ module type S = sig
 
   include BATCH with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
-  module Val : Val_intf with type t = value and type hash = key
+  module Val : VAL with type t = value and type hash = key
   include S.CHECKABLE with type 'a t := 'a t and type key := key
   include CLOSEABLE with type 'a t := 'a t
 
@@ -71,7 +71,7 @@ module type INTER = sig
     type nonrec hash = hash
     type t
 
-    include Val_intf with type hash := hash and type t := t
+    include VAL with type hash := hash and type t := t
 
     val of_bin : (hash -> Elt.t option) -> Elt.t -> t
     val to_bin : t -> Elt.t
