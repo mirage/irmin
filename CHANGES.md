@@ -1,25 +1,19 @@
-## Unreleased
-
-### Fixed
-
-### Added
+## 2.5.0 (2021-02-16)
 
 ### Changed
 
-- Changed `Store.Tree.{of_hash, shallow}` to take kinded hashes, allowing the
-  creation of unforced contents values.
+- **irmin**
+  - `Store.Tree.remove` is now much faster when operating on large directories.
+    The commits following removals are also much faster. (#1289, @Ngoguey42)
 
-- Changed `Tree.destruct` to return _lazy_ contents values, which may be forced
-  with `Tree.Contents.force`.
+  - Changed `Store.Tree.{of_hash, shallow}` to take kinded hashes, allowing the
+    creation of unforced contents values. (#1285, @CraigFe)
+
+  - Changed `Tree.destruct` to return _lazy_ contents values, which may be forced
+    with `Tree.Contents.force`. (#1285, @CraigFe)
 
 - **irmin-bench**
   - New features in benchmarks for tree operations (#1269, @Ngoguey42)
-
-- **irmin**
-  - `Store.Tree.remove` is now much faster when operating on large directories.
-     The commits following removals are also much faster. (#1289, @Ngoguey42)
-
-### Removed
 
 ## 2.4.0 (2021-02-02)
 
