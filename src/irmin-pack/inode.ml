@@ -491,8 +491,7 @@ struct
 
     let is_root t =
       match t.v with
-      | Tree { depth; _ } when depth = 0 -> true
-      | Tree _ -> false
+      | Tree { depth; _ } -> depth = 0
       | Values _ ->
           (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
              is implied by the following.
