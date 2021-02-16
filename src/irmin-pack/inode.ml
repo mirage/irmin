@@ -41,7 +41,9 @@ module Make_intermediate
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  let () = assert (Conf.entries <= Conf.stable_hash)
+  let () =
+    if Conf.entries > Conf.stable_hash then
+      invalid_arg "entries should be lower or equal to stable_hash"
 
   module Node = struct
     include Node
@@ -304,7 +306,24 @@ struct
       in [irmin/slice.ml] and [irmin/sync_ext.ml], and maybe some other places.
 
       At some point we might want to forbid such deserialisations and instead
-      use something in the flavour of [Val.of_bin] to create [Partial] inodes. *)
+      use something in the flavour of [Val.of_bin] to create [Partial] inodes.
+
+      {3 Topmost Inode Ancestor}
+
+      [Val_impl.t] is a recursive type. The [depth] interer is a witness of the
+      recursion depth. An inode with [depth = 0] corresponds to the root of a
+      directory, its hash is the hash of the directory.
+
+      A [Val.t] pointes to the topmost [Val_impl.t] of an inode tree. In most
+      scenarios, that topmost inode has [depth = 0], but it is also legal for
+      the topmost inode to be an intermediate inode, i.e. with [depth > 0].
+
+      The only way for an inode tree to have an intermediate inode as root, is
+      to fetch it from the backend by calling [Make_ext.find], using the hash
+      that inode.
+
+      Write-only operations on trees starting by an intermediate inode are
+      forbiden. *)
   module Val_impl = struct
     open T
 
@@ -509,6 +528,10 @@ struct
                [Conf.entries <= Conf.stable_hash] is enforced.
           *)
           t.stable
+
+    let check_write_op_supported t =
+      if not @@ is_root t then
+        failwith "Cannot perform operation on non-root inode value."
 
     let stabilize layout t =
       if t.stable then t
@@ -896,21 +919,15 @@ struct
 
     let add t s value =
       let f layout v =
-        if not @@ I.is_root v then
-          failwith
-            "Can't add anything to an inode that is not a root. You obtained \
-             that inode through the [find] function."
-        else I.add ~copy:true layout v s value
+        I.check_write_op_supported v;
+        I.add ~copy:true layout v s value
       in
       map t { f }
 
     let remove t s =
       let f layout v =
-        if not @@ I.is_root v then
-          failwith
-            "Can't remove anything from an inode that is not a root. You \
-             obtained that inode through the [find] function."
-        else I.remove layout v s
+        I.check_write_op_supported v;
+        I.remove layout v s
       in
       map t { f }
 
@@ -936,11 +953,8 @@ struct
 
     let save ~add ~mem t =
       let f layout v =
-        if not @@ I.is_root v then
-          failwith
-            "Can't save to backend an inode that is not a root. You obtained \
-             that inode through the [find] function."
-        else I.save layout ~add ~mem v
+        I.check_write_op_supported v;
+        I.save layout ~add ~mem v
       in
       apply t { f }
 

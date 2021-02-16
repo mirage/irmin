@@ -42,6 +42,11 @@ module Context = struct
     Inode.close t.store
 end
 
+type pred = [ `Contents of H.t | `Inode of H.t | `Node of H.t ]
+[@@deriving irmin]
+
+let pp_pred = Irmin.Type.pp pred_t
+
 module H_contents =
   Irmin.Hash.Typed
     (H)
@@ -398,6 +403,62 @@ let test_truncated_inodes () =
   (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);
   Lwt.return_unit
 
+let test_intermediate_inode_as_root () =
+  rm_dir root;
+  let* t = Context.get_store () in
+  let s000, s001, s010 =
+    Inode_permutations_generator.
+      (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
+  in
+  let v0 =
+    Inode.Val.v [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
+  in
+  let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
+  let (`Inode h_depth1) =
+    match Inode.Val.pred v0 with
+    | [ (`Inode _ as pred) ] -> pred
+    | l ->
+        Alcotest.failf
+          "Expected one `Inode predecessors, got [%a], a list of length %d."
+          Fmt.(list ~sep:(any " ; ") pp_pred)
+          l (List.length l)
+  in
+
+  (* On inode with depth=0 *)
+  let* v =
+    Inode.find t.store h_depth0 >|= function
+    | None -> Alcotest.fail "Could not fetch inode from backend"
+    | Some v -> v
+  in
+  if Inode.Val.list v |> List.length <> 3 then
+    Alcotest.fail "Failed to list entries of loaded inode";
+  let _ = Inode.Val.remove v s000 in
+  let _ = Inode.Val.add v s000 (normal foo) in
+  let* _ = Inode.batch t.store @@ fun store -> Inode.add store v in
+
+  (* On inode with depth=1 *)
+  let* v =
+    Inode.find t.store h_depth1 >|= function
+    | None -> Alcotest.fail "Could not fetch inode from backend"
+    | Some v -> v
+  in
+  if Inode.Val.list v |> List.length <> 3 then
+    Alcotest.fail "Failed to list entries of loaded inode";
+  let with_exn f =
+    Alcotest.check_raises
+      "Write-only operation is forbiden on intermediate inode"
+      (Failure "Cannot perform operation on non-root inode value.") (fun () ->
+        f () |> ignore)
+  in
+  with_exn (fun () -> Inode.Val.remove v s000);
+  with_exn (fun () -> Inode.Val.add v s000 (normal foo));
+  let* () =
+    Inode.batch t.store (fun store ->
+        with_exn (fun () -> Inode.add store v);
+        Lwt.return_unit)
+  in
+  Lwt.return_unit
+
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
@@ -412,4 +473,6 @@ let tests =
         Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
     Alcotest.test_case "test truncated inodes" `Quick (fun () ->
         Lwt_main.run (test_truncated_inodes ()));
+    Alcotest.test_case "test intermediate inode as root" `Quick (fun () ->
+        Lwt_main.run (test_intermediate_inode_as_root ()));
   ]
