@@ -6,11 +6,14 @@
 
 (rule
  (alias runtest)
+ (package irmin-fuzz)
  (deps tree.exe)
- (action (progn)))
+ (action progn))
 
 (rule
  (alias runfuzz)
- (package irmin)
+ (deps
+  (source_tree ./input))
  (action
-  (run %{exe:fuzz.exe})))
+  (run timeout --preserve-status 1h bun -v --input=input --output=output --
+    ./%{exe:tree.exe})))
