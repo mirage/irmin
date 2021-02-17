@@ -1,0 +1,21 @@
+kind: pipeline
+type: docker
+name: amd
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ocaml/opam:debian-10-ocaml-4.12-afl
+  commands:
+  - sudo apt-get update && sudo apt-get -y install afl
+  - sudo chown -R opam .
+  - git -C /home/opam/opam-repository pull origin && opam update
+  - opam pin add --no-action irmin.dev ./
+  - opam pin add --no-action irmin-fuzz.dev ./
+  - opam pin add --no-action ppx_irmin.dev ./
+  - opam depext --update irmin-fuzz
+  - opam install -y --with-test irmin-fuzz
+  - opam exec -- dune build @runfuzz --no-buffer
