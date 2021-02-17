@@ -28,11 +28,6 @@ type ('a, 'r) cont_lwt = ('a, 'r Lwt.t) cont
 
 let ok x = Lwt.return (Ok x)
 
-let rec list_is_longer_than : type a. a list -> int -> bool =
- fun l len ->
-  if len < 0 then true
-  else match l with [] -> false | _ :: tl -> list_is_longer_than tl (len - 1)
-
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
   let rec aux l1 l2 =
@@ -670,7 +665,7 @@ module Make (P : Private.S) = struct
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
             let entries = P.Node.Val.list v in
-            if list_is_longer_than entries remove_count then false
+            if List.is_longer_than remove_count entries then false
             else List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let is_empty t =

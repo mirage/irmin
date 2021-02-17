@@ -22,6 +22,16 @@ module Option = struct
   let of_result = function Ok x -> Some x | Error _ -> None
 end
 
+module List = struct
+  include List
+  (** @closed *)
+
+  let rec is_longer_than : type a. int -> a list -> bool =
+   fun len l ->
+    if len < 0 then true
+    else match l with [] -> false | _ :: tl -> is_longer_than (len - 1) tl
+end
+
 module Seq = struct
   include Seq
 
