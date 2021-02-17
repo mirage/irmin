@@ -35,6 +35,7 @@ type freeze_profile = {
   mutable commits : int;
   mutable branches : int;
   mutable adds : int;
+  mutable skip_tests : int;
   mutable skips : int;
   mutable copy_newies_loops : int;
   mutable yields : int;
@@ -59,6 +60,7 @@ let fresh_freeze_profile idx t0 current_section =
     branches = 0;
     adds = 0;
     skips = 0;
+    skip_tests = 0;
     copy_newies_loops = 0;
     yields = 0;
     outside_totlen = 0.;
@@ -105,7 +107,10 @@ let copy_nodes () = !latest.nodes <- succ !latest.nodes
 let copy_commits () = !latest.commits <- succ !latest.commits
 let copy_branches () = !latest.branches <- succ !latest.branches
 let add () = !latest.adds <- succ !latest.adds
-let skip () = !latest.skips <- succ !latest.skips
+
+let skip_test should_skip =
+  !latest.skip_tests <- succ !latest.skip_tests;
+  if should_skip then !latest.skips <- succ !latest.skips
 
 let copy_newies_loop () =
   !latest.copy_newies_loops <- succ !latest.copy_newies_loops
@@ -221,11 +226,11 @@ let pp_latest_when_any ppf v =
             Format.fprintf ppf " (max:%a)" Mtime.Span.pp_float_s max_len
         in
         if count = 1 then
-          Format.fprintf ppf "1 long %s in \"%s\" of %a" action_name section Mtime.Span.pp_float_s
-            totlen
+          Format.fprintf ppf "1 long %s in \"%s\" of %a" action_name section
+            Mtime.Span.pp_float_s totlen
         else
-          Format.fprintf ppf "%d long %ss in \"%s\" of ~%a%t" count action_name section
-            Mtime.Span.pp_float_s
+          Format.fprintf ppf "%d long %ss in \"%s\" of ~%a%t" count action_name
+            section Mtime.Span.pp_float_s
             (totlen /. float_of_int count)
             pp_if_max
       in
@@ -255,6 +260,7 @@ let pp_latest_when_any ppf v =
       ("copy_branches", v.branches);
       ("adds", v.adds);
       ("skips", v.skips);
+      ("skip_tests", v.skip_tests);
       ("yields", v.yields);
       ("copy_newies_loops", v.copy_newies_loops);
     ]

@@ -53,9 +53,9 @@ val copy_branches : unit -> unit
 val add : unit -> unit
 (** Increment the number of objects added by main thread. *)
 
-val skip : unit -> unit
-(** Increment the number of skips during a graph traversal for the current
-    freeze. *)
+val skip_test : bool -> unit
+(** Increment the number time we wondered if an entry was present at the
+    destination during a graph traversal for the current freeze. *)
 
 val copy_newies_loop : unit -> unit
 (** Increment the number of iterations of newies copy. *)

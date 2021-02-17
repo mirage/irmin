@@ -63,8 +63,7 @@ let print_commit_stats config c i time =
         l "Commit %a %d in cycle completed in %f; objects created: %d"
           Store.Commit.pp_hash c i time num_objects)
 
-let print_stats () =
-  Logs.app (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
+let print_stats () = Logs.app (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
 let write_cycle config repo init_commit =
   let rec go c i =
