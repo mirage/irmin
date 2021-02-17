@@ -5,8 +5,7 @@
  (libraries alcotest fmt common index irmin irmin-test irmin-pack
    irmin-pack.layered logs lwt lwt.unix fpath)
  (preprocess
-  (pps ppx_irmin))
-)
+  (pps ppx_irmin)))
 
 (executable
  (name test)
