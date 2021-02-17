@@ -359,7 +359,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     run x test
 
   let log_stats () =
-    Logs.debug (fun l -> l "%a%!" Irmin_layers.Stats.pp_latest ())
+    Logs.debug (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
   let test_squash x () =
     let check_val = check T.(option S.contents_t) in

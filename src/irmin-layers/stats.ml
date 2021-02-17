@@ -76,11 +76,11 @@ let freeze_start_counter =
     !c - 1
 
 let freeze_profiles = ref []
-let latest = ref (fresh_freeze_profile ~-1 (Mtime_clock.now ()) "")
+let latest = ref (fresh_freeze_profile (-1) (Mtime_clock.now ()) "")
 
 let reset_stats () =
   freeze_profiles := [];
-  latest := fresh_freeze_profile ~-1 (Mtime_clock.now ()) ""
+  latest := fresh_freeze_profile (-1) (Mtime_clock.now ()) ""
 
 let freeze_start t0 current_section =
   (* Printf.eprintf "\n> freeze: start\n%!"; *)
@@ -146,7 +146,7 @@ let freeze_stop () =
   in
   freeze_profiles := shorter (!latest :: !freeze_profiles)
 
-let pp_latest ppf () =
+let pp_latest ppf =
   let v = !latest in
   let timeline =
     List.fold_right
