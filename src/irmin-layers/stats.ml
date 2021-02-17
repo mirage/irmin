@@ -24,12 +24,7 @@ let limit_length_list = 10
 
 let minimum_seconds_to_be_considered_long = 1.0
 
-type freeze_profile = {
-  mutable idx : int;
-  mutable t0 : Mtime.t;
-  mutable t1 : Mtime.t;
-  mutable current_section : string;
-  mutable rev_timeline : (string * Mtime.t * float) list;
+type counters = {
   mutable contents : int;
   mutable nodes : int;
   mutable commits : int;
@@ -37,8 +32,18 @@ type freeze_profile = {
   mutable adds : int;
   mutable skip_tests : int;
   mutable skips : int;
-  mutable copy_newies_loops : int;
   mutable yields : int;
+}
+
+type freeze_profile = {
+  idx : int;
+  past_adds : int;
+  t0 : Mtime.t;
+  mutable t1 : Mtime.t;
+  mutable current_section : string;
+  mutable current_counters : counters;
+  mutable rev_timeline : (string * Mtime.t * float * counters) list;
+  mutable copy_newies_loops : int;
   mutable outside_totlen : float;
   mutable inside_totlen : float;
   mutable outside_maxlen : string * float;
@@ -47,13 +52,8 @@ type freeze_profile = {
   mutable rev_longest_blocks : (string, int * float) Hashtbl.t;
 }
 
-let fresh_freeze_profile idx t0 current_section =
+let fresh_counters () =
   {
-    idx;
-    t0;
-    t1 = t0;
-    current_section;
-    rev_timeline = [];
     contents = 0;
     nodes = 0;
     commits = 0;
@@ -61,8 +61,19 @@ let fresh_freeze_profile idx t0 current_section =
     adds = 0;
     skips = 0;
     skip_tests = 0;
-    copy_newies_loops = 0;
     yields = 0;
+  }
+
+let fresh_freeze_profile idx t0 initial_section past_adds =
+  {
+    idx;
+    past_adds;
+    t0;
+    t1 = t0;
+    current_section = initial_section;
+    current_counters = fresh_counters ();
+    rev_timeline = [];
+    copy_newies_loops = 0;
     outside_totlen = 0.;
     inside_totlen = 0.;
     outside_maxlen = ("never", 0.);
@@ -85,45 +96,62 @@ let freeze_start_counter =
     !c
 
 let freeze_profiles = ref []
-let latest = ref (fresh_freeze_profile (-1) (Mtime_clock.now ()) "")
+let latest = ref (fresh_freeze_profile (-1) (Mtime_clock.now ()) "" 0)
+let are_all_counters_zero c = c = fresh_counters ()
 
 let reset_stats () =
   freeze_profiles := [];
-  latest := fresh_freeze_profile (-1) (Mtime_clock.now ()) ""
+  latest := fresh_freeze_profile (-1) (Mtime_clock.now ()) "" 0
 
-let freeze_start t0 current_section =
+let freeze_start t0 initial_section =
+  let past_adds = !latest.current_counters.adds in
   let (_ : float) = get_elapsed ~reset:true in
-  latest := fresh_freeze_profile (freeze_start_counter ()) t0 current_section
+  latest :=
+    fresh_freeze_profile (freeze_start_counter ()) t0 initial_section past_adds
 
 let freeze_section ev_name' =
   let ev_name = !latest.current_section in
   let now = Mtime_clock.now () in
   let now_inside = get_elapsed ~reset:false +. !latest.inside_totlen in
+  let c = !latest.current_counters in
+  !latest.current_counters <- fresh_counters ();
   !latest.current_section <- ev_name';
-  !latest.rev_timeline <- (ev_name, now, now_inside) :: !latest.rev_timeline
+  !latest.rev_timeline <- (ev_name, now, now_inside, c) :: !latest.rev_timeline
 
-let copy_contents () = !latest.contents <- succ !latest.contents
-let copy_nodes () = !latest.nodes <- succ !latest.nodes
-let copy_commits () = !latest.commits <- succ !latest.commits
-let copy_branches () = !latest.branches <- succ !latest.branches
-let add () = !latest.adds <- succ !latest.adds
+let copy_contents () =
+  !latest.current_counters.contents <- succ !latest.current_counters.contents
+
+let copy_nodes () =
+  !latest.current_counters.nodes <- succ !latest.current_counters.nodes
+
+let copy_commits () =
+  !latest.current_counters.commits <- succ !latest.current_counters.commits
+
+let copy_branches () =
+  !latest.current_counters.branches <- succ !latest.current_counters.branches
+
+let add () =
+  (* The only incrementator not called from freeze. *)
+  !latest.current_counters.adds <- succ !latest.current_counters.adds
 
 let skip_test should_skip =
-  !latest.skip_tests <- succ !latest.skip_tests;
-  if should_skip then !latest.skips <- succ !latest.skips
+  !latest.current_counters.skip_tests <-
+    succ !latest.current_counters.skip_tests;
+  if should_skip then
+    !latest.current_counters.skips <- succ !latest.current_counters.skips
 
 let copy_newies_loop () =
   !latest.copy_newies_loops <- succ !latest.copy_newies_loops
 
-let get_add_count () = !latest.adds
-let get_copied_commits_count () = !latest.commits
-let get_copied_branches_count () = !latest.branches
-let get_copied_contents_count () = !latest.contents
-let get_copied_nodes_count () = !latest.nodes
+let get_add_count () = !latest.current_counters.adds
+let get_copied_commits_count () = !latest.current_counters.commits
+let get_copied_branches_count () = !latest.current_counters.branches
+let get_copied_contents_count () = !latest.current_counters.contents
+let get_copied_nodes_count () = !latest.current_counters.nodes
 let get_freeze_count () = List.length !freeze_profiles
 
 let freeze_yield () =
-  !latest.yields <- !latest.yields + 1;
+  !latest.current_counters.yields <- succ !latest.current_counters.yields;
   let d1 = get_elapsed ~reset:true in
   let d0 = !latest.inside_totlen in
   !latest.inside_totlen <- d0 +. d1;
@@ -156,12 +184,14 @@ let freeze_yield_end () =
     Hashtbl.replace tbl s new_entry
 
 let freeze_stop () =
+  let v = !latest in
   freeze_yield ();
-  !latest.yields <- !latest.yields - 1;
-  !latest.t1 <- Mtime_clock.now ();
-  !latest.rev_timeline <-
-    (!latest.current_section, Mtime_clock.now (), !latest.inside_totlen)
-    :: !latest.rev_timeline;
+  v.current_counters.yields <- pred v.current_counters.yields;
+  v.t1 <- Mtime_clock.now ();
+  v.rev_timeline <-
+    (v.current_section, Mtime_clock.now (), v.inside_totlen, v.current_counters)
+    :: v.rev_timeline;
+  v.current_counters <- fresh_counters ();
   let shorter ls =
     List.fold_left
       (fun (acc, i) x ->
@@ -170,22 +200,30 @@ let freeze_stop () =
     |> fst
     |> List.rev
   in
-  freeze_profiles := shorter (!latest :: !freeze_profiles)
+  freeze_profiles := shorter (v :: !freeze_profiles)
 
 let pp_latest_when_any ppf v =
   let ongoing = Mtime.equal v.t0 v.t1 in
   let timeline =
-    List.fold_right
-      (fun (s, t1, t1_block) (acc, t0, t0_block) ->
-        let data = (s, Mtime.span t0 t1, t1_block -. t0_block) in
-        let acc = `Done data :: acc in
-        (acc, t1, t1_block))
-      v.rev_timeline ([], v.t0, 0.)
-    |> (fun (l, _, _) -> l)
-    |> List.rev
-  in
-  let timeline =
-    if ongoing then timeline @ [ `Ongoing v.current_section ] else timeline
+    let l, t0, t0_block =
+      List.fold_right
+        (fun (s, t1, t1_block, counters) (acc, t0, t0_block) ->
+          let span = Mtime.span t0 t1 in
+          let span_block = t1_block -. t0_block in
+          let data = (s, span, span_block, counters, false) in
+          (data :: acc, t1, t1_block))
+        v.rev_timeline ([], v.t0, 0.)
+    in
+    let l =
+      if not ongoing then l
+      else
+        let t1 = Mtime_clock.now () in
+        let t1_block = get_elapsed ~reset:false +. v.inside_totlen in
+        let span = Mtime.span t0 t1 in
+        let span_block = t1_block -. t0_block in
+        (v.current_section, span, span_block, v.current_counters, true) :: l
+    in
+    List.rev l
   in
   let totlen =
     if ongoing then Mtime.span v.t0 (Mtime_clock.now ())
@@ -195,23 +233,45 @@ let pp_latest_when_any ppf v =
     let totlen = Mtime.Span.to_s totlen in
     (v.outside_totlen /. totlen, v.inside_totlen /. totlen)
   in
-  let pp_timeline_section ppf data =
-    match data with
-    | `Ongoing name -> Format.fprintf ppf "@\n    %20s is ongoing." name
-    | `Done (name, span, span_block) ->
-        let totlen = Mtime.Span.to_s totlen in
-        let span = Mtime.Span.to_s span in
-        let pp = Mtime.Span.pp_float_s in
-        let pp' ppf v = Format.fprintf ppf "%.0f%%" (v *. 100.) in
-        Format.fprintf ppf
-          "@\n    %20s took %a (%a of total) and blocked %a (%a of total)." name
-          pp span pp' (span /. totlen) pp span_block pp'
-          (span_block /. v.inside_totlen)
+  let pp_timeline_timings_section ppf (name, span, span_block, _, is_ongoing) =
+    let totlen = Mtime.Span.to_s totlen in
+    let span = Mtime.Span.to_s span in
+    let pp = Mtime.Span.pp_float_s in
+    let pp' ppf v = Format.fprintf ppf "%.0f%%" (v *. 100.) in
+    Format.fprintf ppf
+      "@\n    %20s took %a (%a of total) and blocked %a (%a of total)%s." name
+      pp span pp' (span /. totlen) pp span_block pp'
+      (span_block /. v.inside_totlen)
+      (if is_ongoing then " (ongoing)" else "")
   in
-
-  let pp_timeline ppf =
+  let pp_timeline_timings ppf =
     Format.fprintf ppf "%a"
-      Fmt.(list ~sep:(any "") pp_timeline_section)
+      Fmt.(list ~sep:(any "") pp_timeline_timings_section)
+      timeline
+  in
+  let pp_timeline_counters_section ppf (name, _, _, c, is_ongoing) =
+    Format.fprintf ppf "@\n    %20s %a%s." name
+      Fmt.(list ~sep:(any ", ") (pair ~sep:(any ":") string int))
+      [
+        ("copy_contents", c.contents);
+        ("copy_nodes", c.nodes);
+        ("copy_commits", c.commits);
+        ("copy_branches", c.branches);
+        ("adds", c.adds);
+        ("skips", c.skips);
+        ("skip_tests", c.skip_tests);
+        ("yields", c.yields);
+      ]
+      (if is_ongoing then " (ongoing)" else "")
+  in
+  let pp_timeline_counters ppf =
+    let timeline =
+      List.filter
+        (fun (_, _, _, c, _) -> not @@ are_all_counters_zero c)
+        timeline
+    in
+    Format.fprintf ppf "%a"
+      Fmt.(list ~sep:(any "") pp_timeline_counters_section)
       timeline
   in
   let pp_long_segment ppf (action_name, (max_section, max_len), tbl) =
@@ -239,36 +299,21 @@ let pp_latest_when_any ppf v =
         (Hashtbl.to_seq tbl |> List.of_seq)
   in
   Format.fprintf ppf
-    "freeze %d (%s) blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a. \
-     %.3f yields per sec.@\n\
-    \  Event counts: %a@\n\
+    "freeze %d (%s) blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a. %d \
+     adds before freeze. Copy newies loops: %d.@\n\
     \  %a.@\n\
     \  %a.@\n\
-    \  Timeline: %t@\n"
+    \  Timeline timings: %t@\n\
+    \  Timeline counters: %t@\n"
     v.idx
     (if ongoing then "ongoing" else "finished")
     Mtime.Span.pp_float_s v.inside_totlen (frac_in *. 100.)
     Mtime.Span.pp_float_s v.outside_totlen (frac_out *. 100.) Mtime.Span.pp
-    totlen
-    ((* if nolen then 0. else *)
-     float_of_int v.yields /. Mtime.Span.to_s totlen)
-    Fmt.(list ~sep:(any ", ") (pair ~sep:(any ":") string int))
-    [
-      ("copy_contents", v.contents);
-      ("copy_nodes", v.nodes);
-      ("copy_commits", v.commits);
-      ("copy_branches", v.branches);
-      ("adds", v.adds);
-      ("skips", v.skips);
-      ("skip_tests", v.skip_tests);
-      ("yields", v.yields);
-      ("copy_newies_loops", v.copy_newies_loops);
-    ]
-    pp_long_segment
+    totlen v.past_adds v.copy_newies_loops pp_long_segment
     ("block", v.inside_maxlen, v.rev_longest_blocks)
     pp_long_segment
     ("yield", v.outside_maxlen, v.rev_longest_yields)
-    pp_timeline
+    pp_timeline_timings pp_timeline_counters
 
 let pp_latest ppf =
   let v = !latest in
