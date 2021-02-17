@@ -1,0 +1,16 @@
+(executable
+ (name tree)
+ (preprocess
+  (pps ppx_irmin))
+ (libraries lwt lwt.unix irmin irmin.mem crowbar))
+
+(rule
+ (alias runtest)
+ (deps tree.exe)
+ (action (progn)))
+
+(rule
+ (alias runfuzz)
+ (package irmin)
+ (action
+  (run %{exe:fuzz.exe})))

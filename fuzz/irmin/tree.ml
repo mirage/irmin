@@ -1,8 +1,6 @@
 open Lwt.Infix
 open Irmin
 
-(* Run this test with: dune build @test/irmin/runtest_fuzz *)
-
 module Store =
   Irmin_mem.Make (Metadata.None) (Contents.String) (Path.String_list)
     (Branch.String)
