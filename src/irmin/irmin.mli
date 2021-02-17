@@ -580,4 +580,5 @@ module Of_private (P : Private.S) :
      and module Private = P
 
 module Export_for_backends = Export_for_backends
-(** Helper module containing useful top-level types for defining Irmin backends. *)
+(** Helper module containing useful top-level types for defining Irmin backends.
+    This module is relatively unstable. *)

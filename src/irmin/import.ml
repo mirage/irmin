@@ -14,16 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Extensions to the default namespace, opened throughout the Irmin codebase. *)
+(* Extensions to the default namespace, opened throughout the Irmin codebase. *)
+
+type read = Perms.read
+type write = Perms.write
+type read_write = Perms.read_write
+
+(** {2 Lwt syntax} *)
+
+let ( >>= ) = Lwt.Infix.( >>= )
+let ( >|= ) = Lwt.Infix.( >|= )
+let ( let* ) = ( >>= )
+let ( let+ ) = ( >|= )
+
+(** {2 Dependency extensions} *)
 
 module Option = struct
   include Option
+  (** @closed *)
 
   let of_result = function Ok x -> Some x | Error _ -> None
 end
 
 module Seq = struct
   include Seq
+  (** @closed *)
 
   let rec drop : type a. int -> a t -> a t =
    fun n l () ->
@@ -47,12 +62,3 @@ module Seq = struct
     in
     aux s
 end
-
-type read = Perms.read
-type write = Perms.write
-type read_write = Perms.read_write
-
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )

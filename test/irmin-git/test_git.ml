@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
+open Irmin.Export_for_backends
+
 let test_db = Filename.concat "_build" "test-db-git"
 
 let config =

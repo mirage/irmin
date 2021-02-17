@@ -15,10 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
+open Irmin.Export_for_backends
+
 let () = Printexc.record_backtrace true
 let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)

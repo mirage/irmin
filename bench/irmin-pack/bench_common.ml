@@ -1,5 +1,4 @@
-let ( let* ) x f = Lwt.bind x f
-let ( let+ ) x f = Lwt.map f x
+open Irmin.Export_for_backends
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =

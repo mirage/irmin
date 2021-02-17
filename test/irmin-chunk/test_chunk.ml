@@ -15,8 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( let* ) x f = Lwt.bind x f
-
+open Irmin.Export_for_backends
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct

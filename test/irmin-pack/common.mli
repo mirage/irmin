@@ -61,7 +61,6 @@ end) : sig
   val close : Index.t -> read Pack.t -> unit Lwt.t
 end
 
-val ( let* ) : 'a Lwt.t -> ('a -> 'b Lwt.t) -> 'b Lwt.t
 val get : 'a option -> 'a
 val sha1 : string -> H.t
 val rm_dir : string -> unit

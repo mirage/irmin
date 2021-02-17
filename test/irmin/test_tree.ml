@@ -1,4 +1,4 @@
-open Lwt.Infix
+open Irmin.Export_for_backends
 open Irmin
 
 module Metadata = struct
@@ -36,8 +36,6 @@ module Alcotest = struct
 end
 
 let ( >> ) f g x = g (f x)
-let ( let* ) = Lwt.bind
-let ( let+ ) x f = Lwt.map f x
 let c ?(info = Metadata.Default) blob = `Contents (blob, info)
 
 let invalid_tree () =

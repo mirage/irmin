@@ -1,4 +1,1 @@
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
+include Irmin.Export_for_backends

@@ -14,8 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type read = Perms.read
-type write = Perms.write
-type read_write = Perms.read_write
-
 module Store_properties = S.Store_properties
+include Import
