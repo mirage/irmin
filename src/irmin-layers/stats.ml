@@ -21,6 +21,8 @@ open! Import
 (** Ensure lists are not growing indefinitely by dropping elements. *)
 let limit_length_list = 10
 
+let minimum_seconds_to_be_considered_long = 1.0
+
 type freeze_profile = {
   mutable idx : int;
   mutable t0 : Mtime.t;
@@ -39,6 +41,8 @@ type freeze_profile = {
   mutable inside_totlen : float;
   mutable outside_maxlen : string * float;
   mutable inside_maxlen : string * float;
+  mutable rev_longest_yields : (string, int * float) Hashtbl.t;
+  mutable rev_longest_blocks : (string, int * float) Hashtbl.t;
 }
 
 let fresh_freeze_profile idx t0 current_section =
@@ -60,6 +64,8 @@ let fresh_freeze_profile idx t0 current_section =
     inside_totlen = 0.;
     outside_maxlen = ("never", 0.);
     inside_maxlen = ("never", 0.);
+    rev_longest_yields = Hashtbl.create 2;
+    rev_longest_blocks = Hashtbl.create 2;
   }
 
 let get_elapsed =
@@ -70,10 +76,10 @@ let get_elapsed =
     elapsed
 
 let freeze_start_counter =
-  let c = ref 0 in
+  let c = ref (-1) in
   fun () ->
     incr c;
-    !c - 1
+    !c
 
 let freeze_profiles = ref []
 let latest = ref (fresh_freeze_profile (-1) (Mtime_clock.now ()) "")
@@ -83,7 +89,6 @@ let reset_stats () =
   latest := fresh_freeze_profile (-1) (Mtime_clock.now ()) ""
 
 let freeze_start t0 current_section =
-  (* Printf.eprintf "\n> freeze: start\n%!"; *)
   let (_ : float) = get_elapsed ~reset:true in
   latest := fresh_freeze_profile (freeze_start_counter ()) t0 current_section
 
@@ -91,8 +96,6 @@ let freeze_section ev_name' =
   let ev_name = !latest.current_section in
   let now = Mtime_clock.now () in
   let now_inside = get_elapsed ~reset:false +. !latest.inside_totlen in
-  (* Format.printf "\n> freeze: end of \"%s\", entering \"%s\"\n%!" ev_name
-   *   ev_name'; *)
   !latest.current_section <- ev_name';
   !latest.rev_timeline <- (ev_name, now, now_inside) :: !latest.rev_timeline
 
@@ -119,14 +122,32 @@ let freeze_yield () =
   let d0 = !latest.inside_totlen in
   !latest.inside_totlen <- d0 +. d1;
   let _, d0 = !latest.inside_maxlen in
-  if d1 > d0 then !latest.inside_maxlen <- (!latest.current_section, d1)
+  if d1 > d0 then !latest.inside_maxlen <- (!latest.current_section, d1);
+  if d1 >= minimum_seconds_to_be_considered_long then
+    let tbl = !latest.rev_longest_blocks in
+    let s = !latest.current_section in
+    let new_entry =
+      match Hashtbl.find_opt tbl s with
+      | None -> (1, d1)
+      | Some (i, d) -> (i + 1, d +. d1)
+    in
+    Hashtbl.replace tbl s new_entry
 
 let freeze_yield_end () =
   let d1 = get_elapsed ~reset:true in
   let d0 = !latest.outside_totlen in
   !latest.outside_totlen <- d0 +. d1;
   let _, d0 = !latest.outside_maxlen in
-  if d1 > d0 then !latest.outside_maxlen <- (!latest.current_section, d1)
+  if d1 > d0 then !latest.outside_maxlen <- (!latest.current_section, d1);
+  if d1 >= minimum_seconds_to_be_considered_long then
+    let tbl = !latest.rev_longest_yields in
+    let s = !latest.current_section in
+    let new_entry =
+      match Hashtbl.find_opt tbl s with
+      | None -> (1, d1)
+      | Some (i, d) -> (i + 1, d +. d1)
+    in
+    Hashtbl.replace tbl s new_entry
 
 let freeze_stop () =
   freeze_yield ();
@@ -135,7 +156,6 @@ let freeze_stop () =
   !latest.rev_timeline <-
     (!latest.current_section, Mtime_clock.now (), !latest.inside_totlen)
     :: !latest.rev_timeline;
-  (* Printf.eprintf "\n> freeze: end of \"%s\" (end)\n%!" !latest.current_section; *)
   let shorter ls =
     List.fold_left
       (fun (acc, i) x ->
@@ -159,9 +179,10 @@ let pp_latest ppf =
   in
 
   let totlen = Mtime.span v.t0 v.t1 in
+  let nolen = Mtime.Span.to_s totlen = 0. in
   let frac_out, frac_in =
     let totlen = Mtime.Span.to_s totlen in
-    if totlen = 0. then (0., 0.)
+    if nolen then (0., 0.)
     else (v.outside_totlen /. totlen, v.inside_totlen /. totlen)
   in
   let pp_timeline_section ppf (name, span, span_block) =
@@ -174,15 +195,48 @@ let pp_latest ppf =
       span pp' (span /. totlen) pp span_block pp'
       (span_block /. v.inside_totlen)
   in
+  let pp_timeline ppf =
+    if List.length timeline = 0 then Format.fprintf ppf "[]"
+    else
+      Format.fprintf ppf "%a"
+        Fmt.(list ~sep:(any "") pp_timeline_section)
+        timeline
+  in
+  let pp_long_segment ppf (action_name, (max_section, max_len), tbl) =
+    if max_len = 0. then Format.fprintf ppf "No %ss" action_name
+    else if Hashtbl.length tbl = 0 then
+      Format.fprintf ppf "Longest %s %a (during \"%s\")" action_name
+        Mtime.Span.pp_float_s max_len max_section
+    else
+      let pp_per_section ppf (section, (count, totlen)) =
+        let pp_if_max ppf =
+          if section = max_section then
+            Format.fprintf ppf " max:%a" Mtime.Span.pp_float_s max_len
+        in
+        if count = 1 then
+          Format.fprintf ppf "\"%s\": 1 long %s(s) of len %a" section
+            action_name Mtime.Span.pp_float_s totlen
+        else
+          Format.fprintf ppf "\"%s\": %d long %s(s) of len ~%a%t" section count
+            action_name Mtime.Span.pp_float_s
+            (totlen /. float_of_int count)
+            pp_if_max
+      in
+      Format.fprintf ppf "Longests %ss: [%a]" action_name
+        Fmt.(list ~sep:(any "") pp_per_section)
+        (Hashtbl.to_seq tbl |> List.of_seq)
+  in
   Format.fprintf ppf
-    "freeze %d blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a.@\n\
+    "freeze %d blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a. %.3f \
+     yield per sec.@\n\
     \  Event counts: %a@\n\
-    \  Longest block %a (during \"%s\"). Longest yield %a (during \"%s\"). \
-     %.3f yield per sec.@\n\
-    \  Timeline: %a@\n"
+    \  %a.@\n\
+    \  %a.@\n\
+    \  Timeline: %t@\n"
     v.idx Mtime.Span.pp_float_s v.inside_totlen (frac_in *. 100.)
     Mtime.Span.pp_float_s v.outside_totlen (frac_out *. 100.) Mtime.Span.pp
     totlen
+    (if nolen then 0. else float_of_int v.yields /. Mtime.Span.to_s totlen)
     Fmt.(list ~sep:(any ", ") (pair ~sep:(any ":") string int))
     [
       ("copy_contents", v.contents);
@@ -194,8 +248,8 @@ let pp_latest ppf =
       ("yields", v.yields);
       ("copy_newies_loops", v.copy_newies_loops);
     ]
-    Mtime.Span.pp_float_s (snd v.inside_maxlen) (fst v.inside_maxlen)
-    Mtime.Span.pp_float_s (snd v.outside_maxlen) (fst v.outside_maxlen)
-    (float_of_int v.yields /. Mtime.Span.to_s totlen)
-    Fmt.(list ~sep:(any "") pp_timeline_section)
-    timeline
+    pp_long_segment
+    ("block", v.inside_maxlen, v.rev_longest_blocks)
+    pp_long_segment
+    ("yield", v.outside_maxlen, v.rev_longest_yields)
+    pp_timeline

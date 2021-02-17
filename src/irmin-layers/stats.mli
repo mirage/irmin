@@ -68,7 +68,7 @@ val get_copied_branches_count : unit -> int
 val get_copied_contents_count : unit -> int
 val get_copied_nodes_count : unit -> int
 val get_freeze_count : unit -> int
-val pp_latest : Format.formatter -> unit -> unit
+val pp_latest : Format.formatter -> unit
 
 (** {3 Misc.} *)
 
