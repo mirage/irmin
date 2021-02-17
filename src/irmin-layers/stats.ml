@@ -15,8 +15,9 @@
  *)
 open! Import
 
-(* This file avoids [option] type and clean functionnal paradigms in order to
-   lower the cpu footprint *)
+(* This file avoids the [option] type and other clean functionnal paradigms in
+   order to lower the cpu footprint. The integer incrementation functions are
+   called millions of times per freeze. *)
 
 (** Ensure lists are not growing indefinitely by dropping elements. *)
 let limit_length_list = 10
@@ -166,77 +167,86 @@ let freeze_stop () =
   in
   freeze_profiles := shorter (!latest :: !freeze_profiles)
 
-let pp_latest ppf =
-  let v = !latest in
+let pp_latest_when_any ppf v =
+  let ongoing = Mtime.equal v.t0 v.t1 in
   let timeline =
     List.fold_right
       (fun (s, t1, t1_block) (acc, t0, t0_block) ->
-        let acc = (s, Mtime.span t0 t1, t1_block -. t0_block) :: acc in
+        let data = (s, Mtime.span t0 t1, t1_block -. t0_block) in
+        let acc = `Done data :: acc in
         (acc, t1, t1_block))
       v.rev_timeline ([], v.t0, 0.)
     |> (fun (l, _, _) -> l)
     |> List.rev
   in
-
-  let totlen = Mtime.span v.t0 v.t1 in
-  let nolen = Mtime.Span.to_s totlen = 0. in
+  let timeline =
+    if ongoing then timeline @ [ `Ongoing v.current_section ] else timeline
+  in
+  let totlen =
+    if ongoing then Mtime.span v.t0 (Mtime_clock.now ())
+    else Mtime.span v.t0 v.t1
+  in
   let frac_out, frac_in =
     let totlen = Mtime.Span.to_s totlen in
-    if nolen then (0., 0.)
-    else (v.outside_totlen /. totlen, v.inside_totlen /. totlen)
+    (v.outside_totlen /. totlen, v.inside_totlen /. totlen)
   in
-  let pp_timeline_section ppf (name, span, span_block) =
-    let totlen = Mtime.Span.to_s totlen in
-    let span = Mtime.Span.to_s span in
-    let pp = Mtime.Span.pp_float_s in
-    let pp' ppf v = Format.fprintf ppf "%.0f%%" (v *. 100.) in
-    Format.fprintf ppf
-      "@\n    %20s took %a (%a of total) and blocked %a (%a of total)." name pp
-      span pp' (span /. totlen) pp span_block pp'
-      (span_block /. v.inside_totlen)
+  let pp_timeline_section ppf data =
+    match data with
+    | `Ongoing name -> Format.fprintf ppf "@\n    %20s is ongoing." name
+    | `Done (name, span, span_block) ->
+        let totlen = Mtime.Span.to_s totlen in
+        let span = Mtime.Span.to_s span in
+        let pp = Mtime.Span.pp_float_s in
+        let pp' ppf v = Format.fprintf ppf "%.0f%%" (v *. 100.) in
+        Format.fprintf ppf
+          "@\n    %20s took %a (%a of total) and blocked %a (%a of total)." name
+          pp span pp' (span /. totlen) pp span_block pp'
+          (span_block /. v.inside_totlen)
   in
+
   let pp_timeline ppf =
-    if List.length timeline = 0 then Format.fprintf ppf "[]"
-    else
-      Format.fprintf ppf "%a"
-        Fmt.(list ~sep:(any "") pp_timeline_section)
-        timeline
+    Format.fprintf ppf "%a"
+      Fmt.(list ~sep:(any "") pp_timeline_section)
+      timeline
   in
   let pp_long_segment ppf (action_name, (max_section, max_len), tbl) =
     if max_len = 0. then Format.fprintf ppf "No %ss" action_name
     else if Hashtbl.length tbl = 0 then
-      Format.fprintf ppf "Longest %s %a (during \"%s\")" action_name
+      Format.fprintf ppf "Longest %s: %a (during \"%s\")" action_name
         Mtime.Span.pp_float_s max_len max_section
     else
       let pp_per_section ppf (section, (count, totlen)) =
         let pp_if_max ppf =
           if section = max_section then
-            Format.fprintf ppf " max:%a" Mtime.Span.pp_float_s max_len
+            Format.fprintf ppf " (max:%a)" Mtime.Span.pp_float_s max_len
         in
         if count = 1 then
-          Format.fprintf ppf "\"%s\": 1 long %s(s) of len %a" section
-            action_name Mtime.Span.pp_float_s totlen
+          Format.fprintf ppf "1 long %s in \"%s\" of %a" action_name section Mtime.Span.pp_float_s
+            totlen
         else
-          Format.fprintf ppf "\"%s\": %d long %s(s) of len ~%a%t" section count
-            action_name Mtime.Span.pp_float_s
+          Format.fprintf ppf "%d long %ss in \"%s\" of ~%a%t" count action_name section
+            Mtime.Span.pp_float_s
             (totlen /. float_of_int count)
             pp_if_max
       in
       Format.fprintf ppf "Longests %ss: [%a]" action_name
-        Fmt.(list ~sep:(any "") pp_per_section)
+        Fmt.(list ~sep:(any "; ") pp_per_section)
         (Hashtbl.to_seq tbl |> List.of_seq)
   in
   Format.fprintf ppf
-    "freeze %d blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a. %.3f \
-     yield per sec.@\n\
+    "freeze %d (%s) blocked %a (%.0f%%), and yielded %a (%.0f%%). Total %a. \
+     %.3f yields per sec.@\n\
     \  Event counts: %a@\n\
     \  %a.@\n\
     \  %a.@\n\
     \  Timeline: %t@\n"
-    v.idx Mtime.Span.pp_float_s v.inside_totlen (frac_in *. 100.)
+    v.idx
+    (if ongoing then "ongoing" else "finished")
+    Mtime.Span.pp_float_s v.inside_totlen (frac_in *. 100.)
     Mtime.Span.pp_float_s v.outside_totlen (frac_out *. 100.) Mtime.Span.pp
     totlen
-    (if nolen then 0. else float_of_int v.yields /. Mtime.Span.to_s totlen)
+    ((* if nolen then 0. else *)
+     float_of_int v.yields /. Mtime.Span.to_s totlen)
     Fmt.(list ~sep:(any ", ") (pair ~sep:(any ":") string int))
     [
       ("copy_contents", v.contents);
@@ -253,3 +263,8 @@ let pp_latest ppf =
     pp_long_segment
     ("yield", v.outside_maxlen, v.rev_longest_yields)
     pp_timeline
+
+let pp_latest ppf =
+  let v = !latest in
+  if v.idx = -1 then Format.fprintf ppf "No freeze started yet."
+  else pp_latest_when_any ppf v
