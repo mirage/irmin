@@ -1,10 +1,6 @@
 (tests
- (names test fuzz)
+ (names test)
  (package irmin)
  (preprocess
   (pps ppx_irmin))
- (libraries irmin irmin.mem alcotest alcotest-lwt lwt hex logs logs.fmt crowbar))
-
-(rule
- (alias runtest_fuzz)
- (action (run %{exe:fuzz.exe})))
+ (libraries irmin irmin.mem alcotest alcotest-lwt lwt hex logs logs.fmt))
