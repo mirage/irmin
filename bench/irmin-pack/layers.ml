@@ -1,10 +1,6 @@
 open! Import
 open Bench_common
 
-let reset_stats () =
-  reset_stats ();
-  Irmin_layers.Stats.reset_stats ()
-
 let () = Random.self_init ()
 
 type config = {
@@ -60,35 +56,14 @@ let checkout_and_commit config repo c nb =
 let total = ref 0
 
 let print_commit_stats config c i time =
-  let num_objects = Irmin_layers.Stats.get_adds () in
+  let num_objects = Irmin_layers.Stats.get_add_count () in
   total := !total + num_objects;
-  Irmin_layers.Stats.reset_adds ();
   if config.show_stats then
     Logs.app (fun l ->
         l "Commit %a %d in cycle completed in %f; objects created: %d"
           Store.Commit.pp_hash c i time num_objects)
 
-let print_stats config =
-  let t = Irmin_layers.Stats.get () in
-  let copied_objects =
-    List.map2 (fun x y -> x + y) t.copied_contents t.copied_commits
-    |> List.map2 (fun x y -> x + y) t.copied_nodes
-    |> List.map2 (fun x y -> x + y) t.copied_branches
-  in
-  if config.show_stats then (
-    Logs.app (fun l ->
-        l
-          "Irmin-layers stats: nb_freeze=%d copied_objects=%a \
-           waiting_freeze=%a completed_freeze=%a \
-           objects_added_in_upper_since_last_freeze=%d"
-          t.nb_freeze
-          Fmt.(Dump.list int)
-          copied_objects
-          Fmt.(Dump.list float)
-          t.waiting_freeze
-          Fmt.(Dump.list float)
-          t.completed_freeze !total);
-    total := 0)
+let print_stats () = Logs.app (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
 let write_cycle config repo init_commit =
   let rec go c i =
@@ -126,7 +101,7 @@ let run_cycles config repo head =
     if i = config.ncycles then Lwt.return head
     else
       let* max = write_cycle config repo head in
-      print_stats config;
+      print_stats ();
       let min = consume_min () in
       add_min max;
       let* time, () =

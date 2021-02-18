@@ -14,65 +14,62 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = {
-  mutable nb_freeze : int;
-  mutable copied_contents : int list;
-  mutable copied_nodes : int list;
-  mutable copied_commits : int list;
-  mutable copied_branches : int list;
-  mutable waiting_freeze : float list;
-  mutable completed_freeze : float list;
-  mutable skips : int;
-}
-(** The type for stats for a store S.
+(** {2 Profiling of Freeze}
 
-    - [nb_freeze] is the number of calls to [S.freeze];
-    - [copied_contents] is the number of contents copied per freeze;
-    - [copied_nodes] is the number of nodes copied per freeze;
-    - [copied_commits] is the number of commits copied per freeze;
-    - [copied_branches] is the number of branches copied per freeze;
-    - [waiting_freeze] are the times the freeze threads waited to start, for the
-      last 10 freezes at most;
-    - [completed_freeze] are the times the freeze threads took to complete, for
-      the last 10 freezes at most;
-    - [skips] the number of skips during the graph traversals called by the
-      freeze, where the same object can be skipped several times;
+    {3 Control Flow of the Freeze Thread}
 
-    Note that stats assume that there always is an ongoing freeze. If its not
-    the case, you should discard the last 0.*)
+    Most of the functions here should be called from under a single mutex lock. *)
 
-val reset_stats : unit -> unit
-val get : unit -> t
+val freeze_start : Mtime.t -> string -> unit
+(** Signals the start of a new freeze given the time at which the freeze process
+    started and the name given to the initial code section. *)
+
+val freeze_section : string -> unit
+(** Signals that the freeze is entering a specific section of the code. *)
+
+val freeze_stop : unit -> unit
+(** Signals the end of an ongoing freeze freeze. *)
+
+val freeze_yield : unit -> unit
+(** Signals that the freeze is cooperatively yielding to other threads. *)
+
+val freeze_yield_end : unit -> unit
+(** Signals that the freeze is given back the control. *)
+
+(** {3 Incrementations of Counters} *)
 
 val copy_contents : unit -> unit
-(** Increments t.copied_contents for the current freeze *)
+(** Increments the number of copied contents for the current freeze. *)
 
 val copy_nodes : unit -> unit
-(** Increments t.copied_nodes for the current freeze *)
+(** Increments the number of copied nodes for the current freeze. *)
 
 val copy_commits : unit -> unit
-(** Increments t.copied_commits for the current freeze *)
+(** Increments the number of copied commits for the current freeze. *)
 
 val copy_branches : unit -> unit
-(** Increments t.copied_branches for the current freeze *)
-
-val freeze : unit -> unit
-(** Signals the start of a new freeze, and increments t.nb_freeze *)
+(** Increments the number of copied branches for the current freeze. *)
 
 val add : unit -> unit
-(** Increment the number of objects added, do not call this for objects copied
-    during a freeze. *)
+(** Increment the number of objects added by main thread. *)
 
-val get_adds : unit -> int
-(** Get the number of objects added, not including the copied objects during a
-    freeze. *)
+val skip_test : bool -> unit
+(** Increment the number time we wondered if an entry was present at the
+    destination during a graph traversal for the current freeze. *)
 
-val reset_adds : unit -> unit
-(** Reset the number of objects added. *)
+val copy_newies_loop : unit -> unit
+(** Increment the number of iterations of newies copy. *)
 
-val with_timer : [ `Freeze | `Waiting ] -> (unit -> unit Lwt.t) -> unit Lwt.t
-(** Either the duration of a freeze thread waiting on the freeze lock to start;
-    or the duration of a freeze thread to complete a freeze. *)
+(** {3 Observation} *)
 
-val skip : unit -> unit
-(** Increment the number of skips during a graph traversal. *)
+val get_add_count : unit -> int
+val get_copied_commits_count : unit -> int
+val get_copied_branches_count : unit -> int
+val get_copied_contents_count : unit -> int
+val get_copied_nodes_count : unit -> int
+val get_freeze_count : unit -> int
+val pp_latest : Format.formatter -> unit
+
+(** {3 Misc.} *)
+
+val reset_stats : unit -> unit

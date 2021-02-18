@@ -358,17 +358,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     in
     run x test
 
-  let log_stats (s : Irmin_layers.Stats.t) =
-    let concat_list ls =
-      List.fold_left (fun acc x -> string_of_int x ^ ";" ^ acc) "" ls
-    in
-    Log.debug (fun l ->
-        l "contents = %s nodes = %s, commits = %s, branches = %s freezes =%d"
-          (concat_list s.copied_contents)
-          (concat_list s.copied_nodes)
-          (concat_list s.copied_commits)
-          (concat_list s.copied_branches)
-          s.nb_freeze)
+  let log_stats () = Logs.debug (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
   let test_squash x () =
     let check_val = check T.(option S.contents_t) in
@@ -385,10 +375,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* tree3 = S.Tree.add tree [ "x"; "z" ] v1 in
       S.set_tree_exn t ~info:(infof "update") [ "u" ] tree3 >>= fun () ->
       let* c3 = S.Head.get t in
-      let s = Irmin_layers.Stats.get () in
-      log_stats s;
-      Alcotest.(check int) "zero freeze" s.nb_freeze 0;
-      Alcotest.(check (list int)) "zero commit" s.copied_commits [ 0 ];
+      log_stats ();
+      let () =
+        let open Irmin_layers.Stats in
+        Alcotest.(check int) "zero freeze" (get_freeze_count ()) 0;
+        Alcotest.(check int) "zero commit" (get_copied_commits_count ()) 0
+      in
       S.freeze repo ~squash:true >>= fun () ->
       let* tree = S.tree t in
       S.set_tree_exn t ~info:(infof "update") [] tree >>= fun () ->
@@ -430,10 +422,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
         else Lwt.return_unit
       in
       S.PrivateLayer.wait_for_freeze repo >>= fun () ->
-      let s = Irmin_layers.Stats.get () in
-      log_stats s;
-      Alcotest.(check int) "one freeze" s.nb_freeze 1;
-      Alcotest.(check (list int)) "one commit" s.copied_commits [ 1 ];
+      log_stats ();
+      let () =
+        let open Irmin_layers.Stats in
+        Alcotest.(check int) "one freeze" (get_freeze_count ()) 1;
+        Alcotest.(check int) "one commit" (get_copied_commits_count ()) 1
+      in
       P.Repo.close repo
     in
     run x test
@@ -508,13 +502,16 @@ module Make_Layered (S : LAYERED_STORE) = struct
         fail_with_some (S.Branch.find repo "foo")
           "should not find branch foo in dst"
       in
-      let s = Irmin_layers.Stats.get () in
-      log_stats s;
-      Alcotest.(check int) "one freeze" s.nb_freeze 1;
-      Alcotest.(check (list int)) "one commit" s.copied_commits [ 1 ];
-      Alcotest.(check (list int)) "one branch" s.copied_branches [ 1 ];
-      Alcotest.(check (list int)) "one content" s.copied_contents [ 1 ];
-      Alcotest.(check (list int)) "several nodes" s.copied_nodes [ 3 ];
+      log_stats ();
+      let () =
+        let open Irmin_layers.Stats in
+        Alcotest.(check int) "one freeze" (get_freeze_count ()) 1;
+        Alcotest.(check int) "one commit" (get_copied_commits_count ()) 1;
+        Alcotest.(check int) "one commit" (get_copied_commits_count ()) 1;
+        Alcotest.(check int) "one branch" (get_copied_branches_count ()) 1;
+        Alcotest.(check int) "one content" (get_copied_contents_count ()) 1;
+        Alcotest.(check int) "several nodes" (get_copied_nodes_count ()) 3
+      in
       P.Repo.close repo
     in
     run x test;
