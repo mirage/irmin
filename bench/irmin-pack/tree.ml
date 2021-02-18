@@ -1,9 +1,5 @@
 open Bench_common
-
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) x f = Lwt.bind x f
-let ( let+ ) x f = Lwt.map f x
+open Irmin.Export_for_backends
 
 type key = string list [@@deriving yojson]
 type hash = string [@@deriving yojson]

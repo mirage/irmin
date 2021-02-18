@@ -3,9 +3,6 @@ open Irmin_pack.Checks
 module I = Irmin_pack.Private.IO
 module IO = Irmin_pack.Private.IO.Unix
 
-let ( let+ ) x f = Lwt.map f x
-let ( let* ) = Lwt.bind
-
 module type S = sig
   include S
 

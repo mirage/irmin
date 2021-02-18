@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( let* ) = Lwt.Infix.( >>= )
+open Irmin.Export_for_backends
 
 let store =
   Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)

@@ -14,11 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Irmin.Export_for_backends
+
 let () = Random.self_init ()
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
 let ( / ) = Filename.concat
 let test_http_dir = "test-http"
 let uri = Uri.of_string "http://irmin"

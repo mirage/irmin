@@ -1,11 +1,9 @@
-open Irmin.Perms
+open Irmin.Export_for_backends
 
 module Dict = Irmin_pack.Dict.Make (struct
   let io_version = `V2
 end)
 
-let ( let* ) x f = Lwt.bind x f
-let ( let+ ) x f = Lwt.map f x
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 

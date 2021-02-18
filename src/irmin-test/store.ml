@@ -17,7 +17,6 @@
 open! Import
 open Common
 
-let ( let* ) x f = Lwt.bind x f
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
