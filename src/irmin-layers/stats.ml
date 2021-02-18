@@ -143,11 +143,16 @@ let skip_test should_skip =
 let copy_newies_loop () =
   !latest.copy_newies_loops <- succ !latest.copy_newies_loops
 
-let get_add_count () = !latest.current_counters.adds
-let get_copied_commits_count () = !latest.current_counters.commits
-let get_copied_branches_count () = !latest.current_counters.branches
-let get_copied_contents_count () = !latest.current_counters.contents
-let get_copied_nodes_count () = !latest.current_counters.nodes
+let fold_counters v f =
+  List.fold_left
+    (fun acc (_, _, _, c) -> acc + f c)
+    (f v.current_counters) v.rev_timeline
+
+let get_add_count () = fold_counters !latest (fun c -> c.adds)
+let get_copied_commits_count () = fold_counters !latest (fun c -> c.commits)
+let get_copied_branches_count () = fold_counters !latest (fun c -> c.branches)
+let get_copied_contents_count () = fold_counters !latest (fun c -> c.contents)
+let get_copied_nodes_count () = fold_counters !latest (fun c -> c.nodes)
 let get_freeze_count () = List.length !freeze_profiles
 
 let freeze_yield () =
