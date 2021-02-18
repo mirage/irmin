@@ -20,7 +20,6 @@ depends: [
   "irmin"      {= version}
   "logs"
   "lwt"
-  "irmin-test" {with-test & post & = version}
 ]
 
 synopsis: "Combine different Irmin stores into a single, layered store"
