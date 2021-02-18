@@ -310,20 +310,20 @@ struct
 
       {3 Topmost Inode Ancestor}
 
-      [Val_impl.t] is a recursive type. The [depth] interer is a witness of the
-      recursion depth. An inode with [depth = 0] corresponds to the root of a
-      directory, its hash is the hash of the directory.
+      [Val_impl.t] is a recursive type, it is labelled with a [depth] integer
+      that indicates the recursion depth. An inode with [depth = 0] corresponds
+      to the root of a directory, its hash is the hash of the directory.
 
       A [Val.t] points to the topmost [Val_impl.t] of an inode tree. In most
       scenarios, that topmost inode has [depth = 0], but it is also legal for
       the topmost inode to be an intermediate inode, i.e. with [depth > 0].
 
-      The only way for an inode tree to have an intermediate inode as root, is
-      to fetch it from the backend by calling [Make_ext.find], using the hash
-     of that inode.
+      The only way for an inode tree to have an intermediate inode as root is to
+      fetch it from the backend by calling [Make_ext.find], using the hash of
+      that inode.
 
-      Write-only operations on trees starting by an intermediate inode are
-      forbiden. *)
+      Write-only operations are not permitted when the root is an intermediate
+      inode. *)
   module Val_impl = struct
     open T
 
