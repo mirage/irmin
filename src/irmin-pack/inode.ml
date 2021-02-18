@@ -651,9 +651,11 @@ struct
       match find_value ~depth:0 layout t s with
       | Some v' when equal_value v v' -> stabilize layout t
       | Some _ ->
-          add ~depth:0 layout ~copy ~replace:true t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:true t s v Fun.id
+          |> stabilize layout
       | None ->
-          add ~depth:0 layout ~copy ~replace:false t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:false t s v Fun.id
+          |> stabilize layout
 
     let rec remove layout ~depth t s k =
       match t.v with
@@ -692,7 +694,7 @@ struct
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value layout ~depth:0 t s with
       | None -> stabilize layout t
-      | Some _ -> remove layout ~depth:0 t s (stabilize layout)
+      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
     let v l =
       let len = List.length l in
