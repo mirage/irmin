@@ -1,3 +1,9 @@
+## Unreleased
+
+- **irmin-git**
+  - Use the last version of git 3.3.0. It fixes a bug about trailing LF on
+    message. For irmin user, it should not change anything (#1301, @dinosaure, @CraigFe)
+
 ## 2.5.0 (2021-02-16)
 
 ### Changed
