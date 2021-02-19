@@ -391,11 +391,7 @@ struct
         let parents = G.Value.Commit.parents g in
         let author = G.Value.Commit.author g in
         let message = G.Value.Commit.message g in
-        let message =
-          if String.length message > 0 && message.[0] = '\n' then
-            String.sub message 1 (String.length message - 1)
-          else message
-        in
+        let message = Option.value ~default:"" message in
         let info = info_of_git author message in
         (info, node, parents)
 
@@ -408,9 +404,9 @@ struct
           Git.User.{ name; email; date = (date, None) }
         in
         let message = Irmin.Info.message info in
-        let message = if message = "" then "" else "\n" ^ message in
         G.Value.Commit.make (* FIXME: should be v *) ~tree ~parents ~author
-          ~committer:author message
+          ~committer:author
+          (if message = "" then None else Some message)
 
       let v ~info ~node ~parents = to_git info node parents
       let xnode g = G.Value.Commit.tree g
@@ -419,7 +415,7 @@ struct
 
       let info g =
         let author = G.Value.Commit.author g in
-        let message = G.Value.Commit.message g in
+        let message = Option.value ~default:"" (G.Value.Commit.message g) in
         info_of_git author message
 
       module C = Irmin.Private.Commit.Make (H)
