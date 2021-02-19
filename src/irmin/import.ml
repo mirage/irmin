@@ -44,6 +44,15 @@ module List = struct
    fun len l ->
     if len < 0 then true
     else match l with [] -> false | _ :: tl -> is_longer_than (len - 1) tl
+
+  (** [combine_drop l1 l2] zips the elements of [l1] and [l2] into pairs,
+      discarding any trailing elements of the longest input. *)
+  let rec combine_drop : type a b. a list -> b list -> (a * b) list =
+   fun l1 l2 ->
+    match (l1, l2) with
+    | [], _ -> []
+    | _, [] -> []
+    | x1 :: rest1, x2 :: rest2 -> (x1, x2) :: combine_drop rest1 rest2
 end
 
 module Seq = struct
