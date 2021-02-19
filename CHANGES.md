@@ -16,6 +16,9 @@
 
   - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
 
+  - Added `Store.Tree.kinded_hash`, which takes a tree and returns both its hash
+    and the corresponding metadata. (#1291, @CraigFe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)

@@ -36,13 +36,8 @@ end
 let create_repo () = Lwt_main.run (Irmin_mem.config () |> Store.Repo.v)
 
 module Tree_hash = struct
-  let is_contents tree =
-    match Store.Tree.destruct tree with `Contents _ -> true | `Node _ -> false
-
   let make_tree_shallow repo tree =
-    let hash = Store.Tree.hash tree in
-    let data = if is_contents tree then `Contents (hash, ()) else `Node hash in
-    Store.Tree.shallow repo data
+    Store.Tree.shallow repo (Store.Tree.kinded_hash tree)
 
   (** Returns [Some] if [tree] could be made partially shallow, [None]
       otherwise. At the top-level, you want to receive [Some]; but internally
