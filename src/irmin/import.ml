@@ -61,6 +61,18 @@ module List = struct
       | h :: t, l -> (aux [@tailcall]) (h :: acc) t l
     in
     aux [] [] l
+
+  (** [combine_drop l1 l2] zips the elements of [l1] and [l2] into pairs,
+      discarding any trailing elements of the longest input. *)
+  let combine_drop : type a b. a list -> b list -> (a * b) list =
+    let rec aux acc l1 l2 =
+      match (l1, l2) with
+      | [], _ -> []
+      | _, [] -> []
+      | x1 :: rest1, x2 :: rest2 ->
+          (aux [@tailcall]) ((x1, x2) :: acc) rest1 rest2
+    in
+    fun l1 l2 -> rev (aux [] l1 l2)
 end
 
 module Seq = struct
