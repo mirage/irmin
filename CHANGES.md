@@ -142,6 +142,10 @@
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
 
+- **irmin-fuzz** (_new_)
+  - Added a package to contain fuzz tests of Irmin and related packages.
+    (#1291, @smelc)
+
 ## 2.5.1 (2021-02-19)
 
 - **irmin-git**
