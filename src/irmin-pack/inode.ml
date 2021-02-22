@@ -41,6 +41,10 @@ module Make_intermediate
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
+  let () =
+    if Conf.entries > Conf.stable_hash then
+      invalid_arg "entries should be lower or equal to stable_hash"
+
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
@@ -302,7 +306,24 @@ struct
       in [irmin/slice.ml] and [irmin/sync_ext.ml], and maybe some other places.
 
       At some point we might want to forbid such deserialisations and instead
-      use something in the flavour of [Val.of_bin] to create [Partial] inodes. *)
+      use something in the flavour of [Val.of_bin] to create [Partial] inodes.
+
+      {3 Topmost Inode Ancestor}
+
+      [Val_impl.t] is a recursive type, it is labelled with a [depth] integer
+      that indicates the recursion depth. An inode with [depth = 0] corresponds
+      to the root of a directory, its hash is the hash of the directory.
+
+      A [Val.t] points to the topmost [Val_impl.t] of an inode tree. In most
+      scenarios, that topmost inode has [depth = 0], but it is also legal for
+      the topmost inode to be an intermediate inode, i.e. with [depth > 0].
+
+      The only way for an inode tree to have an intermediate inode as root is to
+      fetch it from the backend by calling [Make_ext.find], using the hash of
+      that inode.
+
+      Write-only operations are not permitted when the root is an intermediate
+      inode. *)
   module Val_impl = struct
     open T
 
@@ -487,6 +508,31 @@ struct
 
     let hash t = Lazy.force t.hash
 
+    let is_root t =
+      match t.v with
+      | Tree { depth; _ } -> depth = 0
+      | Values _ ->
+          (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
+             is implied by the following.
+
+             When [t] is stable, then [t] is a root, because:
+              - Only 2 functions produce stable inodes: [stabilize] and [empty].
+              - Only the roots are output of [stabilize].
+              - An empty map can only be located at the root.
+
+             When [t] is a root of tag [Value], then [t] is stable, because:
+             - All the roots are output of [stabilize].
+             - When an unstable inode enters [stabilize], it becomes stable if
+               it has at most [Conf.stable_hash] leaves.
+             - A [Value] has at most [Conf.stable_hash] leaves because
+               [Conf.entries <= Conf.stable_hash] is enforced.
+          *)
+          t.stable
+
+    let check_write_op_supported t =
+      if not @@ is_root t then
+        failwith "Cannot perform operation on non-root inode value."
+
     let stabilize layout t =
       if t.stable then t
       else
@@ -605,9 +651,11 @@ struct
       match find_value ~depth:0 layout t s with
       | Some v' when equal_value v v' -> stabilize layout t
       | Some _ ->
-          add ~depth:0 layout ~copy ~replace:true t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:true t s v Fun.id
+          |> stabilize layout
       | None ->
-          add ~depth:0 layout ~copy ~replace:false t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:false t s v Fun.id
+          |> stabilize layout
 
     let rec remove layout ~depth t s k =
       match t.v with
@@ -646,7 +694,7 @@ struct
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value layout ~depth:0 t s with
       | None -> stabilize layout t
-      | Some _ -> remove layout ~depth:0 t s (stabilize layout)
+      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
     let v l =
       let len = List.length l in
@@ -872,9 +920,19 @@ struct
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
     let add t s value =
-      map t { f = (fun layout v -> I.add ~copy:true layout v s value) }
+      let f layout v =
+        I.check_write_op_supported v;
+        I.add ~copy:true layout v s value
+      in
+      map t { f }
 
-    let remove t s = map t { f = (fun layout v -> I.remove layout v s) }
+    let remove t s =
+      let f layout v =
+        I.check_write_op_supported v;
+        I.remove layout v s
+      in
+      map t { f }
+
     let pre_hash_binv = Irmin.Type.(unstage (pre_hash Bin.v_t))
     let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
 
@@ -896,7 +954,11 @@ struct
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
     let save ~add ~mem t =
-      apply t { f = (fun layout v -> I.save layout ~add ~mem v) }
+      let f layout v =
+        I.check_write_op_supported v;
+        I.save layout ~add ~mem v
+      in
+      apply t { f }
 
     let of_bin find' v =
       let rec find h =
