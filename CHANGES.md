@@ -1,11 +1,7 @@
-## 2.5.1 (2021-02-19)
-
-- **irmin-git**
-  - Use the last version of git 3.3.0. It fixes a bug about trailing LF on
-    message. For Irmin users, it should not change anything (#1301, @dinosaure,
-    @CraigFe)
+## Unreleased
 
 ### Added
+
 - **irmin-pack**
   - It is no longer possible to modify an `inode` that doesn't point to the root
     of a directory. (#1292, @Ngoguey42)
@@ -15,6 +11,13 @@
 - **irmin-pack**
   - When configuring a store, is it no longer possible to set `entries` to a
     value larger than `stable_hash`. (#1292, @Ngoguey42)
+
+## 2.5.1 (2021-02-19)
+
+- **irmin-git**
+  - Use the last version of git 3.3.0. It fixes a bug about trailing LF on
+    message. For Irmin users, it should not change anything (#1301, @dinosaure,
+    @CraigFe)
 
 ## 2.5.0 (2021-02-16)
 
