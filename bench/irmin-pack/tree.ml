@@ -36,7 +36,7 @@ module type STORE = sig
   include Irmin.S with type key = string list and type contents = string
 
   type on_commit := int -> Hash.t -> unit Lwt.t
-  type pp := Format.formatter -> unit -> unit
+  type pp := Format.formatter -> unit
 
   val create_repo : int -> config -> (Repo.t * on_commit * pp) Lwt.t
 end
@@ -383,10 +383,10 @@ module Bench_suite (Store : STORE) = struct
       Format.fprintf ppf
         "Large trees mode on inode config %a, %a: %d commits, each consisting \
          of %d large trees of %d entries\n\
-         %a@\n\
+         %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
-        config.ncommits config.nlarge_trees config.width repo_pp ()
+        config.ncommits config.nlarge_trees config.width repo_pp
         Benchmark.pp_results result
 
   let run_chains config =
@@ -403,10 +403,10 @@ module Bench_suite (Store : STORE) = struct
       Format.fprintf ppf
         "Chain trees mode on inode config %a, %a: %d commits, each consisting \
          of %d chains of depth %d\n\
-         %a@\n\
+         %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
-        config.ncommits config.nchain_trees config.depth repo_pp ()
+        config.ncommits config.nchain_trees config.depth repo_pp
         Benchmark.pp_results result
 
   let run_read_trace config =
@@ -437,13 +437,13 @@ module Bench_suite (Store : STORE) = struct
     fun ppf ->
       Format.fprintf ppf
         "Tezos_log mode on inode config %a, %a. @\n\
-         %a@\n\
+         %t@\n\
          Results: @\n\
          %a@\n\
          Stats saved to %s@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
-        repo_pp () Trees_trace.pp_stats
+        repo_pp Trees_trace.pp_stats
         (false, config.flatten, config.inode_config, config.store_type)
         json_path Benchmark.pp_results result
 end
@@ -474,12 +474,11 @@ struct
         if i = ncommits - 1 then Store.PrivateLayer.wait_for_freeze repo
         else Lwt.return_unit
       in
+      (* Something else than pause could be used here, like an Lwt_unix.sleep
+         or nothing. See #1293 *)
       Lwt.pause ()
-      (* Lwt_unix.sleep 0.001 *)
-      (* Lwt_unix.sleep 0.00001 *)
-      (* Lwt_unix.sleep 0.0000001 *)
     in
-    let pp ppf () =
+    let pp ppf =
       if Irmin_layers.Stats.get_freeze_count () = 0 then
         Format.fprintf ppf "no freeze"
       else Format.fprintf ppf "%t" Irmin_layers.Stats.pp_latest
@@ -504,7 +503,7 @@ struct
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
-    let pp _ () = () in
+    let pp _ = () in
     Lwt.return (repo, on_commit, pp)
 
   include Store
