@@ -137,6 +137,12 @@ struct
   let of_entries e = v (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  let t =
+    let pre_hash : t Type.encode_bin =
+      Type.(pre_hash (map (pair char t) (fun (_, s) -> s) (fun s -> ('n', s))))
+    in
+    Type.like ~pre_hash t
 end
 
 module Store

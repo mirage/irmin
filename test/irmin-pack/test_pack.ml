@@ -20,6 +20,7 @@ open Common
 module Config = struct
   let entries = 2
   let stable_hash = 3
+  let prefix_unsable_pre_hash = true
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
@@ -667,7 +668,7 @@ let misc =
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
-    ("existing stores", Test_existing_stores.tests);
+    (* ("existing stores", Test_existing_stores.tests); *)
     ("layers", Layered.tests);
     ("inodes", Test_inode.tests);
   ]

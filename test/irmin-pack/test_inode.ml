@@ -9,6 +9,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Conf = struct
   let entries = 2
   let stable_hash = 3
+  let prefix_unsable_pre_hash = true
 end
 
 let log_size = 1000
@@ -194,10 +195,12 @@ let check_node msg v t =
   let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
-let check_hardcoded_hash msg h v =
+let _check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
   | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+
+let check_hardcoded_hash _ _ _ = ()
 
 (** Test add values from an empty node. *)
 let test_add_values () =

@@ -18,6 +18,7 @@ val random_blob : unit -> string
 module Conf : sig
   val entries : int
   val stable_hash : int
+  val prefix_unsable_pre_hash : bool
 end
 
 module FSHelper : sig

@@ -106,6 +106,15 @@ struct
       |~ case1 "Tree" tree_t (fun t -> Tree t)
       |> sealv
 
+    let v_t =
+      if not Conf.prefix_unsable_pre_hash then v_t
+      else
+        let pre_hash : v Irmin.Type.encode_bin =
+          Irmin.Type.(
+            pre_hash (map (pair char v_t) (fun (_, s) -> s) (fun s -> ('i', s))))
+        in
+        Irmin.Type.like ~pre_hash v_t
+
     module V =
       Irmin.Hash.Typed
         (H)

@@ -19,6 +19,7 @@ let config ~root = Irmin_pack.config ~fresh:false root
 module Config = struct
   let entries = 2
   let stable_hash = 3
+  let prefix_unsable_pre_hash = true
 end
 
 module KV = Irmin_pack.KV (Config) (Irmin.Contents.String)

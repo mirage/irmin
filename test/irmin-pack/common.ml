@@ -5,7 +5,6 @@ module Dict = Irmin_pack.Dict.Make (struct
 end)
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
-let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 
 let rm_dir root =
   if Sys.file_exists root then (
@@ -24,6 +23,7 @@ let random_letters n = String.init n (fun _i -> random_letter ())
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let prefix_unsable_pre_hash = true
 end
 
 module S = struct
@@ -42,6 +42,8 @@ module S = struct
     let _, (_, v) = decode_pair x off in
     v
 end
+
+let sha1 x = S.H.hash x
 
 module H = Irmin.Hash.SHA1
 module I = Index

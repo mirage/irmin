@@ -1,6 +1,7 @@
 module type S = sig
   val entries : int
   val stable_hash : int
+  val prefix_unsable_pre_hash : bool
 end
 
 module Default = struct

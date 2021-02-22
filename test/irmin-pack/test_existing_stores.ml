@@ -431,6 +431,7 @@ module Test_corrupted_inode = struct
   module Conf = struct
     let entries = 2
     let stable_hash = 3
+    let prefix_unsable_pre_hash = true
   end
 
   module Make () =

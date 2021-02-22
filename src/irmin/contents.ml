@@ -184,7 +184,11 @@ module Json = struct
     | Error _ as err -> err
 
   let equal a b = Json_value.equal (`O a) (`O b)
-  let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
+
+  let pre_hash : t Type.encode_bin =
+    Type.(pre_hash (map (pair char t) (fun (_, s) -> s) (fun s -> ('b', s))))
+
+  let t = Type.like ~equal:(Type.stage equal) ~pre_hash ~pp ~of_string t
 
   let merge =
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
@@ -192,6 +196,12 @@ end
 
 module String = struct
   type t = string [@@deriving irmin]
+
+  let t =
+    let pre_hash : t Type.encode_bin =
+      Type.(pre_hash (map (pair char t) (fun (_, s) -> s) (fun s -> ('b', s))))
+    in
+    Type.like ~pre_hash t
 
   let merge = Merge.idempotent Type.(option string)
 end

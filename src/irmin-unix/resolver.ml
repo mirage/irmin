@@ -279,6 +279,7 @@ module Store = struct
   module Inode_config = struct
     let entries = 32
     let stable_hash = 256
+    let prefix_unsable_pre_hash = true
   end
 
   let pack = create (module Irmin_pack.Make (Inode_config))

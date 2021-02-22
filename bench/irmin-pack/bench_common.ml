@@ -65,6 +65,7 @@ let with_progress_bar ~message ~n ~unit ~sampling_interval =
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let prefix_unsable_pre_hash = true
 end
 
 let info () =

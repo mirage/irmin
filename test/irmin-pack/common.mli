@@ -69,6 +69,7 @@ val index_log_size : int option
 module Conf : sig
   val entries : int
   val stable_hash : int
+  val prefix_unsable_pre_hash : bool
 end
 
 val random_string : int -> string

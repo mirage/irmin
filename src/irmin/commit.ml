@@ -37,6 +37,12 @@ module Make (K : Type.S) = struct
   let v ~info ~node ~parents =
     let parents = List.fast_sort compare_hash parents in
     { node; parents; info }
+
+  let t =
+    let pre_hash : t Type.encode_bin =
+      Type.(pre_hash (map (pair char t) (fun (_, s) -> s) (fun s -> ('c', s))))
+    in
+    Type.like ~pre_hash t
 end
 
 module Store

@@ -92,4 +92,4 @@ Running stat on a layered store after a first freeze
 Running check on a layered store that is not self contained
 
   $ PACK_LAYERED=true ../irmin_fsck.exe check ../data/layered_pack_upper
-  Error -- Upper layer is not self contained for heads 6a88b83f76c48b1b20a0d421c73de6e0e0e42553d44a40fccc07af074f304e0d9f10a7b5ab47b61205da0f2f599d2ebb1bf27452c05b926b0c7ef8f867778130: 2 phantom objects detected
+  Error -- Upper layer is not self contained for heads 13e8183cdaefaa29a32e391ad542c38c5f37202dff79896b955ed2b18633bb8e329b3a679dc7df92d993078590c97d2ea4c5b1219bfaeea697a452a8fdeac7a4: 2 phantom objects detected

@@ -326,6 +326,7 @@ module Hash = Irmin.Hash.SHA1
 module Bench_suite (Conf : sig
   val entries : int
   val stable_hash : int
+  val prefix_unsable_pre_hash : bool
 end) =
 struct
   module Store =
@@ -436,6 +437,7 @@ module Bench_inodes_32 = Bench_suite (Conf)
 module Bench_inodes_2 = Bench_suite (struct
   let entries = 2
   let stable_hash = 5
+  let prefix_unsable_pre_hash = true
 end)
 
 type mode_elt = [ `Read_trace | `Chains | `Large ]

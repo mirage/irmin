@@ -19,6 +19,7 @@ let index_log_size = Some 4
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let prefix_unsable_pre_hash = true
   let lower_root = "_lower"
   let upper0_root = "0"
   let copy_in_upper = true
