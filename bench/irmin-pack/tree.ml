@@ -533,13 +533,7 @@ let suite : suite_elt list =
       run =
         (fun config ->
           Bench_inodes_32.run_read_trace
-            {
-              config with
-              ncommits_trace = 10000;
-              flatten = false;
-              inode_config = `Entries_32;
-              store_type = `Pack;
-            });
+            { config with inode_config = `Entries_32 });
     };
     {
       mode = `Read_trace;
@@ -547,69 +541,35 @@ let suite : suite_elt list =
       run =
         (fun config ->
           Bench_inodes_32.run_read_trace
-            {
-              config with
-              ncommits_trace = 13315;
-              flatten = false;
-              inode_config = `Entries_32;
-              store_type = `Pack;
-            });
+            { config with inode_config = `Entries_32 });
     };
     {
       mode = `Chains;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_chains
-            {
-              config with
-              ncommits = 2;
-              nchain_trees = 1;
-              inode_config = `Entries_32;
-              store_type = `Pack;
-            });
+          Bench_inodes_32.run_chains { config with inode_config = `Entries_32 });
     };
     {
       mode = `Chains;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_chains
-            {
-              config with
-              ncommits = 2;
-              nchain_trees = 1;
-              inode_config = `Entries_2;
-              store_type = `Pack;
-            });
+          Bench_inodes_2.run_chains { config with inode_config = `Entries_2 });
     };
     {
       mode = `Large;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_large
-            {
-              config with
-              ncommits = 2;
-              nlarge_trees = 1;
-              inode_config = `Entries_32;
-              store_type = `Pack;
-            });
+          Bench_inodes_32.run_large { config with inode_config = `Entries_32 });
     };
     {
       mode = `Large;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_large
-            {
-              config with
-              ncommits = 2;
-              nlarge_trees = 1;
-              inode_config = `Entries_2;
-              store_type = `Pack;
-            });
+          Bench_inodes_2.run_large { config with inode_config = `Entries_2 });
     };
     {
       mode = `Read_trace;
