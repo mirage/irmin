@@ -37,6 +37,8 @@ module Make (K : Type.S) = struct
   let v ~info ~node ~parents =
     let parents = List.fast_sort compare_hash parents in
     { node; parents; info }
+
+  let pre_hash_prefix = "c"
 end
 
 module Store
@@ -530,4 +532,6 @@ module V1 (C : S) = struct
     |+ field "parents" (list ~len:`Int64 K.t) parents
     |+ field "info" info_t info
     |> sealr
+
+  let pre_hash_prefix = ""
 end

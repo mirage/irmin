@@ -488,7 +488,7 @@ end
     [V] is the implementation of values. *)
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (K : Hash.S)
-  (V : Type.S)
+  (V : Hash.VALUE)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
   open Private.Sigs.Store_properties
@@ -506,7 +506,7 @@ end
 module Content_addressable
     (S : APPEND_ONLY_STORE_MAKER)
     (K : Hash.S)
-    (V : Type.S) : sig
+    (V : Hash.VALUE) : sig
   include
     CONTENT_ADDRESSABLE_STORE
       with type 'a t = 'a S(K)(V).t

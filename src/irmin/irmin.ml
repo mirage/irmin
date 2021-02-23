@@ -33,7 +33,7 @@ module CA_check_closed (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER) :
   S.CONTENT_ADDRESSABLE_STORE_MAKER =
 functor
   (K : Hash.S)
-  (V : Type.S)
+  (V : Hash.VALUE)
   ->
   struct
     module S = CA (K) (V)

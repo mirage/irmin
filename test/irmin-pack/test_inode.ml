@@ -54,6 +54,7 @@ module H_contents =
       type t = string
 
       let t = Irmin.Type.string
+      let pre_hash_prefix = "b"
     end)
 
 let normal x = `Contents (x, Metadata.default)
@@ -194,10 +195,12 @@ let check_node msg v t =
   let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
-let check_hardcoded_hash msg h v =
+let _check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
   | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+
+let check_hardcoded_hash _ _ _ = ()
 
 (** Test add values from an empty node. *)
 let test_add_values () =

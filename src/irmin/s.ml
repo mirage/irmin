@@ -93,7 +93,7 @@ end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (K : Hash.S)
-  (V : Type.S)
+  (V : Hash.VALUE)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
   include BATCH with type 'a t := 'a t

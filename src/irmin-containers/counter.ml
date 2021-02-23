@@ -25,6 +25,7 @@ module Counter : Irmin.Contents.S with type t = int64 = struct
 
   let t = Irmin.Type.int64
   let merge = Irmin.Merge.(option counter)
+  let pre_hash_prefix = "b"
 end
 
 module type S = sig

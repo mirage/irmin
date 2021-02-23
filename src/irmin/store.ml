@@ -25,7 +25,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Content_addressable
     (AO : S.APPEND_ONLY_STORE_MAKER)
     (K : Hash.S)
-    (V : Type.S) =
+    (V : Hash.VALUE) =
 struct
   include AO (K) (V)
   open Lwt.Infix

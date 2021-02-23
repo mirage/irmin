@@ -113,6 +113,7 @@ struct
           type t = v
 
           let t = v_t
+          let pre_hash_prefix = Node.pre_hash_prefix
         end)
 
     type t = { hash : H.t Lazy.t; stable : bool; v : v }
@@ -952,6 +953,7 @@ struct
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
     let hash t = apply t { f = (fun _ v -> I.hash v) }
+    let pre_hash_prefix = Node.pre_hash_prefix
 
     let save ~add ~mem t =
       let f layout v =

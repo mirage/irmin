@@ -963,7 +963,7 @@ module type Store = sig
   module Content_addressable
       (X : Sigs.APPEND_ONLY_STORE_MAKER)
       (K : Hash.S)
-      (V : Type.S) : sig
+      (V : Hash.VALUE) : sig
     include
       Sigs.CONTENT_ADDRESSABLE_STORE
         with type 'a t = 'a X(K)(V).t

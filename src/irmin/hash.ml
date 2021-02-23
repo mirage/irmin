@@ -58,13 +58,19 @@ module SHA512 = Make (Digestif.SHA512)
 module BLAKE2B = Make (Digestif.BLAKE2B)
 module BLAKE2S = Make (Digestif.BLAKE2S)
 
-module Typed (K : S) (V : Type.S) = struct
+module Typed (K : S) (V : VALUE) = struct
   include K
 
   type value = V.t
 
   let pre_hash = Type.unstage (Type.pre_hash V.t)
-  let hash v = K.hash (pre_hash v)
+
+  let hash v =
+    let f g =
+      g V.pre_hash_prefix;
+      (pre_hash v) g
+    in
+    K.hash f
 end
 
 module V1 (K : S) : S with type t = K.t = struct

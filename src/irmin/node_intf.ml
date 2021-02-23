@@ -83,6 +83,8 @@ module type S = sig
 
   val value_t : value Type.t
   (** [value_t] is the value type for {!value}. *)
+
+  val pre_hash_prefix : string
 end
 
 module type STORE = sig

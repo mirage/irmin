@@ -110,6 +110,7 @@ module Chunk (K : Irmin.Hash.S) = struct
     Bytes.unsafe_to_string buf
 
   let t = Irmin.Type.(map string) of_string to_string
+  let pre_hash_prefix = "b"
 end
 
 module Content_addressable

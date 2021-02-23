@@ -29,6 +29,8 @@ module type S = sig
       mean that the key does not exists for either the least-common ancestor or
       one of the two merging points. The merge function returns [None] when the
       key's value should be deleted. *)
+
+  val pre_hash_prefix : string
 end
 
 module type STORE = sig

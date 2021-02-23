@@ -36,6 +36,12 @@ module type S = sig
   (** [t] is the value type for {!t}. *)
 end
 
+module type VALUE = sig
+  include Type.S
+
+  val pre_hash_prefix : string
+end
+
 module type TYPED = sig
   type t
   type value
@@ -59,6 +65,8 @@ end
 module type Hash = sig
   module type S = S
   (** Signature for hash values. *)
+
+  module type VALUE = VALUE
 
   module type TYPED = TYPED
   (** Signature for typed hashes, where [hash] directly takes a value as
@@ -88,6 +96,6 @@ module type Hash = sig
   module V1 (H : S) : S with type t = H.t
 
   (** Typed hashes. *)
-  module Typed (K : S) (V : Type.S) :
+  module Typed (K : S) (V : VALUE) :
     TYPED with type t = K.t and type value = V.t
 end

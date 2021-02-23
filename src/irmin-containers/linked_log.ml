@@ -28,6 +28,8 @@ module Store_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
   module L = Log_item (T) (K) (V)
 
   type t = Value of L.t | Merge of L.t list [@@deriving irmin]
+
+  let pre_hash_prefix = "?"
 end
 
 module Linked_log
@@ -84,6 +86,7 @@ struct
     Store.add store (S.Merge (sort @@ lv1 @ lv2)) >>= ok
 
   let merge = Irmin.Merge.(option (v t merge))
+  let pre_hash_prefix = "??"
 end
 
 module type S = sig

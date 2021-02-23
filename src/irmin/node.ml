@@ -137,6 +137,7 @@ struct
   let of_entries e = v (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
+  let pre_hash_prefix = "n"
 end
 
 module Store
@@ -472,4 +473,6 @@ module V1 (N : S with type step = string) = struct
 
   let t : t Type.t =
     Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+
+  let pre_hash_prefix = ""
 end

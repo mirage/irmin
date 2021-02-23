@@ -37,6 +37,7 @@ module X = struct
   type t = X of (int * int) | Y of string list [@@deriving irmin]
 
   let merge = Irmin.Merge.idempotent [%typ: t option]
+  let pre_hash_prefix = "b"
 end
 
 module type X =
