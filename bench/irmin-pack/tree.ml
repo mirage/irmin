@@ -16,9 +16,38 @@ type op =
   | Copy of key * key
 [@@deriving yojson]
 
+type config = {
+  ncommits : int;
+  ncommits_trace : int;
+  depth : int;
+  nchain_trees : int;
+  width : int;
+  nlarge_trees : int;
+  root : string;
+  flatten : bool;
+  inode_config : [ `Entries_32 | `Entries_2 ];
+  store_type : [ `Pack | `Pack_layered ];
+  freeze_commit : int;
+  commit_data_file : string;
+  results_dir : string;
+}
+
+module type STORE = sig
+  include Irmin.S with type key = string list and type contents = string
+
+  type on_commit := int -> Hash.t -> unit Lwt.t
+  type pp := Format.formatter -> unit
+
+  val create_repo : int -> config -> (Repo.t * on_commit * pp) Lwt.t
+end
+
 let pp_inode_config ppf = function
   | `Entries_2 -> Format.fprintf ppf "[2, 5]"
   | `Entries_32 -> Format.fprintf ppf "[32, 256]"
+
+let pp_store_type ppf = function
+  | `Pack -> Format.fprintf ppf "[pack store]"
+  | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
 
 module Parse_trace = struct
   let is_hex_char = function
@@ -102,9 +131,7 @@ module Parse_trace = struct
     (commits, n)
 end
 
-module Generate_trees_from_trace
-    (Store : Irmin.S with type contents = string and type key = string list) =
-struct
+module Generate_trees_from_trace (Store : STORE) = struct
   type t = { mutable tree : Store.tree }
 
   type stat_entry =
@@ -150,7 +177,7 @@ struct
     let+ concrete = Store.Tree.to_concrete tree in
     aux concrete
 
-  let pp_stats ppf (as_json, flatten, inode_config) =
+  let pp_stats ppf (as_json, flatten, inode_config, store_type) =
     let mean histo =
       if Bentov.total_count histo > 0 then Bentov.mean histo else 0.
     in
@@ -180,11 +207,12 @@ struct
     in
     if as_json then
       Fmt.pf ppf
-        "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", @\n\
+        "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", \
+         \"store_type\":\"%a\", @\n\
          \"points\":{%a}}"
         "missing"
         (if flatten then 1 else 0)
-        pp_inode_config inode_config
+        pp_inode_config inode_config pp_store_type store_type
         Fmt.(list ~sep:(any ",@\n") pp_stat)
         op_tags
     else Fmt.pf ppf "%a" Fmt.(list ~sep:(any "@\n") pp_stat) op_tags
@@ -278,35 +306,23 @@ struct
             |> with_monitoring `Commit)
       (0, prev_commit) operations
 
-  let add_commits repo commits () =
-    with_progress_bar ~message:"Replaying trace" ~n:(Array.length commits)
-      ~unit:"commits" ~sampling_interval:50
+  let add_commits repo commits on_commit () =
+    let n = Array.length commits in
+    with_progress_bar ~message:"Replaying trace" ~n ~unit:"commits"
+      ~sampling_interval:50
     @@ fun prog ->
     let t = { tree = Store.Tree.empty } in
     let rec array_iter_lwt prev_commit i =
-      if i >= Array.length commits then Lwt.return_unit
+      if i >= n then Lwt.return_unit
       else
         let operations = commits.(i) in
         let* _, prev_commit = add_operations t repo prev_commit operations i in
+        let* () = on_commit i (Option.get prev_commit) in
         prog Int64.one;
         array_iter_lwt prev_commit (i + 1)
     in
     array_iter_lwt None 0
 end
-
-type config = {
-  ncommits : int;
-  ncommits_trace : int;
-  depth : int;
-  nchain_trees : int;
-  width : int;
-  nlarge_trees : int;
-  root : string;
-  flatten : bool;
-  inode_config : [ `Entries_32 | `Entries_2 ];
-  commit_data_file : string;
-  results_dir : string;
-}
 
 module Benchmark = struct
   type result = { time : float; size : int }
@@ -323,17 +339,7 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module Bench_suite (Conf : sig
-  val entries : int
-  val stable_hash : int
-end) =
-struct
-  module Store =
-    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Hash)
-
+module Bench_suite (Store : STORE) = struct
   let init_commit repo =
     Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
 
@@ -348,7 +354,7 @@ struct
         let* tree = f tree in
         Store.Commit.v repo ~info:(info ()) ~parents:[ prev_commit ] tree
 
-  let add_commits ~message repo ncommits f () =
+  let add_commits ~message repo ncommits on_commit f () =
     with_progress_bar ~message ~n:ncommits ~unit:"commits" ~sampling_interval:1
     @@ fun prog ->
     let* c = init_commit repo in
@@ -356,6 +362,7 @@ struct
       if i >= ncommits then Lwt.return c
       else
         let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
+        let* () = on_commit i (Store.Commit.hash c') in
         prog Int64.one;
         aux c' (i + 1)
     in
@@ -364,39 +371,43 @@ struct
 
   let run_large config =
     reset_stats ();
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
-    let* repo = Store.Repo.v conf in
+    let* repo, on_commit, repo_pp = Store.create_repo config.ncommits config in
     let* result =
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
+           on_commit
       |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
-        "Large trees mode on inode config %a: %d commits, each consisting of \
-         %d large trees of %d entries\n\
+        "Large trees mode on inode config %a, %a: %d commits, each consisting \
+         of %d large trees of %d entries\n\
+         %t@\n\
          %a"
-        pp_inode_config config.inode_config config.ncommits config.nlarge_trees
-        config.width Benchmark.pp_results result
+        pp_inode_config config.inode_config pp_store_type config.store_type
+        config.ncommits config.nlarge_trees config.width repo_pp
+        Benchmark.pp_results result
 
   let run_chains config =
     reset_stats ();
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
-    let* repo = Store.Repo.v conf in
+    let* repo, on_commit, repo_pp = Store.create_repo config.ncommits config in
     let* result =
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
+           on_commit
       |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
-        "Chain trees mode on inode config %a: %d commits, each consisting of \
-         %d chains of depth %d\n\
+        "Chain trees mode on inode config %a, %a: %d commits, each consisting \
+         of %d chains of depth %d\n\
+         %t@\n\
          %a"
-        pp_inode_config config.inode_config config.ncommits config.nchain_trees
-        config.depth Benchmark.pp_results result
+        pp_inode_config config.inode_config pp_store_type config.store_type
+        config.ncommits config.nchain_trees config.depth repo_pp
+        Benchmark.pp_results result
 
   let run_read_trace config =
     reset_stats ();
@@ -405,43 +416,111 @@ struct
         config.commit_data_file
     in
     let config = { config with ncommits_trace = n } in
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
-    let* repo = Store.Repo.v conf in
+    let* repo, on_commit, repo_pp = Store.create_repo n config in
     let* result =
-      Trees_trace.add_commits repo commits |> Benchmark.run config
+      Trees_trace.add_commits repo commits on_commit |> Benchmark.run config
     in
     let+ () = Store.Repo.close repo in
+
     prepare_results_dir config.results_dir;
-    let json_channel =
+    let json_path =
       let ( / ) = Filename.concat in
-      config.results_dir / "boostrap_trace.json" |> open_out
+      config.results_dir / "boostrap_trace_timings.json"
     in
+    let json_channel = open_out json_path in
     Format.fprintf
       (Format.formatter_of_out_channel json_channel)
       "%a%!" Trees_trace.pp_stats
-      (true, config.flatten, config.inode_config);
+      (true, config.flatten, config.inode_config, config.store_type);
     close_out json_channel;
 
     fun ppf ->
       Format.fprintf ppf
-        "Tezos_log mode on inode config %a: %d commits @\n%a@\n%a"
-        pp_inode_config config.inode_config config.ncommits_trace
-        Trees_trace.pp_stats
-        (false, config.flatten, config.inode_config)
-        Benchmark.pp_results result
+        "Tezos_log mode on inode config %a, %a. @\n\
+         %t@\n\
+         Results: @\n\
+         %a@\n\
+         Stats saved to %s@\n\
+         %a"
+        pp_inode_config config.inode_config pp_store_type config.store_type
+        repo_pp Trees_trace.pp_stats
+        (false, config.flatten, config.inode_config, config.store_type)
+        json_path Benchmark.pp_results result
 end
 
-module Bench_inodes_32 = Bench_suite (Conf)
+module Make_store_layered (Conf : sig
+  val entries : int
+  val stable_hash : int
+end) =
+struct
+  module Store =
+    Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Hash)
 
-module Bench_inodes_2 = Bench_suite (struct
+  let create_repo ncommits config =
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let* repo = Store.Repo.v conf in
+    let on_commit i commit_hash =
+      let* () =
+        if i = config.freeze_commit then
+          let* c = Store.Commit.of_hash repo commit_hash in
+          let c = Option.get c in
+          Store.freeze repo ~max:[ c ] ~min_upper:[ c ]
+        else Lwt.return_unit
+      in
+      let* () =
+        if i = ncommits - 1 then Store.PrivateLayer.wait_for_freeze repo
+        else Lwt.return_unit
+      in
+      (* Something else than pause could be used here, like an Lwt_unix.sleep
+         or nothing. See #1293 *)
+      Lwt.pause ()
+    in
+    let pp ppf =
+      if Irmin_layers.Stats.get_freeze_count () = 0 then
+        Format.fprintf ppf "no freeze"
+      else Format.fprintf ppf "%t" Irmin_layers.Stats.pp_latest
+    in
+    Lwt.return (repo, on_commit, pp)
+
+  include Store
+end
+
+module Make_store_pack (Conf : sig
+  val entries : int
+  val stable_hash : int
+end) =
+struct
+  module Store =
+    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Hash)
+
+  let create_repo _ config =
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let* repo = Store.Repo.v conf in
+    let on_commit _ _ = Lwt.return_unit in
+    let pp _ = () in
+    Lwt.return (repo, on_commit, pp)
+
+  include Store
+end
+
+module Conf2 = struct
   let entries = 2
   let stable_hash = 5
-end)
+end
 
-type mode_elt = [ `Read_trace | `Chains | `Large ]
+module Bench_inodes_32 = Bench_suite (Make_store_pack (Conf))
+module Bench_inodes_2 = Bench_suite (Make_store_pack (Conf2))
+module Bench_inodes_32_layered = Bench_suite (Make_store_layered (Conf))
+module Bench_inodes_2_layered = Bench_suite (Make_store_layered (Conf2))
 
 type suite_elt = {
-  mode : mode_elt;
+  mode : [ `Read_trace | `Chains | `Large ];
   speed : [ `Quick | `Slow | `Custom ];
   run : config -> (Format.formatter -> unit) Lwt.t;
 }
@@ -459,6 +538,7 @@ let suite : suite_elt list =
               ncommits_trace = 10000;
               flatten = false;
               inode_config = `Entries_32;
+              store_type = `Pack;
             });
     };
     {
@@ -472,6 +552,7 @@ let suite : suite_elt list =
               ncommits_trace = 13315;
               flatten = false;
               inode_config = `Entries_32;
+              store_type = `Pack;
             });
     };
     {
@@ -486,6 +567,7 @@ let suite : suite_elt list =
               depth = 1000;
               nchain_trees = 1;
               inode_config = `Entries_32;
+              store_type = `Pack;
             });
     };
     {
@@ -500,6 +582,7 @@ let suite : suite_elt list =
               depth = 1000;
               nchain_trees = 1;
               inode_config = `Entries_2;
+              store_type = `Pack;
             });
     };
     {
@@ -514,6 +597,7 @@ let suite : suite_elt list =
               width = 1_000_000;
               nlarge_trees = 1;
               inode_config = `Entries_32;
+              store_type = `Pack;
             });
     };
     {
@@ -528,6 +612,7 @@ let suite : suite_elt list =
               width = 1_000_000;
               nlarge_trees = 1;
               inode_config = `Entries_2;
+              store_type = `Pack;
             });
     };
     {
@@ -535,27 +620,39 @@ let suite : suite_elt list =
       speed = `Custom;
       run =
         (fun config ->
-          match config.inode_config with
-          | `Entries_2 -> Bench_inodes_2.run_read_trace config
-          | `Entries_32 -> Bench_inodes_32.run_read_trace config);
+          match (config.inode_config, config.store_type) with
+          | `Entries_2, `Pack -> Bench_inodes_2.run_read_trace config
+          | `Entries_32, `Pack -> Bench_inodes_32.run_read_trace config
+          | `Entries_2, `Pack_layered ->
+              Bench_inodes_2_layered.run_read_trace config
+          | `Entries_32, `Pack_layered ->
+              Bench_inodes_32_layered.run_read_trace config);
     };
     {
       mode = `Chains;
       speed = `Custom;
       run =
         (fun config ->
-          match config.inode_config with
-          | `Entries_2 -> Bench_inodes_2.run_chains config
-          | `Entries_32 -> Bench_inodes_32.run_chains config);
+          match (config.inode_config, config.store_type) with
+          | `Entries_2, `Pack -> Bench_inodes_2.run_chains config
+          | `Entries_32, `Pack -> Bench_inodes_32.run_chains config
+          | `Entries_2, `Pack_layered ->
+              Bench_inodes_2_layered.run_chains config
+          | `Entries_32, `Pack_layered ->
+              Bench_inodes_32_layered.run_chains config);
     };
     {
       mode = `Large;
       speed = `Custom;
       run =
         (fun config ->
-          match config.inode_config with
-          | `Entries_2 -> Bench_inodes_2.run_large config
-          | `Entries_32 -> Bench_inodes_32.run_large config);
+          match (config.inode_config, config.store_type) with
+          | `Entries_2, `Pack -> Bench_inodes_2.run_read_trace config
+          | `Entries_32, `Pack -> Bench_inodes_32.run_read_trace config
+          | `Entries_2, `Pack_layered ->
+              Bench_inodes_2_layered.run_read_trace config
+          | `Entries_32, `Pack_layered ->
+              Bench_inodes_32_layered.run_read_trace config);
     };
   ]
 
@@ -578,8 +675,9 @@ let get_suite suite_filter =
           false)
     suite
 
-let main ncommits ncommits_trace suite_filter inode_config flatten depth width
-    nchain_trees nlarge_trees commit_data_file results_dir =
+let main ncommits ncommits_trace suite_filter inode_config store_type
+    freeze_commit flatten depth width nchain_trees nlarge_trees commit_data_file
+    results_dir =
   let config =
     {
       ncommits;
@@ -592,6 +690,8 @@ let main ncommits ncommits_trace suite_filter inode_config flatten depth width
       nlarge_trees;
       commit_data_file;
       inode_config;
+      store_type;
+      freeze_commit;
       results_dir;
     }
   in
@@ -622,6 +722,19 @@ let inode_config =
   let mode = [ ("2", `Entries_2); ("32", `Entries_32) ] in
   let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "inode-config" ] in
   Arg.(value @@ opt (Arg.enum mode) `Entries_32 doc)
+
+let store_type =
+  let mode = [ ("pack", `Pack); ("pack-layered", `Pack_layered) ] in
+  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "store-type" ] in
+  Arg.(value @@ opt (Arg.enum mode) `Pack doc)
+
+let freeze_commit =
+  let doc =
+    Arg.info
+      ~doc:"Index of the commit after which to start the layered store freeze."
+      [ "freeze-commit" ]
+  in
+  Arg.(value @@ opt int 1664 doc)
 
 let flatten =
   let doc =
@@ -693,6 +806,8 @@ let main_term =
     $ ncommits_trace
     $ mode
     $ inode_config
+    $ store_type
+    $ freeze_commit
     $ flatten
     $ depth
     $ width
