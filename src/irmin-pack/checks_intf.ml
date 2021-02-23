@@ -34,8 +34,12 @@ module type S = sig
     type files = { pack : io option; branch : io option; dict : io option }
     [@@deriving irmin]
 
+    type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
+    [@@deriving irmin]
+
     val v : root:string -> version:IO.version -> files
     val detect_version : root:string -> IO.version
+    val traverse_index : root:string -> int -> objects
   end
 
   module Reconstruct_index :

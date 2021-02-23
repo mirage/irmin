@@ -67,7 +67,16 @@ module Make (M : MAKER) = struct
     type files = { pack : io option; branch : io option; dict : io option }
     [@@deriving irmin]
 
-    type t = { hash_size : size; files : files } [@@deriving irmin]
+    type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
+    [@@deriving irmin]
+
+    type t = {
+      hash_size : size;
+      log_size : int;
+      files : files;
+      objects : objects;
+    }
+    [@@deriving irmin]
 
     let with_io : type a. I.version -> string -> (IO.t -> a) -> a option =
      fun version path f ->
@@ -101,10 +110,32 @@ module Make (M : MAKER) = struct
       let dict = Layout.dict ~root |> io ~version in
       { pack; branch; dict }
 
+    let traverse_index ~root log_size =
+      let index = Index.v ~readonly:true ~fresh:false ~log_size root in
+      let bar, (progress_contents, progress_nodes, progress_commits) =
+        Utils.Progress.increment ~ppf:Format.err_formatter ()
+      in
+      let f _ (_, _, m) =
+        match m with
+        | 'B' -> progress_contents ()
+        | 'N' | 'I' -> progress_nodes ()
+        | 'C' -> progress_commits ()
+        | _ -> invalid_arg "unknown content type"
+      in
+      Index.iter f index;
+      let nb_commits, nb_nodes, nb_contents =
+        Utils.Progress.finalise_with_stats bar
+      in
+      { nb_commits; nb_nodes; nb_contents }
+
+    let conf root = Config.v ~readonly:true ~fresh:false root
+
     let run_versioned_store ~root version =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      let log_size = conf root |> Config.index_log_size in
+      let objects = traverse_index ~root log_size in
       let files = v ~root ~version in
-      { hash_size = Bytes Hash.hash_size; files }
+      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
       |> T.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
 
