@@ -564,7 +564,6 @@ let suite : suite_elt list =
             {
               config with
               ncommits = 2;
-              depth = 1000;
               nchain_trees = 1;
               inode_config = `Entries_32;
               store_type = `Pack;
@@ -579,7 +578,6 @@ let suite : suite_elt list =
             {
               config with
               ncommits = 2;
-              depth = 1000;
               nchain_trees = 1;
               inode_config = `Entries_2;
               store_type = `Pack;
@@ -594,7 +592,6 @@ let suite : suite_elt list =
             {
               config with
               ncommits = 2;
-              width = 1_000_000;
               nlarge_trees = 1;
               inode_config = `Entries_32;
               store_type = `Pack;
@@ -609,7 +606,6 @@ let suite : suite_elt list =
             {
               config with
               ncommits = 2;
-              width = 1_000_000;
               nlarge_trees = 1;
               inode_config = `Entries_2;
               store_type = `Pack;
