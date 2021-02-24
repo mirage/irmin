@@ -96,3 +96,12 @@ module V1 (K : S) : S with type t = K.t = struct
 
   let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
 end
+
+let with_pre_hash_prefix prefix t =
+  let pre_hash = Type.unstage (Type.pre_hash t) in
+  let pre_hash =
+    Type.stage @@ fun x f ->
+    f prefix;
+    pre_hash x f
+  in
+  Type.like t ~pre_hash
