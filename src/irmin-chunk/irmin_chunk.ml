@@ -221,23 +221,25 @@ struct
     | Some x -> Tree.find_leaves t x >|= Option.some
 
   let equal_hash = Irmin.Type.(unstage (equal K.t))
+  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+  let pre_hash = Irmin.Type.(unstage (pre_hash V.t))
 
   let check_hash k v =
-    let k' = K.hash (fun f -> f v) in
+    let k' = K.hash (pre_hash v) in
     if equal_hash k k' then Lwt.return_unit
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
-
-  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
 
   let find t key =
     find_leaves t key >>= function
     | None -> Lwt.return_none
     | Some bufs -> (
         let buf = String.concat "" bufs in
-        check_hash key buf >|= fun () ->
-        match of_bin_string buf with Ok va -> Some va | Error _ -> None)
+        match of_bin_string buf with
+        | Ok va -> check_hash key va >|= fun () -> Some va
+        | Error _ -> Lwt.return_none)
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =
@@ -260,11 +262,9 @@ struct
       let+ k = Lwt_list.map_s aux offs >>= Tree.add ~key t in
       Log.debug (fun l -> l "add -> %a (split)" pp_key k)
 
-  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
-
   let add t v =
     let buf = to_bin_string v in
-    let key = K.hash (fun f -> f buf) in
+    let key = K.hash (pre_hash v) in
     let+ () = unsafe_add_buffer t key buf in
     key
 
