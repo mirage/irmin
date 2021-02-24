@@ -197,6 +197,7 @@ struct
 
       let size_of = Irmin.Type.stage (fun _ -> None)
       let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
+      let pre_hash_prefix = ""
     end
 
     module Key = H
@@ -347,7 +348,7 @@ struct
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
 
-      let pre_hash_prefix = "n"
+      let pre_hash_prefix = ""
     end
 
     include Content_addressable (struct
@@ -448,7 +449,7 @@ struct
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
 
-      let pre_hash_prefix = "c"
+      let pre_hash_prefix = ""
     end
 
     module Key = H
@@ -1060,7 +1061,7 @@ module Content_addressable (G : Git.S) (V : Irmin.Type.S) = struct
     include V
 
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
-    let pre_hash_prefix = "b"
+    let pre_hash_prefix = ""
   end
 
   module M = Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
