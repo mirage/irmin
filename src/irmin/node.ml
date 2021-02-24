@@ -137,7 +137,7 @@ struct
   let of_entries e = v (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
-  let pre_hash_prefix = "n"
+  let pre_hash_prefix = "N"
 end
 
 module Store

@@ -38,7 +38,7 @@ module Make (K : Type.S) = struct
     let parents = List.fast_sort compare_hash parents in
     { node; parents; info }
 
-  let pre_hash_prefix = "c"
+  let pre_hash_prefix = "C"
 end
 
 module Store

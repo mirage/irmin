@@ -94,7 +94,7 @@ end = struct
 
   let merge = Irmin.Merge.(option (v t merge))
   let add t e = e :: t
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 (* Build an Irmin store containing log files. *)

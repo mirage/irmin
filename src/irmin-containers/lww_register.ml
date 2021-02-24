@@ -35,7 +35,7 @@ module LWW (T : Time.S) (V : Irmin.Type.S) :
     if compare v1 v2 > 0 then ok v1 else ok v2
 
   let merge = Irmin.Merge.(option (v t merge))
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 module type S = sig

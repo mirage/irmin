@@ -163,7 +163,7 @@ module Json_value = struct
 
   let merge_json = Merge.(v t merge_value)
   let merge = Merge.(option merge_json)
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 module Json = struct
@@ -190,14 +190,14 @@ module Json = struct
   let merge =
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
 
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 module String = struct
   type t = string [@@deriving irmin]
 
   let merge = Merge.idempotent Type.(option string)
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 module Store (S : sig

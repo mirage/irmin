@@ -28,7 +28,7 @@ let run f () =
 
 let hash x =
   Test_chunk.Key.hash (fun l ->
-      l "b";
+      l "B";
       l x)
 
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))

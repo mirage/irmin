@@ -49,7 +49,7 @@ module Blob_log (T : Time.S) (V : Irmin.Type.S) :
     ok (List.rev_append l3 old)
 
   let merge = Irmin.Merge.(option (v t merge))
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "B"
 end
 
 module type S = sig
