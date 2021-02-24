@@ -110,13 +110,13 @@ module Chunk (K : Irmin.Hash.S) = struct
     Bytes.unsafe_to_string buf
 
   let t = Irmin.Type.(map string) of_string to_string
-  let pre_hash_prefix = "b"
+  let pre_hash_prefix = "??"
 end
 
 module Content_addressable
     (S : Irmin.APPEND_ONLY_STORE_MAKER)
     (K : Irmin.Hash.S)
-    (V : Irmin.Type.S) =
+    (V : Irmin.Hash.VALUE) =
 struct
   module Chunk = Chunk (K)
   module AO = S (K) (Chunk)
@@ -227,7 +227,11 @@ struct
   let pre_hash = Irmin.Type.(unstage (pre_hash V.t))
 
   let check_hash k v =
-    let k' = K.hash (pre_hash v) in
+    let k' =
+      K.hash (fun f ->
+          f V.pre_hash_prefix;
+          pre_hash v f)
+    in
     if equal_hash k k' then Lwt.return_unit
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -265,7 +269,11 @@ struct
 
   let add t v =
     let buf = to_bin_string v in
-    let key = K.hash (pre_hash v) in
+    let key =
+      K.hash (fun f ->
+          f V.pre_hash_prefix;
+          pre_hash v f)
+    in
     let+ () = unsafe_add_buffer t key buf in
     key
 

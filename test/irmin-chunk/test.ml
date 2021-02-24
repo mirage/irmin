@@ -26,7 +26,11 @@ let run f () =
   flush stderr;
   flush stdout
 
-let hash x = Test_chunk.Key.hash (fun l -> l x)
+let hash x =
+  Test_chunk.Key.hash (fun l ->
+      l "b";
+      l x)
+
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
