@@ -533,7 +533,7 @@ let suite : suite_elt list =
       run =
         (fun config ->
           Bench_inodes_32.run_read_trace
-            { config with inode_config = `Entries_32 });
+            { config with inode_config = `Entries_32; store_type = `Pack });
     };
     {
       mode = `Read_trace;
@@ -541,35 +541,39 @@ let suite : suite_elt list =
       run =
         (fun config ->
           Bench_inodes_32.run_read_trace
-            { config with inode_config = `Entries_32 });
+            { config with inode_config = `Entries_32; store_type = `Pack });
     };
     {
       mode = `Chains;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_chains { config with inode_config = `Entries_32 });
+          Bench_inodes_32.run_chains
+            { config with inode_config = `Entries_32; store_type = `Pack });
     };
     {
       mode = `Chains;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_chains { config with inode_config = `Entries_2 });
+          Bench_inodes_2.run_chains
+            { config with inode_config = `Entries_2; store_type = `Pack });
     };
     {
       mode = `Large;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_large { config with inode_config = `Entries_32 });
+          Bench_inodes_32.run_large
+            { config with inode_config = `Entries_32; store_type = `Pack });
     };
     {
       mode = `Large;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_large { config with inode_config = `Entries_2 });
+          Bench_inodes_2.run_large
+            { config with inode_config = `Entries_2; store_type = `Pack });
     };
     {
       mode = `Read_trace;
@@ -634,6 +638,8 @@ let get_suite suite_filter =
 let main ncommits ncommits_trace suite_filter inode_config store_type
     freeze_commit flatten depth width nchain_trees nlarge_trees commit_data_file
     results_dir =
+  let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
+  let ncommits_trace = Option.value ~default ncommits_trace in
   let config =
     {
       ncommits;
@@ -709,7 +715,7 @@ let ncommits_trace =
   let doc =
     Arg.info ~doc:"Number of commits to read from trace." [ "ncommits_trace" ]
   in
-  Arg.(value @@ opt int 13315 doc)
+  Arg.(value @@ opt (some int) None doc)
 
 let depth =
   let doc =
