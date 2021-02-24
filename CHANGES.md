@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin-chunk**
+  - use the pre_hash function to compute entry keys instead of
+    their raw binary representation (#1308, @samoht)
+
 ### Added
 
 - **irmin-bench**
