@@ -67,8 +67,24 @@ module Make_with_version
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S) =
 struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
+  module XNode = struct
+    include Irmin.Private.Node.Make (H) (P) (M)
+
+    let t = Irmin.Hash.with_pre_hash_prefix "N" t
+  end
+
+  module XCommit = struct
+    include Irmin.Private.Commit.Make (H)
+
+    let t = Irmin.Hash.with_pre_hash_prefix "C" t
+  end
+
+  module C = struct
+    include C
+
+    let t = Irmin.Hash.with_pre_hash_prefix "B" t
+  end
+
   include Make_ext (IO_version) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 

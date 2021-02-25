@@ -105,3 +105,22 @@ let with_pre_hash_prefix prefix t =
     pre_hash x f
   in
   Type.like t ~pre_hash
+
+let err_invalid_prefix p ps =
+  let pp_char ppf c = Fmt.Dump.string ppf (String.make 1 c) in
+  Fmt.failwith "'%a': invalid prefix. Valid prefixes are %a" pp_char p
+    (Fmt.Dump.list pp_char) ps
+
+let with_pre_hash_prefix_check prefixes t =
+  let pre_hash = Type.unstage (Type.pre_hash t) in
+  let pre_hash =
+    Type.stage @@ fun x f ->
+    let checked = ref false in
+    pre_hash x (fun s ->
+        (if not !checked then
+         match List.mem s.[0] prefixes with
+         | true -> checked := true
+         | false -> err_invalid_prefix s.[0] prefixes);
+        f s)
+  in
+  Type.like t ~pre_hash

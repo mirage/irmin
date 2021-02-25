@@ -17,3 +17,4 @@
 include Hash_intf.Hash
 
 val with_pre_hash_prefix : string -> 'a Type.t -> 'a Type.t
+val with_pre_hash_prefix_check : char list -> 'a Type.t -> 'a Type.t

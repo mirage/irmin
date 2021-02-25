@@ -113,6 +113,9 @@ struct
           type t = v
 
           let t = v_t
+
+          (* [v_t] is a variant: values are prefixed by the variant tag. *)
+          let t = Irmin.Hash.with_pre_hash_prefix_check [ '\000'; '\001' ] t
         end)
 
     type t = { hash : H.t Lazy.t; stable : bool; v : v }
