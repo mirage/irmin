@@ -8,7 +8,6 @@ val with_progress_bar :
   message:string ->
   n:int ->
   unit:string ->
-  sampling_interval:int ->
   ((int64 -> unit) -> 'a) ->
   'a
 
