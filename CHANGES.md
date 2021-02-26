@@ -19,6 +19,8 @@
     of a directory. (#1292, @Ngoguey42)
   - When configuring a store, is it no longer possible to set `entries` to a
     value larger than `stable_hash`. (#1292, @Ngoguey42)
+  - Added number of objects to the output of `stat-pack` command in
+    `irmin-fsck`. (#1311, @icristescu)
 
 ## 2.5.1 (2021-02-19)
 
