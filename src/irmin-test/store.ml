@@ -1406,7 +1406,7 @@ module Make (S : S) = struct
 
   let test_wide_nodes x () =
     let test repo =
-      let size = 500_000 in
+      let size = 750_000 in
       let c0 = S.Tree.empty in
       let rec wide_node i c =
         if i >= size then Lwt.return c
@@ -1461,11 +1461,14 @@ module Make (S : S) = struct
               | Some x ->
                   let x' = normal (P.Contents.Key.hash "499999") in
                   check P.Node.Val.value_t "find 499999" x x');
-              match P.Node.Val.find v "500000" with
+              match P.Node.Val.find v "750000" with
               | None -> ()
-              | Some _ -> Alcotest.fail "value 500000 should not be found")
+              | Some _ -> Alcotest.fail "value 750000 should not be found")
           | Error (`Dangling_hash _) ->
               Alcotest.fail "unexpected dangling hash in wide node"))
+      >>= fun () ->
+      S.master repo >>= fun master ->
+      S.set_tree_exn master ~info:(infof "set_tree_exn") [ "a" ] c'
       >>= fun () -> P.Repo.close repo
     in
     run x test
