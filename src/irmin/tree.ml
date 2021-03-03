@@ -1316,10 +1316,7 @@ module Make (P : Private.S) = struct
                        (while the thread was block on P.Node.mem *)
                     k ()
                 | Map children ->
-                    let l =
-                      StepMap.bindings children
-                      |> List.rev_map snd |> List.rev
-                    in
+                    let l = StepMap.bindings children |> List.map snd in
                     add_steps_to_todo l n k
                 | Value (_, _, Some children) ->
                     let l =

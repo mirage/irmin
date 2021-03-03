@@ -2012,7 +2012,7 @@ let suite (speed, x) =
       ("Shallow objects", speed, T.test_shallow_objects x);
       ("Closure with disconnected commits", speed, T.test_closure x);
       ("Clear", speed, T.test_clear x);
-      ("Wide nodes", `Slow, T.test_wide_nodes x);
+      ("Wide nodes", speed, T.test_wide_nodes x);
     ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests )
