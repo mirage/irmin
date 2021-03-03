@@ -1,3 +1,7 @@
+## Unreleased
+
+  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
+
 ## 2.5.3 (2021-04-13)
 
 ### Fixed
