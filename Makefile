@@ -10,7 +10,7 @@ bench-pack:
 	dune exec ./test/irmin-pack/bench.exe
 
 bench-layers:
-	dune exec -- ./bench/irmin-pack/layers.exe -n 2005 -b 2 -j
+	@dune exec -- ./bench/irmin-pack/layers.exe -n 2005 -b 2 -j
 
 bench: bench-pack bench-layers
 
