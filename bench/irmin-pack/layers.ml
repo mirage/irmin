@@ -96,12 +96,12 @@ let first_5_cycles config repo =
   in
   aux 0 c
 
-let run_cycles config repo head =
+let run_cycles config repo head json =
   let rec run_one_cycle head i =
     if i = config.ncycles then Lwt.return head
     else
       let* max = write_cycle config repo head in
-      print_stats ();
+      if not json then print_stats ();
       let min = consume_min () in
       add_min max;
       let* time, () =
@@ -124,10 +124,10 @@ let close config repo =
   let+ t, () = with_timer (fun () -> Store.Repo.close repo) in
   if config.show_stats then Logs.app (fun l -> l "close %f" t)
 
-let run config =
+let run config json =
   let* repo = rw config in
   let* c = first_5_cycles config repo in
-  let* _ = run_cycles config repo c in
+  let* _ = run_cycles config repo c json in
   close config repo >|= fun () ->
   if config.show_stats then (
     Fmt.epr "After freeze thread finished : ";
@@ -141,15 +141,20 @@ type result = {
 [@@deriving yojson]
 
 let get_json_str total_time time_per_commit commits_per_sec =
-  let res = { total_time; time_per_commit; commits_per_sec } in
+  let res = [ { total_time; time_per_commit; commits_per_sec } ] in
   let obj =
     `Assoc
       [
         ( "results",
-          `Assoc
-            [
-              ("name", `String "benchmarks"); ("metrics", result_to_yojson res);
-            ] );
+          `List
+            (List.map
+               (fun result ->
+                 `Assoc
+                   [
+                     ("name", `String "benchmarks");
+                     ("metrics", result_to_yojson result);
+                   ])
+               res) );
       ]
   in
   Yojson.Safe.to_string obj
@@ -169,14 +174,15 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
       freeze_throttle;
     }
   in
-  Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
-    (Repr.pp_dump config_t) config;
+  if not json then
+    Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
+      (Repr.pp_dump config_t) config;
   init config;
-  let d, _ = Lwt_main.run (with_timer (fun () -> run config)) in
+  let d, _ = Lwt_main.run (with_timer (fun () -> run config json)) in
   let all_commits = ncommits * (ncycles + 5) in
   let rate = d /. float all_commits in
   let freq = 1. /. rate in
-  if json then Logs.app (fun l -> l "%s" (get_json_str d rate freq))
+  if json then Printf.printf "%s" (get_json_str d rate freq)
   else
     Logs.app (fun l ->
         l

@@ -7,7 +7,7 @@ test:
 	dune runtest
 
 bench-layers:
-	dune exec -- ./bench/irmin-pack/layers.exe -n 2005 -b 2 -j
+	@dune exec -- ./bench/irmin-pack/layers.exe -n 2005 -b 2 -j
 
 bench: bench-layers
 
