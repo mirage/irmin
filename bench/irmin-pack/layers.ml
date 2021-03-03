@@ -146,6 +146,7 @@ let get_json_str total_time time_per_commit commits_per_sec =
     `Assoc
       [
         ( "results",
+          (* Pipeline format expects a list of results.*)
           `List
             (List.map
                (fun result ->
