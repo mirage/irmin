@@ -145,7 +145,7 @@ module Bootstrap_trace = struct
 
       All the recorded operations in Tezos operate on (and create new) immutable
       records of type [context]. Most of the time, everything is linear (i.e.
-      the input context to an operation is the output latest context), but there
+      the input context to an operation is the latest output context), but there
       sometimes are several parallel chains of contexts, where all but one will
       end up being discarded.
 
@@ -154,15 +154,15 @@ module Bootstrap_trace = struct
 
       To solve this conundrum when replaying the trace, we need to remember all
       the [context_id -> tree] and [trace commit hash -> real commit hash] pairs
-      to make sure an operation is applying on the right parent.
+      to make sure an operation is operating on the right parent.
 
-      The context indices and the commit hashes are 'scoped`, meaning that they
-      are tagged with a boolean information indicating if this is the very last
-      occurence of that value in the trace. This way we can discard a remembered
-      pair as soon as possible.
+      In the trace, the context indices and the commit hashes are 'scoped`,
+      meaning that they are tagged with a boolean information indicating if this
+      is the very last occurence of that value in the trace. This way we can
+      discard a remembered pair as soon as possible.
 
       In practice, there is only 1 context and 1 commit in history, and
-      sometimes 2, but the code is ready for more. *)
+      sometimes 0 or 2, but the code is ready for more. *)
   type op =
     (* Operation(s) that create a context from none *)
     | Checkout of hash scope * int64 scope
@@ -340,7 +340,7 @@ module Bootstrap_trace = struct
         marginal unsabilities are to be expected.
 
         [Bentov] is good at spreading the bins on the input space. Since these
-        data will be shown on a log plot, the log10 of those value is passed to
+        data will be shown on a log plot, the log10 of those values is passed to
         [Bentov] instead, but the json will store real seconds.
 
         {3 Moving Averages}
@@ -437,6 +437,7 @@ module Bootstrap_trace = struct
                   *. (Int64.to_float v.count -. 1.)
                   |> Float.floor
                   |> Int64.of_float)
+              (* Dedup in case [v.count] is very small *)
               |> List.sort_uniq compare;
             max_point = (0L, -.Float.infinity);
           }
@@ -714,9 +715,9 @@ module Generate_trees_from_trace (Store : STORE) = struct
     let rec aux commit_seq i =
       match commit_seq () with
       | Seq.Nil ->
-         (* Let's print the length of [data/commitments] using t.latest_commit
-            some day. Today it requires loading everything. *)
-         on_end i >|= fun () -> i
+          (* Let's print the length of [data/commitments] using t.latest_commit
+             some day. Today it requires loading everything. *)
+          on_end i >|= fun () -> i
       | Cons (ops, commit_seq) ->
           let* () = add_operations t repo ops i stats in
 
