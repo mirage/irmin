@@ -21,7 +21,7 @@ module type STORE = sig
   include Irmin.S with type key = string list and type contents = string
 
   type on_commit := int -> Hash.t -> unit Lwt.t
-  type on_end := int -> unit Lwt.t
+  type on_end := unit -> unit Lwt.t
   type pp := Format.formatter -> unit
 
   val create_repo : config -> (Repo.t * on_commit * on_end * pp) Lwt.t
@@ -112,20 +112,21 @@ module Bootstrap_trace = struct
   type key = string list [@@deriving repr]
   type hash = string [@@deriving repr]
   type message = string [@@deriving repr]
+  type context_id = int64 [@@deriving repr]
 
   type add = {
     key : key;
     value : string;
-    ctx0 : int64 scope;
-    ctx1 : int64 scope;
+    in_ctx_id : context_id scope;
+    out_ctx_id : context_id scope;
   }
   [@@deriving repr]
 
   type copy = {
     key_src : key;
     key_dst : key;
-    ctx0 : int64 scope;
-    ctx1 : int64 scope;
+    in_ctx_id : context_id scope;
+    out_ctx_id : context_id scope;
   }
   [@@deriving repr]
 
@@ -134,7 +135,7 @@ module Bootstrap_trace = struct
     date : int64;
     message : message;
     parents : hash scope list;
-    ctx0 : int64 scope;
+    in_ctx_id : context_id scope;
   }
   [@@deriving repr]
 
@@ -164,15 +165,15 @@ module Bootstrap_trace = struct
       sometimes 0 or 2, but the code is ready for more. *)
   type op =
     (* Operation(s) that create a context from none *)
-    | Checkout of hash scope * int64 scope
+    | Checkout of hash scope * context_id scope
     (* Operations that create a context from one *)
     | Add of add
-    | Remove of key * int64 scope * int64 scope
+    | Remove of key * context_id scope * context_id scope
     | Copy of copy
     (* Operations that just read a context *)
-    | Find of key * bool * int64 scope
-    | Mem of key * bool * int64 scope
-    | Mem_tree of key * bool * int64 scope
+    | Find of key * bool * context_id scope
+    | Mem of key * bool * context_id scope
+    | Mem_tree of key * bool * context_id scope
     | Commit of commit
   [@@deriving repr]
 
@@ -219,7 +220,8 @@ module Bootstrap_trace = struct
   let flatten_op = function
     | Checkout _ as op -> op
     | Add op -> Add { op with key = flatten_key op.key }
-    | Remove (keys, ctx0, ctx1) -> Remove (flatten_key keys, ctx0, ctx1)
+    | Remove (keys, in_ctx_id, out_ctx_id) ->
+        Remove (flatten_key keys, in_ctx_id, out_ctx_id)
     | Copy op ->
         Copy
           {
@@ -567,11 +569,11 @@ module Generate_trees_from_trace (Store : STORE) = struct
     |> Bootstrap_trace.Stats.push_duration stats which;
     res
 
-  let error_find op k b n_op n_c ctx0 =
+  let error_find op k b n_op n_c in_ctx_id =
     Fmt.failwith
       "Cannot reproduce operation %d on ctx %Ld of commit %d %s @[k = %a@] \
        expected %b"
-      n_op ctx0 n_c op
+      n_op in_ctx_id n_c op
       Fmt.(list ~sep:comma string)
       k b
 
@@ -585,70 +587,70 @@ module Generate_trees_from_trace (Store : STORE) = struct
     | Bootstrap_trace.Forget ctx -> Hashtbl.remove t.contexts ctx
     | Keep _ -> ()
 
-  let exec_checkout t repo h_trace ctx1 () =
+  let exec_checkout t repo h_trace out_ctx_id () =
     let h_store = Hashtbl.find t.hash_corresps (unscope h_trace) in
     maybe_forget_hash t h_trace;
     Store.Commit.of_hash repo h_store >|= function
     | None -> failwith "prev commit not found"
     | Some commit ->
         let tree = Store.Commit.tree commit in
-        Hashtbl.add t.contexts (unscope ctx1) { tree };
-        maybe_forget_ctx t ctx1
+        Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
+        maybe_forget_ctx t out_ctx_id
 
-  let exec_add t key v ctx0 ctx1 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_add t key v in_ctx_id out_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     let+ tree = Store.Tree.add tree key v in
-    Hashtbl.add t.contexts (unscope ctx1) { tree };
-    maybe_forget_ctx t ctx1
+    Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
+    maybe_forget_ctx t out_ctx_id
 
-  let exec_remove t keys ctx0 ctx1 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_remove t keys in_ctx_id out_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     let+ tree = Store.Tree.remove tree keys in
-    Hashtbl.add t.contexts (unscope ctx1) { tree };
-    maybe_forget_ctx t ctx1
+    Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
+    maybe_forget_ctx t out_ctx_id
 
-  let exec_copy t from to_ ctx0 ctx1 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_copy t from to_ in_ctx_id out_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     Store.Tree.find_tree tree from >>= function
     | None -> failwith "Couldn't find tree in exec_copy"
     | Some sub_tree ->
         let* tree = Store.Tree.add_tree tree to_ sub_tree in
-        Hashtbl.add t.contexts (unscope ctx1) { tree };
-        maybe_forget_ctx t ctx1;
+        Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
+        maybe_forget_ctx t out_ctx_id;
         Lwt.return_unit
 
-  let exec_find t n i keys b ctx0 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_find t n i keys b in_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     Store.Tree.find tree keys >|= function
     | None when not b -> ()
     | Some _ when b -> ()
-    | _ -> error_find "find" keys b i n (unscope ctx0)
+    | _ -> error_find "find" keys b i n (unscope in_ctx_id)
 
-  let exec_mem t n i keys b ctx0 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_mem t n i keys b in_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     let+ b' = Store.Tree.mem tree keys in
-    if b <> b' then error_find "mem" keys b i n (unscope ctx0)
+    if b <> b' then error_find "mem" keys b i n (unscope in_ctx_id)
 
-  let exec_mem_tree t n i keys b ctx0 () =
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+  let exec_mem_tree t n i keys b in_ctx_id () =
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     let+ b' = Store.Tree.mem_tree tree keys in
-    if b <> b' then error_find "mem_tree" keys b i n (unscope ctx0)
+    if b <> b' then error_find "mem_tree" keys b i n (unscope in_ctx_id)
 
-  let exec_commit t repo h_trace date message parents_trace ctx0 () =
+  let exec_commit t repo h_trace date message parents_trace in_ctx_id () =
     let parents_store =
       parents_trace
       |> List.map unscope
       |> List.map (Hashtbl.find t.hash_corresps)
     in
     List.iter (maybe_forget_hash t) parents_trace;
-    let { tree } = Hashtbl.find t.contexts (unscope ctx0) in
-    maybe_forget_ctx t ctx0;
+    let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
+    maybe_forget_ctx t in_ctx_id;
     let* _ =
       (* in tezos commits call Tree.list first for the unshallow operation *)
       Store.Tree.list tree []
@@ -666,31 +668,33 @@ module Generate_trees_from_trace (Store : STORE) = struct
   let add_operations t repo operations n stats =
     let rec aux l i =
       match l with
-      | Bootstrap_trace.Checkout (h, ctx1) :: tl ->
-          exec_checkout t repo h ctx1 |> with_monitoring stats `Checkout
+      | Bootstrap_trace.Checkout (h, out_ctx_id) :: tl ->
+          exec_checkout t repo h out_ctx_id |> with_monitoring stats `Checkout
           >>= fun () -> aux tl (i + 1)
       | Add op :: tl ->
-          exec_add t op.key op.value op.ctx0 op.ctx1
+          exec_add t op.key op.value op.in_ctx_id op.out_ctx_id
           |> with_monitoring stats `Add
           >>= fun () -> aux tl (i + 1)
-      | Remove (keys, ctx0, ctx1) :: tl ->
-          exec_remove t keys ctx0 ctx1 |> with_monitoring stats `Remove
+      | Remove (keys, in_ctx_id, out_ctx_id) :: tl ->
+          exec_remove t keys in_ctx_id out_ctx_id
+          |> with_monitoring stats `Remove
           >>= fun () -> aux tl (i + 1)
       | Copy op :: tl ->
-          exec_copy t op.key_src op.key_dst op.ctx0 op.ctx1
+          exec_copy t op.key_src op.key_dst op.in_ctx_id op.out_ctx_id
           |> with_monitoring stats `Copy
           >>= fun () -> aux tl (i + 1)
-      | Find (keys, b, ctx0) :: tl ->
-          exec_find t n i keys b ctx0 |> with_monitoring stats `Find
+      | Find (keys, b, in_ctx_id) :: tl ->
+          exec_find t n i keys b in_ctx_id |> with_monitoring stats `Find
           >>= fun () -> aux tl (i + 1)
-      | Mem (keys, b, ctx0) :: tl ->
-          exec_mem t n i keys b ctx0 |> with_monitoring stats `Mem >>= fun () ->
-          aux tl (i + 1)
-      | Mem_tree (keys, b, ctx0) :: tl ->
-          exec_mem_tree t n i keys b ctx0 |> with_monitoring stats `Mem_tree
+      | Mem (keys, b, in_ctx_id) :: tl ->
+          exec_mem t n i keys b in_ctx_id |> with_monitoring stats `Mem
+          >>= fun () -> aux tl (i + 1)
+      | Mem_tree (keys, b, in_ctx_id) :: tl ->
+          exec_mem_tree t n i keys b in_ctx_id
+          |> with_monitoring stats `Mem_tree
           >>= fun () -> aux tl (i + 1)
       | [ Commit op ] ->
-          exec_commit t repo op.hash op.date op.message op.parents op.ctx0
+          exec_commit t repo op.hash op.date op.message op.parents op.in_ctx_id
           |> with_monitoring stats `Commit
       | Commit _ :: _ | [] ->
           failwith "A batch of operation should end with a commit"
@@ -716,7 +720,7 @@ module Generate_trees_from_trace (Store : STORE) = struct
       | Seq.Nil ->
           (* Let's print the length of [data/commitments] using t.latest_commit
              some day. Today it requires loading everything. *)
-          on_end i >|= fun () -> i
+          on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
           let* () = add_operations t repo ops i stats in
 
@@ -766,7 +770,7 @@ module Bench_suite (Store : STORE) = struct
     with_progress_bar ~message ~n:ncommits ~unit:"commits" @@ fun prog ->
     let* c = init_commit repo in
     let rec aux c i =
-      if i >= ncommits then on_end i
+      if i >= ncommits then on_end ()
       else
         let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
         let* () = on_commit i (Store.Commit.hash c') in
@@ -912,7 +916,7 @@ struct
          or nothing. See #1293 *)
       Lwt.pause ()
     in
-    let on_end _i = Store.PrivateLayer.wait_for_freeze repo in
+    let on_end () = Store.PrivateLayer.wait_for_freeze repo in
     let pp ppf =
       if Irmin_layers.Stats.get_freeze_count () = 0 then
         Format.fprintf ppf "no freeze"
@@ -938,7 +942,7 @@ struct
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
-    let on_end _ = Lwt.return_unit in
+    let on_end () = Lwt.return_unit in
     let pp _ = () in
     Lwt.return (repo, on_commit, on_end, pp)
 
