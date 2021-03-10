@@ -114,6 +114,7 @@ struct
 
   let empty = StepMap.empty
   let is_empty e = StepMap.is_empty e
+  let length e = StepMap.cardinal e
 
   let add t k v =
     let e = to_entry (k, v) in
@@ -427,6 +428,7 @@ module V1 (N : S with type step = string) = struct
 
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
+  let length e = N.length e.n
   let default = N.default
   let find t k = N.find t.n k
 

@@ -262,6 +262,7 @@ struct
 
       let remove t step = G.Value.Tree.remove ~name:(of_step step) t
       let is_empty = G.Value.Tree.is_empty
+      let length t = G.Value.Tree.length t |> Int64.to_int
 
       let add t name value =
         let name = of_step name in

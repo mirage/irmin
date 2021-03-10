@@ -660,13 +660,13 @@ module Make (P : Private.S) = struct
         else
           let remove_count = StepMap.cardinal um in
           if (not val_is_empty) && remove_count = 0 then false
+          else if P.Node.Val.length v > remove_count then false
           else (
             (* Starting from this point the function is expensive, but there is
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
             let entries = P.Node.Val.list v in
-            if List.is_longer_than remove_count entries then false
-            else List.for_all (fun (step, _) -> StepMap.mem step um) entries)
+            List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let is_empty t =
       match cached_map t with
