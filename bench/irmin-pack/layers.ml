@@ -177,7 +177,7 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
   in
   if not json then
     Logs.app (fun l ->
-        Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
+        l "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
           (Repr.pp_dump config_t) config);
   init config;
   let d, _ = Lwt_main.run (with_timer (fun () -> run config json)) in
