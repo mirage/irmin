@@ -64,7 +64,6 @@ let seq_mapi64 s =
       (!i, v))
     s
 
-(** EMA *)
 module Exponential_moving_average = struct
   type t = {
     momentum : float;
@@ -156,10 +155,10 @@ module Bootstrap_trace = struct
       the [context_id -> tree] and [trace commit hash -> real commit hash] pairs
       to make sure an operation is operating on the right parent.
 
-      In the trace, the context indices and the commit hashes are 'scoped`,
+      In the trace, the context indices and the commit hashes are 'scoped',
       meaning that they are tagged with a boolean information indicating if this
       is the very last occurence of that value in the trace. This way we can
-      discard a remembered pair as soon as possible.
+      discard a recorded pair as soon as possible.
 
       In practice, there is only 1 context and 1 commit in history, and
       sometimes 0 or 2, but the code is ready for more. *)
