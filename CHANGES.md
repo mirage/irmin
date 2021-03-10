@@ -11,6 +11,7 @@
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
+  - New features in benchmarks for tree operations (#1314, @Ngoguey42)
 - **irmin-pack**
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
 
