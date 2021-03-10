@@ -57,6 +57,7 @@ module H_contents =
     end)
 
 let normal x = `Contents (x, Metadata.default)
+let node x = `Node x
 let foo = H_contents.hash "foo"
 let bar = H_contents.hash "bar"
 let check_hash = Alcotest.check_repr Inode.Val.hash_t
@@ -459,6 +460,39 @@ let test_intermediate_inode_as_root () =
   in
   Lwt.return_unit
 
+let test_concrete_inodes () =
+  rm_dir root;
+  let* t = Context.get_store () in
+  let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
+  let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
+  let testable =
+    Alcotest.testable
+      (Irmin.Type.pp_json ~minify:false result_t)
+      Irmin.Type.(unstage (equal result_t))
+  in
+  let check v =
+    let len = Inter.Val.length v in
+    integrity_check ~stable:(len <= Conf.stable_hash) v;
+    let c = Inter.Val.to_concrete v in
+    let r = Inter.Val.of_concrete c in
+    let msg = Fmt.str "%a" pp_concrete c in
+    Alcotest.check testable msg (Ok v) r
+  in
+  let v = Inode.Val.v [ ("a", normal foo) ] in
+  check v;
+  let v = Inode.Val.v [ ("a", normal foo); ("y", node bar) ] in
+  check v;
+  let v = Inode.Val.v [ ("x", node foo); ("a", normal foo); ("y", node bar) ] in
+  check v;
+  let v =
+    Inode.Val.v
+      [
+        ("x", normal foo); ("z", normal foo); ("a", normal foo); ("y", node bar);
+      ]
+  in
+  check v;
+  Context.close t
+
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
@@ -469,6 +503,8 @@ let tests =
         Lwt_main.run (test_remove_values ()));
     Alcotest.test_case "remove inodes" `Quick (fun () ->
         Lwt_main.run (test_remove_inodes ()));
+    Alcotest.test_case "test concrete inodes" `Quick (fun () ->
+        Lwt_main.run (test_concrete_inodes ()));
     Alcotest.test_case "test representation uniqueness" `Quick (fun () ->
         Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
     Alcotest.test_case "test truncated inodes" `Quick (fun () ->
