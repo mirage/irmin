@@ -1,6 +1,7 @@
 val default_results_dir : string
 val prepare_results_dir : string -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter
+val setup_log : Fmt.style_renderer option -> Logs.level option -> unit
 val reset_stats : unit -> unit
 val with_timer : (unit -> 'a Lwt.t) -> (float * 'a) Lwt.t
 

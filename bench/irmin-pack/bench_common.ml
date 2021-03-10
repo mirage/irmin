@@ -19,6 +19,12 @@ let reporter ?(prefix = "") () =
   in
   { Logs.report }
 
+let setup_log style_renderer level =
+  Fmt_tty.setup_std_outputs ?style_renderer ();
+  Logs.set_level level;
+  Logs.set_reporter (reporter ());
+  ()
+
 let reset_stats () =
   Index.Stats.reset_stats ();
   Irmin_pack.Stats.reset_stats ()
@@ -94,8 +100,9 @@ module FSHelper = struct
     let upper1 = Filename.concat root "upper1" in
     let upper0 = Filename.concat root "upper0" in
     let lower = Filename.concat root "lower" in
-    Fmt.epr "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
-      (size upper1) (size upper0) (size lower)
+    Logs.app (fun l ->
+        l "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
+          (size upper1) (size upper0) (size lower))
 
   let rm_dir root =
     if Sys.file_exists root then (

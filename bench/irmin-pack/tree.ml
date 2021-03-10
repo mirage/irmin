@@ -553,7 +553,7 @@ module Generate_trees_from_trace (Store : STORE) = struct
         Fmt.(list ~sep:(any ",@\n") pp_histo)
         op_tags
     else
-      Fmt.pf ppf "%a\n%a"
+      Fmt.pf ppf "%a@\n%a"
         Fmt.(list ~sep:(any "@\n") pp_histo)
         op_tags
         Fmt.(list ~sep:(any "@\n") pp_max)
@@ -723,8 +723,8 @@ module Generate_trees_from_trace (Store : STORE) = struct
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
           if (len0, len1) <> (0, 1) then
-            Printf.eprintf "\n> After commit %6d we have %d/%d history size\n%!"
-              i len0 len1;
+            Logs.app (fun l ->
+                l "\nAfter commit %6d we have %d/%d history sizes" i len0 len1);
           let* () = on_commit i (Option.get t.latest_commit) in
           prog Int64.one;
           aux commit_seq (i + 1)
@@ -788,7 +788,7 @@ module Bench_suite (Store : STORE) = struct
     fun ppf ->
       Format.fprintf ppf
         "Large trees mode on inode config %a, %a: %d commits, each consisting \
-         of %d large trees of %d entries\n\
+         of %d large trees of %d entries@\n\
          %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
@@ -808,7 +808,7 @@ module Bench_suite (Store : STORE) = struct
     fun ppf ->
       Format.fprintf ppf
         "Chain trees mode on inode config %a, %a: %d commits, each consisting \
-         of %d chains of depth %d\n\
+         of %d chains of depth %d@\n\
          %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
@@ -1099,7 +1099,8 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
   let suite = get_suite suite_filter in
   let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
   let results = Lwt_main.run (run_benchmarks ()) in
-  Fmt.pr "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results
+  Logs.app (fun l ->
+      l "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results)
 
 open Cmdliner
 
@@ -1191,12 +1192,6 @@ let results_dir =
       [ "results" ]
   in
   Arg.(value @@ opt string default_results_dir doc)
-
-let setup_log style_renderer level =
-  Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
-  Logs.set_reporter (reporter ());
-  ()
 
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
