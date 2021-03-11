@@ -52,6 +52,39 @@ struct
     add t k v >|= fun () -> k
 end
 
+module Unsafe_content_addressable
+    (AO : S.UNSAFE_APPEND_ONLY_STORE_MAKER)
+    (K : Hash.S)
+    (V : S.VAL with type hash = K.t) =
+struct
+  include AO (K) (V)
+  open Lwt.Infix
+
+  let hash = V.hash
+  let pp_key = Type.pp K.t
+  let equal_hash = Type.(unstage (equal K.t))
+
+  let find t k =
+    find t k >>= function
+    | None -> Lwt.return_none
+    | Some v as r ->
+        let k' = hash v in
+        if equal_hash k k' then Lwt.return r
+        else
+          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+            pp_key k' pp_key k
+
+  let unsafe_add t k v = add t k v
+
+  let add t v =
+    let k = hash v in
+    add t k v >|= fun () -> k
+
+  let unsafe_find t k = unsafe_find t k
+  let unsafe_mem t k = unsafe_mem t k
+  let unsafe_append t k v = unsafe_append t k v
+end
+
 module Make (P : Private.S) = struct
   module Branch_store = P.Branch
 

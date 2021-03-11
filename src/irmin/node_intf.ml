@@ -88,6 +88,15 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
+module type NODE_CONTENT_ADDRESSABLE_STORE = sig
+  include CONTENT_ADDRESSABLE_STORE
+  module Key : Hash.S with type t = key
+  module Val : S with type t = value and type hash = key
+  include Store_properties.BATCH with type 'a t := 'a t
+  include Store_properties.OF_CONFIG with type 'a t := 'a t
+  include Store_properties.CLOSEABLE with type 'a t := 'a t
+end
+
 module type STORE = sig
   include CONTENT_ADDRESSABLE_STORE
 
@@ -214,6 +223,7 @@ end
 
 module type Node = sig
   module type S = S
+  module type NODE_CONTENT_ADDRESSABLE_STORE = NODE_CONTENT_ADDRESSABLE_STORE
 
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)

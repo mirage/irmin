@@ -38,3 +38,9 @@ module KV (C : Irmin.Contents.S) :
     with type contents = C.t
      and type metadata = unit
      and type Private.Sync.endpoint = unit
+
+module Unsafe_append_only : Irmin.UNSAFE_APPEND_ONLY_STORE_MAKER
+(** An in-memory store for unsafe append-only values. *)
+
+(** Constructor for in-memory Irmin store with inodes. *)
+module Make_with_inodes (Conf : Irmin.INODE_CONF) : Irmin.S_MAKER

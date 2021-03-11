@@ -75,6 +75,16 @@ module type APPEND_ONLY_STORE = sig
   (** @inline *)
 end
 
+module type UNSAFE_APPEND_ONLY_STORE = sig
+  include S.UNSAFE_APPEND_ONLY_STORE
+  (** @inline *)
+end
+
+module type UNSAFE_CONTENT_ADDRESSABLE_STORE = sig
+  include S.UNSAFE_CONTENT_ADDRESSABLE_STORE
+  (** @inline *)
+end
+
 (** Atomic-write stores. *)
 module type ATOMIC_WRITE_STORE = sig
   include S.ATOMIC_WRITE_STORE
@@ -154,6 +164,7 @@ module Private : sig
   module Lock = Lock
   module Lru = Lru
   module Node = Node
+  module Inode = Inode
   module Commit = Commit
   module Slice = Slice
   module Sync = Sync
@@ -483,6 +494,23 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   (** @inline *)
 end
 
+module type UNSAFE_APPEND_ONLY_STORE_MAKER = functor
+  (K : Type.S)
+  (V : Type.S)
+  -> sig
+  include UNSAFE_APPEND_ONLY_STORE with type key = K.t and type value = V.t
+  open Private.Sigs.Store_properties
+
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
+
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
+
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
+end
+
 (** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
     content-addressable store backends. [K] is the implementation of keys and
     [V] is the implementation of values. *)
@@ -503,12 +531,54 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (** @inline *)
 end
 
+(*
+module type UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER = functor
+  (K : Hash.S)
+  (V : VAL with type hash = K.t)
+  -> sig
+  include UNSAFE_CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+  open Private.Sigs.Store_properties
+
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
+
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
+
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
+end
+*)
 module Content_addressable
     (S : APPEND_ONLY_STORE_MAKER)
     (K : Hash.S)
     (V : Type.S) : sig
   include
     CONTENT_ADDRESSABLE_STORE
+      with type 'a t = 'a S(K)(V).t
+       and type key = K.t
+       and type value = V.t
+
+  open Private.Sigs.Store_properties
+
+  include BATCH with type 'a t := 'a t
+  (** @inline *)
+
+  include OF_CONFIG with type 'a t := 'a t
+  (** @inline *)
+
+  include CLOSEABLE with type 'a t := 'a t
+  (** @inline *)
+end
+
+module type VAL = Private.Sigs.VAL
+
+module Unsafe_content_addressable
+    (S : UNSAFE_APPEND_ONLY_STORE_MAKER)
+    (K : Hash.S)
+    (V : VAL with type hash = K.t) : sig
+  include
+    UNSAFE_CONTENT_ADDRESSABLE_STORE
       with type 'a t = 'a S(K)(V).t
        and type key = K.t
        and type value = V.t
@@ -582,3 +652,11 @@ module Of_private (P : Private.S) :
 module Export_for_backends = Export_for_backends
 (** Helper module containing useful top-level types for defining Irmin backends.
     This module is relatively unstable. *)
+
+module type INODE_CONF = S.INODE_CONF
+
+module Make_with_inodes
+    (Conf : INODE_CONF)
+    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
+    (UNSAFE_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : ATOMIC_WRITE_STORE_MAKER) : S_MAKER

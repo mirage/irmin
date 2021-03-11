@@ -18,6 +18,7 @@ open! Import
 module Type = Repr
 module Diff = Diff
 module Content_addressable = Store.Content_addressable
+module Unsafe_content_addressable = Store.Unsafe_content_addressable
 module Contents = Contents
 module Merge = Merge
 module Branch = Branch
@@ -147,7 +148,7 @@ functor
       S.clear t.t
   end
 
-module Make_ext
+module Make_ext_with_nodes
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
@@ -155,10 +156,11 @@ module Make_ext
     (P : Path.S)
     (B : Branch.S)
     (H : Hash.S)
-    (N : Node.S
-           with type metadata = M.t
-            and type hash = H.t
-            and type step = P.step)
+    (Node_CA : Node.NODE_CONTENT_ADDRESSABLE_STORE
+                 with type Val.metadata = M.t
+                  and type key = H.t
+                  and type Key.t = H.t
+                  and type Val.step = P.step)
     (CT : Commit.S with type hash = H.t) =
 struct
   module CA = CA_check_closed (CA)
@@ -179,12 +181,10 @@ struct
 
     module Node = struct
       module CA = struct
-        module Key = Hash
-        module Val = N
-        include CA (Key) (Val)
+        include Node_CA
       end
 
-      include Node.Store (Contents) (P) (M) (CA)
+      include Node.Store (Contents) (P) (M) (Node_CA)
     end
 
     module Commit = struct
@@ -248,6 +248,53 @@ struct
   include Store.Make (X)
 end
 
+module Make_ext
+    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (M : S.METADATA)
+    (C : Contents.S)
+    (P : Path.S)
+    (B : Branch.S)
+    (H : Hash.S)
+    (N : Node.S
+           with type metadata = M.t
+            and type hash = H.t
+            and type step = P.step)
+    (CT : Commit.S with type hash = H.t) =
+struct
+  module Node_CA = struct
+    module Key = H
+    module Val = N
+    include CA (Key) (Val)
+  end
+
+  include Make_ext_with_nodes (CA) (AW) (M) (C) (P) (B) (H) (Node_CA) (CT)
+end
+
+module type INODE_CONF = S.INODE_CONF
+module type VAL = S.VAL
+
+module Make_ext_with_inodes
+    (Conf : S.INODE_CONF)
+    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (UNSAFE_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (M : S.METADATA)
+    (C : Contents.S)
+    (P : Path.S)
+    (B : Branch.S)
+    (H : Hash.S)
+    (N : Node.S
+           with type metadata = M.t
+            and type hash = H.t
+            and type step = P.step)
+    (CT : Commit.S with type hash = H.t) =
+struct
+  module Inodes = Inode.Make (Conf) (H) (N)
+  module Inode_CA = Inode.Make_store (H) (Inodes) (UNSAFE_CA)
+  include Make_ext_with_nodes (CA) (AW) (M) (C) (P) (B) (H) (Inode_CA) (CT)
+end
+
 module Make
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
@@ -262,10 +309,34 @@ struct
   include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 end
 
+module Make_with_inodes
+    (Conf : S.INODE_CONF)
+    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (UNSAFE_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (M : S.METADATA)
+    (C : Contents.S)
+    (P : Path.S)
+    (B : Branch.S)
+    (H : Hash.S) =
+struct
+  module N = Node.Make (H) (P) (M)
+  module CT = Commit.Make (H)
+
+  include
+    Make_ext_with_inodes (Conf) (CA) (UNSAFE_CA) (AW) (M) (C) (P) (B) (H) (N)
+      (CT)
+end
+
 module Of_private = Store.Make
 
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
+
+module type UNSAFE_CONTENT_ADDRESSABLE_STORE =
+  S.UNSAFE_CONTENT_ADDRESSABLE_STORE
+
 module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
+module type UNSAFE_APPEND_ONLY_STORE = S.UNSAFE_APPEND_ONLY_STORE
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module type TREE = Tree.S
 module type S = Store.S
@@ -275,6 +346,7 @@ type 'a diff = 'a Diff.t
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
 module type APPEND_ONLY_STORE_MAKER = S.APPEND_ONLY_STORE_MAKER
+module type UNSAFE_APPEND_ONLY_STORE_MAKER = S.UNSAFE_APPEND_ONLY_STORE_MAKER
 module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
 module type S_MAKER = Store.MAKER
 
@@ -286,6 +358,7 @@ module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
 module Private = struct
   module Conf = Conf
   module Node = Node
+  module Inode = Inode
   module Commit = Commit
   module Slice = Slice
   module Sync = Sync

@@ -51,3 +51,40 @@ let suite =
     stats;
     layered_store = None;
   }
+
+module Config = struct
+  let entries = 2
+  let stable_hash = 3
+end
+
+let store_inodes =
+  Irmin_test.store
+    (module Irmin_mem.Make_with_inodes (Config))
+    (module Irmin.Metadata.None)
+
+let clean () =
+  let (module S : Irmin_test.S) = store in
+  let module P = S.Private in
+  let clear repo =
+    Lwt.join
+      [
+        P.Commit.clear (P.Repo.commit_t repo);
+        P.Node.clear (P.Repo.node_t repo);
+        P.Contents.clear (P.Repo.contents_t repo);
+        P.Branch.clear (P.Repo.branch_t repo);
+      ]
+  in
+  let* repo = S.Repo.v config in
+  let* () = clear repo in
+  S.Repo.close repo
+
+let suite_inodes =
+  {
+    Irmin_test.name = "MEM_INODES";
+    init;
+    clean;
+    config;
+    store;
+    stats;
+    layered_store = None;
+  }

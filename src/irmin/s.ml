@@ -91,11 +91,44 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   include CLEARABLE with type 'a t := 'a t
 end
 
+module type UNSAFE_CONTENT_ADDRESSABLE_STORE = sig
+  (** {1 Unsafe content-addressable stores}
+
+      The same as content-addressable stores but exposing unsafe find and append
+      functions. *)
+
+  include CONTENT_ADDRESSABLE_STORE
+
+  val unsafe_mem : 'a t -> key -> bool
+  val unsafe_find : 'a t -> key -> value option
+  val unsafe_append : 'a t -> key -> value -> unit
+end
+
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (K : Hash.S)
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
+end
+
+module type VAL = sig
+  include Type.S
+
+  type hash
+
+  val hash : t -> hash
+end
+
+module type UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER = functor
+  (K : Hash.S)
+  (V : VAL with type hash = K.t)
+  -> sig
+  include
+    UNSAFE_CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+
   include BATCH with type 'a t := 'a t
   include OF_CONFIG with type 'a t := 'a t
   include CLOSEABLE with type 'a t := 'a t
@@ -132,6 +165,25 @@ end
 
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+  include BATCH with type 'a t := 'a t
+  include OF_CONFIG with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t
+end
+
+module type UNSAFE_APPEND_ONLY_STORE = sig
+  include APPEND_ONLY_STORE
+
+  val add : 'a t -> key -> value -> unit Lwt.t
+  val unsafe_mem : 'a t -> key -> bool
+  val unsafe_find : 'a t -> key -> value option
+  val unsafe_append : 'a t -> key -> value -> unit
+end
+
+module type UNSAFE_APPEND_ONLY_STORE_MAKER = functor
+  (K : Type.S)
+  (V : Type.S)
+  -> sig
+  include UNSAFE_APPEND_ONLY_STORE with type key = K.t and type value = V.t
   include BATCH with type 'a t := 'a t
   include OF_CONFIG with type 'a t := 'a t
   include CLOSEABLE with type 'a t := 'a t
@@ -224,3 +276,8 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
 end
 
 type remote = ..
+
+module type INODE_CONF = sig
+  val entries : int
+  val stable_hash : int
+end

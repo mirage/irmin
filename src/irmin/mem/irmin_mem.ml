@@ -54,6 +54,14 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let mem { t; _ } key =
     Log.debug (fun f -> f "mem %a" pp_key key);
     Lwt.return (KMap.mem key t)
+
+  let unsafe_mem { t; _ } key =
+    Log.debug (fun f -> f "unsafe mem %a" pp_key key);
+    KMap.mem key t
+
+  let unsafe_find { t; _ } key =
+    Log.debug (fun f -> f "unsafe find %a" pp_key key);
+    try Some (KMap.find key t) with Not_found -> None
 end
 
 module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -63,6 +71,14 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Log.debug (fun f -> f "add -> %a" pp_key key);
     t.t <- KMap.add key value t.t;
     Lwt.return_unit
+
+  let unsafe_append t key value =
+    Log.debug (fun f -> f "unsafe_append -> %a" pp_key key);
+    t.t <- KMap.add key value t.t
+end
+
+module Unsafe_append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+  include Append_only (K) (V)
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -144,3 +160,10 @@ module KV (C : Irmin.Contents.S) =
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_MAKER}. *)
 module KV_is_a_KV_MAKER : Irmin.KV_MAKER = KV
+
+module Make_with_inodes (Config : Irmin.INODE_CONF) =
+  Irmin.Make_with_inodes
+    (Config)
+    (Irmin.Content_addressable (Append_only))
+    (Irmin.Unsafe_content_addressable (Unsafe_append_only))
+    (Atomic_write)

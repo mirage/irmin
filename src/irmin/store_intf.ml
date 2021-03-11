@@ -974,4 +974,19 @@ module type Store = sig
     include OF_CONFIG with type 'a t := 'a t
     include CLOSEABLE with type 'a t := 'a t
   end
+
+  module Unsafe_content_addressable
+      (X : Sigs.UNSAFE_APPEND_ONLY_STORE_MAKER)
+      (K : Hash.S)
+      (V : Sigs.VAL with type hash = K.t) : sig
+    include
+      Sigs.UNSAFE_CONTENT_ADDRESSABLE_STORE
+        with type 'a t = 'a X(K)(V).t
+         and type key = K.t
+         and type value = V.t
+
+    include BATCH with type 'a t := 'a t
+    include OF_CONFIG with type 'a t := 'a t
+    include CLOSEABLE with type 'a t := 'a t
+  end
 end

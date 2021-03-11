@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,6 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () =
-  Irmin_test.Store.run "irmin-mem" ~misc:[]
-    [ (`Quick, Test_mem.suite); (`Quick, Test_mem.suite_inodes) ]
+include Inode_intf.Inode
+(** @inline *)

@@ -60,8 +60,8 @@ struct
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
-        expected Inter.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.Val.pp_hash
+        expected Inter.Val.pp_hash got
 
   let batch = P.batch
   let v = P.v
