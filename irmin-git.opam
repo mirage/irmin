@@ -18,7 +18,7 @@ depends: [
   "dune"       {>= "2.7.0"}
   "irmin"      {= version}
   "ppx_irmin"  {= version}
-  "git"        {>= "3.3.1"}
+  "git"        {>= "3.3.2"}
   "digestif"   {>= "0.9.0"}
   "cstruct"
   "fmt"
@@ -35,13 +35,14 @@ depends: [
 ]
 
 pin-depends: [
-  ["git.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["git-unix.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["git-cohttp.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["git-cohttp-unix.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["carton.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["carton-lwt.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
-  ["carton-git.3.3.1" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["git.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["git-unix.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["git-cohttp.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["git-cohttp-unix.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["git-cohttp-mirage.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["carton.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["carton-lwt.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
+  ["carton-git.dev" "git+https://github.com/mirage/ocaml-git.git#00c308221df344043e65d39021749f0007b78503" ]
   ["decompress.dev" "git+https://github.com/mirage/decompress.git#3d7fe2a6400332132d3af77a3263a4a27d3cc56c"]
 ]
 
