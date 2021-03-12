@@ -8,6 +8,9 @@
 
 ### Added
 
+- **irmin**
+  - The signature of an irmin nodes in `Make_ext` and `Of_private` now requires
+    a `length` function. (#1315, @Ngoguey42)
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
