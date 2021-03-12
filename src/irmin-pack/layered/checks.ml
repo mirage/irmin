@@ -60,7 +60,19 @@ module Make (M : MAKER) (Store : S.STORE) = struct
     }
     [@@deriving irmin]
 
-    type t = { hash_size : Layer_stat.size; files : files_layer }
+    type objects_layer = {
+      lower : Layer_stat.objects;
+      upper1 : Layer_stat.objects;
+      upper0 : Layer_stat.objects;
+    }
+    [@@deriving irmin]
+
+    type t = {
+      hash_size : Layer_stat.size;
+      log_size : int;
+      files : files_layer;
+      objects : objects_layer;
+    }
     [@@deriving irmin]
 
     let v = Layer_stat.v ~version:`V2
@@ -72,10 +84,23 @@ module Make (M : MAKER) (Store : S.STORE) = struct
       and upper0 = v ~root:(Layout.upper0 ~root) in
       { flip; lower; upper1; upper0 }
 
+    let conf root = Irmin_pack.Config.v ~readonly:false ~fresh:false root
+
+    let traverse_indexes ~root log_size =
+      let lower = Layer_stat.traverse_index ~root:(Layout.lower ~root) log_size
+      and upper1 =
+        Layer_stat.traverse_index ~root:(Layout.upper1 ~root) log_size
+      and upper0 =
+        Layer_stat.traverse_index ~root:(Layout.upper0 ~root) log_size
+      in
+      { lower; upper1; upper0 }
+
     let run ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      let log_size = conf root |> Irmin_pack.Config.index_log_size in
+      let objects = traverse_indexes ~root log_size in
       let+ files = v ~root in
-      { hash_size = Bytes Hash.hash_size; files }
+      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout
 
     let term_internal =

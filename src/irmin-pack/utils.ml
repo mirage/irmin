@@ -38,8 +38,16 @@ module Progress : sig
     ?ppf:Format.formatter ->
     unit ->
     t * ((unit -> unit) * (unit -> unit) * (unit -> unit))
+
+  val finalise_with_stats : t -> int * int * int
 end = struct
-  type t = { ppf : Format.formatter; update : unit -> unit }
+  type stats = int * int * int
+
+  type t = {
+    ppf : Format.formatter;
+    update : unit -> unit;
+    stats : (unit -> stats) option;
+  }
 
   let bar width percentage =
     let filled =
@@ -80,7 +88,7 @@ end = struct
       if should_update () then update ~first:false
     in
     update ~first:true;
-    ({ ppf; update = (fun () -> update ~first:false) }, progress)
+    ({ ppf; update = (fun () -> update ~first:false); stats = None }, progress)
 
   let increment ?(ppf = Format.err_formatter) () =
     let nb_commits = ref 0 in
@@ -91,6 +99,7 @@ end = struct
       Fmt.pf ppf "\t%dk contents / %dk nodes / %dk commits%!"
         (!nb_contents / 1000) (!nb_nodes / 1000) (!nb_commits / 1000)
     in
+    let stats = Some (fun () -> (!nb_commits, !nb_nodes, !nb_contents)) in
     let progress count =
       incr count;
       if !count mod 1000 = 0 then update ~first:false
@@ -99,10 +108,15 @@ end = struct
     let nodes () = progress nb_nodes in
     let contents () = progress nb_contents in
     update ~first:true;
-    ( { ppf; update = (fun () -> update ~first:false) },
+    ( { ppf; update = (fun () -> update ~first:false); stats },
       (contents, nodes, commits) )
 
-  let finalise { ppf; update } =
+  let finalise { ppf; update; _ } =
     update ();
     Fmt.pf ppf "@,@]%!"
+
+  let finalise_with_stats { ppf; update; stats } =
+    update ();
+    Fmt.pf ppf "@,@]%!";
+    (Option.get stats) ()
 end

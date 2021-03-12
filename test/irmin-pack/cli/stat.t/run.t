@@ -2,10 +2,14 @@ Running stat on a layered store after a first freeze
   $ PACK_LAYERED=true ../irmin_fsck.exe stat ../data/layered_pack_upper
   >> Getting statistics for store: `../data/layered_pack_upper'
   
+  	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits
+  	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits
+  	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits
   {
     "hash_size": {
       "Bytes": 64
     },
+    "log_size": 500000,
     "files": {
       "flip": "Upper0",
       "lower": {
@@ -85,6 +89,23 @@ Running stat on a layered store after a first freeze
           "generation": 0,
           "version": "V2"
         }
+      }
+    },
+    "objects": {
+      "lower": {
+        "nb_commits": 1,
+        "nb_nodes": 3,
+        "nb_contents": 1
+      },
+      "upper1": {
+        "nb_commits": 0,
+        "nb_nodes": 0,
+        "nb_contents": 0
+      },
+      "upper0": {
+        "nb_commits": 1,
+        "nb_nodes": 3,
+        "nb_contents": 1
       }
     }
   }
