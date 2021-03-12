@@ -668,6 +668,17 @@ module Make (P : Private.S) = struct
             let entries = P.Node.Val.list v in
             List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
+    let length t =
+      match cached_map t with
+      | Some m -> StepMap.cardinal m |> Lwt.return
+      | None -> (
+          let+ v = to_value t in
+          match v with
+          | Ok v -> P.Node.Val.length v
+          | Error (`Dangling_hash hash) ->
+              Fmt.failwith "length: encountered dangling hash %a"
+                (Type.pp P.Hash.t) hash)
+
     let is_empty t =
       match cached_map t with
       | Some m -> Lwt.return (Ok (StepMap.is_empty m))
@@ -1104,6 +1115,8 @@ module Make (P : Private.S) = struct
             | None -> Lwt.return_none
             | Some (`Contents _) -> Lwt.return_some `Contents
             | Some (`Node _) -> Lwt.return_some `Node))
+
+  let length = Node.length
 
   let list t ?offset ?length path : (step * t) list Lwt.t =
     Log.debug (fun l -> l "Tree.list %a" pp_path path);
