@@ -130,7 +130,7 @@ let run config json =
   let* _ = run_cycles config repo c json in
   close config repo >|= fun () ->
   if config.show_stats then (
-    Fmt.epr "After freeze thread finished : ";
+    Logs.app (fun l -> l "After freeze thread finished : ");
     FSHelper.print_size_layers config.root)
 
 type result = {
@@ -176,8 +176,9 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
     }
   in
   if not json then
-    Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
-      (Repr.pp_dump config_t) config;
+    Logs.app (fun l ->
+        l "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
+          (Repr.pp_dump config_t) config);
   init config;
   let d, _ = Lwt_main.run (with_timer (fun () -> run config json)) in
   let all_commits = ncommits * (ncycles + 5) in
@@ -244,12 +245,6 @@ let freeze_throttle =
     Arg.info ~doc:(Arg.doc_alts_enum freeze_throttle) [ "freeze-throttle" ]
   in
   Arg.(value @@ opt (Arg.enum freeze_throttle) `Block_writes doc)
-
-let setup_log style_renderer level =
-  Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
-  Logs.set_reporter (reporter ());
-  ()
 
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
