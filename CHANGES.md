@@ -3,6 +3,7 @@
 ### Fixed
 
 - **irmin**
+  - Added `Store.Tree.length`. (#1316, @Ngoguey42)
   - Fixed fold for non-persisted, cleared trees (#1442, @samoht, @Ngoguey42)
 
 - **irmin-layers**
