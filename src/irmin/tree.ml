@@ -123,10 +123,12 @@ module Make (P : Private.S) = struct
   type hash = P.Hash.t
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
 
-  let get_ok : type a. a or_error -> a = function
+  let get_ok : type a. string -> a or_error -> a =
+   fun context -> function
     | Ok x -> x
     | Error (`Dangling_hash hash) ->
-        Fmt.failwith "Encountered dangling hash %a" (Type.pp P.Hash.t) hash
+        Fmt.failwith "%s: Encountered dangling hash %a" context
+          (Type.pp P.Hash.t) hash
 
   type step = Path.step
   type contents = P.Contents.value
@@ -247,10 +249,8 @@ module Make (P : Private.S) = struct
     let force = to_value
 
     let force_exn t =
-      force t >|= function
-      | Ok v -> v
-      | Error (`Dangling_hash h) ->
-          Fmt.failwith "Can't force dangling contents hash: %a" pp_hash h
+      let+ v = force t in
+      get_ok "force" v
 
     let equal (x : t) (y : t) =
       x == y
@@ -285,7 +285,7 @@ module Make (P : Private.S) = struct
       | `True | `And_clear ->
           let* c = to_value t in
           if force = `And_clear then clear t;
-          f path (get_ok c) acc
+          f path (get_ok "fold" c) acc
       | `False skip -> (
           match t.info.value with
           | None -> skip path acc
@@ -671,13 +671,9 @@ module Make (P : Private.S) = struct
     let length t =
       match cached_map t with
       | Some m -> StepMap.cardinal m |> Lwt.return
-      | None -> (
+      | None ->
           let+ v = to_value t in
-          match v with
-          | Ok v -> P.Node.Val.length v
-          | Error (`Dangling_hash hash) ->
-              Fmt.failwith "length: encountered dangling hash %a"
-                (Type.pp P.Hash.t) hash)
+          get_ok "length" v |> P.Node.Val.length
 
     let is_empty t =
       match cached_map t with
@@ -995,12 +991,9 @@ module Make (P : Private.S) = struct
     | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
   let is_empty = function
-    | `Node n -> (
-        Node.is_empty n >|= function
-        | Ok b -> b
-        | Error (`Dangling_hash hash) ->
-            Fmt.failwith "is_empty: encountered dangling hash %a"
-              (Type.pp P.Hash.t) hash)
+    | `Node n ->
+        let+ b = Node.is_empty n in
+        get_ok "is_empty" b
     | `Contents _ -> Lwt.return_false
 
   type elt = [ `Node of node | `Contents of contents * metadata ]
@@ -1088,7 +1081,7 @@ module Make (P : Private.S) = struct
     | None | Some (`Node _) -> Lwt.return_none
     | Some (`Contents (c, m)) ->
         let+ c = Contents.to_value c in
-        Some (get_ok c, m)
+        Some (get_ok "find_all" c, m)
 
   let find t k =
     find_all t k >|= function None -> None | Some (c, _) -> Some c
@@ -1216,7 +1209,7 @@ module Make (P : Private.S) = struct
           | Some (`Node _) | None -> Lwt.return_none
           | Some (`Contents (c, _)) ->
               let+ c = Contents.to_value c in
-              Some (get_ok c)
+              Some (get_ok "update" c)
         in
         match f old_contents with
         | None -> None
@@ -1378,7 +1371,7 @@ module Make (P : Private.S) = struct
     let rec aux acc = function
       | [] -> Lwt.return acc
       | (path, h) :: todo ->
-          let* childs = Node.bindings h >|= get_ok in
+          let* childs = Node.bindings h >|= get_ok "entries" in
           let acc, todo =
             List.fold_left
               (fun (acc, todo) (k, v) ->
@@ -1420,11 +1413,11 @@ module Make (P : Private.S) = struct
       | Error _ as e -> e
     in
     let removed acc (k, (c, m)) =
-      let+ c = Contents.to_value c >|= get_ok in
+      let+ c = Contents.to_value c >|= get_ok "diff_node" in
       (k, `Removed (c, m)) :: acc
     in
     let added acc (k, (c, m)) =
-      let+ c = Contents.to_value c >|= get_ok in
+      let+ c = Contents.to_value c >|= get_ok "diff_node" in
       (k, `Added (c, m)) :: acc
     in
     let rec diff_bindings acc todo path x y =
@@ -1491,19 +1484,19 @@ module Make (P : Private.S) = struct
     | `Contents ((c1, m1) as x), `Contents ((c2, m2) as y) ->
         if contents_equal x y then Lwt.return_nil
         else
-          let* c1 = Contents.to_value c1 >|= get_ok in
-          let* c2 = Contents.to_value c2 >|= get_ok in
+          let* c1 = Contents.to_value c1 >|= get_ok "diff" in
+          let* c2 = Contents.to_value c2 >|= get_ok "diff" in
           Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents (x, m), `Node y ->
         let empty = Node.empty y in
         let* diff = diff_node empty y in
-        let+ x = Contents.to_value x >|= get_ok in
+        let+ x = Contents.to_value x >|= get_ok "diff" in
         (Path.empty, `Removed (x, m)) :: diff
     | `Node x, `Contents (y, m) ->
         let empty = Node.empty x in
         let* diff = diff_node x empty in
-        let+ y = Contents.to_value y >|= get_ok in
+        let+ y = Contents.to_value y >|= get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
 
   type concrete =
@@ -1535,13 +1528,13 @@ module Make (P : Private.S) = struct
       | `Contents c -> contents c k
       | `Node n ->
           let* m = Node.to_map n in
-          let bindings = m |> get_ok |> StepMap.bindings in
+          let bindings = m |> get_ok "to_concrete" |> StepMap.bindings in
           (node [@tailcall]) [] bindings (fun n ->
               let n = List.sort (fun (s, _) (s', _) -> compare_step s s') n in
               k (`Tree n))
     and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
      fun (c, m) k ->
-      let* c = Contents.to_value c >|= get_ok in
+      let* c = Contents.to_value c >|= get_ok "to_concrete" in
       k (`Contents (c, m))
     and node :
         type r.
