@@ -1,22 +1,25 @@
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+open! Import
 include Inode_intf
 
 let src = Logs.Src.create "irmin.i" ~doc:"inodes for irmin backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
 
 module Make
     (Conf : S.INODE_CONF)
@@ -118,7 +121,7 @@ struct
     let hash t = Lazy.force t.hash
   end
 
-  (** [Val_impl] defines the recursive structure of inodes.
+  (** [Tree] defines the recursive structure of inodes.
 
       {3 Inode Layout}
 
@@ -146,8 +149,8 @@ struct
       - When [Truncated], it originates from an [Irmin.Type] deserialisation
         made possible by [Val.t].
 
-      Almost all other functions in [Val_impl] are polymorphic regarding the
-      layout of the manipulated inode.
+      Almost all other functions in [Tree] are polymorphic regarding the layout
+      of the manipulated inode.
 
       {4 Details on the [Truncated] Layout}
 
@@ -169,11 +172,11 @@ struct
 
       {3 Topmost Inode Ancestor}
 
-      [Val_impl.t] is a recursive type, it is labelled with a [depth] integer
-      that indicates the recursion depth. An inode with [depth = 0] corresponds
-      to the root of a directory, its hash is the hash of the directory.
+      [Tree.t] is a recursive type, it is labelled with a [depth] integer that
+      indicates the recursion depth. An inode with [depth = 0] corresponds to
+      the root of a directory, its hash is the hash of the directory.
 
-      A [Val.t] points to the topmost [Val_impl.t] of an inode tree. In most
+      A [Val.t] points to the topmost [Tree.t] of an inode tree. In most
       scenarios, that topmost inode has [depth = 0], but it is also legal for
       the topmost inode to be an intermediate inode, i.e. with [depth > 0].
 
@@ -183,7 +186,7 @@ struct
 
       Write-only operations are not permitted when the root is an intermediate
       inode. *)
-  module Val_impl = struct
+  module Tree = struct
     open T
 
     let equal_value = Type.(unstage (equal value_t))
@@ -323,7 +326,7 @@ struct
                 if acc.cursor > offset then 0 else offset - acc.cursor
               in
               let vs =
-                StepMap.to_seq vs |> drop to_drop |> take acc.remaining
+                StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
               in
               let n = List.length vs in
               {
@@ -806,7 +809,7 @@ struct
 
   module Val = struct
     include T
-    module I = Val_impl
+    module I = Tree
 
     let pp_hash = T.pp_hash
 
