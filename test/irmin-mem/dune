@@ -1,6 +1,6 @@
 (library
  (name test_mem)
- (modules test_mem)
+ (modules test_mem test_inode import)
  (libraries irmin irmin-test irmin.mem lwt))
 
 (executable

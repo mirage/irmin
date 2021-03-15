@@ -18,6 +18,8 @@ open! Import
 
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
+let random_letter () = char_of_int (Char.code 'a' + Random.int 26)
+let random_letters n = String.init n (fun _i -> random_letter ())
 
 let random_ascii () =
   let chars = "0123456789abcdefghijklmnopqrstABCDEFGHIJKLMNOPQRST-_." in

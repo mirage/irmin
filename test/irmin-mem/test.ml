@@ -15,5 +15,5 @@
  *)
 
 let () =
-  Irmin_test.Store.run "irmin-mem" ~misc:[]
+  Irmin_test.Store.run "irmin-mem" ~misc:Test_mem.misc
     [ (`Quick, Test_mem.suite); (`Quick, Test_mem.suite_inodes) ]

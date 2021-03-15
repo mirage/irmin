@@ -1,0 +1,1 @@
+include Irmin.Export_for_backends

@@ -43,3 +43,9 @@ module Store : sig
     (Alcotest.speed_level * t) list ->
     unit
 end
+
+module type INODE_STORE = Inode.INODE_STORE
+
+module Inode (_ : INODE_STORE) : sig
+  val tests : unit Alcotest.test_case list
+end

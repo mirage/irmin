@@ -661,6 +661,8 @@ module Branch = struct
     ]
 end
 
+module Test_inode = Irmin_test.Inode (Test_inode.Inode_pack)
+
 let misc =
   [
     ("dict-files", Dict.tests);

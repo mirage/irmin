@@ -72,4 +72,3 @@ module Conf : sig
 end
 
 val random_string : int -> string
-val random_letters : int -> string

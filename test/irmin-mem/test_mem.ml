@@ -88,3 +88,7 @@ let suite_inodes =
     stats;
     layered_store = None;
   }
+
+module Test_inode = Irmin_test.Inode (Test_inode.Inode_mem)
+
+let misc = [ ("inodes", Test_inode.tests) ]
