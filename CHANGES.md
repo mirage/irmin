@@ -11,12 +11,16 @@
 - **irmin**
    - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
    - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+   - Add `Make_ext_with_inodes` to allow any backend to use inodes (#1320,
+     @icristescu)
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
   - New features in benchmarks for tree operations (#1314, @Ngoguey42)
 - **irmin-pack**
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+- **irmin-mem**
+  - Added `Make_with_inodes` (#1320, @icristescu)
 
 ### Changed
 
