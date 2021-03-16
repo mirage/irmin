@@ -19,7 +19,6 @@ val config :
   ?lower_root:string ->
   ?upper_root1:string ->
   ?upper_root0:string ->
-  ?copy_in_upper:bool ->
   ?with_lower:bool ->
   ?blocking_copy_size:int ->
   unit ->
@@ -32,9 +31,6 @@ val config :
     default.
     @param upper_root0 is the root of one of the upper stores, "upper0" is the
     default.
-    @param copy_in_upper if true then at the end of a freee the max commits are
-    copied back in upper. This option can be overriden when calling a freeze
-    with the [copy_in_upper] argument set. By default it is set to false.
     @param with_lower if true (the default) use a lower layer during freezes.
     @param blocking_copy_size specifies the maximum size (in bytes) that can be
     copied in the blocking portion of the freeze. *)

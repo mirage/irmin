@@ -21,7 +21,6 @@ module Conf = struct
   let stable_hash = 256
   let lower_root = "_lower"
   let upper0_root = "0"
-  let copy_in_upper = true
   let with_lower = true
 end
 
@@ -39,12 +38,10 @@ module StoreSimple =
     (Irmin.Branch.String)
     (Hash)
 
-let config ?(readonly = false) ?(fresh = true)
-    ?(copy_in_upper = Conf.copy_in_upper) ?(lower_root = Conf.lower_root)
+let config ?(readonly = false) ?(fresh = true) ?(lower_root = Conf.lower_root)
     ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
-  Irmin_pack_layered.config ~conf ~copy_in_upper ~lower_root ~upper_root0
-    ~with_lower ()
+  Irmin_pack_layered.config ~conf ~lower_root ~upper_root0 ~with_lower ()
 
 module Test = struct
   type index = { root : string; repo : Store.Repo.t }
@@ -94,7 +91,12 @@ module Test = struct
     { index; tree; parents = [] }
 
   let freeze ?copy_in_upper ctxt commit =
-    Store.freeze ?copy_in_upper ctxt.index.repo ~max:[ commit ] >|= fun () ->
+    let max_upper =
+      match copy_in_upper with
+      | Some false -> Some []
+      | None | Some true -> None
+    in
+    Store.freeze ?max_upper ctxt.index.repo ~max_lower:[ commit ] >|= fun () ->
     { index = ctxt.index; tree = Store.Tree.empty; parents = [] }
 
   let commit_block1 ctxt =
@@ -452,7 +454,7 @@ module Test = struct
     let* ctxt, block3a = checkout_and_commit ctxt block2a commit_block3a in
     let* () =
       Store.freeze ctxt.index.repo ~min_upper:[ block1a; block1c ]
-        ~max:[ block2a; block1c; block3a ]
+        ~max_lower:[ block2a; block1c; block3a ]
     in
     Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
@@ -473,7 +475,7 @@ module Test = struct
     let* ctxt = clone ~with_lower:true ctxt.index.root in
     check_block1 ctxt.index.repo block1 >>= fun () ->
     let* ctxt, block1a = checkout_and_commit ctxt block1 commit_block1a in
-    Store.freeze ctxt.index.repo ~max:[ block1a ] >>= fun () ->
+    Store.freeze ctxt.index.repo ~max_lower:[ block1a ] >>= fun () ->
     Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let check_layer block msg exp =
       Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
@@ -498,8 +500,8 @@ module Test = struct
     let* ctxt, block2a = checkout_and_commit ctxt block1a commit_block2a in
     let* () =
       Store.freeze ctxt.index.repo
-        ~max:[ block2a; block1b; block1c ]
-        ~copy_in_upper:false
+        ~max_lower:[ block2a; block1b; block1c ]
+        ~max_upper:[]
     in
     Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let* ctxt, block3a = checkout_and_commit ctxt block2a commit_block3a in
@@ -532,7 +534,7 @@ module Test = struct
       check_block1 ro_ctxt.index.repo block1
     in
     let* () =
-      Store.PrivateLayer.freeze' ctxt.index.repo ~max:[ block1 ]
+      Store.PrivateLayer.freeze' ctxt.index.repo ~max_lower:[ block1 ]
         ~hook:(hook before after)
     in
     Store.PrivateLayer.wait_for_freeze ctxt.index.repo >>= fun () ->
