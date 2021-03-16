@@ -644,13 +644,7 @@ struct
             f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
               pp_commits commits);
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        (* When copying to next upper, if the min is empty then we copy only the
-           max. *)
-        let min =
-          List.map (fun x -> `Commit (Commit.hash x)) min |> function
-          | [] -> max
-          | min -> min
-        in
+        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
@@ -868,11 +862,11 @@ struct
       Irmin_layers.Stats.freeze_start t0 "wait for freeze lock";
       Irmin_layers.Stats.freeze_section "misc";
       let min_lower = Option.value min_lower ~default:[] in
-      let min_upper = Option.value min_upper ~default:[] in
       let* max_lower =
         match max_lower with Some l -> Lwt.return l | None -> Repo.heads t
       in
       let max_upper = Option.value max_upper ~default:max_lower in
+      let min_upper = Option.value min_upper ~default:max_upper in
       unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"

@@ -34,16 +34,17 @@ module type S = sig
 
       Let [o] be the set of objects reachable from the [max_lower] commits and
       bounded by the [min_lower] commits. During the freeze, all objects in [o]
-      are copied to the lower layer, if there is one. [min_lower] defaults to
-      the empty list (i.e. the copy is unbounded) and [max_lower] defaults to
-      the head commits of the repo. When [max_lower] is the empty list, nothing
+      are copied to the lower layer, if there is one. [max_lower] defaults to
+      the head commits of the repo and [min_lower] defaults to the empty list
+      (i.e. the copy is unbounded). When [max_lower] is the empty list, nothing
       is copied.
 
       Let [o'] be the set of objects reachable from the [max_upper] commits and
       bounded by the [min_upper] commits. When the freeze is over, the new upper
-      layer will only contain the objects of [o']. [min_upper] defaults to the
-      empty list and [max_upper] defaults to [max_lower]. When [max_upper] is
-      the empty list, nothing is copied.
+      layer will only contain the objects of [o']. [max_upper] defaults to
+      [max_lower] and [min_upper] defaults to [max_upper] (i.e. only the max
+      commits are copied). When [max_upper] is the empty list, nothing is
+      copied.
 
       If [recovery] is true then the function will first try to recover from a
       previously interrupted freeze. See {!needs_recovery}.
