@@ -19,7 +19,7 @@
 (rule
  (alias runtest)
  (package irmin-bench)
- (deps main.exe layers.exe)
+ (deps main.exe layers.exe tree.exe)
  (action (progn)))
 
 (executable
