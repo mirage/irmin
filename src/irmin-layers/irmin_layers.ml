@@ -29,8 +29,8 @@ module Layer_id = struct
 end
 
 module Make_ext
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t)
+    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -51,9 +51,8 @@ struct
       module CA = struct
         module Key = Hash
         module Val = C
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
+        module Layered_CA = Layered_store.Content_addressable (CA)
+        include Layered_CA.Make (Key) (Val)
       end
 
       include Irmin.Contents.Store (CA)
@@ -63,9 +62,8 @@ struct
       module CA = struct
         module Key = Hash
         module Val = N
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
+        module Layered_CA = Layered_store.Content_addressable (CA)
+        include Layered_CA.Make (Key) (Val)
       end
 
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
@@ -75,9 +73,8 @@ struct
       module CA = struct
         module Key = Hash
         module Val = CT
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
+        module Layered_CA = Layered_store.Content_addressable (CA)
+        include Layered_CA.Make (Key) (Val)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
@@ -86,7 +83,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include AW (Key) (Val)
+      include AW.Make (Key) (Val)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
@@ -167,8 +164,8 @@ struct
 end
 
 module Make
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t)
+    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)

@@ -83,7 +83,7 @@ module type READ_ONLY_STORE = sig
   val batch : 'a t -> (read_write t -> 'b) -> 'b
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
-  include CLEARABLE with type 'a t := 'a t
+  include CLEARABLE with type 'a t := 'a t with type 'a io := 'a Lwt.t
   (** @inline *)
 end
 
@@ -99,13 +99,13 @@ module type APPEND_ONLY_STORE = sig
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
-  include CLOSEABLE with type 'a t := 'a t
+  include CLOSEABLE with type 'a t := 'a t with type 'a io := 'a Lwt.t
   (** @inline *)
 
-  include BATCH with type 'a t := 'a t
+  include BATCH with type 'a t := 'a t with type 'a io := 'a Lwt.t
   (** @inline *)
 
-  include CLEARABLE with type 'a t := 'a t
+  include CLEARABLE with type 'a t := 'a t with type 'a io := 'a Lwt.t
   (** @inline *)
 end
 
@@ -120,7 +120,7 @@ module type APPEND_ONLY_STORE_MAKER = functor
      and type ctx = Client.ctx
 
 module type ATOMIC_WRITE_STORE = sig
-  include Irmin.ATOMIC_WRITE_STORE
+  include Irmin.ATOMIC_WRITE_STORE with type 'a io := 'a Lwt.t
 
   type ctx
 

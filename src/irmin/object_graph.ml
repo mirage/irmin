@@ -31,7 +31,11 @@ let list_partition_map f t =
   in
   aux [] [] t
 
-module Make (Hash : HASH) (Branch : Type.S) = struct
+module Make (X : IO.S) (Hash : HASH) (Branch : Type.S) = struct
+  module IO_list = IO.List (X)
+  module IO = X
+  open IO.Syntax
+
   module X = struct
     type t =
       [ `Contents of Hash.t
@@ -109,10 +113,12 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     let todo = Stack.create () in
     (* if a branch is in [min], add the commit it is pointing to too. *)
     let* min =
-      Lwt_list.fold_left_s
+      IO_list.fold_left_s
         (fun acc -> function
-          | `Branch _ as x -> pred x >|= fun c -> x :: c @ acc
-          | x -> Lwt.return (x :: acc))
+          | `Branch _ as x ->
+              let+ c = pred x in
+              x :: c @ acc
+          | x -> IO.return (x :: acc))
         [] min
     in
     let min = Set.of_list min in
@@ -120,16 +126,16 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     List.iter (fun k -> Stack.push (Visit (k, 0)) todo) max;
     let treat key =
       Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
-      node key >>= fun () ->
+      let* () = node key in
       if not (Set.mem key min) then
         (* the edge function is optional to prevent an unnecessary computation
            of the preds .*)
         match edge with
-        | None -> Lwt.return_unit
+        | None -> IO.return ()
         | Some edge ->
             let* keys = pred key in
-            Lwt_list.iter_p (fun k -> edge key k) keys
-      else Lwt.return_unit
+            IO_list.iter_p (fun k -> edge key k) keys
+      else IO.return ()
     in
     let visit_predecessors ~filter_history key level =
       let+ keys = pred key in
@@ -142,30 +148,34 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
         keys
     in
     let visit key level =
-      if level >= depth then Lwt.return_unit
-      else if has_mark key then Lwt.return_unit
+      if level >= depth then IO.return ()
+      else if has_mark key then IO.return ()
       else
-        skip key >>= function
-        | true -> Lwt.return_unit
-        | false ->
-            let+ () =
-              Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
-              mark key level;
-              if rev then Stack.push (Treat key) todo;
-              match key with
-              | `Commit _ ->
-                  visit_predecessors ~filter_history:(Set.mem key min) key level
-              | _ ->
-                  if Set.mem key min then Lwt.return_unit
-                  else visit_predecessors ~filter_history:false key level
-            in
-            if not rev then Stack.push (Treat key) todo
+        let* s = skip key in
+        if s then IO.return ()
+        else
+          let+ () =
+            Log.debug (fun f -> f "VISIT %a %d" Type.(pp X.t) key level);
+            mark key level;
+            if rev then Stack.push (Treat key) todo;
+            match key with
+            | `Commit _ ->
+                visit_predecessors ~filter_history:(Set.mem key min) key level
+            | _ ->
+                if Set.mem key min then IO.return ()
+                else visit_predecessors ~filter_history:false key level
+          in
+          if not rev then Stack.push (Treat key) todo
     in
     let rec pop () =
       match Stack.pop todo with
-      | exception Stack.Empty -> Lwt.return_unit
-      | Treat key -> treat key >>= pop
-      | Visit (key, level) -> visit key level >>= pop
+      | exception Stack.Empty -> IO.return ()
+      | Treat key ->
+          let* k = treat key in
+          pop k
+      | Visit (key, level) ->
+          let* k = visit key level in
+          pop k
     in
     pop ()
 
@@ -174,14 +184,15 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     List.iter (G.add_vertex g) max;
     let node key =
       if not (G.mem_vertex g key) then G.add_vertex g key else ();
-      Lwt.return_unit
+      IO.return ()
     in
     let edge node pred =
       G.add_edge g pred node;
-      Lwt.return_unit
+      IO.return ()
     in
-    let skip _ = Lwt.return_false in
-    iter ~depth ~pred ~min ~max ~node ~edge ~skip ~rev:false () >|= fun () -> g
+    let skip _ = IO.return false in
+    let+ () = iter ~depth ~pred ~min ~max ~node ~edge ~skip ~rev:false () in
+    g
 
   let min g =
     G.fold_vertex

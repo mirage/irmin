@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 
 module type VAL = sig
   include Irmin.Private.Node.S
@@ -24,7 +23,7 @@ module type VAL = sig
 end
 
 module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
+  include Irmin.CONTENT_ADDRESSABLE_STORE_EXT
 
   type index
 
@@ -36,11 +35,8 @@ module type S = sig
     string ->
     read t Lwt.t
 
-  include BATCH with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
   module Val : VAL with type t = value and type hash = key
-  include S.CHECKABLE with type 'a t := 'a t and type key := key
-  include CLOSEABLE with type 'a t := 'a t
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit

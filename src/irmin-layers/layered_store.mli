@@ -14,18 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
-open Store_properties
+module type CA =
+  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t
 
-module type CA = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-  include BATCH with type 'a t := 'a t
-  include OF_CONFIG with type 'a t := 'a t
-  include CLOSEABLE with type 'a t := 'a t
-end
-
-module Content_addressable
-    (K : Irmin.Type.S)
-    (V : Irmin.Type.S)
-    (CA : CA with type key = K.t and type value = V.t) :
-  CA with type key = CA.key and type value = CA.value
+module Content_addressable (CA : CA) : CA

@@ -15,15 +15,21 @@
  *)
 
 include Slice_intf
+module IO_ = IO
 
 module Make
-    (Contents : Contents.STORE)
-    (Node : Node.STORE)
-    (Commit : Commit.STORE) =
+    (IO : IO.S)
+    (Hash : Hash.S)
+    (Contents : Type.S)
+    (Node : Node.S with type hash = Hash.t)
+    (Commit : Commit.S with type hash = Hash.t) =
 struct
-  type contents = Contents.Key.t * Contents.Val.t [@@deriving irmin]
-  type node = Node.Key.t * Node.Val.t [@@deriving irmin]
-  type commit = Commit.Key.t * Commit.Val.t [@@deriving irmin]
+  module IO_list = IO_.List (IO)
+  open IO.Syntax
+
+  type contents = Hash.t * Contents.t [@@deriving irmin]
+  type node = Hash.t * Node.t [@@deriving irmin]
+  type commit = Hash.t * Commit.t [@@deriving irmin]
 
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]
   [@@deriving irmin]
@@ -35,24 +41,22 @@ struct
   }
   [@@deriving irmin]
 
-  let empty () = Lwt.return { contents = []; nodes = []; commits = [] }
+  let empty () = IO.return { contents = []; nodes = []; commits = [] }
 
   let add t = function
     | `Contents c ->
         t.contents <- c :: t.contents;
-        Lwt.return_unit
+        IO.return ()
     | `Node n ->
         t.nodes <- n :: t.nodes;
-        Lwt.return_unit
+        IO.return ()
     | `Commit c ->
         t.commits <- c :: t.commits;
-        Lwt.return_unit
+        IO.return ()
 
   let iter t f =
-    Lwt.join
-      [
-        Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
-        Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
-        Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
-      ]
+    let+ () = IO_list.iter_p (fun c -> f (`Contents c)) t.contents
+    and+ () = IO_list.iter_p (fun n -> f (`Node n)) t.nodes
+    and+ () = IO_list.iter_p (fun c -> f (`Commit c)) t.commits in
+    ()
 end

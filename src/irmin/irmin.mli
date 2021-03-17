@@ -63,21 +63,37 @@ module Perms = Perms
     content-addressable} and {{!ATOMIC_WRITE_STORE} atomic-write} stores. These
     low-level stores are provided by various backends. *)
 
-(** Content-addressable backend store. *)
-module type CONTENT_ADDRESSABLE_STORE = sig
-  include S.CONTENT_ADDRESSABLE_STORE
-  (** @inline *)
-end
-
 (** Append-only backend store. *)
 module type APPEND_ONLY_STORE = sig
   include S.APPEND_ONLY_STORE
   (** @inline *)
 end
 
+module type APPEND_ONLY_STORE_EXT = sig
+  include S.APPEND_ONLY_STORE_EXT
+  (** @inline *)
+end
+
+(** Content-addressable backend store. *)
+module type CONTENT_ADDRESSABLE_STORE = sig
+  include S.CONTENT_ADDRESSABLE_STORE
+  (** @inline *)
+end
+
+module type CONTENT_ADDRESSABLE_STORE_EXT = sig
+  include S.CONTENT_ADDRESSABLE_STORE_EXT
+  (** @inline *)
+end
+
 (** Atomic-write stores. *)
 module type ATOMIC_WRITE_STORE = sig
   include S.ATOMIC_WRITE_STORE
+  (** @inline *)
+end
+
+(** Atomic-write stores. *)
+module type ATOMIC_WRITE_STORE_EXT = sig
+  include S.ATOMIC_WRITE_STORE_EXT
   (** @inline *)
 end
 
@@ -101,18 +117,10 @@ module Hash = Hash
 
     A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
 
+module Metadata = Metadata
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. The Git backend uses this to indicate the type of file (normal,
     executable or symlink). *)
-module Metadata : sig
-  module type S = sig
-    include S.METADATA
-    (** @inline *)
-  end
-
-  module None : S with type t = unit
-  (** A metadata definition for systems that don't use metadata. *)
-end
 
 module Contents = Contents
 (** [Contents] specifies how user-defined contents need to be {e serializable}
@@ -196,21 +204,27 @@ module Json_tree : Store.JSON_TREE
     the one for user-defined contents, [B] is the implementation for branches
     and [H] is the implementation for object (blobs, trees, commits) hashes. It
     does not use any native synchronization primitives. *)
-module type S_MAKER = functor
-  (M : Metadata.S)
-  (C : Contents.S)
-  (P : Path.S)
-  (B : Branch.S)
-  (H : Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
-     and type Private.Sync.endpoint = unit
+module type S_MAKER = sig
+  type +'a io
+  type 'e merge
+
+  module Make
+      (M : Metadata.S with type 'a merge := 'a merge)
+      (C : Contents.S with type 'a merge := 'a merge)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) :
+    S
+      with type 'a io := 'a io
+       and type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Private.Sync.endpoint = unit
+       and type 'a Merge.t = 'a merge
+end
 
 (** [KV] is similar to {!S} but chooses sensible implementations for path and
     branch. *)
@@ -219,25 +233,21 @@ module type KV =
 
 (** [KV_MAKER] is like {!S_MAKER} but where everything except the contents is
     replaced by sensible default implementations. *)
-module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
+module type KV_MAKER = sig
+  type +'a io
+  type 'a merge
+
+  module Make (C : Contents.S with type 'a merge := 'a merge) :
+    KV
+      with type 'a io := 'a io
+       and type contents = C.t
+       and type 'a IO.t = 'a io
+       and type 'a Merge.t = 'a merge
+end
 
 (** {2 Synchronization} *)
 
-val remote_store : (module S with type t = 'a) -> 'a -> remote
-(** [remote_store t] is the remote corresponding to the local store [t].
-    Synchronization is done by importing and exporting store {{!BC.slice}
-    slices}, so this is usually much slower than native synchronization using
-    {!Store.remote} but it works for all backends. *)
-
-(** [SYNC] provides functions to synchronize an Irmin store with local and
-    remote Irmin stores. *)
-module type SYNC = sig
-  include Sync_ext.SYNC_STORE
-  (** @inline *)
-end
-
-(** The default [Sync] implementation. *)
-module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
+module Sync = Sync_ext
 
 (** {1:examples Examples}
 
@@ -447,7 +457,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
 (** {1 Helpers} *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot` format. *)
-module Dot (S : S) : Dot.S with type db = S.t
+module Dot (S : S) : Dot.S with type db = S.t with type 'a io := 'a S.io
 
 (** {1:backend Backends}
 
@@ -469,106 +479,118 @@ module Dot (S : S) : Dot.S with type db = S.t
 (** [APPEND_ONLY_STORE_MAKER] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the implementation of
     values. *)
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+module type APPEND_ONLY_STORE_MAKER = sig
+  type +'a io
 
-  include BATCH with type 'a t := 'a t
-  (** @inline *)
-
-  include OF_CONFIG with type 'a t := 'a t
-  (** @inline *)
-
-  include CLOSEABLE with type 'a t := 'a t
-  (** @inline *)
+  module Make (K : Hash.S) (V : Type.S) :
+    APPEND_ONLY_STORE_EXT
+      with type key = K.t
+       and type value = V.t
+       and type 'a io := 'a io
 end
 
-(** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
+(** [CONTENT_ADDRESSABLE_STORE_MAKER] is the signature exposed by
     content-addressable store backends. [K] is the implementation of keys and
     [V] is the implementation of values. *)
-module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
-  (K : Hash.S)
-  (V : Type.S)
-  -> sig
-  include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+module type CONTENT_ADDRESSABLE_STORE_MAKER = sig
+  type +'a io
 
-  include BATCH with type 'a t := 'a t
-  (** @inline *)
+  module Make (K : Hash.S) (V : Type.S) :
+    CONTENT_ADDRESSABLE_STORE_EXT
+      with type key = K.t
+       and type value = V.t
+       and type 'a io := 'a io
+end
 
-  include OF_CONFIG with type 'a t := 'a t
-  (** @inline *)
+(** Conversions from direct-style backends. *)
+module Of_direct : sig
+  module Append_only
+      (DST : IO.S)
+      (CA : APPEND_ONLY_STORE_MAKER with type 'a io := 'a) :
+    APPEND_ONLY_STORE_MAKER with type 'a io = 'a DST.t
 
-  include CLOSEABLE with type 'a t := 'a t
-  (** @inline *)
+  module Content_addressable
+      (DST : IO.S)
+      (CA : CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a) :
+    CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io = 'a DST.t
 end
 
 module Content_addressable
-    (S : APPEND_ONLY_STORE_MAKER)
-    (K : Hash.S)
-    (V : Type.S) : sig
-  include
-    CONTENT_ADDRESSABLE_STORE
-      with type 'a t = 'a S(K)(V).t
-       and type key = K.t
+    (IO : IO.S)
+    (S : APPEND_ONLY_STORE_MAKER with type 'a io := 'a IO.t) : sig
+  type 'a io = 'a IO.t
+
+  module Make : functor (K : Hash.S) (V : Type.S) ->
+    CONTENT_ADDRESSABLE_STORE_EXT
+      with type key = K.t
        and type value = V.t
-
-  open Private.Sigs.Store_properties
-
-  include BATCH with type 'a t := 'a t
-  (** @inline *)
-
-  include OF_CONFIG with type 'a t := 'a t
-  (** @inline *)
-
-  include CLOSEABLE with type 'a t := 'a t
-  (** @inline *)
+       and type 'a t = 'a S.Make(K)(V).t
+       and type 'a io := 'a io
 end
 
 (** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store
     backends. [K] is the implementation of keys and [V] is the implementation of
     values.*)
-module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+module type ATOMIC_WRITE_STORE_MAKER = sig
+  type +'a io
 
-  include OF_CONFIG with type _ t := t
-  (** @inline *)
+  (** The type for IO effects. *)
+
+  module Make (K : Type.S) (V : Type.S) :
+    ATOMIC_WRITE_STORE_EXT
+      with type key = K.t
+       and type value = V.t
+       and type 'a io := 'a io
 end
+
+module IO = IO
 
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
 module Make
-    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+    (IO : IO.S)
+    (CA : CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a IO.t)
+    (AW : ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a IO.t) :
+  S_MAKER with type 'a io = 'a IO.t and type 'a merge = 'a Merge.Make(IO).t
 
 module Make_ext
-    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : ATOMIC_WRITE_STORE_MAKER)
-    (Metadata : Metadata.S)
-    (Contents : Contents.S)
-    (Path : Path.S)
-    (Branch : Branch.S)
-    (Hash : Hash.S)
-    (Node : Private.Node.S
-              with type metadata = Metadata.t
-               and type hash = Hash.t
-               and type step = Path.step)
-    (Commit : Private.Commit.S with type hash = Hash.t) :
-  S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
-     and type Private.Sync.endpoint = unit
+    (IO : IO.S)
+    (CA : CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a IO.t)
+    (AW : ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a IO.t) : sig
+  type 'a io = 'a IO.t
+  type 'a merge = 'a Merge.Make(IO).t
 
-(** Advanced store creator. *)
+  module Make
+      (Metadata : Metadata.S with type 'a merge := 'a merge)
+      (Contents : Contents.S with type 'a merge := 'a merge)
+      (Path : Path.S)
+      (Branch : Branch.S)
+      (Hash : Hash.S)
+      (Node : Private.Node.S
+                with type metadata = Metadata.t
+                 and type hash = Hash.t
+                 and type step = Path.step)
+      (Commit : Private.Commit.S with type hash = Hash.t) :
+    S
+      with type 'a io := 'a IO.t
+       and module IO = IO
+       and type 'a Merge.t = 'a merge
+       and type key = Path.t
+       and type contents = Contents.t
+       and type branch = Branch.t
+       and type hash = Hash.t
+       and type step = Path.step
+       and type metadata = Metadata.t
+       and type Key.step = Path.step
+       and type Private.Sync.endpoint = unit
+end
+
 module Of_private (P : Private.S) :
   S
-    with type key = P.Node.Path.t
+    with type 'a io := 'a P.io
+     and module IO = P.IO
+     and module Merge = P.Merge
+     and type key = P.Node.Path.t
      and type contents = P.Contents.value
      and type branch = P.Branch.key
      and type hash = P.Hash.t
@@ -579,6 +601,7 @@ module Of_private (P : Private.S) :
      and type slice = P.Slice.t
      and module Private = P
 
+(** Advanced store creator. *)
 module Export_for_backends = Export_for_backends
 (** Helper module containing useful top-level types for defining Irmin backends.
     This module is relatively unstable. *)

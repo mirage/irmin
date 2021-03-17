@@ -16,6 +16,9 @@
 
 open! Import
 include Contents_intf
+module Merge_ = Merge
+module Merge = Merge.DSL
+open Merge.Infix
 
 let lexeme e x = ignore (Jsonm.encode e (`Lexeme x))
 
@@ -114,31 +117,25 @@ module Json_value = struct
   let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
 
   let rec merge_object ~old x y =
-    let open Merge.Infix in
     let m =
       Merge.(alist Type.string t (fun _key -> option (v t merge_value)))
     in
     Merge.(f m ~old x y) >>=* fun x -> Merge.ok (`O x)
 
   and merge_float ~old x y =
-    let open Merge.Infix in
-    Merge.(f float ~old x y) >>=* fun f -> Merge.ok (`Float f)
+    Merge.(f (float ()) ~old x y) >>=* fun f -> Merge.ok (`Float f)
 
   and merge_string ~old x y =
-    let open Merge.Infix in
-    Merge.(f string ~old x y) >>=* fun s -> Merge.ok (`String s)
+    Merge.(f (string ()) ~old x y) >>=* fun s -> Merge.ok (`String s)
 
   and merge_bool ~old x y =
-    let open Merge.Infix in
-    Merge.(f bool ~old x y) >>=* fun b -> Merge.ok (`Bool b)
+    Merge.(f (bool ()) ~old x y) >>=* fun b -> Merge.ok (`Bool b)
 
   and merge_array ~old x y =
-    let open Merge.Infix in
     Merge.(f (Merge.idempotent (Type.list t)) ~old x y) >>=* fun x ->
     Merge.ok (`A x)
 
   and merge_value ~old x y =
-    let open Merge.Infix in
     old () >>=* fun old ->
     match (old, x, y) with
     | Some `Null, _, _ -> merge_value ~old:(fun () -> Merge.ok None) x y
@@ -161,8 +158,8 @@ module Json_value = struct
     | None, `O a, `O b -> merge_object ~old:(fun () -> Merge.ok None) a b
     | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
 
-  let merge_json = Merge.(v t merge_value)
-  let merge = Merge.(option merge_json)
+  let merge_json () = Merge.(v t merge_value)
+  let merge () = Merge.(option (merge_json ()))
 end
 
 module Json = struct
@@ -186,24 +183,37 @@ module Json = struct
   let equal a b = Json_value.equal (`O a) (`O b)
   let t = Type.like ~equal:(Type.stage equal) ~pp ~of_string t
 
-  let merge =
-    Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
+  let merge () =
+    let json = Json_value.merge () in
+    Merge.(option (alist Type.string Json_value.t (fun _ -> json)))
 end
 
 module String = struct
   type t = string [@@deriving irmin]
 
-  let merge = Merge.idempotent Type.(option string)
+  let merge () = Merge.idempotent Type.(option string)
 end
 
-module Store (S : sig
-  include S.CONTENT_ADDRESSABLE_STORE
-  module Key : Hash.S with type t = key
-  module Val : S with type t = value
-end) =
+module Make (Merge : Merge_.S) (M : M) = struct
+  type t = M.t
+
+  let t = M.t
+  let merge () = Merge.run (M.merge ())
+end
+
+module Store
+    (Merge : Merge_.S) (S : sig
+      include S.CONTENT_ADDRESSABLE_STORE with type 'a io := 'a Merge.io
+      module Key : Hash.S with type t = key
+      module Val : S with type t = value with type 'a merge := 'a Merge.t
+    end) =
 struct
+  module IO = Merge.IO
+  open IO.Syntax
   module Key = Hash.Typed (S.Key) (S.Val)
   module Val = S.Val
+
+  let merge_val () = Val.merge ()
 
   type 'a t = 'a S.t
   type key = S.key
@@ -214,14 +224,16 @@ struct
   let unsafe_add = S.unsafe_add
   let mem = S.mem
   let clear = S.clear
-  let read_opt t = function None -> Lwt.return_none | Some k -> find t k
+  let read_opt t = function None -> IO.return None | Some k -> find t k
 
   let add_opt t = function
-    | None -> Lwt.return_none
-    | Some v -> add t v >>= Lwt.return_some
+    | None -> IO.return None
+    | Some v ->
+        let+ k = add t v in
+        Some k
 
   let merge t =
-    Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)
+    Merge.like_io Type.(option Key.t) (merge_val ()) (read_opt t) (add_opt t)
 end
 
 module V1 = struct

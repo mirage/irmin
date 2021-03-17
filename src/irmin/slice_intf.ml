@@ -17,6 +17,8 @@
 module type S = sig
   (** {1 Slices} *)
 
+  type +'a io
+
   type t
   (** The type for slices. *)
 
@@ -32,13 +34,13 @@ module type S = sig
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]
   (** The type for exported values. *)
 
-  val empty : unit -> t Lwt.t
+  val empty : unit -> t io
   (** Create a new empty slice. *)
 
-  val add : t -> value -> unit Lwt.t
+  val add : t -> value -> unit io
   (** [add t v] adds [v] to [t]. *)
 
-  val iter : t -> (value -> unit Lwt.t) -> unit Lwt.t
+  val iter : t -> (value -> unit io) -> unit io
   (** [iter t f] calls [f] on all values of [t]. *)
 
   (** {1 Value Types} *)
@@ -64,9 +66,15 @@ module type Slice = sig
   (** The signature for slices. *)
 
   (** Build simple slices. *)
-  module Make (C : Contents.STORE) (N : Node.STORE) (H : Commit.STORE) :
+  module Make
+      (IO : IO.S)
+      (Hash : Hash.S)
+      (Contents : Type.S)
+      (Node : Node.S with type hash = Hash.t)
+      (Commit : Commit.S with type hash = Hash.t) :
     S
-      with type contents = C.key * C.value
-       and type node = N.key * N.value
-       and type commit = H.key * H.value
+      with type contents = Hash.t * Contents.t
+       and type node = Hash.t * Node.t
+       and type commit = Hash.t * Commit.t
+       and type 'a io := 'a IO.t
 end

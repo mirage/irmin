@@ -154,8 +154,8 @@ module type Irmin_layers = sig
   module type S_MAKER = S_MAKER
 
   module Make_ext
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t)
       (Metadata : Irmin.Metadata.S)
       (Contents : Irmin.Contents.S)
       (Path : Irmin.Path.S)
@@ -176,8 +176,9 @@ module type Irmin_layers = sig
        and type Key.step = Path.step
 
   module Make
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t) :
+    S_MAKER
 
   module Stats = Stats
 end

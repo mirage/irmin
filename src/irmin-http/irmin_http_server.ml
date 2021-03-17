@@ -32,6 +32,8 @@ module type S = sig
 end
 
 module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
+  module Merge = Irmin.Merge.Make (Lwt)
+
   module Wm = struct
     module Rd = Webmachine.Rd
 
@@ -79,7 +81,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     Wm.respond ~body:(`String err) 400 rd
 
   module Content_addressable (S : sig
-    include Irmin.CONTENT_ADDRESSABLE_STORE
+    include Irmin.CONTENT_ADDRESSABLE_STORE with type 'a io := 'a Lwt.t
 
     val batch : P.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
   end)
@@ -156,9 +158,9 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           | Error e -> parse_error rd body e
           | Ok { old; left; right } ->
               S.batch repo @@ fun db ->
-              let old = Irmin.Merge.promise old in
-              let* m = Irmin.Merge.f (merge db) ~old left right in
-              let result = Irmin.Merge.result_t (Irmin.Type.option K.t) in
+              let old = Merge.promise old in
+              let* m = Merge.f (merge db) ~old left right in
+              let result = Merge.result_t (Irmin.Type.option K.t) in
               let resp_body = `String Irmin.(Type.to_string result m) in
               Wm.continue true { rd with Wm.Rd.resp_body }
       end
@@ -191,7 +193,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   end
 
   module Atomic_write
-      (S : Irmin.ATOMIC_WRITE_STORE)
+      (S : Irmin.ATOMIC_WRITE_STORE with type 'a io := 'a Lwt.t)
       (K : Irmin.Type.S with type t = S.key)
       (V : Irmin.Type.S with type t = S.value) =
   struct

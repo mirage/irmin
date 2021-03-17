@@ -36,8 +36,7 @@ module Blob_log (T : Time.S) (V : Irmin.Type.S) :
     util [] entries
 
   let merge ~old v1 v2 =
-    let open Irmin.Merge.Infix in
-    let ok = Irmin.Merge.ok in
+    let ok = Merge.ok in
     old () >>=* fun old ->
     let old = match old with None -> [] | Some o -> o in
     let l1, l2 =
@@ -48,7 +47,7 @@ module Blob_log (T : Time.S) (V : Irmin.Type.S) :
     let l3 = List.sort compare (List.rev_append l1 l2) in
     ok (List.rev_append l3 old)
 
-  let merge = Irmin.Merge.(option (v t merge))
+  let merge () = Merge.(option (v t merge))
 end
 
 module type S = sig
@@ -62,7 +61,7 @@ end
 
 module Make (Backend : Stores.Store_maker) (T : Time.S) (V : Irmin.Type.S) =
 struct
-  module Store = Backend (Blob_log (T) (V))
+  module Store = Backend (Lwt) (Blob_log (T) (V))
 
   type value = V.t
 
@@ -79,5 +78,15 @@ struct
     | Some l -> return (List.map (fun (v, _) -> v) l)
 end
 
-module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Machine) (V)
-module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Machine) (V)
+module FS
+    (IO : Irmin.IO.S with type 'a t = 'a Lwt.t)
+    (C : Stores.Contents with type io := Irmin.IO.Higher(IO).io) =
+  Irmin_unix.FS.KV (C)
+
+module Mem
+    (IO : Irmin.IO.S with type 'a t = 'a Lwt.t)
+    (C : Stores.Contents with type io := Irmin.IO.Higher(IO).io) =
+  Irmin_mem.KV (C)
+
+module FS (V : Irmin.Type.S) = Make (FS) (Time.Machine) (V)
+module Mem (V : Irmin.Type.S) = Make (KV) (Time.Machine) (V)

@@ -444,9 +444,10 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module Contents = Contents
       module Metadata = S.Metadata
       module Path = S.Key
+      module Merge = Irmin.Merge.Make (Lwt)
 
       let merge t =
-        let f ~(old : Key.t option Irmin.Merge.promise) left right =
+        let f ~(old : Key.t option Merge.promise) left right =
           let* old =
             old () >|= function
             | Ok (Some old) -> old
@@ -456,11 +457,11 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
           let body =
             Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
-          let result = Irmin.Merge.result_t (Irmin.Type.option Key.t) in
+          let result = Merge.result_t (Irmin.Type.option Key.t) in
           HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
             (Irmin.Type.of_string result)
         in
-        Irmin.Merge.(v Irmin.Type.(option Key.t)) f
+        Merge.(v Irmin.Type.(option Key.t)) f
 
       let v ?ctx config = v ?ctx config "tree" "trees"
     end

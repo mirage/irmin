@@ -76,5 +76,7 @@ val config :
 
 (** [Content_addressable(X)] is a content-addressable store which store values
     cut into chunks into the underlying store [X]. *)
-module Content_addressable (S : Irmin.APPEND_ONLY_STORE_MAKER) :
+module Content_addressable
+    (IO : Irmin.IO.S)
+    (S : Irmin.APPEND_ONLY_STORE_MAKER with type 'a io := 'a IO.t) :
   Irmin.CONTENT_ADDRESSABLE_STORE_MAKER

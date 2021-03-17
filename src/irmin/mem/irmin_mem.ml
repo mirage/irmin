@@ -32,115 +32,148 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   type 'a t = { mutable t : value KMap.t }
 
   let map = { t = KMap.empty }
-  let v _config = Lwt.return map
+  let v _config = map
 
   let clear t =
     Log.debug (fun f -> f "clear");
-    t.t <- KMap.empty;
-    Lwt.return_unit
+    t.t <- KMap.empty
 
-  let close _ =
-    Log.debug (fun f -> f "close");
-    Lwt.return_unit
-
+  let close _ = Log.debug (fun f -> f "close")
   let cast t = (t :> read_write t)
   let batch t f = f (cast t)
   let pp_key = Irmin.Type.pp K.t
 
   let find { t; _ } key =
     Log.debug (fun f -> f "find %a" pp_key key);
-    try Lwt.return_some (KMap.find key t) with Not_found -> Lwt.return_none
+    try Some (KMap.find key t) with Not_found -> None
 
   let mem { t; _ } key =
     Log.debug (fun f -> f "mem %a" pp_key key);
-    Lwt.return (KMap.mem key t)
+    KMap.mem key t
 end
 
-module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-  include Read_only (K) (V)
+module Atomic_write_maker (IO : Irmin.IO.S) = struct
+  open IO.Syntax
+  module Watch = Irmin.Private.Watch.Make (IO)
 
-  let add t key value =
-    Log.debug (fun f -> f "add -> %a" pp_key key);
-    t.t <- KMap.add key value t.t;
-    Lwt.return_unit
+  module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+    module RO = Read_only (K) (V)
+    module W = Watch.Make (K) (V)
+    module L = Irmin.Private.Lock.Make (IO) (K)
+
+    type t = { t : unit RO.t; w : W.t; lock : L.t }
+    type key = RO.key
+    type value = RO.value
+    type watch = W.watch
+
+    let watches = W.v ()
+    let lock = L.v ()
+
+    let v config =
+      let t = RO.v config in
+      Lwt.return { t; w = watches; lock }
+
+    let close t =
+      let+ () = W.clear t.w in
+      RO.close t.t
+
+    let find t k = IO.return (RO.find t.t k)
+    let mem t k = IO.return (RO.mem t.t k)
+    let watch_key t = W.watch_key t.w
+    let watch t = W.watch t.w
+    let unwatch t = W.unwatch t.w
+
+    let list t =
+      Log.debug (fun f -> f "list");
+      RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> IO.return
+
+    let set t key value =
+      Log.debug (fun f -> f "update");
+      let* () =
+        L.with_lock t.lock key (fun () ->
+            t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
+            IO.return ())
+      in
+      W.notify t.w key (Some value)
+
+    let remove t key =
+      Log.debug (fun f -> f "remove");
+      let* () =
+        L.with_lock t.lock key (fun () ->
+            t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
+            IO.return ())
+      in
+      W.notify t.w key None
+
+    let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
+
+    let test_and_set t key ~test ~set =
+      Log.debug (fun f -> f "test_and_set");
+      let* updated =
+        L.with_lock t.lock key (fun () ->
+            let+ v = find t key in
+            if equal_v_opt test v then
+              let () =
+                match set with
+                | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
+                | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
+              in
+              true
+            else false)
+      in
+      let+ () = if updated then W.notify t.w key set else IO.return () in
+      updated
+
+    let clear t =
+      let+ () = W.clear t.w in
+      RO.clear t.t
+  end
 end
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-  module RO = Read_only (K) (V)
-  module W = Irmin.Private.Watch.Make (K) (V)
-  module L = Irmin.Private.Lock.Make (K)
+module Direct = struct
+  module IO = Irmin.IO.Direct
 
-  type t = { t : unit RO.t; w : W.t; lock : L.t }
-  type key = RO.key
-  type value = RO.value
-  type watch = W.watch
+  module Append_only = struct
+    module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+      include Read_only (K) (V)
 
-  let watches = W.v ()
-  let lock = L.v ()
+      let add t key value =
+        Log.debug (fun f -> f "add -> %a" pp_key key);
+        t.t <- KMap.add key value t.t
+    end
+  end
 
-  let v config =
-    let* t = RO.v config in
-    Lwt.return { t; w = watches; lock }
-
-  let close t = W.clear t.w >>= fun () -> RO.close t.t
-  let find t = RO.find t.t
-  let mem t = RO.mem t.t
-  let watch_key t = W.watch_key t.w
-  let watch t = W.watch t.w
-  let unwatch t = W.unwatch t.w
-
-  let list t =
-    Log.debug (fun f -> f "list");
-    RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> Lwt.return
-
-  let set t key value =
-    Log.debug (fun f -> f "update");
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-          Lwt.return_unit)
-    in
-    W.notify t.w key (Some value)
-
-  let remove t key =
-    Log.debug (fun f -> f "remove");
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-          Lwt.return_unit)
-    in
-    W.notify t.w key None
-
-  let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
-
-  let test_and_set t key ~test ~set =
-    Log.debug (fun f -> f "test_and_set");
-    let* updated =
-      L.with_lock t.lock key (fun () ->
-          let+ v = find t key in
-          if equal_v_opt test v then
-            let () =
-              match set with
-              | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
-              | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
-            in
-            true
-          else false)
-    in
-    let+ () = if updated then W.notify t.w key set else Lwt.return_unit in
-    updated
-
-  let clear t = W.clear t.w >>= fun () -> RO.clear t.t
+  module Content_addressable = Irmin.Content_addressable (IO) (Append_only)
+  module Atomic_write = Atomic_write_maker (IO)
 end
+
+module IO = Irmin.IO.Lwt
+module Merge = Irmin.Merge.Make (IO)
+module Append_only = Irmin.Of_direct.Append_only (IO) (Direct.Append_only)
+
+module Content_addressable =
+  Irmin.Of_direct.Content_addressable (IO) (Direct.Content_addressable)
+
+module Atomic_write = Atomic_write_maker (IO)
 
 let config () = Irmin.Private.Conf.empty
 
-module Make =
-  Irmin.Make (Irmin.Content_addressable (Append_only)) (Atomic_write)
+module Make = struct
+  module AO = Irmin.Content_addressable (IO) (Append_only)
+  module AW = Atomic_write
+  include Irmin.Make (IO) (AO) (AW)
+end
 
-module KV (C : Irmin.Contents.S) =
-  Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
-    (Irmin.Hash.BLAKE2B)
+module KV = struct
+  type 'a io = 'a Lwt.t
+  type 'a merge = 'a Merge.t
+
+  module M = Irmin.Metadata.None (Merge)
+
+  module Make (C : Irmin.Contents.S with type 'a merge := 'a Merge.t) =
+    Make.Make (M) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+      (Irmin.Hash.BLAKE2B)
+end
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_MAKER}. *)
 module KV_is_a_KV_MAKER : Irmin.KV_MAKER = KV

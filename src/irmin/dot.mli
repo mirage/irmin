@@ -19,6 +19,7 @@
 module type S = sig
   (** {1 Dot Export} *)
 
+  type +'a io
   type db
 
   val output_buffer :
@@ -28,7 +29,7 @@ module type S = sig
     ?full:bool ->
     date:(int64 -> string) ->
     Buffer.t ->
-    unit Lwt.t
+    unit io
   (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
       representation of [t] in the buffer [buf].
 
@@ -42,4 +43,4 @@ module type S = sig
       only. *)
 end
 
-module Make (S : Store.S) : S with type db = S.t
+module Make (S : Store.S) : S with type 'a io := 'a S.io and type db = S.t

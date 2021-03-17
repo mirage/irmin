@@ -36,13 +36,17 @@ module Linked_log
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S) =
 struct
+  module IO = C.IO
+  module Merge = Irmin.Merge.Make (IO)
+  open IO.Syntax
+
   type t = K.t [@@deriving irmin]
 
   module L = Log_item (T) (K) (V)
   module S = Store_item (T) (K) (V)
 
   module Store = struct
-    module CAS = C.CAS_Maker (K) (Store_item (T) (K) (V))
+    module CAS = C.CAS_Maker.Make (K) (Store_item (T) (K) (V))
 
     let get_store =
       let st = CAS.v @@ C.config in
@@ -51,9 +55,10 @@ struct
     let read st k = CAS.find st k
 
     let read_exn st k =
-      CAS.find st k >>= function
+      let* v = CAS.find st k in
+      match v with
       | None -> failwith "key not found in the store"
-      | Some v -> return v
+      | Some v -> IO.return v
 
     let add st v = CAS.batch st (fun t -> CAS.add t v)
   end
@@ -81,9 +86,10 @@ struct
     in
     let lv1 = convert_to_list v1 in
     let lv2 = convert_to_list v2 in
-    Store.add store (S.Merge (sort @@ lv1 @ lv2)) >>= ok
+    let* v = Store.add store (S.Merge (sort @@ lv1 @ lv2)) in
+    Merge.ok v
 
-  let merge = Irmin.Merge.(option (v t merge))
+  let merge () = Merge.abstract Merge.(option (v t merge))
 end
 
 module type S = sig

@@ -66,10 +66,25 @@ module type IO = sig
   (** Remove a file or directory (even if non-empty). *)
 end
 
-module Append_only (IO : IO) : Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write (IO : IO) : Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make (IO : IO) : Irmin.S_MAKER
-module KV (IO : IO) : Irmin.KV_MAKER
+(* FIXME: add these alias in irmin-lwt? *)
+type 'a merge := 'a Irmin.Merge.Make(Irmin.IO.Lwt).t
+
+module type APPEND_ONLY_STORE_MAKER =
+  Irmin.APPEND_ONLY_STORE_MAKER with type 'a io := 'a Lwt.t
+
+module type ATOMIC_WRITE_STORE_MAKER =
+  Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t
+
+module type S_MAKER =
+  Irmin.S_MAKER with type 'a io := 'a Lwt.t and type 'a merge := 'a merge
+
+module type KV_MAKER =
+  Irmin.KV_MAKER with type 'a io := 'a Lwt.t and type 'a merge := 'a merge
+
+module Append_only (IO : IO) : APPEND_ONLY_STORE_MAKER
+module Atomic_write (IO : IO) : ATOMIC_WRITE_STORE_MAKER
+module Make (IO : IO) : S_MAKER
+module KV (IO : IO) : KV_MAKER
 
 (** {2 Advanced configuration} *)
 
@@ -86,9 +101,9 @@ module type Config = sig
   (** Convert a filename to a key. *)
 end
 
-module Append_only_ext (IO : IO) (C : Config) : Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write_ext (IO : IO) (C : Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.S_MAKER
+module Append_only_ext (IO : IO) (C : Config) : APPEND_ONLY_STORE_MAKER
+module Atomic_write_ext (IO : IO) (C : Config) : ATOMIC_WRITE_STORE_MAKER
+module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : S_MAKER
 
 (** {1 In-memory IO mocks} *)
 

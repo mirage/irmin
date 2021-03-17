@@ -24,4 +24,3 @@
     Each node can point to user-defined {{!Contents.S} contents} values. *)
 
 include Node_intf.Node
-(** @inline *)

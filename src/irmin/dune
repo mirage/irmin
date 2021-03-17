@@ -2,6 +2,6 @@
  (name irmin)
  (public_name irmin)
  (libraries astring bheap digestif fmt jsonm logs lwt ocamlgraph uri uutf
-   repr)
+   repr threads semaphore-compat)
  (preprocess
   (pps ppx_irmin -- --lib "Type")))

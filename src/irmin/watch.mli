@@ -17,4 +17,4 @@
 (** [Watch] provides helpers to register event notifications on read-write
     stores. *)
 
-include Watch_intf.Watch
+module Make (IO : IO.S) : Watch_intf.Watch with type 'a io := 'a IO.t

@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 module Sigs = S
 
 module type ELT = sig
@@ -39,7 +38,7 @@ module type ELT = sig
 end
 
 module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
+  include Irmin.CONTENT_ADDRESSABLE_STORE_EXT
 
   val add : 'a t -> value -> key Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
@@ -56,9 +55,6 @@ module type S = sig
     index:index ->
     string ->
     read t Lwt.t
-
-  include BATCH with type 'a t := 'a t
-  (** @inline *)
 
   val unsafe_append :
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
@@ -79,8 +75,6 @@ module type S = sig
   val offset : 'a t -> int64
 
   include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
-  include CLOSEABLE with type 'a t := 'a t
-  include CLEARABLE with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data

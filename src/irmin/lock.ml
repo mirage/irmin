@@ -16,16 +16,12 @@
 
 open! Import
 
-module type S = sig
-  type key
-  type t
+module type S = Lock_intf.S
 
-  val v : unit -> t
-  val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-  val stats : t -> int
-end
+module Make (IO : IO.S) (K : Type.S) = struct
+  open IO.Syntax
+  module Mutex = IO.Mutex
 
-module Make (K : Type.S) = struct
   module K = struct
     type t = K.t
 
@@ -36,31 +32,32 @@ module Make (K : Type.S) = struct
   module KHashtbl = Hashtbl.Make (K)
 
   type key = K.t
-  type t = { global : Lwt_mutex.t; locks : Lwt_mutex.t KHashtbl.t }
+  type t = { global : Mutex.t; locks : Mutex.t KHashtbl.t }
 
-  let v () = { global = Lwt_mutex.create (); locks = KHashtbl.create 1024 }
+  let v () = { global = Mutex.create (); locks = KHashtbl.create 1024 }
   let stats t = KHashtbl.length t.locks
 
   let lock t key () =
     let lock =
       try KHashtbl.find t.locks key
       with Not_found ->
-        let lock = Lwt_mutex.create () in
+        let lock = Mutex.create () in
         KHashtbl.add t.locks key lock;
         lock
     in
-    Lwt.return lock
+    IO.return lock
 
   let unlock t key () =
     let () =
       if KHashtbl.mem t.locks key then
         let lock = KHashtbl.find t.locks key in
-        if Lwt_mutex.is_empty lock then KHashtbl.remove t.locks key
+        if Mutex.is_empty lock then KHashtbl.remove t.locks key
     in
-    Lwt.return_unit
+    IO.return ()
 
   let with_lock t k fn =
-    let* lock = Lwt_mutex.with_lock t.global (lock t k) in
-    let* r = Lwt_mutex.with_lock lock fn in
-    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () -> Lwt.return r
+    let* lock = Mutex.with_lock t.global (lock t k) in
+    let* r = Mutex.with_lock lock fn in
+    let+ () = Mutex.with_lock t.global (unlock t k) in
+    r
 end

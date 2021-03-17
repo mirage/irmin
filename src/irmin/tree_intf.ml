@@ -18,6 +18,8 @@
 open! Import
 
 module type S = sig
+  type 'a io
+  type 'a merge
   type key
   type step
   type metadata
@@ -56,13 +58,13 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
+  val kind : t -> key -> [ `Contents | `Node ] option io
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
   (** {1 Diffs} *)
 
-  val diff : t -> t -> (key * (contents * metadata) Diff.t) list Lwt.t
+  val diff : t -> t -> (key * (contents * metadata) Diff.t) list io
   (** [diff x y] is the difference of contents between [x] and [y]. *)
 
   (** {1 Manipulating Contents} *)
@@ -80,11 +82,11 @@ module type S = sig
     (** [hash t] is the hash of the {!contents} value returned when [t] is
         {!force}d successfully. *)
 
-    val force : t -> contents or_error Lwt.t
+    val force : t -> contents or_error io
     (** [force t] forces evaluation of the lazy content value [t], or returns an
         error if no such value exists in the underlying repository. *)
 
-    val force_exn : t -> contents Lwt.t
+    val force_exn : t -> contents io
     (** Equivalent to {!force}, but raises an exception if the lazy content
         value is not present in the underlying repository. *)
 
@@ -92,32 +94,32 @@ module type S = sig
     (** [clear t] clears [t]'s cache. *)
   end
 
-  val mem : t -> key -> bool Lwt.t
+  val mem : t -> key -> bool io
   (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
-  val find_all : t -> key -> (contents * metadata) option Lwt.t
+  val find_all : t -> key -> (contents * metadata) option io
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
-  val length : node -> int Lwt.t
+  val length : node -> int io
   (** [find n] is the number of entries in [n]. *)
 
-  val find : t -> key -> contents option Lwt.t
+  val find : t -> key -> contents option io
   (** [find] is similar to {!find_all} but it discards metadata. *)
 
-  val get_all : t -> key -> (contents * metadata) Lwt.t
+  val get_all : t -> key -> (contents * metadata) io
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
-  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list Lwt.t
+  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list io
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
 
       [offset] and [length] are used for pagination. *)
 
-  val get : t -> key -> contents Lwt.t
+  val get : t -> key -> contents io
   (** Same as {!get_all} but ignore the metadata. *)
 
-  val add : t -> key -> ?metadata:metadata -> contents -> t Lwt.t
+  val add : t -> key -> ?metadata:metadata -> contents -> t io
   (** [add t k c] is the tree where the key [k] is bound to the contents [c] but
       is similar to [t] for other bindings. *)
 
@@ -126,40 +128,40 @@ module type S = sig
     key ->
     ?metadata:metadata ->
     (contents option -> contents option) ->
-    t Lwt.t
+    t io
   (** [update t k f] is the tree [t'] that is the same as [t] for all keys
       except [k], and whose binding for [k] is determined by [f (find t k)].
 
       If [k] refers to an internal node of [t], [f] is called with [None] to
       determine the value with which to replace it. *)
 
-  val remove : t -> key -> t Lwt.t
+  val remove : t -> key -> t io
   (** [remove t k] is the tree where [k] bindings has been removed but is
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
 
-  val mem_tree : t -> key -> bool Lwt.t
+  val mem_tree : t -> key -> bool io
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
-  val find_tree : t -> key -> t option Lwt.t
+  val find_tree : t -> key -> t option io
   (** [find_tree t k] is [Some v] if [k] is associated to [v] in [t]. It is
       [None] if [k] is not present in [t]. *)
 
-  val get_tree : t -> key -> t Lwt.t
+  val get_tree : t -> key -> t io
   (** [get_tree t k] is [v] if [k] is associated to [v] in [t]. Raise
       [Invalid_arg] if [k] is not present in [t].*)
 
-  val add_tree : t -> key -> t -> t Lwt.t
+  val add_tree : t -> key -> t -> t io
   (** [add_tree t k v] is the tree where the key [k] is bound to the tree [v]
       but is similar to [t] for other bindings *)
 
-  val update_tree : t -> key -> (t option -> t option) -> t Lwt.t
+  val update_tree : t -> key -> (t option -> t option) -> t io
   (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
       subtrees except under [k], and whose subtree at [k] is determined by
       [f (find_tree t k)]. *)
 
-  val merge : t Merge.t
+  val merge : unit -> t merge
   (** [merge] is the 3-way merge function for trees. *)
 
   (** {1 Folds} *)
@@ -173,7 +175,7 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a io | `And_clear ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
       every lazy node and content value instead. [`And_clear] is like [`True]
@@ -185,7 +187,7 @@ module type S = sig
       collection of marks [m] to store the cache of keys: the fold will modify
       [m]. This can be used for incremental folds. *)
 
-  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+  type 'a node_fn = key -> step list -> 'a -> 'a io
   (** The type for {!fold}'s [pre] and [post] parameters. *)
 
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
@@ -204,11 +206,11 @@ module type S = sig
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
     ?depth:depth ->
-    ?contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-    ?node:(key -> node -> 'a -> 'a Lwt.t) ->
+    ?contents:(key -> contents -> 'a -> 'a io) ->
+    ?node:(key -> node -> 'a -> 'a io) ->
     t ->
     'a ->
-    'a Lwt.t
+    'a io
   (** [fold f t acc] folds [f] over [t]'s leafs.
 
       For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
@@ -237,7 +239,7 @@ module type S = sig
   [@@deriving irmin]
   (** The type for tree stats. *)
 
-  val stats : ?force:bool -> t -> stats Lwt.t
+  val stats : ?force:bool -> t -> stats io
   (** [stats ~force t] are [t]'s statistics. If [force] is true, this will force
       the reading of lazy nodes. By default it is [false]. *)
 
@@ -253,7 +255,7 @@ module type S = sig
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c]. *)
 
-  val to_concrete : t -> concrete Lwt.t
+  val to_concrete : t -> concrete io
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
 
   (** {1 Caches} *)
@@ -291,6 +293,8 @@ module type Tree = sig
   end
 
   module Make (P : Private.S) : sig
+    type 'a io := 'a P.IO.t
+
     include
       S
         with type key = P.Node.Path.t
@@ -298,10 +302,12 @@ module type Tree = sig
          and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
          and type hash = P.Hash.t
+         and type 'a io := 'a io
+         and type 'a merge := 'a P.Merge.t
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
 
-    val import : P.Repo.t -> kinded_hash -> t option Lwt.t
+    val import : P.Repo.t -> kinded_hash -> t option io
     val import_no_check : P.Repo.t -> kinded_hash -> t
 
     val export :
@@ -310,7 +316,7 @@ module type Tree = sig
       [> write ] P.Contents.t ->
       [> read_write ] P.Node.t ->
       node ->
-      P.Node.key Lwt.t
+      P.Node.key io
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
@@ -318,6 +324,6 @@ module type Tree = sig
     val tree_t : t Type.t
     val hash : t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
-    val to_private_node : node -> P.Node.value or_error Lwt.t
+    val to_private_node : node -> P.Node.value or_error io
   end
 end

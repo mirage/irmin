@@ -89,18 +89,18 @@ module type S = sig
 end
 
 module type STORE = sig
-  include CONTENT_ADDRESSABLE_STORE
+  type +'a io
+  type 'a merge
+
+  include CONTENT_ADDRESSABLE_STORE with type 'a io := 'a io
 
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
-  val merge : [> read_write ] t -> key option Merge.t
-  (** [merge] is the 3-way merge function for nodes keys. *)
-
   (** [Key] provides base functions for node keys. *)
   module Key : Hash.TYPED with type t = key and type value = value
 
-  module Metadata : METADATA
+  module Metadata : Metadata.S with type 'a merge := 'a merge
   (** [Metadata] provides base functions for node metadata. *)
 
   (** [Val] provides base functions for node values. *)
@@ -111,12 +111,22 @@ module type STORE = sig
        and type metadata = Metadata.t
        and type step = Path.step
 
-  module Contents : Contents.STORE with type key = Val.hash
   (** [Contents] is the underlying contents store. *)
+  module Contents :
+    Contents.STORE
+      with type key = Val.hash
+       and type 'a io := 'a io
+       and type 'a merge := 'a merge
+
+  val merge : [> read_write ] t -> key option merge
+  (** [merge] is the 3-way merge function for nodes keys. *)
 end
 
 module type GRAPH = sig
   (** {1 Node Graphs} *)
+
+  type +'a io
+  (** The type for IO effects. *)
 
   type 'a t
   (** The type for store handles. *)
@@ -139,27 +149,27 @@ module type GRAPH = sig
   type value = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store values. *)
 
-  val empty : [> write ] t -> node Lwt.t
+  val empty : [> write ] t -> node io
   (** The empty node. *)
 
-  val v : [> write ] t -> (step * value) list -> node Lwt.t
+  val v : [> write ] t -> (step * value) list -> node io
   (** [v t n] is a new node containing [n]. *)
 
-  val list : [> read ] t -> node -> (step * value) list Lwt.t
+  val list : [> read ] t -> node -> (step * value) list io
   (** [list t n] is the contents of the node [n]. *)
 
-  val find : [> read ] t -> node -> path -> value option Lwt.t
+  val find : [> read ] t -> node -> path -> value option io
   (** [find t n p] is the contents of the path [p] starting form [n]. *)
 
-  val add : [> read_write ] t -> node -> path -> value -> node Lwt.t
+  val add : [> read_write ] t -> node -> path -> value -> node io
   (** [add t n p v] is the node [x] such that [find t x p] is [Some v] and it
       behaves the same [n] for other operations. *)
 
-  val remove : [> read_write ] t -> node -> path -> node Lwt.t
+  val remove : [> read_write ] t -> node -> path -> node io
   (** [remove t n path] is the node [x] such that [find t x] is [None] and it
       behhaves then same as [n] for other operations. *)
 
-  val closure : [> read ] t -> min:node list -> max:node list -> node list Lwt.t
+  val closure : [> read ] t -> min:node list -> max:node list -> node list io
   (** [closure t min max] is the unordered list of nodes [n] reachable from a
       node of [max] along a path which: (i) either contains no [min] or (ii) it
       ends with a [min].
@@ -170,14 +180,14 @@ module type GRAPH = sig
     [> read ] t ->
     min:node list ->
     max:node list ->
-    ?node:(node -> unit Lwt.t) ->
-    ?contents:(contents -> unit Lwt.t) ->
-    ?edge:(node -> node -> unit Lwt.t) ->
-    ?skip_node:(node -> bool Lwt.t) ->
-    ?skip_contents:(contents -> bool Lwt.t) ->
+    ?node:(node -> unit io) ->
+    ?contents:(contents -> unit io) ->
+    ?edge:(node -> node -> unit io) ->
+    ?skip_node:(node -> bool io) ->
+    ?skip_contents:(contents -> bool io) ->
     ?rev:bool ->
     unit ->
-    unit Lwt.t
+    unit io
   (** [iter t min max node edge skip rev ()] iterates in topological order over
       the closure of [t].
 
@@ -221,7 +231,7 @@ module type Node = sig
       (K : Type.S) (P : sig
         type step [@@deriving irmin]
       end)
-      (M : METADATA) :
+      (M : Metadata.Core) :
     S with type hash = K.t and type step = P.step and type metadata = M.t
 
   (** v1 serialisation *)
@@ -241,10 +251,17 @@ module type Node = sig
 
   (** [Store] creates node stores. *)
   module Store
-      (C : Contents.STORE)
+      (Merge : Merge.S)
+      (C : Contents.STORE
+             with type 'a io := 'a Merge.io
+              and type 'a merge := 'a Merge.t)
       (P : Path.S)
-      (M : METADATA) (N : sig
-        include CONTENT_ADDRESSABLE_STORE with type key = C.key
+      (M : Metadata.S with type 'a merge := 'a Merge.t) (N : sig
+        include
+          CONTENT_ADDRESSABLE_STORE
+            with type key = C.key
+             and type 'a io := 'a Merge.io
+
         module Key : Hash.S with type t = key
 
         module Val :
@@ -255,7 +272,9 @@ module type Node = sig
              and type step = P.step
       end) :
     STORE
-      with type 'a t = 'a C.t * 'a N.t
+      with type 'a io := 'a Merge.io
+       and type 'a merge := 'a Merge.t
+       and type 'a t = 'a C.t * 'a N.t
        and type key = N.key
        and type value = N.value
        and module Path = P
@@ -267,14 +286,15 @@ module type Node = sig
   (** [Graph] specifies the signature for node graphs. A node graph is a
       deterministic DAG, labeled by steps. *)
 
-  module Graph (N : STORE) :
+  module Graph
+      (Merge : Merge.S)
+      (N : STORE with type 'a io := 'a Merge.io and type 'a merge := 'a Merge.t) :
     GRAPH
-      with type 'a t = 'a N.t
+      with type 'a io := 'a Merge.io
+       and type 'a t = 'a N.t
        and type contents = N.Contents.key
        and type metadata = N.Metadata.t
        and type node = N.key
        and type step = N.Path.step
        and type path = N.Path.t
-
-  module No_metadata : METADATA with type t = unit
 end

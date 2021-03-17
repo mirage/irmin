@@ -16,18 +16,18 @@
 
 include Sync_intf
 
-module None (H : Type.S) (R : Type.S) = struct
+module None (IO : IO.S) (H : Type.S) (R : Type.S) = struct
   type t = unit
 
-  let v _ = Lwt.return_unit
+  let v _ = IO.return ()
 
   type endpoint = unit
   type commit = H.t
   type branch = R.t
 
   let fetch () ?depth:_ _ _br =
-    Lwt.return (Error (`Msg "fetch operation is not available"))
+    IO.return (Error (`Msg "fetch operation is not available"))
 
   let push () ?depth:_ _ _br =
-    Lwt.return (Error (`Msg "push operation is not available"))
+    IO.return (Error (`Msg "push operation is not available"))
 end

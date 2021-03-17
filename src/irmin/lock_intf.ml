@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Ioana Cristescu <ioana@tarides.com>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -7,14 +7,31 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESIrmin. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type CA =
-  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t
+(** {1 Process locking helpers} *)
 
-module Content_addressable (CA : CA) = CA
+module type S = sig
+  type +'a io
+  (** The type for IO effects. *)
+
+  type t
+  (** The type for lock manager. *)
+
+  type key
+  (** The type for key to be locked. *)
+
+  val v : unit -> t
+  (** Create a lock manager. *)
+
+  val with_lock : t -> key -> (unit -> 'a io) -> 'a io
+  (** [with_lock t k f] executes [f ()] while holding the exclusive lock
+      associated to the key [k]. *)
+
+  val stats : t -> int
+end

@@ -32,7 +32,9 @@ end
 module type STORE = sig
   (** {1 Branch Store} *)
 
-  include ATOMIC_WRITE_STORE
+  type +'a io
+
+  include ATOMIC_WRITE_STORE with type 'a io := 'a io
 
   module Key : S with type t = key
   (** Base functions on keys. *)

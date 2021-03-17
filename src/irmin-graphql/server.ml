@@ -124,6 +124,7 @@ module Make_ext
                 and type branch := Store.branch) =
 struct
   module IO = Server.IO
+  module Merge = Irmin.Merge.Make (Lwt)
   module Sync = Irmin.Sync (Store)
   module Graphql_server = Graphql_cohttp.Make (Schema) (IO) (Cohttp_lwt.Body)
 
@@ -660,8 +661,8 @@ struct
                 Store.merge_with_commit t from ~info ?max_depth ?n >>= function
                 | Ok _ -> Store.Head.find t >|= Result.ok
                 | Error e ->
-                    Lwt.return
-                      (Error (Irmin.Type.to_string Irmin.Merge.conflict_t e)))
+                    Lwt.return (Error (Irmin.Type.to_string Merge.conflict_t e))
+                )
             | None -> Lwt.return (Error "invalid hash"));
         io_field "revert" ~typ:(Lazy.force commit)
           ~args:

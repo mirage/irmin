@@ -23,18 +23,26 @@
 val config : unit -> Irmin.config
 (** Configuration values. *)
 
-module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
+module Direct : sig
+  module Append_only : Irmin.APPEND_ONLY_STORE_MAKER with type 'a io := 'a
+  (** An in-memory store for append-only values. *)
+
+  module Content_addressable :
+    Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a
+  (** An in-memory store for append-only values. *)
+end
+
+module Append_only : Irmin.APPEND_ONLY_STORE_MAKER with type 'a io := 'a Lwt.t
 (** An in-memory store for append-only values. *)
 
-module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
+module Content_addressable :
+  Irmin.CONTENT_ADDRESSABLE_STORE_MAKER with type 'a io := 'a Lwt.t
+
+module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER with type 'a io := 'a Lwt.t
 (** An in-memory store with atomic-write guarantees. *)
 
-module Make : Irmin.S_MAKER
+module Make : Irmin.S_MAKER with type 'a io := 'a Lwt.t
 (** Constructor for in-memory Irmin store. *)
 
+module KV : Irmin.KV_MAKER with type 'a io := 'a Lwt.t
 (** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_MAKER}. *)
-module KV (C : Irmin.Contents.S) :
-  Irmin.KV
-    with type contents = C.t
-     and type metadata = unit
-     and type Private.Sync.endpoint = unit

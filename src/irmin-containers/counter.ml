@@ -24,7 +24,7 @@ module Counter : Irmin.Contents.S with type t = int64 = struct
   type t = int64
 
   let t = Irmin.Type.int64
-  let merge = Irmin.Merge.(option counter)
+  let merge () = Merge.(option (counter ()))
 end
 
 module type S = sig

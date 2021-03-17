@@ -50,9 +50,12 @@ end
 module type STORE = sig
   (** {1 Commit Store} *)
 
-  include CONTENT_ADDRESSABLE_STORE
+  type +'a io
+  type 'a merge
 
-  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
+  include CONTENT_ADDRESSABLE_STORE with type 'a io := 'a io
+
+  val merge : [> read_write ] t -> info:Info.f -> key option merge
   (** [merge] is the 3-way merge function for commit keys. *)
 
   (** [Key] provides base functions for commit keys. *)
@@ -61,12 +64,19 @@ module type STORE = sig
   (** [Val] provides functions for commit values. *)
   module Val : S with type t = value and type hash = key
 
-  module Node : Node.STORE with type key = Val.hash
   (** [Node] is the underlying node store. *)
+  module Node :
+    Node.STORE
+      with type key = Val.hash
+       and type 'a io := 'a io
+       and type 'a merge := 'a merge
 end
 
 module type HISTORY = sig
   (** {1 Commit History} *)
+
+  type +'a io
+  type 'a merge
 
   type 'a t
   (** The type for store handles. *)
@@ -85,17 +95,17 @@ module type HISTORY = sig
     node:node ->
     parents:commit list ->
     info:Info.t ->
-    (commit * v) Lwt.t
+    (commit * v) io
   (** Create a new commit. *)
 
-  val parents : [> read ] t -> commit -> commit list Lwt.t
+  val parents : [> read ] t -> commit -> commit list io
   (** Get the commit parents.
 
       Commits form a append-only, fully functional, partial-order
       data-structure: every commit carries the list of its immediate
       predecessors. *)
 
-  val merge : [> read_write ] t -> info:Info.f -> commit Merge.t
+  val merge : [> read_write ] t -> info:Info.f -> commit merge
   (** [merge t] is the 3-way merge function for commit. *)
 
   val lcas :
@@ -104,7 +114,7 @@ module type HISTORY = sig
     ?n:int ->
     commit ->
     commit ->
-    (commit list, [ `Max_depth_reached | `Too_many_lcas ]) result Lwt.t
+    (commit list, [ `Max_depth_reached | `Too_many_lcas ]) result io
   (** Find the lowest common ancestors
       {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor} lca} between two
       commits. *)
@@ -115,7 +125,7 @@ module type HISTORY = sig
     ?max_depth:int ->
     ?n:int ->
     commit list ->
-    (commit option, Merge.conflict) result Lwt.t
+    (commit option, Merge.conflict) result io
   (** Compute the lowest common ancestors ancestor of a list of commits by
       recursively calling {!lcas} and merging the results.
 
@@ -130,11 +140,11 @@ module type HISTORY = sig
     ?n:int ->
     commit ->
     commit ->
-    (commit, Merge.conflict) result Lwt.t
+    (commit, Merge.conflict) result io
   (** Compute the {!lcas} of the two commit and 3-way merge the result. *)
 
   val closure :
-    [> read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
+    [> read ] t -> min:commit list -> max:commit list -> commit list io
   (** Same as {{!NODE_GRAPH.closure} NODE_GRAPH.closure} but for the history
       graph. *)
 
@@ -142,12 +152,12 @@ module type HISTORY = sig
     [> read ] t ->
     min:node list ->
     max:node list ->
-    ?commit:(commit -> unit Lwt.t) ->
-    ?edge:(node -> node -> unit Lwt.t) ->
-    ?skip:(node -> bool Lwt.t) ->
+    ?commit:(commit -> unit io) ->
+    ?edge:(node -> node -> unit io) ->
+    ?skip:(node -> bool io) ->
     ?rev:bool ->
     unit ->
-    unit Lwt.t
+    unit io
   (** Same as {{!NODE_GRAPH.iter} NODE_GRAPH.iter} but for traversing the
       history graph. *)
 
@@ -177,8 +187,16 @@ module type Commit = sig
 
   (** [Store] creates a new commit store. *)
   module Store
-      (N : Node.STORE) (C : sig
-        include CONTENT_ADDRESSABLE_STORE with type key = N.key
+      (Merge : Merge.S)
+      (N : Node.STORE
+             with type 'a io := 'a Merge.io
+              and type 'a merge := 'a Merge.t)
+      (C : sig
+        include
+          CONTENT_ADDRESSABLE_STORE
+            with type key = N.key
+             and type 'a io := 'a Merge.io
+
         module Key : Hash.S with type t = key
         module Val : S with type t = value and type hash = key
       end) :
@@ -188,6 +206,8 @@ module type Commit = sig
        and type value = C.value
        and type Key.t = C.Key.t
        and module Val = C.Val
+       and type 'a io := 'a Merge.io
+       and type 'a merge := 'a Merge.t
 
   module type HISTORY = HISTORY
   (** [History] specifies the signature for commit history. The history is
@@ -198,10 +218,14 @@ module type Commit = sig
       user-defined contents are stored. *)
 
   (** Build a commit history. *)
-  module History (C : STORE) :
+  module History
+      (Merge : Merge.S)
+      (C : STORE with type 'a io := 'a Merge.io and type 'a merge := 'a Merge.t) :
     HISTORY
       with type 'a t = 'a C.t
        and type v = C.Val.t
        and type node = C.Node.key
        and type commit = C.key
+       and type 'a io := 'a Merge.io
+       and type 'a merge := 'a Merge.t
 end

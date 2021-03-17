@@ -23,6 +23,7 @@ let src = Logs.Src.create "irmin.dot" ~doc:"Irmin dot graph output"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
+  type +'a io
   type db
 
   val output_buffer :
@@ -32,7 +33,7 @@ module type S = sig
     ?full:bool ->
     date:(int64 -> string) ->
     Buffer.t ->
-    unit Lwt.t
+    unit io
 end
 
 exception Utf8_failure
@@ -46,6 +47,10 @@ let is_valid_utf8 str =
   with Utf8_failure -> false
 
 module Make (S : Store.S) = struct
+  module IO_list = IO.List (S.IO)
+  module IO = S.IO
+  open IO.Syntax
+
   type db = S.t
 
   module Branch = S.Private.Branch
@@ -53,7 +58,7 @@ module Make (S : Store.S) = struct
   module Node = S.Private.Node
   module Commit = S.Private.Commit
   module Slice = S.Private.Slice
-  module Graph = Object_graph.Make (S.Hash) (Branch.Key)
+  module Graph = Object_graph.Make (S.IO) (S.Hash) (Branch.Key)
 
   let fprintf (t : db) ?depth ?(html = false) ?full ~date name =
     Log.debug (fun f ->
@@ -148,13 +153,13 @@ module Make (S : Store.S) = struct
       Slice.iter slice (function
         | `Contents c ->
             contents := c :: !contents;
-            Lwt.return_unit
+            IO.return ()
         | `Node n ->
             nodes := n :: !nodes;
-            Lwt.return_unit
+            IO.return ()
         | `Commit c ->
             commits := c :: !commits;
-            Lwt.return_unit)
+            IO.return ())
     in
     List.iter
       (fun (k, c) ->
@@ -192,9 +197,10 @@ module Make (S : Store.S) = struct
     let branch_t = S.Private.Repo.branch_t (S.repo t) in
     let* bs = Branch.list branch_t in
     let+ () =
-      Lwt_list.iter_s
+      IO_list.iter_s
         (fun r ->
-          Branch.find branch_t r >|= function
+          let+ br = Branch.find branch_t r in
+          match br with
           | None -> ()
           | Some k ->
               add_vertex (`Branch r)

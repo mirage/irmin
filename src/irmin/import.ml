@@ -20,12 +20,10 @@ type read = Perms.read
 type write = Perms.write
 type read_write = Perms.read_write
 
-(** {2 Lwt syntax} *)
+(** {2 Syntax} *)
 
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
+module Syntax = IO.Syntax
+module Syntax' = IO.Syntax'
 
 (** {2 Dependency extensions} *)
 

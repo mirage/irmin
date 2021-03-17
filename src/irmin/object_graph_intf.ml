@@ -26,6 +26,9 @@ module type S = sig
     val fold : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   end
 
+  type +'a io
+  (** The type for IO effects. *)
+
   val vertex : t -> vertex list
   (** Get all the vertices. *)
 
@@ -34,11 +37,11 @@ module type S = sig
 
   val closure :
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> vertex list io) ->
     min:vertex list ->
     max:vertex list ->
     unit ->
-    t Lwt.t
+    t io
   (** [closure depth pred min max ()] creates the transitive closure graph of
       [max] using the predecessor relation [pred]. The graph is bounded by the
       [min] nodes and by [depth].
@@ -48,15 +51,15 @@ module type S = sig
   val iter :
     ?cache_size:int ->
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> vertex list io) ->
     min:vertex list ->
     max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
-    ?edge:(vertex -> vertex -> unit Lwt.t) ->
-    skip:(vertex -> bool Lwt.t) ->
+    node:(vertex -> unit io) ->
+    ?edge:(vertex -> vertex -> unit io) ->
+    skip:(vertex -> bool io) ->
     rev:bool ->
     unit ->
-    unit Lwt.t
+    unit io
   (** [iter depth min max node edge skip rev ()] iterates in topological order
       over the closure graph starting with the [max] nodes and bounded by the
       [min] nodes and by [depth].
@@ -114,9 +117,10 @@ module type Object_graph = sig
   module type HASH = HASH
 
   (** Build a graph. *)
-  module Make (Hash : HASH) (Branch : Type.S) :
+  module Make (IO : IO.S) (Hash : HASH) (Branch : Type.S) :
     S
-      with type V.t =
+      with type 'a io := 'a IO.t
+       and type V.t =
             [ `Contents of Hash.t
             | `Node of Hash.t
             | `Commit of Hash.t
