@@ -52,39 +52,6 @@ struct
     add t k v >|= fun () -> k
 end
 
-module Unsafe_content_addressable
-    (AO : S.UNSAFE_APPEND_ONLY_STORE_MAKER)
-    (K : Hash.S)
-    (V : S.VAL with type hash = K.t) =
-struct
-  include AO (K) (V)
-  open Lwt.Infix
-
-  let hash = V.hash
-  let pp_key = Type.pp K.t
-  let equal_hash = Type.(unstage (equal K.t))
-
-  let find t k =
-    find t k >>= function
-    | None -> Lwt.return_none
-    | Some v as r ->
-        let k' = hash v in
-        if equal_hash k k' then Lwt.return r
-        else
-          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_key k' pp_key k
-
-  let unsafe_add t k v = add t k v
-
-  let add t v =
-    let k = hash v in
-    add t k v >|= fun () -> k
-
-  let unsafe_find t k = unsafe_find t k
-  let unsafe_mem t k = unsafe_mem t k
-  let unsafe_append t k v = unsafe_append t k v
-end
-
 module Make (P : Private.S) = struct
   module Branch_store = P.Branch
 
@@ -118,8 +85,10 @@ module Make (P : Private.S) = struct
     let of_hash r h = import r h
     let shallow r h = import_no_check r h
 
-    let hash : t -> hash =
-     fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
+    let hash : t -> hash Lwt.t =
+     fun tr ->
+      let+ h = hash tr in
+      match h with `Node h -> h | `Contents (h, _) -> h
   end
 
   let save_contents b c = P.Contents.add b c
@@ -287,11 +256,12 @@ module Make (P : Private.S) = struct
               P.Node.find (node_t t) k >>= function
               | None -> Lwt.return_unit
               | Some v ->
+                  let* ls = P.Node.Val.list v in
                   List.iter
                     (function
                       | _, `Contents (c, _) -> contents := KSet.add c !contents
                       | _ -> ())
-                    (P.Node.Val.list v);
+                    ls;
                   P.Slice.add slice (`Node (k, v)))
             nodes
         in
@@ -361,13 +331,15 @@ module Make (P : Private.S) = struct
     let default_pred_contents _ _ = Lwt.return []
 
     let default_pred_node t k =
-      P.Node.find (node_t t) k >|= function
-      | None -> []
+      let* v = P.Node.find (node_t t) k in
+      match v with
+      | None -> Lwt.return_nil
       | Some v ->
+          let+ ls = P.Node.Val.list v in
           List.rev_map
             (function
               | _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
-            (P.Node.Val.list v)
+            ls
 
     let default_pred_commit t c =
       P.Commit.find (commit_t t) c >|= function
@@ -478,10 +450,19 @@ module Make (P : Private.S) = struct
     Lwt.return_unit
 
   let changed_key key old_t new_t =
+    (* FIXME(samoht): should be in the log callback to avoid hash
+       computation when it is not needed. *)
+    let hash x =
+      match x with
+      | None -> Lwt.return_none
+      | Some t ->
+          let+ h = Tree.hash t in
+          Some h
+    in
+    let* old_h = hash old_t in
+    let+ new_h = hash new_t in
     Log.debug (fun l ->
         let pp = Fmt.option ~none:(Fmt.any "<none>") pp_hash in
-        let old_h = Option.map Tree.hash old_t in
-        let new_h = Option.map Tree.hash new_t in
         l "[watch-key] key %a has changed: %a -> %a" pp_key key pp old_h pp
           new_h)
 
@@ -489,17 +470,17 @@ module Make (P : Private.S) = struct
     x >>= function
     | None -> skip_key key
     | Some x ->
-        changed_key key None None;
+        let* () = changed_key key None None in
         f x
 
   let lift_tree_diff ~key tree fn = function
     | `Removed x ->
         with_tree ~key (tree x) @@ fun v ->
-        changed_key key (Some v) None;
+        let* () = changed_key key (Some v) None in
         fn @@ `Removed (x, v)
     | `Added x ->
         with_tree ~key (tree x) @@ fun v ->
-        changed_key key None (Some v);
+        let* () = changed_key key None (Some v) in
         fn @@ `Added (x, v)
     | `Updated (x, y) -> (
         assert (not (Commit.equal x y));
@@ -508,16 +489,17 @@ module Make (P : Private.S) = struct
         match (vx, vy) with
         | None, None -> skip_key key
         | None, Some vy ->
-            changed_key key None (Some vy);
+            let* () = changed_key key None (Some vy) in
             fn @@ `Added (y, vy)
         | Some vx, None ->
-            changed_key key (Some vx) None;
+            let* () = changed_key key (Some vx) None in
             fn @@ `Removed (x, vx)
         | Some vx, Some vy ->
-            if Tree.equal vx vy then skip_key key
-            else (
-              changed_key key (Some vx) (Some vy);
-              fn @@ `Updated ((x, vx), (y, vy))))
+            let* eq = Tree.equal vx vy in
+            if eq then skip_key key
+            else
+              let* () = changed_key key (Some vx) (Some vy) in
+              fn @@ `Updated ((x, vx), (y, vy)))
 
   let head t =
     let h =
@@ -747,8 +729,8 @@ module Make (P : Private.S) = struct
 
   let same_tree x y =
     match (x, y) with
-    | None, None -> true
-    | None, _ | _, None -> false
+    | None, None -> Lwt.return true
+    | None, _ | _, None -> Lwt.return false
     | Some x, Some y -> Tree.equal x y
 
   (* Update the store with a new commit. Ensure the no commit becomes orphan
@@ -758,8 +740,8 @@ module Make (P : Private.S) = struct
     (* this might take a very long time *)
     let* new_tree = f s.tree in
     (* if no change and [allow_empty = true] then, do nothing *)
-    if same_tree s.tree new_tree && (not allow_empty) && s.head <> None then
-      Lwt.return (Ok true)
+    let* same = same_tree s.tree new_tree in
+    if same && (not allow_empty) && s.head <> None then Lwt.return (Ok true)
     else
       merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
       | Error e -> Lwt.return (Error e)
@@ -812,7 +794,8 @@ module Make (P : Private.S) = struct
     | None, None -> set_tree_once root key ~new_tree ~current_tree
     | None, _ | _, None -> err_test current_tree
     | Some test, Some v ->
-        if Tree.equal test v then set_tree_once root key ~new_tree ~current_tree
+        let* eq = Tree.equal test v in
+        if eq then set_tree_once root key ~new_tree ~current_tree
         else err_test current_tree
 
   let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
@@ -869,9 +852,12 @@ module Make (P : Private.S) = struct
   let get_tree t k = tree t >>= fun tree -> Tree.get_tree tree k
 
   let hash t k =
-    find_tree t k >|= function
-    | None -> None
-    | Some tree -> Some (Tree.hash tree)
+    let* v = find_tree t k in
+    match v with
+    | None -> Lwt.return_none
+    | Some tree ->
+        let+ h = Tree.hash tree in
+        Some h
 
   let get_all t k = tree t >>= fun tree -> Tree.get_all tree k
   let list t k = tree t >>= fun tree -> Tree.list tree k

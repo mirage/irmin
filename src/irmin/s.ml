@@ -24,7 +24,7 @@ module Store_properties = struct
   module type BATCH = sig
     type 'a t
 
-    val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+    val batch : read t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
     (** [batch t f] applies the writes in [f] in a separate batch. The exact
         guarantees depend on the implementation. *)
   end
@@ -79,29 +79,16 @@ module type CONTENT_ADDRESSABLE_STORE = sig
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> write ] t -> value -> key Lwt.t
+  val add : read_write t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the responsibility of the
       content-addressable store to generate a consistent key. *)
 
-  val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
+  val unsafe_add : read_write t -> key -> value -> unit Lwt.t
   (** Same as {!add} but allows to specify the key directly. The backend might
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
   include CLEARABLE with type 'a t := 'a t
-end
-
-module type UNSAFE_CONTENT_ADDRESSABLE_STORE = sig
-  (** {1 Unsafe content-addressable stores}
-
-      The same as content-addressable stores but exposing unsafe find and append
-      functions. *)
-
-  include CONTENT_ADDRESSABLE_STORE
-
-  val unsafe_mem : 'a t -> key -> bool
-  val unsafe_find : 'a t -> key -> value option
-  val unsafe_append : 'a t -> key -> value -> unit
 end
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
@@ -120,18 +107,6 @@ module type VAL = sig
   type hash
 
   val hash : t -> hash
-end
-
-module type UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER = functor
-  (K : Hash.S)
-  (V : VAL with type hash = K.t)
-  -> sig
-  include
-    UNSAFE_CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-
-  include BATCH with type 'a t := 'a t
-  include OF_CONFIG with type 'a t := 'a t
-  include CLOSEABLE with type 'a t := 'a t
 end
 
 module type APPEND_ONLY_STORE = sig
@@ -157,7 +132,7 @@ module type APPEND_ONLY_STORE = sig
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val add : [> write ] t -> key -> value -> unit Lwt.t
+  val add : read_write t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
   include CLEARABLE with type 'a t := 'a t

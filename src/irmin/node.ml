@@ -105,12 +105,16 @@ struct
     |> drop offset
     |> Seq.map (fun (_, e) -> of_entry e)
     |> take_length
+    |> Lwt.return
 
   let find t s =
-    try
-      let _, v = of_entry (StepMap.find s t) in
-      Some v
-    with Not_found -> None
+    let v =
+      try
+        let _, v = of_entry (StepMap.find s t) in
+        Some v
+      with Not_found -> None
+    in
+    Lwt.return v
 
   let empty = StepMap.empty
   let is_empty e = StepMap.is_empty e
@@ -118,11 +122,14 @@ struct
 
   let add t k v =
     let e = to_entry (k, v) in
-    StepMap.update k
-      (fun e' -> if equal_entry_opt (Some e) e' then e' else Some e)
-      t
+    let v =
+      StepMap.update k
+        (fun e' -> if equal_entry_opt (Some e) e' then e' else Some e)
+        t
+    in
+    Lwt.return v
 
-  let remove t k = StepMap.remove k t
+  let remove t k = Lwt.return (StepMap.remove k t)
   let default = M.default
 
   let value_t =
@@ -171,13 +178,13 @@ struct
   let unsafe_add (_, t) = S.unsafe_add t
 
   let all_contents t =
-    let kvs = S.Val.list t in
+    let+ kvs = S.Val.list t in
     List.fold_left
       (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
       [] kvs
 
   let all_succ t =
-    let kvs = S.Val.list t in
+    let+ kvs = S.Val.list t in
     List.fold_left
       (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
       [] kvs
@@ -208,14 +215,18 @@ struct
     Merge.alist step_t S.Key.t (fun _step -> merge_key)
 
   let merge_value (c, _) merge_key =
-    let explode t = (all_contents t, all_succ t) in
+    let explode t =
+      let* contents = all_contents t in
+      let+ succ = all_succ t in
+      (contents, succ)
+    in
     let implode (contents, succ) =
       let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
       let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      S.Val.v (xs @ ys)
+      Lwt.return (S.Val.v (xs @ ys))
     in
     let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
-    Merge.like S.Val.t merge explode implode
+    Merge.like_lwt S.Val.t merge explode implode
 
   let rec merge t =
     let merge_key =
@@ -252,7 +263,8 @@ module Graph (S : STORE) = struct
 
   let list t n =
     Log.debug (fun f -> f "steps");
-    S.find t n >|= function None -> [] | Some n -> S.Val.list n
+    let* v = S.find t n in
+    match v with None -> Lwt.return [] | Some n -> S.Val.list n
 
   module U = struct
     type t = unit [@@deriving irmin]
@@ -261,9 +273,10 @@ module Graph (S : STORE) = struct
   module Graph = Object_graph.Make (S.Key) (U)
 
   let edges t =
+    let+ ls = S.Val.list t in
     List.rev_map
       (function _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
-      (S.Val.list t)
+      ls
 
   let pp_key = Type.pp S.Key.t
   let pp_keys = Fmt.(Dump.list pp_key)
@@ -271,7 +284,9 @@ module Graph (S : STORE) = struct
   let equal_val = Type.(unstage (equal S.Val.t))
 
   let pred t = function
-    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
+    | `Node k -> (
+        let* v = S.find t k in
+        match v with None -> Lwt.return_nil | Some v -> edges v)
     | _ -> Lwt.return_nil
 
   let closure t ~min ~max =
@@ -314,7 +329,8 @@ module Graph (S : STORE) = struct
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
-    S.find t node >|= function None -> None | Some n -> S.Val.find n step
+    let* v = S.find t node in
+    match v with None -> Lwt.return_none | Some n -> S.Val.find n step
 
   let find t node path =
     Log.debug (fun f -> f "read_node_exn %a %a" pp_key node pp_path path);
@@ -332,7 +348,7 @@ module Graph (S : STORE) = struct
 
   let map_one t node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
-    let old_key = S.Val.find node label in
+    let* old_key = S.Val.find node label in
     let* old_node =
       match old_key with
       | None | Some (`Contents _) -> Lwt.return S.Val.empty
@@ -342,21 +358,22 @@ module Graph (S : STORE) = struct
     let* new_node = f old_node in
     if equal_val old_node new_node then Lwt.return node
     else if S.Val.is_empty new_node then
-      let node = S.Val.remove node label in
+      let* node = S.Val.remove node label in
       if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
     else
-      let+ k = S.add t new_node in
+      let* k = S.add t new_node in
       S.Val.add node label (`Node k)
 
   let map t node path f =
     Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
     let rec aux node path =
       match Path.decons path with
-      | None -> Lwt.return (f node)
+      | None -> f node
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
     let* node =
-      S.find t node >|= function None -> S.Val.empty | Some n -> n
+      let+ v = S.find t node in
+      match v with None -> S.Val.empty | Some n -> n
     in
     aux node path >>= S.add t
 
@@ -413,19 +430,23 @@ module V1 (N : S with type step = string) = struct
   type value = N.value
   type t = { n : N.t; entries : (step * value) list }
 
-  let import n = { n; entries = N.list n }
+  let import n =
+    let+ entries = N.list n in
+    { n; entries }
+
   let export t = t.n
 
   let v entries =
     let n = N.v entries in
     { n; entries }
 
-  let list ?(offset = 0) ?length t =
+  let raw_list ?(offset = 0) ?length t =
     let take_length seq =
       match length with None -> List.of_seq seq | Some n -> take n seq
     in
     List.to_seq t.entries |> drop offset |> take_length
 
+  let list ?offset ?length t = Lwt.return (raw_list ?offset ?length t)
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
   let length e = N.length e.n
@@ -433,12 +454,14 @@ module V1 (N : S with type step = string) = struct
   let find t k = N.find t.n k
 
   let add t k v =
-    let n = N.add t.n k v in
-    if t.n == n then t else { n; entries = N.list n }
+    let* n = N.add t.n k v in
+    let+ entries = N.list n in
+    if t.n == n then t else { n; entries }
 
   let remove t k =
-    let n = N.remove t.n k in
-    if t.n == n then t else { n; entries = N.list n }
+    let* n = N.remove t.n k in
+    let+ entries = N.list n in
+    if t.n == n then t else { n; entries }
 
   let v1_step = Type.string_of `Int64
   let step_to_bin_string = Type.(unstage (to_bin_string v1_step))
@@ -473,5 +496,5 @@ module V1 (N : S with type step = string) = struct
     |> sealr
 
   let t : t Type.t =
-    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v raw_list
 end

@@ -40,7 +40,7 @@ module type S = sig
   val v : (step * value) list -> t
   (** [create l] is a new node. *)
 
-  val list : ?offset:int -> ?length:int -> t -> (step * value) list
+  val list : ?offset:int -> ?length:int -> t -> (step * value) list Lwt.t
   (** [list t] is the contents of [t]. [offset] and [length] are used to
       paginate results.*)
 
@@ -53,17 +53,17 @@ module type S = sig
   val length : t -> int
   (** [length t] is the number of entries in [t]. *)
 
-  val find : t -> step -> value option
+  val find : t -> step -> value option Lwt.t
   (** [find t s] is the value associated with [s] in [t].
 
       A node can point to user-defined {{!Node.S.contents} contents}. The edge
       between the node and the contents is labeled by a {{!Node.S.step} step}. *)
 
-  val add : t -> step -> value -> t
+  val add : t -> step -> value -> t Lwt.t
   (** [add t s v] is the node where [find t v] is [Some s] but is similar to [t]
       otherwise. *)
 
-  val remove : t -> step -> t
+  val remove : t -> step -> t Lwt.t
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
@@ -88,7 +88,7 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
-module type NODE_CONTENT_ADDRESSABLE_STORE = sig
+module type RAW_STORE = sig
   include CONTENT_ADDRESSABLE_STORE
   module Key : Hash.S with type t = key
   module Val : S with type t = value and type hash = key
@@ -103,7 +103,7 @@ module type STORE = sig
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
-  val merge : [> read_write ] t -> key option Merge.t
+  val merge : read_write t -> key option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
 
   (** [Key] provides base functions for node keys. *)
@@ -148,10 +148,10 @@ module type GRAPH = sig
   type value = [ `Node of node | `Contents of contents * metadata ]
   (** The type for store values. *)
 
-  val empty : [> write ] t -> node Lwt.t
+  val empty : read_write t -> node Lwt.t
   (** The empty node. *)
 
-  val v : [> write ] t -> (step * value) list -> node Lwt.t
+  val v : read_write t -> (step * value) list -> node Lwt.t
   (** [v t n] is a new node containing [n]. *)
 
   val list : [> read ] t -> node -> (step * value) list Lwt.t
@@ -160,11 +160,11 @@ module type GRAPH = sig
   val find : [> read ] t -> node -> path -> value option Lwt.t
   (** [find t n p] is the contents of the path [p] starting form [n]. *)
 
-  val add : [> read_write ] t -> node -> path -> value -> node Lwt.t
+  val add : read_write t -> node -> path -> value -> node Lwt.t
   (** [add t n p v] is the node [x] such that [find t x p] is [Some v] and it
       behaves the same [n] for other operations. *)
 
-  val remove : [> read_write ] t -> node -> path -> node Lwt.t
+  val remove : read_write t -> node -> path -> node Lwt.t
   (** [remove t n path] is the node [x] such that [find t x] is [None] and it
       behhaves then same as [n] for other operations. *)
 
@@ -223,7 +223,6 @@ end
 
 module type Node = sig
   module type S = S
-  module type NODE_CONTENT_ADDRESSABLE_STORE = NODE_CONTENT_ADDRESSABLE_STORE
 
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)
@@ -242,12 +241,15 @@ module type Node = sig
          and type step = N.step
          and type metadata = N.metadata
 
-    val import : N.t -> t
+    val import : N.t -> t Lwt.t
     val export : t -> N.t
   end
 
   module type STORE = STORE
   (** [STORE] specifies the signature for node stores. *)
+
+  module type RAW_STORE = RAW_STORE
+  (** [RAW_STORE] specifies the signature for raw node stores. *)
 
   (** [Store] creates node stores. *)
   module Store

@@ -16,11 +16,8 @@ module Inode_mem : Irmin_test.INODE_STORE = struct
 
   module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
   module Inter = Irmin.Private.Inode.Make (Conf) (H) (Node)
-
-  module Unsafe_CA =
-    Irmin.Unsafe_content_addressable (Irmin_mem.Unsafe_append_only)
-
-  module Inode = Irmin.Private.Inode.Make_store (H) (Inter) (Unsafe_CA)
+  module CA = Irmin.Content_addressable (Irmin_mem.Append_only)
+  module Inode = Irmin.Private.Inode.Raw_store (CA) (H) (Inter)
 
   type t = { store : read Inode.t }
 

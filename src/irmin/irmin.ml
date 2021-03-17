@@ -18,7 +18,6 @@ open! Import
 module Type = Repr
 module Diff = Diff
 module Content_addressable = Store.Content_addressable
-module Unsafe_content_addressable = Store.Unsafe_content_addressable
 module Contents = Contents
 module Merge = Merge
 module Branch = Branch
@@ -156,7 +155,7 @@ module Make_ext_with_nodes
     (P : Path.S)
     (B : Branch.S)
     (H : Hash.S)
-    (Node_CA : Node.NODE_CONTENT_ADDRESSABLE_STORE
+    (Node_CA : Node.RAW_STORE
                  with type Val.metadata = M.t
                   and type key = H.t
                   and type Key.t = H.t
@@ -277,7 +276,6 @@ module type VAL = S.VAL
 module Make_ext_with_inodes
     (Conf : S.INODE_CONF)
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (UNSAFE_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
     (C : Contents.S)
@@ -291,7 +289,7 @@ module Make_ext_with_inodes
     (CT : Commit.S with type hash = H.t) =
 struct
   module Inodes = Inode.Make (Conf) (H) (N)
-  module Inode_CA = Inode.Make_store (H) (Inodes) (UNSAFE_CA)
+  module Inode_CA = Inode.Raw_store (CA) (H) (Inodes)
   include Make_ext_with_nodes (CA) (AW) (M) (C) (P) (B) (H) (Inode_CA) (CT)
 end
 
@@ -312,7 +310,6 @@ end
 module Make_with_inodes
     (Conf : S.INODE_CONF)
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (UNSAFE_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
     (M : S.METADATA)
     (C : Contents.S)
@@ -322,21 +319,13 @@ module Make_with_inodes
 struct
   module N = Node.Make (H) (P) (M)
   module CT = Commit.Make (H)
-
-  include
-    Make_ext_with_inodes (Conf) (CA) (UNSAFE_CA) (AW) (M) (C) (P) (B) (H) (N)
-      (CT)
+  include Make_ext_with_inodes (Conf) (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 end
 
 module Of_private = Store.Make
 
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
-
-module type UNSAFE_CONTENT_ADDRESSABLE_STORE =
-  S.UNSAFE_CONTENT_ADDRESSABLE_STORE
-
 module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
-module type UNSAFE_APPEND_ONLY_STORE = S.UNSAFE_APPEND_ONLY_STORE
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
 module type TREE = Tree.S
 module type S = Store.S

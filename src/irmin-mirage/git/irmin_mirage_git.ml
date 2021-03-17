@@ -125,11 +125,10 @@ module KV_RO (G : Git.S) = struct
     type t = { repo : S.repo; tree : S.tree }
 
     let digest t key =
-      S.Tree.find_tree t.tree (path key) >|= function
-      | None -> err_not_found key
+      S.Tree.find_tree t.tree (path key) >>= function
+      | None -> Lwt.return (err_not_found key)
       | Some tree ->
-          let h = S.Tree.hash tree in
-          Ok (Irmin.Type.to_string S.Hash.t h)
+          S.Tree.hash tree >|= fun h -> Ok (Irmin.Type.to_string S.Hash.t h)
 
     let list t key =
       S.Tree.list t.tree (path key) >|= fun l ->

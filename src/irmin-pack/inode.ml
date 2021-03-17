@@ -269,8 +269,16 @@ module Make_intermediate
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   module V = Irmin.Private.Inode.Make (Conf) (H) (Node)
-  module Bin = V.Bin
-  module Val = V.Val
+  include V
+
+  module Bin = struct
+    include V.Bin
+
+    type hash = V.hash
+    type step = V.step
+    type value = V.value
+  end
+
   module Pack_elt = Pack_elt (H) (Node) (Bin)
   module Elt = Pack_elt.Elt
 
@@ -290,7 +298,7 @@ struct
 
   type 'a t = 'a Pack.t
   type key = Key.t
-  type value = Inter.Val.t
+  type value = Inter.t
   type index = Pack.index
 
   let mem t k = Pack.mem t k
@@ -299,34 +307,41 @@ struct
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let find = Pack.unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let find =
+          let f = Pack.unsafe_find ~check_integrity:true t in
+          fun k -> Lwt.return (f k)
+        in
+        let v = Inter.of_bin find v in
         Some v
 
   let save t v =
-    let add k v =
-      Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+    let add =
+      let f = Pack.unsafe_append ~ensure_unique:true ~overcommit:false t in
+      fun k v -> Lwt.return (f k v)
     in
-    Inter.Val.save ~add ~mem:(Pack.unsafe_mem t) v
+    let mem =
+      let f = Pack.unsafe_mem t in
+      fun k -> Lwt.return (f k)
+    in
+    Inter.save ~add ~mem v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Inter.hash v
 
   let add t v =
-    save t v;
-    Lwt.return (hash v)
+    let+ () = save t v in
+    hash v
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.Val.pp_hash
-        expected Inter.Val.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
+        expected Inter.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v;
-    Lwt.return_unit
+    save t v
 
   let batch = Pack.batch
   let v = Pack.v
@@ -339,19 +354,19 @@ struct
   let decode_bin ~dict ~hash buff off =
     Inter.decode_bin ~dict ~hash buff off |> fst
 
-  module Val = Inter.Val
+  module Val = Inter
 
   let integrity_check_inodes t k =
-    find t k >|= function
+    let* v = find t k in
+    match v with
     | None ->
         (* we are traversing the node graph, should find all values *)
         assert false
     | Some v ->
-        if Inter.Val.integrity_check v then Ok ()
+        let+ check = Inter.integrity_check v in
+        if check then Ok ()
         else
-          let msg =
-            Fmt.str "Problematic inode %a" (Irmin.Type.pp Inter.Val.t) v
-          in
+          let msg = Fmt.str "Problematic inode %a" (Irmin.Type.pp Inter.t) v in
           Error msg
 end
 

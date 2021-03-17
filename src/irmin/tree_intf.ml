@@ -307,16 +307,16 @@ module type Tree = sig
     val export :
       ?clear:bool ->
       P.Repo.t ->
-      [> write ] P.Contents.t ->
-      [> read_write ] P.Node.t ->
+      read_write P.Contents.t ->
+      read_write P.Node.t ->
       node ->
       P.Node.key Lwt.t
 
     val dump : t Fmt.t
-    val equal : t -> t -> bool
+    val equal : t -> t -> bool Lwt.t
     val node_t : node Type.t
     val tree_t : t Type.t
-    val hash : t -> kinded_hash
+    val hash : t -> kinded_hash Lwt.t
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end

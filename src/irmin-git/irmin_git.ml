@@ -247,6 +247,8 @@ struct
           |> fun (_, acc) -> List.rev acc
         with Exit acc -> List.rev acc
 
+      let list ?offset ?length t = Lwt.return (list ?offset ?length t)
+
       let find t s =
         let s = of_step s in
         let rec aux = function
@@ -260,7 +262,9 @@ struct
         in
         aux (Git.Tree.to_list t)
 
+      let find t s = Lwt.return (find t s)
       let remove t step = G.Value.Tree.remove ~name:(of_step step) t
+      let remove t step = Lwt.return (remove t step)
       let is_empty = G.Value.Tree.is_empty
       let length t = G.Value.Tree.length t |> Int64.to_int
 
@@ -289,6 +293,7 @@ struct
               in
               Git.Tree.of_list (entry :: entries)
 
+      let add t name value = Lwt.return (add t name value)
       let empty = Git.Tree.of_list []
 
       let to_git perm (name, node) =
@@ -327,7 +332,13 @@ struct
       module N = Irmin.Private.Node.Make (H) (P) (Metadata)
 
       let to_n t = N.v (alist t)
-      let of_n n = v (N.list n)
+
+      let of_n _n =
+        (* FIXME(samoht): BOOM *)
+        (* let+ ls = N.list n in
+           v ls *)
+        assert false
+
       let to_bin t = Raw.to_raw (G.Value.tree t)
 
       let encode_bin =

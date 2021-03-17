@@ -25,10 +25,10 @@ module type INODE_STORE = sig
 
   module Inter :
     Irmin.Private.Inode.S
-      with type Val.hash = H.t
-       and type Val.step = string
-       and type Val.metadata = unit
-       and type Val.value = [ `Node of H.t | `Contents of H.t * unit ]
+      with type hash = H.t
+       and type step = string
+       and type metadata = unit
+       and type value = [ `Node of H.t | `Contents of H.t * unit ]
 
   module Inode :
     S
@@ -36,7 +36,7 @@ module type INODE_STORE = sig
        and type Val.step = string
        and type Val.metadata = unit
        and type Val.value = [ `Node of H.t | `Contents of H.t * unit ]
-       and type value = Inter.Val.t
+       and type value = Inter.t
 
   type t
 
@@ -122,7 +122,7 @@ module Test (Context : INODE_STORE) = struct
             let is_valid =
               indices
               |> List.mapi (fun depth i -> (depth, i))
-              |> List.for_all (fun (depth, i) -> Inter.Val.index ~depth s = i)
+              |> List.for_all (fun (depth, i) -> Inter.index ~depth s = i)
             in
             if is_valid then s else aux (i + 1)
         in
@@ -203,22 +203,22 @@ module Test (Context : INODE_STORE) = struct
   end
 
   let check_node msg v t =
-    let h = Inter.Val.hash v in
+    let h = Inter.hash v in
     let+ h' = Inode.batch (Context.store t) (fun i -> Inode.add i v) in
     check_hash msg h h'
 
   let check_hardcoded_hash msg h v =
     h |> Irmin.Type.of_string Inode.Val.hash_t |> function
     | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-    | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+    | Ok hash -> check_hash msg hash (Inter.hash v)
 
   (** Test add values from an empty node. *)
   let test_add_values () =
     Context.clean ();
     let* t = Context.v () in
     check_node "hash empty node" Inode.Val.empty t >>= fun () ->
-    let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
-    let v2 = Inode.Val.add v1 "y" (normal bar) in
+    let* v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
+    let* v2 = Inode.Val.add v1 "y" (normal bar) in
     check_node "node x+y" v2 t >>= fun () ->
     check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
     let v3 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
@@ -226,8 +226,9 @@ module Test (Context : INODE_STORE) = struct
     Context.close t
 
   let integrity_check ?(stable = true) v =
-    Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
-    if not (Inter.Val.integrity_check v) then
+    Alcotest.(check bool) "check stable" (Inter.stable v) stable;
+    let+ check = Inter.integrity_check v in
+    if not check then
       Alcotest.failf "node does not satisfy stability invariants %a"
         (Irmin.Type.pp Inode.Val.t)
         v
@@ -237,15 +238,15 @@ module Test (Context : INODE_STORE) = struct
     Context.clean ();
     let* t = Context.v () in
     let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
-    let v2 = Inode.Val.add v1 "z" (normal foo) in
+    let* v2 = Inode.Val.add v1 "z" (normal foo) in
     let v3 =
       Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
     in
     check_values "add x+y+z vs v x+z+y" v2 v3;
     check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
-    integrity_check v1;
-    integrity_check v2;
-    let v4 = Inode.Val.add v2 "a" (normal foo) in
+    let* () = integrity_check v1 in
+    let* () = integrity_check v2 in
+    let* v4 = Inode.Val.add v2 "a" (normal foo) in
     let v5 =
       Inode.Val.v
         [
@@ -257,7 +258,7 @@ module Test (Context : INODE_STORE) = struct
     in
     check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
     check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
-    integrity_check v4 ~stable:false;
+    let* () = integrity_check v4 ~stable:false in
     Context.close t
 
   (** Test remove values on an empty node. *)
@@ -265,13 +266,13 @@ module Test (Context : INODE_STORE) = struct
     Context.clean ();
     let* t = Context.v () in
     let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
-    let v2 = Inode.Val.remove v1 "y" in
+    let* v2 = Inode.Val.remove v1 "y" in
     let v3 = Inode.Val.v [ ("x", normal foo) ] in
     check_values "node x obtained two ways" v2 v3;
     check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
-    let v4 = Inode.Val.remove v2 "x" in
+    let* v4 = Inode.Val.remove v2 "x" in
     check_node "remove results in an empty node" Inode.Val.empty t >>= fun () ->
-    let v5 = Inode.Val.remove v4 "x" in
+    let* v5 = Inode.Val.remove v4 "x" in
     check_values "remove on an already empty node" v4 v5;
     check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
     Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
@@ -285,7 +286,7 @@ module Test (Context : INODE_STORE) = struct
       Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
     in
     check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
-    let v2 = Inode.Val.remove v1 "x" in
+    let* v2 = Inode.Val.remove v1 "x" in
     let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
     check_values "node y+z obtained two ways" v2 v3;
     check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
@@ -298,10 +299,10 @@ module Test (Context : INODE_STORE) = struct
           ("y", normal bar);
         ]
     in
-    let v5 = Inode.Val.remove v4 "a" in
+    let* v5 = Inode.Val.remove v4 "a" in
     check_values "node x+y+z obtained two ways" v1 v5;
-    integrity_check v1;
-    integrity_check v5;
+    let* () = integrity_check v1 in
+    let* () = integrity_check v5 in
     Context.close t
 
   (** For each of the 256 possible inode trees with [depth <= 3] and
@@ -333,7 +334,7 @@ module Test (Context : INODE_STORE) = struct
       if P.StepSet.mem s steps then
         let steps' = P.StepSet.remove s steps in
         let tree'_ref = P.tree_of_steps p steps' in
-        let tree'_new = Inode.Val.remove tree s in
+        let+ tree'_new = Inode.Val.remove tree s in
         check_values
           "The representation of the received tree obtained through [remove] \
            differs from the expected one obtained through [v]."
@@ -342,16 +343,15 @@ module Test (Context : INODE_STORE) = struct
         let steps' = P.StepSet.add s steps in
         let c = P.content_of_step p s in
         let tree'_ref = P.tree_of_steps p steps' in
-        let tree'_new = Inode.Val.add tree s c in
+        let+ tree'_new = Inode.Val.add tree s c in
         check_values
           "The representation of the received tree obtained through [remove] \
            differs from the expected one obtained through [v]."
           tree'_ref tree'_new
     in
-    List.iter
-      (fun (ss, t) -> List.iter (fun s -> f ss t s) (P.steps p))
-      (P.trees p);
-    Lwt.return_unit
+    Lwt_list.iter_s
+      (fun (ss, t) -> Lwt_list.iter_s (fun s -> f ss t s) (P.steps p))
+      (P.trees p)
 
   let test_truncated_inodes () =
     let to_truncated inode =
@@ -400,7 +400,7 @@ module Test (Context : INODE_STORE) = struct
     (iter_steps @@ fun step -> Inode.Val.remove v1 step);
     (* v2 is just a Truncated inode of tag Tree. The pointers are built after
        the call to [to_truncated], they are [Intact]. *)
-    let v2 = Inode.Val.add v1 s01 (normal foo) in
+    let* v2 = Inode.Val.add v1 s01 (normal foo) in
     Inode.Val.list v2 |> ignore;
     (iter_steps @@ fun step -> Inode.Val.find v1 step);
     (iter_steps @@ fun step -> Inode.Val.add v1 step (normal bar));
@@ -448,7 +448,8 @@ module Test (Context : INODE_STORE) = struct
       | None -> Alcotest.fail "Could not fetch inode from backend"
       | Some v -> v
     in
-    if Inode.Val.list v |> List.length <> 3 then
+    let* ls = Inode.Val.list v in
+    if ls |> List.length <> 3 then
       Alcotest.fail "Failed to list entries of loaded inode";
     let _ = Inode.Val.remove v s000 in
     let _ = Inode.Val.add v s000 (normal foo) in
@@ -460,7 +461,8 @@ module Test (Context : INODE_STORE) = struct
       | None -> Alcotest.fail "Could not fetch inode from backend"
       | Some v -> v
     in
-    if Inode.Val.list v |> List.length <> 3 then
+    let* ls = Inode.Val.list v in
+    if ls |> List.length <> 3 then
       Alcotest.fail "Failed to list entries of loaded inode";
     let with_exn f =
       Alcotest.check_raises
@@ -480,29 +482,29 @@ module Test (Context : INODE_STORE) = struct
   let test_concrete_inodes () =
     Context.clean ();
     let* t = Context.v () in
-    let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
-    let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
+    let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Concrete.t in
+    let result_t = Irmin.Type.result Inode.Val.t Inter.Concrete.error_t in
     let testable =
       Alcotest.testable
         (Irmin.Type.pp_json ~minify:false result_t)
         Irmin.Type.(unstage (equal result_t))
     in
     let check v =
-      let len = Inter.Val.length v in
-      integrity_check ~stable:(len <= Conf.stable_hash) v;
-      let c = Inter.Val.to_concrete v in
-      let r = Inter.Val.of_concrete c in
+      let len = Inter.length v in
+      let* () = integrity_check ~stable:(len <= Conf.stable_hash) v in
+      let* c = Inter.to_concrete v in
+      let+ r = Inter.of_concrete c in
       let msg = Fmt.str "%a" pp_concrete c in
       Alcotest.check testable msg (Ok v) r
     in
     let v = Inode.Val.v [ ("a", normal foo) ] in
-    check v;
+    let* () = check v in
     let v = Inode.Val.v [ ("a", normal foo); ("y", node bar) ] in
-    check v;
+    let* () = check v in
     let v =
       Inode.Val.v [ ("x", node foo); ("a", normal foo); ("y", node bar) ]
     in
-    check v;
+    let* () = check v in
     let v =
       Inode.Val.v
         [
@@ -512,7 +514,7 @@ module Test (Context : INODE_STORE) = struct
           ("y", node bar);
         ]
     in
-    check v;
+    let* () = check v in
     Context.close t
 
   let tests =

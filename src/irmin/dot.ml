@@ -169,19 +169,24 @@ module Make (S : Store.S) = struct
         add_vertex (`Commit k)
           [ `Shape `Box; `Style `Bold; label_of_commit k r ])
       !commits;
-    List.iter
-      (fun (k, t) ->
-        List.iter
-          (fun (l, v) ->
-            match v with
-            | `Contents (v, _meta) ->
-                add_edge (`Node k)
-                  [ `Style `Dotted; label_of_step l ]
-                  (`Contents v)
-            | `Node n ->
-                add_edge (`Node k) [ `Style `Solid; label_of_step l ] (`Node n))
-          (Node.Val.list t))
-      !nodes;
+    let* () =
+      Lwt_list.iter_s
+        (fun (k, t) ->
+          let+ ls = Node.Val.list t in
+          List.iter
+            (fun (l, v) ->
+              match v with
+              | `Contents (v, _meta) ->
+                  add_edge (`Node k)
+                    [ `Style `Dotted; label_of_step l ]
+                    (`Contents v)
+              | `Node n ->
+                  add_edge (`Node k)
+                    [ `Style `Solid; label_of_step l ]
+                    (`Node n))
+            ls)
+        !nodes
+    in
     List.iter
       (fun (k, r) ->
         List.iter

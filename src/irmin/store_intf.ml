@@ -356,7 +356,7 @@ module type S = sig
 
     (** {1 Import/Export} *)
 
-    val hash : tree -> hash
+    val hash : tree -> hash Lwt.t
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
@@ -884,14 +884,14 @@ module type S = sig
   (** [of_private_commit r c] is the commit associated with the private commit
       object [c]. *)
 
-  val save_contents : [> write ] Private.Contents.t -> contents -> hash Lwt.t
+  val save_contents : read_write Private.Contents.t -> contents -> hash Lwt.t
   (** Save a content into the database *)
 
   val save_tree :
     ?clear:bool ->
     repo ->
-    [> write ] Private.Contents.t ->
-    [> read_write ] Private.Node.t ->
+    read_write Private.Contents.t ->
+    read_write Private.Node.t ->
     tree ->
     hash Lwt.t
   (** Save a tree into the database. Does not do any reads. If [clear] is set
@@ -966,21 +966,6 @@ module type Store = sig
       (V : Type.S) : sig
     include
       Sigs.CONTENT_ADDRESSABLE_STORE
-        with type 'a t = 'a X(K)(V).t
-         and type key = K.t
-         and type value = V.t
-
-    include BATCH with type 'a t := 'a t
-    include OF_CONFIG with type 'a t := 'a t
-    include CLOSEABLE with type 'a t := 'a t
-  end
-
-  module Unsafe_content_addressable
-      (X : Sigs.UNSAFE_APPEND_ONLY_STORE_MAKER)
-      (K : Hash.S)
-      (V : Sigs.VAL with type hash = K.t) : sig
-    include
-      Sigs.UNSAFE_CONTENT_ADDRESSABLE_STORE
         with type 'a t = 'a X(K)(V).t
          and type key = K.t
          and type value = V.t

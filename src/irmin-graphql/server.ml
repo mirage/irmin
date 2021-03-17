@@ -301,8 +301,8 @@ struct
                   in
                   let+ concrete_tree = Store.Tree.to_concrete tree in
                   Ok (tree_list concrete_tree key));
-              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
+              io_field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree >|= Result.ok);
               io_field "list"
                 ~typ:(non_null (list (non_null node)))
                 ~args:[]

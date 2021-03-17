@@ -36,7 +36,7 @@ struct
 
   module Inter = Inode.Make_intermediate (Conf) (H) (Node)
   module P = Pack_maker.Make (Inter.Elt)
-  module Val = Inter.Val
+  module Val = Inter
   module Key = H
 
   type 'a t = 'a P.t
@@ -50,18 +50,21 @@ struct
     P.find t k >|= function
     | None -> None
     | Some v ->
-        let find = unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let find =
+          let f = unsafe_find ~check_integrity:true t in
+          fun k -> Lwt.return (f k)
+        in
+        let v = Inter.of_bin find v in
         Some v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Inter.hash v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.Val.pp_hash
-        expected Inter.Val.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
+        expected Inter.pp_hash got
 
   let batch = P.batch
   let v = P.v
@@ -72,17 +75,23 @@ struct
   let clear_caches = P.clear_caches
 
   let save t v =
-    let add k v = P.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
-    Inter.Val.save ~add ~mem:(P.unsafe_mem t) v
+    let add =
+      let f = P.unsafe_append ~ensure_unique:true ~overcommit:false t in
+      fun k v -> Lwt.return (f k v)
+    in
+    let mem =
+      let f = P.unsafe_mem t in
+      fun k -> Lwt.return (f k)
+    in
+    Inter.save ~add ~mem v
 
   let add t v =
-    save t v;
-    Lwt.return (hash v)
+    let+ () = save t v in
+    hash v
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v;
-    Lwt.return ()
+    save t v
 
   let clear_caches_next_upper = P.clear_caches_next_upper
 

@@ -121,8 +121,8 @@ let test_sort_order (module S : S) =
   in
   let ls branch =
     let* tree_id = head_tree_id branch in
-    let+ tree = S.Private.Node.find node_t tree_id in
-    S.Private.Node.Val.list (get tree) |> List.map fst
+    let* tree = S.Private.Node.find node_t tree_id in
+    S.Private.Node.Val.list (get tree) >|= List.map fst
   in
   let info = Irmin.Info.none in
   let* master = S.master repo in
@@ -213,7 +213,7 @@ let test_blobs (module S : S) =
   Alcotest.(check bin_string) "blob ''" "blob 11\000{\"X\":[1,2]}" str;
   let t = X.Tree.empty in
   let* t = X.Tree.add t [ "foo" ] (X (1, 2)) in
-  let k1 = X.Tree.hash t in
+  let* k1 = X.Tree.hash t in
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
     X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)

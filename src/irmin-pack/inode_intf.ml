@@ -48,9 +48,7 @@ end
 (** Unstable internal API agnostic about the underlying storage. Use it only to
     implement or test inodes. *)
 module type INTER = sig
-  type hash
-
-  include Irmin.Private.Inode.S with type Val.hash = hash
+  include Irmin.Private.Inode.S
   module Elt : Pack.ELT with type hash := hash and type t = Bin.t
 
   val decode_bin :
@@ -71,8 +69,8 @@ module type Inode = sig
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     INTER
       with type hash = H.t
-       and type Val.metadata = Node.metadata
-       and type Val.step = Node.step
+       and type metadata = Node.metadata
+       and type step = Node.step
 
   module Make_ext
       (H : Irmin.Hash.S)
@@ -81,10 +79,10 @@ module type Inode = sig
     include
       S
         with type key = H.t
-         and type Val.metadata = Inter.Val.metadata
-         and type Val.step = Inter.Val.step
+         and type Val.metadata = Inter.metadata
+         and type Val.step = Inter.step
          and type index = Pack_index.Make(H).t
-         and type value = Inter.Val.t
+         and type value = Inter.t
   end
 
   module Make

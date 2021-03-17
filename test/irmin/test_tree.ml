@@ -461,12 +461,13 @@ let test_fold_force _ () =
 let test_shallow _ () =
   let* () =
     let compute_hash ~subtree =
-      Tree.(add_tree empty) [ "key" ] subtree >|= Tree.hash
+      Tree.(add_tree empty) [ "key" ] subtree >>= Tree.hash
     in
     let leaf = Tree.of_concrete (c "0") in
     let* shallow_leaf =
-      let+ repo = Store.Repo.v (Irmin_mem.config ()) in
-      Tree.shallow repo (`Contents (Tree.hash leaf, Metadata.default))
+      let* repo = Store.Repo.v (Irmin_mem.config ()) in
+      let+ hash = Tree.hash leaf in
+      Tree.shallow repo (`Contents (hash, Metadata.default))
     in
     let* hash = compute_hash ~subtree:leaf in
     let+ hash_shallow = compute_hash ~subtree:shallow_leaf in

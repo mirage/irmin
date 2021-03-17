@@ -124,51 +124,55 @@ module Make (S : S) = struct
       in
       let v = P.Node.Val.empty in
       check_node "empty node" v >>= fun () ->
-      let v1 = P.Node.Val.add v "x" k in
+      let* v1 = P.Node.Val.add v "x" k in
       check_node "node: x" v1 >>= fun () ->
-      let v2 = P.Node.Val.add v "x" k in
+      let* v2 = P.Node.Val.add v "x" k in
       check_node "node: x (bis)" v2 >>= fun () ->
       check P.Node.Val.t "add x" v1 v2;
-      let v0 = P.Node.Val.remove v1 "x" in
+      let* v0 = P.Node.Val.remove v1 "x" in
       check P.Node.Val.t "remove x" v v0;
-      let v3 = P.Node.Val.add v1 "x" k in
+      let* v3 = P.Node.Val.add v1 "x" k in
       Alcotest.(check bool) "same same" true (v1 == v3);
-      let u = P.Node.Val.add v3 "y" k in
+      let* u = P.Node.Val.add v3 "y" k in
       check_node "node: x+y" v3 >>= fun () ->
-      let u = P.Node.Val.add u "z" k in
+      let* u = P.Node.Val.add u "z" k in
       check_node "node: x+y+z" u >>= fun () ->
       let check_values u =
-        check_val "find x" (Some k) (P.Node.Val.find u "x");
-        check_val "find y" (Some k) (P.Node.Val.find u "y");
-        check_val "find z" (Some k) (P.Node.Val.find u "x");
-        check_val "find xx" None (P.Node.Val.find u "xx")
+        let* vx = P.Node.Val.find u "x" in
+        check_val "find x" (Some k) vx;
+        let* vy = P.Node.Val.find u "y" in
+        check_val "find y" (Some k) vy;
+        let* vz = P.Node.Val.find u "x" in
+        check_val "find z" (Some k) vz;
+        let+ vxx = P.Node.Val.find u "xx" in
+        check_val "find xx" None vxx
       in
-      check_values u;
+      let* () = check_values u in
       let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
-      let l = P.Node.Val.list u in
+      let* l = P.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
-      let l = P.Node.Val.list ~length:1 u in
+      let* l = P.Node.Val.list ~length:1 u in
       check_list "list length=1" [ ("x", k) ] l;
-      let l = P.Node.Val.list ~offset:1 u in
+      let* l = P.Node.Val.list ~offset:1 u in
       check_list "list offset=1" [ ("y", k); ("z", k) ] l;
-      let l = P.Node.Val.list ~offset:1 ~length:1 u in
+      let* l = P.Node.Val.list ~offset:1 ~length:1 u in
       check_list "list offset=1 length=1" [ ("y", k) ] l;
-      let u = P.Node.Val.add u "a" k in
+      let* u = P.Node.Val.add u "a" k in
       check_node "node: x+y+z+a" u >>= fun () ->
-      let u = P.Node.Val.add u "b" k in
+      let* u = P.Node.Val.add u "b" k in
       check_node "node: x+y+z+a+b" u >>= fun () ->
       let h = H_node.hash u in
       let* k = with_node repo (fun n -> P.Node.add n u) in
       check_key "hash(v) = add(v)" h k;
       let* w = P.Node.find n k in
-      check_values (get w);
+      let* () = check_values (get w) in
       let* kv1 = kv1 ~repo in
       let* k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       check_key "k1.1" k1 k1';
       let* t1 = P.Node.find n k1 in
-      let k' = P.Node.Val.find (get t1) "x" in
+      let* k' = P.Node.Val.find (get t1) "x" in
       check
         (Irmin.Type.option P.Node.Val.value_t)
         "find x"
@@ -472,8 +476,9 @@ module Make (S : S) = struct
       in
       let check_hash msg bindings =
         let* node = node bindings in
-        let+ tree = tree bindings in
-        check S.Hash.t msg node (S.Tree.hash tree)
+        let* tree = tree bindings in
+        let+ hash = S.Tree.hash tree in
+        check S.Hash.t msg node hash
       in
       check_hash "empty" [] >>= fun () ->
       let bindings1 = [ ([ "a" ], "x"); ([ "b" ], "y") ] in
@@ -1432,8 +1437,8 @@ module Make (S : S) = struct
       S.Tree.remove c [ "foo"; "499999" ] >>= fun c1 ->
       S.Tree.add c0 [] "499999" >>= fun c2 ->
       S.Tree.add_tree c1 [ "foo"; "499999" ] c2 >>= fun c' ->
-      let h' = S.Tree.hash c' in
-      let h = S.Tree.hash c in
+      let* h' = S.Tree.hash c' in
+      let* h = S.Tree.hash c in
       check S.Hash.t "same tree" h h';
       S.Tree.get_tree c [ "foo" ] >>= fun c1 ->
       (match S.Tree.destruct c1 with
@@ -1441,27 +1446,29 @@ module Make (S : S) = struct
       | `Node node -> (
           S.to_private_node node >>= function
           | Ok v -> (
-              let ls = P.Node.Val.list v in
+              let* ls = P.Node.Val.list v in
               Alcotest.(check int) "list wide node" size (List.length ls);
               let k = normal (P.Contents.Key.hash "bar") in
-              let v1 = P.Node.Val.add v "x" k in
+              let* v1 = P.Node.Val.add v "x" k in
               let h' = H_node.hash v1 in
               with_node repo (fun n -> P.Node.add n v1) >>= fun h ->
               check H_node.t "wide node + x: hash(v) = add(v)" h h';
-              let v2 = P.Node.Val.add v "x" k in
+              let* v2 = P.Node.Val.add v "x" k in
               check P.Node.Val.t "add x" v1 v2;
-              let v0 = P.Node.Val.remove v1 "x" in
+              let* v0 = P.Node.Val.remove v1 "x" in
               check P.Node.Val.t "remove x" v v0;
-              let v3 = P.Node.Val.remove v "1" in
+              let* v3 = P.Node.Val.remove v "1" in
               let h' = H_node.hash v3 in
-              with_node repo (fun n -> P.Node.add n v3) >|= fun h ->
+              with_node repo (fun n -> P.Node.add n v3) >>= fun h ->
               check H_node.t "wide node - 1 : hash(v) = add(v)" h h';
-              (match P.Node.Val.find v "499999" with
+              let* x = P.Node.Val.find v "499999" in
+              (match x with
               | None -> Alcotest.fail "value 499999 not found"
               | Some x ->
                   let x' = normal (P.Contents.Key.hash "499999") in
                   check P.Node.Val.value_t "find 499999" x x');
-              match P.Node.Val.find v "500000" with
+              let+ x = P.Node.Val.find v "500000" in
+              match x with
               | None -> ()
               | Some _ -> Alcotest.fail "value 500000 should not be found")
           | Error (`Dangling_hash _) ->
@@ -1911,9 +1918,10 @@ module Make (S : S) = struct
       S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->
       S.set_tree_exn t [ "2" ] tree_2 ~info >>= fun () ->
       let* h = S.Head.get t in
+      let* node = S.Tree.hash tree_3 in
       let commit =
         S.of_private_commit repo
-        @@ S.Private.Commit.Val.v ~info:(info ()) ~node:(S.Tree.hash tree_3)
+        @@ S.Private.Commit.Val.v ~info:(info ()) ~node
              ~parents:[ S.Commit.hash h; foo_k ]
       in
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->

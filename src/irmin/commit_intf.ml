@@ -52,7 +52,7 @@ module type STORE = sig
 
   include CONTENT_ADDRESSABLE_STORE
 
-  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
+  val merge : read_write t -> info:Info.f -> key option Merge.t
   (** [merge] is the 3-way merge function for commit keys. *)
 
   (** [Key] provides base functions for commit keys. *)
@@ -81,7 +81,7 @@ module type HISTORY = sig
   (** The type for commit objects. *)
 
   val v :
-    [> write ] t ->
+    read_write t ->
     node:node ->
     parents:commit list ->
     info:Info.t ->
@@ -95,7 +95,7 @@ module type HISTORY = sig
       data-structure: every commit carries the list of its immediate
       predecessors. *)
 
-  val merge : [> read_write ] t -> info:Info.f -> commit Merge.t
+  val merge : read_write t -> info:Info.f -> commit Merge.t
   (** [merge t] is the 3-way merge function for commit. *)
 
   val lcas :
@@ -110,7 +110,7 @@ module type HISTORY = sig
       commits. *)
 
   val lca :
-    [> read_write ] t ->
+    read_write t ->
     info:Info.f ->
     ?max_depth:int ->
     ?n:int ->
@@ -124,7 +124,7 @@ module type HISTORY = sig
       the function returns the same error. *)
 
   val three_way_merge :
-    [> read_write ] t ->
+    read_write t ->
     info:Info.f ->
     ?max_depth:int ->
     ?n:int ->

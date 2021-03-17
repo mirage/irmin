@@ -64,9 +64,6 @@ struct
   module Bin = struct
     open T
 
-    type hash = T.hash
-    type step = T.step
-    type value = T.value
     type ptr = { index : int; hash : H.t }
     type tree = { depth : int; length : int; entries : ptr list }
     type v = Values of (step * value) list | Tree of tree
@@ -193,7 +190,7 @@ struct
 
     type _ layout =
       | Total : total_ptr layout
-      | Partial : (hash -> partial_ptr t option) -> partial_ptr layout
+      | Partial : (hash -> partial_ptr t option Lwt.t) -> partial_ptr layout
       | Truncated : truncated_ptr layout
 
     and partial_ptr = {
@@ -223,23 +220,24 @@ struct
         | Truncated -> (
             function Broken h -> h | Intact ptr -> Lazy.force ptr.hash)
 
-      let target : type ptr. ptr layout -> ptr -> ptr t =
+      let target : type ptr. ptr layout -> ptr -> ptr t Lwt.t =
        fun layout ->
         match layout with
-        | Total -> fun (Total_ptr t) -> t
+        | Total -> fun (Total_ptr t) -> Lwt.return t
         | Partial find -> (
             function
-            | { target = Some entry; _ } -> entry
+            | { target = Some entry; _ } -> Lwt.return entry
             | t -> (
                 let h = hash layout t in
-                match find h with
+                let+ v = find h in
+                match v with
                 | None -> Fmt.failwith "%a: unknown key" pp_hash h
                 | Some x ->
                     t.target <- Some x;
                     x))
         | Truncated -> (
             function
-            | Intact entry -> entry
+            | Intact entry -> Lwt.return entry
             | _ ->
                 failwith
                   "Impossible to load the subtree on an inode deserialized \
@@ -258,12 +256,17 @@ struct
 
       let iter_if_loaded :
           type ptr.
-          broken:(hash -> unit) -> ptr layout -> (ptr t -> unit) -> ptr -> unit
-          =
+          broken:(hash -> unit Lwt.t) ->
+          ptr layout ->
+          (ptr t -> unit Lwt.t) ->
+          ptr ->
+          unit Lwt.t =
        fun ~broken -> function
         | Total -> fun f (Total_ptr entry) -> f entry
         | Partial _ -> (
-            fun f -> function { target = Some entry; _ } -> f entry | _ -> ())
+            fun f -> function
+              | { target = Some entry; _ } -> f entry
+              | _ -> Lwt.return_unit)
         | Truncated -> (
             fun f -> function Broken h -> broken h | Intact entry -> f entry)
     end
@@ -304,23 +307,30 @@ struct
     let empty_acc n = { cursor = 0; values = []; remaining = n }
 
     let rec list_entry layout ~offset ~length acc = function
-      | None -> acc
-      | Some i -> list_values layout ~offset ~length acc (Ptr.target layout i).v
+      | None -> Lwt.return acc
+      | Some i ->
+          let* target = Ptr.target layout i in
+          list_values layout ~offset ~length acc target.v
 
     and list_tree layout ~offset ~length acc t =
-      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+      if acc.remaining <= 0 || offset + length <= acc.cursor then Lwt.return acc
       else if acc.cursor + t.length < offset then
-        { acc with cursor = t.length + acc.cursor }
-      else Array.fold_left (list_entry layout ~offset ~length) acc t.entries
+        Lwt.return { acc with cursor = t.length + acc.cursor }
+      else
+        Array.fold_left
+          (fun acc e ->
+            let* acc = acc in
+            list_entry layout ~offset ~length acc e)
+          (Lwt.return acc) t.entries
 
     and list_values layout ~offset ~length acc v =
-      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+      if acc.remaining <= 0 || offset + length <= acc.cursor then Lwt.return acc
       else
         match v with
         | Values vs ->
             let len = StepMap.cardinal vs in
             if acc.cursor + len < offset then
-              { acc with cursor = len + acc.cursor }
+              Lwt.return { acc with cursor = len + acc.cursor }
             else
               let to_drop =
                 if acc.cursor > offset then 0 else offset - acc.cursor
@@ -329,11 +339,12 @@ struct
                 StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
               in
               let n = List.length vs in
-              {
-                values = vs :: acc.values;
-                cursor = acc.cursor + len;
-                remaining = acc.remaining - n;
-              }
+              Lwt.return
+                {
+                  values = vs :: acc.values;
+                  cursor = acc.cursor + len;
+                  remaining = acc.remaining - n;
+                }
         | Tree t -> list_tree layout ~offset ~length acc t
 
     let list_v layout ?(offset = 0) ?length v =
@@ -345,7 +356,7 @@ struct
             | Values vs -> StepMap.cardinal vs - offset
             | Tree i -> i.length - offset)
       in
-      let entries = list_values layout ~offset ~length (empty_acc length) v in
+      let+ entries = list_values layout ~offset ~length (empty_acc length) v in
       List.concat (List.rev entries.values)
 
     let list layout ?offset ?length t = list_v layout ?offset ?length t.v
@@ -441,29 +452,36 @@ struct
       let rec aux t =
         match t.v with
         | Tree tr ->
+            let+ _, pointers =
+              Array.fold_left
+                (fun acc e ->
+                  match e with
+                  | None ->
+                      let+ i, acc = acc in
+                      (i + 1, acc)
+                  | Some t ->
+                      let* i, acc = acc in
+                      let* target = Ptr.target la t in
+                      let+ pointer, tree = aux target in
+                      (i + 1, { Concrete.index = i; tree; pointer } :: acc))
+                (Lwt.return (0, []))
+                tr.entries
+            in
             ( Lazy.force t.hash,
               Concrete.Tree
                 {
                   depth = tr.depth;
                   length = tr.length;
-                  pointers =
-                    Array.fold_left
-                      (fun (i, acc) e ->
-                        match e with
-                        | None -> (i + 1, acc)
-                        | Some t ->
-                            let pointer, tree = aux (Ptr.target la t) in
-                            (i + 1, { Concrete.index = i; tree; pointer } :: acc))
-                      (0, []) tr.entries
-                    |> snd
-                    |> List.rev;
+                  pointers = List.rev pointers;
                 } )
         | Values l ->
-            ( Lazy.force t.hash,
-              Concrete.Value (List.map Concrete.to_entry (StepMap.bindings l))
-            )
+            Lwt.return
+              ( Lazy.force t.hash,
+                Concrete.Value (List.map Concrete.to_entry (StepMap.bindings l))
+              )
       in
-      snd (aux t)
+      let+ _, tree = aux t in
+      tree
 
     exception Invalid_hash of hash * hash * Concrete.t
     exception Invalid_depth of int * int * Concrete.t
@@ -521,10 +539,11 @@ struct
       in
       let v = aux 0 t in
       let length = length_of_v v in
-      let stable, hash =
-        if length > Conf.stable_hash then (false, hash v)
+      let+ stable, hash =
+        if length > Conf.stable_hash then Lwt.return (false, hash v)
         else
-          let node = Node.v (list_v Total v) in
+          let+ ls = list_v Total v in
+          let node = Node.v ls in
           (true, Node.hash node)
       in
       { hash = lazy hash; stable; v }
@@ -567,21 +586,177 @@ struct
       if not @@ is_root t then
         failwith "Cannot perform operation on non-root inode value."
 
-    let stabilize layout t =
-      if t.stable then t
+    let empty : 'a. 'a layout -> 'a t =
+     fun _ ->
+      let hash = lazy (Node.hash Node.empty) in
+      { stable = true; hash; v = Values StepMap.empty }
+
+    let values layout vs =
+      let length = StepMap.cardinal vs in
+      if length = 0 then empty layout
       else
-        let n = length t in
-        if n > Conf.stable_hash then t
-        else
-          let hash =
-            lazy
-              (let vs = list layout t in
-               Node.hash (Node.v vs))
-          in
-          { hash; stable = true; v = t.v }
+        let v = Values vs in
+        let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
+        { hash; stable = false; v }
+
+    let tree layout is =
+      let v = Tree is in
+      let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
+      { hash; stable = false; v }
 
     let hash_key = Type.(unstage (short_hash step_t))
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
+
+    module Total : sig
+      type nonrec t = total_ptr t
+
+      val list : ?offset:int -> ?length:int -> t -> (step * value) list
+      val add : t -> step -> value -> t
+      val stabilize : t -> t
+    end = struct
+      type nonrec t = total_ptr t
+
+      let find_value ~depth t s =
+        let rec aux ~depth = function
+          | Values vs -> (
+              try Some (StepMap.find s vs) with Not_found -> None)
+          | Tree t -> (
+              let i = index ~depth s in
+              let x = t.entries.(i) in
+              match x with
+              | None -> None
+              | Some (Total_ptr t) -> aux ~depth:(depth + 1) t.v)
+        in
+        aux ~depth t.v
+
+      let empty_acc n = { cursor = 0; values = []; remaining = n }
+
+      let rec list_entry ~offset ~length acc = function
+        | None -> acc
+        | Some (Total_ptr t) -> list_values ~offset ~length acc t.v
+
+      and list_tree ~offset ~length acc t =
+        if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+        else if acc.cursor + t.length < offset then
+          { acc with cursor = t.length + acc.cursor }
+        else
+          Array.fold_left
+            (fun acc e -> list_entry ~offset ~length acc e)
+            acc t.entries
+
+      and list_values ~offset ~length acc v =
+        if acc.remaining <= 0 || offset + length <= acc.cursor then acc
+        else
+          match v with
+          | Values vs ->
+              let len = StepMap.cardinal vs in
+              if acc.cursor + len < offset then
+                { acc with cursor = len + acc.cursor }
+              else
+                let to_drop =
+                  if acc.cursor > offset then 0 else offset - acc.cursor
+                in
+                let vs =
+                  StepMap.to_seq vs
+                  |> Seq.drop to_drop
+                  |> Seq.take acc.remaining
+                in
+                let n = List.length vs in
+                {
+                  values = vs :: acc.values;
+                  cursor = acc.cursor + len;
+                  remaining = acc.remaining - n;
+                }
+          | Tree t -> list_tree ~offset ~length acc t
+
+      let list_v ?(offset = 0) ?length v =
+        let length =
+          match length with
+          | Some n -> n
+          | None -> (
+              match v with
+              | Values vs -> StepMap.cardinal vs - offset
+              | Tree i -> i.length - offset)
+        in
+        let entries = list_values ~offset ~length (empty_acc length) v in
+        List.concat (List.rev entries.values)
+
+      let list ?offset ?length t = list_v ?offset ?length t.v
+
+      let stabilize t =
+        if t.stable then t
+        else
+          let n = length t in
+          if n > Conf.stable_hash then t
+          else
+            let vs = list t in
+            let hash = lazy (Node.hash (Node.v vs)) in
+            { hash; stable = true; v = t.v }
+
+      let rec add ~depth ~copy ~replace (t : t) s v k =
+        match t.v with
+        | Values vs ->
+            let length =
+              if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
+            in
+            let t =
+              if length <= Conf.entries then values Total (StepMap.add s v vs)
+              else
+                let vs = StepMap.bindings (StepMap.add s v vs) in
+                let empty =
+                  tree Total
+                    {
+                      length = 0;
+                      depth;
+                      entries = Array.make Conf.entries None;
+                    }
+                in
+                let aux t (s, v) =
+                  add ~depth ~copy:false ~replace t s v Fun.id
+                in
+                List.fold_left aux empty vs
+            in
+            k t
+        | Tree t -> (
+            let length = if replace then t.length else t.length + 1 in
+            let entries = if copy then Array.copy t.entries else t.entries in
+            let i = index ~depth s in
+            match entries.(i) with
+            | None ->
+                let target = values Total (StepMap.singleton s v) in
+                entries.(i) <- Some (Ptr.of_target Total target);
+                let t = tree Total { depth; length; entries } in
+                k t
+            | Some n ->
+                let (Total_ptr t) = n in
+                add ~depth:(depth + 1) ~copy ~replace t s v @@ fun target ->
+                entries.(i) <- Some (Ptr.of_target Total target);
+                let t = tree Total { depth; length; entries } in
+                k t)
+
+      let add t s v =
+        (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+        let v' = find_value ~depth:0 t s in
+        match v' with
+        | Some v' when equal_value v v' -> stabilize t
+        | Some _ ->
+            let v' = add ~depth:0 ~copy:false ~replace:true t s v Fun.id in
+            stabilize v'
+        | None ->
+            let v' = add ~depth:0 ~copy:false ~replace:false t s v Fun.id in
+            stabilize v'
+    end
+
+    let stabilize layout t =
+      if t.stable then Lwt.return t
+      else
+        let n = length t in
+        if n > Conf.stable_hash then Lwt.return t
+        else
+          (* FIXME(samoht): this reads the full tree *)
+          let+ vs = list layout t in
+          let hash = lazy (Node.hash (Node.v vs)) in
+          { hash; stable = true; v = t.v }
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
@@ -603,24 +778,6 @@ struct
       in
       { hash = t.Bin.hash; stable = t.Bin.stable; v }
 
-    let empty : 'a. 'a layout -> 'a t =
-     fun _ ->
-      let hash = lazy (Node.hash Node.empty) in
-      { stable = true; hash; v = Values StepMap.empty }
-
-    let values layout vs =
-      let length = StepMap.cardinal vs in
-      if length = 0 then empty layout
-      else
-        let v = Values vs in
-        let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-        { hash; stable = false; v }
-
-    let tree layout is =
-      let v = Tree is in
-      let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-      { hash; stable = false; v }
-
     let of_values layout l = values layout (StepMap.of_list l)
 
     let is_empty t =
@@ -629,13 +786,16 @@ struct
     let find_value layout ~depth t s =
       let target_of_ptr = Ptr.target layout in
       let rec aux ~depth = function
-        | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
+        | Values vs ->
+            Lwt.return (try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
             let i = index ~depth s in
             let x = t.entries.(i) in
             match x with
-            | None -> None
-            | Some i -> aux ~depth:(depth + 1) (target_of_ptr i).v)
+            | None -> Lwt.return_none
+            | Some i ->
+                let* target = target_of_ptr i in
+                aux ~depth:(depth + 1) target.v)
       in
       aux ~depth t.v
 
@@ -647,8 +807,9 @@ struct
           let length =
             if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
           in
-          let t =
-            if length <= Conf.entries then values layout (StepMap.add s v vs)
+          let* t =
+            if length <= Conf.entries then
+              Lwt.return (values layout (StepMap.add s v vs))
             else
               let vs = StepMap.bindings (StepMap.add s v vs) in
               let empty =
@@ -656,10 +817,10 @@ struct
                   { length = 0; depth; entries = Array.make Conf.entries None }
               in
               let aux t (s, v) =
-                (add [@tailcall]) layout ~depth ~copy:false ~replace t s v
-                  (fun x -> x)
+                let* t = t in
+                add layout ~depth ~copy:false ~replace t s v Lwt.return
               in
-              List.fold_left aux empty vs
+              List.fold_left aux (Lwt.return empty) vs
           in
           k t
       | Tree t -> (
@@ -673,7 +834,7 @@ struct
               let t = tree layout { depth; length; entries } in
               k t
           | Some n ->
-              let t = Ptr.target layout n in
+              let* t = Ptr.target layout n in
               add layout ~depth:(depth + 1) ~copy ~replace t s v
               @@ fun target ->
               entries.(i) <- Some (Ptr.of_target layout target);
@@ -682,14 +843,15 @@ struct
 
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      match find_value ~depth:0 layout t s with
+      let* v' = find_value ~depth:0 layout t s in
+      match v' with
       | Some v' when equal_value v v' -> stabilize layout t
       | Some _ ->
-          add ~depth:0 layout ~copy ~replace:true t s v Fun.id
-          |> stabilize layout
+          let* v' = add ~depth:0 layout ~copy ~replace:true t s v Lwt.return in
+          stabilize layout v'
       | None ->
-          add ~depth:0 layout ~copy ~replace:false t s v Fun.id
-          |> stabilize layout
+          let* v' = add ~depth:0 layout ~copy ~replace:false t s v Lwt.return in
+          stabilize layout v'
 
     let rec remove layout ~depth t s k =
       match t.v with
@@ -699,7 +861,7 @@ struct
       | Tree t -> (
           let len = t.length - 1 in
           if len <= Conf.entries then
-            let vs =
+            let* vs =
               list_tree layout ~offset:0 ~length:t.length (empty_acc t.length) t
             in
             let vs = List.concat (List.rev vs.values) in
@@ -713,7 +875,7 @@ struct
             match entries.(i) with
             | None -> assert false
             | Some t ->
-                let t = Ptr.target layout t in
+                let* t = Ptr.target layout t in
                 if length t = 1 then (
                   entries.(i) <- None;
                   let t = tree layout { depth; length = len; entries } in
@@ -726,26 +888,30 @@ struct
 
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      match find_value layout ~depth:0 t s with
+      let* v' = find_value layout ~depth:0 t s in
+      match v' with
       | None -> stabilize layout t
-      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
+      | Some _ ->
+          let* v' = remove layout ~depth:0 t s Lwt.return in
+          stabilize layout v'
 
     let v l =
       let len = List.length l in
       let t =
         if len <= Conf.entries then of_values Total l
         else
-          let aux acc (s, v) = add Total ~copy:false acc s v in
+          let aux acc (s, v) = Total.add acc s v in
           List.fold_left aux (empty Total) l
       in
-      stabilize Total t
+      Total.stabilize t
 
     let save layout ~add ~mem t =
       let iter_entries =
         let broken h =
+          let+ mem = mem h in
           (* This function is called when we encounter a Broken pointer with
              Truncated layouts. *)
-          if not @@ mem h then
+          if not mem then
             Fmt.failwith
               "You are trying to save to the backend an inode deserialized \
                using [Irmin.Type] that used to contain pointer(s) to inodes \
@@ -757,19 +923,32 @@ struct
             ()
         in
         let iter_ptr = Ptr.iter_if_loaded ~broken layout in
-        fun f arr -> Array.iter (Option.iter (iter_ptr f)) arr
+        fun f arr ->
+          Array.fold_left
+            (fun acc e ->
+              let* () = acc in
+              match e with None -> Lwt.return_unit | Some e -> iter_ptr f e)
+            Lwt.return_unit arr
       in
       let rec aux ~depth t =
         Log.debug (fun l -> l "save depth:%d" depth);
         match t.v with
-        | Values _ -> add (Lazy.force t.hash) (to_bin layout t)
+        | Values _ ->
+            let key = Lazy.force t.hash in
+            let value = to_bin layout t in
+            add key value
         | Tree n ->
-            iter_entries
-              (fun t ->
-                let hash = Lazy.force t.hash in
-                if mem hash then () else aux ~depth:(depth + 1) t)
-              n.entries;
-            add (Lazy.force t.hash) (to_bin layout t)
+            let* () =
+              iter_entries
+                (fun t ->
+                  let key = Lazy.force t.hash in
+                  let* mem = mem key in
+                  if mem then Lwt.return_unit else aux ~depth:(depth + 1) t)
+                n.entries
+            in
+            let key = Lazy.force t.hash in
+            let value = to_bin layout t in
+            add key value
       in
       aux ~depth:0 t
 
@@ -778,15 +957,20 @@ struct
       let rec check t any_stable_ancestor =
         let stable = t.stable || any_stable_ancestor in
         match t.v with
-        | Values _ -> true
+        | Values _ -> Lwt.return true
         | Tree tree ->
-            Array.for_all
-              (function
-                | None -> true
-                | Some t ->
-                    let t = target_of_ptr t in
-                    (if stable then not t.stable else true) && check t stable)
-              tree.entries
+            Array.fold_left
+              (fun acc e ->
+                let* acc = acc in
+                if not acc then Lwt.return false
+                else
+                  match e with
+                  | None -> Lwt.return true
+                  | Some t ->
+                      let* t = target_of_ptr t in
+                      let+ check = check t stable in
+                      (if stable then not t.stable else true) && check)
+              (Lwt.return true) tree.entries
       in
       check t t.stable
 
@@ -794,153 +978,173 @@ struct
       let target_of_ptr = Ptr.target layout in
       let rec check_lower t =
         match t.v with
-        | Values l when StepMap.is_empty l -> true
-        | Values _ -> false
+        | Values l when StepMap.is_empty l -> Lwt.return true
+        | Values _ -> Lwt.return false
         | Tree inodes ->
-            Array.exists
-              (function
-                | None -> false | Some t -> target_of_ptr t |> check_lower)
-              inodes.entries
+            Array.fold_left
+              (fun acc e ->
+                let* acc = acc in
+                if acc then Lwt.return true
+                else
+                  match e with
+                  | None -> Lwt.return false
+                  | Some t ->
+                      let* t = target_of_ptr t in
+                      check_lower t)
+              (Lwt.return false) inodes.entries
       in
       check_lower t
 
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
   end
 
-  module Val = struct
-    include T
-    module I = Tree
+  include T
+  module I = Tree
 
-    let pp_hash = T.pp_hash
+  let pp_hash = T.pp_hash
 
-    type t =
-      | Total of I.total_ptr I.t
-      | Partial of I.partial_ptr I.layout * I.partial_ptr I.t
-      | Truncated of I.truncated_ptr I.t
+  type t =
+    | Total of I.total_ptr I.t
+    | Partial of I.partial_ptr I.layout * I.partial_ptr I.t
+    | Truncated of I.truncated_ptr I.t
 
-    type 'b apply_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'b } [@@unboxed]
+  type 'b apply_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'b } [@@unboxed]
 
-    let apply : t -> 'b apply_fn -> 'b =
-     fun t f ->
-      match t with
-      | Total v -> f.f I.Total v
-      | Partial (layout, v) -> f.f layout v
-      | Truncated v -> f.f I.Truncated v
+  let apply : t -> 'b apply_fn -> 'b =
+   fun t f ->
+    match t with
+    | Total v -> f.f I.Total v
+    | Partial (layout, v) -> f.f layout v
+    | Truncated v -> f.f I.Truncated v
 
-    type map_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'a I.t } [@@unboxed]
+  type map_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'a I.t Lwt.t } [@@unboxed]
 
-    let map : t -> map_fn -> t =
-     fun t f ->
-      match t with
-      | Total v ->
-          let v' = f.f I.Total v in
-          if v == v' then t else Total v'
-      | Partial (layout, v) ->
-          let v' = f.f layout v in
-          if v == v' then t else Partial (layout, v')
-      | Truncated v ->
-          let v' = f.f I.Truncated v in
-          if v == v' then t else Truncated v'
+  let map : t -> map_fn -> t Lwt.t =
+   fun t f ->
+    match t with
+    | Total v ->
+        let+ v' = f.f I.Total v in
+        if v == v' then t else Total v'
+    | Partial (layout, v) ->
+        let+ v' = f.f layout v in
+        if v == v' then t else Partial (layout, v')
+    | Truncated v ->
+        let+ v' = f.f I.Truncated v in
+        if v == v' then t else Truncated v'
 
-    let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let v l = Total (I.v l)
+  let pred t = apply t { f = (fun layout v -> I.pred layout v) }
 
-    let list ?offset ?length t =
-      apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
+  let v l =
+    let i = I.v l in
+    Total i
 
-    let empty = v []
-    let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
-    let find t s = apply t { f = (fun layout v -> I.find layout v s) }
+  let list ?offset ?length t =
+    apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
 
-    let add t s value =
-      Log.debug (fun l ->
-          l "inode.val.add %a %a" (Type.pp step_t) s (Type.pp value_t) value);
-      let f layout v =
-        I.check_write_op_supported v;
-        I.add ~copy:true layout v s value
+  let empty = v []
+  let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
+  let find t s = apply t { f = (fun layout v -> I.find layout v s) }
+
+  let add t s value =
+    Log.debug (fun l ->
+        l "inode.val.add %a %a" (Type.pp step_t) s (Type.pp value_t) value);
+    let f layout v =
+      I.check_write_op_supported v;
+      I.add ~copy:true layout v s value
+    in
+    map t { f }
+
+  let remove t s =
+    let f layout v =
+      I.check_write_op_supported v;
+      I.remove layout v s
+    in
+    map t { f }
+
+  let pre_hash_binv = Type.(unstage (pre_hash Bin.v_t))
+  let pre_hash_node = Type.(unstage (pre_hash Node.t))
+
+  let t : t Type.t =
+    let pre_hash =
+      Type.stage @@ fun x ->
+      let stable = apply x { f = (fun _ v -> I.stable v) } in
+      if not stable then
+        let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
+        pre_hash_binv bin.v
+      else
+        match x with
+        | Total x ->
+            let vs = I.Total.list x in
+            pre_hash_node (Node.v vs)
+        | Partial _ -> invalid_arg "pre_hash: partial inode"
+        | Truncated _ -> invalid_arg "pre_hash: truncated inode"
+    in
+    Type.map ~pre_hash Bin.t
+      (fun bin -> Truncated (I.of_bin I.Truncated bin))
+      (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
+
+  let hash t = apply t { f = (fun _ v -> I.hash v) }
+
+  let save ~add ~mem t =
+    let f layout v =
+      I.check_write_op_supported v;
+      I.save layout ~add ~mem v
+    in
+    apply t { f }
+
+  let of_bin find' v =
+    let rec find h =
+      let+ v = find' h in
+      match v with None -> None | Some v -> Some (I.of_bin layout v)
+    and layout = I.Partial find in
+    Partial (layout, I.of_bin layout v)
+
+  let to_bin t = apply t { f = (fun layout v -> I.to_bin layout v) }
+  let stable t = apply t { f = (fun _ v -> I.stable v) }
+  let length t = apply t { f = (fun _ v -> I.length v) }
+  let index = I.index
+
+  let integrity_check t =
+    let f layout v =
+      let check_stable () =
+        let check () = I.check_stable layout v in
+        let n = length t in
+        if n > Conf.stable_hash then
+          if stable t then Lwt.return false else check ()
+        else if not (stable t) then Lwt.return true
+        else check ()
       in
-      map t { f }
-
-    let remove t s =
-      let f layout v =
-        I.check_write_op_supported v;
-        I.remove layout v s
+      let contains_empty_map_non_root () =
+        let check () = I.contains_empty_map layout v in
+        (* we are only looking for empty maps that are not at the root *)
+        if I.is_tree v then check () else Lwt.return false
       in
-      map t { f }
+      let* x = check_stable () in
+      let+ y = contains_empty_map_non_root () in
+      x && not y
+    in
+    apply t { f }
 
-    let pre_hash_binv = Type.(unstage (pre_hash Bin.v_t))
-    let pre_hash_node = Type.(unstage (pre_hash Node.t))
+  module Concrete = I.Concrete
 
-    let t : t Type.t =
-      let pre_hash =
-        Type.stage @@ fun x ->
-        let stable = apply x { f = (fun _ v -> I.stable v) } in
-        if not stable then
-          let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
-          pre_hash_binv bin.v
-        else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
-      in
-      Type.map ~pre_hash Bin.t
-        (fun bin -> Truncated (I.of_bin I.Truncated bin))
-        (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
+  let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
 
-    let hash t = apply t { f = (fun _ v -> I.hash v) }
-
-    let save ~add ~mem t =
-      let f layout v =
-        I.check_write_op_supported v;
-        I.save layout ~add ~mem v
-      in
-      apply t { f }
-
-    let of_bin find' v =
-      let rec find h =
-        match find' h with None -> None | Some v -> Some (I.of_bin layout v)
-      and layout = I.Partial find in
-      Partial (layout, I.of_bin layout v)
-
-    let to_bin t = apply t { f = (fun layout v -> I.to_bin layout v) }
-    let stable t = apply t { f = (fun _ v -> I.stable v) }
-    let length t = apply t { f = (fun _ v -> I.length v) }
-    let index = I.index
-
-    let integrity_check t =
-      let f layout v =
-        let check_stable () =
-          let check () = I.check_stable layout v in
-          let n = length t in
-          if n > Conf.stable_hash then (not (stable t)) && check ()
-          else stable t && check ()
-        in
-        let contains_empty_map_non_root () =
-          let check () = I.contains_empty_map layout v in
-          (* we are only looking for empty maps that are not at the root *)
-          if I.is_tree v then check () else false
-        in
-        check_stable () && not (contains_empty_map_non_root ())
-      in
-      apply t { f }
-
-    module Concrete = I.Concrete
-
-    let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
-
-    let of_concrete t =
-      match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
-  end
+  let of_concrete t =
+    match I.of_concrete t with
+    | Ok t ->
+        let+ t = t in
+        Ok (Total t)
+    | Error _ as e -> Lwt.return e
 end
 
-module Make_store
-    (H : Hash.S)
-    (Inter : S with type Val.hash = H.t and type Bin.hash = H.t)
-    (Unsafe_CA : S.UNSAFE_CONTENT_ADDRESSABLE_STORE_MAKER) =
+module Raw_store
+    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (K : Hash.S)
+    (V : S with type hash = K.t) =
 struct
-  open Lwt.Infix
-  module Key = H
-  module Val = Inter.Val
-  module CA = Unsafe_CA (H) (Inter.Bin)
+  module Val = V
+  module Key = K
+  module CA = CA (K) (Val.Bin)
 
   type 'a t = 'a CA.t
   type key = Key.t
@@ -949,24 +1153,25 @@ struct
   let mem t k = CA.mem t k
 
   let find t k =
-    CA.find t k >|= function
+    let+ v = CA.find t k in
+    match v with
     | None -> None
     | Some v ->
-        let find = CA.unsafe_find t in
-        let v = Inter.Val.of_bin find v in
+        let find = CA.find t in
+        let v = V.of_bin find v in
         Some v
 
   let save t v =
-    let add k v = CA.unsafe_append t k v in
-    Val.save ~add ~mem:(CA.unsafe_mem t) v
+    let add k v = CA.unsafe_add t k v in
+    Val.save ~add ~mem:(CA.mem t) v
 
   let hash v = Val.hash v
 
   let add t v =
-    save t v;
-    Lwt.return (hash v)
+    let+ () = save t v in
+    hash v
 
-  let equal_hash = Type.(unstage (equal H.t))
+  let equal_hash = Type.(unstage (equal K.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
@@ -976,8 +1181,7 @@ struct
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    save t v;
-    Lwt.return_unit
+    save t v
 
   let batch = CA.batch
   let v = CA.v
