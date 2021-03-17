@@ -27,6 +27,12 @@
     value larger than `stable_hash`. (#1292, @Ngoguey42)
   - Added number of objects to the output of `stat-pack` command in
     `irmin-fsck`. (#1311, @icristescu)
+- **irmin-layers**
+  - Remove `copy_in_upper` from the repo configuration. The default is now to
+    copy. (#1322, @Ngoguey42)
+  - Simplify the API of `freeze`. It is now possible to specify two distinct
+    commit closures for the copy to lower and the copy to next upper.
+    (#1322, @Ngoguey42)
 
 ## 2.5.1 (2021-02-19)
 

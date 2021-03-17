@@ -133,7 +133,7 @@ struct
 
   include Irmin.Of_private (X)
 
-  let freeze ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?min_upper:_ ?recovery:_
+  let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
       _repo =
     Lwt.fail_with "not implemented"
 
@@ -158,8 +158,8 @@ struct
 
     let wait_for_freeze _ = Lwt.fail_with "not implemented"
 
-    let freeze' ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?min_upper:_
-        ?recovery:_ ?hook:_ _repo =
+    let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
+        ?hook:_ _repo =
       Lwt.fail_with "not implemented"
 
     let upper_in_use = upper_in_use

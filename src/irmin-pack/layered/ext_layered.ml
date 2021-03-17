@@ -197,7 +197,6 @@ struct
         readonly : bool;
         blocking_copy_size : int;
         with_lower : bool;
-        copy_in_upper : bool;
         contents : read Contents.CA.t;
         node : read Node.CA.t;
         branch : Branch.t;
@@ -372,7 +371,6 @@ struct
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
         let readonly = Pack_config.readonly config in
-        let copy_in_upper = Config_layered.copy_in_upper config in
         let blocking_copy_size = Config_layered.blocking_copy_size config in
         {
           contents;
@@ -383,7 +381,6 @@ struct
           readonly;
           with_lower;
           blocking_copy_size;
-          copy_in_upper;
           lower_index;
           uppers_index = (upper1.index, upper0.index);
           flip;
@@ -647,13 +644,7 @@ struct
             f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
               pp_commits commits);
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        (* When copying to next upper, if the min is empty then we copy only the
-           max. *)
-        let min =
-          List.map (fun x -> `Commit (Commit.hash x)) min |> function
-          | [] -> max
-          | min -> min
-        in
+        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
@@ -757,23 +748,20 @@ struct
     end
   end
 
-  let copy ~cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
-    (* Copy commits to lower: if squash then copy only the max commits.
+  let copy ~cancel ~min_lower ~max_lower ~min_upper ~max_upper t =
+    (* Copy commits to lower.
        In case cancellation of the freeze, copies to the lower layer will not
        be reverted. Since the copying is performed in the [rev] order, the next
        freeze will resume copying where the previous freeze stopped. *)
     Irmin_layers.Stats.freeze_section "copy to lower";
     (if t.X.Repo.with_lower then
-     let min = if squash then max else min in
-     Copy.CopyToLower.copy ~cancel t ~min max
+     Copy.CopyToLower.copy ~cancel t ~min:min_lower max_lower
     else Lwt.return_unit)
     >>= fun () ->
-    (* Copy [min_upper, max] to next_upper. In case of cancellation of the
+    (* Copy [min_upper, max_upper] to next_upper. In case of cancellation of the
        freeze, the next upper will be cleared. *)
     Irmin_layers.Stats.freeze_section "copy to next upper";
-    (if copy_in_upper then Copy.CopyToUpper.copy t ~cancel ~min:min_upper max
-    else Lwt.return_unit)
-    >>= fun () ->
+    Copy.CopyToUpper.copy t ~cancel ~min:min_upper max_upper >>= fun () ->
     Irmin_layers.Stats.freeze_section "copy branches";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
@@ -787,21 +775,19 @@ struct
       Fmt.list ~sep:(Fmt.unit "; ") pp ppf (List.filter (fun x -> x <> E) t)
 
     let commits k = function [] -> E | v -> F (pp_commits, k, v)
-    let bool k v = if not v then E else F (Fmt.bool, k, v)
-    let upper k = function false, _ | true, [] -> E | _, v -> commits k v
   end
 
   let pp_repo ppf t =
     Fmt.pf ppf "%a" Layered_store.pp_current_upper t.X.Repo.flip
 
-  let unsafe_freeze ~min ~max ~squash ~upper ?hook t =
+  let unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t =
     Log.info (fun l ->
         l "[%a] freeze starts { %a }" pp_repo t Field.pps
           [
-            Field.commits "min" min;
-            Field.commits "max" max;
-            Field.bool "squash" squash;
-            Field.upper "min_upper" upper;
+            Field.commits "min_lower" min_lower;
+            Field.commits "max_lower" max_lower;
+            Field.commits "min_upper" min_upper;
+            Field.commits "max_upper" max_upper;
           ]);
     let offset = X.Repo.offset t in
     let lock_file = lock_path t.root in
@@ -811,7 +797,7 @@ struct
     let cancel () = t.freeze.state = `Cancel in
     let copy () =
       may (fun f -> f `Before_Copy) hook >>= fun () ->
-      copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
+      copy ~cancel ~min_lower ~max_lower ~min_upper ~max_upper t >>= fun () ->
       Irmin_layers.Stats.freeze_section "flush lower";
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
@@ -863,24 +849,25 @@ struct
   (** Main thread takes the [t.freeze.lock] at the begining of freeze and async
       thread releases it at the end. This is to ensure that no two freezes can
       run simultaneously. *)
-  let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
-      ?(min_upper = []) ?(recovery = false) ?hook t =
+  let freeze' ?min_lower ?max_lower ?min_upper ?max_upper ?(recovery = false)
+      ?hook t =
     let* () =
       if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
       else Lwt.return_unit
     in
     let freeze () =
       let t0 = Mtime_clock.now () in
-      let upper =
-        ( (match copy_in_upper with None -> t.copy_in_upper | Some b -> b),
-          min_upper )
-      in
       Lwt_mutex.lock t.freeze.lock >>= fun () ->
       t.freeze.state <- `Running;
       Irmin_layers.Stats.freeze_start t0 "wait for freeze lock";
       Irmin_layers.Stats.freeze_section "misc";
-      let* max = match max with [] -> Repo.heads t | m -> Lwt.return m in
-      unsafe_freeze ~min ~max ~squash ~upper ?hook t
+      let min_lower = Option.value min_lower ~default:[] in
+      let* max_lower =
+        match max_lower with Some l -> Lwt.return l | None -> Repo.heads t
+      in
+      let max_upper = Option.value max_upper ~default:max_lower in
+      let min_upper = Option.value min_upper ~default:max_upper in
+      unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
     else if t.readonly then raise RO_Not_Allowed

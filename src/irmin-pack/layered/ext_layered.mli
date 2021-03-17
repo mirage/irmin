@@ -19,7 +19,6 @@ val config :
   ?lower_root:string ->
   ?upper_root1:string ->
   ?upper_root0:string ->
-  ?copy_in_upper:bool ->
   ?with_lower:bool ->
   ?blocking_copy_size:int ->
   unit ->

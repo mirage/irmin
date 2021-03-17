@@ -21,7 +21,7 @@ module Store =
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-  Irmin_pack_layered.config ~conf ~copy_in_upper:true ~with_lower:true ()
+  Irmin_pack_layered.config ~conf ~with_lower:true ()
 
 let info = Irmin.Info.v ~date:0L ~author:"" ""
 
@@ -31,7 +31,7 @@ let create_store () =
   let* _t = Store.master repo in
   let* tree = Store.Tree.add Store.Tree.empty [ "a"; "b"; "c" ] "x1" in
   let* c = Store.Commit.v repo ~info ~parents:[] tree in
-  let* () = Store.freeze ~max:[ c ] ~copy_in_upper:false repo in
+  let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
   let* () = Store.PrivateLayer.wait_for_freeze repo in
   let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
   let hash = Store.Commit.hash c in

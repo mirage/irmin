@@ -29,8 +29,7 @@ let configure_store root merge_throttle freeze_throttle =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
       ~merge_throttle root
   in
-  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000
-    ~copy_in_upper:true ()
+  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000 ()
 
 let init config =
   FSHelper.rm_dir config.root;
@@ -80,7 +79,7 @@ let write_cycle config repo init_commit =
 
 let freeze ~min_upper ~max config repo =
   if config.no_freeze then Lwt.return_unit
-  else Store.freeze ~max ~min_upper repo
+  else Store.freeze ~max_lower:max ~min_upper repo
 
 let min_uppers = Queue.create ()
 let add_min c = Queue.add c min_uppers
