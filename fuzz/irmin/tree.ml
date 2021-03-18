@@ -45,63 +45,59 @@ module Tree_hash = struct
       point, you don't want an entirely shallow tree.
 
       [randoms] is used as an oracle to make choices. It should not be empty. *)
-  let rec make_partially_shallow repo tree randoms =
-    match randoms with
-    | [] -> Lwt.return_some tree (* do not make shallow *)
-    | i :: sub_randoms -> (
-        if i mod 4 = 0 then
-          (* make entirely shallow *)
-          Lwt.return_some @@ make_tree_shallow repo tree
-        else
-          match Store.Tree.destruct tree with
-          | `Contents _ ->
-              (* maybe make shallow *)
-              if i mod 2 = 0 then Lwt.return_none
-              else Lwt.return_some @@ make_tree_shallow repo tree
-          | `Node _ ->
-              (* make partially shallow *)
-              let rec enlarge len l =
-                (* Using [l] as a generator, return a list of length >= len *)
-                assert (l <> []);
-                if List.length l < len then enlarge len (l @ l) else l
-              in
-              let* dir = Store.Tree.list tree [] in
-              let dir_len = List.length dir in
-              (* We use [randoms] to shallow differently the siblings within [dir]
-                 and we pass a tail of [randoms] in recursive calls, to have
-                 variance in subtrees. *)
-              let dir' = List.combine_drop dir (enlarge dir_len randoms) in
-              assert (List.length dir' = dir_len);
-              let+ shallowed, tree' =
-                Lwt_list.fold_left_s
-                  (fun (shallowed, acc) ((k, subtree), i) ->
-                    (* random oracle to decide whether to make complety shallow
-                       (b holds) or partially shallow (b doesn't hold: recurse) *)
-                    let* subtree_opt =
-                      if i mod 2 = 0 then
-                        make_tree_shallow repo subtree |> Lwt.return_some
-                      else make_partially_shallow repo subtree sub_randoms
-                    in
-                    let shallowed', subtree' =
-                      match subtree_opt with
-                      | None -> (shallowed, subtree) (* no change *)
-                      | Some subtree' ->
-                          (* subtree' is partially shallow *)
-                          (true, subtree')
-                    in
-                    let+ acc = Store.Tree.add_tree acc [ k ] subtree' in
-                    (shallowed', acc))
-                  (false, Store.Tree.empty) dir'
-              in
-              if shallowed then Some tree' else None)
+  let rec make_partially_shallow repo tree (state : Random.State.t) =
+    let i = Random.State.int state 1024 in
+    if i mod 2 = 0 then Lwt.return_some tree (* do not make shallow *)
+    else if i mod 4 = 0 then
+      (* make entirely shallow *)
+      Lwt.return_some @@ make_tree_shallow repo tree
+    else
+      match Store.Tree.destruct tree with
+      | `Contents _ ->
+          (* maybe make shallow *)
+          if i mod 2 = 0 then Lwt.return_none
+          else Lwt.return_some @@ make_tree_shallow repo tree
+      | `Node _ ->
+          (* make partially shallow *)
+          let* dir = Store.Tree.list tree [] in
+          (* We use [randoms] to shallow differently the siblings within [dir]
+             and we pass a tail of [randoms] in recursive calls, to have
+             variance in subtrees. *)
+          let+ shallowed, tree' =
+            Lwt_list.fold_left_s
+              (fun (shallowed, acc) (k, subtree) ->
+                (* random oracle to decide whether to make complety shallow
+                   (b holds) or partially shallow (b doesn't hold: recurse) *)
+                let* subtree_opt =
+                  if i mod 2 = 0 then
+                    make_tree_shallow repo subtree |> Lwt.return_some
+                  else make_partially_shallow repo subtree state
+                in
+                let shallowed', subtree' =
+                  match subtree_opt with
+                  | None -> (shallowed, subtree) (* no change *)
+                  | Some subtree' ->
+                      (* subtree' is partially shallow *)
+                      (true, subtree')
+                in
+                let+ acc = Store.Tree.add_tree acc [ k ] subtree' in
+                (shallowed', acc))
+              (false, Store.Tree.empty)
+            @@ dir
+          in
+          if shallowed then Some tree' else None
+
+  let make_partially_shallow repo tree seed =
+    Random.init seed;
+    make_partially_shallow repo tree (Random.get_state ())
 
   let hash_eq = Irmin.Type.(unstage (equal Store.Hash.t))
   let pp_hash = Irmin.Type.pp_dump Store.Hash.t
 
   (** Test that subtituting subtrees by their [Store.Tree.shallow] version
       doesn't change the tree's top-level hash. *)
-  let test_hash_stability repo tree is =
-    make_partially_shallow repo tree is >|= function
+  let test_hash_stability repo tree seed =
+    make_partially_shallow repo tree seed >|= function
     | None -> Crowbar.bad_test ()
     | Some tree' ->
         let hash, hash' = Store.Tree.(hash tree, hash tree') in
@@ -115,5 +111,5 @@ end
 let () =
   Crowbar.add_test
     ~name:"Store.Tree.hash t = Store.Tree.hash (make_partially_shallow t)"
-    [ Generators.irmin_tree; Crowbar.(list1 int) ]
+    [ Generators.irmin_tree; Crowbar.int ]
     (Tree_hash.test_hash_stability @@ create_repo ())
