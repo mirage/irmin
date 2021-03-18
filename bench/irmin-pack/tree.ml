@@ -909,7 +909,7 @@ struct
         if i = config.freeze_commit then
           let* c = Store.Commit.of_hash repo commit_hash in
           let c = Option.get c in
-          Store.freeze repo ~max:[ c ] ~min_upper:[ c ]
+          Store.freeze repo ~max_lower:[ c ]
         else Lwt.return_unit
       in
       (* Something else than pause could be used here, like an Lwt_unix.sleep

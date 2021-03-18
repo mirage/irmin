@@ -27,10 +27,10 @@ depends: [
   "ppx_repr"
   "re"           {>= "1.9.0"}
   "fmt"
-  "bentov"
   "uuidm"
   "progress"
-  "mtime"
+  "bentov" {with-test}
+  "mtime" {with-test}
 ]
 
 synopsis: "Irmin benchmarking suite"
