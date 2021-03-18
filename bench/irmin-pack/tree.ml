@@ -10,7 +10,7 @@ type config = {
   nlarge_trees : int;
   root : string;
   flatten : bool;
-  inode_config : [ `Entries_32 | `Entries_2 ];
+  inode_config : int * int;
   store_type : [ `Pack | `Pack_layered ];
   freeze_commit : int;
   commit_data_file : string;
@@ -27,9 +27,8 @@ module type STORE = sig
   val create_repo : config -> (Repo.t * on_commit * on_end * pp) Lwt.t
 end
 
-let pp_inode_config ppf = function
-  | `Entries_2 -> Format.fprintf ppf "[2, 5]"
-  | `Entries_32 -> Format.fprintf ppf "[32, 256]"
+let pp_inode_config ppf (entries, stable_hash) =
+  Format.fprintf ppf "[%d, %d]" entries stable_hash
 
 let pp_store_type ppf = function
   | `Pack -> Format.fprintf ppf "[pack store]"
@@ -949,15 +948,21 @@ struct
   include Store
 end
 
-module Conf2 = struct
-  let entries = 2
-  let stable_hash = 5
+module type B = sig
+  val run_large : config -> (Format.formatter -> unit) Lwt.t
+  val run_chains : config -> (Format.formatter -> unit) Lwt.t
+  val run_read_trace : config -> (Format.formatter -> unit) Lwt.t
 end
 
-module Bench_inodes_32 = Bench_suite (Make_store_pack (Conf))
-module Bench_inodes_2 = Bench_suite (Make_store_pack (Conf2))
-module Bench_inodes_32_layered = Bench_suite (Make_store_layered (Conf))
-module Bench_inodes_2_layered = Bench_suite (Make_store_layered (Conf2))
+let store_of_config config =
+  let entries, stable_hash = config.inode_config in
+  let module Conf = struct
+    let entries = entries
+    let stable_hash = stable_hash
+  end in
+  match config.store_type with
+  | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)
+  | `Pack_layered -> (module Bench_suite (Make_store_layered (Conf)) : B)
 
 type suite_elt = {
   mode : [ `Read_trace | `Chains | `Large ];
@@ -972,87 +977,74 @@ let suite : suite_elt list =
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_read_trace
-            { config with inode_config = `Entries_32; store_type = `Pack });
+          let config =
+            { config with inode_config = (32, 256); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_read_trace config);
     };
     {
       mode = `Read_trace;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_32.run_read_trace
-            { config with inode_config = `Entries_32; store_type = `Pack });
+          let config =
+            { config with inode_config = (32, 256); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_read_trace config);
     };
     {
       mode = `Chains;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_chains
-            { config with inode_config = `Entries_32; store_type = `Pack });
+          let config =
+            { config with inode_config = (32, 256); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_chains config);
     };
     {
       mode = `Chains;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_chains
-            { config with inode_config = `Entries_2; store_type = `Pack });
+          let config =
+            { config with inode_config = (2, 5); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_chains config);
     };
     {
       mode = `Large;
       speed = `Quick;
       run =
         (fun config ->
-          Bench_inodes_32.run_large
-            { config with inode_config = `Entries_32; store_type = `Pack });
+          let config =
+            { config with inode_config = (32, 256); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_large config);
     };
     {
       mode = `Large;
       speed = `Slow;
       run =
         (fun config ->
-          Bench_inodes_2.run_large
-            { config with inode_config = `Entries_2; store_type = `Pack });
+          let config =
+            { config with inode_config = (2, 5); store_type = `Pack }
+          in
+          let (module Store) = store_of_config config in
+          Store.run_large config);
     };
     {
       mode = `Read_trace;
       speed = `Custom;
       run =
         (fun config ->
-          match (config.inode_config, config.store_type) with
-          | `Entries_2, `Pack -> Bench_inodes_2.run_read_trace config
-          | `Entries_32, `Pack -> Bench_inodes_32.run_read_trace config
-          | `Entries_2, `Pack_layered ->
-              Bench_inodes_2_layered.run_read_trace config
-          | `Entries_32, `Pack_layered ->
-              Bench_inodes_32_layered.run_read_trace config);
-    };
-    {
-      mode = `Chains;
-      speed = `Custom;
-      run =
-        (fun config ->
-          match (config.inode_config, config.store_type) with
-          | `Entries_2, `Pack -> Bench_inodes_2.run_chains config
-          | `Entries_32, `Pack -> Bench_inodes_32.run_chains config
-          | `Entries_2, `Pack_layered ->
-              Bench_inodes_2_layered.run_chains config
-          | `Entries_32, `Pack_layered ->
-              Bench_inodes_32_layered.run_chains config);
-    };
-    {
-      mode = `Large;
-      speed = `Custom;
-      run =
-        (fun config ->
-          match (config.inode_config, config.store_type) with
-          | `Entries_2, `Pack -> Bench_inodes_2.run_read_trace config
-          | `Entries_32, `Pack -> Bench_inodes_32.run_read_trace config
-          | `Entries_2, `Pack_layered ->
-              Bench_inodes_2_layered.run_read_trace config
-          | `Entries_32, `Pack_layered ->
-              Bench_inodes_32_layered.run_read_trace config);
+          let (module Store) = store_of_config config in
+          Store.run_read_trace config);
     };
   ]
 
@@ -1122,9 +1114,8 @@ let mode =
   Arg.(value @@ opt (Arg.enum mode) `Slow doc)
 
 let inode_config =
-  let mode = [ ("2", `Entries_2); ("32", `Entries_32) ] in
-  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "inode-config" ] in
-  Arg.(value @@ opt (Arg.enum mode) `Entries_32 doc)
+  let doc = Arg.info ~doc:"Inode config" [ "inode-config" ] in
+  Arg.(value @@ opt (pair int int) (32, 256) doc)
 
 let store_type =
   let mode = [ ("pack", `Pack); ("pack-layered", `Pack_layered) ] in
