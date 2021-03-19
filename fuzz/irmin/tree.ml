@@ -108,8 +108,42 @@ module Tree_hash = struct
   let test_hash_stability r t is = test_hash_stability r t is |> Lwt_main.run
 end
 
+let eq_tree = Irmin.Type.unstage @@ Irmin.Type.equal Store.tree_t
+let pp_tree = Irmin.Type.pp Store.tree_t
+let check_tree_eq = Crowbar.check_eq ~pp:pp_tree ~eq:eq_tree
+
+module Add_tree = struct
+  let irmin_tree_gen_for_test_add_tree repo =
+    let open Crowbar in
+    map [ Generators.irmin_tree; int ] (fun irmin_tree seed ->
+        let shallow_tree_opt =
+          Tree_hash.make_partially_shallow repo irmin_tree seed |> Lwt_main.run
+        in
+        match shallow_tree_opt with
+        | None -> Crowbar.bad_test ()
+        | Some shallowed_tree -> shallowed_tree)
+
+  let test_add_tree (tree : Store.tree) (key : Store.key) (added : Store.tree) =
+    let tree' = Store.Tree.add_tree tree key added |> Lwt_main.run in
+    let tree_opt_set_at_key = Store.Tree.find_tree tree' key |> Lwt_main.run in
+    match tree_opt_set_at_key with
+    | None -> check_tree_eq Store.Tree.empty added
+    | Some tree_set_at_key -> check_tree_eq added tree_set_at_key
+end
+
 let () =
+  let repo = create_repo () in
   Crowbar.add_test
     ~name:"Store.Tree.hash t = Store.Tree.hash (make_partially_shallow t)"
     [ Generators.irmin_tree; Crowbar.int ]
-    (Tree_hash.test_hash_stability @@ create_repo ())
+    (Tree_hash.test_hash_stability repo);
+  Crowbar.add_test
+    ~name:
+      "Store.Tree.add_tree tree key added |> Fun.flip Store.Tree.find_tree key \
+       = added"
+    [
+      Add_tree.irmin_tree_gen_for_test_add_tree repo;
+      Crowbar.(list bytes);
+      Add_tree.irmin_tree_gen_for_test_add_tree repo;
+    ]
+    Add_tree.test_add_tree
