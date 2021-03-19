@@ -9,7 +9,7 @@ val with_progress_bar :
   message:string -> n:int -> unit:string -> ((int64 -> unit) -> 'a) -> 'a
 
 val info : unit -> Irmin.Info.t
-val random_blob : unit -> string
+val random_blob : unit -> bytes
 
 module Conf : sig
   val entries : int
@@ -23,7 +23,7 @@ module FSHelper : sig
 end
 
 module Generate_trees
-    (Store : Irmin.S with type contents = string and type key = string list) : sig
+    (Store : Irmin.S with type contents = bytes and type key = string list) : sig
   val add_chain_trees : int -> int -> Store.tree -> Store.tree Lwt.t
   (** [add_chain_trees depth nb tree] adds [nb] random contents to [tree],
       depthwise. *)

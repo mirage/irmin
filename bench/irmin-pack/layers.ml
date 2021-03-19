@@ -18,8 +18,18 @@ type config = {
 
 module Hash = Irmin.Hash.SHA1
 
+module Contents = struct
+  type t = bytes
+
+  let ty = Irmin.Type.(pair (bytes_of `Int64) unit)
+  let pre_hash_ty = Irmin.Type.(unstage (pre_hash ty))
+  let pre_hash_v1 x = pre_hash_ty (x, ())
+  let t = Irmin.Type.(like bytes ~pre_hash:(stage @@ fun x -> pre_hash_v1 x))
+  let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
+end
+
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Contents)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)

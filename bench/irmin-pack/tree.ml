@@ -18,7 +18,7 @@ type config = {
 }
 
 module type STORE = sig
-  include Irmin.S with type key = string list and type contents = string
+  include Irmin.S with type key = string list and type contents = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
@@ -597,6 +597,7 @@ module Generate_trees_from_trace (Store : STORE) = struct
         maybe_forget_ctx t out_ctx_id
 
   let exec_add t key v in_ctx_id out_ctx_id () =
+    let v = Bytes.of_string v in
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     let+ tree = Store.Tree.add tree key v in
@@ -641,7 +642,13 @@ module Generate_trees_from_trace (Store : STORE) = struct
     let+ b' = Store.Tree.mem_tree tree keys in
     if b <> b' then error_find "mem_tree" keys b i n (unscope in_ctx_id)
 
-  let exec_commit t repo h_trace date message parents_trace in_ctx_id () =
+  let check_hash_trace h_trace h_store =
+    let h_store = Irmin.Type.(to_string Store.Hash.t) h_store in
+    if h_trace <> h_store then
+      Fmt.failwith "hash replay %s, hash trace %s" h_store h_trace
+
+  let exec_commit t repo h_trace date message parents_trace in_ctx_id check_hash
+      () =
     let parents_store =
       parents_trace
       |> List.map unscope
@@ -658,13 +665,14 @@ module Generate_trees_from_trace (Store : STORE) = struct
     let+ commit = Store.Commit.v repo ~info ~parents:parents_store tree in
     Store.Tree.clear tree;
     let h_store = Store.Commit.hash commit in
+    if check_hash then check_hash_trace (unscope h_trace) h_store;
     (* It's okey to have [h_trace] already in history. It corresponds to
      * re-commiting the same thing, hence the [.replace] below. *)
     Hashtbl.replace t.hash_corresps (unscope h_trace) h_store;
     maybe_forget_hash t h_trace;
     t.latest_commit <- Some h_store
 
-  let add_operations t repo operations n stats =
+  let add_operations t repo operations n stats check_hash =
     let rec aux l i =
       match l with
       | Bootstrap_trace.Checkout (h, out_ctx_id) :: tl ->
@@ -694,13 +702,15 @@ module Generate_trees_from_trace (Store : STORE) = struct
           >>= fun () -> aux tl (i + 1)
       | [ Commit op ] ->
           exec_commit t repo op.hash op.date op.message op.parents op.in_ctx_id
+            check_hash
           |> with_monitoring stats `Commit
       | Commit _ :: _ | [] ->
           failwith "A batch of operation should end with a commit"
     in
     aux operations 0
 
-  let add_commits repo max_ncommits commit_seq on_commit on_end stats () =
+  let add_commits repo max_ncommits commit_seq on_commit on_end stats check_hash
+      () =
     with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commits"
     @@ fun prog ->
     let t =
@@ -721,7 +731,7 @@ module Generate_trees_from_trace (Store : STORE) = struct
              some day. Today it requires loading everything. *)
           on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
-          let* () = add_operations t repo ops i stats in
+          let* () = add_operations t repo ops i stats check_hash in
 
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
@@ -824,12 +834,13 @@ module Bench_suite (Store : STORE) = struct
         config.commit_data_file
     in
     let* repo, on_commit, on_end, repo_pp = Store.create_repo config in
+    let check_hash = (not config.flatten) && config.inode_config = (32, 256) in
 
     let t0_cpu = Sys.time () in
     let t0 = Mtime_clock.counter () in
     let* result, n =
       Trees_trace.add_commits repo config.ncommits_trace commit_seq on_commit
-        on_end stats
+        on_end stats check_hash
       |> Benchmark.run config
     in
     let elapsed_cpu = Sys.time () -. t0_cpu in
@@ -894,11 +905,13 @@ module Make_store_layered (Conf : sig
   val stable_hash : int
 end) =
 struct
+  open Tezos_context_hash.Encoding
+
   module Store =
-    Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
+    Irmin_pack_layered.Make_ext (Conf) (Metadata) (Contents) (Path) (Branch)
       (Hash)
+      (Node)
+      (Commit)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
@@ -931,11 +944,21 @@ module Make_store_pack (Conf : sig
   val stable_hash : int
 end) =
 struct
+  open Tezos_context_hash.Encoding
+
   module Store =
-    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
+    Irmin_pack.Make_ext
+      (struct
+        let io_version = `V1
+      end)
+      (Conf)
+      (Metadata)
+      (Contents)
+      (Path)
+      (Branch)
       (Hash)
+      (Node)
+      (Commit)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in

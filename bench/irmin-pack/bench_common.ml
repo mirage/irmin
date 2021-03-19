@@ -31,7 +31,7 @@ let reset_stats () =
 
 let random_char () = char_of_int (Random.int 256)
 let random_string n = String.init n (fun _i -> random_char ())
-let random_blob () = random_string 10
+let random_blob () = random_string 10 |> Bytes.of_string
 let random_key () = random_string 5
 
 let default_results_dir =
@@ -113,7 +113,7 @@ module FSHelper = struct
 end
 
 module Generate_trees
-    (Store : Irmin.S with type contents = string and type key = string list) =
+    (Store : Irmin.S with type contents = bytes and type key = string list) =
 struct
   let key depth =
     let rec aux i acc =
