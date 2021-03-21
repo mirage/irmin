@@ -20,7 +20,7 @@ depends: [
   "cohttp-lwt"
   "lwt"
   "uri"
-  "git"           {>= "3.0.0"}
+  "git"           {>= "3.3.3"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
