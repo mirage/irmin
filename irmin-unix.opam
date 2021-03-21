@@ -42,8 +42,8 @@ depends: [
   "cmdliner"
   "cohttp-lwt-unix"
   "fmt"
-  "git"             {>= "3.3.0"}
-  "git-cohttp-unix" {>= "3.3.0"}
+  "git"             {>= "3.3.3"}
+  "git-cohttp-unix" {>= "3.3.3"}
   "lwt"
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}
