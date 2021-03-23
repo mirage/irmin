@@ -11,6 +11,7 @@ type config = {
   root : string;
   flatten : bool;
   inode_config : int * int * int;
+  index_log_size : int;
   store_type : [ `Pack | `Pack_layered ];
   freeze_commit : int;
   commit_data_file : string;
@@ -478,9 +479,7 @@ module Generate_trees_from_trace (Store : STORE) = struct
     mutable latest_commit : Store.Hash.t option;
   }
 
-  let pp_stats ppf
-      (summary, as_json, flatten, inode_config, store_type, elapsed_cpu, elapsed)
-      =
+  let pp_stats ppf (config, summary, as_json, elapsed_cpu, elapsed) =
     let stat_entry_t = Bootstrap_trace.Stats.stat_entry_t in
     let op_tags = Bootstrap_trace.Stats.op_tags in
     let mean histo =
@@ -535,8 +534,9 @@ module Generate_trees_from_trace (Store : STORE) = struct
     in
     if as_json then
       Fmt.pf ppf
-        "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", \
-         \"store_type\":\"%a\", \"elapsed_cpu\":\"%f\", \"elapsed\":\"%f\",@\n\
+        "{\"revision\":\"%s\", \"flatten\":%d, \"index_log_size\":%d, \
+         \"inode_config\":\"%a\", \"store_type\":\"%a\", \
+         \"elapsed_cpu\":\"%f\", \"elapsed\":\"%f\",@\n\
          \"max_durations\":{\n\
          %a},\n\
          \"moving_average_points\":{\n\
@@ -544,9 +544,9 @@ module Generate_trees_from_trace (Store : STORE) = struct
          \"histo_points\":{\n\
          %a}}"
         "missing"
-        (if flatten then 1 else 0)
-        pp_inode_config inode_config pp_store_type store_type elapsed_cpu
-        elapsed
+        (if config.flatten then 1 else 0)
+        config.index_log_size pp_inode_config config.inode_config pp_store_type
+        config.store_type elapsed_cpu elapsed
         Fmt.(list ~sep:(any ",@\n") pp_max)
         op_tags
         Fmt.(list ~sep:(any ",@\n") pp_moving_average)
@@ -848,13 +848,7 @@ module Bench_suite (Store : STORE) = struct
     Format.fprintf
       (Format.formatter_of_out_channel json_channel)
       "%a%!" Trees_trace.pp_stats
-      ( stats,
-        true,
-        config.flatten,
-        config.inode_config,
-        config.store_type,
-        elapsed_cpu,
-        elapsed );
+      (config, stats, true, elapsed_cpu, elapsed);
     close_out json_channel;
 
     fun ppf ->
@@ -867,13 +861,7 @@ module Bench_suite (Store : STORE) = struct
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
         repo_pp Trees_trace.pp_stats
-        ( stats,
-          false,
-          config.flatten,
-          config.inode_config,
-          config.store_type,
-          elapsed_cpu,
-          elapsed )
+        (config, stats, false, elapsed_cpu, elapsed)
         json_path Benchmark.pp_results result
 
   let run_read_trace config =
@@ -902,7 +890,10 @@ struct
       (Hash)
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true config.root
+        ~index_log_size:config.index_log_size
+    in
     let* repo = Store.Repo.v conf in
     let on_commit i commit_hash =
       let* () =
@@ -940,7 +931,10 @@ struct
       (Hash)
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true config.root
+        ~index_log_size:config.index_log_size
+    in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
@@ -959,8 +953,8 @@ end
 let store_of_config config =
   let max_leaf_size, branching_factor, stable_hash = config.inode_config in
   let module Conf = struct
-      let max_leaf_size = max_leaf_size
-      let branching_factor = branching_factor
+    let max_leaf_size = max_leaf_size
+    let branching_factor = branching_factor
     let stable_hash = stable_hash
   end in
   match config.store_type with
@@ -1070,9 +1064,9 @@ let get_suite suite_filter =
           false)
     suite
 
-let main () ncommits ncommits_trace suite_filter inode_config store_type
-    freeze_commit flatten depth width nchain_trees nlarge_trees commit_data_file
-    results_dir =
+let main () ncommits ncommits_trace suite_filter inode_config index_log_size
+    store_type freeze_commit flatten depth width nchain_trees nlarge_trees
+    commit_data_file results_dir =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let ncommits_trace = Option.value ~default ncommits_trace in
   let config =
@@ -1087,6 +1081,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
       nlarge_trees;
       commit_data_file;
       inode_config;
+      index_log_size;
       store_type;
       freeze_commit;
       results_dir;
@@ -1119,6 +1114,10 @@ let mode =
 let inode_config =
   let doc = Arg.info ~doc:"Inode config" [ "inode-config" ] in
   Arg.(value @@ opt (t3 int int int) (32, 32, 256) doc)
+
+let index_log_size =
+  let doc = Arg.info ~doc:"Index log size" [ "index-log-size" ] in
+  Arg.(value @@ opt int 500_000 doc)
 
 let store_type =
   let mode = [ ("pack", `Pack); ("pack-layered", `Pack_layered) ] in
@@ -1202,6 +1201,7 @@ let main_term =
     $ ncommits_trace
     $ mode
     $ inode_config
+    $ index_log_size
     $ store_type
     $ freeze_commit
     $ flatten
