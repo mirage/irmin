@@ -213,11 +213,11 @@ module Test_reconstruct = struct
     Index.iter
       (fun k (offset, length, magic) ->
         Log.debug (fun l ->
-            l "index find k = %a (off, len, magic) = (%Ld, %d, %c)"
-              (Irmin.Type.pp Hash.t) k offset length magic);
+            l "index find k = %a (off, len, magic) = (%a, %d, %c)"
+              (Irmin.Type.pp Hash.t) k Int63.pp offset length magic);
         match Index.find index_new k with
         | Some (offset', length', magic') ->
-            Alcotest.(check int64) "check offset" offset offset';
+            Alcotest.(check int63) "check offset" offset offset';
             Alcotest.(check int) "check length" length length';
             Alcotest.(check char) "check magic" magic magic'
         | None ->

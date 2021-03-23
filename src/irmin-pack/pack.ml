@@ -20,7 +20,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let ( -- ) = Int64.sub
+let ( -- ) = Int63.sub
 
 open! Import
 
@@ -262,7 +262,7 @@ struct
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
         V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
-        let len = Int64.to_int (IO.offset t.pack.block -- off) in
+        let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, V.magic v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;

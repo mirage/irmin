@@ -138,13 +138,13 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-    type address = Indirect of int64 | Direct of H.t
+    type address = Indirect of Int63.t | Direct of H.t
 
     let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" int64 (fun x -> Indirect x)
+      |~ case1 "Indirect" Int63.t (fun x -> Indirect x)
       |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
@@ -203,11 +203,11 @@ struct
         | Contents (Direct n, Direct h, m) ->
             if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
         | Node (Direct n, Direct h) -> node_dd (n, h))
-      |~ case1 "contents-ii" (pair int int64) (fun (n, i) ->
+      |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
              Contents (Indirect n, Indirect i, T.default))
-      |~ case1 "contents-x-ii" (triple int int64 metadata_t) (fun (n, i, m) ->
+      |~ case1 "contents-x-ii" (triple int Int63.t metadata_t) (fun (n, i, m) ->
              Contents (Indirect n, Indirect i, m))
-      |~ case1 "node-ii" (pair int int64) (fun (n, i) ->
+      |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
       |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
              Contents (Indirect n, Direct h, T.default))
@@ -215,11 +215,11 @@ struct
              Contents (Indirect n, Direct h, m))
       |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
              Node (Indirect n, Direct h))
-      |~ case1 "contents-di" (pair step_t int64) (fun (n, i) ->
+      |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
              Contents (Direct n, Indirect i, T.default))
-      |~ case1 "contents-x-di" (triple step_t int64 metadata_t)
+      |~ case1 "contents-x-di" (triple step_t Int63.t metadata_t)
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
-      |~ case1 "node-di" (pair step_t int64) (fun (n, i) ->
+      |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))
       |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
              Contents (Direct n, Direct i, T.default))

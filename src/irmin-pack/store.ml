@@ -7,7 +7,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 exception Unsupported_version of IO.version
 
-let ( ++ ) = Int64.add
+let ( ++ ) = Int63.add
 
 module Cache = IO.Cache
 open! Import
@@ -40,7 +40,7 @@ struct
   type watch = W.watch
 
   type t = {
-    index : int64 Tbl.t;
+    index : Int63.t Tbl.t;
     cache : V.t Tbl.t;
     mutable block : IO.t;
     w : W.t;
@@ -87,7 +87,7 @@ struct
       else
         let len = read_length32 ~off:offset t.block in
         let buf = Bytes.create (len + V.hash_size) in
-        let off = offset ++ 4L in
+        let off = offset ++ Int63.of_int 4 in
         let n = IO.read t.block ~off buf in
         assert (n = Bytes.length buf);
         let buf = Bytes.unsafe_to_string buf in
@@ -101,7 +101,7 @@ struct
         assert (n = String.length buf);
         if not (equal_val v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
-        (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size)))
+        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + V.hash_size)))
     in
     aux from
 
@@ -118,7 +118,7 @@ struct
       t.block <- io;
       Tbl.clear t.cache;
       Tbl.clear t.index;
-      refill t ~from:0L)
+      refill t ~from:Int63.zero)
     else
       let former_log_offset = IO.offset t.block in
       let log_offset = IO.force_offset t.block in
@@ -181,7 +181,7 @@ struct
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
-    refill t ~from:0L;
+    refill t ~from:Int63.zero;
     t
 
   let Cache.{ v = unsafe_v } =
@@ -287,7 +287,7 @@ let migrate config =
       let total =
         to_migrate
         |> List.map (fun (_, io, _) -> IO.offset io)
-        |> List.fold_left Int64.add 0L
+        |> List.fold_left Int63.add Int63.zero
       in
       let bar, progress =
         Utils.Progress.counter ~total ~sampling_interval:100

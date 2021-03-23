@@ -46,7 +46,7 @@ module type S = sig
   val clear_caches : 'a t -> unit
 
   val decode_bin :
-    dict:(int -> string option) -> hash:(int64 -> key) -> string -> int -> int
+    dict:(int -> string option) -> hash:(Int63.t -> key) -> string -> int -> int
 
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 end
@@ -62,7 +62,7 @@ module type INTER = sig
 
   val decode_bin :
     dict:(int -> string option) ->
-    hash:(int64 -> hash) ->
+    hash:(Int63.t -> hash) ->
     string ->
     int ->
     int * Elt.t

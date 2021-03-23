@@ -21,7 +21,7 @@ module type Checkable = sig
   type key
 
   val integrity_check :
-    offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
+    offset:Int63.t -> length:int -> key -> _ t -> (unit, integrity_error) result
 end
 
 module type Atomic_write_store = sig

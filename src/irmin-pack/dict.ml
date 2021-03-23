@@ -21,7 +21,7 @@ let src =
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let ( -- ) = Int64.sub
+let ( -- ) = Int63.sub
 
 module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
   let current_version = IO_version.io_version
@@ -43,7 +43,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
     IO.append t.io buf
 
   let refill ~from t =
-    let len = Int64.to_int (IO.offset t.io -- from) in
+    let len = Int63.to_int (IO.offset t.io -- from) in
     let raw = Bytes.create len in
     let n = IO.read t.io ~off:from raw in
     assert (n = len);
@@ -72,7 +72,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
       t.io <- io;
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
-      refill ~from:0L t)
+      refill ~from:Int63.zero t)
     else
       let former_log_offset = IO.offset t.io in
       let log_offset = IO.force_offset t.io in
@@ -115,7 +115,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
-    refill ~from:0L t;
+    refill ~from:Int63.zero t;
     t
 
   let close t =

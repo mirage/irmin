@@ -18,6 +18,7 @@ end
 module Alcotest : sig
   include module type of Alcotest
 
+  val int63 : Int63.t testable
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
   val check_repr : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
 end

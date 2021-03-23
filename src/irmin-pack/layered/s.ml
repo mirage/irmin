@@ -111,7 +111,7 @@ module type Layered_pack = sig
   val flush_next_lower : 'a t -> unit
 
   val integrity_check :
-    offset:int64 ->
+    offset:Int63.t ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
     key ->

@@ -11,7 +11,7 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
 module type S = sig
-  include Index.S with type value = int64 * int * char
+  include Index.S with type value = Int63.t * int * char
 
   val v :
     ?flush_callback:(unit -> unit) ->

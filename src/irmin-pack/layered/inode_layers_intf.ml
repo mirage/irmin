@@ -40,7 +40,7 @@ module type S = sig
     bool
 
   val integrity_check :
-    offset:int64 ->
+    offset:Int63.t ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
     key ->

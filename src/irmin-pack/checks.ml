@@ -58,8 +58,8 @@ module Make (M : Maker) = struct
 
     type io = {
       size : size;
-      offset : int64;
-      generation : int64;
+      offset : Int63.t;
+      generation : Int63.t;
       version : version;
     }
     [@@deriving irmin]

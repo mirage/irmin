@@ -30,12 +30,12 @@ module type S = sig
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
-  val set : t -> off:int64 -> string -> unit
-  val read : t -> off:int64 -> bytes -> int
-  val offset : t -> int64
-  val force_offset : t -> int64
-  val generation : t -> int64
-  val force_generation : t -> int64
+  val set : t -> off:Int63.t -> string -> unit
+  val read : t -> off:Int63.t -> bytes -> int
+  val offset : t -> Int63.t
+  val force_offset : t -> Int63.t
+  val generation : t -> Int63.t
+  val force_generation : t -> Int63.t
   val readonly : t -> bool
   val version : t -> version
   val flush : t -> unit
@@ -49,13 +49,13 @@ module type S = sig
       {!clear} instead. *)
 
   val migrate :
-    progress:(int64 -> unit) ->
+    progress:(Int63.t -> unit) ->
     t ->
     version ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
 
-  val read_buffer : chunk:int -> off:int64 -> t -> string
+  val read_buffer : chunk:int -> off:Int63.t -> t -> string
 end
 
 module type IO = sig

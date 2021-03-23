@@ -1,11 +1,11 @@
 type 'a fixed_width_fmt = 'a Fmt.t * int
 
 (** Pretty-printer for byte counts *)
-let pp_bytes : int64 fixed_width_fmt =
+let pp_bytes : Int63.t fixed_width_fmt =
   (* Round down to the nearest 0.1 *)
   let trunc f = Float.trunc (f *. 10.) /. 10. in
   let pp ppf i =
-    match Int64.to_float i with
+    match Int63.to_float i with
     | n when n < 1024. -> Fmt.pf ppf "%6.1f B  " (trunc n)
     | n when n < 1024. ** 2. -> Fmt.pf ppf "%6.1f KiB" (trunc (n /. 1024.))
     | n when n < 1024. ** 3. ->
@@ -18,14 +18,14 @@ module Progress : sig
   type t
 
   val counter :
-    total:int64 ->
+    total:Int63.t ->
     sampling_interval:int ->
     ?columns:int ->
     message:string ->
-    ?pp_count:int64 fixed_width_fmt ->
+    ?pp_count:Int63.t fixed_width_fmt ->
     ?ppf:Format.formatter ->
     unit ->
-    t * (int64 -> unit)
+    t * (Int63.t -> unit)
   (** Renders a progress bar of the form:
 
       [<msg> <count> MM:SS \[########..............................\] XX%]
@@ -62,9 +62,9 @@ end = struct
   let counter ~total ~sampling_interval ?(columns = 80) ~message
       ?pp_count:(pp_count, count_width = (Fmt.nop, 0))
       ?(ppf = Format.err_formatter) () =
-    let count = ref 0L in
+    let count = ref Int63.zero in
     let percentage i =
-      min (Float.trunc (Int64.to_float i *. 100. /. Int64.to_float total)) 100.
+      min (Float.trunc (Int63.to_float i *. 100. /. Int63.to_float total)) 100.
     in
     let start_time = Mtime_clock.counter () in
     let should_update : unit -> bool =
@@ -84,7 +84,7 @@ end = struct
         (bar bar_width percentage) percentage
     in
     let progress i =
-      count := Int64.add !count i;
+      count := Int63.add !count i;
       if should_update () then update ~first:false
     in
     update ~first:true;

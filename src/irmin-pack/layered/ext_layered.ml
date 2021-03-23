@@ -34,7 +34,7 @@ module IO_version = struct
 end
 
 let pp_version = IO.pp_version
-let ( -- ) = Int64.sub
+let ( -- ) = Int63.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 exception Unsupported_version = Store.Unsupported_version
@@ -675,7 +675,7 @@ struct
       (** Repeatedly call [copy_newies] as long as there are many newies (more
           than newies_limit bytes added). *)
       let rec copy_newies_to_next_upper ~cancel t former_offset =
-        let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
+        let newies_limit = Int63.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then (
           Irmin_layers.Stats.copy_newies_loop ();

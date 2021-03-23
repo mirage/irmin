@@ -27,7 +27,7 @@ let pp_version = IO.pp_version
 exception Unsupported_version = Store.Unsupported_version
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
-let ( ++ ) = Int64.add
+let ( ++ ) = Int63.add
 
 let () =
   Printexc.register_printer (function
@@ -267,18 +267,18 @@ struct
             assert (off_m = Hash.hash_size + 1);
             match decode_len buf magic with
             | Some len ->
-                let new_off = off ++ Int64.of_int len in
+                let new_off = off ++ Int63.of_int len in
                 Log.debug (fun l ->
-                    l "k = %a (off, len, magic) = (%Ld, %d, %c)" pp_hash k off
-                      len magic);
+                    l "k = %a (off, len, magic) = (%a, %d, %c)" pp_hash k
+                      Int63.pp off len magic);
                 Index.add index k (off, len, magic);
-                progress (Int64.of_int len);
+                progress (Int63.of_int len);
                 Some new_off
             | None -> None
           in
           let rec read_and_decode ?(retries = 1) off =
             Log.debug (fun l ->
-                l "read_and_decode retries %d off %Ld" retries off);
+                l "read_and_decode retries %d off %a" retries Int63.pp off);
             let chunk = 64 * 10 * retries in
             let buf = IO.read_buffer ~chunk ~off pack in
             match decode_entry buf off with
@@ -295,7 +295,7 @@ struct
               let new_off = read_and_decode off in
               (read_buffer [@tailcall]) new_off
           in
-          read_buffer 0L
+          read_buffer Int63.zero
 
         let reconstruct ?output config =
           if Pack_config.readonly config then raise RO_Not_Allowed;

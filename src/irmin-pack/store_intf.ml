@@ -52,7 +52,7 @@ module type Store = sig
       auto_repair:bool ->
       check:
         (kind:[ `Contents | `Node | `Commit ] ->
-        offset:int64 ->
+        offset:Int63.t ->
         length:int ->
         Index.key ->
         (unit, [ `Absent_value | `Wrong_hash ]) result) ->

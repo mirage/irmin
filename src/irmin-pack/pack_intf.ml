@@ -28,14 +28,14 @@ module type ELT = sig
 
   val encode_bin :
     dict:(string -> int option) ->
-    offset:(hash -> int64 option) ->
+    offset:(hash -> Int63.t option) ->
     t ->
     hash ->
     (string -> unit) ->
     unit
 
   val decode_bin :
-    dict:(int -> string option) -> hash:(int64 -> hash) -> string -> int -> t
+    dict:(int -> string option) -> hash:(Int63.t -> hash) -> string -> int -> t
 end
 
 module type S = sig
@@ -75,8 +75,8 @@ module type S = sig
       generation change. *)
 
   val version : 'a t -> IO.version
-  val generation : 'a t -> int64
-  val offset : 'a t -> int64
+  val generation : 'a t -> Int63.t
+  val offset : 'a t -> Int63.t
 
   include Sigs.Checkable with type 'a t := 'a t and type key := key
   include Closeable with type 'a t := 'a t

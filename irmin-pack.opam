@@ -24,6 +24,7 @@ depends: [
   "lwt"
   "mtime"
   "cmdliner"
+  "optint"
   "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}
   "astring"      {with-test}

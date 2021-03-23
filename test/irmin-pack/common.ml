@@ -112,6 +112,8 @@ end
 module Alcotest = struct
   include Alcotest
 
+  let int63 = testable Int63.pp Int63.equal
+
   (** TODO: upstream this to Alcotest *)
   let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
     Lwt.catch
