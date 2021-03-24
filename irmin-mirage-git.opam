@@ -20,9 +20,9 @@ depends: [
   "cohttp"
   "conduit-lwt"
   "conduit-mirage"
-  "git-cohttp-mirage" {>= "3.3.3"}
+  "git-cohttp-mirage" {>= "3.3.0"}
   "fmt"
-  "git"               {>= "3.3.3"}
+  "git"               {>= "3.3.0"}
   "lwt"
   "mirage-clock"
   "uri"
