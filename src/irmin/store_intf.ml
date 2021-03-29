@@ -810,7 +810,7 @@ module type S = sig
   (** [Key] provides base functions for the stores's paths. *)
   module Key : Path.S with type t = key and type step = step
 
-  module Metadata : S.METADATA with type t = metadata
+  module Metadata : Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
 
   (** {1 Value Types} *)
@@ -899,7 +899,7 @@ module type S = sig
 end
 
 module type MAKER = functor
-  (M : S.METADATA)
+  (M : Metadata.S)
   (C : Contents.S)
   (P : Path.S)
   (B : Branch.S)
