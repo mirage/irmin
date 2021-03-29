@@ -121,7 +121,7 @@ struct
     end
 
     module Node = struct
-      module Pa = Layered_store.Pack_Maker (H) (Index) (Pack)
+      module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
       module CA = Inode_layers.Make (Inode_config) (H) (Pa) (Node)
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
@@ -235,7 +235,7 @@ struct
         end
 
         type 'a store_fn = {
-          f : 't. (module S.LAYERED with type t = 't) -> 't -> 'a;
+          f : 't. (module S.Layered with type t = 't) -> 't -> 'a;
         }
         [@@ocaml.unboxed]
 
@@ -399,7 +399,7 @@ struct
         let f : unit Lwt.t Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.close x);
           }
         in
@@ -428,7 +428,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.update_flip ~flip x);
           }
         in
@@ -497,7 +497,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.flip_upper x);
           }
         in

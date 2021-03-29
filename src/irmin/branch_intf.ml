@@ -29,10 +29,10 @@ module type S = sig
   (** Check if the branch is valid. *)
 end
 
-module type STORE = sig
+module type Store = sig
   (** {1 Branch Store} *)
 
-  include ATOMIC_WRITE_STORE
+  include Atomic_write_store
 
   module Key : S with type t = key
   (** Base functions on keys. *)
@@ -54,8 +54,8 @@ module type Branch = sig
       strings. The [master] branch is ["master"]. Valid branch names contain
       only alpha-numeric characters, [-], [_], [.], and [/]. *)
 
-  module type STORE = STORE
-  (** [STORE] specifies the signature for branch stores.
+  module type Store = Store
+  (** [Store] specifies the signature for branch stores.
 
       A {i branch store} is a mutable and reactive key / value store, where keys
       are branch names created by users and values are keys are head commmits. *)

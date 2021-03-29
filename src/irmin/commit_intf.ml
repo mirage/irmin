@@ -47,25 +47,25 @@ module type S = sig
   (** [hash_t] is the value type for {!hash}. *)
 end
 
-module type STORE = sig
+module type Store = sig
   (** {1 Commit Store} *)
 
-  include CONTENT_ADDRESSABLE_STORE
+  include Content_addressable_store
 
   val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
   (** [merge] is the 3-way merge function for commit keys. *)
 
   (** [Key] provides base functions for commit keys. *)
-  module Key : Hash.TYPED with type t = key and type value = value
+  module Key : Hash.Typed with type t = key and type value = value
 
   (** [Val] provides functions for commit values. *)
   module Val : S with type t = value and type hash = key
 
-  module Node : Node.STORE with type key = Val.hash
+  module Node : Node.Store with type key = Val.hash
   (** [Node] is the underlying node store. *)
 end
 
-module type HISTORY = sig
+module type History = sig
   (** {1 Commit History} *)
 
   type 'a t
@@ -135,7 +135,7 @@ module type HISTORY = sig
 
   val closure :
     [> read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
-  (** Same as {{!NODE_GRAPH.closure} NODE_GRAPH.closure} but for the history
+  (** Same as {{!Node.Graph.closure} Node.Graph.closure} but for the history
       graph. *)
 
   val iter :
@@ -148,7 +148,7 @@ module type HISTORY = sig
     ?rev:bool ->
     unit ->
     unit Lwt.t
-  (** Same as {{!NODE_GRAPH.iter} NODE_GRAPH.iter} but for traversing the
+  (** Same as {{!Node.Graph.iter} Node.Graph.iter} but for traversing the
       history graph. *)
 
   (** {1 Value Types} *)
@@ -172,24 +172,24 @@ module type Commit = sig
     val export : t -> C.t
   end
 
-  module type STORE = STORE
-  (** [STORE] specifies the signature for commit stores. *)
+  module type Store = Store
+  (** [Store] specifies the signature for commit stores. *)
 
   (** [Store] creates a new commit store. *)
   module Store
-      (N : Node.STORE) (C : sig
-        include CONTENT_ADDRESSABLE_STORE with type key = N.key
+      (N : Node.Store) (C : sig
+        include Content_addressable_store with type key = N.key
         module Key : Hash.S with type t = key
         module Val : S with type t = value and type hash = key
       end) :
-    STORE
+    Store
       with type 'a t = 'a N.t * 'a C.t
        and type key = C.key
        and type value = C.value
        and type Key.t = C.Key.t
        and module Val = C.Val
 
-  module type HISTORY = HISTORY
+  module type History = History
   (** [History] specifies the signature for commit history. The history is
       represented as a partial-order of commits and basic functions to search
       through that history are provided.
@@ -198,8 +198,8 @@ module type Commit = sig
       user-defined contents are stored. *)
 
   (** Build a commit history. *)
-  module History (C : STORE) :
-    HISTORY
+  module History (C : Store) :
+    History
       with type 'a t = 'a C.t
        and type v = C.Val.t
        and type node = C.Node.key

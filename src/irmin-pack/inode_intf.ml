@@ -24,7 +24,7 @@ module type VAL = sig
 end
 
 module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
+  include Irmin.Content_addressable_store
 
   type index
 
@@ -36,11 +36,11 @@ module type S = sig
     string ->
     read t Lwt.t
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   module Key : Irmin.Hash.S with type t = key
   module Val : VAL with type t = value and type hash = key
-  include S.CHECKABLE with type 'a t := 'a t and type key := key
-  include CLOSEABLE with type 'a t := 'a t
+  include S.Checkable with type 'a t := 'a t and type key := key
+  include Closeable with type 'a t := 'a t
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit
@@ -151,7 +151,7 @@ module type Inode = sig
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) : sig
+      (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t) : sig
     include
       S
         with type key = H.t
@@ -164,7 +164,7 @@ module type Inode = sig
   module Make
       (Conf : Config.S)
       (H : Irmin.Hash.S)
-      (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+      (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) : sig
     include
       S

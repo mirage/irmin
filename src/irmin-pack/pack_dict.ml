@@ -16,7 +16,7 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 end
 
-module Make (Io_version : IO.VERSION) = struct
+module Make (Io_version : IO.Version) = struct
   include Dict.Make (Io_version) (IO.Unix)
 
   (* Add IO caching around Dict.v *)

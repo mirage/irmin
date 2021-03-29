@@ -2,7 +2,7 @@ open! Import
 open Store_properties
 include Irmin_pack.Private.Sigs
 
-module type STORE = sig
+module type Store = sig
   include Irmin_layers.S
   include Irmin_pack.Store.S with type repo := repo
 
@@ -17,25 +17,25 @@ module type STORE = sig
     list
 end
 
-module type LAYERED_GENERAL = sig
+module type Layered_general = sig
   type 'a t
 
-  include CLOSEABLE with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
 
   val update_flip : flip:bool -> _ t -> unit
   val flip_upper : _ t -> unit
 end
 
-module type LAYERED = sig
+module type Layered = sig
   type t
 
-  include LAYERED_GENERAL with type _ t := t
+  include Layered_general with type _ t := t
 end
 
-module type LAYERED_ATOMIC_WRITE_STORE = sig
-  include ATOMIC_WRITE_STORE
-  module U : ATOMIC_WRITE_STORE
-  module L : ATOMIC_WRITE_STORE
+module type Layered_atomic_write_store = sig
+  include Atomic_write_store
+  module U : Atomic_write_store
+  module L : Atomic_write_store
 
   val v :
     U.t ->
@@ -51,14 +51,14 @@ module type LAYERED_ATOMIC_WRITE_STORE = sig
     t ->
     unit Lwt.t
 
-  include LAYERED with type t := t
+  include Layered with type t := t
 
   val flush_next_lower : t -> unit
   val clear_previous_upper : ?keep_generation:unit -> t -> unit Lwt.t
   val copy_newies_to_next_upper : t -> unit Lwt.t
 end
 
-module type LAYERED_PACK = sig
+module type Layered_pack = sig
   open Irmin_pack.Pack
   include S
   module U : S with type value = value
@@ -101,7 +101,7 @@ module type LAYERED_PACK = sig
     'a t ->
     bool
 
-  include LAYERED_GENERAL with type 'a t := 'a t
+  include Layered_general with type 'a t := 'a t
 
   val clear_caches_next_upper : 'a t -> unit
 
@@ -128,14 +128,14 @@ module type LAYERED_PACK = sig
     unit Lwt.t
 end
 
-module type LAYERED_PACK_MAKER = sig
+module type Layered_pack_maker = sig
   open Irmin_pack.Pack
 
   type key
   type index
 
   module Make (V : ELT with type hash := key) :
-    LAYERED_PACK
+    Layered_pack
       with type key = key
        and type value = V.t
        and type index = index

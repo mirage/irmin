@@ -36,7 +36,7 @@ val config :
     copied in the blocking portion of the freeze. *)
 
 module type S = sig
-  include S.STORE
+  include S.Store
   (** @inline *)
 end
 

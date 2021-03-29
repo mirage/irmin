@@ -24,7 +24,7 @@ module Content_addressable
            with type index = U.index
             and type key = U.key
             and type value = U.value) :
-  S.LAYERED_PACK
+  S.Layered_pack
     with type index = U.index
      and type U.index = Index.t
      and type L.index = Index.t
@@ -36,12 +36,12 @@ module Content_addressable
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : S.ATOMIC_WRITE_STORE with type key = K.t)
-    (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) :
-  S.LAYERED_ATOMIC_WRITE_STORE with type key = U.key and type value = U.value
+    (U : S.Atomic_write_store with type key = K.t)
+    (L : S.Atomic_write_store with type key = U.key and type value = U.value) :
+  S.Layered_atomic_write_store with type key = U.key and type value = U.value
 
-module Pack_Maker
+module Pack_maker
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Private.Pack_index.S)
-    (P : Irmin_pack.Pack.MAKER with type key = H.t and type index = Index.t) :
-  S.LAYERED_PACK_MAKER with type key = P.key and type index = P.index
+    (P : Irmin_pack.Pack.Maker with type key = H.t and type index = Index.t) :
+  S.Layered_pack_maker with type key = P.key and type index = P.index

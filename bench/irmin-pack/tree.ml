@@ -17,7 +17,7 @@ type config = {
   results_dir : string;
 }
 
-module type STORE = sig
+module type Store = sig
   include Irmin.S with type key = string list and type contents = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
@@ -469,7 +469,7 @@ module Bootstrap_trace = struct
   end
 end
 
-module Generate_trees_from_trace (Store : STORE) = struct
+module Generate_trees_from_trace (Store : Store) = struct
   type context = { tree : Store.tree }
 
   type t = {
@@ -760,7 +760,7 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module Bench_suite (Store : STORE) = struct
+module Bench_suite (Store : Store) = struct
   let init_commit repo =
     Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
 

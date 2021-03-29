@@ -39,7 +39,7 @@ module type ELT = sig
 end
 
 module type S = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
+  include Irmin.Content_addressable_store
 
   val add : 'a t -> value -> key Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
@@ -57,7 +57,7 @@ module type S = sig
     string ->
     read t Lwt.t
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   (** @inline *)
 
   val unsafe_append :
@@ -78,9 +78,9 @@ module type S = sig
   val generation : 'a t -> int64
   val offset : 'a t -> int64
 
-  include Sigs.CHECKABLE with type 'a t := 'a t and type key := key
-  include CLOSEABLE with type 'a t := 'a t
-  include CLEARABLE with type 'a t := 'a t
+  include Sigs.Checkable with type 'a t := 'a t and type key := key
+  include Closeable with type 'a t := 'a t
+  include Clearable with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
@@ -89,7 +89,7 @@ module type S = sig
   val clear_keep_generation : 'a t -> unit Lwt.t
 end
 
-module type MAKER = sig
+module type Maker = sig
   type key
   type index
 
@@ -102,10 +102,10 @@ end
 module type Pack = sig
   module type ELT = ELT
   module type S = S
-  module type MAKER = MAKER
+  module type Maker = Maker
 
   module File
       (Index : Pack_index.S)
       (K : Irmin.Hash.S with type t = Index.key)
-      (_ : IO.VERSION) : MAKER with type key = K.t and type index = Index.t
+      (_ : IO.Version) : Maker with type key = K.t and type index = Index.t
 end

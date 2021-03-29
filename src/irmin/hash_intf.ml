@@ -36,7 +36,7 @@ module type S = sig
   (** [t] is the value type for {!t}. *)
 end
 
-module type TYPED = sig
+module type Typed = sig
   type t
   type value
 
@@ -60,7 +60,7 @@ module type Hash = sig
   module type S = S
   (** Signature for hash values. *)
 
-  module type TYPED = TYPED
+  module type Typed = Typed
   (** Signature for typed hashes, where [hash] directly takes a value as
       argument and incremental hashing is not possible. *)
 
@@ -89,5 +89,5 @@ module type Hash = sig
 
   (** Typed hashes. *)
   module Typed (K : S) (V : Type.S) :
-    TYPED with type t = K.t and type value = V.t
+    Typed with type t = K.t and type value = V.t
 end

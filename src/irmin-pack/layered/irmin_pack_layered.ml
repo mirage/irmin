@@ -17,7 +17,7 @@
 include Ext_layered
 module Make_ext = Ext_layered.Make
 
-module type S = S.STORE
+module type S = S.Store
 
 module Make
     (Config : Irmin_pack.Config.S)

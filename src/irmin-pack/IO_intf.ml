@@ -16,7 +16,7 @@
 
 type version = [ `V1 | `V2 ]
 
-module type VERSION = sig
+module type Version = sig
   val io_version : version
 end
 
@@ -59,7 +59,7 @@ module type S = sig
 end
 
 module type IO = sig
-  module type VERSION = VERSION
+  module type Version = Version
   module type S = S
 
   type nonrec version = version

@@ -35,7 +35,7 @@ let path =
   @@ pos 0 (some string) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-module Make (M : MAKER) = struct
+module Make (M : Maker) = struct
   module V1 = struct
     let io_version = `V1
   end

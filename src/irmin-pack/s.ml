@@ -16,7 +16,7 @@
 
 type integrity_error = [ `Wrong_hash | `Absent_value ]
 
-module type CHECKABLE = sig
+module type Checkable = sig
   type 'a t
   type key
 
@@ -24,8 +24,8 @@ module type CHECKABLE = sig
     offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
 end
 
-module type ATOMIC_WRITE_STORE = sig
-  include Irmin.ATOMIC_WRITE_STORE
+module type Atomic_write_store = sig
+  include Irmin.Atomic_write_store
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
   val flush : t -> unit

@@ -27,7 +27,7 @@ let pp_version = IO.pp_version
 module Atomic_write
     (K : Irmin.Type.S)
     (V : Irmin.Hash.S)
-    (IO_version : IO.VERSION) =
+    (IO_version : IO.Version) =
 struct
   let current_version = IO_version.io_version
 

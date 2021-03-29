@@ -21,16 +21,16 @@ module type S = sig
   module Hash : Hash.S
   (** Internal hashes. *)
 
-  module Contents : Contents.STORE with type key = Hash.t
+  module Contents : Contents.Store with type key = Hash.t
   (** Private content store. *)
 
-  module Node : Node.STORE with type key = Hash.t
+  module Node : Node.Store with type key = Hash.t
   (** Private node store. *)
 
-  module Commit : Commit.STORE with type key = Hash.t
+  module Commit : Commit.Store with type key = Hash.t
   (** Private commit store. *)
 
-  module Branch : Branch.STORE with type value = Hash.t
+  module Branch : Branch.Store with type value = Hash.t
   (** Private branch store. *)
 
   (** Private slices. *)
@@ -44,10 +44,10 @@ module type S = sig
   module Repo : sig
     type t
 
-    include OF_CONFIG with type _ t := t
+    include Of_config with type _ t := t
     (** @inline *)
 
-    include CLOSEABLE with type _ t := t
+    include Closeable with type _ t := t
     (** @inline *)
 
     val contents_t : t -> read Contents.t

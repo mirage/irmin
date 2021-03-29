@@ -16,7 +16,7 @@
 
 open Import
 
-module type BATCH = sig
+module type Batch = sig
   type 'a t
 
   val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
@@ -24,7 +24,7 @@ module type BATCH = sig
       guarantees depend on the implementation. *)
 end
 
-module type CLOSEABLE = sig
+module type Closeable = sig
   type 'a t
 
   val close : 'a t -> unit Lwt.t
@@ -32,7 +32,7 @@ module type CLOSEABLE = sig
       run on a closed handle will raise {!Closed}. *)
 end
 
-module type OF_CONFIG = sig
+module type Of_config = sig
   type 'a t
 
   val v : Conf.t -> read t Lwt.t
@@ -40,7 +40,7 @@ module type OF_CONFIG = sig
       configuration [config], which is provided by the backend. *)
 end
 
-module type CLEARABLE = sig
+module type Clearable = sig
   type 'a t
 
   val clear : 'a t -> unit Lwt.t
@@ -48,23 +48,23 @@ module type CLEARABLE = sig
 end
 
 module type Sigs = sig
-  module type BATCH = sig
-    include BATCH
+  module type Batch = sig
+    include Batch
     (** @inline *)
   end
 
-  module type CLOSEABLE = sig
-    include CLOSEABLE
+  module type Closeable = sig
+    include Closeable
     (** @inline *)
   end
 
-  module type OF_CONFIG = sig
-    include OF_CONFIG
+  module type Of_config = sig
+    include Of_config
     (** @inline *)
   end
 
-  module type CLEARABLE = sig
-    include CLEARABLE
+  module type Clearable = sig
+    include Clearable
     (** @inline *)
   end
 end

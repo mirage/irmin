@@ -29,8 +29,8 @@ module Layer_id = struct
 end
 
 module Make_ext
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -167,8 +167,8 @@ struct
 end
 
 module Make
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)

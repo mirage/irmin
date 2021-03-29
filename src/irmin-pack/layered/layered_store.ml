@@ -23,7 +23,7 @@ open! Import
 
 module type CA = sig
   include Pack.S
-  module Key : Irmin.Hash.TYPED with type t = key and type value = value
+  module Key : Irmin.Hash.Typed with type t = key and type value = value
 end
 
 let stats = function
@@ -322,10 +322,10 @@ struct
         | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
 end
 
-module Pack_Maker
+module Pack_maker
     (H : Irmin.Hash.S)
     (Index : Private.Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) =
+    (P : Pack.Maker with type key = H.t and type index = Index.t) =
 struct
   type index = P.index
   type key = P.key
@@ -338,8 +338,8 @@ end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : S.ATOMIC_WRITE_STORE with type key = K.t)
-    (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) =
+    (U : S.Atomic_write_store with type key = K.t)
+    (L : S.Atomic_write_store with type key = U.key and type value = U.value) =
 struct
   type key = U.key
   type value = U.value

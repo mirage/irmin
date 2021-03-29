@@ -25,7 +25,7 @@ module type Store_maker = functor (C : Irmin.Contents.S) ->
      and type step = string
 
 module type Cas_maker = sig
-  module CAS_Maker : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER
+  module CAS_maker : Irmin.Content_addressable_store_maker
 
   val config : Irmin.config
 end

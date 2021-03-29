@@ -462,14 +462,14 @@ struct
   module Commit = Irmin.Private.Commit.Store (Node) (XCommit)
 end
 
-module type BRANCH = sig
+module type Branch = sig
   include Irmin.Branch.S
 
   val pp_ref : t Fmt.t
   val of_ref : string -> (t, [ `Msg of string ]) result
 end
 
-module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
+module Branch (B : Irmin.Branch.S) : Branch with type t = B.t = struct
   open Astring
   include B
 
@@ -483,13 +483,13 @@ module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
 end
 
-module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
-  module Key : BRANCH with type t = B.t
+module type Atomic_write_store = functor (G : Git.S) (B : Branch) -> sig
+  module Key : Branch with type t = B.t
   module Val : Irmin.Hash.S with type t = G.Hash.t
   module W : Irmin.Private.Watch.S with type key = Key.t and type value = Val.t
 
   include
-    Irmin.ATOMIC_WRITE_STORE with type key = Key.t and type value = W.value
+    Irmin.Atomic_write_store with type key = Key.t and type value = W.value
 
   val v :
     ?lock:Lwt_mutex.t ->
@@ -499,10 +499,10 @@ module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
     t Lwt.t
 end
 
-module Irmin_branch_store : ATOMIC_WRITE_STORE =
+module Irmin_branch_store : Atomic_write_store =
 functor
   (G : Git.S)
-  (B : BRANCH)
+  (B : Branch)
   ->
   struct
     module Key = B
@@ -796,7 +796,7 @@ end
 type reference =
   [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
 
-module Reference : BRANCH with type t = reference = struct
+module Reference : Branch with type t = reference = struct
   open Astring
 
   type t =
@@ -848,10 +848,10 @@ module type G = sig
   val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
 end
 
-module AW_check_closed (AW : ATOMIC_WRITE_STORE) : ATOMIC_WRITE_STORE =
+module AW_check_closed (AW : Atomic_write_store) : Atomic_write_store =
 functor
   (G : Git.S)
-  (B : BRANCH)
+  (B : Branch)
   ->
   struct
     module Key = B
@@ -923,7 +923,7 @@ module Make_ext
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
-    (B : BRANCH) =
+    (B : Branch) =
 struct
   module R = AW_check_closed (Irmin_branch_store) (G) (B)
 
@@ -1116,7 +1116,7 @@ module Ref
     (C : Irmin.Contents.S) =
   Make_ext (G) (S) (C) (Irmin.Path.String_list) (Reference)
 
-module type S_MAKER = functor
+module type Maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -1132,7 +1132,7 @@ module type S_MAKER = functor
      and module Git = G
      and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module type KV_MAKER = functor
+module type KV_maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -1145,7 +1145,7 @@ module type KV_MAKER = functor
      and module Git = G
      and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module type REF_MAKER = functor
+module type Ref_maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -1161,8 +1161,8 @@ module type REF_MAKER = functor
 include Conf
 
 module Generic
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
@@ -1182,7 +1182,7 @@ struct
 end
 
 module Generic_KV
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (C : Irmin.Contents.S) =
   Generic (CA) (AW) (C) (Irmin.Path.String_list) (Irmin.Branch.String)

@@ -79,7 +79,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     Wm.respond ~body:(`String err) 400 rd
 
   module Content_addressable (S : sig
-    include Irmin.CONTENT_ADDRESSABLE_STORE
+    include Irmin.Content_addressable_store
 
     val batch : P.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
   end)
@@ -191,7 +191,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   end
 
   module Atomic_write
-      (S : Irmin.ATOMIC_WRITE_STORE)
+      (S : Irmin.Atomic_write_store)
       (K : Irmin.Type.S with type t = S.key)
       (V : Irmin.Type.S with type t = S.value) =
   struct

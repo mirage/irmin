@@ -22,7 +22,7 @@ type config = Conf.t
 
 open Store_properties
 
-module type CONTENT_ADDRESSABLE_STORE = sig
+module type Content_addressable_store = sig
   (** {1 Content-addressable stores}
 
       Content-addressable stores are store where it is possible to read and add
@@ -55,20 +55,20 @@ module type CONTENT_ADDRESSABLE_STORE = sig
       choose to discared that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
-  include CLEARABLE with type 'a t := 'a t
+  include Clearable with type 'a t := 'a t
 end
 
-module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
+module type Content_addressable_store_maker = functor
   (K : Hash.S)
   (V : Type.S)
   -> sig
-  include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-  include BATCH with type 'a t := 'a t
-  include OF_CONFIG with type 'a t := 'a t
-  include CLOSEABLE with type 'a t := 'a t
+  include Content_addressable_store with type key = K.t and type value = V.t
+  include Batch with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
 end
 
-module type APPEND_ONLY_STORE = sig
+module type Append_only_store = sig
   (** {1 Append-only stores}
 
       Append-onlye stores are store where it is possible to read and add new
@@ -94,19 +94,19 @@ module type APPEND_ONLY_STORE = sig
   val add : [> write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
-  include CLEARABLE with type 'a t := 'a t
+  include Clearable with type 'a t := 'a t
 end
 
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-  include BATCH with type 'a t := 'a t
-  include OF_CONFIG with type 'a t := 'a t
-  include CLOSEABLE with type 'a t := 'a t
+module type Append_only_store_maker = functor (K : Type.S) (V : Type.S) -> sig
+  include Append_only_store with type key = K.t and type value = V.t
+  include Batch with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
 end
 
 type 'a diff = 'a Diff.t
 
-module type ATOMIC_WRITE_STORE = sig
+module type Atomic_write_store = sig
   (** {1 Atomic write stores}
 
       Atomic-write stores are stores where it is possible to read, update and
@@ -170,11 +170,11 @@ module type ATOMIC_WRITE_STORE = sig
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
-  include CLOSEABLE with type _ t := t
-  include CLEARABLE with type _ t := t
+  include Closeable with type _ t := t
+  include Clearable with type _ t := t
 end
 
-module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-  include OF_CONFIG with type _ t := t
+module type Atomic_write_store_maker = functor (K : Type.S) (V : Type.S) -> sig
+  include Atomic_write_store with type key = K.t and type value = V.t
+  include Of_config with type _ t := t
 end

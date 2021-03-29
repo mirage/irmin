@@ -39,7 +39,7 @@ module I = IO
 module IO = IO.Unix
 
 module Make
-    (IO_version : I.VERSION)
+    (IO_version : I.Version)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)

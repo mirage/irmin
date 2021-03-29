@@ -40,8 +40,8 @@ module Make (K : Type.S) = struct
 end
 
 module Store
-    (N : Node.STORE) (S : sig
-      include CONTENT_ADDRESSABLE_STORE with type key = N.key
+    (N : Node.Store) (S : sig
+      include Content_addressable_store with type key = N.key
       module Key : Hash.S with type t = key
       module Val : S with type t = value and type hash = key
     end) =
@@ -113,7 +113,7 @@ struct
   module Val = S.Val
 end
 
-module History (S : STORE) = struct
+module History (S : Store) = struct
   type commit = S.Key.t [@@deriving irmin]
   type node = S.Node.key
   type 'a t = 'a S.t

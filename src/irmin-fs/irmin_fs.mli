@@ -66,10 +66,10 @@ module type IO = sig
   (** Remove a file or directory (even if non-empty). *)
 end
 
-module Append_only (IO : IO) : Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write (IO : IO) : Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make (IO : IO) : Irmin.S_MAKER
-module KV (IO : IO) : Irmin.KV_MAKER
+module Append_only (IO : IO) : Irmin.Append_only_store_maker
+module Atomic_write (IO : IO) : Irmin.Atomic_write_store_maker
+module Make (IO : IO) : Irmin.Maker
+module KV (IO : IO) : Irmin.KV_maker
 
 (** {2 Advanced configuration} *)
 
@@ -86,9 +86,9 @@ module type Config = sig
   (** Convert a filename to a key. *)
 end
 
-module Append_only_ext (IO : IO) (C : Config) : Irmin.APPEND_ONLY_STORE_MAKER
-module Atomic_write_ext (IO : IO) (C : Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
-module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.S_MAKER
+module Append_only_ext (IO : IO) (C : Config) : Irmin.Append_only_store_maker
+module Atomic_write_ext (IO : IO) (C : Config) : Irmin.Atomic_write_store_maker
+module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.Maker
 
 (** {1 In-memory IO mocks} *)
 

@@ -36,7 +36,7 @@ module Make
             and type hash = Hash.t
             and type step = Path.step)
     (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
-  S.STORE
+  S.Store
     with type key = Path.t
      and type contents = Contents.t
      and type branch = Branch.t

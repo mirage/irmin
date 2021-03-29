@@ -134,10 +134,10 @@ struct
 end
 
 module Store
-    (C : Contents.STORE)
+    (C : Contents.Store)
     (P : Path.S)
     (M : Metadata.S) (S : sig
-      include CONTENT_ADDRESSABLE_STORE with type key = C.key
+      include Content_addressable_store with type key = C.key
       module Key : Hash.S with type t = key
 
       module Val :
@@ -228,7 +228,7 @@ struct
   module Val = S.Val
 end
 
-module Graph (S : STORE) = struct
+module Graph (S : Store) = struct
   module Path = S.Path
   module Contents = S.Contents.Key
   module Metadata = S.Metadata

@@ -126,7 +126,7 @@ module type S = sig
   end
 end
 
-module type S_MAKER = functor
+module type Maker = functor
   (M : Irmin.Metadata.S)
   (C : Irmin.Contents.S)
   (P : Irmin.Path.S)
@@ -150,11 +150,11 @@ module type Irmin_layers = sig
   end
 
   module type S = S
-  module type S_MAKER = S_MAKER
+  module type Maker = Maker
 
   module Make_ext
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+      (CA : Irmin.Content_addressable_store_maker)
+      (AW : Irmin.Atomic_write_store_maker)
       (Metadata : Irmin.Metadata.S)
       (Contents : Irmin.Contents.S)
       (Path : Irmin.Path.S)
@@ -175,8 +175,8 @@ module type Irmin_layers = sig
        and type Key.step = Path.step
 
   module Make
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+      (CA : Irmin.Content_addressable_store_maker)
+      (AW : Irmin.Atomic_write_store_maker) : Maker
 
   module Stats = Stats
 end

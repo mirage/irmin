@@ -32,7 +32,7 @@ module Layout = struct
     [ Layout.flip ~root; lower ~root; upper1 ~root; upper0 ~root ]
 end
 
-module Make (M : MAKER) (Store : S.STORE) = struct
+module Make (M : Maker) (Store : S.Store) = struct
   module Simple = Make (M)
   module Hash = Store.Hash
 
@@ -156,7 +156,7 @@ module Make (M : MAKER) (Store : S.STORE) = struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let check_store ~root ~heads (module S : S.STORE) =
+    let check_store ~root ~heads (module S : S.Store) =
       let* repo = S.Repo.v (conf root) in
       let* heads =
         match heads with

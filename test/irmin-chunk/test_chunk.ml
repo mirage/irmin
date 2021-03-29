@@ -40,7 +40,7 @@ end
 
 module type S = sig
   include
-    Irmin.CONTENT_ADDRESSABLE_STORE
+    Irmin.Content_addressable_store
       with type key = Key.t
        and type value = Value.t
 
@@ -48,7 +48,7 @@ module type S = sig
 
   val v : unit -> read t Lwt.t
 
-  include Store_properties.BATCH with type 'a t := 'a t
+  include Store_properties.Batch with type 'a t := 'a t
 end
 
 module Append_only = Irmin_mem.Append_only

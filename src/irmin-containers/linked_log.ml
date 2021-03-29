@@ -42,7 +42,7 @@ struct
   module S = Store_item (T) (K) (V)
 
   module Store = struct
-    module CAS = C.CAS_Maker (K) (Store_item (T) (K) (V))
+    module CAS = C.CAS_maker (K) (Store_item (T) (K) (V))
 
     let get_store =
       let st = CAS.v @@ C.config in

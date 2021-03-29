@@ -113,7 +113,7 @@ module Chunk (K : Irmin.Hash.S) = struct
 end
 
 module Content_addressable
-    (S : Irmin.APPEND_ONLY_STORE_MAKER)
+    (S : Irmin.Append_only_store_maker)
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S) =
 struct

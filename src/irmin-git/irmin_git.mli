@@ -36,13 +36,13 @@ val level : int option Irmin.Private.Conf.key
 val dot_git : string option Irmin.Private.Conf.key
 
 module Content_addressable (G : Git.S) (V : Irmin.Type.S) :
-  Irmin.CONTENT_ADDRESSABLE_STORE
+  Irmin.Content_addressable_store
     with type 'a t = bool ref * G.t
      and type key = G.hash
      and type value = V.t
 
 module Atomic_write (G : Git.S) (K : Irmin.Branch.S) :
-  Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = G.hash
+  Irmin.Atomic_write_store with type key = K.t and type value = G.hash
 
 module type G = sig
   include Git.S
@@ -81,7 +81,7 @@ module type S = sig
   (** [to_repo t] is the Irmin repository associated to [t]. *)
 end
 
-module type S_MAKER = functor
+module type Maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -97,7 +97,7 @@ module type S_MAKER = functor
      and module Git = G
      and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module type KV_MAKER = functor
+module type KV_maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -113,7 +113,7 @@ module type KV_MAKER = functor
 type reference =
   [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
 
-module type REF_MAKER = functor
+module type Ref_maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
   (C : Irmin.Contents.S)
@@ -126,26 +126,26 @@ module type REF_MAKER = functor
      and module Git = G
      and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module Make : S_MAKER
-module Ref : REF_MAKER
-module KV : KV_MAKER
+module Make : Maker
+module Ref : Ref_maker
+module KV : KV_maker
 
-module type BRANCH = sig
+module type Branch = sig
   include Irmin.Branch.S
 
   val pp_ref : t Fmt.t
   val of_ref : string -> (t, [ `Msg of string ]) result
 end
 
-module Branch (B : Irmin.Branch.S) : BRANCH
-module Reference : BRANCH with type t = reference
+module Branch (B : Irmin.Branch.S) : Branch
+module Reference : Branch with type t = reference
 
 module Make_ext
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
-    (B : BRANCH) :
+    (B : Branch) :
   S
     with type key = P.t
      and type step = P.step
@@ -154,8 +154,8 @@ module Make_ext
      and type branch = B.t
 
 module Generic
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) :
@@ -168,6 +168,6 @@ module Generic
      and type hash = Digestif.SHA1.t
 
 module Generic_KV
-    (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (CA : Irmin.Content_addressable_store_maker)
+    (AW : Irmin.Atomic_write_store_maker)
     (C : Irmin.Contents.S) : Irmin.KV with type contents = C.t

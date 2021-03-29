@@ -17,15 +17,15 @@
 open! Import
 open Store_properties
 
-module type CA = sig
-  include Irmin.CONTENT_ADDRESSABLE_STORE
-  include BATCH with type 'a t := 'a t
-  include OF_CONFIG with type 'a t := 'a t
-  include CLOSEABLE with type 'a t := 'a t
+module type Content_addressable_store = sig
+  include Irmin.Content_addressable_store
+  include Batch with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
 end
 
 module Content_addressable
     (K : Irmin.Type.S)
     (V : Irmin.Type.S)
-    (CA : CA with type key = K.t and type value = V.t) :
-  CA with type key = CA.key and type value = CA.value
+    (CA : Content_addressable_store with type key = K.t and type value = V.t) :
+  Content_addressable_store with type key = CA.key and type value = CA.value

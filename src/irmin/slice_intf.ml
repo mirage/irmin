@@ -64,7 +64,7 @@ module type Slice = sig
   (** The signature for slices. *)
 
   (** Build simple slices. *)
-  module Make (C : Contents.STORE) (N : Node.STORE) (H : Commit.STORE) :
+  module Make (C : Contents.Store) (N : Node.Store) (H : Commit.Store) :
     S
       with type contents = C.key * C.value
        and type node = N.key * N.value

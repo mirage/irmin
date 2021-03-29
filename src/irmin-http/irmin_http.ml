@@ -123,7 +123,7 @@ let of_json = Irmin.Type.of_json_string
 let to_json = Irmin.Type.to_json_string
 
 module Helper (Client : Cohttp_lwt.S.Client) :
-  S.HELPER with type ctx = Client.ctx = struct
+  S.Helper with type ctx = Client.ctx = struct
   type ctx = Client.ctx
 
   let err_bad_version v =
@@ -196,7 +196,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
 end
 
 module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
-  S.READ_ONLY_STORE
+  S.Read_only_store
     with type ctx = Client.ctx
      and type key = K.t
      and type value = V.t = struct
@@ -263,7 +263,7 @@ struct
   let close _ = Lwt.return_unit
 end
 
-module RW : S.ATOMIC_WRITE_STORE_MAKER =
+module RW : S.Atomic_write_store_maker =
 functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Type.S)

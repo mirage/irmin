@@ -90,7 +90,7 @@ module type S = sig
     val v : S.config -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
-    include CLOSEABLE with type _ t := t
+    include Closeable with type _ t := t
     (** @inline *)
 
     val heads : t -> commit list Lwt.t
@@ -898,7 +898,7 @@ module type S = sig
       (it is by default), the tree cache will be cleared after the save. *)
 end
 
-module type MAKER = functor
+module type Maker = functor
   (M : Metadata.S)
   (C : Contents.S)
   (P : Path.S)
@@ -914,7 +914,7 @@ module type MAKER = functor
      and type hash = H.t
      and type Private.Remote.endpoint = unit
 
-module type JSON_TREE = functor
+module type Json_tree = functor
   (Store : S with type contents = Contents.json)
   -> sig
   include Contents.S with type t = Contents.json
@@ -937,8 +937,8 @@ end
 
 module type Store = sig
   module type S = S
-  module type MAKER = MAKER
-  module type JSON_TREE = JSON_TREE
+  module type Maker = Maker
+  module type Json_tree = Json_tree
 
   type Remote.t += Store : (module S with type t = 'a) * 'a -> Remote.t
 
@@ -955,23 +955,23 @@ module type Store = sig
        and type repo = P.Repo.t
        and module Private = P
 
-  module Json_tree : JSON_TREE
+  module Json_tree : Json_tree
   (** [Json_tree] is used to project JSON values onto trees. Instead of the
       entire object being stored under one key, it is split across several keys
       starting at the specified root key. *)
 
   module Content_addressable
-      (X : Sigs.APPEND_ONLY_STORE_MAKER)
+      (X : Sigs.Append_only_store_maker)
       (K : Hash.S)
       (V : Type.S) : sig
     include
-      Sigs.CONTENT_ADDRESSABLE_STORE
+      Sigs.Content_addressable_store
         with type 'a t = 'a X(K)(V).t
          and type key = K.t
          and type value = V.t
 
-    include BATCH with type 'a t := 'a t
-    include OF_CONFIG with type 'a t := 'a t
-    include CLOSEABLE with type 'a t := 'a t
+    include Batch with type 'a t := 'a t
+    include Of_config with type 'a t := 'a t
+    include Closeable with type 'a t := 'a t
   end
 end
