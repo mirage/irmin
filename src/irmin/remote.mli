@@ -14,6 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store Synchronisation. *)
+(** Store Synchronisation signatures. *)
 
-include Sync_intf.Sigs
+include Remote_intf.Sigs

@@ -324,7 +324,7 @@ let clone =
     man = [];
     term =
       (let clone (S ((module S), store, f)) remote depth =
-         let module Sync = Irmin.Sync (S) in
+         let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
             let* r = remote in
@@ -344,7 +344,7 @@ let fetch =
     man = [];
     term =
       (let fetch (S ((module S), store, f)) remote =
-         let module Sync = Irmin.Sync (S) in
+         let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
             let* r = remote in
@@ -395,7 +395,7 @@ let pull =
     term =
       (let pull (S ((module S), store, f)) author message remote =
          let message = match message with Some s -> s | None -> "pull" in
-         let module Sync = Irmin.Sync (S) in
+         let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
             let* r = remote in
@@ -415,7 +415,7 @@ let push =
     man = [];
     term =
       (let push (S ((module S), store, f)) remote =
-         let module Sync = Irmin.Sync (S) in
+         let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
             let* r = remote in

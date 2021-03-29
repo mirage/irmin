@@ -867,8 +867,8 @@ module type S = sig
          and type Repo.t = repo
   end
 
-  type S.remote +=
-    | E of Private.Sync.endpoint
+  type Remote.t +=
+    | E of Private.Remote.endpoint
           (** Extend the [remote] type with [endpoint]. *)
 
   (** {2 Converters to private types} *)
@@ -912,7 +912,7 @@ module type MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and type hash = H.t
-     and type Private.Sync.endpoint = unit
+     and type Private.Remote.endpoint = unit
 
 module type JSON_TREE = functor
   (Store : S with type contents = Contents.json)
@@ -940,7 +940,7 @@ module type Store = sig
   module type MAKER = MAKER
   module type JSON_TREE = JSON_TREE
 
-  type Sigs.remote += Store : (module S with type t = 'a) * 'a -> Sigs.remote
+  type Remote.t += Store : (module S with type t = 'a) * 'a -> Remote.t
 
   module Make (P : Private.S) :
     S

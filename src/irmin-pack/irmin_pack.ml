@@ -46,7 +46,7 @@ module type MAKER = functor
        and type contents = C.t
        and type branch = B.t
        and type hash = H.t
-       and type Private.Sync.endpoint = unit
+       and type Private.Remote.endpoint = unit
 
   include Store.S with type repo := repo
 

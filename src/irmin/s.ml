@@ -222,5 +222,3 @@ module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
   include OF_CONFIG with type _ t := t
 end
-
-type remote = ..

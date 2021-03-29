@@ -224,7 +224,7 @@ let test_blobs (module S : S) =
 
 let test_import_export (module S : S) =
   let module Generic = Generic (Irmin.Contents.String) in
-  let module Sync = Irmin.Sync (Generic) in
+  let module Sync = Irmin.Sync.Make (Generic) in
   S.init () >>= fun () ->
   let* _ = Generic.init () in
   let* repo = S.Repo.v (Irmin_git.config test_db) in

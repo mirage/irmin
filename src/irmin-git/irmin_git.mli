@@ -95,7 +95,7 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 module type KV_MAKER = functor
   (G : G)
@@ -108,7 +108,7 @@ module type KV_MAKER = functor
      and type contents = C.t
      and type branch = string
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 type reference =
   [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
@@ -124,7 +124,7 @@ module type REF_MAKER = functor
      and type contents = C.t
      and type branch = reference
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 module Make : S_MAKER
 module Ref : REF_MAKER

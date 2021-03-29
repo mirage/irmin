@@ -204,7 +204,7 @@ struct
     end
 
     module Slice = Slice.Make (Contents) (Node) (Commit)
-    module Sync = Sync.None (H) (B)
+    module Remote = Remote.None (H) (B)
 
     module Repo = struct
       type t = {
@@ -288,7 +288,7 @@ module Private = struct
   module Node = Node
   module Commit = Commit
   module Slice = Slice
-  module Sync = Sync
+  module Remote = Remote
   module Sigs = S
 
   module type S = Private.S
@@ -300,15 +300,13 @@ end
 
 let version = Version.current
 
-module type SYNC = Sync_ext.SYNC_STORE
+module Sync = Sync
 
-module Sync = Sync_ext.Make
-
-type remote = S.remote = ..
+type remote = Remote.t = ..
 
 let remote_store (type t) (module M : S with type t = t) (t : t) =
   let module X : Store.S with type t = t = M in
-  Sync_ext.remote_store (module X) t
+  Sync.remote_store (module X) t
 
 module Metadata = struct
   module type S = S.METADATA

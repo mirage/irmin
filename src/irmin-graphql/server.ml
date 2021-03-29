@@ -124,7 +124,7 @@ module Make_ext
                 and type branch := Store.branch) =
 struct
   module IO = Server.IO
-  module Sync = Irmin.Sync (Store)
+  module Sync = Irmin.Sync.Make (Store)
   module Graphql_server = Graphql_cohttp.Make (Schema) (IO) (Cohttp_lwt.Body)
 
   type repo = Store.repo

@@ -64,9 +64,9 @@ module type S = sig
       'a Lwt.t
   end
 
-  (** URI-based low-level sync. *)
-  module Sync : sig
-    include Sync.S with type commit = Commit.key and type branch = Branch.key
+  (** URI-based low-level remote synchronisation. *)
+  module Remote : sig
+    include Remote.S with type commit = Commit.key and type branch = Branch.key
 
     val v : Repo.t -> t Lwt.t
   end

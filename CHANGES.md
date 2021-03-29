@@ -34,6 +34,10 @@
   - Simplify the API of `freeze`. It is now possible to specify two distinct
     commit closures for the copy to lower and the copy to next upper.
     (#1322, @Ngoguey42)
+- **irmin**
+  - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
+    `Irmin.Sync(S)` (#1338, @samoht)
+  - `Store.Private.Sync` is now `Store.Private.Remote` (#1338, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

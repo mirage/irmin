@@ -1470,7 +1470,7 @@ module Make (S : S) = struct
     in
     run x test
 
-  module Sync = Irmin.Sync (S)
+  module Sync = Irmin.Sync.Make (S)
 
   let test_sync x () =
     let test repo =

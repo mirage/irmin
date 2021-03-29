@@ -14,6 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store Synchronisation. *)
+include Remote_intf
 
-include Sync_ext_intf.Sync_ext
+module None (H : Type.S) (R : Type.S) = struct
+  type t = unit
+
+  let v _ = Lwt.return_unit
+
+  type endpoint = unit
+  type commit = H.t
+  type branch = R.t
+
+  let fetch () ?depth:_ _ _br =
+    Lwt.return (Error (`Msg "fetch operation is not available"))
+
+  let push () ?depth:_ _ _br =
+    Lwt.return (Error (`Msg "push operation is not available"))
+end

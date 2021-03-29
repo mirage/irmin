@@ -167,7 +167,7 @@ struct
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = Irmin.Private.Sync.None (H) (B)
+    module Remote = Irmin.Private.Remote.None (H) (B)
 
     module Repo = struct
       type upper_layer = {

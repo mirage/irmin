@@ -131,7 +131,7 @@ module Contents = Contents
 
 module Branch = Branch
 
-type remote = S.remote = ..
+type remote = Remote.t = ..
 (** The type for remote stores. *)
 
 type config = S.config
@@ -156,7 +156,7 @@ module Private : sig
   module Node = Node
   module Commit = Commit
   module Slice = Slice
-  module Sync = Sync
+  module Remote = Remote
   module Sigs = S
 
   module type S = Private.S
@@ -210,7 +210,7 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and type hash = H.t
-     and type Private.Sync.endpoint = unit
+     and type Private.Remote.endpoint = unit
 
 (** [KV] is similar to {!S} but chooses sensible implementations for path and
     branch. *)
@@ -229,15 +229,8 @@ val remote_store : (module S with type t = 'a) -> 'a -> remote
     slices}, so this is usually much slower than native synchronization using
     {!Store.remote} but it works for all backends. *)
 
-(** [SYNC] provides functions to synchronize an Irmin store with local and
-    remote Irmin stores. *)
-module type SYNC = sig
-  include Sync_ext.SYNC_STORE
-  (** @inline *)
-end
-
-(** The default [Sync] implementation. *)
-module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
+module Sync = Sync
+(** Remote synchronisation. *)
 
 (** {1:examples Examples}
 
@@ -563,7 +556,7 @@ module Make_ext
      and type step = Path.step
      and type metadata = Metadata.t
      and type Key.step = Path.step
-     and type Private.Sync.endpoint = unit
+     and type Private.Remote.endpoint = unit
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :

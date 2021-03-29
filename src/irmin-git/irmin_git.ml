@@ -710,12 +710,12 @@ functor
             refs)
   end
 
-module Irmin_sync_store
+module Remote
     (G : Git.S)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
     (B : Irmin.Branch.S) =
 struct
-  let src = Logs.Src.create "irmin.git-output" ~doc:"Git output"
+  let src = Logs.Src.create "irmin.git-remote" ~doc:"Git remote"
 
   module Gitlog = (val Logs.src_log src : Logs.LOG)
   module H = Irmin.Hash.Make (G.Hash)
@@ -932,8 +932,8 @@ struct
   module P = struct
     module Hash = Irmin.Hash.Make (G.Hash)
 
-    module XSync = struct
-      include Irmin_sync_store (G) (S) (R.Key)
+    module XRemote = struct
+      include Remote (G) (S) (R.Key)
 
       let v repo = Lwt.return repo.g
     end
@@ -941,7 +941,7 @@ struct
     include Make_private (G) (C) (P)
     module Branch = R
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = XSync
+    module Remote = XRemote
 
     module Repo = struct
       type t = r
@@ -1130,7 +1130,7 @@ module type S_MAKER = functor
      and type contents = C.t
      and type branch = B.t
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 module type KV_MAKER = functor
   (G : G)
@@ -1143,7 +1143,7 @@ module type KV_MAKER = functor
      and type contents = C.t
      and type branch = string
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 module type REF_MAKER = functor
   (G : G)
@@ -1156,7 +1156,7 @@ module type REF_MAKER = functor
      and type contents = C.t
      and type branch = reference
      and module Git = G
-     and type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
 include Conf
 
