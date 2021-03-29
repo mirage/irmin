@@ -20,39 +20,6 @@ open! Import
 
 type config = Conf.t
 
-module Store_properties = struct
-  module type BATCH = sig
-    type 'a t
-
-    val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
-    (** [batch t f] applies the writes in [f] in a separate batch. The exact
-        guarantees depend on the implementation. *)
-  end
-
-  module type CLOSEABLE = sig
-    type 'a t
-
-    val close : 'a t -> unit Lwt.t
-    (** [close t] frees up all the resources associated with [t]. Any operations
-        run on a closed handle will raise {!Closed}. *)
-  end
-
-  module type OF_CONFIG = sig
-    type 'a t
-
-    val v : config -> read t Lwt.t
-    (** [v config] is a function returning fresh store handles, with the
-        configuration [config], which is provided by the backend. *)
-  end
-
-  module type CLEARABLE = sig
-    type 'a t
-
-    val clear : 'a t -> unit Lwt.t
-    (** Clear the store. This operation is expected to be slow. *)
-  end
-end
-
 open Store_properties
 
 module type CONTENT_ADDRESSABLE_STORE = sig
