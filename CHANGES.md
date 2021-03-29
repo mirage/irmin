@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **irmin**
+  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
+    an empty subtree as a remove operation, rather than adding an empty
+    directory.  (#1335, @craigfe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)

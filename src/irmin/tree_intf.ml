@@ -151,13 +151,18 @@ module type S = sig
       [Invalid_arg] if [k] is not present in [t].*)
 
   val add_tree : t -> key -> t -> t Lwt.t
-  (** [add_tree t k v] is the tree where the key [k] is bound to the tree [v]
-      but is similar to [t] for other bindings *)
+  (** [add_tree t k v] is the tree where the key [k] is bound to the non-empty
+      tree [v] but is similar to [t] for other bindings.
+
+      If [v] is empty, this is equivalent to [remove t k]. *)
 
   val update_tree : t -> key -> (t option -> t option) -> t Lwt.t
   (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
       subtrees except under [k], and whose subtree at [k] is determined by
-      [f (find_tree t k)]. *)
+      [f (find_tree t k)].
+
+      [f] returning either [None] or [Some empty] causes the subtree at [k] to
+      be unbound (i.e. it is equivalent to [remove t k]). *)
 
   val merge : t Merge.t
   (** [merge] is the 3-way merge function for trees. *)
