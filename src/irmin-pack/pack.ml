@@ -34,7 +34,7 @@ end)
 module File
     (Index : Pack_index.S)
     (K : Irmin.Hash.S with type t = Index.key)
-    (IO_version : IO.VERSION) =
+    (IO_version : IO.Version) =
 struct
   module IO_cache = IO.Cache
   module IO = IO.Unix

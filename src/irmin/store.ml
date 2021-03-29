@@ -23,7 +23,7 @@ let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Content_addressable
-    (AO : S.APPEND_ONLY_STORE_MAKER)
+    (AO : S.Append_only_store_maker)
     (K : Hash.S)
     (V : Type.S) =
 struct

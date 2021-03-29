@@ -29,7 +29,7 @@ module type S = sig
   val current_upper : 'a t -> read U.t
   val lower : 'a t -> read L.t
 
-  include S.LAYERED_GENERAL with type 'a t := 'a t
+  include S.Layered_general with type 'a t := 'a t
 
   val clear_caches_next_upper : 'a t -> unit
 
@@ -67,7 +67,7 @@ module type Inode_layers = sig
   module Make
       (Conf : Irmin_pack.Config.S)
       (H : Irmin.Hash.S)
-      (P : Sigs.LAYERED_PACK_MAKER
+      (P : Sigs.Layered_pack_maker
              with type key = H.t
               and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :

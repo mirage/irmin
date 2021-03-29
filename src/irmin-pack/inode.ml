@@ -1176,7 +1176,7 @@ module Make_ext
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) =
+    (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t) =
 struct
   module Key = H
   module Pack = P.Make (Inter.Elt)
@@ -1251,7 +1251,7 @@ end
 module Make
     (Conf : Config.S)
     (H : Irmin.Hash.S)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
+    (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   module Inter = Make_intermediate (Conf) (H) (Node)

@@ -31,7 +31,7 @@ module Pack :
      and type index = Index.t
 
 module P :
-  Irmin_pack.Pack.MAKER
+  Irmin_pack.Pack.Maker
     with type key = H.t
      and type index = Irmin_pack.Index.Make(H).t
 

@@ -59,25 +59,25 @@ module Perms = Perms
 (** {1 Low-level Stores} *)
 
 (** An Irmin store is automatically built from a number of lower-level stores,
-    each implementing fewer operations, such as {{!CONTENT_ADDRESSABLE_STORE}
-    content-addressable} and {{!ATOMIC_WRITE_STORE} atomic-write} stores. These
+    each implementing fewer operations, such as {{!Content_addressable_store}
+    content-addressable} and {{!Atomic_write_store} atomic-write} stores. These
     low-level stores are provided by various backends. *)
 
 (** Content-addressable backend store. *)
-module type CONTENT_ADDRESSABLE_STORE = sig
-  include S.CONTENT_ADDRESSABLE_STORE
+module type Content_addressable_store = sig
+  include S.Content_addressable_store
   (** @inline *)
 end
 
 (** Append-only backend store. *)
-module type APPEND_ONLY_STORE = sig
-  include S.APPEND_ONLY_STORE
+module type Append_only_store = sig
+  include S.Append_only_store
   (** @inline *)
 end
 
 (** Atomic-write stores. *)
-module type ATOMIC_WRITE_STORE = sig
-  include S.ATOMIC_WRITE_STORE
+module type Atomic_write_store = sig
+  include S.Atomic_write_store
   (** @inline *)
 end
 
@@ -181,14 +181,14 @@ module type S = sig
   (** @inline *)
 end
 
-module Json_tree : Store.JSON_TREE
+module Json_tree : Store.Json_tree
 
-(** [S_MAKER] is the signature exposed by any backend providing {!S}
+(** [Maker] is the signature exposed by any backend providing {!S}
     implementations. [M] is the implementation of user-defined metadata, [C] is
     the one for user-defined contents, [B] is the implementation for branches
     and [H] is the implementation for object (blobs, trees, commits) hashes. It
     does not use any native synchronization primitives. *)
-module type S_MAKER = functor
+module type Maker = functor
   (M : Metadata.S)
   (C : Contents.S)
   (P : Path.S)
@@ -209,9 +209,9 @@ module type S_MAKER = functor
 module type KV =
   S with type key = string list and type step = string and type branch = string
 
-(** [KV_MAKER] is like {!S_MAKER} but where everything except the contents is
+(** [KV_maker] is like {!Maker} but where everything except the contents is
     replaced by sensible default implementations. *)
-module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
+module type KV_maker = functor (C : Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
@@ -451,85 +451,85 @@ module Dot (S : S) : Dot.S with type db = S.t
       internal stores into separate store, with total control over the binary
       format and using the native synchronization protocols when available. *)
 
-(** [APPEND_ONLY_STORE_MAKER] is the signature exposed by append-only store
+(** [Append_only_store_maker] is the signature exposed by append-only store
     backends. [K] is the implementation of keys and [V] is the implementation of
     values. *)
-module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include APPEND_ONLY_STORE with type key = K.t and type value = V.t
+module type Append_only_store_maker = functor (K : Type.S) (V : Type.S) -> sig
+  include Append_only_store with type key = K.t and type value = V.t
   open Store_properties
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   (** @inline *)
 
-  include OF_CONFIG with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
   (** @inline *)
 
-  include CLOSEABLE with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
   (** @inline *)
 end
 
-(** [CONTENT_ADDRESSABLE_STOREMAKER] is the signature exposed by
+(** [Content_addressable_store_maker] is the signature exposed by
     content-addressable store backends. [K] is the implementation of keys and
     [V] is the implementation of values. *)
-module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
+module type Content_addressable_store_maker = functor
   (K : Hash.S)
   (V : Type.S)
   -> sig
-  include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
+  include Content_addressable_store with type key = K.t and type value = V.t
   open Store_properties
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   (** @inline *)
 
-  include OF_CONFIG with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
   (** @inline *)
 
-  include CLOSEABLE with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
   (** @inline *)
 end
 
 module Content_addressable
-    (S : APPEND_ONLY_STORE_MAKER)
+    (S : Append_only_store_maker)
     (K : Hash.S)
     (V : Type.S) : sig
   include
-    CONTENT_ADDRESSABLE_STORE
+    Content_addressable_store
       with type 'a t = 'a S(K)(V).t
        and type key = K.t
        and type value = V.t
 
   open Store_properties
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   (** @inline *)
 
-  include OF_CONFIG with type 'a t := 'a t
+  include Of_config with type 'a t := 'a t
   (** @inline *)
 
-  include CLOSEABLE with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
   (** @inline *)
 end
 
-(** [ATOMIC_WRITE_STORE_MAKER] is the signature exposed by atomic-write store
+(** [Atomic_write_store_maker] is the signature exposed by atomic-write store
     backends. [K] is the implementation of keys and [V] is the implementation of
     values.*)
-module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
-  include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
+module type Atomic_write_store_maker = functor (K : Type.S) (V : Type.S) -> sig
+  include Atomic_write_store with type key = K.t and type value = V.t
   open Store_properties
 
-  include OF_CONFIG with type _ t := t
+  include Of_config with type _ t := t
   (** @inline *)
 end
 
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
 module Make
-    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+    (CA : Content_addressable_store_maker)
+    (AW : Atomic_write_store_maker) : Maker
 
 module Make_ext
-    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : ATOMIC_WRITE_STORE_MAKER)
+    (CA : Content_addressable_store_maker)
+    (AW : Atomic_write_store_maker)
     (Metadata : Metadata.S)
     (Contents : Contents.S)
     (Path : Path.S)

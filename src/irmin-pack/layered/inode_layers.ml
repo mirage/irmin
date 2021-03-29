@@ -27,7 +27,7 @@ module I = Inode
 module Make
     (Conf : Irmin_pack.Config.S)
     (H : Irmin.Hash.S)
-    (Pack_maker : S.LAYERED_PACK_MAKER
+    (Pack_maker : S.Layered_pack_maker
                     with type key = H.t
                      and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =

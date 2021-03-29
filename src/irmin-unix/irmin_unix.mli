@@ -42,28 +42,27 @@ val info :
 module FS : sig
   (** {1 File-system Store} *)
 
-  module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
+  module Append_only : Irmin.Append_only_store_maker
   (** Append-only store maker. *)
 
-  module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
+  module Atomic_write : Irmin.Atomic_write_store_maker
   (** Atomic-write store maker. *)
 
-  module Make : Irmin.S_MAKER
+  module Make : Irmin.Maker
   (** Irmin store maker. *)
 
-  module KV : Irmin.KV_MAKER
+  module KV : Irmin.KV_maker
   (** Irmin store make, where only the Contents have to be specified: branches
       are strings and paths are string lists. *)
 
   (** Append-only store maker, with control over the filenames shapes. *)
-  module Append_only_ext (C : Irmin_fs.Config) : Irmin.APPEND_ONLY_STORE_MAKER
+  module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only_store_maker
 
   (** Read-write store maker, with control over the filename shapes. *)
-  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.ATOMIC_WRITE_STORE_MAKER
+  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write_store_maker
 
   (** Irmin store maker, with control over the filename shapes. *)
-  module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) :
-    Irmin.S_MAKER
+  module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
 end
 
 (** Bidirectional Git backends. *)

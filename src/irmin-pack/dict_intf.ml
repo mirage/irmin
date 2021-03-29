@@ -33,5 +33,5 @@ end
 module type Dict = sig
   module type S = S
 
-  module Make (_ : IO.VERSION) (_ : IO.S) : S
+  module Make (_ : IO.Version) (_ : IO.S) : S
 end

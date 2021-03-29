@@ -197,7 +197,7 @@ module String = struct
 end
 
 module Store (S : sig
-  include S.CONTENT_ADDRESSABLE_STORE
+  include S.Content_addressable_store
   module Key : Hash.S with type t = key
   module Val : S with type t = value
 end) =

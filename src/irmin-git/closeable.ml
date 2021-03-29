@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) = struct
+module Content_addressable (S : Irmin.Content_addressable_store) = struct
   type 'a t = bool ref * 'a S.t
   type key = S.key
   type value = S.value

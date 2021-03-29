@@ -16,7 +16,7 @@
 
 open! Import
 
-module Append_only (S : S.APPEND_ONLY_STORE) = struct
+module Append_only (S : S.Append_only_store) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
   type key = S.key
   type value = S.value
@@ -59,7 +59,7 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
     S.clear t.t
 end
 
-module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
+module Atomic_write (S : S.Atomic_write_store) = struct
   type t = { closed : bool ref; t : S.t }
   type key = S.key
   type value = S.value

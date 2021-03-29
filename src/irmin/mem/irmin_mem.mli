@@ -23,16 +23,16 @@
 val config : unit -> Irmin.config
 (** Configuration values. *)
 
-module Append_only : Irmin.APPEND_ONLY_STORE_MAKER
+module Append_only : Irmin.Append_only_store_maker
 (** An in-memory store for append-only values. *)
 
-module Atomic_write : Irmin.ATOMIC_WRITE_STORE_MAKER
+module Atomic_write : Irmin.Atomic_write_store_maker
 (** An in-memory store with atomic-write guarantees. *)
 
-module Make : Irmin.S_MAKER
+module Make : Irmin.Maker
 (** Constructor for in-memory Irmin store. *)
 
-(** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_MAKER}. *)
+(** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_maker}. *)
 module KV (C : Irmin.Contents.S) :
   Irmin.KV
     with type contents = C.t

@@ -88,8 +88,8 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
-module type STORE = sig
-  include CONTENT_ADDRESSABLE_STORE
+module type Store = sig
+  include Content_addressable_store
 
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
@@ -98,7 +98,7 @@ module type STORE = sig
   (** [merge] is the 3-way merge function for nodes keys. *)
 
   (** [Key] provides base functions for node keys. *)
-  module Key : Hash.TYPED with type t = key and type value = value
+  module Key : Hash.Typed with type t = key and type value = value
 
   module Metadata : Metadata.S
   (** [Metadata] provides base functions for node metadata. *)
@@ -111,11 +111,11 @@ module type STORE = sig
        and type metadata = Metadata.t
        and type step = Path.step
 
-  module Contents : Contents.STORE with type key = Val.hash
+  module Contents : Contents.Store with type key = Val.hash
   (** [Contents] is the underlying contents store. *)
 end
 
-module type GRAPH = sig
+module type Graph = sig
   (** {1 Node Graphs} *)
 
   type 'a t
@@ -236,15 +236,15 @@ module type Node = sig
     val export : t -> N.t
   end
 
-  module type STORE = STORE
-  (** [STORE] specifies the signature for node stores. *)
+  module type Store = Store
+  (** [Store] specifies the signature for node stores. *)
 
   (** [Store] creates node stores. *)
   module Store
-      (C : Contents.STORE)
+      (C : Contents.Store)
       (P : Path.S)
       (M : Metadata.S) (N : sig
-        include CONTENT_ADDRESSABLE_STORE with type key = C.key
+        include Content_addressable_store with type key = C.key
         module Key : Hash.S with type t = key
 
         module Val :
@@ -254,7 +254,7 @@ module type Node = sig
              and type metadata = M.t
              and type step = P.step
       end) :
-    STORE
+    Store
       with type 'a t = 'a C.t * 'a N.t
        and type key = N.key
        and type value = N.value
@@ -263,12 +263,12 @@ module type Node = sig
        and type Key.t = N.key
        and module Val = N.Val
 
-  module type GRAPH = GRAPH
+  module type Graph = Graph
   (** [Graph] specifies the signature for node graphs. A node graph is a
       deterministic DAG, labeled by steps. *)
 
-  module Graph (N : STORE) :
-    GRAPH
+  module Graph (N : Store) :
+    Graph
       with type 'a t = 'a N.t
        and type contents = N.Contents.key
        and type metadata = N.Metadata.t

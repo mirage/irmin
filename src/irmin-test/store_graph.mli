@@ -1,1 +1,1 @@
-module Make : Common.STORE_TESTS
+module Make : Common.Store_tests

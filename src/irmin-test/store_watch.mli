@@ -1,1 +1,1 @@
-module Make (_ : Logs.LOG) : Common.STORE_TESTS
+module Make (_ : Logs.LOG) : Common.Store_tests

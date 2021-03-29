@@ -18,7 +18,7 @@ open! Import
 open Store_properties
 module T = Irmin.Type
 
-module type HELPER = sig
+module type Helper = sig
   type ctx
 
   val err_bad_version : string option -> 'a Lwt.t
@@ -64,13 +64,13 @@ module type HELPER = sig
     'a Lwt_stream.t Lwt.t
 end
 
-module type READ_ONLY_STORE = sig
+module type Read_only_store = sig
   type ctx
   type -'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
   type key
   type value
 
-  module HTTP : HELPER with type ctx = ctx
+  module HTTP : Helper with type ctx = ctx
 
   val uri : 'a t -> Uri.t
   val item : 'a t -> string
@@ -83,11 +83,11 @@ module type READ_ONLY_STORE = sig
   val batch : 'a t -> (read_write t -> 'b) -> 'b
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
-  include CLEARABLE with type 'a t := 'a t
+  include Clearable with type 'a t := 'a t
   (** @inline *)
 end
 
-module type APPEND_ONLY_STORE = sig
+module type Append_only_store = sig
   type -'a t
   type key
   type value
@@ -99,45 +99,45 @@ module type APPEND_ONLY_STORE = sig
   val unsafe_add : 'a t -> key -> value -> unit Lwt.t
   val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
-  include CLOSEABLE with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
   (** @inline *)
 
-  include BATCH with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
   (** @inline *)
 
-  include CLEARABLE with type 'a t := 'a t
+  include Clearable with type 'a t := 'a t
   (** @inline *)
 end
 
-module type APPEND_ONLY_STORE_MAKER = functor
+module type Append_only_store_maker = functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Hash.S)
   (V : Irmin.Type.S)
   ->
-  APPEND_ONLY_STORE
+  Append_only_store
     with type key = K.t
      and type value = V.t
      and type ctx = Client.ctx
 
-module type ATOMIC_WRITE_STORE = sig
-  include Irmin.ATOMIC_WRITE_STORE
+module type Atomic_write_store = sig
+  include Irmin.Atomic_write_store
 
   type ctx
 
   val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
 end
 
-module type ATOMIC_WRITE_STORE_MAKER = functor
+module type Atomic_write_store_maker = functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Branch.S)
   (V : Irmin.Hash.S)
   -> sig
   module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
-  module RO : READ_ONLY_STORE
+  module RO : Read_only_store
   module HTTP = RO.HTTP
 
   include
-    ATOMIC_WRITE_STORE
+    Atomic_write_store
       with type key = K.t
        and type value = V.t
        and type ctx = Client.ctx

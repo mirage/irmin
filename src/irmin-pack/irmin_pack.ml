@@ -28,9 +28,9 @@ module Metadata = Irmin.Metadata.None
 module Make_ext = Ext.Make
 module Store = Store
 
-module type VERSION = IO.VERSION
+module type Version = IO.Version
 
-module type MAKER = functor
+module type Maker = functor
   (Config : Config.S)
   (M : Irmin.Metadata.S)
   (C : Irmin.Contents.S)
@@ -59,7 +59,7 @@ module type MAKER = functor
 end
 
 module Make_with_version
-    (IO_version : IO.VERSION)
+    (IO_version : IO.Version)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)

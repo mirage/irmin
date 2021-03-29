@@ -31,8 +31,8 @@ module type S = sig
       key's value should be deleted. *)
 end
 
-module type STORE = sig
-  include CONTENT_ADDRESSABLE_STORE
+module type Store = sig
+  include Content_addressable_store
 
   val merge : [> read_write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
@@ -44,7 +44,7 @@ module type STORE = sig
       If any of these operations fail, return [`Conflict]. *)
 
   (** [Key] provides base functions for user-defined contents keys. *)
-  module Key : Hash.TYPED with type t = key and type value = value
+  module Key : Hash.Typed with type t = key and type value = value
 
   module Val : S with type t = value
   (** [Val] provides base functions for user-defined contents values. *)
@@ -79,14 +79,14 @@ module type Contents = sig
     (** Same as {!String} but use v1 serialisation format. *)
   end
 
-  module type STORE = STORE
+  module type Store = Store
   (** Contents store. *)
 
   (** [Store] creates a contents store. *)
   module Store (C : sig
-    include S.CONTENT_ADDRESSABLE_STORE
+    include S.Content_addressable_store
     module Key : Hash.S with type t = key
     module Val : S with type t = value
   end) :
-    STORE with type 'a t = 'a C.t and type key = C.key and type value = C.value
+    Store with type 'a t = 'a C.t and type key = C.key and type value = C.value
 end

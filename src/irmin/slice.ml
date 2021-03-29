@@ -17,9 +17,9 @@
 include Slice_intf
 
 module Make
-    (Contents : Contents.STORE)
-    (Node : Node.STORE)
-    (Commit : Commit.STORE) =
+    (Contents : Contents.Store)
+    (Node : Node.Store)
+    (Commit : Commit.Store) =
 struct
   type contents = Contents.Key.t * Contents.Val.t [@@deriving irmin]
   type node = Node.Key.t * Node.Val.t [@@deriving irmin]

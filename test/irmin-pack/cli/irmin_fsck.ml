@@ -9,7 +9,7 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Simple_Maker (V : Irmin_pack.VERSION) =
+module Maker (V : Irmin_pack.Version) =
   Irmin_pack.Make_ext (V) (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Path)
     (Irmin.Branch.String)
@@ -17,11 +17,11 @@ module Simple_Maker (V : Irmin_pack.VERSION) =
     (Node)
     (Commit)
 
-module Store = Irmin_pack.Checks.Make (Simple_Maker)
+module Store = Irmin_pack.Checks.Make (Maker)
 
 module Store_layered =
   Irmin_pack_layered.Checks.Make
-    (Simple_Maker)
+    (Maker)
     (Irmin_pack_layered.Make_ext (Conf) (Irmin.Metadata.None)
        (Irmin.Contents.String)
        (Path)

@@ -85,7 +85,7 @@ module type Versioned_store = sig
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
-module type MAKER = functor (_ : IO.VERSION) -> Versioned_store
+module type Maker = functor (_ : IO.Version) -> Versioned_store
 
 module type Checks = sig
   type nonrec empty = empty
@@ -96,7 +96,7 @@ module type Checks = sig
   module type Subcommand = Subcommand
   module type S = S
   module type Versioned_store = Versioned_store
-  module type MAKER = MAKER
+  module type Maker = Maker
 
-  module Make (_ : MAKER) : S
+  module Make (_ : Maker) : S
 end

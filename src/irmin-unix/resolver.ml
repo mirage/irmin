@@ -262,7 +262,7 @@ module Store = struct
   let v ?remote s = T (s, remote)
   let v_git (module S : G) = v (module S) ~remote:S.remote
 
-  let create : (module Irmin.S_MAKER) -> hash -> contents -> t =
+  let create : (module Irmin.Maker) -> hash -> contents -> t =
    fun (module S) (module H) (module C) ->
     let module S =
       S (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)

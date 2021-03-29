@@ -29,8 +29,8 @@ module Perms = Perms
 
 exception Closed
 
-module CA_check_closed (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER) :
-  S.CONTENT_ADDRESSABLE_STORE_MAKER =
+module CA_check_closed (CA : S.Content_addressable_store_maker) :
+  S.Content_addressable_store_maker =
 functor
   (K : Hash.S)
   (V : Type.S)
@@ -79,8 +79,8 @@ functor
       S.clear t.t
   end
 
-module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
-  S.ATOMIC_WRITE_STORE_MAKER =
+module AW_check_closed (AW : S.Atomic_write_store_maker) :
+  S.Atomic_write_store_maker =
 functor
   (K : Type.S)
   (V : Type.S)
@@ -148,8 +148,8 @@ functor
   end
 
 module Make_ext
-    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (CA : S.Content_addressable_store_maker)
+    (AW : S.Atomic_write_store_maker)
     (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
@@ -249,8 +249,8 @@ struct
 end
 
 module Make
-    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
-    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (CA : S.Content_addressable_store_maker)
+    (AW : S.Atomic_write_store_maker)
     (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
@@ -264,24 +264,24 @@ end
 
 module Of_private = Store.Make
 
-module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
-module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
-module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
-module type TREE = Tree.S
+module type Content_addressable_store = S.Content_addressable_store
+module type Append_only_store = S.Append_only_store
+module type Atomic_write_store = S.Atomic_write_store
+module type Tree = Tree.S
 module type S = Store.S
 
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
-module type APPEND_ONLY_STORE_MAKER = S.APPEND_ONLY_STORE_MAKER
-module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
-module type S_MAKER = Store.MAKER
+module type Content_addressable_store_maker = S.Content_addressable_store_maker
+module type Append_only_store_maker = S.Append_only_store_maker
+module type Atomic_write_store_maker = S.Atomic_write_store_maker
+module type Maker = Store.Maker
 
 module type KV =
   S with type key = string list and type step = string and type branch = string
 
-module type KV_MAKER = functor (C : Contents.S) -> KV with type contents = C.t
+module type KV_maker = functor (C : Contents.S) -> KV with type contents = C.t
 
 module Private = struct
   module Conf = Conf

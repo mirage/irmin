@@ -49,14 +49,14 @@ module type S =
      and type contents = string
      and type branch = string
 
-module type LAYERED_STORE =
+module type Layered_store =
   Irmin_layers.S
     with type step = string
      and type key = string list
      and type contents = string
      and type branch = string
 
-let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
+let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
   let module S =
     B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
@@ -65,15 +65,15 @@ let store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S) =
   (module S)
 
 let layered_store :
-    (module Irmin_layers.S_MAKER) ->
+    (module Irmin_layers.Maker) ->
     (module Irmin.Metadata.S) ->
-    (module LAYERED_STORE) =
+    (module Layered_store) =
  fun (module B) (module M) ->
-  let module LAYERED_STORE =
+  let module Layered_store =
     B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
   in
-  (module LAYERED_STORE)
+  (module Layered_store)
 
 type t = {
   name : string;
@@ -81,11 +81,11 @@ type t = {
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
-  layered_store : (module LAYERED_STORE) option;
+  layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
 }
 
-module type STORE_TESTS = functor (S : S) -> sig
+module type Store_tests = functor (S : S) -> sig
   val tests : (string * (t -> unit -> unit)) list
 end
 

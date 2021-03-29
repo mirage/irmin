@@ -16,9 +16,9 @@
 
 (** Augments primitive store modules with close semantics *)
 
-module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) : sig
+module Content_addressable (S : Irmin.Content_addressable_store) : sig
   include
-    Irmin.CONTENT_ADDRESSABLE_STORE
+    Irmin.Content_addressable_store
       with type 'a t = bool ref * 'a S.t
        and type key = S.key
        and type value = S.value

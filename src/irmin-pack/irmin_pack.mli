@@ -20,7 +20,7 @@ module Index = Pack_index
 module Config = Config
 module Inode = Inode
 
-module type VERSION = IO.VERSION
+module type Version = IO.Version
 
 val config :
   ?fresh:bool ->
@@ -46,7 +46,7 @@ exception RO_Not_Allowed
 exception Unsupported_version of IO.version
 
 module Make_ext
-    (_ : IO.VERSION)
+    (_ : IO.Version)
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -79,7 +79,7 @@ module Make_ext
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
-module type MAKER = functor
+module type Maker = functor
   (Config : Config.S)
   (M : Irmin.Metadata.S)
   (C : Irmin.Contents.S)
@@ -107,12 +107,12 @@ module type MAKER = functor
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
-module Make : MAKER
-module Make_V2 : MAKER
-module KV (Config : Config.S) : Irmin.KV_MAKER
+module Make : Maker
+module Make_V2 : Maker
+module KV (Config : Config.S) : Irmin.KV_maker
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.VERSION) : sig
-  include Irmin.ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
+module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) : sig
+  include Irmin.Atomic_write_store with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end

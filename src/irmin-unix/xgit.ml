@@ -27,7 +27,7 @@ module type S = sig
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 end
 
-module type S_MAKER = functor
+module type Maker = functor
   (G : Irmin_git.G)
   (C : Irmin.Contents.S)
   (P : Irmin.Path.S)
@@ -41,7 +41,7 @@ module type S_MAKER = functor
      and type branch = B.t
      and module Git = G
 
-module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
+module type KV_maker = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
     with type key = string list
      and type step = string
@@ -49,7 +49,7 @@ module type KV_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and type branch = string
      and module Git = G
 
-module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
+module type Ref_maker = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
   S
     with type key = string list
      and type step = string
