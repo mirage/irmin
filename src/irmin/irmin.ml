@@ -257,8 +257,24 @@ module Make
     (B : Branch.S)
     (H : Hash.S) =
 struct
-  module N = Node.Make (H) (P) (M)
-  module CT = Commit.Make (H)
+  module C = struct
+    include C
+
+    let t = Hash.with_pre_hash_prefix "B" t
+  end
+
+  module N = struct
+    include Node.Make (H) (P) (M)
+
+    let t = Hash.with_pre_hash_prefix "N" t
+  end
+
+  module CT = struct
+    include Commit.Make (H)
+
+    let t = Hash.with_pre_hash_prefix "C" t
+  end
+
   include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 end
 
