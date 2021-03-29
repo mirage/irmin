@@ -37,18 +37,11 @@ let take : type a. int -> a Seq.t -> a list =
   in
   fun n s -> List.rev (aux [] n s)
 
-module No_metadata = struct
-  type t = unit [@@deriving irmin]
-
-  let default = ()
-  let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
-end
-
 module Make
     (K : Type.S) (P : sig
       type step [@@deriving irmin]
     end)
-    (M : METADATA) =
+    (M : Metadata.S) =
 struct
   type hash = K.t [@@deriving irmin]
   type step = P.step [@@deriving irmin]
@@ -143,7 +136,7 @@ end
 module Store
     (C : Contents.STORE)
     (P : Path.S)
-    (M : METADATA) (S : sig
+    (M : Metadata.S) (S : sig
       include CONTENT_ADDRESSABLE_STORE with type key = C.key
       module Key : Hash.S with type t = key
 

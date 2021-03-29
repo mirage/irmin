@@ -150,7 +150,7 @@ functor
 module Make_ext
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
-    (M : S.METADATA)
+    (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
     (B : Branch.S)
@@ -251,7 +251,7 @@ end
 module Make
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)
-    (M : S.METADATA)
+    (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
     (B : Branch.S)
@@ -310,11 +310,6 @@ let remote_store (type t) (module M : S with type t = t) (t : t) =
   let module X : Store.S with type t = t = M in
   Sync_ext.remote_store (module X) t
 
-module Metadata = struct
-  module type S = S.METADATA
-
-  module None = Node.No_metadata
-end
-
+module Metadata = Metadata
 module Json_tree = Store.Json_tree
 module Export_for_backends = Export_for_backends

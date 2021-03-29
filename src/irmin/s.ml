@@ -137,17 +137,6 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include CLOSEABLE with type 'a t := 'a t
 end
 
-module type METADATA = sig
-  type t [@@deriving irmin]
-  (** The type for metadata. *)
-
-  val merge : t Merge.t
-  (** [merge] is the merge function for metadata. *)
-
-  val default : t
-  (** The default metadata to attach, for APIs that don't care about metadata. *)
-end
-
 type 'a diff = 'a Diff.t
 
 module type ATOMIC_WRITE_STORE = sig

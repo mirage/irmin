@@ -100,7 +100,7 @@ module type STORE = sig
   (** [Key] provides base functions for node keys. *)
   module Key : Hash.TYPED with type t = key and type value = value
 
-  module Metadata : METADATA
+  module Metadata : Metadata.S
   (** [Metadata] provides base functions for node metadata. *)
 
   (** [Val] provides base functions for node values. *)
@@ -221,7 +221,7 @@ module type Node = sig
       (K : Type.S) (P : sig
         type step [@@deriving irmin]
       end)
-      (M : METADATA) :
+      (M : Metadata.S) :
     S with type hash = K.t and type step = P.step and type metadata = M.t
 
   (** v1 serialisation *)
@@ -243,7 +243,7 @@ module type Node = sig
   module Store
       (C : Contents.STORE)
       (P : Path.S)
-      (M : METADATA) (N : sig
+      (M : Metadata.S) (N : sig
         include CONTENT_ADDRESSABLE_STORE with type key = C.key
         module Key : Hash.S with type t = key
 
@@ -275,6 +275,4 @@ module type Node = sig
        and type node = N.key
        and type step = N.Path.step
        and type path = N.Path.t
-
-  module No_metadata : METADATA with type t = unit
 end

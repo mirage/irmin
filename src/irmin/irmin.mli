@@ -101,18 +101,10 @@ module Hash = Hash
 
     A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
 
+module Metadata = Metadata
 (** [Metadata] defines metadata that is attached to contents but stored in
-    nodes. The Git backend uses this to indicate the type of file (normal,
-    executable or symlink). *)
-module Metadata : sig
-  module type S = sig
-    include S.METADATA
-    (** @inline *)
-  end
-
-  module None : S with type t = unit
-  (** A metadata definition for systems that don't use metadata. *)
-end
+    nodes. For instance, the Git backend uses this to indicate the type of file
+    (normal, executable or symlink). *)
 
 module Contents = Contents
 (** [Contents] specifies how user-defined contents need to be {e serializable}
