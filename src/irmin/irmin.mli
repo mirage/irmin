@@ -463,7 +463,7 @@ module Dot (S : S) : Dot.S with type db = S.t
     values. *)
 module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+  open Store_properties
 
   include BATCH with type 'a t := 'a t
   (** @inline *)
@@ -483,7 +483,7 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   (V : Type.S)
   -> sig
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+  open Store_properties
 
   include BATCH with type 'a t := 'a t
   (** @inline *)
@@ -505,7 +505,7 @@ module Content_addressable
        and type key = K.t
        and type value = V.t
 
-  open Private.Sigs.Store_properties
+  open Store_properties
 
   include BATCH with type 'a t := 'a t
   (** @inline *)
@@ -522,7 +522,7 @@ end
     values.*)
 module type ATOMIC_WRITE_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include ATOMIC_WRITE_STORE with type key = K.t and type value = V.t
-  open Private.Sigs.Store_properties
+  open Store_properties
 
   include OF_CONFIG with type _ t := t
   (** @inline *)

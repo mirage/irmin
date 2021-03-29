@@ -16,7 +16,7 @@
 
 open! Import
 module Sigs = S
-open Sigs.Store_properties
+open Store_properties
 
 module type S = sig
   (** {1 Irmin stores}

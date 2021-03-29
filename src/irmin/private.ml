@@ -15,7 +15,7 @@
  *)
 
 open! Import
-open S.Store_properties
+open Store_properties
 
 module type S = sig
   module Hash : Hash.S
