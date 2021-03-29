@@ -478,7 +478,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = Irmin.Private.Sync.None (Hash) (S.Branch)
+    module Remote = Irmin.Private.Remote.None (Hash) (S.Branch)
 
     module Branch = struct
       module Key = S.Branch

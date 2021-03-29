@@ -8,7 +8,7 @@ let url, user, token =
   else failwith "usage: push.exe url user token"
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
-module Sync = Irmin.Sync (Store)
+module Sync = Irmin.Sync.Make (Store)
 
 let headers =
   let e = Cohttp.Header.of_list [] in

@@ -17,7 +17,7 @@
 module type S = sig
   include
     Irmin_git.S
-      with type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val remote :
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote

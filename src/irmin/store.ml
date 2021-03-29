@@ -70,7 +70,7 @@ module Make (P : Private.S) = struct
   module Metadata = P.Node.Metadata
   module H = Commit.History (P.Commit)
 
-  type S.remote += E of P.Sync.endpoint
+  type Remote.t += E of P.Remote.endpoint
 
   module Contents = struct
     include P.Contents.Val
@@ -1196,4 +1196,4 @@ module Json_tree (Store : S with type contents = Contents.json) = struct
     get_tree tree Store.Key.empty
 end
 
-type S.remote += Store : (module S with type t = 'a) * 'a -> S.remote
+type Remote.t += Store : (module S with type t = 'a) * 'a -> Remote.t

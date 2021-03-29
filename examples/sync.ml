@@ -7,7 +7,7 @@ let path =
   else "git://github.com/mirage/ocaml-git.git"
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
-module Sync = Irmin.Sync (Store)
+module Sync = Irmin.Sync.Make (Store)
 
 let upstream = Store.remote path
 
