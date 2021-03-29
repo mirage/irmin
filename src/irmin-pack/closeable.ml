@@ -99,7 +99,7 @@ module Content_addressable (S : Pack.S) = struct
     S.clear_keep_generation t.t
 end
 
-module Atomic_write (AW : S.Atomic_write_store) = struct
+module Atomic_write (AW : S.Atomic_write.Store) = struct
   type t = { closed : bool ref; t : AW.t }
   type key = AW.key
   type value = AW.value

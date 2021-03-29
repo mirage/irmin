@@ -36,8 +36,8 @@ module Content_addressable
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : S.Atomic_write_store with type key = K.t)
-    (L : S.Atomic_write_store with type key = U.key and type value = U.value) :
+    (U : S.Atomic_write.Store with type key = K.t)
+    (L : S.Atomic_write.Store with type key = U.key and type value = U.value) :
   S.Layered_atomic_write_store with type key = U.key and type value = U.value
 
 module Pack_maker

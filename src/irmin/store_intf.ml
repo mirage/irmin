@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Sigs = S
 open Store_properties
 
 module type S = sig
@@ -87,7 +86,7 @@ module type S = sig
     type t = repo
     (** The type of repository handles. *)
 
-    val v : S.config -> t Lwt.t
+    val v : Conf.t -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
     include Closeable with type _ t := t
@@ -675,7 +674,7 @@ module type S = sig
   type watch
   (** The type for store watches. *)
 
-  val watch : t -> ?init:commit -> (commit S.diff -> unit Lwt.t) -> watch Lwt.t
+  val watch : t -> ?init:commit -> (commit Diff.t -> unit Lwt.t) -> watch Lwt.t
   (** [watch t f] calls [f] every time the contents of [t]'s head is updated.
 
       {b Note:} even if [f] might skip some head updates, it will never be
@@ -686,7 +685,7 @@ module type S = sig
     t ->
     key ->
     ?init:commit ->
-    ((commit * tree) S.diff -> unit Lwt.t) ->
+    ((commit * tree) Diff.t -> unit Lwt.t) ->
     watch Lwt.t
   (** [watch_key t key f] calls [f] every time the [key]'s value is added,
       removed or updated. If the current branch is deleted, no signal is sent to
@@ -791,14 +790,14 @@ module type S = sig
       repo ->
       branch ->
       ?init:commit ->
-      (commit S.diff -> unit Lwt.t) ->
+      (commit Diff.t -> unit Lwt.t) ->
       watch Lwt.t
     (** [watch t b f] calls [f] on every change in [b]. *)
 
     val watch_all :
       repo ->
       ?init:(branch * commit) list ->
-      (branch -> commit S.diff -> unit Lwt.t) ->
+      (branch -> commit Diff.t -> unit Lwt.t) ->
       watch Lwt.t
     (** [watch_all t f] calls [f] on every branch-related change in [t],
         including creation/deletion events. *)
@@ -959,19 +958,4 @@ module type Store = sig
   (** [Json_tree] is used to project JSON values onto trees. Instead of the
       entire object being stored under one key, it is split across several keys
       starting at the specified root key. *)
-
-  module Content_addressable
-      (X : Sigs.Append_only_store_maker)
-      (K : Hash.S)
-      (V : Type.S) : sig
-    include
-      Sigs.Content_addressable_store
-        with type 'a t = 'a X(K)(V).t
-         and type key = K.t
-         and type value = V.t
-
-    include Batch with type 'a t := 'a t
-    include Of_config with type 'a t := 'a t
-    include Closeable with type 'a t := 'a t
-  end
 end

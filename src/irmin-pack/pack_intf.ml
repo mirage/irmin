@@ -39,7 +39,7 @@ module type ELT = sig
 end
 
 module type S = sig
-  include Irmin.Content_addressable_store
+  include Irmin.Content_addressable.S
 
   val add : 'a t -> value -> key Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)

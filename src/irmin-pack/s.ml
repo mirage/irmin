@@ -24,10 +24,12 @@ module type Checkable = sig
     offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
 end
 
-module type Atomic_write_store = sig
-  include Irmin.Atomic_write_store
+module Atomic_write = struct
+  module type Store = sig
+    include Irmin.Atomic_write.S
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-  val flush : t -> unit
-  val clear_keep_generation : t -> unit Lwt.t
+    val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+    val flush : t -> unit
+    val clear_keep_generation : t -> unit Lwt.t
+  end
 end

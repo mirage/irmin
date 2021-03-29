@@ -17,15 +17,18 @@
 open! Import
 open Store_properties
 
-module type Content_addressable_store = sig
-  include Irmin.Content_addressable_store
-  include Batch with type 'a t := 'a t
-  include Of_config with type 'a t := 'a t
-  include Closeable with type 'a t := 'a t
-end
+(* FIXME(samoht): why do we need this? *)
+module Content_addressable : sig
+  module type Store = sig
+    include Irmin.Content_addressable.S
+    include Batch with type 'a t := 'a t
+    include Of_config with type 'a t := 'a t
+    include Closeable with type 'a t := 'a t
+  end
 
-module Content_addressable
-    (K : Irmin.Type.S)
-    (V : Irmin.Type.S)
-    (CA : Content_addressable_store with type key = K.t and type value = V.t) :
-  Content_addressable_store with type key = CA.key and type value = CA.value
+  module Make
+      (K : Irmin.Type.S)
+      (V : Irmin.Type.S)
+      (CA : Store with type key = K.t and type value = V.t) :
+    Store with type key = CA.key and type value = CA.value
+end

@@ -33,9 +33,9 @@ module type Layered = sig
 end
 
 module type Layered_atomic_write_store = sig
-  include Atomic_write_store
-  module U : Atomic_write_store
-  module L : Atomic_write_store
+  include Atomic_write.Store
+  module U : Atomic_write.Store
+  module L : Atomic_write.Store
 
   val v :
     U.t ->

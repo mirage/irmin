@@ -24,7 +24,7 @@ module type VAL = sig
 end
 
 module type S = sig
-  include Irmin.Content_addressable_store
+  include Irmin.Content_addressable.S
 
   type index
 

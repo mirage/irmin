@@ -58,12 +58,8 @@ module Mem (C : Irmin.Contents.S) = struct
 end
 
 module Generic (C : Irmin.Contents.S) = struct
-  include
-    Irmin_git.Generic_KV
-      (Irmin.Content_addressable
-         (Irmin_mem.Append_only))
-         (Irmin_mem.Atomic_write)
-      (C)
+  module CA = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
+  include Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write) (C)
 
   let init () =
     let* repo = Repo.v config in

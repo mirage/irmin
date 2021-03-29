@@ -23,10 +23,10 @@
 val config : unit -> Irmin.config
 (** Configuration values. *)
 
-module Append_only : Irmin.Append_only_store_maker
+module Append_only : Irmin.Append_only.Maker
 (** An in-memory store for append-only values. *)
 
-module Atomic_write : Irmin.Atomic_write_store_maker
+module Atomic_write : Irmin.Atomic_write.Maker
 (** An in-memory store with atomic-write guarantees. *)
 
 module Make : Irmin.Maker

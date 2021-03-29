@@ -16,14 +16,16 @@
 
 (** Augments primitive store modules with close semantics *)
 
-module Append_only (AO : S.Append_only_store) :
-  S.Append_only_store
+open S
+
+module Append_only (AO : Append_only.Store) :
+  Append_only.Store
     with type key = AO.key
      and type value = AO.value
      and type ctx = AO.ctx
 
-module Atomic_write (AW : S.Atomic_write_store) :
-  S.Atomic_write_store
+module Atomic_write (AW : Atomic_write.Store) :
+  Atomic_write.Store
     with type key = AW.key
      and type value = AW.value
      and type watch = AW.watch

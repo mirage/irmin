@@ -483,23 +483,96 @@ module Branch (B : Irmin.Branch.S) : Branch with type t = B.t = struct
     | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
 end
 
-module type Atomic_write_store = functor (G : Git.S) (B : Branch) -> sig
-  module Key : Branch with type t = B.t
-  module Val : Irmin.Hash.S with type t = G.Hash.t
-  module W : Irmin.Private.Watch.S with type key = Key.t and type value = Val.t
+module Atomic_write_ext = struct
+  module type Store = functor (G : Git.S) (B : Branch) -> sig
+    module Key : Branch with type t = B.t
+    module Val : Irmin.Hash.S with type t = G.Hash.t
 
-  include
-    Irmin.Atomic_write_store with type key = Key.t and type value = W.value
+    module W :
+      Irmin.Private.Watch.S with type key = Key.t and type value = Val.t
 
-  val v :
-    ?lock:Lwt_mutex.t ->
-    head:G.Reference.t option ->
-    bare:bool ->
-    G.t ->
-    t Lwt.t
+    include Irmin.Atomic_write.S with type key = Key.t and type value = W.value
+
+    val v :
+      ?lock:Lwt_mutex.t ->
+      head:G.Reference.t option ->
+      bare:bool ->
+      G.t ->
+      t Lwt.t
+  end
+
+  module Check_closed (AW : Store) : Store =
+  functor
+    (G : Git.S)
+    (B : Branch)
+    ->
+    struct
+      module Key = B
+      module Val = Irmin.Hash.Make (G.Hash)
+      module W = Irmin.Private.Watch.Make (Key) (Val)
+      module S = AW (G) (B)
+
+      type t = { closed : bool ref; t : S.t }
+      type key = S.key
+      type value = S.value
+
+      let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+
+      let mem t k =
+        check_not_closed t;
+        S.mem t.t k
+
+      let find t k =
+        check_not_closed t;
+        S.find t.t k
+
+      let set t k v =
+        check_not_closed t;
+        S.set t.t k v
+
+      let test_and_set t k ~test ~set =
+        check_not_closed t;
+        S.test_and_set t.t k ~test ~set
+
+      let remove t k =
+        check_not_closed t;
+        S.remove t.t k
+
+      let list t =
+        check_not_closed t;
+        S.list t.t
+
+      type watch = S.watch
+
+      let watch t ?init f =
+        check_not_closed t;
+        S.watch t.t ?init f
+
+      let watch_key t k ?init f =
+        check_not_closed t;
+        S.watch_key t.t k ?init f
+
+      let unwatch t w =
+        check_not_closed t;
+        S.unwatch t.t w
+
+      let v ?lock ~head ~bare t =
+        let+ t = S.v ?lock ~head ~bare t in
+        { closed = ref false; t }
+
+      let close t =
+        if !(t.closed) then Lwt.return_unit
+        else (
+          t.closed := true;
+          S.close t.t)
+
+      let clear t =
+        check_not_closed t;
+        S.clear t.t
+    end
 end
 
-module Irmin_branch_store : Atomic_write_store =
+module Irmin_branch_store : Atomic_write_ext.Store =
 functor
   (G : Git.S)
   (B : Branch)
@@ -848,76 +921,6 @@ module type G = sig
   val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
 end
 
-module AW_check_closed (AW : Atomic_write_store) : Atomic_write_store =
-functor
-  (G : Git.S)
-  (B : Branch)
-  ->
-  struct
-    module Key = B
-    module Val = Irmin.Hash.Make (G.Hash)
-    module W = Irmin.Private.Watch.Make (Key) (Val)
-    module S = AW (G) (B)
-
-    type t = { closed : bool ref; t : S.t }
-    type key = S.key
-    type value = S.value
-
-    let check_not_closed t = if !(t.closed) then raise Irmin.Closed
-
-    let mem t k =
-      check_not_closed t;
-      S.mem t.t k
-
-    let find t k =
-      check_not_closed t;
-      S.find t.t k
-
-    let set t k v =
-      check_not_closed t;
-      S.set t.t k v
-
-    let test_and_set t k ~test ~set =
-      check_not_closed t;
-      S.test_and_set t.t k ~test ~set
-
-    let remove t k =
-      check_not_closed t;
-      S.remove t.t k
-
-    let list t =
-      check_not_closed t;
-      S.list t.t
-
-    type watch = S.watch
-
-    let watch t ?init f =
-      check_not_closed t;
-      S.watch t.t ?init f
-
-    let watch_key t k ?init f =
-      check_not_closed t;
-      S.watch_key t.t k ?init f
-
-    let unwatch t w =
-      check_not_closed t;
-      S.unwatch t.t w
-
-    let v ?lock ~head ~bare t =
-      let+ t = S.v ?lock ~head ~bare t in
-      { closed = ref false; t }
-
-    let close t =
-      if !(t.closed) then Lwt.return_unit
-      else (
-        t.closed := true;
-        S.close t.t)
-
-    let clear t =
-      check_not_closed t;
-      S.clear t.t
-  end
-
 module Make_ext
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
@@ -925,7 +928,7 @@ module Make_ext
     (P : Irmin.Path.S)
     (B : Branch) =
 struct
-  module R = AW_check_closed (Irmin_branch_store) (G) (B)
+  module R = Atomic_write_ext.Check_closed (Irmin_branch_store) (G) (B)
 
   type r = { config : Irmin.config; closed : bool ref; g : G.t; b : R.t }
 
@@ -1101,7 +1104,7 @@ module Atomic_write (G : Git.S) (K : Irmin.Branch.S) = struct
       | Error (`Msg e) -> failwith e
   end
 
-  include AW_check_closed (Irmin_branch_store) (G) (Branch (K))
+  include Atomic_write_ext.Check_closed (Irmin_branch_store) (G) (Branch (K))
 end
 
 module KV
@@ -1161,8 +1164,8 @@ module type Ref_maker = functor
 include Conf
 
 module Generic
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
@@ -1182,7 +1185,7 @@ struct
 end
 
 module Generic_KV
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (C : Irmin.Contents.S) =
   Generic (CA) (AW) (C) (Irmin.Path.String_list) (Irmin.Branch.String)

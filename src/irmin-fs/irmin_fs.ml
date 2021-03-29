@@ -276,7 +276,8 @@ module Make_ext
 struct
   module AO = Append_only_ext (IO) (Obj)
   module AW = Atomic_write_ext (IO) (Ref)
-  include Irmin.Make (Irmin.Content_addressable (AO)) (AW) (M) (C) (P) (B) (H)
+  module CA = Irmin.Content_addressable.Make (AO)
+  include Irmin.Make (CA) (AW) (M) (C) (P) (B) (H)
 end
 
 let string_chop_prefix ~prefix str =

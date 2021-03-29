@@ -43,8 +43,22 @@
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
   - `Store.Private.Sync` is now `Store.Private.Remote` (#1338, @samoht)
-  - All module types are now using Snake case and are not capitalized anymore.
+  - All module types are now using snake-case and are not capitalized anymore.
     (#1341, @samoht)
+  - Move signatures for backend stores into their own modules. All the
+    `X_STORE` sigs have moved to `X.S`:
+      - `APPEND_ONLY_STORE` is now `Append_only.S`
+      - `CONTENT_ADDRESSABLE_STORE` is now `Content_addressable.S`
+      - `ATOMIC_WRITE_STORE` is now `Irmin.Atomic_write.S`
+    And all the `X_STORE_MAKER` have moved to `X.Maker`:
+      - `APPEND_ONLY_STORE_MAKER` is now `Append_only.Maker`
+      - `CONTENT_ADDRESSABLE_STORE_MAKER` is now `Content_addressable.Maker`
+      - `ATOMIC_WRITE_STORE_MAKER` is now `Atomic_write.Maker`
+    This gives some space to move convenient functors closer to where they
+    belong:
+      - `Content_addressable` is now `Content_addressable.Make`
+      - New `Content_adddressable.Check_closed` and `Atomic_write.Check_closed`
+    (#1342, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

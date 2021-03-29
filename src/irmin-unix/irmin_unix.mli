@@ -42,10 +42,10 @@ val info :
 module FS : sig
   (** {1 File-system Store} *)
 
-  module Append_only : Irmin.Append_only_store_maker
+  module Append_only : Irmin.Append_only.Maker
   (** Append-only store maker. *)
 
-  module Atomic_write : Irmin.Atomic_write_store_maker
+  module Atomic_write : Irmin.Atomic_write.Maker
   (** Atomic-write store maker. *)
 
   module Make : Irmin.Maker
@@ -56,10 +56,10 @@ module FS : sig
       are strings and paths are string lists. *)
 
   (** Append-only store maker, with control over the filenames shapes. *)
-  module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only_store_maker
+  module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
 
   (** Read-write store maker, with control over the filename shapes. *)
-  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write_store_maker
+  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
 
   (** Irmin store maker, with control over the filename shapes. *)
   module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker

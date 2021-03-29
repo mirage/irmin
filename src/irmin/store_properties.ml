@@ -15,3 +15,5 @@
  *)
 
 include Store_properties_intf
+
+exception Closed

@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open S
 open! Import
 
 module type S = sig
@@ -50,7 +49,7 @@ end
 module type Store = sig
   (** {1 Commit Store} *)
 
-  include Content_addressable_store
+  include Content_addressable.S
 
   val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
   (** [merge] is the 3-way merge function for commit keys. *)
@@ -178,7 +177,7 @@ module type Commit = sig
   (** [Store] creates a new commit store. *)
   module Store
       (N : Node.Store) (C : sig
-        include Content_addressable_store with type key = N.key
+        include Content_addressable.S with type key = N.key
         module Key : Hash.S with type t = key
         module Val : S with type t = value and type hash = key
       end) :

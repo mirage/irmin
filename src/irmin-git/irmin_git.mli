@@ -36,13 +36,13 @@ val level : int option Irmin.Private.Conf.key
 val dot_git : string option Irmin.Private.Conf.key
 
 module Content_addressable (G : Git.S) (V : Irmin.Type.S) :
-  Irmin.Content_addressable_store
+  Irmin.Content_addressable.S
     with type 'a t = bool ref * G.t
      and type key = G.hash
      and type value = V.t
 
 module Atomic_write (G : Git.S) (K : Irmin.Branch.S) :
-  Irmin.Atomic_write_store with type key = K.t and type value = G.hash
+  Irmin.Atomic_write.S with type key = K.t and type value = G.hash
 
 module type G = sig
   include Git.S
@@ -154,8 +154,8 @@ module Make_ext
      and type branch = B.t
 
 module Generic
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) :
@@ -168,6 +168,6 @@ module Generic
      and type hash = Digestif.SHA1.t
 
 module Generic_KV
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (C : Irmin.Contents.S) : Irmin.KV with type contents = C.t

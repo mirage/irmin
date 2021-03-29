@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,59 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
-open S
+open Import
+include Atomic_write_intf
 
-module Append_only (S : Append_only.Store) = struct
-  type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
-  type value = S.value
-  type ctx = S.ctx
+module Check_closed (AW : Maker) (K : Type.S) (V : Type.S) = struct
+  module S = AW (K) (V)
 
-  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_not_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    S.find t.t k
-
-  let add t v =
-    check_not_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add t.t k v
-
-  let v ?ctx uri item items =
-    let+ t = S.v ?ctx uri item items in
-    { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t)
-
-  let batch t f =
-    check_not_closed t;
-    S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
-end
-
-module Atomic_write (S : Atomic_write.Store) = struct
   type t = { closed : bool ref; t : S.t }
   type key = S.key
   type value = S.value
-  type ctx = S.ctx
 
-  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
 
   let mem t k =
     check_not_closed t;
@@ -106,8 +64,8 @@ module Atomic_write (S : Atomic_write.Store) = struct
     check_not_closed t;
     S.unwatch t.t w
 
-  let v ?ctx uri item items =
-    let+ t = S.v ?ctx uri item items in
+  let v conf =
+    let+ t = S.v conf in
     { closed = ref false; t }
 
   let close t =

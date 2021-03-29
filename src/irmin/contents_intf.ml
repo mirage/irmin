@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open S
 
 module type S = sig
   (** {1 Signature for store contents} *)
@@ -32,7 +31,7 @@ module type S = sig
 end
 
 module type Store = sig
-  include Content_addressable_store
+  include Content_addressable.S
 
   val merge : [> read_write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
@@ -84,7 +83,7 @@ module type Contents = sig
 
   (** [Store] creates a contents store. *)
   module Store (C : sig
-    include S.Content_addressable_store
+    include Content_addressable.S
     module Key : Hash.S with type t = key
     module Val : S with type t = value
   end) :
