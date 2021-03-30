@@ -161,6 +161,12 @@ struct
   let clear (_, t) = S.clear t
   let add (_, t) = S.add t
   let unsafe_add (_, t) = S.unsafe_add t
+  let batch (c, s) f = C.batch c (fun n -> S.batch s (fun s -> f (n, s)))
+
+  let close (c, s) =
+    let* () = C.close c in
+    let+ () = S.close s in
+    ()
 
   let all_contents t =
     let kvs = S.Val.list t in

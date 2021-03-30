@@ -39,13 +39,13 @@ module type S = sig
   val find : [> read ] t -> key -> value option Lwt.t
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
+
+  include Closeable with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
-
-  include Closeable with type 'a t := 'a t
-  (** @inline *)
 
   include Of_config with type 'a t := 'a t
   (** @inline *)

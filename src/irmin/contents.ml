@@ -202,18 +202,9 @@ module Store (S : sig
   module Val : S with type t = value
 end) =
 struct
+  include S
   module Key = Hash.Typed (S.Key) (S.Val)
-  module Val = S.Val
 
-  type 'a t = 'a S.t
-  type key = S.key
-  type value = S.value
-
-  let find = S.find
-  let add = S.add
-  let unsafe_add = S.unsafe_add
-  let mem = S.mem
-  let clear = S.clear
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
 
   let add_opt t = function

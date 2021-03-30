@@ -15,25 +15,21 @@
  *)
 
 open! Import
-open Store_properties
 
 let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Content_addressable = struct
-  module type Store = sig
-    include Irmin.Content_addressable.S
-    include Batch with type 'a t := 'a t
-    include Of_config with type 'a t := 'a t
-    include Closeable with type 'a t := 'a t
-  end
+  module type S = Irmin.Content_addressable.S
 
   module Make
       (K : Irmin.Type.S)
       (V : Irmin.Type.S)
-      (CA : Store with type key = K.t and type value = V.t) :
-    Store with type key = CA.key and type value = CA.value = struct
+      (CA : S with type key = K.t and type value = V.t) =
+  struct
     include CA
+
+    let v x = x
   end
 end

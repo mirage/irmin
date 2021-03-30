@@ -24,6 +24,10 @@
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
 - **irmin**
   - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
+  - Append-only and content-addressable backend implementations have to
+    provide `close` and `batch` functions (#1345, @samoht)
+  - Atomic-write backend implementations have to provide a `close` function
+    (#1345, @samoht)
 
 ### Changed
 

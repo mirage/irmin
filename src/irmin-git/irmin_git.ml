@@ -135,25 +135,31 @@ module Content_addressable (G : Git.S) = struct
     type key = X.key
     type value = X.value
 
-    let with_state f t x =
+    let with_state0 f t =
+      let* t = state t in
+      f t
+
+    let with_state1 f t x =
       let* t = state t in
       f t x
 
-    let add = with_state X.add
+    let add = with_state1 X.add
     let pp_key = Irmin.Type.pp X.Key.t
     let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
     let unsafe_add t k v =
-      let+ k' = with_state X.add t v in
+      let+ k' = with_state1 X.add t v in
       if equal_key k k' then ()
       else
         Fmt.failwith
           "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
           pp_key k pp_key k'
 
-    let find = with_state X.find
-    let mem = with_state X.mem
-    let clear _ = Lwt.fail_with "not implemented"
+    let find = with_state1 X.find
+    let mem = with_state1 X.mem
+    let clear = with_state0 X.clear
+    let close = with_state0 X.close
+    let batch t f = f t
   end
 end
 

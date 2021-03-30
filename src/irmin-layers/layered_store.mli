@@ -15,20 +15,17 @@
  *)
 
 open! Import
-open Store_properties
 
 (* FIXME(samoht): why do we need this? *)
 module Content_addressable : sig
-  module type Store = sig
-    include Irmin.Content_addressable.S
-    include Batch with type 'a t := 'a t
-    include Of_config with type 'a t := 'a t
-    include Closeable with type 'a t := 'a t
-  end
+  module type S = Irmin.Content_addressable.S
 
   module Make
       (K : Irmin.Type.S)
       (V : Irmin.Type.S)
-      (CA : Store with type key = K.t and type value = V.t) :
-    Store with type key = CA.key and type value = CA.value
+      (CA : S with type key = K.t and type value = V.t) : sig
+    include S with type key = CA.key and type value = CA.value
+
+    val v : 'a CA.t -> 'a t
+  end
 end
