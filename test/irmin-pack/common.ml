@@ -1,4 +1,5 @@
 open Irmin.Export_for_backends
+module Int63 = Optint.Int63
 
 module Dict = Irmin_pack.Dict.Make (struct
   let io_version = `V2

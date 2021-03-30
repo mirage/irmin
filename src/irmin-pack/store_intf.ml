@@ -1,3 +1,5 @@
+open! Import
+
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
 module type S = sig
   type repo
@@ -52,7 +54,7 @@ module type Store = sig
       auto_repair:bool ->
       check:
         (kind:[ `Contents | `Node | `Commit ] ->
-        offset:Int63.t ->
+        offset:int63 ->
         length:int ->
         Index.key ->
         (unit, [ `Absent_value | `Wrong_hash ]) result) ->

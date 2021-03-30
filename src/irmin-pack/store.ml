@@ -1,3 +1,4 @@
+open! Import
 include Store_intf
 
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
@@ -40,7 +41,7 @@ struct
   type watch = W.watch
 
   type t = {
-    index : Int63.t Tbl.t;
+    index : int63 Tbl.t;
     cache : V.t Tbl.t;
     mutable block : IO.t;
     w : W.t;

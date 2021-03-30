@@ -15,6 +15,7 @@
  *)
 
 include Dict_intf
+open! Import
 
 let src =
   Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"

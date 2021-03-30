@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
+
 type version = [ `V1 | `V2 ]
 
 module type Version = sig
@@ -30,12 +32,12 @@ module type S = sig
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
-  val set : t -> off:Int63.t -> string -> unit
-  val read : t -> off:Int63.t -> bytes -> int
-  val offset : t -> Int63.t
-  val force_offset : t -> Int63.t
-  val generation : t -> Int63.t
-  val force_generation : t -> Int63.t
+  val set : t -> off:int63 -> string -> unit
+  val read : t -> off:int63 -> bytes -> int
+  val offset : t -> int63
+  val force_offset : t -> int63
+  val generation : t -> int63
+  val force_generation : t -> int63
   val readonly : t -> bool
   val version : t -> version
   val flush : t -> unit
@@ -49,13 +51,13 @@ module type S = sig
       {!clear} instead. *)
 
   val migrate :
-    progress:(Int63.t -> unit) ->
+    progress:(int63 -> unit) ->
     t ->
     version ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
 
-  val read_buffer : chunk:int -> off:Int63.t -> t -> string
+  val read_buffer : chunk:int -> off:int63 -> t -> string
 end
 
 module type IO = sig

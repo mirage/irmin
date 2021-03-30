@@ -1,4 +1,5 @@
 open Irmin.Perms
+module Int63 = Optint.Int63
 module Dict : Irmin_pack.Dict.S
 module H = Irmin.Hash.SHA1
 module I = Index

@@ -15,6 +15,7 @@
  *)
 
 include Pack_intf
+open! Import
 
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 

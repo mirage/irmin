@@ -138,13 +138,13 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-    type address = Indirect of Int63.t | Direct of H.t
+    type address = Indirect of int63 | Direct of H.t
 
     let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" Int63.t (fun x -> Indirect x)
+      |~ case1 "Indirect" int63_t (fun x -> Indirect x)
       |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
@@ -205,7 +205,7 @@ struct
         | Node (Direct n, Direct h) -> node_dd (n, h))
       |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
              Contents (Indirect n, Indirect i, T.default))
-      |~ case1 "contents-x-ii" (triple int Int63.t metadata_t) (fun (n, i, m) ->
+      |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
              Contents (Indirect n, Indirect i, m))
       |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
@@ -217,7 +217,7 @@ struct
              Node (Indirect n, Direct h))
       |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
              Contents (Direct n, Indirect i, T.default))
-      |~ case1 "contents-x-di" (triple step_t Int63.t metadata_t)
+      |~ case1 "contents-x-di" (triple step_t int63_t metadata_t)
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
       |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))

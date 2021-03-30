@@ -1,5 +1,6 @@
 open Astring
 open Irmin_pack.Private.Utils
+module Int63 = Optint.Int63
 
 let ( - ), ( * ), ( / ) = Int63.(sub, mul, div)
 

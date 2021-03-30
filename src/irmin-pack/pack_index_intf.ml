@@ -10,8 +10,10 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
+open! Import
+
 module type S = sig
-  include Index.S with type value = Int63.t * int * char
+  include Index.S with type value = int63 * int * char
 
   val v :
     ?flush_callback:(unit -> unit) ->

@@ -1,7 +1,9 @@
+open! Import
+
 type 'a fixed_width_fmt = 'a Fmt.t * int
 
 (** Pretty-printer for byte counts *)
-let pp_bytes : Int63.t fixed_width_fmt =
+let pp_bytes : int63 fixed_width_fmt =
   (* Round down to the nearest 0.1 *)
   let trunc f = Float.trunc (f *. 10.) /. 10. in
   let pp ppf i =
@@ -18,14 +20,14 @@ module Progress : sig
   type t
 
   val counter :
-    total:Int63.t ->
+    total:int63 ->
     sampling_interval:int ->
     ?columns:int ->
     message:string ->
-    ?pp_count:Int63.t fixed_width_fmt ->
+    ?pp_count:int63 fixed_width_fmt ->
     ?ppf:Format.formatter ->
     unit ->
-    t * (Int63.t -> unit)
+    t * (int63 -> unit)
   (** Renders a progress bar of the form:
 
       [<msg> <count> MM:SS \[########..............................\] XX%]

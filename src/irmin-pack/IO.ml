@@ -15,6 +15,7 @@
  *)
 
 include IO_intf
+open! Import
 
 let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
@@ -54,9 +55,9 @@ module Unix : S = struct
   type t = {
     file : string;
     mutable raw : Raw.t;
-    mutable generation : Int63.t;
-    mutable offset : Int63.t;
-    mutable flushed : Int63.t;
+    mutable generation : int63;
+    mutable offset : int63;
+    mutable flushed : int63;
     readonly : bool;
     version : version;
     buf : Buffer.t;
