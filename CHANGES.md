@@ -6,7 +6,6 @@
   - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
     an empty subtree as a remove operation, rather than adding an empty
     directory.  (#1335, @craigfe)
-
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
@@ -23,6 +22,8 @@
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
 - **irmin-pack**
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+- **irmin**
+  - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
 
 ### Changed
 

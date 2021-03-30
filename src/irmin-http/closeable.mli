@@ -18,15 +18,15 @@
 
 open S
 
-module Append_only (AO : Append_only.Store) :
-  Append_only.Store
-    with type key = AO.key
-     and type value = AO.value
-     and type ctx = AO.ctx
+module Content_addressable (M : Content_addressable.S) :
+  Content_addressable.S
+    with type key = M.key
+     and type value = M.value
+     and type ctx = M.ctx
 
-module Atomic_write (AW : Atomic_write.Store) :
-  Atomic_write.Store
-    with type key = AW.key
-     and type value = AW.value
-     and type watch = AW.watch
-     and type ctx = AW.ctx
+module Atomic_write (M : Atomic_write.S) :
+  Atomic_write.S
+    with type key = M.key
+     and type value = M.value
+     and type watch = M.watch
+     and type ctx = M.ctx

@@ -17,8 +17,9 @@
 open! Import
 module Type = Repr
 module Diff = Diff
-module Content_addressable = Content_addressable
+module Read_only = Read_only
 module Append_only = Append_only
+module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 module Contents = Contents
 module Merge = Merge

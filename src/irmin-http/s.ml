@@ -65,7 +65,7 @@ module type Helper = sig
 end
 
 module Read_only = struct
-  module type Store = sig
+  module type S = sig
     type ctx
 
     type -'a t = {
@@ -75,9 +75,7 @@ module Read_only = struct
       ctx : ctx option;
     }
 
-    type key
-    type value
-
+    include Irmin.Read_only.S with type 'a t := 'a t
     module HTTP : Helper with type ctx = ctx
 
     val uri : 'a t -> Uri.t
@@ -85,10 +83,6 @@ module Read_only = struct
     val items : 'a t -> string
     val key_str : key -> string
     val val_of_str : value T.of_string
-    val find : 'a t -> key -> value option Lwt.t
-    val mem : 'a t -> key -> bool Lwt.t
-    val cast : 'a t -> read_write t
-    val batch : 'a t -> (read_write t -> 'b) -> 'b
     val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
     include Clearable with type 'a t := 'a t
@@ -96,17 +90,12 @@ module Read_only = struct
   end
 end
 
-module Append_only = struct
-  module type Store = sig
-    type -'a t
-    type key
-    type value
+module Content_addressable = struct
+  module type S = sig
+    include Irmin.Content_addressable.S
+
     type ctx
 
-    val mem : [> read ] t -> key -> bool Lwt.t
-    val find : [> read ] t -> key -> value option Lwt.t
-    val add : 'a t -> value -> key Lwt.t
-    val unsafe_add : 'a t -> key -> value -> unit Lwt.t
     val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
     include Closeable with type 'a t := 'a t
@@ -123,11 +112,11 @@ module Append_only = struct
     (Client : Cohttp_lwt.S.Client)
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S)
-    -> Store with type key = K.t and type value = V.t and type ctx = Client.ctx
+    -> S with type key = K.t and type value = V.t and type ctx = Client.ctx
 end
 
 module Atomic_write = struct
-  module type Store = sig
+  module type S = sig
     include Irmin.Atomic_write.S
 
     type ctx
@@ -141,10 +130,8 @@ module Atomic_write = struct
     (V : Irmin.Hash.S)
     -> sig
     module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
-    module RO : Read_only.Store
+    module RO : Read_only.S
     module HTTP = RO.HTTP
-
-    include
-      Store with type key = K.t and type value = V.t and type ctx = Client.ctx
+    include S with type key = K.t and type value = V.t and type ctx = Client.ctx
   end
 end
