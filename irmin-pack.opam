@@ -32,4 +32,8 @@ depends: [
   "alcotest"     {with-test}
 ]
 
+pin-depends: [
+  [ "optint.dev" "git+https://github.com/mirage/optint#b1ad9aa3f3412fb0ec93d05b1cf519a01ff475cd" ]
+]
+
 synopsis: "Irmin backend which stores values in a pack file"
