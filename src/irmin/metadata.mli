@@ -15,3 +15,4 @@
  *)
 
 include Metadata_intf.Sigs
+(** @inline *)

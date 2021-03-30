@@ -1,2 +1,2 @@
-include Store_intf.Store
+include Store_intf.Sigs
 (** @inline *)

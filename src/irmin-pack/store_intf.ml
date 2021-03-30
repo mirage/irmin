@@ -36,7 +36,7 @@ module type S = sig
       by a readonly instance.*)
 end
 
-module type Store = sig
+module type Sigs = sig
   module type S = S
 
   module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) :

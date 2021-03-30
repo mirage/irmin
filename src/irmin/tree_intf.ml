@@ -289,7 +289,7 @@ module type S = sig
   val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
 end
 
-module type Tree = sig
+module type Sigs = sig
   module type S = sig
     include S
     (** @inline *)

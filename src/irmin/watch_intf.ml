@@ -70,7 +70,7 @@ module type S = sig
       function to stop watching and free up resources. *)
 end
 
-module type Watch = sig
+module type Sigs = sig
   module type S = S
   (** The signature for watch helpers. *)
 

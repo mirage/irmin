@@ -16,5 +16,5 @@
 
 (** Tree path handling. *)
 
-include Path_intf.Path
+include Path_intf.Sigs
 (** @inline *)

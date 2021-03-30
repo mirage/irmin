@@ -141,7 +141,7 @@ module type Maker = functor
      and type branch = B.t
      and type hash = H.t
 
-module type Irmin_layers = sig
+module type Sigs = sig
   module Layer_id : sig
     type t = layer_id [@@deriving irmin]
 

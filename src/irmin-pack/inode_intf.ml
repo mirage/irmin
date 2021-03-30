@@ -131,7 +131,7 @@ module type INTER = sig
   end
 end
 
-module type Inode = sig
+module type Sigs = sig
   module type S = S
   module type INTER = INTER
 

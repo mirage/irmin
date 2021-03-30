@@ -23,5 +23,5 @@
     {{!Private.Commit.Store} node} value. See the {{!Private.Node.Store} Node}
     signature for more details on node values. *)
 
-include Commit_intf.Commit
+include Commit_intf.Sigs
 (** @inline *)

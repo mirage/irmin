@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Inode_layers_intf.Inode_layers
+include Inode_layers_intf.Sigs
 (** @inline *)

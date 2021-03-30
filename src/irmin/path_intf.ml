@@ -58,7 +58,7 @@ module type S = sig
   (** [step_t] is the value type for {!step}. *)
 end
 
-module type Path = sig
+module type Sigs = sig
   module type S = S
   (** Signature for path implementations.*)
 

@@ -56,7 +56,7 @@ module type Typed = sig
   (** [t] is the value type for {!t}. *)
 end
 
-module type Hash = sig
+module type Sigs = sig
   module type S = S
   (** Signature for hash values. *)
 

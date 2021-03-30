@@ -16,5 +16,5 @@
 
 (** User-defined branches. *)
 
-include Branch_intf.Branch
+include Branch_intf.Sigs
 (** @inline *)

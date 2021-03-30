@@ -30,7 +30,7 @@ module type S = sig
   val valid : t -> bool
 end
 
-module type Dict = sig
+module type Sigs = sig
   module type S = S
 
   module Make (_ : IO.Version) (_ : IO.S) : S

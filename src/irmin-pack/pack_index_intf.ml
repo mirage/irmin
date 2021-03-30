@@ -31,7 +31,7 @@ module type S = sig
   module Stats = Index.Stats
 end
 
-module type Pack_index = sig
+module type Sigs = sig
   module type S = S
 
   module Make (K : Irmin.Hash.S) : S with type key = K.t
