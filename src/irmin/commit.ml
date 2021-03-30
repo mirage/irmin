@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open S
 include Commit_intf
 open Merge.Infix
 
@@ -41,7 +40,7 @@ end
 
 module Store
     (N : Node.Store) (S : sig
-      include Content_addressable_store with type key = N.key
+      include Content_addressable.S with type key = N.key
       module Key : Hash.S with type t = key
       module Val : S with type t = value and type hash = key
     end) =

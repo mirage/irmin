@@ -1,6 +1,5 @@
 (*
- * Copyright (c) 2020 KC Sivaramakrishnan <kc@kcsrk.info>
- * Copyright (c) 2020 Anirudh Sunder Raj <anirudh6626@gmail.com>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,17 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The signature for the backend input to the data structures. The Irmin stores
-    of the data structures are constructed using modules of this type *)
-module type Store_maker = functor (C : Irmin.Contents.S) ->
-  Irmin.S
-    with type contents = C.t
-     and type branch = string
-     and type key = string list
-     and type step = string
-
-module type Cas_maker = sig
-  module CAS_maker : Irmin.Content_addressable.Maker
-
-  val config : Irmin.config
-end
+include Append_only_intf

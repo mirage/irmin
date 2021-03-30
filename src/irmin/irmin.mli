@@ -59,27 +59,18 @@ module Perms = Perms
 (** {1 Low-level Stores} *)
 
 (** An Irmin store is automatically built from a number of lower-level stores,
-    each implementing fewer operations, such as {{!Content_addressable_store}
-    content-addressable} and {{!Atomic_write_store} atomic-write} stores. These
+    each implementing fewer operations, such as {{!Content_addressable.Store}
+    content-addressable} and {{!Atomic_write.Store} atomic-write} stores. These
     low-level stores are provided by various backends. *)
 
-(** Content-addressable backend store. *)
-module type Content_addressable_store = sig
-  include S.Content_addressable_store
-  (** @inline *)
-end
+module Content_addressable = Content_addressable
+(** Content-addressable backends. *)
 
-(** Append-only backend store. *)
-module type Append_only_store = sig
-  include S.Append_only_store
-  (** @inline *)
-end
+module Append_only = Append_only
+(** Append-only backend backends. *)
 
+module Atomic_write = Atomic_write
 (** Atomic-write stores. *)
-module type Atomic_write_store = sig
-  include S.Atomic_write_store
-  (** @inline *)
-end
 
 (** {1 User-Defined Contents} *)
 
@@ -126,7 +117,7 @@ module Branch = Branch
 type remote = Remote.t = ..
 (** The type for remote stores. *)
 
-type config = S.config
+type config = Conf.t
 (** The type for backend-specific configuration values.
 
     Every backend has different configuration options, which are kept abstract
@@ -149,7 +140,6 @@ module Private : sig
   module Commit = Commit
   module Slice = Slice
   module Remote = Remote
-  module Sigs = S
 
   module type S = Private.S
   (** The complete collection of private implementations. *)
@@ -451,85 +441,13 @@ module Dot (S : S) : Dot.S with type db = S.t
       internal stores into separate store, with total control over the binary
       format and using the native synchronization protocols when available. *)
 
-(** [Append_only_store_maker] is the signature exposed by append-only store
-    backends. [K] is the implementation of keys and [V] is the implementation of
-    values. *)
-module type Append_only_store_maker = functor (K : Type.S) (V : Type.S) -> sig
-  include Append_only_store with type key = K.t and type value = V.t
-  open Store_properties
-
-  include Batch with type 'a t := 'a t
-  (** @inline *)
-
-  include Of_config with type 'a t := 'a t
-  (** @inline *)
-
-  include Closeable with type 'a t := 'a t
-  (** @inline *)
-end
-
-(** [Content_addressable_store_maker] is the signature exposed by
-    content-addressable store backends. [K] is the implementation of keys and
-    [V] is the implementation of values. *)
-module type Content_addressable_store_maker = functor
-  (K : Hash.S)
-  (V : Type.S)
-  -> sig
-  include Content_addressable_store with type key = K.t and type value = V.t
-  open Store_properties
-
-  include Batch with type 'a t := 'a t
-  (** @inline *)
-
-  include Of_config with type 'a t := 'a t
-  (** @inline *)
-
-  include Closeable with type 'a t := 'a t
-  (** @inline *)
-end
-
-module Content_addressable
-    (S : Append_only_store_maker)
-    (K : Hash.S)
-    (V : Type.S) : sig
-  include
-    Content_addressable_store
-      with type 'a t = 'a S(K)(V).t
-       and type key = K.t
-       and type value = V.t
-
-  open Store_properties
-
-  include Batch with type 'a t := 'a t
-  (** @inline *)
-
-  include Of_config with type 'a t := 'a t
-  (** @inline *)
-
-  include Closeable with type 'a t := 'a t
-  (** @inline *)
-end
-
-(** [Atomic_write_store_maker] is the signature exposed by atomic-write store
-    backends. [K] is the implementation of keys and [V] is the implementation of
-    values.*)
-module type Atomic_write_store_maker = functor (K : Type.S) (V : Type.S) -> sig
-  include Atomic_write_store with type key = K.t and type value = V.t
-  open Store_properties
-
-  include Of_config with type _ t := t
-  (** @inline *)
-end
-
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
-module Make
-    (CA : Content_addressable_store_maker)
-    (AW : Atomic_write_store_maker) : Maker
+module Make (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) : Maker
 
 module Make_ext
-    (CA : Content_addressable_store_maker)
-    (AW : Atomic_write_store_maker)
+    (CA : Content_addressable.Maker)
+    (AW : Atomic_write.Maker)
     (Metadata : Metadata.S)
     (Contents : Contents.S)
     (Path : Path.S)

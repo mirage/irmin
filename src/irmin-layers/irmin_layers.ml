@@ -29,8 +29,8 @@ module Layer_id = struct
 end
 
 module Make_ext
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -52,7 +52,10 @@ struct
         module Key = Hash
         module Val = C
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
+
+        module Layered_CA =
+          Layered_store.Content_addressable.Make (Key) (Val) (CA)
+
         include Layered_CA
       end
 
@@ -64,7 +67,10 @@ struct
         module Key = Hash
         module Val = N
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
+
+        module Layered_CA =
+          Layered_store.Content_addressable.Make (Key) (Val) (CA)
+
         include Layered_CA
       end
 
@@ -76,7 +82,10 @@ struct
         module Key = Hash
         module Val = CT
         module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
+
+        module Layered_CA =
+          Layered_store.Content_addressable.Make (Key) (Val) (CA)
+
         include Layered_CA
       end
 
@@ -167,8 +176,8 @@ struct
 end
 
 module Make
-    (CA : Irmin.Content_addressable_store_maker)
-    (AW : Irmin.Atomic_write_store_maker)
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)

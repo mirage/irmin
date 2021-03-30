@@ -48,6 +48,8 @@ module type Clearable = sig
 end
 
 module type Sigs = sig
+  exception Closed
+
   module type Batch = sig
     include Batch
     (** @inline *)

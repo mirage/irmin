@@ -40,9 +40,7 @@ end
 
 module type S = sig
   include
-    Irmin.Content_addressable_store
-      with type key = Key.t
-       and type value = Value.t
+    Irmin.Content_addressable.S with type key = Key.t and type value = Value.t
 
   open Irmin.Export_for_backends
 
@@ -52,7 +50,7 @@ module type S = sig
 end
 
 module Append_only = Irmin_mem.Append_only
-module Content_addressable = Irmin.Content_addressable (Append_only)
+module Content_addressable = Irmin.Content_addressable.Make (Append_only)
 
 module Mem = struct
   include Content_addressable (Key) (Value)

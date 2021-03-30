@@ -17,7 +17,9 @@
 open! Import
 module Type = Repr
 module Diff = Diff
-module Content_addressable = Store.Content_addressable
+module Content_addressable = Content_addressable
+module Append_only = Append_only
+module Atomic_write = Atomic_write
 module Contents = Contents
 module Merge = Merge
 module Branch = Branch
@@ -27,129 +29,11 @@ module Hash = Hash
 module Path = Path
 module Perms = Perms
 
-exception Closed
-
-module CA_check_closed (CA : S.Content_addressable_store_maker) :
-  S.Content_addressable_store_maker =
-functor
-  (K : Hash.S)
-  (V : Type.S)
-  ->
-  struct
-    module S = CA (K) (V)
-
-    type 'a t = { closed : bool ref; t : 'a S.t }
-    type key = S.key
-    type value = S.value
-
-    let check_not_closed t = if !(t.closed) then raise Closed
-
-    let mem t k =
-      check_not_closed t;
-      S.mem t.t k
-
-    let find t k =
-      check_not_closed t;
-      S.find t.t k
-
-    let add t v =
-      check_not_closed t;
-      S.add t.t v
-
-    let unsafe_add t k v =
-      check_not_closed t;
-      S.unsafe_add t.t k v
-
-    let batch t f =
-      check_not_closed t;
-      S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-    let v conf =
-      let+ t = S.v conf in
-      { closed = ref false; t }
-
-    let close t =
-      if !(t.closed) then Lwt.return_unit
-      else (
-        t.closed := true;
-        S.close t.t)
-
-    let clear t =
-      check_not_closed t;
-      S.clear t.t
-  end
-
-module AW_check_closed (AW : S.Atomic_write_store_maker) :
-  S.Atomic_write_store_maker =
-functor
-  (K : Type.S)
-  (V : Type.S)
-  ->
-  struct
-    module S = AW (K) (V)
-
-    type t = { closed : bool ref; t : S.t }
-    type key = S.key
-    type value = S.value
-
-    let check_not_closed t = if !(t.closed) then raise Closed
-
-    let mem t k =
-      check_not_closed t;
-      S.mem t.t k
-
-    let find t k =
-      check_not_closed t;
-      S.find t.t k
-
-    let set t k v =
-      check_not_closed t;
-      S.set t.t k v
-
-    let test_and_set t k ~test ~set =
-      check_not_closed t;
-      S.test_and_set t.t k ~test ~set
-
-    let remove t k =
-      check_not_closed t;
-      S.remove t.t k
-
-    let list t =
-      check_not_closed t;
-      S.list t.t
-
-    type watch = S.watch
-
-    let watch t ?init f =
-      check_not_closed t;
-      S.watch t.t ?init f
-
-    let watch_key t k ?init f =
-      check_not_closed t;
-      S.watch_key t.t k ?init f
-
-    let unwatch t w =
-      check_not_closed t;
-      S.unwatch t.t w
-
-    let v conf =
-      let+ t = S.v conf in
-      { closed = ref false; t }
-
-    let close t =
-      if !(t.closed) then Lwt.return_unit
-      else (
-        t.closed := true;
-        S.close t.t)
-
-    let clear t =
-      check_not_closed t;
-      S.clear t.t
-  end
+exception Closed = Store_properties.Closed
 
 module Make_ext
-    (CA : S.Content_addressable_store_maker)
-    (AW : S.Atomic_write_store_maker)
+    (CA : Content_addressable.Maker)
+    (AW : Atomic_write.Maker)
     (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
@@ -161,8 +45,8 @@ module Make_ext
             and type step = P.step)
     (CT : Commit.S with type hash = H.t) =
 struct
-  module CA = CA_check_closed (CA)
-  module AW = AW_check_closed (AW)
+  module CA = Content_addressable.Check_closed (CA)
+  module AW = Atomic_write.Check_closed (AW)
 
   module X = struct
     module Hash = H
@@ -249,8 +133,8 @@ struct
 end
 
 module Make
-    (CA : S.Content_addressable_store_maker)
-    (AW : S.Atomic_write_store_maker)
+    (CA : Content_addressable.Maker)
+    (AW : Atomic_write.Maker)
     (M : Metadata.S)
     (C : Contents.S)
     (P : Path.S)
@@ -264,18 +148,12 @@ end
 
 module Of_private = Store.Make
 
-module type Content_addressable_store = S.Content_addressable_store
-module type Append_only_store = S.Append_only_store
-module type Atomic_write_store = S.Atomic_write_store
 module type Tree = Tree.S
 module type S = Store.S
 
 type config = Conf.t
 type 'a diff = 'a Diff.t
 
-module type Content_addressable_store_maker = S.Content_addressable_store_maker
-module type Append_only_store_maker = S.Append_only_store_maker
-module type Atomic_write_store_maker = S.Atomic_write_store_maker
 module type Maker = Store.Maker
 
 module type KV =
@@ -289,7 +167,6 @@ module Private = struct
   module Commit = Commit
   module Slice = Slice
   module Remote = Remote
-  module Sigs = S
 
   module type S = Private.S
 

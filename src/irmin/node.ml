@@ -16,7 +16,6 @@
  *)
 
 open! Import
-open S
 include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
@@ -137,7 +136,7 @@ module Store
     (C : Contents.Store)
     (P : Path.S)
     (M : Metadata.S) (S : sig
-      include Content_addressable_store with type key = C.key
+      include Content_addressable.S with type key = C.key
       module Key : Hash.S with type t = key
 
       module Val :

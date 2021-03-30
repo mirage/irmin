@@ -64,81 +64,87 @@ module type Helper = sig
     'a Lwt_stream.t Lwt.t
 end
 
-module type Read_only_store = sig
-  type ctx
-  type -'a t = { uri : Uri.t; item : string; items : string; ctx : ctx option }
-  type key
-  type value
+module Read_only = struct
+  module type Store = sig
+    type ctx
 
-  module HTTP : Helper with type ctx = ctx
+    type -'a t = {
+      uri : Uri.t;
+      item : string;
+      items : string;
+      ctx : ctx option;
+    }
 
-  val uri : 'a t -> Uri.t
-  val item : 'a t -> string
-  val items : 'a t -> string
-  val key_str : key -> string
-  val val_of_str : value T.of_string
-  val find : 'a t -> key -> value option Lwt.t
-  val mem : 'a t -> key -> bool Lwt.t
-  val cast : 'a t -> read_write t
-  val batch : 'a t -> (read_write t -> 'b) -> 'b
-  val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+    type key
+    type value
 
-  include Clearable with type 'a t := 'a t
-  (** @inline *)
+    module HTTP : Helper with type ctx = ctx
+
+    val uri : 'a t -> Uri.t
+    val item : 'a t -> string
+    val items : 'a t -> string
+    val key_str : key -> string
+    val val_of_str : value T.of_string
+    val find : 'a t -> key -> value option Lwt.t
+    val mem : 'a t -> key -> bool Lwt.t
+    val cast : 'a t -> read_write t
+    val batch : 'a t -> (read_write t -> 'b) -> 'b
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+
+    include Clearable with type 'a t := 'a t
+    (** @inline *)
+  end
 end
 
-module type Append_only_store = sig
-  type -'a t
-  type key
-  type value
-  type ctx
+module Append_only = struct
+  module type Store = sig
+    type -'a t
+    type key
+    type value
+    type ctx
 
-  val mem : [> read ] t -> key -> bool Lwt.t
-  val find : [> read ] t -> key -> value option Lwt.t
-  val add : 'a t -> value -> key Lwt.t
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-  val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+    val mem : [> read ] t -> key -> bool Lwt.t
+    val find : [> read ] t -> key -> value option Lwt.t
+    val add : 'a t -> value -> key Lwt.t
+    val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
 
-  include Closeable with type 'a t := 'a t
-  (** @inline *)
+    include Closeable with type 'a t := 'a t
+    (** @inline *)
 
-  include Batch with type 'a t := 'a t
-  (** @inline *)
+    include Batch with type 'a t := 'a t
+    (** @inline *)
 
-  include Clearable with type 'a t := 'a t
-  (** @inline *)
+    include Clearable with type 'a t := 'a t
+    (** @inline *)
+  end
+
+  module type Maker = functor
+    (Client : Cohttp_lwt.S.Client)
+    (K : Irmin.Hash.S)
+    (V : Irmin.Type.S)
+    -> Store with type key = K.t and type value = V.t and type ctx = Client.ctx
 end
 
-module type Append_only_store_maker = functor
-  (Client : Cohttp_lwt.S.Client)
-  (K : Irmin.Hash.S)
-  (V : Irmin.Type.S)
-  ->
-  Append_only_store
-    with type key = K.t
-     and type value = V.t
-     and type ctx = Client.ctx
+module Atomic_write = struct
+  module type Store = sig
+    include Irmin.Atomic_write.S
 
-module type Atomic_write_store = sig
-  include Irmin.Atomic_write_store
+    type ctx
 
-  type ctx
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
+  end
 
-  val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
-end
+  module type Maker = functor
+    (Client : Cohttp_lwt.S.Client)
+    (K : Irmin.Branch.S)
+    (V : Irmin.Hash.S)
+    -> sig
+    module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
+    module RO : Read_only.Store
+    module HTTP = RO.HTTP
 
-module type Atomic_write_store_maker = functor
-  (Client : Cohttp_lwt.S.Client)
-  (K : Irmin.Branch.S)
-  (V : Irmin.Hash.S)
-  -> sig
-  module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
-  module RO : Read_only_store
-  module HTTP = RO.HTTP
-
-  include
-    Atomic_write_store
-      with type key = K.t
-       and type value = V.t
-       and type ctx = Client.ctx
+    include
+      Store with type key = K.t and type value = V.t and type ctx = Client.ctx
+  end
 end

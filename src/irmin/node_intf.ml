@@ -16,7 +16,6 @@
  *)
 
 open! Import
-open S
 
 module type S = sig
   (** {1 Node values} *)
@@ -88,8 +87,19 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
+module type Metadata = sig
+  type t [@@deriving irmin]
+  (** The type for metadata. *)
+
+  val merge : t Merge.t
+  (** [merge] is the merge function for metadata. *)
+
+  val default : t
+  (** The default metadata to attach, for APIs that don't care about metadata. *)
+end
+
 module type Store = sig
-  include Content_addressable_store
+  include Content_addressable.S
 
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
@@ -212,8 +222,9 @@ module type Graph = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
-module type Node = sig
+module type Sigs = sig
   module type S = S
+  module type Metadata = Metadata
 
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)
@@ -244,7 +255,7 @@ module type Node = sig
       (C : Contents.Store)
       (P : Path.S)
       (M : Metadata.S) (N : sig
-        include Content_addressable_store with type key = C.key
+        include Content_addressable.S with type key = C.key
         module Key : Hash.S with type t = key
 
         module Val :

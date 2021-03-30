@@ -112,7 +112,7 @@ module Make_V2 : Maker
 module KV (Config : Config.S) : Irmin.KV_maker
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) : sig
-  include Irmin.Atomic_write_store with type key = K.t and type value = V.t
+  include Irmin.Atomic_write.S with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end

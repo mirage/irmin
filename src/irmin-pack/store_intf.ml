@@ -40,7 +40,7 @@ module type Store = sig
   module type S = S
 
   module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) :
-    S.Atomic_write_store with type key = K.t and type value = V.t
+    S.Atomic_write.Store with type key = K.t and type value = V.t
 
   val migrate : Irmin.config -> unit
 

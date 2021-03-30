@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open S
-
 module type S = sig
   (** {1 Signature for Branches} *)
 
@@ -32,7 +30,7 @@ end
 module type Store = sig
   (** {1 Branch Store} *)
 
-  include Atomic_write_store
+  include Atomic_write.S
 
   module Key : S with type t = key
   (** Base functions on keys. *)

@@ -22,36 +22,6 @@ let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Content_addressable
-    (AO : S.Append_only_store_maker)
-    (K : Hash.S)
-    (V : Type.S) =
-struct
-  include AO (K) (V)
-  open Lwt.Infix
-  module H = Hash.Typed (K) (V)
-
-  let hash = H.hash
-  let pp_key = Type.pp K.t
-  let equal_hash = Type.(unstage (equal K.t))
-
-  let find t k =
-    find t k >>= function
-    | None -> Lwt.return_none
-    | Some v as r ->
-        let k' = hash v in
-        if equal_hash k k' then Lwt.return r
-        else
-          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_key k' pp_key k
-
-  let unsafe_add t k v = add t k v
-
-  let add t v =
-    let k = hash v in
-    add t k v >|= fun () -> k
-end
-
 module Make (P : Private.S) = struct
   module Branch_store = P.Branch
 

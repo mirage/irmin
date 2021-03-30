@@ -196,7 +196,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
 end
 
 module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
-  S.Read_only_store
+  S.Read_only.Store
     with type ctx = Client.ctx
      and type key = K.t
      and type value = V.t = struct
@@ -263,7 +263,7 @@ struct
   let close _ = Lwt.return_unit
 end
 
-module RW : S.Atomic_write_store_maker =
+module RW : S.Atomic_write.Maker =
 functor
   (Client : Cohttp_lwt.S.Client)
   (K : Irmin.Type.S)

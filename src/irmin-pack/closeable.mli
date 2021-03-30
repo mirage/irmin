@@ -18,8 +18,8 @@ module Content_addressable (CA : Pack.S) :
      and type value = CA.value
      and type index = CA.index
 
-module Atomic_write (AW : S.Atomic_write_store) :
-  S.Atomic_write_store
+module Atomic_write (AW : S.Atomic_write.Store) :
+  S.Atomic_write.Store
     with type key = AW.key
      and type value = AW.value
      and type watch = AW.watch
