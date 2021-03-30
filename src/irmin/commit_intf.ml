@@ -156,7 +156,7 @@ module type History = sig
   (** [commit_t] is the value type for {!commit}. *)
 end
 
-module type Commit = sig
+module type Sigs = sig
   module type S = S
 
   (** [Make] provides a simple implementation of commit values, parameterized by

@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_layers_intf.Irmin_layers
+include Irmin_layers_intf.Sigs
 (** @inline *)

@@ -15,3 +15,4 @@
  *)
 
 include Read_only_intf.Sigs
+(** @inline *)

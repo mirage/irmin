@@ -109,7 +109,7 @@ module type HASH = sig
   val short_hash : t -> int
 end
 
-module type Object_graph = sig
+module type Sigs = sig
   module type S = S
   module type HASH = HASH
 

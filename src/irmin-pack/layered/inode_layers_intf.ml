@@ -61,7 +61,7 @@ end
 
 module Pack_index = Irmin_pack.Private.Pack_index
 
-module type Inode_layers = sig
+module type Sigs = sig
   module type S = S
 
   module Make

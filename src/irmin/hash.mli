@@ -14,4 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Hash_intf.Hash
+include Hash_intf.Sigs
+(** @inline *)

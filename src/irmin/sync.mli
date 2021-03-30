@@ -17,3 +17,4 @@
 (** Store Synchronisation. *)
 
 include Sync_intf.Sigs
+(** @inline *)

@@ -87,7 +87,7 @@ end
 
 module type Maker = functor (_ : IO.Version) -> Versioned_store
 
-module type Checks = sig
+module type Sigs = sig
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t

@@ -99,7 +99,7 @@ module type Maker = sig
     S with type key = key and type value = V.t and type index = index
 end
 
-module type Pack = sig
+module type Sigs = sig
   module type ELT = ELT
   module type S = S
   module type Maker = Maker

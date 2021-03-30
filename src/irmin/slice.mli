@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Slice_intf.Slice
+include Slice_intf.Sigs
 (** @inline *)

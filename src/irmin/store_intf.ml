@@ -934,7 +934,7 @@ module type Json_tree = functor
   (** Project a [json] value onto a store at the given key. *)
 end
 
-module type Store = sig
+module type Sigs = sig
   module type S = S
   module type Maker = Maker
   module type Json_tree = Json_tree

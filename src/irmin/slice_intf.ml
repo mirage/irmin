@@ -59,7 +59,7 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
-module type Slice = sig
+module type Sigs = sig
   module type S = S
   (** The signature for slices. *)
 

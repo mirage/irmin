@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Dict_intf.Dict
+include Dict_intf.Sigs
 (** @inline *)

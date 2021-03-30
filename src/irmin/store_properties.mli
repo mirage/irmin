@@ -15,3 +15,4 @@
  *)
 
 include Store_properties_intf.Sigs
+(** @inline *)

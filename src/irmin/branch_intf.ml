@@ -39,7 +39,7 @@ module type Store = sig
   (** Base functions on values. *)
 end
 
-module type Branch = sig
+module type Sigs = sig
   (** {1 Branches} *)
 
   module type S = S

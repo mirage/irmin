@@ -58,7 +58,7 @@ module type S = sig
   val read_buffer : chunk:int -> off:int64 -> t -> string
 end
 
-module type IO = sig
+module type Sigs = sig
   module type Version = Version
   module type S = S
 

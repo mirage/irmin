@@ -49,7 +49,7 @@ module type Store = sig
   (** [Val] provides base functions for user-defined contents values. *)
 end
 
-module type Contents = sig
+module type Sigs = sig
   module type S = S
 
   module String : S with type t = string
