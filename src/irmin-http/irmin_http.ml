@@ -196,7 +196,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
 end
 
 module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
-  S.Read_only.Store
+  S.Read_only.S
     with type ctx = Client.ctx
      and type key = K.t
      and type value = V.t = struct
@@ -233,19 +233,13 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
 
-  let cast t = (t :> read_write t)
-
-  let batch t f =
-    (* TODO:cache the writes locally and send everything in one batch *)
-    f (cast t)
-
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
 
   let clear t =
     HTTP.call `POST t.uri t.ctx [ "clear"; t.items ] Irmin.Type.(of_string unit)
 end
 
-module AO (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
+module CA (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
 struct
   include RO (Client) (K) (V)
 
@@ -259,6 +253,12 @@ struct
       [ "unsafe"; t.items; key_str key ]
       ~body
       Irmin.Type.(of_string unit)
+
+  let cast t = (t :> read_write t)
+
+  let batch t f =
+    (* TODO:cache the writes locally and send everything in one batch *)
+    f (cast t)
 
   let close _ = Lwt.return_unit
 end
@@ -285,7 +285,7 @@ functor
 
     let empty_cache () = { stop = (fun () -> ()) }
 
-    type t = { t : unit RO.t; w : W.t; keys : cache; glob : cache }
+    type t = { t : read RO.t; w : W.t; keys : cache; glob : cache }
 
     let get t = HTTP.call `GET (RO.uri t.t) t.t.ctx
     let put t = HTTP.call `PUT (RO.uri t.t) t.t.ctx
@@ -429,7 +429,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Contents
-        include Closeable.Append_only (AO (Client) (Key) (Val))
+        module CA = CA (Client) (Key) (Val)
+        include Closeable.Content_addressable (CA)
       end
 
       include Irmin.Contents.Store (X)
@@ -440,7 +441,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Node = struct
       module Val = S.Private.Node.Val
       module Key = Irmin.Hash.Typed (S.Hash) (Val)
-      include AO (Client) (S.Hash) (Val)
+      module CA = CA (Client) (S.Hash) (Val)
+      include CA
       module Contents = Contents
       module Metadata = S.Metadata
       module Path = S.Key
@@ -469,7 +471,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module X = struct
         module Key = S.Hash
         module Val = S.Private.Commit.Val
-        include Closeable.Append_only (AO (Client) (Key) (Val))
+        module CA = CA (Client) (Key) (Val)
+        include Closeable.Content_addressable (CA)
       end
 
       include Irmin.Private.Commit.Store (Node) (X)

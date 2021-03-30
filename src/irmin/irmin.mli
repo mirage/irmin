@@ -63,11 +63,14 @@ module Perms = Perms
     content-addressable} and {{!Atomic_write.Store} atomic-write} stores. These
     low-level stores are provided by various backends. *)
 
-module Content_addressable = Content_addressable
-(** Content-addressable backends. *)
+module Read_only = Read_only
+(** Read-only backend backends. *)
 
 module Append_only = Append_only
 (** Append-only backend backends. *)
+
+module Content_addressable = Content_addressable
+(** Content-addressable backends. *)
 
 module Atomic_write = Atomic_write
 (** Atomic-write stores. *)

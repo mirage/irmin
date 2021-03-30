@@ -18,25 +18,37 @@ open Import
 open Store_properties
 
 module type S = sig
-  (** {1 Append-only stores}
+  (** {1 Read-only stores}
 
-      Append-only stores are store where it is possible to read and add new
+      Read-only stores are store where it is only possible to read existing
       values. *)
 
-  include Read_only.S
-  (** @inline *)
+  type -'a t
+  (** The type for stores. The ['a] phantom type carries information about the
+      store mutability. *)
 
-  val add : [> write ] t -> key -> value -> unit Lwt.t
-  (** Write the contents of a value to the store. *)
+  type key
+  (** The type for keys. *)
 
-  include Clearable with type 'a t := 'a t
+  type value
+  (** The type for raw values. *)
+
+  val mem : [> read ] t -> key -> bool Lwt.t
+  (** [mem t k] is true iff [k] is present in [t]. *)
+
+  val find : [> read ] t -> key -> value option Lwt.t
+  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
+      [k] is not present in [t]. *)
 end
 
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
-  include Batch with type 'a t := 'a t
-  include Of_config with type 'a t := 'a t
+
   include Closeable with type 'a t := 'a t
+  (** @inline *)
+
+  include Of_config with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Sigs = sig

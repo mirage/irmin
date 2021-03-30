@@ -27,18 +27,8 @@ module type S = sig
   type t
   (** The type for atomic-write backend stores. *)
 
-  type key
-  (** The type for keys. *)
-
-  type value
-  (** The type for raw values. *)
-
-  val mem : t -> key -> bool Lwt.t
-  (** [mem t k] is true iff [k] is present in [t]. *)
-
-  val find : t -> key -> value option Lwt.t
-  (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
-      [k] is not present in [t]. *)
+  include Read_only.S with type _ t := t
+  (** @inline *)
 
   val set : t -> key -> value -> unit Lwt.t
   (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k] is not
