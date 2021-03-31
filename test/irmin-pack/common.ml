@@ -1,4 +1,5 @@
 open Irmin.Export_for_backends
+module Int63 = Optint.Int63
 
 module Dict = Irmin_pack.Dict.Make (struct
   let io_version = `V2
@@ -111,6 +112,8 @@ end
 
 module Alcotest = struct
   include Alcotest
+
+  let int63 = testable Int63.pp Int63.equal
 
   (** TODO: upstream this to Alcotest *)
   let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =

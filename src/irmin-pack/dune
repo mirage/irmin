@@ -2,6 +2,6 @@
  (public_name irmin-pack)
  (name irmin_pack)
  (libraries fmt index index.unix irmin irmin-layers logs lwt lwt.unix mtime
-   ppx_irmin cmdliner)
+   ppx_irmin cmdliner optint)
  (preprocess
   (pps ppx_irmin)))

@@ -1,3 +1,5 @@
+open! Import
+
 type empty = |
 
 module type Subcommand = sig
@@ -25,8 +27,8 @@ module type S = sig
 
     type io = {
       size : size;
-      offset : int64;
-      generation : int64;
+      offset : int63;
+      generation : int63;
       version : version;
     }
     [@@deriving irmin]

@@ -1,4 +1,5 @@
 open Irmin.Perms
+module Int63 = Optint.Int63
 module Dict : Irmin_pack.Dict.S
 module H = Irmin.Hash.SHA1
 module I = Index
@@ -18,6 +19,7 @@ end
 module Alcotest : sig
   include module type of Alcotest
 
+  val int63 : Int63.t testable
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
   val check_repr : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
 end

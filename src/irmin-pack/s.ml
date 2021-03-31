@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open! Import
+
 type integrity_error = [ `Wrong_hash | `Absent_value ]
 
 module type Checkable = sig
@@ -21,7 +23,7 @@ module type Checkable = sig
   type key
 
   val integrity_check :
-    offset:int64 -> length:int -> key -> _ t -> (unit, integrity_error) result
+    offset:int63 -> length:int -> key -> _ t -> (unit, integrity_error) result
 end
 
 module Atomic_write = struct

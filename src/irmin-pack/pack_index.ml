@@ -10,6 +10,7 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
+open! Import
 include Pack_index_intf
 
 module Make (K : Irmin.Hash.S) = struct
@@ -29,13 +30,15 @@ module Make (K : Irmin.Hash.S) = struct
   end
 
   module Val = struct
-    type t = int64 * int * char [@@deriving irmin]
+    type t = int63 * int * char [@@deriving irmin]
 
     let to_bin_string =
-      Irmin.Type.(unstage (to_bin_string (triple int64 int32 char)))
+      Irmin.Type.(unstage (to_bin_string (triple int63_t int32 char)))
 
     let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
-    let decode_bin = Irmin.Type.(unstage (decode_bin (triple int64 int32 char)))
+
+    let decode_bin =
+      Irmin.Type.(unstage (decode_bin (triple int63_t int32 char)))
 
     let decode s off =
       let off, len, kind = snd (decode_bin s off) in
