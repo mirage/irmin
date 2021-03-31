@@ -15,3 +15,32 @@
  *)
 
 include Read_only_intf
+
+module Check_closed (S : S) = struct
+  type -'a t = { closed : bool ref; t : 'a S.t }
+
+  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
+
+  type key = S.key
+  type value = S.value
+
+  let is_closed t = !(t.closed)
+
+  let mem t k =
+    check_not_closed t;
+    S.mem t.t k
+
+  let find t k =
+    check_not_closed t;
+    S.find t.t k
+
+  let v ?(closed = ref false) t = { closed; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t)
+
+  let raw t = t.t
+end

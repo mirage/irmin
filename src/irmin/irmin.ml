@@ -46,9 +46,6 @@ module Make_ext
             and type step = P.step)
     (CT : Commit.S with type hash = H.t) =
 struct
-  module CA = Content_addressable.Check_closed (CA)
-  module AW = Atomic_write.Check_closed (AW)
-
   module X = struct
     module Hash = H
 
@@ -56,7 +53,12 @@ struct
       module CA = struct
         module Key = Hash
         module Val = C
-        include CA (Key) (Val)
+        module S = CA (Key) (Val)
+        include Content_addressable.Check_closed (S)
+
+        let v ~closed conf =
+          let+ t = S.v conf in
+          v ~closed t
       end
 
       include Contents.Store (CA)
@@ -66,7 +68,12 @@ struct
       module CA = struct
         module Key = Hash
         module Val = N
-        include CA (Key) (Val)
+        module S = CA (Key) (Val)
+        include Content_addressable.Check_closed (S)
+
+        let v ~closed conf =
+          let+ t = S.v conf in
+          v ~closed t
       end
 
       include Node.Store (Contents) (P) (M) (CA)
@@ -76,7 +83,12 @@ struct
       module CA = struct
         module Key = Hash
         module Val = CT
-        include CA (Key) (Val)
+        module S = CA (Key) (Val)
+        include Content_addressable.Check_closed (S)
+
+        let v ~closed conf =
+          let+ t = S.v conf in
+          v ~closed t
       end
 
       include Commit.Store (Node) (CA)
@@ -85,7 +97,12 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      include AW (Key) (Val)
+      module S = AW (Key) (Val)
+      include Atomic_write.Check_closed (S)
+
+      let v conf =
+        let+ t = S.v conf in
+        v t
     end
 
     module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -115,9 +132,10 @@ struct
         f contents_t node_t commit_t
 
       let v config =
-        let* contents = Contents.CA.v config in
-        let* nodes = Node.CA.v config in
-        let* commits = Commit.CA.v config in
+        let closed = ref false in
+        let* contents = Contents.CA.v ~closed config in
+        let* nodes = Node.CA.v ~closed config in
+        let* commits = Commit.CA.v ~closed config in
         let nodes = (contents, nodes) in
         let commits = (nodes, commits) in
         let+ branch = Branch.v config in

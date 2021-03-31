@@ -128,10 +128,10 @@ module Content_addressable (G : Git.S) = struct
     module X = M.Private.Contents
 
     let state t =
-      let+ r = M.repo_of_git (snd t) in
+      let+ r = M.repo_of_git t in
       M.Private.Repo.contents_t r
 
-    type 'a t = bool ref * G.t
+    type 'a t = G.t
     type key = X.key
     type value = X.value
 
@@ -143,12 +143,15 @@ module Content_addressable (G : Git.S) = struct
       let* t = state t in
       f t x
 
-    let add = with_state1 X.add
+    let with_state1_rw f t x =
+      with_state1 (fun t v -> X.batch t (fun t -> f t v)) t x
+
+    let add = with_state1_rw X.add
     let pp_key = Irmin.Type.pp X.Key.t
     let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
     let unsafe_add t k v =
-      let+ k' = with_state1 X.add t v in
+      let+ k' = with_state1_rw X.add t v in
       if equal_key k k' then ()
       else
         Fmt.failwith
@@ -177,7 +180,7 @@ module Atomic_write (G : Git.S) = struct
     end
 
     module AW = Atomic_write.Make (Branch.Make (K)) (G)
-    include Atomic_write.Check_closed (AW)
+    include Irmin.Atomic_write.Check_closed (AW)
   end
 end
 

@@ -75,6 +75,10 @@ module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 (** Atomic-write stores. *)
 
+exception Closed
+(** The exception raised when any operation is attempted on a closed low-level
+    store, except for {!close}, which is idempotent. *)
+
 (** {1 User-Defined Contents} *)
 
 module Path = Path
@@ -163,10 +167,6 @@ end
     - Efficient staging areas for fast, transient, in-memory operations.
     - Fast {{!Sync} synchronization} primitives between remote stores, using
       native backend protocols (as the Git protocol) when available. *)
-
-exception Closed
-(** The exception raised when any operation is attempted on a closed store,
-    except for {!S.close}, which is idempotent. *)
 
 (** Irmin stores. *)
 module type S = sig

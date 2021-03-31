@@ -16,12 +16,15 @@
 
 (** Private module: turn a Git store into an Irmin backend for Git blobs. *)
 
+open Import
+open Store_properties
+
 module Make (G : Git.S) (C : Irmin.Contents.S) : sig
   include
-    Irmin.Content_addressable.S
-      with type _ t = bool ref * G.t
-       and type key = G.Hash.t
-       and type value = C.t
+    Irmin.Content_addressable.S with type key = G.Hash.t and type value = C.t
+
+  (** @inline *)
+  include Checkable with type 'a t := 'a t and type 'a raw := G.t
 
   module Key : Irmin.Hash.S with type t = key
   module Val : Irmin.Contents.S with type t = value

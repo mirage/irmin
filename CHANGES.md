@@ -13,8 +13,14 @@
 ### Added
 
 - **irmin**
-   - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
-   - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+  - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
+  - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+  - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
+  - Add `Read_only.Check_closed` and `Append_only.Check_closed` (#1348, @samoht)
+  - Append-only and content-addressable backend implementations have to
+    provide `close` and `batch` functions (#1345, @samoht)
+  - Atomic-write backend implementations have to provide a `close` function
+    (#1345, @samoht)
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
@@ -22,12 +28,6 @@
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
 - **irmin-pack**
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
-- **irmin**
-  - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
-  - Append-only and content-addressable backend implementations have to
-    provide `close` and `batch` functions (#1345, @samoht)
-  - Atomic-write backend implementations have to provide a `close` function
-    (#1345, @samoht)
 
 ### Changed
 

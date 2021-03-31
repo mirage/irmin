@@ -29,7 +29,8 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     let of_git = function Git.Value.Tree t -> Some t | _ -> None
   end
 
-  include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
+  module CA = Content_addressable.Make (G) (V)
+  include Irmin.Content_addressable.Check_closed (CA)
 
   module Val = struct
     module Metadata = Metadata

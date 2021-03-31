@@ -30,18 +30,27 @@ module Make
     (B : Branch.S) =
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
-  module Contents = Irmin.Contents.Store (Contents.Make (G) (C))
 
-  module Node =
-    Irmin.Private.Node.Store (Contents) (P) (Metadata) (Node.Make (G) (P))
+  module Contents = struct
+    module S = Contents.Make (G) (C)
+    include Irmin.Contents.Store (S)
+  end
 
-  module Commit = Irmin.Private.Commit.Store (Node) (Commit.Make (G))
+  module Node = struct
+    module S = Node.Make (G) (P)
+    include Irmin.Private.Node.Store (Contents) (P) (Metadata) (S)
+  end
+
+  module Commit = struct
+    module S = Commit.Make (G)
+    include Irmin.Private.Commit.Store (Node) (S)
+  end
 
   module Branch = struct
     module Key = B
     module Val = Hash
     module S = Atomic_write.Make (B) (G)
-    include Atomic_write.Check_closed (S)
+    include Irmin.Atomic_write.Check_closed (S)
 
     let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
   end
@@ -56,9 +65,9 @@ struct
     type t = { config : Irmin.config; closed : bool ref; g : G.t; b : Branch.t }
 
     let branch_t t = t.b
-    let contents_t t : 'a Contents.t = (t.closed, t.g)
-    let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
-    let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
+    let contents_t t : 'a Contents.t = Contents.S.v ~closed:t.closed t.g
+    let node_t t : 'a Node.t = (contents_t t, Node.S.v ~closed:t.closed t.g)
+    let commit_t t : 'a Commit.t = (node_t t, Commit.S.v ~closed:t.closed t.g)
     let batch t f = f (contents_t t) (node_t t) (commit_t t)
 
     type config = {

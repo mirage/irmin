@@ -65,5 +65,11 @@ module type Sigs = sig
     (** @inline *)
   end
 
-  module Check_closed (M : Maker) : Maker
+  module Check_closed (S : S) : sig
+    (** @inline *)
+    include S with type key = S.key and type value = S.value
+
+    (** @inline *)
+    include Checkable with type 'a t := 'a t and type 'a raw := 'a S.t
+  end
 end

@@ -34,10 +34,4 @@ module type Sigs = sig
       G.t ->
       t Lwt.t
   end
-
-  module Check_closed (S : Irmin.Atomic_write.S) : sig
-    include Irmin.Atomic_write.S with type key = S.key and type value = S.value
-
-    val v : S.t -> t
-  end
 end

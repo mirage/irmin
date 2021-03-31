@@ -47,6 +47,24 @@ module type Clearable = sig
   (** Clear the store. This operation is expected to be slow. *)
 end
 
+module type Checkable = sig
+  type 'a t
+  (** The type for checked stores. *)
+
+  type 'a raw
+  (** The type for the underlying raw store. *)
+
+  val is_closed : 'a t -> bool
+  (** [is_closed t] is true if [close t] has been called at least once. *)
+
+  val check_not_closed : 'a t -> unit
+  (** [check_not_closed t] raises [Closed] if the store is closed (via
+      {!close}). *)
+
+  val v : ?closed:bool ref -> 'a raw -> 'a t
+  val raw : 'a t -> 'a raw
+end
+
 module type Sigs = sig
   exception Closed
 
@@ -67,6 +85,11 @@ module type Sigs = sig
 
   module type Clearable = sig
     include Clearable
+    (** @inline *)
+  end
+
+  module type Checkable = sig
+    include Checkable
     (** @inline *)
   end
 end

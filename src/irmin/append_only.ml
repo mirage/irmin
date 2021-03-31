@@ -15,3 +15,19 @@
  *)
 
 include Append_only_intf
+
+module Check_closed (S : S) = struct
+  include Read_only.Check_closed (S)
+
+  let add t k v =
+    check_not_closed t;
+    S.add (raw t) k v
+
+  let batch t f =
+    check_not_closed t;
+    S.batch (raw t) (fun t -> f (v t))
+
+  let clear t =
+    check_not_closed t;
+    S.clear (raw t)
+end
