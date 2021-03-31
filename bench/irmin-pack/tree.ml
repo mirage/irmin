@@ -1200,7 +1200,7 @@ let nlarge_trees =
 
 let commit_data_file =
   let doc =
-    Arg.info ~docv:"PATH" ~doc:"Trace of Tezos operations to be replayed" []
+    Arg.info ~docv:"PATH" ~doc:"Trace of Tezos operations to be replayed." []
   in
   Arg.(required @@ pos 0 (some string) None doc)
 
@@ -1233,5 +1233,22 @@ let main_term =
     $ results_dir)
 
 let () =
-  let info = Term.info "Benchmarks for tree operations" in
+  let man =
+    [
+      `S "DESCRIPTION";
+      `P
+        "Benchmarks for tree operations. Requires traces of operations, \
+         download them (`wget trace.repr`) from: ";
+      `P
+        "Trace with $(b,10310) commits \
+         http://data.tarides.com/irmin/data4_10310commits.repr";
+      `P
+        "Trace with $(b,100066) commits \
+         http://data.tarides.com/irmin/data4_100066commits.repr";
+      `P
+        "Trace with $(b,654941) commits \
+         http://data.tarides.com/irmin/data4_654941commits.repr";
+    ]
+  in
+  let info = Term.info ~man ~doc:"Benchmarks for tree operations" "tree" in
   Term.exit @@ Term.eval (main_term, info)
