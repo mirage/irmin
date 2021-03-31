@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,10 +16,10 @@
 
 (** Git backend *)
 
-(* Discard the hash implementation passed in parameter of the functors. *)
-
-module Metadata :
-  Irmin.Metadata.S with type t = [ `Normal | `Exec | `Link | `Everybody ]
+module Metadata = Metadata
+module Conf = Conf
+module Branch = Branch
+module Reference = Reference
 
 val config :
   ?config:Irmin.config ->
@@ -27,22 +27,29 @@ val config :
   ?bare:bool ->
   ?level:int ->
   ?dot_git:string ->
+  ?buffers:int ->
   string ->
   Irmin.config
 
-val bare : bool Irmin.Private.Conf.key
-val head : Git.Reference.t option Irmin.Private.Conf.key
-val level : int option Irmin.Private.Conf.key
-val dot_git : string option Irmin.Private.Conf.key
+type reference = Reference.t [@@deriving irmin]
 
-module Content_addressable (G : Git.S) (V : Irmin.Type.S) :
-  Irmin.Content_addressable.S
-    with type 'a t = bool ref * G.t
-     and type key = G.hash
-     and type value = V.t
+module Content_addressable (G : Git.S) : sig
+  (** Use Git as a content-addressable store. Values will be stored into
+      [.git/objects].*)
 
-module Atomic_write (G : Git.S) (K : Irmin.Branch.S) :
-  Irmin.Atomic_write.S with type key = K.t and type value = G.hash
+  module type S = Irmin.Content_addressable.S with type key = G.Hash.t
+
+  module Make (V : Irmin.Type.S) : S with type value = V.t
+end
+
+module Atomic_write (G : Git.S) : sig
+  (** Use Git as an atomic-write store. Values will be stored into [.git/refs].
+      When using the Git filesystem backend, branch names .*)
+
+  module type S = Irmin.Atomic_write.S with type value = G.Hash.t
+
+  module Make (K : Irmin.Branch.S) : S with type key = K.t
+end
 
 module type G = sig
   include Git.S
@@ -110,9 +117,6 @@ module type KV_maker = functor
      and module Git = G
      and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-type reference =
-  [ `Branch of string | `Remote of string | `Tag of string | `Other of string ]
-
 module type Ref_maker = functor
   (G : G)
   (S : Git.Sync.S with type hash = G.hash and type store = G.t)
@@ -130,22 +134,12 @@ module Make : Maker
 module Ref : Ref_maker
 module KV : KV_maker
 
-module type Branch = sig
-  include Irmin.Branch.S
-
-  val pp_ref : t Fmt.t
-  val of_ref : string -> (t, [ `Msg of string ]) result
-end
-
-module Branch (B : Irmin.Branch.S) : Branch
-module Reference : Branch with type t = reference
-
 module Make_ext
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
-    (B : Branch) :
+    (B : Branch.S) :
   S
     with type key = P.t
      and type step = P.step

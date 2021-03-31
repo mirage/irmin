@@ -359,18 +359,18 @@ let config_term =
   let create root bare head level uri config_path =
     Irmin.Private.Conf.empty
     |> add_opt Irmin.Private.Conf.root root
-    |> add Irmin_git.bare bare
-    |> add_opt Irmin_git.head head
-    |> add_opt Irmin_git.level level
+    |> add Irmin_git.Conf.bare bare
+    |> add_opt Irmin_git.Conf.head head
+    |> add_opt Irmin_git.Conf.level level
     |> add_opt Irmin_http.uri uri
     |> add config_path_key config_path
   in
   Term.(
     const create
     $ opt_key Irmin.Private.Conf.root
-    $ flag_key Irmin_git.bare
-    $ opt_key Irmin_git.head
-    $ opt_key Irmin_git.level
+    $ flag_key Irmin_git.Conf.bare
+    $ opt_key Irmin_git.Conf.head
+    $ opt_key Irmin_git.Conf.level
     $ opt_key Irmin_http.uri
     $ opt_key config_path_key)
 
@@ -418,7 +418,7 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
     let root = assoc "root" (fun x -> x) in
     let bare =
       match assoc "bare" bool_of_string with
-      | None -> Irmin.Private.Conf.default Irmin_git.bare
+      | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
       | Some b -> b
     in
     let head = assoc "head" (fun x -> Git.Reference.v x) in
@@ -426,8 +426,8 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
     let add k v config = Irmin.Private.Conf.add config k v in
     Irmin.Private.Conf.empty
     |> add_opt Irmin.Private.Conf.root root
-    |> add Irmin_git.bare bare
-    |> add_opt Irmin_git.head head
+    |> add Irmin_git.Conf.bare bare
+    |> add_opt Irmin_git.Conf.head head
     |> add_opt Irmin_http.uri uri
     |> Irmin.Private.Conf.union config
   in

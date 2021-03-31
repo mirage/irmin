@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,30 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Content_addressable (S : Irmin.Content_addressable.S) = struct
-  type 'a t = bool ref * 'a S.t
-  type key = S.key
-  type value = S.value
+(** one-to-one mapping between Irmin and Git branches. *)
 
-  let check_not_closed t = if !(fst t) then raise Irmin.Closed
-
-  let mem t k =
-    check_not_closed t;
-    S.mem (snd t) k
-
-  let find t k =
-    check_not_closed t;
-    S.find (snd t) k
-
-  let add t v =
-    check_not_closed t;
-    S.add (snd t) v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add (snd t) k v
-
-  let clear t =
-    check_not_closed t;
-    S.clear (snd t)
+module type S = sig
+  include Atomic_write.Key
+  (** inline *)
 end
+
+module Make (B : Irmin.Branch.S) : S with type t = B.t

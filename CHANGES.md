@@ -60,6 +60,15 @@
       - `Content_addressable` is now `Content_addressable.Make`
       - New `Content_adddressable.Check_closed` and `Atomic_write.Check_closed`
     (#1342, @samoht)
+- **irmin-git**
+  - All of the configuration keys have moved into their own namespace:
+    - `Irmin_git.root` is now `Irmin_git.Conf.root`
+    - `Irmin_git.head` is now `Irmin_git.Conf.head`
+    - `Irmin_git.bare` is now `Irmin_git.Conf.bare`
+    - `Irmin_git.level` is now `Irmin_git.Conf.level`
+    - `Irmin_git.buffers` is now `Irmin_git.Conf.buffers`
+    - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
+   (#1347, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

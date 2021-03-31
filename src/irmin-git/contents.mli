@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,12 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Augments primitive store modules with close semantics *)
+(** Private module: turn a Git store into an Irmin backend for Git blobs. *)
 
-module Content_addressable (S : Irmin.Content_addressable.S) : sig
+module Make (G : Git.S) (C : Irmin.Contents.S) : sig
   include
     Irmin.Content_addressable.S
-      with type 'a t = bool ref * 'a S.t
-       and type key = S.key
-       and type value = S.value
+      with type _ t = bool ref * G.t
+       and type key = G.Hash.t
+       and type value = C.t
+
+  module Key : Irmin.Hash.S with type t = key
+  module Val : Irmin.Contents.S with type t = value
 end
