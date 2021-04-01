@@ -928,7 +928,7 @@ struct
          or nothing. See #1293 *)
       Lwt.pause ()
     in
-    let on_end () = Store.PrivateLayer.wait_for_freeze repo in
+    let on_end () = Store.Private_layer.wait_for_freeze repo in
     let pp ppf =
       if Irmin_layers.Stats.get_freeze_count () = 0 then
         Format.fprintf ppf "no freeze"

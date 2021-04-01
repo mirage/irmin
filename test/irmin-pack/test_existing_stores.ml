@@ -373,7 +373,7 @@ module Test_corrupted_stores = struct
                 (Some v)
     in
     let check_upper repo msg exp =
-      let got = S.PrivateLayer.upper_in_use repo in
+      let got = S.Private_layer.upper_in_use repo in
       let cast x = (x :> [ `Upper0 | `Upper1 | `Lower ]) in
       if not (got = exp) then
         Alcotest.failf "%s expected %a got %a" msg Irmin_layers.Layer_id.pp
@@ -390,7 +390,7 @@ module Test_corrupted_stores = struct
     Log.app (fun l -> l "Freeze with recovery flag set");
     let* () =
       S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
-      S.PrivateLayer.wait_for_freeze rw
+      S.Private_layer.wait_for_freeze rw
     in
     Alcotest.(check bool)
       "Store doesn't need recovery" false (S.needs_recovery rw);
@@ -406,7 +406,7 @@ module Test_corrupted_stores = struct
            isn't needed");
     let* () =
       S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
-      S.PrivateLayer.wait_for_freeze rw
+      S.Private_layer.wait_for_freeze rw
     in
     check_upper rw "Upper after freeze" `Upper1;
     check_commit rw c [ "b" ] "y" >>= fun () ->

@@ -915,7 +915,7 @@ struct
          detected"
         pp_commits heads !errors
 
-  module PrivateLayer = struct
+  module Private_layer = struct
     module Hook = struct
       type 'a t = 'a -> unit Lwt.t
 

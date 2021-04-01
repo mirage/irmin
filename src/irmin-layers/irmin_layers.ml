@@ -42,90 +42,7 @@ module Make_ext
             and type step = P.step)
     (CT : Irmin.Private.Commit.S with type hash = H.t) =
 struct
-  (* TODO: add check_closed *)
-
-  module X = struct
-    module Hash = H
-
-    module Contents = struct
-      module CA = struct
-        module Key = Hash
-        module Val = C
-        include CA (Key) (Val)
-      end
-
-      include Irmin.Contents.Store (CA)
-    end
-
-    module Node = struct
-      module CA = struct
-        module Key = Hash
-        module Val = N
-        include CA (Key) (Val)
-      end
-
-      include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
-    end
-
-    module Commit = struct
-      module CA = struct
-        module Key = Hash
-        module Val = CT
-        include CA (Key) (Val)
-      end
-
-      include Irmin.Private.Commit.Store (Node) (CA)
-    end
-
-    module Branch = struct
-      module Key = B
-      module Val = H
-      include AW (Key) (Val)
-    end
-
-    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Private.Remote.None (H) (B)
-
-    module Repo = struct
-      type t = {
-        config : Irmin.Private.Conf.t;
-        contents : read Contents.t;
-        nodes : read Node.t;
-        commits : read Commit.t;
-        branch : Branch.t;
-      }
-
-      let contents_t t = t.contents
-      let node_t t = t.nodes
-      let commit_t t = t.commits
-      let branch_t t = t.branch
-
-      let batch t f =
-        Contents.CA.batch t.contents @@ fun c ->
-        Node.CA.batch (snd t.nodes) @@ fun n ->
-        Commit.CA.batch (snd t.commits) @@ fun ct ->
-        let contents_t = c in
-        let node_t = (contents_t, n) in
-        let commit_t = (node_t, ct) in
-        f contents_t node_t commit_t
-
-      let v config =
-        let* contents = Contents.CA.v config in
-        let* nodes = Node.CA.v config in
-        let* commits = Commit.CA.v config in
-        let nodes = (contents, nodes) in
-        let commits = (nodes, commits) in
-        let+ branch = Branch.v config in
-        { contents; nodes; commits; branch; config }
-
-      let close t =
-        Contents.CA.close t.contents >>= fun () ->
-        Node.CA.close (snd t.nodes) >>= fun () ->
-        Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
-    end
-  end
-
-  include Irmin.Of_private (X)
+  include Irmin.Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
 
   let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
       _repo =
@@ -143,7 +60,7 @@ struct
   let check_self_contained ?heads:_ _ = failwith "not implemented"
   let needs_recovery _ = failwith "not implemented"
 
-  module PrivateLayer = struct
+  module Private_layer = struct
     module Hook = struct
       type 'a t = unit
 
