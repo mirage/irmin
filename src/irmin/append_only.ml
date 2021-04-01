@@ -16,18 +16,24 @@
 
 include Append_only_intf
 
-module Check_closed (S : S) = struct
-  include Read_only.Check_closed (S)
+module Wrap_close (S : S) = struct
+  include Read_only.Wrap_close (S)
+
+  let s t = fst (raw t)
 
   let add t k v =
     check_not_closed t;
-    S.add (raw t) k v
+    S.add (s t) k v
 
   let batch t f =
     check_not_closed t;
-    S.batch (raw t) (fun t -> f (v t))
+    let t, closed = raw t in
+    S.batch t (fun t ->
+        (* [closed] ensures that the batch operations fail whenever
+           [t] is closed (even concurrently). *)
+        f (v ~closed t))
 
   let clear t =
     check_not_closed t;
-    S.clear (raw t)
+    S.clear (s t)
 end

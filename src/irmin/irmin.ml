@@ -54,7 +54,7 @@ struct
         module Key = Hash
         module Val = C
         module S = CA (Key) (Val)
-        include Content_addressable.Check_closed (S)
+        include Content_addressable.Wrap_close (S)
 
         let v ~closed conf =
           let+ t = S.v conf in
@@ -69,7 +69,7 @@ struct
         module Key = Hash
         module Val = N
         module S = CA (Key) (Val)
-        include Content_addressable.Check_closed (S)
+        include Content_addressable.Wrap_close (S)
 
         let v ~closed conf =
           let+ t = S.v conf in
@@ -84,7 +84,7 @@ struct
         module Key = Hash
         module Val = CT
         module S = CA (Key) (Val)
-        include Content_addressable.Check_closed (S)
+        include Content_addressable.Wrap_close (S)
 
         let v ~closed conf =
           let+ t = S.v conf in
@@ -98,7 +98,7 @@ struct
       module Key = B
       module Val = H
       module S = AW (Key) (Val)
-      include Atomic_write.Check_closed (S)
+      include Atomic_write.Wrap_close (S)
 
       let v conf =
         let+ t = S.v conf in

@@ -180,7 +180,7 @@ module Atomic_write (G : Git.S) = struct
     end
 
     module AW = Atomic_write.Make (Branch.Make (K)) (G)
-    include Irmin.Atomic_write.Check_closed (AW)
+    include Irmin.Atomic_write.Wrap_close (AW)
   end
 end
 

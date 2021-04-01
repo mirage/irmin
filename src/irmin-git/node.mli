@@ -26,7 +26,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) : sig
        and type value = G.Value.Tree.t
 
   (** @inline *)
-  include Checkable with type 'a t := 'a t and type 'a raw := G.t
+  include Double_closeable with type 'a t := 'a t and type 'a raw := G.t
 
   module Key : Irmin.Hash.S with type t = key
 

@@ -50,7 +50,7 @@ struct
     module Key = B
     module Val = Hash
     module S = Atomic_write.Make (B) (G)
-    include Irmin.Atomic_write.Check_closed (S)
+    include Irmin.Atomic_write.Wrap_close (S)
 
     let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
   end

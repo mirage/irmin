@@ -17,48 +17,50 @@
 include Atomic_write_intf
 open Import
 
-module Check_closed (S : S) = struct
+module Wrap_close (S : S) = struct
   module X = struct
     include S
 
     type 'a t = S.t
   end
 
-  include Read_only.Check_closed (X)
+  include Read_only.Wrap_close (X)
 
-  type nonrec t = read_write t
+  type nonrec t = read t
+
+  let s t = fst (raw t)
 
   let set t k v =
     check_not_closed t;
-    S.set (raw t) k v
+    S.set (s t) k v
 
   let test_and_set t k ~test ~set =
     check_not_closed t;
-    S.test_and_set (raw t) k ~test ~set
+    S.test_and_set (s t) k ~test ~set
 
   let remove t k =
     check_not_closed t;
-    S.remove (raw t) k
+    S.remove (s t) k
 
   let list t =
     check_not_closed t;
-    S.list (raw t)
+    S.list (s t)
 
   let clear t =
     check_not_closed t;
-    S.clear (raw t)
+    S.clear (s t)
 
   type watch = S.watch
 
   let watch t ?init f =
     check_not_closed t;
-    S.watch (raw t) ?init f
+    S.watch (s t) ?init f
 
   let watch_key t k ?init f =
     check_not_closed t;
-    S.watch_key (raw t) k ?init f
+    S.watch_key (s t) k ?init f
 
   let unwatch t w =
     check_not_closed t;
-    S.unwatch (raw t) w
+    S.unwatch (s t) w
 end

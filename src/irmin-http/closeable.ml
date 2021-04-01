@@ -18,7 +18,7 @@ open! Import
 open S
 
 module Content_addressable (S : Content_addressable.S) = struct
-  include Irmin.Content_addressable.Check_closed (S)
+  include Irmin.Content_addressable.Wrap_close (S)
 
   type ctx = S.ctx
 
@@ -28,7 +28,7 @@ module Content_addressable (S : Content_addressable.S) = struct
 end
 
 module Atomic_write (S : Atomic_write.S) = struct
-  include Irmin.Atomic_write.Check_closed (S)
+  include Irmin.Atomic_write.Wrap_close (S)
 
   type ctx = S.ctx
 

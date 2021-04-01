@@ -24,7 +24,7 @@ module Make (G : Git.S) (C : Irmin.Contents.S) : sig
     Irmin.Content_addressable.S with type key = G.Hash.t and type value = C.t
 
   (** @inline *)
-  include Checkable with type 'a t := 'a t and type 'a raw := G.t
+  include Double_closeable with type 'a t := 'a t and type 'a raw := G.t
 
   module Key : Irmin.Hash.S with type t = key
   module Val : Irmin.Contents.S with type t = value

@@ -29,7 +29,7 @@ module Make (G : Git.S) = struct
   end
 
   module CA = Content_addressable.Make (G) (V)
-  include Irmin.Content_addressable.Check_closed (CA)
+  include Irmin.Content_addressable.Wrap_close (CA)
 
   module Val = struct
     type t = G.Value.Commit.t

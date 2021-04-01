@@ -16,7 +16,7 @@
 
 include Read_only_intf
 
-module Check_closed (S : S) = struct
+module Wrap_close (S : S) = struct
   type -'a t = { closed : bool ref; t : 'a S.t }
 
   let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
@@ -42,5 +42,5 @@ module Check_closed (S : S) = struct
       t.closed := true;
       S.close t.t)
 
-  let raw t = t.t
+  let raw { closed; t } = (t, closed)
 end

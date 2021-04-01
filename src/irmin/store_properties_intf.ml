@@ -32,6 +32,36 @@ module type Closeable = sig
       run on a closed handle will raise {!Closed}. *)
 end
 
+module type Double_closeable = sig
+  type 'a t
+  (** The type for stores that can be closed multiple times. *)
+
+  include Closeable with type 'a t := 'a t
+  (** @inline *)
+
+  val is_closed : 'a t -> bool
+  (** [is_closed t] is true if [close t] has been called at least once. *)
+
+  val check_not_closed : 'a t -> unit
+  (** [check_not_closed t] raises [Irmin.Closed] if the store has been closed at
+      least once. *)
+
+  (** {2 Low-level Acces} *)
+
+  type 'a raw
+  (** The type for the underlying raw store. *)
+
+  val v : ?closed:bool ref -> 'a raw -> 'a t
+  (** [v ?closed conf] is a store which allows users to call close multiple
+      times without throwing an error. All other operations are checked so that
+      they raise [Irmin.Closed] if the store has been closed at least once.
+
+      [closed] is a reference so it can be shared between multiple stores. *)
+
+  val raw : 'a t -> 'a raw * bool ref
+  (** [to_raw t] is [t]'s underlying raw store and closing status. *)
+end
+
 module type Of_config = sig
   type 'a t
 
@@ -47,24 +77,6 @@ module type Clearable = sig
   (** Clear the store. This operation is expected to be slow. *)
 end
 
-module type Checkable = sig
-  type 'a t
-  (** The type for checked stores. *)
-
-  type 'a raw
-  (** The type for the underlying raw store. *)
-
-  val is_closed : 'a t -> bool
-  (** [is_closed t] is true if [close t] has been called at least once. *)
-
-  val check_not_closed : 'a t -> unit
-  (** [check_not_closed t] raises [Closed] if the store is closed (via
-      {!close}). *)
-
-  val v : ?closed:bool ref -> 'a raw -> 'a t
-  val raw : 'a t -> 'a raw
-end
-
 module type Sigs = sig
   exception Closed
 
@@ -78,6 +90,11 @@ module type Sigs = sig
     (** @inline *)
   end
 
+  module type Double_closeable = sig
+    include Double_closeable
+    (** @inline *)
+  end
+
   module type Of_config = sig
     include Of_config
     (** @inline *)
@@ -85,11 +102,6 @@ module type Sigs = sig
 
   module type Clearable = sig
     include Clearable
-    (** @inline *)
-  end
-
-  module type Checkable = sig
-    include Checkable
     (** @inline *)
   end
 end
