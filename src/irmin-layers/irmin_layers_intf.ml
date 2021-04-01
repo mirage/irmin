@@ -96,7 +96,7 @@ module type S = sig
 
   (** These modules should not be used. They are exposed purely for testing
       purposes. *)
-  module PrivateLayer : sig
+  module Private_layer : sig
     module Hook : sig
       type 'a t
 
