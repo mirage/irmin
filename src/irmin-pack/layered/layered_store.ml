@@ -78,7 +78,7 @@ struct
   type 'a t = {
     lower : read L.t option;
     mutable flip : bool;
-    uppers : read U.t * read U.t;
+    uppers : 'a U.t * 'a U.t;
     freeze_in_progress : unit -> bool;
     mutable newies : key list;
   }
@@ -184,10 +184,13 @@ struct
     U.flush ~index_merge:true next;
     match t.lower with None -> () | Some x -> L.flush ~index_merge:true x
 
-  let cast t = (t :> read_write t)
-
   let batch t f =
-    f (cast t) >|= fun r ->
+    let u1, u2 = t.uppers in
+    U.batch u1 (fun u1 ->
+        U.batch u2 (fun u2 ->
+            let t = { t with uppers = (u1, u2) } in
+            f t))
+    >|= fun r ->
     flush ~index:true t;
     r
 

@@ -25,8 +25,8 @@ module type S = sig
   val copy : 'l layer_type * 'l -> read t -> key -> unit
   val mem_lower : 'a t -> key -> bool Lwt.t
   val mem_next : [> read ] t -> key -> bool Lwt.t
-  val next_upper : 'a t -> read U.t
-  val current_upper : 'a t -> read U.t
+  val next_upper : 'a t -> 'a U.t
+  val current_upper : 'a t -> 'a U.t
   val lower : 'a t -> read L.t
 
   include S.Layered_general with type 'a t := 'a t
@@ -47,12 +47,12 @@ module type S = sig
     'a t ->
     (unit, S.integrity_error) result
 
-  val flush : ?index:bool -> 'a t -> unit
-  val copy_from_lower : dst:'a U.t -> read t -> key -> unit Lwt.t
+  val flush : ?index:bool -> read_write t -> unit
+  val copy_from_lower : dst:read_write U.t -> read t -> key -> unit Lwt.t
   val consume_newies : 'a t -> key list
 
   val check :
-    'a t ->
+    read t ->
     ?none:(unit -> unit Lwt.t) ->
     ?some:(U.value -> unit Lwt.t) ->
     key ->

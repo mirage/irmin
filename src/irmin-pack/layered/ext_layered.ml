@@ -629,7 +629,7 @@ struct
     end
 
     module CopyToUpper = struct
-      let on_next_upper t f =
+      let with_next_upper t f =
         let contents =
           (X.Contents.CA.Upper, X.Contents.CA.next_upper t.X.Repo.contents)
         in
@@ -645,7 +645,7 @@ struct
               pp_commits commits);
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
         let min = List.map (fun x -> `Commit (Commit.hash x)) min in
-        on_next_upper t (fun u ->
+        with_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
               ~min t max)
@@ -667,7 +667,7 @@ struct
           | true -> Lwt.return true
           | false -> mem_commit_lower t k
         in
-        on_next_upper t (fun u ->
+        with_next_upper t (fun u ->
             iter_copy u ?cancel ~skip_commits ~skip_nodes:(mem_node_next t)
               ~skip_contents:(mem_contents_next t) t newies)
         >>= fun () -> X.Branch.copy_newies_to_next_upper t.branch
@@ -716,10 +716,13 @@ struct
         in
         X.Repo.flush t
 
-      let on_current_upper t f =
+      let with_current_upper t f =
         let contents = X.Contents.CA.current_upper t.X.Repo.contents in
         let nodes = X.Node.CA.current_upper t.X.Repo.node in
         let commits = X.Commit.CA.current_upper t.X.Repo.commit in
+        X.Contents.CA.U.batch contents @@ fun contents ->
+        X.Node.CA.U.batch nodes @@ fun nodes ->
+        X.Commit.CA.U.batch commits @@ fun commits ->
         f (contents, nodes, commits)
 
       (** An object can be in either lower or upper or both. We can't skip an
@@ -744,7 +747,7 @@ struct
               min
               (Fmt.list (Irmin.Type.pp H.t))
               max);
-        on_current_upper t (fun u -> iter_copy u ~min t max)
+        with_current_upper t (fun u -> iter_copy u ~min t max)
     end
   end
 

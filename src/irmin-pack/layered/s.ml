@@ -82,7 +82,7 @@ module type Layered_pack = sig
 
   val copy_from_lower :
     read t ->
-    dst:'a U.t ->
+    dst:read_write U.t ->
     ?aux:(value -> unit Lwt.t) ->
     string ->
     key ->
@@ -90,8 +90,8 @@ module type Layered_pack = sig
 
   val mem_lower : 'a t -> key -> bool Lwt.t
   val mem_next : [> read ] t -> key -> bool Lwt.t
-  val current_upper : 'a t -> read U.t
-  val next_upper : 'a t -> read U.t
+  val current_upper : 'a t -> 'a U.t
+  val next_upper : 'a t -> 'a U.t
   val lower : 'a t -> read L.t
   val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
@@ -121,7 +121,7 @@ module type Layered_pack = sig
   val consume_newies : 'a t -> key list
 
   val check :
-    'a t ->
+    read t ->
     ?none:(unit -> unit Lwt.t) ->
     ?some:(value -> unit Lwt.t) ->
     key ->

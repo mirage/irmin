@@ -40,12 +40,6 @@ end
 module type S = sig
   include Irmin.Content_addressable.S
 
-  val add : 'a t -> value -> key Lwt.t
-  (** Overwrite [add] to work with a read-only database handler. *)
-
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-  (** Overwrite [unsafe_add] to work with a read-only database handler. *)
-
   type index
 
   val v :
