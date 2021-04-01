@@ -214,6 +214,7 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   let uri t = t.uri
   let item t = t.item
   let items t = t.items
+  let close _ = Lwt.return ()
 
   type key = K.t
   type value = V.t
@@ -234,9 +235,6 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
         else Lwt.return_true)
 
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
-
-  let clear t =
-    HTTP.call `POST t.uri t.ctx [ "clear"; t.items ] Irmin.Type.(of_string unit)
 end
 
 module CA (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
@@ -261,6 +259,9 @@ struct
     f (cast t)
 
   let close _ = Lwt.return_unit
+
+  let clear t =
+    HTTP.call `POST t.uri t.ctx [ "clear"; t.items ] Irmin.Type.(of_string unit)
 end
 
 module RW : S.Atomic_write.Maker =
@@ -412,7 +413,10 @@ functor
       Lwt.return_unit
 
     let close _ = Lwt.return_unit
-    let clear t = RO.clear t.t
+
+    let clear t =
+      HTTP.call `POST t.t.uri t.t.ctx [ "clear"; t.t.items ]
+        Irmin.Type.(of_string unit)
   end
 
 module type HTTP_CLIENT = sig

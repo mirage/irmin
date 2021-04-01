@@ -71,6 +71,9 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
   let clear t =
     Log.debug (fun l -> l "clear");
     Lwt_mutex.with_lock reset_lock (fun () -> G.reset t) >>= handle_git_err
+
+  let batch t f = f t
+  let close _ = Lwt.return ()
 end
 
 module Check_closed (S : Irmin.Content_addressable.S) = struct
@@ -99,4 +102,12 @@ module Check_closed (S : Irmin.Content_addressable.S) = struct
   let clear t =
     check_not_closed t;
     S.clear (snd t)
+
+  let batch t f =
+    check_not_closed t;
+    S.batch (snd t) (fun x -> f (fst t, x))
+
+  let close (c, _) =
+    c := true;
+    Lwt.return ()
 end

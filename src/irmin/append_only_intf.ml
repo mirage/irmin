@@ -30,13 +30,20 @@ module type S = sig
   (** Write the contents of a value to the store. *)
 
   include Clearable with type 'a t := 'a t
+  (** @inline *)
+
+  include Closeable with type 'a t := 'a t
+  (** @inline *)
+
+  include Batch with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
-  include Batch with type 'a t := 'a t
+
   include Of_config with type 'a t := 'a t
-  include Closeable with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Sigs = sig

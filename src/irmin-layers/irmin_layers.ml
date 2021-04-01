@@ -57,6 +57,10 @@ struct
           Layered_store.Content_addressable.Make (Key) (Val) (CA)
 
         include Layered_CA
+
+        let v conf =
+          let+ t = CA.v conf in
+          Layered_CA.v t
       end
 
       include Irmin.Contents.Store (CA)
@@ -72,6 +76,10 @@ struct
           Layered_store.Content_addressable.Make (Key) (Val) (CA)
 
         include Layered_CA
+
+        let v conf =
+          let+ t = CA.v conf in
+          Layered_CA.v t
       end
 
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
@@ -87,6 +95,10 @@ struct
           Layered_store.Content_addressable.Make (Key) (Val) (CA)
 
         include Layered_CA
+
+        let v conf =
+          let+ t = CA.v conf in
+          Layered_CA.v t
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)

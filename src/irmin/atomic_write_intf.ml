@@ -72,13 +72,18 @@ module type S = sig
   val unwatch : t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
-  include Closeable with type _ t := t
   include Clearable with type _ t := t
+  (** @inline *)
+
+  include Closeable with type _ t := t
+  (** @inline *)
 end
 
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
+
   include Of_config with type _ t := t
+  (** @inline *)
 end
 
 module type Sigs = sig

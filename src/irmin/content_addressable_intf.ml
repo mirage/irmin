@@ -37,13 +37,20 @@ module type S = sig
       consistent. *)
 
   include Clearable with type 'a t := 'a t
+  (** @inline *)
+
+  include Closeable with type 'a t := 'a t
+  (** @inline *)
+
+  include Batch with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Maker = functor (K : Hash.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
-  include Batch with type 'a t := 'a t
+
   include Of_config with type 'a t := 'a t
-  include Closeable with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Sigs = sig
@@ -54,9 +61,8 @@ module type Sigs = sig
     include
       S with type 'a t = 'a X(K)(V).t and type key = K.t and type value = V.t
 
-    include Batch with type 'a t := 'a t
     include Of_config with type 'a t := 'a t
-    include Closeable with type 'a t := 'a t
+    (** @inline *)
   end
 
   module Check_closed (M : Maker) : Maker

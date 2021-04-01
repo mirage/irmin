@@ -42,11 +42,7 @@ module type S = sig
   include
     Irmin.Content_addressable.S with type key = Key.t and type value = Value.t
 
-  open Irmin.Export_for_backends
-
   val v : unit -> read t Lwt.t
-
-  include Store_properties.Batch with type 'a t := 'a t
 end
 
 module Append_only = Irmin_mem.Append_only

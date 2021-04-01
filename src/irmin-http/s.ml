@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 module T = Irmin.Type
 
 module type Helper = sig
@@ -84,9 +83,6 @@ module Read_only = struct
     val key_str : key -> string
     val val_of_str : value T.of_string
     val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-
-    include Clearable with type 'a t := 'a t
-    (** @inline *)
   end
 end
 
@@ -97,15 +93,6 @@ module Content_addressable = struct
     type ctx
 
     val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
-
-    include Closeable with type 'a t := 'a t
-    (** @inline *)
-
-    include Batch with type 'a t := 'a t
-    (** @inline *)
-
-    include Clearable with type 'a t := 'a t
-    (** @inline *)
   end
 
   module type Maker = functor

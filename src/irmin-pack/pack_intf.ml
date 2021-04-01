@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 module Sigs = S
 
 module type ELT = sig
@@ -57,9 +56,6 @@ module type S = sig
     string ->
     read t Lwt.t
 
-  include Batch with type 'a t := 'a t
-  (** @inline *)
-
   val unsafe_append :
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
 
@@ -78,9 +74,8 @@ module type S = sig
   val generation : 'a t -> int63
   val offset : 'a t -> int63
 
+  (** @inline *)
   include Sigs.Checkable with type 'a t := 'a t and type key := key
-  include Closeable with type 'a t := 'a t
-  include Clearable with type 'a t := 'a t
 
   val clear_caches : 'a t -> unit
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
