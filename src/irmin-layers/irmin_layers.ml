@@ -51,16 +51,7 @@ struct
       module CA = struct
         module Key = Hash
         module Val = C
-        module CA = CA (Key) (Val)
-
-        module Layered_CA =
-          Layered_store.Content_addressable.Make (Key) (Val) (CA)
-
-        include Layered_CA
-
-        let v conf =
-          let+ t = CA.v conf in
-          Layered_CA.v t
+        include CA (Key) (Val)
       end
 
       include Irmin.Contents.Store (CA)
@@ -70,16 +61,7 @@ struct
       module CA = struct
         module Key = Hash
         module Val = N
-        module CA = CA (Key) (Val)
-
-        module Layered_CA =
-          Layered_store.Content_addressable.Make (Key) (Val) (CA)
-
-        include Layered_CA
-
-        let v conf =
-          let+ t = CA.v conf in
-          Layered_CA.v t
+        include CA (Key) (Val)
       end
 
       include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
@@ -89,16 +71,7 @@ struct
       module CA = struct
         module Key = Hash
         module Val = CT
-        module CA = CA (Key) (Val)
-
-        module Layered_CA =
-          Layered_store.Content_addressable.Make (Key) (Val) (CA)
-
-        include Layered_CA
-
-        let v conf =
-          let+ t = CA.v conf in
-          Layered_CA.v t
+        include CA (Key) (Val)
       end
 
       include Irmin.Private.Commit.Store (Node) (CA)
