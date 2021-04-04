@@ -38,6 +38,10 @@
     value larger than `stable_hash`. (#1292, @Ngoguey42)
   - Added number of objects to the output of `stat-pack` command in
     `irmin-fsck`. (#1311, @icristescu)
+  - Renamed the `Version` module type into `Version.S` and `io_version` into
+    `version`. The `Pack.File` and `Atomic_write` functors now take
+    `Version` as their first parameter (#1352, @samoht)
+
 - **irmin-layers**
   - Remove `copy_in_upper` from the repo configuration. The default is now to
     copy. (#1322, @Ngoguey42)

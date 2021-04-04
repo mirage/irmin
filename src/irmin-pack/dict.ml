@@ -24,9 +24,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let ( -- ) = Int63.sub
 
-module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
-  let current_version = IO_version.io_version
-
+module Make (V : Version.S) (IO : IO.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
@@ -67,7 +65,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
     if former_generation <> generation then (
       IO.close t.io;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+        IO.v ~fresh:false ~readonly:true ~version:(Some V.version)
           (IO.name t.io)
       in
       t.io <- io;
@@ -104,7 +102,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
     v
 
   let clear t =
-    match current_version with
+    match V.version with
     | `V1 -> IO.truncate t.io
     | `V2 ->
         IO.clear t.io;
@@ -112,7 +110,7 @@ module Make (IO_version : IO.Version) (IO : IO.S) : S = struct
         Hashtbl.clear t.index
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version:(Some current_version) ~readonly file in
+    let io = IO.v ~fresh ~version:(Some V.version) ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in

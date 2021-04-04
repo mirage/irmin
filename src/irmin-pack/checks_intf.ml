@@ -39,8 +39,8 @@ module type S = sig
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    val v : root:string -> version:IO.version -> files
-    val detect_version : root:string -> IO.version
+    val v : root:string -> version:Version.t -> files
+    val detect_version : root:string -> Version.t
     val traverse_index : root:string -> int -> objects
   end
 
@@ -87,7 +87,7 @@ module type Versioned_store = sig
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 end
 
-module type Maker = functor (_ : IO.Version) -> Versioned_store
+module type Maker = functor (_ : Version.S) -> Versioned_store
 
 module type Sigs = sig
   type nonrec empty = empty

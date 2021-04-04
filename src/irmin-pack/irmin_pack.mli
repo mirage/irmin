@@ -19,8 +19,7 @@ module Dict = Pack_dict
 module Index = Pack_index
 module Config = Config
 module Inode = Inode
-
-module type Version = IO.Version
+module Version = Version
 
 val config :
   ?fresh:bool ->
@@ -43,10 +42,10 @@ val config :
     not block but indefinitely expands the in-memory cache. *)
 
 exception RO_Not_Allowed
-exception Unsupported_version of IO.version
+exception Unsupported_version of Version.t
 
 module Make_ext
-    (_ : IO.Version)
+    (_ : Version.S)
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)
@@ -111,7 +110,7 @@ module Make : Maker
 module Make_V2 : Maker
 module KV (Config : Config.S) : Irmin.KV_maker
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) : sig
+module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.Atomic_write.S with type key = K.t and type value = V.t
 
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t

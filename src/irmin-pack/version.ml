@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,24 +14,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* For every new version, update the [version] type and [versions]
+   headers. *)
+
+type t = [ `V1 | `V2 ]
+
+exception Invalid of { expected : t; found : t }
+
 module type S = sig
-  type t
-
-  val find : t -> int -> string option
-  val index : t -> string -> int option
-  val flush : t -> unit
-
-  val sync : t -> unit
-  (** syncs a readonly dict with the file on disk. *)
-
-  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-  val clear : t -> unit
-  val close : t -> unit
-  val valid : t -> bool
+  val version : t
 end
 
-module type Sigs = sig
-  module type S = S
+let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
+let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+let to_bin v = List.assoc v enum
 
-  module Make (_ : Version.S) (_ : IO.S) : S
-end
+let invalid_arg v =
+  let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in
+  Fmt.invalid_arg "invalid version: got %S, expecting %a" v
+    Fmt.(Dump.list pp_full_version)
+    (List.map fst enum)
+
+let of_bin b =
+  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
+  with Not_found -> None

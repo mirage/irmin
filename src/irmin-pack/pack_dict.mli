@@ -16,4 +16,4 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 end
 
-module Make (_ : IO.Version) : S
+module Make (_ : Version.S) : S

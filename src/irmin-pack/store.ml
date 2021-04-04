@@ -6,7 +6,7 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-exception Unsupported_version of IO.version
+exception Unsupported_version of Version.t
 
 let ( ++ ) = Int63.add
 
@@ -23,15 +23,8 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-let pp_version = IO.pp_version
-
-module Atomic_write
-    (K : Irmin.Type.S)
-    (V : Irmin.Hash.S)
-    (IO_version : IO.Version) =
+module Atomic_write (Current : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) =
 struct
-  let current_version = IO_version.io_version
-
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
   module IO = IO.Unix
@@ -113,7 +106,7 @@ struct
       Log.debug (fun l -> l "[branches] generation changed, refill buffers");
       IO.close t.block;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+        IO.v ~fresh:false ~readonly:true ~version:(Some Current.version)
           (IO.name t.block)
       in
       t.block <- io;
@@ -152,7 +145,7 @@ struct
 
   let unsafe_clear ?keep_generation t =
     Lwt.async (fun () -> W.clear t.w);
-    match current_version with
+    match Current.version with
     | `V1 -> IO.truncate t.block
     | `V2 ->
         IO.clear ?keep_generation t.block;
@@ -178,7 +171,7 @@ struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
+    let block = IO.v ~fresh ~version:(Some Current.version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
@@ -272,7 +265,7 @@ let migrate config =
   | migrated, [] ->
       Log.info (fun l ->
           l "Store at %s is already in current version (%a)"
-            (Config.root config) pp_version latest_version);
+            (Config.root config) Version.pp latest_version);
       List.iter (fun (_, io, _) -> IO.close io) migrated
   | migrated, to_migrate ->
       List.iter (fun (_, io, _) -> IO.close io) migrated;

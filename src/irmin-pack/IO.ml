@@ -21,29 +21,6 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-(* For every new version, update the [version] type and [versions]
-   headers. *)
-
-module Version = struct
-  let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
-  let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
-  let to_bin v = List.assoc v enum
-
-  let raise_invalid v =
-    let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in
-    Fmt.failwith "invalid version: got %S, expecting %a" v
-      Fmt.(Dump.list pp_full_version)
-      (List.map fst enum)
-
-  let of_bin b =
-    try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
-    with Not_found -> None
-end
-
-let pp_version = Version.pp
-
-exception Invalid_version of { expected : version; found : version }
-
 let ( ++ ) = Int63.add
 let ( -- ) = Int63.sub
 
@@ -59,7 +36,7 @@ module Unix : S = struct
     mutable offset : int63;
     mutable flushed : int63;
     readonly : bool;
-    version : version;
+    version : Version.t;
     buf : Buffer.t;
   }
 
@@ -126,7 +103,7 @@ module Unix : S = struct
 
   let version t =
     Log.debug (fun l ->
-        l "[%s] version: %a" (Filename.basename t.file) pp_version t.version);
+        l "[%s] version: %a" (Filename.basename t.file) Version.pp t.version);
     t.version
 
   let readonly t = t.readonly
@@ -250,11 +227,11 @@ module Unix : S = struct
             let v_string = Raw.Version.get raw in
             match Version.of_bin v_string with
             | Some v -> v
-            | None -> Version.raise_invalid v_string
+            | None -> Version.invalid_arg v_string
           in
           (match version with
           | Some v when v <> actual_version ->
-              raise (Invalid_version { expected = v; found = actual_version })
+              raise (Version.Invalid { expected = v; found = actual_version })
           | _ -> ());
           match actual_version with
           | `V1 ->
@@ -306,7 +283,7 @@ module Unix : S = struct
         Log.debug (fun m ->
             m "[%s] Performing migration [%a → %a] using tmp file %s"
               (Filename.basename src.file)
-              pp_version `V1 pp_version `V2
+              Version.pp `V1 Version.pp `V2
               (Filename.basename dst_path));
         let dst =
           (* Note: all V1 files implicitly have [generation = 0], since it
@@ -324,7 +301,7 @@ module Unix : S = struct
     | _, _ ->
         Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
           (Filename.basename src.file)
-          pp_version src_v pp_version dst_v
+          Version.pp src_v Version.pp dst_v
 
   let read_buffer ~chunk ~off src =
     let off = header src.version ++ off in

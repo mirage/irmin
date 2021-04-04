@@ -18,10 +18,10 @@ module Pack_config = Config
 module Index = Pack_index
 
 exception RO_Not_Allowed
-exception Unsupported_version of IO.version
+exception Unsupported_version of Version.t
 
 module Make
-    (_ : IO.Version)
+    (_ : Version.S)
     (Config : Config.S)
     (Metadata : Irmin.Metadata.S)
     (Contents : Irmin.Contents.S)

@@ -41,12 +41,12 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) (_ : IO.Version) :
+  module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
     S.Atomic_write.Store with type key = K.t and type value = V.t
 
   val migrate : Irmin.config -> unit
 
-  exception Unsupported_version of IO.version
+  exception Unsupported_version of Version.t
 
   module Checks (Index : Pack_index.S) : sig
     val integrity_check :
