@@ -17,13 +17,6 @@
 include Dict_intf
 open! Import
 
-let src =
-  Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let ( -- ) = Int63.sub
-
 module Make (V : Version.S) (IO : IO.S) : S = struct
   type t = {
     capacity : int;

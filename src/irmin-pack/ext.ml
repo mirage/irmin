@@ -18,14 +18,8 @@ open! Import
 module Pack_config = Config
 module Index = Pack_index
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
 exception Unsupported_version = Store.Unsupported_version
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-
-let ( ++ ) = Int63.add
 
 let () =
   Printexc.register_printer (function

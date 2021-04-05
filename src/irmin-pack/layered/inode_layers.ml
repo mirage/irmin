@@ -16,12 +16,6 @@
 
 include Inode_layers_intf
 open! Import
-
-let src =
-  Logs.Src.create "irmin.pack.i.layers"
-    ~doc:"layered inodes for the irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
 module I = Inode
 
 module Make

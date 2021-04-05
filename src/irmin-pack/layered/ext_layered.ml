@@ -17,9 +17,6 @@
 open! Import
 
 let config = Config.v
-let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
 
 (* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
 module Config_layered = Config
@@ -30,8 +27,6 @@ open Private
 module V = struct
   let version = `V2
 end
-
-let ( -- ) = Int63.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 exception Unsupported_version = Store.Unsupported_version

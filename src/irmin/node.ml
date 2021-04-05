@@ -22,20 +22,6 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
-
 module Make
     (K : Type.S) (P : sig
       type step [@@deriving irmin]
@@ -91,10 +77,10 @@ struct
 
   let list ?(offset = 0) ?length (t : t) =
     let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> take n seq
+      match length with None -> List.of_seq seq | Some n -> Seq.take n seq
     in
     StepMap.to_seq t
-    |> drop offset
+    |> Seq.drop offset
     |> Seq.map (fun (_, e) -> of_entry e)
     |> take_length
 
@@ -420,9 +406,9 @@ module V1 (N : S with type step = string) = struct
 
   let list ?(offset = 0) ?length t =
     let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> take n seq
+      match length with None -> List.of_seq seq | Some n -> Seq.take n seq
     in
-    List.to_seq t.entries |> drop offset |> take_length
+    List.to_seq t.entries |> Seq.drop offset |> take_length
 
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []

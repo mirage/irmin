@@ -1,14 +1,8 @@
 open! Import
 include Store_intf
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 exception Unsupported_version of Version.t
-
-let ( ++ ) = Int63.add
 
 module Cache = IO.Cache
 open! Import

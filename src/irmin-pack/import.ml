@@ -1,5 +1,9 @@
 include Irmin.Export_for_backends
 
+let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Int63 = struct
   include Optint.Int63
 
@@ -11,3 +15,6 @@ module Int63 = struct
 end
 
 type int63 = Int63.t [@@deriving irmin]
+
+let ( ++ ) = Int63.add
+let ( -- ) = Int63.sub
