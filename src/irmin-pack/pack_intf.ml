@@ -70,7 +70,7 @@ module type S = sig
       [on_generation_change] is a callback for all pack instances to react to a
       generation change. *)
 
-  val version : 'a t -> IO.version
+  val version : 'a t -> Version.t
   val generation : 'a t -> int63
   val offset : 'a t -> int63
 
@@ -100,7 +100,8 @@ module type Sigs = sig
   module type Maker = Maker
 
   module File
+      (_ : Version.S)
       (Index : Pack_index.S)
-      (K : Irmin.Hash.S with type t = Index.key)
-      (_ : IO.Version) : Maker with type key = K.t and type index = Index.t
+      (K : Irmin.Hash.S with type t = Index.key) :
+    Maker with type key = K.t and type index = Index.t
 end

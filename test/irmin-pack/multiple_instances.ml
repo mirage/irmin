@@ -24,7 +24,7 @@ module S = struct
   include
     Irmin_pack.Make_ext
       (struct
-        let io_version = `V2
+        let version = `V2
       end)
       (Conf)
       (M)

@@ -37,7 +37,7 @@ struct
   include
     Irmin_pack.Make_ext
       (struct
-        let io_version = `V2
+        let version = `V2
       end)
       (Config)
       (M)
@@ -577,11 +577,12 @@ module Pack = struct
 end
 
 module Branch = struct
+  module V2 = struct
+    let version = `V2
+  end
+
   module Branch =
-    Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
-      (struct
-        let io_version = `V2
-      end)
+    Irmin_pack.Atomic_write (V2) (Irmin.Branch.String) (Irmin.Hash.SHA1)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 

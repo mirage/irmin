@@ -33,18 +33,16 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
 end)
 
 module File
+    (V : Version.S)
     (Index : Pack_index.S)
-    (K : Irmin.Hash.S with type t = Index.key)
-    (IO_version : IO.Version) =
+    (K : Irmin.Hash.S with type t = Index.key) =
 struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
-  module Dict = Pack_dict.Make (IO_version)
+  module Dict = Pack_dict.Make (V)
 
   type index = Index.t
-
-  let current_version = IO_version.io_version
 
   type 'a t = {
     mutable block : IO.t;
@@ -55,7 +53,7 @@ struct
 
   let clear ?keep_generation t =
     Index.clear t.index;
-    match current_version with
+    match V.version with
     | `V1 -> IO.truncate t.block
     | `V2 ->
         IO.clear ?keep_generation t.block;
@@ -70,7 +68,7 @@ struct
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~version:(Some current_version) ~fresh ~readonly file in
+    let block = IO.v ~version:(Some V.version) ~fresh ~readonly file in
     { block; index; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
@@ -85,7 +83,7 @@ struct
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make (V : ELT with type hash := K.t) = struct
+  module Make (Val : ELT with type hash := K.t) = struct
     module H = struct
       include K
 
@@ -98,8 +96,8 @@ struct
 
     type nonrec 'a t = {
       pack : 'a t;
-      lru : V.t Lru.t;
-      staging : V.t Tbl.t;
+      lru : Val.t Lru.t;
+      staging : Val.t Tbl.t;
       mutable open_instances : int;
       readonly : bool;
     }
@@ -108,7 +106,7 @@ struct
 
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
-    type value = V.t
+    type value = Val.t
     type index = Index.t
 
     let unsafe_clear ?keep_generation t =
@@ -179,7 +177,7 @@ struct
       Lwt.return b
 
     let check_key k v =
-      let k' = V.hash v in
+      let k' = Val.hash v in
       if equal_key k k' then Ok () else Error (k, k')
 
     exception Invalid_read
@@ -192,7 +190,7 @@ struct
       if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
-      V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
@@ -262,15 +260,15 @@ struct
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
-        Index.add ~overcommit t.pack.index k (off, len, V.magic v);
+        Index.add ~overcommit t.pack.index k (off, len, Val.magic v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)
 
     let add t v =
-      let k = V.hash v in
+      let k = Val.hash v in
       unsafe_append ~ensure_unique:true ~overcommit:true t k v;
       Lwt.return k
 
@@ -311,7 +309,7 @@ struct
         on_generation_change ();
         IO.close t.pack.block;
         let block =
-          IO.v ~fresh:false ~version:(Some current_version) ~readonly:true
+          IO.v ~fresh:false ~version:(Some V.version) ~readonly:true
             (IO.name t.pack.block)
         in
         t.pack.block <- block;

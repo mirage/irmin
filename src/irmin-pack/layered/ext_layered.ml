@@ -27,13 +27,10 @@ module Layout_layered = Layout
 open Irmin_pack
 open Private
 
-let current_version = `V2
-
-module IO_version = struct
-  let io_version = current_version
+module V = struct
+  let version = `V2
 end
 
-let pp_version = IO.pp_version
 let ( -- ) = Int63.sub
 
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
@@ -68,7 +65,7 @@ module Make
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H) (IO_version)
+  module Pack = Pack.File (V) (Index) (H)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
@@ -161,7 +158,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Atomic_write (Key) (Val) (IO_version)
+      module AW = Atomic_write (V) (Key) (Val)
       module Closeable_AW = Closeable.Atomic_write (AW)
       include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
     end
@@ -309,11 +306,10 @@ struct
         Lwt.catch
           (fun () -> v root config)
           (function
-            | I.Invalid_version { expected; found }
-              when expected = current_version ->
+            | Version.Invalid { expected; found } when expected = V.version ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
-                      root pp_version found);
+                      root Version.pp found);
                 Lwt.fail (Unsupported_version found)
             | e -> Lwt.fail e)
 
@@ -450,12 +446,12 @@ struct
                in
                try
                  let io =
-                   IO.v ~version:(Some current_version) ~fresh:false
-                     ~readonly:true (Layout.pack ~root)
+                   IO.v ~version:(Some V.version) ~fresh:false ~readonly:true
+                     (Layout.pack ~root)
                  in
                  (config, Some io)
                with
-               | I.Invalid_version _ -> (config, None)
+               | Version.Invalid _ -> (config, None)
                | e -> raise e)
         |> List.fold_left
              (fun to_migrate (config, io) ->

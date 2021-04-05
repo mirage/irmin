@@ -37,11 +37,11 @@ let path =
 
 module Make (M : Maker) = struct
   module V1 = struct
-    let io_version = `V1
+    let version = `V1
   end
 
   module V2 = struct
-    let io_version = `V2
+    let version = `V2
   end
 
   module Store_V1 = M (V1)
@@ -78,7 +78,7 @@ module Make (M : Maker) = struct
     }
     [@@deriving irmin]
 
-    let with_io : type a. I.version -> string -> (IO.t -> a) -> a option =
+    let with_io : type a. Version.t -> string -> (IO.t -> a) -> a option =
      fun version path f ->
       match IO.exists path with
       | false -> None
@@ -94,7 +94,7 @@ module Make (M : Maker) = struct
         match with_io current_version path Fun.id with
         | None -> Fmt.failwith "cannot read pack file"
         | Some _ -> current_version
-      with I.Invalid_version { expected = _; found } -> found
+      with Version.Invalid { expected = _; found } -> found
 
     let io ~version path =
       with_io version path @@ fun io ->

@@ -16,19 +16,13 @@
 
 open! Import
 
-type version = [ `V1 | `V2 ]
-
-module type Version = sig
-  val io_version : version
-end
-
 module type S = sig
   type t
   type path := string
 
   exception RO_Not_Allowed
 
-  val v : version:version option -> fresh:bool -> readonly:bool -> path -> t
+  val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
@@ -39,7 +33,7 @@ module type S = sig
   val generation : t -> int63
   val force_generation : t -> int63
   val readonly : t -> bool
-  val version : t -> version
+  val version : t -> Version.t
   val flush : t -> unit
   val close : t -> unit
   val exists : string -> bool
@@ -53,7 +47,7 @@ module type S = sig
   val migrate :
     progress:(int63 -> unit) ->
     t ->
-    version ->
+    Version.t ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
 
@@ -61,14 +55,7 @@ module type S = sig
 end
 
 module type Sigs = sig
-  module type Version = Version
   module type S = S
-
-  type nonrec version = version
-
-  val pp_version : version Fmt.t
-
-  exception Invalid_version of { expected : version; found : version }
 
   module Unix : S
 

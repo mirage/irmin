@@ -27,8 +27,7 @@ module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Make_ext = Ext.Make
 module Store = Store
-
-module type Version = IO.Version
+module Version = Version
 
 module type Maker = functor
   (Config : Config.S)
@@ -59,7 +58,7 @@ module type Maker = functor
 end
 
 module Make_with_version
-    (IO_version : IO.Version)
+    (V : Version.S)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -69,15 +68,15 @@ module Make_with_version
 struct
   module XNode = Irmin.Private.Node.Make (H) (P) (M)
   module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (IO_version) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
+  include Make_ext (V) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
 end
 
 module Make = Make_with_version (struct
-  let io_version = `V1
+  let version = `V1
 end)
 
 module Make_V2 = Make_with_version (struct
-  let io_version = `V2
+  let version = `V2
 end)
 
 module KV (Config : Config.S) (C : Irmin.Contents.S) =

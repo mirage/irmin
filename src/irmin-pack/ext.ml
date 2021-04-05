@@ -22,8 +22,6 @@ let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let pp_version = IO.pp_version
-
 exception Unsupported_version = Store.Unsupported_version
 exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
 
@@ -32,14 +30,14 @@ let ( ++ ) = Int63.add
 let () =
   Printexc.register_printer (function
     | Unsupported_version v ->
-        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" IO.pp_version v)
+        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" Version.pp v)
     | _ -> None)
 
 module I = IO
 module IO = IO.Unix
 
 module Make
-    (IO_version : I.Version)
+    (V : Version.S)
     (Config : Config.S)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
@@ -53,10 +51,8 @@ module Make
     (Commit : Irmin.Private.Commit.S with type hash = H.t) =
 struct
   module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H) (IO_version)
-  module Dict = Pack_dict.Make (IO_version)
-
-  let current_version = IO_version.io_version
+  module Pack = Pack.File (V) (Index) (H)
+  module Dict = Pack_dict.Make (V)
 
   module X = struct
     module Hash = H
@@ -133,7 +129,7 @@ struct
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Store.Atomic_write (Key) (Val) (IO_version)
+      module AW = Store.Atomic_write (V) (Key) (Val)
       include Closeable.Atomic_write (AW)
     end
 
@@ -199,11 +195,10 @@ struct
         Lwt.catch
           (fun () -> unsafe_v config)
           (function
-            | I.Invalid_version { expected; found }
-              when expected = current_version ->
+            | Version.Invalid { expected; found } when expected = V.version ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
-                      (Pack_config.root config) pp_version found);
+                      (Pack_config.root config) Version.pp found);
                 Lwt.fail (Unsupported_version found)
             | e -> Lwt.fail e)
 
@@ -307,8 +302,7 @@ struct
           let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
           let pack_file = Filename.concat root "store.pack" in
           let pack =
-            IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
-              pack_file
+            IO.v ~fresh:false ~readonly:true ~version:(Some V.version) pack_file
           in
           let dict = Dict.v ~fresh:false ~readonly:true root in
           let total = IO.offset pack in
