@@ -17,25 +17,6 @@
 open! Import
 include Inode_intf
 
-let src =
-  Logs.Src.create "irmin.pack.i" ~doc:"inodes for the irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
-
 module Make_intermediate
     (Conf : Config.S)
     (H : Irmin.Hash.S)
@@ -464,7 +445,7 @@ struct
                 if acc.cursor > offset then 0 else offset - acc.cursor
               in
               let vs =
-                StepMap.to_seq vs |> drop to_drop |> take acc.remaining
+                StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
               in
               let n = List.length vs in
               {

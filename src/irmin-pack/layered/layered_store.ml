@@ -15,10 +15,6 @@
  *)
 
 open Irmin_pack
-
-let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
-
-module Log = (val Logs.src_log src : Logs.LOG)
 open! Import
 
 module type CA = sig

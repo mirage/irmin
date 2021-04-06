@@ -21,9 +21,6 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let ( ++ ) = Int63.add
-let ( -- ) = Int63.sub
-
 module Unix : S = struct
   exception RO_Not_Allowed
 

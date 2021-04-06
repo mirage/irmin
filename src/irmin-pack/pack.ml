@@ -17,14 +17,6 @@
 include Pack_intf
 open! Import
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let ( -- ) = Int63.sub
-
-open! Import
-
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
