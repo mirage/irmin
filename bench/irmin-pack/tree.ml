@@ -16,6 +16,7 @@
 
 open Bench_common
 open Irmin.Export_for_backends
+open Irmin_traces
 
 type config = {
   ncommits : int;
@@ -55,27 +56,6 @@ let pp_path_conversion ppf = function
   | `V0 -> Format.fprintf ppf "[v0]"
   | `V1 -> Format.fprintf ppf "[v1]"
   | `V0_and_v1 -> Format.fprintf ppf "[v0+v1]"
-
-let decoded_seq_of_encoded_chan_with_prefixes :
-    'a Repr.ty -> in_channel -> 'a Seq.t =
- fun repr channel ->
-  let decode_bin = Repr.decode_bin repr |> Repr.unstage in
-  let decode_prefix = Repr.(decode_bin int32 |> unstage) in
-  let produce_op () =
-    try
-      (* First read the prefix *)
-      let prefix = really_input_string channel 4 in
-      let len', len = decode_prefix prefix 0 in
-      assert (len' = 4);
-      let len = Int32.to_int len in
-      (* Then read the repr *)
-      let content = really_input_string channel len in
-      let len', op = decode_bin content 0 in
-      assert (len' = len);
-      Some (op, ())
-    with End_of_file -> None
-  in
-  Seq.unfold produce_op ()
 
 let seq_mapi64 s =
   let i = ref Int64.minus_one in
@@ -129,74 +109,7 @@ module Exponential_moving_average = struct
 end
 
 module Bootstrap_trace = struct
-  type 'a scope = Forget of 'a | Keep of 'a [@@deriving repr]
-  type key = string list [@@deriving repr]
-  type hash = string [@@deriving repr]
-  type message = string [@@deriving repr]
-  type context_id = int64 [@@deriving repr]
-
-  type add = {
-    key : key;
-    value : string;
-    in_ctx_id : context_id scope;
-    out_ctx_id : context_id scope;
-  }
-  [@@deriving repr]
-
-  type copy = {
-    key_src : key;
-    key_dst : key;
-    in_ctx_id : context_id scope;
-    out_ctx_id : context_id scope;
-  }
-  [@@deriving repr]
-
-  type commit = {
-    hash : hash scope;
-    date : int64;
-    message : message;
-    parents : hash scope list;
-    in_ctx_id : context_id scope;
-  }
-  [@@deriving repr]
-
-  (** The 8 different operations recorded in Tezos.
-
-      {3 Interleaved Contexts and Commits}
-
-      All the recorded operations in Tezos operate on (and create new) immutable
-      records of type [context]. Most of the time, everything is linear (i.e.
-      the input context to an operation is the latest output context), but there
-      sometimes are several parallel chains of contexts, where all but one will
-      end up being discarded.
-
-      Similarly to contexts, commits are not always linear, i.e. a checkout may
-      choose a parent that is not the latest commit.
-
-      To solve this conundrum when replaying the trace, we need to remember all
-      the [context_id -> tree] and [trace commit hash -> real commit hash] pairs
-      to make sure an operation is operating on the right parent.
-
-      In the trace, the context indices and the commit hashes are 'scoped',
-      meaning that they are tagged with a boolean information indicating if this
-      is the very last occurence of that value in the trace. This way we can
-      discard a recorded pair as soon as possible.
-
-      In practice, there is only 1 context and 1 commit in history, and
-      sometimes 0 or 2, but the code is ready for more. *)
-  type op =
-    (* Operation(s) that create a context from none *)
-    | Checkout of hash scope * context_id scope
-    (* Operations that create a context from one *)
-    | Add of add
-    | Remove of key * context_id scope * context_id scope
-    | Copy of copy
-    (* Operations that just read a context *)
-    | Find of key * bool * context_id scope
-    | Mem of key * bool * context_id scope
-    | Mem_tree of key * bool * context_id scope
-    | Commit of commit
-  [@@deriving repr]
+  module Def = Trace_definitions.Replayable_trace
 
   let is_hex_char = function
     | '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' -> true
@@ -278,7 +191,7 @@ module Bootstrap_trace = struct
     | l -> l
 
   let flatten_op ~flatten_path = function
-    | Checkout _ as op -> op
+    | Def.Checkout _ as op -> op
     | Add op -> Add { op with key = flatten_path op.key }
     | Remove (keys, in_ctx_id, out_ctx_id) ->
         Remove (flatten_path keys, in_ctx_id, out_ctx_id)
@@ -294,11 +207,8 @@ module Bootstrap_trace = struct
     | Mem_tree (keys, b, ctx) -> Mem_tree (flatten_path keys, b, ctx)
     | Commit _ as op -> op
 
-  let open_ops_sequence path : op Seq.t =
-    let chan = open_in_bin path in
-    decoded_seq_of_encoded_chan_with_prefixes op_t chan
-
-  let open_commit_sequence max_ncommits path_conversion path : op list Seq.t =
+  let open_commit_sequence max_ncommits path_conversion path :
+      Def.row list Seq.t =
     let flatten_path =
       match path_conversion with
       | `None -> Fun.id
@@ -306,19 +216,20 @@ module Bootstrap_trace = struct
       | `V0 -> flatten_v0
       | `V0_and_v1 -> fun p -> flatten_v1 p |> flatten_v0
     in
+
     let rec aux (ops_seq, commits_sent, ops) =
       if commits_sent >= max_ncommits then None
       else
         match ops_seq () with
         | Seq.Nil -> None
-        | Cons ((Commit _ as op), ops_seq) ->
+        | Cons ((Def.Commit _ as op), ops_seq) ->
             let ops = op :: ops |> List.rev in
             Some (ops, (ops_seq, commits_sent + 1, []))
         | Cons (op, ops_seq) ->
             let op = flatten_op ~flatten_path op in
             aux (ops_seq, commits_sent, op :: ops)
     in
-    let ops_seq = open_ops_sequence path in
+    let _header, ops_seq = Def.open_reader path in
     Seq.unfold aux (ops_seq, 0, [])
 
   (** Stats derived from ops durations.
@@ -540,7 +451,7 @@ module Generate_trees_from_trace (Store : Store) = struct
 
   type t = {
     contexts : (int64, context) Hashtbl.t;
-    hash_corresps : (Bootstrap_trace.hash, Store.Hash.t) Hashtbl.t;
+    hash_corresps : (Bootstrap_trace.Def.hash, Store.Hash.t) Hashtbl.t;
     mutable latest_commit : Store.Hash.t option;
   }
 
@@ -646,14 +557,14 @@ module Generate_trees_from_trace (Store : Store) = struct
       Fmt.(list ~sep:comma string)
       k b
 
-  let unscope = function Bootstrap_trace.Forget v -> v | Keep v -> v
+  let unscope = function Bootstrap_trace.Def.Forget v -> v | Keep v -> v
 
   let maybe_forget_hash t = function
-    | Bootstrap_trace.Forget h -> Hashtbl.remove t.hash_corresps h
+    | Bootstrap_trace.Def.Forget h -> Hashtbl.remove t.hash_corresps h
     | Keep _ -> ()
 
   let maybe_forget_ctx t = function
-    | Bootstrap_trace.Forget ctx -> Hashtbl.remove t.contexts ctx
+    | Bootstrap_trace.Def.Forget ctx -> Hashtbl.remove t.contexts ctx
     | Keep _ -> ()
 
   let exec_checkout t repo h_trace out_ctx_id () =
@@ -745,7 +656,7 @@ module Generate_trees_from_trace (Store : Store) = struct
   let add_operations t repo operations n stats check_hash =
     let rec aux l i =
       match l with
-      | Bootstrap_trace.Checkout (h, out_ctx_id) :: tl ->
+      | Bootstrap_trace.Def.Checkout (h, out_ctx_id) :: tl ->
           exec_checkout t repo h out_ctx_id |> with_monitoring stats `Checkout
           >>= fun () -> aux tl (i + 1)
       | Add op :: tl ->

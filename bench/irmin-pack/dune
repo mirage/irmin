@@ -22,11 +22,18 @@
  (deps main.exe layers.exe tree.exe)
  (action (progn)))
 
+(library
+ (name irmin_traces)
+ (modules trace_common trace_definitions)
+ (preprocess
+  (pps ppx_repr))
+ (libraries repr ppx_repr))
+
 (executable
  (name tree)
  (modules tree)
  (preprocess
-  (pps ppx_deriving_yojson ppx_repr))
+  (pps ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
    unix cmdliner logs yojson ppx_deriving_yojson memtrace repr ppx_repr
-   bench_common mtime mtime.clock.os bentov tezos-context-hash))
+   bench_common mtime mtime.clock.os bentov tezos-context-hash irmin_traces))
