@@ -1,3 +1,9 @@
+## 2.5.2 (unreleased)
+
+- **irmin-pack**
+  - Fix a performance regression where all caches where always cleaned by
+    `Store.sync` when using the V1 format (#1360, @samoht)
+
 ## 2.5.1 (2021-02-19)
 
 - **irmin-git**
