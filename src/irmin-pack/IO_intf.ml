@@ -16,6 +16,8 @@
 
 open! Import
 
+type headers = { offset : int63; generation : int63 }
+
 module type S = sig
   type t
   type path := string
@@ -27,9 +29,8 @@ module type S = sig
   val set : t -> off:int63 -> string -> unit
   val read : t -> off:int63 -> bytes -> int
   val offset : t -> int63
-  val force_offset : t -> int63
   val generation : t -> int63
-  val force_generation : t -> int63
+  val force_headers : t -> headers
   val readonly : t -> bool
   val version : t -> Version.t
   val flush : t -> unit

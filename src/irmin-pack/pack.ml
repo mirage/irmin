@@ -293,9 +293,10 @@ struct
       Lru.clear t.lru
 
     let sync ?(on_generation_change = Fun.id) t =
+      let former_offset = IO.offset t.pack.block in
       let former_generation = IO.generation t.pack.block in
-      let generation = IO.force_generation t.pack.block in
-      if former_generation <> generation then (
+      let h = IO.force_headers t.pack.block in
+      if former_generation <> h.generation then (
         Log.debug (fun l -> l "[pack] generation changed, refill buffers");
         clear_caches t;
         on_generation_change ();
@@ -305,9 +306,11 @@ struct
             (IO.name t.pack.block)
         in
         t.pack.block <- block;
-        Dict.sync t.pack.dict)
-      else Dict.sync t.pack.dict;
-      Index.sync t.pack.index
+        Dict.sync t.pack.dict;
+        Index.sync t.pack.index)
+      else if h.offset > former_offset then (
+        Dict.sync t.pack.dict;
+        Index.sync t.pack.index)
 
     let version t = IO.version t.pack.block
     let generation t = IO.generation t.pack.block

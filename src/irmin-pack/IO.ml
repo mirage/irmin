@@ -92,9 +92,16 @@ module Unix : S = struct
 
   let generation t = t.generation
 
-  let force_generation t =
-    t.generation <- Raw.Generation.get t.raw;
-    t.generation
+  let force_headers t =
+    match t.version with
+    | `V1 ->
+        (* There is no generation number in V1 *)
+        { offset = force_offset t; generation = Int63.zero }
+    | `V2 ->
+        let h = Raw.Header.get t.raw in
+        t.generation <- h.generation;
+        t.offset <- h.offset;
+        { offset = t.offset; generation = t.generation }
 
   let version t =
     Log.debug (fun l ->
