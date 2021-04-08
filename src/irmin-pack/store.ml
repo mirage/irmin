@@ -18,9 +18,9 @@
 open! Import
 include Store_intf
 
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-exception Unsupported_version of Version.t
+let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
+module Log = (val Logs.src_log src : Logs.LOG)
 module Cache = IO.Cache
 open! Import
 module Pack = Pack
@@ -264,7 +264,7 @@ let migrate_io_to_v2 ~progress src =
   | Error (`Msg s) -> invalid_arg s
 
 let migrate config =
-  if Config.readonly config then raise RO_Not_Allowed;
+  if Config.readonly config then raise S.RO_not_allowed;
   Log.debug (fun l -> l "[%s] migrate" (Config.root config));
   Layout.stores ~root:(Config.root config)
   |> List.map (fun store ->

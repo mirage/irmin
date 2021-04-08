@@ -83,7 +83,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
       let id = Hashtbl.length t.cache in
       if id > t.capacity then None
       else (
-        if IO.readonly t.io then raise IO.RO_Not_Allowed;
+        if IO.readonly t.io then raise S.RO_not_allowed;
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;

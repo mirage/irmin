@@ -108,11 +108,11 @@ struct
     in
     let* () =
       Alcotest.check_raises_lwt "Opening a V1 store should fail"
-        (Irmin_pack.Unsupported_version `V1)
+        Irmin_pack.Version.(Invalid { expected = `V2; found = `V1 })
         (fun () -> S.Repo.v conf_ro)
     in
     Alcotest.check_raises "Migrating with RO config should fail"
-      Irmin_pack.RO_Not_Allowed (fun () -> ignore (S.migrate conf_ro));
+      Irmin_pack.RO_not_allowed (fun () -> ignore (S.migrate conf_ro));
     Log.app (fun m -> m "Running the migration with a RW config");
     S.migrate conf_rw;
     Log.app (fun m -> m "Checking migration is idempotent (cached instance)");

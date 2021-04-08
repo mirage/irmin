@@ -17,9 +17,6 @@
 module Pack_config = Config
 module Index = Pack_index
 
-exception RO_Not_Allowed
-exception Unsupported_version of Version.t
-
 module Make
     (_ : Version.S)
     (Config : Config.S)

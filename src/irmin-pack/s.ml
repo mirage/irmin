@@ -18,6 +18,8 @@ open! Import
 
 type integrity_error = [ `Wrong_hash | `Absent_value ]
 
+exception RO_not_allowed
+
 module type Checkable = sig
   type 'a t
   type key

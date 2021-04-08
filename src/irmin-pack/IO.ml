@@ -22,8 +22,6 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Unix : S = struct
-  exception RO_Not_Allowed
-
   module Raw = Index_unix.Private.Raw
 
   type t = {
@@ -61,7 +59,7 @@ module Unix : S = struct
       t.flushed <- offset ++ h
 
   let flush t =
-    if t.readonly then raise RO_Not_Allowed;
+    if t.readonly then raise S.RO_not_allowed;
     unsafe_flush t
 
   let auto_flush_limit = Int63.of_int 1_000_000
@@ -73,7 +71,7 @@ module Unix : S = struct
     if t.offset -- t.flushed > auto_flush_limit then flush t
 
   let set t ~off buf =
-    if t.readonly then raise RO_Not_Allowed;
+    if t.readonly then raise S.RO_not_allowed;
     unsafe_flush t;
     Raw.unsafe_write t.raw ~off:(header t.version ++ off) buf;
     assert (

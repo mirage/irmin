@@ -159,7 +159,7 @@ module Dict = struct
       try
         ignore_int (Dict.index r k);
         Alcotest.fail "RO dict should not be writable"
-      with Irmin_pack.RO_Not_Allowed -> ()
+      with Irmin_pack.RO_not_allowed -> ()
     in
     ignore_int (Dict.index dict "foo");
     ignore_int (Dict.index dict "foo");
