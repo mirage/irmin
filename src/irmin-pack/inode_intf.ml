@@ -16,7 +16,7 @@
 
 open! Import
 
-module type VAL = sig
+module type Value = sig
   include Irmin.Private.Node.S
 
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
@@ -36,7 +36,7 @@ module type S = sig
     read t Lwt.t
 
   module Key : Irmin.Hash.S with type t = key
-  module Val : VAL with type t = value and type hash = key
+  module Val : Value with type t = value and type hash = key
   include S.Checkable with type 'a t := 'a t and type key := key
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
@@ -50,29 +50,26 @@ end
 
 (** Unstable internal API agnostic about the underlying storage. Use it only to
     implement or test inodes. *)
-module type INTER = sig
+module type Internal = sig
   type hash
 
   val pp_hash : hash Fmt.t
 
-  module Elt : Pack.ELT with type hash := hash
+  module Raw : Pack.Value with type hash = hash
 
-  val decode_bin :
+  val decode_raw :
     dict:(int -> string option) ->
     hash:(int63 -> hash) ->
     string ->
     int ->
-    int * Elt.t
+    int * Raw.t
 
   module Val : sig
-    type nonrec hash = hash
-    type t
+    include Value with type hash = hash
 
-    include VAL with type hash := hash and type t := t
-
-    val of_bin : (hash -> Elt.t option) -> Elt.t -> t
-    val to_bin : t -> Elt.t
-    val save : add:(hash -> Elt.t -> unit) -> mem:(hash -> bool) -> t -> unit
+    val of_raw : (hash -> Raw.t option) -> Raw.t -> t
+    val to_raw : t -> Raw.t
+    val save : add:(hash -> Raw.t -> unit) -> mem:(hash -> bool) -> t -> unit
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
@@ -130,13 +127,13 @@ end
 
 module type Sigs = sig
   module type S = S
-  module type INTER = INTER
+  module type Internal = Internal
 
-  module Make_intermediate
+  module Make_internal
       (Conf : Config.S)
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
-    INTER
+    Internal
       with type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
@@ -144,7 +141,7 @@ module type Sigs = sig
   module Make_ext
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
-      (Inter : INTER
+      (Inter : Internal
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)

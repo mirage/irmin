@@ -17,7 +17,7 @@
 open! Import
 include Inode_intf
 
-module Make_intermediate
+module Make_internal
     (Conf : Config.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
@@ -926,7 +926,8 @@ struct
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
   end
 
-  module Elt = struct
+  module Raw = struct
+    type hash = H.t
     type t = Bin.t
 
     let t = Bin.t
@@ -1026,8 +1027,8 @@ struct
 
   let pp_hash = T.pp_hash
 
-  let decode_bin ~dict ~hash t off =
-    Elt.decode_bin_with_offset ~dict ~hash t off
+  let decode_raw ~dict ~hash t off =
+    Raw.decode_bin_with_offset ~dict ~hash t off
 
   module Val = struct
     include T
@@ -1113,13 +1114,13 @@ struct
       in
       apply t { f }
 
-    let of_bin find' v =
+    let of_raw find' v =
       let rec find h =
         match find' h with None -> None | Some v -> Some (I.of_bin layout v)
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
 
-    let to_bin t = apply t { f = (fun layout v -> I.to_bin layout v) }
+    let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
     let stable t = apply t { f = (fun _ v -> I.stable v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
     let index = I.index
@@ -1153,14 +1154,15 @@ end
 module Make_ext
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inter : INTER
+    (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
     (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t) =
 struct
   module Key = H
-  module Pack = P.Make (Inter.Elt)
+  module Pack = P.Make (Inter.Raw)
+  module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t
@@ -1174,16 +1176,16 @@ struct
     | None -> None
     | Some v ->
         let find = Pack.unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let v = Val.of_raw find v in
         Some v
 
   let save t v =
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inter.Val.save ~add ~mem:(Pack.unsafe_mem t) v
+    Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Val.hash v
 
   let add t v =
     save t v;
@@ -1211,9 +1213,7 @@ struct
   let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
-    Inter.decode_bin ~dict ~hash buff off |> fst
-
-  module Val = Inter.Val
+    Inter.decode_raw ~dict ~hash buff off |> fst
 
   let integrity_check_inodes t k =
     find t k >|= function
@@ -1235,6 +1235,6 @@ module Make
     (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  module Inter = Make_intermediate (Conf) (H) (Node)
+  module Inter = Make_internal (Conf) (H) (Node)
   include Make_ext (H) (Node) (Inter) (P)
 end
