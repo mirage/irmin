@@ -1,7 +1,7 @@
 @charset "UTF-8";
 /* Copyright (c) 2016 The odoc contributors. All rights reserved.
    Distributed under the ISC license, see terms at the end of the file.
-   odoc 1.5.0-577-gd94397803 */
+   odoc 2.0.0-beta2-94-g2f639d7d66 */
 
 /* Fonts */
 @import url('https://fonts.googleapis.com/css?family=Fira+Mono:400,500');
@@ -20,6 +20,12 @@
   --target-background: rgba(187, 239, 253, 0.3);
   --target-shadow: rgba(187, 239, 253, 0.8);
   --pre-border-color: #eee;
+  --code-background: #f6f8fa;
+  --spec-summary-border-color: #5c9cf5;
+  --spec-summary-background: var(--code-background);
+  --spec-summary-hover-background: #ebeff2;
+  --spec-details-after-background: rgba(0, 4, 15, 0.05);
+  --spec-details-after-shadow: rgba(204, 204, 204, 0.53);
 }
 
 .dark:root {
@@ -77,15 +83,14 @@
     --border: #333;
     --navbar-border: #333;
     --code-color: #ccc;
+    --by-name-nav-link-color: var(--color);
 
     --li-code-background: #373737;
     --li-code-color: #999;
     --toc-color: #777;
     --toc-background: #252525;
     --toc-list-border: #ccc;
-    --spec-summary-background: var(--code-background);
     --spec-summary-hover-background: #ebeff2;
-    --spec-summary-border-color: #5c9cf5;
     --spec-details-after-background: rgba(0, 4, 15, 0.05);
     --spec-details-after-shadow: rgba(204, 204, 204, 0.53);
 
@@ -346,6 +351,22 @@ h4 {
   font-size: 1.12em;
 }
 
+/* Comment delimiters, hidden but accessible to screen readers and 
+   selected for copy/pasting */
+
+/* Taken from bootstrap */
+/* See also https://stackoverflow.com/a/27769435/4220738 */
+.comment-delim {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* Preformatted and code */
 
@@ -389,45 +410,20 @@ pre code {
   font-weight: 500;
 }
 
+.arrow { white-space: nowrap }
+
 /* Module member specification */
 
-.spec:not(.include), .spec.include details summary {
-  background-color: #f6f8fa;
+.spec {
   background-color: var(--spec-summary-background);
   border-radius: 3px;
-  border-left: 4px solid #5c9cf5;
   border-left: 4px solid var(--spec-summary-border-color);
   border-right: 5px solid transparent;
   padding: 0.35em 0.5em;
 }
 
-.spec.include details summary:hover {
-  background-color: #ebeff2;
-  background-color: var(--spec-summary-hover-background);
-}
-
-dl, div.spec, .doc, aside {
+div.spec, .def-doc {
   margin-bottom: 20px;
-}
-
-dl > dd {
-  padding: 0.5em;
-}
-
-dd > :first-child {
-  margin-top: 0;
-}
-
-dl:last-child, dd> :last-child, aside:last-child, article:last-child {
-  margin-bottom: 0;
-}
-
-dt+dt {
-  margin-top: 15px;
-}
-
-section+section, section > header + dl {
-  margin-top: 25px;
 }
 
 .spec.type .variant {
@@ -451,27 +447,22 @@ div.def {
   padding-left: 2ex;
 }
 
-div.def+div.doc {
+div.def+div.def-doc {
   margin-left: 1ex;
   margin-top: 2.5px
 }
 
-div.doc>*:first-child {
+div.def-doc>*:first-child {
   margin-top: 0;
 }
 
-/* The elements other than heading should be wrapped in <aside> elements. */
-/* heading, body>p, body>ul, body>ol, h3, h4, body>pre { */
-/*   margin-bottom: 30px; */
-/* } */
-
 /* Collapsible inlined include and module */
 
-.spec.include details {
+.odoc-include details {
   position: relative;
 }
 
-.spec.include details:after {
+.odoc-include details:after {
   z-index: -100;
   display: block;
   content: " ";
@@ -487,15 +478,19 @@ div.doc>*:first-child {
   box-shadow: 0 0px 0 1px var(--spec-details-after-shadow);
 }
 
-.spec.include details summary {
+.odoc-include summary {
   position: relative;
   margin-bottom: 20px;
   cursor: pointer;
   outline: none;
 }
 
+.odoc-include summary:hover {
+  background-color: var(--spec-summary-hover-background);
+}
+
 /* FIXME: Does not work in Firefox. */
-details summary::-webkit-details-marker {
+.odoc-include summary::-webkit-details-marker {
   color: #888;
   transform: scaleX(-1);
   position: absolute;
@@ -516,88 +511,29 @@ td.def {
   padding-left: 2ex;
 }
 
-td.doc *:first-child {
+td.def-doc *:first-child {
   margin-top: 0em;
 }
 
-/* @ tags */
+/* Lists of @tags */
 
-ul.at-tag {
-  list-style-type: none;
-  margin-left: 0;
-  padding: 0;
-}
+.at-tags { list-style-type: none; margin-left: -3ex; }
+.at-tags li { padding-left: 3ex; text-indent: -3ex; }
+.at-tags .at-tag { text-transform: capitalize }
 
-ul.at-tag li {
-  margin-left: 0;
-  padding: 0;
-}
+/* Lists of modules */
 
-ul.at-tag li p:first-child {
-  margin-top: 0;
-}
-
-/* FIXME remove */
-
-span.at-tag {
-  font-weight: bold;
-}
-
-.at-tag.deprecated {
-  font-weight: normal;
-  color: crimson;
-}
-
-.at-tag.raise {
-  font-weight: bold;
-}
-
-/* FIXME random other things to review. */
-
-.heading {
-  margin-top: 10px;
-  border-bottom: solid;
-  border-width: 1px;
-  border-color: #DDD;
-  border-color: var(--header-shadow);
-  text-align: right;
-  font-weight: normal;
-  font-style: italic;
-}
-
-.heading + .sig {
-  margin-top: -20px;
-}
-
-.heading + .parameters {
-  margin-top: -20px;
-}
+.modules { list-style-type: none; margin-left: -3ex; }
+.modules li { padding-left: 3ex; text-indent: -3ex; margin-top: 5px }
+.modules .synopsis { padding-left: 1ch; }
 
 /* Odig package index */
 
-.by-name ol, .by-tag ol, .errors ol {
-  list-style-type: none;
-  margin-left: 0;
-}
-
-.by-name ol ol, .by-tag ol ol {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.by-name li, .by-tag li, .errors li {
-  margin-left: 0;
-}
-
-.by-name .version {
-  font-size: 10px;
-  color: #AAA;
-  color: var(--by-name-version-color);
-}
-
-.by-name nav {
-  margin-bottom: 10px;
-}
+.packages { list-style-type: none; margin-left: -3ex; }
+.packages li { padding-left: 3ex; text-indent: -3ex }
+.packages li a.anchor { padding-right: 0.5ch; padding-left: 3ch; }
+.packages .version { font-size: 10px; color: var(--by-name-version-color); }
+.packages .synopsis { padding-left: 1ch }
 
 .by-name nav a {
   text-transform: uppercase;
@@ -615,14 +551,9 @@ span.at-tag {
   display: inline-block;
 }
 
-.by-tag>ol>li {
-  margin-top: 10px;
-}
-
-.by-tag>ol>li>span, .by-tag>ol>li>ol, .by-tag>ol>li>ol>li {
-  display: inline-block;
-  margin-right: 1ex;
-}
+.by-tag ol { list-style-type: none; }
+.by-tag ol.tags li { margin-left: 1ch; display: inline-block }
+.by-tag td:first-child { text-transform: uppercase; }
 
 /* Odig package page */
 
@@ -634,32 +565,6 @@ span.at-tag {
 
 .package .version {
   font-size: 14px;
-}
-
-h1+.modules, h1+.sel {
-  margin-top: 10px
-}
-
-.sel {
-  font-weight: normal;
-  font-style: italic;
-  font-size: 14px;
-  margin-top: 20px;
-}
-
-.sel + .modules {
-  margin-top: 10px;
-  margin-bottom: 20px;
-  margin-left: 1ex;
-}
-
-.modules {
-  margin: 0;
-}
-
-.modules .module {
-  min-width: 8ex;
-  padding-right: 2ex;
 }
 
 .package.info {
@@ -689,7 +594,7 @@ h1+.modules, h1+.sel {
 
 /* Sidebar and TOC */
 
-.toc:before {
+.odoc-toc:before {
   display: block;
   content: "Contents";
   text-transform: uppercase;
@@ -701,7 +606,7 @@ h1+.modules, h1+.sel {
   line-height: 1.2;
 }
 
-.toc {
+.odoc-toc {
   position: fixed;
   top: 0px;
   bottom: 0px;
@@ -718,7 +623,7 @@ h1+.modules, h1+.sel {
   padding-right: 2ex;
 }
 
-.toc ul li a {
+.odoc-toc ul li a {
   font-family: "Fira Sans", sans-serif;
   font-size: 0.95em;
   color: #333;
@@ -728,33 +633,33 @@ h1+.modules, h1+.sel {
   display: block;
 }
 
-.toc ul li a:hover {
+.odoc-toc ul li a:hover {
   box-shadow: none;
   text-decoration: underline;
 }
 
 /* First level titles */
 
-.toc>ul>li>a {
+.odoc-toc>ul>li>a {
   font-weight: 500;
 }
 
-.toc li ul {
+.odoc-toc li ul {
   margin: 0px;
 }
 
-.toc ul {
+.odoc-toc ul {
   list-style-type: none;
 }
 
-.toc ul li {
+.odoc-toc ul li {
   margin: 0;
 }
-.toc>ul>li {
+.odoc-toc>ul>li {
   margin-bottom: 0.3em;
 }
 
-.toc ul li li {
+.odoc-toc ul li li {
   border-left: 1px solid #ccc;
   border-left: 1px solid var(--toc-list-border);
   margin-left: 5px;
@@ -764,11 +669,11 @@ h1+.modules, h1+.sel {
 /* Mobile adjustements. */
 
 @media only screen and (max-width: 95ex) {
-  .content {
+  .odoc-content {
     margin: auto;
     padding: 2em;
   }
-  .toc {
+  .odoc-toc {
     position: static;
     width: auto;
     min-width: unset;
