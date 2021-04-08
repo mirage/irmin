@@ -53,9 +53,10 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     (aux [@tailcall]) (Hashtbl.length t.cache) 0
 
   let sync_offset t =
+    let former_offset = IO.offset t.io in
     let former_generation = IO.generation t.io in
-    let generation = IO.force_generation t.io in
-    if former_generation <> generation then (
+    let h = IO.force_headers t.io in
+    if former_generation <> h.generation then (
       IO.close t.io;
       let io =
         IO.v ~fresh:false ~readonly:true ~version:(Some V.version)
@@ -65,10 +66,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
       refill ~from:Int63.zero t)
-    else
-      let former_log_offset = IO.offset t.io in
-      let log_offset = IO.force_offset t.io in
-      if log_offset > former_log_offset then refill ~from:former_log_offset t
+    else if h.offset > former_offset then refill ~from:former_offset t
 
   let sync t =
     if IO.readonly t.io then sync_offset t

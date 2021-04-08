@@ -85,10 +85,9 @@ struct
 
   let equal_val = Irmin.Type.(unstage (equal V.t))
 
-  let refill t ~from =
-    let len = IO.force_offset t.block in
+  let refill t ~to_ ~from =
     let rec aux offset =
-      if offset >= len then ()
+      if offset >= to_ then ()
       else
         let len = read_length32 ~off:offset t.block in
         let buf = Bytes.create (len + V.hash_size) in
@@ -111,9 +110,10 @@ struct
     aux from
 
   let sync_offset t =
+    let former_offset = IO.offset t.block in
     let former_generation = IO.generation t.block in
-    let generation = IO.force_generation t.block in
-    if former_generation <> generation then (
+    let h = IO.force_headers t.block in
+    if former_generation <> h.generation then (
       Log.debug (fun l -> l "[branches] generation changed, refill buffers");
       IO.close t.block;
       let io =
@@ -123,11 +123,9 @@ struct
       t.block <- io;
       Tbl.clear t.cache;
       Tbl.clear t.index;
-      refill t ~from:Int63.zero)
-    else
-      let former_log_offset = IO.offset t.block in
-      let log_offset = IO.force_offset t.block in
-      if log_offset > former_log_offset then refill t ~from:former_log_offset
+      refill t ~to_:h.offset ~from:Int63.zero)
+    else if h.offset > former_offset then
+      refill t ~to_:h.offset ~from:former_offset
 
   let unsafe_find t k =
     Log.debug (fun l -> l "[branches] find %a" pp_branch k);
@@ -186,7 +184,8 @@ struct
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
-    refill t ~from:Int63.zero;
+    let h = IO.force_headers block in
+    refill t ~to_:h.offset ~from:Int63.zero;
     t
 
   let Cache.{ v = unsafe_v } =

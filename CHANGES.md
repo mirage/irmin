@@ -9,6 +9,9 @@
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
+- **irmin-pack**
+  - Fix a performance regression where all caches where always cleaned by
+    `Store.sync` when using the V1 format (#1360, @samoht)
 
 ### Added
 
