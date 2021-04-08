@@ -19,6 +19,8 @@ include Config
 
 let config = Config.v
 
+exception RO_not_allowed = S.RO_not_allowed
+
 module Pack = Pack
 module Dict = Pack_dict
 module Atomic_write = Store.Atomic_write

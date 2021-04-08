@@ -62,8 +62,6 @@ module type Sigs = sig
 
   val migrate : Irmin.config -> unit
 
-  exception Unsupported_version of Version.t
-
   module Checks (Index : Pack_index.S) : sig
     val integrity_check :
       ?ppf:Format.formatter ->

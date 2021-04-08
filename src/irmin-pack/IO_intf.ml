@@ -20,8 +20,6 @@ module type S = sig
   type t
   type path := string
 
-  exception RO_Not_Allowed
-
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit

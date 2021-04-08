@@ -18,15 +18,9 @@ open! Import
 module Pack_config = Config
 module Index = Pack_index
 
-exception Unsupported_version = Store.Unsupported_version
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
+let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
-let () =
-  Printexc.register_printer (function
-    | Unsupported_version v ->
-        Some (Fmt.str "Irmin_pack.Unsupported_version(%a)" Version.pp v)
-    | _ -> None)
-
+module Log = (val Logs.src_log src : Logs.LOG)
 module I = IO
 module IO = IO.Unix
 
@@ -189,11 +183,12 @@ struct
         Lwt.catch
           (fun () -> unsafe_v config)
           (function
-            | Version.Invalid { expected; found } when expected = V.version ->
+            | Version.Invalid { expected; found } as e when expected = V.version
+              ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
                       (Pack_config.root config) Version.pp found);
-                Lwt.fail (Unsupported_version found)
+                Lwt.fail e
             | e -> Lwt.fail e)
 
       (** Stores share instances in memory, one sync is enough. However each
@@ -287,7 +282,7 @@ struct
           read_buffer Int63.zero
 
         let reconstruct ?output config =
-          if Pack_config.readonly config then raise RO_Not_Allowed;
+          if Pack_config.readonly config then raise S.RO_not_allowed;
           Log.info (fun l ->
               l "[%s] reconstructing index" (Pack_config.root config));
           let root = Pack_config.root config in

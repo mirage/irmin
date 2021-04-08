@@ -41,8 +41,7 @@ val config :
     blocks any new writes until the merge is completed. [Overcommit_memory] does
     not block but indefinitely expands the in-memory cache. *)
 
-exception RO_Not_Allowed
-exception Unsupported_version of Version.t
+exception RO_not_allowed
 
 module Make_ext
     (_ : Version.S)

@@ -28,9 +28,6 @@ module V = struct
   let version = `V2
 end
 
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-exception Unsupported_version = Store.Unsupported_version
-
 let cache_size = 10_000
 
 exception Cancelled
@@ -301,11 +298,12 @@ struct
         Lwt.catch
           (fun () -> v root config)
           (function
-            | Version.Invalid { expected; found } when expected = V.version ->
+            | Version.Invalid { expected; found } as e when expected = V.version
+              ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
                       root Version.pp found);
-                Lwt.fail (Unsupported_version found)
+                Lwt.fail e
             | e -> Lwt.fail e)
 
       let freeze_info throttle =
@@ -431,7 +429,7 @@ struct
           on disk. As migration fails on an empty store, we check which layer is
           in the wrong version. *)
       let migrate config =
-        if Pack_config.readonly config then raise RO_Not_Allowed;
+        if Pack_config.readonly config then raise RO_not_allowed;
         let root = Pack_config.root config in
         Config_layered.[ upper_root1; upper_root0; lower_root ]
         |> List.map (fun name ->
@@ -861,7 +859,7 @@ struct
       unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
-    else if t.readonly then raise RO_Not_Allowed
+    else if t.readonly then raise RO_not_allowed
     else
       match (t.freeze.state, t.freeze.throttle) with
       | `Running, `Overcommit_memory -> Lwt.return ()

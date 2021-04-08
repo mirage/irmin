@@ -38,3 +38,11 @@ let invalid_arg v =
 let of_bin b =
   try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
   with Not_found -> None
+
+let () =
+  Printexc.register_printer (function
+    | Invalid v ->
+        Some
+          (Fmt.str "Irmin_pack.Version.Invalid { expected:%a; found:%a }" pp
+             v.expected pp v.found)
+    | _ -> None)
