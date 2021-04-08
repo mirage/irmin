@@ -24,7 +24,7 @@ module Make (K : Irmin.Hash.S) = struct
     let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
     let hash_size = 30
     let equal = Irmin.Type.(unstage (equal K.t))
-    let encode = Irmin.Type.(unstage (to_bin_string K.t))
+    let encode = Irmin.Type.(unstage (encode_bin K.t))
     let encoded_size = K.hash_size
     let decode_bin = Irmin.Type.(unstage (decode_bin K.t))
 
@@ -36,10 +36,8 @@ module Make (K : Irmin.Hash.S) = struct
   module Val = struct
     type t = int63 * int * char [@@deriving irmin]
 
-    let to_bin_string =
-      Irmin.Type.(unstage (to_bin_string (triple int63_t int32 char)))
-
-    let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
+    let encode =
+      Irmin.Type.(unstage (encode_bin t))
 
     let decode_bin =
       Irmin.Type.(unstage (decode_bin (triple int63_t int32 char)))
