@@ -213,7 +213,7 @@ module Bootstrap_trace = struct
 
       A chopped hash has this form {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v} and is
       flattened to that form {v [0-9a-f]{40} v}. *)
-  let flatten_key_even_more key =
+  let flatten_v0 key =
     let rec aux rev_prefix suffix =
       match suffix with
       | a :: b :: c :: d :: e :: f :: tl
@@ -242,7 +242,7 @@ module Bootstrap_trace = struct
 
       Tezos' PR introducing this flattening:
       https://gitlab.com/tezos/tezos/-/merge_requests/2771 *)
-  let flatten_key = function
+  let flatten_v1 = function
     | "data" :: "contracts" :: "index" :: a :: b :: c :: d :: e :: f :: tl
       when all_6_2char_hex a b c d e f -> (
         match tl with
@@ -286,9 +286,9 @@ module Bootstrap_trace = struct
     let flatten_path =
       match path_conversion with
       | `None -> Fun.id
-      | `V1 -> flatten_key
-      | `V0 -> flatten_key_even_more
-      | `V0_and_v1 -> fun p -> flatten_key p |> flatten_key_even_more
+      | `V1 -> flatten_v1
+      | `V0 -> flatten_v0
+      | `V0_and_v1 -> fun p -> flatten_v1 p |> flatten_v0
     in
     let rec aux (ops_seq, commits_sent, ops) =
       if commits_sent >= max_ncommits then None
