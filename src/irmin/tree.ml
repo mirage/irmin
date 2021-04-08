@@ -1128,11 +1128,22 @@ module Make (P : Private.S) = struct
     else
       match (x, y) with
       | `Node x, `Node y -> Node.maybe_equal x y
-      | `Contents x, `Contents y -> if contents_equal x y then True else False
-      | _ -> False
+      | _ -> if equal x y then True else False
 
-  let update_tree root_tree path f =
+  let update_tree ~f_might_return_empty_node ~f root_tree path =
     let empty_node = empty_node root_tree in
+    (* User-introduced empty nodes will be removed immediately if necessary. *)
+    let prune_empty : node -> bool Lwt.t =
+      if not f_might_return_empty_node then Fun.const (Lwt.return false)
+      else fun n ->
+        Node.is_empty n >|= function
+        | Ok true -> true
+        | Ok false -> false
+        | Error (`Dangling_hash _) ->
+            (* NOTE: this case permits adding an empty directory by first adding
+               its shallow hash and then importing the subtree. *)
+            false
+    in
     match Path.rdecons path with
     | None -> (
         let* empty_tree =
@@ -1146,10 +1157,14 @@ module Make (P : Private.S) = struct
            sensitivity to ordering of subtree operations: updating in a subtree
            and adding the subtree are not necessarily commutative. *)
         | None -> Lwt.return empty_tree
-        | Some new_root -> (
+        | Some (`Node _ as new_root) -> (
             match maybe_equal root_tree new_root with
             | True -> Lwt.return root_tree
-            | Maybe | False -> Lwt.return new_root))
+            | Maybe | False -> Lwt.return new_root)
+        | Some (`Contents c' as new_root) -> (
+            match root_tree with
+            | `Contents c when contents_equal c c' -> Lwt.return root_tree
+            | _ -> Lwt.return new_root))
     | Some (path, file) -> (
         let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
          fun path parent_node k ->
@@ -1161,12 +1176,24 @@ module Make (P : Private.S) = struct
               let* new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
-              | None, Some t -> with_new_child t
+              | None, Some (`Contents _ as t) -> with_new_child t
+              | None, Some (`Node n as t) -> (
+                  prune_empty n >>= function
+                  | true -> k Unchanged
+                  | false -> with_new_child t)
               | Some _, None -> Node.remove parent_node file >>= changed
-              | Some old_value, Some new_value -> (
-                  match maybe_equal old_value new_value with
-                  | True -> k Unchanged
-                  | Maybe | False -> with_new_child new_value))
+              | Some old_value, Some (`Node n as t) -> (
+                  prune_empty n >>= function
+                  | true -> Node.remove parent_node file >>= changed
+                  | false -> (
+                      match maybe_equal old_value t with
+                      | True -> k Unchanged
+                      | Maybe | False -> with_new_child t))
+              | Some (`Contents c), Some (`Contents c' as t) -> (
+                  match contents_equal c c' with
+                  | true -> k Unchanged
+                  | false -> with_new_child t)
+              | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) -> (
               let* old_binding = Node.findv parent_node step in
               let to_recurse =
@@ -1197,7 +1224,7 @@ module Make (P : Private.S) = struct
 
   let update t k ?(metadata = Metadata.default) f =
     Log.debug (fun l -> l "Tree.update %a" pp_path k);
-    update_tree t k (fun t ->
+    update_tree t k ~f_might_return_empty_node:false ~f:(fun t ->
         let+ old_contents =
           match t with
           | Some (`Node _) | None -> Lwt.return_none
@@ -1211,20 +1238,25 @@ module Make (P : Private.S) = struct
 
   let add t k ?(metadata = Metadata.default) c =
     Log.debug (fun l -> l "Tree.add %a" pp_path k);
-    update_tree t k (fun _ ->
-        Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+      ~f_might_return_empty_node:false
 
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
-    update_tree t k (fun _ -> Lwt.return_some v)
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_some v)
+      ~f_might_return_empty_node:true
 
   let remove t k =
     Log.debug (fun l -> l "Tree.remove %a" pp_path k);
-    update_tree t k (fun _ -> Lwt.return_none)
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_none)
+      ~f_might_return_empty_node:false
 
   let update_tree t k f =
     Log.debug (fun l -> l "Tree.update_tree %a" pp_path k);
-    update_tree t k (Lwt.wrap1 f)
+    update_tree t k ~f:(Lwt.wrap1 f) ~f_might_return_empty_node:true
 
   let import repo = function
     | `Contents (k, m) -> (
