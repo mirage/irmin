@@ -32,6 +32,7 @@ depends: [
   "git-unix"   {with-test}
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}
+  "x509" {= "0.11.2"}
 ]
 
 synopsis: "Git backend for Irmin"
@@ -50,6 +51,4 @@ pin-depends: [
   [ "carton-git.dev"        "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
   [ "carton-lwt.dev"        "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
   [ "mimic.dev"             "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
-  [ "awa.dev"               "git+https://github.com/mirage/awa-ssh.git#ed0b653c635041387740b0452d6eeccf8360ac4a" ]
-  [ "awa-mirage.dev"        "git+https://github.com/mirage/awa-ssh.git#ed0b653c635041387740b0452d6eeccf8360ac4a" ]
 ]
