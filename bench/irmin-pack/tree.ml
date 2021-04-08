@@ -25,7 +25,7 @@ type config = {
   width : int;
   nlarge_trees : int;
   root : string;
-  flatten : bool;
+  path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
   store_type : [ `Pack | `Pack_layered ];
   freeze_commit : int;
@@ -49,6 +49,12 @@ let pp_inode_config ppf (entries, stable_hash) =
 let pp_store_type ppf = function
   | `Pack -> Format.fprintf ppf "[pack store]"
   | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
+
+let pp_path_conversion ppf = function
+  | `None -> Format.fprintf ppf "[none]"
+  | `V0 -> Format.fprintf ppf "[v0]"
+  | `V1 -> Format.fprintf ppf "[v1]"
+  | `V0_and_v1 -> Format.fprintf ppf "[v0+v1]"
 
 let decoded_seq_of_encoded_chan_with_prefixes :
     'a Repr.ty -> in_channel -> 'a Seq.t =
@@ -200,60 +206,106 @@ module Bootstrap_trace = struct
     if String.length s <> 2 then false
     else s |> String.to_seq |> List.of_seq |> List.for_all is_hex_char
 
+  let all_6_2char_hex a b c d e f =
+    is_2char_hex a
+    && is_2char_hex b
+    && is_2char_hex c
+    && is_2char_hex d
+    && is_2char_hex e
+    && is_2char_hex f
+
   let is_30char_hex s =
     if String.length s <> 30 then false
     else s |> String.to_seq |> List.of_seq |> List.for_all is_hex_char
 
-  let rec flatten_key_suffix = function
-    | a :: b :: c :: d :: e :: f :: tl
-      when is_2char_hex a
-           && is_2char_hex b
-           && is_2char_hex c
-           && is_2char_hex d
-           && is_2char_hex e
-           && is_30char_hex f ->
-        (a ^ b ^ c ^ d ^ e ^ f) :: flatten_key_suffix tl
-    | hd :: tl -> hd :: flatten_key_suffix tl
-    | [] -> []
-
   (** This function flattens all the 6 step-long chunks forming 40 byte-long
-      hashes to a single step. Those flattenings are performed during the trace
-      replay, i.e. they count in the total time.
+      hashes to a single step.
+
+      Those flattenings are performed during the trace replay, i.e. they count
+      in the total time.
+
+      If a path contains 2 or more of those patterns, only the leftmost one is
+      converted.
+
+      A chopped hash has this form {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v} and is
+      flattened to that form {v [0-9a-f]{40} v}. *)
+  let flatten_v0 key =
+    let rec aux rev_prefix suffix =
+      match suffix with
+      | a :: b :: c :: d :: e :: f :: tl
+        when is_2char_hex a
+             && is_2char_hex b
+             && is_2char_hex c
+             && is_2char_hex d
+             && is_2char_hex e
+             && is_30char_hex f ->
+          let prefix = List.rev rev_prefix in
+          let mid = a ^ b ^ c ^ d ^ e ^ f in
+          prefix @ [ mid ] @ tl
+      | hd :: tl -> aux (hd :: rev_prefix) tl
+      | [] -> List.rev rev_prefix
+    in
+    aux [] key
+
+  (** This function removes from the paths all the 6 step-long hashes of this
+      form {v ([0-9a-f]{2}/){6} v}.
+
+      Those flattenings are performed during the trace replay, i.e. they count
+      in the total time.
 
       The paths in tezos:
       https://www.dailambda.jp/blog/2020-05-11-plebeia/#tezos-path
 
-      A chopped hash has this form:
+      Tezos' PR introducing this flattening:
+      https://gitlab.com/tezos/tezos/-/merge_requests/2771 *)
+  let flatten_v1 = function
+    | "data" :: "contracts" :: "index" :: a :: b :: c :: d :: e :: f :: tl
+      when all_6_2char_hex a b c d e f -> (
+        match tl with
+        | hd :: "delegated" :: a :: b :: c :: d :: e :: f :: tl
+          when all_6_2char_hex a b c d e f ->
+            "data" :: "contracts" :: "index" :: hd :: "delegated" :: tl
+        | _ -> "data" :: "contracts" :: "index" :: tl)
+    | "data" :: "big_maps" :: "index" :: a :: b :: c :: d :: e :: f :: tl
+      when all_6_2char_hex a b c d e f ->
+        "data" :: "big_maps" :: "index" :: tl
+    | "data" :: "rolls" :: "index" :: _ :: _ :: tl ->
+        "data" :: "rolls" :: "index" :: tl
+    | "data" :: "rolls" :: "owner" :: "current" :: _ :: _ :: tl ->
+        "data" :: "rolls" :: "owner" :: "current" :: tl
+    | "data" :: "rolls" :: "owner" :: "snapshot" :: a :: b :: _ :: _ :: tl ->
+        "data" :: "rolls" :: "owner" :: "snapshot" :: a :: b :: tl
+    | l -> l
 
-      {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v}
-
-      and is flattened to that form:
-
-      {v [0-9a-f]{40} v} *)
-  let flatten_key = flatten_key_suffix
-
-  let flatten_op = function
+  let flatten_op ~flatten_path = function
     | Checkout _ as op -> op
-    | Add op -> Add { op with key = flatten_key op.key }
+    | Add op -> Add { op with key = flatten_path op.key }
     | Remove (keys, in_ctx_id, out_ctx_id) ->
-        Remove (flatten_key keys, in_ctx_id, out_ctx_id)
+        Remove (flatten_path keys, in_ctx_id, out_ctx_id)
     | Copy op ->
         Copy
           {
             op with
-            key_src = flatten_key op.key_src;
-            key_dst = flatten_key op.key_dst;
+            key_src = flatten_path op.key_src;
+            key_dst = flatten_path op.key_dst;
           }
-    | Find (keys, b, ctx) -> Find (flatten_key keys, b, ctx)
-    | Mem (keys, b, ctx) -> Mem (flatten_key keys, b, ctx)
-    | Mem_tree (keys, b, ctx) -> Mem_tree (flatten_key keys, b, ctx)
+    | Find (keys, b, ctx) -> Find (flatten_path keys, b, ctx)
+    | Mem (keys, b, ctx) -> Mem (flatten_path keys, b, ctx)
+    | Mem_tree (keys, b, ctx) -> Mem_tree (flatten_path keys, b, ctx)
     | Commit _ as op -> op
 
   let open_ops_sequence path : op Seq.t =
     let chan = open_in_bin path in
     decoded_seq_of_encoded_chan_with_prefixes op_t chan
 
-  let open_commit_sequence max_ncommits flatten path : op list Seq.t =
+  let open_commit_sequence max_ncommits path_conversion path : op list Seq.t =
+    let flatten_path =
+      match path_conversion with
+      | `None -> Fun.id
+      | `V1 -> flatten_v1
+      | `V0 -> flatten_v0
+      | `V0_and_v1 -> fun p -> flatten_v1 p |> flatten_v0
+    in
     let rec aux (ops_seq, commits_sent, ops) =
       if commits_sent >= max_ncommits then None
       else
@@ -263,7 +315,7 @@ module Bootstrap_trace = struct
             let ops = op :: ops |> List.rev in
             Some (ops, (ops_seq, commits_sent + 1, []))
         | Cons (op, ops_seq) ->
-            let op = if flatten then flatten_op op else op in
+            let op = flatten_op ~flatten_path op in
             aux (ops_seq, commits_sent, op :: ops)
     in
     let ops_seq = open_ops_sequence path in
@@ -493,8 +545,13 @@ module Generate_trees_from_trace (Store : Store) = struct
   }
 
   let pp_stats ppf
-      (summary, as_json, flatten, inode_config, store_type, elapsed_cpu, elapsed)
-      =
+      ( summary,
+        as_json,
+        path_conversion,
+        inode_config,
+        store_type,
+        elapsed_cpu,
+        elapsed ) =
     let stat_entry_t = Bootstrap_trace.Stats.stat_entry_t in
     let op_tags = Bootstrap_trace.Stats.op_tags in
     let mean histo =
@@ -549,18 +606,17 @@ module Generate_trees_from_trace (Store : Store) = struct
     in
     if as_json then
       Fmt.pf ppf
-        "{\"revision\":\"%s\", \"flatten\":%d, \"inode_config\":\"%a\", \
-         \"store_type\":\"%a\", \"elapsed_cpu\":\"%f\", \"elapsed\":\"%f\",@\n\
+        "{\"revision\":\"%s\", \"path_conversion\":%a, \
+         \"inode_config\":\"%a\", \"store_type\":\"%a\", \
+         \"elapsed_cpu\":\"%f\", \"elapsed\":\"%f\",@\n\
          \"max_durations\":{\n\
          %a},\n\
          \"moving_average_points\":{\n\
          %a},\n\
          \"histo_points\":{\n\
          %a}}"
-        "missing"
-        (if flatten then 1 else 0)
-        pp_inode_config inode_config pp_store_type store_type elapsed_cpu
-        elapsed
+        "missing" pp_path_conversion path_conversion pp_inode_config
+        inode_config pp_store_type store_type elapsed_cpu elapsed
         Fmt.(list ~sep:(any ",@\n") pp_max)
         op_tags
         Fmt.(list ~sep:(any ",@\n") pp_moving_average)
@@ -844,11 +900,13 @@ module Bench_suite (Store : Store) = struct
 
   let run_read_trace config stats =
     let commit_seq =
-      Bootstrap_trace.open_commit_sequence config.ncommits_trace config.flatten
-        config.commit_data_file
+      Bootstrap_trace.open_commit_sequence config.ncommits_trace
+        config.path_conversion config.commit_data_file
     in
     let* repo, on_commit, on_end, repo_pp = Store.create_repo config in
-    let check_hash = (not config.flatten) && config.inode_config = (32, 256) in
+    let check_hash =
+      config.path_conversion = `None && config.inode_config = (32, 256)
+    in
 
     let t0_cpu = Sys.time () in
     let t0 = Mtime_clock.counter () in
@@ -875,7 +933,7 @@ module Bench_suite (Store : Store) = struct
       "%a%!" Trees_trace.pp_stats
       ( stats,
         true,
-        config.flatten,
+        config.path_conversion,
         config.inode_config,
         config.store_type,
         elapsed_cpu,
@@ -894,7 +952,7 @@ module Bench_suite (Store : Store) = struct
         repo_pp Trees_trace.pp_stats
         ( stats,
           false,
-          config.flatten,
+          config.path_conversion,
           config.inode_config,
           config.store_type,
           elapsed_cpu,
@@ -1105,8 +1163,8 @@ let get_suite suite_filter =
     suite
 
 let main () ncommits ncommits_trace suite_filter inode_config store_type
-    freeze_commit flatten depth width nchain_trees nlarge_trees commit_data_file
-    results_dir =
+    freeze_commit path_conversion depth width nchain_trees nlarge_trees
+    commit_data_file results_dir =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let ncommits_trace = Option.value ~default ncommits_trace in
   let config =
@@ -1114,7 +1172,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
       ncommits;
       ncommits_trace;
       root = "test-bench";
-      flatten;
+      path_conversion;
       depth;
       width;
       nchain_trees;
@@ -1167,11 +1225,12 @@ let freeze_commit =
   in
   Arg.(value @@ opt int 1664 doc)
 
-let flatten =
-  let doc =
-    Arg.info ~doc:"Flatten the paths in the trace benchmarks" [ "flatten" ]
+let path_conversion =
+  let mode =
+    [ ("none", `None); ("v0", `V0); ("v1", `V1); ("v0+v1", `V0_and_v1) ]
   in
-  Arg.(value @@ flag doc)
+  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "p"; "path_conversion" ] in
+  Arg.(value @@ opt (Arg.enum mode) `None doc)
 
 let ncommits =
   let doc =
@@ -1238,7 +1297,7 @@ let main_term =
     $ inode_config
     $ store_type
     $ freeze_commit
-    $ flatten
+    $ path_conversion
     $ depth
     $ width
     $ nchain_trees
