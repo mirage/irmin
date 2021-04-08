@@ -39,3 +39,17 @@ description: """
 `Irmin_git` expose a bi-directional bridge between Git repositories and
 Irmin stores.
 """
+
+pin-depends: [
+  [ "git.dev"               "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "git-cohttp.dev"        "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "git-cohttp-mirage.dev" "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "git-cohttp-unix.dev"   "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "git-unix.dev"          "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "carton.dev"            "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "carton-git.dev"        "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "carton-lwt.dev"        "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "mimic.dev"             "git+https://github.com/mirage/ocaml-git.git#345b28ff2c5857c9090ea22b6a19417b529ef444" ]
+  [ "awa.dev"               "git+https://github.com/mirage/awa-ssh.git#ed0b653c635041387740b0452d6eeccf8360ac4a" ]
+  [ "awa-mirage.dev"        "git+https://github.com/mirage/awa-ssh.git#ed0b653c635041387740b0452d6eeccf8360ac4a" ]
+]
