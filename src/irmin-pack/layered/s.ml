@@ -150,7 +150,7 @@ module type Layered_pack_maker = sig
   type key
   type index
 
-  module Make (V : ELT with type hash := key) :
+  module Make (V : Value with type hash := key) :
     Layered_pack
       with type key = key
        and type value = V.t

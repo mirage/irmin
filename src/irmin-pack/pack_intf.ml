@@ -17,7 +17,7 @@
 open! Import
 module Sigs = S
 
-module type ELT = sig
+module type Value = sig
   include Irmin.Type.S
 
   type hash
@@ -90,12 +90,12 @@ module type Maker = sig
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
-  module Make (V : ELT with type hash := key) :
+  module Make (V : Value with type hash := key) :
     S with type key = key and type value = V.t and type index = index
 end
 
 module type Sigs = sig
-  module type ELT = ELT
+  module type Value = Value
   module type S = S
   module type Maker = Maker
 

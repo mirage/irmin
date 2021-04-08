@@ -326,7 +326,7 @@ struct
   type index = P.index
   type key = P.key
 
-  module Make (V : Pack.ELT with type hash := key) = struct
+  module Make (V : Pack.Value with type hash := key) = struct
     module Upper = P.Make (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end

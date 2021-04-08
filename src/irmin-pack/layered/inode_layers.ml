@@ -28,9 +28,9 @@ module Make
 struct
   type index = Pack_maker.index
 
-  module Inter = Inode.Make_intermediate (Conf) (H) (Node)
-  module P = Pack_maker.Make (Inter.Elt)
-  module Val = Inter.Val
+  module Internal = Inode.Make_internal (Conf) (H) (Node)
+  module P = Pack_maker.Make (Internal.Raw)
+  module Val = Internal.Val
   module Key = H
 
   type 'a t = 'a P.t
@@ -45,17 +45,17 @@ struct
     | None -> None
     | Some v ->
         let find = unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let v = Val.of_raw find v in
         Some v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Val.hash v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
-        expected Inter.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Internal.pp_hash
+        expected Internal.pp_hash got
 
   let batch = P.batch
   let v = P.v
@@ -67,7 +67,7 @@ struct
 
   let save t v =
     let add k v = P.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
-    Inter.Val.save ~add ~mem:(P.unsafe_mem t) v
+    Val.save ~add ~mem:(P.unsafe_mem t) v
 
   let add t v =
     save t v;
@@ -109,7 +109,7 @@ struct
   let check = P.check
 
   let decode_bin ~dict ~hash buff off =
-    Inter.decode_bin ~dict ~hash buff off |> fst
+    Internal.decode_raw ~dict ~hash buff off |> fst
 
   let integrity_check_inodes _ _ = failwith "TODO"
 end
