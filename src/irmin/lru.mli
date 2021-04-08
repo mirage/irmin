@@ -1,4 +1,7 @@
-(* Permission to use, copy, modify, and/or distribute this software for any
+(*
+   Copyright (c) 2016 David Kaloper Meršinjak
+
+   Permission to use, copy, modify, and/or distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
    copyright notice and this permission notice appear in all copies.
 
@@ -10,8 +13,7 @@
    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
 
-(* Extracted from https://github.com/pqwy/lru
-   Copyright (c) 2016 David Kaloper Meršinjak *)
+(* Extracted from https://github.com/pqwy/lru *)
 
 module Make (H : Hashtbl.HashedType) : sig
   type 'a t
