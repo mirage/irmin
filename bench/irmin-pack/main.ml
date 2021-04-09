@@ -16,12 +16,20 @@
 
 let config ~root = Irmin_pack.config ~fresh:false root
 
+module V2 = struct
+  let version = `V2
+end
+
 module Config = struct
   let entries = 2
   let stable_hash = 3
 end
 
-module KV = Irmin_pack.KV (Config) (Irmin.Contents.String)
+module KV = struct
+  module Maker = Irmin_pack.KV (V2) (Config)
+  include Maker.Make (Irmin.Contents.String)
+end
+
 module Bench = Irmin_bench.Make (KV)
 
 let file f =

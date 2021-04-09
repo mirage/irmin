@@ -48,7 +48,7 @@ module FS : sig
   module Atomic_write : Irmin.Atomic_write.Maker
   (** Atomic-write store maker. *)
 
-  module Make : Irmin.Maker
+  include Irmin.Maker
   (** Irmin store maker. *)
 
   module KV : Irmin.KV_maker
@@ -62,112 +62,23 @@ module FS : sig
   module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
 
   (** Irmin store maker, with control over the filename shapes. *)
-  module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
+  module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
 end
 
 (** Bidirectional Git backends. *)
 module Git : sig
   (** {1 Git Store} *)
 
-  module type S = sig
-    include
-      Irmin_git.S
-        with type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  include Xgit_intf.Sigs
+  (** @inline *)
 
-    val remote :
-      ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
-  end
+  module Maker (G : Irmin_git.G) : Backend with module G = G
 
-  module Make
-      (G : Irmin_git.G)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S) :
-    S
-      with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and module Git = G
-
-  module KV (G : Irmin_git.G) (C : Irmin.Contents.S) :
-    S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
-
-  module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) :
-    S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = Irmin_git.reference
-       and module Git = G
-
+  module FS : Backend with module G = Git_unix.Store
   (** Embed an Irmin store into a local Git repository. *)
-  module FS : sig
-    module G : Irmin_git.G
 
-    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
-      S
-        with type key = P.t
-         and type step = P.step
-         and module Key = P
-         and type contents = C.t
-         and type branch = B.t
-         and module Git = G
-
-    module Ref (C : Irmin.Contents.S) :
-      S
-        with type key = string list
-         and type step = string
-         and type contents = C.t
-         and type branch = Irmin_git.reference
-         and module Git = G
-
-    module KV (C : Irmin.Contents.S) :
-      S
-        with type key = Irmin.Path.String_list.t
-         and type step = string
-         and module Key = Irmin.Path.String_list
-         and type contents = C.t
-         and type branch = string
-         and module Git = G
-  end
-
+  module Mem : Backend with module G = Irmin_git.Mem
   (** Embed an Irmin store into an in-memory Git repository. *)
-  module Mem : sig
-    module G : Irmin_git.G
-
-    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
-      S
-        with type key = P.t
-         and type step = P.step
-         and module Key = P
-         and type contents = C.t
-         and type branch = B.t
-         and module Git = G
-
-    module Ref (C : Irmin.Contents.S) :
-      S
-        with type key = string list
-         and type step = string
-         and type contents = C.t
-         and type branch = Irmin_git.reference
-         and module Git = G
-
-    module KV (C : Irmin.Contents.S) :
-      S
-        with type key = Irmin.Path.String_list.t
-         and type step = string
-         and module Key = Irmin.Path.String_list
-         and type contents = C.t
-         and type branch = string
-         and module Git = G
-  end
 end
 
 (** REST (over HTTP) backend.. *)

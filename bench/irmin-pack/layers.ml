@@ -44,9 +44,10 @@ module Contents = struct
   let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
 end
 
+module Maker = Irmin_pack_layered.Maker (Conf)
+
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Contents)
-    (Irmin.Path.String_list)
+  Maker.Make (Irmin.Metadata.None) (Contents) (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 

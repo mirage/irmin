@@ -29,12 +29,8 @@ module Append_only : Irmin.Append_only.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
 (** An in-memory store with atomic-write guarantees. *)
 
-module Make : Irmin.Maker
-(** Constructor for in-memory Irmin store. *)
-
+module KV : Irmin.KV_maker with type metadata = unit
 (** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_maker}. *)
-module KV (C : Irmin.Contents.S) :
-  Irmin.KV
-    with type contents = C.t
-     and type metadata = unit
-     and type Private.Remote.endpoint = unit
+
+include Irmin.Maker
+(** Constructor for in-memory Irmin store. *)

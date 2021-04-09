@@ -48,7 +48,8 @@ module type X =
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module S = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
+  module M = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix))
+  module S = M.Make (C)
   include S
 
   let init () =
@@ -59,7 +60,8 @@ end
 
 module Generic (C : Irmin.Contents.S) = struct
   module CA = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
-  include Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write) (C)
+  module M = Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write)
+  include M.Make (C)
 
   let init () =
     let* repo = Repo.v config in
@@ -139,11 +141,10 @@ let test_sort_order (module S : S) =
   Alcotest.(check (list string)) "Sort order" [ "foo"; "foo.c"; "foo1" ] items;
   Lwt.return_unit
 
-module Ref (S : Irmin_git.G) =
-  Irmin_git.Ref
-    (S)
-    (Git_unix.Sync (S) (Git_cohttp_unix))
-    (Irmin.Contents.String)
+module Ref (S : Irmin_git.G) = struct
+  module M = Irmin_git.Ref (S) (Git_unix.Sync (S) (Git_cohttp_unix))
+  include M.Make (Irmin.Contents.String)
+end
 
 let pp_reference ppf = function
   | `Branch s -> Fmt.pf ppf "branch: %s" s

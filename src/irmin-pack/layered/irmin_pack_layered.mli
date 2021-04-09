@@ -40,40 +40,40 @@ module type S = sig
   (** @inline *)
 end
 
-module Make_ext
+module Maker_ext
     (Config : Irmin_pack.Config.S)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
-  S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
+    (N : Irmin.Private.Node.S)
+    (CT : Irmin.Private.Commit.S with type hash = N.hash) : sig
+  module Make
+      (Metadata : Irmin.Metadata.S with type t = N.metadata)
+      (Contents : Irmin.Contents.S)
+      (Path : Irmin.Path.S with type step = N.step)
+      (Branch : Irmin.Branch.S)
+      (Hash : Irmin.Hash.S with type t = N.hash) :
+    S
+      with type key = Path.t
+       and type contents = Contents.t
+       and type branch = Branch.t
+       and type hash = Hash.t
+       and type step = Path.step
+       and type metadata = Metadata.t
+       and type Key.step = Path.step
+end
 
-module Make
-    (Config : Irmin_pack.Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) :
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+module Maker (Config : Irmin_pack.Config.S) : sig
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) :
+    S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+end
 
 module Checks = Checks

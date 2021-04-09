@@ -897,21 +897,22 @@ module type S = sig
       (it is by default), the tree cache will be cleared after the save. *)
 end
 
-module type Maker = functor
-  (M : Metadata.S)
-  (C : Contents.S)
-  (P : Path.S)
-  (B : Branch.S)
-  (H : Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
-     and type Private.Remote.endpoint = unit
+module type Maker = sig
+  module Make
+      (M : Metadata.S)
+      (C : Contents.S)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) :
+    S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Private.Remote.endpoint = unit
+end
 
 module type Json_tree = functor
   (Store : S with type contents = Contents.json)

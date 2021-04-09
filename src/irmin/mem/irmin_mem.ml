@@ -56,91 +56,100 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Lwt.return (KMap.mem key t)
 end
 
-module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-  include Read_only (K) (V)
+module Append_only = struct
+  module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+    include Read_only (K) (V)
 
-  let add t key value =
-    Log.debug (fun f -> f "add -> %a" pp_key key);
-    t.t <- KMap.add key value t.t;
-    Lwt.return_unit
+    let add t key value =
+      Log.debug (fun f -> f "add -> %a" pp_key key);
+      t.t <- KMap.add key value t.t;
+      Lwt.return_unit
+  end
 end
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-  module RO = Read_only (K) (V)
-  module W = Irmin.Private.Watch.Make (K) (V)
-  module L = Irmin.Private.Lock.Make (K)
+module Atomic_write = struct
+  module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+    module RO = Read_only (K) (V)
+    module W = Irmin.Private.Watch.Make (K) (V)
+    module L = Irmin.Private.Lock.Make (K)
 
-  type t = { t : unit RO.t; w : W.t; lock : L.t }
-  type key = RO.key
-  type value = RO.value
-  type watch = W.watch
+    type t = { t : unit RO.t; w : W.t; lock : L.t }
+    type key = RO.key
+    type value = RO.value
+    type watch = W.watch
 
-  let watches = W.v ()
-  let lock = L.v ()
+    let watches = W.v ()
+    let lock = L.v ()
 
-  let v config =
-    let* t = RO.v config in
-    Lwt.return { t; w = watches; lock }
+    let v config =
+      let* t = RO.v config in
+      Lwt.return { t; w = watches; lock }
 
-  let close t = W.clear t.w >>= fun () -> RO.close t.t
-  let find t = RO.find t.t
-  let mem t = RO.mem t.t
-  let watch_key t = W.watch_key t.w
-  let watch t = W.watch t.w
-  let unwatch t = W.unwatch t.w
+    let close t = W.clear t.w >>= fun () -> RO.close t.t
+    let find t = RO.find t.t
+    let mem t = RO.mem t.t
+    let watch_key t = W.watch_key t.w
+    let watch t = W.watch t.w
+    let unwatch t = W.unwatch t.w
 
-  let list t =
-    Log.debug (fun f -> f "list");
-    RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> Lwt.return
+    let list t =
+      Log.debug (fun f -> f "list");
+      RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> Lwt.return
 
-  let set t key value =
-    Log.debug (fun f -> f "update");
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-          Lwt.return_unit)
-    in
-    W.notify t.w key (Some value)
+    let set t key value =
+      Log.debug (fun f -> f "update");
+      let* () =
+        L.with_lock t.lock key (fun () ->
+            t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
+            Lwt.return_unit)
+      in
+      W.notify t.w key (Some value)
 
-  let remove t key =
-    Log.debug (fun f -> f "remove");
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-          Lwt.return_unit)
-    in
-    W.notify t.w key None
+    let remove t key =
+      Log.debug (fun f -> f "remove");
+      let* () =
+        L.with_lock t.lock key (fun () ->
+            t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
+            Lwt.return_unit)
+      in
+      W.notify t.w key None
 
-  let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
+    let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
 
-  let test_and_set t key ~test ~set =
-    Log.debug (fun f -> f "test_and_set");
-    let* updated =
-      L.with_lock t.lock key (fun () ->
-          let+ v = find t key in
-          if equal_v_opt test v then
-            let () =
-              match set with
-              | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
-              | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
-            in
-            true
-          else false)
-    in
-    let+ () = if updated then W.notify t.w key set else Lwt.return_unit in
-    updated
+    let test_and_set t key ~test ~set =
+      Log.debug (fun f -> f "test_and_set");
+      let* updated =
+        L.with_lock t.lock key (fun () ->
+            let+ v = find t key in
+            if equal_v_opt test v then
+              let () =
+                match set with
+                | None -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
+                | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
+              in
+              true
+            else false)
+      in
+      let+ () = if updated then W.notify t.w key set else Lwt.return_unit in
+      updated
 
-  let clear t = W.clear t.w >>= fun () -> RO.clear t.t
+    let clear t = W.clear t.w >>= fun () -> RO.clear t.t
+  end
 end
 
 let config () = Irmin.Private.Conf.empty
 
 module CA = Irmin.Content_addressable.Make (Append_only)
-module Make = Irmin.Make (CA) (Atomic_write)
+include Irmin.Maker (CA) (Atomic_write)
 
-module KV (C : Irmin.Contents.S) =
-  Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
-    (Irmin.Hash.BLAKE2B)
+module KV = struct
+  type metadata = unit
+
+  module Make (C : Irmin.Contents.S) =
+    Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Irmin.Hash.BLAKE2B)
+end
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
 module KV_is_a_KV_maker : Irmin.KV_maker = KV

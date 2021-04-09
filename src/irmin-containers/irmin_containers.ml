@@ -34,13 +34,11 @@ module Linked_log = Linked_log
 
 (** {1 Auxiliary signatures and modules} *)
 
-module type Store_maker = Stores.Store_maker
-
 (** [Store_maker] is the signature for the backend input to the data structures.
     The Irmin stores of the data structures are constructed using modules of
     this type *)
 
-module type Cas_maker = Stores.Cas_maker
+module type Content_addressable = Stores.Content_addressable
 
 (** [Cas_maker] is the signature for the store which will be used to maintain
     linked data structures. The elements are hashed into this store and the hash

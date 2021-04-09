@@ -31,7 +31,7 @@ module Store_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
 end
 
 module Linked_log
-    (C : Stores.Cas_maker)
+    (C : Stores.Content_addressable)
     (T : Time.S)
     (K : Irmin.Hash.S)
     (V : Irmin.Type.S) =
@@ -42,7 +42,7 @@ struct
   module S = Store_item (T) (K) (V)
 
   module Store = struct
-    module CAS = C.CAS_maker (K) (Store_item (T) (K) (V))
+    module CAS = C.Make (K) (Store_item (T) (K) (V))
 
     let get_store =
       let st = CAS.v @@ C.config in
@@ -96,15 +96,14 @@ module type S = sig
 end
 
 module Make
-    (Backend : Stores.Store_maker)
-    (C : Stores.Cas_maker)
+    (Backend : Irmin.KV_maker)
+    (C : Stores.Content_addressable)
     (T : Time.S)
     (K : Irmin.Hash.S)
-    (V : Irmin.Type.S)
-    () =
+    (V : Irmin.Type.S) =
 struct
   module L = Linked_log (C) (T) (K) (V)
-  module Store = Backend (L)
+  module Store = Backend.Make (L)
 
   module Set_elt = struct
     type t = K.t
@@ -162,8 +161,8 @@ struct
   let read_all ~path t = get_cursor t ~path >>= read ~num_items:max_int >|= fst
 end
 
-module FS (C : Stores.Cas_maker) (V : Irmin.Type.S) () =
-  Make (Irmin_unix.FS.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
+module FS (C : Stores.Content_addressable) (V : Irmin.Type.S) =
+  Make (Irmin_unix.FS.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V)
 
-module Mem (C : Stores.Cas_maker) (V : Irmin.Type.S) () =
-  Make (Irmin_mem.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
+module Mem (C : Stores.Content_addressable) (V : Irmin.Type.S) =
+  Make (Irmin_mem.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V)

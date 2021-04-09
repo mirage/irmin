@@ -68,7 +68,7 @@ end
 
 module Append_only (IO : IO) : Irmin.Append_only.Maker
 module Atomic_write (IO : IO) : Irmin.Atomic_write.Maker
-module Make (IO : IO) : Irmin.Maker
+module Maker (IO : IO) : Irmin.Maker
 module KV (IO : IO) : Irmin.KV_maker
 
 (** {2 Advanced configuration} *)
@@ -88,7 +88,7 @@ end
 
 module Append_only_ext (IO : IO) (C : Config) : Irmin.Append_only.Maker
 module Atomic_write_ext (IO : IO) (C : Config) : Irmin.Atomic_write.Maker
-module Make_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.Maker
+module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) : Irmin.Maker
 
 (** {1 In-memory IO mocks} *)
 

@@ -16,8 +16,8 @@
 
 module Append_only : Irmin.Append_only.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
-module Make : Irmin.Maker
+include Irmin.Maker
 module KV : Irmin.KV_maker
 module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
 module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
-module Make_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
+module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker

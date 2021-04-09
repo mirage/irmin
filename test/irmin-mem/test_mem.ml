@@ -16,9 +16,7 @@
 
 open Irmin.Export_for_backends
 
-let store =
-  Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)
-
+let store = Irmin_test.store (module Irmin_mem) (module Irmin.Metadata.None)
 let config = Irmin_mem.config ()
 
 let clean () =

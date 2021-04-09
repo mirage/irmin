@@ -17,6 +17,10 @@
 open! Import
 open Common
 
+module V2 = struct
+  let version = `V2
+end
+
 module Config = struct
   let entries = 2
   let stable_hash = 3
@@ -24,29 +28,19 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
-
-  include
-    Irmin_pack.Make_ext
-      (struct
-        let version = `V2
-      end)
-      (Config)
-      (M)
-      (C)
-      (P)
-      (B)
-      (H)
-      (XNode)
-      (XCommit)
+module Irmin_pack_maker = struct
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) =
+  struct
+    module XNode = Irmin.Private.Node.Make (H) (P) (M)
+    module XCommit = Irmin.Private.Commit.Make (H)
+    module Maker = Irmin_pack.Maker_ext (V2) (Config) (XNode) (XCommit)
+    include Maker.Make (M) (C) (P) (B) (H)
+  end
 end
 
 let suite =
@@ -55,7 +49,7 @@ let suite =
   in
   let layered_store =
     Irmin_test.layered_store
-      (module Irmin_pack_layered.Make (Config))
+      (module Irmin_pack_layered.Maker (Config))
       (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in

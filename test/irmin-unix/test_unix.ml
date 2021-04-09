@@ -29,7 +29,7 @@ module FS = struct
   let config = Test_fs.config
 
   let store =
-    Irmin_test.store (module Irmin_unix.FS.Make) (module Irmin.Metadata.None)
+    Irmin_test.store (module Irmin_unix.FS) (module Irmin.Metadata.None)
 
   let init () =
     (if Sys.file_exists test_db then

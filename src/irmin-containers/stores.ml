@@ -15,17 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The signature for the backend input to the data structures. The Irmin stores
-    of the data structures are constructed using modules of this type *)
-module type Store_maker = functor (C : Irmin.Contents.S) ->
-  Irmin.S
-    with type contents = C.t
-     and type branch = string
-     and type key = string list
-     and type step = string
-
-module type Cas_maker = sig
-  module CAS_maker : Irmin.Content_addressable.Maker
+module type Content_addressable = sig
+  include Irmin.Content_addressable.Maker
 
   val config : Irmin.config
 end

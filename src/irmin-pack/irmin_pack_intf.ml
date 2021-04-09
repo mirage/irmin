@@ -14,29 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Pack_config = Config
-module Index = Pack_index
-
-module Maker
-    (_ : Version.S)
-    (Config : Config.S)
-    (N : Irmin.Private.Node.S)
-    (CT : Irmin.Private.Commit.S with type hash = N.hash) : sig
+module type Maker = functor (Config : Config.S) -> sig
   module Make
-      (Metadata : Irmin.Metadata.S with type t = N.metadata)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S with type step = N.step)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S with type t = N.hash) : sig
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) : sig
     include
       Irmin.S
-        with type key = Path.t
-         and type contents = Contents.t
-         and type branch = Branch.t
-         and type hash = Hash.t
-         and type step = Path.step
-         and type metadata = Metadata.t
-         and type Key.step = Path.step
+        with type key = P.t
+         and type step = P.step
+         and type metadata = M.t
+         and type contents = C.t
+         and type branch = B.t
+         and type hash = H.t
          and type Private.Remote.endpoint = unit
 
     include Store.S with type repo := repo
@@ -48,4 +40,8 @@ module Maker
       repo ->
       ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
   end
+end
+
+module type Sigs = sig
+  module type Maker = Maker
 end

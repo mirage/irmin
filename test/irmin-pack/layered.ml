@@ -41,16 +41,18 @@ module Conf = struct
 end
 
 module Hash = Irmin.Hash.SHA1
+module Maker = Irmin_pack_layered.Maker (Conf)
 
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 
+module V2 = Irmin_pack.V2 (Conf)
+
 module StoreSimple =
-  Irmin_pack.Make_V2 (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
+  V2.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 

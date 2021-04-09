@@ -42,7 +42,7 @@ end
 
 (** [Make] returns a mergeable blob log using the backend and other parameters
     as specified by the user. *)
-module Make (Backend : Stores.Store_maker) (T : Time.S) (V : Irmin.Type.S) :
+module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) :
   S
     with type value = V.t
      and type Store.branch = string

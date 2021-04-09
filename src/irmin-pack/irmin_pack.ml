@@ -16,6 +16,7 @@
 
 include Ext
 include Config
+include Irmin_pack_intf
 
 let config = Config.v
 
@@ -27,62 +28,41 @@ module Atomic_write = Store.Atomic_write
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Make_ext = Ext.Make
+module Maker_ext = Ext.Maker
 module Store = Store
 module Version = Version
 
-module type Maker = functor
-  (Config : Config.S)
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  -> sig
-  include
-    Irmin.S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type Private.Remote.endpoint = unit
-
-  include Store.S with type repo := repo
-
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+module Maker (V : Version.S) (Config : Config.S) = struct
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) =
+  struct
+    module XNode = Irmin.Private.Node.Make (H) (P) (M)
+    module XCommit = Irmin.Private.Commit.Make (H)
+    module Maker = Maker_ext (V) (Config) (XNode) (XCommit)
+    include Maker.Make (M) (C) (P) (B) (H)
+  end
 end
 
-module Make_with_version
-    (V : Version.S)
-    (Config : Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (V) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
-end
-
-module Make = Make_with_version (struct
+module V1 = Maker (struct
   let version = `V1
 end)
 
-module Make_V2 = Make_with_version (struct
+module V2 = Maker (struct
   let version = `V2
 end)
 
-module KV (Config : Config.S) (C : Irmin.Contents.S) =
-  Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+module KV (V : Version.S) (Config : Config.S) = struct
+  module Maker = Maker (V) (Config)
+
+  type metadata = Metadata.t
+
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+end
 
 module Stats = Stats
 module Layout = Layout

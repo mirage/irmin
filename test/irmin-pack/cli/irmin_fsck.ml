@@ -25,26 +25,24 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Maker (V : Irmin_pack.Version.S) =
-  Irmin_pack.Make_ext (V) (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Path)
-    (Irmin.Branch.String)
-    (Hash)
-    (Node)
-    (Commit)
+module Maker (V : Irmin_pack.Version.S) = struct
+  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
+
+  include
+    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
+      (Irmin.Branch.String)
+      (Hash)
+end
 
 module Store = Irmin_pack.Checks.Make (Maker)
+module M = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
 
-module Store_layered =
-  Irmin_pack_layered.Checks.Make
-    (Maker)
-    (Irmin_pack_layered.Make_ext (Conf) (Irmin.Metadata.None)
-       (Irmin.Contents.String)
-       (Path)
-       (Irmin.Branch.String)
-       (Hash)
-       (Node)
-       (Commit))
+module S =
+  M.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
+    (Irmin.Branch.String)
+    (Hash)
+
+module Store_layered = Irmin_pack_layered.Checks.Make (Maker) (S)
 
 let () =
   match Sys.getenv_opt "PACK_LAYERED" with

@@ -24,7 +24,7 @@ let clean () = Lwt.return_unit
 let stats = None
 
 let store =
-  Irmin_test.store (module Irmin_fs.Make (IO)) (module Irmin.Metadata.None)
+  Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)
 
 let suite =
   {

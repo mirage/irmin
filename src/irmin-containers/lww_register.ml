@@ -48,9 +48,8 @@ module type S = sig
     ?info:Irmin.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
 end
 
-module Make (Backend : Stores.Store_maker) (T : Time.S) (V : Irmin.Type.S) =
-struct
-  module Store = Backend (LWW (T) (V))
+module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
+  module Store = Backend.Make (LWW (T) (V))
 
   type value = V.t
 
