@@ -14,67 +14,53 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Import
 include Atomic_write_intf
+open Import
 
-module Check_closed (AW : Maker) (K : Type.S) (V : Type.S) = struct
-  module S = AW (K) (V)
+module Wrap_close (S : S) = struct
+  module X = struct
+    include S
 
-  type t = { closed : bool ref; t : S.t }
-  type key = S.key
-  type value = S.value
+    type 'a t = S.t
+  end
 
-  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
+  include Read_only.Wrap_close (X)
 
-  let mem t k =
-    check_not_closed t;
-    S.mem t.t k
+  type nonrec t = read t
 
-  let find t k =
-    check_not_closed t;
-    S.find t.t k
+  let s t = fst (raw t)
 
   let set t k v =
     check_not_closed t;
-    S.set t.t k v
+    S.set (s t) k v
 
   let test_and_set t k ~test ~set =
     check_not_closed t;
-    S.test_and_set t.t k ~test ~set
+    S.test_and_set (s t) k ~test ~set
 
   let remove t k =
     check_not_closed t;
-    S.remove t.t k
+    S.remove (s t) k
 
   let list t =
     check_not_closed t;
-    S.list t.t
+    S.list (s t)
+
+  let clear t =
+    check_not_closed t;
+    S.clear (s t)
 
   type watch = S.watch
 
   let watch t ?init f =
     check_not_closed t;
-    S.watch t.t ?init f
+    S.watch (s t) ?init f
 
   let watch_key t k ?init f =
     check_not_closed t;
-    S.watch_key t.t k ?init f
+    S.watch_key (s t) k ?init f
 
   let unwatch t w =
     check_not_closed t;
-    S.unwatch t.t w
-
-  let v conf =
-    let+ t = S.v conf in
-    { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t)
-
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
+    S.unwatch (s t) w
 end

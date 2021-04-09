@@ -49,4 +49,14 @@ end
 module type Sigs = sig
   module type S = S
   module type Maker = Maker
+
+  module Wrap_close (S : S) : sig
+    (** Extend [S] to allow multiple close operations. *)
+
+    (** @inline *)
+    include S with type key = S.key and type value = S.value
+
+    (** @inline *)
+    include Double_closeable with type 'a t := 'a t and type 'a raw := 'a S.t
+  end
 end

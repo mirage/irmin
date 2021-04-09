@@ -75,39 +75,3 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
   let batch t f = f t
   let close _ = Lwt.return ()
 end
-
-module Check_closed (S : Irmin.Content_addressable.S) = struct
-  type 'a t = bool ref * 'a S.t
-  type key = S.key
-  type value = S.value
-
-  let check_not_closed t = if !(fst t) then raise Irmin.Closed
-
-  let mem t k =
-    check_not_closed t;
-    S.mem (snd t) k
-
-  let find t k =
-    check_not_closed t;
-    S.find (snd t) k
-
-  let add t v =
-    check_not_closed t;
-    S.add (snd t) v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add (snd t) k v
-
-  let clear t =
-    check_not_closed t;
-    S.clear (snd t)
-
-  let batch t f =
-    check_not_closed t;
-    S.batch (snd t) (fun x -> f (fst t, x))
-
-  let close (c, _) =
-    c := true;
-    Lwt.return ()
-end

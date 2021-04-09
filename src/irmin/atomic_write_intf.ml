@@ -90,5 +90,14 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module Check_closed (M : Maker) : Maker
+  module Wrap_close (S : S) : sig
+    (** Extend [S] to allow multiple close operations. *)
+
+    (** @inline *)
+    include
+      S with type key = S.key and type value = S.value and type watch = S.watch
+
+    (** @inline *)
+    include Double_closeable with type _ t := t and type _ raw := S.t
+  end
 end

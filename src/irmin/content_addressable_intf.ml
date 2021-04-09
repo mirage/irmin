@@ -65,5 +65,13 @@ module type Sigs = sig
     (** @inline *)
   end
 
-  module Check_closed (M : Maker) : Maker
+  module Wrap_close (S : S) : sig
+    (** Extend [S] to allow multiple close operations. *)
+
+    (** @inline *)
+    include S with type key = S.key and type value = S.value
+
+    (** @inline *)
+    include Double_closeable with type 'a t := 'a t and type 'a raw := 'a S.t
+  end
 end

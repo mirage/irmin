@@ -26,14 +26,9 @@ module Make
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Branch.S) : sig
-  type t := bool ref * G.t
-
   include
     Irmin.Private.S
-      with type 'a Contents.t = t
-       and type 'a Node.t = t * t
-       and type 'a Commit.t = (t * t) * t
-       and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
        and type Contents.value = C.t
        and type Hash.t = G.Hash.t
        and type Node.Path.t = P.t
