@@ -237,12 +237,12 @@ module Unix : S = struct
           | false ->
               Some
                 (raw
-                   ~flags:[ O_CREAT; mode; O_CLOEXEC ]
+                   ~flags:[ O_CREAT; O_EXCL; O_RDWR; O_CLOEXEC ]
                    ~version ~offset:Int63.zero ~generation:Int63.zero file)
         in
         v ~offset:Int63.zero ~version ~generation:Int63.zero raw
     | true -> (
-        let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
+        let x = Unix.openfile file Unix.[ mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
           let version = get_version () in
