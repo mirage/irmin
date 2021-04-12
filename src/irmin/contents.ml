@@ -196,14 +196,14 @@ module String = struct
   let merge = Merge.idempotent Type.(option string)
 end
 
-module Store (S : sig
-  include Content_addressable.S
-  module Key : Hash.S with type t = key
-  module Val : S with type t = value
-end) =
+module Store
+    (S : Content_addressable.S)
+    (H : Hash.S with type t = S.key)
+    (C : S with type t = S.value) =
 struct
+  module Val = C
+  module Key = Hash.Typed (H) (Val)
   include S
-  module Key = Hash.Typed (S.Key) (S.Val)
 
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
 

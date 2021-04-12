@@ -30,6 +30,8 @@ module type S = sig
 end
 
 module type Backend = sig
+  (* FIXME: remove signature duplication *)
+
   module G : Irmin_git.G
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :

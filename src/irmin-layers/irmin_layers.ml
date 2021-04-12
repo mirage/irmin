@@ -31,15 +31,15 @@ end
 module Maker_ext
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker)
-    (N : Irmin.Private.Node.S)
-    (CT : Irmin.Private.Commit.S with type hash = N.hash) =
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker) =
 struct
   module Make
-      (M : Irmin.Metadata.S with type t = N.metadata)
+      (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
-      (P : Irmin.Path.S with type step = N.step)
+      (P : Irmin.Path.S)
       (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S with type t = N.hash) =
+      (H : Irmin.Hash.S) =
   struct
     module Maker = Irmin.Maker_ext (CA) (AW) (N) (CT)
     include Maker.Make (M) (C) (P) (B) (H)
@@ -78,22 +78,9 @@ struct
   end
 end
 
-module Make
+module Maker
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) =
-struct
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module N = Irmin.Private.Node.Make (H) (P) (M)
-    module CT = Irmin.Private.Commit.Make (H)
-    module S = Maker_ext (CA) (AW) (N) (CT)
-    include S.Make (M) (C) (P) (B) (H)
-  end
-end
+  Maker_ext (CA) (AW) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module Stats = Stats

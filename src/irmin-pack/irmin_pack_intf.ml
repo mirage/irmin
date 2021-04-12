@@ -15,31 +15,8 @@
  *)
 
 module type Maker = functor (Config : Config.S) -> sig
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) : sig
-    include
-      Irmin.S
-        with type key = P.t
-         and type step = P.step
-         and type metadata = M.t
-         and type contents = C.t
-         and type branch = B.t
-         and type hash = H.t
-         and type Private.Remote.endpoint = unit
-
-    include Store.S with type repo := repo
-
-    val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-    val integrity_check_inodes :
-      ?heads:commit list ->
-      repo ->
-      ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-  end
+  include Store.Maker
+  (** @inline *)
 end
 
 module type Sigs = sig

@@ -45,15 +45,15 @@ let lock_path root = Filename.concat root "lock"
 
 module Maker
     (Inode_config : Config.S)
-    (Node : Irmin.Private.Node.S)
-    (Commit : Irmin.Private.Commit.S with type hash = Node.hash) =
+    (Node : Irmin.Private.Node.Maker)
+    (Commit : Irmin.Private.Commit.Maker) =
 struct
   module Make
-      (M : Irmin.Metadata.S with type t = Node.metadata)
+      (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
-      (P : Irmin.Path.S with type step = Node.step)
+      (P : Irmin.Path.S)
       (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S with type t = Node.hash) =
+      (H : Irmin.Hash.S) =
   struct
     module Index = Pack_index.Make (H)
     module Pack = Pack.File (V) (Index) (H)
@@ -77,17 +77,15 @@ struct
         |> sealr
 
       module Contents = struct
+        (* FIXME: remove duplication with irmin-pack/ext.ml *)
         module CA = struct
-          module Key = H
-          module Val = C
-
           module CA_Pack = Pack.Make (struct
-            include Val
-            module H = Irmin.Hash.Typed (H) (Val)
+            include C
+            module H = Irmin.Hash.Typed (H) (C)
 
             let hash = H.hash
             let magic = 'B'
-            let value = value Val.t
+            let value = value C.t
             let encode_value = Irmin.Type.(unstage (encode_bin value))
             let decode_value = Irmin.Type.(unstage (decode_bin value))
 
@@ -105,26 +103,26 @@ struct
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
-        include Irmin.Contents.Store (CA)
+        include Irmin.Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
         module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
+        module Node = Node.Make (H) (P) (M)
         module CA = Inode_layers.Make (Inode_config) (H) (Pa) (Node)
-        include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
+        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
       module Commit = struct
-        module CA = struct
-          module Key = H
-          module Val = Commit
+        module Commit = Commit.Make (H)
 
+        module CA = struct
           module CA_Pack = Pack.Make (struct
-            include Val
-            module H = Irmin.Hash.Typed (H) (Val)
+            include Commit
+            module H = Irmin.Hash.Typed (H) (Commit)
 
             let hash = H.hash
-            let value = value Val.t
+            let value = value Commit.t
             let magic = 'C'
             let encode_value = Irmin.Type.(unstage (encode_bin value))
             let decode_value = Irmin.Type.(unstage (decode_bin value))
@@ -143,7 +141,7 @@ struct
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
-        include Irmin.Private.Commit.Store (Node) (CA)
+        include Irmin.Private.Commit.Store (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct

@@ -15,9 +15,13 @@
  *)
 
 include Irmin_mirage_git_intf.Sigs
-module Maker : Maker
-module KV : KV_maker
-module Ref : Ref_maker
+module Maker (G : Irmin_git.G) : Maker with module G := G
+
+module KV (G : Irmin_git.G) :
+  KV_maker with type branch = string and module G := G
+
+module Ref (G : Irmin_git.G) :
+  KV_maker with type branch = Irmin_git.reference and module G := G
 
 (** Functor to create a MirageOS' KV_RO store from a Git repository. The key
     ["/HEAD"] always shows the current HEAD. *)

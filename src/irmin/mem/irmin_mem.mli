@@ -26,6 +26,9 @@ val config : unit -> Irmin.config
 module Append_only : Irmin.Append_only.Maker
 (** An in-memory store for append-only values. *)
 
+module Content_addressable : Irmin.Content_addressable.Maker
+(** An in-memory store for content-addressable values. *)
+
 module Atomic_write : Irmin.Atomic_write.Maker
 (** An in-memory store with atomic-write guarantees. *)
 

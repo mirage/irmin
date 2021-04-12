@@ -35,15 +35,17 @@ exception Closed = Store_properties.Closed
 module Maker_ext
     (CA : Content_addressable.Maker)
     (AW : Atomic_write.Maker)
-    (N : Node.S)
-    (CT : Commit.S with type hash = N.hash) =
+    (N : Node.Maker)
+    (CT : Commit.Maker) =
 struct
+  type endpoint = unit
+
   module Make
-      (M : Metadata.S with type t = N.metadata)
+      (M : Metadata.S)
       (C : Contents.S)
-      (P : Path.S with type step = N.step)
+      (P : Path.S)
       (B : Branch.S)
-      (H : Hash.S with type t = N.hash) =
+      (H : Hash.S) =
   struct
     module CA = Content_addressable.Check_closed (CA)
     module AW = Atomic_write.Check_closed (AW)
@@ -52,33 +54,20 @@ struct
       module Hash = H
 
       module Contents = struct
-        module CA = struct
-          module Key = Hash
-          module Val = C
-          include CA.Make (Key) (Val)
-        end
-
-        include Contents.Store (CA)
+        module CA = CA.Make (H) (C)
+        include Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
-        module CA = struct
-          module Key = Hash
-          module Val = N
-          include CA.Make (Key) (Val)
-        end
-
-        include Node.Store (Contents) (P) (M) (CA)
+        module V = N.Make (H) (P) (M)
+        module CA = CA.Make (H) (V)
+        include Node.Store (Contents) (CA) (H) (V) (M) (P)
       end
 
       module Commit = struct
-        module CA = struct
-          module Key = Hash
-          module Val = CT
-          include CA.Make (Key) (Val)
-        end
-
-        include Commit.Store (Node) (CA)
+        module C = CT.Make (H)
+        module CA = CA.Make (H) (C)
+        include Commit.Store (Node) (CA) (H) (C)
       end
 
       module Branch = struct
@@ -133,20 +122,8 @@ struct
   end
 end
 
-module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
-  module Make
-      (M : Metadata.S)
-      (C : Contents.S)
-      (P : Path.S)
-      (B : Branch.S)
-      (H : Hash.S) =
-  struct
-    module N = Node.Make (H) (P) (M)
-    module CT = Commit.Make (H)
-    module Maker = Maker_ext (CA) (AW) (N) (CT)
-    include Maker.Make (M) (C) (P) (B) (H)
-  end
-end
+module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
+  Maker_ext (CA) (AW) (Node) (Commit)
 
 module Of_private = Store.Make
 
@@ -157,20 +134,8 @@ type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type Maker = Store.Maker
-
-module type KV =
-  S
-    with type key = string list
-     and type step = string
-     and type branch = string
-     and type Private.Remote.endpoint = unit
-
-module type KV_maker = sig
-  type metadata
-
-  module Make (C : Contents.S) :
-    KV with type contents = C.t and type metadata = metadata
-end
+module type KV = Store.KV
+module type KV_maker = Store.KV_maker
 
 module Private = struct
   module Conf = Conf

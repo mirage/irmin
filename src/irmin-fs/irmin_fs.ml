@@ -259,6 +259,8 @@ module Atomic_write_ext (IO : IO) (S : Config) = struct
 end
 
 module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct
+  type endpoint = unit
+
   module Make
       (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
@@ -318,6 +320,7 @@ module Maker (IO : IO) = Maker_ext (IO) (Obj) (Ref)
 
 module KV (IO : IO) = struct
   type metadata = unit
+  type endpoint = unit
 
   module Maker = Maker (IO)
 

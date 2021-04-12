@@ -28,20 +28,8 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker = struct
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module XNode = Irmin.Private.Node.Make (H) (P) (M)
-    module XCommit = Irmin.Private.Commit.Make (H)
-    module Maker = Irmin_pack.Maker_ext (V2) (Config) (XNode) (XCommit)
-    include Maker.Make (M) (C) (P) (B) (H)
-  end
-end
+module Irmin_pack_maker =
+  Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 let suite =
   let store =

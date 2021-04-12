@@ -44,6 +44,8 @@ end
 module Ref (G : Irmin_git.G) = struct
   module Maker = Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
 
+  type branch = Maker.branch
+
   module Make (C : Irmin.Contents.S) = struct
     include Maker.Make (C)
 
@@ -53,6 +55,8 @@ end
 
 module KV (G : Irmin_git.G) = struct
   module Maker = Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
+
+  type branch = Maker.branch
 
   module Make (C : Irmin.Contents.S) = struct
     include Maker.Make (C)

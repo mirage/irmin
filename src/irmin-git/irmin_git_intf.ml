@@ -47,10 +47,14 @@ module type S = sig
   (** [to_repo t] is the Irmin repository associated to [t]. *)
 end
 
-module type Maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  -> sig
+(** Same as {!Irmin.Maker} but with a fixed hash (SHA1) and metadata (Git
+    metadata) implemtations. *)
+module type Maker = sig
+  module G : G
+
+  type hash = Irmin.Hash.Make(G.Hash).t
+  type endpoint
+
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
     S
       with type key = P.t
@@ -59,45 +63,28 @@ module type Maker = functor
        and type contents = C.t
        and type branch = B.t
        and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+       and type Private.Remote.endpoint = endpoint
 end
 
-module type KV_maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  -> sig
+module type KV_maker = sig
+  module G : G
+
+  type branch
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
   module Make (C : Irmin.Contents.S) :
     S
       with type key = string list
        and type step = string
        and type contents = C.t
-       and type branch = string
+       and type branch = branch
        and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-end
-
-type reference = Reference.t [@@deriving irmin]
-
-module type Ref_maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  -> sig
-  module Make (C : Irmin.Contents.S) :
-    S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = reference
-       and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+       and type Private.Remote.endpoint = endpoint
 end
 
 module type Sigs = sig
-  type reference = Reference.t [@@deriving irmin]
-
   module type G = G
   module type S = S
   module type Maker = Maker
   module type KV_maker = KV_maker
-  module type Ref_maker = Ref_maker
 end

@@ -56,18 +56,31 @@ module Atomic_write (G : Git.S) : sig
   module Make (K : Irmin.Branch.S) : S with type key = K.t
 end
 
-(** In-memory Git store. *)
-module Mem :
-  G with type t = Digestif.SHA1.t Git.Mem.t and type hash = Digestif.SHA1.t
+module Maker
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
+  Maker with module G := G and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module Maker : Maker
-module Ref : Ref_maker
-module KV : KV_maker
+module KV
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
+  KV_maker
+    with module G := G
+     and type branch = string
+     and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-module Maker_ext : functor
-  (G : G)
-  (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-  -> sig
+module Ref
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
+  KV_maker
+    with module G := G
+     and type branch = Reference.t
+     and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
+(** Same as {!Maker} but with a custom branch implementation. *)
+module Maker_ext
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) : sig
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) :
     S
       with type key = P.t
@@ -75,23 +88,29 @@ module Maker_ext : functor
        and module Key = P
        and type contents = C.t
        and type branch = B.t
+       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+       and module Git = G
 end
 
 module Generic
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) : sig
+  type endpoint
+
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
     Irmin.S
-      with type contents = C.t
-       and type key = P.t
-       and type branch = B.t
+      with type key = P.t
        and type step = P.step
-       and type metadata = Metadata.t
-       and type hash = Digestif.SHA1.t
+       and module Key = P
+       and type contents = C.t
+       and type branch = B.t
+       and type Private.Remote.endpoint = endpoint
 end
 
 module Generic_KV
     (CA : Irmin.Content_addressable.Maker)
-    (AW : Irmin.Atomic_write.Maker) : sig
-  module Make (C : Irmin.Contents.S) : Irmin.KV with type contents = C.t
-end
+    (AW : Irmin.Atomic_write.Maker) : Irmin.KV_maker with type endpoint = unit
+
+(** In-memory Git store. *)
+module Mem :
+  G with type t = Digestif.SHA1.t Git.Mem.t and type hash = Digestif.SHA1.t

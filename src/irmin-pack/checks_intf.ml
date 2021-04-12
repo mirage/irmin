@@ -92,15 +92,7 @@ end
 
 module type Versioned_store = sig
   include Irmin.S
-  include Store.S with type repo := repo
-
-  (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+  include Store.S with type repo := repo and type commit := commit
 end
 
 module type Maker = functor (_ : Version.S) -> Versioned_store

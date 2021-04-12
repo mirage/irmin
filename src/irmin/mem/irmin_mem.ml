@@ -139,11 +139,12 @@ end
 
 let config () = Irmin.Private.Conf.empty
 
-module CA = Irmin.Content_addressable.Make (Append_only)
-include Irmin.Maker (CA) (Atomic_write)
+module Content_addressable = Irmin.Content_addressable.Make (Append_only)
+include Irmin.Maker (Content_addressable) (Atomic_write)
 
 module KV = struct
   type metadata = unit
+  type endpoint = unit
 
   module Make (C : Irmin.Contents.S) =
     Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)

@@ -156,25 +156,10 @@ module type Sigs = sig
   module Maker_ext
       (CA : Irmin.Content_addressable.Maker)
       (AW : Irmin.Atomic_write.Maker)
-      (Node : Irmin.Private.Node.S)
-      (Commit : Irmin.Private.Commit.S with type hash = Node.hash) : sig
-    module Make
-        (Metadata : Irmin.Metadata.S with type t = Node.metadata)
-        (Contents : Irmin.Contents.S)
-        (Path : Irmin.Path.S with type step = Node.step)
-        (Branch : Irmin.Branch.S)
-        (Hash : Irmin.Hash.S with type t = Node.hash) :
-      S
-        with type key = Path.t
-         and type contents = Contents.t
-         and type branch = Branch.t
-         and type hash = Hash.t
-         and type step = Path.step
-         and type metadata = Metadata.t
-         and type Key.step = Path.step
-  end
+      (Node : Irmin.Private.Node.Maker)
+      (Commit : Irmin.Private.Commit.Maker) : Maker
 
-  module Make
+  module Maker
       (CA : Irmin.Content_addressable.Maker)
       (AW : Irmin.Atomic_write.Maker) : Maker
 

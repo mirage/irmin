@@ -32,20 +32,8 @@ module Maker_ext = Ext.Maker
 module Store = Store
 module Version = Version
 
-module Maker (V : Version.S) (Config : Config.S) = struct
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module XNode = Irmin.Private.Node.Make (H) (P) (M)
-    module XCommit = Irmin.Private.Commit.Make (H)
-    module Maker = Maker_ext (V) (Config) (XNode) (XCommit)
-    include Maker.Make (M) (C) (P) (B) (H)
-  end
-end
+module Maker (V : Version.S) (Config : Config.S) =
+  Maker_ext (V) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module V1 = Maker (struct
   let version = `V1
@@ -56,6 +44,8 @@ module V2 = Maker (struct
 end)
 
 module KV (V : Version.S) (Config : Config.S) = struct
+  type endpoint = unit
+
   module Maker = Maker (V) (Config)
 
   type metadata = Metadata.t
@@ -79,3 +69,18 @@ end
 
 module Config = Config
 module Inode = Inode
+
+module Vx = struct
+  let version = `V1
+end
+
+module Cx = struct
+  let stable_hash = 0
+  let entries = 0
+end
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
+module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.Maker}. *)
+module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)

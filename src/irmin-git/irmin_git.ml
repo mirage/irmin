@@ -23,10 +23,15 @@ module Reference = Reference
 
 let config = Conf.v
 
+type reference = Reference.t [@@deriving irmin]
+
 module Maker_ext
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  type hash = Irmin.Hash.Make(G.Hash).t
+
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) = struct
     module P = Private.Make (G) (S) (C) (P) (B)
     include Irmin.Of_private (P)
@@ -66,18 +71,18 @@ end
 
 module Maker
     (G : G)
-    (S : Git.Sync.S with type hash = G.hash and type store = G.t) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
   module Maker = Maker_ext (G) (S)
+
+  type endpoint = Maker.endpoint
+  type hash = Maker.hash
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
     Maker.Make (C) (P) (Branch.Make (B))
 end
 
-module No_sync (G : Git.S) = struct
-  type hash = G.hash
-  type store = G.t
-
+module No_sync = struct
   type error =
     [ `Not_found | `Msg of string | `Exn of exn | `Cycle | `Invalid_flow ]
 
@@ -99,7 +104,7 @@ module Content_addressable (G : Git.S) = struct
 
   module type S = Irmin.Content_addressable.S with type key = G.Hash.t
 
-  module Maker = Maker_ext (G) (No_sync (G))
+  module Maker = Maker_ext (G) (No_sync)
 
   module Make (V : Irmin.Type.S) = struct
     module V = struct
@@ -165,17 +170,28 @@ module Atomic_write (G : Git.S) = struct
   end
 end
 
-module KV (G : G) (S : Git.Sync.S with type hash = G.hash and type store = G.t) =
+module KV
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
   module Maker = Maker (G) (S)
+
+  type endpoint = Maker.endpoint
+  type metadata = Metadata.t
+  type branch = string
 
   module Make (C : Irmin.Contents.S) =
     Maker.Make (C) (Irmin.Path.String_list) (Irmin.Branch.String)
 end
 
-module Ref (G : G) (S : Git.Sync.S with type hash = G.hash and type store = G.t) =
+module Ref
+    (G : G)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
   module Maker = Maker_ext (G) (S)
+
+  type endpoint = Maker.endpoint
+  type branch = reference
 
   module Make (C : Irmin.Contents.S) =
     Maker.Make (C) (Irmin.Path.String_list) (Reference)
@@ -187,21 +203,99 @@ module Generic
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) =
 struct
+  module G = Mem
+
+  type endpoint = unit
+
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
   struct
-    module S = struct
-      (* We use a dummy store to get the serialisation functions. This is
-         probably not necessary and we could use Git.Value.Raw instead. *)
+    (* We use a dummy store to get the serialisation functions. This is
+       probably not necessary and we could use Git.Value.Raw instead. *)
+    module Dummy = struct
       module G = Mem
-      module Maker = Maker (G) (No_sync (G))
+      module Maker = Maker (G) (No_sync)
       module S = Maker.Make (C) (P) (B)
       include S.Private
     end
 
-    module Maker = Irmin.Maker_ext (CA) (AW) (S.Node.Val) (S.Commit.Val)
+    module CA = Irmin.Content_addressable.Check_closed (CA)
+    module AW = Irmin.Atomic_write.Check_closed (AW)
 
-    include
-      Maker.Make (S.Node.Metadata) (S.Contents.Val) (S.Node.Path) (B) (S.Hash)
+    module X = struct
+      module Hash = Dummy.Hash
+
+      module Contents = struct
+        module V = Dummy.Contents.Val
+        module CA = CA.Make (Hash) (V)
+        include Irmin.Contents.Store (CA) (Hash) (V)
+      end
+
+      module Node = struct
+        module V = Dummy.Node.Val
+        module CA = CA.Make (Hash) (V)
+
+        include
+          Irmin.Private.Node.Store (Contents) (CA) (Hash) (V)
+            (Dummy.Node.Metadata)
+            (P)
+      end
+
+      module Commit = struct
+        module V = Dummy.Commit.Val
+        module CA = CA.Make (Hash) (V)
+        include Irmin.Private.Commit.Store (Node) (CA) (Hash) (V)
+      end
+
+      module Branch = struct
+        module Key = Dummy.Branch.Key
+        module Val = Dummy.Branch.Val
+        include AW.Make (Key) (Val)
+      end
+
+      module Slice = Dummy.Slice
+      module Remote = Irmin.Private.Remote.None (Branch.Val) (Branch.Key)
+
+      module Repo = struct
+        (* FIXME: remove duplication with irmin.mli *)
+        type t = {
+          config : Irmin.config;
+          contents : read Contents.t;
+          nodes : read Node.t;
+          commits : read Commit.t;
+          branch : Branch.t;
+        }
+
+        let contents_t t = t.contents
+        let node_t t = t.nodes
+        let commit_t t = t.commits
+        let branch_t t = t.branch
+
+        let batch t f =
+          Contents.CA.batch t.contents @@ fun c ->
+          Node.CA.batch (snd t.nodes) @@ fun n ->
+          Commit.CA.batch (snd t.commits) @@ fun ct ->
+          let contents_t = c in
+          let node_t = (contents_t, n) in
+          let commit_t = (node_t, ct) in
+          f contents_t node_t commit_t
+
+        let v config =
+          let* contents = Contents.CA.v config in
+          let* nodes = Node.CA.v config in
+          let* commits = Commit.CA.v config in
+          let nodes = (contents, nodes) in
+          let commits = (nodes, commits) in
+          let+ branch = Branch.v config in
+          { contents; nodes; commits; branch; config }
+
+        let close t =
+          Contents.CA.close t.contents >>= fun () ->
+          Node.CA.close (snd t.nodes) >>= fun () ->
+          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+      end
+    end
+
+    include Irmin.Of_private (X)
   end
 end
 
@@ -211,6 +305,16 @@ module Generic_KV
 struct
   module Maker = Generic (CA) (AW)
 
+  type endpoint = Maker.endpoint
+  type metadata = Metadata.t
+
   module Make (C : Irmin.Contents.S) =
     Maker.Make (C) (Irmin.Path.String_list) (Irmin.Branch.String)
 end
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
+module KV_is_a_KV_maker : Irmin.KV_maker = KV (Mem) (No_sync)
+
+(* Enforce that {!Generic_KV} is a sub-type of {!Irmin.KV_maker}. *)
+module Generic_KV_is_a_KV_maker : Irmin.KV_maker =
+  Generic_KV (Irmin_mem.Content_addressable) (Irmin_mem.Atomic_write)
