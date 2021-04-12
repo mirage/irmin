@@ -14,16 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
-
-type integrity_error = [ `Wrong_hash | `Absent_value ]
-
-exception RO_not_allowed
-
-module type Checkable = sig
-  type 'a t
-  type key
-
-  val integrity_check :
-    offset:int63 -> length:int -> key -> _ t -> (unit, integrity_error) result
-end
+include Atomic_write_intf.Sigs

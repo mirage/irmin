@@ -24,8 +24,8 @@ module Content_addressable (CA : Content_addressable.S) :
      and type value = CA.value
      and type index = CA.index
 
-module Atomic_write (AW : S.Atomic_write.Store) :
-  S.Atomic_write.Store
+module Atomic_write (AW : Atomic_write.S) :
+  Atomic_write.S
     with type key = AW.key
      and type value = AW.value
      and type watch = AW.watch

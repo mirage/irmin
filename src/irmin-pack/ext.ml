@@ -108,7 +108,7 @@ struct
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Store.Atomic_write (V) (Key) (Val)
+        module AW = Atomic_write.Make (V) (Key) (Val)
         include Closeable.Atomic_write (AW)
       end
 
