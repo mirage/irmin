@@ -70,6 +70,14 @@ module Layout = Layout
 module Checks = Checks
 module Store = Store
 
+val migrate : Irmin.config -> unit
+(** [migrate conf] upgrades the repository with configuration [conf] to use the
+    latest storage format.
+
+    {b Note:} performing concurrent store operations during the migration, or
+    attempting to use pre-migration instances of the repository after the
+    migration is complete, will result in undefined behaviour. *)
+
 module Private : sig
   module Closeable = Closeable
   module Inode = Inode

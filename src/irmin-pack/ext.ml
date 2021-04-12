@@ -354,7 +354,7 @@ struct
 
     let sync = X.Repo.sync
     let clear = X.Repo.clear
-    let migrate = Store.migrate
+    let migrate = Migrate.run
     let flush = X.Repo.flush
     let reconstruct_index = X.Repo.Reconstruct_index.reconstruct
   end

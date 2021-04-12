@@ -442,7 +442,7 @@ struct
                      IO.close io;
                      to_migrate)
                []
-          |> List.iter (fun config -> Irmin_pack.Store.migrate config)
+          |> List.iter (fun config -> Irmin_pack.migrate config)
 
         let layer_id t store_handler =
           match store_handler with
