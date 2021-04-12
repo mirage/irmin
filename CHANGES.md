@@ -107,6 +107,8 @@
   - Renamed `Irmin_layered_pack.Make_ext` and and Irmin_layers.Make_ext` into
     into `Irmin_layered_pack.Maker_ext` and `Irmin_layers.Maker_ext`
     (#1369, @samoht)
+  - Renamed `Irmin_layered_pack.Config` into `Irmin_layered_pack.Conf`
+    (#1370, @samoht)
 
 - **irmin-pack**
   - It is no longer possible to modify an `inode` that doesn't point to the root
@@ -120,6 +122,7 @@
     `Version` as their first parameter (#1352, @samoht)
   - Renamed `Irmin_pack.Make` into `Irmin_pack.V1` (#1369, @samoht)
   - Renamed `Irmin_pack.Make_ext` into `Irmin_pack.Maker_ext` (#1369, @samoht)
+  - Renamed `Irmin_pack.Config` into `Irmin_pack.Conf` (#1370, @samoht)
 
 ## 2.5.1 (2021-02-19)
 
