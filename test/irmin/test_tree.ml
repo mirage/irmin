@@ -520,6 +520,24 @@ let test_kind_empty_path _ () =
     k;
   Lwt.return_unit
 
+let test_generic_equality _ () =
+  (* Regression test for a bug in which the equality derived from [tree_t] did
+     not respect equivalences between in-memory trees and lazy trees. *)
+  let* () =
+    let* tree =
+      let tree = Tree.of_concrete (`Tree [ ("k", c "v") ]) in
+      (* We want a lazy tree that has been persisted to the underlying store. *)
+      let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
+      let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
+      Store.tree store
+    in
+    let+ should_be_empty = Tree.remove tree [ "k" ] in
+    Alcotest.(gcheck Store.tree_t)
+      "Modified empty tree is equal to [Tree.empty]" Tree.empty should_be_empty
+  in
+
+  Lwt.return_unit
+
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
@@ -532,4 +550,5 @@ let suite =
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "shallow" `Quick test_shallow;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
+    Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
   ]

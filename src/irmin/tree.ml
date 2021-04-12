@@ -382,17 +382,6 @@ module Make (P : Private.S) = struct
       let info = { hash; map; value; findv_cache } in
       { v; info }
 
-    let t node = Type.map node of_v (fun t -> t.v)
-
-    let _, t =
-      Type.mu2 (fun _ y ->
-          let elt = elt_t y in
-          let v = v_t elt in
-          let t = t v in
-          (v, t))
-
-    let elt_t = elt_t t
-
     let rec clear_elt ~max_depth depth (_, v) =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
@@ -446,7 +435,6 @@ module Make (P : Private.S) = struct
           | None -> t.v <- Hash (repo, k)
           | Some k -> t.v <- Hash (repo, k))
 
-    let dump = Type.pp_json ~minify:false t
     let of_map m = of_v (Map m)
     let of_hash repo k = of_v (Hash (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
@@ -904,6 +892,17 @@ module Make (P : Private.S) = struct
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
+    let t node = Type.map ~equal:(Type.stage equal) node of_v (fun t -> t.v)
+
+    let _, t =
+      Type.mu2 (fun _ y ->
+          let elt = elt_t y in
+          let v = v_t elt in
+          let t = t v in
+          (v, t))
+
+    let elt_t = elt_t t
+    let dump = Type.pp_json ~minify:false t
 
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
