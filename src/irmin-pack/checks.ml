@@ -14,11 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Checks_intf
-module T = Irmin.Type
-module I = IO
-module IO = IO.Unix
 open! Import
+include Checks_intf
+module IO = IO.Unix
 
 let setup_log =
   let init style_renderer level =
@@ -152,7 +150,7 @@ module Make (M : Maker) = struct
       let objects = traverse_index ~root log_size in
       let files = v ~root ~version in
       { hash_size = Bytes Hash.hash_size; log_size; files; objects }
-      |> T.pp_json ~minify:false t Fmt.stdout;
+      |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
 
     let run ~root = detect_version ~root |> run_versioned_store ~root

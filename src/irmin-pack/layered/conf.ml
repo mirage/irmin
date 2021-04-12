@@ -23,6 +23,7 @@ module Default = struct
 end
 
 module Conf = Irmin.Private.Conf
+module Pack = Irmin_pack.Conf
 
 let lower_root_key =
   Conf.key ~doc:"The root directory for the lower layer." "root_lower"
