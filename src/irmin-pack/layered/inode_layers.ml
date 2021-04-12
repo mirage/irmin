@@ -19,7 +19,7 @@ open! Import
 module I = Inode
 
 module Make
-    (Conf : Irmin_pack.Config.S)
+    (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
     (Pack_maker : S.Layered_pack_maker
                     with type key = H.t

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Maker = functor (Config : Config.S) -> sig
+module type Maker = functor (_ : Conf.S) -> sig
   include Store.Maker
   (** @inline *)
 end

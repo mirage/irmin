@@ -14,11 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Pack_config = Config
-module Index = Pack_index
-
 module Maker
     (_ : Version.S)
-    (Config : Config.S)
+    (_ : Conf.S)
     (N : Irmin.Private.Node.Maker)
     (CT : Irmin.Private.Commit.Maker) : Store.Maker

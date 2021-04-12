@@ -18,7 +18,7 @@ open! Import
 include Inode_intf
 
 module Make_internal
-    (Conf : Config.S)
+    (Conf : Conf.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
@@ -1230,7 +1230,7 @@ struct
 end
 
 module Make
-    (Conf : Config.S)
+    (Conf : Conf.S)
     (H : Irmin.Hash.S)
     (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =

@@ -100,7 +100,7 @@ module Make (M : Maker) (Store : S.Store) = struct
       and upper0 = v ~root:(Layout.upper0 ~root) in
       { flip; lower; upper1; upper0 }
 
-    let conf root = Irmin_pack.Config.v ~readonly:false ~fresh:false root
+    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
 
     let traverse_indexes ~root log_size =
       let lower = Layer_stat.traverse_index ~root:(Layout.lower ~root) log_size
@@ -113,7 +113,7 @@ module Make (M : Maker) (Store : S.Store) = struct
 
     let run ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
-      let log_size = conf root |> Irmin_pack.Config.index_log_size in
+      let log_size = conf root |> Irmin_pack.Conf.index_log_size in
       let objects = traverse_indexes ~root log_size in
       let+ files = v ~root in
       { hash_size = Bytes Hash.hash_size; log_size; files; objects }
@@ -128,14 +128,14 @@ module Make (M : Maker) (Store : S.Store) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Irmin_pack.Config.v ~readonly:false ~fresh:false root
+    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
 
     let run ~root ~auto_repair =
       let conf = conf root in
       let lower_root = Layout.lower ~root in
       let upper_root1 = Layout.upper1 ~root in
       let upper_root0 = Layout.upper0 ~root in
-      let conf = Config.v ~conf ~lower_root ~upper_root1 ~upper_root0 () in
+      let conf = Conf.v ~conf ~lower_root ~upper_root1 ~upper_root0 () in
       let+ repo = Store.Repo.v conf in
       let res = Store.integrity_check ~auto_repair repo in
       List.iter
@@ -163,8 +163,8 @@ module Make (M : Maker) (Store : S.Store) = struct
 
   module Check_self_contained = struct
     let conf root =
-      let conf = Irmin_pack.Config.v ~readonly:true root in
-      Config.v ~conf ~with_lower:false ()
+      let conf = Irmin_pack.Conf.v ~readonly:true root in
+      Conf.v ~conf ~with_lower:false ()
 
     let heads =
       let open Cmdliner.Arg in

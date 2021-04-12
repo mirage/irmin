@@ -20,7 +20,7 @@ module Maker_ext = Ext_layered.Maker
 module type S = S.Store
 module type Maker = S.Maker
 
-module Maker (Config : Irmin_pack.Config.S) =
+module Maker (Config : Irmin_pack.Conf.S) =
   Maker_ext (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module Checks = Checks
