@@ -302,3 +302,63 @@ module Make (M : Maker) = struct
 
   let cli = Cli.main
 end
+
+module Index (Index : Pack_index.S) = struct
+  let null =
+    match Sys.os_type with
+    | "Unix" | "Cygwin" -> "/dev/null"
+    | "Win32" -> "NUL"
+    | _ -> invalid_arg "invalid os type"
+
+  let integrity_check ?ppf ~auto_repair ~check index =
+    let ppf =
+      match ppf with
+      | Some p -> p
+      | None -> open_out null |> Format.formatter_of_out_channel
+    in
+    Fmt.pf ppf "Running the integrity_check.\n%!";
+    let nb_absent = ref 0 in
+    let nb_corrupted = ref 0 in
+    let exception Cannot_fix in
+    let bar, (progress_contents, progress_nodes, progress_commits) =
+      Utils.Progress.increment ()
+    in
+    let f (k, (offset, length, m)) =
+      match m with
+      | 'B' ->
+          progress_contents ();
+          check ~kind:`Contents ~offset ~length k
+      | 'N' | 'I' ->
+          progress_nodes ();
+          check ~kind:`Node ~offset ~length k
+      | 'C' ->
+          progress_commits ();
+          check ~kind:`Commit ~offset ~length k
+      | _ -> invalid_arg "unknown content type"
+    in
+    let result =
+      if auto_repair then
+        try
+          Index.filter index (fun binding ->
+              match f binding with
+              | Ok () -> true
+              | Error `Wrong_hash -> raise Cannot_fix
+              | Error `Absent_value ->
+                  incr nb_absent;
+                  false);
+          if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
+        with Cannot_fix -> Error (`Cannot_fix "Not implemented")
+      else (
+        Index.iter
+          (fun k v ->
+            match f (k, v) with
+            | Ok () -> ()
+            | Error `Wrong_hash -> incr nb_corrupted
+            | Error `Absent_value -> incr nb_absent)
+          index;
+        if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
+        else Error (`Corrupted (!nb_corrupted + !nb_absent)))
+    in
+    Utils.Progress.finalise bar;
+    result
+end
