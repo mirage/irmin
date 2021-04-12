@@ -94,20 +94,4 @@ module type Sigs = sig
 
   module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
     S.Atomic_write.Store with type key = K.t and type value = V.t
-
-  module Checks (Index : Pack_index.S) : sig
-    val integrity_check :
-      ?ppf:Format.formatter ->
-      auto_repair:bool ->
-      check:
-        (kind:[ `Contents | `Node | `Commit ] ->
-        offset:int63 ->
-        length:int ->
-        Index.key ->
-        (unit, [ `Absent_value | `Wrong_hash ]) result) ->
-      Index.t ->
-      ( [> `Fixed of int | `No_error ],
-        [> `Cannot_fix of string | `Corrupted of int ] )
-      result
-  end
 end

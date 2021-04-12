@@ -487,7 +487,7 @@ struct
     end
 
     let integrity_check ?ppf ~auto_repair t =
-      let module Checks = Irmin_pack.Store.Checks (Index) in
+      let module Checks = Irmin_pack.Checks.Index (Index) in
       let contents = X.Repo.contents_t t in
       let nodes = X.Repo.node_t t |> snd in
       let commits = X.Repo.commit_t t |> snd in

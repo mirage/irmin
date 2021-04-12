@@ -109,4 +109,20 @@ module type Sigs = sig
   module type Maker = Maker
 
   module Make (_ : Maker) : S
+
+  module Index (Index : Pack_index.S) : sig
+    val integrity_check :
+      ?ppf:Format.formatter ->
+      auto_repair:bool ->
+      check:
+        (kind:[> `Commit | `Contents | `Node ] ->
+        offset:int63 ->
+        length:int ->
+        Index.key ->
+        (unit, [< `Absent_value | `Wrong_hash ]) result) ->
+      Index.t ->
+      ( [> `Fixed of int | `No_error ],
+        [> `Cannot_fix of string | `Corrupted of int ] )
+      result
+  end
 end
