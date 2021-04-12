@@ -14,16 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val config :
-  ?conf:Irmin.config ->
-  ?lower_root:string ->
-  ?upper_root1:string ->
-  ?upper_root0:string ->
-  ?with_lower:bool ->
-  ?blocking_copy_size:int ->
-  unit ->
-  Irmin.config
-
 module Maker
     (_ : Irmin_pack.Conf.S)
     (_ : Irmin.Private.Node.Maker)

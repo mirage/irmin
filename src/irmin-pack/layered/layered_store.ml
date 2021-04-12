@@ -14,13 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_pack
 open! Import
 
-module type CA = sig
-  include Pack.S
-  module Key : Irmin.Hash.Typed with type t = key and type value = value
-end
+module type S = Irmin_pack.Pack.S
 
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
@@ -30,8 +26,8 @@ let stats = function
 
 module Copy
     (Key : Irmin.Hash.S)
-    (SRC : Pack.S with type key = Key.t)
-    (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
+    (SRC : S with type key = Key.t)
+    (DST : S with type key = SRC.key and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
 
@@ -60,9 +56,9 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
     (H : Irmin.Hash.S)
-    (Index : Private.Pack_index.S)
-    (U : Pack.S with type index = Index.t and type key = H.t)
-    (L : Pack.S
+    (Index : Irmin_pack.Private.Pack_index.S)
+    (U : S with type index = Index.t and type key = H.t)
+    (L : S
            with type index = U.index
             and type key = U.key
             and type value = U.value) =
@@ -320,13 +316,13 @@ end
 
 module Pack_maker
     (H : Irmin.Hash.S)
-    (Index : Private.Pack_index.S)
-    (P : Pack.Maker with type key = H.t and type index = Index.t) =
+    (Index : Irmin_pack.Private.Pack_index.S)
+    (P : Irmin_pack.Pack.Maker with type key = H.t and type index = Index.t) =
 struct
   type index = P.index
   type key = P.key
 
-  module Make (V : Pack.Value with type hash := key) = struct
+  module Make (V : Irmin_pack.Pack.Value with type hash := key) = struct
     module Upper = P.Make (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end

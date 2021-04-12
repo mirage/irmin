@@ -16,7 +16,6 @@
 
 open! Import
 open Irmin_pack.Checks
-module I = Irmin_pack.Private.IO
 module IO = Irmin_pack.Private.IO.Unix
 
 module type S = sig

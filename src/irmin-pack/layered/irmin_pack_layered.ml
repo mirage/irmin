@@ -24,3 +24,5 @@ module Maker (Config : Irmin_pack.Conf.S) =
   Maker_ext (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module Checks = Checks
+
+let config = Conf.v

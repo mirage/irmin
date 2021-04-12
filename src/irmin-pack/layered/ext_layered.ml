@@ -16,13 +16,8 @@
 
 open! Import
 
-let config = Conf.v
-
 (* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
-module Config_layered = Conf
 module Layout_layered = Layout
-open Irmin_pack
-open Private
 
 module V = struct
   let version = `V2
@@ -32,10 +27,8 @@ let cache_size = 10_000
 
 exception Cancelled
 
-module I = IO
-module IO = IO.Unix
-open! Import
-module Atomic_write = Store.Atomic_write
+module IO = Irmin_pack.Private.IO.Unix
+module Atomic_write = Irmin_pack.Store.Atomic_write
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
@@ -43,7 +36,7 @@ let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
 module Maker
-    (Config : Conf.S)
+    (Config : Conf.Pack.S)
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker) =
 struct
@@ -54,8 +47,8 @@ struct
       (B : Irmin.Branch.S)
       (H : Irmin.Hash.S) =
   struct
-    module Index = Pack_index.Make (H)
-    module Pack = Pack.File (V) (Index) (H)
+    module Index = Irmin_pack.Index.Make (H)
+    module Pack = Irmin_pack.Pack.File (V) (Index) (H)
 
     type store_handle =
       | Commit_t : H.t -> store_handle
@@ -98,7 +91,7 @@ struct
             let magic _ = magic
           end)
 
-          module CA = Closeable.Content_addressable (CA_Pack)
+          module CA = Irmin_pack.Private.Closeable.Content_addressable (CA_Pack)
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
@@ -136,7 +129,7 @@ struct
             let magic _ = magic
           end)
 
-          module CA = Closeable.Content_addressable (CA_Pack)
+          module CA = Irmin_pack.Private.Closeable.Content_addressable (CA_Pack)
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
@@ -147,7 +140,7 @@ struct
         module Key = B
         module Val = H
         module AW = Atomic_write (V) (Key) (Val)
-        module Closeable_AW = Closeable.Atomic_write (AW)
+        module Closeable_AW = Irmin_pack.Private.Closeable.Atomic_write (AW)
         include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
       end
 
@@ -172,7 +165,7 @@ struct
         }
 
         type freeze_info = {
-          throttle : Conf.freeze_throttle;
+          throttle : Conf.Pack.freeze_throttle;
           lock : Lwt_mutex.t;
           mutable state : [ `None | `Running | `Cancel ];
         }
@@ -248,11 +241,11 @@ struct
                       f contents node commit)))
 
         let unsafe_v_upper root config =
-          let fresh = Conf.fresh config in
-          let lru_size = Conf.lru_size config in
-          let readonly = Conf.readonly config in
-          let log_size = Conf.index_log_size config in
-          let throttle = Conf.merge_throttle config in
+          let fresh = Conf.Pack.fresh config in
+          let lru_size = Conf.Pack.lru_size config in
+          let readonly = Conf.Pack.readonly config in
+          let log_size = Conf.Pack.index_log_size config in
+          let throttle = Conf.Pack.merge_throttle config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -270,11 +263,11 @@ struct
           ({ index; contents; node; commit; branch } : upper_layer)
 
         let unsafe_v_lower root config =
-          let fresh = Conf.fresh config in
-          let lru_size = Conf.lru_size config in
-          let readonly = Conf.readonly config in
-          let log_size = Conf.index_log_size config in
-          let throttle = Conf.merge_throttle config in
+          let fresh = Conf.Pack.fresh config in
+          let lru_size = Conf.Pack.lru_size config in
+          let readonly = Conf.Pack.readonly config in
+          let log_size = Conf.Pack.index_log_size config in
+          let throttle = Conf.Pack.merge_throttle config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -294,11 +287,11 @@ struct
           Lwt.catch
             (fun () -> v root config)
             (function
-              | Version.Invalid { expected; found } as e
+              | Irmin_pack.Version.Invalid { expected; found } as e
                 when expected = V.version ->
                   Log.err (fun m ->
                       m "[%s] Attempted to open store of unsupported version %a"
-                        root Version.pp found);
+                        root Irmin_pack.Version.pp found);
                   Lwt.fail e
               | e -> Lwt.fail e)
 
@@ -306,19 +299,13 @@ struct
           { throttle; state = `None; lock = Lwt_mutex.create () }
 
         let v config =
-          let root = Conf.root config in
-          let upper1 =
-            Filename.concat root (Config_layered.upper_root1 config)
-          in
+          let root = Conf.Pack.root config in
+          let upper1 = Filename.concat root (Conf.upper_root1 config) in
           let* upper1 = v_layer ~v:unsafe_v_upper upper1 config in
-          let upper0 =
-            Filename.concat root (Config_layered.upper_root0 config)
-          in
+          let upper0 = Filename.concat root (Conf.upper_root0 config) in
           let* upper0 = v_layer ~v:unsafe_v_upper upper0 config in
-          let with_lower = Config_layered.with_lower config in
-          let lower_root =
-            Filename.concat root (Config_layered.lower_root config)
-          in
+          let with_lower = Conf.with_lower config in
+          let lower_root = Filename.concat root (Conf.lower_root config) in
           let* lower =
             if with_lower then
               v_layer ~v:unsafe_v_lower lower_root config >|= Option.some
@@ -328,8 +315,8 @@ struct
           let* flip_file = IO_layers.v file in
           let* flip = IO_layers.read_flip flip_file in
           (* A fresh store has to unlink the lock file as well. *)
-          let fresh = Conf.fresh config in
-          let freeze = freeze_info (Conf.freeze_throttle config) in
+          let fresh = Conf.Pack.fresh config in
+          let freeze = freeze_info (Conf.Pack.freeze_throttle config) in
           let lock_file = lock_path root in
           let freeze_in_progress () = freeze.state = `Running in
           let always_false () = false in
@@ -359,8 +346,8 @@ struct
               ~freeze_in_progress
           in
           let lower_index = Option.map (fun x -> x.lindex) lower in
-          let readonly = Conf.readonly config in
-          let blocking_copy_size = Config_layered.blocking_copy_size config in
+          let readonly = Conf.Pack.readonly config in
+          let blocking_copy_size = Conf.blocking_copy_size config in
           {
             contents;
             node;
@@ -430,13 +417,13 @@ struct
             on disk. As migration fails on an empty store, we check which layer
             is in the wrong version. *)
         let migrate config =
-          if Conf.readonly config then raise RO_not_allowed;
-          let root = Conf.root config in
-          Config_layered.[ upper_root1; upper_root0; lower_root ]
+          if Conf.Pack.readonly config then raise Irmin_pack.RO_not_allowed;
+          let root = Conf.Pack.root config in
+          Conf.[ upper_root1; upper_root0; lower_root ]
           |> List.map (fun name ->
                  let root = Filename.concat root (name config) in
                  let config =
-                   Irmin.Private.Conf.add config Conf.root_key (Some root)
+                   Irmin.Private.Conf.add config Conf.Pack.root_key (Some root)
                  in
                  try
                    let io =
@@ -445,7 +432,7 @@ struct
                    in
                    (config, Some io)
                  with
-                 | Version.Invalid _ -> (config, None)
+                 | Irmin_pack.Version.Invalid _ -> (config, None)
                  | e -> raise e)
           |> List.fold_left
                (fun to_migrate (config, io) ->
@@ -455,7 +442,7 @@ struct
                      IO.close io;
                      to_migrate)
                []
-          |> List.iter (fun config -> Store.migrate config)
+          |> List.iter (fun config -> Irmin_pack.Store.migrate config)
 
         let layer_id t store_handler =
           match store_handler with
@@ -500,7 +487,7 @@ struct
     end
 
     let integrity_check ?ppf ~auto_repair t =
-      let module Checks = Store.Checks (Index) in
+      let module Checks = Irmin_pack.Store.Checks (Index) in
       let contents = X.Repo.contents_t t in
       let nodes = X.Repo.node_t t |> snd in
       let commits = X.Repo.commit_t t |> snd in
@@ -867,7 +854,7 @@ struct
         unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t
       in
       if t.X.Repo.closed then Lwt.fail_with "store is closed"
-      else if t.readonly then raise RO_not_allowed
+      else if t.readonly then raise Irmin_pack.RO_not_allowed
       else
         match (t.freeze.state, t.freeze.throttle) with
         | `Running, `Overcommit_memory -> Lwt.return ()
