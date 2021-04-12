@@ -78,7 +78,6 @@
     `Irmin.Content_addressable.S` (#1369, @samoht)
   - Renamed `Irmin_containers.CAS_maker` to
     `Irmin_containers.Content_addressable` (#1369, @samoht)
-  - Removed extra unit argument to all functors (#1369, @samoht)
 
 - **irmin-fs**
   - Renamed `Irmin_fs.Make` into `Irmin_fs.Maker` (#1369, @samoht)
