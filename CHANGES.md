@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added
+
+- **irmin**
+  - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+
 ## 2.5.2 (2021-04-08)
 
 ### Fixed
