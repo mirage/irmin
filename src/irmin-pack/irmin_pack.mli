@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Pack = Pack
+module Content_addressable = Content_addressable
 module Dict = Pack_dict
 module Index = Pack_index
 module Conf = Conf

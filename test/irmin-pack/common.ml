@@ -68,7 +68,7 @@ module V2 = struct
   let version = `V2
 end
 
-module P = Irmin_pack.Pack.File (V2) (Index) (H)
+module P = Irmin_pack.Content_addressable.Maker (V2) (Index) (H)
 module Pack = P.Make (S)
 module Branch = Irmin_pack.Atomic_write (V2) (Irmin.Branch.String) (H)
 

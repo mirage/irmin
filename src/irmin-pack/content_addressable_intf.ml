@@ -99,7 +99,7 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module File
+  module Maker
       (_ : Version.S)
       (Index : Pack_index.S)
       (K : Irmin.Hash.S with type t = Index.key) :

@@ -126,6 +126,9 @@
   - Renamed `Irmin_pack.Make` into `Irmin_pack.V1` (#1369, @samoht)
   - Renamed `Irmin_pack.Make_ext` into `Irmin_pack.Maker_ext` (#1369, @samoht)
   - Renamed `Irmin_pack.Config` into `Irmin_pack.Conf` (#1370, @samoht)
+  - Renamed `Irmin_pack.Pack` into `Irmin_pack.Content_addressable` and
+    `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
+    (#1377, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

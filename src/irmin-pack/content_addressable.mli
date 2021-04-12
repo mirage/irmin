@@ -13,5 +13,5 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-include Pack_intf.Sigs
+include Content_addressable_intf.Sigs
 (** @inline *)

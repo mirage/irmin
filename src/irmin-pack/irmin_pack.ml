@@ -21,7 +21,7 @@ let config = Conf.v
 
 exception RO_not_allowed = S.RO_not_allowed
 
-module Pack = Pack
+module Content_addressable = Content_addressable
 module Dict = Pack_dict
 module Atomic_write = Store.Atomic_write
 module Hash = Irmin.Hash.BLAKE2B

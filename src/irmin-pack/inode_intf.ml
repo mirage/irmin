@@ -55,7 +55,7 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
-  module Raw : Pack.Value with type hash = hash
+  module Raw : Content_addressable.Value with type hash = hash
 
   val decode_raw :
     dict:(int -> string option) ->
@@ -145,7 +145,9 @@ module type Sigs = sig
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t) : sig
+      (_ : Content_addressable.Maker
+             with type key = H.t
+              and type index = Pack_index.Make(H).t) : sig
     include
       S
         with type key = H.t
@@ -158,7 +160,9 @@ module type Sigs = sig
   module Make
       (_ : Conf.S)
       (H : Irmin.Hash.S)
-      (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
+      (_ : Content_addressable.Maker
+             with type key = H.t
+              and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) : sig
     include
       S

@@ -33,7 +33,7 @@ struct
       (H : Irmin.Hash.S) =
   struct
     module Index = Pack_index.Make (H)
-    module Pack = Pack.File (V) (Index) (H)
+    module Pack = Content_addressable.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
 
     module X = struct

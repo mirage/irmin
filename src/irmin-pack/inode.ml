@@ -1158,10 +1158,12 @@ module Make_ext
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t) =
+    (CA : Content_addressable.Maker
+            with type key = H.t
+             and type index = Pack_index.Make(H).t) =
 struct
   module Key = H
-  module Pack = P.Make (Inter.Raw)
+  module Pack = CA.Make (Inter.Raw)
   module Val = Inter.Val
 
   type 'a t = 'a Pack.t
@@ -1232,9 +1234,11 @@ end
 module Make
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (P : Pack.Maker with type key = H.t and type index = Pack_index.Make(H).t)
+    (CA : Content_addressable.Maker
+            with type key = H.t
+             and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   module Inter = Make_internal (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (P)
+  include Make_ext (H) (Node) (Inter) (CA)
 end
