@@ -33,6 +33,8 @@ module Version = Version
 module Index = Pack_index
 module Conf = Conf
 
+let migrate = Migrate.run
+
 module Maker (V : Version.S) (Config : Conf.S) =
   Maker_ext (V) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
