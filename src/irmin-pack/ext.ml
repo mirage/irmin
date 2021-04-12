@@ -15,10 +15,6 @@
  *)
 
 open! Import
-
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
 module IO = IO.Unix
 
 module Maker
