@@ -92,8 +92,8 @@ module type Layered_atomic_write_store = sig
   val copy_newies_to_next_upper : t -> unit Lwt.t
 end
 
-module type Layered_pack = sig
-  open Irmin_pack.Pack
+module type Content_addressable = sig
+  open Irmin_pack.Content_addressable
   include S
   module U : S with type value = value
   module L : S
@@ -162,14 +162,14 @@ module type Layered_pack = sig
     unit Lwt.t
 end
 
-module type Layered_pack_maker = sig
-  open Irmin_pack.Pack
+module type Content_addressable_maker = sig
+  open Irmin_pack.Content_addressable
 
   type key
   type index
 
   module Make (V : Value with type hash := key) :
-    Layered_pack
+    Content_addressable
       with type key = key
        and type value = V.t
        and type index = index

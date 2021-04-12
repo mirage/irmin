@@ -21,15 +21,15 @@ module I = Inode
 module Make
     (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
-    (Pack_maker : S.Layered_pack_maker
-                    with type key = H.t
-                     and type index = Pack_index.Make(H).t)
+    (Maker : S.Content_addressable_maker
+               with type key = H.t
+                and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack_maker.index
+  type index = Maker.index
 
   module Internal = Inode.Make_internal (Conf) (H) (Node)
-  module P = Pack_maker.Make (Internal.Raw)
+  module P = Maker.Make (Internal.Raw)
   module Val = Internal.Val
   module Key = H
 

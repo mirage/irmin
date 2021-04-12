@@ -17,12 +17,11 @@
 open! Import
 module Sigs = S
 module Inode = Irmin_pack.Private.Inode
-module Pack = Irmin_pack.Pack
 
 module type S = sig
   include Inode.S
-  module U : Pack.S
-  module L : Pack.S
+  module U : Irmin_pack.Content_addressable.S
+  module L : Irmin_pack.Content_addressable.S
 
   val v :
     read U.t ->
@@ -83,7 +82,7 @@ module type Sigs = sig
   module Make
       (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
-      (P : Sigs.Layered_pack_maker
+      (_ : Sigs.Content_addressable_maker
              with type key = H.t
               and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :

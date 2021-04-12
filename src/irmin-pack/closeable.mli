@@ -18,8 +18,8 @@ open! Import
 
 (** Augments primitive store modules with close semantics *)
 
-module Content_addressable (CA : Pack.S) :
-  Pack.S
+module Content_addressable (CA : Content_addressable.S) :
+  Content_addressable.S
     with type key = CA.key
      and type value = CA.value
      and type index = CA.index

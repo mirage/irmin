@@ -43,13 +43,13 @@ end
 module Index : Irmin_pack.Index.S with type key = H.t
 
 module Pack :
-  Irmin_pack.Pack.S
+  Irmin_pack.Content_addressable.S
     with type key = H.t
      and type value = string
      and type index = Index.t
 
 module P :
-  Irmin_pack.Pack.Maker
+  Irmin_pack.Content_addressable.Maker
     with type key = H.t
      and type index = Irmin_pack.Index.Make(H).t
 

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Pack_intf
+include Content_addressable_intf
 open! Import
 
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
@@ -24,7 +24,7 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module File
+module Maker
     (V : Version.S)
     (Index : Pack_index.S)
     (K : Irmin.Hash.S with type t = Index.key) =

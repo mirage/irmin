@@ -16,7 +16,7 @@
 
 open! Import
 
-module type S = Irmin_pack.Pack.S
+module type S = Irmin_pack.Content_addressable.S
 
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
@@ -317,12 +317,15 @@ end
 module Pack_maker
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Private.Pack_index.S)
-    (P : Irmin_pack.Pack.Maker with type key = H.t and type index = Index.t) =
+    (P : Irmin_pack.Content_addressable.Maker
+           with type key = H.t
+            and type index = Index.t) =
 struct
   type index = P.index
   type key = P.key
 
-  module Make (V : Irmin_pack.Pack.Value with type hash := key) = struct
+  module Make (V : Irmin_pack.Content_addressable.Value with type hash := key) =
+  struct
     module Upper = P.Make (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end

@@ -48,7 +48,7 @@ struct
       (H : Irmin.Hash.S) =
   struct
     module Index = Irmin_pack.Index.Make (H)
-    module Pack = Irmin_pack.Pack.File (V) (Index) (H)
+    module Pack = Irmin_pack.Content_addressable.Maker (V) (Index) (H)
 
     type store_handle =
       | Commit_t : H.t -> store_handle

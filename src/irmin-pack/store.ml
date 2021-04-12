@@ -17,9 +17,6 @@
 open! Import
 include Store_intf
 module Cache = IO.Cache
-module Pack = Pack
-module Dict = Pack_dict
-module Index = Pack_index
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
