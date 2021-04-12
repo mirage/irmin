@@ -15,10 +15,9 @@
  *)
 
 include Ext
-include Config
 include Irmin_pack_intf
 
-let config = Config.v
+let config = Conf.v
 
 exception RO_not_allowed = S.RO_not_allowed
 
@@ -31,8 +30,10 @@ module Metadata = Irmin.Metadata.None
 module Maker_ext = Ext.Maker
 module Store = Store
 module Version = Version
+module Index = Pack_index
+module Conf = Conf
 
-module Maker (V : Version.S) (Config : Config.S) =
+module Maker (V : Version.S) (Config : Conf.S) =
   Maker_ext (V) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module V1 = Maker (struct
@@ -43,7 +44,7 @@ module V2 = Maker (struct
   let version = `V2
 end)
 
-module KV (V : Version.S) (Config : Config.S) = struct
+module KV (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
 
   module Maker = Maker (V) (Config)

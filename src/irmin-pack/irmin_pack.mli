@@ -17,7 +17,7 @@
 module Pack = Pack
 module Dict = Pack_dict
 module Index = Pack_index
-module Config = Config
+module Conf = Conf
 module Inode = Inode
 module Version = Version
 
@@ -26,8 +26,8 @@ val config :
   ?readonly:bool ->
   ?lru_size:int ->
   ?index_log_size:int ->
-  ?merge_throttle:Config.merge_throttle ->
-  ?freeze_throttle:Config.freeze_throttle ->
+  ?merge_throttle:Conf.merge_throttle ->
+  ?freeze_throttle:Conf.freeze_throttle ->
   string ->
   Irmin.config
 (** Configuration options for stores.
@@ -50,12 +50,12 @@ module Maker (_ : Version.S) : Maker
 module V1 : Maker
 module V2 : Maker
 
-module KV (_ : Version.S) (Config : Config.S) :
+module KV (_ : Version.S) (_ : Conf.S) :
   Irmin.KV_maker with type metadata = unit
 
 module Maker_ext
     (_ : Version.S)
-    (Config : Config.S)
+    (_ : Conf.S)
     (N : Irmin.Private.Node.Maker)
     (CT : Irmin.Private.Commit.Maker) : Store.Maker
 

@@ -45,11 +45,11 @@ module type Maker = sig
   (** @inline *)
 end
 
-module Maker (Config : Irmin_pack.Config.S) : Maker
+module Maker (_ : Irmin_pack.Conf.S) : Maker
 
 module Maker_ext
-    (Config : Irmin_pack.Config.S)
-    (N : Irmin.Private.Node.Maker)
-    (C : Irmin.Private.Commit.Maker) : Maker
+    (_ : Irmin_pack.Conf.S)
+    (_ : Irmin.Private.Node.Maker)
+    (_ : Irmin.Private.Commit.Maker) : Maker
 
 module Checks = Checks

@@ -27,8 +27,8 @@ type config = {
   clear : bool;
   no_freeze : bool;
   show_stats : bool;
-  merge_throttle : Irmin_pack.Config.merge_throttle;
-  freeze_throttle : Irmin_pack.Config.freeze_throttle;
+  merge_throttle : Irmin_pack.Conf.merge_throttle;
+  freeze_throttle : Irmin_pack.Conf.freeze_throttle;
 }
 [@@deriving repr]
 

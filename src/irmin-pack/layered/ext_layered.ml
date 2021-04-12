@@ -16,10 +16,10 @@
 
 open! Import
 
-let config = Config.v
+let config = Conf.v
 
 (* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
-module Config_layered = Config
+module Config_layered = Conf
 module Layout_layered = Layout
 open Irmin_pack
 open Private
@@ -36,7 +36,6 @@ module I = IO
 module IO = IO.Unix
 open! Import
 module Atomic_write = Store.Atomic_write
-module Pack_config = Config
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
@@ -44,7 +43,7 @@ let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
 module Maker
-    (Inode_config : Config.S)
+    (Config : Conf.S)
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker) =
 struct
@@ -109,7 +108,7 @@ struct
       module Node = struct
         module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
         module Node = Node.Make (H) (P) (M)
-        module CA = Inode_layers.Make (Inode_config) (H) (Pa) (Node)
+        module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
         include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
@@ -173,7 +172,7 @@ struct
         }
 
         type freeze_info = {
-          throttle : Config.freeze_throttle;
+          throttle : Conf.freeze_throttle;
           lock : Lwt_mutex.t;
           mutable state : [ `None | `Running | `Cancel ];
         }
@@ -249,11 +248,11 @@ struct
                       f contents node commit)))
 
         let unsafe_v_upper root config =
-          let fresh = Pack_config.fresh config in
-          let lru_size = Pack_config.lru_size config in
-          let readonly = Pack_config.readonly config in
-          let log_size = Pack_config.index_log_size config in
-          let throttle = Pack_config.merge_throttle config in
+          let fresh = Conf.fresh config in
+          let lru_size = Conf.lru_size config in
+          let readonly = Conf.readonly config in
+          let log_size = Conf.index_log_size config in
+          let throttle = Conf.merge_throttle config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -271,11 +270,11 @@ struct
           ({ index; contents; node; commit; branch } : upper_layer)
 
         let unsafe_v_lower root config =
-          let fresh = Pack_config.fresh config in
-          let lru_size = Pack_config.lru_size config in
-          let readonly = Pack_config.readonly config in
-          let log_size = Pack_config.index_log_size config in
-          let throttle = Pack_config.merge_throttle config in
+          let fresh = Conf.fresh config in
+          let lru_size = Conf.lru_size config in
+          let readonly = Conf.readonly config in
+          let log_size = Conf.index_log_size config in
+          let throttle = Conf.merge_throttle config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -307,7 +306,7 @@ struct
           { throttle; state = `None; lock = Lwt_mutex.create () }
 
         let v config =
-          let root = Pack_config.root config in
+          let root = Conf.root config in
           let upper1 =
             Filename.concat root (Config_layered.upper_root1 config)
           in
@@ -329,8 +328,8 @@ struct
           let* flip_file = IO_layers.v file in
           let* flip = IO_layers.read_flip flip_file in
           (* A fresh store has to unlink the lock file as well. *)
-          let fresh = Pack_config.fresh config in
-          let freeze = freeze_info (Pack_config.freeze_throttle config) in
+          let fresh = Conf.fresh config in
+          let freeze = freeze_info (Conf.freeze_throttle config) in
           let lock_file = lock_path root in
           let freeze_in_progress () = freeze.state = `Running in
           let always_false () = false in
@@ -360,7 +359,7 @@ struct
               ~freeze_in_progress
           in
           let lower_index = Option.map (fun x -> x.lindex) lower in
-          let readonly = Pack_config.readonly config in
+          let readonly = Conf.readonly config in
           let blocking_copy_size = Config_layered.blocking_copy_size config in
           {
             contents;
@@ -431,14 +430,13 @@ struct
             on disk. As migration fails on an empty store, we check which layer
             is in the wrong version. *)
         let migrate config =
-          if Pack_config.readonly config then raise RO_not_allowed;
-          let root = Pack_config.root config in
+          if Conf.readonly config then raise RO_not_allowed;
+          let root = Conf.root config in
           Config_layered.[ upper_root1; upper_root0; lower_root ]
           |> List.map (fun name ->
                  let root = Filename.concat root (name config) in
                  let config =
-                   Irmin.Private.Conf.add config Pack_config.root_key
-                     (Some root)
+                   Irmin.Private.Conf.add config Conf.root_key (Some root)
                  in
                  try
                    let io =

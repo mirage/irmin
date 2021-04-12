@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Pack_config = Config
 module Index = Pack_index
 
 let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
@@ -26,7 +25,7 @@ module IO = IO.Unix
 
 module Maker
     (V : Version.S)
-    (Config : Config.S)
+    (Config : Conf.S)
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker) =
 struct
@@ -147,12 +146,12 @@ struct
                       f contents node commit)))
 
         let unsafe_v config =
-          let root = Pack_config.root config in
-          let fresh = Pack_config.fresh config in
-          let lru_size = Pack_config.lru_size config in
-          let readonly = Pack_config.readonly config in
-          let log_size = Pack_config.index_log_size config in
-          let throttle = Pack_config.merge_throttle config in
+          let root = Conf.root config in
+          let fresh = Conf.fresh config in
+          let lru_size = Conf.lru_size config in
+          let readonly = Conf.readonly config in
+          let log_size = Conf.index_log_size config in
+          let throttle = Conf.merge_throttle config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -187,7 +186,7 @@ struct
                 when expected = V.version ->
                   Log.err (fun m ->
                       m "[%s] Attempted to open store of unsupported version %a"
-                        (Pack_config.root config) Version.pp found);
+                        (Conf.root config) Version.pp found);
                   Lwt.fail e
               | e -> Lwt.fail e)
 
@@ -283,12 +282,11 @@ struct
             read_buffer Int63.zero
 
           let reconstruct ?output config =
-            if Pack_config.readonly config then raise S.RO_not_allowed;
-            Log.info (fun l ->
-                l "[%s] reconstructing index" (Pack_config.root config));
-            let root = Pack_config.root config in
+            if Conf.readonly config then raise S.RO_not_allowed;
+            Log.info (fun l -> l "[%s] reconstructing index" (Conf.root config));
+            let root = Conf.root config in
             let dest = match output with Some path -> path | None -> root in
-            let log_size = Pack_config.index_log_size config in
+            let log_size = Conf.index_log_size config in
             let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
             let pack_file = Filename.concat root "store.pack" in
             let pack =

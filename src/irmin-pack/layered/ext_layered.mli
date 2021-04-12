@@ -25,6 +25,6 @@ val config :
   Irmin.config
 
 module Maker
-    (Config : Irmin_pack.Config.S)
-    (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : S.Maker
+    (_ : Irmin_pack.Conf.S)
+    (_ : Irmin.Private.Node.Maker)
+    (_ : Irmin.Private.Commit.Maker) : S.Maker

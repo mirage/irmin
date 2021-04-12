@@ -81,7 +81,7 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (Conf : Irmin_pack.Config.S)
+      (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
       (P : Sigs.Layered_pack_maker
              with type key = H.t
