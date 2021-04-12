@@ -6,9 +6,11 @@
   - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
     an empty subtree as a remove operation, rather than adding an empty
     directory.  (#1335, @craigfe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
+
 - **irmin-pack**
   - Fix a performance regression where all caches where always cleaned by
     `Store.sync` when using the V1 format (#1360, @samoht)
@@ -18,40 +20,29 @@
 - **irmin**
    - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
    - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
   - New features in benchmarks for tree operations (#1314, #1326, #1357,
     @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
+
 - **irmin-pack**
   - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+
 - **irmin**
-  - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
+  - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
   - Append-only and content-addressable backend implementations have to
     provide `close` and `batch` functions (#1345, @samoht)
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
 
+- *irmin-mem**
+  - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
+
 ### Changed
 
-- **irmin-pack**
-  - It is no longer possible to modify an `inode` that doesn't point to the root
-    of a directory. (#1292, @Ngoguey42)
-  - When configuring a store, is it no longer possible to set `entries` to a
-    value larger than `stable_hash`. (#1292, @Ngoguey42)
-  - Added number of objects to the output of `stat-pack` command in
-    `irmin-fsck`. (#1311, @icristescu)
-  - Renamed the `Version` module type into `Version.S` and `io_version` into
-    `version`. The `Pack.File` and `Atomic_write` functors now take
-    `Version` as their first parameter (#1352, @samoht)
-
-- **irmin-layers**
-  - Remove `copy_in_upper` from the repo configuration. The default is now to
-    copy. (#1322, @Ngoguey42)
-  - Simplify the API of `freeze`. It is now possible to specify two distinct
-    commit closures for the copy to lower and the copy to next upper.
-    (#1322, @Ngoguey42)
 - **irmin**
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
@@ -72,6 +63,24 @@
       - `Content_addressable` is now `Content_addressable.Make`
       - New `Content_adddressable.Check_closed` and `Atomic_write.Check_closed`
     (#1342, @samoht)
+  - Rename `Irmin.Make` into `Irmin.Maker` ; stage its result to return
+    `Make` functor once provided with a content-addressable and an
+    atomic-writes stores (#1369, @samoht)
+  - Rename `Irmin.Make_ext` into `Irmin.Maker_ext` ; stage its result to
+    return  `Make` functor once provided with a content-addressable and an
+    atomic-writes stores, as well as node and commit makers (#1369, @samoht)
+
+- **irmin-containers**
+  - Removed `Irmin_containers.Store_maker`; this is now equivalent to
+    `Irmin.Content_addressable.S` (#1369, @samoht)
+  - Renamed `Irmin_containers.CAS_maker` to
+    `Irmin_containers.Content_addressable` (#1369, @samoht)
+  - Removed extra unit argument to all functors (#1369, @samoht)
+
+- **irmin-fs**
+  - Renamed `Irmin_fs.Make` into `Irmin_fs.Maker` (#1369, @samoht)
+  - Renamed `Irmin_fs.Make_ext` into `Irmin_fs.Maker_ext` (#1369, @samoht)
+
 - **irmin-git**
   - All of the configuration keys have moved into their own namespace:
     - `Irmin_git.root` is now `Irmin_git.Conf.root`
@@ -81,6 +90,36 @@
     - `Irmin_git.buffers` is now `Irmin_git.Conf.buffers`
     - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
    (#1347, @samoht)
+  - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
+
+- **irmin-mirage**
+  - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
+    (#1369, @samoht)
+
+- **irmin-layers**
+  - Remove `copy_in_upper` from the repo configuration. The default is now to
+    copy. (#1322, @Ngoguey42)
+  - Simplify the API of `freeze`. It is now possible to specify two distinct
+    commit closures for the copy to lower and the copy to next upper.
+    (#1322, @Ngoguey42)
+  - Renamed `Irmin_layered_pack.Make` and Irmin_layers.Make` into
+    `Irmin_layered_pack.Maker` and `Irmin_layers.Maker` (#1369, @samoht)
+  - Renamed `Irmin_layered_pack.Make_ext` and and Irmin_layers.Make_ext` into
+    into `Irmin_layered_pack.Maker_ext` and `Irmin_layers.Maker_ext`
+    (#1369, @samoht)
+
+- **irmin-pack**
+  - It is no longer possible to modify an `inode` that doesn't point to the root
+    of a directory. (#1292, @Ngoguey42)
+  - When configuring a store, is it no longer possible to set `entries` to a
+    value larger than `stable_hash`. (#1292, @Ngoguey42)
+  - Added number of objects to the output of `stat-pack` command in
+    `irmin-fsck`. (#1311, @icristescu)
+  - Renamed the `Version` module type into `Version.S` and `io_version` into
+    `version`. The `Pack.File` and `Atomic_write` functors now take
+    `Version` as their first parameter (#1352, @samoht)
+  - Renamed `Irmin_pack.Make` into `Irmin_pack.V1` (#1369, @samoht)
+  - Renamed `Irmin_pack.Make_ext` into `Irmin_pack.Maker_ext` (#1369, @samoht)
 
 ## 2.5.1 (2021-02-19)
 
