@@ -28,7 +28,6 @@ let cache_size = 10_000
 exception Cancelled
 
 module IO = Irmin_pack.Private.IO.Unix
-module Atomic_write = Irmin_pack.Store.Atomic_write
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
@@ -139,7 +138,7 @@ struct
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Atomic_write (V) (Key) (Val)
+        module AW = Irmin_pack.Atomic_write.Make (V) (Key) (Val)
         module Closeable_AW = Irmin_pack.Private.Closeable.Atomic_write (AW)
         include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
       end

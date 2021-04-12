@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Content_addressable = Content_addressable
 module Dict = Pack_dict
 module Index = Pack_index
 module Conf = Conf
@@ -59,12 +58,6 @@ module Maker_ext
     (N : Irmin.Private.Node.Maker)
     (CT : Irmin.Private.Commit.Maker) : Store.Maker
 
-module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
-  include Irmin.Atomic_write.S with type key = K.t and type value = V.t
-
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-end
-
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
@@ -77,6 +70,9 @@ val migrate : Irmin.config -> unit
     {b Note:} performing concurrent store operations during the migration, or
     attempting to use pre-migration instances of the repository after the
     migration is complete, will result in undefined behaviour. *)
+
+module Content_addressable = Content_addressable
+module Atomic_write = Atomic_write
 
 module Private : sig
   module Closeable = Closeable

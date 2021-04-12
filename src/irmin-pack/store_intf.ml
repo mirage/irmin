@@ -91,7 +91,4 @@ module type Sigs = sig
   module type Specific = Specific
   module type S = S
   module type Maker = Maker
-
-  module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
-    S.Atomic_write.Store with type key = K.t and type value = V.t
 end

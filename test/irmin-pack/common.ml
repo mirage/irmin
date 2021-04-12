@@ -70,7 +70,7 @@ end
 
 module P = Irmin_pack.Content_addressable.Maker (V2) (Index) (H)
 module Pack = P.Make (S)
-module Branch = Irmin_pack.Atomic_write (V2) (Irmin.Branch.String) (H)
+module Branch = Irmin_pack.Atomic_write.Make (V2) (Irmin.Branch.String) (H)
 
 module Make_context (Config : sig
   val root : string

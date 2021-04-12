@@ -333,8 +333,10 @@ end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : S.Atomic_write.Store with type key = K.t)
-    (L : S.Atomic_write.Store with type key = U.key and type value = U.value) =
+    (U : Irmin_pack.Atomic_write.S with type key = K.t)
+    (L : Irmin_pack.Atomic_write.S
+           with type key = U.key
+            and type value = U.value) =
 struct
   type key = U.key
   type value = U.value

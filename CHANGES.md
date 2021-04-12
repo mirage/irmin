@@ -129,6 +129,7 @@
   - Renamed `Irmin_pack.Pack` into `Irmin_pack.Content_addressable` and
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
+  - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

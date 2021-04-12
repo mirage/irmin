@@ -66,10 +66,11 @@ module type Layered = sig
   include Layered_general with type _ t := t
 end
 
-module type Layered_atomic_write_store = sig
-  include Atomic_write.Store
-  module U : Atomic_write.Store
-  module L : Atomic_write.Store
+module type Atomic_write = sig
+  open Irmin_pack.Atomic_write
+  include S
+  module U : S
+  module L : S
 
   val v :
     U.t ->

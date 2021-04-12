@@ -14,16 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
+module type S = sig
+  include Irmin.Atomic_write.S
 
-type integrity_error = [ `Wrong_hash | `Absent_value ]
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+  val flush : t -> unit
+  val clear_keep_generation : t -> unit Lwt.t
+end
 
-exception RO_not_allowed
+module type Sigs = sig
+  module type S = S
 
-module type Checkable = sig
-  type 'a t
-  type key
-
-  val integrity_check :
-    offset:int63 -> length:int -> key -> _ t -> (unit, integrity_error) result
+  module Make (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
+    S with type key = K.t and type value = V.t
 end
