@@ -27,4 +27,7 @@ module type Sigs = sig
 
   module Make (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
     S with type key = K.t and type value = V.t
+
+  module Closeable (AW : S) :
+    S with type key = AW.key and type value = AW.value and type watch = AW.watch
 end
