@@ -22,8 +22,8 @@ let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (K : Type.S) = struct
-  type hash = K.t [@@deriving irmin]
+module Make (H : Type.S) = struct
+  type hash = H.t [@@deriving irmin]
 
   type t = { node : hash; parents : hash list; info : Info.t }
   [@@deriving irmin]
@@ -31,7 +31,7 @@ module Make (K : Type.S) = struct
   let parents t = t.parents
   let node t = t.node
   let info t = t.info
-  let compare_hash = Type.(unstage (compare K.t))
+  let compare_hash = Type.(unstage (compare H.t))
 
   let v ~info ~node ~parents =
     let parents = List.fast_sort compare_hash parents in
@@ -39,13 +39,14 @@ module Make (K : Type.S) = struct
 end
 
 module Store
-    (N : Node.Store) (S : sig
-      include Content_addressable.S with type key = N.key
-      module Key : Hash.S with type t = key
-      module Val : S with type t = value and type hash = key
-    end) =
+    (N : Node.Store)
+    (S : Content_addressable.S with type key = N.key)
+    (K : Hash.S with type t = S.key)
+    (V : S with type hash = S.key and type t = S.value) =
 struct
   module Node = N
+  module Val = V
+  module Key = Hash.Typed (K) (Val)
 
   type 'a t = 'a N.t * 'a S.t
   type key = S.key
@@ -64,7 +65,7 @@ struct
     ()
 
   let merge_node (t, _) = Merge.f (N.merge t)
-  let pp_key = Type.pp S.Key.t
+  let pp_key = Type.pp Key.t
 
   let err_not_found k =
     Fmt.kstrf invalid_arg "Commit.get: %a not found" pp_key k
@@ -76,13 +77,13 @@ struct
     | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
-  let equal_opt_keys = Type.(unstage (equal (option S.Key.t)))
+  let equal_opt_keys = Type.(unstage (equal (option Key.t)))
 
   let merge_commit info t ~old k1 k2 =
     let* v1 = get t k1 in
     let* v2 = get t k2 in
-    if List.mem k1 (S.Val.parents v2) then Merge.ok k2
-    else if List.mem k2 (S.Val.parents v1) then Merge.ok k1
+    if List.mem k1 (Val.parents v2) then Merge.ok k2
+    else if List.mem k2 (Val.parents v1) then Merge.ok k1
     else
       (* If we get an error while looking the the lca, then we
          assume that there is no common ancestor. Maybe we want to
@@ -103,20 +104,17 @@ struct
           | None -> Merge.ok None
           | Some old ->
               let* vold = get t old in
-              Merge.ok (Some (Some (S.Val.node vold)))
+              Merge.ok (Some (Some (Val.node vold)))
         in
-        merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
+        merge_node t ~old (Some (Val.node v1)) (Some (Val.node v2))
         >>=* fun node ->
         let* node = empty_if_none t node in
         let parents = [ k1; k2 ] in
-        let commit = S.Val.v ~node ~parents ~info:(info ()) in
+        let commit = Val.v ~node ~parents ~info:(info ()) in
         let* key = add t commit in
         Merge.ok key
 
-  let merge t ~info = Merge.(option (v S.Key.t (merge_commit info t)))
-
-  module Key = Hash.Typed (S.Key) (S.Val)
-  module Val = S.Val
+  let merge t ~info = Merge.(option (v Key.t (merge_commit info t)))
 end
 
 module History (S : Store) = struct

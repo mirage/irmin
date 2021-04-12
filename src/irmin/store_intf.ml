@@ -897,21 +897,24 @@ module type S = sig
       (it is by default), the tree cache will be cleared after the save. *)
 end
 
-module type Maker = functor
-  (M : Metadata.S)
-  (C : Contents.S)
-  (P : Path.S)
-  (B : Branch.S)
-  (H : Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
-     and type Private.Remote.endpoint = unit
+module type Maker = sig
+  type endpoint
+
+  module Make
+      (M : Metadata.S)
+      (C : Contents.S)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) :
+    S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Private.Remote.endpoint = endpoint
+end
 
 module type Json_tree = functor
   (Store : S with type contents = Contents.json)
@@ -934,10 +937,26 @@ module type Json_tree = functor
   (** Project a [json] value onto a store at the given key. *)
 end
 
+module type KV =
+  S with type key = string list and type step = string and type branch = string
+
+module type KV_maker = sig
+  type metadata
+  type endpoint
+
+  module Make (C : Contents.S) :
+    KV
+      with type contents = C.t
+       and type metadata = metadata
+       and type Private.Remote.endpoint = endpoint
+end
+
 module type Sigs = sig
   module type S = S
   module type Maker = Maker
   module type Json_tree = Json_tree
+  module type KV = KV
+  module type KV_maker = KV_maker
 
   type Remote.t += Store : (module S with type t = 'a) * 'a -> Remote.t
 

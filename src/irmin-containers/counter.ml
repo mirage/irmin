@@ -39,8 +39,8 @@ module type S = sig
   val read : path:Store.key -> Store.t -> int64 Lwt.t
 end
 
-module Make (Backend : Stores.Store_maker) = struct
-  module Store = Backend (Counter)
+module Make (Backend : Irmin.KV_maker) = struct
+  module Store = Backend.Make (Counter)
 
   let modify by info t path fn =
     Store.find t path >>= function

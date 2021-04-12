@@ -32,120 +32,98 @@ module Perms = Perms
 
 exception Closed = Store_properties.Closed
 
-module Make_ext
+module Maker_ext
     (CA : Content_addressable.Maker)
     (AW : Atomic_write.Maker)
-    (M : Metadata.S)
-    (C : Contents.S)
-    (P : Path.S)
-    (B : Branch.S)
-    (H : Hash.S)
-    (N : Node.S
-           with type metadata = M.t
-            and type hash = H.t
-            and type step = P.step)
-    (CT : Commit.S with type hash = H.t) =
+    (N : Node.Maker)
+    (CT : Commit.Maker) =
 struct
-  module CA = Content_addressable.Check_closed (CA)
-  module AW = Atomic_write.Check_closed (AW)
+  type endpoint = unit
 
-  module X = struct
-    module Hash = H
+  module Make
+      (M : Metadata.S)
+      (C : Contents.S)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) =
+  struct
+    module CA = Content_addressable.Check_closed (CA)
+    module AW = Atomic_write.Check_closed (AW)
 
-    module Contents = struct
-      module CA = struct
-        module Key = Hash
-        module Val = C
-        include CA (Key) (Val)
+    module X = struct
+      module Hash = H
+
+      module Contents = struct
+        module CA = CA.Make (H) (C)
+        include Contents.Store (CA) (H) (C)
       end
 
-      include Contents.Store (CA)
-    end
-
-    module Node = struct
-      module CA = struct
-        module Key = Hash
-        module Val = N
-        include CA (Key) (Val)
+      module Node = struct
+        module V = N.Make (H) (P) (M)
+        module CA = CA.Make (H) (V)
+        include Node.Store (Contents) (CA) (H) (V) (M) (P)
       end
 
-      include Node.Store (Contents) (P) (M) (CA)
-    end
-
-    module Commit = struct
-      module CA = struct
-        module Key = Hash
-        module Val = CT
-        include CA (Key) (Val)
+      module Commit = struct
+        module C = CT.Make (H)
+        module CA = CA.Make (H) (C)
+        include Commit.Store (Node) (CA) (H) (C)
       end
 
-      include Commit.Store (Node) (CA)
+      module Branch = struct
+        module Key = B
+        module Val = H
+        include AW.Make (Key) (Val)
+      end
+
+      module Slice = Slice.Make (Contents) (Node) (Commit)
+      module Remote = Remote.None (H) (B)
+
+      module Repo = struct
+        type t = {
+          config : Conf.t;
+          contents : read Contents.t;
+          nodes : read Node.t;
+          commits : read Commit.t;
+          branch : Branch.t;
+        }
+
+        let contents_t t = t.contents
+        let node_t t = t.nodes
+        let commit_t t = t.commits
+        let branch_t t = t.branch
+
+        let batch t f =
+          Contents.CA.batch t.contents @@ fun c ->
+          Node.CA.batch (snd t.nodes) @@ fun n ->
+          Commit.CA.batch (snd t.commits) @@ fun ct ->
+          let contents_t = c in
+          let node_t = (contents_t, n) in
+          let commit_t = (node_t, ct) in
+          f contents_t node_t commit_t
+
+        let v config =
+          let* contents = Contents.CA.v config in
+          let* nodes = Node.CA.v config in
+          let* commits = Commit.CA.v config in
+          let nodes = (contents, nodes) in
+          let commits = (nodes, commits) in
+          let+ branch = Branch.v config in
+          { contents; nodes; commits; branch; config }
+
+        let close t =
+          Contents.CA.close t.contents >>= fun () ->
+          Node.CA.close (snd t.nodes) >>= fun () ->
+          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+      end
     end
 
-    module Branch = struct
-      module Key = B
-      module Val = H
-      include AW (Key) (Val)
-    end
-
-    module Slice = Slice.Make (Contents) (Node) (Commit)
-    module Remote = Remote.None (H) (B)
-
-    module Repo = struct
-      type t = {
-        config : Conf.t;
-        contents : read Contents.t;
-        nodes : read Node.t;
-        commits : read Commit.t;
-        branch : Branch.t;
-      }
-
-      let contents_t t = t.contents
-      let node_t t = t.nodes
-      let commit_t t = t.commits
-      let branch_t t = t.branch
-
-      let batch t f =
-        Contents.CA.batch t.contents @@ fun c ->
-        Node.CA.batch (snd t.nodes) @@ fun n ->
-        Commit.CA.batch (snd t.commits) @@ fun ct ->
-        let contents_t = c in
-        let node_t = (contents_t, n) in
-        let commit_t = (node_t, ct) in
-        f contents_t node_t commit_t
-
-      let v config =
-        let* contents = Contents.CA.v config in
-        let* nodes = Node.CA.v config in
-        let* commits = Commit.CA.v config in
-        let nodes = (contents, nodes) in
-        let commits = (nodes, commits) in
-        let+ branch = Branch.v config in
-        { contents; nodes; commits; branch; config }
-
-      let close t =
-        Contents.CA.close t.contents >>= fun () ->
-        Node.CA.close (snd t.nodes) >>= fun () ->
-        Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
-    end
+    include Store.Make (X)
   end
-
-  include Store.Make (X)
 end
 
-module Make
-    (CA : Content_addressable.Maker)
-    (AW : Atomic_write.Maker)
-    (M : Metadata.S)
-    (C : Contents.S)
-    (P : Path.S)
-    (B : Branch.S)
-    (H : Hash.S) =
-struct
-  module N = Node.Make (H) (P) (M)
-  module CT = Commit.Make (H)
-  include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
-end
+module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
+  Maker_ext (CA) (AW) (Node) (Commit)
 
 module Of_private = Store.Make
 
@@ -156,11 +134,8 @@ type config = Conf.t
 type 'a diff = 'a Diff.t
 
 module type Maker = Store.Maker
-
-module type KV =
-  S with type key = string list and type step = string and type branch = string
-
-module type KV_maker = functor (C : Contents.S) -> KV with type contents = C.t
+module type KV = Store.KV
+module type KV_maker = Store.KV_maker
 
 module Private = struct
   module Conf = Conf

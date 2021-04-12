@@ -98,6 +98,15 @@ module type Metadata = sig
   (** The default metadata to attach, for APIs that don't care about metadata. *)
 end
 
+module type Maker = sig
+  module Make
+      (H : Hash.S) (P : sig
+        type step [@@deriving irmin]
+      end)
+      (M : Metadata) :
+    S with type metadata = M.t and type hash = H.t and type step = P.step
+end
+
 module type Store = sig
   include Content_addressable.S
 
@@ -225,15 +234,11 @@ end
 module type Sigs = sig
   module type S = S
   module type Metadata = Metadata
+  module type Maker = Maker
 
+  include Maker
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)
-  module Make
-      (K : Type.S) (P : sig
-        type step [@@deriving irmin]
-      end)
-      (M : Metadata.S) :
-    S with type hash = K.t and type step = P.step and type metadata = M.t
 
   (** v1 serialisation *)
   module V1 (N : S with type step = string) : sig
@@ -253,26 +258,18 @@ module type Sigs = sig
   (** [Store] creates node stores. *)
   module Store
       (C : Contents.Store)
-      (P : Path.S)
-      (M : Metadata.S) (N : sig
-        include Content_addressable.S with type key = C.key
-        module Key : Hash.S with type t = key
-
-        module Val :
-          S
-            with type t = value
-             and type hash = key
-             and type metadata = M.t
-             and type step = P.step
-      end) :
+      (S : Content_addressable.S with type key = C.key)
+      (K : Hash.S with type t = S.key)
+      (V : S with type t = S.value and type hash = S.key)
+      (M : Metadata.S with type t = V.metadata)
+      (P : Path.S with type step = V.step) :
     Store
-      with type 'a t = 'a C.t * 'a N.t
-       and type key = N.key
-       and type value = N.value
+      with type 'a t = 'a C.t * 'a S.t
+       and type key = S.key
+       and type value = S.value
        and module Path = P
        and module Metadata = M
-       and type Key.t = N.key
-       and module Val = N.Val
+       and module Val = V
 
   module type Graph = Graph
   (** [Graph] specifies the signature for node graphs. A node graph is a

@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include Irmin_git_intf
 open! Import
 module Conf = Conf
 module Metadata = Metadata
@@ -24,43 +25,29 @@ let config = Conf.v
 
 type reference = Reference.t [@@deriving irmin]
 
-module type S = sig
-  module Git : Git.S
-  include Irmin.S with type metadata = Metadata.t and type hash = Git.Hash.t
-
-  val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
-  val git_of_repo : Repo.t -> Git.t
-
-  val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    Git.t ->
-    Repo.t Lwt.t
-end
-
-module type G = Private.G
-
-module Make_ext
+module Maker_ext
     (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Branch.S) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
-  module P = Private.Make (G) (S) (C) (P) (B)
-  include Irmin.Of_private (P)
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  type hash = Irmin.Hash.Make(G.Hash).t
 
-  let git_of_repo = P.git_of_repo
-  let repo_of_git = P.repo_of_git
+  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) = struct
+    module P = Private.Make (G) (S) (C) (P) (B)
+    include Irmin.Of_private (P)
 
-  let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t =
-    let h = Commit.hash h in
-    G.read (git_of_repo repo) h >|= function
-    | Ok (Git.Value.Commit c) -> Some c
-    | _ -> None
+    let git_of_repo = P.git_of_repo
+    let repo_of_git = P.repo_of_git
 
-  module Git = G
+    let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t
+        =
+      let h = Commit.hash h in
+      G.read (git_of_repo repo) h >|= function
+      | Ok (Git.Value.Commit c) -> Some c
+      | _ -> None
+
+    module Git = G
+  end
 end
 
 module Mem = struct
@@ -82,18 +69,20 @@ module Mem = struct
     | None -> v' ?dotgit root >|= add_conf conf
 end
 
-module Make
+module Maker
     (G : G)
-    (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S) =
-  Make_ext (G) (S) (C) (P) (Branch.Make (B))
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+struct
+  module Maker = Maker_ext (G) (S)
 
-module No_sync (G : Git.S) = struct
-  type hash = G.hash
-  type store = G.t
+  type endpoint = Maker.endpoint
+  type hash = Maker.hash
 
+  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
+    Maker.Make (C) (P) (Branch.Make (B))
+end
+
+module No_sync = struct
   type error =
     [ `Not_found | `Msg of string | `Exn of exn | `Cycle | `Invalid_flow ]
 
@@ -107,24 +96,24 @@ module No_sync (G : Git.S) = struct
 end
 
 module Content_addressable (G : Git.S) = struct
+  module G = struct
+    include G
+
+    let v ?dotgit:_ _root = assert false
+  end
+
   module type S = Irmin.Content_addressable.S with type key = G.Hash.t
 
+  module Maker = Maker_ext (G) (No_sync)
+
   module Make (V : Irmin.Type.S) = struct
-    module G = struct
-      include G
-
-      let v ?dotgit:_ _root = assert false
-    end
-
     module V = struct
       include V
 
       let merge = Irmin.Merge.default Irmin.Type.(option V.t)
     end
 
-    module M =
-      Make_ext (G) (No_sync (G)) (V) (Irmin.Path.String_list) (Reference)
-
+    module M = Maker.Make (V) (Irmin.Path.String_list) (Reference)
     module X = M.Private.Contents
 
     let state t =
@@ -183,83 +172,149 @@ end
 
 module KV
     (G : G)
-    (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-    (C : Irmin.Contents.S) =
-  Make (G) (S) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+struct
+  module Maker = Maker (G) (S)
+
+  type endpoint = Maker.endpoint
+  type metadata = Metadata.t
+  type branch = string
+
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+end
 
 module Ref
     (G : G)
-    (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-    (C : Irmin.Contents.S) =
-  Make_ext (G) (S) (C) (Irmin.Path.String_list) (Reference)
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+struct
+  module Maker = Maker_ext (G) (S)
 
-module type Maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and module Key = P
-     and type contents = C.t
-     and type branch = B.t
-     and module Git = G
-     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  type endpoint = Maker.endpoint
+  type branch = reference
 
-module type KV_maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  (C : Irmin.Contents.S)
-  ->
-  S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = string
-     and module Git = G
-     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-
-module type Ref_maker = functor
-  (G : G)
-  (S : Git.Sync.S with type hash = G.hash and type store = G.t)
-  (C : Irmin.Contents.S)
-  ->
-  S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = Reference.t
-     and module Git = G
-     and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (C) (Irmin.Path.String_list) (Reference)
+end
 
 include Conf
 
 module Generic
     (CA : Irmin.Content_addressable.Maker)
-    (AW : Irmin.Atomic_write.Maker)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S) =
+    (AW : Irmin.Atomic_write.Maker) =
 struct
-  (* We use a dummy store to get the serialisation functions. This is
-     probably not necessary and we could use Git.Value.Raw instead. *)
   module G = Mem
-  module S = Make (G) (No_sync (G)) (C) (P) (B)
 
-  include
-    Irmin.Make_ext (CA) (AW) (S.Private.Node.Metadata) (S.Private.Contents.Val)
-      (S.Private.Node.Path)
-      (S.Branch)
-      (S.Private.Hash)
-      (S.Private.Node.Val)
-      (S.Private.Commit.Val)
+  type endpoint = unit
+
+  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
+  struct
+    (* We use a dummy store to get the serialisation functions. This is
+       probably not necessary and we could use Git.Value.Raw instead. *)
+    module Dummy = struct
+      module G = Mem
+      module Maker = Maker (G) (No_sync)
+      module S = Maker.Make (C) (P) (B)
+      include S.Private
+    end
+
+    module CA = Irmin.Content_addressable.Check_closed (CA)
+    module AW = Irmin.Atomic_write.Check_closed (AW)
+
+    module X = struct
+      module Hash = Dummy.Hash
+
+      module Contents = struct
+        module V = Dummy.Contents.Val
+        module CA = CA.Make (Hash) (V)
+        include Irmin.Contents.Store (CA) (Hash) (V)
+      end
+
+      module Node = struct
+        module V = Dummy.Node.Val
+        module CA = CA.Make (Hash) (V)
+
+        include
+          Irmin.Private.Node.Store (Contents) (CA) (Hash) (V)
+            (Dummy.Node.Metadata)
+            (P)
+      end
+
+      module Commit = struct
+        module V = Dummy.Commit.Val
+        module CA = CA.Make (Hash) (V)
+        include Irmin.Private.Commit.Store (Node) (CA) (Hash) (V)
+      end
+
+      module Branch = struct
+        module Key = Dummy.Branch.Key
+        module Val = Dummy.Branch.Val
+        include AW.Make (Key) (Val)
+      end
+
+      module Slice = Dummy.Slice
+      module Remote = Irmin.Private.Remote.None (Branch.Val) (Branch.Key)
+
+      module Repo = struct
+        (* FIXME: remove duplication with irmin.mli *)
+        type t = {
+          config : Irmin.config;
+          contents : read Contents.t;
+          nodes : read Node.t;
+          commits : read Commit.t;
+          branch : Branch.t;
+        }
+
+        let contents_t t = t.contents
+        let node_t t = t.nodes
+        let commit_t t = t.commits
+        let branch_t t = t.branch
+
+        let batch t f =
+          Contents.CA.batch t.contents @@ fun c ->
+          Node.CA.batch (snd t.nodes) @@ fun n ->
+          Commit.CA.batch (snd t.commits) @@ fun ct ->
+          let contents_t = c in
+          let node_t = (contents_t, n) in
+          let commit_t = (node_t, ct) in
+          f contents_t node_t commit_t
+
+        let v config =
+          let* contents = Contents.CA.v config in
+          let* nodes = Node.CA.v config in
+          let* commits = Commit.CA.v config in
+          let nodes = (contents, nodes) in
+          let commits = (nodes, commits) in
+          let+ branch = Branch.v config in
+          { contents; nodes; commits; branch; config }
+
+        let close t =
+          Contents.CA.close t.contents >>= fun () ->
+          Node.CA.close (snd t.nodes) >>= fun () ->
+          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+      end
+    end
+
+    include Irmin.Of_private (X)
+  end
 end
 
 module Generic_KV
     (CA : Irmin.Content_addressable.Maker)
-    (AW : Irmin.Atomic_write.Maker)
-    (C : Irmin.Contents.S) =
-  Generic (CA) (AW) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+    (AW : Irmin.Atomic_write.Maker) =
+struct
+  module Maker = Generic (CA) (AW)
+
+  type endpoint = Maker.endpoint
+  type metadata = Metadata.t
+
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+end
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
+module KV_is_a_KV_maker : Irmin.KV_maker = KV (Mem) (No_sync)
+
+(* Enforce that {!Generic_KV} is a sub-type of {!Irmin.KV_maker}. *)
+module Generic_KV_is_a_KV_maker : Irmin.KV_maker =
+  Generic_KV (Irmin_mem.Content_addressable) (Irmin_mem.Atomic_write)

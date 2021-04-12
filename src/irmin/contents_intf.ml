@@ -82,10 +82,9 @@ module type Sigs = sig
   (** Contents store. *)
 
   (** [Store] creates a contents store. *)
-  module Store (C : sig
-    include Content_addressable.S
-    module Key : Hash.S with type t = key
-    module Val : S with type t = value
-  end) :
-    Store with type 'a t = 'a C.t and type key = C.key and type value = C.value
+  module Store
+      (S : Content_addressable.S)
+      (H : Hash.S with type t = S.key)
+      (C : S with type t = S.value) :
+    Store with type 'a t = 'a S.t and type key = H.t and type value = C.t
 end

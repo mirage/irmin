@@ -28,67 +28,59 @@ module Layer_id = struct
   let pp = Fmt.of_to_string to_string
 end
 
-module Make_ext
+module Maker_ext
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = M.t
-            and type hash = H.t
-            and type step = P.step)
-    (CT : Irmin.Private.Commit.S with type hash = H.t) =
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker) =
 struct
-  include Irmin.Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) =
+  struct
+    module Maker = Irmin.Maker_ext (CA) (AW) (N) (CT)
+    include Maker.Make (M) (C) (P) (B) (H)
 
-  let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
-      _repo =
-    Lwt.fail_with "not implemented"
-
-  type store_handle =
-    | Commit_t : hash -> store_handle
-    | Node_t : hash -> store_handle
-    | Content_t : hash -> store_handle
-
-  let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
-  let async_freeze _ = failwith "not implemented"
-  let upper_in_use _repo = failwith "not implemented"
-  let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
-  let check_self_contained ?heads:_ _ = failwith "not implemented"
-  let needs_recovery _ = failwith "not implemented"
-
-  module Private_layer = struct
-    module Hook = struct
-      type 'a t = unit
-
-      let v _ = failwith "not implemented"
-    end
-
-    let wait_for_freeze _ = Lwt.fail_with "not implemented"
-
-    let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
-        ?hook:_ _repo =
+    let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
+        _repo =
       Lwt.fail_with "not implemented"
 
-    let upper_in_use = upper_in_use
+    type store_handle =
+      | Commit_t : hash -> store_handle
+      | Node_t : hash -> store_handle
+      | Content_t : hash -> store_handle
+
+    let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
+    let async_freeze _ = failwith "not implemented"
+    let upper_in_use _repo = failwith "not implemented"
+    let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
+    let check_self_contained ?heads:_ _ = failwith "not implemented"
+    let needs_recovery _ = failwith "not implemented"
+
+    module Private_layer = struct
+      module Hook = struct
+        type 'a t = unit
+
+        let v _ = failwith "not implemented"
+      end
+
+      let wait_for_freeze _ = Lwt.fail_with "not implemented"
+
+      let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_
+          ?recovery:_ ?hook:_ _repo =
+        Lwt.fail_with "not implemented"
+
+      let upper_in_use = upper_in_use
+    end
   end
 end
 
-module Make
+module Maker
     (CA : Irmin.Content_addressable.Maker)
-    (AW : Irmin.Atomic_write.Maker)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module N = Irmin.Private.Node.Make (H) (P) (M)
-  module CT = Irmin.Private.Commit.Make (H)
-  include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
-end
+    (AW : Irmin.Atomic_write.Maker) =
+  Maker_ext (CA) (AW) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module Stats = Stats

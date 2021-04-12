@@ -59,7 +59,8 @@ module type Layered_store =
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
   let module S =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
+    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+      (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
   in
   (module S)
@@ -70,7 +71,8 @@ let layered_store :
     (module Layered_store) =
  fun (module B) (module M) ->
   let module Layered_store =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
+    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+      (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
   in
   (module Layered_store)

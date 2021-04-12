@@ -15,45 +15,7 @@
  *)
 
 open Lwt.Infix
-
-module type S = sig
-  include
-    Irmin_git.S
-      with type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-
-  val remote :
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
-end
-
-module type Maker = functor
-  (G : Irmin_git.G)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and module Key = P
-     and type contents = C.t
-     and type branch = B.t
-     and module Git = G
-
-module type KV_maker = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
-  S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = string
-     and module Git = G
-
-module type Ref_maker = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
-  S
-    with type key = string list
-     and type step = string
-     and type contents = C.t
-     and type branch = Irmin_git.reference
-     and module Git = G
+include Irmin_mirage_git_intf
 
 let remote ?(ctx = Mimic.empty) ?headers uri =
   let ( ! ) f a b = f b a in
@@ -68,43 +30,39 @@ let remote ?(ctx = Mimic.empty) ?headers uri =
       (ctx, edn)
   | Error (`Msg err) -> Fmt.invalid_arg "remote: %s" err
 
-module Make
-    (G : Irmin_git.G)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S) =
-struct
-  include Irmin_git.Make (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C) (P) (B)
+module Maker (G : Irmin_git.G) = struct
+  module Maker = Irmin_git.Maker (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
 
-  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
+  struct
+    include Maker.Make (C) (P) (B)
+
+    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+  end
 end
 
-module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C)
+module Ref (G : Irmin_git.G) = struct
+  module Maker = Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
 
-  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+  type branch = Maker.branch
+
+  module Make (C : Irmin.Contents.S) = struct
+    include Maker.Make (C)
+
+    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+  end
 end
 
-module KV (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_cohttp_mirage)) (C)
+module KV (G : Irmin_git.G) = struct
+  module Maker = Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
 
-  let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
-end
+  type branch = Maker.branch
 
-module type KV_RO = sig
-  type git
+  module Make (C : Irmin.Contents.S) = struct
+    include Maker.Make (C)
 
-  include Mirage_kv.RO
-
-  val connect :
-    ?depth:int ->
-    ?branch:string ->
-    ?root:key ->
-    ?ctx:Mimic.ctx ->
-    ?headers:Cohttp.Header.t ->
-    git ->
-    string ->
-    t Lwt.t
+    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+  end
 end
 
 module KV_RO (G : Git.S) = struct
@@ -118,7 +76,8 @@ module KV_RO (G : Git.S) = struct
     let v ?dotgit:_ _root = assert false
   end
 
-  module S = KV (G) (Irmin.Contents.String)
+  module Maker = KV (G)
+  module S = Maker.Make (Irmin.Contents.String)
   module Sync = Irmin.Sync.Make (S)
 
   let disconnect _ = Lwt.return_unit
@@ -215,24 +174,6 @@ module KV_RO (G : Git.S) = struct
     match Key.segments k with
     | [ "HEAD" ] -> head_message t >|= fun v -> Ok v
     | _ -> get t k
-end
-
-module type KV_RW = sig
-  type git
-
-  include Mirage_kv.RW
-
-  val connect :
-    ?depth:int ->
-    ?branch:string ->
-    ?root:key ->
-    ?ctx:Mimic.ctx ->
-    ?headers:Cohttp.Header.t ->
-    ?author:(unit -> string) ->
-    ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
-    git ->
-    string ->
-    t Lwt.t
 end
 
 module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
@@ -392,9 +333,15 @@ end
 
 module Mem = struct
   module G = Irmin_git.Mem
-  module Make = Make (G)
-  module Ref = Ref (G)
-  module KV = KV (G)
+  include Maker (G)
+
+  module Maker = struct
+    module Ref = Ref (G)
+    module KV = KV (G)
+  end
+
+  module Ref = Maker.Ref.Make
+  module KV = Maker.KV.Make
   module KV_RO = KV_RO (G)
   module KV_RW = KV_RW (G)
 end

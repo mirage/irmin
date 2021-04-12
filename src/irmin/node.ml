@@ -23,12 +23,12 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make
-    (K : Type.S) (P : sig
+    (H : Type.S) (P : sig
       type step [@@deriving irmin]
     end)
     (M : Metadata.S) =
 struct
-  type hash = K.t [@@deriving irmin]
+  type hash = H.t [@@deriving irmin]
   type step = P.step [@@deriving irmin]
   type metadata = M.t [@@deriving irmin]
   type kind = [ `Node | `Contents of M.t ]
@@ -46,7 +46,7 @@ struct
     |~ case1 "contents" M.t (fun m -> `Contents m)
     |> sealv
 
-  type entry = { kind : kind; name : P.step; node : K.t } [@@deriving irmin]
+  type entry = { kind : kind; name : P.step; node : H.t } [@@deriving irmin]
 
   let equal_entry_opt = Type.(unstage (equal [%typ: entry option]))
 
@@ -108,9 +108,9 @@ struct
     variant "value" (fun n c x -> function
       | `Node h -> n h
       | `Contents (h, m) -> if equal_metadata m M.default then c h else x (h, m))
-    |~ case1 "node" K.t (fun k -> `Node k)
-    |~ case1 "contents" K.t (fun h -> `Contents (h, M.default))
-    |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
+    |~ case1 "node" H.t (fun k -> `Node k)
+    |~ case1 "contents" H.t (fun h -> `Contents (h, M.default))
+    |~ case1 "contents-x" (pair H.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
   let of_entries e = v (List.rev_map of_entry e)
@@ -120,21 +120,15 @@ end
 
 module Store
     (C : Contents.Store)
-    (P : Path.S)
-    (M : Metadata.S) (S : sig
-      include Content_addressable.S with type key = C.key
-      module Key : Hash.S with type t = key
-
-      module Val :
-        S
-          with type t = value
-           and type hash = key
-           and type metadata = M.t
-           and type step = P.step
-    end) =
+    (S : Content_addressable.S with type key = C.key)
+    (K : Hash.S with type t = S.key)
+    (V : S with type t = S.value and type hash = S.key)
+    (M : Metadata.S with type t = V.metadata)
+    (P : Path.S with type step = V.step) =
 struct
   module Contents = C
-  module Key = Hash.Typed (S.Key) (S.Val)
+  module Val = V
+  module Key = Hash.Typed (K) (Val)
   module Path = P
   module Metadata = M
 
@@ -155,13 +149,13 @@ struct
     ()
 
   let all_contents t =
-    let kvs = S.Val.list t in
+    let kvs = Val.list t in
     List.fold_left
       (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
       [] kvs
 
   let all_succ t =
-    let kvs = S.Val.list t in
+    let kvs = Val.list t in
     List.fold_left
       (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
       [] kvs
@@ -189,34 +183,32 @@ struct
         merge_contents_meta c)
 
   let merge_parents merge_key =
-    Merge.alist step_t S.Key.t (fun _step -> merge_key)
+    Merge.alist step_t Key.t (fun _step -> merge_key)
 
   let merge_value (c, _) merge_key =
     let explode t = (all_contents t, all_succ t) in
     let implode (contents, succ) =
       let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
       let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      S.Val.v (xs @ ys)
+      Val.v (xs @ ys)
     in
     let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
-    Merge.like S.Val.t merge explode implode
+    Merge.like Val.t merge explode implode
 
   let rec merge t =
     let merge_key =
-      Merge.v [%typ: S.Key.t option] (fun ~old x y ->
+      Merge.v [%typ: Key.t option] (fun ~old x y ->
           Merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
     let read = function
-      | None -> Lwt.return S.Val.empty
-      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v)
+      | None -> Lwt.return Val.empty
+      | Some k -> ( find t k >|= function None -> Val.empty | Some v -> v)
     in
     let add v =
-      if S.Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
+      if Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
     in
-    Merge.like_lwt [%typ: S.Key.t option] merge read add
-
-  module Val = S.Val
+    Merge.like_lwt [%typ: Key.t option] merge read add
 end
 
 module Graph (S : Store) = struct

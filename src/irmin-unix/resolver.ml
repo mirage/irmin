@@ -265,13 +265,14 @@ module Store = struct
   let create : (module Irmin.Maker) -> hash -> contents -> t =
    fun (module S) (module H) (module C) ->
     let module S =
-      S (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
+      S.Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
+        (Irmin.Branch.String)
         (H)
     in
     T ((module S), None)
 
-  let mem = create (module Irmin_mem.Make)
-  let irf = create (module Fs.Make)
+  let mem = create (module Irmin_mem)
+  let irf = create (module Fs)
   let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
@@ -281,7 +282,7 @@ module Store = struct
     let stable_hash = 256
   end
 
-  let pack = create (module Irmin_pack.Make (Inode_config))
+  let pack = create (module Irmin_pack.V1 (Inode_config))
 
   let all =
     ref

@@ -126,20 +126,21 @@ module type S = sig
   end
 end
 
-module type Maker = functor
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+module type Maker = sig
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) :
+    S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+end
 
 module type Sigs = sig
   module Layer_id : sig
@@ -152,29 +153,13 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module Make_ext
+  module Maker_ext
       (CA : Irmin.Content_addressable.Maker)
       (AW : Irmin.Atomic_write.Maker)
-      (Metadata : Irmin.Metadata.S)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S
-                with type metadata = Metadata.t
-                 and type hash = Hash.t
-                 and type step = Path.step)
-      (Commit : Irmin.Private.Commit.S with type hash = Hash.t) :
-    S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
+      (Node : Irmin.Private.Node.Maker)
+      (Commit : Irmin.Private.Commit.Maker) : Maker
 
-  module Make
+  module Maker
       (CA : Irmin.Content_addressable.Maker)
       (AW : Irmin.Atomic_write.Maker) : Maker
 

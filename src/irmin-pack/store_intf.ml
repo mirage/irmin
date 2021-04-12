@@ -17,8 +17,9 @@
 open! Import
 
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
-module type S = sig
+module type Specific = sig
   type repo
+  type commit
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -54,8 +55,42 @@ module type S = sig
       by a readonly instance.*)
 end
 
+module type S = sig
+  include Irmin.S
+  include Specific with type repo := repo and type commit := commit
+
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+
+  val reconstruct_index : ?output:string -> Irmin.config -> unit
+end
+
+module type Maker = sig
+  type endpoint = unit
+
+  module Make
+      (Metadata : Irmin.Metadata.S)
+      (Contents : Irmin.Contents.S)
+      (Path : Irmin.Path.S)
+      (Branch : Irmin.Branch.S)
+      (Hash : Irmin.Hash.S) :
+    S
+      with type key = Path.t
+       and type contents = Contents.t
+       and type branch = Branch.t
+       and type hash = Hash.t
+       and type step = Path.step
+       and type metadata = Metadata.t
+       and type Key.step = Path.step
+       and type Private.Remote.endpoint = endpoint
+end
+
 module type Sigs = sig
+  module type Specific = Specific
   module type S = S
+  module type Maker = Maker
 
   module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
     S.Atomic_write.Store with type key = K.t and type value = V.t

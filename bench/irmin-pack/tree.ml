@@ -978,12 +978,8 @@ module Make_store_layered (Conf : sig
 end) =
 struct
   open Tezos_context_hash.Encoding
-
-  module Store =
-    Irmin_pack_layered.Make_ext (Conf) (Metadata) (Contents) (Path) (Branch)
-      (Hash)
-      (Node)
-      (Commit)
+  module Maker = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
+  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
@@ -1018,19 +1014,12 @@ end) =
 struct
   open Tezos_context_hash.Encoding
 
-  module Store =
-    Irmin_pack.Make_ext
-      (struct
-        let version = `V1
-      end)
-      (Conf)
-      (Metadata)
-      (Contents)
-      (Path)
-      (Branch)
-      (Hash)
-      (Node)
-      (Commit)
+  module V1 = struct
+    let version = `V1
+  end
+
+  module Maker = Irmin_pack.Maker_ext (V1) (Conf) (Node) (Commit)
+  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in

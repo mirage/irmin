@@ -17,36 +17,8 @@
 module Pack_config = Config
 module Index = Pack_index
 
-module Make
+module Maker
     (_ : Version.S)
     (Config : Config.S)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
-  include
-    Irmin.S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Remote.endpoint = unit
-
-  include Store.S with type repo := repo
-
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-end
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker) : Store.Maker

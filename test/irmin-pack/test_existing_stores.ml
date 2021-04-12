@@ -165,26 +165,39 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module Make () =
-  Irmin_pack.Make_V2 (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+module V1_maker = Irmin_pack.V1 (struct
+  let entries = 2
+  let stable_hash = 3
+end)
+
+module V2_maker = Irmin_pack.V2 (Conf)
+
+module V1 () =
+  V1_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+
+module V2 () =
+  V2_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 
 module Test_store = struct
-  module S = Make ()
+  module S = V2 ()
   include Test (S) (Config_store)
 
   let uncached_instance_check_idempotent () =
     Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
-    let module S = Make () in
+    let module S = V2 () in
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf
 
   let uncached_instance_check_commit new_commit =
     Log.app (fun m ->
         m "Checking all values can be read from an uncached instance");
-    let module S = Make () in
+    let module S = V2 () in
     let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
     let* ro = S.Repo.v conf in
     check_repo ro archive >>= fun () ->
@@ -195,7 +208,7 @@ module Test_store = struct
 end
 
 module Test_reconstruct = struct
-  module S = Make ()
+  module S = V2 ()
   include Test (S) (Config_store)
 
   let setup_test_env () =
@@ -276,8 +289,10 @@ module Config_layered_store = struct
     exec_cmd cmd
 end
 
+module Maker = Irmin_pack_layered.Maker (Conf)
+
 module Make_layered =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -313,7 +328,7 @@ module Test_corrupted_stores = struct
 
   let test () =
     setup_test_env ();
-    let module S = Make () in
+    let module S = V2 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     Log.app (fun l ->
         l "integrity check on a store where 3 entries are missing from pack");
@@ -444,20 +459,9 @@ module Test_corrupted_inode = struct
     let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
     exec_cmd cmd
 
-  module Conf = struct
-    let entries = 2
-    let stable_hash = 3
-  end
-
-  module Make () =
-    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Hash)
-
   let test () =
     setup_test_env ();
-    let module S = Make () in
+    let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
       match Irmin.Type.of_string Hash.t c with

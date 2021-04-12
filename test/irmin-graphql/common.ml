@@ -15,7 +15,7 @@
  *)
 
 open! Import
-module Store = Irmin_mem.KV (Irmin.Contents.String)
+module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 
 let ( / ) = Filename.concat
 let http_graphql_dir = "test-graphql"

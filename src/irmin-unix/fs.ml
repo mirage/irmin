@@ -305,8 +305,8 @@ end
 
 module Append_only = Irmin_fs.Append_only (IO)
 module Atomic_write = Irmin_fs.Atomic_write (IO)
-module Make = Irmin_fs.Make (IO)
+include Irmin_fs.Maker (IO)
 module KV = Irmin_fs.KV (IO)
 module Append_only_ext = Irmin_fs.Append_only_ext (IO)
 module Atomic_write_ext = Irmin_fs.Atomic_write_ext (IO)
-module Make_ext = Irmin_fs.Make_ext (IO)
+module Maker_ext = Irmin_fs.Maker_ext (IO)

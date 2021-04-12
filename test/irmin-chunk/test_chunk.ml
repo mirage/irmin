@@ -49,13 +49,13 @@ module Append_only = Irmin_mem.Append_only
 module Content_addressable = Irmin.Content_addressable.Make (Append_only)
 
 module Mem = struct
-  include Content_addressable (Key) (Value)
+  include Content_addressable.Make (Key) (Value)
 
   let v () = v @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
-  include Content_addressable (Key) (Value)
+  include Content_addressable.Make (Key) (Value)
 
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
   let v () = v small_config
@@ -65,7 +65,7 @@ let init () = Lwt.return_unit
 
 let store =
   Irmin_test.store
-    (module Irmin.Make
+    (module Irmin.Maker
               (Irmin_chunk.Content_addressable
                  (Append_only))
                  (Irmin_mem.Atomic_write))

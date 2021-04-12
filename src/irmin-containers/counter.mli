@@ -43,7 +43,7 @@ end
 
 (** [Make] returns a mergeable counter using the backend and other parameters as
     specified by the user. *)
-module Make (Backend : Stores.Store_maker) :
+module Make (Backend : Irmin.KV_maker) :
   S
     with type Store.branch = string
      and type Store.key = string list

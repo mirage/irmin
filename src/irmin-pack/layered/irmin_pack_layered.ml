@@ -15,21 +15,12 @@
  *)
 
 include Ext_layered
-module Make_ext = Ext_layered.Make
+module Maker_ext = Ext_layered.Maker
 
 module type S = S.Store
+module type Maker = S.Maker
 
-module Make
-    (Config : Irmin_pack.Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
-end
+module Maker (Config : Irmin_pack.Config.S) =
+  Maker_ext (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
 module Checks = Checks

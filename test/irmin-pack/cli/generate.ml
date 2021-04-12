@@ -29,8 +29,10 @@ module Conf = struct
   let stable_hash = 256
 end
 
+module Maker = Irmin_pack_layered.Maker (Conf)
+
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Irmin.Hash.BLAKE2B)

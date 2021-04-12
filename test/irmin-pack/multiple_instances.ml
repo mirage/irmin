@@ -31,25 +31,19 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
+module V2 = struct
+  let version = `V2
+end
+
 module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
-  module XNode = Irmin.Private.Node.Make (Hash) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (Hash)
+  module XNode = Irmin.Private.Node
+  module XCommit = Irmin.Private.Commit
+  module Maker = Irmin_pack.Maker_ext (V2) (Conf) (XNode) (XCommit)
 
   include
-    Irmin_pack.Make_ext
-      (struct
-        let version = `V2
-      end)
-      (Conf)
-      (M)
-      (Irmin.Contents.String)
-      (P)
-      (Irmin.Branch.String)
-      (Hash)
-      (XNode)
-      (XCommit)
+    Maker.Make (M) (Irmin.Contents.String) (P) (Irmin.Branch.String) (Hash)
 end
 
 let config ?(readonly = false) ?(fresh = true) root =

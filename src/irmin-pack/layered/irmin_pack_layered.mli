@@ -40,40 +40,16 @@ module type S = sig
   (** @inline *)
 end
 
-module Make_ext
-    (Config : Irmin_pack.Config.S)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
-  S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
+module type Maker = sig
+  include S.Maker
+  (** @inline *)
+end
 
-module Make
+module Maker (Config : Irmin_pack.Config.S) : Maker
+
+module Maker_ext
     (Config : Irmin_pack.Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) :
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+    (N : Irmin.Private.Node.Maker)
+    (C : Irmin.Private.Commit.Maker) : Maker
 
 module Checks = Checks

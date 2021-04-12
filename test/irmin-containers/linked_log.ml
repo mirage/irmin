@@ -19,12 +19,12 @@ open! Import
 open Common
 
 module CAS = struct
-  module CAS_maker = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
+  include Irmin.Content_addressable.Make (Irmin_mem.Append_only)
 
   let config = Irmin_mem.config ()
 end
 
-module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String) ()
+module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String)
 
 let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "link" ]

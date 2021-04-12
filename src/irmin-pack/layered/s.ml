@@ -20,7 +20,9 @@ include Irmin_pack.Private.Sigs
 
 module type Store = sig
   include Irmin_layers.S
-  include Irmin_pack.Store.S with type repo := repo
+
+  include
+    Irmin_pack.Store.Specific with type repo := repo and type commit := commit
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -31,6 +33,22 @@ module type Store = sig
      result
     * Irmin_layers.Layer_id.t)
     list
+end
+
+module type Maker = sig
+  module Make
+      (M : Irmin.Metadata.S)
+      (C : Irmin.Contents.S)
+      (P : Irmin.Path.S)
+      (B : Irmin.Branch.S)
+      (H : Irmin.Hash.S) :
+    Store
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
 end
 
 module type Layered_general = sig

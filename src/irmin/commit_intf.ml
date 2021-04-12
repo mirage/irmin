@@ -46,6 +46,10 @@ module type S = sig
   (** [hash_t] is the value type for {!hash}. *)
 end
 
+module type Maker = sig
+  module Make (H : Type.S) : S with type hash = H.t
+end
+
 module type Store = sig
   (** {1 Commit Store} *)
 
@@ -139,11 +143,11 @@ module type History = sig
 
   val iter :
     [> read ] t ->
-    min:node list ->
-    max:node list ->
+    min:commit list ->
+    max:commit list ->
     ?commit:(commit -> unit Lwt.t) ->
-    ?edge:(node -> node -> unit Lwt.t) ->
-    ?skip:(node -> bool Lwt.t) ->
+    ?edge:(commit -> node -> unit Lwt.t) ->
+    ?skip:(commit -> bool Lwt.t) ->
     ?rev:bool ->
     unit ->
     unit Lwt.t
@@ -158,10 +162,11 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Maker = Maker
 
+  include Maker
   (** [Make] provides a simple implementation of commit values, parameterized by
-      the commit and node keys [K]. *)
-  module Make (K : Type.S) : S with type hash = K.t
+      the commit and node keys [H]. *)
 
   (** V1 serialisation. *)
   module V1 (C : S) : sig
@@ -176,17 +181,15 @@ module type Sigs = sig
 
   (** [Store] creates a new commit store. *)
   module Store
-      (N : Node.Store) (C : sig
-        include Content_addressable.S with type key = N.key
-        module Key : Hash.S with type t = key
-        module Val : S with type t = value and type hash = key
-      end) :
+      (N : Node.Store)
+      (S : Content_addressable.S with type key = N.key)
+      (K : Hash.S with type t = S.key)
+      (V : S with type hash = S.key and type t = S.value) :
     Store
-      with type 'a t = 'a N.t * 'a C.t
-       and type key = C.key
-       and type value = C.value
-       and type Key.t = C.Key.t
-       and module Val = C.Val
+      with type 'a t = 'a N.t * 'a S.t
+       and type key = S.key
+       and type value = S.value
+       and module Val = V
 
   module type History = History
   (** [History] specifies the signature for commit history. The history is

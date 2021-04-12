@@ -24,23 +24,7 @@ val config :
   unit ->
   Irmin.config
 
-module Make
+module Maker
     (Config : Irmin_pack.Config.S)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) :
-  S.Store
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker) : S.Maker

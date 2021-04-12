@@ -60,9 +60,8 @@ module type S = sig
   val read_all : path:Store.key -> Store.t -> value list Lwt.t
 end
 
-module Make (Backend : Stores.Store_maker) (T : Time.S) (V : Irmin.Type.S) =
-struct
-  module Store = Backend (Blob_log (T) (V))
+module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
+  module Store = Backend.Make (Blob_log (T) (V))
 
   type value = V.t
 

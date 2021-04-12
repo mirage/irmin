@@ -174,6 +174,13 @@ module type S = sig
   (** @inline *)
 end
 
+(** [KV] is similar to {!S} but chooses sensible implementations for path and
+    branch. *)
+module type KV = sig
+  include Store.KV
+  (** @inline *)
+end
+
 module Json_tree : Store.Json_tree
 
 (** [Maker] is the signature exposed by any backend providing {!S}
@@ -181,30 +188,17 @@ module Json_tree : Store.Json_tree
     the one for user-defined contents, [B] is the implementation for branches
     and [H] is the implementation for object (blobs, trees, commits) hashes. It
     does not use any native synchronization primitives. *)
-module type Maker = functor
-  (M : Metadata.S)
-  (C : Contents.S)
-  (P : Path.S)
-  (B : Branch.S)
-  (H : Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
-     and type Private.Remote.endpoint = unit
-
-(** [KV] is similar to {!S} but chooses sensible implementations for path and
-    branch. *)
-module type KV =
-  S with type key = string list and type step = string and type branch = string
+module type Maker = sig
+  include Store.Maker
+  (** @inline *)
+end
 
 (** [KV_maker] is like {!Maker} but where everything except the contents is
     replaced by sensible default implementations. *)
-module type KV_maker = functor (C : Contents.S) -> KV with type contents = C.t
+module type KV_maker = sig
+  include Store.KV_maker
+  (** @inline *)
+end
 
 (** {2 Synchronization} *)
 
@@ -446,30 +440,14 @@ module Dot (S : S) : Dot.S with type db = S.t
 
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
-module Make (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) : Maker
+module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+  Maker with type endpoint = unit
 
-module Make_ext
+module Maker_ext
     (CA : Content_addressable.Maker)
     (AW : Atomic_write.Maker)
-    (Metadata : Metadata.S)
-    (Contents : Contents.S)
-    (Path : Path.S)
-    (Branch : Branch.S)
-    (Hash : Hash.S)
-    (Node : Private.Node.S
-              with type metadata = Metadata.t
-               and type hash = Hash.t
-               and type step = Path.step)
-    (Commit : Private.Commit.S with type hash = Hash.t) :
-  S
-    with type key = Path.t
-     and type contents = Contents.t
-     and type branch = Branch.t
-     and type hash = Hash.t
-     and type step = Path.step
-     and type metadata = Metadata.t
-     and type Key.step = Path.step
-     and type Private.Remote.endpoint = unit
+    (Node : Private.Node.Maker)
+    (Commit : Private.Commit.Maker) : Maker with type endpoint = unit
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :

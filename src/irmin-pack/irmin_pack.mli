@@ -43,71 +43,21 @@ val config :
 
 exception RO_not_allowed
 
-module Make_ext
+include Irmin_pack_intf.Sigs
+(** @inline *)
+
+module Maker (_ : Version.S) : Maker
+module V1 : Maker
+module V2 : Maker
+
+module KV (_ : Version.S) (Config : Config.S) :
+  Irmin.KV_maker with type metadata = unit
+
+module Maker_ext
     (_ : Version.S)
     (Config : Config.S)
-    (Metadata : Irmin.Metadata.S)
-    (Contents : Irmin.Contents.S)
-    (Path : Irmin.Path.S)
-    (Branch : Irmin.Branch.S)
-    (Hash : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = Metadata.t
-            and type hash = Hash.t
-            and type step = Path.step)
-    (CT : Irmin.Private.Commit.S with type hash = Hash.t) : sig
-  include
-    Irmin.S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Remote.endpoint = unit
-
-  include Store.S with type repo := repo
-
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-end
-
-module type Maker = functor
-  (Config : Config.S)
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  -> sig
-  include
-    Irmin.S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type Private.Remote.endpoint = unit
-
-  include Store.S with type repo := repo
-
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-end
-
-module Make : Maker
-module Make_V2 : Maker
-module KV (Config : Config.S) : Irmin.KV_maker
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker) : Store.Maker
 
 module Atomic_write (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) : sig
   include Irmin.Atomic_write.S with type key = K.t and type value = V.t

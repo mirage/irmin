@@ -14,25 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_mirage_git_intf.Sigs
-module Maker (G : Irmin_git.G) : Maker with module G := G
+module type G = sig
+  include Git.S
 
-module KV (G : Irmin_git.G) :
-  KV_maker with type branch = string and module G := G
+  val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
+end
 
-module Ref (G : Irmin_git.G) :
-  KV_maker with type branch = Irmin_git.reference and module G := G
+module type S = sig
+  include
+    Irmin_git.S
+      with type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-(** Functor to create a MirageOS' KV_RO store from a Git repository. The key
-    ["/HEAD"] always shows the current HEAD. *)
-module KV_RO (G : Irmin_git.G) : KV_RO with type git := G.t
+  val remote :
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+end
 
-(** Functor to create a MirageOS' KV_RW store from a Git repository. *)
-module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
-  KV_RW with type git := G.t
+module type Backend = sig
+  (* FIXME: remove signature duplication *)
 
-(** Embed an Irmin store into an in-memory Git repository. *)
-module Mem : sig
   module G : Irmin_git.G
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
@@ -43,6 +42,16 @@ module Mem : sig
        and type contents = C.t
        and type branch = B.t
        and module Git = G
+       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
+  module KV (C : Irmin.Contents.S) :
+    S
+      with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
+       and module Git = G
+       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Ref (C : Irmin.Contents.S) :
     S
@@ -51,16 +60,11 @@ module Mem : sig
        and type contents = C.t
        and type branch = Irmin_git.reference
        and module Git = G
+       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+end
 
-  module KV (C : Irmin.Contents.S) :
-    S
-      with type key = Irmin.Path.String_list.t
-       and type step = string
-       and module Key = Irmin.Path.String_list
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
-
-  module KV_RO : KV_RO with type git := G.t
-  module KV_RW (C : Mirage_clock.PCLOCK) : KV_RW with type git := G.t
+module type Sigs = sig
+  module type G = G
+  module type S = S
+  module type Backend = Backend
 end

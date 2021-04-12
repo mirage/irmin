@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,25 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
-module IO = Irmin_fs.IO_mem
+module type Maker = functor (Config : Config.S) -> sig
+  include Store.Maker
+  (** @inline *)
+end
 
-let test_db = Filename.concat "_build" "test-db"
-let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
-let config = Irmin_fs.config test_db
-let clean () = Lwt.return_unit
-let stats = None
-
-let store =
-  Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)
-
-let suite =
-  {
-    Irmin_test.name = "FS";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = None;
-  }
+module type Sigs = sig
+  module type Maker = Maker
+end
