@@ -90,7 +90,7 @@ struct
             let magic _ = magic
           end)
 
-          module CA = Irmin_pack.Private.Closeable.Content_addressable (CA_Pack)
+          module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
@@ -128,7 +128,7 @@ struct
             let magic _ = magic
           end)
 
-          module CA = Irmin_pack.Private.Closeable.Content_addressable (CA_Pack)
+          module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
@@ -139,7 +139,7 @@ struct
         module Key = B
         module Val = H
         module AW = Irmin_pack.Atomic_write.Make (V) (Key) (Val)
-        module Closeable_AW = Irmin_pack.Private.Closeable.Atomic_write (AW)
+        module Closeable_AW = Irmin_pack.Atomic_write.Closeable (AW)
         include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
       end
 

@@ -104,4 +104,7 @@ module type Sigs = sig
       (Index : Pack_index.S)
       (K : Irmin.Hash.S with type t = Index.key) :
     Maker with type key = K.t and type index = Index.t
+
+  module Closeable (CA : S) :
+    S with type key = CA.key and type value = CA.value and type index = CA.index
 end

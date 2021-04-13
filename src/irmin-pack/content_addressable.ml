@@ -317,3 +317,91 @@ struct
     let offset t = IO.offset t.pack.block
   end
 end
+
+(* FIXME: remove code duplication with irmin/content_addressable *)
+module Closeable (S : S) = struct
+  type 'a t = { closed : bool ref; t : 'a S.t }
+  type key = S.key
+  type value = S.value
+  type index = S.index
+
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let mem t k =
+    check_not_closed t;
+    S.mem t.t k
+
+  let find t k =
+    check_not_closed t;
+    S.find t.t k
+
+  let add t v =
+    check_not_closed t;
+    S.add t.t v
+
+  let unsafe_add t k v =
+    check_not_closed t;
+    S.unsafe_add t.t k v
+
+  let batch t f =
+    check_not_closed t;
+    S.batch t.t (fun w -> f { t = w; closed = t.closed })
+
+  let v ?fresh ?readonly ?lru_size ~index root =
+    let+ t = S.v ?fresh ?readonly ?lru_size ~index root in
+    { closed = ref false; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      S.close t.t)
+
+  let unsafe_append ~ensure_unique ~overcommit t k v =
+    check_not_closed t;
+    S.unsafe_append ~ensure_unique ~overcommit t.t k v
+
+  let unsafe_mem t k =
+    check_not_closed t;
+    S.unsafe_mem t.t k
+
+  let unsafe_find ~check_integrity t k =
+    check_not_closed t;
+    S.unsafe_find ~check_integrity t.t k
+
+  let flush ?index ?index_merge t =
+    check_not_closed t;
+    S.flush ?index ?index_merge t.t
+
+  let sync ?on_generation_change t =
+    check_not_closed t;
+    S.sync ?on_generation_change t.t
+
+  let clear t =
+    check_not_closed t;
+    S.clear t.t
+
+  let integrity_check ~offset ~length k t =
+    check_not_closed t;
+    S.integrity_check ~offset ~length k t.t
+
+  let clear_caches t =
+    check_not_closed t;
+    S.clear_caches t.t
+
+  let version t =
+    check_not_closed t;
+    S.version t.t
+
+  let generation t =
+    check_not_closed t;
+    S.generation t.t
+
+  let offset t =
+    check_not_closed t;
+    S.offset t.t
+
+  let clear_keep_generation t =
+    check_not_closed t;
+    S.clear_keep_generation t.t
+end

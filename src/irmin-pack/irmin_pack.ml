@@ -62,7 +62,6 @@ module Layout = Layout
 module Checks = Checks
 
 module Private = struct
-  module Closeable = Closeable
   module Inode = Inode
   module IO = IO
   module Pack_index = Pack_index

@@ -75,7 +75,6 @@ module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 
 module Private : sig
-  module Closeable = Closeable
   module Inode = Inode
   module IO = IO
   module Pack_index = Pack_index
