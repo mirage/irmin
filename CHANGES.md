@@ -23,6 +23,7 @@
 - **irmin**
    - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
    - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+   - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
 
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores

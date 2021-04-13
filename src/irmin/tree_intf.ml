@@ -60,6 +60,10 @@ module type S = sig
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
+  val is_empty : t -> bool
+  (** [is_empty t] is true iff [t] is {!empty} (i.e. a tree node with no
+      children). Trees with {!kind} = [`Contents] are never considered empty. *)
+
   (** {1 Diffs} *)
 
   val diff : t -> t -> (key * (contents * metadata) Diff.t) list Lwt.t
