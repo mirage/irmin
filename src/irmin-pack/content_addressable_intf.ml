@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Sigs = S
 
 module type Value = sig
   include Irmin.Type.S
@@ -75,7 +74,7 @@ module type S = sig
   val offset : 'a t -> int63
 
   (** @inline *)
-  include Sigs.Checkable with type 'a t := 'a t and type key := key
+  include S.Checkable with type 'a t := 'a t and type key := key
 
   val clear_caches : 'a t -> unit
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data

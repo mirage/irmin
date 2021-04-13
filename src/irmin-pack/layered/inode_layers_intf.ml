@@ -15,11 +15,9 @@
  *)
 
 open! Import
-module Sigs = S
-module Inode = Irmin_pack.Private.Inode
 
 module type S = sig
-  include Inode.S
+  include Irmin_pack.Inode.S
   module U : Irmin_pack.Content_addressable.S
   module L : Irmin_pack.Content_addressable.S
 
@@ -60,7 +58,7 @@ module type S = sig
     layer:Irmin_layers.Layer_id.t ->
     key ->
     'a t ->
-    (unit, S.integrity_error) result
+    (unit, Irmin_pack.Checks.integrity_error) result
 
   val flush : ?index:bool -> 'a t -> unit
   val copy_from_lower : dst:'a U.t -> read t -> key -> unit Lwt.t
@@ -74,7 +72,7 @@ module type S = sig
     unit Lwt.t
 end
 
-module Pack_index = Irmin_pack.Private.Pack_index
+module Index = Irmin_pack.Index
 
 module type Sigs = sig
   module type S = S
@@ -82,15 +80,15 @@ module type Sigs = sig
   module Make
       (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
-      (_ : Sigs.Content_addressable_maker
+      (_ : S.Content_addressable_maker
              with type key = H.t
-              and type index = Pack_index.Make(H).t)
+              and type index = Index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index = Pack_index.Make(H).t
-       and type U.index = Pack_index.Make(H).t
-       and type L.index = Pack_index.Make(H).t
+       and type index = Index.Make(H).t
+       and type U.index = Index.Make(H).t
+       and type L.index = Index.Make(H).t
 end

@@ -14,21 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Inode_layers_intf
 open! Import
-module I = Inode
+include Inode_layers_intf
 
 module Make
     (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
     (Maker : S.Content_addressable_maker
                with type key = H.t
-                and type index = Pack_index.Make(H).t)
+                and type index = Index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   type index = Maker.index
 
-  module Internal = Inode.Make_internal (Conf) (H) (Node)
+  module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
   module P = Maker.Make (Internal.Raw)
   module Val = Internal.Val
   module Key = H

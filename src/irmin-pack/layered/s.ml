@@ -16,13 +16,10 @@
 
 open! Import
 open Store_properties
-include Irmin_pack.Private.Sigs
 
 module type Store = sig
   include Irmin_layers.S
-
-  include
-    Irmin_pack.Store.Specific with type repo := repo and type commit := commit
+  include Irmin_pack.Specifics with type repo := repo and type commit := commit
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -151,7 +148,7 @@ module type Content_addressable = sig
     layer:Irmin_layers.Layer_id.t ->
     key ->
     _ t ->
-    (unit, integrity_error) result
+    (unit, Irmin_pack.Checks.integrity_error) result
 
   val consume_newies : 'a t -> key list
 

@@ -15,7 +15,7 @@
  *)
 
 module type Maker = functor (_ : Conf.S) -> sig
-  include Store.Maker
+  include S.Maker
   (** @inline *)
 end
 

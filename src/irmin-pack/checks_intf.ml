@@ -92,12 +92,15 @@ end
 
 module type Versioned_store = sig
   include Irmin.S
-  include Store.S with type repo := repo and type commit := commit
+  include S.S with type repo := repo and type commit := commit
 end
 
 module type Maker = functor (_ : Version.S) -> Versioned_store
 
+type integrity_error = [ `Wrong_hash | `Absent_value ]
+
 module type Sigs = sig
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t
