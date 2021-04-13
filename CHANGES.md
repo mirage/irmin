@@ -111,6 +111,8 @@
     (#1369, @samoht)
   - Renamed `Irmin_layered_pack.Config` into `Irmin_layered_pack.Conf`
     (#1370, @samoht)
+  - Readonly instances can check for an ongoing freeze (#1382, @icristescu,
+    @Ngoguey42)
 
 - **irmin-pack**
   - It is no longer possible to modify an `inode` that doesn't point to the root

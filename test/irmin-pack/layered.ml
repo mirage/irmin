@@ -560,6 +560,26 @@ module Test = struct
     Store.Repo.close ctxt.index.repo >>= fun () ->
     Store.Repo.close ro_ctxt.index.repo
 
+  let test_ro_checks_async_freeze () =
+    let* ctxt = init () in
+    let* ro_ctxt = clone ~readonly:true ctxt.index.root in
+    let* ctxt, block1 = commit_block1 ctxt in
+    let before () =
+      if not (Store.async_freeze ro_ctxt.index.repo) then
+        Alcotest.fail "Readonly checks for an ongoing freeze";
+      Lwt.return_unit
+    in
+    let after () = Lwt.return_unit in
+    let* () =
+      Store.Private_layer.freeze' ctxt.index.repo ~max_lower:[ block1 ]
+        ~hook:(hook before after)
+    in
+    Store.Private_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
+    if Store.async_freeze ro_ctxt.index.repo then
+      Alcotest.fail "Readonly sees a freeze that finished";
+    Store.Repo.close ctxt.index.repo >>= fun () ->
+    Store.Repo.close ro_ctxt.index.repo
+
   let tests =
     [
       Alcotest.test_case "Test simple freeze" `Quick (fun () ->
@@ -590,6 +610,8 @@ module Test = struct
           Lwt_main.run (test_ro_find_during_freeze ()));
       Alcotest.test_case "Test self contained upper" `Quick (fun () ->
           Lwt_main.run (test_self_contained ()));
+      Alcotest.test_case "Test ro async freeze" `Quick (fun () ->
+          Lwt_main.run (test_ro_checks_async_freeze ()));
     ]
 end
 
