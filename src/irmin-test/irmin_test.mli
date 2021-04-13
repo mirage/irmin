@@ -55,6 +55,7 @@ val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
 module Store : sig
   val run :
     string ->
+    ?slow:bool ->
     misc:unit Alcotest.test list ->
     (Alcotest.speed_level * t) list ->
     unit

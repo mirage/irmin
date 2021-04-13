@@ -44,6 +44,23 @@ module List = struct
    fun len l ->
     if len < 0 then true
     else match l with [] -> false | _ :: tl -> is_longer_than (len - 1) tl
+
+  let map f l =
+    let rec aux acc = function
+      | [] -> acc []
+      | h :: t -> (aux [@tailcall]) (fun t' -> acc (f h :: t')) t
+    in
+    aux (fun x -> x) l
+
+  let concat l =
+    let rec aux acc curr l =
+      match (curr, l) with
+      | [], [] -> List.rev acc
+      | [], [ l ] -> List.rev_append acc l
+      | [], h :: t -> (aux [@tailcall]) acc h t
+      | h :: t, l -> (aux [@tailcall]) (h :: acc) t l
+    in
+    aux [] [] l
 end
 
 module Seq = struct
