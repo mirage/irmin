@@ -864,7 +864,7 @@ struct
 
     let layer_id = X.Repo.layer_id
     let freeze = freeze' ?hook:None
-    let async_freeze (t : Repo.t) = t.freeze.state = `Running
+    let async_freeze (t : Repo.t) = Lock.test (lock_path t.X.Repo.root)
     let upper_in_use = X.Repo.upper_in_use
     let self_contained = Copy.CopyFromLower.self_contained
     let needs_recovery t = Lock.test (lock_path t.X.Repo.root)
