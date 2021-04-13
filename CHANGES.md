@@ -1,3 +1,16 @@
+## 2.5.3 (2021-04-13)
+
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
+    false-negatives. (#1371, @CraigFe)
+
+### Added
+
+- **irmin**
+  - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+
 ## 2.5.2 (2021-04-08)
 
 ### Fixed
