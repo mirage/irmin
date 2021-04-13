@@ -10,6 +10,10 @@
   - Fixed a bug causing equality functions derived from `Store.tree_t` to return
     false-negatives. (#1371, @CraigFe)
 
+  - `Tree.of_concrete` now prunes empty subdirectories, and raises
+    `Invalid_argument` if the input contains duplicate bindings. (#TODO,
+    @CraigFe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)

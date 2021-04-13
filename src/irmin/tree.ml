@@ -135,6 +135,7 @@ module Make (P : Private.S) = struct
   type repo = P.Repo.t
 
   let pp_hash = Type.pp P.Hash.t
+  let pp_step = Type.pp Path.step_t
   let pp_path = Type.pp Path.t
 
   module Hashes = Hashtbl.Make (struct
@@ -1526,22 +1527,44 @@ module Make (P : Private.S) = struct
     | `Contents of P.Contents.Val.t * Metadata.t ]
   [@@deriving irmin]
 
+  type 'a or_empty = Empty | Non_empty of 'a
+
   let of_concrete c =
-    let rec concrete : type r. concrete -> (t, r) cont =
+    let rec concrete : type r. concrete -> (t or_empty, r) cont =
      fun t k ->
       match t with
-      | `Contents (c, m) -> k (`Contents (Contents.of_value c, m))
-      | `Tree childs -> tree StepMap.empty childs (fun n -> k (`Node n))
+      | `Contents (c, m) -> k (Non_empty (`Contents (Contents.of_value c, m)))
+      | `Tree childs ->
+          tree StepMap.empty childs (function
+            | Empty -> k Empty
+            | Non_empty n -> k (Non_empty (`Node n)))
     and tree :
-        type r. Node.elt StepMap.t -> (step * concrete) list -> (node, r) cont =
+        type r.
+        Node.elt StepMap.t -> (step * concrete) list -> (node or_empty, r) cont
+        =
      fun map t k ->
       match t with
-      | [] -> k (Node.of_map map)
+      | [] ->
+          k
+            (if StepMap.is_empty map then Empty
+            else Non_empty (Node.of_map map))
       | (s, n) :: t ->
           (concrete [@tailcall]) n (fun v ->
-              (tree [@tailcall]) (StepMap.add s v map) t k)
+              (tree [@tailcall])
+                (StepMap.update s
+                   (function
+                     | None -> (
+                         match v with
+                         | Empty -> None (* Discard empty sub-directories *)
+                         | Non_empty v -> Some v)
+                     | Some _ ->
+                         Fmt.invalid_arg
+                           "of_concrete: duplicate bindings for step `%a`"
+                           pp_step s)
+                   map)
+                t k)
     in
-    (concrete [@tailcall]) c (fun x -> x)
+    (concrete [@tailcall]) c (function Empty -> empty | Non_empty x -> x)
 
   let to_concrete t =
     let rec tree : type r. t -> (concrete, r) cont_lwt =

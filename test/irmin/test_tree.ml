@@ -62,7 +62,7 @@ let invalid_tree () =
 let test_bindings _ () =
   let tree =
     Tree.of_concrete
-      (`Tree [ ("aa", c "0"); ("ab", c "1"); ("a", `Tree []); ("b", c "3") ])
+      (`Tree [ ("aa", c "0"); ("ab", c "1"); ("a", c "2"); ("b", c "3") ])
   in
   let check_sorted =
     Alcotest.(check (list string))
@@ -77,10 +77,10 @@ let test_paginated_bindings _ () =
       (`Tree
         [
           ("aa", c "0");
-          ("a", `Tree []);
+          ("a", c "1");
           ("bbb", c "3");
           ("b", c "3");
-          ("aaa", `Tree []);
+          ("aaa", c "2");
         ])
   in
   let check_sorted expected =
@@ -566,6 +566,25 @@ let test_is_empty _ () =
   in
   Lwt.return_unit
 
+let test_of_concrete _ () =
+  let* () =
+    let aa = ("aa", c "aa-v") in
+    let ac = ("ac", c "ac-v") in
+    let input = tree [ ("a", `Tree [ aa; ("ab", `Tree []); ac ]) ] in
+    let pruned = `Tree [ ("a", `Tree [ aa; ac ]) ] in
+    Alcotest.check_tree_lwt "Empty subtrees are pruned" ~expected:pruned
+      (Tree.to_concrete input >|= Tree.of_concrete)
+  in
+
+  let () =
+    Alcotest.check_raises "Tree with duplicate bindings is rejected"
+      (Invalid_argument "of_concrete: duplicate bindings for step `k`")
+      (fun () ->
+        ignore (Tree.of_concrete (`Tree [ ("k", c "v1"); ("k", c "v2") ])))
+  in
+
+  Lwt.return_unit
+
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
@@ -580,4 +599,5 @@ let suite =
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
     Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
     Alcotest_lwt.test_case "is_empty" `Quick test_is_empty;
+    Alcotest_lwt.test_case "of_concrete" `Quick test_of_concrete;
   ]
