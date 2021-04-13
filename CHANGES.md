@@ -3,6 +3,10 @@
 - **irmin**
   - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
 
+  - `Tree.of_concrete` now prunes empty subdirectories, and raises
+    `Invalid_argument` if the input contains duplicate bindings. (#1385,
+    @CraigFe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
