@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val default_results_dir : string
-val prepare_results_dir : string -> unit
+val default_artefacts_dir : string
+val prepare_artefacts_dir : string -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter
 val setup_log : Fmt.style_renderer option -> Logs.level option -> unit
 val reset_stats : unit -> unit

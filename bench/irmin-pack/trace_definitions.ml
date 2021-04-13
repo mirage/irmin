@@ -286,7 +286,7 @@ module Stat_trace = struct
 
     type setup_replay = {
       path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
-      results_dir : string;
+      artefacts_dir : string;
     }
     [@@deriving repr]
     (** Informations gathered from the tree.exe parameters. *)

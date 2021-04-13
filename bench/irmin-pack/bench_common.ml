@@ -50,11 +50,11 @@ let random_string n = String.init n (fun _i -> random_char ())
 let random_blob () = random_string 10 |> Bytes.of_string
 let random_key () = random_string 5
 
-let default_results_dir =
+let default_artefacts_dir =
   let ( / ) = Filename.concat in
-  Unix.getcwd () / "_results" / Uuidm.to_string (Uuidm.v `V4)
+  Unix.getcwd () / "_artefacts" / Uuidm.to_string (Uuidm.v `V4)
 
-let prepare_results_dir path =
+let prepare_artefacts_dir path =
   let rec mkdir_p path =
     if Sys.file_exists path then ()
     else

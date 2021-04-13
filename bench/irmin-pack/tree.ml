@@ -25,14 +25,16 @@ type config = {
   nchain_trees : int;
   width : int;
   nlarge_trees : int;
-  root : string;
+  store_dir : string;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
   store_type : [ `Pack | `Pack_layered ];
   freeze_commit : int;
   commit_data_file : string;
-  results_dir : string;
+  artefacts_dir : string;
+  keep_store : bool;
   keep_stat_trace : bool;
+  empty_blobs : bool;
 }
 
 module type Store = sig
@@ -84,8 +86,13 @@ module Bootstrap_trace = struct
       If a path contains 2 or more of those patterns, only the leftmost one is
       converted.
 
-      A chopped hash has this form {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v} and is
-      flattened to that form {v [0-9a-f]{40} v}. *)
+      A chopped hash has this form
+
+      {v ([0-9a-f]{2}/){5}[0-9a-f]{30} v}
+
+      and is flattened to that form
+
+      {v [0-9a-f]{40} v} *)
   let flatten_v0 key =
     let rec aux rev_prefix suffix =
       match suffix with
@@ -105,7 +112,9 @@ module Bootstrap_trace = struct
     aux [] key
 
   (** This function removes from the paths all the 6 step-long hashes of this
-      form {v ([0-9a-f]{2}/){6} v}.
+      form
+
+      {v ([0-9a-f]{2}/){6} v}
 
       Those flattenings are performed during the trace replay, i.e. they count
       in the total time.
@@ -218,8 +227,8 @@ module Trace_replay (Store : Store) = struct
         Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
         maybe_forget_ctx t out_ctx_id
 
-  let exec_add t stats key v in_ctx_id out_ctx_id =
-    let v = Bytes.of_string v in
+  let exec_add t stats key v in_ctx_id out_ctx_id empty_blobs =
+    let v = if empty_blobs then Bytes.empty else Bytes.of_string v in
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
@@ -307,7 +316,7 @@ module Trace_replay (Store : Store) = struct
     maybe_forget_hash t h_trace;
     t.latest_commit <- Some h_store
 
-  let add_operations t repo operations n stats check_hash =
+  let add_operations t repo operations n stats check_hash empty_blobs =
     let rec aux l i =
       match l with
       | Bootstrap_trace.Def.Checkout (h, out_ctx_id) :: tl ->
@@ -316,6 +325,7 @@ module Trace_replay (Store : Store) = struct
       | Add op :: tl ->
           let* () =
             exec_add t stats op.key op.value op.in_ctx_id op.out_ctx_id
+              empty_blobs
           in
           aux tl (i + 1)
       | Remove (keys, in_ctx_id, out_ctx_id) :: tl ->
@@ -344,7 +354,7 @@ module Trace_replay (Store : Store) = struct
     aux operations 0
 
   let add_commits repo max_ncommits commit_seq on_commit on_end stats check_hash
-      =
+      empty_blobs =
     with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commits"
     @@ fun prog ->
     let t =
@@ -362,7 +372,7 @@ module Trace_replay (Store : Store) = struct
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
-          let* () = add_operations t repo ops i stats check_hash in
+          let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
           if (len0, len1) <> (0, 1) then
@@ -376,15 +386,17 @@ module Trace_replay (Store : Store) = struct
 
   let run config =
     let check_hash =
-      config.path_conversion = `None && config.inode_config = (32, 256)
+      config.path_conversion = `None
+      && config.inode_config = (32, 256)
+      && config.empty_blobs = false
     in
     let commit_seq =
       Bootstrap_trace.open_commit_sequence config.ncommits_trace
         config.path_conversion config.commit_data_file
     in
     let* repo, on_commit, on_end, repo_pp = Store.create_repo config in
-    prepare_results_dir config.results_dir;
-    let stat_path = Filename.concat config.results_dir "stat_trace.repr" in
+    prepare_artefacts_dir config.artefacts_dir;
+    let stat_path = Filename.concat config.artefacts_dir "stat_trace.repr" in
     let c =
       let entries, stable_hash = config.inode_config in
       Trace_definitions.Stat_trace.
@@ -393,19 +405,19 @@ module Trace_replay (Store : Store) = struct
             `Replay
               {
                 path_conversion = config.path_conversion;
-                results_dir = config.results_dir;
+                artefacts_dir = config.artefacts_dir;
               };
           inode_config = (entries, entries, stable_hash);
           store_type = config.store_type;
         }
     in
-    let stats = Stat_collector.create_file stat_path c config.root in
+    let stats = Stat_collector.create_file stat_path c config.store_dir in
     let+ () =
       Lwt.finalize
         (fun () ->
           let* _ =
             add_commits repo config.ncommits_trace commit_seq on_commit on_end
-              stats check_hash
+              stats check_hash config.empty_blobs
           in
           let+ () = Store.Repo.close repo in
           Stat_collector.close stats)
@@ -421,7 +433,7 @@ module Benchmark = struct
 
   let run config f =
     let+ time, res = with_timer f in
-    let size = FSHelper.get_size config.root in
+    let size = FSHelper.get_size config.store_dir in
     ({ time; size }, res)
 
   let pp_results ppf result =
@@ -512,7 +524,7 @@ struct
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
     let* repo = Store.Repo.v conf in
     let on_commit i commit_hash =
       let* () =
@@ -552,7 +564,7 @@ struct
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.root in
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
@@ -683,14 +695,14 @@ let get_suite suite_filter =
 
 let main () ncommits ncommits_trace suite_filter inode_config store_type
     freeze_commit path_conversion depth width nchain_trees nlarge_trees
-    commit_data_file results_dir keep_stat_trace =
+    commit_data_file artefacts_dir keep_store keep_stat_trace empty_blobs =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let ncommits_trace = Option.value ~default ncommits_trace in
   let config =
     {
       ncommits;
       ncommits_trace;
-      root = "test-bench";
+      store_dir = Filename.concat artefacts_dir "store";
       path_conversion;
       depth;
       width;
@@ -700,16 +712,23 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
       inode_config;
       store_type;
       freeze_commit;
-      results_dir;
+      artefacts_dir;
+      keep_store;
       keep_stat_trace;
+      empty_blobs;
     }
   in
   Printexc.record_backtrace true;
   Random.self_init ();
-  FSHelper.rm_dir config.root;
+  FSHelper.rm_dir config.store_dir;
   let suite = get_suite suite_filter in
   let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
-  let results = Lwt_main.run (run_benchmarks ()) in
+  let results =
+    Lwt_main.run
+      (Lwt.finalize run_benchmarks (fun () ->
+           if not keep_store then FSHelper.rm_dir config.store_dir;
+           Lwt.return_unit))
+  in
   Logs.app (fun l ->
       l "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results)
 
@@ -749,7 +768,7 @@ let path_conversion =
   let mode =
     [ ("none", `None); ("v0", `V0); ("v1", `V1); ("v0+v1", `V0_and_v1) ]
   in
-  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "p"; "path_conversion" ] in
+  let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "p"; "path-conversion" ] in
   Arg.(value @@ opt (Arg.enum mode) `None doc)
 
 let ncommits =
@@ -761,9 +780,16 @@ let ncommits =
 
 let ncommits_trace =
   let doc =
-    Arg.info ~doc:"Number of commits to read from trace." [ "ncommits_trace" ]
+    Arg.info ~doc:"Number of commits to read from trace." [ "ncommits-trace" ]
   in
   Arg.(value @@ opt (some int) None doc)
+
+let keep_store =
+  let doc =
+    Arg.info ~doc:"Whether or not the irmin store on disk should be kept."
+      [ "keep-store" ]
+  in
+  Arg.(value @@ flag doc)
 
 let keep_stat_trace =
   let doc =
@@ -772,6 +798,16 @@ let keep_stat_trace =
         "Whether or not the stat trace should be discarded are the end, after \
          the summary has been saved the disk."
       [ "keep-stat-trace" ]
+  in
+  Arg.(value @@ flag doc)
+
+let empty_blobs =
+  let doc =
+    Arg.info
+      ~doc:
+        "Whether or not the blobs added to the store should be the empty \
+         string, during trace replay. This greatly increases the replay speed."
+      [ "empty-blobs" ]
   in
   Arg.(value @@ flag doc)
 
@@ -807,12 +843,12 @@ let commit_data_file =
   in
   Arg.(required @@ pos 0 (some string) None doc)
 
-let results_dir =
+let artefacts_dir =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Destination of the bench artefacts."
-      [ "results" ]
+      [ "artefacts" ]
   in
-  Arg.(value @@ opt string default_results_dir doc)
+  Arg.(value @@ opt string default_artefacts_dir doc)
 
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
@@ -833,8 +869,10 @@ let main_term =
     $ nchain_trees
     $ nlarge_trees
     $ commit_data_file
-    $ results_dir
-    $ keep_stat_trace)
+    $ artefacts_dir
+    $ keep_store
+    $ keep_stat_trace
+    $ empty_blobs)
 
 let () =
   let man =
