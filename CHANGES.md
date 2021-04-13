@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
+    false-negatives. (#1371, @CraigFe)
+
 ### Added
 
 - **irmin**
