@@ -34,6 +34,7 @@ depends: [
   "ppx_deriving" {with-test}
   "alcotest"   {with-test}
   "rusage"
+  "printbox" {with-test}
 ]
 
 synopsis: "Irmin benchmarking suite"
