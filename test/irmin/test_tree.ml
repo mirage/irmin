@@ -504,6 +504,52 @@ let test_kind_empty_path _ () =
     k;
   Lwt.return_unit
 
+(* Take a tree and persist it to some underlying store, making it lazy. *)
+let persist_tree : Store.tree -> Store.tree Lwt.t =
+ fun tree ->
+  let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
+  let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
+  Store.tree store
+
+let test_generic_equality _ () =
+  (* Regression test for a bug in which the equality derived from [tree_t] did
+     not respect equivalences between in-memory trees and lazy trees. *)
+  let* tree = persist_tree (tree [ ("k", c "v") ]) in
+  let+ should_be_empty = Tree.remove tree [ "k" ] in
+  Alcotest.(gcheck Store.tree_t)
+    "Modified empty tree is equal to [Tree.empty]" Tree.empty should_be_empty
+
+let test_is_empty _ () =
+  (* Test for equivalence against an [is_equal] derived from generic equality,
+     for backwards compatibility. *)
+  let is_empty =
+    let equal = Type.unstage (Type.equal Store.tree_t) in
+    fun t ->
+      let reference = equal t Tree.empty in
+      let candidate = Tree.is_empty t in
+      Alcotest.(check bool)
+        "`equal Tree.empty` agrees with `is_empty`" reference candidate;
+      candidate
+  in
+  let kv = tree [ ("k", c "v") ] in
+  let () = Alcotest.(check bool) "empty tree" true (is_empty Tree.empty) in
+  let () = Alcotest.(check bool) "non-empty tree" false (is_empty kv) in
+  let* () =
+    let+ tree = Tree.remove kv [ "k" ] in
+    Alcotest.(check bool) "emptied tree" true (is_empty tree)
+  in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let () =
+    let shallow_empty = Tree.(shallow repo (`Node (hash empty))) in
+    Alcotest.(check bool) "shallow empty tree" true (is_empty shallow_empty)
+  in
+  let () =
+    let shallow_empty = Tree.(shallow repo (`Node (hash kv))) in
+    Alcotest.(check bool)
+      "shallow non-empty tree" false (is_empty shallow_empty)
+  in
+  Lwt.return_unit
+
 let suite =
   [
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
@@ -516,4 +562,6 @@ let suite =
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "shallow" `Quick test_shallow;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
+    Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
+    Alcotest_lwt.test_case "is_empty" `Quick test_is_empty;
   ]
