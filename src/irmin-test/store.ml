@@ -1190,10 +1190,10 @@ module Make (S : S) = struct
           (`Tree
             [
               ("aa", c "0");
-              ("a", `Tree []);
+              ("a", c "1");
               ("bbb", c "3");
               ("b", c "3");
-              ("aaa", `Tree []);
+              ("aaa", c "1");
             ])
       in
       let* _ = S.set_tree_exn t ~info:(infof "add tree") [] tree in
