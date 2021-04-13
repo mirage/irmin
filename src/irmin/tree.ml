@@ -662,11 +662,15 @@ module Make (P : Private.S) = struct
         match cached_map t with
         | Some m -> StepMap.is_empty m
         | None -> (
-            match t.v with
-            | Value (_, v, Some um) -> is_empty_after_updates v um
-            | Value (_, v, None) -> P.Node.Val.is_empty v
-            | Hash (_, h) -> hash_equal empty_hash h
-            | Map _ -> assert false (* [cached_map] wouldn't return [None] *))
+            match cached_value t with
+            | Some v -> P.Node.Val.is_empty v
+            | None -> (
+                match t.v with
+                | Value (_, v, Some um) -> is_empty_after_updates v um
+                | Hash (_, h) -> hash_equal empty_hash h
+                | Map _ -> assert false (* [cached_map <> None] *)
+                | Value (_, _, None) ->
+                    assert false (* [cached_value <> None] *)))
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
