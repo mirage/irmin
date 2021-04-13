@@ -663,18 +663,17 @@ module Make (P : Private.S) = struct
           let+ v = to_value t in
           get_ok "length" v |> P.Node.Val.length
 
-    let is_empty t =
-      match cached_map t with
-      | Some m -> Lwt.return (Ok (StepMap.is_empty m))
-      | None -> (
-          match t.v with
-          | Value (_, v, Some um) ->
-              let res = is_empty_after_updates v um in
-              Lwt.return_ok res
-          | _ -> (
-              to_value t >|= function
-              | Error _ as e -> e
-              | Ok n -> Ok (P.Node.Val.is_empty n)))
+    let is_empty =
+      let empty_hash = hash (of_map StepMap.empty) in
+      fun t ->
+        match cached_map t with
+        | Some m -> StepMap.is_empty m
+        | None -> (
+            match t.v with
+            | Value (_, v, Some um) -> is_empty_after_updates v um
+            | Value (_, v, None) -> P.Node.Val.is_empty v
+            | Hash (_, h) -> hash_equal empty_hash h
+            | Map _ -> assert false (* [cached_map] wouldn't return [None] *))
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
@@ -989,11 +988,7 @@ module Make (P : Private.S) = struct
     | `Contents x, `Contents y -> contents_equal x y
     | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
-  let is_empty = function
-    | `Node n ->
-        let+ b = Node.is_empty n in
-        get_ok "is_empty" b
-    | `Contents _ -> Lwt.return_false
+  let is_empty = function `Node n -> Node.is_empty n | `Contents _ -> false
 
   type elt = [ `Node of node | `Contents of contents * metadata ]
 
@@ -1138,21 +1133,13 @@ module Make (P : Private.S) = struct
   let update_tree ~f_might_return_empty_node ~f root_tree path =
     let empty_node = empty_node root_tree in
     (* User-introduced empty nodes will be removed immediately if necessary. *)
-    let prune_empty : node -> bool Lwt.t =
-      if not f_might_return_empty_node then Fun.const (Lwt.return false)
-      else fun n ->
-        Node.is_empty n >|= function
-        | Ok true -> true
-        | Ok false -> false
-        | Error (`Dangling_hash _) ->
-            (* NOTE: this case permits adding an empty directory by first adding
-               its shallow hash and then importing the subtree. *)
-            false
+    let prune_empty : node -> bool =
+      if not f_might_return_empty_node then Fun.const false else Node.is_empty
     in
     match Path.rdecons path with
     | None -> (
-        let* empty_tree =
-          is_empty root_tree >|= function
+        let empty_tree =
+          match is_empty root_tree with
           | true -> root_tree
           | false -> `Node empty_node
         in
@@ -1183,12 +1170,12 @@ module Make (P : Private.S) = struct
               | None, None -> k Unchanged
               | None, Some (`Contents _ as t) -> with_new_child t
               | None, Some (`Node n as t) -> (
-                  prune_empty n >>= function
+                  match prune_empty n with
                   | true -> k Unchanged
                   | false -> with_new_child t)
               | Some _, None -> Node.remove parent_node file >>= changed
               | Some old_value, Some (`Node n as t) -> (
-                  prune_empty n >>= function
+                  match prune_empty n with
                   | true -> Node.remove parent_node file >>= changed
                   | false -> (
                       match maybe_equal old_value t with
@@ -1212,13 +1199,13 @@ module Make (P : Private.S) = struct
                      want to avoid adding a binding anyway. *)
                   k Unchanged
               | Changed child -> (
-                  Node.is_empty child >>= function
-                  | Ok true ->
+                  match Node.is_empty child with
+                  | true ->
                       (* A [remove] has emptied previously non-empty child with
                          binding [h], so we remove the binding. *)
                       Node.remove parent_node step >>= changed
-                  | Ok false | Error (`Dangling_hash _) ->
-                      Node.add parent_node step (`Node child) >>= changed))
+                  | false -> Node.add parent_node step (`Node child) >>= changed
+                  ))
         in
         let top_node =
           match root_tree with `Node n -> n | `Contents _ -> empty_node
