@@ -51,6 +51,16 @@ module List = struct
       | h :: t -> (aux [@tailcall]) (fun t' -> acc (f h :: t')) t
     in
     aux (fun x -> x) l
+
+  let concat l =
+    let rec aux acc curr l =
+      match (curr, l) with
+      | [], [] -> List.rev acc
+      | [], [ l ] -> List.rev_append acc l
+      | [], h :: t -> (aux [@tailcall]) acc h t
+      | h :: t, l -> (aux [@tailcall]) (h :: acc) t l
+    in
+    aux [] [] l
 end
 
 module Seq = struct

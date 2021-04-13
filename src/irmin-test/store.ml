@@ -2089,7 +2089,7 @@ let layered_suite (speed, x) =
           ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
         ] )
 
-let run name ?(slow = true) ~misc tl =
+let run name ?(slow = false) ~misc tl =
   Printexc.record_backtrace true;
   let tl1 = List.map suite tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
