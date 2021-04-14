@@ -56,7 +56,7 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
     (H : Irmin.Hash.S)
-    (Index : Irmin_pack.Private.Pack_index.S)
+    (Index : Irmin_pack.Index.S)
     (U : S with type index = Index.t and type key = H.t)
     (L : S
            with type index = U.index
@@ -316,7 +316,7 @@ end
 
 module Pack_maker
     (H : Irmin.Hash.S)
-    (Index : Irmin_pack.Private.Pack_index.S)
+    (Index : Irmin_pack.Index.S)
     (P : Irmin_pack.Content_addressable.Maker
            with type key = H.t
             and type index = Index.t) =

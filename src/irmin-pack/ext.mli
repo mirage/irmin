@@ -18,4 +18,4 @@ module Maker
     (_ : Version.S)
     (_ : Conf.S)
     (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : Store.Maker
+    (CT : Irmin.Private.Commit.Maker) : S.Maker

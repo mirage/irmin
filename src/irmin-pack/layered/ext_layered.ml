@@ -27,7 +27,7 @@ let cache_size = 10_000
 
 exception Cancelled
 
-module IO = Irmin_pack.Private.IO.Unix
+module IO = Irmin_pack.IO.Unix
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 

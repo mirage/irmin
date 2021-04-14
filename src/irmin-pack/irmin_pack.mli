@@ -52,16 +52,25 @@ module V2 : Maker
 module KV (_ : Version.S) (_ : Conf.S) :
   Irmin.KV_maker with type metadata = unit
 
+module type Maker = sig
+  include S.Maker
+  (** @inline *)
+end
+
+module type Specifics = sig
+  include S.Specifics
+  (** @inline *)
+end
+
 module Maker_ext
     (_ : Version.S)
     (_ : Conf.S)
     (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : Store.Maker
+    (CT : Irmin.Private.Commit.Maker) : Maker
 
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
-module Store = Store
 
 val migrate : Irmin.config -> unit
 (** [migrate conf] upgrades the repository with configuration [conf] to use the
@@ -73,11 +82,5 @@ val migrate : Irmin.config -> unit
 
 module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
-
-module Private : sig
-  module Inode = Inode
-  module IO = IO
-  module Pack_index = Pack_index
-  module Sigs = S
-  module Utils = Utils
-end
+module IO = IO
+module Utils = Utils

@@ -28,10 +28,12 @@ module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Maker_ext = Ext.Maker
-module Store = Store
 module Version = Version
 module Index = Pack_index
 module Conf = Conf
+
+module type Maker = S.Maker
+module type Specifics = S.Specifics
 
 let migrate = Migrate.run
 
@@ -60,17 +62,9 @@ end
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
-
-module Private = struct
-  module Inode = Inode
-  module IO = IO
-  module Pack_index = Pack_index
-  module Sigs = S
-  module Utils = Utils
-end
-
-module Config = Config
 module Inode = Inode
+module IO = IO
+module Utils = Utils
 
 module Vx = struct
   let version = `V1
