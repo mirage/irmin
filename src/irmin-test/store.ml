@@ -2091,6 +2091,8 @@ let layered_suite (speed, x) =
 
 let run name ?(slow = false) ~misc tl =
   Printexc.record_backtrace true;
+  (* Ensure that failures occuring in async lwt threads are raised. *)
+  (Lwt.async_exception_hook := fun exn -> raise exn);
   let tl1 = List.map suite tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
   let tl2 = List.map layered_suite tl in
