@@ -1,6 +1,6 @@
 include Irmin.Export_for_backends
 open Irmin
-module Store = Irmin_mem.KV (Contents.String)
+module Store = Irmin_mem.KV.Make (Contents.String)
 
 module Generators : sig
   val irmin_tree : Store.tree Crowbar.gen
