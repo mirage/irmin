@@ -31,7 +31,7 @@ described in the instructions below.
 ```
 
 - Make a pull-request to this repository containing pre-release changes (drop
-  `pin-depends`, add release number to `CHANGES.md`, anu new constraints) and an
+  `pin-depends`, add release number to `CHANGES.md`, any new constraints) and an
   empty commit to host the release tag.
 
 ```sh
