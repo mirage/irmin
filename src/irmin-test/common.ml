@@ -34,7 +34,7 @@ let merge_exn msg x =
   | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
 
 let info msg =
-  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let date = Int64.of_float 0. in
   let author = Printf.sprintf "TESTS" in
   Irmin.Info.v ~date ~author msg
 
