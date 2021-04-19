@@ -40,6 +40,8 @@ module List = struct
   include List
   (** @closed *)
 
+  let mem (k : string) l = mem k l
+
   let rec is_longer_than : type a. int -> a list -> bool =
    fun len l ->
     if len < 0 then true

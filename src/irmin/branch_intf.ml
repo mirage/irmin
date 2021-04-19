@@ -32,11 +32,11 @@ module type Store = sig
 
   include Atomic_write.S
 
+  module Val : Key.S with type t = value
+  (** Base functions on values. *)
+
   module Key : S with type t = key
   (** Base functions on keys. *)
-
-  module Val : Hash.S with type t = value
-  (** Base functions on values. *)
 end
 
 module type Sigs = sig

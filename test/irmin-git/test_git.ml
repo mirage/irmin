@@ -114,7 +114,7 @@ let test_sort_order (module S : S) =
   let node_t = S.Private.Repo.node_t repo in
   let head_tree_id branch =
     let* head = S.Head.get branch in
-    let+ commit = S.Private.Commit.find commit_t (S.Commit.hash head) in
+    let+ commit = S.Private.Commit.find commit_t (S.Commit.key head) in
     S.Private.Commit.Val.node (get commit)
   in
   let ls branch =
@@ -210,13 +210,13 @@ let test_blobs (module S : S) =
   Alcotest.(check bin_string) "blob ''" "blob 11\000{\"X\":[1,2]}" str;
   let t = X.Tree.empty in
   let* t = X.Tree.add t [ "foo" ] (X (1, 2)) in
-  let k1 = X.Tree.hash t in
+  let k1 = X.Tree.key t in
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
     X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
   in
-  let hash = Irmin_test.testable X.Hash.t in
-  Alcotest.(check hash) "blob" k1 k2;
+  let key = Irmin_test.testable X.Hash.t in
+  Alcotest.(check key) "blob" k1 k2;
   Lwt.return_unit
 
 let test_import_export (module S : S) =

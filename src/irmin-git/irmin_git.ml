@@ -46,7 +46,7 @@ struct
 
     let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t
         =
-      let h = Commit.hash h in
+      let h = P.Commit.Key.hash (Commit.key h) in
       G.read (git_of_repo repo) h >|= function
       | Ok (Git.Value.Commit c) -> Some c
       | _ -> None

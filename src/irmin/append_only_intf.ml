@@ -26,7 +26,12 @@ module type S = sig
   include Read_only.S
   (** @inline *)
 
-  val add : [> write ] t -> key -> value -> unit Lwt.t
+  type hash
+  (** The type for key hashes. *)
+
+  val index : [> read ] t -> hash -> key option Lwt.t
+
+  val add : [> write ] t -> hash -> value -> key Lwt.t
   (** Write the contents of a value to the store. *)
 
   include Clearable with type 'a t := 'a t
@@ -40,7 +45,8 @@ module type S = sig
 end
 
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+  include
+    S with type key = V.t Key(H).t and type value = V.t and type hash = H.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)

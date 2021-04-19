@@ -35,7 +35,6 @@ module Store (G : Git.S) (P : Irmin.Path.S) : sig
   module Val :
     Irmin.Node.S
       with type t = value
-       and type hash = key
        and type step = P.step
        and type metadata = Metadata.t
 end

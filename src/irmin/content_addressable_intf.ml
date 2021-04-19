@@ -27,14 +27,19 @@ module type S = sig
   include Read_only.S
   (** @inline *)
 
+  type hash
+  (** The type for keys hashes. *)
+
+  val index : [> read ] t -> hash -> key option Lwt.t
+
   val add : [> write ] t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the responsibility of the
       content-addressable store to generate a consistent key. *)
 
-  val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
-  (** Same as {!add} but allows to specify the key directly. The backend might
-      choose to discared that key and/or can be corrupt if the key scheme is not
-      consistent. *)
+  val unsafe_add : [> write ] t -> hash -> value -> key Lwt.t
+  (** Same as {!add} but allows to specify the key hash directly. The backend
+      might choose to discared that key and/or can be corrupt if the key scheme
+      is not consistent. *)
 
   include Clearable with type 'a t := 'a t
   (** @inline *)
@@ -46,11 +51,16 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = functor (K : Hash.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+module type Maker = sig
+  module Key : Key.Maker
 
-  include Of_config with type 'a t := 'a t
-  (** @inline *)
+  module Make (H : Hash.S) (V : Type.S) : sig
+    include
+      S with type key = V.t Key(H).t and type value = V.t and type hash = H.t
+
+    include Of_config with type 'a t := 'a t
+    (** @inline *)
+  end
 end
 
 module type Sigs = sig
@@ -59,7 +69,11 @@ module type Sigs = sig
 
   module Make (F : Append_only.Maker) (K : Hash.S) (V : Type.S) : sig
     include
-      S with type 'a t = 'a F(K)(V).t and type key = K.t and type value = V.t
+      S
+        with type 'a t = 'a F.Make(H)(V).t
+         and type key = V.t Key(H).t
+         and type value = V.t
+         and type hash = H.t
 
     include Of_config with type 'a t := 'a t
     (** @inline *)

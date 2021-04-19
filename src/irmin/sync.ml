@@ -87,7 +87,7 @@ module Make (S : Store.S) = struct
 
   let pp_status ppf = function
     | `Empty -> Fmt.string ppf "empty"
-    | `Head c -> Type.pp S.Hash.t ppf (S.Commit.hash c)
+    | `Head c -> S.Commit.pp_hash ppf c
 
   let status_t t =
     let open Type in
@@ -131,7 +131,8 @@ module Make (S : Store.S) = struct
             | Error _ as e -> Lwt.return e
             | Ok (Some c) -> (
                 Log.debug (fun l -> l "Fetched %a" pp_hash c);
-                S.Commit.of_hash (S.repo t) c >|= function
+                let key = S.Private.Commit.Key.v c in
+                S.Commit.of_key (S.repo t) key >|= function
                 | None -> Ok `Empty
                 | Some x -> Ok (`Head x))
             | Ok None -> (

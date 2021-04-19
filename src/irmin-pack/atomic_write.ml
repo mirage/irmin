@@ -26,6 +26,7 @@ end)
 
 module Make_persistent
     (Current : Version.S)
+    (H : Irmin.Hash.S)
     (K : Irmin.Type.S)
     (V : Irmin.Hash.S) =
 struct
@@ -66,16 +67,17 @@ struct
     | Some off -> IO.set t.block buf ~off
 
   let zero =
-    match value_of_bin_string (String.make V.hash_size '\000') with
-    | Ok x -> x
-    | Error _ -> assert false
+    let none = Irmin.Type.(unstage (to_bin_string (option int64))) None in
+    (* FIXME: fragile: need to matcg Key.Make.s *)
+    let buf = String.make H.hash_size '\000' ^ "\000" ^ none in
+    match value_of_bin_string buf with Ok x -> x | Error _ -> assert false
 
   let refill t ~to_ ~from =
     let rec aux offset =
       if offset >= to_ then ()
       else
         let len = read_length32 ~off:offset t.block in
-        let buf = Bytes.create (len + V.hash_size) in
+        let buf = Bytes.create (len + H.hash_size) in
         let off = offset ++ Int63.of_int 4 in
         let n = IO.read t.block ~off buf in
         assert (n = Bytes.length buf);
@@ -90,7 +92,7 @@ struct
         assert (n = String.length buf);
         if not (equal_value v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
-        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + V.hash_size)))
+        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + H.hash_size)))
     in
     aux from
 

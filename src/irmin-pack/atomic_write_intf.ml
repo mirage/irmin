@@ -31,8 +31,11 @@ module type Sigs = sig
   module type S = S
   module type Persistent = Persistent
 
-  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
-    Persistent with type key = K.t and type value = V.t
+  module Make_persistent
+      (_ : Version.S)
+      (_ : Irmin.Hash.S)
+      (K : Irmin.Type.S)
+      (V : Irmin.Hash.S) : Persistent with type key = K.t and type value = V.t
 
   module Closeable (AW : S) : sig
     include

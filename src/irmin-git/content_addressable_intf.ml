@@ -20,6 +20,7 @@ module type Sigs = sig
       with type _ t = G.t
        and type key = G.Hash.t
        and type value = V.t
+       and type hash = G.Hash.t
 
   module Check_closed (S : Irmin.Content_addressable.S) : sig
     include
@@ -27,5 +28,6 @@ module type Sigs = sig
         with type 'a t = bool ref * 'a S.t
          and type key = S.key
          and type value = S.value
+         and type hash = S.hash
   end
 end

@@ -32,6 +32,7 @@ module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
 module Perms = Perms
+module Key = Key
 
 exception Closed = Store_properties.Closed
 
@@ -45,28 +46,34 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
     module X = struct
       module Schema = S
       module Hash = S.Hash
+      module K = CA.Key (Hash)
 
       module Contents = struct
+        module Key = Key.Mono (K) (C)
         module CA = CA (S.Hash) (S.Contents)
-        include Contents.Store (CA) (S.Hash) (S.Contents)
+        include Contents.Store (CA) (S.Hash) (Key) (S.Contents)
       end
 
       module Node = struct
-        module V = S.Node
-        module CA = CA (S.Hash) (V)
-        include Node.Store (Contents) (CA) (S.Hash) (V) (S.Metadata) (S.Path)
+        module Val = N.Make (S.Hash) (Contents.Key) (K) (S.Path) (S.Metadata)
+        module Key = Key.Mono (K) (Val)
+        module CA = CA.Make (S.Hash) (Val)
+
+        include
+          Node.Store (Contents) (CA) (S.Hash) (Key) (Val) (S.Metadata) (S.Path)
       end
 
       module Commit = struct
-        module C = S.Commit
-        module CA = CA (S.Hash) (C)
-        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (C)
+        module V = CT.Make (S.Hash) (Node.Key) (K)
+        module K = Key.Mono (S.Hash) (V)
+        module CA = CA.Make (S.Hash) (V)
+        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (K) (V)
       end
 
       module Branch = struct
         module Key = S.Branch
-        module Val = S.Hash
-        include AW (Key) (Val)
+        module Val = Commit.Key
+        include AW.Make (Key) (Val)
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)

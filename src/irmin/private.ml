@@ -31,6 +31,7 @@ module type S = sig
   module Node :
     Node.Store
       with type key = Hash.t
+       and type Val.contents_key = Contents.key
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
 
@@ -38,12 +39,13 @@ module type S = sig
   module Commit :
     Commit.Store
       with type key = Hash.t
+       and type Val.node_key = Node.key
        and type value = Schema.Commit.t
        and module Info = Schema.Info
 
   (** Private branch store. *)
   module Branch :
-    Branch.Store with type key = Schema.Branch.t and type value = Hash.t
+    Branch.Store with type key = Schema.Branch.t and type value = Commit.key
 
   (** Private slices. *)
   module Slice :
@@ -78,7 +80,7 @@ module type S = sig
 
   (** URI-based low-level remote synchronisation. *)
   module Remote : sig
-    include Remote.S with type commit = Commit.key and type branch = Branch.key
+    include Remote.S with type commit = Commit.hash and type branch = Branch.key
 
     val v : Repo.t -> t Lwt.t
   end

@@ -19,7 +19,7 @@ open Import
 module Make (G : Git.S) = struct
   module Info = Irmin.Info.Default
   module Raw = Git.Value.Make (G.Hash)
-  module Key = Irmin.Hash.Make (G.Hash)
+  module Hash = Irmin.Hash.Make (G.Hash)
 
   type t = G.Value.Commit.t
   type hash = Key.t [@@deriving irmin]
