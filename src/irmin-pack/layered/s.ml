@@ -34,14 +34,25 @@ end
 
 module type Maker = sig
   type endpoint = unit
+  type 'h commit_key = 'h Irmin_pack.Pack_key.t
+  type 'h node_key = 'h Irmin_pack.Pack_key.t
+  type 'h contents_key = 'h Irmin_pack.Pack_key.t
 
-  module Make (Schema : Irmin.Schema.S) :
+  module Make (Schema : Irmin.Schema.Extended) :
     Store
-      with module Schema = Schema
+      with type Schema.Hash.t = Schema.Hash.t
+       and type Schema.Branch.t = Schema.Branch.t
+       and type Schema.Metadata.t = Schema.Metadata.t
+       and type Schema.Path.t = Schema.Path.t
+       and type Schema.Path.step = Schema.Path.step
+       and type Schema.Contents.t = Schema.Contents.t
        and type Private.Remote.endpoint = endpoint
+       and type contents_key = Schema.Hash.t contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
 end
 
-module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
+(* module Maker_is_a_maker (X : Maker) : Irmin.Maker = X *)
 
 module type Layered_general = sig
   type 'a t
@@ -59,10 +70,13 @@ module type Layered = sig
 end
 
 module type Atomic_write = sig
+  (* type hash *)
+
   open Irmin_pack.Atomic_write
-  include S
-  module U : Persistent
-  module L : Persistent
+  include S (* with type Key.t = hash Irmin_pack.Pack_key.t *)
+
+  module U : Persistent with type key = key
+  module L : Persistent with type key = key
 
   val v :
     U.t ->
@@ -87,9 +101,19 @@ end
 
 module type Content_addressable = sig
   open Irmin_pack.Pack_store
-  include S
-  module U : S with type value = value and type index := index
-  module L : S with type index := index
+
+  type hash
+
+  include S with type hash := hash and type key = hash Irmin_pack.Pack_key.t
+
+  module U :
+    S
+      with type index := index
+       and type value = value
+       and type hash = hash
+       and type key = key
+
+  module L : S with type index := index and type hash = hash and type key = key
 
   val v :
     read U.t ->
@@ -105,7 +129,7 @@ module type Content_addressable = sig
     | Upper : read U.t layer_type
     | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> read t -> string -> key -> unit
+  val copy : 'l layer_type * 'l -> read t -> string -> key -> key option
 
   val copy_from_lower :
     read t ->
@@ -113,7 +137,7 @@ module type Content_addressable = sig
     ?aux:(value -> unit Lwt.t) ->
     string ->
     key ->
-    unit Lwt.t
+    key option Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
   val mem_next : [> read ] t -> key -> bool Lwt.t
@@ -133,7 +157,12 @@ module type Content_addressable = sig
   val clear_caches_next_upper : 'a t -> unit
 
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
+    ensure_unique_indexed:bool ->
+    overcommit:bool ->
+    'a t ->
+    hash ->
+    value ->
+    key
 
   val flush_next_lower : 'a t -> unit
 
@@ -141,7 +170,7 @@ module type Content_addressable = sig
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
-    key ->
+    hash ->
     _ t ->
     (unit, Irmin_pack.Checks.integrity_error) result
 
@@ -156,16 +185,17 @@ module type Content_addressable = sig
 end
 
 module type Content_addressable_maker = sig
-  type key
+  type hash
   type index
 
-  module Make (V : Irmin_pack.Pack_value.S with type hash := key) :
+  module Make
+      (V : Irmin_pack.Pack_value.S
+             with type hash := hash
+              and type key = hash Irmin_pack.Pack_key.t) :
     Content_addressable
-      with type key = key
+      with type hash = hash
        and type value = V.t
        and type index = index
-       and type U.key = key
-       and type L.key = key
        and type U.value = V.t
        and type L.value = V.t
 end

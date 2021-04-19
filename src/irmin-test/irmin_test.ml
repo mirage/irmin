@@ -17,3 +17,4 @@
 include Common
 module Store = Store
 module Common = Common
+module Node = Node

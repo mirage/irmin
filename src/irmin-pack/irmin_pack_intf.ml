@@ -15,13 +15,16 @@
  *)
 
 module type Maker = functor (_ : Conf.S) -> S.Maker
+module type Persistent_maker = functor (_ : Conf.S) -> S.Persistent_maker
 module type Specifics = S.Specifics
 
 module type Sigs = sig
   module Dict = Pack_dict
   module Index = Pack_index
   module Conf = Conf
+  module Node = Node
   module Inode = Inode
+  module Pack_key = Pack_key
   module Pack_value = Pack_value
   module Pack_store = Pack_store
   module Version = Version
@@ -49,17 +52,17 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module Maker (_ : Version.S) : Maker
-  module V1 : Maker
-  module V2 : Maker
+  module Maker (_ : Version.S) : Persistent_maker
+  module V1 : Persistent_maker
+  module V2 : Persistent_maker
 
   module KV (_ : Version.S) (_ : Conf.S) :
-    Irmin.KV_maker with type metadata = unit
+    Irmin.Generic_key.KV_maker with type metadata = unit
 
   module type S = S.S
   module type Specifics = S.Specifics
 
-  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker
+  module Maker_ext (_ : Version.S) : Persistent_maker
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
@@ -72,7 +75,7 @@ module type Sigs = sig
       attempting to use pre-migration instances of the repository after the
       migration is complete, will result in undefined behaviour. *)
 
-  module Content_addressable = Content_addressable
+  module Indexable = Indexable
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
@@ -81,4 +84,6 @@ module type Sigs = sig
     include S.Maker
     (** @inline *)
   end
+
+  module type Persistent_maker = Persistent_maker
 end

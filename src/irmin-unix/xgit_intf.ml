@@ -45,6 +45,9 @@ module type Backend = sig
       with module Git = G
        and type Private.Remote.endpoint = endpoint
        and module Schema := Schema
+       and type contents_key = G.hash
+       and type node_key = G.hash
+       and type commit_key = G.hash
 
   module KV (C : Irmin.Contents.S) :
     S
@@ -57,6 +60,9 @@ module type Backend = sig
        and type Schema.Hash.t = G.hash
        and type Schema.Branch.t = string
        and type Private.Remote.endpoint = endpoint
+       and type contents_key = G.hash
+       and type node_key = G.hash
+       and type commit_key = G.hash
 
   module Ref (C : Irmin.Contents.S) :
     S
@@ -69,6 +75,9 @@ module type Backend = sig
        and type Schema.Hash.t = G.hash
        and type Schema.Branch.t = Irmin_git.reference
        and type Private.Remote.endpoint = endpoint
+       and type contents_key = G.hash
+       and type node_key = G.hash
+       and type commit_key = G.hash
 end
 
 module type Sigs = sig

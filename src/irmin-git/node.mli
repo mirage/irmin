@@ -19,7 +19,8 @@
 module Make (G : Git.S) (P : Irmin.Path.S) :
   Irmin.Node.S
     with type t = G.Value.Tree.t
-     and type hash = G.hash
+     and type node_key = G.hash
+     and type contents_key = G.hash
      and type step = P.step
      and type metadata = Metadata.t
 
@@ -35,7 +36,8 @@ module Store (G : Git.S) (P : Irmin.Path.S) : sig
   module Val :
     Irmin.Node.S
       with type t = value
-       and type hash = key
        and type step = P.step
        and type metadata = Metadata.t
+       and type contents_key = key
+       and type node_key = key
 end

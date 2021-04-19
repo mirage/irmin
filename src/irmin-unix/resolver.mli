@@ -62,7 +62,8 @@ module Store : sig
   val irf : hash -> contents -> t
   val http : t -> t
   val git : contents -> t
-  val pack : hash -> contents -> t
+
+  (* val pack : hash -> contents -> t *)
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val destruct : t -> (module Irmin.S) * remote_fn option
@@ -93,7 +94,9 @@ val load_config :
 
 type store =
   | S :
-      (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
+      (module Irmin.S with type t = 'a)
+      * 'a Lwt.t
+      * Store.remote_fn option
       -> store
 
 val store : store Cmdliner.Term.t

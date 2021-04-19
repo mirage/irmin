@@ -94,8 +94,9 @@ end
 module type Sigs = sig
   module type S = S
 
-  val remote_store : (module Store.S with type t = 'a) -> 'a -> Remote.t
+  val remote_store :
+    (module Store.Generic_key.S with type t = 'a) -> 'a -> Remote.t
 
-  module Make (X : Store.S) :
+  module Make (X : Store.Generic_key.S) :
     S with type db = X.t and type commit = X.commit and type info = X.info
 end

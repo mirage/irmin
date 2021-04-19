@@ -15,7 +15,10 @@
  *)
 
 module Client (S : Irmin.S) :
-  Irmin.S with module Schema = S.Schema and type Private.Remote.endpoint = unit
+  Irmin.S
+    with type hash = S.Hash.t
+     and module Schema = S.Schema
+     and type Private.Remote.endpoint = unit
 
 module Server (S : Irmin.S) :
   Irmin_http.SERVER

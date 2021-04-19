@@ -16,7 +16,7 @@
 
 open! Import
 
-module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
+module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module AW = Irmin_mem.Atomic_write (K) (V)
   include AW
 
@@ -27,69 +27,100 @@ end
 
 module CA_mem
     (Hash : Irmin.Hash.S)
-    (Value : Irmin_pack.Pack_value.S with type hash := Hash.t) =
+    (Value : Irmin_pack.Pack_value.S
+               with type hash := Hash.t
+                and type key = Irmin.Key.Of_hash(Hash).t) =
 struct
-  module Pack = Content_addressable.Maker (Hash)
+  module Pack = Indexable.Maker (Hash)
   module CA_mem = Pack.Make (Value)
-  include Irmin_pack.Content_addressable.Closeable (CA_mem)
+  include Irmin_pack.Indexable.Closeable (CA_mem)
 
   let v x = CA_mem.v x >|= make_closeable
 end
 
 module Maker (Config : Irmin_pack.Conf.S) = struct
   type endpoint = unit
+  type 'h contents_key = 'h
+  type 'h node_key = 'h
+  type 'h commit_key = 'h
 
-  module Make (Schema : Irmin.Schema.S) = struct
+  module Make (Schema : Irmin.Schema.Extended) = struct
     module H = Schema.Hash
     module C = Schema.Contents
     module P = Schema.Path
     module M = Schema.Metadata
     module B = Schema.Branch
-    module Pack = Content_addressable.Maker (H)
+    module Pack = Indexable.Maker (H)
+
+    module XKey = struct
+      include Irmin.Key.Of_hash (H)
+
+      let unfindable_of_hash h = h
+    end
 
     module X = struct
       module Schema = Schema
       module Hash = H
       module Info = Schema.Info
+      module Node_key = XKey
+      module Commit_key = XKey
 
       module Contents = struct
-        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
+        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (XKey) (C)
         module CA = CA_mem (H) (Pack_value)
         include Irmin.Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
+        module Value = Schema.Node (XKey) (XKey)
+
         module CA = struct
           module Inter =
-            Irmin_pack.Inode.Make_internal (Config) (H) (Schema.Node)
+            Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
           module CA = Pack.Make (Inter.Raw)
-          include Irmin_pack.Inode.Make (H) (Schema.Node) (Inter) (CA)
+          include Irmin_pack.Inode.Make (H) (Value) (Inter) (CA)
 
           let v = CA.v
         end
 
-        include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+        include Irmin.Node.Store' (Contents) (CA) (H) (CA.Val) (M) (P)
+      end
+
+      module Node_portable = struct
+        (* XXX: implement *)
+        type nonrec t = Node.Val.t [@@deriving irmin]
+
+        type value =
+          [ `Contents of Hash.t * Schema.Metadata.t | `Node of Hash.t ]
+
+        let v _ = assert false
+        let add _ = assert false
+        let list ?offset:_ ?length:_ _ = assert false
+        let find _ _ = assert false
+        let remove _ = assert false
+        let of_node t = t
       end
 
       module Commit = struct
+        module Value = Schema.Commit (Node.Key) (XKey)
+
         module Pack_value =
-          Irmin_pack.Pack_value.Of_commit
-            (H)
+          Irmin_pack.Pack_value.Of_commit (H) (XKey)
             (struct
               module Info = Schema.Info
-              include Schema.Commit
+              include Value
             end)
 
         module CA = CA_mem (H) (Pack_value)
-        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Schema.Commit)
+        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Value)
       end
 
       module Branch = struct
-        module Key = B
-        module Val = H
-        module AW = Atomic_write (Key) (Val)
+        module Val = Commit.Key
+        module AW = Atomic_write (B) (Val)
         include Irmin_pack.Atomic_write.Closeable (AW)
+        module Key = B
 
         let v () = AW.v () >|= make_closeable
       end

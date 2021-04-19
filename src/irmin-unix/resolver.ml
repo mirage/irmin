@@ -277,12 +277,12 @@ module Store = struct
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
-  module Inode_config = struct
-    let entries = 32
-    let stable_hash = 256
-  end
+  (* module Inode_config = struct
+       let entries = 32
+       let stable_hash = 256
+     end
 
-  let pack = create (module Irmin_pack.V1 (Inode_config))
+     let pack = create (module Irmin_pack.V1 (Inode_config)) *)
 
   let all =
     ref
@@ -293,7 +293,8 @@ module Store = struct
         ("mem", Variable_hash mem);
         ("http", Variable_hash (fun h c -> http (mem h c)));
         ("http.git", Fixed_hash (fun c -> http (git c)));
-        ("pack", Variable_hash pack);
+        (* ("pack", Variable_hash pack); *)
+        (* XXX: disabled as not [S] *)
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -391,7 +392,9 @@ let config_term =
 
 type store =
   | S :
-      (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
+      (module Irmin.S with type t = 'a)
+      * 'a Lwt.t
+      * Store.remote_fn option
       -> store
 
 let string_value = function `String s -> s | _ -> raise Not_found

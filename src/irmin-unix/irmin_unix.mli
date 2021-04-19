@@ -52,8 +52,12 @@ module FS : sig
   module Atomic_write : Irmin.Atomic_write.Maker
   (** Atomic-write store maker. *)
 
-  include Irmin.Maker
   (** Irmin store maker. *)
+  include
+    Irmin.Maker
+      with type 'h contents_key = 'h
+       and type 'h node_key = 'h
+       and type 'h commit_key = 'h
 
   module KV : Irmin.KV_maker
   (** Irmin store make, where only the Contents have to be specified: branches
@@ -96,7 +100,12 @@ module Http : sig
       operation might take multiple RTTs. *)
   module Client (S : Irmin.S) :
     Irmin.S
-      with module Schema = S.Schema
+      with type hash = S.Hash.t
+      (* XXX: this is a problem with S, since
+         it defines the [hash] type as the canonical source of truth for the
+         [Hash.t] type, it's not possible to do [with module Schema =] without
+         it.*)
+       and module Schema = S.Schema
        and type Private.Remote.endpoint = unit
 
   (** {1 HTTP server} *)

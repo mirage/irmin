@@ -22,8 +22,8 @@ struct
   module S = Make_atomic_write (K) (V)
 
   type t = { closed : bool ref; t : S.t }
-  type key = S.key
   type value = S.value
+  type key = S.key
 
   let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
 

@@ -47,7 +47,7 @@ module Schema = struct
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1
-  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Node = Node.Make_generic_key (Hash) (Path) (Metadata)
   module Commit = Commit.Make (Hash)
   module Info = Info.Default
 end
@@ -59,12 +59,14 @@ module Contents = struct
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
+  type key = H.t Irmin_pack.Pack_key.t (* XXX: why do I need this? *)
+
   let hash = H.hash
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
-  let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
+  let encode_bin ~dict:_ ~offset_of_key:_ x k = encode_pair (k, x)
 
-  let decode_bin ~dict:_ ~hash:_ x off =
+  let decode_bin ~dict:_ ~key_of_offset:_ x off =
     let len, (_, v) = decode_pair x off in
     (len, v)
 
@@ -81,12 +83,22 @@ module P =
   Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
 
 module Pack = P.Make (Contents)
+module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
 module Branch =
-  Irmin_pack.Atomic_write.Make_persistent
-    (Irmin_pack.Version.V2)
+  Irmin_pack.Atomic_write.Make_persistent (Irmin_pack.Version.V2) (Schema.Hash)
     (Irmin.Branch.String)
-    (Schema.Hash)
+    (struct
+      include Schema.Hash
+
+      (* XXX: provide an unsafe coercion function on hashes *)
+      let null =
+        let buf = String.make hash_size '\000' in
+        match Irmin.Type.(unstage (of_bin_string t)) buf with
+        | Ok x -> x
+        | Error (`Msg _) -> assert false
+    end
+    (* Schema.Commit (Key) (Key) *))
 
 module Make_context (Config : sig
   val root : string

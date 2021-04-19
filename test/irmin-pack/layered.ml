@@ -66,7 +66,7 @@ module Test = struct
   let info = Store.Info.empty
 
   let commit ctxt =
-    let parents = List.map Store.Commit.hash ctxt.parents in
+    let parents = List.map Store.Commit.key ctxt.parents in
     let+ h = Store.Commit.v ctxt.index.repo ~info ~parents ctxt.tree in
     Store.Tree.clear ctxt.tree;
     h
@@ -80,7 +80,7 @@ module Test = struct
     Lwt.return { ctxt with tree }
 
   let checkout index key =
-    Store.Commit.of_hash index.repo (Store.Commit.hash key) >>= function
+    Store.Commit.of_key index.repo (Store.Commit.key key) >>= function
     | None -> Lwt.return_none
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -118,7 +118,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1 repo block1 =
-    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -136,7 +136,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1a repo block1a =
-    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1a) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -154,7 +154,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1b repo block1 =
-    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -168,7 +168,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1c repo block =
-    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -181,7 +181,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block2a repo block1a =
-    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1a) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -194,7 +194,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block3a repo block =
-    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -215,7 +215,7 @@ module Test = struct
     | Some ctxt -> create ctxt
 
   let check_removed ctxt key msg =
-    Store.Commit.of_hash ctxt.index.repo (Store.Commit.hash key) >>= function
+    Store.Commit.of_key ctxt.index.repo (Store.Commit.key key) >>= function
     | None -> Lwt.return_unit
     | Some _ -> Alcotest.failf "should not find %s" msg
 
@@ -228,10 +228,10 @@ module Test = struct
     let+ block1 =
       StoreSimple.Commit.v repo ~info:StoreSimple.Info.empty ~parents:[] tree
     in
-    StoreSimple.Commit.hash block1
+    StoreSimple.Commit.key block1
 
-  let check_commit_hash ctxt check_block hash =
-    Store.Commit.of_hash ctxt.index.repo hash >>= function
+  let check_commit_key ctxt check_block key =
+    Store.Commit.of_key ctxt.index.repo key >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit -> check_block ctxt.index.repo commit
 
@@ -374,7 +374,7 @@ module Test = struct
     let* ctxt, block1 = commit_block1 ctxt in
     let* ctxt = freeze ctxt block1 in
     Store.Private_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
-    let hash1 = Store.Commit.hash block1 in
+    let key1 = Store.Commit.key block1 in
     Store.Repo.close ctxt.index.repo >>= fun () ->
     let* repo =
       StoreSimple.Repo.v
@@ -382,7 +382,7 @@ module Test = struct
            (Filename.concat ctxt.index.root Conf.lower_root))
     in
     let* () =
-      StoreSimple.Commit.of_hash repo hash1 >>= function
+      StoreSimple.Commit.of_key repo key1 >>= function
       | None -> Alcotest.fail "checkout block1"
       | Some commit ->
           let tree = StoreSimple.Commit.tree commit in
@@ -401,10 +401,10 @@ module Test = struct
         (config ~fresh:true ~readonly:false
            (Filename.concat store_name "upper1"))
     in
-    let* hash1 = commit_block1_simple_store repo in
+    let* key1 = commit_block1_simple_store repo in
     StoreSimple.Repo.close repo >>= fun () ->
     let* ctxt = clone ~readonly:false store_name in
-    check_commit_hash ctxt check_block1 hash1 >>= fun () ->
+    check_commit_key ctxt check_block1 key1 >>= fun () ->
     Store.Repo.close ctxt.index.repo
 
   (** Open lower as simple store, close it and then open it as layered store. *)
@@ -416,10 +416,10 @@ module Test = struct
         (config ~fresh:true ~readonly:false
            (Filename.concat store_name Conf.lower_root))
     in
-    let* hash1 = commit_block1_simple_store repo in
+    let* key1 = commit_block1_simple_store repo in
     StoreSimple.Repo.close repo >>= fun () ->
     let* ctxt = clone ~readonly:false store_name in
-    check_commit_hash ctxt check_block1 hash1 >>= fun () ->
+    check_commit_key ctxt check_block1 key1 >>= fun () ->
     Store.Repo.close ctxt.index.repo
 
   (** Test the without lower option for both RW and RO instances. *)
@@ -491,7 +491,7 @@ module Test = struct
     Store.freeze ctxt.index.repo ~max_lower:[ block1a ] >>= fun () ->
     Store.Private_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let check_layer block msg exp =
-      Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
+      Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.key block))
       >|= Irmin_test.check Irmin_layers.Layer_id.t msg exp
     in
     check_layer block1 "check layer of block1" `Lower >>= fun () ->

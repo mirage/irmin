@@ -68,8 +68,18 @@ end
 
 module Append_only (IO : IO) : Irmin.Append_only.Maker
 module Atomic_write (IO : IO) : Irmin.Atomic_write.Maker
-module Maker (IO : IO) : Irmin.Maker
-module KV (IO : IO) : Irmin.KV_maker
+
+module Maker (IO : IO) :
+  Irmin.Maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
+
+module KV (IO : IO) :
+  Irmin.KV_maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
 
 (** {2 Advanced configuration} *)
 

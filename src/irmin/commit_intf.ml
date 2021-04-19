@@ -22,19 +22,22 @@ module type S = sig
   type t [@@deriving irmin]
   (** The type for commit values. *)
 
-  type hash [@@deriving irmin]
-  (** Type for keys. *)
+  type node_key [@@deriving irmin]
+  (** Type for node keys. *)
+
+  type commit_key [@@deriving irmin]
+  (** Type for commit keys. *)
 
   module Info : Info.S
   (** The type for commit info. *)
 
-  val v : info:Info.t -> node:hash -> parents:hash list -> t
+  val v : info:Info.t -> node:node_key -> parents:commit_key list -> t
   (** Create a commit. *)
 
-  val node : t -> hash
-  (** The underlying node. *)
+  val node : t -> node_key
+  (** The underlying node key. *)
 
-  val parents : t -> hash list
+  val parents : t -> commit_key list
   (** The commit parents. *)
 
   val info : t -> Info.t
@@ -43,24 +46,29 @@ end
 
 module type Maker = sig
   module Info : Info.S
-  module Make (H : Type.S) : S with type hash = H.t and module Info = Info
+
+  module Make
+      (H : Type.S)
+      (N : Key.S with type hash = H.t)
+      (C : Key.S with type hash = H.t) :
+    S with type node_key = N.t and type commit_key = C.t and module Info = Info
 end
 
 module type Store = sig
   (** {1 Commit Store} *)
 
-  include Content_addressable.S
+  include Indexable.S
 
   module Info : Info.S
   (** Commit info. *)
 
-  (** [Key] provides base functions for commit keys. *)
-  module Key : Hash.Typed with type t = key and type value = value
-
   (** [Val] provides functions for commit values. *)
-  module Val : S with type t = value and type hash = key and module Info := Info
+  module Val :
+    S with type t = value and type commit_key = key and module Info := Info
 
-  module Node : Node.Store with type key = Val.hash
+  module Hash : Hash.Typed with type t = hash and type value = value
+
+  module Node : Node.Store with type key = Val.node_key
   (** [Node] is the underlying node store. *)
 
   val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
@@ -73,11 +81,11 @@ module type History = sig
   type 'a t
   (** The type for store handles. *)
 
-  type node [@@deriving irmin]
-  (** The type for node values. *)
+  type node_key [@@deriving irmin]
+  (** The type for node keys. *)
 
-  type commit [@@deriving irmin]
-  (** The type for commit values. *)
+  type commit_key [@@deriving irmin]
+  (** The type for commit keys. *)
 
   type v [@@deriving irmin]
   (** The type for commit objects. *)
@@ -87,29 +95,29 @@ module type History = sig
 
   val v :
     [> write ] t ->
-    node:node ->
-    parents:commit list ->
+    node:node_key ->
+    parents:commit_key list ->
     info:info ->
-    (commit * v) Lwt.t
+    (commit_key * v) Lwt.t
   (** Create a new commit. *)
 
-  val parents : [> read ] t -> commit -> commit list Lwt.t
+  val parents : [> read ] t -> commit_key -> commit_key list Lwt.t
   (** Get the commit parents.
 
       Commits form a append-only, fully functional, partial-order
       data-structure: every commit carries the list of its immediate
       predecessors. *)
 
-  val merge : [> read_write ] t -> info:(unit -> info) -> commit Merge.t
+  val merge : [> read_write ] t -> info:(unit -> info) -> commit_key Merge.t
   (** [merge t] is the 3-way merge function for commit. *)
 
   val lcas :
     [> read ] t ->
     ?max_depth:int ->
     ?n:int ->
-    commit ->
-    commit ->
-    (commit list, [ `Max_depth_reached | `Too_many_lcas ]) result Lwt.t
+    commit_key ->
+    commit_key ->
+    (commit_key list, [ `Max_depth_reached | `Too_many_lcas ]) result Lwt.t
   (** Find the lowest common ancestors
       {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor} lca} between two
       commits. *)
@@ -119,8 +127,8 @@ module type History = sig
     info:(unit -> info) ->
     ?max_depth:int ->
     ?n:int ->
-    commit list ->
-    (commit option, Merge.conflict) result Lwt.t
+    commit_key list ->
+    (commit_key option, Merge.conflict) result Lwt.t
   (** Compute the lowest common ancestors ancestor of a list of commits by
       recursively calling {!lcas} and merging the results.
 
@@ -133,23 +141,26 @@ module type History = sig
     info:(unit -> info) ->
     ?max_depth:int ->
     ?n:int ->
-    commit ->
-    commit ->
-    (commit, Merge.conflict) result Lwt.t
+    commit_key ->
+    commit_key ->
+    (commit_key, Merge.conflict) result Lwt.t
   (** Compute the {!lcas} of the two commit and 3-way merge the result. *)
 
   val closure :
-    [> read ] t -> min:commit list -> max:commit list -> commit list Lwt.t
+    [> read ] t ->
+    min:commit_key list ->
+    max:commit_key list ->
+    commit_key list Lwt.t
   (** Same as {{!Node.Graph.closure} Node.Graph.closure} but for the history
       graph. *)
 
   val iter :
     [> read ] t ->
-    min:commit list ->
-    max:commit list ->
-    ?commit:(commit -> unit Lwt.t) ->
-    ?edge:(commit -> node -> unit Lwt.t) ->
-    ?skip:(commit -> bool Lwt.t) ->
+    min:commit_key list ->
+    max:commit_key list ->
+    ?commit:(commit_key -> unit Lwt.t) ->
+    ?edge:(commit_key -> commit_key -> unit Lwt.t) ->
+    ?skip:(commit_key -> bool Lwt.t) ->
     ?rev:bool ->
     unit ->
     unit Lwt.t
@@ -171,7 +182,11 @@ module type Sigs = sig
     (** Serialisation format for V1 info. *)
 
     module Make (C : S with module Info := Info) : sig
-      include S with module Info = Info and type hash = C.hash
+      include
+        S
+          with module Info = Info
+           and type node_key = C.node_key
+           and type commit_key = C.commit_key
 
       val import : C.t -> t
       val export : t -> C.t
@@ -185,14 +200,19 @@ module type Sigs = sig
   module Store
       (I : Info.S)
       (N : Node.Store)
-      (S : Content_addressable.S with type key = N.key)
-      (K : Hash.S with type t = S.key)
-      (V : S with type hash = S.key and type t = S.value and module Info := I) :
+      (S : Indexable.S)
+      (H : Hash.S with type t = S.hash)
+      (V : S
+             with type node_key = N.key
+              and type commit_key = S.key
+              and type t = S.value
+              and module Info := I) :
     Store
       with type 'a t = 'a N.t * 'a S.t
        and type key = S.key
        and type value = S.value
        and module Info = I
+       and type hash = S.hash
        and module Val = V
 
   module type History = History
@@ -208,8 +228,8 @@ module type Sigs = sig
     History
       with type 'a t = 'a C.t
        and type v = C.Val.t
-       and type node = C.Node.key
-       and type commit = C.key
+       and type node_key = C.Node.key
+       and type commit_key = C.key
        and type info = C.Info.t
 
   include Maker with module Info = Info.Default

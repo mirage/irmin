@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,17 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open! Import
 
-module Maker (K : Irmin.Hash.S) : sig
-  type key = K.t
-
-  module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) : sig
-    include
-      Irmin_pack.Content_addressable.S
-        with type key = K.t
-         and type value = Val.t
-
-    val v : string -> read t Lwt.t
-  end
-end
+include Indexable_intf.Sigs
+(** @inline *)

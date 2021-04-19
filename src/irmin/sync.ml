@@ -26,11 +26,12 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let remote_store m x = Store.Store (m, x)
 
-module Make (S : Store.S) = struct
+module Make (S : Store.Generic_key.S) = struct
   module B = S.Private.Remote
 
   type db = S.t
   type commit = S.commit
+  type commit_key = S.commit_key [@@deriving irmin ~pp]
   type info = S.info
 
   let conv dx dy =
@@ -81,13 +82,12 @@ module Make (S : Store.S) = struct
       [] l
 
   let pp_branch = Type.pp S.Branch.t
-  let pp_hash = Type.pp S.Hash.t
 
   type status = [ `Empty | `Head of commit ]
 
   let pp_status ppf = function
     | `Empty -> Fmt.string ppf "empty"
-    | `Head c -> Type.pp S.Hash.t ppf (S.Commit.hash c)
+    | `Head c -> S.Commit.pp_hash ppf c
 
   let status_t t =
     let open Type in
@@ -130,8 +130,9 @@ module Make (S : Store.S) = struct
             B.fetch g ?depth e br >>= function
             | Error _ as e -> Lwt.return e
             | Ok (Some c) -> (
-                Log.debug (fun l -> l "Fetched %a" pp_hash c);
-                S.Commit.of_hash (S.repo t) c >|= function
+                let key = (assert false : B.commit -> S.commit_key) c in
+                Log.debug (fun l -> l "Fetched %a" pp_commit_key key);
+                S.Commit.of_key (S.repo t) key >|= function
                 | None -> Ok `Empty
                 | Some x -> Ok (`Head x))
             | Ok None -> (

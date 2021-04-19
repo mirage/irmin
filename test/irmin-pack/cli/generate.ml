@@ -52,8 +52,8 @@ let create_store () =
   let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
   let* () = Store.Private_layer.wait_for_freeze repo in
   let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
-  let hash = Store.Commit.hash c in
-  let* c3 = Store.Commit.v repo ~info ~parents:[ hash ] tree in
+  let key = Store.Commit.key c in
+  let* c3 = Store.Commit.v repo ~info ~parents:[ key ] tree in
   let* () = Store.Branch.set repo "master" c3 in
   Store.Repo.close repo
 

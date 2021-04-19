@@ -14,22 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Content_addressable_intf
+include Indexable_intf
 open! Import
 
 (* FIXME: remove code duplication with irmin/content_addressable *)
 module Closeable (S : S) = struct
+  module Key = S.Key
+
   type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
   type value = S.value
+  type key = S.key
+  type hash = S.hash
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let index t =
+    check_not_closed t;
+    S.index t.t
 
   let mem t k =
     check_not_closed t;
     S.mem t.t k
 
   let find t k =
+    let () = Fmt.epr "-> %s@." __LOC__ in
     check_not_closed t;
     S.find t.t k
 
@@ -51,9 +59,9 @@ module Closeable (S : S) = struct
       t.closed := true;
       S.close t.t)
 
-  let unsafe_append ~ensure_unique ~overcommit t k v =
+  let unsafe_append ~ensure_unique_indexed ~overcommit t k v =
     check_not_closed t;
-    S.unsafe_append ~ensure_unique ~overcommit t.t k v
+    S.unsafe_append ~ensure_unique_indexed ~overcommit t.t k v
 
   let unsafe_mem t k =
     check_not_closed t;

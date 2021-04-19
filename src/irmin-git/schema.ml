@@ -24,6 +24,19 @@ module type S = sig
        and type Info.t = Irmin.Info.default
        and type Path.step = string
        and type Path.t = string list
+
+  module Node :
+    Irmin.Node.S
+      with type metadata = Metadata.t
+       and type step = Path.step
+       and type contents_key = Hash.t
+       and type node_key = Hash.t
+
+  module Commit :
+    Irmin.Commit.S
+      with module Info := Info
+       and type node_key = Hash.t
+       and type commit_key = Hash.t
 end
 
 module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) :

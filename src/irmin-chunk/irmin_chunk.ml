@@ -185,7 +185,7 @@ struct
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
+            | [ i ] -> AO.add t.db key (index t i) >|= fun _ -> key
             | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux)
       in
       aux l
@@ -242,7 +242,7 @@ struct
   let unsafe_add_buffer t key buf =
     let len = String.length buf in
     if len <= t.max_data then
-      AO.add t.db key (data t buf) >|= fun () ->
+      AO.add t.db key (data t buf) >|= fun (_ : key) ->
       Log.debug (fun l -> l "add -> %a (no split)" pp_key key)
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in

@@ -39,7 +39,8 @@ module FSHelper : sig
   val print_size_layers : string -> unit
 end
 
-module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) : sig
+module Generate_trees
+    (Store : Irmin.Generic_key.KV with type Schema.Contents.t = bytes) : sig
   val add_chain_trees : int -> int -> Store.tree -> Store.tree Lwt.t
   (** [add_chain_trees depth nb tree] adds [nb] random contents to [tree],
       depthwise. *)

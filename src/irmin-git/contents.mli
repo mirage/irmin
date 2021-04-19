@@ -23,6 +23,6 @@ module Make (G : Git.S) (C : Irmin.Contents.S) : sig
        and type key = G.Hash.t
        and type value = C.t
 
-  module Key : Irmin.Hash.S with type t = key
+  module Hash : Irmin.Hash.S with type t = key
   module Val : Irmin.Contents.S with type t = value
 end

@@ -35,42 +35,95 @@ let merge_exn msg x =
 
 open Astring
 
-module type S =
-  Irmin.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
+module type Extras = sig
+  type contents_key
+  type node_key
+  type commit_key
+  type hash
 
-module type Layered_store =
-  Irmin_layers.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
+  val contents_key_of_hash : hash -> contents_key
+  val node_key_of_hash : hash -> node_key
+  val commit_key_of_hash : hash -> commit_key
+end
+
+module type S = sig
+  include
+    Irmin.Generic_key.S
+      with type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Contents.t = string
+       and type Schema.Branch.t = string
+
+  include
+    Extras
+      with type contents_key := contents_key
+       and type node_key := node_key
+       and type commit_key := commit_key
+       and type hash := hash
+end
+
+module type Layered_store = sig
+  include
+    Irmin_layers.S
+      with type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Contents.t = string
+       and type Schema.Branch.t = string
+
+  include
+    Extras
+      with type contents_key := contents_key
+       and type node_key := node_key
+       and type commit_key := commit_key
+       and type hash := hash
+end
 
 module Schema (M : Irmin.Metadata.S) = struct
   module Hash = Irmin.Hash.SHA1
   module Commit = Irmin.Commit.Make (Hash)
   module Path = Irmin.Path.String_list
   module Metadata = M
-  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Node = Irmin.Node.Make_generic_key (Hash) (Path) (Metadata)
   module Branch = Irmin.Branch.String
   module Info = Irmin.Info.Default
   module Contents = Irmin.Contents.String
 end
 
-let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
+module type Simple_maker =
+  Irmin.Maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
+
+let store : (module Simple_maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
-  let module S = B.Make (Schema (M)) in
+  let module S = struct
+    include B.Make (Schema (M))
+
+    let contents_key_of_hash x = x
+    let node_key_of_hash x = x
+    let commit_key_of_hash x = x
+  end in
   (module S)
 
+module type Simple_layered_maker =
+  Irmin_layers.Maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
+
 let layered_store :
-    (module Irmin_layers.Maker) ->
+    (module Simple_layered_maker) ->
     (module Irmin.Metadata.S) ->
     (module Layered_store) =
  fun (module B) (module M) ->
-  let module S = B.Make (Schema (M)) in
+  let module S = struct
+    include B.Make (Schema (M))
+
+    let contents_key_of_hash x = x
+    let node_key_of_hash x = x
+    let commit_key_of_hash x = x
+  end in
   (module S)
 
 type t = {
@@ -97,6 +150,17 @@ module Make_helpers (S : S) = struct
     S.Info.v ~author ~message date
 
   let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+
+  let get_contents_key = function
+    | `Contents key -> key
+    | _ -> Alcotest.fail "expecting contents_key"
+
+  let get_node_key = function
+    | `Node key -> key
+    | _ -> Alcotest.fail "expecting node_key"
+
+  type x = int [@@deriving irmin]
+
   let v repo = P.Repo.contents_t repo
   let n repo = P.Repo.node_t repo
   let ct repo = P.Repo.commit_t repo
@@ -108,6 +172,7 @@ module Make_helpers (S : S) = struct
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+  let with_info repo n f = with_commit repo (fun h -> f h ~info:(info n))
   let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
   let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
   let normal x = `Contents (x, S.Metadata.default)
@@ -137,7 +202,7 @@ module Make_helpers (S : S) = struct
 
   let r1 ~repo =
     let* kn2 = n2 ~repo in
-    S.Tree.of_hash repo (`Node kn2) >>= function
+    S.Tree.of_key repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:S.Info.empty ~parents:[] (tree :> S.tree)
@@ -145,10 +210,10 @@ module Make_helpers (S : S) = struct
   let r2 ~repo =
     let* kn3 = n3 ~repo in
     let* kr1 = r1 ~repo in
-    S.Tree.of_hash repo (`Node kn3) >>= function
+    S.Tree.of_key repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.hash kr1 ]
+        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
   let run x test =

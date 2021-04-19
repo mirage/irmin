@@ -66,8 +66,17 @@ module Read_only_ext
     (V : Irmin.Type.S) =
 struct
   type key = K.t
+  type hash = K.t
   type value = V.t
   type 'a t = { path : string }
+
+  module Key = struct
+    type t = K.t [@@deriving irmin]
+    type hash = t
+
+    let to_hash x = x
+    let of_hash x = x
+  end
 
   let get_path config =
     match Irmin.Private.Conf.get config root_key with
@@ -156,10 +165,12 @@ struct
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     IO.file_exists file >>= function
-    | true -> Lwt.return_unit
+    | true -> Lwt.return key
     | false ->
         let str = to_bin_string value in
-        IO.write_file ~temp_dir file str
+        IO.write_file ~temp_dir file str >|= fun () -> key
+
+  let index _ k = Lwt.return_some k
 end
 
 module Atomic_write_ext

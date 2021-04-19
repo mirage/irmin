@@ -32,9 +32,10 @@ let log_size = 1000
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module H = Schema.Hash
-module Node = Irmin.Node.Make (H) (Path) (Metadata)
+module Key = Irmin_pack.Pack_key.Make (H)
+module Node = Schema.Node (Key) (Key)
 module Index = Irmin_pack.Index.Make (H)
-module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
+module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
 module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
 module Context = struct
@@ -60,7 +61,7 @@ end
 
 open Schema
 
-type pred = [ `Contents of Hash.t | `Inode of Hash.t | `Node of Hash.t ]
+type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 [@@deriving irmin]
 
 let pp_pred = Irmin.Type.pp pred_t
@@ -76,9 +77,9 @@ module H_contents =
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
-let foo = H_contents.hash "foo"
-let bar = H_contents.hash "bar"
-let check_hash = Alcotest.check_repr Inode.Val.hash_t
+let foo = Key.unfindable_of_hash (H_contents.hash "foo")
+let bar = Key.unfindable_of_hash (H_contents.hash "bar")
+let check_hash = Alcotest.check_repr Hash.t
 let check_values = Alcotest.check_repr Inode.Val.t
 
 (* Exhaustive inode structure generator *)
@@ -159,7 +160,9 @@ module Inode_permutations_generator = struct
     let ( ** ) a b = float_of_int a ** float_of_int b |> int_of_float in
     let steps = gen_steps entries maxdepth_of_test in
     let content_per_step =
-      List.map (fun s -> (s, H_contents.hash s |> normal)) steps
+      List.map
+        (fun s -> (s, H_contents.hash s |> Key.unfindable_of_hash |> normal))
+        steps
       |> List.to_seq
       |> StepMap.of_seq
     in
@@ -209,12 +212,13 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let h = Inter.Val.hash v in
-  let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
-  check_hash msg h h'
+  let hash = Inter.Val.hash v in
+  let+ key = Inode.batch t.Context.store (fun i -> Inode.add i v) in
+  let hash' = Key.to_hash key in
+  check_hash msg hash hash'
 
 let check_hardcoded_hash msg h v =
-  h |> Irmin.Type.of_string Inode.Val.hash_t |> function
+  h |> Irmin.Type.of_string Inode.Hash.t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
   | Ok hash -> check_hash msg hash (Inter.Val.hash v)
 

@@ -134,7 +134,9 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           Wm.continue [ ("application/json", fun _ -> assert false) ] rd
 
         method content_types_accepted rd = Wm.continue [] rd
-        method! process_post rd = with_key rd (unsafe_add rd repo)
+
+        method! process_post rd =
+          with_key rd (fun key -> unsafe_add rd repo key)
       end
 
     class merge merge repo =
@@ -346,6 +348,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (struct
         include P.Contents
 
+        let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
         let batch t f = P.Repo.batch t @@ fun x _ _ -> f x
       end)
       (P.Contents.Key)
@@ -356,6 +359,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (struct
         include P.Node
 
+        let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
         let batch t f = P.Repo.batch t @@ fun _ x _ -> f x
       end)
       (P.Node.Key)
@@ -366,6 +370,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       (struct
         include P.Commit
 
+        let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
         let batch t f = P.Repo.batch t @@ fun _ _ x -> f x
       end)
       (P.Commit.Key)

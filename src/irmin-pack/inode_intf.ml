@@ -19,13 +19,29 @@ open! Import
 module type Value = sig
   include Irmin.Node.S
 
-  val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+  val promote_exn : t -> step -> value -> unit
+
+  val pred :
+    t ->
+    [ `Node of node_key | `Inode of node_key | `Contents of contents_key ] list
+
+  module Portable :
+    Irmin.Node.Portable.S
+      with type node := t
+       and type step := step
+       and type metadata := metadata
 end
 
 module type S = sig
-  include Irmin.Content_addressable.S
-  module Key : Irmin.Hash.S with type t = key
-  module Val : Value with type t = value and type hash = key
+  include Irmin.Indexable.S
+  module Hash : Irmin.Hash.S with type t = hash
+
+  module Val :
+    Value
+      with type t = value
+       and type node_key = key
+       and type contents_key = key
+       and type Portable.hash := hash
 
   val decode_bin_length : string -> int -> int
 end
@@ -43,7 +59,7 @@ module type Persistent = sig
     string ->
     read t Lwt.t
 
-  include S.Checkable with type 'a t := 'a t and type key := key
+  include S.Checkable with type 'a t := 'a t and type hash := hash
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit
@@ -54,17 +70,22 @@ end
     implement or test inodes. *)
 module type Internal = sig
   type hash
+  type key
 
   val pp_hash : hash Fmt.t
 
-  module Raw : Pack_value.S with type hash = hash
+  module Raw : Pack_value.S with type hash = hash and type key = key
 
   module Val : sig
-    include Value with type hash = hash
+    include
+      Value
+        with type node_key = key
+         and type contents_key = key
+         and type Portable.hash := hash
 
-    val of_raw : (hash -> Raw.t option) -> Raw.t -> t
+    val of_raw : (key -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
-    val save : add:(hash -> Raw.t -> unit) -> mem:(hash -> bool) -> t -> unit
+    val save : add:(hash -> Raw.t -> key) -> mem:(key -> bool) -> t -> key
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
@@ -79,10 +100,13 @@ module type Internal = sig
       (** The type for pointer kinds. *)
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
 
-      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+      type node_ref = [ `Key of node_key | `Hash of hash ] [@@deriving irmin]
+
+      type entry = { name : step; kind : kind; key : node_ref }
+      [@@deriving irmin]
       (** The type for entries. *)
 
-      type 'a pointer = { index : int; pointer : hash; tree : 'a }
+      type 'a pointer = { index : int; pointer : node_ref; tree : 'a }
       [@@deriving irmin]
       (** The type for pointers. *)
 
@@ -126,47 +150,59 @@ module type Sigs = sig
   module type Internal = Internal
 
   module Make_internal
-      (Conf : Conf.S)
-      (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t) :
+      (_ : Conf.S)
+      (H : Irmin.Hash.S) (Key : sig
+        include Irmin.Key.S with type hash = H.t
+
+        val unfindable_of_hash : hash -> t
+      end)
+      (Node : Irmin.Node.S
+                with type node_key = Key.t
+                 and type contents_key = Key.t) :
     Internal
       with type hash = H.t
+       and type key = Key.t
+       and type Raw.key = Key.t
+      (* XXX: inline into [Internal]?*)
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
 
   module Make
-      (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t)
+      (Hash : Irmin.Hash.S)
+      (Node : Irmin.Node.S)
       (Inter : Internal
-                 with type hash = H.t
+                 with type hash = Hash.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (Pack : Content_addressable.S
-                with type key = H.t
-                 and type value = Inter.Raw.t) :
+      (Pack : Indexable.S
+                with type hash = Hash.t
+                 and type value = Inter.Raw.t
+                 and type key = Inter.Val.node_key) :
     S
       with type 'a t = 'a Pack.t
-       and type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
+       and type key = Inter.key
+       and type hash = Hash.t
        and type value = Inter.Val.t
 
   module Make_persistent
-      (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t)
+      (Hash : Irmin.Hash.S)
+      (Node : Irmin.Node.S)
       (Inter : Internal
-                 with type hash = H.t
+                 with type hash = Hash.t
+                  and type key = Hash.t Pack_key.t
+                  and type Raw.key = Hash.t Pack_key.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
       (CA : Pack_store.Maker
-              with type key = H.t
-               and type index = Pack_index.Make(H).t) : sig
-    include
-      Persistent
-        with type key = H.t
-         and type Val.metadata = Node.metadata
-         and type Val.step = Node.step
-         and type index = Pack_index.Make(H).t
-         and type value = Inter.Val.t
-  end
+              with type hash = Hash.t
+               and type index = Pack_index.Make(Hash).t) :
+    Persistent
+      with type hash = Hash.t
+       and type Val.metadata = Node.metadata
+       and type Val.step = Node.step
+       and type key = Hash.t Pack_key.t
+       and type index = Pack_index.Make(Hash).t
+       and type value = Inter.Val.t
 end

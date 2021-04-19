@@ -32,7 +32,7 @@ module type S = sig
   module Schema :
     Irmin.Schema.S with type Metadata.t = Metadata.t and type Hash.t = Git.hash
 
-  include Irmin.S with module Schema := Schema
+  include Irmin.S with type hash = Schema.Hash.t and module Schema := Schema
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the repository
@@ -148,7 +148,12 @@ module type Sigs = sig
 
   module Generic_KV
       (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker) : Irmin.KV_maker with type endpoint = unit
+      (AW : Irmin.Atomic_write.Maker) :
+    Irmin.KV_maker
+      with type endpoint = unit
+       and type 'h contents_key = 'h
+       and type 'h node_key = 'h
+       and type 'h commit_key = 'h
 
   (** In-memory Git store. *)
   module Mem :

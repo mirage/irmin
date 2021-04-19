@@ -16,6 +16,7 @@
 
 open Import
 open Store_properties
+module Irmin_key = Key
 
 module type S = sig
   (** {1 Append-only stores}
@@ -23,10 +24,16 @@ module type S = sig
       Append-only stores are store where it is possible to read and add new
       values. *)
 
-  include Read_only.S
-  (** @inline *)
+  type -'a t
+  type hash
+  type key
+  type value
 
-  val add : [> write ] t -> key -> value -> unit Lwt.t
+  val mem : [> read ] t -> key -> bool Lwt.t
+  val find : [> read ] t -> key -> value option Lwt.t
+  val index : [> read ] t -> hash -> key option Lwt.t
+
+  val add : [> write ] t -> hash -> value -> key Lwt.t
   (** Write the contents of a value to the store. *)
 
   include Clearable with type 'a t := 'a t
@@ -39,8 +46,14 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = functor (K : Type.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+module Append_only_is_a_read_only (X : S) : Read_only.S = X
+
+module type Maker = functor (Hash : Hash.S) (Value : Type.S) -> sig
+  module Key :
+    Key.Hash_like with type t = Key.Of_hash(Hash).t and type hash = Hash.t
+
+  include
+    S with type value = Value.t and type hash = Hash.t and type key = Key.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)

@@ -46,7 +46,7 @@ struct
 
     let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t
         =
-      let h = Commit.hash h in
+      let h = P.Commit.Key.to_hash (Commit.key h) in
       G.read (git_of_repo repo) h >|= function
       | Ok (Git.Value.Commit c) -> Some c
       | _ -> None
@@ -189,6 +189,10 @@ struct
   type endpoint = Maker.endpoint
   type metadata = Metadata.t
   type branch = Branch.t
+  type hash = G.hash
+  type 'h commit_key = 'h
+  type 'h node_key = 'h
+  type 'h contents_key = 'h
 
   module Make (C : Irmin.Contents.S) = Maker.Make (Schema.Make (G) (C) (Branch))
 end
@@ -216,6 +220,10 @@ struct
 
   type endpoint = unit
   type metadata = Metadata.t
+  type hash = G.hash
+  type 'h commit_key = 'h
+  type 'h node_key = 'h
+  type 'h contents_key = 'h
 
   module Schema (C : Irmin.Contents.S) = struct
     module Metadata = Metadata
@@ -240,13 +248,31 @@ struct
       include S.Private
     end
 
-    module CA = Irmin.Content_addressable.Check_closed (CA)
+    module CA (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) : sig
+      include
+        Irmin.Indexable.S
+          with type hash = Hash.t
+           and type key = Hash.t
+           and type value = Value.t
+
+      include Store_properties.Of_config with type 'a t := 'a t
+      (** @inline *)
+    end = struct
+      module CA = Irmin.Content_addressable.Check_closed (CA) (Hash) (Value)
+      include Irmin.Indexable.Of_content_addressable (Hash) (CA)
+
+      let v = CA.v
+    end
+
     module AW = Irmin.Atomic_write.Check_closed (AW)
 
     module X = struct
       module Schema = Sc
       module Hash = Dummy.Hash
       module Info = Irmin.Info.Default
+      module Key = Irmin.Key.Of_hash (Hash)
+      module Commit_key = Key
+      module Node_key = Key
 
       module Contents = struct
         module V = Dummy.Contents.Val
@@ -259,8 +285,15 @@ struct
         module CA = CA (Hash) (V)
 
         include
-          Irmin.Node.Store (Contents) (CA) (Hash) (V) (Dummy.Node.Metadata)
+          Irmin.Node.Store (Contents) (CA) (Node_key) (Hash) (V)
+            (Dummy.Node.Metadata)
             (Schema.Path)
+      end
+
+      module Node_portable = struct
+        include Node.Val
+
+        let of_node x = x
       end
 
       module Commit = struct

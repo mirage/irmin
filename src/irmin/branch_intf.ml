@@ -27,6 +27,8 @@ module type S = sig
   (** Check if the branch is valid. *)
 end
 
+module Irmin_key = Key
+
 module type Store = sig
   (** {1 Branch Store} *)
 
@@ -35,7 +37,7 @@ module type Store = sig
   module Key : S with type t = key
   (** Base functions on keys. *)
 
-  module Val : Hash.S with type t = value
+  module Val : Irmin_key.S with type t = value
   (** Base functions on values. *)
 end
 

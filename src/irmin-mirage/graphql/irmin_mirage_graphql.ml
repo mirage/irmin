@@ -27,7 +27,8 @@ module Server = struct
 
   module Make
       (Http : Cohttp_lwt.S.Server)
-      (Store : Irmin.S with type Private.Remote.endpoint = Smart_git.Endpoint.t)
+      (Store : Irmin.S
+                 with type Private.Remote.endpoint = Smart_git.Endpoint.t)
       (Pclock : Mirage_clock.PCLOCK) =
   struct
     module Store = Store

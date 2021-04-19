@@ -49,7 +49,7 @@ let open_ro_after_rw_closed () =
   S.Repo.close rw >>= fun () ->
   let* t = S.master ro in
   let* c = S.Head.get t in
-  S.Commit.of_hash ro (S.Commit.hash c) >>= function
+  S.Commit.of_key ro (S.Commit.key c) >>= function
   | None -> Alcotest.fail "no hash"
   | Some commit ->
       let tree = S.Commit.tree commit in
@@ -58,7 +58,7 @@ let open_ro_after_rw_closed () =
       S.Repo.close ro
 
 let check_commit_absent repo commit =
-  S.Commit.of_hash repo (S.Commit.hash commit) >|= function
+  S.Commit.of_key repo (S.Commit.key commit) >|= function
   | None -> ()
   | Some _ -> Alcotest.fail "should not find hash"
 
@@ -69,7 +69,7 @@ let check_binding ?msg repo commit key value =
     | None ->
         Fmt.str "Expected binding [%a ↦ %s]" Fmt.(Dump.list string) key value
   in
-  S.Commit.of_hash repo (S.Commit.hash commit) >>= function
+  S.Commit.of_key repo (S.Commit.key commit) >>= function
   | None -> Alcotest.failf "commit not found"
   | Some commit ->
       let tree = S.Commit.tree commit in
@@ -78,7 +78,7 @@ let check_binding ?msg repo commit key value =
 
 let ro_sync_after_add () =
   let check ro c k v =
-    S.Commit.of_hash ro (S.Commit.hash c) >>= function
+    S.Commit.of_key ro (S.Commit.key c) >>= function
     | None -> Alcotest.failf "commit not found"
     | Some commit ->
         let tree = S.Commit.tree commit in
@@ -96,7 +96,7 @@ let ro_sync_after_add () =
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   check ro c1 "a" "x" >>= fun () ->
   let* () =
-    S.Commit.of_hash ro (S.Commit.hash c2) >|= function
+    S.Commit.of_key ro (S.Commit.key c2) >|= function
     | None -> ()
     | Some _ -> Alcotest.failf "should not find branch by"
   in
@@ -191,7 +191,7 @@ let dict_sync_after_clear_same_offset () =
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
   let find_key hash key value =
-    S.Commit.of_hash ro hash >>= function
+    S.Commit.of_key ro hash >>= function
     | None -> Alcotest.fail "no hash"
     | Some commit ->
         let tree = S.Commit.tree commit in
@@ -201,16 +201,16 @@ let dict_sync_after_clear_same_offset () =
   let long_string = random_string 200 in
   let* tree = S.Tree.add S.Tree.empty [ long_string ] "x" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  let h = S.Commit.hash c in
+  let k = S.Commit.key c in
   S.sync ro;
-  find_key h long_string "x" >>= fun () ->
+  find_key k long_string "x" >>= fun () ->
   clear_all rw >>= fun () ->
   let long_string = random_string 200 in
   let* tree = S.Tree.add S.Tree.empty [ long_string ] "y" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  let h = S.Commit.hash c in
+  let k = S.Commit.key c in
   S.sync ro;
-  find_key h long_string "y" >>= fun () ->
+  find_key k long_string "y" >>= fun () ->
   S.Repo.close rw >>= fun () -> S.Repo.close ro
 
 let tests =

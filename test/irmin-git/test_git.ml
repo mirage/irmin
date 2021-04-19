@@ -52,6 +52,10 @@ module Mem (C : Irmin.Contents.S) = struct
   module S = M.Make (C)
   include S
 
+  let commit_key_of_hash x = x
+  let node_key_of_hash x = x
+  let contents_key_of_hash x = x
+
   let init () =
     Git.v (Fpath.v test_db) >>= function
     | Ok t -> S.Git.reset t >|= fun _ -> ()
@@ -62,6 +66,10 @@ module Generic (C : Irmin.Contents.S) = struct
   module CA = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
   module M = Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write)
   include M.Make (C)
+
+  let commit_key_of_hash x = x
+  let node_key_of_hash x = x
+  let contents_key_of_hash x = x
 
   let init () =
     let* repo = Repo.v config in
@@ -114,7 +122,7 @@ let test_sort_order (module S : S) =
   let node_t = S.Private.Repo.node_t repo in
   let head_tree_id branch =
     let* head = S.Head.get branch in
-    let+ commit = S.Private.Commit.find commit_t (S.Commit.hash head) in
+    let+ commit = S.Private.Commit.find commit_t (S.Commit.key head) in
     S.Private.Commit.Val.node (get commit)
   in
   let ls branch =
@@ -214,9 +222,12 @@ let test_blobs (module S : S) =
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
     X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
+    >|= function
+    | `Node k -> k
+    | `Contents k -> k
   in
-  let hash = Irmin_test.testable X.Hash.t in
-  Alcotest.(check hash) "blob" k1 k2;
+  let key = Irmin_test.testable X.Hash.t in
+  Alcotest.(check key) "blob" k1 k2;
   Lwt.return_unit
 
 let test_import_export (module S : S) =

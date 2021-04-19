@@ -75,6 +75,9 @@ module Git = struct
     module G = Git_unix.Store
     include Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
+    let commit_key_of_hash x = x
+    let node_key_of_hash x = x
+    let contents_key_of_hash x = x
     let init = init
   end
 

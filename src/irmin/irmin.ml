@@ -19,6 +19,7 @@ module Type = Repr
 module Diff = Diff
 module Read_only = Read_only
 module Append_only = Append_only
+module Indexable = Indexable
 module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 module Contents = Contents
@@ -32,41 +33,75 @@ module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
 module Perms = Perms
+module Key = Key
+module Irmin_node = Node
 
 exception Closed = Store_properties.Closed
 
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
   type endpoint = unit
+  type 'h contents_key = 'h
+  type 'h node_key = 'h
+  type 'h commit_key = 'h
 
   module Make (S : Schema.S) = struct
-    module CA = Content_addressable.Check_closed (CA)
+    module CA (Hash : Hash.S) (Value : Type.S) : sig
+      include
+        Indexable.S
+          with type hash = Hash.t
+           and type key = Hash.t
+           and type value = Value.t
+
+      include Store_properties.Of_config with type 'a t := 'a t
+      (** @inline *)
+    end = struct
+      module CA = Content_addressable.Check_closed (CA) (Hash) (Value)
+      include Indexable.Of_content_addressable (Hash) (CA)
+
+      let v = CA.v
+    end
+
     module AW = Atomic_write.Check_closed (AW)
 
     module X = struct
       module Schema = S
       module Hash = S.Hash
+      module XKey = Key.Of_hash (S.Hash)
+      module Commit_key = XKey
+      module Node_key = XKey
 
       module Contents = struct
-        module CA = CA (S.Hash) (S.Contents)
+        module CA =
+          CA (S.Hash) (* XXX: Try putting this back to [Hash] *) (S.Contents)
+
         include Contents.Store (CA) (S.Hash) (S.Contents)
       end
 
       module Node = struct
-        module V = S.Node
-        module CA = CA (S.Hash) (V)
-        include Node.Store (Contents) (CA) (S.Hash) (V) (S.Metadata) (S.Path)
+        module Value =
+          Node.Make_generic_key (S.Hash) (S.Path) (S.Metadata) (XKey) (Node_key)
+
+        module CA = CA (S.Hash) (Value)
+
+        include
+          Node.Store (Contents) (CA) (Node_key) (S.Hash) (Value) (S.Metadata)
+            (S.Path)
       end
 
+      module Node_portable =
+        Irmin_node.Portable.Of_node (XKey) (Node_key) (Node.Val)
+
       module Commit = struct
-        module C = S.Commit
-        module CA = CA (S.Hash) (C)
-        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (C)
+        module Commit_maker = Commit.Maker (Schema.Info)
+        module Value = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
+        module CA = CA (S.Hash) (Value)
+        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (Value)
       end
 
       module Branch = struct
+        module Val = Commit.Key
+        include AW (S.Branch) (Val)
         module Key = S.Branch
-        module Val = S.Hash
-        include AW (Key) (Val)
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -117,10 +152,11 @@ end
 
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
 struct
-  type endpoint = unit
   type metadata = unit
+  type hash = Schema.default_hash
 
   module Maker = Maker (CA) (AW)
+  include Maker
   module Make (C : Contents.S) = Maker.Make (Schema.KV (C))
 end
 
@@ -135,6 +171,8 @@ type 'a diff = 'a Diff.t
 module type Maker = Store.Maker
 module type KV = Store.KV
 module type KV_maker = Store.KV_maker
+
+module Generic_key = Store.Generic_key
 
 module Private = struct
   module Conf = Conf
@@ -154,8 +192,8 @@ module Sync = Sync
 
 type remote = Remote.t = ..
 
-let remote_store (type t) (module M : S with type t = t) (t : t) =
-  let module X : Store.S with type t = t = M in
+let remote_store (type t) (module M : Generic_key.S with type t = t) (t : t) =
+  let module X : Store.Generic_key.S with type t = t = M in
   Sync.remote_store (module X) t
 
 module Metadata = Metadata

@@ -167,7 +167,7 @@ struct
           match input.parents with
           | Some l ->
               Lwt_list.filter_map_s
-                (fun hash -> Store.Commit.of_hash repo hash)
+                (fun hash -> Store.Commit.of_key repo hash)
                 l
               >>= Lwt.return_some
           | None -> Lwt.return_none
@@ -259,7 +259,7 @@ struct
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.info c);
               field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.hash c);
+                ~resolve:(fun _ c -> Store.Commit.key c);
             ]))
 
   and info : ('ctx, info option) Schema.typ Lazy.t =
@@ -369,7 +369,7 @@ struct
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[ arg "commit" ~typ:(non_null Input.commit_hash) ]
                 ~resolve:(fun _ (t, _) commit ->
-                  Store.Commit.of_hash (Store.repo t) commit >>= function
+                  Store.Commit.of_key (Store.repo t) commit >>= function
                   | Some commit -> (
                       Store.lcas_with_commit t commit >>= function
                       | Ok lcas -> Lwt.return (Ok lcas)
@@ -686,7 +686,7 @@ struct
           ~resolve:(fun _ _src into from i max_depth n ->
             let* t = mk_branch s into in
             let* info, _, _, _ = txn_args s i in
-            Store.Commit.of_hash (Store.repo t) from >>= function
+            Store.Commit.of_key (Store.repo t) from >>= function
             | Some from -> (
                 Store.merge_with_commit t from ~info ?max_depth ?n >>= function
                 | Ok _ -> Store.Head.find t >|= Result.ok
@@ -702,7 +702,7 @@ struct
                 arg "commit" ~typ:(non_null Input.commit_hash);
               ]
           ~resolve:(fun _ _src branch commit ->
-            Store.Commit.of_hash s commit >>= function
+            Store.Commit.of_key s commit >>= function
             | Some commit ->
                 let* t = mk_branch s branch in
                 Store.Head.set t commit >|= fun () -> Ok (Some commit)
@@ -771,7 +771,7 @@ struct
           io_field "commit" ~typ:(Lazy.force commit)
             ~args:Arg.[ arg "hash" ~typ:(non_null Input.commit_hash) ]
             ~resolve:(fun _ _src hash ->
-              Store.Commit.of_hash s hash >|= Result.ok);
+              Store.Commit.of_key s hash >|= Result.ok);
           io_field "branches"
             ~typ:(non_null (list (non_null Lazy.(force branch))))
             ~args:[]

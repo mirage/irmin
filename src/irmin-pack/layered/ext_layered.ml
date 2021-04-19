@@ -31,7 +31,7 @@ module IO_layers = IO_layers.IO
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
+module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
   open struct
     module C = Schema.Contents
     module M = Schema.Metadata
@@ -42,18 +42,23 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
   module H = Schema.Hash
   module Index = Irmin_pack.Index.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
+  module XKey = Irmin_pack.Pack_key.Make (H)
 
-  type store_handle =
-    | Commit_t : H.t -> store_handle
-    | Node_t : H.t -> store_handle
-    | Content_t : H.t -> store_handle
+  type kinded_key =
+    | Commit_t of XKey.t
+    | Node_t of XKey.t
+    | Content_t of XKey.t
 
   module X = struct
     module Schema = Schema
     module Hash = H
 
+    (* XXX: Irmin core should probably pick these from [Commit] and [Node] directly.*)
+    module Commit_key = XKey
+    module Node_key = XKey
+
     module Contents = struct
-      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
+      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (XKey) (C)
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
@@ -65,18 +70,26 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
     end
 
     module Node = struct
+      module Value = struct
+        module Hash = H
+        include Schema.Node (Contents.Key) (XKey)
+      end
+
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Schema.Node)
-      include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+      module CA = Inode_layers.Make (Config) (H) (Pa) (Value)
+      include Irmin.Node.Store' (Contents) (CA) (H) (CA.Val) (M) (P)
     end
 
+    module Node_portable = Node.CA.Val.Portable
+
     module Commit = struct
+      module Value = Schema.Commit (Node.Key) (XKey)
+
       module Pack_value =
-        Irmin_pack.Pack_value.Of_commit
-          (H)
+        Irmin_pack.Pack_value.Of_commit (H) (XKey)
           (struct
             module Info = Schema.Info
-            include Schema.Commit
+            include Value
           end)
 
       module CA = struct
@@ -84,22 +97,24 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Schema.Commit)
+      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Value)
     end
 
     module Branch = struct
-      module Key = B
-      module Val = H
+      module Val = Commit.Key
 
       module Atomic_write = struct
-        module AW = Irmin_pack.Atomic_write.Make_persistent (V) (Key) (Val)
+        module AW =
+          Irmin_pack.Atomic_write.Make_persistent (V) (H) (B) (Commit_key)
+
         include Irmin_pack.Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =
           AW.v ?fresh ?readonly path >|= make_closeable
       end
 
-      include Layered_store.Atomic_write (Key) (Atomic_write) (Atomic_write)
+      include Layered_store.Atomic_write (B) (Atomic_write) (Atomic_write)
+      module Key = B
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
@@ -471,6 +486,12 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
 
   include Irmin.Of_private (X)
 
+  module Schema = struct
+    include Schema
+    module Node = X.Node
+    module Commit = Commit
+  end
+
   let sync = X.Repo.sync
   let clear = X.Repo.clear
   let migrate = X.Repo.migrate
@@ -516,7 +537,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
          copied *)
       let commit k =
         with_cancel cancel @@ fun () ->
-        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
+        let (_ : commit_key option) =
+          X.Commit.CA.copy commits t.X.Repo.commit "Commit" k
+        in
         Irmin_layers.Stats.freeze_yield ();
         let* () = Lwt.pause () in
         Irmin_layers.Stats.freeze_yield_end ();
@@ -524,12 +547,14 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
       in
       let node k =
         with_cancel cancel @@ fun () ->
-        X.Node.CA.copy nodes t.X.Repo.node k;
+        let (_ : node_key option) = X.Node.CA.copy nodes t.X.Repo.node k in
         Lwt.return_unit
       in
       let contents k =
         with_cancel cancel @@ fun () ->
-        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
+        let (_ : contents_key option) =
+          X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        in
         Lwt.return_unit
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
@@ -554,8 +579,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         Log.debug (fun f ->
             f "@[<2>copy to lower:@ min=%a,@ max=%a@]" pp_commits min pp_commits
               commits);
-        let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
+        let max = List.map (fun x -> `Commit (Commit.key x)) commits in
+        let min = List.map (fun x -> `Commit (Commit.key x)) min in
         on_lower t (fun l ->
             iter_copy ?cancel l ~skip_commits:(mem_commit_lower t)
               ~skip_nodes:(mem_node_lower t)
@@ -577,8 +602,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         Log.debug (fun f ->
             f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
               pp_commits commits);
-        let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
+        let max = List.map (fun x -> `Commit (Commit.key x)) commits in
+        let min = List.map (fun x -> `Commit (Commit.key x)) min in
         on_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
@@ -628,16 +653,25 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
            copied *)
         let commit k =
           with_cancel cancel @@ fun () ->
-          X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
+          let+ (_ : commit_key option) =
+            X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
+          in
+          ()
         in
         let node k =
           with_cancel cancel @@ fun () ->
-          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+          let+ (_ : node_key option) =
+            X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+          in
+          ()
         in
         let contents k =
           with_cancel cancel @@ fun () ->
-          X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
-            "Contents" k
+          let+ (_ : contents_key option) =
+            X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
+              "Contents" k
+          in
+          ()
         in
         let skip_node h = skip_with_stats ~skip:skip_nodes h in
         let skip_contents h = skip_with_stats ~skip:skip_contents h in
@@ -659,11 +693,11 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
       (** An object can be in either lower or upper or both. We can't skip an
           object already in upper as some predecessors could still be in lower. *)
       let self_contained ?min ~max t =
-        let max = List.map (fun x -> Commit.hash x) max in
+        let max = List.map (fun x -> Commit.key x) max in
         let min =
           match min with
           | None -> max (* if min is empty then copy only the max commits *)
-          | Some min -> List.map (fun x -> Commit.hash x) min
+          | Some min -> List.map (fun x -> Commit.key x) min
         in
         (* FIXME(samoht): do this in 2 steps: 1/ find the shallow
            hashes in upper 2/ iterates with max=shallow
@@ -674,9 +708,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
             l
               "self_contained: copy commits min:%a; max:%a from lower into \
                upper to make the upper self contained"
-              (Fmt.list (Irmin.Type.pp H.t))
+              (Fmt.list (Irmin.Type.pp XKey.t))
               min
-              (Fmt.list (Irmin.Type.pp H.t))
+              (Fmt.list (Irmin.Type.pp XKey.t))
               max);
         on_current_upper t (fun u -> iter_copy u ~min t max)
     end
@@ -833,7 +867,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
     let* heads =
       match heads with None -> Repo.heads t | Some m -> Lwt.return m
     in
-    let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
+    let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
     let+ () =
       Repo.iter ~cache_size ~min:[] ~max:hashes ~commit ~node ~contents t
     in
@@ -866,6 +900,9 @@ end
 
 module Maker (C : Conf.Pack.S) = struct
   type endpoint = unit
+  type 'h contents_key = 'h Irmin_pack.Pack_key.t
+  type 'h node_key = 'h Irmin_pack.Pack_key.t
+  type 'h commit_key = 'h Irmin_pack.Pack_key.t
 
-  module Make (S : Irmin.Schema.S) = Maker' (C) (S)
+  module Make (S : Irmin.Schema.Extended) = Maker' (C) (S)
 end

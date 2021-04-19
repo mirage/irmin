@@ -179,8 +179,8 @@ module Make (M : Maker) (Store : S.Store) = struct
         | Some heads ->
             Lwt_list.filter_map_s
               (fun x ->
-                match Repr.of_string S.Hash.t x with
-                | Ok x -> S.Commit.of_hash repo x
+                match Repr.of_string S.commit_key_t x with
+                | Ok x -> S.Commit.of_key repo x
                 | _ -> Lwt.return None)
               heads
       in

@@ -467,7 +467,7 @@ let revert =
          run
            (let* t = store in
             let hash = commit S.Hash.t snapshot in
-            let* s = S.Commit.of_hash (S.repo t) hash in
+            let* s = S.Commit.of_key (S.repo t) hash in
             match s with
             | Some s -> S.Head.set t s
             | None -> failwith "invalid commit")

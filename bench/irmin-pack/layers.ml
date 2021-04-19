@@ -48,7 +48,7 @@ module Schema = struct
   module Path = Irmin.Path.String_list
   module Branch = Irmin.Branch.String
   module Hash = Irmin.Hash.SHA1
-  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Node = Irmin.Node.Make_generic_key (Hash) (Path) (Metadata)
   module Commit = Irmin.Commit.Make (Hash)
   module Info = Irmin.Info.Default
 end
@@ -78,7 +78,9 @@ let init_commit repo =
   Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
 
 let checkout_and_commit config repo c nb =
-  Store.Commit.of_hash repo c >>= function
+  (* XXX: this now excludes the indexing of the commit's hash, which is perhaps
+     not fair w.r.t. performance figures -- I'm not sure. *)
+  Store.Commit.of_key repo c >>= function
   | None -> Lwt.fail_with "commit not found"
   | Some commit ->
       let tree = Store.Commit.tree commit in
@@ -111,7 +113,7 @@ let write_cycle config repo init_commit =
     else
       let* time, c' =
         with_timer (fun () ->
-            checkout_and_commit config repo (Store.Commit.hash c) i)
+            checkout_and_commit config repo (Store.Commit.key c) i)
       in
       print_commit_stats config c' i time;
       go c' (i + 1)

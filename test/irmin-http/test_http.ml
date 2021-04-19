@@ -43,11 +43,29 @@ struct
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-let http_store id (module S : Irmin_test.S) =
+module type Test_store = sig
+  type hash
+
+  include
+    Irmin_test.S
+      with type Schema.Hash.t = hash
+       and type hash := hash
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
+let http_store id (module S : Test_store) =
   let module P = struct
     let id = id
   end in
-  let module M = Irmin_http.Client (Client (P)) (S) in
+  let module M = struct
+    include Irmin_http.Client (Client (P)) (S)
+
+    let contents_key_of_hash x = x
+    let node_key_of_hash x = x
+    let commit_key_of_hash x = x
+  end in
   (module M : Irmin_test.S)
 
 let remove file = try Unix.unlink file with _ -> ()
@@ -136,7 +154,10 @@ let serve servers n id =
       l "Got server: %s, root=%a" server.name
         Fmt.(option string)
         (root server.config));
-  let (module Server : Irmin_test.S) = server.store in
+  let (module Server : Test_store) =
+    Obj.magic server.store
+    (* XXX(craigfe): assert that only Hash_like stores are passed in. *)
+  in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let test = { name = server.name; id } in
   let socket = socket test in
@@ -204,7 +225,7 @@ let suite i server =
         kill_server socket !server_pid;
         server.clean ());
     config = Irmin_http.config uri;
-    store = http_store id server.store;
+    store = http_store id (Obj.magic server.store (* XXX *));
     layered_store = None;
   }
 

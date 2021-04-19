@@ -31,26 +31,34 @@ let list_partition_map f t =
   in
   aux [] [] t
 
-module Make (Hash : HASH) (Branch : Type.S) = struct
+module Make
+    (Contents_key : Type.S)
+    (Node_key : Type.S)
+    (Commit_key : Type.S)
+    (Branch : Type.S) =
+struct
   module X = struct
     type t =
-      [ `Contents of Hash.t
-      | `Node of Hash.t
-      | `Commit of Hash.t
+      [ `Contents of Contents_key.t
+      | `Node of Node_key.t
+      | `Commit of Commit_key.t
       | `Branch of Branch.t ]
     [@@deriving irmin]
 
     let equal = Type.(unstage (equal t))
     let compare = Type.(unstage (compare t))
+    let hash_contents = Type.(unstage (short_hash Contents_key.t))
+    let hash_commit = Type.(unstage (short_hash Commit_key.t))
+    let hash_node = Type.(unstage (short_hash Node_key.t))
     let hash_branch = Type.(unstage (short_hash Branch.t))
 
     (* we are using cryptographic hashes here, so the first bytes
        are good enough to be used as short hashes. *)
     let hash (t : t) : int =
       match t with
-      | `Contents c -> Hash.short_hash c
-      | `Node n -> Hash.short_hash n
-      | `Commit c -> Hash.short_hash c
+      | `Contents c -> hash_contents c
+      | `Node n -> hash_node n
+      | `Commit c -> hash_commit c
       | `Branch b -> hash_branch b
   end
 
@@ -206,9 +214,9 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     let vertex_name k =
       let str t v = "\"" ^ Type.to_string t v ^ "\"" in
       match k with
-      | `Node n -> str Hash.t n
-      | `Commit c -> str Hash.t c
-      | `Contents c -> str Hash.t c
+      | `Node n -> str Node_key.t n
+      | `Commit c -> str Commit_key.t c
+      | `Contents c -> str Contents_key.t c
       | `Branch b -> str Branch.t b
 
     let vertex_attributes k = !vertex_attributes k

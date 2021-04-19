@@ -17,6 +17,10 @@
 open! Import
 open Store_properties
 
+open struct
+  module type Node_portable = Node.Portable.S
+end
+
 module type S = sig
   module Schema : Schema.S
 
@@ -24,26 +28,45 @@ module type S = sig
   (** Internal hashes. *)
 
   (** Private content store. *)
+
   module Contents :
-    Contents.Store with type key = Hash.t and type value = Schema.Contents.t
+    Contents.Store with type hash = Hash.t and type value = Schema.Contents.t
 
   (** Private node store. *)
+
+  module Node_key : Key.S with type hash = Hash.t
+  (* XXX: do we need these extra [_key] modules? It seems better to get them
+     from their parents. *)
+
   module Node :
     Node.Store
-      with type key = Hash.t
+      with type hash = Hash.t
+       and type Val.contents_key = Contents.key
+       and type key = Node_key.t
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
 
+  module Node_portable :
+    Node_portable
+      with type node := Node.value
+       and type hash := Hash.t
+       and type metadata := Schema.Metadata.t
+       and type step := Schema.Path.step
+
   (** Private commit store. *)
+
+  module Commit_key : Key.S with type hash = Hash.t
+
   module Commit :
     Commit.Store
-      with type key = Hash.t
-       and type value = Schema.Commit.t
+      with type hash = Hash.t
+       and type Val.node_key = Node.key
+       and type key = Commit_key.t
        and module Info = Schema.Info
 
   (** Private branch store. *)
   module Branch :
-    Branch.Store with type key = Schema.Branch.t and type value = Hash.t
+    Branch.Store with type key = Schema.Branch.t and type value = Commit.key
 
   (** Private slices. *)
   module Slice :
@@ -78,7 +101,7 @@ module type S = sig
 
   (** URI-based low-level remote synchronisation. *)
   module Remote : sig
-    include Remote.S with type commit = Commit.key and type branch = Branch.key
+    include Remote.S with type commit = Commit.hash and type branch = Branch.key
 
     val v : Repo.t -> t Lwt.t
   end

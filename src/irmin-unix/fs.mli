@@ -16,8 +16,18 @@
 
 module Append_only : Irmin.Append_only.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
-include Irmin.Maker
-module KV : Irmin.KV_maker
+
+include
+  Irmin.Maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
+
+module KV :
+  Irmin.KV_maker
+    with type 'h contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h
 
 (** {1 Extended Stores} *)
 

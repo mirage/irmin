@@ -17,7 +17,7 @@
 type layer_id = [ `Upper0 | `Upper1 | `Lower ] [@@deriving irmin]
 
 module type S = sig
-  include Irmin.S
+  include Irmin.Generic_key.S
 
   val freeze :
     ?min_lower:commit list ->
@@ -62,13 +62,13 @@ module type S = sig
       - When [`Block_writes], the function blocks until the ongoing freeze ends
         and then a new one is started afterwards. *)
 
-  type store_handle =
-    | Commit_t : hash -> store_handle
-    | Node_t : hash -> store_handle
-    | Content_t : hash -> store_handle
+  type kinded_key =
+    | Commit_t of commit_key
+    | Node_t of node_key
+    | Content_t of contents_key
 
-  val layer_id : repo -> store_handle -> layer_id Lwt.t
-  (** [layer_id t store_handle] returns the layer where an object, identified by
+  val layer_id : repo -> kinded_key -> layer_id Lwt.t
+  (** [layer_id t kinded_key] returns the layer where an object, identified by
       its hash, is stored. *)
 
   val async_freeze : repo -> bool
@@ -126,17 +126,25 @@ module type S = sig
   end
 end
 
-module S_is_an_S (X : S) : Irmin.S = X
+module S_is_an_S (X : S) : Irmin.Generic_key.S = X
 
-(* Duplicated from [Irmin.Maker] in order to extend the body signature [S]. *)
+(* Duplicated from [Irmin.Generic_key.Maker] in order to extend the body signature [S]. *)
 module type Maker = sig
   type endpoint
+  type 'h contents_key
+  type 'h node_key
+  type 'h commit_key
 
   module Make (Schema : Irmin.Schema.S) :
-    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
+    S
+      with module Schema = Schema
+       and type Private.Remote.endpoint = endpoint
+       and type contents_key = Schema.Hash.t contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
 end
 
-module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
+module Maker_is_a_maker (X : Maker) : Irmin.Generic_key.Maker = X
 
 module type Sigs = sig
   module Layer_id : sig

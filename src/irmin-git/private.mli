@@ -35,6 +35,9 @@ module Make
       with type 'a Contents.t = t
        and type 'a Node.t = t * t
        and type 'a Commit.t = (t * t) * t
+       and type Contents.key = G.hash
+       and type Node_key.t = G.hash
+       and type Commit_key.t = G.hash
        and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val git_of_repo : Repo.t -> G.t

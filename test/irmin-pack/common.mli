@@ -21,7 +21,7 @@ module I = Index
 module Conf : Irmin_pack.Conf.S
 
 module Schema :
-  Irmin.Schema.S
+  Irmin.Schema.Extended
     with type Hash.t = Irmin.Hash.SHA1.t
      and type Path.step = string
      and type Path.t = string list
@@ -53,13 +53,13 @@ module Index : Irmin_pack.Index.S with type key = Schema.Hash.t
 
 module Pack :
   Irmin_pack.Pack_store.S
-    with type key = Schema.Hash.t
-     and type value = string
+    with type value = string
      and type index = Index.t
+     and type hash = Schema.Hash.t
 
 module P :
   Irmin_pack.Pack_store.Maker
-    with type key = Schema.Hash.t
+    with type hash = Schema.Hash.t
      and type index = Irmin_pack.Index.Make(Schema.Hash).t
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)

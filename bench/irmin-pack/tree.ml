@@ -41,9 +41,9 @@ type config = {
 module type Store = sig
   type store_config = config
 
-  include Irmin.KV with type Schema.Contents.t = bytes
+  include Irmin.Generic_key.KV with type Schema.Contents.t = bytes
 
-  type on_commit := int -> Hash.t -> unit Lwt.t
+  type on_commit := int -> hash -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
   type pp := Format.formatter -> unit
 
@@ -77,11 +77,12 @@ module Bench_suite (Store : Store) = struct
   let init_commit repo =
     Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
 
+  module Key = Store.Private.Commit.Key
   module Trees = Generate_trees (Store)
   module Trace_replay = Trace_replay.Make (Store)
 
   let checkout_and_commit repo prev_commit f =
-    Store.Commit.of_hash repo prev_commit >>= function
+    Store.Commit.of_key repo prev_commit >>= function
     | None -> Lwt.fail_with "commit not found"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -94,7 +95,7 @@ module Bench_suite (Store : Store) = struct
     let rec aux c i =
       if i >= ncommits then on_end ()
       else
-        let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
+        let* c' = checkout_and_commit repo (Store.Commit.key c) f in
         let* () = on_commit i (Store.Commit.hash c') in
         prog 1;
         aux c' (i + 1)
@@ -178,7 +179,11 @@ struct
     let on_commit i commit_hash =
       let* () =
         if i = config.freeze_commit then
-          let* c = Store.Commit.of_hash repo commit_hash in
+          (* XXX: need commit keys to be hashes here *)
+          let* c =
+            (assert false : _ -> _ -> _ -> _)
+              Store.Commit.of_key repo commit_hash
+          in
           let c = Option.get c in
           Store.freeze repo ~max_lower:[ c ]
         else Lwt.return_unit

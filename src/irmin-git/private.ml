@@ -32,27 +32,41 @@ module Make
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
   module Schema = Schema
+  module Key = Irmin.Key.Of_hash (Hash)
+  module Commit_key = Key
+  module Node_key = Key
 
   module Contents = struct
     module S = Contents.Make (G) (Schema.Contents)
-    include Irmin.Contents.Store (S) (S.Key) (S.Val)
+    module Indexable = Irmin.Indexable.Of_content_addressable (Hash) (S)
+    include Irmin.Contents.Store (Indexable) (S.Hash) (S.Val)
   end
 
   module Node = struct
     module S = Node.Store (G) (Schema.Path)
+    module Indexable = Irmin.Indexable.Of_content_addressable (Hash) (S)
 
     include
-      Irmin.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (Schema.Path)
+      Irmin.Node.Store (Contents) (Indexable) (Node_key) (Hash) (S.Val)
+        (Metadata)
+        (Schema.Path)
+  end
+
+  module Node_portable = struct
+    include Node.Val
+
+    let of_node x = x
   end
 
   module Commit = struct
     module S = Commit.Store (G)
-    include Irmin.Commit.Store (Schema.Info) (Node) (S) (S.Key) (S.Val)
+    module Indexable = Irmin.Indexable.Of_content_addressable (Hash) (S)
+    include Irmin.Commit.Store (Schema.Info) (Node) (Indexable) (S.Hash) (S.Val)
   end
 
   module Branch = struct
     module Key = Schema.Branch
-    module Val = Hash
+    module Val = Commit_key
     module S = Atomic_write.Make (Schema.Branch) (G)
     include Atomic_write.Check_closed (S)
 
