@@ -45,7 +45,7 @@ let is_valid_utf8 str =
     true
   with Utf8_failure -> false
 
-module Make (S : Store.S) = struct
+module Make (S : Store.Generic_key.S) = struct
   type db = S.t
 
   module Branch = S.Private.Branch
@@ -53,7 +53,10 @@ module Make (S : Store.S) = struct
   module Node = S.Private.Node
   module Commit = S.Private.Commit
   module Slice = S.Private.Slice
-  module Graph = Object_graph.Make (S.Hash) (Branch.Key)
+
+  module Graph =
+    Object_graph.Make (Contents.Key) (Node.Key) (Commit.Key) (Branch.Key)
+
   module Info = S.Info
 
   let pp_author = Type.pp Info.author_t

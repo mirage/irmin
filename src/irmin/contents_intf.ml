@@ -31,7 +31,7 @@ module type S = sig
 end
 
 module type Store = sig
-  include Content_addressable.S
+  include Indexable.S
 
   val merge : [> read_write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
@@ -42,11 +42,8 @@ module type Store = sig
 
       If any of these operations fail, return [`Conflict]. *)
 
-  (** [Key] provides base functions for user-defined contents keys. *)
-  module Key : Hash.Typed with type t = key and type value = value
-
   module Val : S with type t = value
-  (** [Val] provides base functions for user-defined contents values. *)
+  module Hash : Hash.Typed with type t = hash and type value = value
 end
 
 module type Sigs = sig
@@ -86,5 +83,21 @@ module type Sigs = sig
       (S : Content_addressable.S)
       (H : Hash.S with type t = S.key)
       (C : S with type t = S.value) :
-    Store with type 'a t = 'a S.t and type key = H.t and type value = C.t
+    Store
+      with type 'a t = 'a S.t
+       and type key = H.t
+       and type hash = H.t
+       and type value = C.t
+
+  (** [Store_indexable] is like {!Store} but uses an indexable store as a
+      backend (rather than a content-addressable one). *)
+  module Store_indexable
+      (S : Indexable.S)
+      (H : Hash.S with type t = S.hash)
+      (C : S with type t = S.value) :
+    Store
+      with type 'a t = 'a S.t
+       and type key = S.key
+       and type value = S.value
+       and type hash = S.hash
 end

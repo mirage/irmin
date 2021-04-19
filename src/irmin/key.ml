@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Common
-module Store = Store
-module Common = Common
-module Node = Node
+include Key_intf
+
+module Of_hash (Hash : Type.S) = struct
+  type t = Hash.t [@@deriving irmin]
+  type hash = Hash.t
+
+  let to_hash x = x [@@inline]
+  let of_hash x = x [@@inline]
+end

@@ -24,8 +24,27 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker = Irmin_pack.V2 (Config)
-module Irmin_pack_layered = Irmin_pack_layered.Maker (Config)
+module Irmin_pack_maker : Irmin.Maker = struct
+  include Irmin_pack.V2 (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
+
+module Irmin_pack_layered = struct
+  include Irmin_pack_layered.Maker (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
 
 let suite_pack =
   let store =
@@ -77,7 +96,16 @@ let suite_pack =
   Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats
     ~layered_store:(Some layered_store)
 
-module Irmin_pack_mem_maker = Irmin_pack_mem.Maker (Config)
+module Irmin_pack_mem_maker = struct
+  include Irmin_pack_mem.Maker (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
 
 let suite_mem =
   let store =

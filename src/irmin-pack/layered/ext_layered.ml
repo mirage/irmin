@@ -31,7 +31,7 @@ module IO_layers = IO_layers.IO
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
+module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
   open struct
     module C = Schema.Contents
     module M = Schema.Metadata
@@ -42,11 +42,12 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
   module H = Schema.Hash
   module Index = Irmin_pack.Index.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
+  module XKey = Irmin.Key.Of_hash (H)
 
-  type store_handle =
-    | Commit_t : H.t -> store_handle
-    | Node_t : H.t -> store_handle
-    | Content_t : H.t -> store_handle
+  type kinded_key =
+    | Commit_t of XKey.t
+    | Node_t of XKey.t
+    | Content_t of XKey.t
 
   module X = struct
     module Schema = Schema
@@ -65,18 +66,27 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
     end
 
     module Node = struct
+      module Value = struct
+        module Hash = H
+        include Schema.Node (Contents.Key) (XKey)
+      end
+
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Schema.Node)
-      include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+      module CA = Inode_layers.Make (Config) (H) (Pa) (Value)
+      include Irmin.Node.Generic_key.Store (Contents) (CA) (H) (CA.Val) (M) (P)
     end
 
+    module Node_portable = Node.CA.Val.Portable
+
     module Commit = struct
+      module Value = Schema.Commit (Node.Key) (XKey)
+
       module Pack_value =
         Irmin_pack.Pack_value.Of_commit
           (H)
           (struct
             module Info = Schema.Info
-            include Schema.Commit
+            include Value
           end)
 
       module CA = struct
@@ -84,12 +94,16 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Schema.Commit)
+      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Value)
     end
 
     module Branch = struct
       module Key = B
-      module Val = H
+
+      module Val = struct
+        include H
+        include Commit.Key
+      end
 
       module Atomic_write = struct
         module AW =
@@ -871,5 +885,6 @@ end
 module Maker (C : Conf.Pack.S) = struct
   type endpoint = unit
 
-  module Make (S : Irmin.Schema.S) = Maker' (C) (S)
+  include Irmin.Key.Store_spec.Hash_keyed
+  module Make (S : Irmin.Schema.Extended) = Maker' (C) (S)
 end

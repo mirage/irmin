@@ -47,7 +47,7 @@ module Schema = struct
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1
-  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Commit = Commit.Make (Hash)
   module Info = Info.Default
 end

@@ -185,10 +185,12 @@ module KV
 struct
   module Maker = Maker (G) (S)
   module Branch = Branch.Make (Irmin.Branch.String)
+  include Irmin.Key.Store_spec.Hash_keyed
 
   type endpoint = Maker.endpoint
   type metadata = Metadata.t
   type branch = Branch.t
+  type hash = G.hash
 
   module Make (C : Irmin.Contents.S) = Maker.Make (Schema.Make (G) (C) (Branch))
 end
@@ -216,6 +218,9 @@ struct
 
   type endpoint = unit
   type metadata = Metadata.t
+  type hash = G.hash
+
+  include Irmin.Key.Store_spec.Hash_keyed
 
   module Schema (C : Irmin.Contents.S) = struct
     module Metadata = Metadata
@@ -247,6 +252,7 @@ struct
       module Schema = Sc
       module Hash = Dummy.Hash
       module Info = Irmin.Info.Default
+      module Key = Irmin.Key.Of_hash (Hash)
 
       module Contents = struct
         module V = Dummy.Contents.Val
@@ -261,6 +267,12 @@ struct
         include
           Irmin.Node.Store (Contents) (CA) (Hash) (V) (Dummy.Node.Metadata)
             (Schema.Path)
+      end
+
+      module Node_portable = struct
+        include Node.Val
+
+        let of_node x = x
       end
 
       module Commit = struct

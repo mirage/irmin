@@ -17,15 +17,18 @@
 open Import
 
 module Make (G : Git.S) (P : Irmin.Path.S) = struct
-  module Key = Irmin.Hash.Make (G.Hash)
+  module Hash = Irmin.Hash.Make (G.Hash)
+  module Key = Irmin.Key.Of_hash (Hash)
   module Raw = Git.Value.Make (G.Hash)
   module Path = P
   module Metadata = Metadata
 
   type t = G.Value.Tree.t
   type metadata = Metadata.t [@@deriving irmin]
-  type hash = Key.t [@@deriving irmin]
+  type hash = Hash.t [@@deriving irmin]
   type step = Path.step [@@deriving irmin]
+  type node_key = hash [@@deriving irmin]
+  type contents_key = hash [@@deriving irmin]
 
   type value = [ `Node of hash | `Contents of hash * metadata ]
   [@@deriving irmin]
@@ -135,7 +138,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
       [] (G.Value.Tree.to_list t)
     |> List.rev
 
-  module N = Irmin.Node.Make (Key) (P) (Metadata)
+  module N = Irmin.Node.Make (Hash) (P) (Metadata)
 
   let to_n t = N.of_list (alist t)
   let of_n n = v (N.list n)

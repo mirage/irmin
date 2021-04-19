@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Common
-module Store = Store
-module Common = Common
-module Node = Node
+include Indexable_intf.Sigs
+(** @inline *)

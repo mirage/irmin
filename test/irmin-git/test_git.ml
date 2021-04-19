@@ -200,6 +200,9 @@ let test_blobs (module S : S) =
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
     X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
+    >|= function
+    | `Node k -> k
+    | `Contents k -> k
   in
   let hash = Irmin_test.testable X.Hash.t in
   Alcotest.(check hash) "blob" k1 k2;

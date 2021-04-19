@@ -96,7 +96,8 @@ module Http : sig
       operation might take multiple RTTs. *)
   module Client (S : Irmin.S) :
     Irmin.S
-      with module Schema = S.Schema
+      with type hash = S.Hash.t
+       and module Schema = S.Schema
        and type Private.Remote.endpoint = unit
 
   (** {1 HTTP server} *)

@@ -14,9 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Test_node = Irmin_test.Node.Make (Irmin.Node.Generic_key.Make)
+
+let lift_suite_to_lwt :
+    unit Alcotest.test_case list -> unit Alcotest_lwt.test_case list =
+  List.map (fun (n, s, f) -> (n, s, Fun.const (Lwt.wrap f)))
+
 let suite =
   [
     ("tree", Test_tree.suite);
+    ("node", Test_node.suite |> lift_suite_to_lwt);
     ("hash", Test_hash.suite);
     ("conf", Test_conf.suite);
   ]

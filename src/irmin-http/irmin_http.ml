@@ -442,6 +442,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
   module X = struct
     module Hash = S.Hash
     module Schema = S.Schema
+    module Key = Irmin.Key.Of_hash (Hash)
 
     module Contents = struct
       module X = struct
@@ -458,14 +459,14 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
     module Node = struct
       module Val = S.Private.Node.Val
-      module Key = Irmin.Hash.Typed (S.Hash) (Val)
+      module Hash = Irmin.Hash.Typed (S.Hash) (Val)
       module CA = CA (Client) (S.Hash) (Val)
-      include CA
+      include Irmin.Indexable.Of_content_addressable (S.Hash) (CA)
       module Contents = Contents
       module Metadata = S.Metadata
       module Path = S.Key
 
-      let merge t =
+      let merge (t : _ t) =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =
           let* old =
             old () >|= function
@@ -477,12 +478,18 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
             Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
           let result = merge_result_t Key.t in
-          HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
+          CA.HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
             (Irmin.Type.of_string result)
         in
         Irmin.Merge.(v Irmin.Type.(option Key.t)) f
 
-      let v ?ctx config = v ?ctx config "tree" "trees"
+      let v ?ctx config = CA.v ?ctx config "tree" "trees"
+    end
+
+    module Node_portable = struct
+      include Node.Val
+
+      let of_node x = x
     end
 
     module Commit = struct
@@ -503,8 +510,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
     module Branch = struct
       module Key = S.Branch
-      module Val = S.Hash
-      include Closeable.Atomic_write (RW (Client) (Key) (Val))
+      module Val = Commit.Key
+      include Closeable.Atomic_write (RW (Client) (Key) (S.Hash))
 
       let v ?ctx config = v ?ctx config "branch" "branches"
     end

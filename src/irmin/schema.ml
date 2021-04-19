@@ -19,22 +19,42 @@ module type S = sig
   module Hash : Hash.S
   module Branch : Branch.S
   module Info : Info.S
-  module Commit : Commit.S with type hash = Hash.t and module Info := Info
   module Metadata : Metadata.S
   module Path : Path.S
-
-  module Node :
-    Node.S
-      with type metadata = Metadata.t
-       and type hash = Hash.t
-       and type step = Path.step
-
   module Contents : Contents.S
 end
 
+module type Extended = sig
+  include S
+
+  module Commit
+      (Node_key : Key.S with type hash = Hash.t)
+      (Commit_key : Key.S with type hash = Hash.t) :
+    Commit.S
+      with module Info := Info
+       and type node_key = Node_key.t
+       and type commit_key = Commit_key.t
+
+  module Node
+      (Contents_key : Key.S with type hash = Hash.t)
+      (Node_key : Key.S with type hash = Hash.t) :
+    Node.Generic_key.S
+      with type metadata = Metadata.t
+       and type step = Path.step
+       and type hash = Hash.t
+       and type contents_key = Contents_key.t
+       and type node_key = Node_key.t
+end
+
+open struct
+  module Extended_is_a_schema (X : Extended) : S = X
+end
+
+type default_hash = Hash.BLAKE2B.t
+
 module type KV =
-  S
-    with type Hash.t = Hash.BLAKE2B.t
+  Extended
+    with type Hash.t = default_hash
      and type Branch.t = string
      and type Info.t = Info.default
      and type Metadata.t = unit
@@ -48,6 +68,6 @@ module KV (C : Contents.S) : KV with module Contents = C = struct
   module Commit = Commit.Make (Hash)
   module Path = Path.String_list
   module Metadata = Metadata.None
-  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Contents = C
 end

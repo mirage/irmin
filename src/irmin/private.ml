@@ -17,6 +17,10 @@
 open! Import
 open Store_properties
 
+open struct
+  module type Node_portable = Node.Portable.S
+end
+
 module type S = sig
   module Schema : Schema.S
 
@@ -24,26 +28,37 @@ module type S = sig
   (** Internal hashes. *)
 
   (** Private content store. *)
+
   module Contents :
-    Contents.Store with type key = Hash.t and type value = Schema.Contents.t
+    Contents.Store with type hash = Hash.t and type value = Schema.Contents.t
 
   (** Private node store. *)
+
   module Node :
     Node.Store
-      with type key = Hash.t
+      with type hash = Hash.t
+       and type Val.contents_key = Contents.key
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
 
+  module Node_portable :
+    Node_portable
+      with type node := Node.value
+       and type hash := Hash.t
+       and type metadata := Schema.Metadata.t
+       and type step := Schema.Path.step
+
   (** Private commit store. *)
+
   module Commit :
     Commit.Store
-      with type key = Hash.t
-       and type value = Schema.Commit.t
+      with type hash = Hash.t
+       and type Val.node_key = Node.key
        and module Info = Schema.Info
 
   (** Private branch store. *)
   module Branch :
-    Branch.Store with type key = Schema.Branch.t and type value = Hash.t
+    Branch.Store with type key = Schema.Branch.t and type value = Commit.key
 
   (** Private slices. *)
   module Slice :

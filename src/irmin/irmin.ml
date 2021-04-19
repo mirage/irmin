@@ -19,6 +19,7 @@ module Type = Repr
 module Diff = Diff
 module Read_only = Read_only
 module Append_only = Append_only
+module Indexable = Indexable
 module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 module Contents = Contents
@@ -32,11 +33,15 @@ module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
 module Perms = Perms
+module Key = Key
+module Irmin_node = Node
 
 exception Closed = Store_properties.Closed
 
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
   type endpoint = unit
+
+  include Key.Store_spec.Hash_keyed
 
   module Make (S : Schema.S) = struct
     module CA = Content_addressable.Check_closed (CA)
@@ -45,6 +50,9 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
     module X = struct
       module Schema = S
       module Hash = S.Hash
+      module XKey = Key.Of_hash (S.Hash)
+      module Commit_key = XKey
+      module Node_key = XKey
 
       module Contents = struct
         module CA = CA (S.Hash) (S.Contents)
@@ -52,21 +60,26 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
       end
 
       module Node = struct
-        module V = S.Node
-        module CA = CA (S.Hash) (V)
-        include Node.Store (Contents) (CA) (S.Hash) (V) (S.Metadata) (S.Path)
+        module Value = Node.Make (S.Hash) (S.Path) (S.Metadata)
+        module CA = CA (S.Hash) (Value)
+
+        include
+          Node.Store (Contents) (CA) (S.Hash) (Value) (S.Metadata) (S.Path)
       end
 
+      module Node_portable = Irmin_node.Portable.Of_node (Node.Val)
+
       module Commit = struct
-        module C = S.Commit
+        module Commit_maker = Commit.Maker (Schema.Info)
+        module C = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
         module CA = CA (S.Hash) (C)
         include Commit.Store (S.Info) (Node) (CA) (S.Hash) (C)
       end
 
       module Branch = struct
+        module Val = Commit.Key
+        include AW (S.Branch) (Val)
         module Key = S.Branch
-        module Val = S.Hash
-        include AW (Key) (Val)
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -117,10 +130,11 @@ end
 
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
 struct
-  type endpoint = unit
   type metadata = unit
+  type hash = Schema.default_hash
 
   module Maker = Maker (CA) (AW)
+  include Maker
   module Make (C : Contents.S) = Maker.Make (Schema.KV (C))
 end
 
@@ -135,6 +149,8 @@ type 'a diff = 'a Diff.t
 module type Maker = Store.Maker
 module type KV = Store.KV
 module type KV_maker = Store.KV_maker
+
+module Generic_key = Store.Generic_key
 
 module Private = struct
   module Conf = Conf
@@ -154,8 +170,8 @@ module Sync = Sync
 
 type remote = Remote.t = ..
 
-let remote_store (type t) (module M : S with type t = t) (t : t) =
-  let module X : Store.S with type t = t = M in
+let remote_store (type t) (module M : Generic_key.S with type t = t) (t : t) =
+  let module X : Store.Generic_key.S with type t = t = M in
   Sync.remote_store (module X) t
 
 module Metadata = Metadata

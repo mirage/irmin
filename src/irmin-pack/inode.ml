@@ -35,6 +35,8 @@ struct
 
   module T = struct
     type hash = H.t [@@deriving irmin ~pp ~equal]
+    type node_key = H.t [@@deriving irmin]
+    type contents_key = H.t [@@deriving irmin]
 
     type step = Node.step
     [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
@@ -1222,6 +1224,20 @@ struct
 
     module Concrete = I.Concrete
 
+    module Portable = struct
+      type nonrec t = t [@@deriving irmin]
+      type nonrec hash = hash
+      type nonrec value = value
+
+      let of_node t = t
+      let of_seq = of_seq
+      let add = add
+      let list = list
+      let length = length
+      let find = find
+      let remove = remove
+    end
+
     let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
 
     let of_concrete t =
@@ -1246,14 +1262,17 @@ module Make
               with type key = H.t
                and type value = Inter.Raw.t) =
 struct
-  module Key = H
+  module Hash = H
+  module Key = Irmin.Key.Of_hash (H)
   module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t
+  type hash = Hash.t
   type value = Inter.Val.t
 
   let mem t k = Pack.mem t k
+  let index _ k = Lwt.return_some k
 
   let find t k =
     Pack.find t k >|= function
@@ -1286,7 +1305,7 @@ struct
   let unsafe_add t k v =
     check_hash k (hash v);
     save t v;
-    Lwt.return_unit
+    Lwt.return k
 
   let batch = Pack.batch
   let close = Pack.close

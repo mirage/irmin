@@ -14,19 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S =
-  Irmin.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
-
-module type Layered_store =
-  Irmin_layers.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
+module type S = Common.S
+module type Layered_store = Common.Layered_store
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
@@ -70,3 +59,5 @@ module Store : sig
     (Alcotest.speed_level * Suite.t) list ->
     unit
 end
+
+module Node = Node

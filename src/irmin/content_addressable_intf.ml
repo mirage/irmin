@@ -18,11 +18,8 @@ open Import
 open Store_properties
 
 module type S = sig
-  (** {1 Content-addressable stores}
-
-      Content-addressable stores are store where it is possible to read and add
-      new values. Keys are derived from the values raw contents and hence are
-      deterministic. *)
+  (** A {i content-addressable} store is an indexed read-write store in which
+      values are keyed directly by their hashes. *)
 
   include Read_only.S
   (** @inline *)
@@ -32,8 +29,8 @@ module type S = sig
       content-addressable store to generate a consistent key. *)
 
   val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
-  (** Same as {!add} but allows to specify the key directly. The backend might
-      choose to discared that key and/or can be corrupt if the key scheme is not
+  (** Same as {!add} but allows specifying the key directly. The backend might
+      choose to discard that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
   include Clearable with type 'a t := 'a t
@@ -46,8 +43,8 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = functor (K : Hash.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+module type Maker = functor (Hash : Hash.S) (Value : Type.S) -> sig
+  include S with type value = Value.t and type key = Hash.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)
@@ -57,9 +54,15 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module Make (F : Append_only.Maker) (K : Hash.S) (V : Type.S) : sig
+  module Make
+      (Append_only_maker : Append_only.Maker)
+      (Hash : Hash.S)
+      (Value : Type.S) : sig
     include
-      S with type 'a t = 'a F(K)(V).t and type key = K.t and type value = V.t
+      S
+        with type 'a t = 'a Append_only_maker(Hash)(Value).t
+         and type value = Value.t
+         and type key = Hash.t
 
     include Of_config with type 'a t := 'a t
     (** @inline *)
