@@ -34,23 +34,23 @@ struct
   end
 
   module T = struct
-    type hash = H.t [@@deriving irmin]
-    type step = Node.step [@@deriving irmin]
-    type metadata = Node.metadata [@@deriving irmin]
+    type hash = H.t [@@deriving irmin ~pp ~equal]
+
+    type step = Node.step
+    [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
+
+    type metadata = Node.metadata [@@deriving irmin ~equal]
 
     let default = Node.default
 
-    type value = Node.value
-
-    let value_t = Node.value_t
-    let pp_hash = Irmin.Type.(pp hash_t)
+    type value = Node.value [@@deriving irmin ~equal]
   end
 
   module StepMap = struct
     include Map.Make (struct
       type t = T.step
 
-      let compare = Irmin.Type.(unstage (compare T.step_t))
+      let compare = T.compare_step
     end)
 
     let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
@@ -65,7 +65,8 @@ struct
     type tree = { depth : int; length : int; entries : ptr list }
     [@@deriving irmin]
 
-    type v = Values of (step * value) list | Tree of tree [@@deriving irmin]
+    type v = Values of (step * value) list | Tree of tree
+    [@@deriving irmin ~pre_hash]
 
     module V =
       Irmin.Hash.Typed
@@ -77,8 +78,6 @@ struct
         end)
 
     type t = { hash : H.t Lazy.t; stable : bool; v : v }
-
-    let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
 
     let t : t Irmin.Type.t =
       let open Irmin.Type in
@@ -133,7 +132,7 @@ struct
       | Contents of name * address * metadata
       | Node of name * address
 
-    let is_default = Irmin.Type.(unstage (equal T.metadata_t)) T.default
+    let is_default = T.(equal_metadata default)
 
     let value_t : value Irmin.Type.t =
       let open Irmin.Type in
@@ -289,8 +288,6 @@ struct
       inode. *)
   module Val_impl = struct
     open T
-
-    let equal_value = Irmin.Type.(unstage (equal value_t))
 
     type _ layout =
       | Total : total_ptr layout
@@ -485,12 +482,10 @@ struct
 
       type t = Tree of t tree | Value of entry list [@@deriving irmin]
 
-      let metadata_equal = Irmin.Type.(unstage (equal metadata_t))
-
       let to_entry (name, v) =
         match v with
         | `Contents (hash, m) ->
-            if metadata_equal m Node.default then
+            if T.equal_metadata m Node.default then
               { name; kind = Contents; hash }
             else { name; kind = Contents_x m; hash }
         | `Node hash -> { name; kind = Node; hash }
@@ -575,8 +570,6 @@ struct
     exception Unsorted_entries of Concrete.t
     exception Unsorted_pointers of Concrete.t
 
-    let hash_equal = Irmin.Type.(unstage (equal hash_t))
-
     let of_concrete_exn t =
       let sort_entries =
         List.sort_uniq (fun x y -> compare x.Concrete.name y.Concrete.name)
@@ -609,7 +602,7 @@ struct
               (fun { Concrete.index; pointer; tree } ->
                 let v = aux (depth + 1) tree in
                 let hash = hash v in
-                if not (hash_equal hash pointer) then
+                if not (equal_hash hash pointer) then
                   raise (Invalid_hash (hash, pointer, t));
                 let t = { hash = lazy pointer; stable = false; v } in
                 entries.(index) <- Some (Ptr.of_target Total t))
@@ -918,8 +911,8 @@ struct
       if t.stable then Compress.kind_node else Compress.kind_inode
 
     let hash t = Bin.hash t
-    let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
-    let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
+    let step_to_bin = T.step_to_bin_string
+    let step_of_bin = T.step_of_bin_string
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 

@@ -21,12 +21,12 @@ module Default = struct
   type message = string [@@deriving irmin]
 
   type t = { date : int64; author : author; message : message }
-  [@@deriving irmin]
+  [@@deriving irmin ~equal]
 
   type f = unit -> t
 
   let empty = { date = 0L; author = ""; message = "" }
-  let is_empty = Type.(unstage (equal t)) empty
+  let is_empty = equal empty
 
   let v ?(author = "") ?(message = "") date =
     let r = { date; message; author } in

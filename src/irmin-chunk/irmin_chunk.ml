@@ -74,7 +74,7 @@ let config ?(config = Irmin.Private.Conf.empty) ?size ?min_size
 module Chunk (K : Irmin.Hash.S) = struct
   type v = Data of string | Index of K.t list
 
-  let v =
+  let v_t =
     let open Irmin.Type in
     variant "chunk" (fun d i -> function
       | Data data -> d data | Index index -> i index)
@@ -82,29 +82,29 @@ module Chunk (K : Irmin.Hash.S) = struct
     |~ case1 "Index" (list ~len:`Int16 K.t) (fun i -> Index i)
     |> sealv
 
+  type value = v
+  [@@deriving irmin ~size_of ~to_bin_string ~decode_bin ~encode_bin]
+
   type t = { len : int; v : v }
 
-  let size_of = Irmin.Type.unstage (Irmin.Type.size_of v)
-  let to_bin_string = Irmin.Type.unstage (Irmin.Type.to_bin_string v)
-  let decode_bin = Irmin.Type.unstage (Irmin.Type.decode_bin v)
-  let encode_bin = Irmin.Type.unstage (Irmin.Type.encode_bin v)
-
   let size_of_v t =
-    match size_of t with Some n -> n | None -> String.length (to_bin_string t)
+    match size_of_value t with
+    | Some n -> n
+    | None -> String.length (value_to_bin_string t)
 
   let size_of_data_header = size_of_v (Data "")
   let size_of_index_header = size_of_v (Index [])
 
   let of_string b =
     let len = String.length b in
-    let n, v = decode_bin b 0 in
+    let n, v = decode_bin_value b 0 in
     if len = n then { len; v }
     else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in
     let b = Buffer.create t.len in
-    encode_bin t.v (Buffer.add_string b);
+    encode_bin_value t.v (Buffer.add_string b);
     let s = Buffer.contents b in
     Bytes.blit_string s 0 buf 0 (String.length s);
     Bytes.unsafe_to_string buf
@@ -121,11 +121,8 @@ struct
   module AO = Make_append_only (K) (Chunk)
   module CA = Irmin.Content_addressable.Make (Make_append_only) (K) (Chunk)
 
-  type key = CA.key
-
-  let pp_key = Irmin.Type.pp K.t
-
-  type value = V.t
+  type key = K.t [@@deriving irmin ~pp ~equal]
+  type value = V.t [@@deriving irmin ~of_bin_string ~to_bin_string ~pre_hash]
 
   type 'a t = {
     chunking : [ `Max | `Best_fit ];
@@ -220,14 +217,9 @@ struct
     | None -> Lwt.return_none (* shallow objects *)
     | Some x -> Tree.find_leaves t x >|= Option.some
 
-  let equal_hash = Irmin.Type.(unstage (equal K.t))
-  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
-  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
-  let pre_hash = Irmin.Type.(unstage (pre_hash V.t))
-
   let check_hash k v =
-    let k' = K.hash (pre_hash v) in
-    if equal_hash k k' then Lwt.return_unit
+    let k' = K.hash (pre_hash_value v) in
+    if equal_key k k' then Lwt.return_unit
     else
       Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
@@ -237,7 +229,7 @@ struct
     | None -> Lwt.return_none
     | Some bufs -> (
         let buf = String.concat "" bufs in
-        match of_bin_string buf with
+        match value_of_bin_string buf with
         | Ok va -> check_hash key va >|= fun () -> Some va
         | Error _ -> Lwt.return_none)
 
@@ -263,13 +255,13 @@ struct
       Log.debug (fun l -> l "add -> %a (split)" pp_key k)
 
   let add t v =
-    let buf = to_bin_string v in
-    let key = K.hash (pre_hash v) in
+    let buf = value_to_bin_string v in
+    let key = K.hash (pre_hash_value v) in
     let+ () = unsafe_add_buffer t key buf in
     key
 
   let unsafe_add t key v =
-    let buf = to_bin_string v in
+    let buf = value_to_bin_string v in
     unsafe_add_buffer t key buf
 
   let mem t key = CA.mem t.db key

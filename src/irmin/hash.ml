@@ -61,10 +61,9 @@ module BLAKE2S = Make (Digestif.BLAKE2S)
 module Typed (K : S) (V : Type.S) = struct
   include K
 
-  type value = V.t
+  type value = V.t [@@deriving irmin ~pre_hash]
 
-  let pre_hash = Type.unstage (Type.pre_hash V.t)
-  let hash v = K.hash (pre_hash v)
+  let hash v = K.hash (pre_hash_value v)
 end
 
 module V1 (K : S) : S with type t = K.t = struct

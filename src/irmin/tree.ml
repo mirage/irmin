@@ -112,10 +112,7 @@ module Make (P : Private.S) = struct
 
   module StepMap = struct
     module X = struct
-      type t = Path.step
-
-      let t = Path.step_t
-      let compare = Type.(unstage (compare Path.step_t))
+      type t = Path.step [@@deriving irmin ~compare]
     end
 
     include Map.Make (X)
@@ -125,11 +122,11 @@ module Make (P : Private.S) = struct
     include Merge.Map (X)
   end
 
-  type metadata = Metadata.t [@@deriving irmin]
-  type key = Path.t [@@deriving irmin]
-  type hash = P.Hash.t [@@deriving irmin]
-  type step = Path.step [@@deriving irmin]
-  type contents = P.Contents.Val.t [@@deriving irmin]
+  type metadata = Metadata.t [@@deriving irmin ~equal]
+  type key = Path.t [@@deriving irmin ~pp]
+  type hash = P.Hash.t [@@deriving irmin ~pp ~equal]
+  type step = Path.step [@@deriving irmin ~pp ~compare]
+  type contents = P.Contents.Val.t [@@deriving irmin ~equal]
   type repo = P.Repo.t
   type marks = unit Hashes.t
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
@@ -140,14 +137,6 @@ module Make (P : Private.S) = struct
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
 
-  let pp_hash = Type.pp P.Hash.t
-  let pp_step = Type.pp Path.step_t
-  let pp_path = Type.pp Path.t
-  let equal_contents = Type.(unstage (equal P.Contents.Val.t))
-  let equal_metadata = Type.(unstage (equal Metadata.t))
-  let equal_hash = Type.(unstage (equal P.Hash.t))
-  let equal_node = Type.(unstage (equal P.Node.Val.t))
-  let compare_step = Type.(unstage (compare Path.step_t))
   let dummy_marks = Hashes.create 0
   let empty_marks () = Hashes.create 39
 
@@ -289,7 +278,7 @@ module Make (P : Private.S) = struct
   end
 
   module Node = struct
-    type value = P.Node.Val.t
+    type value = P.Node.Val.t [@@deriving irmin ~equal]
 
     type elt = [ `Node of t | `Contents of Contents.t * Metadata.t ]
 
@@ -613,7 +602,7 @@ module Make (P : Private.S) = struct
       | Some x, Some y -> equal_hash x y
       | _ -> (
           match (cached_value x, cached_value y) with
-          | Some x, Some y -> equal_node x y
+          | Some x, Some y -> equal_value x y
           | _ -> (
               match (cached_map x, cached_map y) with
               | Some x, Some y -> map_equal x y
@@ -628,7 +617,7 @@ module Make (P : Private.S) = struct
         | Some x, Some y -> if equal_hash x y then True else False
         | _ -> (
             match (cached_value x, cached_value y) with
-            | Some x, Some y -> if equal_node x y then True else False
+            | Some x, Some y -> if equal_value x y then True else False
             | _ -> Maybe)
 
     (** Does [um] empties [v]?
@@ -1024,7 +1013,7 @@ module Make (P : Private.S) = struct
     | `Contents _ -> Lwt.return_none
 
   let find_tree (t : t) path =
-    Log.debug (fun l -> l "Tree.find_tree %a" pp_path path);
+    Log.debug (fun l -> l "Tree.find_tree %a" pp_key path);
     match (t, Path.rdecons path) with
     | v, None -> Lwt.return_some v
     | _, Some (path, file) -> (
@@ -1066,7 +1055,7 @@ module Make (P : Private.S) = struct
     { s with width }
 
   let err_not_found n k =
-    Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n pp_path k
+    Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n pp_key k
 
   let get_tree (t : t) path =
     find_tree t path >|= function
@@ -1093,7 +1082,7 @@ module Make (P : Private.S) = struct
   let mem_tree t k = find_tree t k >|= function None -> false | _ -> true
 
   let kind t path =
-    Log.debug (fun l -> l "Tree.kind %a" pp_path path);
+    Log.debug (fun l -> l "Tree.kind %a" pp_key path);
     match (t, Path.rdecons path) with
     | `Contents _, None -> Lwt.return_some `Contents
     | `Node _, None -> Lwt.return_some `Node
@@ -1109,7 +1098,7 @@ module Make (P : Private.S) = struct
   let length = Node.length
 
   let list t ?offset ?length path : (step * t) list Lwt.t =
-    Log.debug (fun l -> l "Tree.list %a" pp_path path);
+    Log.debug (fun l -> l "Tree.list %a" pp_key path);
     sub t path >>= function
     | None -> Lwt.return []
     | Some n -> (
@@ -1213,7 +1202,7 @@ module Make (P : Private.S) = struct
         | Changed node -> Lwt.return (`Node node))
 
   let update t k ?(metadata = Metadata.default) f =
-    Log.debug (fun l -> l "Tree.update %a" pp_path k);
+    Log.debug (fun l -> l "Tree.update %a" pp_key k);
     update_tree t k ~f_might_return_empty_node:false ~f:(fun t ->
         let+ old_contents =
           match t with
@@ -1227,25 +1216,25 @@ module Make (P : Private.S) = struct
         | Some c -> Some (`Contents (Contents.of_value c, metadata)))
 
   let add t k ?(metadata = Metadata.default) c =
-    Log.debug (fun l -> l "Tree.add %a" pp_path k);
+    Log.debug (fun l -> l "Tree.add %a" pp_key k);
     update_tree t k
       ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
       ~f_might_return_empty_node:false
 
   let add_tree t k v =
-    Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
+    Log.debug (fun l -> l "Tree.add_tree %a" pp_key k);
     update_tree t k
       ~f:(fun _ -> Lwt.return_some v)
       ~f_might_return_empty_node:true
 
   let remove t k =
-    Log.debug (fun l -> l "Tree.remove %a" pp_path k);
+    Log.debug (fun l -> l "Tree.remove %a" pp_key k);
     update_tree t k
       ~f:(fun _ -> Lwt.return_none)
       ~f_might_return_empty_node:false
 
   let update_tree t k f =
-    Log.debug (fun l -> l "Tree.update_tree %a" pp_path k);
+    Log.debug (fun l -> l "Tree.update_tree %a" pp_key k);
     update_tree t k ~f:(Lwt.wrap1 f) ~f_might_return_empty_node:true
 
   let import repo = function

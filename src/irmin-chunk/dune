@@ -1,4 +1,6 @@
 (library
  (name irmin_chunk)
  (public_name irmin-chunk)
- (libraries irmin fmt logs lwt))
+ (libraries irmin fmt logs lwt)
+ (preprocess
+  (pps ppx_irmin)))
