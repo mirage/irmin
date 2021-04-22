@@ -88,8 +88,8 @@ module No_sync = struct
 
   let pp_error _ _ = assert false
 
-  let fetch ?push_stdout:_ ?push_stderr:_ ~ctx:_ _ _ ?version:_ ?capabilities:_
-      ?deepen:_ _ =
+  let fetch ?push_stdout:_ ?push_stderr:_ ?threads:_ ~ctx:_ _ _ ?version:_
+      ?capabilities:_ ?deepen:_ _ =
     assert false
 
   let push ~ctx:_ _ _ ?version:_ ?capabilities:_ _ = assert false
