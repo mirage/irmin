@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **irmin-git**
+  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
+
 ### Fixed
 
 - **irmin**
