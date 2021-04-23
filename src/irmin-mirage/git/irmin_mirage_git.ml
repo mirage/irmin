@@ -31,7 +31,7 @@ let remote ?(ctx = Mimic.empty) ?headers uri =
   | Error (`Msg err) -> Fmt.invalid_arg "remote: %s" err
 
 module Maker (G : Irmin_git.G) = struct
-  module Maker = Irmin_git.Maker (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
+  module Maker = Irmin_git.Maker (G) (Git.Mem.Sync (G) (Git_paf))
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
   struct
@@ -42,7 +42,7 @@ module Maker (G : Irmin_git.G) = struct
 end
 
 module Ref (G : Irmin_git.G) = struct
-  module Maker = Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
+  module Maker = Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_paf))
 
   type branch = Maker.branch
 
@@ -54,7 +54,7 @@ module Ref (G : Irmin_git.G) = struct
 end
 
 module KV (G : Irmin_git.G) = struct
-  module Maker = Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_cohttp_mirage))
+  module Maker = Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_paf))
 
   type branch = Maker.branch
 

@@ -20,7 +20,11 @@ depends: [
   "cohttp-lwt"
   "lwt"
   "uri"
-  "git"           {>= "3.3.0"}
+  "git"           {>= "3.4.0"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
+
+pin-depends: [
+  [ "git.3.4.0" "git+https://github.com/mirage/ocaml-git.git#5eb3ef686b101102b40967ef45e76f44cd55e149" ]
+]
