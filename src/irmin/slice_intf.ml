@@ -17,19 +17,20 @@
 module type S = sig
   (** {1 Slices} *)
 
-  type t
+  type t [@@deriving irmin]
   (** The type for slices. *)
 
-  type contents
+  type contents [@@deriving irmin]
   (** The type for exported contents. *)
 
-  type node
+  type node [@@deriving irmin]
   (** The type for exported nodes. *)
 
-  type commit
+  type commit [@@deriving irmin]
   (** The type for exported commits. *)
 
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]
+  [@@deriving irmin]
   (** The type for exported values. *)
 
   val empty : unit -> t Lwt.t
@@ -40,23 +41,6 @@ module type S = sig
 
   val iter : t -> (value -> unit Lwt.t) -> unit Lwt.t
   (** [iter t f] calls [f] on all values of [t]. *)
-
-  (** {1 Value Types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-
-  val contents_t : contents Type.t
-  (** [content_t] is the value type for {!contents}. *)
-
-  val node_t : node Type.t
-  (** [node_t] is the value type for {!node}. *)
-
-  val commit_t : commit Type.t
-  (** [commit_t] is the value type for {!commit}. *)
-
-  val value_t : value Type.t
-  (** [value_t] is the value type for {!value}. *)
 end
 
 module type Sigs = sig

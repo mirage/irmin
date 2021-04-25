@@ -101,6 +101,14 @@ module Make (P : Private.S) = struct
   let cnt = fresh_counters ()
 
   module Path = P.Node.Path
+  module Metadata = P.Node.Metadata
+
+  module Hashes = Hashtbl.Make (struct
+    type t = P.Hash.t
+
+    let hash = P.Hash.short_hash
+    let equal = Type.(unstage (equal P.Hash.t))
+  end)
 
   module StepMap = struct
     module X = struct
@@ -117,40 +125,14 @@ module Make (P : Private.S) = struct
     include Merge.Map (X)
   end
 
-  module Metadata = P.Node.Metadata
-
-  type key = Path.t
-  type hash = P.Hash.t
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
-
-  let get_ok : type a. string -> a or_error -> a =
-   fun context -> function
-    | Ok x -> x
-    | Error (`Dangling_hash hash) ->
-        Fmt.failwith "%s: Encountered dangling hash %a" context
-          (Type.pp P.Hash.t) hash
-
-  type step = Path.step
-  type contents = P.Contents.value
+  type metadata = Metadata.t [@@deriving irmin]
+  type key = Path.t [@@deriving irmin]
+  type hash = P.Hash.t [@@deriving irmin]
+  type step = Path.step [@@deriving irmin]
+  type contents = P.Contents.Val.t [@@deriving irmin]
   type repo = P.Repo.t
-
-  let pp_hash = Type.pp P.Hash.t
-  let pp_step = Type.pp Path.step_t
-  let pp_path = Type.pp Path.t
-
-  module Hashes = Hashtbl.Make (struct
-    type t = hash
-
-    let hash = P.Hash.short_hash
-    let equal = Type.(unstage (equal P.Hash.t))
-  end)
-
-  let dummy_marks = Hashes.create 0
-
   type marks = unit Hashes.t
-
-  let empty_marks () = Hashes.create 39
-
+  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
   type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
   type uniq = [ `False | `True | `Marks of marks ]
   type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
@@ -158,10 +140,22 @@ module Make (P : Private.S) = struct
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
 
+  let pp_hash = Type.pp P.Hash.t
+  let pp_step = Type.pp Path.step_t
+  let pp_path = Type.pp Path.t
   let equal_contents = Type.(unstage (equal P.Contents.Val.t))
   let equal_metadata = Type.(unstage (equal Metadata.t))
   let equal_hash = Type.(unstage (equal P.Hash.t))
   let equal_node = Type.(unstage (equal P.Node.Val.t))
+  let compare_step = Type.(unstage (compare Path.step_t))
+  let dummy_marks = Hashes.create 0
+  let empty_marks () = Hashes.create 39
+
+  let get_ok : type a. string -> a or_error -> a =
+   fun context -> function
+    | Ok x -> x
+    | Error (`Dangling_hash hash) ->
+        Fmt.failwith "%s: Encountered dangling hash %a" context pp_hash hash
 
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
@@ -263,6 +257,7 @@ module Make (P : Private.S) = struct
           | Some x, Some y -> equal_contents x y
           | _ -> equal_hash (hash x) (hash y))
 
+    (* FIXME: fix compare *)
     let t = Type.map ~equal:(Type.stage equal) v of_v (fun t -> t.v)
 
     let merge : t Merge.t =
@@ -896,6 +891,8 @@ module Make (P : Private.S) = struct
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
+
+    (* FIXME: fix compare *)
     let t node = Type.map ~equal:(Type.stage equal) node of_v (fun t -> t.v)
 
     let _, t =
@@ -968,10 +965,9 @@ module Make (P : Private.S) = struct
   end
 
   type node = Node.t [@@deriving irmin]
-  type metadata = Metadata.t
 
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
-  [@@deriving irmin { name = "tree_t" }]
+  [@@deriving irmin]
 
   let of_private_node repo n = Node.of_value repo n
   let to_private_node = Node.to_value
@@ -1388,7 +1384,7 @@ module Make (P : Private.S) = struct
       | Ok t -> Merge.ok t
       | Error e -> Lwt.return (Error e)
     in
-    Merge.v tree_t f
+    Merge.v t f
 
   let entries path tree =
     let rec aux acc = function
@@ -1426,8 +1422,6 @@ module Make (P : Private.S) = struct
       let+ cy = Contents.to_value (fst y) in
       diff_force_result cx cy ~empty:[] ~diff_ok:(fun (cx, cy) ->
           [ `Updated ((cx, snd x), (cy, snd y)) ])
-
-  let compare_step = Type.(unstage (compare Path.step_t))
 
   let diff_node (x : node) (y : node) =
     let bindings n =
