@@ -73,23 +73,12 @@ module type S = sig
   (** [default] is the default metadata value. *)
 end
 
-module type Metadata = sig
-  type t [@@deriving irmin]
-  (** The type for metadata. *)
-
-  val merge : t Merge.t
-  (** [merge] is the merge function for metadata. *)
-
-  val default : t
-  (** The default metadata to attach, for APIs that don't care about metadata. *)
-end
-
 module type Maker = sig
   module Make
       (H : Hash.S) (P : sig
         type step [@@deriving irmin]
       end)
-      (M : Metadata) :
+      (M : Metadata.S) :
     S with type metadata = M.t and type hash = H.t and type step = P.step
 end
 
@@ -200,7 +189,6 @@ end
 
 module type Sigs = sig
   module type S = S
-  module type Metadata = Metadata
   module type Maker = Maker
 
   include Maker
