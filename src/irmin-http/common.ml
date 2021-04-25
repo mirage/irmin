@@ -14,20 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** HTTP helpers *)
+let irmin_version = "X-IrminVersion"
 
-val irmin_version : string
+type status = { status : string } [@@deriving irmin]
 
 type 'a set = { test : 'a option; set : 'a option; v : 'a option }
+[@@deriving irmin]
 
-val status_t : string Irmin.Type.t
-val set_t : 'a Irmin.Type.t -> 'a set Irmin.Type.t
+type ('a, 'b) event = { branch : 'a; diff : 'b Irmin.Diff.t } [@@deriving irmin]
+type ('a, 'b) init = { branch : 'a; commit : 'b } [@@deriving irmin]
+type 'a merge = { old : 'a; left : 'a; right : 'a } [@@deriving irmin]
 
-val event_t :
-  'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b Irmin.Diff.t) Irmin.Type.t
-
-val init_t : 'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b) Irmin.Type.t
-
-type 'a merge = { old : 'a; left : 'a; right : 'a }
-
-val merge_t : 'a Irmin.Type.t -> 'a merge Irmin.Type.t
+type 'a merge_result = ('a option, Irmin.Merge.conflict) result
+[@@deriving irmin]

@@ -16,7 +16,7 @@
 
 (** Merge operators. *)
 
-type conflict = [ `Conflict of string ]
+type conflict = [ `Conflict of string ] [@@deriving irmin]
 (** The type for merge errors. *)
 
 val ok : 'a -> ('a, conflict) result Lwt.t
@@ -225,11 +225,3 @@ module Infix : sig
   val ( >|=? ) : 'a promise -> ('a -> 'b) -> 'b promise
   (** [>|=?] is {!map_promise}. *)
 end
-
-(** {1 Value Types} *)
-
-val conflict_t : conflict Type.t
-(** [conflict_t] is the value type for {!conflict}. *)
-
-val result_t : 'a Type.t -> ('a, conflict) result Type.t
-(** [result_t] is the value type for merge results. *)

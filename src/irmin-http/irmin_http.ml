@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_http_common
+open Common
 open Astring
 open! Import
 
@@ -309,16 +309,16 @@ functor
       let value = { v = Some value; set = None; test = None } in
       let body = to_json (set_t V.t) value in
       put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-      | "ok" -> Lwt.return_unit
-      | e -> Lwt.fail_with e
+      | { status = "ok" } -> Lwt.return_unit
+      | e -> Lwt.fail_with e.status
 
     let test_and_set t key ~test ~set =
       let value = { v = None; set; test } in
       let body = to_json (set_t V.t) value in
       put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
-      | "true" -> Lwt.return_true
-      | "false" -> Lwt.return_false
-      | e -> Lwt.fail_with e
+      | { status = "true" } -> Lwt.return_true
+      | { status = "false" } -> Lwt.return_false
+      | e -> Lwt.fail_with e.status
 
     let pp_key = Irmin.Type.pp K.t
 
@@ -354,13 +354,13 @@ functor
           in
           let stop () =
             Lwt_stream.iter_s
-              (fun (_, v) ->
-                let v =
-                  match v with
+              (fun { diff; _ } ->
+                let diff =
+                  match diff with
                   | `Removed _ -> None
                   | `Added v | `Updated (_, v) -> Some v
                 in
-                W.notify t.w key v)
+                W.notify t.w key diff)
               s
           in
           t.keys.stop <- stoppable stop;
@@ -377,23 +377,27 @@ functor
             match init with
             | None -> get_stream t [ "watches" ] (event_t K.t V.t)
             | Some init ->
+                let init =
+                  List.map (fun (branch, commit) -> { branch; commit }) init
+                in
                 let body = to_json T.(list (init_t K.t V.t)) init in
                 post_stream t [ "watches" ] ~body (event_t K.t V.t)
           in
           let stop () =
             Lwt_stream.iter_s
-              (fun (k, v) ->
-                let v =
-                  match v with
+              (fun ev ->
+                let diff =
+                  match ev.diff with
                   | `Removed _ -> None
                   | `Added v | `Updated (_, v) -> Some v
                 in
+                let k = ev.branch in
                 Log.debug (fun l ->
                     let pp_opt =
                       Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp V.t)
                     in
-                    l "notify %a: %a" pp_key k pp_opt v);
-                W.notify t.w k v)
+                    l "notify %a: %a" pp_key k pp_opt diff);
+                W.notify t.w k diff)
               s
           in
           t.glob.stop <- stoppable stop;
@@ -462,7 +466,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
           let body =
             Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
-          let result = Irmin.Merge.result_t (Irmin.Type.option Key.t) in
+          let result = merge_result_t Key.t in
           HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
             (Irmin.Type.of_string result)
         in

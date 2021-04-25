@@ -514,8 +514,8 @@ module Make (S : S) = struct
       check_merge () >>= fun () ->
       let* kv1 = kv1 ~repo in
       let* kv2 = kv2 ~repo in
-      let check_result =
-        check (Irmin.Merge.result_t T.(option P.Contents.Key.t))
+      let result =
+        T.(result (option P.Contents.Key.t) Irmin.Merge.conflict_t)
       in
       (* merge contents *)
       let* kv1' =
@@ -523,13 +523,13 @@ module Make (S : S) = struct
             Irmin.Merge.f (P.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv1))
       in
-      check_result "merge kv1" (Ok (Some kv1)) kv1';
+      check result "merge kv1" (Ok (Some kv1)) kv1';
       let* kv2' =
         with_contents repo (fun v ->
             Irmin.Merge.f (P.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv2))
       in
-      check_result "merge kv2" (Ok (Some kv2)) kv2';
+      check result "merge kv2" (Ok (Some kv2)) kv2';
 
       (* merge nodes *)
       let g = g repo in

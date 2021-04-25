@@ -20,19 +20,20 @@ open! Import
 module type S = sig
   (** {1 Node values} *)
 
-  type t
+  type t [@@deriving irmin]
   (** The type for node values. *)
 
-  type metadata
+  type metadata [@@deriving irmin]
   (** The type for node metadata. *)
 
-  type hash
+  type hash [@@deriving irmin]
   (** The type for keys. *)
 
-  type step
+  type step [@@deriving irmin]
   (** The type for steps between nodes. *)
 
   type value = [ `Node of hash | `Contents of hash * metadata ]
+  [@@deriving irmin]
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
 
@@ -66,25 +67,10 @@ module type S = sig
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
-  (** {1 Value types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
+  (** {1 Default values} *)
 
   val default : metadata
   (** [default] is the default metadata value. *)
-
-  val metadata_t : metadata Type.t
-  (** [metadata_t] is the value type for {!metadata}. *)
-
-  val hash_t : hash Type.t
-  (** [hash_t] is the value type for {!hash}. *)
-
-  val step_t : step Type.t
-  (** [step_t] is the value type for {!step}. *)
-
-  val value_t : value Type.t
-  (** [value_t] is the value type for {!value}. *)
 end
 
 module type Metadata = sig
@@ -140,22 +126,23 @@ module type Graph = sig
   type 'a t
   (** The type for store handles. *)
 
-  type metadata
+  type metadata [@@deriving irmin]
   (** The type for node metadata. *)
 
-  type contents
+  type contents [@@deriving irmin]
   (** The type of user-defined contents. *)
 
-  type node
+  type node [@@deriving irmin]
   (** The type for node values. *)
 
-  type step
+  type step [@@deriving irmin]
   (** The type of steps. A step is used to pass from one node to another. *)
 
-  type path
+  type path [@@deriving irmin]
   (** The type of store paths. A path is composed of {{!step} steps}. *)
 
   type value = [ `Node of node | `Contents of contents * metadata ]
+  [@@deriving irmin]
   (** The type for store values. *)
 
   val empty : [> write ] t -> node Lwt.t
@@ -209,26 +196,6 @@ module type Graph = sig
       order: [node n] is applied only after it was applied on all its
       predecessors; [edge n p] is applied after [node n]. Note that [edge n p]
       is applied even if [p] is skipped. *)
-
-  (** {1 Value Types} *)
-
-  val metadata_t : metadata Type.t
-  (** [metadat_t] is the value type for {!metadata}. *)
-
-  val contents_t : contents Type.t
-  (** [contents_t] is the value type for {!contents}. *)
-
-  val node_t : node Type.t
-  (** [node_t] is the value type for {!node}. *)
-
-  val step_t : step Type.t
-  (** [step_t] is the value type for {!step}. *)
-
-  val path_t : path Type.t
-  (** [path_t] is the value type for {!path}. *)
-
-  val value_t : value Type.t
-  (** [value_t] is the value type for {!value}. *)
 end
 
 module type Sigs = sig
