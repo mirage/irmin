@@ -119,9 +119,9 @@ end
 
 module History (S : Store) = struct
   type commit = S.Key.t [@@deriving irmin]
-  type node = S.Node.key
+  type node = S.Key.t [@@deriving irmin]
+  type v = S.Val.t [@@deriving irmin]
   type 'a t = 'a S.t
-  type v = S.Val.t
 
   let merge t ~info =
     let f ~old c1 c2 =

@@ -19,10 +19,10 @@ open! Import
 module type S = sig
   (** {1 Commit values} *)
 
-  type t
+  type t [@@deriving irmin]
   (** The type for commit values. *)
 
-  type hash
+  type hash [@@deriving irmin]
   (** Type for keys. *)
 
   val v : info:Info.t -> node:hash -> parents:hash list -> t
@@ -36,14 +36,6 @@ module type S = sig
 
   val info : t -> Info.t
   (** The commit info. *)
-
-  (** {1 Value Types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-
-  val hash_t : hash Type.t
-  (** [hash_t] is the value type for {!hash}. *)
 end
 
 module type Maker = sig
@@ -74,13 +66,13 @@ module type History = sig
   type 'a t
   (** The type for store handles. *)
 
-  type node
+  type node [@@deriving irmin]
   (** The type for node values. *)
 
-  type commit
+  type commit [@@deriving irmin]
   (** The type for commit values. *)
 
-  type v
+  type v [@@deriving irmin]
   (** The type for commit objects. *)
 
   val v :
@@ -153,11 +145,6 @@ module type History = sig
     unit Lwt.t
   (** Same as {{!Node.Graph.iter} Node.Graph.iter} but for traversing the
       history graph. *)
-
-  (** {1 Value Types} *)
-
-  val commit_t : commit Type.t
-  (** [commit_t] is the value type for {!commit}. *)
 end
 
 module type Sigs = sig

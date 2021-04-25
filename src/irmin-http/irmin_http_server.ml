@@ -15,7 +15,7 @@
  *)
 
 open! Import
-open Irmin_http_common
+open Common
 module T = Irmin.Type
 
 let to_json = Irmin.Type.to_json_string
@@ -30,6 +30,9 @@ module type S = sig
 
   val v : ?strict:bool -> repo -> t
 end
+
+let ok = { status = "ok" }
+let bool b = { status = string_of_bool b }
 
 module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Wm = struct
@@ -152,7 +155,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               S.batch repo @@ fun db ->
               let old = Irmin.Merge.promise old in
               let* m = Irmin.Merge.f (merge db) ~old left right in
-              let result = Irmin.Merge.result_t (Irmin.Type.option K.t) in
+              let result = merge_result_t K.t in
               let resp_body = `String Irmin.(Type.to_string result m) in
               Wm.continue true { rd with Wm.Rd.resp_body }
       end
@@ -221,14 +224,12 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
                   match v.v with
                   | Some v ->
                       S.set db key v >>= fun () ->
-                      let resp_body = `String (to_json status_t "ok") in
+                      let resp_body = `String (to_json status_t ok) in
                       let rd = { rd with Wm.Rd.resp_body } in
                       Wm.continue true rd
                   | None ->
                       let* b = S.test_and_set db key ~test:v.test ~set:v.set in
-                      let resp_body =
-                        `String (to_json status_t (string_of_bool b))
-                      in
+                      let resp_body = `String (to_json status_t (bool b)) in
                       let rd = { rd with Wm.Rd.resp_body } in
                       Wm.continue b rd)
 
@@ -256,7 +257,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         method! delete_resource rd =
           with_key rd (fun key ->
               S.remove db key >>= fun () ->
-              let resp_body = `String (to_json status_t "ok") in
+              let resp_body = `String (to_json status_t ok) in
               Wm.continue true { rd with Wm.Rd.resp_body })
       end
 
@@ -268,9 +269,12 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
 
         method private stream ?init () =
           let stream, push = Lwt_stream.create () in
+          let init =
+            Option.map (List.map (fun i -> (i.branch, i.commit))) init
+          in
           let+ w =
-            S.watch ?init db (fun key diff ->
-                let v = to_json (event_t K.t V.t) (key, diff) in
+            S.watch ?init db (fun branch diff ->
+                let v = to_json (event_t K.t V.t) { branch; diff } in
                 push (Some v);
                 push (Some ",");
                 Lwt.return_unit)
@@ -306,7 +310,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
           let stream, push = Lwt_stream.create () in
           let+ w =
             S.watch_key ?init db key (fun diff ->
-                let v = to_json (event_t K.t V.t) (key, diff) in
+                let v = to_json (event_t K.t V.t) { branch = key; diff } in
                 push (Some v);
                 push (Some ",");
                 Lwt.return_unit)

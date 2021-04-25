@@ -16,7 +16,7 @@
 
 (** {1 Commit Info} *)
 
-type t
+type t [@@deriving irmin]
 (** The type for commit info. *)
 
 val v : date:int64 -> author:string -> string -> t
@@ -52,8 +52,3 @@ type f = unit -> t
 
 val none : f
 (** The empty info function. [none ()] is [empty] *)
-
-(** {1 Value Types} *)
-
-val t : t Type.t
-(** [t] is the value type for {!t}. *)
