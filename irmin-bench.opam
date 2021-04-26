@@ -32,6 +32,7 @@ depends: [
   "bentov" {with-test}
   "mtime" {with-test}
   "ppx_deriving" {with-test}
+  "rusage"
 ]
 
 synopsis: "Irmin benchmarking suite"
