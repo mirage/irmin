@@ -18,12 +18,12 @@
 open! Import
 
 module type S = sig
-  type key
-  type step
-  type metadata
-  type contents
-  type node
-  type hash
+  type key [@@deriving irmin]
+  type step [@@deriving irmin]
+  type metadata [@@deriving irmin]
+  type contents [@@deriving irmin]
+  type node [@@deriving irmin]
+  type hash [@@deriving irmin]
 
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
       lazy reads and delayed writes.
@@ -34,7 +34,7 @@ module type S = sig
       needed on commit: if you modify a key twice, only the last change will be
       written to the store when you commit. *)
 
-  type t
+  type t [@@deriving irmin]
   (** The type of trees. *)
 
   (** {1 Constructors} *)
@@ -254,10 +254,8 @@ module type S = sig
 
   type concrete =
     [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
+  [@@deriving irmin]
   (** The type for concrete trees. *)
-
-  val concrete_t : concrete Type.t
-  (** The value-type for {!concrete}. *)
 
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c].
@@ -326,8 +324,6 @@ module type Sigs = sig
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
-    val node_t : node Type.t
-    val tree_t : t Type.t
     val hash : t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t

@@ -39,42 +39,45 @@ module type S = sig
   type t
   (** The type for Irmin stores. *)
 
-  type step
+  type step [@@deriving irmin]
   (** The type for {!key} steps. *)
 
-  type key
+  type key [@@deriving irmin]
   (** The type for store keys. A key is a sequence of {!step}s. *)
 
-  type metadata
+  type metadata [@@deriving irmin]
   (** The type for store metadata. *)
 
-  type contents
+  type contents [@@deriving irmin]
   (** The type for store contents. *)
 
-  type node
+  type node [@@deriving irmin]
   (** The type for store nodes. *)
 
-  type tree
+  type tree [@@deriving irmin]
   (** The type for store trees. *)
 
-  type hash
+  type hash [@@deriving irmin]
   (** The type for object hashes. *)
 
   type commit
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
 
-  type branch
+  val commit_t : repo -> commit Type.t
+  (** [commit_t r] is the value type for {!commit}. *)
+
+  type branch [@@deriving irmin]
   (** Type for persistent branch names. Branches usually share a common global
       namespace and it's the user's responsibility to avoid name clashes. *)
 
-  type slice
+  type slice [@@deriving irmin]
   (** Type for store slices. *)
 
-  type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
+  type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
   (** The type for errors associated with functions computing least common
       ancestors *)
 
-  type ff_error = [ `No_change | `Rejected | lca_error ]
+  type ff_error = [ `No_change | `Rejected | lca_error ] [@@deriving irmin]
   (** The type for errors for {!fast_forward}. *)
 
   (** Repositories. *)
@@ -411,6 +414,7 @@ module type S = sig
 
   type write_error =
     [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
+  [@@deriving irmin]
   (** The type for write errors.
 
       - Merge conflict.
@@ -811,47 +815,6 @@ module type S = sig
 
   module Metadata : Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
-
-  (** {1 Value Types} *)
-
-  val step_t : step Type.t
-  (** [step_t] is the value type for {!step}. *)
-
-  val key_t : key Type.t
-  (** [key_t] is the value type for {!key}. *)
-
-  val metadata_t : metadata Type.t
-  (** [metadata_t] is the value type for {!metadata}. *)
-
-  val contents_t : contents Type.t
-  (** [contents_t] is the value type for {!contents}. *)
-
-  val node_t : node Type.t
-  (** [node_t] is the value type for {!node}. *)
-
-  val tree_t : tree Type.t
-  (** [tree_t] is the value type for {!tree}. *)
-
-  val commit_t : repo -> commit Type.t
-  (** [commit_t r] is the value type for {!commit}. *)
-
-  val branch_t : branch Type.t
-  (** [branch_t] is the value type for {!branch}. *)
-
-  val slice_t : slice Type.t
-  (** [slice_t] is the value type for {!slice}. *)
-
-  val kind_t : [ `Contents | `Node ] Type.t
-  (** [kind_t] is the value type for values returned by {!kind}. *)
-
-  val lca_error_t : lca_error Type.t
-  (** [lca_error_t] is the value type for {!lca_error}. *)
-
-  val ff_error_t : ff_error Type.t
-  (** [ff_error_t] is the value type for {!ff_error}. *)
-
-  val write_error_t : write_error Type.t
-  (** [write_error_t] is the value type for {!write_error}. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private : sig
