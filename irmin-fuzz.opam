@@ -1,0 +1,29 @@
+opam-version: "2.0"
+maintainer:   "craig@tarides.com"
+authors:      ["The Irmin authors"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "dune"    {>= "2.7.0"}
+  "irmin"   {= version}
+  "lwt"     {>= "2.4.7" & with-test}
+  "bun"     {with-test}
+  "crowbar" {with-test}
+]
+
+synopsis: """
+Fuzz tests for the Irmin packages
+"""
+description: """
+Fuzz tests for the Irmin packages.
+"""

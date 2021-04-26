@@ -19,6 +19,9 @@
 
   - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
 
+  - Added `Store.Tree.kinded_hash`, which takes a tree and returns both its hash
+    and the corresponding metadata. (#1291, @CraigFe)
+
 - **irmin-chunk**
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
@@ -141,6 +144,10 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+
+- **irmin-fuzz** (_new_)
+  - Added a package to contain fuzz tests of Irmin and related packages.
+    (#1291, @smelc)
 
 ## 2.5.1 (2021-02-19)
 

@@ -1,0 +1,19 @@
+(executable
+ (name tree)
+ (preprocess
+  (pps ppx_irmin))
+ (libraries lwt lwt.unix irmin irmin.mem crowbar))
+
+(rule
+ (alias runtest)
+ (package irmin-fuzz)
+ (deps tree.exe)
+ (action progn))
+
+(rule
+ (alias runfuzz)
+ (deps
+  (source_tree ./input))
+ (action
+  (run timeout --preserve-status 50m bun -v --input=input --output=output --
+    ./%{exe:tree.exe})))

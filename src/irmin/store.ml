@@ -54,6 +54,7 @@ module Make (P : Private.S) = struct
 
     let of_hash r h = import r h
     let shallow r h = import_no_check r h
+    let kinded_hash = hash
 
     let hash : t -> hash =
      fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
