@@ -3,13 +3,6 @@
 ### Fixed
 
 - **irmin**
-  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
-    an empty subtree as a remove operation, rather than adding an empty
-    directory. (#1335, @craigfe)
-
-  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
-    false-negatives. (#1371, @CraigFe)
-
   - `Tree.of_concrete` now prunes empty subdirectories, and raises
     `Invalid_argument` if the input contains duplicate bindings. (#TODO,
     @CraigFe)
@@ -20,16 +13,11 @@
   - use the pre_hash function to compute entry keys instead of
     their raw binary representation (#1308, @samoht)
 
-- **irmin-pack**
-  - Fix a performance regression where all caches where always cleaned by
-    `Store.sync` when using the V1 format (#1360, @samoht)
-
 ### Added
 
 - **irmin**
    - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
    - Add `Store.Tree.length`. (#1316, @Ngoguey42)
-   - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
 
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
@@ -141,6 +129,32 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+
+## 2.5.3 (2021-04-13)
+
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
+    false-negatives. (#1371, @CraigFe)
+
+### Added
+
+- **irmin**
+  - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+
+## 2.5.2 (2021-04-08)
+
+### Fixed
+
+- **irmin**
+  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
+    an empty subtree as a remove operation, rather than adding an empty
+    directory.  (#1335, @craigfe)
+
+- **irmin-pack**
+  - Fix a performance regression where all caches where always cleaned by
+    `Store.sync` when using the V1 format (#1360, @samoht)
 
 ## 2.5.1 (2021-02-19)
 
