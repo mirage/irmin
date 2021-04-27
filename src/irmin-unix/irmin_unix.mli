@@ -30,8 +30,12 @@
       servers} provides a high-level REST API, with 1 RTT for the
       {{!Irmin.S.Private} private} and {{!Irmin.S} public} functions. *)
 
+module Info = Info.Make
+
 val info :
-  ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+  ?author:string ->
+  ('a, Format.formatter, unit, unit -> Irmin.Info.default) format4 ->
+  'a
 (** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.date}
     date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.author} author}
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
@@ -48,10 +52,10 @@ module FS : sig
   module Atomic_write : Irmin.Atomic_write.Maker
   (** Atomic-write store maker. *)
 
-  include Irmin.Maker
+  include Irmin.Maker with type info = Irmin.Info.default
   (** Irmin store maker. *)
 
-  module KV : Irmin.KV_maker
+  module KV : Irmin.KV_maker with type info = Irmin.Info.default
   (** Irmin store make, where only the Contents have to be specified: branches
       are strings and paths are string lists. *)
 
@@ -97,6 +101,7 @@ module Http : sig
        and type branch = S.branch
        and type hash = S.hash
        and type step = S.step
+       and type info = S.info
        and type metadata = S.metadata
        and type Key.step = S.Key.step
 

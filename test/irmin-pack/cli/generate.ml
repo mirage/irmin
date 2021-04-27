@@ -42,7 +42,7 @@ let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
   Irmin_pack_layered.config ~conf ~with_lower:true ()
 
-let info = Irmin.Info.v ~date:0L ~author:"" ""
+let info = Store.Info.empty
 
 let create_store () =
   rm_dir ();

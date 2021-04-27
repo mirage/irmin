@@ -122,7 +122,7 @@ let test_sort_order (module S : S) =
     let+ tree = S.Private.Node.find node_t tree_id in
     S.Private.Node.Val.list (get tree) |> List.map fst
   in
-  let info = Irmin.Info.none in
+  let info = S.Info.none in
   let* master = S.master repo in
   S.remove_exn master ~info [] >>= fun () ->
   S.set_exn master ~info [ "foo.c" ] "foo.c" >>= fun () ->
@@ -159,7 +159,7 @@ let test_list_refs (module S : G) =
   S.init () >>= fun () ->
   let* repo = R.Repo.v (Irmin_git.config test_db) in
   let* master = R.master repo in
-  R.set_exn master ~info:Irmin.Info.none [ "test" ] "toto" >>= fun () ->
+  R.set_exn master ~info:R.Info.none [ "test" ] "toto" >>= fun () ->
   let* head = R.Head.get master in
   R.Branch.set repo (`Remote "datakit/master") head >>= fun () ->
   R.Branch.set repo (`Other "foo/bar/toto") head >>= fun () ->
@@ -226,7 +226,7 @@ let test_import_export (module S : S) =
   let* _ = Generic.init () in
   let* repo = S.Repo.v (Irmin_git.config test_db) in
   let* t = S.master repo in
-  S.set_exn t ~info:Irmin.Info.none [ "test" ] "toto" >>= fun () ->
+  S.set_exn t ~info:S.Info.none [ "test" ] "toto" >>= fun () ->
   let remote = Irmin.remote_store (module S) t in
   let* repo = Generic.Repo.v (Irmin_mem.config ()) in
   let* t = Generic.master repo in

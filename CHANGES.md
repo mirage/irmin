@@ -55,6 +55,8 @@
     atomic-writes stores, as well as node and commit makers (#1369, @samoht)
   - Require at least `lwt.5.3.0` to use `Lwt.Syntax` in the codebase
     (#1401, @samoht)
+  - `Info` implementations are not part of store: use `S.Info.v`
+    instead of `Irmin.Info.v` (#1400, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

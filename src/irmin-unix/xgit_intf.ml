@@ -41,6 +41,7 @@ module type Backend = sig
        and module Key = P
        and type contents = C.t
        and type branch = B.t
+       and type info = Irmin.Info.default
        and module Git = G
        and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -50,6 +51,7 @@ module type Backend = sig
        and type step = string
        and type contents = C.t
        and type branch = string
+       and type info = Irmin.Info.default
        and module Git = G
        and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -59,6 +61,7 @@ module type Backend = sig
        and type step = string
        and type contents = C.t
        and type branch = Irmin_git.reference
+       and type info = Irmin.Info.default
        and module Git = G
        and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 end

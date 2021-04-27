@@ -14,11 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Info (C : Mirage_clock.PCLOCK) = struct
+module Info (Info : Irmin.Info.S) (C : Mirage_clock.PCLOCK) = struct
   let f ~author fmt =
     Fmt.kstrf
-      (fun msg () ->
+      (fun message () ->
         C.now_d_ps () |> Ptime.v |> Ptime.to_float_s |> Int64.of_float
-        |> fun date -> Irmin.Info.v ~date ~author msg)
+        |> fun date -> Info.v ~author ~message date)
       fmt
 end

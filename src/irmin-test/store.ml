@@ -256,8 +256,8 @@ module Make (S : S) = struct
   let test_commits x () =
     let test repo =
       let info date =
-        let msg = Fmt.strf "Test commit: %d" date in
-        Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
+        let message = Fmt.strf "Test commit: %d" date in
+        S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
       let* kv1 = kv1 ~repo in
       let h = h repo and c = P.Repo.commit_t repo in
@@ -291,7 +291,7 @@ module Make (S : S) = struct
         | Some c ->
             Alcotest.(check string)
               "author" "test"
-              (Irmin.Info.author (S.Commit.info c))
+              (S.Info.author (S.Commit.info c))
       in
       S.Repo.close repo >>= fun () ->
       Lwt.catch
@@ -305,8 +305,8 @@ module Make (S : S) = struct
   let test_closure x () =
     let test repo =
       let info date =
-        let msg = Fmt.strf "Test commit: %d" date in
-        Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
+        let message = Fmt.strf "Test commit: %d" date in
+        S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
       let check_keys = checks P.Commit.Key.t in
       let h = h repo in
@@ -557,7 +557,7 @@ module Make (S : S) = struct
       checks succ_t "k4" [ ("b", `Node k1); ("c", `Node k1) ] succ;
       let info date =
         let i = Int64.of_int date in
-        Irmin.Info.v ~date:i ~author:"test" "Test commit"
+        S.Info.v ~author:"test" ~message:"Test commit" i
       in
       let c = P.Repo.commit_t repo in
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
@@ -602,7 +602,7 @@ module Make (S : S) = struct
     let test repo =
       let info date =
         let i = Int64.of_int date in
-        Irmin.Info.v ~date:i ~author:"test" "Test commit"
+        S.Info.v ~author:"test" ~message:"Test commit" i
       in
       let assert_lcas_err msg err l2 =
         let err_str = function
@@ -840,7 +840,7 @@ module Make (S : S) = struct
       check T.(option @@ S.commit_t repo) "empty" None h;
       let* r1 = r1 ~repo in
       may repo [ r1 ] hook >>= fun () ->
-      S.set_exn t ~info:Irmin.Info.none [ "b"; "x" ] v1 >>= fun () ->
+      S.set_exn t ~info:S.Info.none [ "b"; "x" ] v1 >>= fun () ->
       let* h = S.Head.find t in
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
       P.Repo.close repo
@@ -1007,7 +1007,7 @@ module Make (S : S) = struct
 
   let test_tree_caches x () =
     let test repo =
-      let info = Irmin.Info.none in
+      let info = S.Info.none in
       let* t1 = S.master repo in
       S.set_exn t1 ~info [ "a"; "b" ] "foo" >>= fun () ->
       (* Testing cache *)
@@ -1359,16 +1359,16 @@ module Make (S : S) = struct
       check_val "remove tree" None foo2';
       let* r1 = r1 ~repo in
       let* r2 = r2 ~repo in
-      let i0 = Irmin.Info.empty in
+      let i0 = S.Info.empty in
       let* c =
-        S.Commit.v repo ~info:Irmin.Info.empty
+        S.Commit.v repo ~info:S.Info.empty
           ~parents:[ S.Commit.hash r1; S.Commit.hash r2 ]
           v3
       in
       S.Head.set t c >>= fun () ->
       let* h = S.Head.get t in
       S.Commit.info h |> fun i ->
-      check Irmin.Info.t "commit info" i0 i;
+      check S.Info.t "commit info" i0 i;
       let* tt = S.of_commit h in
       let* g = S.history tt in
       let pred = S.History.pred g h in

@@ -17,8 +17,6 @@
 
 open! Import
 
-let empty_info = Irmin.Info.none
-
 module LWW (T : Time.S) (V : Irmin.Type.S) :
   Irmin.Contents.S with type t = V.t * T.t = struct
   type t = V.t * T.t [@@deriving irmin]
@@ -45,11 +43,13 @@ module type S = sig
   val read : path:Store.key -> Store.t -> value option Lwt.t
 
   val write :
-    ?info:Irmin.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
+    ?info:Store.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
 end
 
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
   module Store = Backend.Make (LWW (T) (V))
+
+  let empty_info = Store.Info.none
 
   type value = V.t
 

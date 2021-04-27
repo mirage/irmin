@@ -100,7 +100,7 @@ let t =
     $ gc)
 
 module Make (Store : Irmin.KV with type contents = string) = struct
-  let info () = Irmin.Info.v ~date:0L ~author:"author" "commit message"
+  let info () = Store.Info.v ~author:"author" ~message:"commit message" 0L
 
   let times ~n ~init f =
     let rec go i k =

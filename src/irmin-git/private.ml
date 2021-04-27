@@ -30,6 +30,7 @@ module Make
     (B : Branch.S) =
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
+  module Info = Irmin.Info.Default
 
   module Contents = struct
     module S = Contents.Make (G) (C)
@@ -45,7 +46,7 @@ struct
 
   module Commit = struct
     module S = Commit.Make (G)
-    include Irmin.Private.Commit.Store (Node) (S) (S.Key) (S.Val)
+    include Irmin.Private.Commit.Store (Info) (Node) (S) (S.Key) (S.Val)
   end
 
   module Branch = struct

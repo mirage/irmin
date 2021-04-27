@@ -21,6 +21,7 @@ module Client (S : Irmin.S) :
      and type branch = S.branch
      and type hash = S.hash
      and type step = S.step
+     and type info = S.info
      and type metadata = S.metadata
      and type Key.step = S.Key.step
 

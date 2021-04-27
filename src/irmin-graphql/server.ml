@@ -51,10 +51,12 @@ module Result = struct
 end
 
 module type CONFIG = sig
+  type info
+
   val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
 
   val info :
-    ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+    ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a
 end
 
 module type CUSTOM_TYPE = sig
@@ -131,7 +133,7 @@ end
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S)
+    (Store : Irmin.S with type info = Config.info)
     (Types : CUSTOM_TYPES
                with type key := Store.key
                 and type metadata := Store.metadata
@@ -142,9 +144,11 @@ struct
   module IO = Server.IO
   module Sync = Irmin.Sync.Make (Store)
   module Graphql_server = Graphql_cohttp.Make (Schema) (IO) (Cohttp_lwt.Body)
+  module Info = Store.Info
 
   type repo = Store.repo
   type server = Server.t
+  type info = Store.info
 
   type txn_args = {
     author : string option;
@@ -258,17 +262,17 @@ struct
                 ~resolve:(fun _ c -> Store.Commit.hash c);
             ]))
 
-  and info : ('ctx, Irmin.Info.t option) Schema.typ Lazy.t =
+  and info : ('ctx, info option) Schema.typ Lazy.t =
     lazy
       Schema.(
         obj "Info" ~fields:(fun _info ->
             [
               field "date" ~typ:(non_null string) ~args:[] ~resolve:(fun _ i ->
-                  Irmin.Info.date i |> Int64.to_string);
+                  Info.date i |> Int64.to_string);
               field "author" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ i -> Irmin.Info.author i);
+                ~resolve:(fun _ i -> Info.author i);
               field "message" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ i -> Irmin.Info.message i);
+                ~resolve:(fun _ i -> Info.message i);
             ]))
 
   and tree : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t =
@@ -796,7 +800,10 @@ struct
     Server.make_response_action ~callback ()
 end
 
-module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) =
+module Make
+    (Server : Cohttp_lwt.S.Server)
+    (Config : CONFIG)
+    (Store : Irmin.S with type info = Config.info) =
 struct
   module Types = Default_types (Store)
   include Make_ext (Server) (Config) (Store) (Types)

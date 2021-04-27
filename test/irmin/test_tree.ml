@@ -524,7 +524,7 @@ let test_kind_empty_path _ () =
 let persist_tree : Store.tree -> Store.tree Lwt.t =
  fun tree ->
   let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
-  let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
+  let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
   Store.tree store
 
 let test_generic_equality _ () =

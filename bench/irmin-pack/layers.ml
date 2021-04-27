@@ -51,6 +51,8 @@ module Store =
     (Irmin.Branch.String)
     (Hash)
 
+module Info = Info (Store.Info)
+
 let configure_store root merge_throttle freeze_throttle =
   let conf =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
@@ -66,7 +68,7 @@ let init config =
 module Trees = Generate_trees (Store)
 
 let init_commit repo =
-  Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
+  Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
 
 let checkout_and_commit config repo c nb =
   Store.Commit.of_hash repo c >>= function
@@ -77,7 +79,7 @@ let checkout_and_commit config repo c nb =
         if nb mod 1000 = 0 then Trees.add_large_trees 256 2 tree
         else Trees.add_chain_trees config.depth (config.depth / 2) tree
       in
-      Store.Commit.v repo ~info:(info ()) ~parents:[ c ] tree
+      Store.Commit.v repo ~info:(Info.f ()) ~parents:[ c ] tree
 
 let total = ref 0
 

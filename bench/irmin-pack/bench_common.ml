@@ -91,10 +91,9 @@ module Conf = struct
   let stable_hash = 256
 end
 
-let info () =
-  let date = 0L in
-  let author = Printf.sprintf "TESTS" in
-  Irmin.Info.v ~date ~author "commit "
+module Info (I : Irmin.Info.S) = struct
+  let f () = I.v ~author:"tests" ~message:"commit" 0L
+end
 
 module FSHelper = struct
   let file f =

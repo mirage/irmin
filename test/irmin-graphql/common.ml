@@ -36,8 +36,10 @@ module Server =
     (struct
       let remote = None
 
+      type info = Store.info
+
       let info ?(author = "graphql-test-author") =
-        Format.kasprintf (fun msg () -> Irmin.Info.v ~date:0L ~author msg)
+        Format.kasprintf (fun message () -> Store.Info.v ~author ~message 0L)
     end)
     (Store)
 
@@ -74,7 +76,7 @@ let spawn_graphql_server () =
   let event_loop = server_of_repo repo
   and set_tree tree =
     Store.Tree.of_concrete tree
-    |> Store.set_tree_exn ~info:Irmin.Info.none master []
+    |> Store.set_tree_exn ~info:Store.Info.none master []
   in
   { event_loop; set_tree }
 

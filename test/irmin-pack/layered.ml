@@ -70,7 +70,7 @@ module Test = struct
     tree : Store.tree;
   }
 
-  let info = Irmin.Info.v ~date:0L ~author:"" ""
+  let info = Store.Info.empty
 
   let commit ctxt =
     let parents = List.map Store.Commit.hash ctxt.parents in
@@ -232,7 +232,9 @@ module Test = struct
     in
     let* tree = StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" in
     let* tree = StoreSimple.Tree.add tree [ "version" ] "0.0" in
-    let+ block1 = StoreSimple.Commit.v repo ~info ~parents:[] tree in
+    let+ block1 =
+      StoreSimple.Commit.v repo ~info:StoreSimple.Info.empty ~parents:[] tree
+    in
     StoreSimple.Commit.hash block1
 
   let check_commit_hash ctxt check_block hash =

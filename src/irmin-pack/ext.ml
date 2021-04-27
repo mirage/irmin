@@ -24,6 +24,7 @@ module Maker
     (Commit : Irmin.Private.Commit.Maker) =
 struct
   type endpoint = unit
+  type info = Commit.Info.t
 
   module Make
       (M : Irmin.Metadata.S)
@@ -38,6 +39,7 @@ struct
 
     module X = struct
       module Hash = H
+      module Info = Commit.Info
 
       type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
 
@@ -102,7 +104,7 @@ struct
           include Content_addressable.Closeable (CA_Pack)
         end
 
-        include Irmin.Private.Commit.Store (Node) (CA) (H) (Commit)
+        include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct

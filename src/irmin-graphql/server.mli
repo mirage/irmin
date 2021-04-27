@@ -40,10 +40,12 @@ end
 
 (** GraphQL server config *)
 module type CONFIG = sig
+  type info
+
   val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
 
   val info :
-    ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+    ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a
 end
 
 (** Custom GraphQL schema type and argument type for [type t]. *)
@@ -79,14 +81,17 @@ module Default_types (S : Irmin.S) :
      and type branch := S.branch
 
 (** Create a GraphQL server with default GraphQL types for [S]. *)
-module Make (Server : Cohttp_lwt.S.Server) (Config : CONFIG) (Store : Irmin.S) :
+module Make
+    (Server : Cohttp_lwt.S.Server)
+    (Config : CONFIG)
+    (Store : Irmin.S with type info = Config.info) :
   S with type repo = Store.repo and type server = Server.t
 
 (** Create a GraphQL server with custom GraphQL types. *)
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S)
+    (Store : Irmin.S with type info = Config.info)
     (Types : CUSTOM_TYPES
                with type key := Store.key
                 and type metadata := Store.metadata
