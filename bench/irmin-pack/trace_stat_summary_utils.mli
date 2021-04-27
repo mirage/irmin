@@ -25,12 +25,12 @@ module Exponential_moving_average : sig
       When [m] approaches [1.], [peek_exn ema] tends to be the mean of all the
       samples seen in the past.
 
-      see
+      See
       https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average
 
       {3 Relevance}
 
-      The value represented by [ema] is build from the {e history} of samples
+      The value represented by [ema] is built from the {e history} of samples
       shown through [update(_batch)]. When that history is empty, the value
       can't be calculated, and when the history is too small, or too distant
       because of calls to [forget(_batch)], the represented value is very noisy.
@@ -53,7 +53,7 @@ module Exponential_moving_average : sig
 
       {3 Commutativity}
 
-      Multiplying or adding together two curves independently build with an EMA,
+      Multiplying or adding together two curves independently built with an EMA,
       is equivalent to multiplying or adding the samples beforehand, and using a
       single EMA.
 
@@ -69,13 +69,9 @@ module Exponential_moving_average : sig
 
       Then [ema(v * scale + shift)] is [ema(v) * ema(scale) + ema(shift)].
 
-      The same is not true for division, [ema(a / b)] is not [ema(a) / ema(b)]. *)
-
-  val map : ?relevance_threshold:float -> float -> float list -> float list
-  (** [map momentum vec0] is [vec1], a list of float with the same length as
-      [vec0], where the values have been locally averaged.
-
-      The first element of [vec1] is also the first element of [vec0]. *)
+      The same is not true for division, [ema(a / b)] is not [ema(a) / ema(b)],
+      but [exp(ema(log(a / b)))] is [exp(ema(log(a))) / exp(ema(log(b)))] when
+      all values in [a] and [b] are strictly greater than 0. *)
 
   val from_half_life : ?relevance_threshold:float -> float -> t
   (** [from_half_life hl] is [ema], a functional exponential moving average.
@@ -86,8 +82,15 @@ module Exponential_moving_average : sig
       exponential moving average. After [hl_ratio * step_count] calls to
       [update], half of the past is forgotten. *)
 
+  val map : ?relevance_threshold:float -> float -> float list -> float list
+  (** [map momentum vec0] is [vec1], a list of float with the same length as
+      [vec0], where the values have been locally averaged.
+
+      The first element of [vec1] is also the first element of [vec0]. *)
+
   val update : t -> float -> t
-  (** Feed a new sample to the EMA. *)
+  (** Feed a new sample to the EMA. If the sample is not finite (i.e., NaN or
+      infinite), the represented won't be either. *)
 
   val update_batch : t -> float -> float -> t
   (** [update_batch ema p s] is equivalent to calling [update] [s] times. Modulo
