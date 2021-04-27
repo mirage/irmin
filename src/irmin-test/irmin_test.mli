@@ -60,3 +60,5 @@ module Store : sig
     (Alcotest.speed_level * t) list ->
     unit
 end
+
+module Common = Common

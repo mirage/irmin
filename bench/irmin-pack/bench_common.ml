@@ -16,6 +16,8 @@
 
 open Irmin.Export_for_backends
 
+let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
+
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
     let k _ =
@@ -24,7 +26,7 @@ let reporter ?(prefix = "") () =
     in
     let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
     let with_stamp h _tags k fmt =
-      let dt = Unix.gettimeofday () in
+      let dt = now_s () in
       Fmt.kpf k ppf
         ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
         prefix dt Logs_fmt.pp_header (level, h)
@@ -90,7 +92,7 @@ module Conf = struct
 end
 
 let info () =
-  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let date = 0L in
   let author = Printf.sprintf "TESTS" in
   Irmin.Info.v ~date ~author "commit "
 
@@ -112,7 +114,7 @@ module FSHelper = struct
   let get_size root = size root
 
   let print_size_layers root =
-    let dt = Unix.gettimeofday () in
+    let dt = now_s () in
     let upper1 = Filename.concat root "upper1" in
     let upper0 = Filename.concat root "upper0" in
     let lower = Filename.concat root "lower" in
