@@ -180,7 +180,7 @@ module Resample = struct
     let rec aux i1 rev_samples =
       match should_sample ~len1 ~i0 ~len0 ~i1 with
       | `Inside where_inside ->
-          if i1 == len1 - 1 then (
+          if i1 = len1 - 1 then (
             assert (i0 = len0 - 1);
             assert (where_inside = 1.));
           let v1 =
