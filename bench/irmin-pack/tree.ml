@@ -34,6 +34,7 @@ type config = {
   artefacts_dir : string;
   keep_store : bool;
   keep_stat_trace : bool;
+  no_summary : bool;
   empty_blobs : bool;
 }
 
@@ -414,16 +415,20 @@ module Trace_replay (Store : Store) = struct
         }
     in
     let stats = Stat_collector.create_file stat_path c config.store_dir in
-    let+ () =
+    let+ summary_opt =
       Lwt.finalize
         (fun () ->
-          let* _ =
+          let* block_count =
             add_commits repo config.ncommits_trace commit_seq on_commit on_end
               stats check_hash config.empty_blobs
           in
           Logs.app (fun l -> l "Closing repo...");
           let+ () = Store.Repo.close repo in
-          Stat_collector.close stats)
+          Stat_collector.close stats;
+          if not config.no_summary then (
+            Logs.app (fun l -> l "Computing summary...");
+            Some (Trace_stat_summary.summarise ~block_count stat_path))
+          else None)
         (fun () ->
           if config.keep_stat_trace then (
             Logs.app (fun l -> l "Stat trace kept at %s" stat_path);
@@ -431,6 +436,11 @@ module Trace_replay (Store : Store) = struct
             Lwt.return_unit)
           else Lwt.return (Stat_collector.remove stats))
     in
+    Option.iter
+      (fun s ->
+        let p = Filename.concat config.artefacts_dir "boostrap_summary.json" in
+        Trace_stat_summary.save_to_json s p)
+      summary_opt;
     fun ppf -> Format.fprintf ppf "\n%t\n" repo_pp
 end
 
@@ -701,7 +711,8 @@ let get_suite suite_filter =
 
 let main () ncommits ncommits_trace suite_filter inode_config store_type
     freeze_commit path_conversion depth width nchain_trees nlarge_trees
-    commit_data_file artefacts_dir keep_store keep_stat_trace empty_blobs =
+    commit_data_file artefacts_dir keep_store keep_stat_trace no_summary
+    empty_blobs =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let ncommits_trace = Option.value ~default ncommits_trace in
   let config =
@@ -721,6 +732,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
       artefacts_dir;
       keep_store;
       keep_stat_trace;
+      no_summary;
       empty_blobs;
     }
   in
@@ -807,6 +819,16 @@ let keep_store =
   in
   Arg.(value @@ flag doc)
 
+let no_summary =
+  let doc =
+    Arg.info
+      ~doc:
+        "Whether or not the stat trace should be converted to a summary at the \
+         end of a replay."
+      [ "no-summary" ]
+  in
+  Arg.(value @@ flag doc)
+
 let keep_stat_trace =
   let doc =
     Arg.info
@@ -888,6 +910,7 @@ let main_term =
     $ artefacts_dir
     $ keep_store
     $ keep_stat_trace
+    $ no_summary
     $ empty_blobs)
 
 let () =
