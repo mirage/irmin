@@ -286,7 +286,7 @@ end
     - ['v] is the output of [folder.finalise], one parameter of ['f].
     - ['rest] is ['f] or ['res] or somewhere in between.
     - ['acc] is the accumulator of one folder.
-    - ['row] what needs to be fed to all [folder.accumulate].
+    - ['row] is what needs to be fed to all [folder.accumulate].
 
     Typical use case:
 
