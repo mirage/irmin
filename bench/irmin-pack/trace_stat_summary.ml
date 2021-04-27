@@ -41,22 +41,7 @@
     Caveat: There isn't a one to one correspondance between summary blocks and
     Tezos' blocks. A Tezos block is associated to a commit, but a commit is not
     necessarily associated to a Tezos block. There are ~50 more commits than
-    Tezos blocks up to the Edo protocol.
-
-    {3 REMOVE ME Before Merge, next PR}
-
-    TODO: Document / clean trace_stats.exe (rename?)
-
-    TODO: Document / clean pp
-
-    - (change the "Where is better" scheme)
-    - Print section spacers (rework types to do so)
-    - (do I separate concerns more between summaries, I should?)
-    - color comma ? or color units?
-
-    TODO: A create_pp_seconds with examples. YES!
-
-    # *)
+    Tezos blocks up to the Edo protocol. *)
 
 module Def = Trace_definitions.Stat_trace
 module Conf = Trace_stat_summary_conf
