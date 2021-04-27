@@ -103,9 +103,8 @@ module Bootstrap_trace = struct
              && is_2char_hex d
              && is_2char_hex e
              && is_30char_hex f ->
-          let prefix = List.rev rev_prefix in
           let mid = a ^ b ^ c ^ d ^ e ^ f in
-          prefix @ [ mid ] @ tl
+          aux (mid :: rev_prefix) tl
       | hd :: tl -> aux (hd :: rev_prefix) tl
       | [] -> List.rev rev_prefix
     in
@@ -390,6 +389,9 @@ module Trace_replay (Store : Store) = struct
       && config.inode_config = (32, 256)
       && config.empty_blobs = false
     in
+    Logs.app (fun l ->
+        l "Will %scheck commit hashes against reference."
+          (if check_hash then "" else "NOT "));
     let commit_seq =
       Bootstrap_trace.open_commit_sequence config.ncommits_trace
         config.path_conversion config.commit_data_file
@@ -419,10 +421,14 @@ module Trace_replay (Store : Store) = struct
             add_commits repo config.ncommits_trace commit_seq on_commit on_end
               stats check_hash config.empty_blobs
           in
+          Logs.app (fun l -> l "Closing repo...");
           let+ () = Store.Repo.close repo in
           Stat_collector.close stats)
         (fun () ->
-          if config.keep_stat_trace then Lwt.return_unit
+          if config.keep_stat_trace then (
+            Logs.app (fun l -> l "Stat trace kept at %s" stat_path);
+            Unix.chmod stat_path 0o444;
+            Lwt.return_unit)
           else Lwt.return (Stat_collector.remove stats))
     in
     fun ppf -> Format.fprintf ppf "\n%t\n" repo_pp
@@ -726,7 +732,17 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
   let results =
     Lwt_main.run
       (Lwt.finalize run_benchmarks (fun () ->
-           if not keep_store then FSHelper.rm_dir config.store_dir;
+           if keep_store then (
+             Logs.app (fun l -> l "Store kept at %s" config.store_dir);
+             let ( / ) = Filename.concat in
+             let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
+             ro (config.store_dir / "store.branches");
+             ro (config.store_dir / "store.dict");
+             ro (config.store_dir / "store.pack");
+             ro (config.store_dir / "index" / "data");
+             ro (config.store_dir / "index" / "log");
+             ro (config.store_dir / "index" / "log_async"))
+           else FSHelper.rm_dir config.store_dir;
            Lwt.return_unit))
   in
   Logs.app (fun l ->

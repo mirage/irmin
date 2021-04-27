@@ -14,14 +14,6 @@
  (modules bench_common)
  (libraries irmin-pack unix progress progress.unix uuidm))
 
-;; Require the above executables to compile during tests
-
-(rule
- (alias runtest)
- (package irmin-bench)
- (deps main.exe layers.exe tree.exe)
- (action (progn)))
-
 (library
  (name irmin_traces)
  (modules trace_common trace_definitions trace_collection)
@@ -38,3 +30,11 @@
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
    unix cmdliner logs memtrace repr ppx_repr bench_common tezos-context-hash
    irmin_traces))
+
+;; Require the executables to compile during tests
+
+(rule
+ (alias runtest)
+ (package irmin-bench)
+ (deps main.exe layers.exe tree.exe)
+ (action (progn)))

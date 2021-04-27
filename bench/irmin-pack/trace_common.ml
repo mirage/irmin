@@ -27,8 +27,8 @@
       - Row (row_t, _ bytes)
     v}
 
-    This file is also meant to be used from Tezos. OCaml version 4.09 and the
-    32bit architecture should be supported.
+    This file is meant to be used from Tezos. OCaml version 4.09 and the 32bit
+    architecture should be supported.
 
     {3 Example}
 
