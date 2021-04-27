@@ -19,7 +19,7 @@ depends: [
   "mtime"      {>= "1.0.0"}
   "irmin"      {= version}
   "logs"
-  "lwt"
+  "lwt"        {>= "5.3.0"}
 ]
 
 synopsis: "Combine different Irmin stores into a single, layered store"

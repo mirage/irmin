@@ -23,7 +23,7 @@ depends: [
   "git-paf"      {>= "3.4.0"}
   "fmt"
   "git"          {>= "3.4.0"}
-  "lwt"
+  "lwt"          {>= "5.3.0"}
   "mirage-clock"
   "uri"
 ]

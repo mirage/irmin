@@ -18,7 +18,7 @@ depends: [
   "irmin-graphql" {= version}
   "mirage-clock"
   "cohttp-lwt"
-  "lwt"
+  "lwt"           {>= "5.3.0"}
   "uri"
   "git"           {>= "3.4.0"}
 ]

@@ -20,7 +20,7 @@ depends: [
   "irmin-unix" {= version}
   "irmin-git"  {= version}
   "ppx_irmin"  {= version}
-  "lwt"
+  "lwt"        {>= "5.3.0"}
   "mtime"
   "alcotest" {with-test}
   "alcotest-lwt" {with-test}

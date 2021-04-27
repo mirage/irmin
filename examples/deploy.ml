@@ -1,7 +1,19 @@
-open Lwt.Infix
-
-let ( let* ) x f = Lwt.bind x f
-
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+open Lwt.Syntax
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 let config =
@@ -43,19 +55,20 @@ let configure repo =
       [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23"
   in
   let* () = Lwt_unix.sleep 2. in
-  Store.clone ~src:t ~dst:"prod" >|= ignore
+  let+ _ = Store.clone ~src:t ~dst:"prod" in
+  ()
 
 let attack repo =
   let info = info ~user:"Remote connection from 132.443.12.444" in
   (* 3. Attacker. *)
   let* t = Store.of_branch repo "prod" in
-  Lwt_unix.sleep 2. >>= fun () ->
+  let* () = Lwt_unix.sleep 2. in
   let* () =
     Store.set_exn t
       ~info:(info "$ vim /etc/resolv.conf")
       [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 12.221.130.23"
   in
-  Lwt_unix.sleep 2. >>= fun () ->
+  let* () = Lwt_unix.sleep 2. in
   Store.set_exn t
     ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
     [ "bin"; "sh" ]
@@ -72,7 +85,8 @@ let revert repo =
       "WARNING: the filesystem is different in dev and prod, intrusion detected!\n\
        Reverting the production system to the dev environment.\n\
        %!";
-    Lwt_unix.sleep 2. >>= fun () -> Store.Head.set prod h2)
+    let* () = Lwt_unix.sleep 2. in
+    Store.Head.set prod h2)
   else Lwt.return_unit
 
 let () =
@@ -100,23 +114,32 @@ let () =
   else
     match Sys.argv.(1) with
     | "provision" ->
-        Lwt_main.run (Store.Repo.v config >>= provision);
+        Lwt_main.run
+          (let* repo = Store.Repo.v config in
+           provision repo);
         Printf.printf
           "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
           cmd
     | "configure" ->
-        Lwt_main.run (Store.Repo.v config >>= configure);
+        Lwt_main.run
+          (let* repo = Store.Repo.v config in
+           configure repo);
         Printf.printf
           "The VM is now configured. Run `%s attack` to simulate an attack by \
            an \n\
            intruder.\n"
           cmd
     | "attack" ->
-        Lwt_main.run (Store.Repo.v config >>= attack);
+        Lwt_main.run
+          (let* repo = Store.Repo.v config in
+           attack repo);
         Printf.printf
           "The VM has been attacked. Run `%s revert` to revert the VM state to \
            a safe one.\n"
           cmd
-    | "revert" -> Lwt_main.run (Store.Repo.v config >>= revert)
+    | "revert" ->
+        Lwt_main.run
+          (let* repo = Store.Repo.v config in
+           revert repo)
     | _ -> help ()

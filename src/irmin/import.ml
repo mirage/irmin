@@ -22,10 +22,10 @@ type read_write = Perms.read_write
 
 (** {2 Lwt syntax} *)
 
+include Lwt.Syntax
+
 let ( >>= ) = Lwt.Infix.( >>= )
 let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
 
 (** {2 Dependency extensions} *)
 

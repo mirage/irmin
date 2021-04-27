@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let ( let* ) x f = Lwt.bind x f
+open Lwt.Syntax
+
 let data_dir = "data/layered_pack_upper"
 
 let rm_dir () =

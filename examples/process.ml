@@ -1,12 +1,25 @@
-(* Connect to http://localhost:8080/dump *)
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-open Lwt.Infix
-open Printf
+(* Simple UI example: connect to http://localhost:8080/dump *)
 
-let ( let* ) x f = Lwt.bind x f
+open Lwt.Syntax
 
 let fin () =
-  let _ = Sys.command (sprintf "cd %s && git reset HEAD --hard" Config.root) in
+  let _ = Fmt.kstr Sys.command "cd %s && git reset HEAD --hard" Config.root in
   Lwt.return_unit
 
 type action = {
@@ -26,7 +39,7 @@ let ubuntu =
           files =
             [
               ( [ "etc"; "source.list" ],
-                fun () -> sprintf "deb %d" (Random.int 10) );
+                fun () -> Fmt.str "deb %d" (Random.int 10) );
             ];
         };
         { message = "grep -v '^#' /etc/apt/sources.list"; files = [] };
@@ -44,7 +57,7 @@ let wordpress =
           files =
             [
               ( [ "wordpress"; "wp-users.php" ],
-                fun () -> sprintf "<?php ...%d" (Random.int 10) );
+                fun () -> Fmt.str "<?php ...%d" (Random.int 10) );
             ];
         };
         {
@@ -52,7 +65,7 @@ let wordpress =
           files =
             [
               ( [ "wordpress"; "wp-settings.php" ],
-                fun () -> sprintf "<?php .. %d" (Random.int 10) );
+                fun () -> Fmt.str "<?php .. %d" (Random.int 10) );
             ];
         };
       ];
@@ -69,7 +82,7 @@ let mysql =
           files =
             [
               ( [ "var"; "lib"; "mysql" ],
-                fun () -> sprintf "X%duYYt" (Random.int 10) );
+                fun () -> Fmt.str "X%duYYt" (Random.int 10) );
             ];
         };
         { message = "Reading table wp_posts"; files = [] };
@@ -78,7 +91,7 @@ let mysql =
           files =
             [
               ( [ "var"; "lib"; "mysql" ],
-                fun () -> sprintf "X%dxYYt" (Random.int 10) );
+                fun () -> Fmt.str "X%dxYYt" (Random.int 10) );
             ];
         };
       ];
@@ -103,7 +116,7 @@ let init () =
   Config.init ();
   let* repo = Store.Repo.v config in
   let* t = Store.of_branch repo master in
-  Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" >>= fun () ->
+  let* () = Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" in
   Lwt_list.iter_s
     (fun i ->
       let* _ = Store.clone ~src:t ~dst:(branch i) in
@@ -130,10 +143,12 @@ let rec process image =
       let branch = branch (random_array images) in
       if branch <> id then (
         Printf.printf "Merging ...%!";
-        Store.merge_with_branch t
-          ~info:(info image @@ Fmt.strf "Merging with %s" branch)
-          branch
-        >>= function
+        let* r =
+          Store.merge_with_branch t
+            ~info:(info image @@ Fmt.strf "Merging with %s" branch)
+            branch
+        in
+        match r with
         | Ok () ->
             Printf.printf "ok!\n%!";
             Lwt.return_unit
@@ -158,7 +173,7 @@ let rec watchdog () =
 
 let () =
   let aux () =
-    init () >>= fun () ->
+    let* () = init () in
     Lwt.choose
       (watchdog () :: List.map (protect process) (Array.to_list images))
   in
