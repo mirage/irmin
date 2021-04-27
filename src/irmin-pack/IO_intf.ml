@@ -20,6 +20,8 @@ module type VERSION = sig
   val io_version : version
 end
 
+type headers = { offset : int64; generation : int64 }
+
 module type S = sig
   type t
   type path := string
@@ -33,9 +35,8 @@ module type S = sig
   val set : t -> off:int64 -> string -> unit
   val read : t -> off:int64 -> bytes -> int
   val offset : t -> int64
-  val force_offset : t -> int64
   val generation : t -> int64
-  val force_generation : t -> int64
+  val force_headers : t -> headers
   val readonly : t -> bool
   val version : t -> version
   val flush : t -> unit

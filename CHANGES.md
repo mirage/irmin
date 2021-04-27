@@ -1,4 +1,32 @@
+## 2.5.3 (2021-04-13)
+
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
+    false-negatives. (#1371, @CraigFe)
+
+### Added
+
+- **irmin**
+  - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+
+## 2.5.2 (2021-04-08)
+
+### Fixed
+
+- **irmin**
+  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
+    an empty subtree as a remove operation, rather than adding an empty
+    directory.  (#1335, @craigfe)
+
+- **irmin-pack**
+  - Fix a performance regression where all caches where always cleaned by
+    `Store.sync` when using the V1 format (#1360, @samoht)
+
 ## 2.5.1 (2021-02-19)
+
+### Fixed
 
 - **irmin-git**
   - Use the last version of git 3.3.0. It fixes a bug about trailing LF on

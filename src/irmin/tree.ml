@@ -382,17 +382,6 @@ module Make (P : Private.S) = struct
       let info = { hash; map; value; findv_cache } in
       { v; info }
 
-    let t node = Type.map node of_v (fun t -> t.v)
-
-    let _, t =
-      Type.mu2 (fun _ y ->
-          let elt = elt_t y in
-          let v = v_t elt in
-          let t = t v in
-          (v, t))
-
-    let elt_t = elt_t t
-
     let rec clear_elt ~max_depth depth (_, v) =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
@@ -446,7 +435,6 @@ module Make (P : Private.S) = struct
           | None -> t.v <- Hash (repo, k)
           | Some k -> t.v <- Hash (repo, k))
 
-    let dump = Type.pp_json ~minify:false t
     let of_map m = of_v (Map m)
     let of_hash repo k = of_v (Hash (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
@@ -668,18 +656,21 @@ module Make (P : Private.S) = struct
             if List.is_longer_than remove_count entries then false
             else List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
-    let is_empty t =
-      match cached_map t with
-      | Some m -> Lwt.return (Ok (StepMap.is_empty m))
-      | None -> (
-          match t.v with
-          | Value (_, v, Some um) ->
-              let res = is_empty_after_updates v um in
-              Lwt.return_ok res
-          | _ -> (
-              to_value t >|= function
-              | Error _ as e -> e
-              | Ok n -> Ok (P.Node.Val.is_empty n)))
+    let is_empty =
+      let empty_hash = hash (of_map StepMap.empty) in
+      fun t ->
+        match cached_map t with
+        | Some m -> StepMap.is_empty m
+        | None -> (
+            match cached_value t with
+            | Some v -> P.Node.Val.is_empty v
+            | None -> (
+                match t.v with
+                | Value (_, v, Some um) -> is_empty_after_updates v um
+                | Hash (_, h) -> hash_equal empty_hash h
+                | Map _ -> assert false (* [cached_map <> None] *)
+                | Value (_, _, None) ->
+                    assert false (* [cached_value <> None] *)))
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
@@ -897,6 +888,17 @@ module Make (P : Private.S) = struct
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
+    let t node = Type.map ~equal:(Type.stage equal) node of_v (fun t -> t.v)
+
+    let _, t =
+      Type.mu2 (fun _ y ->
+          let elt = elt_t y in
+          let v = v_t elt in
+          let t = t v in
+          (v, t))
+
+    let elt_t = elt_t t
+    let dump = Type.pp_json ~minify:false t
 
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
@@ -983,14 +985,7 @@ module Make (P : Private.S) = struct
     | `Contents x, `Contents y -> contents_equal x y
     | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
-  let is_empty = function
-    | `Node n -> (
-        Node.is_empty n >|= function
-        | Ok b -> b
-        | Error (`Dangling_hash hash) ->
-            Fmt.failwith "is_empty: encountered dangling hash %a"
-              (Type.pp P.Hash.t) hash)
-    | `Contents _ -> Lwt.return_false
+  let is_empty = function `Node n -> Node.is_empty n | `Contents _ -> false
 
   type elt = [ `Node of node | `Contents of contents * metadata ]
 
@@ -1128,15 +1123,18 @@ module Make (P : Private.S) = struct
     else
       match (x, y) with
       | `Node x, `Node y -> Node.maybe_equal x y
-      | `Contents x, `Contents y -> if contents_equal x y then True else False
-      | _ -> False
+      | _ -> if equal x y then True else False
 
-  let update_tree root_tree path f =
+  let update_tree ~f_might_return_empty_node ~f root_tree path =
     let empty_node = empty_node root_tree in
+    (* User-introduced empty nodes will be removed immediately if necessary. *)
+    let prune_empty : node -> bool =
+      if not f_might_return_empty_node then Fun.const false else Node.is_empty
+    in
     match Path.rdecons path with
     | None -> (
-        let* empty_tree =
-          is_empty root_tree >|= function
+        let empty_tree =
+          match is_empty root_tree with
           | true -> root_tree
           | false -> `Node empty_node
         in
@@ -1146,10 +1144,14 @@ module Make (P : Private.S) = struct
            sensitivity to ordering of subtree operations: updating in a subtree
            and adding the subtree are not necessarily commutative. *)
         | None -> Lwt.return empty_tree
-        | Some new_root -> (
+        | Some (`Node _ as new_root) -> (
             match maybe_equal root_tree new_root with
             | True -> Lwt.return root_tree
-            | Maybe | False -> Lwt.return new_root))
+            | Maybe | False -> Lwt.return new_root)
+        | Some (`Contents c' as new_root) -> (
+            match root_tree with
+            | `Contents c when contents_equal c c' -> Lwt.return root_tree
+            | _ -> Lwt.return new_root))
     | Some (path, file) -> (
         let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
          fun path parent_node k ->
@@ -1161,12 +1163,24 @@ module Make (P : Private.S) = struct
               let* new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
-              | None, Some t -> with_new_child t
+              | None, Some (`Contents _ as t) -> with_new_child t
+              | None, Some (`Node n as t) -> (
+                  match prune_empty n with
+                  | true -> k Unchanged
+                  | false -> with_new_child t)
               | Some _, None -> Node.remove parent_node file >>= changed
-              | Some old_value, Some new_value -> (
-                  match maybe_equal old_value new_value with
-                  | True -> k Unchanged
-                  | Maybe | False -> with_new_child new_value))
+              | Some old_value, Some (`Node n as t) -> (
+                  match prune_empty n with
+                  | true -> Node.remove parent_node file >>= changed
+                  | false -> (
+                      match maybe_equal old_value t with
+                      | True -> k Unchanged
+                      | Maybe | False -> with_new_child t))
+              | Some (`Contents c), Some (`Contents c' as t) -> (
+                  match contents_equal c c' with
+                  | true -> k Unchanged
+                  | false -> with_new_child t)
+              | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) -> (
               let* old_binding = Node.findv parent_node step in
               let to_recurse =
@@ -1180,13 +1194,13 @@ module Make (P : Private.S) = struct
                      want to avoid adding a binding anyway. *)
                   k Unchanged
               | Changed child -> (
-                  Node.is_empty child >>= function
-                  | Ok true ->
+                  match Node.is_empty child with
+                  | true ->
                       (* A [remove] has emptied previously non-empty child with
                          binding [h], so we remove the binding. *)
                       Node.remove parent_node step >>= changed
-                  | Ok false | Error (`Dangling_hash _) ->
-                      Node.add parent_node step (`Node child) >>= changed))
+                  | false -> Node.add parent_node step (`Node child) >>= changed
+                  ))
         in
         let top_node =
           match root_tree with `Node n -> n | `Contents _ -> empty_node
@@ -1197,7 +1211,7 @@ module Make (P : Private.S) = struct
 
   let update t k ?(metadata = Metadata.default) f =
     Log.debug (fun l -> l "Tree.update %a" pp_path k);
-    update_tree t k (fun t ->
+    update_tree t k ~f_might_return_empty_node:false ~f:(fun t ->
         let+ old_contents =
           match t with
           | Some (`Node _) | None -> Lwt.return_none
@@ -1211,20 +1225,25 @@ module Make (P : Private.S) = struct
 
   let add t k ?(metadata = Metadata.default) c =
     Log.debug (fun l -> l "Tree.add %a" pp_path k);
-    update_tree t k (fun _ ->
-        Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+      ~f_might_return_empty_node:false
 
   let add_tree t k v =
     Log.debug (fun l -> l "Tree.add_tree %a" pp_path k);
-    update_tree t k (fun _ -> Lwt.return_some v)
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_some v)
+      ~f_might_return_empty_node:true
 
   let remove t k =
     Log.debug (fun l -> l "Tree.remove %a" pp_path k);
-    update_tree t k (fun _ -> Lwt.return_none)
+    update_tree t k
+      ~f:(fun _ -> Lwt.return_none)
+      ~f_might_return_empty_node:false
 
   let update_tree t k f =
     Log.debug (fun l -> l "Tree.update_tree %a" pp_path k);
-    update_tree t k (Lwt.wrap1 f)
+    update_tree t k ~f:(Lwt.wrap1 f) ~f_might_return_empty_node:true
 
   let import repo = function
     | `Contents (k, m) -> (
