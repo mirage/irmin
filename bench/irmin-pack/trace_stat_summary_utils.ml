@@ -17,62 +17,6 @@
 type histo = (float * int) list [@@deriving repr]
 type curve = float list [@@deriving repr]
 
-let snap_to_integer ~significant_digits v =
-  if not @@ Float.is_finite v then v
-  else if Float.is_integer v then v
-  else
-    let significant_digits = float_of_int significant_digits in
-    let v' = Float.round v in
-    if v' = 0. then v
-    else
-      let diff = Float.abs (v -. v') in
-      assert (diff <= 0.5);
-      let significant_digits' = -.Float.log10 (diff /. v) in
-      assert (significant_digits' > 0.);
-      if significant_digits' >= significant_digits then v' else v
-
-let create_pp_real ?(significant_digits = 7) examples =
-  let examples = List.map (snap_to_integer ~significant_digits) examples in
-  let all_integer =
-    List.for_all
-      (fun v -> Float.is_integer v || not (Float.is_finite v))
-      examples
-  in
-  let absmax =
-    List.fold_left
-      (fun acc v ->
-        if Float.is_nan acc then v
-        else if Float.is_nan v then acc
-        else Float.abs v |> max acc)
-      Float.neg_infinity examples
-  in
-  let non_nan_pp =
-    if absmax /. 1e12 >= 10. then fun ppf v ->
-      Format.fprintf ppf "%.3f T" (v /. 1e12)
-    else if absmax /. 1e9 >= 10. then fun ppf v ->
-      Format.fprintf ppf "%.3f G" (v /. 1e9)
-    else if absmax /. 1e6 >= 10. then fun ppf v ->
-      Format.fprintf ppf "%.3f M" (v /. 1e6)
-    else if absmax /. 1e3 >= 10. then fun ppf v ->
-      Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
-    else if all_integer then fun ppf v ->
-      Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
-    else if absmax /. 1. >= 10. then fun ppf v -> Format.fprintf ppf "%.3f" v
-    else if absmax /. 1e-3 >= 10. then fun ppf v ->
-      let s = Printf.sprintf "%.6f" v in
-      let len = String.length s in
-      let a = String.sub s 0 (len - 3) in
-      let b = String.sub s (len - 3) 3 in
-      Format.fprintf ppf "%s_%s" a b
-    else if absmax /. 1e-6 >= 10. then fun ppf v ->
-      Format.fprintf ppf "%.3f \xc2\xb5" (v /. 1e-6)
-    else fun ppf v -> Format.fprintf ppf "%.3e" v
-  in
-  fun ppf v ->
-    if Float.is_nan v then Format.fprintf ppf "n/a"
-    else if Float.is_infinite v then Format.fprintf ppf "%f" v
-    else non_nan_pp ppf v
-
 module Exponential_moving_average = struct
   type t = {
     momentum : float;

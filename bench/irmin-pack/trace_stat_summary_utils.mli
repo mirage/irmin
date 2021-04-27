@@ -6,16 +6,6 @@
 type histo = (float * int) list [@@deriving repr]
 type curve = float list [@@deriving repr]
 
-val create_pp_real :
-  ?significant_digits:int -> float list -> Format.formatter -> float -> unit
-(** [create_pp_real examples] is [pp_real], a float pretty-printer that adapts
-    to the [examples] shown to it.
-
-    It is highly recommended, but not mandatory, for all the numbers passed to
-    [pp_real] to be included [examples].
-
-    [significant_digits] is used to snap certain numbers to the nearest integer. *)
-
 (** Functional Exponential Moving Average (EMA). *)
 module Exponential_moving_average : sig
   type t
