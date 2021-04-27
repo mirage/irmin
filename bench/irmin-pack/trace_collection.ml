@@ -21,10 +21,7 @@
 
     A module [Make_replayable] has yet to be implemented. *)
 
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-let ( let* ) = ( >>= )
-let ( let+ ) = ( >|= )
+open Lwt.Syntax
 
 (** Make state trace collector. *)
 module Make_stat (Store : Irmin.KV) = struct

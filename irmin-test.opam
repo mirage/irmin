@@ -24,7 +24,7 @@ depends: [
   "fmt"
   "jsonm"
   "logs"
-  "lwt"
+  "lwt"          {>= "5.3.0"}
   "metrics-unix"
   "ocaml-syntax-shims"
   "cmdliner"

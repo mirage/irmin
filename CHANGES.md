@@ -1,8 +1,5 @@
 ## Unreleased
 
-- **irmin-git**
-  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
-
 ### Fixed
 
 - **irmin**
@@ -82,6 +79,8 @@
   - Rename `Irmin.Make_ext` into `Irmin.Maker_ext` ; stage its result to
     return  `Make` functor once provided with a content-addressable and an
     atomic-writes stores, as well as node and commit makers (#1369, @samoht)
+  - Require at least `lwt.5.3.0` to use `Lwt.Syntax` in the codebase
+    (#1401, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
@@ -103,6 +102,7 @@
     - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
    (#1347, @samoht)
   - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
+  - Support `git.3.4.0`. (#1392, @dinosaure)
 
 - **irmin-mirage**
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`

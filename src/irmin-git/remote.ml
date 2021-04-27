@@ -16,6 +16,8 @@
 
 open Import
 
+let ( >>? ) = Lwt_result.bind
+
 module Make
     (G : Git.S)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
@@ -35,9 +37,6 @@ struct
   let git_of_branch r = git_of_branch_str (Irmin.Type.to_string B.t r)
 
   (* let o_head_of_git = function None -> Ok None | Some k -> Ok (Some k) *)
-
-  let ( >>? ) x f =
-    x >>= function Ok x -> f x | Error err -> Lwt.return (Error err)
 
   let msgf fmt = Fmt.kstrf (fun err -> `Msg err) fmt
   let reword_error f = function Ok _ as v -> v | Error err -> Error (f err)
