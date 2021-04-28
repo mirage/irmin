@@ -114,7 +114,7 @@
 
 ## 2.6.0 (2021-04-13)
 
-** Note: this release does not contain the features of 2.5.4. **
+** Note: this release is based on 2.5.3, and does not contain 2.5.4. **
 
 ### Fixed
 
