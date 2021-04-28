@@ -386,6 +386,7 @@ module Test = struct
         (config ~fresh:false ~readonly:true
            (Filename.concat ctxt.index.root Conf.lower_root))
     in
+    StoreSimple.sync repo;
     let* () =
       StoreSimple.Commit.of_hash repo hash1 >>= function
       | None -> Alcotest.fail "checkout block1"

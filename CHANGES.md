@@ -23,6 +23,7 @@
 - **irmin-pack**
   - Fix a performance regression where all caches where always cleaned by
     `Store.sync` when using the V1 format (#1360, @samoht)
+  - Allow RO instances to be opened before an RW one. (#955, @icristescu)
 
 ### Added
 

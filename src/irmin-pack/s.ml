@@ -17,6 +17,7 @@
 open! Import
 
 exception RO_not_allowed
+exception File_not_found
 
 module type Checkable = sig
   type 'a t

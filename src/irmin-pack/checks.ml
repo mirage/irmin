@@ -100,6 +100,7 @@ module Make (M : Maker) = struct
           let io =
             IO.v ~fresh:false ~readonly:true ~version:(Some version) path
           in
+          ignore (IO.force_headers io : IO.headers);
           Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
     let detect_version ~root =
@@ -243,6 +244,7 @@ module Make (M : Maker) = struct
     let run_versioned_store ~root ~heads (module Store : Versioned_store) =
       let conf = conf root in
       let* repo = Store.Repo.v conf in
+      Store.sync repo;
       let* heads =
         match heads with
         | None -> Store.Repo.heads repo

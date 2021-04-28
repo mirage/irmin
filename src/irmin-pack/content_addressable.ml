@@ -305,6 +305,7 @@ struct
           IO.v ~fresh:false ~version:(Some V.version) ~readonly:true
             (IO.name t.pack.block)
         in
+        ignore (IO.force_headers block : IO.headers);
         t.pack.block <- block;
         Dict.sync t.pack.dict;
         Index.sync t.pack.index)
