@@ -1,22 +1,8 @@
 ## Unreleased
 
-### Fixed
-
-- **irmin**
-  - `Tree.of_concrete` now prunes empty subdirectories, and raises
-    `Invalid_argument` if the input contains duplicate bindings. (#TODO,
-    @CraigFe)
-
-  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
-
-- **irmin-chunk**
-  - use the pre_hash function to compute entry keys instead of
-    their raw binary representation (#1308, @samoht)
-
 ### Added
 
 - **irmin**
-   - Added `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
    - Added `Store.Tree.length`. (#1316, @Ngoguey42)
 
 - **irmin-bench**
@@ -25,9 +11,6 @@
   - New features in benchmarks for tree operations (#1314, #1326, #1357,
     #1358, #1367, #1384, #1403 @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
-
-- **irmin-pack**
-  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
 
 - **irmin**
   - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
@@ -90,7 +73,6 @@
     - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
    (#1347, @samoht)
   - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
-  - Support `git.3.4.0`. (#1392, @dinosaure)
 
 - **irmin-mirage**
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
@@ -129,6 +111,49 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+
+## 2.6.0 (2021-04-13)
+
+** Note: this release does not contain the features of 2.5.4. **
+
+### Fixed
+
+- **irmin**
+  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
+
+  - `Tree.of_concrete` now prunes empty subdirectories, and raises
+    `Invalid_argument` if the input contains duplicate bindings. (#1385,
+    @CraigFe)
+
+- **irmin-chunk**
+  - Use the pre_hash function to compute entry keys instead of
+    their raw binary representation (#1308, @samoht)
+
+### Changed
+
+- **irmin-git**
+  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
+
+## 2.5.4 (2021-04-28)
+
+### Fixed
+
+- **irmin-pack**
+  - Revert a patch introduced in 2.3.0 which was calling `Index.try_merge`.
+    This function was supposed to hint index to schedule merges after
+    every commit. However, `Index.try_merge` is buggy and stacks merges
+    which causes the node to block and wait for any existing merge to
+    complete. We will revisit that feature in future once we fix
+    `Index.try_merge` (#1409, @CraigFe)
+
+- **irmin**
+  - Fix peformance issue in `Tree.update_tree` and `Tree.add_tree` for
+    large directories (#1315, @Ngoguey42)
+
+### Added
+
+- **irmin-pack**
+  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
 
 ## 2.5.3 (2021-04-13)
 
