@@ -76,5 +76,5 @@ let stable =
     ] )
 
 let () =
-  Irmin_test.Store.run "irmin-chunk" ~misc:[ simple; stable ]
+  Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
     [ (`Quick, Test_chunk.suite) ]

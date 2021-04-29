@@ -1,3 +1,23 @@
+## 2.6.0 (2021-04-13)
+
+### Fixed
+
+- **irmin**
+  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
+
+  - `Tree.of_concrete` now prunes empty subdirectories, and raises
+    `Invalid_argument` if the input contains duplicate bindings. (#1385,
+    @CraigFe)
+
+- **irmin-chunk**
+  - Use the pre_hash function to compute entry keys instead of
+    their raw binary representation (#1308, @samoht)
+
+### Changed
+
+- **irmin-git**
+  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
+
 ## 2.5.3 (2021-04-13)
 
 ### Fixed
