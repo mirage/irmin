@@ -50,6 +50,9 @@ module type S = sig
   val is_empty : t -> bool
   (** [is_empty t] is true iff [t] is {!empty}. *)
 
+  val length : t -> int
+  (** [length t] is the number of entries in [t]. *)
+
   val find : t -> step -> value option
   (** [find t s] is the value associated with [s] in [t].
 
