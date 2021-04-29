@@ -10,6 +10,10 @@
     complete. We will revisit that feature in future once we fix
     `Index.try_merge` (#1409, @CraigFe)
 
+- **irmin**
+  - Fix peformance issue in `Tree.update_tree` and `Tree.add_tree` for
+    large directories (#1315, @Ngoguey42)
+
 ### Added
 
 - **irmin-pack**
