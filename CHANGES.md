@@ -16,8 +16,8 @@
 ### Added
 
 - **irmin**
-   - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
-   - Add `Store.Tree.length`. (#1316, @Ngoguey42)
+   - Added `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
+   - Added `Store.Tree.length`. (#1316, @Ngoguey42)
 
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
@@ -141,7 +141,7 @@
 ### Added
 
 - **irmin**
-  - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+  - Added `Store.Tree.is_empty`. (#1373, @CraigFe)
 
 ## 2.5.2 (2021-04-08)
 
@@ -153,7 +153,7 @@
     directory.  (#1335, @craigfe)
 
 - **irmin-pack**
-  - Fix a performance regression where all caches where always cleaned by
+  - Fixed a performance regression where all caches were always cleaned by
     `Store.sync` when using the V1 format (#1360, @samoht)
 
 ## 2.5.1 (2021-02-19)
