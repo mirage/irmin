@@ -1,3 +1,24 @@
+## 2.5.4 (2021-04-28)
+
+### Fixed
+
+- **irmin-pack**
+  - Revert a patch introduced in 2.3.0 which was calling `Index.try_merge`.
+    This function was supposed to hint index to schedule merges after
+    every commit. However, `Index.try_merge` is buggy and stacks merges
+    which causes the node to block and wait for any existing merge to
+    complete. We will revisit that feature in future once we fix
+    `Index.try_merge` (#1409, @CraigFe)
+
+- **irmin**
+  - Fix peformance issue in `Tree.update_tree` and `Tree.add_tree` for
+    large directories (#1315, @Ngoguey42)
+
+### Added
+
+- **irmin-pack**
+  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+
 ## 2.5.3 (2021-04-13)
 
 ### Fixed
