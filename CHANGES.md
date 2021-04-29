@@ -1,6 +1,11 @@
+## 2.6.1 (2021-04-29)
+
+This release contains 2.6.0 plus the changes described in 2.5.4.
+
 ## 2.6.0 (2021-04-13)
 
-** Note: this release is based on 2.5.3, and does not contain 2.5.4. **
+** Note: this release is based on 2.5.3, and does not contain 2.5.4. Use 2.6.1
+for access to those changes. **
 
 ### Fixed
 
