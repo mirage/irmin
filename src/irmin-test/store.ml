@@ -1190,10 +1190,10 @@ module Make (S : S) = struct
           (`Tree
             [
               ("aa", c "0");
-              ("a", `Tree []);
+              ("a", c "1");
               ("bbb", c "3");
               ("b", c "3");
-              ("aaa", `Tree []);
+              ("aaa", c "1");
             ])
       in
       let* _ = S.set_tree_exn t ~info:(infof "add tree") [] tree in
@@ -1467,6 +1467,26 @@ module Make (S : S) = struct
           | Error (`Dangling_hash _) ->
               Alcotest.fail "unexpected dangling hash in wide node"))
       >>= fun () -> P.Repo.close repo
+    in
+    run x test
+
+  let test_commit_wide_node x () =
+    let test repo =
+      let size = 500_000 in
+      let c0 = S.Tree.empty in
+      let rec wide_node i c =
+        if i >= size then Lwt.return c
+        else
+          S.Tree.add c [ "foo"; string_of_int i ] (string_of_int i) >>= fun c ->
+          wide_node (i + 1) c
+      in
+      wide_node 0 c0 >>= fun c ->
+      S.master repo >>= fun t ->
+      S.set_tree_exn t [ "wide" ] ~info:(infof "commit_wide_nodes") c
+      >>= fun () ->
+      S.list t [ "wide"; "foo" ] >>= fun ls ->
+      Alcotest.(check int) "commit wide node list" size (List.length ls);
+      P.Repo.close repo
     in
     run x test
 
@@ -1977,42 +1997,57 @@ module Make (S : S) = struct
     run x test
 end
 
+let suite' l ?(prefix = "") (_, x) =
+  let (module S) = x.store in
+  let module T = Make (S) in
+  (prefix ^ x.name, l)
+
 let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
-  ( x.name,
+  suite'
+    ([
+       ("Basic operations on contents", speed, T.test_contents x);
+       ("Basic operations on nodes", speed, T.test_nodes x);
+       ("Basic operations on commits", speed, T.test_commits x);
+       ("Basic operations on branches", speed, T.test_branches x);
+       ("Hash operations on trees", speed, T.test_tree_hashes x);
+       ("Basic merge operations", speed, T.test_simple_merges x);
+       ("Basic operations on slices", speed, T.test_slice x);
+       ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
+       ("Tree caches and hashconsing", speed, T.test_tree_caches x);
+       ("Complex histories", speed, T.test_history x);
+       ("Empty stores", speed, T.test_empty x);
+       ("Private node manipulation", speed, T.test_private_nodes x);
+       ("High-level store operations", speed, T.test_stores x);
+       ("High-level operations on trees", speed, T.test_trees x);
+       ("High-level store synchronisation", speed, T.test_sync x);
+       ("High-level store merges", speed, T.test_merge x);
+       ("Unrelated merges", speed, T.test_merge_unrelated x);
+       ("Low-level concurrency", speed, T.test_concurrent_low x);
+       ("Concurrent updates", speed, T.test_concurrent_updates x);
+       ("with_tree strategies", speed, T.test_with_tree x);
+       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
+       ("Concurrent merges", speed, T.test_concurrent_merges x);
+       ("Shallow objects", speed, T.test_shallow_objects x);
+       ("Closure with disconnected commits", speed, T.test_closure x);
+       ("Clear", speed, T.test_clear x);
+     ]
+    @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
+    @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
+    (speed, x)
+
+let slow_suite (speed, x) =
+  let (module S) = x.store in
+  let module T = Make (S) in
+  suite' ~prefix:"SLOW_"
     [
-      ("Basic operations on contents", speed, T.test_contents x);
-      ("Basic operations on nodes", speed, T.test_nodes x);
-      ("Basic operations on commits", speed, T.test_commits x);
-      ("Basic operations on branches", speed, T.test_branches x);
-      ("Hash operations on trees", speed, T.test_tree_hashes x);
-      ("Basic merge operations", speed, T.test_simple_merges x);
-      ("Basic operations on slices", speed, T.test_slice x);
-      ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
-      ("Tree caches and hashconsing", speed, T.test_tree_caches x);
-      ("Complex histories", speed, T.test_history x);
-      ("Empty stores", speed, T.test_empty x);
-      ("Private node manipulation", speed, T.test_private_nodes x);
-      ("High-level store operations", speed, T.test_stores x);
-      ("High-level operations on trees", speed, T.test_trees x);
-      ("High-level store synchronisation", speed, T.test_sync x);
-      ("High-level store merges", speed, T.test_merge x);
-      ("Unrelated merges", speed, T.test_merge_unrelated x);
-      ("Low-level concurrency", speed, T.test_concurrent_low x);
-      ("Concurrent updates", speed, T.test_concurrent_updates x);
-      ("with_tree strategies", speed, T.test_with_tree x);
-      ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
-      ("Concurrent merges", speed, T.test_concurrent_merges x);
-      ("Shallow objects", speed, T.test_shallow_objects x);
-      ("Closure with disconnected commits", speed, T.test_closure x);
-      ("Clear", speed, T.test_clear x);
+      ("Commit wide node", speed, T.test_commit_wide_node x);
       ("Wide nodes", `Slow, T.test_wide_nodes x);
     ]
-    @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
-    @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests )
+    (speed, x)
 
 let layered_suite (speed, x) =
   ( "LAYERED_" ^ x.name,
@@ -2054,8 +2089,9 @@ let layered_suite (speed, x) =
           ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
         ] )
 
-let run name ~misc tl =
+let run name ?(slow = false) ~misc tl =
   Printexc.record_backtrace true;
   let tl1 = List.map suite tl in
+  let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
   let tl2 = List.map layered_suite tl in
   Alcotest.run name (tl1 @ tl2 @ misc)

@@ -594,7 +594,7 @@ struct
               k t
           | Some n ->
               let t = Ptr.target layout n in
-              add layout ~depth:(depth + 1) ~copy ~replace t s v
+              (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
               @@ fun target ->
               entries.(i) <- Some (Ptr.of_target layout target);
               let t = tree layout { depth; length; entries } in
