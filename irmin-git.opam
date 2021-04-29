@@ -18,7 +18,7 @@ depends: [
   "dune"       {>= "2.7.0"}
   "irmin"      {= version}
   "ppx_irmin"  {= version}
-  "git"        {>= "3.3.0"}
+  "git"        {>= "3.3.0" & < "3.4.0"}
   "digestif"   {>= "0.9.0"}
   "cstruct"
   "fmt"
