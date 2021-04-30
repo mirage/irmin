@@ -643,19 +643,147 @@ let misc_stats_folder header =
     be stored in [Trace_stat_summary.t]. Calling [Parallel_folders.finalise pf]
     will finalise all folders and pass their result to [construct]. *)
 let summarise' header block_count (row_seq : Def.row Seq.t) =
-  let ws = header.Def.word_size / 8 |> float_of_int in
   let lbs_folder_of_bag_getter value_of_bag =
     Linear_bag_stat_folder.create header block_count value_of_bag
   in
 
+  let pack_folder =
+    let construct finds cache_misses appended_hashes appended_offsets =
+      { finds; cache_misses; appended_hashes; appended_offsets }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi = float_of_int in
+      open_ construct
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.cache_misses)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_hashes)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_offsets)
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
+  let tree_folder =
+    let construct contents_hash contents_find contents_add node_hash node_mem
+        node_add node_find node_val_v node_val_find node_val_list =
+      {
+        contents_hash;
+        contents_find;
+        contents_add;
+        node_hash;
+        node_mem;
+        node_add;
+        node_find;
+        node_val_v;
+        node_val_find;
+        node_val_list;
+      }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi = float_of_int in
+      open_ construct
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_hash)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_find)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_add)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_hash)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_mem)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_add)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_find)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_v)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_find)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_list)
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
+  let index_folder =
+    let construct bytes_read nb_reads bytes_written nb_writes nb_merge
+        merge_durations =
+      {
+        bytes_read;
+        nb_reads;
+        bytes_written;
+        nb_writes;
+        nb_merge;
+        merge_durations;
+      }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi = float_of_int in
+      open_ construct
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_read)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_reads)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
+      |+ merge_durations_folder
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
+  let gc_folder =
+    let construct minor_words promoted_words major_words minor_collections
+        major_collections compactions major_heap_bytes major_heap_top_bytes =
+      {
+        minor_words;
+        promoted_words;
+        major_words;
+        minor_collections;
+        major_collections;
+        compactions;
+        major_heap_bytes;
+        major_heap_top_bytes;
+      }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi = float_of_int in
+      let ws = header.Def.word_size / 8 |> float_of_int in
+      open_ construct
+      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.minor_words)
+      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.promoted_words)
+      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.major_words)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.minor_collections)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.major_collections)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.compactions)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.heap_words *. ws)
+      |+ major_heap_top_bytes_folder header block_count
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
+  let disk_folder =
+    let construct index_data index_log index_log_async store_dict store_pack =
+      { index_data; index_log; index_log_async; store_dict; store_pack }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi64 = Int64.to_float in
+      open_ construct
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_data)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_log)
+      |+ lbs_folder_of_bag_getter (fun bag ->
+             ofi64 bag.Def.disk.index_log_async)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_dict)
+      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_pack)
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
   let construct (elapsed_wall, elapsed_cpu, op_count) elapsed_wall_over_blocks
-      elapsed_cpu_over_blocks ops finds cache_misses appended_hashes
-      appended_offsets contents_hash contents_find contents_add node_hash
-      node_mem node_add node_find node_val_v node_val_find node_val_list
-      bytes_read nb_reads bytes_written nb_writes nb_merge merge_durations
-      minor_words promoted_words major_words minor_collections major_collections
-      compactions major_heap_bytes major_heap_top_bytes index_data index_log
-      index_log_async store_dict store_pack watched_nodes =
+      elapsed_cpu_over_blocks ops pack tree index gc disk watched_nodes =
     {
       summary_hostname = Unix.gethostname ();
       summary_timeofday = Unix.gettimeofday ();
@@ -674,95 +802,27 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       elapsed_wall_over_blocks;
       elapsed_cpu_over_blocks;
       ops;
-      pack = { finds; cache_misses; appended_hashes; appended_offsets };
-      tree =
-        {
-          contents_hash;
-          contents_find;
-          contents_add;
-          node_hash;
-          node_mem;
-          node_add;
-          node_find;
-          node_val_v;
-          node_val_find;
-          node_val_list;
-        };
-      index =
-        {
-          bytes_read;
-          nb_reads;
-          bytes_written;
-          nb_writes;
-          nb_merge;
-          merge_durations;
-        };
-      gc =
-        {
-          minor_words;
-          promoted_words;
-          major_words;
-          minor_collections;
-          major_collections;
-          compactions;
-          major_heap_bytes;
-          major_heap_top_bytes;
-        };
-      disk = { index_data; index_log; index_log_async; store_dict; store_pack };
+      pack;
+      tree;
+      index;
+      gc;
+      disk;
       store = { watched_nodes };
     }
   in
 
   let pf0 =
     let open Utils.Parallel_folders in
-    let ofi = float_of_int in
-    let ofi64 = Int64.to_float in
     open_ construct
-    (* misc folders *)
     |+ misc_stats_folder header
     |+ elapsed_wall_over_blocks_folder header block_count
     |+ elapsed_cpu_over_blocks_folder header block_count
-    (* [ops] folder *)
     |+ Ops_folder.create header.initial_stats.timestamp_wall block_count
-    (* [pack] folders *)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.cache_misses)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_hashes)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_offsets)
-    (* [tree] folders *)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_hash)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_find)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_add)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_hash)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_mem)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_add)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_find)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_v)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_find)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_list)
-    (* [index] folders *)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_read)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_reads)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
-    |+ merge_durations_folder
-    (* [gc] folders *)
-    |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.minor_words)
-    |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.promoted_words)
-    |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.major_words)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.minor_collections)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.major_collections)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.compactions)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.heap_words *. ws)
-    |+ major_heap_top_bytes_folder header block_count
-    (* [disk] folders *)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_data)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_log)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_log_async)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_dict)
-    |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_pack)
-    (* [store] folder *)
+    |+ pack_folder
+    |+ tree_folder
+    |+ index_folder
+    |+ gc_folder
+    |+ disk_folder
     |+ Store_watched_nodes_folder.create block_count
     |> seal
   in
