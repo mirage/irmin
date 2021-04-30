@@ -1,0 +1,40 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+]
+
+depends: [
+  "dune"         {>= "2.7.0"}
+  "irmin-pack"   {= version}
+  "irmin-layers" {= version}
+  "irmin-test"   {= version}
+  "cmdliner"
+  "logs"
+  "lwt"
+  "ppx_deriving_yojson"
+  "yojson"
+  "memtrace"
+  "repr"         {>= "0.2.0"}
+  "ppx_repr"
+  "re"           {>= "1.9.0"}
+  "fmt"
+  "bentov"
+  "uuidm"
+  "progress"
+  "mtime"
+]
+
+synopsis: "Irmin benchmarking suite"
+description: """
+`irmin-bench` provides access to the Irmin suite for benchmarking storage backend
+implementations.
+"""
