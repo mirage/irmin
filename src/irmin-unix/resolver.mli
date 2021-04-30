@@ -47,10 +47,9 @@ module Store : sig
   type remote_fn =
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
-  type t =
-    | T : (module Irmin.S) * remote_fn option -> t
-        (** The type for store configurations. A configuration value contains:
-            the store implementation a creator of store's state and endpoint. *)
+  type t
+  (** The type for store configurations. A configuration value contains: the
+      store implementation a creator of store's state and endpoint. *)
 
   type store_functor =
     | Fixed_hash of (contents -> t)
@@ -65,6 +64,7 @@ module Store : sig
   val git : contents -> t
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
+  val destruct : t -> (module Irmin.S) * remote_fn option
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
@@ -77,7 +77,7 @@ val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 val load_config :
   ?default:Irmin.config ->
   store:string option ->
-  hash:string option ->
+  hash:hash option ->
   contents:string option ->
   unit ->
   Store.t * Irmin.config

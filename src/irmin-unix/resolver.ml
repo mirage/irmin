@@ -249,6 +249,8 @@ module Store = struct
 
   type t = T : (module Irmin.S) * remote_fn option -> t
 
+  let destruct (T (a, b)) = (a, b)
+
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
@@ -349,11 +351,15 @@ let rec read_config_file path =
   let global = if String.equal path home then [] else read_config_file home in
   if not (Sys.file_exists path) then global
   else
+    let () = Logs.debug (fun f -> f "Loading config from file: %s" path) in
     let oc = open_in path in
     let len = in_channel_length oc in
     let buf = really_input_string oc len in
     close_in oc;
-    match Yaml.of_string buf with Ok (`O y) -> y @ global | _ -> global
+    match Yaml.of_string buf with
+    | Ok (`O y) -> y @ global
+    | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
+    | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
 
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
@@ -380,48 +386,49 @@ type store =
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
       -> store
 
+let string_value = function `String s -> s | _ -> raise Not_found
+
+let assoc y name fn =
+  try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
+
 let load_config_file_with_defaults path (store, hash, contents) config =
   let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
-  let string_value = function `String s -> s | _ -> raise Not_found in
-  let assoc name fn =
-    try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
-  in
   let store =
     let store =
       match store with
       | Some s -> Store.find s
-      | None -> assoc "store" Store.find >>? fun () -> snd !Store.default
+      | None -> assoc y "store" Store.find >>? fun () -> snd !Store.default
     in
     let contents =
       match contents with
       | Some c -> Contents.find c
       | None ->
-          assoc "contents" Contents.find >>? fun () -> snd !Contents.default
+          assoc y "contents" Contents.find >>? fun () -> snd !Contents.default
     in
     match store with
     | Variable_hash s ->
         let hash : hash =
           hash >>? fun () ->
-          assoc "hash" Hash.find >>? fun () -> snd !Hash.default
+          assoc y "hash" Hash.find >>? fun () -> snd !Hash.default
         in
         s hash contents
     | Fixed_hash s -> (
         (* error if a hash function has been passed *)
-        match (hash, assoc "hash" Hash.find) with
+        match (hash, assoc y "hash" Hash.find) with
         | None, None -> s contents
         | _ ->
             Fmt.failwith
               "Cannot customize the hash function for the given store")
   in
-  let root = assoc "root" (fun x -> x) in
+  let root = assoc y "root" (fun x -> x) in
   let bare =
-    match assoc "bare" bool_of_string with
+    match assoc y "bare" bool_of_string with
     | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
     | Some b -> b
   in
-  let head = assoc "head" (fun x -> Git.Reference.v x) in
-  let uri = assoc "uri" Uri.of_string in
+  let head = assoc y "head" (fun x -> Git.Reference.v x) in
+  let uri = assoc y "uri" Uri.of_string in
   let add k v config = Irmin.Private.Conf.add config k v in
   ( store,
     Irmin.Private.Conf.empty
@@ -434,10 +441,6 @@ let load_config_file_with_defaults path (store, hash, contents) config =
 let from_config_file_with_defaults path (store, hash, contents) config branch :
     store =
   let y = read_config_file path in
-  let string_value = function `String s -> s | _ -> raise Not_found in
-  let assoc name fn =
-    try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
-  in
   let store, config =
     load_config_file_with_defaults path (store, hash, contents) config
   in
@@ -449,7 +452,7 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
         let of_string = Irmin.Type.of_string S.Branch.t in
         match branch with
         | None ->
-            assoc "branch" (fun x ->
+            assoc y "branch" (fun x ->
                 match of_string x with
                 | Ok x -> x
                 | Error (`Msg msg) -> failwith msg)
@@ -465,7 +468,6 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
 let load_config ?(default = Irmin.Private.Conf.empty) ~store ~hash ~contents ()
     =
   let cfg = Irmin.Private.Conf.get default config_path_key in
-  let hash = Option.map Hash.find hash in
   load_config_file_with_defaults cfg (store, hash, contents) default
 
 let branch =
