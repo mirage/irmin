@@ -118,7 +118,7 @@ struct
       else false
 
     let flush ?(index = true) ?(index_merge = false) t =
-      if index_merge then Index.try_merge t.pack.index;
+      if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
       if index then Index.flush ~no_callback:() t.pack.index;
@@ -232,7 +232,7 @@ struct
       let* r = f (cast t) in
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
-        flush ~index_merge:true t;
+        flush t;
         Lwt.return r)
 
     let auto_flush = 1024
@@ -261,11 +261,11 @@ struct
 
     let add t v =
       let k = Val.hash v in
-      unsafe_append ~ensure_unique:true ~overcommit:true t k v;
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
       Lwt.return k
 
     let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true ~overcommit:true t k v;
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
       Lwt.return ()
 
     let unsafe_close t =
