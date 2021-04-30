@@ -1,38 +1,9 @@
 ## Unreleased
 
-- **irmin-git**
-  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
-
-### Fixed
-
-- **irmin**
-  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
-    an empty subtree as a remove operation, rather than adding an empty
-    directory. (#1335, @craigfe)
-
-  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
-    false-negatives. (#1371, @CraigFe)
-
-  - `Tree.of_concrete` now prunes empty subdirectories, and raises
-    `Invalid_argument` if the input contains duplicate bindings. (#TODO,
-    @CraigFe)
-
-  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
-
-- **irmin-chunk**
-  - use the pre_hash function to compute entry keys instead of
-    their raw binary representation (#1308, @samoht)
-
-- **irmin-pack**
-  - Fix a performance regression where all caches where always cleaned by
-    `Store.sync` when using the V1 format (#1360, @samoht)
-
 ### Added
 
 - **irmin**
-   - Add `Store.Private.Node.Val.length`. (#1315, @Ngoguey42)
-   - Add `Store.Tree.length`. (#1316, @Ngoguey42)
-   - Add `Store.Tree.is_empty`. (#1373, @CraigFe)
+   - Added `Store.Tree.length`. (#1316, @Ngoguey42)
 
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
@@ -40,9 +11,6 @@
   - New features in benchmarks for tree operations (#1314, #1326, #1357,
     #1358, #1367, #1384, #1403 @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
-
-- **irmin-pack**
-  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
 
 - **irmin**
   - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
@@ -82,6 +50,8 @@
   - Rename `Irmin.Make_ext` into `Irmin.Maker_ext` ; stage its result to
     return  `Make` functor once provided with a content-addressable and an
     atomic-writes stores, as well as node and commit makers (#1369, @samoht)
+  - Require at least `lwt.5.3.0` to use `Lwt.Syntax` in the codebase
+    (#1401, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
@@ -141,6 +111,75 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+
+## 2.6.0 (2021-04-13)
+
+** Note: this release is based on 2.5.3, and does not contain 2.5.4. **
+
+### Fixed
+
+- **irmin**
+  - Fix stack overflow exception when working with wide trees (#1313, @zshipko)
+
+  - `Tree.of_concrete` now prunes empty subdirectories, and raises
+    `Invalid_argument` if the input contains duplicate bindings. (#1385,
+    @CraigFe)
+
+- **irmin-chunk**
+  - Use the pre_hash function to compute entry keys instead of
+    their raw binary representation (#1308, @samoht)
+
+### Changed
+
+- **irmin-git**
+  - Upgrade `irmin-git` with `git.3.4.0`. (#1392, @dinosaure)
+
+## 2.5.4 (2021-04-28)
+
+### Fixed
+
+- **irmin-pack**
+  - Revert a patch introduced in 2.3.0 which was calling `Index.try_merge`.
+    This function was supposed to hint index to schedule merges after
+    every commit. However, `Index.try_merge` is buggy and stacks merges
+    which causes the node to block and wait for any existing merge to
+    complete. We will revisit that feature in future once we fix
+    `Index.try_merge` (#1409, @CraigFe)
+
+- **irmin**
+  - Fix peformance issue in `Tree.update_tree` and `Tree.add_tree` for
+    large directories (#1315, @Ngoguey42)
+
+### Added
+
+- **irmin-pack**
+  - Expose internal inode trees (#1273, @mattiasdrp, @samoht)
+
+## 2.5.3 (2021-04-13)
+
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing equality functions derived from `Store.tree_t` to return
+    false-negatives. (#1371, @CraigFe)
+
+### Added
+
+- **irmin**
+  - Added `Store.Tree.is_empty`. (#1373, @CraigFe)
+
+## 2.5.2 (2021-04-08)
+
+### Fixed
+
+- **irmin**
+  - The `Tree.update_tree` and `Tree.add_tree` functions now interpret adding
+    an empty subtree as a remove operation, rather than adding an empty
+    directory.  (#1335, @craigfe)
+
+- **irmin-pack**
+  - Fixed a performance regression where all caches were always cleaned by
+    `Store.sync` when using the V1 format (#1360, @samoht)
 
 ## 2.5.1 (2021-02-19)
 

@@ -1,25 +1,42 @@
-open Lwt.Infix
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-let ( let* ) x f = Lwt.bind x f
-let ( let+ ) x f = Lwt.map f x
-let info = Irmin_unix.info
+(* example of using the tree API *)
 
+open Lwt.Syntax
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 module Tree = Store.Tree
+
+let info = Irmin_unix.info
 
 type t1 = int
 type t2 = { x : string; y : t1 }
 type t = t2 list
 
 let tree_of_t t =
-  Lwt_list.fold_left_s
-    (fun (v, i) t2 ->
-      let si = string_of_int i in
-      let* v = Tree.add v [ si; "x" ] t2.x in
-      let+ v = Tree.add v [ si; "y" ] (string_of_int t2.y) in
-      (v, i + 1))
-    (Tree.empty, 0) t
-  >|= fst
+  let+ tree, _ =
+    Lwt_list.fold_left_s
+      (fun (v, i) t2 ->
+        let si = string_of_int i in
+        let* v = Tree.add v [ si; "x" ] t2.x in
+        let+ v = Tree.add v [ si; "y" ] (string_of_int t2.y) in
+        (v, i + 1))
+      (Tree.empty, 0) t
+  in
+  tree
 
 let t_of_tree v =
   let aux acc i =
@@ -42,10 +59,10 @@ let main () =
   let* v = tree_of_t t in
   let* repo = Store.Repo.v config in
   let* t = Store.master repo in
-  Store.set_tree_exn t ~info:(info "update a/b") [ "a"; "b" ] v >>= fun () ->
+  let* () = Store.set_tree_exn t ~info:(info "update a/b") [ "a"; "b" ] v in
   let* v = Store.get_tree t [ "a"; "b" ] in
   let* tt = t_of_tree v in
-  Store.set_tree_exn t ~info:(info "update a/c") [ "a"; "c" ] v >>= fun () ->
+  let* () = Store.set_tree_exn t ~info:(info "update a/c") [ "a"; "c" ] v in
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
   let* vv = tree_of_t tt in
   Store.set_tree_exn t ~info:(info "merge tree into a/b") [ "a"; "b" ] vv

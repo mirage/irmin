@@ -1,3 +1,21 @@
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+open Lwt.Syntax
+open Astring
+
 let what =
   "This example demonstrates custom merges on Irmin datastructures.\n\n\
    It models log files as a sequence of lines, ordered by timestamps.\n\n\
@@ -8,9 +26,6 @@ let what =
   \  - remove the prefix `lca` from `branch 2`; this gives `l2`;\n\
   \  - interleave `l1` and `l2` by ordering the timestamps; This gives `l3`;\n\
   \  - concatenate `lca` and `l3`; This gives the final result."
-
-open Lwt.Infix
-open Astring
 
 let time = ref 0L
 let failure fmt = Fmt.kstrf failwith fmt
@@ -107,43 +122,45 @@ let info = Irmin_unix.info
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  Store.find t log_file >|= function None -> Log.empty | Some l -> l
+  let+ logs = Store.find t log_file in
+  match logs with None -> Log.empty | Some l -> l
 
 (** Persist a new entry in the log. Pretty inefficient as it reads/writes the
     whole file every time. *)
 let log t fmt =
   Printf.ksprintf
     (fun message ->
-      all_logs t >>= fun logs ->
+      let* logs = all_logs t in
       let logs = Log.add logs (Entry.v message) in
       Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
     fmt
 
 let print_logs name t =
-  all_logs t >|= fun logs ->
+  let+ logs = all_logs t in
   Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
 
 let main () =
   Config.init ();
-  Store.Repo.v config >>= fun repo ->
-  Store.master repo >>= fun t ->
+  let* repo = Store.Repo.v config in
+  let* t = Store.master repo in
+
   (* populate the log with some random messages *)
-  Lwt_list.iter_s
-    (fun msg -> log t "This is my %s " msg)
-    [ "first"; "second"; "third" ]
-  >>= fun () ->
+  let* () =
+    Lwt_list.iter_s
+      (fun msg -> log t "This is my %s " msg)
+      [ "first"; "second"; "third" ]
+  in
   Printf.printf "%s\n\n" what;
-  print_logs "lca" t >>= fun () ->
-  Store.clone ~src:t ~dst:"test" >>= fun x ->
-  log x "Adding new stuff to x" >>= fun () ->
-  log x "Adding more stuff to x" >>= fun () ->
-  log x "More. Stuff. To x." >>= fun () ->
-  print_logs "branch 1" x >>= fun () ->
-  log t "I can add stuff on t also" >>= fun () ->
-  log t "Yes. On t!" >>= fun () ->
-  print_logs "branch 2" t >>= fun () ->
-  Store.merge_into ~info:(info "Merging x into t") x ~into:t >>= function
-  | Ok () -> print_logs "merge" t
-  | Error _ -> failwith "conflict!"
+  let* () = print_logs "lca" t in
+  let* x = Store.clone ~src:t ~dst:"test" in
+  let* () = log x "Adding new stuff to x" in
+  let* () = log x "Adding more stuff to x" in
+  let* () = log x "More. Stuff. To x." in
+  let* () = print_logs "branch 1" x in
+  let* () = log t "I can add stuff on t also" in
+  let* () = log t "Yes. On t!" in
+  let* () = print_logs "branch 2" t in
+  let* r = Store.merge_into ~info:(info "Merging x into t") x ~into:t in
+  match r with Ok () -> print_logs "merge" t | Error _ -> failwith "conflict!"
 
 let () = Lwt_main.run (main ())

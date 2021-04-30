@@ -24,15 +24,16 @@ module Make (Log : Logs.LOG) (S : S) = struct
     let sleep_t = min sleep_t 1. in
     Lwt_unix.yield () >>= fun () -> Lwt_unix.sleep sleep_t
 
+  let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
+
   (* Re-apply [f] at intervals of [sleep_t] while [f] raises exceptions and
      [while_ ()] holds. *)
   let retry ?(timeout = 15.) ?(sleep_t = 0.) ~while_ fn =
     let sleep_t = max sleep_t 0.001 in
-    let time = Unix.gettimeofday in
-    let t = time () in
-    let str i = Fmt.strf "%d, %.3fs" i (time () -. t) in
+    let t = now_s () in
+    let str i = Fmt.strf "%d, %.3fs" i (now_s () -. t) in
     let rec aux i =
-      if time () -. t > timeout || not (while_ ()) then fn (str i);
+      if now_s () -. t > timeout || not (while_ ()) then fn (str i);
       try
         fn (str i);
         Lwt.return_unit

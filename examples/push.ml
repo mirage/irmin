@@ -1,6 +1,23 @@
-open Lwt.Infix
+(*
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-let ( let* ) x f = Lwt.bind x f
+(* Simple example of Git push *)
+
+open Lwt.Syntax
+
 let info = Irmin_unix.info
 
 let url, user, token =
@@ -26,12 +43,13 @@ let test () =
   let* tree = Store.get_tree t [] in
   let* tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
   let* tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
-  Store.set_tree_exn t ~info:(info "merge") [] tree >>= fun () ->
+  let* () = Store.set_tree_exn t ~info:(info "merge") [] tree in
   Printf.printf "%s\n%!" readme;
   let* bar = Store.get t [ "BAR.md" ] in
   Printf.printf "%s\n%!" bar;
   let* foo = Store.get t [ "FOO.md" ] in
   Printf.printf "%s\n%!" foo;
-  Sync.push_exn t remote >|= ignore
+  let+ _ = Sync.push_exn t remote in
+  ()
 
 let () = Lwt_main.run (test ())

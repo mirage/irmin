@@ -16,4 +16,4 @@
  (public_name irmin-test.bench)
  (modules Irmin_bench Rusage)
  (libraries fmt.tty fmt.cli cmdliner irmin logs.fmt logs.cli lwt lwt.unix
-   metrics metrics-unix))
+   metrics metrics-unix irmin-test))

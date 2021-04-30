@@ -16,3 +16,4 @@
 
 include Common
 module Store = Store
+module Common = Common
