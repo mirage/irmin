@@ -53,7 +53,9 @@ let opt_key k = key k (Irmin.Private.Conf.default k)
 let config_path_key =
   Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
     ~doc:"Allows configuration file to be specified on the command-line."
-    "config" Irmin.Private.Conf.string "irmin.yml"
+    "config"
+    Irmin.Private.Conf.(some string)
+    None
 
 let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
@@ -348,7 +350,17 @@ let config_root () =
 
 let rec read_config_file path =
   let home = config_root () / global_config_path in
-  let global = if String.equal path home then [] else read_config_file home in
+  let path =
+    match path with
+    | Some path ->
+        if (not (Sys.file_exists path)) && not (String.equal path home) then
+          Fmt.failwith "config file does not exist: %s" path
+        else path
+    | None -> "irmin.yml"
+  in
+  let global =
+    if String.equal path home then [] else read_config_file (Some home)
+  in
   if not (Sys.file_exists path) then global
   else
     let () = Logs.debug (fun f -> f "Loading config from file: %s" path) in
