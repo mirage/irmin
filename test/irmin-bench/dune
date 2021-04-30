@@ -1,6 +1,6 @@
 (executable
  (name test)
- (libraries alcotest alcotest-lwt irmin_traces))
+ (libraries alcotest irmin_traces))
 
 (rule
  (alias runtest)

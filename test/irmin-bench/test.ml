@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () = Lwt_main.run @@ Alcotest_lwt.run "irmin-bench" Ema.test_cases
+let () = Alcotest.run "irmin-bench" Ema.test_cases
