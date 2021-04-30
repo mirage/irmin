@@ -44,18 +44,19 @@ type contents = Contents.t
 (** {1 Global Configuration} *)
 
 module Store : sig
-  type t
-  (** The type for store configurations. A configuration value contains: the
-      store implementation a creator of store's state and endpoint. *)
+  type remote_fn =
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
-  (** The type of constructors of a store configuration. Depending on the
-      backend, a store may require a hash function. *)
+  type t =
+    | T : (module Irmin.S) * remote_fn option -> t
+        (** The type for store configurations. A configuration value contains:
+            the store implementation a creator of store's state and endpoint. *)
+
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
-
-  type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+        (** The type of constructors of a store configuration. Depending on the
+            backend, a store may require a hash function. *)
 
   val v : ?remote:remote_fn -> (module Irmin.S) -> t
   val mem : hash -> contents -> t
@@ -72,6 +73,14 @@ val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 (** Parse a remote store location. *)
 
 (** {1 Stores} *)
+
+val load_config :
+  ?default:Irmin.config ->
+  store:string option ->
+  hash:string option ->
+  contents:string option ->
+  unit ->
+  Store.t * Irmin.config
 
 type store =
   | S :

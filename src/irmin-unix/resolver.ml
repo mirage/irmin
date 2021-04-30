@@ -380,8 +380,7 @@ type store =
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
       -> store
 
-let from_config_file_with_defaults path (store, hash, contents) config branch :
-    store =
+let load_config_file_with_defaults path (store, hash, contents) config =
   let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
   let string_value = function `String s -> s | _ -> raise Not_found in
@@ -415,22 +414,32 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
             Fmt.failwith
               "Cannot customize the hash function for the given store")
   in
-  let config =
-    let root = assoc "root" (fun x -> x) in
-    let bare =
-      match assoc "bare" bool_of_string with
-      | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
-      | Some b -> b
-    in
-    let head = assoc "head" (fun x -> Git.Reference.v x) in
-    let uri = assoc "uri" Uri.of_string in
-    let add k v config = Irmin.Private.Conf.add config k v in
+  let root = assoc "root" (fun x -> x) in
+  let bare =
+    match assoc "bare" bool_of_string with
+    | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
+    | Some b -> b
+  in
+  let head = assoc "head" (fun x -> Git.Reference.v x) in
+  let uri = assoc "uri" Uri.of_string in
+  let add k v config = Irmin.Private.Conf.add config k v in
+  ( store,
     Irmin.Private.Conf.empty
     |> add_opt Irmin.Private.Conf.root root
     |> add Irmin_git.Conf.bare bare
     |> add_opt Irmin_git.Conf.head head
     |> add_opt Irmin_http.uri uri
-    |> Irmin.Private.Conf.union config
+    |> Irmin.Private.Conf.union config )
+
+let from_config_file_with_defaults path (store, hash, contents) config branch :
+    store =
+  let y = read_config_file path in
+  let string_value = function `String s -> s | _ -> raise Not_found in
+  let assoc name fn =
+    try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
+  in
+  let store, config =
+    load_config_file_with_defaults path (store, hash, contents) config
   in
   match store with
   | Store.T ((module S), remote) -> (
@@ -452,6 +461,12 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       match branch with
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
+
+let load_config ?(default = Irmin.Private.Conf.empty) ~store ~hash ~contents ()
+    =
+  let cfg = Irmin.Private.Conf.get default config_path_key in
+  let hash = Option.map Hash.find hash in
+  load_config_file_with_defaults cfg (store, hash, contents) default
 
 let branch =
   let doc =
