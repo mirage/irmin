@@ -158,21 +158,24 @@ module Resample = struct
         `Inside where_in_interval)
       else `After
 
-  type acc =
-    [ `Interpolate | `Next_neighbor ]
-    * int
-    * int
-    * int
-    * int
-    * float
-    * float list
+  type acc = {
+    mode : [ `Interpolate | `Next_neighbor ];
+    len0 : int;
+    len1 : int;
+    i0 : int;
+    i1 : int;
+    prev_v0 : float;
+    rev_samples : curve;
+  }
 
   let create_acc mode ~len0 ~len1 ~v00 =
+    let mode = (mode :> [ `Interpolate | `Next_neighbor ]) in
     if len0 < 2 then invalid_arg "Can't resample curves below 2 points";
     if len1 < 2 then invalid_arg "Can't resample curves below 2 points";
-    (mode, len0, len1, 1, 1, v00, [ v00 ])
+    { mode; len0; len1; i0 = 1; i1 = 1; prev_v0 = v00; rev_samples = [ v00 ] }
 
-  let accumulate (mode, len0, len1, i0, i1, prev_v0, rev_samples) v0 =
+  let accumulate ({ mode; len0; len1; i0; i1; prev_v0; rev_samples } as acc) v0
+      =
     assert (i0 >= 1);
     assert (i1 >= 1);
     if i0 >= len0 then failwith "Accumulate called to much";
@@ -197,9 +200,9 @@ module Resample = struct
           (i1, rev_samples)
     in
     let i1, rev_samples = aux i1 rev_samples in
-    (mode, len0, len1, i0 + 1, i1, v0, rev_samples)
+    { acc with i0 = i0 + 1; i1; prev_v0 = v0; rev_samples }
 
-  let finalise (_, _, len1, _, _, _, rev_samples) =
+  let finalise { len1; rev_samples; _ } =
     if List.length rev_samples <> len1 then failwith "Finalise called too soon";
     List.rev rev_samples
 
