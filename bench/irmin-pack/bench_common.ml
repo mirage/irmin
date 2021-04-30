@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Export_for_backends
+open Lwt.Syntax
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
@@ -46,8 +46,11 @@ let reset_stats () =
   Irmin_pack.Stats.reset_stats ()
 
 let random_char () = char_of_int (Random.int 256)
+
 let random_string n = String.init n (fun _i -> random_char ())
+
 let random_blob () = random_string 10 |> Bytes.of_string
+
 let random_key () = random_string 5
 
 let default_artefacts_dir =
@@ -86,6 +89,7 @@ let with_progress_bar ~message ~n ~unit =
 
 module Conf = struct
   let entries = 32
+
   let stable_hash = 256
 end
 
@@ -99,6 +103,7 @@ module FSHelper = struct
     try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
 
   let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
+
   let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
 
   let index root =
@@ -109,6 +114,7 @@ module FSHelper = struct
     (a + b + c) / 1024 / 1024
 
   let size root = dict root + pack root + index root
+
   let get_size root = size root
 
   let print_size_layers root =
@@ -125,7 +131,7 @@ module FSHelper = struct
       let cmd = Printf.sprintf "rm -rf %s" root in
       Logs.info (fun l -> l "exec: %s" cmd);
       let _ = Sys.command cmd in
-      ())
+      () )
 end
 
 module Generate_trees

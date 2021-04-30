@@ -14,8 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
+open Lwt.Syntax
 open Bench_common
-open Irmin.Export_for_backends
 open Irmin_traces
 
 type config = {
@@ -42,7 +43,9 @@ module type Store = sig
   include Irmin.KV with type contents = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
+
   type on_end := unit -> unit Lwt.t
+
   type pp := Format.formatter -> unit
 
   val create_repo : config -> (Repo.t * on_commit * on_end * pp) Lwt.t
@@ -131,7 +134,7 @@ module Bootstrap_trace = struct
         | hd :: "delegated" :: a :: b :: c :: d :: e :: f :: tl
           when all_6_2char_hex a b c d e f ->
             "data" :: "contracts" :: "index" :: hd :: "delegated" :: tl
-        | _ -> "data" :: "contracts" :: "index" :: tl)
+        | _ -> "data" :: "contracts" :: "index" :: tl )
     | "data" :: "big_maps" :: "index" :: a :: b :: c :: d :: e :: f :: tl
       when all_6_2char_hex a b c d e f ->
         "data" :: "big_maps" :: "index" :: tl
@@ -430,13 +433,13 @@ module Trace_replay (Store : Store) = struct
           Stat_collector.close stats;
           if not config.no_summary then (
             Logs.app (fun l -> l "Computing summary...");
-            Some (Trace_stat_summary.summarise ~block_count stat_path))
+            Some (Trace_stat_summary.summarise ~block_count stat_path) )
           else None)
         (fun () ->
           if config.keep_stat_trace then (
             Logs.app (fun l -> l "Stat trace kept at %s" stat_path);
             Unix.chmod stat_path 0o444;
-            Lwt.return_unit)
+            Lwt.return_unit )
           else Lwt.return (Stat_collector.remove stats))
     in
     match summary_opt with
@@ -535,25 +538,15 @@ module Bench_suite (Store : Store) = struct
   let run_read_trace = Trace_replay.run
 end
 
-
 module Make_store_pack (Conf : sig
   val entries : int
+
   val stable_hash : int
 end) =
 struct
   open Tezos_context_hash.Encoding
-
   module Store =
-    Irmin_pack.Make_ext
-      (struct
-        let io_version = `V1
-      end)
-      (Conf)
-      (Metadata)
-      (Contents)
-      (Path)
-      (Branch)
-      (Hash)
+    Irmin_pack.Make_ext (Conf) (Metadata) (Contents) (Path) (Branch) (Hash)
       (Node)
       (Commit)
 
@@ -572,7 +565,9 @@ module Make_store_layered = Make_store_pack
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t
+
   val run_chains : config -> (Format.formatter -> unit) Lwt.t
+
   val run_read_trace : config -> (Format.formatter -> unit) Lwt.t
 end
 
@@ -580,6 +575,7 @@ let store_of_config config =
   let entries, stable_hash = config.inode_config in
   let module Conf = struct
     let entries = entries
+
     let stable_hash = stable_hash
   end in
   match config.store_type with
@@ -733,7 +729,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
              ro (config.store_dir / "store.pack");
              ro (config.store_dir / "index" / "data");
              ro (config.store_dir / "index" / "log");
-             ro (config.store_dir / "index" / "log_async"))
+             ro (config.store_dir / "index" / "log_async") )
            else FSHelper.rm_dir config.store_dir;
            Lwt.return_unit))
   in

@@ -66,11 +66,12 @@ module Make_stat (Store : Irmin.KV) = struct
           node_val_list = v.node_val_list;
         }
 
-    let index prev_nb_merge =
+    let index _prev_nb_merge =
       let open Index.Stats in
       let v = get () in
-      let new_merge_durations =
-        match prev_nb_merge with
+      let new_merge_durations = [] in
+      (*
+      match prev_nb_merge with
         | None -> []
         | Some prev_nb_merge ->
             let nb_merge = v.nb_merge in
@@ -91,7 +92,7 @@ module Make_stat (Store : Irmin.KV) = struct
             let l = aux prev_nb_merge in
             assert (prev_nb_merge + List.length l = nb_merge);
             l
-      in
+     *)
       let new_merge_durations =
         List.map (fun v -> v /. 1e6) new_merge_durations
       in
@@ -180,8 +181,11 @@ module Make_stat (Store : Irmin.KV) = struct
     }
 
   let flush { writer; _ } = Def.flush writer
+
   let close { writer; _ } = Def.close writer
+
   let remove { writer; _ } = Def.remove writer
+
   let short_op_begin t = t.t0 <- Mtime_clock.counter ()
 
   let short_op_end { t0; writer; _ } short_op =
@@ -218,7 +222,7 @@ module Make_stat (Store : Irmin.KV) = struct
               | `Node _tree ->
                   (* let* length = Store.Tree.length tree in *)
                   Lwt.return 0
-              | `Contents _ -> Lwt.return 0))
+              | `Contents _ -> Lwt.return 0 ))
         Def.step_list_per_watched_node
     in
     Lwt.return Def.{ watched_nodes_length }

@@ -32,8 +32,8 @@
 
     The duration of a {e buildup} can be split into 2 parts: 1. the time spend
     in each operation and 2. the sum of the time spent between, before and after
-    all operations. The first being the {e seen buildup} and the second the
-    {e unseen buildup}.
+    all operations. The first being the {e seen buildup} and the second the {e
+    unseen buildup}.
 
     The total duration of a block is the sum of the durations of the {e commit},
     the {e seen buildup} and the {e unseen buildup}.
@@ -82,13 +82,13 @@ module Op = struct
     [@@deriving repr, enum]
 
     let to_string v =
-      match String.split_on_char '"' (Irmin.Type.to_string t v) with
+      match String.split_on_char '"' (Repr.to_string t v) with
       | [ ""; s; "" ] -> s |> String.lowercase_ascii
       | _ -> failwith "Could not encode op name to json"
 
     let of_string s =
       let s = "\"" ^ String.capitalize_ascii s ^ "\"" in
-      match Irmin.Type.of_string t s with Ok v -> Ok v | Error _ as e -> e
+      match Repr.of_string t s with Ok v -> Ok v | Error _ as e -> e
   end
 
   module Val = struct
@@ -116,7 +116,7 @@ module Op = struct
 
   type map = Val.t Map.t
 
-  let map_t : map Irmin.Type.t =
+  let map_t : map Repr.t =
     let encode map =
       Map.bindings map |> List.map (fun (k, v) -> (Key.to_string k, v))
     in
@@ -131,7 +131,7 @@ module Op = struct
       |> List.to_seq
       |> Map.of_seq
     in
-    Irmin.Type.(map (Json.assoc Val.t) decode encode)
+    Repr.(map (Json.assoc Val.t) decode encode)
 end
 
 module Watched_node = struct
@@ -139,13 +139,13 @@ module Watched_node = struct
     type t = Def.watched_node [@@deriving repr]
 
     let to_string v =
-      match String.split_on_char '"' (Irmin.Type.to_string t v) with
+      match String.split_on_char '"' (Repr.to_string t v) with
       | [ ""; s; "" ] -> s |> String.lowercase_ascii
       | _ -> failwith "Could not encode op name to json"
 
     let of_string s =
       let s = "\"" ^ String.capitalize_ascii s ^ "\"" in
-      match Irmin.Type.of_string t s with Ok v -> Ok v | Error _ as e -> e
+      match Repr.of_string t s with Ok v -> Ok v | Error _ as e -> e
   end
 
   module Val = struct
@@ -160,7 +160,7 @@ module Watched_node = struct
 
   type map = Val.t Map.t
 
-  let map_t : map Irmin.Type.t =
+  let map_t : map Repr.t =
     let encode map =
       Map.bindings map |> List.map (fun (k, v) -> (Key.to_string k, v))
     in
@@ -175,7 +175,7 @@ module Watched_node = struct
       |> List.to_seq
       |> Map.of_seq
     in
-    Irmin.Type.(map (Json.assoc Val.t) decode encode)
+    Repr.(map (Json.assoc Val.t) decode encode)
 end
 
 type linear_bag_stat = {
@@ -827,7 +827,7 @@ let summarise ?block_count trace_stat_path =
 (* Section 4/4 - Conversion from summary to json file *)
 
 let save_to_json v path =
-  let j = Fmt.strf "%a\n" (Irmin.Type.pp_json t) v in
+  let j = Fmt.strf "%a\n" (Repr.pp_json t) v in
   let chan = open_out path in
   output_string chan j;
   Logs.app (fun l -> l "Summary saved to %s" path);

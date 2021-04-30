@@ -113,3 +113,18 @@ module Stats = Stats
 module Private : sig
   module Inode = Inode
 end
+
+module Layout : sig
+  type path := root:string -> string
+
+  val toplevel : string -> path
+  (** A file in the top-level directory of a store *)
+
+  val pack : path
+
+  val branch : path
+
+  val dict : path
+
+  val stores : root:string -> string list
+end
