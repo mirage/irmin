@@ -47,6 +47,9 @@ module Exponential_moving_average = struct
     if step_count < 0. then invalid_arg "Wront step count";
     step_count *. hl_ratio |> from_half_life ?relevance_threshold
 
+  let momentum ema = ema.momentum
+  let hidden_state ema = ema.hidden_state
+  let void_fraction ema = ema.void_fraction
   let is_relevant ema = ema.void_fraction < ema.relevance_threshold
 
   let peek_exn ema =

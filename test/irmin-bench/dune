@@ -1,0 +1,9 @@
+(executable
+ (name test)
+ (libraries alcotest alcotest-lwt irmin_traces))
+
+(rule
+ (alias runtest)
+ (package irmin-bench)
+ (action
+  (run ./test.exe -q --color=always)))

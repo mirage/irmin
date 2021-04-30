@@ -53,13 +53,12 @@ module Exponential_moving_average : sig
 
       {3 Commutativity}
 
-      Multiplying or adding together two curves independently built with an EMA,
-      is equivalent to multiplying or adding the samples beforehand, and using a
-      single EMA.
+      Adding together two curves independently built with an EMA, is equivalent
+      to adding the samples beforehand, and using a single EMA.
 
       In a more more formal way:
 
-      Let [v], [scale] and [shift] be vectors of real values of similar length.
+      Let [a], [b] be vectors of real values of similar length.
 
       Let [ema(x)] be the [Exponential_moving_average.map momentum] function
       ([float list -> float list]);
@@ -67,11 +66,12 @@ module Exponential_moving_average : sig
       Let [*], [+] and [/] be the element-wise vector multiplication, addition
       and division.
 
-      Then [ema(v * scale + shift)] is [ema(v) * ema(scale) + ema(shift)].
+      Then [ema(a + b)] is [ema(a) + ema(b)].
 
-      The same is not true for division, [ema(a / b)] is not [ema(a) / ema(b)],
-      but [exp(ema(log(a / b)))] is [exp(ema(log(a))) / exp(ema(log(b)))] when
-      all values in [a] and [b] are strictly greater than 0. *)
+      The same is not true for multiplication and division, [ema(a * b)] is not
+      [ema(a) * ema(b)], but [exp(ema(log(a * b)))] is
+      [exp(ema(log(a))) * exp(ema(log(b)))] when all values in [a] and [b] are
+      strictly greater than 0. *)
 
   val from_half_life : ?relevance_threshold:float -> float -> t
   (** [from_half_life hl] is [ema], a functional exponential moving average.
@@ -113,6 +113,10 @@ module Exponential_moving_average : sig
 
   val peek_or_nan : t -> float
   (** Read the EMA value. *)
+
+  val momentum : t -> float
+  val hidden_state : t -> float
+  val void_fraction : t -> float
 end
 
 (** This [Resample] module offers 3 ways to resample a 1d vector:
