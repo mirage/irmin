@@ -135,7 +135,29 @@ end
 
 (** Trace of a tezos node run, or a replay run.
 
-    May summarised to a JSON file. *)
+    May summarised to a JSON file.
+
+    {3 Implicitly Auto-Upgradable File Format}
+
+    The stat trace has these two properties:
+
+    - It supports extensions, in order to change or add new stats in the future.
+    - Old trace files from old versions are still readable.
+
+    There are multiple reasons for wanting compatibility with old versions:
+
+    - Because one of the goal of the benchmarks is to assess the evolution of
+      performances across distant versions of irmin, we need stability in order
+      to avoid recomputing everything every time.
+    - When those traces will be produced by Tezos nodes, we have no control over
+      the version of those traces.
+
+    For this system to work, the "decoding shape" of a version of the stat trace
+    shouldn't ever change (once fixed). The way the trace is built for a version
+    should be stable too.
+
+    To modify something in the definition or the collection: append a new
+    version. *)
 module Stat_trace = struct
   module V0 = struct
     type float32 = int32 [@@deriving repr]
