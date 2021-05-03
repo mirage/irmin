@@ -20,7 +20,7 @@
   - Benchmarks for tree operations now support layered stores
     (#1293, @Ngoguey42)
   - New features in benchmarks for tree operations (#1314, #1326, #1357,
-    #1358, #1367, #1384, #1403, #1404, #1416, #1430 @Ngoguey42)
+    #1358, #1367, #1384, #1403, #1404, #1416, #1429, #1430 @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
 
 - **irmin**

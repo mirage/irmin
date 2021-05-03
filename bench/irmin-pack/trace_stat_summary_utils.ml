@@ -116,6 +116,85 @@ let pp_percent ppf v =
     Format.fprintf ppf "%ce%cx" long_repr.[0] long_repr.[4])
   else Format.fprintf ppf "++++"
 
+let weekly_stats = Tezos_history_metrics.weekly_stats
+
+let approx_value_count_of_block_count value_of_row ?(first_block_idx = 0)
+    wished_block_count =
+  let end_block_idx = first_block_idx + wished_block_count in
+  let blocks_of_row (_, _, _, v) = v in
+  let fold (week_block0_idx, acc_value, acc_blocks) row =
+    let week_blocks = blocks_of_row row in
+    let week_value = value_of_row row in
+    assert (acc_blocks <= wished_block_count);
+    let nextweek_block0_idx = week_block0_idx + week_blocks in
+    let kept_block_count =
+      let left =
+        if first_block_idx >= nextweek_block0_idx then `After
+        else if first_block_idx <= week_block0_idx then `Before
+        else `Inside
+      in
+      let right =
+        if end_block_idx >= nextweek_block0_idx then `After
+        else if end_block_idx <= week_block0_idx then `Before
+        else `Inside
+      in
+      match (left, right) with
+      | `After, `After -> 0
+      | `Before, `Before -> 0
+      | `Before, `After -> week_blocks
+      | `Inside, `After -> first_block_idx - week_block0_idx
+      | `Inside, `Inside -> end_block_idx - first_block_idx
+      | `Before, `Inside -> wished_block_count - acc_blocks
+      | `Inside, `Before -> assert false
+      | `After, (`Before | `Inside) -> assert false
+    in
+    assert (kept_block_count >= 0);
+    assert (kept_block_count <= week_blocks);
+    let kept_tx_count =
+      let f = float_of_int in
+      f week_value /. f week_blocks *. f kept_block_count
+      |> Float.round
+      |> int_of_float
+    in
+    assert (kept_tx_count >= 0);
+    assert (kept_tx_count <= week_value);
+    let acc_blocks' = acc_blocks + kept_block_count in
+    let acc_value' = acc_value + kept_tx_count in
+    (nextweek_block0_idx, acc_value', acc_blocks')
+  in
+  let _, acc_value, acc_blocks = List.fold_left fold (0, 0, 0) weekly_stats in
+  assert (acc_blocks <= wished_block_count);
+  if acc_blocks = wished_block_count then acc_value
+  else
+    (* Extrapolate for the following weeks *)
+    let latest_weeks_tx_count, latest_weeks_block_count =
+      match List.rev weekly_stats with
+      | rowa :: rowb :: rowc :: _ ->
+          let value =
+            List.map value_of_row [ rowa; rowb; rowc ] |> List.fold_left ( + ) 0
+          in
+          let blocks =
+            List.map blocks_of_row [ rowa; rowb; rowc ]
+            |> List.fold_left ( + ) 0
+          in
+          (value, blocks)
+      | _ -> assert false
+    in
+    let missing_blocks = wished_block_count - acc_blocks in
+    let missing_value =
+      let f = float_of_int in
+      f latest_weeks_tx_count /. f latest_weeks_block_count *. f missing_blocks
+      |> Float.round
+      |> int_of_float
+    in
+    acc_value + missing_value
+
+let approx_transaction_count_of_block_count =
+  approx_value_count_of_block_count (fun (_, txs, _, _) -> txs)
+
+let approx_operation_count_of_block_count =
+  approx_value_count_of_block_count (fun (_, _, ops, _) -> ops)
+
 module Exponential_moving_average = struct
   type t = {
     momentum : float;

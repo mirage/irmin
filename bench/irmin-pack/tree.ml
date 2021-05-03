@@ -562,8 +562,8 @@ let () =
         "Trace with $(b,100066) commits \
          http://data.tarides.com/irmin/data4_100066commits.repr";
       `P
-        "Trace with $(b,654941) commits \
-         http://data.tarides.com/irmin/data4_654941commits.repr";
+        "Trace with $(b,1343496) commits \
+         http://data.tarides.com/irmin/data_1343496commits.repr";
     ]
   in
   let info = Term.info ~man ~doc:"Benchmarks for tree operations" "tree" in

@@ -37,7 +37,7 @@ val create_pp_seconds : float list -> Format.formatter -> float -> unit
     that adapts to the [examples] shown to it.
 
     It is highly recommended, but not mandatory, for all the numbers passed to
-    [pp_seconds] to be included [examples]. *)
+    [pp_seconds] to be included in [examples]. *)
 
 val pp_percent : Format.formatter -> float -> unit
 (** Pretty prints a percent in a way that always takes 4 chars.
@@ -47,6 +47,9 @@ val pp_percent : Format.formatter -> float -> unit
     ["4e6x"] and [1e100] is ["++++"].
 
     Negative inputs are undefined. *)
+
+val approx_transaction_count_of_block_count : ?first_block_idx:int -> int -> int
+val approx_operation_count_of_block_count : ?first_block_idx:int -> int -> int
 
 (** Functional Exponential Moving Average (EMA). *)
 module Exponential_moving_average : sig
