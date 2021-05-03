@@ -242,7 +242,6 @@ module Make (S : S) = struct
       let* n3 = with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1)) in
       assert_no_duplicates "4" n3 >>= fun () ->
       S.Repo.close repo >>= fun () ->
-      Fmt.epr "XXX CLOSE\n%!";
       Lwt.catch
         (fun () ->
           let* n0 = with_node repo (fun g -> Graph.v g []) in
@@ -462,13 +461,7 @@ module Make (S : S) = struct
             let* empty = Graph.empty g in
             Lwt_list.fold_left_s
               (fun t (k, v) ->
-                Fmt.epr "XXX Contents.add\n%!";
-                let* v =
-                  with_contents repo (fun t ->
-                      Fmt.epr "XXX E\n%!";
-                      P.Contents.add t v)
-                in
-                Fmt.epr "XXX Contents.add OK!\n%!";
+                let* v = with_contents repo (fun t -> P.Contents.add t v) in
                 Graph.add g t k (`Contents (v, S.Metadata.default)))
               empty bindings)
       in
@@ -478,17 +471,13 @@ module Make (S : S) = struct
           S.Tree.empty bindings
       in
       let check_hash msg bindings =
-        Fmt.epr "XXX A\n%!";
         let* node = node bindings in
-        Fmt.epr "XXX B\n%!";
         let+ tree = tree bindings in
         check S.Hash.t msg node (S.Tree.hash tree)
       in
       check_hash "empty" [] >>= fun () ->
-      Fmt.epr "XXX XXX 0\n%!";
       let bindings1 = [ ([ "a" ], "x"); ([ "b" ], "y") ] in
       check_hash "1 level" bindings1 >>= fun () ->
-      Fmt.epr "XXX XXX 1\n%!";
       let bindings2 = [ ([ "a"; "b" ], "x"); ([ "a"; "c" ], "y") ] in
       check_hash "2 levels" bindings2 >>= fun () -> S.Repo.close repo
     in

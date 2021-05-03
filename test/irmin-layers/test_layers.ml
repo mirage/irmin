@@ -26,7 +26,7 @@ module Maker = Irmin_layers_pack.Maker (Config)
 let test_dir = Filename.concat "_build" "test-db-layers"
 
 let config =
-  let conf = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+  let conf = Irmin_pack.config ~lru_size:0 test_dir in
   Irmin_layers_pack.config ~conf ~with_lower:true ~blocking_copy_size:1000 ()
 
 let clean () = Lwt.return ()
@@ -44,7 +44,7 @@ module Store = struct
     Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
       (Irmin.Path.String_list)
       (Irmin.Branch.String)
-      (Irmin.Hash.BLAKE2B)
+      (Irmin.Hash.SHA1)
 
   let gc_hook = Some (fun repo max -> freeze repo ~max_lower:max)
 end

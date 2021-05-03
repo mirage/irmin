@@ -72,6 +72,7 @@ struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
+      Log.debug (fun l -> l "[pack] close %s" (IO.name t.block));
       if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
       Dict.close t.dict)
@@ -272,7 +273,6 @@ struct
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
       if t.open_instances = 0 then (
-        Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
         Tbl.clear t.staging;
         Lru.clear t.lru;
         close t.pack)

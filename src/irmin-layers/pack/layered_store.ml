@@ -274,6 +274,7 @@ struct
     U.offset current
 
   let flip_upper t =
+    (* FIXME: display the store kind. *)
     Log.debug (fun l -> l "flip_upper to %a" pp_next_upper t);
     t.flip <- not t.flip
 
