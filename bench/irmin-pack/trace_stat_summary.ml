@@ -164,7 +164,8 @@ module Watched_node = struct
 end
 
 type linear_bag_stat = {
-  value : Vs.t;
+  value_before_commit : Vs.t;
+  value_after_commit : Vs.t;
   diff_per_block : Vs.t;
   diff_per_buildup : Vs.t;
   diff_per_commit : Vs.t;
@@ -201,6 +202,7 @@ type index = {
   bytes_written : linear_bag_stat;
   nb_writes : linear_bag_stat;
   nb_merge : linear_bag_stat;
+  cumu_data_bytes : linear_bag_stat;
   merge_durations : float list;
 }
 [@@deriving repr]
@@ -414,18 +416,26 @@ end
       linear scale - as opposed to a log scale. *)
 module Linear_bag_stat_folder = struct
   type acc = {
-    value : Vs.acc;
+    value_before_commit : Vs.acc;
+    value_after_commit : Vs.acc;
     diff_per_block : Vs.acc;
     diff_per_buildup : Vs.acc;
     diff_per_commit : Vs.acc;
     prev_value : float;
+    (* constants *)
     value_of_bag : Def.bag_of_stats -> float;
+    should_cumulate_value : bool;
   }
 
-  let create_acc header block_count value_of_bag =
+  let create_acc ?(should_cumulate_value = false) header block_count
+      value_of_bag =
     let value_in_header = value_of_bag header.Def.initial_stats in
-    let value = create_vs_exact block_count in
-    let value = Vs.accumulate value [ value_in_header ] in
+    let value_before_commit = create_vs_exact block_count in
+    let value_before_commit = Vs.accumulate value_before_commit [] in
+    let value_after_commit = create_vs_exact block_count in
+    let value_after_commit =
+      Vs.accumulate value_after_commit [ value_in_header ]
+    in
     let diff_per_block = create_vs_smooth block_count in
     let diff_per_block = Vs.accumulate diff_per_block [] in
     let diff_per_buildup = create_vs_smooth block_count in
@@ -433,12 +443,14 @@ module Linear_bag_stat_folder = struct
     let diff_per_commit = create_vs_smooth block_count in
     let diff_per_commit = Vs.accumulate diff_per_commit [] in
     {
-      value;
+      value_before_commit;
+      value_after_commit;
       diff_per_block;
       diff_per_buildup;
       diff_per_commit;
       prev_value = value_in_header;
       value_of_bag;
+      should_cumulate_value;
     }
 
   let accumulate acc row =
@@ -446,10 +458,18 @@ module Linear_bag_stat_folder = struct
     | `Commit c ->
         let va = acc.value_of_bag c.Def.before in
         let vb = acc.value_of_bag c.Def.after in
+        let va, vb =
+          if acc.should_cumulate_value then
+            (acc.prev_value +. va, acc.prev_value +. va +. vb)
+          else (va, vb)
+        in
         let diff_block = vb -. acc.prev_value in
         let diff_buildup = va -. acc.prev_value in
         let diff_commit = vb -. va in
-        let value = Vs.accumulate acc.value [ vb ] in
+        let value_before_commit =
+          Vs.accumulate acc.value_before_commit [ va ]
+        in
+        let value_after_commit = Vs.accumulate acc.value_after_commit [ vb ] in
         let diff_per_block = Vs.accumulate acc.diff_per_block [ diff_block ] in
         let diff_per_buildup =
           Vs.accumulate acc.diff_per_buildup [ diff_buildup ]
@@ -457,9 +477,11 @@ module Linear_bag_stat_folder = struct
         let diff_per_commit =
           Vs.accumulate acc.diff_per_commit [ diff_commit ]
         in
+
         {
           acc with
-          value;
+          value_before_commit;
+          value_after_commit;
           diff_per_block;
           diff_per_buildup;
           diff_per_commit;
@@ -469,14 +491,17 @@ module Linear_bag_stat_folder = struct
 
   let finalise acc : linear_bag_stat =
     {
-      value = Vs.finalise acc.value;
+      value_before_commit = Vs.finalise acc.value_before_commit;
+      value_after_commit = Vs.finalise acc.value_after_commit;
       diff_per_block = Vs.finalise acc.diff_per_block;
       diff_per_buildup = Vs.finalise acc.diff_per_buildup;
       diff_per_commit = Vs.finalise acc.diff_per_commit;
     }
 
-  let create header block_count value_of_bag =
-    let acc0 = create_acc header block_count value_of_bag in
+  let create ?should_cumulate_value header block_count value_of_bag =
+    let acc0 =
+      create_acc ?should_cumulate_value header block_count value_of_bag
+    in
     Utils.Parallel_folders.folder acc0 accumulate finalise
 end
 
@@ -643,8 +668,9 @@ let misc_stats_folder header =
     be stored in [Trace_stat_summary.t]. Calling [Parallel_folders.finalise pf]
     will finalise all folders and pass their result to [construct]. *)
 let summarise' header block_count (row_seq : Def.row Seq.t) =
-  let lbs_folder_of_bag_getter value_of_bag =
-    Linear_bag_stat_folder.create header block_count value_of_bag
+  let lbs_folder_of_bag_getter ?should_cumulate_value value_of_bag =
+    Linear_bag_stat_folder.create ?should_cumulate_value header block_count
+      value_of_bag
   in
 
   let pack_folder =
@@ -703,13 +729,14 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
 
   let index_folder =
     let construct bytes_read nb_reads bytes_written nb_writes nb_merge
-        merge_durations =
+        cumu_data_bytes merge_durations =
       {
         bytes_read;
         nb_reads;
         bytes_written;
         nb_writes;
         nb_merge;
+        cumu_data_bytes;
         merge_durations;
       }
     in
@@ -722,6 +749,16 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
+      |+ lbs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
+             (* When 1 merge occured, [data_size] bytes were written.
+
+                When 2 merge occured, [data_size * 2 - log_size] bytes were
+                written. But here we just count [data_size * 2]. *)
+             let merge_count =
+               List.length bag.Def.index.new_merge_durations |> Int64.of_int
+             in
+             let data_size = bag.Def.disk.index_data in
+             Int64.to_float (Int64.mul merge_count data_size))
       |+ merge_durations_folder
       |> seal
     in

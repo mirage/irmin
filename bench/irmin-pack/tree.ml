@@ -919,6 +919,7 @@ let main_term =
     $ empty_blobs)
 
 let () =
+  (* TODO: Rename *)
   let man =
     [
       `S "DESCRIPTION";

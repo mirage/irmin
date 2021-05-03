@@ -31,7 +31,7 @@ module Make_stat (Store : Irmin.KV) = struct
     writer : Def.writer;
     store_path : string;
     mutable t0 : Mtime_clock.counter;
-    mutable prev_nb_merge : int option;
+    mutable prev_merge_durations : float list;
     mutable commit_before : Def.bag_of_stats * Def.store_before;
   }
   (** Imperative stat trace collector. It is optimised to minimise the CPU
@@ -66,34 +66,27 @@ module Make_stat (Store : Irmin.KV) = struct
           node_val_list = v.node_val_list;
         }
 
-    let index prev_nb_merge =
+    let index prev_merge_durations =
       let open Index.Stats in
       let v = get () in
       let new_merge_durations =
-        match prev_nb_merge with
-        | None -> []
-        | Some prev_nb_merge ->
-            let nb_merge = v.nb_merge in
-            let merge_durations = v.merge_durations in
-            (* Only the latest merge durations are remembered in
-               [merge_durations] *)
-            let merge_durations_idx0 =
-              max 0 (nb_merge - List.length merge_durations)
-            in
-            let rec aux merge_idx =
-              if merge_idx >= nb_merge then []
-              else if merge_idx < merge_durations_idx0 then
-                Float.nan :: aux (merge_idx + 1)
-              else
-                let i = merge_idx - merge_durations_idx0 in
-                List.nth merge_durations i :: aux (merge_idx + 1)
-            in
-            let l = aux prev_nb_merge in
-            assert (prev_nb_merge + List.length l = nb_merge);
-            l
-      in
-      let new_merge_durations =
-        List.map (fun v -> v /. 1e6) new_merge_durations
+        if v.merge_durations == prev_merge_durations then []
+        else
+          (* This is anoying to compute. We can't rely on nb_merge.
+             Assume that all merge durations are unique.
+             Assume that we never have >10 merges at one.
+          *)
+          let rec aux acc = function
+            | [] -> acc
+            | hd :: tl ->
+                if List.mem hd prev_merge_durations then (
+                  assert (List.length acc = 0) (* No oldie after a newies *);
+                  aux acc tl)
+                else aux ((hd /. 1e6) :: acc) tl
+          in
+          let l = aux [] v.merge_durations in
+          assert (List.length l > 0) (* At least one newie *);
+          l
       in
       Def.
         {
@@ -142,12 +135,12 @@ module Make_stat (Store : Irmin.KV) = struct
       |> Int64.to_float
       |> ( *. ) Mtime.ns_to_s
 
-    let create store_path prev_nb_merge =
+    let create store_path prev_merge_durations =
       Def.
         {
           pack = pack ();
           tree = tree ();
-          index = index prev_nb_merge;
+          index = index prev_merge_durations;
           gc = gc ();
           disk = disk store_path;
           timestamp_wall = now ();
@@ -164,7 +157,9 @@ module Make_stat (Store : Irmin.KV) = struct
           hostname = Unix.gethostname ();
           word_size = Sys.word_size;
           timeofday = Unix.gettimeofday ();
-          initial_stats = Bag_of_stats.create store_path None;
+          initial_stats =
+            Bag_of_stats.create store_path
+              Index.Stats.((get ()).merge_durations);
         }
     in
     let dummy_commit_before =
@@ -175,7 +170,7 @@ module Make_stat (Store : Irmin.KV) = struct
       writer = Def.create_file path header;
       store_path;
       t0 = Mtime_clock.counter ();
-      prev_nb_merge = Some header.initial_stats.index.nb_merge;
+      prev_merge_durations = Index.Stats.((get ()).merge_durations);
       commit_before = dummy_commit_before;
     }
 
@@ -225,16 +220,18 @@ module Make_stat (Store : Irmin.KV) = struct
 
   let commit_begin t tree =
     short_op_begin t;
-    let stats_before = Bag_of_stats.create t.store_path t.prev_nb_merge in
-    t.prev_nb_merge <- Some stats_before.index.nb_merge;
+    let stats_before =
+      Bag_of_stats.create t.store_path t.prev_merge_durations
+    in
+    t.prev_merge_durations <- Index.Stats.((get ()).merge_durations);
     let+ store_before = create_store_before tree in
     t.commit_before <- (stats_before, store_before)
 
   let commit_end t tree =
     let duration = Mtime_clock.count t.t0 |> Mtime.Span.to_s in
     let duration = duration |> Int32.bits_of_float in
-    let stats_after = Bag_of_stats.create t.store_path t.prev_nb_merge in
-    t.prev_nb_merge <- Some stats_after.index.nb_merge;
+    let stats_after = Bag_of_stats.create t.store_path t.prev_merge_durations in
+    t.prev_merge_durations <- Index.Stats.((get ()).merge_durations);
     let+ store_after = create_store_after tree in
     let op =
       `Commit

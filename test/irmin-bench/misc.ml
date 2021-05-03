@@ -38,8 +38,49 @@ let snap_around_42 () =
   Alcotest.(check (float 0.)) "Snap" (f ~sd:4 42.00000999) 42.;
   Alcotest.(check (float 0.)) "Already integer" (f ~sd:4 42.) 42.
 
+let test_transaction_count () =
+  let f =
+    Irmin_traces.Trace_stat_summary_utils
+    .approx_transaction_count_of_block_count
+  in
+  let b0, t0 = (1814, 497) in
+  let b1, t1 = (10031, 10337) in
+  let b2, t2 = (8478, 6444) in
+  Alcotest.(check int) "1st week" (f b0) t0;
+  Alcotest.(check int) "2 1st weeks" (f (b0 + b1)) (t0 + t1);
+  Alcotest.(check int) "3 1st weeks" (f (b0 + b1 + b2)) (t0 + t1 + t2);
+  Alcotest.(check int)
+    "2 weeks & half of one"
+    (f (b0 + b1 + (b2 / 2)))
+    (t0 + t1 + (t2 / 2));
+  Alcotest.(check int) "only 3rd week" (f ~first_block_idx:(b0 + b1) b2) t2;
+  Alcotest.(check int)
+    "a third of second week"
+    (f ~first_block_idx:(b0 + (b1 / 3)) (b1 / 3))
+    (t1 / 3);
+  Alcotest.(check (float 0.5e6))
+    "Tx count may 5th 2021"
+    (f 1457727 |> float_of_int)
+    15_000_000.
+
+let test_operation_count () =
+  let f =
+    Irmin_traces.Trace_stat_summary_utils.approx_operation_count_of_block_count
+  in
+  Alcotest.(check (float 0.5e6))
+    "Ops count may 5th 2021"
+    (f 1457727 |> float_of_int)
+    47_500_000.
+
 let test_cases =
   [
-    ( "snap_to_integer",
-      [ Alcotest.test_case "snap_around_42" `Quick snap_around_42 ] );
+    ("snap int", [ Alcotest.test_case "snap_around_42" `Quick snap_around_42 ]);
+    ( "tx count",
+      [
+        Alcotest.test_case "test_transaction_count" `Quick
+          test_transaction_count;
+      ] );
+    ( "ops count",
+      [ Alcotest.test_case "test_operation_count" `Quick test_operation_count ]
+    );
   ]

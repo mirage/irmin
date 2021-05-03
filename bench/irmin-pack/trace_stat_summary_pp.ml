@@ -56,420 +56,312 @@ end
 
 type summary = Summary.t
 
-type scalar_type = [ `R | `S | `P ]
-(** Real, Seconds, Percent *)
+module Table0 = struct
+  let summary_config_entries =
+    [
+      `Hostname;
+      `Word_size;
+      `Timeofday;
+      `Inode_config;
+      `Store_type;
+      `Replay_path_conversion;
+    ]
 
-type summary_floor =
-  [ `Spacer | `Data of scalar_type * string * (string * curve) list ]
-(** A [summary_floor] of tag [`Data] contains all the data necessary in order to
-    print a bunch of rows, 1 per summary, all displaying the same summary entry. *)
+  let name_of_summary_config_entry = function
+    | `Hostname -> "Hostname"
+    | `Word_size -> "Word Size"
+    | `Timeofday -> "Start Time"
+    | `Inode_config -> "Inode Config"
+    | `Store_type -> "Store Type"
+    | `Replay_path_conversion -> "Path Conversion"
 
-let summary_config_entries =
-  [
-    `Hostname;
-    `Word_size;
-    `Timeofday;
-    `Inode_config;
-    `Store_type;
-    `Replay_path_conversion;
-  ]
+  let cell_of_summary_config (s : summary) = function
+    | `Hostname -> s.hostname
+    | `Word_size -> Printf.sprintf "%d bits" s.word_size
+    | `Timeofday ->
+        let open Unix in
+        let t = gmtime s.timeofday in
+        Printf.sprintf "%04d/%02d/%02d %02d:%02d:%02d (GMT)" (1900 + t.tm_year)
+          (t.tm_mon + 1) t.tm_mday t.tm_hour t.tm_min t.tm_sec
+    | `Inode_config ->
+        let a, b, c = s.config.inode_config in
+        Printf.sprintf "mls:%d bf:%d sh:%d" a b c
+    | `Store_type -> (
+        match s.config.store_type with
+        | `Pack -> "pack"
+        | `Pack_layered -> "pack-layered")
+    | `Replay_path_conversion -> (
+        match s.config.setup with
+        | `Play _ -> "n/a"
+        | `Replay s -> (
+            match s.path_conversion with
+            | `None -> "none"
+            | `V1 -> "v1"
+            | `V0_and_v1 -> "v0+v1"
+            | `V0 -> "v0"))
 
-let name_of_summary_config_entry = function
-  | `Hostname -> "Hostname"
-  | `Word_size -> "Word Size"
-  | `Timeofday -> "Start Time"
-  | `Inode_config -> "Inode Config"
-  | `Store_type -> "Store Type"
-  | `Replay_path_conversion -> "Path Conversion"
+  let box_of_summaries_config summary_names (summaries : summary list) =
+    let row0 =
+      if List.length summary_names = 1 then [] else [ "" :: summary_names ]
+    in
+    let rows =
+      List.map
+        (fun e ->
+          let n = name_of_summary_config_entry e in
+          let l = List.map (fun s -> cell_of_summary_config s e) summaries in
+          n :: l)
+        summary_config_entries
+    in
+    row0 @ rows |> Pb.matrix_to_text
+end
 
-let cell_of_summary_config (s : summary) = function
-  | `Hostname -> s.hostname
-  | `Word_size -> Printf.sprintf "%d bits" s.word_size
-  | `Timeofday ->
-      let open Unix in
-      let t = gmtime s.timeofday in
-      Printf.sprintf "%04d/%02d/%02d %02d:%02d:%02d (GMT)" (1900 + t.tm_year)
-        (t.tm_mon + 1) t.tm_mday t.tm_hour t.tm_min t.tm_sec
-  | `Inode_config ->
-      let a, b, c = s.config.inode_config in
-      Printf.sprintf "mls:%d bf:%d sh:%d" a b c
-  | `Store_type -> (
-      match s.config.store_type with
-      | `Pack -> "pack"
-      | `Pack_layered -> "pack-layered")
-  | `Replay_path_conversion -> (
-      match s.config.setup with
-      | `Play _ -> "n/a"
-      | `Replay s -> (
-          match s.path_conversion with
-          | `None -> "none"
-          | `V1 -> "v1"
-          | `V0_and_v1 -> "v0+v1"
-          | `V0 -> "v0"))
-
-let box_of_summaries_config summary_names (summaries : summary list) =
-  let row0 =
-    if List.length summary_names = 1 then [] else [ "" :: summary_names ]
-  in
-  let rows =
-    List.map
-      (fun e ->
-        let n = name_of_summary_config_entry e in
-        let l = List.map (fun s -> cell_of_summary_config s e) summaries in
-        n :: l)
-      summary_config_entries
-  in
-  row0 @ rows |> Pb.matrix_to_text
-
-let sum_curves curves =
-  curves
-  |> Pb.transpose_matrix
-  |> List.map
-       (List.fold_left
-          (fun acc v -> if Float.is_nan v then acc else acc +. v)
-          0.)
-
-let div_curves a b = List.map2 ( /. ) a b
-let mul_curves a b = List.map2 ( *. ) a b
-
-let all_9_ops =
-  [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit; `Unseen ]
-
-let all_8_ops =
-  [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit ]
-
-let all_buildup_seen_ops =
-  [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy ]
-
-let all_buildup_ro_ops = [ `Find; `Mem; `Mem_tree ]
-let all_buildup_rw_ops = [ `Add; `Remove; `Copy ]
-
-let floors_of_summaries : string list -> summary list -> summary_floor list =
- fun summary_names summaries ->
-  (* Step 1/3 - Prepare the "/data/..." directories floors *)
-  let floor_per_node : summary_floor list =
-    List.map
-      (fun key ->
-        let path = List.assoc key Def.path_per_watched_node in
-        let name = Printf.sprintf "%s *S" path in
-        let curves =
-          List.map
-            (fun s ->
-              (Summary.Watched_node.Map.find key s.store.watched_nodes).value
-                .evolution)
-            summaries
-        in
-        let l = List.combine summary_names curves in
-        `Data (`R, name, l))
-      Def.watched_nodes
-  in
-
-  (* Step 2/3 - Prepare the functions to build all the simple floors *)
-  let zip : (summary -> curve) -> (string * curve) list =
-   fun curve_of_summary ->
-    List.map2
-      (fun sname s -> (sname, curve_of_summary s))
-      summary_names summaries
-  in
-  let zip_per_block_to_per_sec : (summary -> curve) -> (string * curve) list =
-    let sec_per_block =
+module Table1 = struct
+  let rows_of_summaries summaries =
+    let cpu_time_elapsed = List.map (fun s -> s.elapsed_cpu) summaries in
+    let add_per_sec =
       List.map
         (fun s ->
-          all_9_ops
-          |> List.map (fun op ->
-                 mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                   Summary.(Op.Map.find op s.ops).count.evolution)
-          |> sum_curves)
+          fst Summary.(Op.Map.find `Add s.ops).cumu_count.max_value
+          /. s.elapsed_cpu)
         summaries
     in
-    fun curve_of_summary ->
-      List.map2
-        (fun (sname, sec_per_block) s ->
-          (sname, div_curves (curve_of_summary s) sec_per_block))
-        (List.combine summary_names sec_per_block)
+    let tail_latency =
+      List.map
+        (fun s -> fst Summary.(Op.Map.find `Commit s.ops).duration.max_value)
         summaries
-  in
-
-  let v : string -> (summary -> Summary.linear_bag_stat) -> summary_floor =
-   fun stat_name lbs_of_summary ->
-    let curves = zip (fun s -> (lbs_of_summary s).value.evolution) in
-    `Data (`R, stat_name, curves)
-  in
-  let pb : string -> (summary -> Summary.linear_bag_stat) -> summary_floor =
-   fun stat_name lbs_of_summary ->
-    let curves = zip (fun s -> (lbs_of_summary s).diff_per_block.evolution) in
-    `Data (`R, stat_name, curves)
-  in
-  let ps : string -> (summary -> Summary.linear_bag_stat) -> summary_floor =
-   fun stat_name lbs_of_summary ->
-    let curves =
-      zip_per_block_to_per_sec (fun s ->
-          (lbs_of_summary s).diff_per_block.evolution)
     in
-    `Data (`R, stat_name, curves)
-  in
-
-  let op_count : string -> Op.Key.t -> summary_floor =
-   fun name op ->
-    let curves =
-      zip (fun s -> Summary.(Op.Map.find op s.ops).count.evolution)
+    let tx_per_sec =
+      List.map
+        (fun s ->
+          (* TODO: Same message *)
+          (* TODO: Per CPU SEC *)
+          (* TODO: Blocks are not blocks, write it again *)
+          (Utils.approx_transaction_count_of_block_count s.block_count
+          |> float_of_int)
+          /. s.elapsed_cpu)
+        summaries
     in
-    `Data (`R, name, curves)
-  in
-  let op_duration : string -> Op.Key.t -> summary_floor =
-   fun name op ->
-    let curves =
-      zip (fun s -> Summary.(Op.Map.find op s.ops).duration.evolution)
+    let tz_ops_per_sec =
+      List.map
+        (fun s ->
+          (* TODO: Same message *)
+          (* TODO: Per CPU SEC *)
+          (Utils.approx_operation_count_of_block_count s.block_count
+          |> float_of_int)
+          /. s.elapsed_cpu)
+        summaries
     in
-    `Data (`S, name, curves)
-  in
-  let op_every_sec : string -> Op.Key.t -> summary_floor =
-   fun name op ->
-    let curves =
-      zip_per_block_to_per_sec (fun s ->
-          Summary.(Op.Map.find op s.ops).count.evolution)
+    let bytes =
+      List.map
+        (fun s ->
+          fst s.index.bytes_read.value_after_commit.max_value
+          +. fst s.index.bytes_written.value_after_commit.max_value)
+        summaries
     in
-    `Data (`R, name, curves)
-  in
+    let read_bytes =
+      List.map
+        (fun s -> fst s.index.bytes_read.value_after_commit.max_value)
+        summaries
+    in
+    let written_bytes =
+      List.map
+        (fun s -> fst s.index.bytes_written.value_after_commit.max_value)
+        summaries
+    in
+    let throughput =
+      List.map
+        (fun s ->
+          (fst s.index.bytes_read.value_after_commit.max_value
+          +. fst s.index.bytes_written.value_after_commit.max_value)
+          /. s.elapsed_cpu)
+        summaries
+    in
+    let read_throughput =
+      List.map
+        (fun s ->
+          fst s.index.bytes_read.value_after_commit.max_value /. s.elapsed_cpu)
+        summaries
+    in
+    let write_throughput =
+      List.map
+        (fun s ->
+          fst s.index.bytes_written.value_after_commit.max_value
+          /. s.elapsed_cpu)
+        summaries
+    in
+    let iops =
+      List.map
+        (fun s ->
+          (fst s.index.nb_reads.value_after_commit.max_value
+          +. fst s.index.nb_writes.value_after_commit.max_value)
+          /. s.elapsed_cpu)
+        summaries
+    in
+    let read_iops =
+      List.map
+        (fun s ->
+          fst s.index.nb_reads.value_after_commit.max_value /. s.elapsed_cpu)
+        summaries
+    in
+    let write_iops =
+      List.map
+        (fun s ->
+          fst s.index.nb_writes.value_after_commit.max_value /. s.elapsed_cpu)
+        summaries
+    in
+    let max_ram =
+      List.map
+        (fun s -> List.fold_left max 0. s.gc.major_heap_top_bytes)
+        summaries
+    in
+    let mean_cpu_usage =
+      List.map (fun s -> s.elapsed_cpu /. s.elapsed_wall) summaries
+    in
+    [
+      `Section "-- main metrics --";
+      `Data (`SM, "CPU time elapsed", cpu_time_elapsed);
+      `Data (`R3, "TZ-transactions per sec", tx_per_sec);
+      `Data (`R3, "TZ-operations per sec", tz_ops_per_sec);
+      `Data (`R3, "Context.set per sec", add_per_sec);
+      `Data (`S3, "tail latency (1)", tail_latency);
+      `Section "";
+      `Section "-- resource usage --";
+      `Section "disk IO (total)";
+      `Data (`Ri, "  IOPS (op/sec)", iops);
+      `Data (`Rm, "  throughput (bytes/sec)", throughput);
+      `Data (`Rg, "  total (bytes)", bytes);
+      `Section "disk IO (read)";
+      `Data (`Ri, "  IOPS (op/sec)", read_iops);
+      `Data (`Rm, "  throughput (bytes/sec)", read_throughput);
+      `Data (`Rg, "  total (bytes)", read_bytes);
+      `Section "disk IO (write)";
+      `Data (`Ri, "  IOPS (op/sec)", write_iops);
+      `Data (`Rm, "  throughput (bytes/sec)", write_throughput);
+      `Data (`Rg, "  total (bytes)", written_bytes);
+      `Section "";
+      `Data (`Rg, "max memory usage", max_ram);
+      `Data (`P, "mean CPU usage", mean_cpu_usage);
+    ]
 
-  let seen_duration =
-    zip (fun s ->
-        all_buildup_seen_ops
-        |> List.map (fun op ->
-               mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                 Summary.(Op.Map.find op s.ops).count.evolution)
-        |> sum_curves)
-  in
-  let all_ops_cumu_count =
-    zip (fun s ->
-        all_8_ops
-        |> List.map (fun op ->
-               Summary.(Op.Map.find op s.ops).cumu_count.evolution)
-        |> sum_curves)
-  in
-  let ro_ops_per_sec =
-    zip_per_block_to_per_sec (fun s ->
-        all_buildup_ro_ops
-        |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
-        |> sum_curves)
-  in
-  let rw_ops_per_sec =
-    zip_per_block_to_per_sec (fun s ->
-        all_buildup_rw_ops
-        |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
-        |> sum_curves)
-  in
-  let sum_op_durations_per_block =
-    zip (fun s ->
-        all_9_ops
-        |> List.map (fun op ->
-               mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                 Summary.(Op.Map.find op s.ops).count.evolution)
-        |> sum_curves)
-  in
+  type scalar_format = [ `SM | `S3 | `R3 | `Ri | `Rm | `Rg | `P ]
+  type data_row = [ `Data of scalar_format * string * float list ]
+  type section_row = [ `Section of string ]
 
-  (* Step 3/3 - Build the final list of floors *)
-  [
-    `Spacer;
-    `Data (`S, "Wall time elapsed *C", zip (fun s -> s.elapsed_wall_over_blocks));
-    `Data (`S, "CPU time elapsed *C", zip (fun s -> s.elapsed_cpu_over_blocks));
-    (* ops counts *)
-    `Spacer;
-    `Data (`R, "Ops count *C", all_ops_cumu_count);
-    `Data (`R, "Read only ops per sec *LA", ro_ops_per_sec);
-    `Data (`R, "Read write ops per sec *LA", rw_ops_per_sec);
-    (* <op> every sec *)
-    `Spacer;
-    op_every_sec "Commit every sec *LA" `Commit;
-    op_every_sec "Add every sec *LA" `Add;
-    op_every_sec "Remove every sec *LA" `Remove;
-    op_every_sec "Find every sec *LA" `Find;
-    op_every_sec "Mem every sec *LA" `Mem;
-    op_every_sec "Mem_tree every sec *LA" `Mem_tree;
-    op_every_sec "Copy every sec *LA" `Copy;
-    (* <op> per block *)
-    `Spacer;
-    op_count "Add count per block *LA" `Add;
-    op_count "Remove count per block *LA" `Remove;
-    op_count "Find count per block *LA" `Find;
-    op_count "Mem count per block *LA" `Mem;
-    op_count "Mem_tree count per block *LA" `Mem_tree;
-    op_count "Copy count per block *LA" `Copy;
-    (* <phase> duration *)
-    `Spacer;
-    `Data (`S, "Block duration *LA", sum_op_durations_per_block);
-    `Data (`S, "Buildup seen duration *LA", seen_duration);
-    op_duration "Buildup unseen duration *LA" `Unseen;
-    op_duration "Commit duration *LA" `Commit;
-    `Spacer;
-    (* <op> duration *)
-    op_duration "Add duration *LA" `Add;
-    op_duration "Remove duration *LA" `Remove;
-    op_duration "Find duration *LA" `Find;
-    op_duration "Mem duration *LA" `Mem;
-    op_duration "Mem_tree duration *LA" `Mem_tree;
-    op_duration "Copy duration *LA" `Copy;
-    op_duration "Checkout duration *LA" `Checkout;
-    (* derived from bag_of_stat *)
-    `Spacer;
-    pb "pack.finds per block *LA" (fun s -> s.pack.finds);
-    pb "pack.cache_misses per block *LA" (fun s -> s.pack.cache_misses);
-    pb "pack.appended_hashes per block *LA" (fun s -> s.pack.appended_hashes);
-    pb "pack.appended_offsets per block *LA" (fun s -> s.pack.appended_offsets);
-    `Spacer;
-    pb "tree.contents_hash per block *LA" (fun s -> s.tree.contents_hash);
-    pb "tree.contents_find per block *LA" (fun s -> s.tree.contents_find);
-    pb "tree.contents_add per block *LA" (fun s -> s.tree.contents_add);
-    pb "tree.node_hash per block *LA" (fun s -> s.tree.node_hash);
-    pb "tree.node_mem per block *LA" (fun s -> s.tree.node_mem);
-    pb "tree.node_add per block *LA" (fun s -> s.tree.node_add);
-    pb "tree.node_find per block *LA" (fun s -> s.tree.node_find);
-    pb "tree.node_val_v per block *LA" (fun s -> s.tree.node_val_v);
-    pb "tree.node_val_find per block *LA" (fun s -> s.tree.node_val_find);
-    pb "tree.node_val_list per block *LA" (fun s -> s.tree.node_val_list);
-    `Spacer;
-    v "index.bytes_read *C" (fun s -> s.index.bytes_read);
-    pb "index.bytes_read per block *LA" (fun s -> s.index.bytes_read);
-    ps "index.bytes_read per sec *LA" (fun s -> s.index.bytes_read);
-    v "index.nb_reads *C" (fun s -> s.index.nb_reads);
-    pb "index.nb_reads per block *LA" (fun s -> s.index.nb_reads);
-    ps "index.nb_reads per sec *LA" (fun s -> s.index.nb_reads);
-    v "index.bytes_written *C" (fun s -> s.index.bytes_written);
-    pb "index.bytes_written per block *LA" (fun s -> s.index.bytes_written);
-    ps "index.bytes_written per sec *LA" (fun s -> s.index.bytes_written);
-    v "index.nb_writes *C" (fun s -> s.index.nb_writes);
-    pb "index.nb_writes per block *LA" (fun s -> s.index.nb_writes);
-    ps "index.nb_writes per sec *LA" (fun s -> s.index.nb_writes);
-    v "index.nb_merge *C" (fun s -> s.index.nb_merge);
-    `Spacer;
-    v "gc.minor_words allocated *C" (fun s -> s.gc.minor_words);
-    pb "gc.minor_words allocated per block *LA" (fun s -> s.gc.minor_words);
-    ps "gc.minor_words allocated per sec *LA" (fun s -> s.gc.minor_words);
-    v "gc.promoted_words *C" (fun s -> s.gc.promoted_words);
-    v "gc.major_words allocated *C" (fun s -> s.gc.major_words);
-    pb "gc.major_words allocated per block *LA" (fun s -> s.gc.major_words);
-    ps "gc.major_words allocated per sec *LA" (fun s -> s.gc.major_words);
-    v "gc.minor_collections *C" (fun s -> s.gc.minor_collections);
-    pb "gc.minor_collections per block *LA" (fun s -> s.gc.minor_collections);
-    ps "gc.minor_collections per sec *LA" (fun s -> s.gc.minor_collections);
-    v "gc.major_collections *C" (fun s -> s.gc.major_collections);
-    pb "gc.major_collections per block *LA" (fun s -> s.gc.major_collections);
-    ps "gc.major_collections per sec *LA" (fun s -> s.gc.major_collections);
-    v "gc.compactions *C" (fun s -> s.gc.compactions);
-    `Data
-      ( `R,
-        "gc.major heap bytes top *C",
-        zip (fun s -> s.gc.major_heap_top_bytes) );
-    v "gc.major heap bytes *LA" (fun s -> s.gc.major_heap_bytes);
-    `Spacer;
-    v "index_data bytes *S" (fun s -> s.disk.index_data);
-    pb "index_data bytes per block *LA" (fun s -> s.disk.index_data);
-    ps "index_data bytes per sec *LA" (fun s -> s.disk.index_data);
-    v "store_pack bytes *S" (fun s -> s.disk.store_pack);
-    pb "store_pack bytes per block *LA" (fun s -> s.disk.store_pack);
-    ps "store_pack bytes per sec *LA" (fun s -> s.disk.store_pack);
-    v "index_log bytes *S" (fun s -> s.disk.index_log);
-    v "index_log_async *S" (fun s -> s.disk.index_log_async);
-    v "store_dict bytes *S" (fun s -> s.disk.store_dict);
-    `Spacer;
-  ]
-  @ floor_per_node
-
-let resample_curves_of_floor sample_count = function
-  | `Data (a, b, names_and_curves) ->
-      let names, curves = List.split names_and_curves in
-      let curves =
-        List.map
-          (fun curve ->
-            Utils.Resample.resample_vector `Next_neighbor curve sample_count)
-          curves
+  let cells_of_data_row (`Data (scalar_format, row_name, scalars) : data_row) =
+    let v0 = List.hd scalars in
+    let pp_cell i v =
+      let scalar ppf =
+        match scalar_format with
+        | `SM ->
+            let m = Float.floor (v /. 60.) in
+            Format.fprintf ppf "%.0fm%02.0fs" m (v -. (m *. 60.))
+        | `S3 -> Format.fprintf ppf "%.3f s" v
+        | `R3 -> Format.fprintf ppf "%.3f" v
+        | `Ri -> Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
+        | `Rm -> Format.fprintf ppf "%.3f M" (v /. 1e6)
+        | `Rg -> Format.fprintf ppf "%.3f G" (v /. 1e9)
+        | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
       in
-      `Data (a, b, List.combine names curves)
-  | `Spacer -> `Spacer
-
-let matrix_of_data_floor (`Data (scalar_type, floor_name, names_and_curves)) =
-  let only_one_summary = List.length names_and_curves = 1 in
-  let _, curves = List.split names_and_curves in
-  let pp_real = Utils.create_pp_real (List.concat curves) in
-  let pp_seconds = Utils.create_pp_seconds (List.concat curves) in
-  let curve0 = List.hd curves in
-  let box_of_scalar row_idx col_idx (v0, v) =
-    let ratio = v /. v0 in
-    let show_percent =
-      if only_one_summary then
-        (* Percents are only needed for comparisons between summaries. *)
-        `No
-      else if col_idx = 0 then
-        (* The first columns is usually full of NaNs, showing percents there
-           is a waste of space. *)
-        `No
-      else if Float.is_finite ratio = false then
-        (* Nan and infinite percents are ugly. *)
-        `Shadow
-      else if row_idx = 0 then
-        (* The first row of a floor is always 100%, it is prettier without
-           displaying it. *)
-        `Shadow
-      else `Yes
+      let percent ppf =
+        if i = 0 then ()
+        else if scalar_format = `P then Format.fprintf ppf "     "
+        else Format.fprintf ppf " %a" Utils.pp_percent (v /. v0)
+      in
+      Fmt.str "%t%t" scalar percent
     in
-    (match (scalar_type, show_percent) with
-    | `R, `Yes -> Fmt.str "%a %a" pp_real v Utils.pp_percent ratio
-    | `R, `Shadow -> Fmt.str "%a     " pp_real v
-    | `R, `No -> Fmt.str "%a" pp_real v
-    | `S, `Yes -> Fmt.str "%a %a" pp_seconds v Utils.pp_percent ratio
-    | `S, `Shadow -> Fmt.str "%a     " pp_seconds v
-    | `S, `No -> Fmt.str "%a" pp_seconds v
-    | `P, `Yes -> Fmt.str "%.0f%%  %a" (v *. 100.) Utils.pp_percent ratio
-    | `P, `Shadow -> Fmt.str "%.0f%%     " (v *. 100.)
-    | `P, `No -> Fmt.str "%.0f%%" (v *. 100.))
-    |> Pb.text
-    |> Pb.align ~h:`Right ~v:`Top
-  in
-  let rows =
-    List.mapi
-      (fun row_idx (summary_name, curve) ->
-        let a = Pb.text (if row_idx = 0 then floor_name else "") in
-        let b = if only_one_summary then [] else [ Pb.text summary_name ] in
-        let c = List.mapi (box_of_scalar row_idx) (List.combine curve0 curve) in
-        a :: b @ c)
-      names_and_curves
-  in
-  rows
 
-let matrix_of_floor col_count = function
-  | `Spacer -> [ List.init col_count (Fun.const "") ] |> Pb.matrix_to_text
-  | `Data _ as floor -> matrix_of_data_floor floor
+    Pb.text row_name
+    ::
+    (List.mapi pp_cell scalars
+    |> List.map Pb.text
+    |> List.map (Pb.align ~h:`Right ~v:`Top))
 
-let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
-  let block_count =
-    let l = List.map (fun s -> s.block_count) summaries in
-    let v = List.hd l in
-    if List.exists (fun v' -> v' <> v) l then
-      failwith "Can't pp together summaries with a different `block_count`";
-    v
-  in
-  let moving_average_half_life_ratio =
-    let l = List.map (fun s -> s.moving_average_half_life_ratio) summaries in
-    let v = List.hd l in
-    if List.exists (fun v' -> v' <> v) l then
-      failwith
-        "Can't pp together summaries with a different \
-         `moving_average_half_life_ratio`";
-    v
-  in
-  let tbl0 =
-    box_of_summaries_config summary_names summaries
-    |> Pb.matrix_with_column_spacers
-    |> Pb.grid_l ~bars:false
-    |> PrintBox_text.to_string
-  in
-  let header_rows =
+  let cells_of_section_row col_count (`Section name : section_row) =
+    Pb.text name
+    :: (List.init (col_count - 1) (Fun.const "") |> List.map Pb.text)
+
+  let cells_of_row col_count = function
+    | `Data _ as row -> cells_of_data_row row
+    | `Section _ as row -> (cells_of_section_row col_count) row
+
+  let matrix_of_rows col_count rows = List.map (cells_of_row col_count) rows
+  (* |> Pb.matrix_to_text *)
+end
+
+module Tablen = struct
+  (*
+                       min per block | max per block | avg per block | avg per_sec
+  <op set> count
+  <op> count
+  <raw stat>
+  <tree stat>
+  <pack stat>
+  gc.m**or_words
+  gc.promoted_words
+  gc.m**or_collections
+  gc.compactions
+
+  file size things
+  node size things
+  major heap bytes            min/max/mean
+
+                       min sample | max sample | avg sample | avg per_sec
+  <op> duration       truc         truc         truc       n/a
+  <phase> duration    truc         truc         truc       n/a
+
+   *)
+
+end
+
+module Table2 = struct
+  type scalar_format_auto = [ `R | `S | `P ]
+  (** Real / Seconds / Percent *)
+
+  type scalar_format_fixed = [ `R3 | `Rm | `Ri | `Sm | `Su ]
+  (** Real 3 digits / Real mega / Real as integer / Seconds milli / Seconds
+      micro *)
+
+  type scalar_format = [ scalar_format_auto | scalar_format_fixed ]
+
+  type summary_floor =
+    [ `Spacer | `Data of scalar_format * string * (string * curve) list ]
+  (** A [summary_floor] of tag [`Data] contains all the data necessary in order
+      to print a bunch of rows, 1 per summary, all displaying the same summary
+      entry. *)
+
+  let sum_curves curves =
+    curves
+    |> Pb.transpose_matrix
+    |> List.map
+         (List.fold_left
+            (fun acc v -> if Float.is_nan v then acc else acc +. v)
+            0.)
+
+  let div_curves a b = List.map2 ( /. ) a b
+  let mul_curves a b = List.map2 ( *. ) a b
+  let mul_curve_scalar a v = List.map (( *. ) v) a
+
+  let all_9_ops =
+    [
+      `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit; `Unseen;
+    ]
+
+  let all_8_ops =
+    [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit ]
+
+  let all_buildup_seen_ops =
+    [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy ]
+
+  let all_buildup_ro_ops = [ `Find; `Mem; `Mem_tree ]
+  let all_buildup_rw_ops = [ `Add; `Remove; `Copy ]
+
+  let create_header_rows sample_count summaries =
     let only_one_summary = List.length summaries = 1 in
     let s = List.hd summaries in
     let played_count_curve =
-      List.init Conf.curves_sample_count (fun i ->
+      List.init s.curves_sample_count (fun i ->
           float_of_int i
-          /. float_of_int (Conf.curves_sample_count - 1)
+          /. float_of_int (s.curves_sample_count - 1)
           *. float_of_int s.block_count)
     in
     let played_count_curve =
@@ -505,31 +397,427 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
       |> Pb.align_matrix `Center
     in
     col_a @ col_b @ cols_c |> Pb.transpose_matrix
-  in
-  let body_rows =
-    let col_count =
-      sample_count + 1 + if List.length summaries = 1 then 0 else 1
+
+  let floors_of_summaries : string list -> summary list -> summary_floor list =
+   fun summary_names summaries ->
+    (* Step 1/3 - Prepare the "/data/..." directories floors *)
+    let floor_per_node : summary_floor list =
+      List.map
+        (fun key ->
+          let path = List.assoc key Def.path_per_watched_node in
+          let name = Printf.sprintf "%s *S" path in
+          let curves =
+            List.map
+              (fun s ->
+                (Summary.Watched_node.Map.find key s.store.watched_nodes).value
+                  .evolution)
+              summaries
+          in
+          let l = List.combine summary_names curves in
+          `Data (`R, name, l))
+        Def.watched_nodes
     in
-    floors_of_summaries summary_names summaries
-    |> List.map (resample_curves_of_floor sample_count)
-    |> List.map (matrix_of_floor col_count)
-    |> List.concat
+
+    (* Step 2/3 - Prepare the functions to build all the simple floors *)
+    let zip : (summary -> curve) -> (string * curve) list =
+     fun curve_of_summary ->
+      List.map2
+        (fun sname s -> (sname, curve_of_summary s))
+        summary_names summaries
+    in
+    let zip_per_block_to_per_sec : (summary -> curve) -> (string * curve) list =
+      let sec_per_block =
+        List.map
+          (fun s ->
+            all_9_ops
+            |> List.map (fun op ->
+                   mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
+                     Summary.(Op.Map.find op s.ops).count.evolution)
+            |> sum_curves)
+          summaries
+      in
+      fun curve_of_summary ->
+        List.map2
+          (fun (sname, sec_per_block) s ->
+            (sname, div_curves (curve_of_summary s) sec_per_block))
+          (List.combine summary_names sec_per_block)
+          summaries
+    in
+
+    let v :
+        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
+        =
+     fun ?(f = `R) stat_name lbs_of_summary ->
+      let curves =
+        zip (fun s -> (lbs_of_summary s).value_after_commit.evolution)
+      in
+      `Data (f, stat_name, curves)
+    in
+    let pb :
+        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
+        =
+     fun ?(f = `R) stat_name lbs_of_summary ->
+      let curves = zip (fun s -> (lbs_of_summary s).diff_per_block.evolution) in
+      `Data (f, stat_name, curves)
+    in
+    let ps :
+        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
+        =
+     fun ?(f = `R) stat_name lbs_of_summary ->
+      let curves =
+        zip_per_block_to_per_sec (fun s ->
+            (lbs_of_summary s).diff_per_block.evolution)
+      in
+      `Data (f, stat_name, curves)
+    in
+
+    let op_count : string -> Op.Key.t -> summary_floor =
+     fun name op ->
+      let curves =
+        zip (fun s -> Summary.(Op.Map.find op s.ops).count.evolution)
+      in
+      `Data (`R3, name, curves)
+    in
+    let op_duration : _ -> string -> Op.Key.t -> summary_floor =
+     fun f name op ->
+      let curves =
+        zip (fun s -> Summary.(Op.Map.find op s.ops).duration.evolution)
+      in
+      `Data (f, name, curves)
+    in
+    let op_every_sec : string -> Op.Key.t -> summary_floor =
+     fun name op ->
+      let curves =
+        zip_per_block_to_per_sec (fun s ->
+            Summary.(Op.Map.find op s.ops).count.evolution)
+      in
+      `Data (`R3, name, curves)
+    in
+
+    let seen_duration =
+      zip (fun s ->
+          all_buildup_seen_ops
+          |> List.map (fun op ->
+                 mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
+                   Summary.(Op.Map.find op s.ops).count.evolution)
+          |> sum_curves)
+    in
+    let all_ops_cumu_count =
+      zip (fun s ->
+          all_8_ops
+          |> List.map (fun op ->
+                 Summary.(Op.Map.find op s.ops).cumu_count.evolution)
+          |> sum_curves)
+    in
+
+    let tx_count =
+      zip (fun s ->
+          (* TODO: When starting replay from a store, set ~first_block_idx *)
+          let played_count_curve =
+            List.init s.curves_sample_count (fun i ->
+                float_of_int i
+                /. float_of_int (s.curves_sample_count - 1)
+                *. float_of_int s.block_count)
+            |> List.map (fun v ->
+                   Utils.approx_transaction_count_of_block_count
+                     (int_of_float v)
+                   |> float_of_int)
+          in
+          played_count_curve)
+    in
+
+    let ro_ops_per_sec =
+      zip_per_block_to_per_sec (fun s ->
+          all_buildup_ro_ops
+          |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
+          |> sum_curves)
+    in
+    let rw_ops_per_sec =
+      zip_per_block_to_per_sec (fun s ->
+          all_buildup_rw_ops
+          |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
+          |> sum_curves)
+    in
+    let sum_op_durations_per_block =
+      zip (fun s ->
+          all_9_ops
+          |> List.map (fun op ->
+                 mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
+                   Summary.(Op.Map.find op s.ops).count.evolution)
+          |> sum_curves)
+    in
+    ignore ps;
+
+    (* Step 3/3 - Build the final list of floors *)
+    [
+      `Spacer;
+      `Data
+        (`S, "Wall time elapsed *C", zip (fun s -> s.elapsed_wall_over_blocks));
+      `Data (`S, "CPU time elapsed *C", zip (fun s -> s.elapsed_cpu_over_blocks));
+      (* ops counts *)
+      `Spacer;
+      `Data (`R, "Approx. transaction count *C", tx_count);
+      (* `Data (`R3, "Approx. transactions per sec *LA", tx_per_sec); *)
+      `Data (`R, "Op count *C", all_ops_cumu_count);
+      `Data (`R3, "Read only ops per sec *LA", ro_ops_per_sec);
+      `Data (`R3, "Read write ops per sec *LA", rw_ops_per_sec);
+      (* <op> per sec *)
+      `Spacer;
+      op_every_sec "Commit per sec *LA" `Commit;
+      op_every_sec "Add per sec *LA" `Add;
+      op_every_sec "Remove per sec *LA" `Remove;
+      op_every_sec "Find per sec *LA" `Find;
+      op_every_sec "Mem per sec *LA" `Mem;
+      op_every_sec "Mem_tree per sec *LA" `Mem_tree;
+      op_every_sec "Copy per sec *LA" `Copy;
+      (* <op> per block *)
+      `Spacer;
+      op_count "Add count per block *LA" `Add;
+      op_count "Remove count per block *LA" `Remove;
+      op_count "Find count per block *LA" `Find;
+      op_count "Mem count per block *LA" `Mem;
+      op_count "Mem_tree count per block *LA" `Mem_tree;
+      op_count "Copy count per block *LA" `Copy;
+      (* <phase> duration *)
+      `Spacer;
+      `Data (`Sm, "Block duration *LA", sum_op_durations_per_block);
+      `Data (`Sm, "Buildup seen duration *LA", seen_duration);
+      op_duration `Sm "Buildup unseen duration *LA" `Unseen;
+      op_duration `Sm "Commit duration *LA" `Commit;
+      `Spacer;
+      (* <op> duration *)
+      op_duration `Su "Add duration *LA" `Add;
+      op_duration `Su "Remove duration *LA" `Remove;
+      op_duration `Su "Find duration *LA" `Find;
+      op_duration `Su "Mem duration *LA" `Mem;
+      op_duration `Su "Mem_tree duration *LA" `Mem_tree;
+      op_duration `Su "Copy duration *LA" `Copy;
+      op_duration `Su "Checkout duration *LA" `Checkout;
+      (* derived from bag_of_stat *)
+      `Spacer;
+      v "Disk bytes read *C" (fun s -> s.index.bytes_read);
+      v "Disk bytes written *C" (fun s -> s.index.bytes_written);
+      pb ~f:`Ri "Disk bytes read per block *LA" (fun s -> s.index.bytes_read);
+      pb ~f:`Ri "Disk bytes written per block *LA" (fun s ->
+          s.index.bytes_written);
+      (* ps ~f:`Rm "Disk bytes read per sec *LA" (fun s -> s.index.bytes_read); *)
+      (* ps ~f:`Rm "Disk bytes written per sec *LA" (fun s -> s.index.bytes_written); *)
+      `Spacer;
+      v "Disk read count *C" (fun s -> s.index.nb_reads);
+      v "Disk write count *C" (fun s -> s.index.nb_writes);
+      pb ~f:`R3 "Disk read count per block *LA" (fun s -> s.index.nb_reads);
+      pb ~f:`R3 "Disk write count per block *LA" (fun s -> s.index.nb_writes);
+      (* ps ~f:`Ri "Disk read count per sec *LA" (fun s -> s.index.nb_reads); *)
+      (* ps ~f:`Ri "Disk write count per sec *LA" (fun s -> s.index.nb_writes); *)
+      `Spacer;
+      pb "pack.finds per block *LA" (fun s -> s.pack.finds);
+      pb "pack.cache_misses per block *LA" (fun s -> s.pack.cache_misses);
+      pb "pack.appended_hashes per block *LA" (fun s -> s.pack.appended_hashes);
+      pb "pack.appended_offsets per block *LA" (fun s ->
+          s.pack.appended_offsets);
+      `Spacer;
+      pb "tree.contents_hash per block *LA" (fun s -> s.tree.contents_hash);
+      pb "tree.contents_find per block *LA" (fun s -> s.tree.contents_find);
+      pb "tree.contents_add per block *LA" (fun s -> s.tree.contents_add);
+      pb "tree.node_hash per block *LA" (fun s -> s.tree.node_hash);
+      pb "tree.node_mem per block *LA" (fun s -> s.tree.node_mem);
+      pb "tree.node_add per block *LA" (fun s -> s.tree.node_add);
+      pb "tree.node_find per block *LA" (fun s -> s.tree.node_find);
+      pb "tree.node_val_v per block *LA" (fun s -> s.tree.node_val_v);
+      pb "tree.node_val_find per block *LA" (fun s -> s.tree.node_val_find);
+      pb "tree.node_val_list per block *LA" (fun s -> s.tree.node_val_list);
+      `Spacer;
+      v "index.nb_merge *C" (fun s -> s.index.nb_merge);
+      v "index.cumu_data_bytes *C" (fun s -> s.index.cumu_data_bytes);
+      pb "index.cumu_data_bytes per block *LA" (fun s ->
+          s.index.cumu_data_bytes);
+      `Spacer;
+      v "gc.minor_words allocated *C" (fun s -> s.gc.minor_words);
+      pb "gc.minor_words allocated per block *LA" (fun s -> s.gc.minor_words);
+      (* ps "gc.minor_words allocated per sec *LA" (fun s -> s.gc.minor_words); *)
+      v "gc.promoted_words *C" (fun s -> s.gc.promoted_words);
+      v "gc.major_words allocated *C" (fun s -> s.gc.major_words);
+      pb "gc.major_words allocated per block *LA" (fun s -> s.gc.major_words);
+      (* ps "gc.major_words allocated per sec *LA" (fun s -> s.gc.major_words); *)
+      v "gc.minor_collections *C" (fun s -> s.gc.minor_collections);
+      pb "gc.minor_collections per block *LA" (fun s -> s.gc.minor_collections);
+      (* ps "gc.minor_collections per sec *LA" (fun s -> s.gc.minor_collections); *)
+      v "gc.major_collections *C" (fun s -> s.gc.major_collections);
+      pb "gc.major_collections per block *LA" (fun s -> s.gc.major_collections);
+      (* ps "gc.major_collections per sec *LA" (fun s -> s.gc.major_collections); *)
+      v "gc.compactions *C" (fun s -> s.gc.compactions);
+      `Spacer;
+      `Data
+        ( `Rm,
+          "gc.major heap bytes top *C",
+          zip (fun s -> s.gc.major_heap_top_bytes) );
+      v ~f:`Rm "gc.major heap bytes *LA" (fun s -> s.gc.major_heap_bytes);
+      `Spacer;
+      v "index_data bytes *S" (fun s -> s.disk.index_data);
+      pb "index_data bytes per block *LA" (fun s -> s.disk.index_data);
+      (* ps "index_data bytes per sec *LA" (fun s -> s.disk.index_data); *)
+      v "store_pack bytes *S" (fun s -> s.disk.store_pack);
+      pb "store_pack bytes per block *LA" (fun s -> s.disk.store_pack);
+      (* ps "store_pack bytes per sec *LA" (fun s -> s.disk.store_pack); *)
+      v "index_log bytes *S" (fun s -> s.disk.index_log);
+      v "index_log_async *S" (fun s -> s.disk.index_log_async);
+      v "store_dict bytes *S" (fun s -> s.disk.store_dict);
+      `Spacer;
+    ]
+    @ floor_per_node
+
+  let resample_curves_of_floor sample_count = function
+    | `Data (a, b, names_and_curves) ->
+        let names, curves = List.split names_and_curves in
+        let curves =
+          List.map
+            (fun curve ->
+              Utils.Resample.resample_vector `Next_neighbor curve sample_count)
+            curves
+        in
+        `Data (a, b, List.combine names curves)
+    | `Spacer -> `Spacer
+
+  let matrix_of_data_floor (`Data (scalar_format, floor_name, names_and_curves))
+      =
+    let only_one_summary = List.length names_and_curves = 1 in
+    let _, curves = List.split names_and_curves in
+    let pp_real = Utils.create_pp_real (List.concat curves) in
+    let pp_seconds = Utils.create_pp_seconds (List.concat curves) in
+    let curve0 = List.hd curves in
+    let box_of_scalar row_idx col_idx (v0, v) =
+      let ratio = v /. v0 in
+      let show_percent =
+        if only_one_summary then
+          (* Percents are only needed for comparisons between summaries. *)
+          `No
+        else if col_idx = 0 then
+          (* The first columns is usually full of NaNs, showing percents there
+             is a waste of space. *)
+          `No
+        else if Float.is_finite ratio = false then
+          (* Nan and infinite percents are ugly. *)
+          `Shadow
+        else if row_idx = 0 then
+          (* The first row of a floor is always 100%, it is prettier without
+             displaying it. *)
+          `Shadow
+        else `Yes
+      in
+      let pp_percent ppf =
+        match show_percent with
+        | `Yes -> Format.fprintf ppf " %a" Utils.pp_percent ratio
+        | `Shadow -> Format.fprintf ppf "     "
+        | `No -> ()
+      in
+      let pp_scalar ppf =
+        match scalar_format with
+        | `R -> Format.fprintf ppf "%a" pp_real v
+        | `S -> Format.fprintf ppf "%a" pp_seconds v
+        | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
+        | #scalar_format_fixed when Float.is_nan v -> Format.fprintf ppf "n/a"
+        | #scalar_format_fixed when Float.is_infinite v ->
+            Format.fprintf ppf "%f" v
+        | #scalar_format_fixed when v = 0. -> Format.fprintf ppf "0"
+        | `R3 -> Format.fprintf ppf "%.3f" v
+        | `Rm -> Format.fprintf ppf "%.3f M" (v /. 1e6)
+        | `Ri -> Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
+        | `Sm -> Format.fprintf ppf "%.3f ms" (v *. 1e3)
+        | `Su -> Format.fprintf ppf "%.3f \xc2\xb5s" (v *. 1e6)
+      in
+      Fmt.str "%t%t" pp_scalar pp_percent
+      |> Pb.text
+      |> Pb.align ~h:`Right ~v:`Top
+    in
+    let rows =
+      List.mapi
+        (fun row_idx (summary_name, curve) ->
+          let a = Pb.text (if row_idx = 0 then floor_name else "") in
+          let b = if only_one_summary then [] else [ Pb.text summary_name ] in
+          let c =
+            List.mapi (box_of_scalar row_idx) (List.combine curve0 curve)
+          in
+          a :: b @ c)
+        names_and_curves
+    in
+    rows
+
+  let matrix_of_floor col_count = function
+    | `Spacer -> [ List.init col_count (Fun.const "") ] |> Pb.matrix_to_text
+    | `Data _ as floor -> matrix_of_data_floor floor
+end
+
+let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
+  let block_count =
+    let l = List.map (fun s -> s.block_count) summaries in
+    let v = List.hd l in
+    if List.exists (fun v' -> v' <> v) l then
+      failwith "Can't pp together summaries with a different `block_count`";
+    v
   in
-  let tbl1 =
+  let moving_average_half_life_ratio =
+    let l = List.map (fun s -> s.moving_average_half_life_ratio) summaries in
+    let v = List.hd l in
+    if List.exists (fun v' -> v' <> v) l then
+      failwith
+        "Can't pp together summaries with a different \
+         `moving_average_half_life_ratio`";
+    v
+  in
+  let table0 =
+    Table0.box_of_summaries_config summary_names summaries
+    |> Pb.matrix_with_column_spacers
+    |> Pb.grid_l ~bars:false
+    |> PrintBox_text.to_string
+  in
+  let table1 =
+    let only_one_summary = List.length summaries = 1 in
+
+    let header_rows =
+      (if only_one_summary then [] else [ "" :: summary_names ])
+      |> Pb.matrix_to_text
+      |> Pb.align_matrix `Center
+    in
+    let col_count = List.length summaries + 1 in
+    let body_rows =
+      Table1.rows_of_summaries summaries |> Table1.matrix_of_rows col_count
+      (* |> List.map (Table1.matrix_of_row col_count) *)
+    in
+    header_rows @ body_rows
+    |> Pb.matrix_with_column_spacers
+    |> Pb.grid_l ~bars:false
+    |> PrintBox_text.to_string
+  in
+  let table2 =
+    let header_rows = Table2.create_header_rows sample_count summaries in
+    let body_rows =
+      let col_count =
+        sample_count + 1 + if List.length summaries = 1 then 0 else 1
+      in
+      Table2.floors_of_summaries summary_names summaries
+      |> List.map (Table2.resample_curves_of_floor sample_count)
+      |> List.map (Table2.matrix_of_floor col_count)
+      |> List.concat
+    in
     header_rows @ body_rows
     |> Pb.matrix_with_column_spacers
     |> Pb.grid_l ~bars:false
     |> PrintBox_text.to_string
   in
   Format.fprintf ppf
-    "%s\n\n\
+    "-- setups --\n\
+     %s\n\n\
+     %s\n\n\
+    \  (1) Longest Context.commit \n\n\
+     -- curves --\n\
      %s\n\n\
      Types of curves:\n\
     \  *C: Cumulative. No smoothing.\n\
     \  *LA: Local Average. Smoothed using a weighted sum of the value in the\n\
     \       block and the exponentially decayed values of the previous blocks.\n\
     \       Every %.2f blocks, half of the past is forgotten.\n\
-    \  *S: Size. E.g. directory entries, file bytes. No smoothing." tbl0 tbl1
+    \  *S: Size. E.g. directory entries, file bytes. No smoothing." table0
+    table1 table2
     (moving_average_half_life_ratio *. float_of_int (block_count + 1))
 
 let pp sample_count ppf (summary_names, summaries) =
