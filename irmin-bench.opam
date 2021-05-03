@@ -23,7 +23,7 @@ depends: [
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
-  "repr"         {>= "0.2.0"}
+  "repr"         {>= "0.3.0"}
   "ppx_repr"
   "re"           {>= "1.9.0"}
   "fmt"
@@ -34,11 +34,6 @@ depends: [
   "ppx_deriving" {with-test}
   "alcotest"   {with-test}
   "rusage"
-]
-
-pin-depends: [
-  [ "repr.dev" "git+https://github.com/mirage/repr#17a1c2a1d8f29eb86982af7773347bd8ee460b9c" ]
-  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#17a1c2a1d8f29eb86982af7773347bd8ee460b9c" ]
 ]
 
 synopsis: "Irmin benchmarking suite"
