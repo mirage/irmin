@@ -526,7 +526,7 @@ module Make_store_layered (Conf : sig
 end) =
 struct
   open Tezos_context_hash.Encoding
-  module Maker = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
+  module Maker = Irmin_layers_pack.Maker_ext (Conf) (Node) (Commit)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =

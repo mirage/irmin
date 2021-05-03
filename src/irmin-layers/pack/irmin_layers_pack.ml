@@ -26,3 +26,11 @@ module Maker (Config : Irmin_pack.Conf.S) =
 module Checks = Checks
 
 let config = Conf.v
+
+module C = struct
+  let entries = 0
+  let stable_hash = 0
+end
+
+(* Enforce that {!Maker} is a sub-type of {!Irmin.Maker}. *)
+module Maker_is_a_maker : Irmin.Maker = Maker (C)

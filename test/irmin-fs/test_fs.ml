@@ -26,13 +26,4 @@ let stats = None
 let store =
   Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)
 
-let suite =
-  {
-    Irmin_test.name = "FS";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = None;
-  }
+let suite = { Irmin_test.name = "FS"; init; clean; config; store; stats }

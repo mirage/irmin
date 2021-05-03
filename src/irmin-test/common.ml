@@ -49,13 +49,6 @@ module type S =
      and type contents = string
      and type branch = string
 
-module type Layered_store =
-  Irmin_layers.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
-
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
   let module S =
@@ -65,25 +58,12 @@ let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
   in
   (module S)
 
-let layered_store :
-    (module Irmin_layers.Maker) ->
-    (module Irmin.Metadata.S) ->
-    (module Layered_store) =
- fun (module B) (module M) ->
-  let module Layered_store =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
-  (module Layered_store)
-
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : (module S);
-  layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
 }
 

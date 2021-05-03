@@ -44,7 +44,7 @@ module Contents = struct
   let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
 end
 
-module Maker = Irmin_pack_layered.Maker (Conf)
+module Maker = Irmin_layers_pack.Maker (Conf)
 
 module Store =
   Maker.Make (Irmin.Metadata.None) (Contents) (Irmin.Path.String_list)
@@ -56,7 +56,7 @@ let configure_store root merge_throttle freeze_throttle =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
       ~merge_throttle root
   in
-  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000 ()
+  Irmin_layers_pack.config ~conf ~with_lower:false ~blocking_copy_size:1000 ()
 
 let init config =
   FSHelper.rm_dir config.root;

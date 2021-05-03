@@ -14,26 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Hash = Irmin.Hash.BLAKE2B
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node
-module Commit = Irmin.Private.Commit
-
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
-
-  include
-    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
-      (Irmin.Branch.String)
-      (Hash)
-end
-
-module Store = Irmin_pack.Checks.Make (Maker)
-
-let () = match Store.cli () with _ -> .
+let () =
+  Irmin_test.Store.run "irmin-layers" ~misc:Test_layers.misc
+    [ (`Quick, Test_layers.suite) ]

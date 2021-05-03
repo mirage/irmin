@@ -30,7 +30,7 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Maker = Irmin_pack_layered.Maker (Conf)
+module Maker = Irmin_layers_pack.Maker (Conf)
 
 module Store =
   Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
@@ -40,7 +40,7 @@ module Store =
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-  Irmin_pack_layered.config ~conf ~with_lower:true ()
+  Irmin_layers_pack.config ~conf ~with_lower:true ()
 
 let info = Irmin.Info.v ~date:0L ~author:"" ""
 

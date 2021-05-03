@@ -14,7 +14,6 @@ build: [
 
 depends: [
   "irmin"        {= version}
-  "irmin-layers" {= version}
   "ppx_irmin"    {= version}
   "ocaml"        {>= "4.02.3"}
   "dune"         {>= "2.7.0"}

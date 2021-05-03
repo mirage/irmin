@@ -28,65 +28,23 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker =
+module Maker =
   Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
 
+let store = Irmin_test.store (module Maker) (module Irmin.Metadata.None)
+let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir
+let clean () = Lwt.return ()
+
+let init () =
+  if Sys.file_exists test_dir then (
+    let cmd = Printf.sprintf "rm -rf %s" test_dir in
+    Fmt.epr "exec: %s\n%!" cmd;
+    let _ = Sys.command cmd in
+    ());
+  Lwt.return_unit
+
 let suite =
-  let store =
-    Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
-  in
-  let layered_store =
-    Irmin_test.layered_store
-      (module Irmin_pack_layered.Maker (Config))
-      (module Irmin.Metadata.None)
-  in
-  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
-  let init () =
-    if Sys.file_exists test_dir then (
-      let cmd = Printf.sprintf "rm -rf %s" test_dir in
-      Fmt.epr "exec: %s\n%!" cmd;
-      let _ = Sys.command cmd in
-      ());
-    Lwt.return_unit
-  in
-  let clean () =
-    let (module S : Irmin_test.S) = store in
-    let module P = S.Private in
-    let clear repo =
-      Lwt.join
-        [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
-        ]
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    let* repo = S.Repo.v config in
-    clear repo >>= fun () ->
-    S.Repo.close repo >>= fun () ->
-    let (module S : Irmin_test.Layered_store) = layered_store in
-    let module P = S.Private in
-    let clear repo =
-      P.Commit.clear (P.Repo.commit_t repo) >>= fun () ->
-      P.Node.clear (P.Repo.node_t repo) >>= fun () ->
-      P.Contents.clear (P.Repo.contents_t repo) >>= fun () ->
-      P.Branch.clear (P.Repo.branch_t repo)
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    let* repo = S.Repo.v config in
-    clear repo >>= fun () -> S.Repo.close repo
-  in
-  let stats = None in
-  {
-    Irmin_test.name = "PACK";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = Some layered_store;
-  }
+  { Irmin_test.name = "PACK"; init; clean; config; store; stats = None }
 
 module Context = Make_context (struct
   let root = test_dir
@@ -651,6 +609,5 @@ let misc =
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
-    ("layers", Layered.tests);
     ("inodes", Test_inode.tests);
   ]

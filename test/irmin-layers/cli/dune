@@ -1,0 +1,35 @@
+(executable
+ (name irmin_fsck)
+ (modules irmin_fsck)
+ (libraries irmin-pack irmin-layers.pack))
+
+(executable
+ (name generate)
+ (modules generate)
+ (libraries irmin-pack irmin-layers.pack))
+
+(rule
+ (alias generate-cli-test-data)
+ (targets data)
+ (action
+  (run %{exe:generate.exe})))
+
+(cram
+ ;; TODO: attach these to the irmin-pack package
+ (enabled_if
+  (= %{profile} dev))
+ (deps
+  (package irmin-layers)
+  (file irmin_fsck.exe)
+  (file data)
+  (alias generate-cli-test-data)))
+
+(rule
+ (alias runtest)
+ (package irmin-layers)
+ (action
+  (progn
+   (with-stdout-to
+    irmin-fsck-help.txt.gen
+    (run %{exe:irmin_fsck.exe} --help=plain))
+   (diff? irmin-fsck-help.txt irmin-fsck-help.txt.gen))))

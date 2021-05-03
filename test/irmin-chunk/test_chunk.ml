@@ -90,12 +90,4 @@ let clean () =
   S.Repo.close repo
 
 let suite =
-  {
-    Irmin_test.name = "CHUNK";
-    init;
-    store;
-    config;
-    clean;
-    stats = None;
-    layered_store = None;
-  }
+  { Irmin_test.name = "CHUNK"; init; store; config; clean; stats = None }

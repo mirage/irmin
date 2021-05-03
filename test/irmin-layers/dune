@@ -1,0 +1,18 @@
+(library
+ (name test_layers)
+ (modules import layered_store test_layers)
+ (libraries alcotest fmt common index irmin irmin-test irmin-layers.pack
+   irmin-pack.test logs lwt lwt.unix fpath)
+ (preprocess
+  (pps ppx_irmin)))
+
+(executable
+ (name test)
+ (modules test)
+ (libraries alcotest astring irmin irmin-test test_layers))
+
+(rule
+ (alias runtest)
+ (package irmin-layers)
+ (action
+  (run ./test.exe -q --color=always)))

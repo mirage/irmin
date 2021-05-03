@@ -33,6 +33,8 @@ module type Store = sig
 end
 
 module type Maker = sig
+  type endpoint = unit
+
   module Make
       (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
@@ -46,6 +48,7 @@ module type Maker = sig
        and type contents = C.t
        and type branch = B.t
        and type hash = H.t
+       and type Private.Remote.endpoint = endpoint
 end
 
 module type Layered_general = sig

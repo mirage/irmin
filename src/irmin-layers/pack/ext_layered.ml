@@ -39,6 +39,8 @@ module Maker
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker) =
 struct
+  type endpoint = unit
+
   module Make
       (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
