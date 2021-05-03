@@ -29,12 +29,14 @@ depends: [
   "fmt"
   "uuidm"
   "progress"
-  "bentov" {with-test}
-  "mtime" {with-test}
-  "ppx_deriving" {with-test}
+  "bentov"
+  "mtime"
+  "ppx_deriving"
   "alcotest"   {with-test}
   "rusage"
-  "printbox" {with-test}
+  "uutf"
+  "uucp"
+  "printbox"
 ]
 
 synopsis: "Irmin benchmarking suite"
