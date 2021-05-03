@@ -232,14 +232,22 @@ struct
         end
 
         let batch t f =
-          Lwt_mutex.with_lock t.batch_lock @@ fun () ->
-          Contents.CA.batch t.contents (fun contents ->
-              Node.CA.batch t.node (fun node ->
-                  Commit.CA.batch t.commit (fun commit ->
-                      let contents : 'a Contents.t = contents in
-                      let node : 'a Node.t = (contents, node) in
-                      let commit : 'a Commit.t = (node, commit) in
-                      f contents node commit)))
+          let run () =
+            Contents.CA.batch t.contents (fun contents ->
+                Node.CA.batch t.node (fun node ->
+                    Commit.CA.batch t.commit (fun commit ->
+                        let contents : 'a Contents.t = contents in
+                        let node : 'a Node.t = (contents, node) in
+                        let commit : 'a Commit.t = (node, commit) in
+                        f contents node commit)))
+          in
+          (* FIMXE: we want nested batches to be possible (to avoid
+             dead-locks) but we don't want more batches when a freeze
+             is in progress. This is most probably broken in the
+             current state. *)
+          if Lwt_mutex.is_locked t.batch_lock then
+            Lwt_mutex.with_lock t.batch_lock run
+          else run ()
 
         let unsafe_v_upper root config =
           let fresh = Conf.Pack.fresh config in
