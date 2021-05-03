@@ -24,7 +24,11 @@ end
 module Maker = Irmin_layers_pack.Maker (Config)
 
 let test_dir = Filename.concat "_build" "test-db-layers"
-let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir
+
+let config =
+  let conf = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+  Irmin_layers_pack.config ~conf ~with_lower:true ~blocking_copy_size:1000 ()
+
 let clean () = Lwt.return ()
 
 let init () =
@@ -35,33 +39,24 @@ let init () =
     ());
   Lwt.return_unit
 
-let suite =
-  let module S = struct
-    include
-      Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
-        (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (Irmin.Hash.SHA1)
-
-    let gc_hook = Some (fun repo max -> freeze repo ~max_lower:max)
-  end in
-  let store = (module S : Irmin_test.S) in
-  { Irmin_test.name = "LAYERS"; init; clean; config; store; stats = None }
-
-module S = struct
+module Store = struct
   include
     Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
       (Irmin.Path.String_list)
       (Irmin.Branch.String)
       (Irmin.Hash.BLAKE2B)
 
-  let gc_hook = None
+  let gc_hook = Some (fun repo max -> freeze repo ~max_lower:max)
 end
 
-module TL = Layered_store.Make_Layered (S)
+let suite =
+  let store = (module Store : Irmin_test.S) in
+  { Irmin_test.name = "LAYERS"; init; clean; config; store; stats = None }
+
+module TL = Layered_store.Make_Layered (Store)
 
 let misc =
-  let t = { suite with store = (module S : Irmin_test.S) } in
+  let t = { suite with store = (module Store : Irmin_test.S) } in
   let test f () = Lwt_main.run (init () >|= fun () -> f t ()) in
   [
     ( "MISC",
