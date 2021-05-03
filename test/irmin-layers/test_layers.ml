@@ -53,33 +53,9 @@ let suite =
   let store = (module Store : Irmin_test.S) in
   { Irmin_test.name = "LAYERS"; init; clean; config; store; stats = None }
 
-module TL = Layered_store.Make_Layered (Store)
+module TL = Layered_store.Make (Store)
 
 let misc =
   let t = { suite with store = (module Store : Irmin_test.S) } in
-  let test f () = Lwt_main.run (init () >|= fun () -> f t ()) in
-  [
-    ( "MISC",
-      [
-        ("Test commits and graphs", `Quick, test TL.test_graph_and_history);
-        ("Update branches after freeze", `Quick, test TL.test_fail_branch);
-        ("Test operations on set", `Quick, test TL.test_set);
-        ("Test operations on set tree", `Quick, test TL.test_set_tree);
-        ("Gc and tree operations", `Quick, test TL.test_gc);
-        ( "Merge into deleted branch",
-          `Quick,
-          test TL.test_merge_into_deleted_branch );
-        ( "Merge with deleted branch",
-          `Quick,
-          test TL.test_merge_with_deleted_branch );
-        ("Freeze with squash", `Quick, test TL.test_squash);
-        ("Branches with squash", `Quick, test TL.test_branch_squash);
-        ("Consecutive freezes", `Quick, test TL.test_consecutive_freeze);
-        ("Test find tree after freeze", `Quick, test TL.test_freeze_tree);
-        ("Keep max and copy from upper", `Quick, test TL.test_copy_in_upper);
-        ("Keep max and heads after max", `Quick, test TL.test_keep_heads);
-        ("Test find during freeze", `Quick, test TL.test_find_during_freeze);
-        ("Test add during freeze", `Quick, test TL.test_add_during_freeze);
-        ("Adds again objects deleted by freeze", `Quick, test TL.test_add_again);
-      ] );
-  ]
+  let run f = Lwt_main.run (init () >|= fun () -> f t) in
+  [ ("MISC", TL.suite run) ]

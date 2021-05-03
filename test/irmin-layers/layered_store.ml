@@ -21,14 +21,14 @@ let src = Logs.Src.create "test" ~doc:"Irmin layered tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module type Layered_store =
+module type S =
   Irmin_layers.S
     with type step = string
      and type key = string list
      and type contents = string
      and type branch = string
 
-module Make_Layered (S : Layered_store) = struct
+module Make (S : S) = struct
   module P = S.Private
   module Graph = Irmin.Private.Node.Graph (P.Node)
   module History = Irmin.Private.Commit.History (P.Commit)
@@ -93,7 +93,7 @@ module Make_Layered (S : Layered_store) = struct
             nodes :kt3 -b-> kt2 -a-> kt1 -x-> kv1
      freeze kr1; find nodes and commits; check that kr2 is deleted;
      reconstruct node kt3 and commit again kr2; freeze kr2 and check again*)
-  let test_graph_and_history x () =
+  let test_graph_and_history x =
     let test repo =
       let* kv1 = with_contents repo (fun t -> P.Contents.add t v1) in
       let check_val = check (T.option P.Commit.Val.t) in
@@ -154,7 +154,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   (* Test freezes over several commits; temporary stores from commits *)
-  let test_gc x () =
+  let test_gc x =
     let info = info "gc" in
     let check_val = check (T.option P.Commit.Val.t) in
     (*
@@ -246,7 +246,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   (* Branches that point to deleted commits are deleted as well *)
-  let test_fail_branch x () =
+  let test_fail_branch x =
     let check_val repo = check (T.option @@ S.commit_t repo) in
     let test repo =
       let* kv1 = r1 ~repo in
@@ -269,7 +269,7 @@ module Make_Layered (S : Layered_store) = struct
   let check_layer_for_commits repo commit msg exp =
     check_layer repo (S.Commit_t (S.Commit.hash commit)) msg exp
 
-  let test_set x () =
+  let test_set x =
     let check_list = checks T.(pair S.Key.step_t S.tree_t) in
     let check_parents = checks S.Hash.t in
     let contents v = S.Tree.v (`Contents (v, S.Metadata.default)) in
@@ -306,7 +306,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   (* Set tree, add and remove to a tree; get head from lower. *)
-  let test_set_tree x () =
+  let test_set_tree x =
     let test repo =
       let* t = S.master repo in
       let* t1 = S.Tree.add S.Tree.empty [ "a"; "d" ] v1 in
@@ -337,7 +337,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   (* Use branch deleted by freeze in a merge. *)
-  let test_merge_into_deleted_branch x () =
+  let test_merge_into_deleted_branch x =
     let test repo =
       let* foo = S.of_branch repo "foo" in
       let* bar = S.of_branch repo "bar" in
@@ -357,7 +357,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   (* As above, but the merging branch is deleted. *)
-  let test_merge_with_deleted_branch x () =
+  let test_merge_with_deleted_branch x =
     let test repo =
       let* foo = S.of_branch repo "foo" in
       let* bar = S.of_branch repo "bar" in
@@ -383,7 +383,7 @@ module Make_Layered (S : Layered_store) = struct
 
   let log_stats () = Logs.debug (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
 
-  let test_squash x () =
+  let test_squash x =
     let check_val = check T.(option S.contents_t) in
     let test repo =
       let* t = S.master repo in
@@ -458,7 +458,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_branch_squash x () =
+  let test_branch_squash x =
     let check_val = check T.(option S.contents_t) in
     let setup repo =
       let* tree1 = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 in
@@ -547,7 +547,7 @@ module Make_Layered (S : Layered_store) = struct
     run x test;
     run x test_squash
 
-  let test_consecutive_freeze x () =
+  let test_consecutive_freeze x =
     let test repo =
       let info = info "freezes" in
       let check_val repo = check (T.option @@ S.commit_t repo) in
@@ -588,7 +588,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_freeze_tree x () =
+  let test_freeze_tree x =
     let info = info "two" in
     let test repo =
       let find4 tree =
@@ -625,7 +625,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_copy_in_upper x () =
+  let test_copy_in_upper x =
     let test repo =
       let* kv1 = with_contents repo (fun t -> P.Contents.add t v1) in
       let* kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
@@ -684,7 +684,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_copy_in_upper_set x () =
+  let test_copy_in_upper_set x =
     let check_layer_id repo handler msg exp =
       let+ s = S.layer_id repo handler in
       if (s = `Upper1 || s = `Upper0) && exp = `Upper then ()
@@ -742,7 +742,7 @@ module Make_Layered (S : Layered_store) = struct
               \- c3 <- c4
                     \- c5 "b5"
                     \- c6 "b6" *)
-  let test_keep_heads x () =
+  let test_keep_heads x =
     let check_layer_id repo handler msg exp =
       let+ s = S.layer_id repo handler in
       if (s = `Upper1 || s = `Upper0) && exp = `Upper then ()
@@ -961,7 +961,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     (hook, p)
 
-  let test_find_during_freeze x () =
+  let test_find_during_freeze x =
     let info = info "hooks" in
     let test repo =
       let find_commit c v () =
@@ -993,7 +993,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_add_during_freeze x () =
+  let test_add_during_freeze x =
     let test repo =
       let find_commit t v () =
         let* c = S.Head.get t in
@@ -1028,7 +1028,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let test_add_again x () =
+  let test_add_again x =
     let test repo =
       let* t = S.master repo in
       let* tree = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 in
@@ -1063,4 +1063,26 @@ module Make_Layered (S : Layered_store) = struct
       S.Repo.close repo
     in
     run x test
+
+  let suite run =
+    let run f () = run f in
+    [
+      ("Test commits and graphs", `Quick, run test_graph_and_history);
+      ("Update branches after freeze", `Quick, run test_fail_branch);
+      ("Test operations on set", `Quick, run test_set);
+      ("Test operations on set tree", `Quick, run test_set_tree);
+      ("Gc and tree operations", `Quick, run test_gc);
+      ("Merge into deleted branch", `Quick, run test_merge_into_deleted_branch);
+      ("Merge with deleted branch", `Quick, run test_merge_with_deleted_branch);
+      ("Freeze with squash", `Quick, run test_squash);
+      ("Branches with squash", `Quick, run test_branch_squash);
+      ("Consecutive freezes", `Quick, run test_consecutive_freeze);
+      ("Test find tree after freeze", `Quick, run test_freeze_tree);
+      ("Keep max and copy from upper", `Quick, run test_copy_in_upper);
+      ("Keep max and copy from upper set", `Quick, run test_copy_in_upper_set);
+      ("Keep max and heads after max", `Quick, run test_keep_heads);
+      ("Test find during freeze", `Quick, run test_find_during_freeze);
+      ("Test add during freeze", `Quick, run test_add_during_freeze);
+      ("Adds again objects deleted by freeze", `Quick, run test_add_again);
+    ]
 end
