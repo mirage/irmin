@@ -42,20 +42,27 @@ let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
 
 open Astring
 
-module type S =
-  Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+module type S = sig
+  include
+    Irmin.S
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
+
+  val gc_hook : (repo -> commit list -> unit Lwt.t) option
+end
 
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
-  let module S =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
+  let module S = struct
+    include
+      B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+
+    let gc_hook = None
+  end in
   (module S)
 
 type t = {
