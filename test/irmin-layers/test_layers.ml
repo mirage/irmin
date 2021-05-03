@@ -26,7 +26,6 @@ module Maker = Irmin_layers_pack.Maker (Config)
 let test_dir = Filename.concat "_build" "test-db-layers"
 let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir
 let clean () = Lwt.return ()
-let store = Irmin_test.store (module Maker) (module Irmin.Metadata.None)
 
 let init () =
   if Sys.file_exists test_dir then (
@@ -37,13 +36,27 @@ let init () =
   Lwt.return_unit
 
 let suite =
+  let module S = struct
+    include
+      Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+        (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+
+    let gc_hook = Some (fun repo max -> freeze repo ~max_lower:max)
+  end in
+  let store = (module S : Irmin_test.S) in
   { Irmin_test.name = "LAYERS"; init; clean; config; store; stats = None }
 
-module S =
-  Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.BLAKE2B)
+module S = struct
+  include
+    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+      (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Irmin.Hash.BLAKE2B)
+
+  let gc_hook = None
+end
 
 module TL = Layered_store.Make_Layered (S)
 
@@ -51,7 +64,7 @@ let misc =
   let t = { suite with store = (module S : Irmin_test.S) } in
   let test f () = Lwt_main.run (init () >|= fun () -> f t ()) in
   [
-    ( "misc",
+    ( "MISC",
       [
         ("Test commits and graphs", `Quick, test TL.test_graph_and_history);
         ("Update branches after freeze", `Quick, test TL.test_fail_branch);
