@@ -94,6 +94,39 @@ let test_get_tree_list : test_case =
     key_data;
   ()
 
+let test_get_last_modified : test_case =
+ fun ~set_tree () ->
+  let data = stree "a" (contents "data")
+  and query =
+    {|{
+        master {
+          last_modified(key: "a", n: 1, depth:1) {
+            tree {
+              get_contents(key: "a") {
+                value,
+                __typename
+              }
+            }
+          }
+        }
+    }|}
+  in
+  set_tree data >>= fun () ->
+  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
+  let result : (string * Yojson.Safe.t) list list =
+    let open Yojson.Safe.Util in
+    result
+    |> members [ "data"; "master"; "last_modified" ]
+    |> to_list
+    |> List.map (members [ "tree"; "get_contents" ])
+    |> List.map to_assoc
+  in
+  Alcotest.(check (list (list (pair string yojson))))
+    "Returned entry data is valid "
+    [ [ ("value", `String "data"); ("__typename", `String "Contents") ] ]
+    result;
+  ()
+
 let suite ~set_tree =
   let test_case : string -> test_case -> unit Alcotest_lwt.test_case =
    fun name f -> Alcotest_lwt.test_case name `Quick (fun _ () -> f ~set_tree ())
@@ -103,6 +136,7 @@ let suite ~set_tree =
       [
         test_case "get_contents-list" test_get_contents_list;
         test_case "get_tree-list" test_get_tree_list;
+        test_case "get_last_modified" test_get_last_modified;
       ] );
   ]
 

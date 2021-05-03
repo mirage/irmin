@@ -18,6 +18,9 @@
     @CraigFe)
   - Added a `irmin-pack.mem` package (#1436, @icristescu, @craigfe)
 
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
+
 ### Changed
 
 - **irmin-layers**

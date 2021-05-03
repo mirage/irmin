@@ -334,6 +334,17 @@ struct
                 ~resolve:(fun _ (t, _) ->
                   let+ tree = Store.tree t in
                   Ok (tree, Store.Key.empty));
+              io_field "last_modified"
+                ~typ:(non_null (list (non_null (Lazy.force commit))))
+                ~args:
+                  Arg.
+                    [
+                      arg "key" ~typ:(non_null Input.key);
+                      arg "depth" ~typ:int;
+                      arg "n" ~typ:int;
+                    ]
+                ~resolve:(fun _ (t, _) key depth n ->
+                  Store.last_modified ?depth ?n t key >|= Result.ok);
               io_field "lcas"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:Arg.[ arg "commit" ~typ:(non_null Input.commit_hash) ]
