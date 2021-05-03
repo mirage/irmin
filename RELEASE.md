@@ -5,7 +5,6 @@ This file documents the necessary steps for releasing Irmin to its various users
 
 At a high level, releasing Irmin consists of publishing the following artefacts:
 
-- a `stat trace` on the benchmarking server, result of a Tezos trace replay;
 - a Git [commit tag][git-tags];
 - a set of documentation on GitHub pages (e.g. [`mirage.github.io/irmin`][pages-docs]);
 - a release archive (`.tbz` file containing the project source) on GitHub;
