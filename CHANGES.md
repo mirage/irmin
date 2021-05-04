@@ -2,6 +2,9 @@
 
 ### Added
 
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
+
 - **irmin**
    - Added `Store.Tree.length`. (#1316, @Ngoguey42)
 
