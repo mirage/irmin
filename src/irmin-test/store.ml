@@ -2007,25 +2007,26 @@ let suite (speed, x) =
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
+  let hook = S.gc_hook in
   suite'
     ([
        ("Basic operations on contents", speed, T.test_contents x);
        ("Basic operations on nodes", speed, T.test_nodes x);
        ("Basic operations on commits", speed, T.test_commits x);
-       ("Basic operations on branches", speed, T.test_branches x);
+       ("Basic operations on branches", speed, T.test_branches ?hook x);
        ("Hash operations on trees", speed, T.test_tree_hashes x);
-       ("Basic merge operations", speed, T.test_simple_merges x);
-       ("Basic operations on slices", speed, T.test_slice x);
+       ("Basic merge operations", speed, T.test_simple_merges ?hook x);
+       ("Basic operations on slices", speed, T.test_slice ?hook x);
        ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
        ("Tree caches and hashconsing", speed, T.test_tree_caches x);
-       ("Complex histories", speed, T.test_history x);
-       ("Empty stores", speed, T.test_empty x);
-       ("Private node manipulation", speed, T.test_private_nodes x);
+       ("Complex histories", speed, T.test_history ?hook x);
+       ("Empty stores", speed, T.test_empty ?hook x);
+       ("Private node manipulation", speed, T.test_private_nodes ?hook x);
        ("High-level store operations", speed, T.test_stores x);
        ("High-level operations on trees", speed, T.test_trees x);
        ("High-level store synchronisation", speed, T.test_sync x);
-       ("High-level store merges", speed, T.test_merge x);
-       ("Unrelated merges", speed, T.test_merge_unrelated x);
+       ("High-level store merges", speed, T.test_merge ?hook x);
+       ("Unrelated merges", speed, T.test_merge_unrelated ?hook x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);
        ("Concurrent updates", speed, T.test_concurrent_updates x);
        ("with_tree strategies", speed, T.test_with_tree x);
@@ -2055,39 +2056,31 @@ let layered_suite (speed, x) =
     | None -> []
     | Some layered_store ->
         let (module S) = layered_store in
-        let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
-        let hook repo max = S.freeze repo ~max_lower:max in
-        [
-          ("Basic operations on branches", speed, T.test_branches ~hook x);
-          ("Basic merge operations", speed, T.test_simple_merges ~hook x);
-          ("Complex histories", speed, T.test_history ~hook x);
-          ("Empty stores", speed, T.test_empty ~hook x);
-          ("Basic operations on slices", speed, T.test_slice ~hook x);
-          ("Private node manipulation", speed, T.test_private_nodes ~hook x);
-          ("High-level store merges", speed, T.test_merge ~hook x);
-          ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
-          ("Test commits and graphs", speed, TL.test_graph_and_history x);
-          ("Update branches after freeze", speed, TL.test_fail_branch x);
-          ("Test operations on set", speed, TL.test_set x);
-          ("Test operations on set tree", speed, TL.test_set_tree x);
-          ("Gc and tree operations", speed, TL.test_gc x);
-          ( "Merge into deleted branch",
-            speed,
-            TL.test_merge_into_deleted_branch x );
-          ( "Merge with deleted branch",
-            speed,
-            TL.test_merge_with_deleted_branch x );
-          ("Freeze with squash", speed, TL.test_squash x);
-          ("Branches with squash", speed, TL.test_branch_squash x);
-          ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
-          ("Test find tree after freeze", speed, TL.test_freeze_tree x);
-          ("Keep max and copy from upper", speed, TL.test_copy_in_upper x);
-          ("Keep max and heads after max", speed, TL.test_keep_heads x);
-          ("Test find during freeze", speed, TL.test_find_during_freeze x);
-          ("Test add during freeze", speed, TL.test_add_during_freeze x);
-          ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
-        ] )
+        let _, suite = suite (speed, { x with store = (module S) }) in
+        suite
+        @ [
+            ("Test commits and graphs", speed, TL.test_graph_and_history x);
+            ("Update branches after freeze", speed, TL.test_fail_branch x);
+            ("Test operations on set", speed, TL.test_set x);
+            ("Test operations on set tree", speed, TL.test_set_tree x);
+            ("Gc and tree operations", speed, TL.test_gc x);
+            ( "Merge into deleted branch",
+              speed,
+              TL.test_merge_into_deleted_branch x );
+            ( "Merge with deleted branch",
+              speed,
+              TL.test_merge_with_deleted_branch x );
+            ("Freeze with squash", speed, TL.test_squash x);
+            ("Branches with squash", speed, TL.test_branch_squash x);
+            ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
+            ("Test find tree after freeze", speed, TL.test_freeze_tree x);
+            ("Keep max and copy from upper", speed, TL.test_copy_in_upper x);
+            ("Keep max and heads after max", speed, TL.test_keep_heads x);
+            ("Test find during freeze", speed, TL.test_find_during_freeze x);
+            ("Test add during freeze", speed, TL.test_add_during_freeze x);
+            ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
+          ] )
 
 let run name ?(slow = false) ~misc tl =
   Printexc.record_backtrace true;

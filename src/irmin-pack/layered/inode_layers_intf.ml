@@ -26,7 +26,8 @@ module type S = sig
     read U.t ->
     read L.t option ->
     flip:bool ->
-    freeze_in_progress:(unit -> bool) ->
+    record:(unit -> bool) ->
+    update_lock:Lwt_mutex.t ->
     read t
 
   val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t

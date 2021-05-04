@@ -56,6 +56,8 @@ module Mem (C : Irmin.Contents.S) = struct
     Git.v (Fpath.v test_db) >>= function
     | Ok t -> S.Git.reset t >|= fun _ -> ()
     | _ -> Lwt.return_unit
+
+  let gc_hook = None
 end
 
 module Generic (C : Irmin.Contents.S) = struct
@@ -71,6 +73,8 @@ module Generic (C : Irmin.Contents.S) = struct
     let* repo = Repo.v config in
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo) >>= fun () ->
     Repo.close repo
+
+  let gc_hook = None
 end
 
 let suite =
