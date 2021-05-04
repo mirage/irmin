@@ -4,6 +4,7 @@
 
 - **irmin-layers**
   - Do not fail on double-close errors for private nodes (#1421, @samoht)
+  - Fix `Repo.batch` to be re-entrant (#TODO, @samoht)
 
 ### Added
 
