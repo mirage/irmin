@@ -26,6 +26,9 @@ module type S = sig
   type status = [ `Empty | `Head of commit ]
   (** The type for remote status. *)
 
+  type info
+  (** The type for commit info. *)
+
   val status_t : db -> status Type.t
   (** [status_t db] is the value type for {!status} of remote [db]. *)
 
@@ -53,7 +56,7 @@ module type S = sig
     db ->
     ?depth:int ->
     Remote.t ->
-    [ `Merge of Info.f | `Set ] ->
+    [ `Merge of unit -> info | `Set ] ->
     (status, pull_error) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch} fetch} but it also
       updates [t]'s current branch. [s] is the update strategy:
@@ -62,7 +65,11 @@ module type S = sig
       - [`Set] uses [S.Head.set]. *)
 
   val pull_exn :
-    db -> ?depth:int -> Remote.t -> [ `Merge of Info.f | `Set ] -> status Lwt.t
+    db ->
+    ?depth:int ->
+    Remote.t ->
+    [ `Merge of unit -> info | `Set ] ->
+    status Lwt.t
   (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
   type push_error = [ `Msg of string | `Detached_head ]
@@ -89,5 +96,6 @@ module type Sigs = sig
 
   val remote_store : (module Store.S with type t = 'a) -> 'a -> Remote.t
 
-  module Make (X : Store.S) : S with type db = X.t and type commit = X.commit
+  module Make (X : Store.S) :
+    S with type db = X.t and type commit = X.commit and type info = X.info
 end

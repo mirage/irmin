@@ -17,14 +17,10 @@
 (** Node metadata. *)
 
 module type S = sig
-  type t [@@deriving irmin]
-  (** The type for metadata. *)
+  include Type.Defaultable
 
   val merge : t Merge.t
   (** [merge] is the merge function for metadata. *)
-
-  val default : t
-  (** The default metadata to attach, for APIs that don't care about metadata. *)
 end
 
 module type Sigs = sig

@@ -16,3 +16,9 @@
 
 include module type of Repr
 (** @inline *)
+
+module type Defaultable = sig
+  include S
+
+  val default : t
+end

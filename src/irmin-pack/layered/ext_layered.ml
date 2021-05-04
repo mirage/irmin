@@ -56,6 +56,7 @@ struct
 
     module X = struct
       module Hash = H
+      module Info = Commit.Info
 
       type 'a value = { magic : char; hash : H.t; v : 'a }
 
@@ -132,7 +133,7 @@ struct
           include Layered_store.Content_addressable (H) (Index) (CA) (CA)
         end
 
-        include Irmin.Private.Commit.Store (Node) (CA) (H) (Commit)
+        include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct

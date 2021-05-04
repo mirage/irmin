@@ -145,6 +145,7 @@ include Irmin.Maker (Content_addressable) (Atomic_write)
 module KV = struct
   type metadata = unit
   type endpoint = unit
+  type info = Irmin.Info.default
 
   module Make (C : Irmin.Contents.S) =
     Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)

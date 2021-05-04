@@ -33,7 +33,7 @@ module Client (C : HTTP_CLIENT) (S : Irmin.S) :
      and type hash = S.hash
      and type step = S.step
      and type metadata = S.metadata
-     and type Key.step = S.Key.step
+     and type info = S.info
      and type Private.Remote.endpoint = unit
 
 (** HTTP server *)

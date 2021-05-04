@@ -39,6 +39,7 @@ module Maker_ext
     (CT : Commit.Maker) =
 struct
   type endpoint = unit
+  type info = CT.Info.t
 
   module Make
       (M : Metadata.S)
@@ -51,6 +52,7 @@ struct
     module AW = Atomic_write.Check_closed (AW)
 
     module X = struct
+      module Info = CT.Info
       module Hash = H
 
       module Contents = struct
@@ -67,7 +69,7 @@ struct
       module Commit = struct
         module C = CT.Make (H)
         module CA = CA.Make (H) (C)
-        include Commit.Store (Node) (CA) (H) (C)
+        include Commit.Store (Info) (Node) (CA) (H) (C)
       end
 
       module Branch = struct

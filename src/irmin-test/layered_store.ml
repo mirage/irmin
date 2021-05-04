@@ -26,6 +26,12 @@ module Make_Layered (S : Layered_store) = struct
   module Graph = Irmin.Private.Node.Graph (P.Node)
   module History = Irmin.Private.Commit.History (P.Commit)
 
+  let info message =
+    let date = Int64.of_float 0. in
+    let author = Printf.sprintf "TESTS" in
+    S.Info.v ~author ~message date
+
+  let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
   let v1 = "X1"
   let v2 = "X2"
   let v3 = "X3"

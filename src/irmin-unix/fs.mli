@@ -16,8 +16,13 @@
 
 module Append_only : Irmin.Append_only.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
-include Irmin.Maker
-module KV : Irmin.KV_maker
+include Irmin.Maker with type info = Irmin.Info.default
+module KV : Irmin.KV_maker with type info = Irmin.Info.default
+
+(** {1 Extended Stores} *)
+
 module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
 module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
-module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
+
+module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) :
+  Irmin.Maker with type info = Irmin.Info.default

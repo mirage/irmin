@@ -25,7 +25,10 @@ module type S = sig
   type hash [@@deriving irmin]
   (** Type for keys. *)
 
-  val v : info:Info.t -> node:hash -> parents:hash list -> t
+  type info [@@deriving irmin]
+  (** The type for commit info. *)
+
+  val v : info:info -> node:hash -> parents:hash list -> t
   (** Create a commit. *)
 
   val node : t -> hash
@@ -34,12 +37,13 @@ module type S = sig
   val parents : t -> hash list
   (** The commit parents. *)
 
-  val info : t -> Info.t
+  val info : t -> info
   (** The commit info. *)
 end
 
 module type Maker = sig
-  module Make (H : Type.S) : S with type hash = H.t
+  module Info : Info.S
+  module Make (H : Type.S) : S with type hash = H.t and type info = Info.t
 end
 
 module type Store = sig
@@ -47,17 +51,20 @@ module type Store = sig
 
   include Content_addressable.S
 
-  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
-  (** [merge] is the 3-way merge function for commit keys. *)
+  module Info : Info.S
+  (** Commit info. *)
 
   (** [Key] provides base functions for commit keys. *)
   module Key : Hash.Typed with type t = key and type value = value
 
   (** [Val] provides functions for commit values. *)
-  module Val : S with type t = value and type hash = key
+  module Val : S with type t = value and type hash = key and type info = Info.t
 
   module Node : Node.Store with type key = Val.hash
   (** [Node] is the underlying node store. *)
+
+  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
+  (** [merge] is the 3-way merge function for commit keys. *)
 end
 
 module type History = sig
@@ -75,11 +82,14 @@ module type History = sig
   type v [@@deriving irmin]
   (** The type for commit objects. *)
 
+  type info [@@deriving irmin]
+  (** The type for commit info. *)
+
   val v :
     [> write ] t ->
     node:node ->
     parents:commit list ->
-    info:Info.t ->
+    info:info ->
     (commit * v) Lwt.t
   (** Create a new commit. *)
 
@@ -90,7 +100,7 @@ module type History = sig
       data-structure: every commit carries the list of its immediate
       predecessors. *)
 
-  val merge : [> read_write ] t -> info:Info.f -> commit Merge.t
+  val merge : [> read_write ] t -> info:(unit -> info) -> commit Merge.t
   (** [merge t] is the 3-way merge function for commit. *)
 
   val lcas :
@@ -106,7 +116,7 @@ module type History = sig
 
   val lca :
     [> read_write ] t ->
-    info:Info.f ->
+    info:(unit -> info) ->
     ?max_depth:int ->
     ?n:int ->
     commit list ->
@@ -120,7 +130,7 @@ module type History = sig
 
   val three_way_merge :
     [> read_write ] t ->
-    info:Info.f ->
+    info:(unit -> info) ->
     ?max_depth:int ->
     ?n:int ->
     commit ->
@@ -151,9 +161,9 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  include Maker
-  (** [Make] provides a simple implementation of commit values, parameterized by
-      the commit and node keys [H]. *)
+  (** [Maker] provides a simple implementation of commit values, parameterized
+      by commit info. *)
+  module Maker (I : Info.S) : Maker with module Info = I
 
   (** V1 serialisation. *)
   module V1 (C : S) : sig
@@ -168,14 +178,16 @@ module type Sigs = sig
 
   (** [Store] creates a new commit store. *)
   module Store
+      (I : Info.S)
       (N : Node.Store)
       (S : Content_addressable.S with type key = N.key)
       (K : Hash.S with type t = S.key)
-      (V : S with type hash = S.key and type t = S.value) :
+      (V : S with type hash = S.key and type t = S.value and type info = I.t) :
     Store
       with type 'a t = 'a N.t * 'a S.t
        and type key = S.key
        and type value = S.value
+       and module Info = I
        and module Val = V
 
   module type History = History
@@ -193,4 +205,7 @@ module type Sigs = sig
        and type v = C.Val.t
        and type node = C.Node.key
        and type commit = C.key
+       and type info = C.Info.t
+
+  include Maker with module Info = Info.Default
 end

@@ -35,7 +35,7 @@ module type S = sig
   (** Reads the value from the register. Returns [None] if no value is written *)
 
   val write :
-    ?info:Irmin.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
+    ?info:Store.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
   (** Writes the provided value to the register *)
 end
 

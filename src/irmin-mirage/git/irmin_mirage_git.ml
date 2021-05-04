@@ -139,14 +139,13 @@ module KV_RO (G : Git.S) = struct
     | Some h ->
         let info = S.Commit.info h in
         Fmt.strf "commit: %a\nAuthor: %s\nDate: %Ld\n\n%s\n" S.Commit.pp_hash h
-          (Irmin.Info.author info) (Irmin.Info.date info)
-          (Irmin.Info.message info)
+          (S.Info.author info) (S.Info.date info) (S.Info.message info)
 
   let last_modified t key =
     let key' = path key in
     S.last_modified t.t key' >|= function
     | [] -> Error (`Not_found key)
-    | h :: _ -> Ok (0, Irmin.Info.date (S.Commit.info h))
+    | h :: _ -> Ok (0, S.Info.date (S.Commit.info h))
 
   let connect ?depth ?(branch = "master") ?(root = Mirage_kv.Key.empty) ?ctx
       ?headers t uri =
@@ -182,10 +181,10 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
        a clever LRU, which pushes larges objects to the underlying
        layer when needed. *)
 
-  module Info = Irmin_mirage.Info (C)
   module RO = KV_RO (G)
   module S = RO.S
   module Tree = RO.Tree
+  module Info = Irmin_mirage.Info (S.Info) (C)
 
   type batch = { repo : S.repo; mutable tree : S.tree; origin : S.commit }
 

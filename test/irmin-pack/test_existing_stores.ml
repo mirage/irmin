@@ -24,8 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh root
 
-let info () = Irmin.Info.empty
-
 let rec repeat = function
   | 0 -> fun _f x -> x
   | n -> fun f x -> f (repeat (n - 1) f x)
@@ -131,7 +129,7 @@ struct
       Log.app (fun m -> m "Checking new commits can be added to the V2 store");
       let* new_commit =
         S.Tree.add S.Tree.empty [ "c" ] "x"
-        >>= S.Commit.v rw ~parents:[] ~info:(info ())
+        >>= S.Commit.v rw ~parents:[] ~info:S.Info.empty
       in
       check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
       let+ () = S.Repo.close rw in
@@ -387,7 +385,7 @@ module Test_corrupted_stores = struct
     let module S = Make_layered in
     let add_commit repo k v =
       S.Tree.add S.Tree.empty k v
-      >>= S.Commit.v repo ~parents:[] ~info:(info ())
+      >>= S.Commit.v repo ~parents:[] ~info:S.Info.empty
     in
     let check_commit repo commit k v =
       commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function

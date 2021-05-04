@@ -17,9 +17,6 @@
 
 open! Import
 
-let return = Lwt.return
-let empty_info = Irmin.Info.none
-
 module Log_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
   type t = { time : T.t; msg : V.t; prev : K.t option } [@@deriving irmin]
 end
@@ -52,8 +49,8 @@ struct
 
     let read_exn st k =
       CAS.find st k >>= function
-      | None -> failwith "key not found in the store"
-      | Some v -> return v
+      | None -> Lwt.fail_with "key not found in the store"
+      | Some v -> Lwt.return v
 
     let add st v = CAS.batch st (fun t -> CAS.add t v)
   end
@@ -122,6 +119,8 @@ struct
     store : Store.t;
   }
 
+  let empty_info = Store.Info.none
+
   let append ~path t e =
     let* prev = Store.find t path in
     let* v = L.append prev e in
@@ -130,17 +129,17 @@ struct
   let get_cursor ~path store =
     let mk_cursor seen cache = { seen; cache; store } in
     Store.find store path >>= function
-    | None -> return (mk_cursor HashSet.empty [])
+    | None -> Lwt.return (mk_cursor HashSet.empty [])
     | Some k -> (
         L.read_key k >|= function
         | Value v -> mk_cursor (HashSet.singleton k) [ v ]
         | Merge l -> mk_cursor (HashSet.singleton k) l)
 
   let rec read_log cursor num_items acc =
-    if num_items <= 0 then return (List.rev acc, cursor)
+    if num_items <= 0 then Lwt.return (List.rev acc, cursor)
     else
       match cursor.cache with
-      | [] -> return (List.rev acc, cursor)
+      | [] -> Lwt.return (List.rev acc, cursor)
       | { msg; prev = None; _ } :: xs ->
           read_log { cursor with cache = xs } (num_items - 1) (msg :: acc)
       | { msg; prev = Some pk; _ } :: xs -> (

@@ -17,9 +17,6 @@
 
 open! Import
 
-let return = Lwt.return
-let empty_info = Irmin.Info.none
-
 module Blob_log (T : Time.S) (V : Irmin.Type.S) :
   Irmin.Contents.S with type t = (V.t * T.t) list = struct
   type t = (V.t * T.t) list [@@deriving irmin]
@@ -63,6 +60,8 @@ end
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
   module Store = Backend.Make (Blob_log (T) (V))
 
+  let empty_info = Store.Info.none
+
   type value = V.t
 
   let create_entry v = (v, T.now ())
@@ -73,9 +72,9 @@ module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
     | Some l -> Store.set_exn ~info:empty_info t path (create_entry v :: l)
 
   let read_all ~path t =
-    Store.find t path >>= function
-    | None -> return []
-    | Some l -> return (List.map (fun (v, _) -> v) l)
+    Store.find t path >|= function
+    | None -> []
+    | Some l -> List.map (fun (v, _) -> v) l
 end
 
 module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Machine) (V)

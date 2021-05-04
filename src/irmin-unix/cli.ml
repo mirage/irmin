@@ -19,7 +19,11 @@ open Cmdliner
 open Resolver
 
 let () = Hook.init ()
-let info ?(author = "irmin") fmt = Info.v ~author fmt
+
+let info (type a) (module S : Irmin.S with type info = a) ?(author = "irmin")
+    fmt =
+  let module Info = Info.Make (S.Info) in
+  Info.v ~author fmt
 
 (* Help sections common to all commands *)
 let help_sections =
@@ -287,7 +291,7 @@ let set =
             let* t = store in
             let path = key S.Key.t path in
             let value = value S.Contents.t v in
-            S.set_exn t ~info:(info ?author "%s" message) path value)
+            S.set_exn t ~info:(info (module S) ?author "%s" message) path value)
        in
        Term.(mk set $ store $ author $ message $ path $ v));
   }
@@ -305,7 +309,9 @@ let remove =
               match message with Some s -> s | None -> "remove " ^ path
             in
             let* t = store in
-            S.remove_exn t ~info:(info ?author "%s" message) (key S.Key.t path))
+            S.remove_exn t
+              ~info:(info (module S) ?author "%s" message)
+              (key S.Key.t path))
        in
        Term.(mk remove $ store $ author $ message $ path));
   }
@@ -372,7 +378,8 @@ let merge =
               | Error (`Msg msg) -> failwith msg
             in
             let* t = store in
-            S.merge_with_branch t branch ~info:(info ?author "%s" message)
+            S.merge_with_branch t branch
+              ~info:(info (module S) ?author "%s" message)
             >|= function
             | Ok () -> ()
             | Error conflict ->
@@ -400,7 +407,8 @@ let pull =
            (let* t = store in
             let* r = remote in
             let* _ =
-              Sync.pull_exn t (apply r f) (`Merge (Info.v ?author "%s" message))
+              Sync.pull_exn t (apply r f)
+                (`Merge (info (module S) ?author "%s" message))
             in
             Lwt.return_unit)
        in

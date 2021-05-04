@@ -30,7 +30,7 @@ module Maker_ext
     (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
 struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-  type hash = Irmin.Hash.Make(G.Hash).t
+  type info = Irmin.Info.default
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) = struct
     module P = Private.Make (G) (S) (C) (P) (B)
@@ -76,7 +76,7 @@ struct
   module Maker = Maker_ext (G) (S)
 
   type endpoint = Maker.endpoint
-  type hash = Maker.hash
+  type info = Maker.info
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
     Maker.Make (C) (P) (Branch.Make (B))
@@ -177,6 +177,7 @@ struct
   module Maker = Maker (G) (S)
 
   type endpoint = Maker.endpoint
+  type info = Maker.info
   type metadata = Metadata.t
   type branch = string
 
@@ -191,6 +192,8 @@ struct
   module Maker = Maker_ext (G) (S)
 
   type endpoint = Maker.endpoint
+  type metadata = Metadata.t
+  type info = Maker.info
   type branch = reference
 
   module Make (C : Irmin.Contents.S) =
@@ -206,6 +209,7 @@ struct
   module G = Mem
 
   type endpoint = unit
+  type info = Irmin.Info.default
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
   struct
@@ -223,6 +227,7 @@ struct
 
     module X = struct
       module Hash = Dummy.Hash
+      module Info = Irmin.Info.Default
 
       module Contents = struct
         module V = Dummy.Contents.Val
@@ -243,7 +248,7 @@ struct
       module Commit = struct
         module V = Dummy.Commit.Val
         module CA = CA.Make (Hash) (V)
-        include Irmin.Private.Commit.Store (Node) (CA) (Hash) (V)
+        include Irmin.Private.Commit.Store (Info) (Node) (CA) (Hash) (V)
       end
 
       module Branch = struct
@@ -306,6 +311,7 @@ struct
   module Maker = Generic (CA) (AW)
 
   type endpoint = Maker.endpoint
+  type info = Maker.info
   type metadata = Metadata.t
 
   module Make (C : Irmin.Contents.S) =

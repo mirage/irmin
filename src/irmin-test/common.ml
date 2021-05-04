@@ -33,13 +33,6 @@ let merge_exn msg x =
   | Ok x -> Lwt.return x
   | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
 
-let info msg =
-  let date = Int64.of_float 0. in
-  let author = Printf.sprintf "TESTS" in
-  Irmin.Info.v ~date ~author msg
-
-let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
-
 open Astring
 
 module type S =
@@ -95,6 +88,12 @@ module Make_helpers (S : S) = struct
   module P = S.Private
   module Graph = Irmin.Private.Node.Graph (P.Node)
 
+  let info message =
+    let date = Int64.of_float 0. in
+    let author = Printf.sprintf "TESTS" in
+    S.Info.v ~author ~message date
+
+  let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
   let v repo = P.Repo.contents_t repo
   let n repo = P.Repo.node_t repo
   let ct repo = P.Repo.commit_t repo
@@ -138,7 +137,7 @@ module Make_helpers (S : S) = struct
     S.Tree.of_hash repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
-        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] (tree :> S.tree)
+        S.Commit.v repo ~info:S.Info.empty ~parents:[] (tree :> S.tree)
 
   let r2 ~repo =
     let* kn3 = n3 ~repo in
@@ -146,7 +145,7 @@ module Make_helpers (S : S) = struct
     S.Tree.of_hash repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:Irmin.Info.empty ~parents:[ S.Commit.hash kr1 ]
+        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.hash kr1 ]
           (t3 :> S.tree)
 
   let run x test =

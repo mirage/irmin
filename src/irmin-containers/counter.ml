@@ -17,9 +17,6 @@
 
 open! Import
 
-let return = Lwt.return
-let empty_info = Irmin.Info.none
-
 module Counter : Irmin.Contents.S with type t = int64 = struct
   type t = int64
 
@@ -31,16 +28,18 @@ module type S = sig
   module Store : Irmin.S
 
   val inc :
-    ?by:int64 -> ?info:Irmin.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
 
   val dec :
-    ?by:int64 -> ?info:Irmin.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
 
   val read : path:Store.key -> Store.t -> int64 Lwt.t
 end
 
 module Make (Backend : Irmin.KV_maker) = struct
   module Store = Backend.Make (Counter)
+
+  let empty_info = Store.Info.none
 
   let modify by info t path fn =
     Store.find t path >>= function
@@ -53,8 +52,7 @@ module Make (Backend : Irmin.KV_maker) = struct
   let dec ?(by = 1L) ?(info = empty_info) ~path t =
     modify by info t path (fun x by -> Int64.sub x by)
 
-  let read ~path t =
-    Store.find t path >>= function None -> return 0L | Some v -> return v
+  let read ~path t = Store.find t path >|= function None -> 0L | Some v -> v
 end
 
 module FS = Make (Irmin_unix.FS.KV)
