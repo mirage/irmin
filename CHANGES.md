@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin-layers**
+  - Do not fail on double-close errors for private nodes (#1421, @samoht)
+
 ### Added
 
 - **irmin-graphql**
