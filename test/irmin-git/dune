@@ -6,13 +6,8 @@
  (preprocess
   (pps ppx_irmin)))
 
-(executable
+(test
  (name test)
+ (package irmin-git)
  (modules test)
  (libraries alcotest irmin irmin-test test_git))
-
-(rule
- (alias runtest)
- (package irmin-git)
- (action
-  (run ./test.exe -q --color=always)))

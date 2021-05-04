@@ -1,11 +1,5 @@
-(executable
+(test
  (name test)
- (modules test common import)
+ (package irmin-graphql)
  (libraries alcotest alcotest-lwt yojson irmin irmin-graphql irmin.mem
    cohttp-lwt-unix logs.fmt logs))
-
-(rule
- (alias runtest)
- (package irmin-graphql)
- (action
-  (run ./test.exe -q --color=always)))

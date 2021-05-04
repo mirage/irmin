@@ -1,15 +1,4 @@
-(library
- (name test_chunk)
- (modules test_chunk)
- (libraries fmt irmin irmin-test irmin-chunk irmin.mem lwt))
-
-(executable
+(test
  (name test)
- (modules test)
- (libraries alcotest fmt irmin irmin-test lwt lwt.unix test_chunk))
-
-(rule
- (alias runtest)
  (package irmin-chunk)
- (action
-  (run ./test.exe -q --color=always)))
+ (libraries fmt irmin irmin-test irmin-chunk irmin.mem lwt))

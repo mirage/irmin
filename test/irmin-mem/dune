@@ -3,18 +3,8 @@
  (modules test_mem)
  (libraries irmin irmin-test irmin.mem lwt))
 
-(executable
+(test
  (name test)
+ (package irmin-test)
  (modules test)
  (libraries alcotest irmin-test test_mem))
-
-(rule
- (alias runtest)
- (package irmin-test)
- (action
-  (run ./test.exe -q --color=always)))
-
-(executable
- (name bench)
- (modules bench)
- (libraries irmin.mem irmin-test.bench))
