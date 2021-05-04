@@ -14,19 +14,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S =
-  Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+module type S = sig
+  include
+    Irmin.S
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
 
-module type Layered_store =
-  Irmin_layers.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+  val gc_hook : (repo -> commit list -> unit Lwt.t) option
+end
+
+module type Layered_store = sig
+  include
+    Irmin_layers.S
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
+
+  val gc_hook : (repo -> commit list -> unit Lwt.t) option
+end
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 

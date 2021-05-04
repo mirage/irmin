@@ -76,6 +76,7 @@ module Git = struct
     include Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
     let init = init
+    let gc_hook = None
   end
 
   let store = (module S : Test_git.G)

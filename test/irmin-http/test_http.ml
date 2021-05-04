@@ -47,7 +47,11 @@ let http_store id (module S : Irmin_test.S) =
   let module P = struct
     let id = id
   end in
-  let module M = Irmin_http.Client (Client (P)) (S) in
+  let module M = struct
+    include Irmin_http.Client (Client (P)) (S)
+
+    let gc_hook = None
+  end in
   (module M : Irmin_test.S)
 
 let remove file = try Unix.unlink file with _ -> ()

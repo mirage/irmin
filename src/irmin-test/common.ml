@@ -35,27 +35,38 @@ let merge_exn msg x =
 
 open Astring
 
-module type S =
-  Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+module type S = sig
+  include
+    Irmin.S
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
 
-module type Layered_store =
-  Irmin_layers.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+  val gc_hook : (repo -> commit list -> unit Lwt.t) option
+end
+
+module type Layered_store = sig
+  include
+    Irmin_layers.S
+      with type step = string
+       and type key = string list
+       and type contents = string
+       and type branch = string
+
+  val gc_hook : (repo -> commit list -> unit Lwt.t) option
+end
 
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
-  let module S =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
+  let module S = struct
+    include
+      B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+
+    let gc_hook = None
+  end in
   (module S)
 
 let layered_store :
@@ -63,11 +74,14 @@ let layered_store :
     (module Irmin.Metadata.S) ->
     (module Layered_store) =
  fun (module B) (module M) ->
-  let module Layered_store =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
+  let module Layered_store = struct
+    include
+      B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+
+    let gc_hook = Some (fun repo max -> freeze repo ~max_lower:max)
+  end in
   (module Layered_store)
 
 type t = {
