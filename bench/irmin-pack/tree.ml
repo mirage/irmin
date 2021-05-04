@@ -537,7 +537,7 @@ module Make_store_layered (Conf : sig
   val stable_hash : int
 end) =
 struct
-  open Tezos_context_hash.Encoding
+  open Tezos_context_hash_irmin.Encoding
   module Maker = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
@@ -572,7 +572,7 @@ module Make_store_pack (Conf : sig
   val stable_hash : int
 end) =
 struct
-  open Tezos_context_hash.Encoding
+  open Tezos_context_hash_irmin.Encoding
 
   module V1 = struct
     let version = `V1
