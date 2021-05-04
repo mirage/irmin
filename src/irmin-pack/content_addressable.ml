@@ -44,12 +44,13 @@ struct
   }
 
   let clear ?keep_generation t =
-    Index.clear t.index;
-    match V.version with
-    | `V1 -> IO.truncate t.block
-    | `V2 ->
-        IO.clear ?keep_generation t.block;
-        Dict.clear t.dict
+    if IO.offset t.block <> Int63.zero then (
+      Index.clear t.index;
+      match V.version with
+      | `V1 -> IO.truncate t.block
+      | `V2 ->
+          IO.clear ?keep_generation t.block;
+          Dict.clear t.dict)
 
   let valid t =
     if t.open_instances <> 0 then (
@@ -71,6 +72,7 @@ struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
+      Log.debug (fun l -> l "[pack] close %s" (IO.name t.block));
       if not (IO.readonly t.block) then IO.flush t.block;
       IO.close t.block;
       Dict.close t.dict)
@@ -271,7 +273,6 @@ struct
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
       if t.open_instances = 0 then (
-        Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
         Tbl.clear t.staging;
         Lru.clear t.lru;
         close t.pack)

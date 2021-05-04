@@ -274,6 +274,7 @@ struct
     U.offset current
 
   let flip_upper t =
+    (* FIXME: display the store kind. *)
     Log.debug (fun l -> l "flip_upper to %a" pp_next_upper t);
     t.flip <- not t.flip
 
@@ -326,7 +327,7 @@ struct
 
   module Make (V : Irmin_pack.Content_addressable.Value with type hash := key) =
   struct
-    module Upper = P.Make (V)
+    module Upper = Irmin_pack.Content_addressable.Closeable (P.Make (V))
     include Content_addressable (H) (Index) (Upper) (Upper)
   end
 end

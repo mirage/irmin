@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,26 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Hash = Irmin.Hash.BLAKE2B
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node
-module Commit = Irmin.Private.Commit
-
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
-
-  include
-    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
-      (Irmin.Branch.String)
-      (Hash)
-end
-
-module Store = Irmin_pack.Checks.Make (Maker)
-
-let () = match Store.cli () with _ -> .
+include Irmin.Export_for_backends

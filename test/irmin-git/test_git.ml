@@ -56,6 +56,8 @@ module Mem (C : Irmin.Contents.S) = struct
     Git.v (Fpath.v test_db) >>= function
     | Ok t -> S.Git.reset t >|= fun _ -> ()
     | _ -> Lwt.return_unit
+
+  let gc_hook = None
 end
 
 module Generic (C : Irmin.Contents.S) = struct
@@ -71,6 +73,8 @@ module Generic (C : Irmin.Contents.S) = struct
     let* repo = Repo.v config in
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo) >>= fun () ->
     Repo.close repo
+
+  let gc_hook = None
 end
 
 let suite =
@@ -79,15 +83,7 @@ let suite =
   let init () = S.init () in
   let clean () = S.init () in
   let stats = None in
-  {
-    Irmin_test.name = "GIT";
-    clean;
-    init;
-    store;
-    stats;
-    config;
-    layered_store = None;
-  }
+  { Irmin_test.name = "GIT"; clean; init; store; stats; config }
 
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
@@ -95,15 +91,7 @@ let suite_generic =
   let clean () = S.clean () in
   let init () = S.init () in
   let stats = None in
-  {
-    Irmin_test.name = "GIT.generic";
-    clean;
-    init;
-    store;
-    stats;
-    config;
-    layered_store = None;
-  }
+  { Irmin_test.name = "GIT.generic"; clean; init; store; stats; config }
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 

@@ -1,0 +1,7 @@
+(test
+ (name test)
+ (package irmin-layers)
+ (libraries alcotest fmt index irmin irmin-test irmin-layers.pack logs lwt
+   lwt.unix)
+ (preprocess
+  (pps ppx_irmin)))

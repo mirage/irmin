@@ -38,14 +38,4 @@ let clean () =
 let init () = Lwt.return_unit
 let stats = None
 let lower_name = "lower"
-
-let suite =
-  {
-    Irmin_test.name = "MEM";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = None;
-  }
+let suite = { Irmin_test.name = "MEM"; init; clean; config; store; stats }

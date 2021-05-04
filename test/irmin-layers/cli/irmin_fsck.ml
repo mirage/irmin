@@ -14,4 +14,33 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val tests : unit Alcotest.test_case list
+module Hash = Irmin.Hash.BLAKE2B
+module Path = Irmin.Path.String_list
+module Metadata = Irmin.Metadata.None
+module Node = Irmin.Private.Node
+module Commit = Irmin.Private.Commit
+
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+end
+
+module Maker (V : Irmin_pack.Version.S) = struct
+  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
+
+  include
+    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
+      (Irmin.Branch.String)
+      (Hash)
+end
+
+module M = Irmin_layers_pack.Maker_ext (Conf) (Node) (Commit)
+
+module S =
+  M.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
+    (Irmin.Branch.String)
+    (Hash)
+
+module Store_layered = Irmin_layers_pack.Checks.Make (Maker) (S)
+
+let () = match Store_layered.cli () with _ -> .

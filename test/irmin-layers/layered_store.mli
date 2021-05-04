@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2019-2021 Ioana Cristescu <ioana@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,26 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Hash = Irmin.Hash.BLAKE2B
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node
-module Commit = Irmin.Private.Commit
+module type S =
+  Irmin_layers.S
+    with type step = string
+     and type key = string list
+     and type contents = string
+     and type branch = string
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+module Make (S : S) : sig
+  type runner := (Irmin_test.t -> unit) -> unit
+
+  val suite : runner -> unit Alcotest.test_case list
 end
-
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
-
-  include
-    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
-      (Irmin.Branch.String)
-      (Hash)
-end
-
-module Store = Irmin_pack.Checks.Make (Maker)
-
-let () = match Store.cli () with _ -> .
