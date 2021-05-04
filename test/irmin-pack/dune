@@ -1,24 +1,7 @@
-(library
- (name test_pack)
- (modules test_pack multiple_instances test_existing_stores test_inode import)
- (libraries alcotest fmt common index irmin irmin-test irmin-pack logs lwt
-   lwt.unix fpath)
+(test
+ (name test)
+ (package irmin-pack)
+ (libraries alcotest fmt index irmin irmin-test irmin-pack logs lwt lwt.unix
+   fpath)
  (preprocess
   (pps ppx_irmin)))
-
-(executable
- (name test)
- (modules test test_utils)
- (libraries alcotest astring irmin irmin-test test_pack))
-
-(rule
- (alias runtest)
- (package irmin-pack)
- (action
-  (run ./test.exe -q --color=always)))
-
-(library
- (name common)
- (public_name irmin-pack.test)
- (modules common)
- (libraries alcotest index irmin irmin-test irmin-pack logs lwt))
