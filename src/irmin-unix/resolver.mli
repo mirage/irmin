@@ -62,6 +62,7 @@ module Store : sig
   val irf : hash -> contents -> t
   val http : t -> t
   val git : contents -> t
+  val pack : hash -> contents -> t
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val destruct : t -> (module Irmin.S) * remote_fn option
