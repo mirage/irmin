@@ -327,7 +327,7 @@ struct
 
   module Make (V : Irmin_pack.Content_addressable.Value with type hash := key) =
   struct
-    module Upper = P.Make (V)
+    module Upper = Irmin_pack.Content_addressable.Closeable (P.Make (V))
     include Content_addressable (H) (Index) (Upper) (Upper)
   end
 end
