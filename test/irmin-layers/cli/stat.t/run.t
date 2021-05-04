@@ -1,7 +1,7 @@
 Running stat on a layered store after a first freeze
   $ ../irmin_fsck.exe stat ../data/layered_pack_upper
   >> Getting statistics for store: `../data/layered_pack_upper'
-
+  
   	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits
   	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits
   	0k contents / 0k nodes / 0k commits	0k contents / 0k nodes / 0k commits

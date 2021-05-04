@@ -5,14 +5,11 @@ SYNOPSIS
        irmin-fsck COMMAND ...
 
 COMMANDS
+       check-self-contained
+           Check that the upper layer of the store is self contained.
+
        integrity-check
            Check integrity of an existing store.
-
-       integrity-check-inodes
-           Check integrity of inodes in an existing store.
-
-       reconstruct-index
-           Reconstruct index from an existing pack file.
 
        stat
            Print high-level statistics about the store.
