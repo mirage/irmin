@@ -21,6 +21,37 @@ described in the instructions below.
 [dune-release]: https://github.com/ocamllabs/dune-release
 [opam-repo]: https://github.com/ocaml/opam-repository
 
+
+## Manual benchmarking
+
+Before releasing, it is important to make sure that the new version doesn't
+induce performance regressions.
+
+The performances of individual releases of irmin (+index, +repr) are saved in
+`/bench/releases`, inside the benchmarking server.
+
+From the benchmarking server, setup the right versions of the right libraries
+and then run Irmin's trace replay:
+```sh
+; export ROOT='/bench/releases/irminX.Y.Z-indexX.Y.Z-reprX.Y.Z'
+; dune exec -- bench/irmin-pack/tree.exe --mode trace --ncommits-trace 100000 /bench/replay-traces/tezos-replayable-v0.repr --verbosity info --path-conversion v0+v1 --artefacts $ROOT --keep-stat-trace
+```
+
+The following command will pretty print 2 releases side by side for manual
+comparison:
+```sh
+; export ROOT_OLD='/bench/releases/irminX.Y.Z-indexX.Y.Z-reprX.Y.Z'
+; dune exec -- bench/irmin-pack/trace_stats.exe pp -f old,$ROOT_OLD/boostrap_summary.json -f new,$ROOT/boostrap_summary.json
+```
+
+If one of the old `boostrap_summary.json` file is out of date (resulting in
+JSON parsing a error), it may be re-generated with the following commands:
+```
+; rm $ROOT_OLD/boostrap_summary.json
+; dune exec -- bench/irmin-pack/trace_stats.exe summarise $ROOT_OLD/stat_trace.repr >$ROOT_OLD/boostrap_summary.json
+; chmod 444 $ROOT_OLD/boostrap_summary.json
+```
+
 ## Releasing to opam-repository and GitHub
 
 - Check that no `.opam` files contain `pin-depends` fields. If so, release those
