@@ -184,7 +184,7 @@ struct
           mutable flip : bool;
           mutable closed : bool;
           flip_file : IO_layers.t;
-          batch_lock : Lwt_mutex.t;
+          end_of_freeze_lock : Lwt_mutex.t;
           freeze : freeze_info;
         }
 
@@ -231,14 +231,13 @@ struct
         end
 
         let batch t f =
-          Lwt_mutex.with_lock t.batch_lock @@ fun () ->
-          Contents.CA.batch t.contents (fun contents ->
-              Node.CA.batch t.node (fun node ->
-                  Commit.CA.batch t.commit (fun commit ->
-                      let contents : 'a Contents.t = contents in
-                      let node : 'a Node.t = (contents, node) in
-                      let commit : 'a Commit.t = (node, commit) in
-                      f contents node commit)))
+          Contents.CA.batch t.contents @@ fun contents ->
+          Node.CA.batch t.node @@ fun node ->
+          Commit.CA.batch t.commit @@ fun commit ->
+          let contents : 'a Contents.t = contents in
+          let node : 'a Node.t = (contents, node) in
+          let commit : 'a Commit.t = (node, commit) in
+          f contents node commit
 
         let unsafe_v_upper root config =
           let fresh = Conf.Pack.fresh config in
@@ -320,7 +319,7 @@ struct
           let lock_file = lock_path root in
           let freeze_in_progress () = freeze.state = `Running in
           let always_false () = false in
-          let batch_lock = Lwt_mutex.create () in
+          let end_of_freeze_lock = Lwt_mutex.create () in
           let+ () =
             if fresh && Lock.test lock_file then Lock.unlink lock_file
             else Lwt.return_unit
@@ -328,22 +327,22 @@ struct
           let lower_contents = Option.map (fun x -> x.lcontents) lower in
           let contents =
             Contents.CA.v upper1.contents upper0.contents lower_contents ~flip
-              ~freeze_in_progress:always_false
+              ~record:always_false ~update_lock:end_of_freeze_lock
           in
           let lower_node = Option.map (fun x -> x.lnode) lower in
           let node =
             Node.CA.v upper1.node upper0.node lower_node ~flip
-              ~freeze_in_progress:always_false
+              ~record:always_false ~update_lock:end_of_freeze_lock
           in
           let lower_commit = Option.map (fun x -> x.lcommit) lower in
           let commit =
             Commit.CA.v upper1.commit upper0.commit lower_commit ~flip
-              ~freeze_in_progress
+              ~record:freeze_in_progress ~update_lock:end_of_freeze_lock
           in
           let lower_branch = Option.map (fun x -> x.lbranch) lower in
           let branch =
             Branch.v upper1.branch upper0.branch lower_branch ~flip
-              ~freeze_in_progress
+              ~record:freeze_in_progress
           in
           let lower_index = Option.map (fun x -> x.lindex) lower in
           let readonly = Conf.Pack.readonly config in
@@ -363,7 +362,7 @@ struct
             closed = false;
             flip_file;
             freeze;
-            batch_lock;
+            end_of_freeze_lock;
           }
 
         let unsafe_close t =
@@ -795,7 +794,7 @@ struct
            [newies_limit] bytes) so this lock should be quickly released. *)
         Irmin_layers.Stats.freeze_section "wait for batch lock";
         Irmin_layers.Stats.freeze_yield ();
-        Lwt_mutex.with_lock t.batch_lock (fun () ->
+        Lwt_mutex.with_lock t.end_of_freeze_lock (fun () ->
             Irmin_layers.Stats.freeze_yield_end ();
             Irmin_layers.Stats.freeze_section "copy newies (last)";
             Copy.CopyToUpper.copy_newies ~cancel:None t >>= fun () ->

@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin-layers**
+  - Fix `Repo.batch` to be re-entrant (#TODO, @samoht)
+
 ### Added
 
 - **irmin-graphql**
