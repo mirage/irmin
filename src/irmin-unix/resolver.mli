@@ -65,6 +65,7 @@ module Store : sig
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val destruct : t -> (module Irmin.S) * remote_fn option
+  val term : (string option * hash option * string option) Cmdliner.Term.t
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
