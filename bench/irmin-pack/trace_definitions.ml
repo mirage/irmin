@@ -135,7 +135,7 @@ end
 
 (** Trace of a tezos node run, or a replay run.
 
-    May summarised to a JSON file.
+    May be summarised to a JSON file.
 
     {3 Implicitly Auto-Upgradable File Format}
 

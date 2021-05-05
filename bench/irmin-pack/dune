@@ -17,11 +17,11 @@
 (library
  (name irmin_traces)
  (modules trace_common trace_definitions trace_collection trace_stat_summary
-   trace_stat_summary_conf trace_stat_summary_utils)
+   trace_stat_summary_conf trace_stat_summary_utils trace_stat_summary_pp)
  (preprocess
   (pps ppx_repr ppx_deriving.enum))
- (libraries irmin irmin-pack unix lwt repr ppx_repr bentov mtime
-   mtime.clock.os))
+ (libraries irmin irmin-pack unix lwt repr ppx_repr bentov mtime printbox
+   printbox.unicode mtime.clock.os))
 
 (executable
  (name tree)
@@ -32,10 +32,15 @@
    unix cmdliner logs memtrace repr ppx_repr bench_common
    tezos-context-hash-irmin irmin_traces))
 
+(executable
+ (name trace_stats)
+ (modules trace_stats)
+ (libraries cmdliner irmin_traces))
+
 ;; Require the executables to compile during tests
 
 (rule
  (alias runtest)
  (package irmin-bench)
- (deps main.exe layers.exe tree.exe)
+ (deps main.exe layers.exe tree.exe trace_stats.exe)
  (action (progn)))

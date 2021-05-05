@@ -436,12 +436,15 @@ module Trace_replay (Store : Store) = struct
             Lwt.return_unit)
           else Lwt.return (Stat_collector.remove stats))
     in
-    Option.iter
-      (fun s ->
+    match summary_opt with
+    | Some summary ->
         let p = Filename.concat config.artefacts_dir "boostrap_summary.json" in
-        Trace_stat_summary.save_to_json s p)
-      summary_opt;
-    fun ppf -> Format.fprintf ppf "\n%t\n" repo_pp
+        Trace_stat_summary.save_to_json summary p;
+        fun ppf ->
+          Format.fprintf ppf "\n%t\n%a" repo_pp
+            (Trace_stat_summary_pp.pp 5)
+            ([ "" ], [ summary ])
+    | None -> fun ppf -> Format.fprintf ppf "\n%t\n" repo_pp
 end
 
 module Benchmark = struct
