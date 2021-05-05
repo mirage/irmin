@@ -5,6 +5,9 @@
 - **irmin-layers**
   - Do not fail on double-close errors for private nodes (#1421, @samoht)
 
+- **irmin-pack**
+  - Do not clear and bump the generation for empty files (#1420, @samoht)
+
 ### Added
 
 - **irmin-graphql**
