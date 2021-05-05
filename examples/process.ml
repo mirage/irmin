@@ -105,10 +105,10 @@ module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 let head = Git.Reference.v ("refs/heads/" ^ branch images.(0))
 let config = Irmin_git.config ~bare:true ~head Config.root
 
-let info image msg () =
+let info image message () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let author = image.name in
-  Irmin.Info.v ~date ~author msg
+  Store.Info.v ~author ~message date
 
 let master = branch images.(0)
 

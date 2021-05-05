@@ -17,6 +17,7 @@
 open Import
 
 module Make (G : Git.S) = struct
+  module Info = Irmin.Info.Default
   module Raw = Git.Value.Make (G.Hash)
   module Key = Irmin.Hash.Make (G.Hash)
 
@@ -33,12 +34,13 @@ module Make (G : Git.S) = struct
   module Val = struct
     type t = G.Value.Commit.t
     type hash = Key.t [@@deriving irmin]
+    type info = Info.t [@@deriving irmin]
 
     let info_of_git author message =
       let id = author.Git.User.name in
       let date, _ = author.Git.User.date in
       (* FIXME: tz offset is ignored *)
-      Irmin.Info.v ~date ~author:id message
+      Info.v ~author:id ~message date
 
     let name_email name =
       let name = String.trim name in
@@ -69,11 +71,11 @@ module Make (G : Git.S) = struct
       let tree = node in
       let parents = List.fast_sort G.Hash.compare parents in
       let author =
-        let date = Irmin.Info.date info in
-        let name, email = name_email (Irmin.Info.author info) in
+        let date = Info.date info in
+        let name, email = name_email (Info.author info) in
         Git.User.{ name; email; date = (date, None) }
       in
-      let message = Irmin.Info.message info in
+      let message = Info.message info in
       G.Value.Commit.make (* FIXME: should be v *) ~tree ~parents ~author
         ~committer:author
         (if message = "" then None else Some message)

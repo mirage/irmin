@@ -14,17 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = { date : int64; author : string; message : string } [@@deriving irmin]
-type f = unit -> t
+include Info_intf
 
-let create ~date ~author message = { date; message; author }
-let empty = { date = 0L; author = ""; message = "" }
+module Default = struct
+  type author = string [@@deriving irmin]
+  type message = string [@@deriving irmin]
 
-let v ~date ~author message =
-  if date = 0L && author = "" && message = "" then empty
-  else create ~date ~author message
+  type t = { date : int64; author : author; message : message }
+  [@@deriving irmin]
 
-let date t = t.date
-let author t = t.author
-let message t = t.message
-let none () = empty
+  type f = unit -> t
+
+  let empty = { date = 0L; author = ""; message = "" }
+  let is_empty = Type.(unstage (equal t)) empty
+
+  let v ?(author = "") ?(message = "") date =
+    let r = { date; message; author } in
+    if is_empty r then empty else r
+
+  let date t = t.date
+  let author t = t.author
+  let message t = t.message
+  let none () = empty
+end
+
+type default = Default.t

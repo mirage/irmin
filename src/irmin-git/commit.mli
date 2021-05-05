@@ -23,6 +23,12 @@ module Make (G : Git.S) : sig
        and type key = G.Hash.t
        and type value = G.Value.Commit.t
 
+  module Info = Irmin.Info.Default
   module Key : Irmin.Hash.S with type t = key
-  module Val : Irmin.Private.Commit.S with type t = value and type hash = key
+
+  module Val :
+    Irmin.Private.Commit.S
+      with type t = value
+       and type hash = key
+       and type info = Info.t
 end

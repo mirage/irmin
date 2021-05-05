@@ -1,6 +1,17 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin-layers**
+  - Do not fail on double-close errors for private nodes (#1421, @samoht)
+
+- **irmin-pack**
+  - Do not clear and bump the generation for empty files (#1420, @samoht)
+
 ### Added
+
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
 
 - **irmin**
    - Added `Store.Tree.length`. (#1316, @Ngoguey42)
@@ -19,8 +30,12 @@
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
 
-- *irmin-mem**
+- **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
+
+- **irmin-unix**
+  - Update `irmin` CLI to raise an exception when an invalid/non-existent
+    config file is specified (#1413, @zshipko)
 
 ### Changed
 
@@ -52,6 +67,8 @@
     atomic-writes stores, as well as node and commit makers (#1369, @samoht)
   - Require at least `lwt.5.3.0` to use `Lwt.Syntax` in the codebase
     (#1401, @samoht)
+  - `Info` implementations are not part of store: use `S.Info.v`
+    instead of `Irmin.Info.v` (#1400, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

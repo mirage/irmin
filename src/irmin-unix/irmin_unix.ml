@@ -14,9 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let info = Info.v
 let set_listen_dir_hook = Hook.init
 
+module I = Info.Make (Irmin.Info.Default)
+
+let info = I.v
+
+module Info = Info.Make
 module Git = Xgit
 module Http = Http
 module Graphql = Graphql

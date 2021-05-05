@@ -14,5 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val v :
-  ?author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+module Make (I : Irmin.Info.S) : sig
+  include Irmin.Info.S with type t = I.t
+
+  val v : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
+end

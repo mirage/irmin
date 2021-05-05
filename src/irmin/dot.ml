@@ -54,6 +54,10 @@ module Make (S : Store.S) = struct
   module Commit = S.Private.Commit
   module Slice = S.Private.Slice
   module Graph = Object_graph.Make (S.Hash) (Branch.Key)
+  module Info = S.Info
+
+  let pp_author = Type.pp Info.author_t
+  let pp_message = Type.pp Info.message_t
 
   let fprintf (t : db) ?depth ?(html = false) ?full ~date name =
     Log.debug (fun f ->
@@ -102,17 +106,18 @@ module Make (S : Store.S) = struct
       let o = Commit.Val.info c in
       let s =
         if html then
-          sprintf
+          let message = Fmt.to_to_string pp_message (Info.message o) in
+          Fmt.str
             "<div class='commit'>\n\
             \  <div class='sha1'>%s</div>\n\
-            \  <div class='author'>%s</div>\n\
+            \  <div class='author'>%a</div>\n\
             \  <div class='date'>%s</div>\n\
             \  <div class='message'><pre>%s</pre></div>\n\
             \  <div>&nbsp</div>\n\
              </div>"
-            k (Info.author o)
+            k pp_author (Info.author o)
             (date (Info.date o))
-            (String.Ascii.escape (Info.message o))
+            (String.Ascii.escape message)
         else sprintf "%s" k
       in
       `Label s

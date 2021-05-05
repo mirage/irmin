@@ -31,6 +31,7 @@ module Make (S : Store.S) = struct
 
   type db = S.t
   type commit = S.commit
+  type info = S.info
 
   let conv dx dy =
     let dx_to_bin_string = Type.(unstage (to_bin_string dx)) in

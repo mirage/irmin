@@ -49,7 +49,7 @@ end
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root
 
-let info () = Irmin.Info.empty
+let info () = S.Info.empty
 
 let open_ro_after_rw_closed () =
   rm_dir root;

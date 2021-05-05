@@ -59,7 +59,7 @@ end
 module Maker
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-  Maker with module G := G and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  Maker with module G := G
 
 module KV
     (G : G)
@@ -77,10 +77,13 @@ module Ref
      and type branch = Reference.t
      and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-(** Same as {!Maker} but with a custom branch implementation. *)
+(** Duplicate of {!Maker} but with a custom branch implementation. *)
 module Maker_ext
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t) : sig
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+  type info = Irmin.Info.default
+
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) :
     S
       with type key = P.t
@@ -88,14 +91,15 @@ module Maker_ext
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+       and type Private.Remote.endpoint = endpoint
        and module Git = G
 end
 
 module Generic
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) : sig
-  type endpoint
+  type endpoint = unit
+  type info = Irmin.Info.default
 
   module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
     Irmin.S

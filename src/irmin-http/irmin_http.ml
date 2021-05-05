@@ -483,7 +483,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         include Closeable.Content_addressable (CA)
       end
 
-      include Irmin.Private.Commit.Store (Node) (X) (X.Key) (X.Val)
+      include Irmin.Private.Commit.Store (S.Info) (Node) (X) (X.Key) (X.Val)
 
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end

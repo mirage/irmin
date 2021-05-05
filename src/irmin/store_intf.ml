@@ -73,12 +73,20 @@ module type S = sig
   type slice [@@deriving irmin]
   (** Type for store slices. *)
 
+  type info [@@deriving irmin]
+  (** The type for commit info. *)
+
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
   (** The type for errors associated with functions computing least common
       ancestors *)
 
   type ff_error = [ `No_change | `Rejected | lca_error ] [@@deriving irmin]
   (** The type for errors for {!fast_forward}. *)
+
+  module Info : sig
+    include Info.S with type t = info
+    (** @inline *)
+  end
 
   (** Repositories. *)
   module Repo : sig
@@ -304,7 +312,7 @@ module type S = sig
     val pp_hash : t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the hash. *)
 
-    val v : repo -> info:Info.t -> parents:hash list -> tree -> commit Lwt.t
+    val v : repo -> info:info -> parents:hash list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
 
         - [info c = i]
@@ -317,7 +325,7 @@ module type S = sig
     val parents : commit -> hash list
     (** [parents c] are [c]'s parents. *)
 
-    val info : commit -> Info.t
+    val info : commit -> info
     (** [info c] is [c]'s info. *)
 
     (** {1 Import/Export} *)
@@ -827,6 +835,7 @@ module type S = sig
          and type Branch.key = branch
          and type Slice.t = slice
          and type Repo.t = repo
+         and module Commit.Info = Info
   end
 
   type Remote.t +=
@@ -862,6 +871,7 @@ end
 
 module type Maker = sig
   type endpoint
+  type info
 
   module Make
       (M : Metadata.S)
@@ -877,6 +887,7 @@ module type Maker = sig
        and type branch = B.t
        and type hash = H.t
        and type Private.Remote.endpoint = endpoint
+       and type info = info
 end
 
 module type Json_tree = functor
@@ -896,7 +907,7 @@ module type Json_tree = functor
   val get : Store.t -> Store.key -> t Lwt.t
   (** Extract a [json] value from a store at the given key. *)
 
-  val set : Store.t -> Store.key -> t -> info:Info.f -> unit Lwt.t
+  val set : Store.t -> Store.key -> t -> info:(unit -> Store.info) -> unit Lwt.t
   (** Project a [json] value onto a store at the given key. *)
 end
 
@@ -906,12 +917,14 @@ module type KV =
 module type KV_maker = sig
   type metadata
   type endpoint
+  type info
 
   module Make (C : Contents.S) :
     KV
       with type contents = C.t
        and type metadata = metadata
        and type Private.Remote.endpoint = endpoint
+       and type info = info
 end
 
 module type Sigs = sig
@@ -934,6 +947,8 @@ module type Sigs = sig
        and type metadata = P.Node.Metadata.t
        and module Key = P.Node.Path
        and type repo = P.Repo.t
+       and type info = P.Commit.Info.t
+       and module Info = P.Commit.Info
        and module Private = P
 
   module Json_tree : Json_tree

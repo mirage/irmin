@@ -32,6 +32,7 @@ module Make (P : Private.S) = struct
   module Commits = Commit.History (P.Commit)
   module Graph = Object_graph.Make (Hash) (Branch_store.Key)
   module Private = P
+  module Info = P.Commit.Info
 
   module Contents = struct
     include P.Contents.Val
@@ -59,6 +60,7 @@ module Make (P : Private.S) = struct
   type key = Key.t [@@deriving irmin]
   type slice = P.Slice.t [@@deriving irmin]
   type step = Key.step [@@deriving irmin]
+  type info = P.Commit.Info.t [@@deriving irmin]
   type repo = P.Repo.t
   type commit = { r : repo; h : Hash.t; v : P.Commit.value }
   type head_ref = [ `Branch of branch | `Head of commit option ref ]

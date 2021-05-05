@@ -36,8 +36,10 @@ module Server = struct
 
     let init () =
       let module Config = struct
+        type info = Store.info
+
         let info ?(author = "irmin-graphql") fmt =
-          let module I = Irmin_mirage.Info (Pclock) in
+          let module I = Irmin_mirage.Info (Store.Info) (Pclock) in
           I.f ~author fmt
 
         let remote =

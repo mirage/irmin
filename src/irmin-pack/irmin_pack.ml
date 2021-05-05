@@ -54,6 +54,7 @@ module KV (V : Version.S) (Config : Conf.S) = struct
   module Maker = Maker (V) (Config)
 
   type metadata = Metadata.t
+  type info = Maker.info
 
   module Make (C : Irmin.Contents.S) =
     Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)

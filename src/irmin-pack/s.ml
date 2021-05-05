@@ -83,6 +83,7 @@ end
 
 module type Maker = sig
   type endpoint = unit
+  type info
 
   module Make
       (Metadata : Irmin.Metadata.S)
@@ -99,4 +100,5 @@ module type Maker = sig
        and type metadata = Metadata.t
        and type Key.step = Path.step
        and type Private.Remote.endpoint = endpoint
+       and type info = info
 end

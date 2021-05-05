@@ -24,8 +24,11 @@ val with_timer : (unit -> 'a Lwt.t) -> (float * 'a) Lwt.t
 val with_progress_bar :
   message:string -> n:int -> unit:string -> ((int64 -> unit) -> 'a) -> 'a
 
-val info : unit -> Irmin.Info.t
 val random_blob : unit -> bytes
+
+module Info (I : Irmin.Info.S) : sig
+  val f : I.f
+end
 
 module Conf : sig
   val entries : int

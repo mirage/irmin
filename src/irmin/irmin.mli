@@ -441,13 +441,14 @@ module Dot (S : S) : Dot.S with type db = S.t
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  Maker with type endpoint = unit
+  Maker with type endpoint = unit and type info = Info.default
 
 module Maker_ext
     (CA : Content_addressable.Maker)
     (AW : Atomic_write.Maker)
     (Node : Private.Node.Maker)
-    (Commit : Private.Commit.Maker) : Maker with type endpoint = unit
+    (Commit : Private.Commit.Maker) :
+  Maker with type endpoint = unit and type info = Commit.Info.t
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :
@@ -461,6 +462,8 @@ module Of_private (P : Private.S) :
      and type Key.step = P.Node.Path.step
      and type repo = P.Repo.t
      and type slice = P.Slice.t
+     and type info = P.Commit.Info.t
+     and module Info = P.Commit.Info
      and module Private = P
 
 module Export_for_backends = Export_for_backends

@@ -260,6 +260,7 @@ end
 
 module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct
   type endpoint = unit
+  type info = Irmin.Info.default
 
   module Make
       (M : Irmin.Metadata.S)
@@ -321,6 +322,7 @@ module Maker (IO : IO) = Maker_ext (IO) (Obj) (Ref)
 module KV (IO : IO) = struct
   type metadata = unit
   type endpoint = unit
+  type info = Irmin.Info.default
 
   module Maker = Maker (IO)
 

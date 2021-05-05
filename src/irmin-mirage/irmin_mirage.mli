@@ -18,11 +18,10 @@
 
 (** The context to use for synchronisation. *)
 
-module Info (C : Mirage_clock.PCLOCK) : sig
+module Info (Info : Irmin.Info.S) (C : Mirage_clock.PCLOCK) : sig
   (** {1 Commit info creators} *)
 
-  val f :
-    author:string -> ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+  val f : author:string -> ('a, Format.formatter, unit, Info.f) format4 -> 'a
   (** [f ~author msg] is a new commit info with [author] as commit author,
       [C.now_d_ps ()] as commit date and [msg] as commit message.*)
 end

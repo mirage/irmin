@@ -304,7 +304,7 @@ module Trace_replay (Store : Store) = struct
       (* in tezos commits call Tree.list first for the unshallow operation *)
       Store.Tree.list tree []
     in
-    let info = Irmin.Info.v ~date ~author:"Tezos" message in
+    let info = Store.Info.v ~author:"Tezos" ~message date in
     let* commit = Store.Commit.v repo ~info ~parents:parents_store tree in
     let+ () = Stat_collector.commit_end stats tree in
     Store.Tree.clear tree;
@@ -463,8 +463,10 @@ end
 module Hash = Irmin.Hash.SHA1
 
 module Bench_suite (Store : Store) = struct
+  module Info = Info (Store.Info)
+
   let init_commit repo =
-    Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
+    Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
 
   module Trees = Generate_trees (Store)
   module Trace_replay = Trace_replay (Store)
@@ -475,7 +477,7 @@ module Bench_suite (Store : Store) = struct
     | Some commit ->
         let tree = Store.Commit.tree commit in
         let* tree = f tree in
-        Store.Commit.v repo ~info:(info ()) ~parents:[ prev_commit ] tree
+        Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree
 
   let add_commits ~message repo ncommits on_commit on_end f () =
     with_progress_bar ~message ~n:ncommits ~unit:"commits" @@ fun prog ->
@@ -538,7 +540,7 @@ module Make_store_layered (Conf : sig
   val stable_hash : int
 end) =
 struct
-  open Tezos_context_hash.Encoding
+  open Tezos_context_hash_irmin.Encoding
   module Maker = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
@@ -573,7 +575,7 @@ module Make_store_pack (Conf : sig
   val stable_hash : int
 end) =
 struct
-  open Tezos_context_hash.Encoding
+  open Tezos_context_hash_irmin.Encoding
 
   module V1 = struct
     let version = `V1

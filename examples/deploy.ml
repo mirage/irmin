@@ -20,10 +20,10 @@ let config =
   let head = Git.Reference.v "refs/heads/upstream" in
   Irmin_git.config ~head ~bare:false Config.root
 
-let info ~user msg () =
+let info ~user message () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let author = user in
-  Irmin.Info.v ~date ~author msg
+  Store.Info.v ~author ~message date
 
 (* 1. Cloning the gold image. *)
 let provision repo =
