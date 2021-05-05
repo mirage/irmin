@@ -12,7 +12,7 @@ val create_pp_real :
     to the [examples] shown to it.
 
     It is highly recommended, but not mandatory, for all the numbers passed to
-    [pp_real] to be included [examples].
+    [pp_real] to be included in [examples].
 
     [significant_digits] is used to snap certain numbers to the nearest integer. *)
 
