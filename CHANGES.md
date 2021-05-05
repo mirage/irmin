@@ -30,8 +30,12 @@
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
 
-- *irmin-mem**
+- **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
+
+- **irmin-unix**
+  - Update `irmin` CLI to raise an exception when an invalid/non-existent
+    config file is specified (#1413, @zshipko)
 
 ### Changed
 
