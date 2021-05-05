@@ -6,6 +6,19 @@
 type histo = (float * int) list [@@deriving repr]
 type curve = float list [@@deriving repr]
 
+val snap_to_integer : significant_digits:int -> float -> float
+(** [snap_to_integer ~significant_digits v] is [Float.round v] if [v] is close
+    to [Float.round v], otherwise the result is [v]. [significant_digits]
+    defines how close things are.
+
+    Examples:
+
+    When [significant_digits] is [4] and [v] is [42.00001], [snap_to_integer v]
+    is [42.].
+
+    When [significant_digits] is [4] and [v] is [42.001], [snap_to_integer v] is
+    [v]. *)
+
 val create_pp_real :
   ?significant_digits:int -> float list -> Format.formatter -> float -> unit
 (** [create_pp_real examples] is [pp_real], a float pretty-printer that adapts
@@ -14,7 +27,10 @@ val create_pp_real :
     It is highly recommended, but not mandatory, for all the numbers passed to
     [pp_real] to be included in [examples].
 
-    [significant_digits] is used to snap certain numbers to the nearest integer. *)
+    When all the [examples] are integers, the display may be different. The
+    examples that aren't integer, but that are very close to be a integers are
+    counted as integers. [significant_digits] is used internally to snap the
+    examples to integers. *)
 
 val create_pp_seconds : float list -> Format.formatter -> float -> unit
 (** [create_pp_seconds examples] is [pp_seconds], a time span pretty-printer

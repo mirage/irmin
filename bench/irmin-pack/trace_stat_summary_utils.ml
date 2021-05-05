@@ -18,16 +18,21 @@ type histo = (float * int) list [@@deriving repr]
 type curve = float list [@@deriving repr]
 
 let snap_to_integer ~significant_digits v =
+  if significant_digits < 0 then
+    invalid_arg "significant_digits should be greater or equal to zero.";
   if not @@ Float.is_finite v then v
   else if Float.is_integer v then v
   else
+    (* This scope is about choosing between [v] and [Float.round v]. *)
     let significant_digits = float_of_int significant_digits in
     let v' = Float.round v in
-    if v' = 0. then v
+    if v' = 0. then (* Do not snap numbers close to 0. *)
+      v
     else
-      let diff = Float.abs (v -. v') in
-      assert (diff <= 0.5);
-      let significant_digits' = -.Float.log10 (diff /. v) in
+      let round_distance = Float.abs (v -. v') in
+      assert (round_distance <= 0.5);
+      (* The smaller [round_distance], the greater [significant_digits']. *)
+      let significant_digits' = -.Float.log10 round_distance in
       assert (significant_digits' > 0.);
       if significant_digits' >= significant_digits then v' else v
 
