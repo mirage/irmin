@@ -56,6 +56,30 @@ end
 
 type summary = Summary.t
 
+type scalar_format_fixed = [ `SM | `S3 | `Sm | `Su | `RG | `RM | `Ri | `R3 | `P ]
+(** Seconds minutes, Seconds 3 digits, Seconds milli, Seconds micro, Real giga,
+    Real mega, Real as integer, Real 3 digits, Percent *)
+
+let pp_scalar_fixed ppf (format, v) =
+  if Float.is_nan v then Format.fprintf ppf "n/a"
+  else if Float.is_infinite v then Format.fprintf ppf "%f" v
+  else if v = 0. then Format.fprintf ppf "0"
+  else
+    match format with
+    | `SM ->
+        let m = Float.floor (v /. 60.) in
+        let s = v -. (m *. 60.) in
+        Format.fprintf ppf "%.0fm%02.0fs" m s
+    | `S3 -> Format.fprintf ppf "%.3f s" v
+    | `Sm -> Format.fprintf ppf "%.3f ms" (v *. 1e3)
+    | `Su -> Format.fprintf ppf "%.3f \xc2\xb5s" (v *. 1e6)
+    | `RG -> Format.fprintf ppf "%.3f G" (v /. 1e9)
+    | `RM -> Format.fprintf ppf "%.3f M" (v /. 1e6)
+    | `Ri -> Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
+    | `R3 -> Format.fprintf ppf "%.3f" v
+    | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
+
+(** Summary *)
 module Table0 = struct
   let summary_config_entries =
     [
@@ -115,6 +139,7 @@ module Table0 = struct
     row0 @ rows |> Pb.matrix_to_text
 end
 
+(** Highlights *)
 module Table1 = struct
   let rows_of_summaries summaries =
     let cpu_time_elapsed = List.map (fun s -> s.elapsed_cpu) summaries in
@@ -131,21 +156,20 @@ module Table1 = struct
         summaries
     in
     let tx_per_sec =
+      (* TODO: When replaying on a middle section of the chain, set
+         [~first_block_idx] *)
       List.map
         (fun s ->
-          (* TODO: Same message *)
-          (* TODO: Per CPU SEC *)
-          (* TODO: Blocks are not blocks, write it again *)
           (Utils.approx_transaction_count_of_block_count s.block_count
           |> float_of_int)
           /. s.elapsed_cpu)
         summaries
     in
     let tz_ops_per_sec =
+      (* TODO: When replaying on a middle section of the chain, set
+         [~first_block_idx] *)
       List.map
         (fun s ->
-          (* TODO: Same message *)
-          (* TODO: Per CPU SEC *)
           (Utils.approx_operation_count_of_block_count s.block_count
           |> float_of_int)
           /. s.elapsed_cpu)
@@ -228,46 +252,33 @@ module Table1 = struct
       `Section "-- resource usage --";
       `Section "disk IO (total)";
       `Data (`Ri, "  IOPS (op/sec)", iops);
-      `Data (`Rm, "  throughput (bytes/sec)", throughput);
-      `Data (`Rg, "  total (bytes)", bytes);
+      `Data (`RM, "  throughput (bytes/sec)", throughput);
+      `Data (`RG, "  total (bytes)", bytes);
       `Section "disk IO (read)";
       `Data (`Ri, "  IOPS (op/sec)", read_iops);
-      `Data (`Rm, "  throughput (bytes/sec)", read_throughput);
-      `Data (`Rg, "  total (bytes)", read_bytes);
+      `Data (`RM, "  throughput (bytes/sec)", read_throughput);
+      `Data (`RG, "  total (bytes)", read_bytes);
       `Section "disk IO (write)";
       `Data (`Ri, "  IOPS (op/sec)", write_iops);
-      `Data (`Rm, "  throughput (bytes/sec)", write_throughput);
-      `Data (`Rg, "  total (bytes)", written_bytes);
+      `Data (`RM, "  throughput (bytes/sec)", write_throughput);
+      `Data (`RG, "  total (bytes)", written_bytes);
       `Section "";
-      `Data (`Rg, "max memory usage", max_ram);
+      `Data (`RG, "max memory usage", max_ram);
       `Data (`P, "mean CPU usage", mean_cpu_usage);
     ]
 
-  type scalar_format = [ `SM | `S3 | `R3 | `Ri | `Rm | `Rg | `P ]
-  type data_row = [ `Data of scalar_format * string * float list ]
+  type data_row = [ `Data of scalar_format_fixed * string * float list ]
   type section_row = [ `Section of string ]
 
   let cells_of_data_row (`Data (scalar_format, row_name, scalars) : data_row) =
     let v0 = List.hd scalars in
     let pp_cell i v =
-      let scalar ppf =
-        match scalar_format with
-        | `SM ->
-            let m = Float.floor (v /. 60.) in
-            Format.fprintf ppf "%.0fm%02.0fs" m (v -. (m *. 60.))
-        | `S3 -> Format.fprintf ppf "%.3f s" v
-        | `R3 -> Format.fprintf ppf "%.3f" v
-        | `Ri -> Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
-        | `Rm -> Format.fprintf ppf "%.3f M" (v /. 1e6)
-        | `Rg -> Format.fprintf ppf "%.3f G" (v /. 1e9)
-        | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
-      in
       let percent ppf =
         if i = 0 then ()
         else if scalar_format = `P then Format.fprintf ppf "     "
         else Format.fprintf ppf " %a" Utils.pp_percent (v /. v0)
       in
-      Fmt.str "%t%t" scalar percent
+      Fmt.str "%a%t" pp_scalar_fixed (scalar_format, v) percent
     in
 
     Pb.text row_name
@@ -285,15 +296,14 @@ module Table1 = struct
     | `Section _ as row -> (cells_of_section_row col_count) row
 
   let matrix_of_rows col_count rows = List.map (cells_of_row col_count) rows
-  (* |> Pb.matrix_to_text *)
 end
 
-module Tablen = struct
+module Table2 = struct
   (*
                        min per block | max per block | avg per block | avg per_sec
-  <op set> count
+  <set of ops> count
   <op> count
-  <raw stat>
+  <index.raw stat>
   <tree stat>
   <pack stat>
   gc.m**or_words
@@ -301,25 +311,26 @@ module Tablen = struct
   gc.m**or_collections
   gc.compactions
 
-  file size things
-  node size things
-  major heap bytes            min/max/mean
-
                        min sample | max sample | avg sample | avg per_sec
-  <op> duration       truc         truc         truc       n/a
   <phase> duration    truc         truc         truc       n/a
+  <op> duration       truc         truc         truc       n/a
+
+  ?file size things
+  ?node size things
+
+                        min | max | avg
+  major heap bytes
+  buildup cpu usage
+  commit cpu usage
 
    *)
 
 end
 
-module Table2 = struct
-  type scalar_format_auto = [ `R | `S | `P ]
-  (** Real / Seconds / Percent *)
-
-  type scalar_format_fixed = [ `R3 | `Rm | `Ri | `Sm | `Su ]
-  (** Real 3 digits / Real mega / Real as integer / Seconds milli / Seconds
-      micro *)
+(** Curves *)
+module Table3 = struct
+  type scalar_format_auto = [ `R | `S ]
+  (** Real / Seconds *)
 
   type scalar_format = [ scalar_format_auto | scalar_format_fixed ]
 
@@ -510,9 +521,10 @@ module Table2 = struct
           |> sum_curves)
     in
 
-    let tx_count =
+    let tz_tx_count =
+      (* TODO: When replaying on a middle section of the chain, set
+         [~first_block_idx] *)
       zip (fun s ->
-          (* TODO: When starting replay from a store, set ~first_block_idx *)
           let played_count_curve =
             List.init s.curves_sample_count (fun i ->
                 float_of_int i
@@ -521,6 +533,21 @@ module Table2 = struct
             |> List.map (fun v ->
                    Utils.approx_transaction_count_of_block_count
                      (int_of_float v)
+                   |> float_of_int)
+          in
+          played_count_curve)
+    in
+    let tz_ops_count =
+      (* TODO: When replaying on a middle section of the chain, set
+         [~first_block_idx] *)
+      zip (fun s ->
+          let played_count_curve =
+            List.init s.curves_sample_count (fun i ->
+                float_of_int i
+                /. float_of_int (s.curves_sample_count - 1)
+                *. float_of_int s.block_count)
+            |> List.map (fun v ->
+                   Utils.approx_operation_count_of_block_count (int_of_float v)
                    |> float_of_int)
           in
           played_count_curve)
@@ -546,7 +573,6 @@ module Table2 = struct
                    Summary.(Op.Map.find op s.ops).count.evolution)
           |> sum_curves)
     in
-    ignore ps;
 
     (* Step 3/3 - Build the final list of floors *)
     [
@@ -556,8 +582,8 @@ module Table2 = struct
       `Data (`S, "CPU time elapsed *C", zip (fun s -> s.elapsed_cpu_over_blocks));
       (* ops counts *)
       `Spacer;
-      `Data (`R, "Approx. transaction count *C", tx_count);
-      (* `Data (`R3, "Approx. transactions per sec *LA", tx_per_sec); *)
+      `Data (`R, "Approx. TZ-transaction count *C", tz_tx_count);
+      `Data (`R, "Approx. TZ-operations count *C", tz_ops_count);
       `Data (`R, "Op count *C", all_ops_cumu_count);
       `Data (`R3, "Read only ops per sec *LA", ro_ops_per_sec);
       `Data (`R3, "Read write ops per sec *LA", rw_ops_per_sec);
@@ -600,15 +626,16 @@ module Table2 = struct
       pb ~f:`Ri "Disk bytes read per block *LA" (fun s -> s.index.bytes_read);
       pb ~f:`Ri "Disk bytes written per block *LA" (fun s ->
           s.index.bytes_written);
-      (* ps ~f:`Rm "Disk bytes read per sec *LA" (fun s -> s.index.bytes_read); *)
-      (* ps ~f:`Rm "Disk bytes written per sec *LA" (fun s -> s.index.bytes_written); *)
+      ps ~f:`RM "Disk bytes read per sec *LA *N" (fun s -> s.index.bytes_read);
+      ps ~f:`RM "Disk bytes written per sec *LA *N" (fun s ->
+          s.index.bytes_written);
       `Spacer;
       v "Disk read count *C" (fun s -> s.index.nb_reads);
       v "Disk write count *C" (fun s -> s.index.nb_writes);
       pb ~f:`R3 "Disk read count per block *LA" (fun s -> s.index.nb_reads);
       pb ~f:`R3 "Disk write count per block *LA" (fun s -> s.index.nb_writes);
-      (* ps ~f:`Ri "Disk read count per sec *LA" (fun s -> s.index.nb_reads); *)
-      (* ps ~f:`Ri "Disk write count per sec *LA" (fun s -> s.index.nb_writes); *)
+      ps ~f:`Ri "Disk read count per sec *LA *N" (fun s -> s.index.nb_reads);
+      ps ~f:`Ri "Disk write count per sec *LA *N" (fun s -> s.index.nb_writes);
       `Spacer;
       pb "pack.finds per block *LA" (fun s -> s.pack.finds);
       pb "pack.cache_misses per block *LA" (fun s -> s.pack.cache_misses);
@@ -634,31 +661,25 @@ module Table2 = struct
       `Spacer;
       v "gc.minor_words allocated *C" (fun s -> s.gc.minor_words);
       pb "gc.minor_words allocated per block *LA" (fun s -> s.gc.minor_words);
-      (* ps "gc.minor_words allocated per sec *LA" (fun s -> s.gc.minor_words); *)
       v "gc.promoted_words *C" (fun s -> s.gc.promoted_words);
       v "gc.major_words allocated *C" (fun s -> s.gc.major_words);
       pb "gc.major_words allocated per block *LA" (fun s -> s.gc.major_words);
-      (* ps "gc.major_words allocated per sec *LA" (fun s -> s.gc.major_words); *)
       v "gc.minor_collections *C" (fun s -> s.gc.minor_collections);
       pb "gc.minor_collections per block *LA" (fun s -> s.gc.minor_collections);
-      (* ps "gc.minor_collections per sec *LA" (fun s -> s.gc.minor_collections); *)
       v "gc.major_collections *C" (fun s -> s.gc.major_collections);
       pb "gc.major_collections per block *LA" (fun s -> s.gc.major_collections);
-      (* ps "gc.major_collections per sec *LA" (fun s -> s.gc.major_collections); *)
       v "gc.compactions *C" (fun s -> s.gc.compactions);
       `Spacer;
       `Data
-        ( `Rm,
+        ( `RM,
           "gc.major heap bytes top *C",
           zip (fun s -> s.gc.major_heap_top_bytes) );
-      v ~f:`Rm "gc.major heap bytes *LA" (fun s -> s.gc.major_heap_bytes);
+      v ~f:`RM "gc.major heap bytes *LA" (fun s -> s.gc.major_heap_bytes);
       `Spacer;
       v "index_data bytes *S" (fun s -> s.disk.index_data);
       pb "index_data bytes per block *LA" (fun s -> s.disk.index_data);
-      (* ps "index_data bytes per sec *LA" (fun s -> s.disk.index_data); *)
       v "store_pack bytes *S" (fun s -> s.disk.store_pack);
       pb "store_pack bytes per block *LA" (fun s -> s.disk.store_pack);
-      (* ps "store_pack bytes per sec *LA" (fun s -> s.disk.store_pack); *)
       v "index_log bytes *S" (fun s -> s.disk.index_log);
       v "index_log_async *S" (fun s -> s.disk.index_log_async);
       v "store_dict bytes *S" (fun s -> s.disk.store_dict);
@@ -715,15 +736,8 @@ module Table2 = struct
         | `R -> Format.fprintf ppf "%a" pp_real v
         | `S -> Format.fprintf ppf "%a" pp_seconds v
         | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
-        | #scalar_format_fixed when Float.is_nan v -> Format.fprintf ppf "n/a"
-        | #scalar_format_fixed when Float.is_infinite v ->
-            Format.fprintf ppf "%f" v
-        | #scalar_format_fixed when v = 0. -> Format.fprintf ppf "0"
-        | `R3 -> Format.fprintf ppf "%.3f" v
-        | `Rm -> Format.fprintf ppf "%.3f M" (v /. 1e6)
-        | `Ri -> Format.fprintf ppf "%#d" (Float.round v |> int_of_float)
-        | `Sm -> Format.fprintf ppf "%.3f ms" (v *. 1e3)
-        | `Su -> Format.fprintf ppf "%.3f \xc2\xb5s" (v *. 1e6)
+        | #scalar_format_fixed as scalar_format ->
+            pp_scalar_fixed ppf (scalar_format, v)
       in
       Fmt.str "%t%t" pp_scalar pp_percent
       |> Pb.text
@@ -772,7 +786,6 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
   in
   let table1 =
     let only_one_summary = List.length summaries = 1 in
-
     let header_rows =
       (if only_one_summary then [] else [ "" :: summary_names ])
       |> Pb.matrix_to_text
@@ -781,22 +794,21 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     let col_count = List.length summaries + 1 in
     let body_rows =
       Table1.rows_of_summaries summaries |> Table1.matrix_of_rows col_count
-      (* |> List.map (Table1.matrix_of_row col_count) *)
     in
     header_rows @ body_rows
     |> Pb.matrix_with_column_spacers
     |> Pb.grid_l ~bars:false
     |> PrintBox_text.to_string
   in
-  let table2 =
-    let header_rows = Table2.create_header_rows sample_count summaries in
+  let table3 =
+    let header_rows = Table3.create_header_rows sample_count summaries in
     let body_rows =
       let col_count =
         sample_count + 1 + if List.length summaries = 1 then 0 else 1
       in
-      Table2.floors_of_summaries summary_names summaries
-      |> List.map (Table2.resample_curves_of_floor sample_count)
-      |> List.map (Table2.matrix_of_floor col_count)
+      Table3.floors_of_summaries summary_names summaries
+      |> List.map (Table3.resample_curves_of_floor sample_count)
+      |> List.map (Table3.matrix_of_floor col_count)
       |> List.concat
     in
     header_rows @ body_rows
@@ -808,7 +820,11 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     "-- setups --\n\
      %s\n\n\
      %s\n\n\
-    \  (1) Longest Context.commit \n\n\
+    \  - (1) Longest Context.commit.\n\
+    \  - The \"per sec\" stats are calculated over CPU time.\n\
+    \  - \"TZ-transactions\" and \"TZ-operations\" are approximations.\n\
+    \  - \"max memory usage\" is the max size of OCaml's major heap.\n\
+    \  - \"mean CPU usage\" is inexact.\n\n\
      -- curves --\n\
      %s\n\n\
      Types of curves:\n\
@@ -816,8 +832,8 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     \  *LA: Local Average. Smoothed using a weighted sum of the value in the\n\
     \       block and the exponentially decayed values of the previous blocks.\n\
     \       Every %.2f blocks, half of the past is forgotten.\n\
-    \  *S: Size. E.g. directory entries, file bytes. No smoothing." table0
-    table1 table2
+    \  *S: Size. E.g. directory entries, file bytes. No smoothing.\n\
+    \  *N: Very noisy." table0 table1 table3
     (moving_average_half_life_ratio *. float_of_int (block_count + 1))
 
 let pp sample_count ppf (summary_names, summaries) =
