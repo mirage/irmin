@@ -25,10 +25,10 @@ module type S = sig
   type hash [@@deriving irmin]
   (** Type for keys. *)
 
-  type info [@@deriving irmin]
+  module Info : Type.S
   (** The type for commit info. *)
 
-  val v : info:info -> node:hash -> parents:hash list -> t
+  val v : info:Info.t -> node:hash -> parents:hash list -> t
   (** Create a commit. *)
 
   val node : t -> hash
@@ -37,13 +37,13 @@ module type S = sig
   val parents : t -> hash list
   (** The commit parents. *)
 
-  val info : t -> info
+  val info : t -> Info.t
   (** The commit info. *)
 end
 
 module type Maker = sig
   module Info : Info.S
-  module Make (H : Type.S) : S with type hash = H.t and type info = Info.t
+  module Make (H : Type.S) : S with type hash = H.t and module Info = Info
 end
 
 module type Store = sig
@@ -58,7 +58,7 @@ module type Store = sig
   module Key : Hash.Typed with type t = key and type value = value
 
   (** [Val] provides functions for commit values. *)
-  module Val : S with type t = value and type hash = key and type info = Info.t
+  module Val : S with type t = value and type hash = key and module Info = Info
 
   module Node : Node.Store with type key = Val.hash
   (** [Node] is the underlying node store. *)
@@ -166,11 +166,16 @@ module type Sigs = sig
   module Maker (I : Info.S) : Maker with module Info = I
 
   (** V1 serialisation. *)
-  module V1 (C : S) : sig
-    include S with type hash = C.hash
+  module V1 : sig
+    module Info : Type.S with type t = Info.Default.t
+    (** Serialisation format for V1 info. *)
 
-    val import : C.t -> t
-    val export : t -> C.t
+    module Make (C : S with module Info := Info) : sig
+      include S with module Info = Info and type hash = C.hash
+
+      val import : C.t -> t
+      val export : t -> C.t
+    end
   end
 
   module type Store = Store
@@ -182,7 +187,7 @@ module type Sigs = sig
       (N : Node.Store)
       (S : Content_addressable.S with type key = N.key)
       (K : Hash.S with type t = S.key)
-      (V : S with type hash = S.key and type t = S.value and type info = I.t) :
+      (V : S with type hash = S.key and type t = S.value and module Info = I) :
     Store
       with type 'a t = 'a N.t * 'a S.t
        and type key = S.key

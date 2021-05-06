@@ -32,9 +32,10 @@ module Make (G : Git.S) = struct
   include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
 
   module Val = struct
+    module Info = Info
+
     type t = G.Value.Commit.t
     type hash = Key.t [@@deriving irmin]
-    type info = Info.t [@@deriving irmin]
 
     let info_of_git author message =
       let id = author.Git.User.name in

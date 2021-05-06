@@ -30,5 +30,5 @@ module Make (G : Git.S) : sig
     Irmin.Private.Commit.S
       with type t = value
        and type hash = key
-       and type info = Info.t
+       and module Info = Info
 end
