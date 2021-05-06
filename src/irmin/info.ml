@@ -19,14 +19,13 @@ include Info_intf
 module Default = struct
   type author = string [@@deriving irmin]
   type message = string [@@deriving irmin]
-
   type t = { date : int64; author : author; message : message }
-  [@@deriving irmin]
-
   type f = unit -> t
 
   let empty = { date = 0L; author = ""; message = "" }
-  let is_empty = Type.(unstage (equal t)) empty
+
+  let is_empty { date; author; message } =
+    date = 0L && author = "" && message = ""
 
   let v ?(author = "") ?(message = "") date =
     let r = { date; message; author } in
@@ -36,6 +35,14 @@ module Default = struct
   let author t = t.author
   let message t = t.message
   let none () = empty
+
+  let t : t Type.t =
+    let open Type in
+    record "info" (fun date author message -> v ~author ~message date)
+    |+ field "date" int64 (fun t -> date t)
+    |+ field "author" (string_of `Int64) (fun t -> author t)
+    |+ field "message" (string_of `Int64) (fun t -> message t)
+    |> sealr
 end
 
 type default = Default.t
