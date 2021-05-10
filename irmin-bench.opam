@@ -29,6 +29,7 @@ depends: [
   "fmt"
   "uuidm"
   "progress"
+  "fpath"        {with-test}
   "bentov"       {with-test}
   "mtime"        {with-test}
   "ppx_deriving" {with-test}

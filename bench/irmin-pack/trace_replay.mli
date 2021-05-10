@@ -14,6 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () =
-  Alcotest.run "irmin-bench"
-    (Ema.test_cases @ Misc.test_cases @ Replay.test_cases)
+include Trace_replay_intf.Sigs

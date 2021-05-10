@@ -1,6 +1,6 @@
 (executable
  (name test)
- (libraries alcotest irmin_traces))
+ (libraries alcotest irmin_traces fpath tezos-context-hash-irmin))
 
 (rule
  (alias runtest)
