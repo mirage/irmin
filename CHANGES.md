@@ -69,6 +69,7 @@
     (#1401, @samoht)
   - `Info` implementations are not part of store: use `S.Info.v`
     instead of `Irmin.Info.v` (#1400, @samoht)
+  - Rename `Commit.V1` to `Commit.V1.Make` (#1431, @CraigFe)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

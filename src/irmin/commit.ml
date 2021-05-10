@@ -26,10 +26,11 @@ module Maker (Info : Info.S) = struct
   module Info = Info
 
   module Make (H : Type.S) = struct
-    type info = Info.t [@@deriving irmin]
+    module Info = Info
+
     type hash = H.t [@@deriving irmin]
 
-    type t = { node : hash; parents : hash list; info : info }
+    type t = { node : hash; parents : hash list; info : Info.t }
     [@@deriving irmin]
 
     let parents t = t.parents
@@ -48,7 +49,7 @@ module Store
     (N : Node.Store)
     (S : Content_addressable.S with type key = N.key)
     (K : Hash.S with type t = S.key)
-    (V : S with type hash = S.key and type t = S.value and type info = I.t) =
+    (V : S with type hash = S.key and type t = S.value and module Info = I) =
 struct
   module Node = N
   module Val = V
@@ -490,55 +491,72 @@ module History (S : Store) = struct
         | Some c -> lca t ~info ?max_depth ?n (c :: cs))
 end
 
-module V1 (C : S) = struct
-  module Mk (X : Type.S) = struct
-    let h = Type.string_of `Int64
-    let hash_to_bin_string = Type.(unstage (to_bin_string X.t))
-    let hash_of_bin_string = Type.(unstage (of_bin_string X.t))
+module V1 = struct
+  module Info = struct
+    open Info.Default
 
-    let size_of =
-      let size_of = Type.(unstage (size_of h)) in
-      Type.stage (fun x -> size_of (hash_to_bin_string x))
+    type nonrec t = t
 
-    let encode_bin =
-      let encode_bin = Type.(unstage (encode_bin h)) in
-      Type.stage @@ fun e k -> encode_bin (hash_to_bin_string e) k
-
-    let decode_bin =
-      let decode_bin = Type.(unstage (decode_bin h)) in
-      Type.stage @@ fun buf off ->
-      let n, v = decode_bin buf off in
-      ( n,
-        match hash_of_bin_string v with
-        | Ok v -> v
-        | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
-
-    let t = Type.like X.t ~bin:(encode_bin, decode_bin, size_of)
+    let t : t Type.t =
+      let open Type in
+      record "info" (fun date author message -> v ~author ~message date)
+      |+ field "date" int64 (fun t -> date t)
+      |+ field "author" (string_of `Int64) (fun t -> author t)
+      |+ field "message" (string_of `Int64) (fun t -> message t)
+      |> sealr
   end
 
-  type hash = C.hash [@@deriving irmin]
-  type t = { parents : hash list; c : C.t }
-  type info = C.info [@@deriving irmin]
+  module Make (C : S with module Info := Info) = struct
+    module Mk (X : Type.S) = struct
+      let h = Type.string_of `Int64
+      let hash_to_bin_string = Type.(unstage (to_bin_string X.t))
+      let hash_of_bin_string = Type.(unstage (of_bin_string X.t))
 
-  let import c = { c; parents = C.parents c }
-  let export t = t.c
-  let node t = C.node t.c
-  let parents t = t.parents
-  let info t = C.info t.c
-  let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
-  let make = v
+      let size_of =
+        let size_of = Type.(unstage (size_of h)) in
+        Type.stage (fun x -> size_of (hash_to_bin_string x))
 
-  module Hash = Mk (struct
-    type t = C.hash [@@deriving irmin]
-  end)
+      let encode_bin =
+        let encode_bin = Type.(unstage (encode_bin h)) in
+        Type.stage @@ fun e k -> encode_bin (hash_to_bin_string e) k
 
-  let t : t Type.t =
-    let open Type in
-    record "commit" (fun node parents info -> make ~info ~node ~parents)
-    |+ field "node" Hash.t node
-    |+ field "parents" (list ~len:`Int64 Hash.t) parents
-    |+ field "info" info_t info
-    |> sealr
+      let decode_bin =
+        let decode_bin = Type.(unstage (decode_bin h)) in
+        Type.stage @@ fun buf off ->
+        let n, v = decode_bin buf off in
+        ( n,
+          match hash_of_bin_string v with
+          | Ok v -> v
+          | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+
+      let t = Type.like X.t ~bin:(encode_bin, decode_bin, size_of)
+    end
+
+    type hash = C.hash [@@deriving irmin]
+    type t = { parents : hash list; c : C.t }
+
+    module Info = Info
+
+    let import c = { c; parents = C.parents c }
+    let export t = t.c
+    let node t = C.node t.c
+    let parents t = t.parents
+    let info t = C.info t.c
+    let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
+    let make = v
+
+    module Hash = Mk (struct
+      type t = C.hash [@@deriving irmin]
+    end)
+
+    let t : t Type.t =
+      let open Type in
+      record "commit" (fun node parents info -> make ~info ~node ~parents)
+      |+ field "node" Hash.t node
+      |+ field "parents" (list ~len:`Int64 Hash.t) parents
+      |+ field "info" Info.t info
+      |> sealr
+  end
 end
 
 include Maker (Info.Default)
