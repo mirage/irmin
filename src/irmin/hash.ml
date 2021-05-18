@@ -63,8 +63,7 @@ module Typed (K : S) (V : Type.S) = struct
 
   type value = V.t
 
-  let pre_hash = Type.unstage (Type.pre_hash V.t)
-  let hash v = K.hash (pre_hash v)
+  let hash v = K.hash (Utils.old_pre_hash V.t v)
 end
 
 module V1 (K : S) : S with type t = K.t = struct

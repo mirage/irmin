@@ -26,6 +26,7 @@ module type S = sig
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
+  val append_directly : t -> int -> (bytes -> int -> int) -> unit
   val set : t -> off:int63 -> string -> unit
   val read : t -> off:int63 -> bytes -> int
   val offset : t -> int63

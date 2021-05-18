@@ -85,6 +85,8 @@ module Inode_permutations_generator = struct
   type content = Inode.Val.value
   type inode = Inode.value
 
+  let size i = Option.get Irmin.Type.(unstage (size_of Inode.Val.t) i)
+
   module StepMap = Map.Make (struct
     type t = step
 
@@ -364,9 +366,9 @@ let test_truncated_inodes () =
       Irmin.Type.(encode_bin t |> unstage, decode_bin t |> unstage)
     in
     let encode inode =
-      let buf = Buffer.create 0 in
-      encode inode (Buffer.add_string buf);
-      Buffer.contents buf
+      let buf = Bytes.create (Inode_permutations_generator.size inode) in
+      let off = encode inode buf 0 in
+      Bytes.sub_string buf 0 off
     in
     let decode str = decode str 0 |> snd in
     inode |> encode |> decode

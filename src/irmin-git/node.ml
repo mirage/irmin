@@ -154,9 +154,9 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     let to_bin t = Raw.to_raw (G.Value.tree t)
 
     let encode_bin =
-      Irmin.Type.stage @@ fun (t : t) k ->
+      Irmin.Type.stage @@ fun (t : t) byt off ->
       Log.debug (fun l -> l "Tree.encode_bin");
-      k (to_bin t)
+      Util.append_string (to_bin t) byt off
 
     let decode_bin =
       Irmin.Type.stage @@ fun buf off ->

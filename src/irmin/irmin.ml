@@ -29,6 +29,7 @@ module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
 module Perms = Perms
+module Utils = Utils
 
 exception Closed = Store_properties.Closed
 

@@ -29,8 +29,9 @@ module type Value = sig
     offset:(hash -> int63 option) ->
     t ->
     hash ->
-    (string -> unit) ->
-    unit
+    bytes ->
+    int ->
+    int
 
   val decode_bin :
     dict:(int -> string option) -> hash:(int63 -> hash) -> string -> int -> t
