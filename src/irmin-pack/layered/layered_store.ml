@@ -46,10 +46,7 @@ struct
     SRC.find src k >>= function None -> none () | Some v -> some v
 end
 
-let pp_during_freeze ppf = function
-  | true -> Fmt.string ppf " during freeze"
-  | false -> ()
-
+let pp_record ppf = function true -> Fmt.pf ppf " (record on)" | false -> ()
 let pp_layer_id = Irmin_layers.Layer_id.pp
 let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
 let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
@@ -71,16 +68,17 @@ struct
     lower : read L.t option;
     mutable flip : bool;
     uppers : read U.t * read U.t;
-    freeze_in_progress : unit -> bool;
+    record : unit -> bool;
+    update_lock : Lwt_mutex.t;
     mutable newies : key list;
   }
 
   module U = U
   module L = L
 
-  let v upper1 upper0 lower ~flip ~freeze_in_progress =
+  let v upper1 upper0 lower ~flip ~record ~update_lock =
     Log.debug (fun l -> l "v flip = %b" flip);
-    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
+    { lower; flip; uppers = (upper1, upper0); record; update_lock; newies = [] }
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
   let current_upper t = if t.flip then fst t.uppers else snd t.uppers
@@ -99,32 +97,35 @@ struct
     newies
 
   let add t v =
-    let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "add in %a%a" pp_current_upper t pp_during_freeze freeze);
+    Lwt_mutex.with_lock t.update_lock @@ fun () ->
+    let record = t.record () in
+    Log.debug (fun l -> l "add in %a%a" pp_current_upper t pp_record record);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v >|= fun k ->
-    if freeze then t.newies <- k :: t.newies;
+    if record then t.newies <- k :: t.newies;
     k
 
   let unsafe_add t k v =
-    let freeze = t.freeze_in_progress () in
+    Lwt_mutex.with_lock t.update_lock @@ fun () ->
+    let record = t.record () in
     Log.debug (fun l ->
-        l "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze);
+        l "unsafe_add in %a%a" pp_current_upper t pp_record record);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v >|= fun () ->
-    if freeze then t.newies <- k :: t.newies
+    if record then t.newies <- k :: t.newies
 
   let unsafe_append ~ensure_unique ~overcommit t k v =
-    let freeze = t.freeze_in_progress () in
+    (* As we don't take [t.update_lock] this can happen concurrently
+       to a freeze. TODO: Is this ok? *)
+    let record = t.record () in
     Log.debug (fun l ->
-        l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
+        l "unsafe_append in %a%a" pp_current_upper t pp_record record);
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique ~overcommit upper k v;
-    if freeze then t.newies <- k :: t.newies
+    if record then t.newies <- k :: t.newies
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
@@ -348,7 +349,7 @@ struct
     lower : L.t option;
     mutable flip : bool;
     uppers : U.t * U.t;
-    freeze_in_progress : unit -> bool;
+    record : unit -> bool;
     mutable newies : (key * value option) list;
   }
 
@@ -384,20 +385,20 @@ struct
             L.find lower k)
 
   let set t k v =
-    let freeze = t.freeze_in_progress () in
+    let record = t.record () in
     Log.debug (fun l ->
-        l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+        l "[branches] set %a in %a%a" pp_branch k pp_current_upper t pp_record
+          record);
     let upper = current_upper t in
     U.set upper k v >|= fun () ->
-    if freeze then t.newies <- (k, Some v) :: t.newies
+    if record then t.newies <- (k, Some v) :: t.newies
 
   (** Copy back into upper the branch against we want to do test and set. *)
   let test_and_set t k ~test ~set =
-    let freeze = t.freeze_in_progress () in
+    let record = t.record () in
     Log.debug (fun l ->
         l "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+          pp_record record);
     let current = current_upper t in
     let find_in_lower () =
       (match t.lower with
@@ -412,17 +413,17 @@ struct
      | true -> U.test_and_set current k ~test ~set
      | false -> find_in_lower ())
     >|= fun update ->
-    if update && freeze then t.newies <- (k, set) :: t.newies;
+    if update && record then t.newies <- (k, set) :: t.newies;
     update
 
   let remove t k =
-    let freeze = t.freeze_in_progress () in
+    let record = t.record () in
     Log.debug (fun l ->
         l "[branches] remove %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+          pp_record record);
     U.remove (fst t.uppers) k >>= fun () ->
     U.remove (snd t.uppers) k >>= fun () ->
-    if freeze then t.newies <- (k, None) :: t.newies;
+    if record then t.newies <- (k, None) :: t.newies;
     match t.lower with
     | None -> Lwt.return_unit
     | Some lower -> L.remove lower k
@@ -447,8 +448,8 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
-  let v upper1 upper0 lower ~flip ~freeze_in_progress =
-    { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
+  let v upper1 upper0 lower ~flip ~record =
+    { lower; flip; uppers = (upper1, upper0); record; newies = [] }
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
