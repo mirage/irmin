@@ -43,6 +43,9 @@
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
     config file is specified (#1413, @zshipko)
 
+- **irmin-pack**
+  - Added a `irmin-pack.mem` package (#1436, @icristescu)
+
 ### Changed
 
 - **irmin**

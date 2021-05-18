@@ -29,7 +29,7 @@ module Irmin_pack_maker =
     (Irmin.Private.Node.Make)
     (Irmin.Private.Commit)
 
-let suite =
+let suite_pack =
   let store =
     Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
   in
@@ -85,6 +85,52 @@ let suite =
     stats;
     layered_store = Some layered_store;
   }
+
+module Irmin_pack_mem_maker =
+  Irmin_pack_mem.Maker (V2) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+    (Config)
+
+let suite_mem =
+  let store =
+    Irmin_test.store (module Irmin_pack_mem_maker) (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let init () =
+    if Sys.file_exists test_dir then (
+      let cmd = Printf.sprintf "rm -rf %s" test_dir in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      ());
+    Lwt.return_unit
+  in
+  let clean () =
+    let (module S : Irmin_test.S) = store in
+    let module P = S.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    clear repo >>= fun () -> S.Repo.close repo
+  in
+  let stats = None in
+  {
+    Irmin_test.name = "PACK MEM";
+    init;
+    clean;
+    config;
+    store;
+    stats;
+    layered_store = None;
+  }
+
+let suite = [ suite_pack; suite_mem ]
 
 module Context = Make_context (struct
   let root = test_dir

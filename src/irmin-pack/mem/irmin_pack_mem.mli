@@ -14,5 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t list
-val misc : (string * unit Alcotest.test_case list) list
+module type Maker = Irmin_pack.Maker
+
+module Maker
+    (_ : Irmin_pack.Version.S)
+    (_ : Irmin.Private.Node.Maker)
+    (_ : Irmin.Private.Commit.Maker) : Maker
+
+module Content_addressable = Content_addressable

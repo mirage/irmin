@@ -24,17 +24,6 @@ end
 
 module type S = sig
   include Irmin.Content_addressable.S
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    read t Lwt.t
-
   module Key : Irmin.Hash.S with type t = key
   module Val : Value with type t = value and type hash = key
   include S.Checkable with type 'a t := 'a t and type key := key
@@ -46,6 +35,20 @@ module type S = sig
     dict:(int -> string option) -> hash:(int63 -> key) -> string -> int -> int
 
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+end
+
+module type Persistent = sig
+  include S
+
+  type index
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    index:index ->
+    string ->
+    read t Lwt.t
 end
 
 (** Unstable internal API agnostic about the underlying storage. Use it only to
@@ -120,6 +123,7 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Persistent = Persistent
   module type Internal = Internal
 
   module Make_internal
@@ -138,11 +142,28 @@ module type Sigs = sig
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (_ : Content_addressable.Maker
-             with type key = H.t
-              and type index = Pack_index.Make(H).t) : sig
+      (Pack : Content_addressable.S
+                with type key = H.t
+                 and type value = Inter.Raw.t) :
+    S
+      with type 'a t = 'a Pack.t
+       and type key = H.t
+       and type Val.metadata = Node.metadata
+       and type Val.step = Node.step
+       and type value = Inter.Val.t
+
+  module Make_ext_indexed_store
+      (H : Irmin.Hash.S)
+      (Node : Irmin.Private.Node.S with type hash = H.t)
+      (Inter : Internal
+                 with type hash = H.t
+                  and type Val.metadata = Node.metadata
+                  and type Val.step = Node.step)
+      (CA : Pack_store.Maker
+              with type key = H.t
+               and type index = Pack_index.Make(H).t) : sig
     include
-      S
+      Persistent
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
@@ -150,18 +171,19 @@ module type Sigs = sig
          and type value = Inter.Val.t
   end
 
-  module Make
+  module Make_indexed_store
       (_ : Conf.S)
       (H : Irmin.Hash.S)
-      (_ : Content_addressable.Maker
+      (_ : Pack_store.Maker
              with type key = H.t
               and type index = Pack_index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) : sig
     include
-      S
+      Persistent
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
+         and type index = Pack_index.Make(H).t
          and type index = Pack_index.Make(H).t
   end
 end

@@ -42,7 +42,7 @@ module Maker
     (H : Irmin.Hash.S) =
 struct
   module Index = Irmin_pack.Index.Make (H)
-  module Pack = Irmin_pack.Content_addressable.Maker (V) (Index) (H)
+  module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
@@ -59,8 +59,13 @@ struct
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
         module CA_Pack = Pack.Make (Pack_value)
-        module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+
+        module CA = struct
+          include Irmin_pack.Content_addressable.Closeable (CA_Pack)
+
+          let v ?fresh ?readonly ?lru_size ~index path =
+            CA_Pack.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
+        end
       end
 
       include Irmin.Contents.Store (CA) (H) (C)
@@ -79,7 +84,14 @@ struct
 
       module CA = struct
         module CA_Pack = Pack.Make (Pack_value)
-        module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
+
+        module CA = struct
+          include Irmin_pack.Content_addressable.Closeable (CA_Pack)
+
+          let v ?fresh ?readonly ?lru_size ~index path =
+            CA_Pack.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
+        end
+
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 

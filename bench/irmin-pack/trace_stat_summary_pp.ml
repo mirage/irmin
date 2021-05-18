@@ -142,7 +142,8 @@ module Table0 = struct
     | `Store_type -> (
         match s.config.store_type with
         | `Pack -> "pack"
-        | `Pack_layered -> "pack-layered")
+        | `Pack_layered -> "pack-layered"
+        | `Pack_mem -> "pack-mem")
     | `Replay_path_conversion -> (
         match s.config.setup with
         | `Play _ -> "n/a"

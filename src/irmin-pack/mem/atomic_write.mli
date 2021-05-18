@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t list
-val misc : (string * unit Alcotest.test_case list) list
+module Make (K : Irmin.Type.S) (V : Irmin.Hash.S) :
+  Irmin_pack.Atomic_write.S with type key = K.t and type value = V.t

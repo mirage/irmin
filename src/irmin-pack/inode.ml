@@ -1134,18 +1134,16 @@ module Make_ext
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (CA : Content_addressable.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t) =
+    (Pack : Content_addressable.S
+              with type key = H.t
+               and type value = Inter.Raw.t) =
 struct
   module Key = H
-  module Pack = CA.Make (Inter.Raw)
   module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t
   type value = Inter.Val.t
-  type index = Pack.index
 
   let mem t k = Pack.mem t k
 
@@ -1183,7 +1181,6 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-  let v = Pack.v
   let integrity_check = Pack.integrity_check
   let close = Pack.close
   let sync = Pack.sync
@@ -1207,14 +1204,34 @@ struct
           Error msg
 end
 
-module Make
+module Make_ext_indexed_store
+    (H : Irmin.Hash.S)
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inter : Internal
+               with type hash = H.t
+                and type Val.metadata = Node.metadata
+                and type Val.step = Node.step)
+    (CA : Pack_store.Maker
+            with type key = H.t
+             and type index = Pack_index.Make(H).t) =
+struct
+  module Persistent_pack = CA.Make (Inter.Raw)
+  module CA = Persistent_pack
+  include Make_ext (H) (Node) (Inter) (CA)
+
+  type index = Persistent_pack.index
+
+  let v = Persistent_pack.v
+end
+
+module Make_indexed_store
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (CA : Content_addressable.Maker
+    (CA : Pack_store.Maker
             with type key = H.t
              and type index = Pack_index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
   module Inter = Make_internal (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (CA)
+  include Make_ext_indexed_store (H) (Node) (Inter) (CA)
 end

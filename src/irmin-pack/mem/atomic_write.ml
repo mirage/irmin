@@ -14,5 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t list
-val misc : (string * unit Alcotest.test_case list) list
+open! Import
+
+module Make (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
+  module AW = Irmin_mem.Atomic_write (K) (V)
+  include AW
+
+  let config = Irmin_mem.config ()
+  let v ?fresh:_ ?readonly:_ _ = AW.v config
+  let flush _t = ()
+  let clear_keep_generation _ = Lwt.return_unit
+end

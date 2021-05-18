@@ -14,5 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t list
-val misc : (string * unit Alcotest.test_case list) list
+include Ext_mem
+
+module type Maker = Irmin_pack.Maker
+
+module Content_addressable = Content_addressable

@@ -28,7 +28,7 @@ type config = {
   store_dir : string;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered ];
+  store_type : [ `Pack | `Pack_layered | `Pack_mem ];
   freeze_commit : int;
   commit_data_file : string;
   artefacts_dir : string;
@@ -56,6 +56,7 @@ let pp_inode_config ppf (entries, stable_hash) =
 let pp_store_type ppf = function
   | `Pack -> Format.fprintf ppf "[pack store]"
   | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
+  | `Pack_mem -> Format.fprintf ppf "[pack-mem store]"
 
 module Benchmark = struct
   type result = { time : float; size : int }
@@ -202,6 +203,35 @@ struct
   include Store
 end
 
+module Make_store_mem (Conf : sig
+  val entries : int
+  val stable_hash : int
+end) =
+struct
+  type store_config = config
+
+  open Tezos_context_hash_irmin.Encoding
+
+  module V1 = struct
+    let version = `V1
+  end
+
+  module Maker = Irmin_pack_mem.Maker (V1) (Node) (Commit) (Conf)
+
+  (* module Maker = Irmin_pack_mem.Maker_ext (Conf) (Node) (Commit) *)
+  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+
+  let create_repo config =
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
+    let* repo = Store.Repo.v conf in
+    let on_commit _ _ = Lwt.return_unit in
+    let on_end () = Lwt.return_unit in
+    let pp _ = () in
+    Lwt.return (repo, on_commit, on_end, pp)
+
+  include Store
+end
+
 module Make_store_pack (Conf : sig
   val entries : int
   val stable_hash : int
@@ -242,6 +272,7 @@ let store_of_config config =
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)
   | `Pack_layered -> (module Bench_suite (Make_store_layered (Conf)) : B)
+  | `Pack_mem -> (module Bench_suite (Make_store_mem (Conf)) : B)
 
 type suite_elt = {
   mode : [ `Read_trace | `Chains | `Large ];
@@ -417,7 +448,11 @@ let inode_config =
   Arg.(value @@ opt (pair int int) (32, 256) doc)
 
 let store_type =
-  let mode = [ ("pack", `Pack); ("pack-layered", `Pack_layered) ] in
+  let mode =
+    [
+      ("pack", `Pack); ("pack-layered", `Pack_layered); ("pack-mem", `Pack_mem);
+    ]
+  in
   let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "store-type" ] in
   Arg.(value @@ opt (Arg.enum mode) `Pack doc)
 

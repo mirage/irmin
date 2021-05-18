@@ -15,13 +15,12 @@
  *)
 
 open! Import
-module IO = IO.Unix
 
 module Maker
-    (V : Version.S)
-    (Config : Conf.S)
+    (V : Irmin_pack.Version.S)
     (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker) =
+    (Commit : Irmin.Private.Commit.Maker)
+    (Config : Irmin_pack.Conf.S) =
 struct
   type endpoint = unit
   type info = Commit.Info.t
@@ -31,43 +30,69 @@ struct
       (C : Irmin.Contents.S)
       (P : Irmin.Path.S)
       (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module Index = Pack_index.Make (H)
-    module Pack = Pack_store.Maker (V) (Index) (H)
-    module Dict = Pack_dict.Make (V)
+      (H : Irmin.Hash.S) :
+    Irmin_pack.S
+      with type key = P.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type step = P.step
+       and type metadata = M.t
+       and type Key.step = P.step
+       and type Private.Remote.endpoint = endpoint
+       and type info = info = struct
+    module Pack = Content_addressable.Maker (V) (H)
+    module Dict = Irmin_pack.Dict.Make (V)
 
     module X = struct
       module Hash = H
       module Info = Commit.Info
 
-      type 'a value = { hash : H.t; kind : Pack_value.Kind.t; v : 'a }
-      [@@deriving irmin]
+      type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
 
       module Contents = struct
-        module Pack_value = Pack_value.Of_contents (H) (C)
-        module CA = Pack.Make (Pack_value)
+        module CA = struct
+          module CA_Pack = Pack.Make (Irmin_pack.Pack_value.Contents (H) (C))
+          include Irmin_pack.Content_addressable.Closeable (CA_Pack)
+
+          let v () = CA_Pack.v () >|= make_closeable
+        end
+
         include Irmin.Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
         module Node = Node (H) (P) (M)
-        module CA = Inode.Make_indexed_store (Config) (H) (Pack) (Node)
+
+        module CA = struct
+          module Inter = Irmin_pack.Inode.Make_internal (Config) (H) (Node)
+          module CA = Pack.Make (Inter.Raw)
+          include Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (CA)
+
+          let v = CA.v
+        end
+
         include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
       module Commit = struct
         module Commit = Commit.Make (H)
-        module Pack_value = Pack_value.Of_commit (H) (Commit)
-        module CA = Pack.Make (Pack_value)
+
+        module CA = struct
+          module CA_Pack = Pack.Make (Irmin_pack.Pack_value.Commit (H) (Commit))
+          include Irmin_pack.Content_addressable.Closeable (CA_Pack)
+
+          let v () = CA_Pack.v () >|= make_closeable
+        end
+
         include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Atomic_write.Make (V) (Key) (Val)
-        include Atomic_write.Closeable (AW)
+        module AW = Atomic_write.Make (Key) (Val)
+        include Irmin_pack.Atomic_write.Closeable (AW)
       end
 
       module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
@@ -80,7 +105,6 @@ struct
           node : read Node.CA.t;
           commit : read Commit.CA.t;
           branch : Branch.t;
-          index : Index.t;
         }
 
         let contents_t t : 'a Contents.t = t.contents
@@ -98,34 +122,16 @@ struct
                       f contents node commit)))
 
         let unsafe_v config =
-          let root = Conf.root config in
-          let fresh = Conf.fresh config in
-          let lru_size = Conf.lru_size config in
-          let readonly = Conf.readonly config in
-          let log_size = Conf.index_log_size config in
-          let throttle = Conf.merge_throttle config in
-          let f = ref (fun () -> ()) in
-          let index =
-            Index.v
-              ~flush_callback:(fun () -> !f ())
-                (* backpatching to add pack flush before an index flush *)
-              ~fresh ~readonly ~throttle ~log_size root
-          in
-          let* contents =
-            Contents.CA.v ~fresh ~readonly ~lru_size ~index root
-          in
-          let* node = Node.CA.v ~fresh ~readonly ~lru_size ~index root in
-          let* commit = Commit.CA.v ~fresh ~readonly ~lru_size ~index root in
+          let root = Irmin_pack.Conf.root config in
+          let fresh = Irmin_pack.Conf.fresh config in
+          let readonly = Irmin_pack.Conf.readonly config in
+          let* contents = Contents.CA.v () in
+          let* node = Node.CA.v () in
+          let* commit = Commit.CA.v () in
           let+ branch = Branch.v ~fresh ~readonly root in
-          (* Stores share instances in memory, one flush is enough. In case of a
-             system crash, the flush_callback might not make with the disk. In
-             this case, when the store is reopened, [integrity_check] needs to be
-             called to repair the store. *)
-          (f := fun () -> Contents.CA.flush ~index:false contents);
-          { contents; node; commit; branch; config; index }
+          { contents; node; commit; branch; config }
 
         let close t =
-          Index.close t.index;
           Contents.CA.close (contents_t t) >>= fun () ->
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
@@ -134,11 +140,12 @@ struct
           Lwt.catch
             (fun () -> unsafe_v config)
             (function
-              | Version.Invalid { expected; found } as e
+              | Irmin_pack.Version.Invalid { expected; found } as e
                 when expected = V.version ->
                   Log.err (fun m ->
                       m "[%s] Attempted to open store of unsupported version %a"
-                        (Conf.root config) Version.pp found);
+                        (Irmin_pack.Conf.root config)
+                        Irmin_pack.Version.pp found);
                   Lwt.fail e
               | e -> Lwt.fail e)
 
@@ -160,25 +167,12 @@ struct
       end
     end
 
-    let integrity_check ?ppf ~auto_repair t =
-      let module Checks = Checks.Index (Index) in
-      let contents = X.Repo.contents_t t in
-      let nodes = X.Repo.node_t t |> snd in
-      let commits = X.Repo.commit_t t |> snd in
-      let check ~kind ~offset ~length k =
-        match kind with
-        | `Contents -> X.Contents.CA.integrity_check ~offset ~length k contents
-        | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
-        | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
-      in
-      Checks.integrity_check ?ppf ~auto_repair ~check t.index
-
     include Irmin.Of_private (X)
 
     let integrity_check_inodes ?heads t =
       Log.debug (fun l -> l "Check integrity for inodes");
       let bar, (_, progress_nodes, progress_commits) =
-        Utils.Progress.increment ()
+        Irmin_pack.Utils.Progress.increment ()
       in
       let errors = ref [] in
       let nodes = X.Repo.node_t t |> snd in
@@ -199,7 +193,7 @@ struct
       let+ () =
         Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
       in
-      Utils.Progress.finalise bar;
+      Irmin_pack.Utils.Progress.finalise bar;
       let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
       if !errors = [] then
         Fmt.kstrf (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
@@ -212,19 +206,9 @@ struct
 
     let sync = X.Repo.sync
     let clear = X.Repo.clear
-    let migrate = Migrate.run
+    let migrate = Irmin_pack.migrate
     let flush = X.Repo.flush
-
-    module Reconstruct_index = Reconstruct_index.Make (struct
-      module Version = V
-      module Hash = H
-      module Index = Index
-      module Inode = X.Node.CA
-      module Dict = Dict
-      module Contents = X.Contents.Pack_value
-      module Commit = X.Commit.Pack_value
-    end)
-
-    let reconstruct_index = Reconstruct_index.run
+    let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
+    let reconstruct_index ?output:_ _ = ()
   end
 end

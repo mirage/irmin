@@ -14,5 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t list
-val misc : (string * unit Alcotest.test_case list) list
+include Irmin.Export_for_backends
+module Int63 = Optint.Int63
+
+let src = Logs.Src.create "irmin-pack.mem" ~doc:"irmin-pack mem backend"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
+type int63 = Int63.t
