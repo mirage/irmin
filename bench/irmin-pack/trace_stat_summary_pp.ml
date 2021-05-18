@@ -67,7 +67,12 @@ let fprintf_result ppf =
  - "max memory usage" is the max size of OCaml's major heap.
  - "mean CPU usage" is inexact.
 
--- curves --
+-- global --
+%s
+
+%s
+
+-- evolution through blocks --
 %s
 
 Types of curves:
@@ -170,13 +175,13 @@ module Table1 = struct
     let add_per_sec =
       List.map
         (fun s ->
-          fst Summary.(Op.Map.find `Add s.ops).cumu_count.max_value
+          fst Summary.(Span.Map.find `Add s.span).cumu_count.max_value
           /. s.elapsed_cpu)
         summaries
     in
     let tail_latency =
       List.map
-        (fun s -> fst Summary.(Op.Map.find `Commit s.ops).duration.max_value)
+        (fun s -> fst Summary.(Span.Map.find `Commit s.span).duration.max_value)
         summaries
     in
     let tx_per_sec =
@@ -201,9 +206,7 @@ module Table1 = struct
     in
     let bytes =
       List.map
-        (fun s ->
-          fst s.index.bytes_read.value_after_commit.max_value
-          +. fst s.index.bytes_written.value_after_commit.max_value)
+        (fun s -> fst s.index.bytes_both.value_after_commit.max_value)
         summaries
     in
     let read_bytes =
@@ -219,9 +222,7 @@ module Table1 = struct
     let throughput =
       List.map
         (fun s ->
-          (fst s.index.bytes_read.value_after_commit.max_value
-          +. fst s.index.bytes_written.value_after_commit.max_value)
-          /. s.elapsed_cpu)
+          fst s.index.bytes_both.value_after_commit.max_value /. s.elapsed_cpu)
         summaries
     in
     let read_throughput =
@@ -240,9 +241,7 @@ module Table1 = struct
     let iops =
       List.map
         (fun s ->
-          (fst s.index.nb_reads.value_after_commit.max_value
-          +. fst s.index.nb_writes.value_after_commit.max_value)
-          /. s.elapsed_cpu)
+          fst s.index.nb_both.value_after_commit.max_value /. s.elapsed_cpu)
         summaries
     in
     let read_iops =
@@ -322,8 +321,296 @@ module Table1 = struct
   let matrix_of_rows col_count rows = List.map (cells_of_row col_count) rows
 end
 
-(** Curves *)
 module Table2 = struct
+  type variable = float * float * float * float
+  (** min, max, avg, avg per sec *)
+
+  type summary_floor =
+    [ `Spacer
+    | `Data of
+      (scalar_format_fixed * scalar_format_fixed)
+      * string
+      * (string * variable) list ]
+
+  let create_header_rows summaries =
+    let only_one_summary = List.length summaries = 1 in
+    [
+      "" :: (if only_one_summary then [] else [ "" ])
+      @ [ "min per block"; "max per block"; "avg per block"; "avg per sec" ];
+    ]
+    |> Pb.matrix_to_text
+    |> Pb.align_matrix `Center
+
+  let floors_of_summaries : string list -> summary list -> summary_floor list =
+   fun summary_names summaries ->
+    let zip : (summary -> variable) -> (string * variable) list =
+     fun variable_of_summary ->
+      List.map2
+        (fun sname s -> (sname, variable_of_summary s))
+        summary_names summaries
+    in
+    let pb :
+        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
+        =
+     fun ?(f = (`Ri, `R3)) stat_name lbs_of_summary ->
+      let variables =
+        zip (fun s ->
+            let vs = (lbs_of_summary s).diff_per_block in
+            ( fst vs.min_value,
+              fst vs.max_value,
+              vs.mean,
+              vs.mean *. float_of_int s.block_count /. s.elapsed_wall ))
+      in
+      `Data (f, stat_name, variables)
+    in
+    let span_occu_per_block : string -> Span.Key.t -> summary_floor =
+     fun name op ->
+      let variables =
+        let open Summary in
+        zip (fun s ->
+            let vs = Span.(Map.find op s.span).count in
+            ( fst vs.min_value,
+              fst vs.max_value,
+              vs.mean,
+              vs.mean *. float_of_int s.block_count /. s.elapsed_wall ))
+      in
+      `Data ((`Ri, `R3), name, variables)
+    in
+    [
+      `Spacer;
+      span_occu_per_block "Add count" `Add;
+      span_occu_per_block "Remove count" `Remove;
+      span_occu_per_block "Find count" `Find;
+      span_occu_per_block "Mem count" `Mem;
+      span_occu_per_block "Mem_tree count" `Mem_tree;
+      span_occu_per_block "Copy count" `Copy;
+      span_occu_per_block "Commit count" `Commit;
+      `Spacer;
+      pb ~f:(`RM, `RM) "Disk bytes read" (fun s -> s.index.bytes_read);
+      pb ~f:(`RM, `RM) "Disk bytes written" (fun s -> s.index.bytes_written);
+      pb ~f:(`RM, `RM) "Disk bytes both" (fun s -> s.index.bytes_both);
+      `Spacer;
+      pb "Disk reads" (fun s -> s.index.nb_reads);
+      pb "Disk writes" (fun s -> s.index.nb_writes);
+      pb "Disk both" (fun s -> s.index.nb_both);
+      `Spacer;
+      pb "pack.finds" (fun s -> s.pack.finds);
+      pb "pack.cache_misses" (fun s -> s.pack.cache_misses);
+      pb "pack.appended_hashes" (fun s -> s.pack.appended_hashes);
+      pb "pack.appended_offsets" (fun s -> s.pack.appended_offsets);
+      `Spacer;
+      pb "tree.contents_hash" (fun s -> s.tree.contents_hash);
+      pb "tree.contents_find" (fun s -> s.tree.contents_find);
+      pb "tree.contents_add" (fun s -> s.tree.contents_add);
+      pb "tree.node_hash" (fun s -> s.tree.node_hash);
+      pb "tree.node_mem" (fun s -> s.tree.node_mem);
+      pb "tree.node_add" (fun s -> s.tree.node_add);
+      pb "tree.node_find" (fun s -> s.tree.node_find);
+      pb "tree.node_val_v" (fun s -> s.tree.node_val_v);
+      pb "tree.node_val_find" (fun s -> s.tree.node_val_find);
+      pb "tree.node_val_list" (fun s -> s.tree.node_val_list);
+      `Spacer;
+      pb
+        ~f:(`RM, `Ri)
+        "index.cumu_data_bytes"
+        (fun s -> s.index.cumu_data_bytes);
+      `Spacer;
+      pb ~f:(`RM, `RM) "gc.minor_words allocated" (fun s -> s.gc.minor_words);
+      pb ~f:(`RM, `RM) "gc.major_words allocated" (fun s -> s.gc.major_words);
+      pb "gc.minor_collections" (fun s -> s.gc.minor_collections);
+      pb "gc.major_collections" (fun s -> s.gc.major_collections);
+    ]
+
+  let matrix_of_data_floor
+      (`Data
+        ((scalar_format_a, scalar_format_b), floor_name, names_and_variables)) =
+    let only_one_summary = List.length names_and_variables = 1 in
+    let _, variables = List.split names_and_variables in
+    let min0, max0, avg0, avg_ps0 = List.hd variables in
+
+    let box_of_scalar scalar_format row_idx v0 v =
+      let ratio = v /. v0 in
+      let show_percent =
+        if only_one_summary then
+          (* Percents are only needed for comparisons between summaries. *)
+          `No
+        else if Float.is_finite ratio = false then
+          (* Nan and infinite percents are ugly. *)
+          `Shadow
+        else if row_idx = 0 then
+          (* The first row of a floor is always 100%, it is prettier without
+             displaying it. *)
+          `Shadow
+        else `Yes
+      in
+      let pp_percent ppf =
+        match show_percent with
+        | `Yes -> Format.fprintf ppf " %a" Utils.pp_percent ratio
+        | `Shadow -> Format.fprintf ppf "     "
+        | `No -> ()
+      in
+      let pp_scalar ppf = pp_scalar_fixed ppf (scalar_format, v) in
+      Fmt.str "%t%t" pp_scalar pp_percent
+      |> Pb.text
+      |> Pb.align ~h:`Right ~v:`Top
+    in
+    let rows =
+      List.mapi
+        (fun row_idx (summary_name, variable) ->
+          let a = Pb.text (if row_idx = 0 then floor_name else "") in
+          let b = if only_one_summary then [] else [ Pb.text summary_name ] in
+          let c =
+            let min, max, avg, avg_ps = variable in
+            [
+              box_of_scalar scalar_format_a row_idx min0 min;
+              box_of_scalar scalar_format_a row_idx max0 max;
+              box_of_scalar scalar_format_b row_idx avg0 avg;
+              box_of_scalar scalar_format_b row_idx avg_ps0 avg_ps;
+            ]
+          in
+          a :: b @ c)
+        names_and_variables
+    in
+    rows
+
+  let matrix_of_floor col_count = function
+    | `Spacer -> [ List.init col_count (Fun.const "") ] |> Pb.matrix_to_text
+    | `Data _ as floor -> matrix_of_data_floor floor
+end
+
+module Table3 = struct
+  type variable = float * float * float
+  (** min, max, avg *)
+
+  type summary_floor =
+    [ `Spacer
+    | `Data of
+      (scalar_format_fixed * scalar_format_fixed)
+      * string
+      * (string * variable) list ]
+
+  let create_header_rows summaries =
+    let only_one_summary = List.length summaries = 1 in
+    [
+      "" :: (if only_one_summary then [] else [ "" ]) @ [ "min"; "max"; "avg" ];
+    ]
+    |> Pb.matrix_to_text
+    |> Pb.align_matrix `Center
+
+  let floors_of_summaries : string list -> summary list -> summary_floor list =
+   fun summary_names summaries ->
+    let zip : (summary -> variable) -> (string * variable) list =
+     fun variable_of_summary ->
+      List.map2
+        (fun sname s -> (sname, variable_of_summary s))
+        summary_names summaries
+    in
+
+    let v :
+        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
+        =
+     fun ?(f = (`RM, `RM)) stat_name lbs_of_summary ->
+      let variables =
+        zip (fun s ->
+            let vs = (lbs_of_summary s).value_after_commit in
+            (fst vs.min_value, fst vs.max_value, vs.mean))
+      in
+      `Data (f, stat_name, variables)
+    in
+    let cpu_usage_variables =
+      zip (fun s ->
+          let vs = s.cpu_usage in
+          (fst vs.min_value, fst vs.max_value, vs.mean))
+    in
+    let span_durations : ?f:_ -> string -> Span.Key.t -> summary_floor =
+     fun ?(f = (`Sm, `Su)) name op ->
+      let variables =
+        let open Summary in
+        zip (fun s ->
+            let vs = Span.(Map.find op s.span).duration in
+            (fst vs.min_value, fst vs.max_value, vs.mean))
+      in
+      `Data (f, name, variables)
+    in
+    [
+      `Spacer;
+      span_durations ~f:(`S3, `Sm) "Block duration (s)" `Block;
+      span_durations ~f:(`S3, `Sm) "Buildup duration (s)" `Buildup;
+      span_durations ~f:(`S3, `Sm) "Commit duration (s)" `Commit;
+      `Spacer;
+      span_durations "Add duration (s)" `Add;
+      span_durations "Remove duration (s)" `Remove;
+      span_durations "Find duration (s)" `Find;
+      span_durations "Mem duration (s)" `Mem;
+      span_durations "Mem_tree duration (s)" `Mem_tree;
+      span_durations "Copy duration (s)" `Copy;
+      span_durations ~f:(`S3, `Sm) "Unseen duration (s)" `Unseen;
+      `Spacer;
+      v "Major heap bytes after commit" (fun s -> s.gc.major_heap_bytes);
+      `Spacer;
+      `Data ((`P, `P), "CPU Usage", cpu_usage_variables);
+    ]
+
+  let matrix_of_data_floor
+      (`Data
+        ((scalar_format_a, scalar_format_b), floor_name, names_and_variables)) =
+    let only_one_summary = List.length names_and_variables = 1 in
+    let _, variables = List.split names_and_variables in
+    let min0, max0, avg0 = List.hd variables in
+
+    let box_of_scalar scalar_format row_idx v0 v =
+      let ratio = v /. v0 in
+      let show_percent =
+        if only_one_summary then
+          (* Percents are only needed for comparisons between summaries. *)
+          `No
+        else if Float.is_finite ratio = false then
+          (* Nan and infinite percents are ugly. *)
+          `Shadow
+        else if row_idx = 0 then
+          (* The first row of a floor is always 100%, it is prettier without
+             displaying it. *)
+          `Shadow
+        else if scalar_format = `P then `Shadow
+        else `Yes
+      in
+      let pp_percent ppf =
+        match show_percent with
+        | `Yes -> Format.fprintf ppf " %a" Utils.pp_percent ratio
+        | `Shadow -> Format.fprintf ppf "     "
+        | `No -> ()
+      in
+      let pp_scalar ppf = pp_scalar_fixed ppf (scalar_format, v) in
+
+      Fmt.str "%t%t" pp_scalar pp_percent
+      |> Pb.text
+      |> Pb.align ~h:`Right ~v:`Top
+    in
+    let rows =
+      List.mapi
+        (fun row_idx (summary_name, variable) ->
+          let a = Pb.text (if row_idx = 0 then floor_name else "") in
+          let b = if only_one_summary then [] else [ Pb.text summary_name ] in
+          let c =
+            let min, max, avg = variable in
+            [
+              box_of_scalar scalar_format_b row_idx min0 min;
+              box_of_scalar scalar_format_a row_idx max0 max;
+              box_of_scalar scalar_format_b row_idx avg0 avg;
+            ]
+          in
+          a :: b @ c)
+        names_and_variables
+    in
+    rows
+
+  let matrix_of_floor col_count = function
+    | `Spacer -> [ List.init col_count (Fun.const "") ] |> Pb.matrix_to_text
+    | `Data _ as floor -> matrix_of_data_floor floor
+end
+
+(** Curves *)
+module Table4 = struct
   type scalar_format_auto = [ `R | `S ]
   (** Real / Seconds *)
 
@@ -346,20 +633,6 @@ module Table2 = struct
   let div_curves a b = List.map2 ( /. ) a b
   let mul_curves a b = List.map2 ( *. ) a b
   let mul_curve_scalar a v = List.map (( *. ) v) a
-
-  let all_9_ops =
-    [
-      `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit; `Unseen;
-    ]
-
-  let all_8_ops =
-    [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy; `Commit ]
-
-  let all_buildup_seen_ops =
-    [ `Add; `Remove; `Find; `Mem; `Mem_tree; `Checkout; `Copy ]
-
-  let all_buildup_ro_ops = [ `Find; `Mem; `Mem_tree ]
-  let all_buildup_rw_ops = [ `Add; `Remove; `Copy ]
 
   let create_header_rows sample_count summaries =
     let only_one_summary = List.length summaries = 1 in
@@ -434,12 +707,7 @@ module Table2 = struct
     let zip_per_block_to_per_sec : (summary -> curve) -> (string * curve) list =
       let sec_per_block =
         List.map
-          (fun s ->
-            all_9_ops
-            |> List.map (fun op ->
-                   mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                     Summary.(Op.Map.find op s.ops).count.evolution)
-            |> sum_curves)
+          (fun s -> Summary.(Span.Map.find `Block s.span).duration.evolution)
           summaries
       in
       fun curve_of_summary ->
@@ -477,42 +745,34 @@ module Table2 = struct
       `Data (f, stat_name, curves)
     in
 
-    let op_count : string -> Op.Key.t -> summary_floor =
+    let span_occu_count : string -> Span.Key.t -> summary_floor =
      fun name op ->
       let curves =
-        zip (fun s -> Summary.(Op.Map.find op s.ops).count.evolution)
+        zip (fun s -> Summary.(Span.Map.find op s.span).count.evolution)
       in
       `Data (`R3, name, curves)
     in
-    let op_duration : _ -> string -> Op.Key.t -> summary_floor =
+    let span_duration : _ -> string -> Span.Key.t -> summary_floor =
      fun f name op ->
       let curves =
-        zip (fun s -> Summary.(Op.Map.find op s.ops).duration.evolution)
+        zip (fun s -> Summary.(Span.Map.find op s.span).duration.evolution)
       in
       `Data (f, name, curves)
     in
-    let op_every_sec : string -> Op.Key.t -> summary_floor =
+    let span_occu_every_sec : string -> Span.Key.t -> summary_floor =
      fun name op ->
       let curves =
         zip_per_block_to_per_sec (fun s ->
-            Summary.(Op.Map.find op s.ops).count.evolution)
+            Summary.(Span.Map.find op s.span).count.evolution)
       in
       `Data (`R3, name, curves)
     in
 
-    let seen_duration =
-      zip (fun s ->
-          all_buildup_seen_ops
-          |> List.map (fun op ->
-                 mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                   Summary.(Op.Map.find op s.ops).count.evolution)
-          |> sum_curves)
-    in
     let all_ops_cumu_count =
       zip (fun s ->
-          all_8_ops
+          Summary.Span.Key.((all_atoms_seen :> t list))
           |> List.map (fun op ->
-                 Summary.(Op.Map.find op s.ops).cumu_count.evolution)
+                 Summary.(Span.Map.find op s.span).cumu_count.evolution)
           |> sum_curves)
     in
 
@@ -548,89 +808,74 @@ module Table2 = struct
           played_count_curve)
     in
 
-    let ro_ops_per_sec =
-      zip_per_block_to_per_sec (fun s ->
-          all_buildup_ro_ops
-          |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
-          |> sum_curves)
-    in
-    let rw_ops_per_sec =
-      zip_per_block_to_per_sec (fun s ->
-          all_buildup_rw_ops
-          |> List.map (fun op -> Summary.(Op.Map.find op s.ops).count.evolution)
-          |> sum_curves)
-    in
-    let sum_op_durations_per_block =
-      zip (fun s ->
-          all_9_ops
-          |> List.map (fun op ->
-                 mul_curves Summary.(Op.Map.find op s.ops).duration.evolution
-                   Summary.(Op.Map.find op s.ops).count.evolution)
-          |> sum_curves)
-    in
-
     (* Step 3/3 - Build the final list of floors *)
     [
       `Spacer;
       `Data
         (`S, "Wall time elapsed *C", zip (fun s -> s.elapsed_wall_over_blocks));
       `Data (`S, "CPU time elapsed *C", zip (fun s -> s.elapsed_cpu_over_blocks));
+      `Data (`P, "CPU Usage *LA", zip (fun s -> s.cpu_usage.evolution));
       (* ops counts *)
       `Spacer;
       `Data (`R, "Approx. TZ-transaction count *C", tz_tx_count);
       `Data (`R, "Approx. TZ-operations count *C", tz_ops_count);
       `Data (`R, "Op count *C", all_ops_cumu_count);
-      `Data (`R3, "Read only ops per sec *LA", ro_ops_per_sec);
-      `Data (`R3, "Read write ops per sec *LA", rw_ops_per_sec);
       (* <op> per sec *)
       `Spacer;
-      op_every_sec "Commit per sec *LA" `Commit;
-      op_every_sec "Add per sec *LA" `Add;
-      op_every_sec "Remove per sec *LA" `Remove;
-      op_every_sec "Find per sec *LA" `Find;
-      op_every_sec "Mem per sec *LA" `Mem;
-      op_every_sec "Mem_tree per sec *LA" `Mem_tree;
-      op_every_sec "Copy per sec *LA" `Copy;
+      span_occu_every_sec "Commit per sec *LA *N" `Commit;
+      span_occu_every_sec "Add per sec *LA *N" `Add;
+      span_occu_every_sec "Remove per sec *LA *N" `Remove;
+      span_occu_every_sec "Find per sec *LA *N" `Find;
+      span_occu_every_sec "Mem per sec *LA *N" `Mem;
+      span_occu_every_sec "Mem_tree per sec *LA *N" `Mem_tree;
+      span_occu_every_sec "Copy per sec *LA *N" `Copy;
       (* <op> per block *)
       `Spacer;
-      op_count "Add count per block *LA" `Add;
-      op_count "Remove count per block *LA" `Remove;
-      op_count "Find count per block *LA" `Find;
-      op_count "Mem count per block *LA" `Mem;
-      op_count "Mem_tree count per block *LA" `Mem_tree;
-      op_count "Copy count per block *LA" `Copy;
+      span_occu_count "Add count per block *LA" `Add;
+      span_occu_count "Remove count per block *LA" `Remove;
+      span_occu_count "Find count per block *LA" `Find;
+      span_occu_count "Mem count per block *LA" `Mem;
+      span_occu_count "Mem_tree count per block *LA" `Mem_tree;
+      span_occu_count "Copy count per block *LA" `Copy;
       (* <phase> duration *)
       `Spacer;
-      `Data (`Sm, "Block duration *LA", sum_op_durations_per_block);
-      `Data (`Sm, "Buildup seen duration *LA", seen_duration);
-      op_duration `Sm "Buildup unseen duration *LA" `Unseen;
-      op_duration `Sm "Commit duration *LA" `Commit;
+      span_duration `Sm "Block duration *LA" `Block;
+      span_duration `Sm "Buildup duration *LA" `Buildup;
+      span_duration `Sm "Commit duration *LA" `Commit;
       `Spacer;
       (* <op> duration *)
-      op_duration `Su "Add duration *LA" `Add;
-      op_duration `Su "Remove duration *LA" `Remove;
-      op_duration `Su "Find duration *LA" `Find;
-      op_duration `Su "Mem duration *LA" `Mem;
-      op_duration `Su "Mem_tree duration *LA" `Mem_tree;
-      op_duration `Su "Copy duration *LA" `Copy;
-      op_duration `Su "Checkout duration *LA" `Checkout;
+      span_duration `Su "Add duration *LA" `Add;
+      span_duration `Su "Remove duration *LA" `Remove;
+      span_duration `Su "Find duration *LA" `Find;
+      span_duration `Su "Mem duration *LA" `Mem;
+      span_duration `Su "Mem_tree duration *LA" `Mem_tree;
+      span_duration `Su "Copy duration *LA" `Copy;
+      span_duration `Su "Checkout duration *LA" `Checkout;
       (* derived from bag_of_stat *)
       `Spacer;
-      v "Disk bytes read *C" (fun s -> s.index.bytes_read);
+      v "Disk bytes    read *C" (fun s -> s.index.bytes_read);
       v "Disk bytes written *C" (fun s -> s.index.bytes_written);
-      pb ~f:`Ri "Disk bytes read per block *LA" (fun s -> s.index.bytes_read);
+      v "Disk bytes    both *C" (fun s -> s.index.bytes_both);
+      pb ~f:`Ri "Disk bytes read    per block *LA" (fun s -> s.index.bytes_read);
       pb ~f:`Ri "Disk bytes written per block *LA" (fun s ->
           s.index.bytes_written);
-      ps ~f:`RM "Disk bytes read per sec *LA *N" (fun s -> s.index.bytes_read);
+      pb ~f:`Ri "Disk bytes both    per block *LA" (fun s -> s.index.bytes_both);
+      ps ~f:`RM "Disk bytes read    per sec *LA *N" (fun s ->
+          s.index.bytes_read);
       ps ~f:`RM "Disk bytes written per sec *LA *N" (fun s ->
           s.index.bytes_written);
+      ps ~f:`RM "Disk bytes both    per sec *LA *N" (fun s ->
+          s.index.bytes_both);
       `Spacer;
-      v "Disk read count *C" (fun s -> s.index.nb_reads);
+      v "Disk read  count *C" (fun s -> s.index.nb_reads);
       v "Disk write count *C" (fun s -> s.index.nb_writes);
-      pb ~f:`R3 "Disk read count per block *LA" (fun s -> s.index.nb_reads);
+      v "Disk both  count *C" (fun s -> s.index.nb_both);
+      pb ~f:`R3 "Disk read  count per block *LA" (fun s -> s.index.nb_reads);
       pb ~f:`R3 "Disk write count per block *LA" (fun s -> s.index.nb_writes);
-      ps ~f:`Ri "Disk read count per sec *LA *N" (fun s -> s.index.nb_reads);
+      pb ~f:`R3 "Disk both  count per block *LA" (fun s -> s.index.nb_both);
+      ps ~f:`Ri "Disk read  count per sec *LA *N" (fun s -> s.index.nb_reads);
       ps ~f:`Ri "Disk write count per sec *LA *N" (fun s -> s.index.nb_writes);
+      ps ~f:`Ri "Disk both  count per sec *LA *N" (fun s -> s.index.nb_both);
       `Spacer;
       pb "pack.finds per block *LA" (fun s -> s.pack.finds);
       pb "pack.cache_misses per block *LA" (fun s -> s.pack.cache_misses);
@@ -718,6 +963,7 @@ module Table2 = struct
           (* The first row of a floor is always 100%, it is prettier without
              displaying it. *)
           `Shadow
+        else if scalar_format = `P then `Shadow
         else `Yes
       in
       let pp_percent ppf =
@@ -730,7 +976,6 @@ module Table2 = struct
         match scalar_format with
         | `R -> Format.fprintf ppf "%a" pp_real v
         | `S -> Format.fprintf ppf "%a" pp_seconds v
-        | `P -> Format.fprintf ppf "%.0f%%" (v *. 100.)
         | #scalar_format_fixed as scalar_format ->
             pp_scalar_fixed ppf (scalar_format, v)
       in
@@ -796,13 +1041,10 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     |> PrintBox_text.to_string
   in
   let table2 =
-    let header_rows = Table2.create_header_rows sample_count summaries in
+    let header_rows = Table2.create_header_rows summaries in
     let body_rows =
-      let col_count =
-        sample_count + 1 + if List.length summaries = 1 then 0 else 1
-      in
+      let col_count = 4 + 1 + if List.length summaries = 1 then 0 else 1 in
       Table2.floors_of_summaries summary_names summaries
-      |> List.map (Table2.resample_curves_of_floor sample_count)
       |> List.map (Table2.matrix_of_floor col_count)
       |> List.concat
     in
@@ -811,7 +1053,36 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     |> Pb.grid_l ~bars:false
     |> PrintBox_text.to_string
   in
-  fprintf_result ppf table0 table1 table2
+  let table3 =
+    let header_rows = Table3.create_header_rows summaries in
+    let body_rows =
+      let col_count = 4 + 1 + if List.length summaries = 1 then 0 else 1 in
+      Table3.floors_of_summaries summary_names summaries
+      |> List.map (Table3.matrix_of_floor col_count)
+      |> List.concat
+    in
+    header_rows @ body_rows
+    |> Pb.matrix_with_column_spacers
+    |> Pb.grid_l ~bars:false
+    |> PrintBox_text.to_string
+  in
+  let table4 =
+    let header_rows = Table4.create_header_rows sample_count summaries in
+    let body_rows =
+      let col_count =
+        sample_count + 1 + if List.length summaries = 1 then 0 else 1
+      in
+      Table4.floors_of_summaries summary_names summaries
+      |> List.map (Table4.resample_curves_of_floor sample_count)
+      |> List.map (Table4.matrix_of_floor col_count)
+      |> List.concat
+    in
+    header_rows @ body_rows
+    |> Pb.matrix_with_column_spacers
+    |> Pb.grid_l ~bars:false
+    |> PrintBox_text.to_string
+  in
+  fprintf_result ppf table0 table1 table2 table3 table4
     (moving_average_half_life_ratio *. float_of_int (block_count + 1))
 
 let pp sample_count ppf (summary_names, summaries) =

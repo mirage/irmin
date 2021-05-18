@@ -23,11 +23,18 @@
     Count ~1000 commits per second.
 
     This file is NOT meant to be used from Tezos, as opposed to some other
-    "trace_*" files.
+    "trace_*" files. *)
 
-    {3 Phases}
+module Def = Trace_definitions.Stat_trace
+module Conf = Trace_stat_summary_conf
+module Utils = Trace_stat_summary_utils
+module Vs = Utils.Variable_summary
 
-    A stat trace can be chunked into {e blocks}. A {e blocks} is made of 2
+(* Section 1/4 - Type of a summary. *)
+
+type curve = Utils.curve [@@deriving repr]
+
+(** A stat trace can be chunked into {e blocks}. A {e blocks} is made of 2
     phases, first the {e buildup} and then the {e commit}.
 
     The duration of a {e buildup} can be split into 2 parts: 1. the time spend
@@ -42,18 +49,20 @@
     Tezos' blocks. A Tezos block is associated to a commit, but a commit is not
     necessarily associated to a Tezos block. There are ~50 more commits than
     Tezos blocks up to the Edo protocol. *)
-
-module Def = Trace_definitions.Stat_trace
-module Conf = Trace_stat_summary_conf
-module Utils = Trace_stat_summary_utils
-module Vs = Utils.Variable_summary
-
-(* Section 1/4 - Type of a summary. *)
-
-type curve = Utils.curve [@@deriving repr]
-
-module Op = struct
+module Span = struct
   module Key = struct
+    type atom_seen =
+      [ `Add | `Remove | `Find | `Mem | `Mem_tree | `Checkout | `Copy | `Commit ]
+    [@@deriving repr, enum]
+    (** The unitary operations played. We recorded the length of all of these. *)
+
+    type atom = [ atom_seen | `Unseen ]
+    (** [atom_seen] plus the time between operations. The sum of these is the
+        total time. *)
+
+    type phase = [ `Buildup | `Commit ]
+    (** The two major phases. The sum of these is the total time *)
+
     type t =
       [ `Add
       | `Remove
@@ -63,26 +72,32 @@ module Op = struct
       | `Checkout
       | `Copy
       | `Commit
-      | `Unseen ]
+      | `Unseen
+      | `Buildup
+      | `Block ]
     [@@deriving repr, enum]
+    (** All spans.
 
-    let to_string v =
+        Redefined (i.e. no inheritance) for derivers. *)
+
+    let all_atoms_seen : atom_seen list =
+      List.init (max_atom_seen + 1) (fun i -> atom_seen_of_enum i |> Option.get)
+
+    let all : t list = List.init (max + 1) (fun i -> of_enum i |> Option.get)
+
+    let to_string : [< t ] -> string =
+     fun v ->
       match String.split_on_char '"' (Irmin.Type.to_string t v) with
       | [ ""; s; "" ] -> s |> String.lowercase_ascii
-      | _ -> failwith "Could not encode op name to json"
+      | _ -> failwith "Could not encode span name to json"
 
-    let of_string s =
+    let of_string : string -> (t, [ `Msg of string ]) result =
+     fun s ->
       let s = "\"" ^ String.capitalize_ascii s ^ "\"" in
       match Irmin.Type.of_string t s with Ok v -> Ok v | Error _ as e -> e
   end
 
   module Val = struct
-    (* The [count] count curve for [commit] and [unseen] is trivialy equal to 1.
-       Almost for [checkout] too.
-
-       Since there are always, per block, 1 commit and 1 unseen (and 1 checkout,
-       except for the first block), the [count]
-    *)
     type t = {
       count : Vs.t;
       cumu_count : Vs.t;
@@ -91,6 +106,15 @@ module Op = struct
       cumu_duration : Vs.t;
     }
     [@@deriving repr]
+    (** The [count] variable is the number of occurences of a span per block and
+        [cumu_count] is the cumulative from the beginning.
+
+        The [duration] variable is the length of a span occurence and
+        [cumu_duration] is the cumulative from the beginning. The x axis for the
+        [evolution] is the number of blocks.
+
+        The [count] for [commit] and [unseen] is trivialy equal to 1. The same
+        is almost true for [checkout] too. *)
   end
 
   module Map = Map.Make (struct
@@ -126,7 +150,7 @@ module Watched_node = struct
     let to_string v =
       match String.split_on_char '"' (Irmin.Type.to_string t v) with
       | [ ""; s; "" ] -> s |> String.lowercase_ascii
-      | _ -> failwith "Could not encode op name to json"
+      | _ -> failwith "Could not encode node name to json"
 
     let of_string s =
       let s = "\"" ^ String.capitalize_ascii s ^ "\"" in
@@ -201,6 +225,8 @@ type index = {
   nb_reads : linear_bag_stat;
   bytes_written : linear_bag_stat;
   nb_writes : linear_bag_stat;
+  bytes_both : linear_bag_stat;
+  nb_both : linear_bag_stat;
   nb_merge : linear_bag_stat;
   cumu_data_bytes : linear_bag_stat;
   merge_durations : float list;
@@ -248,8 +274,9 @@ type t = {
   elapsed_cpu : float;
   elapsed_cpu_over_blocks : Utils.curve;
   op_count : int;
-  ops : Op.map;
+  span : Span.map;
   block_count : int;
+  cpu_usage : Vs.t;
   index : index;
   pack : pack;
   tree : tree;
@@ -278,12 +305,9 @@ let create_vs_smooth_log block_count =
   let rt = Conf.moving_average_relevance_threshold in
   create_vs block_count ~evolution_smoothing:(`Ema (hlr, rt)) ~scale:`Log
 
-(** Accumulator for the [ops] field of [t]. *)
-module Ops_folder = struct
-  let ops = List.init (Op.Key.max + 1) (fun i -> Op.Key.of_enum i |> Option.get)
-
-  type op_acc = {
-    durations_in_block : float list;
+(** Accumulator for the [span] field of [t]. *)
+module Span_folder = struct
+  type span_acc = {
     sum_count : int;
     sum_duration : float;
     count : Vs.acc;
@@ -293,11 +317,22 @@ module Ops_folder = struct
     cumu_duration : Vs.acc;
   }
 
-  type acc = { per_op : op_acc Op.Map.t; timestamp_before : float }
+  type acc = {
+    per_span : span_acc Span.Map.t;
+    seen_atoms_durations_in_block : float list Span.Map.t;
+    timestamp_before : float;
+  }
 
   let create timestamp_before block_count =
+    let seen_atoms_durations_in_block0 =
+      List.map
+        (fun atom_seen -> (atom_seen, []))
+        (Span.Key.all_atoms_seen :> Span.Key.t list)
+      |> List.to_seq
+      |> Span.Map.of_seq
+    in
     let acc0 =
-      let acc0_per_op =
+      let acc0_per_span =
         let count = create_vs_smooth block_count in
         let count = Vs.accumulate count [] in
         let cumu_count = create_vs_exact block_count in
@@ -309,7 +344,6 @@ module Ops_folder = struct
         let cumu_duration = create_vs_exact block_count in
         let cumu_duration = Vs.accumulate cumu_duration [ 0. ] in
         {
-          durations_in_block = [];
           sum_count = 0;
           sum_duration = 0.;
           count;
@@ -319,88 +353,114 @@ module Ops_folder = struct
           cumu_duration;
         }
       in
-      let per_op =
-        List.map (fun op -> (op, acc0_per_op)) ops
+      let per_span =
+        List.map (fun span -> (span, acc0_per_span)) Span.Key.all
         |> List.to_seq
-        |> Op.Map.of_seq
+        |> Span.Map.of_seq
       in
-      { per_op; timestamp_before }
+      {
+        per_span;
+        seen_atoms_durations_in_block = seen_atoms_durations_in_block0;
+        timestamp_before;
+      }
     in
 
     let accumulate acc row =
-      let on_duration acc op d =
-        let acc' = Op.Map.find op acc.per_op in
+      let on_atom_seen_duration32 acc (span : Span.Key.atom_seen) (d : int32) =
+        let d = Int32.float_of_bits d in
+        let span = (span :> Span.Key.t) in
+        let seen_atoms_durations_in_block =
+          let m = acc.seen_atoms_durations_in_block in
+          let l = d :: Span.Map.find span m in
+          Span.Map.add span l m
+        in
+        { acc with seen_atoms_durations_in_block }
+      in
+      let on_durations (span : Span.Key.t) (new_durations : float list) acc =
+        let acc' = Span.Map.find span acc.per_span in
+        let new_count = List.length new_durations in
+        let sum_count = acc'.sum_count + new_count in
+        let sum_duration =
+          acc'.sum_duration +. List.fold_left ( +. ) 0. new_durations
+        in
+        let count = Vs.accumulate acc'.count [ float_of_int new_count ] in
+        let cumu_count =
+          Vs.accumulate acc'.cumu_count [ float_of_int sum_count ]
+        in
+        let duration = Vs.accumulate acc'.duration new_durations in
+        let duration_log_scale =
+          Vs.accumulate acc'.duration_log_scale new_durations
+        in
+        let cumu_duration = Vs.accumulate acc'.cumu_duration [ sum_duration ] in
         let acc' =
           {
-            acc' with
-            durations_in_block = d :: acc'.durations_in_block;
-            sum_count = acc'.sum_count + 1;
-            sum_duration = acc'.sum_duration +. d;
+            sum_count;
+            sum_duration;
+            count;
+            cumu_count;
+            duration;
+            duration_log_scale;
+            cumu_duration;
           }
         in
-        { acc with per_op = Op.Map.add op acc' acc.per_op }
+        { acc with per_span = Span.Map.add span acc' acc.per_span }
       in
-      let on_duration32 acc op d = on_duration acc op (Int32.float_of_bits d) in
       let on_commit (c : Def.commit) acc =
-        let seen_duration =
-          Op.Map.fold
-            (fun _ { durations_in_block; _ } x ->
-              List.fold_left ( +. ) x durations_in_block)
-            acc.per_op 0.
+        let list_one span =
+          Span.Map.find span acc.seen_atoms_durations_in_block
+        in
+        let sum_one span = List.fold_left ( +. ) 0. (list_one span) in
+        let sum_several spans =
+          let spans = (spans :> Span.Key.t list) in
+          List.fold_left (fun cumu span -> cumu +. sum_one span) 0. spans
         in
         let total_duration = c.after.timestamp_wall -. acc.timestamp_before in
-        let unseen_duration = total_duration -. seen_duration in
-        let acc = on_duration acc `Unseen unseen_duration in
-
-        let per_op =
-          Op.Map.map
-            (fun acc' ->
-              let xs = acc'.durations_in_block in
-              let lenxs = List.length xs |> float_of_int in
-              let count = Vs.accumulate acc'.count [ lenxs ] in
-              let cumu_count =
-                Vs.accumulate acc'.cumu_count [ acc'.sum_count |> float_of_int ]
-              in
-              let duration = Vs.accumulate acc'.duration xs in
-              let duration_log_scale = Vs.accumulate acc'.duration xs in
-              let cumu_duration =
-                Vs.accumulate acc'.cumu_duration [ acc'.sum_duration ]
-              in
-              {
-                acc' with
-                durations_in_block = [];
-                count;
-                cumu_count;
-                duration;
-                duration_log_scale;
-                cumu_duration;
-              })
-            acc.per_op
+        let acc =
+          acc
+          |> on_durations `Add (list_one `Add)
+          |> on_durations `Remove (list_one `Remove)
+          |> on_durations `Find (list_one `Find)
+          |> on_durations `Mem (list_one `Mem)
+          |> on_durations `Mem_tree (list_one `Mem_tree)
+          |> on_durations `Checkout (list_one `Checkout)
+          |> on_durations `Copy (list_one `Copy)
+          |> on_durations `Commit (list_one `Commit)
+          |> on_durations `Unseen
+               [ total_duration -. sum_several Span.Key.all_atoms_seen ]
+          |> on_durations `Buildup [ total_duration -. sum_one `Commit ]
+          |> on_durations `Block [ total_duration ]
         in
-        { per_op; timestamp_before = c.after.timestamp_wall }
+        {
+          acc with
+          seen_atoms_durations_in_block = seen_atoms_durations_in_block0;
+          timestamp_before = c.after.timestamp_wall;
+        }
       in
       match row with
-      | `Add d -> on_duration32 acc `Add d
-      | `Remove d -> on_duration32 acc `Remove d
-      | `Find d -> on_duration32 acc `Find d
-      | `Mem d -> on_duration32 acc `Mem d
-      | `Mem_tree d -> on_duration32 acc `Mem_tree d
-      | `Checkout d -> on_duration32 acc `Checkout d
-      | `Copy d -> on_duration32 acc `Copy d
-      | `Commit c -> on_duration32 acc `Commit c.Def.duration |> on_commit c
+      | `Add d -> on_atom_seen_duration32 acc `Add d
+      | `Remove d -> on_atom_seen_duration32 acc `Remove d
+      | `Find d -> on_atom_seen_duration32 acc `Find d
+      | `Mem d -> on_atom_seen_duration32 acc `Mem d
+      | `Mem_tree d -> on_atom_seen_duration32 acc `Mem_tree d
+      | `Checkout d -> on_atom_seen_duration32 acc `Checkout d
+      | `Copy d -> on_atom_seen_duration32 acc `Copy d
+      | `Commit c ->
+          on_atom_seen_duration32 acc `Commit c.Def.duration |> on_commit c
     in
-    let finalise { per_op; _ } =
-      Op.Map.map
+
+    let finalise { per_span; _ } =
+      Span.Map.map
         (fun acc ->
           {
-            Op.Val.count = Vs.finalise acc.count;
+            Span.Val.count = Vs.finalise acc.count;
             cumu_count = Vs.finalise acc.cumu_count;
             duration = Vs.finalise acc.duration;
             duration_log_scale = Vs.finalise acc.duration_log_scale;
             cumu_duration = Vs.finalise acc.cumu_duration;
           })
-        per_op
+        per_span
     in
+
     Utils.Parallel_folders.folder acc0 accumulate finalise
 end
 
@@ -477,7 +537,6 @@ module Linear_bag_stat_folder = struct
         let diff_per_commit =
           Vs.accumulate acc.diff_per_commit [ diff_commit ]
         in
-
         {
           acc with
           value_before_commit;
@@ -620,7 +679,27 @@ let merge_durations_folder =
   let finalise = List.rev in
   Utils.Parallel_folders.folder acc0 accumulate finalise
 
-(** Substract the first and the last timestamps and count the number of ops. *)
+let cpu_usage_folder header block_count =
+  let acc0 =
+    let vs = create_vs_smooth block_count in
+    let vs = Vs.accumulate vs [] in
+    ( header.Def.initial_stats.timestamp_wall,
+      header.Def.initial_stats.timestamp_cpu,
+      vs )
+  in
+  let accumulate ((prev_wall, prev_cpu, vs) as acc) = function
+    | `Commit c ->
+        let span_wall = c.Def.after.timestamp_wall -. prev_wall in
+        let span_cpu = c.Def.after.timestamp_cpu -. prev_cpu in
+        ( c.Def.after.timestamp_wall,
+          c.Def.after.timestamp_cpu,
+          Vs.accumulate vs [ span_cpu /. span_wall ] )
+    | _ -> acc
+  in
+  let finalise (_, _, vs) = Vs.finalise vs in
+  Utils.Parallel_folders.folder acc0 accumulate finalise
+
+(** Substract the first and the last timestamps and count the number of span. *)
 let misc_stats_folder header =
   let open Def in
   let acc0 = (0., 0., 0) in
@@ -728,13 +807,15 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
   in
 
   let index_folder =
-    let construct bytes_read nb_reads bytes_written nb_writes nb_merge
-        cumu_data_bytes merge_durations =
+    let construct bytes_read nb_reads bytes_written nb_writes bytes_both nb_both
+        nb_merge cumu_data_bytes merge_durations =
       {
         bytes_read;
         nb_reads;
         bytes_written;
         nb_writes;
+        bytes_both;
+        nb_both;
         nb_merge;
         cumu_data_bytes;
         merge_durations;
@@ -748,6 +829,10 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_reads)
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
+      |+ lbs_folder_of_bag_getter (fun bag ->
+             ofi (bag.Def.index.bytes_read + bag.Def.index.bytes_written))
+      |+ lbs_folder_of_bag_getter (fun bag ->
+             ofi (bag.Def.index.nb_reads + bag.Def.index.nb_writes))
       |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
       |+ lbs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
              (* When 1 merge occured, [data_size] bytes were written.
@@ -820,7 +905,8 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
   in
 
   let construct (elapsed_wall, elapsed_cpu, op_count) elapsed_wall_over_blocks
-      elapsed_cpu_over_blocks ops pack tree index gc disk watched_nodes =
+      elapsed_cpu_over_blocks span cpu_usage_variable pack tree index gc disk
+      watched_nodes =
     {
       summary_hostname = Unix.gethostname ();
       summary_timeofday = Unix.gettimeofday ();
@@ -838,9 +924,10 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       timestamp_cpu0 = header.initial_stats.timestamp_cpu;
       elapsed_wall_over_blocks;
       elapsed_cpu_over_blocks;
-      ops;
+      span;
       pack;
       tree;
+      cpu_usage = cpu_usage_variable;
       index;
       gc;
       disk;
@@ -854,7 +941,8 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
     |+ misc_stats_folder header
     |+ elapsed_wall_over_blocks_folder header block_count
     |+ elapsed_cpu_over_blocks_folder header block_count
-    |+ Ops_folder.create header.initial_stats.timestamp_wall block_count
+    |+ Span_folder.create header.initial_stats.timestamp_wall block_count
+    |+ cpu_usage_folder header block_count
     |+ pack_folder
     |+ tree_folder
     |+ index_folder
