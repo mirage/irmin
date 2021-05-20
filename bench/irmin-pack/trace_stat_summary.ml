@@ -473,7 +473,10 @@ end
     - Is sampled in header.
     - Is expected to grow linearly (or mostly, i.e. [disk.store_pack] with
       layered store). This implies that the curves/histos are best viewed on a
-      linear scale - as opposed to a log scale. *)
+      linear scale - as opposed to a log scale.
+
+    The [value_after_commit] is initially fed with the value in the header (i.e.
+    the value recorded just before the start of the play). *)
 module Linear_bag_stat_folder = struct
   type acc = {
     value_before_commit : Vs.acc;

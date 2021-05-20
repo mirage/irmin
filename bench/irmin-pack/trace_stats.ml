@@ -105,6 +105,19 @@ let pp paths named_paths cols_opt =
     invalid_arg "trace_stats.exe pp: At least one path should be provided";
   pp name_per_path paths cols_opt
 
+let summary_to_cb path =
+  let chan = open_in_bin path in
+  let raw = really_input_string chan (in_channel_length chan) in
+  close_in chan;
+  let s =
+    match Irmin.Type.of_json_string Summary.t raw with
+    | Error (`Msg msg) ->
+        Fmt.invalid_arg "File \"%s\" should be a summary json.\nError: %s" path
+          msg
+    | Ok s -> s
+  in
+  Trace_stat_summary_cb.(of_summary s |> Fmt.pr "%a\n" (Irmin.Type.pp_json t))
+
 open Cmdliner
 
 let term_summarise =
@@ -141,6 +154,13 @@ let term_pp =
     value a
   in
   Term.(const pp $ arg_indexed_files $ arg_named_files $ arg_columns)
+
+let term_cb =
+  let summary_file =
+    let doc = Arg.info ~docv:"PATH" ~doc:"A stat trace summary file" [] in
+    Arg.(required @@ pos 0 (some string) None doc)
+  in
+  Term.(const summary_to_cb $ summary_file)
 
 let () =
   let man = [] in
@@ -181,5 +201,9 @@ let () =
     ]
   in
   let k = Term.info ~man ~doc:"Comparative Pretty Printing" "pp" in
+  let l =
+    Term.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb"
+  in
   Term.exit
-  @@ Term.eval_choice (term_summarise, i) [ (term_summarise, j); (term_pp, k) ]
+  @@ Term.eval_choice (term_summarise, i)
+       [ (term_summarise, j); (term_pp, k); (term_cb, l) ]
