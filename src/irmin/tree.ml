@@ -414,8 +414,13 @@ module Make (P : Private.S) = struct
     and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
     let clear ?depth:d n =
-      let max_depth = match d with None -> 0 | Some max_depth -> max_depth in
-      clear ~max_depth 0 n
+      match n.v with
+      | Map m when StepMap.is_empty m -> ()
+      | _ ->
+          let max_depth =
+            match d with None -> 0 | Some max_depth -> max_depth
+          in
+          clear ~max_depth 0 n
 
     (* export t to the given repo and clear the cache *)
     let export ?clear:(c = true) repo t k =
@@ -424,8 +429,7 @@ module Make (P : Private.S) = struct
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
       | Value (_, v, None) when P.Node.Val.is_empty v -> ()
-      | Map m when StepMap.is_empty m ->
-          t.v <- Value (repo, P.Node.Val.empty, None)
+      | Map m when StepMap.is_empty m -> ()
       | _ -> (
           match hash with
           | None -> t.v <- Hash (repo, k)
@@ -435,10 +439,8 @@ module Make (P : Private.S) = struct
     let of_hash repo k = of_v (Hash (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
 
-    let empty = function
-      | { v = Hash (repo, _) | Value (repo, _, _); _ } ->
-          of_value repo P.Node.Val.empty
-      | _ -> of_map StepMap.empty
+    (* Use a stable represetation for empty trees. *)
+    let empty = of_map StepMap.empty
 
     let map_of_value repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
@@ -1113,11 +1115,7 @@ module Make (P : Private.S) = struct
     | Some n -> (
         Node.list ?offset ?length n >|= function Error _ -> [] | Ok l -> l)
 
-  let empty = `Node (Node.of_map StepMap.empty)
-
-  let empty_node = function
-    | `Node n -> Node.empty n
-    | `Contents _ -> Node.of_map StepMap.empty
+  let empty = `Node Node.empty
 
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
@@ -1132,7 +1130,6 @@ module Make (P : Private.S) = struct
       | _ -> if equal x y then True else False
 
   let update_tree ~f_might_return_empty_node ~f root_tree path =
-    let empty_node = empty_node root_tree in
     (* User-introduced empty nodes will be removed immediately if necessary. *)
     let prune_empty : node -> bool =
       if not f_might_return_empty_node then Fun.const false else Node.is_empty
@@ -1142,7 +1139,7 @@ module Make (P : Private.S) = struct
         let empty_tree =
           match is_empty root_tree with
           | true -> root_tree
-          | false -> `Node empty_node
+          | false -> `Node Node.empty
         in
         f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
@@ -1192,7 +1189,7 @@ module Make (P : Private.S) = struct
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
-                | None | Some (`Contents _) -> empty_node
+                | None | Some (`Contents _) -> Node.empty
               in
               (aux [@tailcall]) key_suffix to_recurse @@ function
               | Unchanged ->
@@ -1209,7 +1206,7 @@ module Make (P : Private.S) = struct
                   ))
         in
         let top_node =
-          match root_tree with `Node n -> n | `Contents _ -> empty_node
+          match root_tree with `Node n -> n | `Contents _ -> Node.empty
         in
         aux path top_node @@ function
         | Unchanged -> Lwt.return root_tree
@@ -1506,13 +1503,11 @@ module Make (P : Private.S) = struct
           Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents (x, m), `Node y ->
-        let empty = Node.empty y in
-        let* diff = diff_node empty y in
+        let* diff = diff_node Node.empty y in
         let+ x = Contents.to_value x >|= get_ok "diff" in
         (Path.empty, `Removed (x, m)) :: diff
     | `Node x, `Contents (y, m) ->
-        let empty = Node.empty x in
-        let* diff = diff_node x empty in
+        let* diff = diff_node x Node.empty in
         let+ y = Contents.to_value y >|= get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
 
