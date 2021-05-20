@@ -801,9 +801,9 @@ module Make (P : Private.S) = struct
               | Error (`Dangling_hash _) -> (map [@tailcall]) ~path acc d None k
               )
           | `False skip -> (
-              match t.info.map with
+              match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
-              | _ -> skip path acc >>= k)
+              | None -> skip path acc >>= k)
         in
         match depth with
         | None -> apply acc >>= next
