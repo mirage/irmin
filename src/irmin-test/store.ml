@@ -1023,11 +1023,11 @@ module Make (S : S) = struct
       Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
       let _ = S.Tree.hash v in
       Alcotest.(check inspect) "inspect:2" (`Node `Value) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:2" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:2" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
       S.set_tree_exn t1 ~info [] v >>= fun () ->
       Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:3" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:3" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
 
       (* Test caching (makesure that no tree is lying in scope) *)
