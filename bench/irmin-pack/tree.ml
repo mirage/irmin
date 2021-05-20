@@ -577,7 +577,7 @@ let () =
       `S "DESCRIPTION";
       `P
         "Benchmarks for tree operations. Requires traces of operations, \
-         download them (`wget trace.repr`) from: ";
+         download them (`wget trace.repr`) from:";
       `P
         "Trace with $(b,10310) commits \
          http://data.tarides.com/irmin/data4_10310commits.repr";

@@ -206,55 +206,45 @@ module Table1 = struct
         summaries
     in
     let bytes =
-      List.map
-        (fun s -> fst s.index.bytes_both.value_after_commit.max_value)
-        summaries
+      List.map (fun s -> s.index.bytes_both.value_after_commit.diff) summaries
     in
     let read_bytes =
-      List.map
-        (fun s -> fst s.index.bytes_read.value_after_commit.max_value)
-        summaries
+      List.map (fun s -> s.index.bytes_read.value_after_commit.diff) summaries
     in
     let written_bytes =
       List.map
-        (fun s -> fst s.index.bytes_written.value_after_commit.max_value)
+        (fun s -> s.index.bytes_written.value_after_commit.diff)
         summaries
     in
     let throughput =
       List.map
-        (fun s ->
-          fst s.index.bytes_both.value_after_commit.max_value /. s.elapsed_cpu)
+        (fun s -> s.index.bytes_both.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let read_throughput =
       List.map
-        (fun s ->
-          fst s.index.bytes_read.value_after_commit.max_value /. s.elapsed_cpu)
+        (fun s -> s.index.bytes_read.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let write_throughput =
       List.map
         (fun s ->
-          fst s.index.bytes_written.value_after_commit.max_value
-          /. s.elapsed_cpu)
+          s.index.bytes_written.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let iops =
       List.map
-        (fun s ->
-          fst s.index.nb_both.value_after_commit.max_value /. s.elapsed_cpu)
+        (fun s -> s.index.nb_both.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let read_iops =
       List.map
-        (fun s ->
-          fst s.index.nb_reads.value_after_commit.max_value /. s.elapsed_cpu)
+        (fun s -> s.index.nb_reads.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let write_iops =
       List.map
-        (fun s ->
-          fst s.index.nb_writes.value_after_commit.max_value /. s.elapsed_cpu)
+        (fun s -> s.index.nb_writes.value_after_commit.diff /. s.elapsed_cpu)
         summaries
     in
     let max_ram =

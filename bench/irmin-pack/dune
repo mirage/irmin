@@ -4,10 +4,9 @@
  (modules main layers import)
  (package irmin-bench)
  (preprocess
-  (pps ppx_deriving_yojson ppx_repr))
+  (pps ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
-   unix cmdliner logs yojson ppx_deriving_yojson memtrace repr ppx_repr
-   bench_common rusage))
+   unix cmdliner logs memtrace repr ppx_repr bench_common rusage))
 
 (library
  (name bench_common)
@@ -18,7 +17,7 @@
  (name irmin_traces)
  (modules trace_common trace_definitions trace_collection trace_stat_summary
    trace_stat_summary_conf trace_stat_summary_utils trace_stat_summary_pp
-   trace_replay trace_replay_intf tezos_history_metrics)
+   trace_replay trace_replay_intf tezos_history_metrics trace_stat_summary_cb)
  (preprocess
   (pps ppx_repr ppx_deriving.enum))
  (libraries irmin irmin-pack unix lwt repr ppx_repr bentov mtime printbox

@@ -229,7 +229,9 @@ end
 
     {3 Stats Gathered}
 
-    - Global max, argmax, min, argmin and mean of the variable.
+    - Global (non-nan) max, argmax, min, argmin and mean of the variable.
+    - The very last non-nan sample encountered minus the very first non-nan
+      sample encountered.
     - Global histogram made of [distribution_bin_count] bins. Option:
       [distribution_scale] to control the spreading scale of the bins, either on
       a linear or a log scale. Computed using Bentov.
@@ -304,6 +306,7 @@ module Variable_summary : sig
     max_value : float * int;
     min_value : float * int;
     mean : float;
+    diff : float;
     distribution : histo;
     evolution : curve;
   }

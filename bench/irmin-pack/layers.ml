@@ -167,32 +167,31 @@ let run config json =
     Logs.app (fun l -> l "After freeze thread finished : ");
     FSHelper.print_size_layers config.root)
 
-type result = {
-  total_time : float;
-  time_per_commit : float;
-  commits_per_sec : float;
-}
-[@@deriving yojson]
+module Continuous_benchmarks_results = struct
+  type metrics = (string * float) list [@@deriving repr]
 
-let get_json_str total_time time_per_commit commits_per_sec =
-  let res = [ { total_time; time_per_commit; commits_per_sec } ] in
-  let obj =
-    `Assoc
-      [
-        ( "results",
-          (* Pipeline format expects a list of results.*)
-          `List
-            (List.map
-               (fun result ->
-                 `Assoc
-                   [
-                     ("name", `String "benchmarks");
-                     ("metrics", result_to_yojson result);
-                   ])
-               res) );
-      ]
-  in
-  Yojson.Safe.to_string obj
+  let metrics_t = Irmin.Type.(Json.assoc float)
+
+  type result = { name : string; metrics : metrics } [@@deriving repr]
+  type t = { results : (result[@nobuiltin]) list } [@@deriving repr]
+
+  let get_json_str total_time time_per_commit commits_per_sec =
+    {
+      results =
+        [
+          {
+            name = "Layers";
+            metrics =
+              [
+                ("total_time", total_time);
+                ("time_per_commit", time_per_commit);
+                ("commits_per_sec", commits_per_sec);
+              ];
+          };
+        ];
+    }
+    |> Fmt.str "%a\n" (Irmin.Type.pp_json t)
+end
 
 let main () ncommits ncycles depth clear no_freeze show_stats json
     merge_throttle freeze_throttle =
@@ -218,7 +217,8 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
   let all_commits = ncommits * (ncycles + 5) in
   let rate = d /. float all_commits in
   let freq = 1. /. rate in
-  if json then Printf.printf "%s" (get_json_str d rate freq)
+  if json then
+    Printf.printf "%s" (Continuous_benchmarks_results.get_json_str d rate freq)
   else
     Logs.app (fun l ->
         l

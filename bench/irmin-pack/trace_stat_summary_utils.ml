@@ -402,6 +402,7 @@ module Variable_summary = struct
     max_value : float * int;
     min_value : float * int;
     mean : float;
+    diff : float;
     distribution : histo;
     evolution : curve;
   }
@@ -409,6 +410,8 @@ module Variable_summary = struct
 
   type acc = {
     (* Accumulators *)
+    first_value : float;
+    last_value : float;
     max_value : float * int;
     min_value : float * int;
     sum_value : float;
@@ -433,6 +436,8 @@ module Variable_summary = struct
     if out_sample_count < 2 then
       invalid_arg "out_sample_count should be greater than 1";
     {
+      first_value = Float.nan;
+      last_value = Float.nan;
       max_value = (Float.nan, 0);
       min_value = (Float.nan, 0);
       sum_value = 0.;
@@ -461,8 +466,10 @@ module Variable_summary = struct
     let sample_count = List.length xs |> float_of_int in
     assert (i < acc.in_period_count);
 
-    let accumulate_in_sample (((topv, _) as top), ((botv, _) as bot), histo, ma)
-        v =
+    let accumulate_in_sample
+        (first, last, ((topv, _) as top), ((botv, _) as bot), histo, ma) v =
+      let first = if Float.is_nan first then v else first in
+      let last = if Float.is_nan v then last else v in
       let top = if Float.is_nan topv || topv < v then (v, i) else top in
       let bot = if Float.is_nan botv || botv > v then (v, i) else bot in
       let v =
@@ -480,11 +487,16 @@ module Variable_summary = struct
       let ma =
         Exponential_moving_average.update_batch ma v (1. /. sample_count)
       in
-      (top, bot, histo, ma)
+      (first, last, top, bot, histo, ma)
     in
-    let max_value, min_value, distribution, ma =
+    let first_value, last_value, max_value, min_value, distribution, ma =
       List.fold_left accumulate_in_sample
-        (acc.max_value, acc.min_value, acc.distribution, acc.ma)
+        ( acc.first_value,
+          acc.last_value,
+          acc.max_value,
+          acc.min_value,
+          acc.distribution,
+          acc.ma )
         xs
     in
     let ma =
@@ -519,6 +531,8 @@ module Variable_summary = struct
 
     {
       acc with
+      first_value;
+      last_value;
       max_value;
       min_value;
       sum_value = List.fold_left ( +. ) acc.sum_value xs;
@@ -544,6 +558,7 @@ module Variable_summary = struct
       max_value = acc.max_value;
       min_value = acc.min_value;
       mean = acc.sum_value /. float_of_int acc.value_count;
+      diff = acc.last_value -. acc.first_value;
       distribution;
       evolution;
     }
