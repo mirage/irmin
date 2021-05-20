@@ -375,6 +375,13 @@ let test_update _ () =
 (* Correct stats for a completely lazy tree *)
 let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
 
+(* Take a tree and persist it to some underlying store, making it lazy. *)
+let persist_tree : Store.tree -> Store.tree Lwt.t =
+ fun tree ->
+  let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
+  let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
+  Store.tree store
+
 let test_clear _ () =
   let size = 830829 in
   let* large_tree =
@@ -387,6 +394,7 @@ let test_clear _ () =
           "Before clear, root node is eagerly evaluated"
           { nodes = 1; leafs = size; skips = 0; depth = 1; width = size }
   in
+  let* _ = persist_tree large_tree in
   Tree.clear large_tree;
   let* () =
     Tree.stats ~force:false large_tree
@@ -398,6 +406,7 @@ let test_clear _ () =
 let with_binding k v t = Tree.add_tree t k v
 
 let clear_and_assert_lazy tree =
+  let* _ = persist_tree tree in
   Tree.clear tree;
   Tree.stats ~force:false tree
   >|= Alcotest.(gcheck Tree.stats_t)
@@ -440,7 +449,7 @@ let test_fold_force _ () =
 
   (* Ensure that [fold ~force:`True] forces all lazy trees. *)
   let* () =
-    clear_and_assert_lazy sample_tree >>= fun () ->
+    let* () = clear_and_assert_lazy sample_tree in
     Tree.fold ~force:`True sample_tree () >>= fun () ->
     Tree.stats ~force:false sample_tree
     >|= Alcotest.(gcheck Tree.stats_t)
@@ -503,13 +512,6 @@ let test_kind_empty_path _ () =
     (Some `Node)
     k;
   Lwt.return_unit
-
-(* Take a tree and persist it to some underlying store, making it lazy. *)
-let persist_tree : Store.tree -> Store.tree Lwt.t =
- fun tree ->
-  let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
-  let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
-  Store.tree store
 
 let test_generic_equality _ () =
   (* Regression test for a bug in which the equality derived from [tree_t] did
