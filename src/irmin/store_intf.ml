@@ -418,7 +418,7 @@ module type S = sig
   val hash : t -> key -> hash option Lwt.t
   (** [hash t k] *)
 
-  (** {1 Udpates} *)
+  (** {1 Updates} *)
 
   type write_error =
     [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
@@ -706,7 +706,7 @@ module type S = sig
   val unwatch : watch -> unit Lwt.t
   (** [unwatch w] disable [w]. Return once the [w] is fully disabled. *)
 
-  (** {1 Merges and Common Ancestors.} *)
+  (** {1 Merges and Common Ancestors} *)
 
   type 'a merge =
     info:Info.f ->
