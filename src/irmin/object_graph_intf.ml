@@ -81,9 +81,9 @@ module type S = sig
     node:(vertex -> unit Lwt.t) ->
     unit ->
     unit Lwt.t
-  (** [breadth_first_traversal ?cache_size pred max node ()] traverses the graph
-      in breadth-first order over the closure graph starting with the [max]
-      nodes. It applies [node] on the nodes of the graph while traversing it. *)
+  (** [breadth_first_traversal ?cache_size pred max node ()] traverses the
+      closure graph in breadth-first order starting with the [max] nodes. It
+      applies [node] on the nodes of the graph while traversing it. *)
 
   val output :
     Format.formatter ->

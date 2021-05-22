@@ -222,6 +222,64 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           Fmt.(list ~sep:comma string)
           !errors
 
+    module Stats = struct
+      let pp_hash = Irmin.Type.pp Hash.t
+
+      let traverse_inodes ~dump_blob_paths_to commit repo =
+        let module Stats = Checks.Stats (struct
+          type nonrec step = step
+
+          let step_t = step_t
+
+          module Hash = Hash
+        end) in
+        let t = Stats.v () in
+        let pred_node repo k =
+          X.Node.find (X.Repo.node_t repo) k >|= function
+          | None -> Fmt.failwith "hash %a not found" pp_hash k
+          | Some v ->
+              let width = X.Node.Val.length v in
+              let nb_children = X.Node.CA.Val.nb_children v in
+              let preds = X.Node.CA.Val.pred v in
+              Stats.visit_node t k ~width ~nb_children preds;
+              List.rev_map
+                (function
+                  | s, `Inode x ->
+                      assert (s = None);
+                      `Node x
+                  | _, `Node x -> `Node x
+                  | _, `Contents x -> `Contents x)
+                preds
+        in
+        (* We are traversing only one commit. *)
+        let pred_commit repo k =
+          X.Commit.find (X.Repo.commit_t repo) k >|= function
+          | None -> []
+          | Some c ->
+              let node = X.Commit.Val.node c in
+              Stats.visit_commit t node;
+              [ `Node node ]
+        in
+        let pred_contents _repo k =
+          Stats.visit_contents t k;
+          Lwt.return []
+        in
+        (* We want to discover all paths to a node, so we don't cache nodes
+           during traversal. *)
+        let* () =
+          Repo.breadth_first_traversal ~cache_size:0 ~pred_node ~pred_commit
+            ~pred_contents ~max:[ commit ] repo
+        in
+        Stats.pp_results ~dump_blob_paths_to t;
+        Lwt.return_unit
+
+      let run ~dump_blob_paths_to ~commit repo =
+        Printexc.record_backtrace true;
+        let hash = `Commit (Commit.hash commit) in
+        traverse_inodes ~dump_blob_paths_to hash repo
+    end
+
+    let stats = Stats.run
     let sync = X.Repo.sync
     let clear = X.Repo.clear
     let migrate = Migrate.run

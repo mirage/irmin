@@ -20,6 +20,11 @@ COMMANDS
        stat
            Print high-level statistics about the store.
 
+       stat-store
+           Traverse one commit, specified with the --commit argument, in the
+           store for stats. If no commit is specified the current head is
+           used.
+
 OPTIONS
        --help[=FMT] (default=auto)
            Show this help in format FMT. The value FMT must be one of `auto',
