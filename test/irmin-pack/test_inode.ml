@@ -435,8 +435,9 @@ let test_intermediate_inode_as_root () =
   let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
   let (`Inode h_depth1) =
     match Inode.Val.pred v0 with
-    | [ (`Inode _ as pred) ] -> pred
+    | [ (_, (`Inode _ as pred)) ] -> pred
     | l ->
+        let l = List.map snd l in
         Alcotest.failf
           "Expected one `Inode predecessors, got [%a], a list of length %d."
           Fmt.(list ~sep:(any " ; ") pp_pred)

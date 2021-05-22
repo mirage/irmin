@@ -27,6 +27,10 @@
 - **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
 
+- **irmin-pack**
+  - Added a `stat-store` command to `irmin-fsck` to output stats on the tree
+    under a specified commit (#1391, @icristescu, @Ngoguey42, @CraigFe).
+
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
     config file is specified (#1413, @zshipko)
