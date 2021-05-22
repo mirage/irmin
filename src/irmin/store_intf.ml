@@ -197,6 +197,20 @@ module type S = sig
         {!Repo.iter}. When [cache_size] is [None] (the default), no entries is
         ever evicted from the cache; hence every object is only traversed once,
         at the cost of having to store all the traversed objects in memory. *)
+
+    val breadth_first_traversal :
+      ?cache_size:int ->
+      max:elt list ->
+      ?branch:(branch -> unit Lwt.t) ->
+      ?commit:(hash -> unit Lwt.t) ->
+      ?node:(hash -> unit Lwt.t) ->
+      ?contents:(hash -> unit Lwt.t) ->
+      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
+      ?pred_commit:(t -> hash -> elt list Lwt.t) ->
+      ?pred_node:(t -> hash -> elt list Lwt.t) ->
+      ?pred_contents:(t -> hash -> elt list Lwt.t) ->
+      t ->
+      unit Lwt.t
   end
 
   val empty : repo -> t Lwt.t
