@@ -19,7 +19,11 @@ open! Import
 module type Value = sig
   include Irmin.Node.S
 
-  val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
+  val pred :
+    t ->
+    (step option * [ `Node of hash | `Inode of hash | `Contents of hash ]) list
+
+  val nb_children : t -> int
 end
 
 module type S = sig
