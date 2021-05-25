@@ -382,24 +382,63 @@ let persist_tree : Store.tree -> Store.tree Lwt.t =
   let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
   Store.tree store
 
+let inspect =
+  Alcotest.testable
+    (fun ppf -> function
+      | `Contents -> Fmt.string ppf "contents"
+      | `Node `Hash -> Fmt.string ppf "hash"
+      | `Node `Map -> Fmt.string ppf "map"
+      | `Node `Value -> Fmt.string ppf "value")
+    ( = )
+
+let pp_key = Irmin.Type.pp Store.Key.t
+
 let test_clear _ () =
+  (* 1. Build a tree *)
   let size = 830829 in
-  let* large_tree =
+  let* t =
     List.init size string_of_int
     |> Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) Tree.empty
   in
+  (* Check the state of the root and root/42 *)
+  Alcotest.(check inspect) "Before clear, root" (`Node `Map) (Tree.inspect t);
   let* () =
-    Tree.stats ~force:false large_tree
+    Tree.stats ~force:false t
     >|= Alcotest.(gcheck Tree.stats_t)
           "Before clear, root node is eagerly evaluated"
           { nodes = 1; leafs = size; skips = 0; depth = 1; width = size }
   in
-  let* _ = persist_tree large_tree in
-  Tree.clear large_tree;
+  let* entry42 = Tree.find_tree t [ "42" ] >|= Option.get in
+  Alcotest.(check inspect)
+    "Before clear, root/42" `Contents (Tree.inspect entry42);
   let* () =
-    Tree.stats ~force:false large_tree
+    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_key k in
+    Tree.fold ~force:(`False dont_skip) entry42 ()
+  in
+  (* 2. Clear on non-persisted *)
+  Tree.clear t;
+  (* The state of the tree shouldn't have changed after this clear *)
+  Alcotest.(check inspect) "Before persist" (`Node `Map) (Tree.inspect t);
+  let* () =
+    Tree.stats ~force:false t
     >|= Alcotest.(gcheck Tree.stats_t)
-          "After clear, root node is no longer cached" lazy_stats
+          "Before persist, root node is eagerly evaluated"
+          { nodes = 1; leafs = size; skips = 0; depth = 1; width = size }
+  in
+  let* entry42 = Tree.find_tree t [ "42" ] >|= Option.get in
+  Alcotest.(check inspect) "Before persist" `Contents (Tree.inspect entry42);
+  let* () =
+    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_key k in
+    Tree.fold ~force:(`False dont_skip) entry42 ()
+  in
+  (* 3. Persist (and implicitly clear) *)
+  let* _ = persist_tree t in
+  (* Check the state of the root *)
+  Alcotest.(check inspect) "After persist+clear" (`Node `Hash) (Tree.inspect t);
+  let* () =
+    Tree.stats ~force:false t
+    >|= Alcotest.(gcheck Tree.stats_t)
+          "After persist+clear, root node is no longer cached" lazy_stats
   in
   Lwt.return_unit
 
