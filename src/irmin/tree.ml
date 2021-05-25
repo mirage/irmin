@@ -283,7 +283,7 @@ module Make (P : Private.S) = struct
           if force = `And_clear then clear t;
           f path (get_ok "fold" c) acc
       | `False skip -> (
-          match t.info.value with
+          match cached_value t with
           | None -> skip path acc
           | Some c -> f path c acc)
   end
