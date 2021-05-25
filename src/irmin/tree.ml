@@ -544,7 +544,7 @@ module Make (P : Private.S) = struct
     let hash k = hash k (fun x -> x)
 
     let value_of_hash t repo k =
-      match t.info.value with
+      match cached_value t with
       | Some v -> Lwt.return_ok v
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
