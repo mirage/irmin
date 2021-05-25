@@ -1,7 +1,17 @@
 (library
  (name irmin)
  (public_name irmin)
- (libraries astring bheap digestif fmt jsonm logs lwt ocamlgraph uri uutf
-   repr)
+ (libraries
+  astring
+  bheap
+  digestif
+  fmt
+  jsonm
+  logs
+  lwt
+  ocamlgraph
+  uri
+  uutf
+  (re_export repr))
  (preprocess
   (pps ppx_irmin -- --lib "Type")))
