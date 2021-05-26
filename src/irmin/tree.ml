@@ -283,7 +283,7 @@ module Make (P : Private.S) = struct
           if force = `And_clear then clear t;
           f path (get_ok "fold" c) acc
       | `False skip -> (
-          match t.info.value with
+          match cached_value t with
           | None -> skip path acc
           | Some c -> f path c acc)
   end
@@ -539,7 +539,7 @@ module Make (P : Private.S) = struct
     let hash k = hash k (fun x -> x)
 
     let value_of_hash t repo k =
-      match t.info.value with
+      match cached_value t with
       | Some v -> Lwt.return_ok v
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
@@ -801,9 +801,9 @@ module Make (P : Private.S) = struct
               | Error (`Dangling_hash _) -> (map [@tailcall]) ~path acc d None k
               )
           | `False skip -> (
-              match t.info.map with
+              match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
-              | _ -> skip path acc >>= k)
+              | None -> skip path acc >>= k)
         in
         match depth with
         | None -> apply acc >>= next

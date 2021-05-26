@@ -2,6 +2,9 @@
 
 ### Fixed
 
+- **irmin**
+  - Fixed fold for non-persisted, cleared trees (#1442, @samoht, @Ngoguey42)
+
 - **irmin-layers**
   - Do not fail on double-close errors for private nodes (#1421, @samoht)
 
