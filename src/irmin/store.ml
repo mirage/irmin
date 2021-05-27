@@ -1117,8 +1117,10 @@ module Json_tree (Store : S with type contents = Contents.json) = struct
     contents c []
 
   let set_tree (tree : Store.tree) key j : Store.tree Lwt.t =
+    (* FIXME(samoht): weird *)
+    let version = Store.Private.Version.default in
     let c = to_concrete_tree j in
-    let c = Store.Tree.of_concrete c in
+    let c = Store.Tree.of_concrete ~version c in
     Store.Tree.add_tree tree key c
 
   let get_tree (tree : Store.tree) key =

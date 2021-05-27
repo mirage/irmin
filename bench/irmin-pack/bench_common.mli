@@ -30,10 +30,7 @@ module Info (I : Irmin.Info.S) : sig
   val f : I.f
 end
 
-module Conf : sig
-  val entries : int
-  val stable_hash : int
-end
+module Conf : Irmin_pack.Conf.S
 
 module FSHelper : sig
   val rm_dir : string -> unit

@@ -164,8 +164,9 @@ end
 module Hash = Irmin.Hash.SHA1
 
 module V1_maker = Irmin_pack.V1 (struct
-  let entries = 2
-  let stable_hash = 3
+  include Conf
+
+  let v _ = { max_entries = 2; stable_hash = 3 }
 end)
 
 module V2_maker = Irmin_pack.V2 (Conf)

@@ -282,8 +282,12 @@ module Store = struct
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
   module Inode_config = struct
-    let entries = 32
-    let stable_hash = 256
+    type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+    (* FIXME: this should be simpler in the tests *)
+    type version = V0 | V1 [@@deriving irmin]
+
+    let v _ = { max_entries = 32; stable_hash = 256 }
   end
 
   let pack = create (module Irmin_pack.V1 (Inode_config))

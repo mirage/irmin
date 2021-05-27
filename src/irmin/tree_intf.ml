@@ -24,6 +24,7 @@ module type S = sig
   type contents [@@deriving irmin]
   type node [@@deriving irmin]
   type hash [@@deriving irmin]
+  type version [@@deriving irmin]
 
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
       lazy reads and delayed writes.
@@ -257,7 +258,7 @@ module type S = sig
   [@@deriving irmin]
   (** The type for concrete trees. *)
 
-  val of_concrete : concrete -> t
+  val of_concrete : version:version -> concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c].
 
       @raise Invalid_argument if [c] contains duplicate bindings for a given
@@ -308,6 +309,7 @@ module type Sigs = sig
          and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
          and type hash = P.Hash.t
+         and type version = P.Version.t
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
 

@@ -25,6 +25,7 @@ module Contents = Contents
 module Merge = Merge
 module Branch = Branch
 module Info = Info
+module Version = Version
 module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
@@ -38,6 +39,7 @@ module Maker_ext
     (N : Node.Maker)
     (CT : Commit.Maker) =
 struct
+  type version = CT.Version.t
   type endpoint = unit
   type info = CT.Info.t
 
@@ -52,6 +54,7 @@ struct
     module AW = Atomic_write.Check_closed (AW)
 
     module X = struct
+      module Version = CT.Version
       module Info = CT.Info
       module Hash = H
 
@@ -61,9 +64,9 @@ struct
       end
 
       module Node = struct
-        module V = N.Make (H) (P) (M)
+        module V = N.Make (Version) (H) (P) (M)
         module CA = CA.Make (H) (V)
-        include Node.Store (Contents) (CA) (H) (V) (M) (P)
+        include Node.Store (Contents) (CA) (Version) (H) (V) (M) (P)
       end
 
       module Commit = struct
@@ -153,7 +156,7 @@ module Private = struct
   module Lru = Lru
 end
 
-let version = Version.current
+let version = "%%VERSION%%"
 
 module Sync = Sync
 

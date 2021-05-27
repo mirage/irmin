@@ -21,14 +21,18 @@ module type S = sig
   module Hash : Hash.S
   (** Internal hashes. *)
 
+  module Version : Version.S
+  (** Value versions. *)
+
   module Contents : Contents.Store with type key = Hash.t
   (** Private content store. *)
 
-  module Node : Node.Store with type key = Hash.t
   (** Private node store. *)
+  module Node : Node.Store with type key = Hash.t and type Version.t = Version.t
 
-  module Commit : Commit.Store with type key = Hash.t
   (** Private commit store. *)
+  module Commit :
+    Commit.Store with type key = Hash.t and type Info.version = Version.t
 
   module Branch : Branch.Store with type value = Hash.t
   (** Private branch store. *)

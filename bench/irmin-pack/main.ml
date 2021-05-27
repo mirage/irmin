@@ -21,8 +21,9 @@ module V2 = struct
 end
 
 module Config = struct
-  let entries = 2
-  let stable_hash = 3
+  include Bench_common.Conf
+
+  let v _ = { max_entries = 2; stable_hash = 3 }
 end
 
 module KV = struct

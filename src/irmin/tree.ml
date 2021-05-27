@@ -125,6 +125,7 @@ module Make (P : Private.S) = struct
     include Merge.Map (X)
   end
 
+  type version = P.Version.t [@@deriving irmin]
   type metadata = Metadata.t [@@deriving irmin]
   type key = Path.t [@@deriving irmin]
   type hash = P.Hash.t [@@deriving irmin]
@@ -297,7 +298,7 @@ module Make (P : Private.S) = struct
 
     and updatemap = update StepMap.t
 
-    and map = elt StepMap.t
+    and map = { version : P.Node.Val.version; m : elt StepMap.t }
 
     and info = {
       mutable value : value option;
@@ -354,11 +355,12 @@ module Make (P : Private.S) = struct
       let m = stepmap_t elt in
       let um = stepmap_t (update_t elt) in
       let open Type in
-      variant "Node.node" (fun map hash value -> function
-        | Map m -> map m
+      variant "Node.node" (fun map_ hash value -> function
+        | Map { version; m } -> map_ (version, m)
         | Hash (_, y) -> hash y
         | Value (_, v, m) -> value (v, m))
-      |~ case1 "map" m (fun m -> Map m)
+      |~ case1 "map" (pair P.Node.Val.version_t m) (fun (version, m) ->
+             Map { version; m })
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
       |> sealv
@@ -398,11 +400,11 @@ module Make (P : Private.S) = struct
       in
       let map =
         match (v, i.map) with
-        | Some (Map m), _ | _, Some m -> StepMap.bindings m
+        | Some (Map m), _ | _, Some m -> StepMap.bindings m.m
         | _ -> []
       in
       let findv =
-        match i.findv_cache with Some m -> StepMap.bindings m | None -> []
+        match i.findv_cache with Some m -> StepMap.bindings m.m | None -> []
       in
       if depth >= max_depth && not (info_is_empty i) then (
         i.value <- None;
@@ -415,7 +417,7 @@ module Make (P : Private.S) = struct
 
     let clear ?depth:d n =
       match n.v with
-      | Map m when StepMap.is_empty m -> ()
+      | Map m when StepMap.is_empty m.m -> ()
       | _ ->
           let max_depth =
             match d with None -> 0 | Some max_depth -> max_depth
@@ -429,7 +431,8 @@ module Make (P : Private.S) = struct
       match t.v with
       | Hash (_, k) -> t.v <- Hash (repo, k)
       | Value (_, v, None) when P.Node.Val.is_empty v -> ()
-      | Map m when StepMap.is_empty m -> ()
+      | Map m when StepMap.is_empty m.m ->
+          t.v <- Value (repo, P.Node.Val.empty, None)
       | _ -> (
           match hash with
           | None -> t.v <- Hash (repo, k)
@@ -440,7 +443,7 @@ module Make (P : Private.S) = struct
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
 
     (* Use a stable represetation for empty trees. *)
-    let empty = of_map StepMap.empty
+    let empty = of_map { version = P.Version.default; m = StepMap.empty }
 
     let map_of_value repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
@@ -449,9 +452,13 @@ module Make (P : Private.S) = struct
         | `Node h -> `Node (of_hash repo h)
         | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
       in
-      List.fold_left
-        (fun acc (k, v) -> StepMap.add k (aux v) acc)
-        StepMap.empty entries
+      let version = P.Node.Val.version n in
+      let m =
+        List.fold_left
+          (fun acc (k, v) -> StepMap.add k (aux v) acc)
+          StepMap.empty entries
+      in
+      { version; m }
 
     let cached_hash t =
       match (t.v, t.info.hash) with
@@ -498,16 +505,16 @@ module Make (P : Private.S) = struct
               | Map m -> value_of_map t m a_of_value))
 
     and value_of_map : type r. t -> map -> (value, r) cont =
-     fun t map k ->
-      if StepMap.is_empty map then (
+     fun t { m; version } k ->
+      if StepMap.is_empty m then (
         t.info.value <- Some P.Node.Val.empty;
         k P.Node.Val.empty)
       else
-        let alist = StepMap.bindings map in
+        let alist = StepMap.bindings m in
         let rec aux acc = function
           | [] ->
               cnt.node_val_v <- cnt.node_val_v + 1;
-              let v = P.Node.Val.v (List.rev acc) in
+              let v = P.Node.Val.v ~version (List.rev acc) in
               t.info.value <- Some v;
               k v
           | (step, v) :: rest -> (
@@ -571,14 +578,18 @@ module Make (P : Private.S) = struct
               match updates with
               | None -> m
               | Some updates ->
-                  StepMap.stdlib_merge
-                    (fun _ left right ->
-                      match (left, right) with
-                      | None, None -> assert false
-                      | (Some _ as v), None -> v
-                      | _, Some (Add v) -> Some v
-                      | _, Some Remove -> None)
-                    m updates
+                  let version = m.version in
+                  let m =
+                    StepMap.stdlib_merge
+                      (fun _ left right ->
+                        match (left, right) with
+                        | None, None -> assert false
+                        | (Some _ as v), None -> v
+                        | _, Some (Add v) -> Some v
+                        | _, Some Remove -> None)
+                      m.m updates
+                  in
+                  { m; version }
             in
             t.info.map <- Some m;
             m
@@ -596,6 +607,23 @@ module Make (P : Private.S) = struct
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
 
+    let version_equal = Type.(unstage (equal P.Node.Val.version_t))
+
+    let version t =
+      match t.v with
+      | Map m -> Some m.version
+      | Value (_, v, _) -> Some (P.Node.Val.version v)
+      | Hash (_, _) -> None
+
+    let migrate ~version:new_version t =
+      match version t with
+      | None -> t
+      | Some v ->
+          if version_equal v new_version then t
+          else
+            (* FIXME: 1/ clear cache 2/ create a new values with the correct version. *)
+            assert false
+
     let rec elt_equal (x : elt) (y : elt) =
       x == y
       ||
@@ -604,7 +632,8 @@ module Make (P : Private.S) = struct
       | `Node x, `Node y -> equal x y
       | _ -> false
 
-    and map_equal (x : map) (y : map) = StepMap.equal elt_equal x y
+    and map_equal (x : map) (y : map) =
+      version_equal x.version y.version && StepMap.equal elt_equal x.m y.m
 
     and equal (x : t) (y : t) =
       x == y
@@ -656,16 +685,16 @@ module Make (P : Private.S) = struct
 
     let length t =
       match cached_map t with
-      | Some m -> StepMap.cardinal m |> Lwt.return
+      | Some m -> StepMap.cardinal m.m |> Lwt.return
       | None ->
           let+ v = to_value t in
           get_ok "length" v |> P.Node.Val.length
 
     let is_empty =
-      let empty_hash = hash (of_map StepMap.empty) in
+      let empty_hash = hash empty in
       fun t ->
         match cached_map t with
-        | Some m -> StepMap.is_empty m
+        | Some m -> StepMap.is_empty m.m
         | None -> (
             match cached_value t with
             | Some v -> P.Node.Val.is_empty v
@@ -679,11 +708,18 @@ module Make (P : Private.S) = struct
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
-      | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
-      | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
+      | None ->
+          let m = StepMap.singleton step v in
+          (* FIXME(samoht): what version to use here? *)
+          let version = P.Version.default in
+          t.info.findv_cache <- Some { m; version }
+      | Some map ->
+          t.info.findv_cache <- Some { map with m = StepMap.add step v map.m }
 
     let findv t step =
-      let of_map m = try Some (StepMap.find step m) with Not_found -> None in
+      let of_map m =
+        try Some (StepMap.find step m.m) with Not_found -> None
+      in
       let of_value repo v =
         match P.Node.Val.find v step with
         | None -> None
@@ -729,7 +765,7 @@ module Make (P : Private.S) = struct
       let take_length seq =
         match length with None -> List.of_seq seq | Some n -> Seq.take n seq
       in
-      StepMap.to_seq m |> Seq.drop offset |> take_length
+      StepMap.to_seq m.m |> Seq.drop offset |> take_length
 
     let list_of_value repo ?offset ?length v : (step * elt) list =
       cnt.node_val_list <- cnt.node_val_list + 1;
@@ -763,7 +799,7 @@ module Make (P : Private.S) = struct
     let bindings t =
       to_map t >|= function
       | Error _ as e -> e
-      | Ok m -> Ok (StepMap.bindings m)
+      | Ok m -> Ok (StepMap.bindings m.m)
 
     type ('v, 'acc, 'r) folder =
       path:key -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
@@ -854,7 +890,7 @@ module Make (P : Private.S) = struct
         match m with
         | None -> k acc
         | Some m ->
-            let bindings = StepMap.bindings m in
+            let bindings = StepMap.bindings m.m in
             let s = List.rev_map fst bindings in
             let* acc = pre path s acc in
             (steps [@tailcall]) ~path acc d bindings @@ fun acc ->
@@ -866,10 +902,10 @@ module Make (P : Private.S) = struct
       let of_map m =
         let m' =
           match up with
-          | Remove -> StepMap.remove step m
-          | Add v -> StepMap.add step v m
+          | Remove -> StepMap.remove step m.m
+          | Add v -> StepMap.add step v m.m
         in
-        if m == m' then t else of_map m'
+        if m.m == m' then t else of_map { version = m.version; m = m' }
       in
       let of_value repo n updates =
         let updates' = StepMap.add step up updates in
@@ -907,6 +943,25 @@ module Make (P : Private.S) = struct
     let elt_t = elt_t t
     let dump = Type.pp_json ~minify:false t
 
+    let map_t : map Type.t =
+      let dt = Type.pair P.Version.t (stepmap_t elt_t) in
+      let implode (version, m) = { version; m } in
+      let explode m = (m.version, m.m) in
+      Type.map dt implode explode
+
+    (* FIXME(samoht): better merge function: do we need to define a total order? *)
+    let merge_version =
+      Merge.v P.Version.t (fun ~old:_ _ _ -> Merge.ok P.Version.default)
+
+    let merge_stepmap merge_elt =
+      StepMap.merge elt_t (fun _step -> (merge_elt [@tailcall]) Merge.option)
+
+    let merge_map merge_elt =
+      Merge.like map_t
+        Merge.(pair merge_version (merge_stepmap merge_elt))
+        (fun { version; m } -> (version, m))
+        (fun (version, m) -> { version; m })
+
     let rec merge : type a. (t Merge.t -> a) -> a =
      fun k ->
       let f ~old x y =
@@ -917,10 +972,7 @@ module Make (P : Private.S) = struct
         in
         let* x = to_map x >|= Option.of_result in
         let* y = to_map y >|= Option.of_result in
-        let m =
-          StepMap.merge elt_t (fun _step ->
-              (merge_elt [@tailcall]) Merge.option)
-        in
+        let m = merge_map merge_elt in
         Merge.(f @@ option m) ~old x y >|= function
         | Ok (Some map) -> Ok (of_map map)
         | Ok None -> Error (`Conflict "empty map")
@@ -1115,8 +1167,6 @@ module Make (P : Private.S) = struct
     | Some n -> (
         Node.list ?offset ?length n >|= function Error _ -> [] | Ok l -> l)
 
-  let empty = `Node Node.empty
-
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
       objects. *)
@@ -1129,6 +1179,8 @@ module Make (P : Private.S) = struct
       | `Node x, `Node y -> Node.maybe_equal x y
       | _ -> if equal x y then True else False
 
+  let empty = `Node Node.empty
+
   let update_tree ~f_might_return_empty_node ~f root_tree path =
     (* User-introduced empty nodes will be removed immediately if necessary. *)
     let prune_empty : node -> bool =
@@ -1137,9 +1189,7 @@ module Make (P : Private.S) = struct
     match Path.rdecons path with
     | None -> (
         let empty_tree =
-          match is_empty root_tree with
-          | true -> root_tree
-          | false -> `Node Node.empty
+          match is_empty root_tree with true -> root_tree | false -> empty
         in
         f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
@@ -1283,8 +1333,12 @@ module Make (P : Private.S) = struct
     in
     let add_node_map n x () = add_node n (value_of_map n x) () in
     let todo = Stack.create () in
+    let version =
+      match Node.version n with None -> P.Version.default | Some v -> v
+    in
     let rec add_to_todo : type a. _ -> (unit -> a Lwt.t) -> a Lwt.t =
      fun n k ->
+      let n = Node.migrate ~version n in
       let h = Node.hash n in
       if Hashes.mem seen h then k ()
       else (
@@ -1309,7 +1363,7 @@ module Make (P : Private.S) = struct
                        (while the thread was block on P.Node.mem *)
                     k ()
                 | Map children ->
-                    let l = StepMap.bindings children |> List.map snd in
+                    let l = StepMap.bindings children.m |> List.map snd in
                     add_steps_to_todo l n k
                 | Value (_, _, Some children) ->
                     let l =
@@ -1423,7 +1477,7 @@ module Make (P : Private.S) = struct
   let diff_node (x : node) (y : node) =
     let bindings n =
       Node.to_map n >|= function
-      | Ok m -> Ok (StepMap.bindings m)
+      | Ok m -> Ok (StepMap.bindings m.m)
       | Error _ as e -> e
     in
     let removed acc (k, (c, m)) =
@@ -1518,7 +1572,7 @@ module Make (P : Private.S) = struct
 
   type 'a or_empty = Empty | Non_empty of 'a
 
-  let of_concrete c =
+  let of_concrete ~version c =
     let rec concrete : type r. concrete -> (t or_empty, r) cont =
      fun t k ->
       match t with
@@ -1536,7 +1590,7 @@ module Make (P : Private.S) = struct
       | [] ->
           k
             (if StepMap.is_empty map then Empty
-            else Non_empty (Node.of_map map))
+            else Non_empty (Node.of_map { version; m = map }))
       | (s, n) :: t ->
           (concrete [@tailcall]) n (fun v ->
               (tree [@tailcall])
@@ -1562,7 +1616,9 @@ module Make (P : Private.S) = struct
       | `Contents c -> contents c k
       | `Node n ->
           let* m = Node.to_map n in
-          let bindings = m |> get_ok "to_concrete" |> StepMap.bindings in
+          let bindings =
+            m |> get_ok "to_concrete" |> fun m -> StepMap.bindings m.m
+          in
           (node [@tailcall]) [] bindings (fun n ->
               let n = List.sort (fun (s, _) (s', _) -> compare_step s s') n in
               k (`Tree n))

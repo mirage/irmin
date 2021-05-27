@@ -22,14 +22,33 @@ module V2 = struct
 end
 
 module Config = struct
-  let entries = 2
+  (* FIXME: code duplication *)
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let max_entries = 2
   let stable_hash = 3
+  let v _ = { max_entries; stable_hash }
+end
+
+(* FIXME: duplication *)
+module Version = struct
+  type t = Config.version
+
+  let t = Config.version_t
+  let default = Config.V0
+end
+
+(* FIXME: duplication *)
+module Commit = struct
+  module Info = Irmin.Info.Make (Version)
+  module X = Irmin.Private.Commit.Maker (Version) (Info)
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
 module Irmin_pack_maker =
-  Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
+  Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node) (Commit.X)
 
 let suite =
   let store =

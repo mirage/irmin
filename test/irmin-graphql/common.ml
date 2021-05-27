@@ -75,7 +75,7 @@ let spawn_graphql_server () =
   let+ master = Store.master repo in
   let event_loop = server_of_repo repo
   and set_tree tree =
-    Store.Tree.of_concrete tree
+    Store.Tree.of_concrete ~version:Store.Private.Version.default tree
     |> Store.set_tree_exn ~info:Store.Info.none master []
   in
   { event_loop; set_tree }

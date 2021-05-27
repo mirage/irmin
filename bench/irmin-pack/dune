@@ -12,7 +12,9 @@
 (library
  (name bench_common)
  (modules bench_common)
- (libraries irmin-pack unix progress progress.unix uuidm))
+ (libraries irmin-pack unix progress progress.unix uuidm)
+ (preprocess
+  (pps ppx_irmin)))
 
 (library
  (name irmin_traces)

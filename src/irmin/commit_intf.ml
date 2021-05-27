@@ -42,7 +42,8 @@ module type S = sig
 end
 
 module type Maker = sig
-  module Info : Info.S
+  module Version : Version.S
+  module Info : Info.S with type version = Version.t
   module Make (H : Type.S) : S with type hash = H.t and module Info = Info
 end
 
@@ -163,7 +164,8 @@ module type Sigs = sig
 
   (** [Maker] provides a simple implementation of commit values, parameterized
       by commit info. *)
-  module Maker (I : Info.S) : Maker with module Info = I
+  module Maker (V : Version.S) (I : Info.S with type version = V.t) :
+    Maker with module Version = V and module Info = I
 
   (** V1 serialisation. *)
   module V1 : sig
@@ -184,7 +186,7 @@ module type Sigs = sig
   (** [Store] creates a new commit store. *)
   module Store
       (I : Info.S)
-      (N : Node.Store)
+      (N : Node.Store with type Version.t = I.version)
       (S : Content_addressable.S with type key = N.key)
       (K : Hash.S with type t = S.key)
       (V : S with type hash = S.key and type t = S.value and module Info = I) :
@@ -212,5 +214,6 @@ module type Sigs = sig
        and type commit = C.key
        and type info = C.Info.t
 
-  include Maker with module Info = Info.Default
+  include
+    Maker with module Version = Version.None and module Info = Info.Default
 end

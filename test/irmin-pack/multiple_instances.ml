@@ -25,8 +25,11 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let index_log_size = Some 1_000
 
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  (* FIXME: code duplication *)
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let v _ = { max_entries = 32; stable_hash = 256 }
 end
 
 module Hash = Irmin.Hash.SHA1
@@ -35,12 +38,25 @@ module V2 = struct
   let version = `V2
 end
 
+(* FIXME: duplication *)
+module Commit = struct
+  module Version = struct
+    type t = Conf.version
+
+    let t = Conf.version_t
+    let default = Conf.V0
+  end
+
+  module Info = Irmin.Info.Make (Version)
+  module X = Irmin.Private.Commit.Maker (Version) (Info)
+end
+
 module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
   module XNode = Irmin.Private.Node
   module XCommit = Irmin.Private.Commit
-  module Maker = Irmin_pack.Maker_ext (V2) (Conf) (XNode) (XCommit)
+  module Maker = Irmin_pack.Maker_ext (V2) (Conf) (XNode) (Commit.X)
 
   include
     Maker.Make (M) (Irmin.Contents.String) (P) (Irmin.Branch.String) (Hash)

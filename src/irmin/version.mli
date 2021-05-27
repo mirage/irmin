@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,9 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker
-    (_ : Version.S)
-    (Config : Conf.S)
-    (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker with type Version.t = Config.version) :
-  S.Maker with type info = CT.Info.t and type version = Config.version
+include Version_intf.Sigs
+(** @inline *)

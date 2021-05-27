@@ -31,4 +31,5 @@ module Make (G : Git.S) (P : Irmin.Path.S) : sig
        and type hash = key
        and type step = P.step
        and type metadata = Metadata.t
+       and type version = unit
 end

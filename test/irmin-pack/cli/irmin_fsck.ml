@@ -18,12 +18,26 @@ module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node
-module Commit = Irmin.Private.Commit
 
+(* FIXME: remove duplication *)
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  (* FIXME: this should be simpler in the tests *)
+  type version = V0 | V1 [@@deriving irmin]
+
+  let v _ = { max_entries = 32; stable_hash = 256 }
 end
+
+module Version = struct
+  type t = Conf.version
+
+  let t = Conf.version_t
+  let default = Conf.V0
+end
+
+module Info = Irmin.Info.Make (Version)
+module Commit = Irmin.Private.Commit.Maker (Version) (Info)
 
 module Maker (V : Irmin_pack.Version.S) = struct
   module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)

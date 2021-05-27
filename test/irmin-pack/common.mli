@@ -84,10 +84,7 @@ val sha1 : string -> H.t
 val rm_dir : string -> unit
 val index_log_size : int option
 
-module Conf : sig
-  val entries : int
-  val stable_hash : int
-end
+module Conf : Irmin_pack.Conf.S
 
 val random_string : int -> string
 val random_letters : int -> string

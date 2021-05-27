@@ -228,6 +228,7 @@ struct
     module X = struct
       module Hash = Dummy.Hash
       module Info = Irmin.Info.Default
+      module Version = Irmin.Version.None
 
       module Contents = struct
         module V = Dummy.Contents.Val
@@ -240,7 +241,7 @@ struct
         module CA = CA.Make (Hash) (V)
 
         include
-          Irmin.Private.Node.Store (Contents) (CA) (Hash) (V)
+          Irmin.Private.Node.Store (Contents) (CA) (Version) (Hash) (V)
             (Dummy.Node.Metadata)
             (P)
       end

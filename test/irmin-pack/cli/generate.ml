@@ -25,9 +25,14 @@ let rm_dir () =
     let _ = Sys.command cmd in
     ())
 
+(* FIXME: remove duplication *)
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  (* FIXME: this should be simpler in the tests *)
+  type version = V0 | V1 [@@deriving irmin]
+
+  let v _ = { max_entries = 32; stable_hash = 256 }
 end
 
 module Maker = Irmin_pack_layered.Maker (Conf)

@@ -44,6 +44,9 @@ module Type = Repr
     {{:https://github.com/mirage/irmin/blob/master/README_PPX.md} documentation
     for [ppx_irmin]})*)
 
+module Version = Version
+(** TODO *)
+
 module Info = Info
 (** Commit info are used to keep track of the origin of write operations in the
     stores. [Info] models the metadata associated with commit objects in Git. *)
@@ -445,7 +448,10 @@ module Dot (S : S) : Dot.S with type db = S.t
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  Maker with type endpoint = unit and type info = Info.default
+  Maker
+    with type endpoint = unit
+     and type info = Info.default
+     and type version = unit
 
 module Maker_ext
     (CA : Content_addressable.Maker)

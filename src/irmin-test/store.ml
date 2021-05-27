@@ -112,6 +112,7 @@ module Make (S : S) = struct
 
   let test_nodes x () =
     let test repo =
+      let version = P.Version.default in
       let g = g repo and n = n repo in
       let k = normal (P.Contents.Key.hash "foo") in
       let check_key = check P.Node.Key.t in
@@ -144,7 +145,7 @@ module Make (S : S) = struct
         check_val "find xx" None (P.Node.Val.find u "xx")
       in
       check_values u;
-      let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
+      let w = P.Node.Val.v ~version [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
       let l = P.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
@@ -1192,8 +1193,9 @@ module Make (S : S) = struct
 
       (* Testing paginated lists *)
       let tree =
+        let version = P.Version.default in
         let c ?(info = S.Metadata.default) blob = `Contents (blob, info) in
-        S.Tree.of_concrete
+        S.Tree.of_concrete ~version
           (`Tree
             [
               ("aa", c "0");
@@ -1271,7 +1273,11 @@ module Make (S : S) = struct
         >>= with_binding [ "bar"; "d" ] "3"
         >>= with_binding [ "e" ] "4"
       in
-      let* t0 = c0 |> S.Tree.to_concrete >|= S.Tree.of_concrete in
+      let* t0 =
+        c0
+        |> S.Tree.to_concrete
+        >|= S.Tree.of_concrete ~version:P.Version.default
+      in
       let* () =
         let+ d0 = S.Tree.diff c0 t0 in
         check_diffs "concrete roundtrip" [] d0
@@ -1927,7 +1933,7 @@ module Make (S : S) = struct
       let tree_1 = S.Tree.shallow repo (`Node foo_k) in
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
       let node_3 =
-        S.Private.Node.Val.v
+        S.Private.Node.Val.v ~version:P.Version.default
           [
             ("foo", `Contents (foo_k, S.Metadata.default)); ("bar", `Node bar_k);
           ]

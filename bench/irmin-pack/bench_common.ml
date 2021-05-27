@@ -87,8 +87,11 @@ let with_progress_bar ~message ~n ~unit =
   Progress_unix.with_reporters bar
 
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  (* FIXME: code duplication *)
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let v _ = { max_entries = 32; stable_hash = 256 }
 end
 
 module Info (I : Irmin.Info.S) = struct

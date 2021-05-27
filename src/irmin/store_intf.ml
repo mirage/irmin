@@ -363,6 +363,7 @@ module type S = sig
          and type contents := contents
          and type node := node
          and type hash := hash
+         and type version := Info.version
 
     (** {1 Import/Export} *)
 
@@ -828,7 +829,8 @@ module type S = sig
   module Private : sig
     include
       Private.S
-        with type Contents.value = contents
+        with type Version.t = Info.version
+         and type Contents.value = contents
          and module Hash = Hash
          and module Node.Path = Key
          and type Node.Metadata.t = metadata
@@ -872,6 +874,7 @@ end
 module type Maker = sig
   type endpoint
   type info
+  type version
 
   module Make
       (M : Metadata.S)
@@ -888,6 +891,7 @@ module type Maker = sig
        and type hash = H.t
        and type Private.Remote.endpoint = endpoint
        and type info = info
+       and type Info.version = version
 end
 
 module type Json_tree = functor
