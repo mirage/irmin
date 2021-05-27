@@ -64,8 +64,7 @@ let layered_store :
     (module Layered_store) =
  fun (module B) (module M) ->
   let module Layered_store =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
+    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
   in
   (module Layered_store)

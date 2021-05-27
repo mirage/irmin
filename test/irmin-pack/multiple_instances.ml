@@ -38,7 +38,7 @@ end
 module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
-  module XNode = Irmin.Private.Node
+  module XNode = Irmin.Private.Node.Make
   module XCommit = Irmin.Private.Commit
   module Maker = Irmin_pack.Maker_ext (V2) (Conf) (XNode) (XCommit)
 

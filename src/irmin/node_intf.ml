@@ -73,14 +73,13 @@ module type S = sig
   (** [default] is the default metadata value. *)
 end
 
-module type Maker = sig
-  module Make
-      (H : Hash.S) (P : sig
-        type step [@@deriving irmin]
-      end)
-      (M : Metadata.S) :
-    S with type metadata = M.t and type hash = H.t and type step = P.step
-end
+module type Maker = functor
+  (H : Hash.S)
+  (P : sig
+     type step [@@deriving irmin]
+   end)
+  (M : Metadata.S)
+  -> S with type metadata = M.t and type hash = H.t and type step = P.step
 
 module type Store = sig
   include Content_addressable.S
@@ -191,7 +190,7 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  include Maker
+  module Make : Maker
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)
 

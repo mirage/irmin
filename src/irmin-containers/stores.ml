@@ -16,7 +16,7 @@
  *)
 
 module type Content_addressable = sig
-  include Irmin.Content_addressable.Maker
+  module Make : Irmin.Content_addressable.Maker
 
   val config : Irmin.config
 end

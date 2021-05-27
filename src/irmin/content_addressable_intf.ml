@@ -46,30 +46,23 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = sig
-  module Make (K : Hash.S) (V : Type.S) : sig
-    include S with type key = K.t and type value = V.t
+module type Maker = functor (K : Hash.S) (V : Type.S) -> sig
+  include S with type key = K.t and type value = V.t
 
-    include Of_config with type 'a t := 'a t
-    (** @inline *)
-  end
+  include Of_config with type 'a t := 'a t
+  (** @inline *)
 end
 
 module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module Make (X : Append_only.Maker) : sig
-    module Make (K : Hash.S) (V : Type.S) : sig
-      include
-        S
-          with type 'a t = 'a X.Make(K)(V).t
-           and type key = K.t
-           and type value = V.t
+  module Make (F : Append_only.Maker) (K : Hash.S) (V : Type.S) : sig
+    include
+      S with type 'a t = 'a F(K)(V).t and type key = K.t and type value = V.t
 
-      include Of_config with type 'a t := 'a t
-      (** @inline *)
-    end
+    include Of_config with type 'a t := 'a t
+    (** @inline *)
   end
 
   module Check_closed (M : Maker) : Maker

@@ -46,16 +46,18 @@ module type S = sig
 end
 
 module Append_only = Irmin_mem.Append_only
-module Content_addressable = Irmin.Content_addressable.Make (Append_only)
+
+module Content_addressable =
+  Irmin.Content_addressable.Make (Append_only) (Key) (Value)
 
 module Mem = struct
-  include Content_addressable.Make (Key) (Value)
+  include Content_addressable
 
   let v () = v @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
-  include Content_addressable.Make (Key) (Value)
+  include Content_addressable
 
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
   let v () = v small_config

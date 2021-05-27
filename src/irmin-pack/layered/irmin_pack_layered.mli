@@ -40,10 +40,7 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = sig
-  include S.Maker
-  (** @inline *)
-end
+module type Maker = S.Maker
 
 module Maker (_ : Irmin_pack.Conf.S) : Maker
 

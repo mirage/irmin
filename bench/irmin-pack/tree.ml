@@ -169,8 +169,12 @@ struct
   type store_config = config
 
   open Tezos_context_hash_irmin.Encoding
-  module Maker = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+
+  module Store =
+    Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit) (Metadata) (Contents)
+      (Path)
+      (Branch)
+      (Hash)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in

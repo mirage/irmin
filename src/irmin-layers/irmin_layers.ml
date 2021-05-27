@@ -32,55 +32,52 @@ module Maker_ext
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker)
     (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) =
+    (CT : Irmin.Private.Commit.Maker)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
 struct
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module Maker = Irmin.Maker_ext (CA) (AW) (N) (CT)
-    include Maker.Make (M) (C) (P) (B) (H)
+  module Maker = Irmin.Maker_ext (CA) (AW) (N) (CT)
+  include Maker.Make (M) (C) (P) (B) (H)
 
-    let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
-        _repo =
+  let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
+      _repo =
+    Lwt.fail_with "not implemented"
+
+  type store_handle =
+    | Commit_t : hash -> store_handle
+    | Node_t : hash -> store_handle
+    | Content_t : hash -> store_handle
+
+  let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
+  let async_freeze _ = failwith "not implemented"
+  let upper_in_use _repo = failwith "not implemented"
+  let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
+  let check_self_contained ?heads:_ _ = failwith "not implemented"
+  let needs_recovery _ = failwith "not implemented"
+
+  module Private_layer = struct
+    module Hook = struct
+      type 'a t = unit
+
+      let v _ = failwith "not implemented"
+    end
+
+    let wait_for_freeze _ = Lwt.fail_with "not implemented"
+
+    let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
+        ?hook:_ _repo =
       Lwt.fail_with "not implemented"
 
-    type store_handle =
-      | Commit_t : hash -> store_handle
-      | Node_t : hash -> store_handle
-      | Content_t : hash -> store_handle
-
-    let layer_id _repo _store_handle = Lwt.fail_with "not implemented"
-    let async_freeze _ = failwith "not implemented"
-    let upper_in_use _repo = failwith "not implemented"
-    let self_contained ?min:_ ~max:_ _repo = failwith "not implemented"
-    let check_self_contained ?heads:_ _ = failwith "not implemented"
-    let needs_recovery _ = failwith "not implemented"
-
-    module Private_layer = struct
-      module Hook = struct
-        type 'a t = unit
-
-        let v _ = failwith "not implemented"
-      end
-
-      let wait_for_freeze _ = Lwt.fail_with "not implemented"
-
-      let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_
-          ?recovery:_ ?hook:_ _repo =
-        Lwt.fail_with "not implemented"
-
-      let upper_in_use = upper_in_use
-    end
+    let upper_in_use = upper_in_use
   end
 end
 
 module Maker
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) =
-  Maker_ext (CA) (AW) (Irmin.Private.Node) (Irmin.Private.Commit)
+  Maker_ext (CA) (AW) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
 
 module Stats = Stats
