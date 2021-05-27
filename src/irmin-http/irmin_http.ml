@@ -432,6 +432,7 @@ end
 module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
   module X = struct
     module Hash = S.Hash
+    module Version = S.Private.Version
 
     module Contents = struct
       module X = struct
@@ -454,6 +455,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       module Contents = Contents
       module Metadata = S.Metadata
       module Path = S.Key
+      module Version = Version
 
       let merge t =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =

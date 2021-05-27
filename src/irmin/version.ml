@@ -14,4 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let current = "%%VERSION%%"
+include Version_intf
+
+module None = struct
+  type t = unit [@@deriving irmin]
+
+  let default = ()
+end

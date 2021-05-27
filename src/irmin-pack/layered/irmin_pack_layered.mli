@@ -48,8 +48,12 @@ end
 module Maker (_ : Irmin_pack.Conf.S) : Maker
 
 module Maker_ext
-    (_ : Irmin_pack.Conf.S)
+    (Config : Irmin_pack.Conf.S)
     (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : Maker
+    (Commit : Irmin.Private.Commit.Maker with type Version.t = Config.version) :
+  Maker
+    with type info = Commit.Info.t
+     and type version = Commit.Info.version
+     and type endpoint = unit
 
 module Checks = Checks

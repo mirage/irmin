@@ -33,8 +33,10 @@ let fresh_name =
 let index_log_size = Some 4
 
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let v _ = { max_entries = 32; stable_hash = 256 }
   let lower_root = "_lower"
   let upper0_root = "0"
   let with_lower = true

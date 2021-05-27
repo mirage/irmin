@@ -73,7 +73,7 @@ module type Internal = sig
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
-    val index : depth:int -> step -> int
+    val index : depth:int -> max_entries:int -> step -> int
 
     val integrity_check : t -> bool
     (** Checks the integrity of an inode. *)
@@ -91,12 +91,18 @@ module type Internal = sig
       [@@deriving irmin]
       (** The type for pointers. *)
 
-      type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+      type 'a tree_node = {
+        depth : int;
+        length : int;
+        pointers : 'a pointer list;
+      }
       [@@deriving irmin]
       (** The type for trees. *)
 
+      type tree = Tree of tree tree_node | Value of entry list
+
+      type t = { root : tree; version : version } [@@deriving irmin]
       (** The type for concrete trees. *)
-      type t = Tree of t tree | Value of entry list [@@deriving irmin]
 
       type error =
         [ `Invalid_hash of hash * hash * t
@@ -132,11 +138,14 @@ module type Sigs = sig
   module Make_internal
       (Conf : Conf.S)
       (H : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S with type hash = H.t) :
+      (Node : Irmin.Private.Node.S
+                with type hash = H.t
+                 and type version = Conf.version) :
     Internal
       with type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
+       and type Val.version = Conf.version
 
   module Make_ext
       (H : Irmin.Hash.S)
@@ -144,7 +153,8 @@ module type Sigs = sig
       (Inter : Internal
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
-                  and type Val.step = Node.step)
+                  and type Val.step = Node.step
+                  and type Val.version = Node.version)
       (_ : Content_addressable.Maker
              with type key = H.t
               and type index = Pack_index.Make(H).t) : sig
@@ -153,22 +163,26 @@ module type Sigs = sig
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
+         and type Val.version = Node.version
          and type index = Pack_index.Make(H).t
          and type value = Inter.Val.t
   end
 
   module Make
-      (_ : Conf.S)
+      (Conf : Conf.S)
       (H : Irmin.Hash.S)
       (_ : Content_addressable.Maker
              with type key = H.t
               and type index = Pack_index.Make(H).t)
-      (Node : Irmin.Private.Node.S with type hash = H.t) : sig
+      (Node : Irmin.Private.Node.S
+                with type hash = H.t
+                with type version = Conf.version) : sig
     include
       S
         with type key = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
+         and type Val.version = Node.version
          and type index = Pack_index.Make(H).t
   end
 end

@@ -59,10 +59,14 @@ let invalid_tree () =
   let hash = Store.Hash.hash (fun f -> f "") in
   Tree.shallow repo (`Node hash)
 
+let tree_of_concrete t =
+  Tree.of_concrete ~version:Store.Private.Version.default t
+
+let tree bs = tree_of_concrete (`Tree bs)
+
 let test_bindings _ () =
   let tree =
-    Tree.of_concrete
-      (`Tree [ ("aa", c "0"); ("ab", c "1"); ("a", c "2"); ("b", c "3") ])
+    tree [ ("aa", c "0"); ("ab", c "1"); ("a", c "2"); ("b", c "3") ]
   in
   let check_sorted =
     Alcotest.(check (list string))
@@ -73,15 +77,10 @@ let test_bindings _ () =
 
 let test_paginated_bindings _ () =
   let tree =
-    Tree.of_concrete
-      (`Tree
-        [
-          ("aa", c "0");
-          ("a", c "1");
-          ("bbb", c "3");
-          ("b", c "3");
-          ("aaa", c "2");
-        ])
+    tree
+      [
+        ("aa", c "0"); ("a", c "1"); ("bbb", c "3"); ("b", c "3"); ("aaa", c "2");
+      ]
   in
   let check_sorted expected =
     Alcotest.(check (list string))
@@ -107,8 +106,6 @@ let test_paginated_bindings _ () =
     Tree.list ~offset:5 ~length:2 tree [] >|= (List.map fst >> check_sorted [])
   in
   Lwt.return_unit
-
-let tree bs = Tree.of_concrete (`Tree bs)
 
 (** Basic tests of the [Tree.diff] operation. *)
 let test_diff _ () =
@@ -150,14 +147,14 @@ let test_add _ () =
   in
 
   let* () =
-    let t = Tree.of_concrete (sample_tree ()) in
+    let t = tree_of_concrete (sample_tree ()) in
     let expected = sample_tree ~ab:"new_value" () in
     Alcotest.check_tree_lwt "Replacing an existing value in a tree" ~expected
       (Tree.add t [ "a"; "ab" ] "new_value")
   in
 
   let* () =
-    let t = Tree.of_concrete (sample_tree ()) in
+    let t = tree_of_concrete (sample_tree ()) in
     let expected = sample_tree ~ac:(`Tree [ ("aca", c "new_value") ]) () in
     Alcotest.check_tree_lwt
       "Adding at a non-existent path in a tree creates necessary intermediate \
@@ -167,7 +164,7 @@ let test_add _ () =
   in
 
   let* () =
-    let t = Tree.of_concrete (c "1") in
+    let t = tree_of_concrete (c "1") in
     let+ t' = Tree.add t [] "1" in
     Alcotest.assert_ "Re-adding a root value preserves physical equality"
       (t == t')
@@ -184,8 +181,7 @@ let test_add _ () =
 
 let test_remove _ () =
   let tree =
-    Tree.of_concrete
-      (`Tree [ ("a", `Tree [ ("aa", c "0"); ("ab", c "1") ]); ("b", c "3") ])
+    tree [ ("a", `Tree [ ("aa", c "0"); ("ab", c "1") ]); ("b", c "3") ]
   in
 
   let* () =
@@ -204,7 +200,7 @@ let test_remove _ () =
   in
 
   let* () =
-    let tree = Tree.of_concrete (c "1") in
+    let tree = tree_of_concrete (c "1") in
     let+ tree' = Tree.remove tree [ "a"; "non"; "existent"; "path" ] in
     Alcotest.assert_
       "Removing at a non-existent path in a root contents value preserves \
@@ -216,7 +212,7 @@ let test_remove _ () =
     Alcotest.check_tree_lwt
       "Removing a root contents value results in an empty root node."
       ~expected:(`Tree [])
-      (Tree.remove (Tree.of_concrete (c "1")) [])
+      (Tree.remove (tree_of_concrete (c "1")) [])
   in
 
   Lwt.return_unit
@@ -241,7 +237,7 @@ let test_update _ () =
     `Tree
       [ ("a", `Tree [ ("b", `Tree [ ("c", c ?info v) ]) ]); unrelated_binding ]
   in
-  let abc1 = Tree.of_concrete (abc "1") in
+  let abc1 = tree_of_concrete (abc "1") in
   let ( --> ) = transform_once [%typ: string option] in
 
   let* () =
@@ -249,14 +245,14 @@ let test_update _ () =
       "Changing the value of a root contents node results in a new contents \
        node."
       ~expected:(c "2")
-      (Tree.update (Tree.of_concrete (c "1")) [] (Some "1" --> Some "2"))
+      (Tree.update (tree_of_concrete (c "1")) [] (Some "1" --> Some "2"))
   in
 
   let* () =
     Alcotest.check_tree_lwt
       "Removing a root contents node results in an empty root node."
       ~expected:(`Tree [])
-      (Tree.update (Tree.of_concrete (c "1")) [] (Some "1" --> None))
+      (Tree.update (tree_of_concrete (c "1")) [] (Some "1" --> None))
   in
 
   let* () =
@@ -490,13 +486,12 @@ let test_fold_force _ () =
           [ [ "dangling"; "subtree"; "hash" ]; [ "other"; "lazy"; "path" ] ]
   in
   let sample_tree =
-    Tree.of_concrete
-      (`Tree
-        [
-          ("a", `Tree [ ("aa", c "v-aa"); ("ab", c "v-ab"); ("ac", c "v-ac") ]);
-          ("b", c "v-b");
-          ("c", c "v-c");
-        ])
+    tree
+      [
+        ("a", `Tree [ ("aa", c "v-aa"); ("ab", c "v-ab"); ("ac", c "v-ac") ]);
+        ("b", c "v-b");
+        ("c", c "v-c");
+      ]
   in
   let eager_stats =
     Tree.{ nodes = 2; leafs = 5; skips = 0; depth = 2; width = 3 }
@@ -538,7 +533,7 @@ let test_shallow _ () =
     let compute_hash ~subtree =
       Tree.(add_tree empty) [ "key" ] subtree >|= Tree.hash
     in
-    let leaf = Tree.of_concrete (c "0") in
+    let leaf = tree_of_concrete (c "0") in
     let* shallow_leaf =
       let+ repo = Store.Repo.v (Irmin_mem.config ()) in
       Tree.shallow repo (`Contents (Tree.hash leaf, Metadata.default))
@@ -554,8 +549,8 @@ let test_shallow _ () =
   Lwt.return_unit
 
 let test_kind_empty_path _ () =
-  let cont = c "c" |> Tree.of_concrete in
-  let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
+  let cont = c "c" |> tree_of_concrete in
+  let tree = `Tree [ ("k", c "c") ] |> tree_of_concrete in
   let* k = Tree.kind cont [] in
   Alcotest.(check (option (gtestable kind_t)))
     "Kind of empty path in content"
@@ -614,14 +609,13 @@ let test_of_concrete _ () =
     let input = tree [ ("a", `Tree [ aa; ("ab", `Tree []); ac ]) ] in
     let pruned = `Tree [ ("a", `Tree [ aa; ac ]) ] in
     Alcotest.check_tree_lwt "Empty subtrees are pruned" ~expected:pruned
-      (Tree.to_concrete input >|= Tree.of_concrete)
+      (Tree.to_concrete input >|= tree_of_concrete)
   in
 
   let () =
     Alcotest.check_raises "Tree with duplicate bindings is rejected"
       (Invalid_argument "of_concrete: duplicate bindings for step `k`")
-      (fun () ->
-        ignore (Tree.of_concrete (`Tree [ ("k", c "v1"); ("k", c "v2") ])))
+      (fun () -> ignore (tree [ ("k", c "v1"); ("k", c "v2") ]))
   in
 
   Lwt.return_unit

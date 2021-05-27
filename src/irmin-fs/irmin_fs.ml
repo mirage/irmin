@@ -261,6 +261,7 @@ end
 module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct
   type endpoint = unit
   type info = Irmin.Info.default
+  type version = unit
 
   module Make
       (M : Irmin.Metadata.S)

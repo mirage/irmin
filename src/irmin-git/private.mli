@@ -40,6 +40,7 @@ module Make
        and type Node.Path.step = P.step
        and type Node.Metadata.t = Metadata.t
        and type Branch.key = B.t
+       and type Version.t = unit
        and module Commit.Info = Irmin.Info.Default
 
   val git_of_repo : Repo.t -> G.t

@@ -38,12 +38,15 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     type metadata = Metadata.t [@@deriving irmin]
     type hash = Key.t [@@deriving irmin]
     type step = Path.step [@@deriving irmin]
+    type version = unit [@@deriving irmin]
 
     type value = [ `Node of hash | `Contents of hash * metadata ]
     [@@deriving irmin]
 
     let default = Metadata.default
     let of_step = Irmin.Type.to_string P.step_t
+    let version _ = ()
+    let with_version () x = x
 
     let to_step str =
       match Irmin.Type.of_string P.step_t str with
@@ -117,7 +120,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     let to_git perm (name, node) =
       G.Value.Tree.entry ~name:(of_step name) perm node
 
-    let v alist =
+    let v ~version:_ alist =
       let alist =
         List.rev_map
           (fun (l, x) ->
@@ -147,10 +150,10 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
         [] (G.Value.Tree.to_list t)
       |> List.rev
 
-    module N = Irmin.Private.Node.Make (Key) (P) (Metadata)
+    module N = Irmin.Private.Node.Make (Irmin.Version.None) (Key) (P) (Metadata)
 
-    let to_n t = N.v (alist t)
-    let of_n n = v (N.list n)
+    let to_n t = N.v ~version:() (alist t)
+    let of_n n = v ~version:() (N.list n)
     let to_bin t = Raw.to_raw (G.Value.tree t)
 
     let encode_bin =

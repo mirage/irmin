@@ -19,11 +19,12 @@
 module type S = sig
   type author = string [@@deriving irmin]
   type message = string [@@deriving irmin]
+  type version [@@deriving irmin]
 
   type t [@@deriving irmin]
   (** The type for commit info. *)
 
-  val v : ?author:author -> ?message:message -> int64 -> t
+  val v : ?author:author -> ?message:message -> ?version:version -> int64 -> t
   (** Create a new commit info. *)
 
   val date : t -> int64
@@ -46,6 +47,9 @@ module type S = sig
   val message : t -> message
   (** [message t] is [t]'s commit message. *)
 
+  val version : t -> version
+  (** [version t] is [t]'s version. *)
+
   val empty : t
   (** The empty commit info. *)
 
@@ -61,7 +65,8 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Default : S
+  module Make (V : Version.S) : S with type version = V.t
+  module Default : S with type version = Version.None.t
 
   type default = Default.t
 end

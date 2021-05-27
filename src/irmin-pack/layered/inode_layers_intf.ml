@@ -78,16 +78,19 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (_ : Irmin_pack.Conf.S)
+      (Conf : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
       (_ : S.Content_addressable_maker
              with type key = H.t
               and type index = Index.Make(H).t)
-      (Node : Irmin.Private.Node.S with type hash = H.t) :
+      (Node : Irmin.Private.Node.S
+                with type hash = H.t
+                 and type version = Conf.version) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
+       and type Val.version = Node.version
        and type index = Index.Make(H).t
        and type U.index = Index.Make(H).t
        and type L.index = Index.Make(H).t

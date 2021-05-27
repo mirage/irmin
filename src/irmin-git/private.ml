@@ -31,6 +31,7 @@ module Make
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
   module Info = Irmin.Info.Default
+  module Version = Irmin.Version.None
 
   module Contents = struct
     module S = Contents.Make (G) (C)
@@ -41,7 +42,9 @@ struct
     module S = Node.Make (G) (P)
 
     include
-      Irmin.Private.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (P)
+      Irmin.Private.Node.Store (Contents) (S) (Version) (S.Key) (S.Val)
+        (Metadata)
+        (P)
   end
 
   module Commit = struct

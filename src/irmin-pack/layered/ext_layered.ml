@@ -37,8 +37,12 @@ let lock_path root = Filename.concat root "lock"
 module Maker
     (Config : Conf.Pack.S)
     (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker) =
+    (Commit : Irmin.Private.Commit.Maker with type Version.t = Config.version) =
 struct
+  type endpoint = unit
+  type info = Commit.Info.t
+  type version = Commit.Version.t
+
   module Make
       (M : Irmin.Metadata.S)
       (C : Irmin.Contents.S)
@@ -56,6 +60,7 @@ struct
 
     module X = struct
       module Hash = H
+      module Version = Commit.Version
       module Info = Commit.Info
 
       type 'a value = { magic : char; hash : H.t; v : 'a }
@@ -100,9 +105,12 @@ struct
 
       module Node = struct
         module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
-        module Node = Node.Make (H) (P) (M)
+        module Node = Node.Make (Version) (H) (P) (M)
         module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
-        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+
+        include
+          Irmin.Private.Node.Store (Contents) (CA) (Version) (H) (CA.Val) (M)
+            (P)
       end
 
       module Commit = struct

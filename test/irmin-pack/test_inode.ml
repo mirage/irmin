@@ -23,15 +23,28 @@ let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
-  let entries = 2
+  (* FIXME: code duplication *)
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let max_entries = 2
   let stable_hash = 3
+  let v _ = { max_entries; stable_hash }
+end
+
+(* FIXME: duplication *)
+module Version = struct
+  type t = Conf.version
+
+  let t = Conf.version_t
+  let default = Conf.V0
 end
 
 let log_size = 1000
 
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
+module Node = Irmin.Private.Node.Make (Version) (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
 module Inode = Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (P)
@@ -126,7 +139,8 @@ module Inode_permutations_generator = struct
           let is_valid =
             indices
             |> List.mapi (fun depth i -> (depth, i))
-            |> List.for_all (fun (depth, i) -> Inter.Val.index ~depth s = i)
+            |> List.for_all (fun (depth, i) ->
+                   Inter.Val.index ~depth ~max_entries:Conf.max_entries s = i)
           in
           if is_valid then s else aux (i + 1)
       in
@@ -175,7 +189,7 @@ module Inode_permutations_generator = struct
           let contents =
             List.map (fun s -> StepMap.find s content_per_step) steps
           in
-          List.combine steps contents |> Inode.Val.v)
+          List.combine steps contents |> Inode.Val.v ~version:Conf.V0)
         steps_per_tree
     in
     let tree_per_steps : Inode.value StepSetMap.t =
@@ -225,7 +239,9 @@ let test_add_values () =
   let v2 = Inode.Val.add v1 "y" (normal bar) in
   check_node "node x+y" v2 t >>= fun () ->
   check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
-  let v3 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+  let v3 =
+    Inode.Val.v ~version:Conf.V0 [ ("x", normal foo); ("y", normal bar) ]
+  in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
 
@@ -240,10 +256,13 @@ let integrity_check ?(stable = true) v =
 let test_add_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
-  let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+  let v1 =
+    Inode.Val.v ~version:Conf.V0 [ ("x", normal foo); ("y", normal bar) ]
+  in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
   let v3 =
-    Inode.Val.v [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
+    Inode.Val.v ~version:Conf.V0
+      [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
   check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
@@ -251,7 +270,7 @@ let test_add_inodes () =
   integrity_check v2;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
   let v5 =
-    Inode.Val.v
+    Inode.Val.v ~version:Conf.V0
       [
         ("x", normal foo);
         ("z", normal foo);
@@ -268,9 +287,11 @@ let test_add_inodes () =
 let test_remove_values () =
   rm_dir root;
   let* t = Context.get_store () in
-  let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
+  let v1 =
+    Inode.Val.v ~version:Conf.V0 [ ("x", normal foo); ("y", normal bar) ]
+  in
   let v2 = Inode.Val.remove v1 "y" in
-  let v3 = Inode.Val.v [ ("x", normal foo) ] in
+  let v3 = Inode.Val.v ~version:Conf.V0 [ ("x", normal foo) ] in
   check_values "node x obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
@@ -286,15 +307,18 @@ let test_remove_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
   let v1 =
-    Inode.Val.v [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
+    Inode.Val.v ~version:Conf.V0
+      [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in
   check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
   let v2 = Inode.Val.remove v1 "x" in
-  let v3 = Inode.Val.v [ ("y", normal bar); ("z", normal foo) ] in
+  let v3 =
+    Inode.Val.v ~version:Conf.V0 [ ("y", normal bar); ("z", normal foo) ]
+  in
   check_values "node y+z obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
   let v4 =
-    Inode.Val.v
+    Inode.Val.v ~version:Conf.V0
       [
         ("x", normal foo);
         ("z", normal foo);
@@ -330,7 +354,7 @@ let test_remove_inodes () =
     lazily loads subtrees, this won't be caught here. *)
 let test_representation_uniqueness_maxdepth_3 () =
   let module P = Inode_permutations_generator in
-  let p = P.v ~entries:Conf.entries ~maxdepth_of_test:3 in
+  let p = P.v ~entries:Conf.max_entries ~maxdepth_of_test:3 in
   let f steps tree s =
     (* [steps, tree] is one of the known pair built using [Val.v]. Let's try to
        add or remove [s] from it and see if something breaks. *)
@@ -395,7 +419,8 @@ let test_truncated_inodes () =
   in
   (* v1 is a Truncated inode of tag Values. No pointers. *)
   let v1 =
-    Inode.Val.v [ (s00, normal foo); (s10, normal foo) ] |> to_truncated
+    Inode.Val.v ~version:Conf.V0 [ (s00, normal foo); (s10, normal foo) ]
+    |> to_truncated
   in
   Inode.Val.list v1 |> ignore;
   (iter_steps @@ fun step -> Inode.Val.find v1 step);
@@ -411,7 +436,8 @@ let test_truncated_inodes () =
   (* v3 is just a Truncated inode of tag Tree. The pointers are built before
      the call to [to_truncated], they are [Broken]. *)
   let v3 =
-    Inode.Val.v [ (s00, normal foo); (s10, normal bar); (s01, normal bar) ]
+    Inode.Val.v ~version:Conf.V0
+      [ (s00, normal foo); (s10, normal bar); (s01, normal bar) ]
     |> to_truncated
   in
   (with_failure @@ fun () -> Inode.Val.list v3 |> ignore);
@@ -428,7 +454,8 @@ let test_intermediate_inode_as_root () =
       (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
   in
   let v0 =
-    Inode.Val.v [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
+    Inode.Val.v ~version:Conf.V0
+      [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
   in
   let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
   let (`Inode h_depth1) =
@@ -494,14 +521,17 @@ let test_concrete_inodes () =
     let msg = Fmt.str "%a" pp_concrete c in
     Alcotest.check testable msg (Ok v) r
   in
-  let v = Inode.Val.v [ ("a", normal foo) ] in
+  let v = Inode.Val.v ~version:Conf.V0 [ ("a", normal foo) ] in
   check v;
-  let v = Inode.Val.v [ ("a", normal foo); ("y", node bar) ] in
-  check v;
-  let v = Inode.Val.v [ ("x", node foo); ("a", normal foo); ("y", node bar) ] in
+  let v = Inode.Val.v ~version:Conf.V0 [ ("a", normal foo); ("y", node bar) ] in
   check v;
   let v =
-    Inode.Val.v
+    Inode.Val.v ~version:Conf.V0
+      [ ("x", node foo); ("a", normal foo); ("y", node bar) ]
+  in
+  check v;
+  let v =
+    Inode.Val.v ~version:Conf.V0
       [
         ("x", normal foo); ("z", normal foo); ("a", normal foo); ("y", node bar);
       ]

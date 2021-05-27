@@ -23,6 +23,7 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make
+    (Version : Version.S)
     (H : Type.S) (P : sig
       type step [@@deriving irmin]
     end)
@@ -31,6 +32,7 @@ struct
   type hash = H.t [@@deriving irmin]
   type step = P.step [@@deriving irmin]
   type metadata = M.t [@@deriving irmin]
+  type version = Version.t [@@deriving irmin]
   type kind = [ `Node | `Contents of M.t ]
 
   let equal_metadata = Type.(unstage (equal M.t))
@@ -70,10 +72,13 @@ struct
   type value = [ `Contents of hash * metadata | `Node of hash ]
   type t = entry StepMap.t
 
-  let v l =
+  let v ~version:_ l =
     List.fold_left
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
+
+  let with_version _ t = t
+  let version _ = Version.default
 
   let list ?(offset = 0) ?length (t : t) =
     let take_length seq =
@@ -113,19 +118,26 @@ struct
     |~ case1 "contents-x" (pair H.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
-  let of_entries e = v (List.rev_map of_entry e)
+  let of_entries e = v ~version:Version.default (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
+
+  (* FIXME: do we want to store the version here? *)
   let t = Type.map Type.(list entry_t) of_entries entries
 end
 
 module Store
     (C : Contents.Store)
     (S : Content_addressable.S with type key = C.key)
+    (Version : Version.S)
     (K : Hash.S with type t = S.key)
-    (V : S with type t = S.value and type hash = S.key)
+    (V : S
+           with type t = S.value
+            and type hash = S.key
+            and type version = Version.t)
     (M : Metadata.S with type t = V.metadata)
     (P : Path.S with type step = V.step) =
 struct
+  module Version = Version
   module Contents = C
   module Val = V
   module Key = Hash.Typed (K) (Val)
@@ -186,13 +198,20 @@ struct
     Merge.alist step_t Key.t (fun _step -> merge_key)
 
   let merge_value (c, _) merge_key =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
+    let explode t = (Val.version t, all_contents t, all_succ t) in
+    let implode (version, contents, succ) =
       let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
       let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      Val.v (xs @ ys)
+      Val.v ~version (xs @ ys)
     in
-    let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
+    let merge_version =
+      (* FIXME: do we want this? *)
+      Merge.v Val.version_t (fun ~old:_ x _ -> Lwt.return (Ok x))
+    in
+    let merge =
+      Merge.triple merge_version (merge_contents_meta c)
+        (merge_parents merge_key)
+    in
     Merge.like Val.t merge explode implode
 
   let rec merge t =
@@ -286,7 +305,7 @@ module Graph (S : Store) = struct
     in
     Graph.iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
 
-  let v t xs = S.add t (S.Val.v xs)
+  let v t xs = S.add t (S.Val.v ~version:S.Version.default xs)
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
@@ -357,7 +376,10 @@ module Graph (S : Store) = struct
   let value_t = S.Val.value_t
 end
 
-module V1 (N : S with type step = string) = struct
+module V1
+    (Version : Version.S)
+    (N : S with type step = string and type version = Version.t) =
+struct
   module K = struct
     let h = Type.string_of `Int64
     let to_bin_string = Type.(unstage (to_bin_string N.hash_t))
@@ -387,14 +409,18 @@ module V1 (N : S with type step = string) = struct
   type hash = N.hash [@@deriving irmin]
   type metadata = N.metadata [@@deriving irmin]
   type value = N.value
+  type version = unit [@@deriving irmin]
   type t = { n : N.t; entries : (step * value) list }
 
   let import n = { n; entries = N.list n }
   let export t = t.n
 
-  let v entries =
-    let n = N.v entries in
+  let v ~version:() entries =
+    let n = N.v ~version:Version.default entries in
     { n; entries }
+
+  let version _ = ()
+  let with_version () x = x
 
   let list ?(offset = 0) ?length t =
     let take_length seq =
@@ -449,5 +475,5 @@ module V1 (N : S with type step = string) = struct
     |> sealr
 
   let t : t Type.t =
-    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) (v ~version:()) list
 end

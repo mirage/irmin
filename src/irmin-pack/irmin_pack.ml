@@ -37,8 +37,18 @@ module type Specifics = S.Specifics
 
 let migrate = Migrate.run
 
-module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
+module Maker (V : Version.S) (Config : Conf.S) = struct
+  module Version = struct
+    type t = Config.version
+
+    let t = Config.version_t
+    let default = Config.V0
+  end
+
+  module Info = Irmin.Info.Make (Version)
+  module Commit = Irmin.Private.Commit.Maker (Version) (Info)
+  include Maker_ext (V) (Config) (Irmin.Private.Node) (Commit)
+end
 
 module V1 = Maker (struct
   let version = `V1
@@ -72,8 +82,10 @@ module Vx = struct
 end
 
 module Cx = struct
-  let stable_hash = 0
-  let entries = 0
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  let v _ = { max_entries = 0; stable_hash = 0 }
 end
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)

@@ -20,6 +20,9 @@ open! Import
 module type S = sig
   (** {1 Node values} *)
 
+  type version [@@deriving irmin]
+  (** The type for node versions. *)
+
   type t [@@deriving irmin]
   (** The type for node values. *)
 
@@ -37,12 +40,18 @@ module type S = sig
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
 
-  val v : (step * value) list -> t
-  (** [create l] is a new node. *)
+  val v : version:version -> (step * value) list -> t
+  (** [create ~version:v l] is a new node using version [v]. *)
+
+  val with_version : version -> t -> t
+  (** FIXME *)
 
   val list : ?offset:int -> ?length:int -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
       paginate results.*)
+
+  val version : t -> version
+  (** [version t] is [t]'s version. *)
 
   val empty : t
   (** [empty] is the empty node. *)
@@ -75,11 +84,16 @@ end
 
 module type Maker = sig
   module Make
+      (V : Version.S)
       (H : Hash.S) (P : sig
         type step [@@deriving irmin]
       end)
       (M : Metadata.S) :
-    S with type metadata = M.t and type hash = H.t and type step = P.step
+    S
+      with type metadata = M.t
+       and type version = V.t
+       and type hash = H.t
+       and type step = P.step
 end
 
 module type Store = sig
@@ -90,6 +104,8 @@ module type Store = sig
 
   val merge : [> read_write ] t -> key option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
+
+  module Version : Version.S
 
   (** [Key] provides base functions for node keys. *)
   module Key : Hash.Typed with type t = key and type value = value
@@ -104,6 +120,7 @@ module type Store = sig
        and type hash = key
        and type metadata = Metadata.t
        and type step = Path.step
+       and type version = Version.t
 
   module Contents : Contents.Store with type key = Val.hash
   (** [Contents] is the underlying contents store. *)
@@ -196,12 +213,15 @@ module type Sigs = sig
       contents and notes keys [K], paths [P] and metadata [M]. *)
 
   (** v1 serialisation *)
-  module V1 (N : S with type step = string) : sig
+  module V1
+      (V : Version.S)
+      (N : S with type step = string and type version = V.t) : sig
     include
       S
         with type hash = N.hash
          and type step = N.step
          and type metadata = N.metadata
+         and type version = unit
 
     val import : N.t -> t
     val export : t -> N.t
@@ -214,14 +234,19 @@ module type Sigs = sig
   module Store
       (C : Contents.Store)
       (S : Content_addressable.S with type key = C.key)
+      (Version : Version.S)
       (K : Hash.S with type t = S.key)
-      (V : S with type t = S.value and type hash = S.key)
+      (V : S
+             with type t = S.value
+              and type hash = S.key
+              and type version = Version.t)
       (M : Metadata.S with type t = V.metadata)
       (P : Path.S with type step = V.step) :
     Store
       with type 'a t = 'a C.t * 'a S.t
        and type key = S.key
        and type value = S.value
+       and module Version = Version
        and module Path = P
        and module Metadata = M
        and module Val = V

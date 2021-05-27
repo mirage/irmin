@@ -64,9 +64,10 @@ end
 
 module Maker_ext
     (_ : Version.S)
-    (_ : Conf.S)
+    (Config : Conf.S)
     (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : Maker with type info = CT.Info.t
+    (CT : Irmin.Private.Commit.Maker with type Version.t = Config.version) :
+  Maker with type info = CT.Info.t and type version = Config.version
 
 module Stats = Stats
 module Layout = Layout

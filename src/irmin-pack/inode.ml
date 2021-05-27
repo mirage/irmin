@@ -20,11 +20,15 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Private.Node.S
+              with type hash = H.t
+               and type version = Conf.version) =
 struct
-  let () =
-    if Conf.entries > Conf.stable_hash then
-      invalid_arg "entries should be lower or equal to stable_hash"
+  let conf version =
+    let t = Conf.v version in
+    if t.max_entries > t.stable_hash then
+      invalid_arg "entries should be lower or equal to stable_hash";
+    t
 
   module Node = struct
     include Node
@@ -33,10 +37,30 @@ struct
     let hash = H.hash
   end
 
+  module Kind = struct
+    type t = Node of Conf.version | Inode of Conf.version
+
+    let of_char = function
+      | 'N' -> Node V0
+      | 'M' -> Node V1
+      | 'I' -> Inode V0
+      | 'J' -> Inode V1
+      | c -> Fmt.failwith "%c is not a valid kind" c
+
+    let to_char = function
+      | Node V0 -> 'N'
+      | Node V1 -> 'M'
+      | Inode V0 -> 'I'
+      | Inode V1 -> 'J'
+
+    let t = Irmin.Type.(map char) of_char to_char
+  end
+
   module T = struct
     type hash = H.t [@@deriving irmin]
     type step = Node.step [@@deriving irmin]
     type metadata = Node.metadata [@@deriving irmin]
+    type version = Node.version [@@deriving irmin]
 
     let default = Node.default
 
@@ -60,32 +84,12 @@ struct
   module Bin = struct
     open T
 
-    type ptr = { index : int; hash : H.t }
+    type ptr = { index : int; hash : H.t } [@@deriving irmin]
+
     type tree = { depth : int; length : int; entries : ptr list }
-    type v = Values of (step * value) list | Tree of tree
+    [@@deriving irmin]
 
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : ptr) -> t.hash)
-      |> sealr
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.tree" (fun depth length entries -> { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
-
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Bin.v" (fun values tree -> function
-        | Values l -> values l | Tree i -> tree i)
-      |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Tree" tree_t (fun t -> Tree t)
-      |> sealv
+    type v = Values of (step * value) list | Tree of tree [@@deriving irmin]
 
     module V =
       Irmin.Hash.Typed
@@ -96,21 +100,21 @@ struct
           let t = v_t
         end)
 
-    type t = { hash : H.t Lazy.t; stable : bool; v : v }
+    type t = { hash : H.t Lazy.t; kind : Kind.t; v : v }
 
     let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
 
     let t : t Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_v x.v) in
-      record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
+      record "Bin.t" (fun hash kind v -> { hash = lazy hash; kind; v })
       |+ field "hash" H.t (fun t -> Lazy.force t.hash)
-      |+ field "stable" bool (fun t -> t.stable)
+      |+ field "kind" Kind.t (fun t -> t.kind)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
       |> like ~pre_hash
 
-    let v ~stable ~hash v = { stable; hash; v }
+    let v ~kind ~hash v = { kind; hash; v }
     let hash t = Lazy.force t.hash
   end
 
@@ -220,22 +224,15 @@ struct
       |~ case1 "Tree" tree_t (fun x -> Tree x)
       |> sealv
 
-    type t = { hash : H.t; stable : bool; v : v }
+    type t = { hash : H.t; kind : Kind.t; v : v }
 
-    let v ~stable ~hash v = { hash; stable; v }
-    let magic_node = 'N'
-    let magic_inode = 'I'
-
-    let stable_t : bool Irmin.Type.t =
-      Irmin.Type.(map char)
-        (fun n -> n = magic_node)
-        (function true -> magic_node | false -> magic_inode)
+    let v ~kind ~hash v = { hash; kind; v }
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash stable v -> { hash; stable; v })
+      record "Compress.t" (fun hash kind v -> { hash; kind; v })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable_t (fun t -> t.stable)
+      |+ field "kind" Kind.t (fun t -> t.kind)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
   end
@@ -333,7 +330,7 @@ struct
 
     and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
 
-    and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
+    and 'ptr t = { hash : hash Lazy.t; kind : Kind.t; v : 'ptr v }
 
     module Ptr = struct
       let hash : type ptr. ptr layout -> ptr -> _ = function
@@ -412,7 +409,7 @@ struct
       | Tree vs -> vs.length
 
     let length t = length_of_v t.v
-    let stable t = t.stable
+    let kind t = t.kind
 
     type acc = {
       cursor : int;
@@ -489,7 +486,7 @@ struct
 
     let to_bin layout t =
       let v = to_bin_v layout t.v in
-      Bin.v ~stable:t.stable ~hash:t.hash v
+      Bin.v ~kind:t.kind ~hash:t.hash v
 
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
@@ -498,10 +495,17 @@ struct
       type 'a pointer = { index : int; pointer : hash; tree : 'a }
       [@@deriving irmin]
 
-      type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+      type 'a tree_node = {
+        depth : int;
+        length : int;
+        pointers : 'a pointer list;
+      }
       [@@deriving irmin]
 
-      type t = Tree of t tree | Value of entry list [@@deriving irmin]
+      type tree = Tree of tree tree_node | Value of entry list
+      [@@deriving irmin]
+
+      type t = { root : tree; version : Conf.version } [@@deriving irmin]
 
       let metadata_equal = Irmin.Type.(unstage (equal metadata_t))
 
@@ -582,16 +586,18 @@ struct
               Concrete.Value (List.map Concrete.to_entry (StepMap.bindings l))
             )
       in
-      snd (aux t)
+      let version = match t.kind with Node v | Inode v -> v in
+      let root = snd (aux t) in
+      { Concrete.version; root }
 
-    exception Invalid_hash of hash * hash * Concrete.t
-    exception Invalid_depth of int * int * Concrete.t
-    exception Invalid_length of int * int * Concrete.t
+    exception Invalid_hash of hash * hash * Concrete.tree
+    exception Invalid_depth of int * int * Concrete.tree
+    exception Invalid_length of int * int * Concrete.tree
     exception Empty
-    exception Duplicated_entries of Concrete.t
-    exception Duplicated_pointers of Concrete.t
-    exception Unsorted_entries of Concrete.t
-    exception Unsorted_pointers of Concrete.t
+    exception Duplicated_entries of Concrete.tree
+    exception Duplicated_pointers of Concrete.tree
+    exception Unsorted_entries of Concrete.tree
+    exception Unsorted_pointers of Concrete.tree
 
     let hash_equal = Irmin.Type.(unstage (equal hash_t))
 
@@ -615,13 +621,15 @@ struct
         if s <> ps then raise (Unsorted_pointers t)
       in
       let hash v = Bin.V.hash (to_bin_v Total v) in
+      let version = t.Concrete.version in
+      let conf = conf version in
       let rec aux depth t =
         match t with
         | Concrete.Value l ->
             check_entries t l;
             Values (StepMap.of_list (List.map Concrete.of_entry l))
         | Concrete.Tree tr ->
-            let entries = Array.make Conf.entries None in
+            let entries = Array.make conf.max_entries None in
             check_pointers t tr.pointers;
             List.iter
               (fun { Concrete.index; pointer; tree } ->
@@ -629,7 +637,7 @@ struct
                 let hash = hash v in
                 if not (hash_equal hash pointer) then
                   raise (Invalid_hash (hash, pointer, t));
-                let t = { hash = lazy pointer; stable = false; v } in
+                let t = { hash = lazy pointer; kind = Inode version; v } in
                 entries.(index) <- Some (Ptr.of_target Total t))
               tr.pointers;
             let length = Concrete.length t in
@@ -638,33 +646,39 @@ struct
               raise (Invalid_length (length, tr.length, t));
             Tree { depth = tr.depth; length = tr.length; entries }
       in
-      let v = aux 0 t in
+      let v = aux 0 t.root in
       let length = length_of_v v in
-      let stable, hash =
-        if length > Conf.stable_hash then (false, hash v)
-        else
-          let node = Node.v (list_v Total v) in
-          (true, Node.hash node)
+      let kind, hash =
+        let node () =
+          let node = Node.v ~version (list_v Total v) in
+          (Kind.Node version, Node.hash node)
+        in
+        match v with
+        | Values _ -> node ()
+        | Tree _ ->
+            if length > conf.stable_hash then (Kind.Inode version, hash v)
+            else node ()
       in
-      { hash = lazy hash; stable; v }
+      { hash = lazy hash; kind; v }
 
     let of_concrete t =
+      let v root = { Concrete.root; version = t.Concrete.version } in
       try Ok (of_concrete_exn t) with
-      | Invalid_hash (x, y, z) -> Error (`Invalid_hash (x, y, z))
-      | Invalid_depth (x, y, z) -> Error (`Invalid_depth (x, y, z))
-      | Invalid_length (x, y, z) -> Error (`Invalid_length (x, y, z))
+      | Invalid_hash (x, y, z) -> Error (`Invalid_hash (x, y, v z))
+      | Invalid_depth (x, y, z) -> Error (`Invalid_depth (x, y, v z))
+      | Invalid_length (x, y, z) -> Error (`Invalid_length (x, y, v z))
       | Empty -> Error `Empty
-      | Duplicated_entries t -> Error (`Duplicated_entries t)
-      | Duplicated_pointers t -> Error (`Duplicated_pointers t)
-      | Unsorted_entries t -> Error (`Unsorted_entries t)
-      | Unsorted_pointers t -> Error (`Unsorted_pointers t)
+      | Duplicated_entries t -> Error (`Duplicated_entries (v t))
+      | Duplicated_pointers t -> Error (`Duplicated_pointers (v t))
+      | Unsorted_entries t -> Error (`Unsorted_entries (v t))
+      | Unsorted_pointers t -> Error (`Unsorted_pointers (v t))
 
     let hash t = Lazy.force t.hash
 
     let is_root t =
       match t.v with
       | Tree { depth; _ } -> depth = 0
-      | Values _ ->
+      | Values _ -> (
           (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
              is implied by the following.
 
@@ -680,27 +694,31 @@ struct
              - A [Value] has at most [Conf.stable_hash] leaves because
                [Conf.entries <= Conf.stable_hash] is enforced.
           *)
-          t.stable
+          match t.kind with Node _ -> true | Inode _ -> false)
 
     let check_write_op_supported t =
       if not @@ is_root t then
         failwith "Cannot perform operation on non-root inode value."
 
     let stabilize layout t =
-      if t.stable then t
-      else
-        let n = length t in
-        if n > Conf.stable_hash then t
-        else
-          let hash =
-            lazy
-              (let vs = list layout t in
-               Node.hash (Node.v vs))
-          in
-          { hash; stable = true; v = t.v }
+      match t.kind with
+      | Node _ -> t
+      | Inode version ->
+          let conf = conf version in
+          let n = length t in
+          if n > conf.stable_hash then t
+          else
+            let hash =
+              lazy
+                (let vs = list layout t in
+                 Node.hash (Node.v ~version vs))
+            in
+            { hash; kind = Inode version; v = t.v }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
-    let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
+
+    let index ~depth ~max_entries k =
+      abs (hash_key ~seed:depth k) mod max_entries
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
@@ -711,34 +729,35 @@ struct
         | Bin.Values vs ->
             let vs = StepMap.of_list vs in
             Values vs
-        | Tree t ->
-            let entries = Array.make Conf.entries None in
+        | Bin.Tree tree ->
+            let conf = match t.Bin.kind with Node v | Inode v -> conf v in
+            let entries = Array.make conf.max_entries None in
             let ptr_of_hash = Ptr.of_hash layout in
             List.iter
               (fun { Bin.index; hash } ->
                 entries.(index) <- Some (ptr_of_hash hash))
-              t.entries;
-            Tree { depth = t.Bin.depth; length = t.length; entries }
+              tree.entries;
+            Tree { depth = tree.Bin.depth; length = tree.length; entries }
       in
-      { hash = t.Bin.hash; stable = t.Bin.stable; v }
+      { hash = t.Bin.hash; kind = t.Bin.kind; v }
 
-    let empty : 'a. 'a layout -> 'a t =
-     fun _ ->
+    let empty : 'a. version:_ -> 'a layout -> 'a t =
+     fun ~version _ ->
       let hash = lazy (Node.hash Node.empty) in
-      { stable = true; hash; v = Values StepMap.empty }
+      { kind = Node version; hash; v = Values StepMap.empty }
 
-    let values layout vs =
+    let values ~version layout vs =
       let length = StepMap.cardinal vs in
-      if length = 0 then empty layout
+      if length = 0 then empty ~version layout
       else
         let v = Values vs in
         let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-        { hash; stable = false; v }
+        { hash; kind = Inode version; v }
 
-    let tree layout is =
+    let tree ~version layout is =
       let v = Tree is in
       let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-      { hash; stable = false; v }
+      { hash; kind = Inode version; v }
 
     let of_values layout l = values layout (StepMap.of_list l)
 
@@ -746,11 +765,12 @@ struct
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
 
     let find_value layout ~depth t s =
+      let conf = match t.kind with Node v | Inode v -> conf v in
       let target_of_ptr = Ptr.target layout in
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
-            let i = index ~depth s in
+            let i = index ~depth ~max_entries:conf.Conf.max_entries s in
             let x = t.entries.(i) in
             match x with
             | None -> None
@@ -761,18 +781,25 @@ struct
     let find layout t s = find_value ~depth:0 layout t s
 
     let rec add layout ~depth ~copy ~replace t s v k =
+      let version = match t.kind with Node v | Inode v -> v in
+      let conf = conf version in
       match t.v with
       | Values vs ->
           let length =
             if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
           in
           let t =
-            if length <= Conf.entries then values layout (StepMap.add s v vs)
+            if length <= conf.max_entries then
+              values ~version layout (StepMap.add s v vs)
             else
               let vs = StepMap.bindings (StepMap.add s v vs) in
               let empty =
-                tree layout
-                  { length = 0; depth; entries = Array.make Conf.entries None }
+                tree ~version layout
+                  {
+                    length = 0;
+                    depth;
+                    entries = Array.make conf.max_entries None;
+                  }
               in
               let aux t (s, v) =
                 (add [@tailcall]) layout ~depth ~copy:false ~replace t s v
@@ -784,19 +811,19 @@ struct
       | Tree t -> (
           let length = if replace then t.length else t.length + 1 in
           let entries = if copy then Array.copy t.entries else t.entries in
-          let i = index ~depth s in
+          let i = index ~max_entries:conf.max_entries ~depth s in
           match entries.(i) with
           | None ->
-              let target = values layout (StepMap.singleton s v) in
+              let target = values ~version layout (StepMap.singleton s v) in
               entries.(i) <- Some (Ptr.of_target layout target);
-              let t = tree layout { depth; length; entries } in
+              let t = tree ~version layout { depth; length; entries } in
               k t
           | Some n ->
               let t = Ptr.target layout n in
               (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
               @@ fun target ->
               entries.(i) <- Some (Ptr.of_target layout target);
-              let t = tree layout { depth; length; entries } in
+              let t = tree ~version layout { depth; length; entries } in
               k t)
 
     let add layout ~copy t s v =
@@ -811,51 +838,59 @@ struct
           |> stabilize layout
 
     let rec remove layout ~depth t s k =
+      let version = match t.kind with Node v | Inode v -> v in
+      let conf = conf version in
       match t.v with
       | Values vs ->
-          let t = values layout (StepMap.remove s vs) in
+          let t = values ~version layout (StepMap.remove s vs) in
           k t
       | Tree t -> (
           let len = t.length - 1 in
-          if len <= Conf.entries then
+          if len <= conf.max_entries then
             let vs =
               list_tree layout ~offset:0 ~length:t.length (empty_acc t.length) t
             in
             let vs = List.concat (List.rev vs.values) in
             let vs = StepMap.of_list vs in
             let vs = StepMap.remove s vs in
-            let t = values layout vs in
+            let t = values ~version layout vs in
             k t
           else
             let entries = Array.copy t.entries in
-            let i = index ~depth s in
+            let i = index ~max_entries:conf.max_entries ~depth s in
             match entries.(i) with
             | None -> assert false
             | Some t ->
                 let t = Ptr.target layout t in
                 if length t = 1 then (
                   entries.(i) <- None;
-                  let t = tree layout { depth; length = len; entries } in
+                  let t =
+                    tree ~version layout { depth; length = len; entries }
+                  in
                   k t)
                 else
                   remove ~depth:(depth + 1) layout t s @@ fun target ->
                   entries.(i) <- Some (Ptr.of_target layout target);
-                  let t = tree layout { depth; length = len; entries } in
+                  let t =
+                    tree ~version layout { depth; length = len; entries }
+                  in
                   k t)
 
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+      (* FIXME(samoht): should use conf of [t]. *)
       match find_value layout ~depth:0 t s with
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
-    let v l =
+    let v ~version l =
+      let conf = conf version in
       let len = List.length l in
       let t =
-        if len <= Conf.entries then of_values Total l
+        if len <= conf.max_entries then of_values ~version Total l
         else
           let aux acc (s, v) = add Total ~copy:false acc s v in
-          List.fold_left aux (empty Total) l
+          List.fold_left aux (empty ~version Total) l
       in
       stabilize Total t
 
@@ -894,8 +929,11 @@ struct
 
     let check_stable layout t =
       let target_of_ptr = Ptr.target layout in
+      (* FIXME: that function is too complicated *)
       let rec check t any_stable_ancestor =
-        let stable = t.stable || any_stable_ancestor in
+        let stable =
+          match t.kind with Node _ -> true | Inode _ -> any_stable_ancestor
+        in
         match t.v with
         | Values _ -> true
         | Tree tree ->
@@ -904,10 +942,13 @@ struct
                 | None -> true
                 | Some t ->
                     let t = target_of_ptr t in
-                    (if stable then not t.stable else true) && check t stable)
+                    (if stable then
+                     match t.kind with Inode _ -> true | Node _ -> false
+                    else true)
+                    && check t stable)
               tree.entries
       in
-      check t t.stable
+      check t (match t.kind with Node _ -> true | Inode _ -> false)
 
     let contains_empty_map layout t =
       let target_of_ptr = Ptr.target layout in
@@ -931,10 +972,7 @@ struct
     type t = Bin.t
 
     let t = Bin.t
-
-    let magic (t : t) =
-      if t.stable then Compress.magic_node else Compress.magic_inode
-
+    let magic t = Kind.to_char t.Bin.kind
     let hash t = Bin.hash t
     let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
     let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
@@ -974,7 +1012,7 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
+      let t = Compress.v ~kind:t.kind ~hash:k (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
@@ -1016,7 +1054,7 @@ struct
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
+      let t = Bin.v ~kind:i.kind ~hash:(lazy i.hash) (t i.v) in
       (off, t)
 
     let decode_bin ~dict ~hash t off =
@@ -1064,12 +1102,24 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let v l = Total (I.v l)
+    let v ~version l = Total (I.v ~version l)
+
+    let version t =
+      apply t { f = (fun _ v -> match I.kind v with Node v | Inode v -> v) }
+
+    let with_version v t =
+      let map_kind t =
+        let kind =
+          match t.I.kind with Node _ -> Kind.Node v | Inode _ -> Inode v
+        in
+        if kind = t.kind then t else { t with kind }
+      in
+      map t { f = (fun _ -> map_kind) }
 
     let list ?offset ?length t =
       apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
 
-    let empty = v []
+    let empty = v ~version:V0 []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
@@ -1093,16 +1143,17 @@ struct
     let t : t Irmin.Type.t =
       let pre_hash =
         Irmin.Type.stage @@ fun x ->
-        let stable = apply x { f = (fun _ v -> I.stable v) } in
-        if not stable then
-          let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
-          pre_hash_binv bin.v
-        else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
+        let kind = apply x { f = (fun _ v -> I.kind v) } in
+        match kind with
+        | Inode _ ->
+            let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
+            pre_hash_binv bin.v
+        | Node version ->
+            let vs = list x in
+            pre_hash_node (Node.v ~version vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
-        (fun bin -> Truncated (I.of_bin I.Truncated bin))
+        (fun _ -> assert false)
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
     let hash t = apply t { f = (fun _ v -> I.hash v) }
@@ -1121,16 +1172,22 @@ struct
       Partial (layout, I.of_bin layout v)
 
     let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
-    let stable t = apply t { f = (fun _ v -> I.stable v) }
+
+    let stable t =
+      let f _ v = match I.kind v with Node _ -> true | Inode _ -> false in
+      apply t { f }
+
     let length t = apply t { f = (fun _ v -> I.length v) }
     let index = I.index
 
     let integrity_check t =
       let f layout v =
+        let version = match v.I.kind with Node v | Inode v -> v in
+        let conf = conf version in
         let check_stable () =
           let check () = I.check_stable layout v in
           let n = length t in
-          if n > Conf.stable_hash then (not (stable t)) && check ()
+          if n > conf.Conf.stable_hash then (not (stable t)) && check ()
           else stable t && check ()
         in
         let contains_empty_map_non_root () =
@@ -1157,7 +1214,8 @@ module Make_ext
     (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata
-                and type Val.step = Node.step)
+                and type Val.step = Node.step
+                and type Val.version = Node.version)
     (CA : Content_addressable.Maker
             with type key = H.t
              and type index = Pack_index.Make(H).t) =
@@ -1237,7 +1295,9 @@ module Make
     (CA : Content_addressable.Maker
             with type key = H.t
              and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Private.Node.S
+              with type hash = H.t
+               and type version = Conf.version) =
 struct
   module Inter = Make_internal (Conf) (H) (Node)
   include Make_ext (H) (Node) (Inter) (CA)

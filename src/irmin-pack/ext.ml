@@ -16,15 +16,17 @@
 
 open! Import
 module IO = IO.Unix
+module Pack_version = Version
 
 module Maker
     (V : Version.S)
     (Config : Conf.S)
     (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker) =
+    (Commit : Irmin.Private.Commit.Maker with type Version.t = Config.version) =
 struct
   type endpoint = unit
   type info = Commit.Info.t
+  type version = Config.version
 
   module Make
       (M : Irmin.Metadata.S)
@@ -39,6 +41,7 @@ struct
 
     module X = struct
       module Hash = H
+      module Version = Commit.Version
       module Info = Commit.Info
 
       type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
@@ -72,9 +75,12 @@ struct
       end
 
       module Node = struct
-        module Node = Node.Make (H) (P) (M)
+        module Node = Node.Make (Version) (H) (P) (M)
         module CA = Inode.Make (Config) (H) (Pack) (Node)
-        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+
+        include
+          Irmin.Private.Node.Store (Contents) (CA) (Version) (H) (CA.Val) (M)
+            (P)
       end
 
       module Commit = struct
@@ -178,11 +184,11 @@ struct
           Lwt.catch
             (fun () -> unsafe_v config)
             (function
-              | Version.Invalid { expected; found } as e
+              | Pack_version.Invalid { expected; found } as e
                 when expected = V.version ->
                   Log.err (fun m ->
                       m "[%s] Attempted to open store of unsupported version %a"
-                        (Conf.root config) Version.pp found);
+                        (Conf.root config) Pack_version.pp found);
                   Lwt.fail e
               | e -> Lwt.fail e)
 

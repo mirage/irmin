@@ -3,12 +3,16 @@
  (public_name irmin_fsck)
  (package irmin-pack)
  (modules irmin_fsck)
- (libraries irmin-pack irmin-pack.layered))
+ (libraries irmin-pack irmin-pack.layered)
+ (preprocess
+  (pps ppx_irmin)))
 
 (executable
  (name generate)
  (modules generate)
- (libraries irmin-pack irmin-pack.layered))
+ (libraries irmin-pack irmin-pack.layered)
+ (preprocess
+  (pps ppx_irmin)))
 
 (rule
  (alias generate-cli-test-data)

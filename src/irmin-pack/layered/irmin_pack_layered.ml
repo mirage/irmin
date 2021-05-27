@@ -20,8 +20,19 @@ module Maker_ext = Ext_layered.Maker
 module type S = S.Store
 module type Maker = S.Maker
 
-module Maker (Config : Irmin_pack.Conf.S) =
-  Maker_ext (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
+module Maker (Config : Irmin_pack.Conf.S) = struct
+  (* FIXME: duplication *)
+  module Version = struct
+    type t = Config.version
+
+    let t = Config.version_t
+    let default = Config.V0
+  end
+
+  module Info = Irmin.Info.Make (Version)
+  module Commit = Irmin.Private.Commit.Maker (Version) (Info)
+  include Maker_ext (Config) (Irmin.Private.Node) (Commit)
+end
 
 module Checks = Checks
 

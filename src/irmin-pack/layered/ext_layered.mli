@@ -15,6 +15,10 @@
  *)
 
 module Maker
-    (_ : Irmin_pack.Conf.S)
+    (Config : Irmin_pack.Conf.S)
     (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : S.Maker
+    (Commit : Irmin.Private.Commit.Maker with type Version.t = Config.version) :
+  S.Maker
+    with type info = Commit.Info.t
+     and type version = Commit.Version.t
+     and type endpoint = unit

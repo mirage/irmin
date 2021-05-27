@@ -16,26 +16,35 @@
 
 include Info_intf
 
-module Default = struct
+module Make (V : Version.S) = struct
   type author = string [@@deriving irmin]
   type message = string [@@deriving irmin]
+  type version = V.t [@@deriving irmin]
 
-  type t = { date : int64; author : author; message : message }
+  type t = {
+    date : int64;
+    author : author;
+    message : message;
+    version : version;
+  }
   [@@deriving irmin]
 
   type f = unit -> t
 
-  let empty = { date = 0L; author = ""; message = "" }
+  let empty = { date = 0L; author = ""; message = ""; version = V.default }
   let is_empty = Type.(unstage (equal t)) empty
 
-  let v ?(author = "") ?(message = "") date =
-    let r = { date; message; author } in
+  let v ?(author = "") ?(message = "") ?(version = V.default) date =
+    let r = { date; message; author; version } in
     if is_empty r then empty else r
 
   let date t = t.date
   let author t = t.author
   let message t = t.message
+  let version t = t.version
   let none () = empty
 end
+
+module Default = Make (Version.None)
 
 type default = Default.t

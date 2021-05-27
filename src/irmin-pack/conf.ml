@@ -15,8 +15,10 @@
  *)
 
 module type S = sig
-  val entries : int
-  val stable_hash : int
+  type version = V0 | V1 [@@deriving irmin]
+  type t = { max_entries : int; stable_hash : int } [@@deriving irmin]
+
+  val v : version -> t
 end
 
 module Default = struct

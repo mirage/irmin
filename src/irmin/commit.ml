@@ -22,7 +22,9 @@ let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Maker (Info : Info.S) = struct
+module Maker (Version : Version.S) (Info : Info.S with type version = Version.t) =
+struct
+  module Version = Version
   module Info = Info
 
   module Make (H : Type.S) = struct
@@ -559,4 +561,4 @@ module V1 = struct
   end
 end
 
-include Maker (Info.Default)
+include Maker (Version.None) (Info.Default)
