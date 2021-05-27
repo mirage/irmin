@@ -190,12 +190,13 @@ let test_list_refs (module S : G) =
   Lwt.return_unit
 
 let bin_string = Alcotest.testable (Fmt.fmt "%S") ( = )
+let size t v = Option.get Irmin.Type.(unstage (size_of t) v)
 
 let pre_hash t v =
-  let buf = Buffer.create 13 in
+  let buf = Bytes.create (size t v) in
   let pre_hash = Irmin.Type.(unstage (pre_hash t)) in
-  pre_hash v (Buffer.add_string buf);
-  Buffer.contents buf
+  let off = pre_hash v buf 0 in
+  Bytes.sub_string buf 0 off
 
 let test_blobs (module S : S) =
   let str = pre_hash S.Contents.t "foo" in

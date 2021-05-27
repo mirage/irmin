@@ -70,6 +70,11 @@ module Unix : S = struct
     t.offset <- t.offset ++ len;
     if t.offset -- t.flushed > auto_flush_limit then flush t
 
+  let append_directly t size encoding =
+    let byt = Bytes.create size in
+    let off = encoding byt 0 in
+    append t (Bytes.sub_string byt 0 off)
+
   let set t ~off buf =
     if t.readonly then raise S.RO_not_allowed;
     unsafe_flush t;

@@ -255,24 +255,23 @@ module Io (Ff : File_format) = struct
     in
     (header, seq)
 
-  type writer = { path : string; channel : out_channel; buffer : Buffer.t }
+  type writer = { path : string; channel : out_channel; buffer : Bytes.t }
 
   let create_file path header =
     let channel = open_out path in
-    let buffer = Buffer.create 0 in
+    let buffer = Bytes.create 1024 in
     output_string channel (Magic.to_string Ff.magic);
-    encode_i32 (Int32.of_int Ff.Latest.version) (output_string channel);
-    encode_lheader header (Buffer.add_string buffer);
-    Var_int.write (Buffer.length buffer) channel;
-    output_string channel (Buffer.contents buffer);
-    Buffer.clear buffer;
+    let offi = encode_i32 (Int32.of_int Ff.Latest.version) buffer 0 in
+    output_bytes channel (Bytes.sub buffer 0 offi);
+    let offh = encode_lheader header buffer 0 in
+    Var_int.write offh channel;
+    output_bytes channel (Bytes.sub buffer 0 offh);
     { path; channel; buffer }
 
   let append_row { channel; buffer; _ } row =
-    encode_lrow row (Buffer.add_string buffer);
-    Var_int.write (Buffer.length buffer) channel;
-    output_string channel (Buffer.contents buffer);
-    Buffer.clear buffer
+    let off = encode_lrow row buffer 0 in
+    Var_int.write off channel;
+    output_bytes channel (Bytes.sub buffer 0 off)
 
   let flush { channel; _ } = flush channel
   let close { channel; _ } = close_out channel

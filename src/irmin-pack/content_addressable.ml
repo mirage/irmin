@@ -237,6 +237,13 @@ struct
         Lwt.return r)
 
     let auto_flush = 1024
+    let size_of = Irmin.Type.unstage (Irmin.Type.size_of Val.t)
+    let to_bin_string = Irmin.Type.(unstage (to_bin_string Val.t))
+
+    let size_of_v t =
+      match size_of t with
+      | Some n -> n
+      | None -> String.length (to_bin_string t)
 
     let unsafe_append ~ensure_unique ~overcommit t k v =
       if ensure_unique && unsafe_mem t k then ()
@@ -253,7 +260,8 @@ struct
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        IO.append_directly t.pack.block (size_of_v v)
+          (Val.encode_bin ~offset ~dict v k);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, Val.magic v);
         if Tbl.length t.staging >= auto_flush then flush t

@@ -63,7 +63,13 @@ module Typed (K : S) (V : Type.S) = struct
 
   type value = V.t
 
-  let pre_hash = Type.unstage (Type.pre_hash V.t)
+  let old_pre_hash t =
+    let to_bin_string = Type.(unstage (to_bin_string t)) in
+    Type.stage (fun v k ->
+        let s = to_bin_string v in
+        k s)
+
+  let pre_hash = Type.unstage (old_pre_hash V.t)
   let hash v = K.hash (pre_hash v)
 end
 

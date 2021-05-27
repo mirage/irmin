@@ -102,12 +102,9 @@ module Chunk (K : Irmin.Hash.S) = struct
     else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
 
   let to_string t =
-    let buf = Bytes.make t.len '\000' in
-    let b = Buffer.create t.len in
-    encode_bin t.v (Buffer.add_string b);
-    let s = Buffer.contents b in
-    Bytes.blit_string s 0 buf 0 (String.length s);
-    Bytes.unsafe_to_string buf
+    let byt = Bytes.create t.len in
+    let off = encode_bin t.v byt 0 in
+    Bytes.sub_string byt 0 off
 
   let t = Irmin.Type.(map string) of_string to_string
 end
@@ -219,13 +216,25 @@ module Content_addressable (S : Irmin.Append_only.Maker) = struct
       | None -> Lwt.return_none (* shallow objects *)
       | Some x -> Tree.find_leaves t x >|= Option.some
 
+    let size_of = Irmin.Type.unstage (Irmin.Type.size_of V.t)
     let equal_hash = Irmin.Type.(unstage (equal K.t))
     let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
     let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
     let pre_hash = Irmin.Type.(unstage (pre_hash V.t))
 
+    let size_of_v t =
+      match size_of t with
+      | Some n -> n
+      | None -> String.length (to_bin_string t)
+
+    let old_pre_hash v k =
+      let size = size_of_v v in
+      let buf = Bytes.create size in
+      let off = pre_hash v buf 0 in
+      k (Bytes.sub_string buf 0 off)
+
     let check_hash k v =
-      let k' = K.hash (pre_hash v) in
+      let k' = K.hash (old_pre_hash v) in
       if equal_hash k k' then Lwt.return_unit
       else
         Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -263,7 +272,7 @@ module Content_addressable (S : Irmin.Append_only.Maker) = struct
 
     let add t v =
       let buf = to_bin_string v in
-      let key = K.hash (pre_hash v) in
+      let key = K.hash (old_pre_hash v) in
       let+ () = unsafe_add_buffer t key buf in
       key
 
