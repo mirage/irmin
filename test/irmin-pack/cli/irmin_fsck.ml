@@ -17,7 +17,7 @@
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node
+module Node = Irmin.Private.Node.Make
 module Commit = Irmin.Private.Commit
 
 module Conf = struct
@@ -35,10 +35,11 @@ module Maker (V : Irmin_pack.Version.S) = struct
 end
 
 module Store = Irmin_pack.Checks.Make (Maker)
-module M = Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit)
 
 module S =
-  M.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
+  Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit) (Irmin.Metadata.None)
+    (Irmin.Contents.String)
+    (Path)
     (Irmin.Branch.String)
     (Hash)
 

@@ -140,122 +140,128 @@ struct
     list t >>= Lwt_list.iter_p remove_file
 end
 
-module Append_only_ext (IO : IO) (S : Config) = struct
-  module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-    include Read_only_ext (IO) (S) (K) (V)
+module Append_only_ext
+    (IO : IO)
+    (S : Config)
+    (K : Irmin.Type.S)
+    (V : Irmin.Type.S) =
+struct
+  include Read_only_ext (IO) (S) (K) (V)
 
-    let temp_dir t = t.path / "tmp"
-    let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+  let temp_dir t = t.path / "tmp"
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
 
-    let add t key value =
-      Log.debug (fun f -> f "add %a" pp_key key);
-      let file = file_of_key t key in
-      let temp_dir = temp_dir t in
-      IO.file_exists file >>= function
-      | true -> Lwt.return_unit
-      | false ->
-          let str = to_bin_string value in
-          IO.write_file ~temp_dir file str
-  end
+  let add t key value =
+    Log.debug (fun f -> f "add %a" pp_key key);
+    let file = file_of_key t key in
+    let temp_dir = temp_dir t in
+    IO.file_exists file >>= function
+    | true -> Lwt.return_unit
+    | false ->
+        let str = to_bin_string value in
+        IO.write_file ~temp_dir file str
 end
 
-module Atomic_write_ext (IO : IO) (S : Config) = struct
-  module Make (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
-    module RO = Read_only_ext (IO) (S) (K) (V)
-    module W = Irmin.Private.Watch.Make (K) (V)
+module Atomic_write_ext
+    (IO : IO)
+    (S : Config)
+    (K : Irmin.Type.S)
+    (V : Irmin.Type.S) =
+struct
+  module RO = Read_only_ext (IO) (S) (K) (V)
+  module W = Irmin.Private.Watch.Make (K) (V)
 
-    type t = { t : unit RO.t; w : W.t }
-    type key = RO.key
-    type value = RO.value
-    type watch = W.watch * (unit -> unit Lwt.t)
+  type t = { t : unit RO.t; w : W.t }
+  type key = RO.key
+  type value = RO.value
+  type watch = W.watch * (unit -> unit Lwt.t)
 
-    let temp_dir t = t.t.RO.path / "tmp"
+  let temp_dir t = t.t.RO.path / "tmp"
 
-    module E = Ephemeron.K1.Make (struct
-      type t = string
+  module E = Ephemeron.K1.Make (struct
+    type t = string
 
-      let equal x y = compare x y = 0
-      let hash = Hashtbl.hash
-    end)
+    let equal x y = compare x y = 0
+    let hash = Hashtbl.hash
+  end)
 
-    let watches = E.create 10
+  let watches = E.create 10
 
-    let v config =
-      let+ t = RO.v config in
-      let w =
-        let path = RO.get_path config in
-        try E.find watches path
-        with Not_found ->
-          let w = W.v () in
-          E.add watches path w;
-          w
-      in
-      { t; w }
+  let v config =
+    let+ t = RO.v config in
+    let w =
+      let path = RO.get_path config in
+      try E.find watches path
+      with Not_found ->
+        let w = W.v () in
+        E.add watches path w;
+        w
+    in
+    { t; w }
 
-    let close t = W.clear t.w >>= fun () -> RO.close t.t
-    let find t = RO.find t.t
-    let mem t = RO.mem t.t
-    let list t = RO.list t.t
+  let close t = W.clear t.w >>= fun () -> RO.close t.t
+  let find t = RO.find t.t
+  let mem t = RO.mem t.t
+  let list t = RO.list t.t
 
-    let listen_dir t =
-      let dir = S.dir t.t.RO.path in
-      let key file =
-        match Irmin.Type.of_string K.t file with
-        | Ok t -> Some t
-        | Error (`Msg e) ->
-            Log.err (fun l -> l "listen_dir: %s" e);
-            None
-      in
-      W.listen_dir t.w dir ~key ~value:(RO.find t.t)
+  let listen_dir t =
+    let dir = S.dir t.t.RO.path in
+    let key file =
+      match Irmin.Type.of_string K.t file with
+      | Ok t -> Some t
+      | Error (`Msg e) ->
+          Log.err (fun l -> l "listen_dir: %s" e);
+          None
+    in
+    W.listen_dir t.w dir ~key ~value:(RO.find t.t)
 
-    let watch_key t key ?init f =
-      let* stop = listen_dir t in
-      let+ w = W.watch_key t.w key ?init f in
-      (w, stop)
+  let watch_key t key ?init f =
+    let* stop = listen_dir t in
+    let+ w = W.watch_key t.w key ?init f in
+    (w, stop)
 
-    let watch t ?init f =
-      let* stop = listen_dir t in
-      let+ w = W.watch t.w ?init f in
-      (w, stop)
+  let watch t ?init f =
+    let* stop = listen_dir t in
+    let+ w = W.watch t.w ?init f in
+    (w, stop)
 
-    let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
-    let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
+  let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
+  let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
 
-    let set t key value =
-      Log.debug (fun f -> f "update %a" RO.pp_key key);
-      let temp_dir = temp_dir t in
-      let file = RO.file_of_key t.t key in
-      let lock = RO.lock_of_key t.t key in
-      IO.write_file ~temp_dir file ~lock (raw_value value) >>= fun () ->
-      W.notify t.w key (Some value)
+  let set t key value =
+    Log.debug (fun f -> f "update %a" RO.pp_key key);
+    let temp_dir = temp_dir t in
+    let file = RO.file_of_key t.t key in
+    let lock = RO.lock_of_key t.t key in
+    IO.write_file ~temp_dir file ~lock (raw_value value) >>= fun () ->
+    W.notify t.w key (Some value)
 
-    let remove t key =
-      Log.debug (fun f -> f "remove %a" RO.pp_key key);
-      let file = RO.file_of_key t.t key in
-      let lock = RO.lock_of_key t.t key in
-      let* () = IO.remove_file ~lock file in
-      W.notify t.w key None
+  let remove t key =
+    Log.debug (fun f -> f "remove %a" RO.pp_key key);
+    let file = RO.file_of_key t.t key in
+    let lock = RO.lock_of_key t.t key in
+    let* () = IO.remove_file ~lock file in
+    W.notify t.w key None
 
-    let test_and_set t key ~test ~set =
-      Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
-      let temp_dir = temp_dir t in
-      let file = RO.file_of_key t.t key in
-      let lock = RO.lock_of_key t.t key in
-      let raw_value = function None -> None | Some v -> Some (raw_value v) in
-      let* b =
-        IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
-          ~set:(raw_value set)
-      in
-      let+ () = if b then W.notify t.w key set else Lwt.return_unit in
-      b
+  let test_and_set t key ~test ~set =
+    Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
+    let temp_dir = temp_dir t in
+    let file = RO.file_of_key t.t key in
+    let lock = RO.lock_of_key t.t key in
+    let raw_value = function None -> None | Some v -> Some (raw_value v) in
+    let* b =
+      IO.test_and_set_file file ~temp_dir ~lock ~test:(raw_value test)
+        ~set:(raw_value set)
+    in
+    let+ () = if b then W.notify t.w key set else Lwt.return_unit in
+    b
 
-    let clear t =
-      Log.debug (fun f -> f "clear");
-      let remove_file key =
-        IO.remove_file ~lock:(RO.lock_of_key t.t key) (RO.file_of_key t.t key)
-      in
-      list t >>= Lwt_list.iter_p remove_file
-  end
+  let clear t =
+    Log.debug (fun f -> f "clear");
+    let remove_file key =
+      IO.remove_file ~lock:(RO.lock_of_key t.t key) (RO.file_of_key t.t key)
+    in
+    list t >>= Lwt_list.iter_p remove_file
 end
 
 module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct

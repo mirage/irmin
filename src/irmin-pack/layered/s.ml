@@ -32,21 +32,20 @@ module type Store = sig
     list
 end
 
-module type Maker = sig
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) :
-    Store
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-end
+module type Maker = functor
+  (M : Irmin.Metadata.S)
+  (C : Irmin.Contents.S)
+  (P : Irmin.Path.S)
+  (B : Irmin.Branch.S)
+  (H : Irmin.Hash.S)
+  ->
+  Store
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
 
 module type Layered_general = sig
   type 'a t

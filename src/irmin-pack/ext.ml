@@ -72,7 +72,7 @@ struct
       end
 
       module Node = struct
-        module Node = Node.Make (H) (P) (M)
+        module Node = Node (H) (P) (M)
         module CA = Inode.Make (Config) (H) (Pack) (Node)
         include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end

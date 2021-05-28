@@ -38,7 +38,7 @@ module type Specifics = S.Specifics
 let migrate = Migrate.run
 
 module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Private.Node) (Irmin.Private.Commit)
+  Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
 
 module V1 = Maker (struct
   let version = `V1

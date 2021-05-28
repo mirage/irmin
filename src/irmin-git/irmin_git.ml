@@ -231,13 +231,13 @@ struct
 
       module Contents = struct
         module V = Dummy.Contents.Val
-        module CA = CA.Make (Hash) (V)
+        module CA = CA (Hash) (V)
         include Irmin.Contents.Store (CA) (Hash) (V)
       end
 
       module Node = struct
         module V = Dummy.Node.Val
-        module CA = CA.Make (Hash) (V)
+        module CA = CA (Hash) (V)
 
         include
           Irmin.Private.Node.Store (Contents) (CA) (Hash) (V)
@@ -247,14 +247,14 @@ struct
 
       module Commit = struct
         module V = Dummy.Commit.Val
-        module CA = CA.Make (Hash) (V)
+        module CA = CA (Hash) (V)
         include Irmin.Private.Commit.Store (Info) (Node) (CA) (Hash) (V)
       end
 
       module Branch = struct
         module Key = Dummy.Branch.Key
         module Val = Dummy.Branch.Val
-        include AW.Make (Key) (Val)
+        include AW (Key) (Val)
       end
 
       module Slice = Dummy.Slice

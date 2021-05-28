@@ -19,7 +19,7 @@ open! Import
 open Common
 
 module CAS = struct
-  include Irmin.Content_addressable.Make (Irmin_mem.Append_only)
+  module Make = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
 
   let config = Irmin_mem.config ()
 end

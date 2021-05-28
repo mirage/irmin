@@ -126,21 +126,20 @@ module type S = sig
   end
 end
 
-module type Maker = sig
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) :
-    S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-end
+module type Maker = functor
+  (M : Irmin.Metadata.S)
+  (C : Irmin.Contents.S)
+  (P : Irmin.Path.S)
+  (B : Irmin.Branch.S)
+  (H : Irmin.Hash.S)
+  ->
+  S
+    with type key = P.t
+     and type step = P.step
+     and type metadata = M.t
+     and type contents = C.t
+     and type branch = B.t
+     and type hash = H.t
 
 module type Sigs = sig
   module Layer_id : sig

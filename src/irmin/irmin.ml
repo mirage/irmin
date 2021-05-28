@@ -56,26 +56,26 @@ struct
       module Hash = H
 
       module Contents = struct
-        module CA = CA.Make (H) (C)
+        module CA = CA (H) (C)
         include Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
-        module V = N.Make (H) (P) (M)
-        module CA = CA.Make (H) (V)
+        module V = N (H) (P) (M)
+        module CA = CA (H) (V)
         include Node.Store (Contents) (CA) (H) (V) (M) (P)
       end
 
       module Commit = struct
         module C = CT.Make (H)
-        module CA = CA.Make (H) (C)
+        module CA = CA (H) (C)
         include Commit.Store (Info) (Node) (CA) (H) (C)
       end
 
       module Branch = struct
         module Key = B
         module Val = H
-        include AW.Make (Key) (Val)
+        include AW (Key) (Val)
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -125,7 +125,7 @@ struct
 end
 
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
-  Maker_ext (CA) (AW) (Node) (Commit)
+  Maker_ext (CA) (AW) (Node.Make) (Commit)
 
 module Of_private = Store.Make
 

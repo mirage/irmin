@@ -79,13 +79,11 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = sig
-  module Make (K : Type.S) (V : Type.S) : sig
-    include S with type key = K.t and type value = V.t
+module type Maker = functor (K : Type.S) (V : Type.S) -> sig
+  include S with type key = K.t and type value = V.t
 
-    include Of_config with type _ t := t
-    (** @inline *)
-  end
+  include Of_config with type _ t := t
+  (** @inline *)
 end
 
 module type Sigs = sig
