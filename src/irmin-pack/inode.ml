@@ -60,32 +60,12 @@ struct
   module Bin = struct
     open T
 
-    type ptr = { index : int; hash : H.t }
+    type ptr = { index : int; hash : H.t } [@@deriving irmin]
+
     type tree = { depth : int; length : int; entries : ptr list }
-    type v = Values of (step * value) list | Tree of tree
+    [@@deriving irmin]
 
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : ptr) -> t.hash)
-      |> sealr
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.tree" (fun depth length entries -> { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
-
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Bin.v" (fun values tree -> function
-        | Values l -> values l | Tree i -> tree i)
-      |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Tree" tree_t (fun t -> Tree t)
-      |> sealv
+    type v = Values of (step * value) list | Tree of tree [@@deriving irmin]
 
     module V =
       Irmin.Hash.Typed
