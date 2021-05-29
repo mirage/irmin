@@ -29,7 +29,10 @@ module type S = sig
   module Git : Git.S
   (** Access to the underlying Git store. *)
 
-  include Irmin.S with type metadata = Metadata.t and type hash = Git.hash
+  module Schema :
+    Irmin.Schema.S with type Metadata.t = Metadata.t and type Hash.t = Git.hash
+
+  include Irmin.S with module Schema := Schema
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the repository
@@ -53,37 +56,35 @@ module type Maker = sig
   module G : G
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-  type info = Irmin.Info.default
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
+  module Make
+      (Schema : Schema.S
+                  with type Hash.t = G.hash
+                   and type Node.t = G.Value.Tree.t
+                   and type Commit.t = G.Value.Commit.t) :
     S
-      with type key = P.t
-       and type step = P.step
-       and type info = info
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
+      with module Git = G
+       and module Schema := Schema
        and type Private.Remote.endpoint = endpoint
-       and module Git = G
 end
 
 module type KV_maker = sig
   module G : G
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-  type info = Irmin.Info.default
-  type metadata = Metadata.t
   type branch
 
   module Make (C : Irmin.Contents.S) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = branch
-       and type info = info
+      with module Git = G
+       and type Schema.Contents.t = C.t
+       and type Schema.Metadata.t = Metadata.t
+       and type Schema.Info.t = Irmin.Info.default
+       and type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Hash.t = G.hash
+       and type Schema.Branch.t = branch
        and type Private.Remote.endpoint = endpoint
-       and module Git = G
 end
 
 module type Sigs = sig
@@ -91,6 +92,7 @@ module type Sigs = sig
   module Conf = Conf
   module Branch = Branch
   module Reference = Reference
+  module Schema = Schema
 
   (** {2 Module types} *)
 
@@ -137,52 +139,12 @@ module type Sigs = sig
   module KV
       (G : G)
       (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-    KV_maker
-      with module G := G
-       and type branch = string
-       and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+    KV_maker with module G := G and type branch = string
 
   module Ref
       (G : G)
       (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-    KV_maker
-      with module G := G
-       and type branch = Reference.t
-       and type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-
-  (** Duplicate of {!Maker} but with a custom branch implementation. *)
-  module Maker_ext
-      (G : G)
-      (S : Git.Sync.S with type hash := G.hash and type store := G.t) : sig
-    type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-    type info = Irmin.Info.default
-
-    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Branch.S) :
-      S
-        with type key = P.t
-         and type step = P.step
-         and module Key = P
-         and type contents = C.t
-         and type branch = B.t
-         and type Private.Remote.endpoint = endpoint
-         and module Git = G
-  end
-
-  module Generic
-      (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker) : sig
-    type endpoint = unit
-    type info = Irmin.Info.default
-
-    module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
-      Irmin.S
-        with type key = P.t
-         and type step = P.step
-         and module Key = P
-         and type contents = C.t
-         and type branch = B.t
-         and type Private.Remote.endpoint = endpoint
-  end
+    KV_maker with module G := G and type branch = Reference.t
 
   module Generic_KV
       (CA : Irmin.Content_addressable.Maker)

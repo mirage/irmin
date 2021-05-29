@@ -16,17 +16,17 @@
 
 module type S =
   Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
 
 module type Layered_store =
   Irmin_layers.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 

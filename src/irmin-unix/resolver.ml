@@ -268,11 +268,7 @@ module Store = struct
 
   let create : (module Irmin.Maker) -> hash -> contents -> t =
    fun (module S) (module H) (module C) ->
-    let module S =
-      S.Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (H)
-    in
+    let module S = S.Make (Irmin.Schema.KV (C)) in
     T ((module S), None)
 
   let mem = create (module Irmin_mem)

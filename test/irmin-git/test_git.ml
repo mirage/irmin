@@ -41,10 +41,10 @@ end
 
 module type X =
   Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = X.t
-     and type branch = string
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = X.t
+     and type Schema.Branch.t = string
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem

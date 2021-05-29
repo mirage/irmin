@@ -1131,6 +1131,12 @@ struct
 
     let of_concrete t =
       match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
+
+    let merge ~contents ~node : t Irmin.Merge.t =
+      let merge = Node.merge ~contents ~node in
+      let to_node t = v (Node.list t) in
+      let of_node n = Node.v (list n) in
+      Irmin.Merge.like t merge of_node to_node
   end
 end
 

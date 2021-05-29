@@ -14,8 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker
-    (_ : Version.S)
-    (_ : Conf.S)
-    (N : Irmin.Node.Maker)
-    (CT : Irmin.Commit.Maker) : S.Maker with type info = CT.Info.t
+module Maker (_ : Version.S) (_ : Conf.S) : S.Maker

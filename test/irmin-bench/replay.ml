@@ -10,12 +10,8 @@ end
 module Store = struct
   type store_config = string
 
-  open Tezos_context_hash_irmin.Encoding
-
-  module Maker =
-    Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (Conf) (Node) (Commit)
-
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+  module Maker = Irmin_pack.V1 (Conf)
+  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
@@ -86,9 +82,8 @@ let replay_1_commit () =
 module Store_mem = struct
   type store_config = string
 
-  open Tezos_context_hash_irmin.Encoding
-  module Maker = Irmin_pack_mem.Maker (Node) (Commit) (Conf)
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+  module Maker = Irmin_pack_mem.Maker (Conf)
+  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in

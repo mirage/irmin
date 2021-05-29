@@ -36,9 +36,7 @@ module Conf = Conf
 
 let migrate = Migrate.run
 
-module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Node.Make) (Irmin.Commit)
-
+module Maker = Maker_ext
 module V1 = Maker (Version.V1)
 module V2 = Maker (Version.V2)
 
@@ -48,10 +46,8 @@ module KV (V : Version.S) (Config : Conf.S) = struct
   module Maker = Maker (V) (Config)
 
   type metadata = Metadata.t
-  type info = Maker.info
 
-  module Make (C : Irmin.Contents.S) =
-    Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
 end
 
 module Stats = Stats
@@ -61,8 +57,8 @@ module Inode = Inode
 module IO = IO
 module Utils = Utils
 module Pack_value = Pack_value
-module Vx = Version.V1
 module Pack_store = Pack_store
+module Vx = Version.V1
 
 module Cx = struct
   let stable_hash = 0
@@ -72,5 +68,5 @@ end
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
 module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
 
-(* Enforce that {!KV} is a sub-type of {!Irmin.Maker}. *)
+(* Enforce that {!Maker} is a sub-type of {!Irmin.Maker}. *)
 module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)

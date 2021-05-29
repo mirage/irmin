@@ -432,6 +432,7 @@ end
 module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
   module X = struct
     module Hash = S.Hash
+    module Schema = S.Schema
 
     module Contents = struct
       module X = struct

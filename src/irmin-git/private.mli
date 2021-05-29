@@ -23,24 +23,19 @@ end
 module Make
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Branch.S) : sig
+    (Schema : Schema.S
+                with type Hash.t = G.hash
+                 and type Node.t = G.Value.Tree.t
+                 and type Commit.t = G.Value.Commit.t) : sig
   type t := bool ref * G.t
 
   include
     Irmin.Private.S
+      with module Schema = Schema
       with type 'a Contents.t = t
        and type 'a Node.t = t * t
        and type 'a Commit.t = (t * t) * t
        and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-       and type Contents.value = C.t
-       and type Hash.t = G.Hash.t
-       and type Node.Path.t = P.t
-       and type Node.Path.step = P.step
-       and type Node.Metadata.t = Metadata.t
-       and type Branch.key = B.t
-       and module Commit.Info = Irmin.Info.Default
 
   val git_of_repo : Repo.t -> G.t
 

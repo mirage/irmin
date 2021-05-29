@@ -31,16 +31,15 @@ module IO_layers = IO_layers.IO
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Maker
-    (Config : Conf.Pack.S)
-    (Node : Irmin.Node.Maker)
-    (Commit : Irmin.Commit.Maker)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
+module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
+  open struct
+    module C = Schema.Contents
+    module M = Schema.Metadata
+    module P = Schema.Path
+    module B = Schema.Branch
+  end
+
+  module H = Schema.Hash
   module Index = Irmin_pack.Index.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
 
@@ -50,8 +49,8 @@ struct
     | Content_t : H.t -> store_handle
 
   module X = struct
+    module Schema = Schema
     module Hash = H
-    module Info = Commit.Info
 
     module Contents = struct
       module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
@@ -67,21 +66,25 @@ struct
 
     module Node = struct
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
-      module Node = Node (H) (P) (M)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
+      module CA = Inode_layers.Make (Config) (H) (Pa) (Schema.Node)
       include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
     end
 
     module Commit = struct
-      module Commit = Commit.Make (H)
-      module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
+      module Pack_value =
+        Irmin_pack.Pack_value.Of_commit
+          (H)
+          (struct
+            module Info = Schema.Info
+            include Schema.Commit
+          end)
 
       module CA = struct
         module CA = Pack.Make (Pack_value)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Commit.Store (Info) (Node) (CA) (H) (Commit)
+      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Schema.Commit)
     end
 
     module Branch = struct
@@ -859,4 +862,10 @@ struct
     let freeze' = freeze'
     let upper_in_use = upper_in_use
   end
+end
+
+module Maker (C : Conf.Pack.S) = struct
+  type endpoint = unit
+
+  module Make (S : Irmin.Schema.S) = Maker' (C) (S)
 end

@@ -36,15 +36,21 @@ let remote ?(ctx = Mimic.empty) ?headers uri =
 module Maker (G : Irmin_git.G) = struct
   module G = G
 
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
   module Maker = struct
     module S = Irmin_git.Maker (G) (Git_unix.Sync (G) (Git_cohttp_unix))
     module KV = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix))
     module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G) (Git_cohttp_unix))
   end
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
+  module Make
+      (S : Irmin_git.Schema.S
+             with type Hash.t = G.hash
+              and type Node.t = G.Value.Tree.t
+              and type Commit.t = G.Value.Commit.t) =
   struct
-    include Maker.S.Make (C) (P) (B)
+    include Maker.S.Make (S)
 
     let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
   end

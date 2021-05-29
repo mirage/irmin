@@ -49,7 +49,7 @@ module Store
     (N : Node.Store)
     (S : Content_addressable.S with type key = N.key)
     (K : Hash.S with type t = S.key)
-    (V : S with type hash = S.key and type t = S.value and module Info = I) =
+    (V : S with type hash = S.key and type t = S.value and module Info := I) =
 struct
   module Node = N
   module Val = V
@@ -493,9 +493,7 @@ end
 
 module V1 = struct
   module Info = struct
-    open Info.Default
-
-    type nonrec t = t
+    include Info.Default
 
     let t : t Type.t =
       let open Type in

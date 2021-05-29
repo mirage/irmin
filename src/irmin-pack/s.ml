@@ -85,24 +85,9 @@ module S_is_a_store (X : S) : Irmin.S = X
 
 module type Maker = sig
   type endpoint = unit
-  type info
 
-  module Make
-      (Metadata : Irmin.Metadata.S)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S) :
-    S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Remote.endpoint = endpoint
-       and type info = info
+  module Make (Schema : Irmin.Schema.S) :
+    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
 end
 
 module Maker_is_a_maker (X : Maker) : Irmin.Maker with type endpoint = unit = X

@@ -30,11 +30,12 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Store =
-  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.BLAKE2B)
+module Schema = Irmin.Schema.KV (Irmin.Contents.String)
+
+module Store = struct
+  open Irmin_pack_layered.Maker (Conf)
+  include Make (Schema)
+end
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in

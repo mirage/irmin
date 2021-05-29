@@ -32,20 +32,16 @@ module type Store = sig
     list
 end
 
-module type Maker = functor
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  ->
-  Store
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+module type Maker = sig
+  type endpoint = unit
+
+  module Make (Schema : Irmin.Schema.S) :
+    Store
+      with module Schema = Schema
+       and type Private.Remote.endpoint = endpoint
+end
+
+module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
 
 module type Layered_general = sig
   type 'a t

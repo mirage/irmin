@@ -23,6 +23,7 @@ let src = Logs.Src.create "irmin" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (P : Private.S) = struct
+  module Schema = P.Schema
   module Metadata = P.Node.Metadata
   module Hash = P.Hash
   module Branch_store = P.Branch
@@ -1085,7 +1086,8 @@ module Make (P : Private.S) = struct
   let commit_t = Commit.t
 end
 
-module Json_tree (Store : S with type contents = Contents.json) = struct
+module Json_tree (Store : S with type Schema.Contents.t = Contents.json) =
+struct
   include Contents.Json_value
 
   type json = Contents.json
