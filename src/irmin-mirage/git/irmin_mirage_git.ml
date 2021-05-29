@@ -31,11 +31,17 @@ let remote ?(ctx = Mimic.empty) ?headers uri =
   | Error (`Msg err) -> Fmt.invalid_arg "remote: %s" err
 
 module Maker (G : Irmin_git.G) = struct
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
   module Maker = Irmin_git.Maker (G) (Git.Mem.Sync (G) (Git_paf))
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) =
+  module Make
+      (S : Irmin_git.Schema.S
+             with type hash = G.hash
+             with type node = G.Value.Tree.t
+              and type commit = G.Value.Commit.t) =
   struct
-    include Maker.Make (C) (P) (B)
+    include Maker.Make (S)
 
     let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
   end
@@ -43,8 +49,10 @@ end
 
 module Ref (G : Irmin_git.G) = struct
   module Maker = Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_paf))
+  module G = G
 
   type branch = Maker.branch
+  type endpoint = Maker.endpoint
 
   module Make (C : Irmin.Contents.S) = struct
     include Maker.Make (C)
@@ -55,7 +63,9 @@ end
 
 module KV (G : Irmin_git.G) = struct
   module Maker = Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_paf))
+  module G = G
 
+  type endpoint = Maker.endpoint
   type branch = Maker.branch
 
   module Make (C : Irmin.Contents.S) = struct
@@ -339,8 +349,8 @@ module Mem = struct
     module KV = KV (G)
   end
 
-  module Ref = Maker.Ref.Make
-  module KV = Maker.KV.Make
+  module Ref = Maker.Ref
+  module KV = Maker.KV
   module KV_RO = KV_RO (G)
   module KV_RW = KV_RW (G)
 end

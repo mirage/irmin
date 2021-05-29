@@ -14,35 +14,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type G = sig
-  include Git.S
+module type S = sig
+  type branch
 
-  val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
-end
-
-module Make
-    (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (Schema : Schema.S
-                with type hash = G.hash
-                 and type node = G.Value.Tree.t
-                 and type commit = G.Value.Commit.t) : sig
-  type t := bool ref * G.t
+  module Branch : Branch.S with type t = branch
 
   include
-    Irmin.Private.S
-      with module Schema = Schema
-      with type 'a Contents.t = t
-       and type 'a Node.t = t * t
-       and type 'a Commit.t = (t * t) * t
-       and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+    Irmin.Schema.S
+      with type metadata = Metadata.t
+       and type branch := Branch.t
+       and module Branch := Branch
+       and type info = Irmin.Info.default
+       and type step = string
+       and type path = string list
+end
 
-  val git_of_repo : Repo.t -> G.t
+module type Sigs = sig
+  module type S = S
 
-  val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    G.t ->
-    Repo.t Lwt.t
+  module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) :
+    S
+      with type hash = G.hash
+       and type contents = V.t
+       and type branch = B.t
+       and type node = G.Value.Tree.t
+       and type commit = G.Value.Commit.t
 end

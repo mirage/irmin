@@ -14,35 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type G = sig
-  include Git.S
+include Schema_intf
 
-  val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
-end
+module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) = struct
+  module Metadata = Metadata
+  module Contents = V
+  module Path = Irmin.Path.String_list
+  module Branch = B
+  module Hash = Irmin.Hash.Make (G.Hash)
+  module Node = Node.Make (G) (Path)
+  module Commit = Commit.Make (G)
+  module Info = Irmin.Info.Default
 
-module Make
-    (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (Schema : Schema.S
-                with type hash = G.hash
-                 and type node = G.Value.Tree.t
-                 and type commit = G.Value.Commit.t) : sig
-  type t := bool ref * G.t
-
-  include
-    Irmin.Private.S
-      with module Schema = Schema
-      with type 'a Contents.t = t
-       and type 'a Node.t = t * t
-       and type 'a Commit.t = (t * t) * t
-       and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-
-  val git_of_repo : Repo.t -> G.t
-
-  val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    G.t ->
-    Repo.t Lwt.t
+  type hash = Hash.t
+  type branch = Branch.t
+  type info = Info.t
+  type commit = Commit.t
+  type metadata = Metadata.t
+  type step = Path.step
+  type path = Path.t
+  type node = Node.t
+  type contents = Contents.t
 end

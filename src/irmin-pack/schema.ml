@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,5 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Inode_layers_intf.Sigs
-(** @inline *)
+include Schema_intf

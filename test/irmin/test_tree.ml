@@ -26,13 +26,32 @@ module Metadata = struct
   let default = Default
 end
 
-module Store =
-  Irmin_mem.Make (Metadata) (Contents.String) (Path.String_list) (Branch.String)
-    (Hash.BLAKE2B)
+module Schema = struct
+  module Metadata = Metadata
+  module Contents = Contents.String
+  module Path = Path.String_list
+  module Branch = Branch.String
+  module Hash = Hash.BLAKE2B
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default
 
+  type hash = Hash.t
+  type branch = Branch.t
+  type info = Info.t
+  type commit = Commit.t
+  type metadata = Metadata.t
+  type step = Path.step
+  type path = Path.t
+  type node = Node.t
+  type contents = Contents.t
+end
+
+module Store = Irmin_mem.Make (Schema)
 module Tree = Store.Tree
+open Schema
 
-type diffs = (string list * (Contents.String.t * Metadata.t) Diff.t) list
+type diffs = (string list * (Contents.t * Metadata.t) Diff.t) list
 [@@deriving irmin]
 
 type kind = [ `Contents | `Node ] [@@deriving irmin]
@@ -52,7 +71,7 @@ module Alcotest = struct
 end
 
 let ( >> ) f g x = g (f x)
-let c ?(info = Metadata.Default) blob = `Contents (blob, info)
+let c ?(info = Metadata.default) blob = `Contents (blob, info)
 
 let invalid_tree () =
   let+ repo = Store.Repo.v (Irmin_mem.config ()) in

@@ -41,7 +41,7 @@ type config = {
 module type Store = sig
   type store_config = config
 
-  include Irmin.KV with type contents = bytes
+  include Irmin.KV with type Schema.contents = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
@@ -69,8 +69,6 @@ module Benchmark = struct
     Format.fprintf ppf "Total time: %f@\nSize on disk: %d M" result.time
       result.size
 end
-
-module Hash = Irmin.Hash.SHA1
 
 module Bench_suite (Store : Store) = struct
   module Info = Info (Store.Info)
@@ -169,12 +167,7 @@ struct
   type store_config = config
 
   open Tezos_context_hash_irmin.Encoding
-
-  module Store =
-    Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit) (Metadata) (Contents)
-      (Path)
-      (Branch)
-      (Hash)
+  module Store = Irmin_pack_layered.Maker (Conf) (Schema)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -210,13 +203,8 @@ struct
   type store_config = config
 
   open Tezos_context_hash_irmin.Encoding
-
-  module V1 = struct
-    let version = `V1
-  end
-
-  module Maker = Irmin_pack.Maker_ext (V1) (Conf) (Node) (Commit)
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+  module Maker = Irmin_pack.V1 (Conf)
+  module Store = Maker.Make (Schema)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in

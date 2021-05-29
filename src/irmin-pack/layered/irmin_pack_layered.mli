@@ -42,11 +42,5 @@ end
 
 module type Maker = S.Maker
 
-module Maker (_ : Irmin_pack.Conf.S) : Maker
-
-module Maker_ext
-    (_ : Irmin_pack.Conf.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : Maker
-
+module Maker : Maker
 module Checks = Checks

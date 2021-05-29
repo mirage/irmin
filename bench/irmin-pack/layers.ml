@@ -32,8 +32,6 @@ type config = {
 }
 [@@deriving repr]
 
-module Hash = Irmin.Hash.SHA1
-
 module Contents = struct
   type t = bytes
 
@@ -44,12 +42,28 @@ module Contents = struct
   let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
 end
 
-module Store =
-  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Contents)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
+module Schema = struct
+  module Metadata = Irmin.Metadata.None
+  module Contents = Contents
+  module Path = Irmin.Path.String_list
+  module Branch = Irmin.Branch.String
+  module Hash = Irmin.Hash.SHA1
+  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Commit = Irmin.Commit.Make (Hash)
+  module Info = Irmin.Info.Default
 
+  type hash = Hash.t
+  type branch = Branch.t
+  type info = Info.t
+  type commit = Commit.t
+  type metadata = Metadata.t
+  type step = Path.step
+  type path = Path.t
+  type node = Node.t
+  type contents = Contents.t
+end
+
+module Store = Irmin_pack_layered.Maker (Conf) (Schema)
 module Info = Info (Store.Info)
 
 let configure_store root merge_throttle freeze_throttle =

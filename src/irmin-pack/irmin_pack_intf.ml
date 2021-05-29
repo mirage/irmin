@@ -14,9 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Maker = functor (_ : Conf.S) -> sig
-  include S.Maker
-  (** @inline *)
+module type Maker = sig
+  type endpoint = unit
+
+  module Make (Schema : Irmin.Schema.S) :
+    S.S (* FIXME: we just want to "forget" about node equality *)
+      with type Schema.hash = Schema.hash
+       and type Schema.branch = Schema.branch
+       and type Schema.info = Schema.info
+       and type Schema.commit = Schema.commit
+       and type Schema.metadata = Schema.metadata
+       and type Schema.step = Schema.step
+       and type Schema.path = Schema.path
+       and type Schema.contents = Schema.contents
+       and type Private.Remote.endpoint = endpoint
 end
 
 module type Sigs = sig

@@ -58,10 +58,10 @@ let exec_cmd cmd =
 module type Migrate_store = sig
   include
     Irmin.S
-      with type step = string
-       and type key = string list
-       and type contents = string
-       and type branch = string
+      with type Schema.step = string
+       and type Schema.path = string list
+       and type Schema.contents = string
+       and type Schema.branch = string
 
   val migrate : Irmin.config -> unit
 end
@@ -161,26 +161,15 @@ module Config_store = struct
           cmd n
 end
 
-module Hash = Irmin.Hash.SHA1
-
-module V1_maker = Irmin_pack.V1 (struct
+module Small_conf = struct
   let entries = 2
   let stable_hash = 3
-end)
+end
 
+module V1_maker = Irmin_pack.V1 (Small_conf)
 module V2_maker = Irmin_pack.V2 (Conf)
-
-module V1 () =
-  V1_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
-
-module V2 () =
-  V2_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
+module V1 () = V1_maker.Make (Schema)
+module V2 () = V2_maker.Make (Schema)
 
 module Test_store = struct
   module S = V2 ()
@@ -241,14 +230,14 @@ module Test_reconstruct = struct
       (fun k (offset, length, magic) ->
         Log.debug (fun l ->
             l "index find k = %a (off, len, magic) = (%a, %d, %c)"
-              (Irmin.Type.pp Hash.t) k Int63.pp offset length magic);
+              (Irmin.Type.pp S.Hash.t) k Int63.pp offset length magic);
         match Index.find index_new k with
         | Some (offset', length', magic') ->
             Alcotest.(check int63) "check offset" offset offset';
             Alcotest.(check int) "check length" length length';
             Alcotest.(check char) "check magic" magic magic'
         | None ->
-            Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
+            Alcotest.failf "expected to find hash %a" (Irmin.Type.pp S.Hash.t) k)
       index_old;
     Index.close index_old;
     Index.close index_new;
@@ -287,12 +276,7 @@ module Config_layered_store = struct
     exec_cmd cmd
 end
 
-module Make_layered =
-  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
-
+module Make_layered = Irmin_pack_layered.Maker (Conf) (Schema)
 module Test_layered_store = Test (Make_layered) (Config_layered_store)
 
 module Test_corrupted_stores = struct
@@ -328,14 +312,17 @@ module Test_corrupted_stores = struct
     let* rw = S.Repo.v (config ~fresh:false root) in
     Log.app (fun l ->
         l "integrity check on a store where 3 entries are missing from pack");
-    (match S.integrity_check ~auto_repair:false rw with
+    let* r = S.integrity_check ~auto_repair:false rw in
+    (match r with
     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
     | Error (`Corrupted 3) -> ()
     | _ -> Alcotest.fail "With auto_repair:false should not match");
-    (match S.integrity_check ~auto_repair:true rw with
+    let* r = S.integrity_check ~auto_repair:true rw in
+    (match r with
     | Ok (`Fixed 3) -> ()
     | _ -> Alcotest.fail "Integrity check should repair the store");
-    (match S.integrity_check ~auto_repair:false rw with
+    let* r = S.integrity_check ~auto_repair:false rw in
+    (match r with
     | Ok `No_error -> ()
     | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
@@ -460,7 +447,7 @@ module Test_corrupted_inode = struct
     let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
-      match Irmin.Type.of_string Hash.t c with
+      match Irmin.Type.of_string S.Hash.t c with
       | Ok x -> (
           let* commit = S.Commit.of_hash rw x in
           match commit with
@@ -472,21 +459,19 @@ module Test_corrupted_inode = struct
         l "integrity check of inodes on a store with one corrupted inode");
     let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
     let* heads = get_head c2 in
-    let* result = S.integrity_check_inodes ~heads rw in
+    let* result = S.integrity_check ~auto_repair:false ~heads rw in
     (match result with
-    | Ok (`Msg msg) ->
+    | Ok _ ->
         Alcotest.failf
-          "Store is corrupted for second commit, the check should fail %s" msg
+          "Store is corrupted for second commit, the check should fail"
     | Error _ -> ());
     let c1 = "1b1e259ca4e7bb8dc32c73ade93d8181c29cebe6" in
     let* heads = get_head c1 in
-    let* result = S.integrity_check_inodes ~heads rw in
+    let* result = S.integrity_check ~auto_repair:false ~heads rw in
     (match result with
-    | Error (`Msg msg) ->
-        Alcotest.failf
-          "Store is not corrupted for first commit, the check should not fail \
-           %s"
-          msg
+    | Error _ ->
+        Alcotest.fail
+          "Store is not corrupted for first commit, the check should not fail."
     | Ok _ -> ());
     S.Repo.close rw
 end

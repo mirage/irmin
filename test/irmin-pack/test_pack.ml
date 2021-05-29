@@ -17,10 +17,6 @@
 open! Import
 open Common
 
-module V2 = struct
-  let version = `V2
-end
-
 module Config = struct
   let entries = 2
   let stable_hash = 3
@@ -28,9 +24,13 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker =
-  Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node.Make)
-    (Irmin.Private.Commit)
+module Irmin_pack_maker = Irmin_pack.V2 (Config)
+
+module Irmin_pack_layered = struct
+  type endpoint = unit
+
+  module Make (S : Irmin.Schema.S) = Irmin_pack_layered.Maker (Config) (S)
+end
 
 let suite =
   let store =
@@ -38,7 +38,7 @@ let suite =
   in
   let layered_store =
     Irmin_test.layered_store
-      (module Irmin_pack_layered.Maker (Config))
+      (module Irmin_pack_layered)
       (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in

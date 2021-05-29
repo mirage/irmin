@@ -14,35 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type G = sig
-  include Git.S
-
-  val v : ?dotgit:Fpath.t -> Fpath.t -> (t, error) result Lwt.t
-end
-
-module Make
-    (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (Schema : Schema.S
-                with type hash = G.hash
-                 and type node = G.Value.Tree.t
-                 and type commit = G.Value.Commit.t) : sig
-  type t := bool ref * G.t
-
-  include
-    Irmin.Private.S
-      with module Schema = Schema
-      with type 'a Contents.t = t
-       and type 'a Node.t = t * t
-       and type 'a Commit.t = (t * t) * t
-       and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
-
-  val git_of_repo : Repo.t -> G.t
-
-  val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    G.t ->
-    Repo.t Lwt.t
-end
+include Schema_intf.Sigs

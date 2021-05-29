@@ -29,12 +29,16 @@ end
 
 let log_size = 1000
 
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
-module Index = Irmin_pack.Index.Make (H)
-module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
-module Inode = Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (P)
+module Schema = Irmin_pack.Inode.Schema (Conf) (Schema)
+
+module Contents = struct
+  include Irmin.Contents.Store (Pack) (Schema.Hash) (Schema.Contents)
+
+  let v = Pack.v
+end
+
+module I = Maker.Make (Schema.Node.Raw)
+module Inode = Irmin_pack.Inode.Store (Schema) (Contents) (I)
 
 module Context = struct
   type t = {
@@ -46,9 +50,16 @@ module Context = struct
   let get_store ?(lru_size = 0) () =
     rm_dir root;
     let index = Index.v ~log_size ~fresh:true root in
-    let+ store = Inode.v ~fresh:true ~lru_size ~index root in
+    let+ store =
+      (* FIXME: ~fresh:true doesn't work here *)
+      let* c = Contents.v ~fresh:false ~lru_size ~index root in
+      let+ s = I.v ~fresh:true ~lru_size ~index root in
+      (c, s)
+    in
     let clone ~readonly =
-      Inode.v ~lru_size ~fresh:false ~readonly ~index root
+      let* c = Contents.v ~lru_size ~fresh:false ~readonly ~index root in
+      let+ s = I.v ~lru_size ~fresh:false ~readonly ~index root in
+      (c, s)
     in
 
     { index; store; clone }
@@ -58,14 +69,16 @@ module Context = struct
     Inode.close t.store
 end
 
-type pred = [ `Contents of H.t | `Inode of H.t | `Node of H.t ]
+open Schema
+
+type pred = [ `Contents of Hash.t | `Inode of Hash.t | `Node of Hash.t ]
 [@@deriving irmin]
 
 let pp_pred = Irmin.Type.pp pred_t
 
 module H_contents =
   Irmin.Hash.Typed
-    (H)
+    (Hash)
     (struct
       type t = string
 
@@ -126,7 +139,7 @@ module Inode_permutations_generator = struct
           let is_valid =
             indices
             |> List.mapi (fun depth i -> (depth, i))
-            |> List.for_all (fun (depth, i) -> Inter.Val.index ~depth s = i)
+            |> List.for_all (fun (depth, i) -> Node.index ~depth s = i)
           in
           if is_valid then s else aux (i + 1)
       in
@@ -207,14 +220,14 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let h = Inter.Val.hash v in
+  let h = Node.hash v in
   let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
 let check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-  | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+  | Ok hash -> check_hash msg hash (Node.hash v)
 
 (** Test add values from an empty node. *)
 let test_add_values () =
@@ -230,8 +243,8 @@ let test_add_values () =
   Context.close t
 
 let integrity_check ?(stable = true) v =
-  Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
-  if not (Inter.Val.integrity_check v) then
+  Alcotest.(check bool) "check stable" (Node.stable v) stable;
+  if not (Node.integrity_check v) then
     Alcotest.failf "node does not satisfy stability invariants %a"
       (Irmin.Type.pp Inode.Val.t)
       v
@@ -239,7 +252,9 @@ let integrity_check ?(stable = true) v =
 (** Test add to inodes. *)
 let test_add_inodes () =
   rm_dir root;
+  Fmt.epr "XXX 0\n%!";
   let* t = Context.get_store () in
+  Fmt.epr "XXX 1\n%!";
   let v1 = Inode.Val.v [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
   let v3 =
@@ -432,7 +447,7 @@ let test_intermediate_inode_as_root () =
   in
   let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
   let (`Inode h_depth1) =
-    match Inode.Val.pred v0 with
+    match Inode.Val.values v0 with
     | [ (`Inode _ as pred) ] -> pred
     | l ->
         Alcotest.failf
@@ -479,18 +494,18 @@ let test_intermediate_inode_as_root () =
 let test_concrete_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
-  let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
-  let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
+  let pp_concrete = Irmin.Type.pp_json ~minify:false Node.Concrete.t in
+  let result_t = Irmin.Type.result Inode.Val.t Node.Concrete.error_t in
   let testable =
     Alcotest.testable
       (Irmin.Type.pp_json ~minify:false result_t)
       Irmin.Type.(unstage (equal result_t))
   in
   let check v =
-    let len = Inter.Val.length v in
+    let len = Node.length v in
     integrity_check ~stable:(len <= Conf.stable_hash) v;
-    let c = Inter.Val.to_concrete v in
-    let r = Inter.Val.of_concrete c in
+    let c = Node.to_concrete v in
+    let r = Node.of_concrete c in
     let msg = Fmt.str "%a" pp_concrete c in
     Alcotest.check testable msg (Ok v) r
   in

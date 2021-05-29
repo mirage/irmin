@@ -26,28 +26,35 @@ end
 module type Maker = sig
   module G : Irmin_git.G
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
+  module Make
+      (Schema : Irmin_git.Schema.S
+                  with type hash = G.hash
+                  with type node = G.Value.Tree.t
+                   and type commit = G.Value.Commit.t) :
     S
-      with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and module Git = G
+      with module Git = G
+       and type Private.Remote.endpoint = endpoint
+       and module Schema := Schema
 end
 
 module type KV_maker = sig
   module G : Irmin_git.G
 
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
   type branch
 
   module Make (C : Irmin.Contents.S) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = branch
-       and module Git = G
+      with module Git = G
+       and type Schema.contents = C.t
+       and type Schema.metadata = Irmin_git.Metadata.t
+       and type Schema.info = Irmin.Info.default
+       and type Schema.step = string
+       and type Schema.hash = G.hash
+       and type Schema.branch = branch
+       and type Private.Remote.endpoint = endpoint
 end
 
 module type KV_RO = sig

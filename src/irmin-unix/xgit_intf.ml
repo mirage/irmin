@@ -34,36 +34,41 @@ module type Backend = sig
 
   module G : Irmin_git.G
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
+
+  module Make
+      (Schema : Irmin_git.Schema.S
+                  with type hash = G.hash
+                   and type node = G.Value.Tree.t
+                   and type commit = G.Value.Commit.t) :
     S
-      with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and type info = Irmin.Info.default
-       and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with module Git = G
+       and type Private.Remote.endpoint = endpoint
+       and module Schema := Schema
 
   module KV (C : Irmin.Contents.S) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = string
-       and type info = Irmin.Info.default
-       and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with module Git = G
+       and type Schema.contents = C.t
+       and type Schema.metadata = Irmin_git.Metadata.t
+       and type Schema.info = Irmin.Info.default
+       and type Schema.step = string
+       and type Schema.path = string list
+       and type Schema.hash = G.hash
+       and type Schema.branch = string
+       and type Private.Remote.endpoint = endpoint
 
   module Ref (C : Irmin.Contents.S) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = Irmin_git.reference
-       and type info = Irmin.Info.default
-       and module Git = G
-       and type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with module Git = G
+       and type Schema.contents = C.t
+       and type Schema.metadata = Irmin_git.Metadata.t
+       and type Schema.info = Irmin.Info.default
+       and type Schema.step = string
+       and type Schema.path = string list
+       and type Schema.hash = G.hash
+       and type Schema.branch = Irmin_git.reference
+       and type Private.Remote.endpoint = endpoint
 end
 
 module type Sigs = sig

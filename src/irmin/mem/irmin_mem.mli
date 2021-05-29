@@ -32,8 +32,8 @@ module Content_addressable : Irmin.Content_addressable.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
 (** An in-memory store with atomic-write guarantees. *)
 
-module KV : Irmin.KV_maker with type metadata = unit
-(** Constructor for in-memory KV stores. Subtype of {!Irmin.KV_maker}. *)
+(** Constructor for in-memory KV stores. *)
+module KV : Irmin.KV_maker with type endpoint = unit and type metadata = unit
 
-include Irmin.Maker
+include Irmin.Maker with type endpoint = unit
 (** Constructor for in-memory Irmin store. *)

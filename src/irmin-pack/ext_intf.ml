@@ -13,38 +13,14 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-type config = {
-  ncommits_trace : int;
-  store_dir : string;
-  path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
-  inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered ];
-  commit_data_file : string;
-  artefacts_dir : string;
-  keep_store : bool;
-  keep_stat_trace : bool;
-  no_summary : bool;
-  empty_blobs : bool;
-}
 
-module type Store = sig
-  type store_config
+module type Maker = sig
+  type endpoint = unit
 
-  include Irmin.KV with type Schema.contents = bytes
-
-  type on_commit := int -> Hash.t -> unit Lwt.t
-  type on_end := unit -> unit Lwt.t
-  type pp := Format.formatter -> unit
-
-  val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
+  module Make (Schema : Schema.S) :
+    S.S with module Schema = Schema and type Private.Remote.endpoint = endpoint
 end
 
 module type Sigs = sig
-  type nonrec config = config
-
-  module type Store = Store
-
-  module Make (Store : Store) : sig
-    val run : Store.store_config -> config -> (Format.formatter -> unit) Lwt.t
-  end
+  module type Maker = Maker
 end

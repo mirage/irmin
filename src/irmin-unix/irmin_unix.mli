@@ -52,10 +52,10 @@ module FS : sig
   module Atomic_write : Irmin.Atomic_write.Maker
   (** Atomic-write store maker. *)
 
-  include Irmin.Maker with type info = Irmin.Info.default
+  include Irmin.Maker
   (** Irmin store maker. *)
 
-  module KV : Irmin.KV_maker with type info = Irmin.Info.default
+  module KV : Irmin.KV_maker
   (** Irmin store make, where only the Contents have to be specified: branches
       are strings and paths are string lists. *)
 
@@ -94,16 +94,8 @@ module Http : sig
       Only the {{!Irmin.S.Private} low-level operations} are forwarded to the
       server, all the high-level logic is done on the client. Hence a high-level
       operation might take multiple RTTs. *)
-  module Client (S : Irmin.S) :
-    Irmin.S
-      with type key = S.key
-       and type contents = S.contents
-       and type branch = S.branch
-       and type hash = S.hash
-       and type step = S.step
-       and type info = S.info
-       and type metadata = S.metadata
-       and type Key.step = S.Key.step
+  module Client (S : Irmin.Schema.S) :
+    Irmin.S with module Schema = S and type Private.Remote.endpoint = unit
 
   (** {1 HTTP server} *)
 

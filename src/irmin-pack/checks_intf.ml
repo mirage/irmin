@@ -67,7 +67,12 @@ module type S = sig
   (** Checks the integrity of a store *)
   module Integrity_check : sig
     include
-      Subcommand with type run := root:string -> auto_repair:bool -> unit Lwt.t
+      Subcommand
+        with type run :=
+              root:string ->
+              auto_repair:bool ->
+              heads:string list option ->
+              unit Lwt.t
 
     val handle_result :
       ?name:string ->
@@ -75,13 +80,6 @@ module type S = sig
         [< `Cannot_fix of string | `Corrupted of int ] )
       result ->
       unit
-  end
-
-  (** Checks the integrity of inodes in a store *)
-  module Integrity_check_inodes : sig
-    include
-      Subcommand
-        with type run := root:string -> heads:string list option -> unit Lwt.t
   end
 
   val cli :
@@ -97,10 +95,10 @@ end
 
 module type Maker = functor (_ : Version.S) -> Versioned_store
 
-type integrity_error = [ `Wrong_hash | `Absent_value ]
+type integrity_error = [ `Wrong_hash | `Absent_value | `Wrong_value ]
 
 module type Sigs = sig
-  type integrity_error = [ `Wrong_hash | `Absent_value ]
+  type nonrec integrity_error = integrity_error
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t
@@ -118,11 +116,11 @@ module type Sigs = sig
       ?ppf:Format.formatter ->
       auto_repair:bool ->
       check:
-        (kind:[> `Commit | `Contents | `Node ] ->
+        (kind:[ `Commit | `Contents | `Node ] ->
         offset:int63 ->
         length:int ->
         Index.key ->
-        (unit, [< `Absent_value | `Wrong_hash ]) result) ->
+        (unit, integrity_error) result) ->
       Index.t ->
       ( [> `Fixed of int | `No_error ],
         [> `Cannot_fix of string | `Corrupted of int ] )

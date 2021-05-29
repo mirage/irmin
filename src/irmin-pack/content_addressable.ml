@@ -205,7 +205,7 @@ struct
               match Index.find t.pack.index k with
               | None -> None
               | Some (off, len, _) ->
-                  let v = io_read_and_decode ~off ~len t in
+                  let _, v = io_read_and_decode ~off ~len t in
                   (if check_integrity then
                    check_key k v |> function
                    | Ok () -> ()
@@ -221,11 +221,11 @@ struct
 
     let cast t = (t :> read_write t)
 
-    let integrity_check ~offset ~length k t =
+    let integrity_check ~offset ~length ~check_value k t =
       try
-        let value = io_read_and_decode ~off:offset ~len:length t in
+        let _, value = io_read_and_decode ~off:offset ~len:length t in
         match check_key k value with
-        | Ok () -> Ok ()
+        | Ok () -> if check_value value then Ok () else Error `Wrong_value
         | Error _ -> Error `Wrong_hash
       with Invalid_read -> Error `Absent_value
 
@@ -320,7 +320,11 @@ struct
 end
 
 (* FIXME: remove code duplication with irmin/content_addressable *)
-module Closeable (S : S) = struct
+module Closeable (S : sig
+  include S
+  include S.Createable with type 'a t := 'a t
+end) =
+struct
   type 'a t = { closed : bool ref; t : 'a S.t }
   type key = S.key
   type value = S.value
@@ -382,13 +386,13 @@ module Closeable (S : S) = struct
     check_not_closed t;
     S.clear t.t
 
-  let integrity_check ~offset ~length k t =
-    check_not_closed t;
-    S.integrity_check ~offset ~length k t.t
-
   let clear_caches t =
     check_not_closed t;
     S.clear_caches t.t
+
+  let integrity_check ~offset ~length ~check_value k t =
+    check_not_closed t;
+    S.integrity_check ~offset ~length ~check_value k t.t
 
   let version t =
     check_not_closed t;

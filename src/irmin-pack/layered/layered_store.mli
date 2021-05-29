@@ -17,32 +17,28 @@
 val pp_current_upper : bool Fmt.t
 
 module Content_addressable
-    (H : Irmin.Hash.S)
+    (Hash : Irmin.Hash.S)
+    (Val : Irmin.Type.S)
     (Index : Irmin_pack.Index.S)
-    (U : Irmin_pack.Content_addressable.S
+    (U : Irmin_pack.Content_addressable.Createable
            with type index = Index.t
-            and type key = H.t)
-    (L : Irmin_pack.Content_addressable.S
-           with type index = U.index
-            and type key = U.key
-            and type value = U.value) :
+            and type key = Hash.t
+            and type value = Val.t)
+    (L : Irmin_pack.Content_addressable.Createable
+           with type index = Index.t
+            and type key = Hash.t
+            and type value = Val.t) :
   S.Content_addressable
-    with type index = U.index
-     and type U.index = Index.t
-     and type L.index = Index.t
-     and type key = U.key
-     and type U.key = H.t
-     and type L.key = H.t
-     and type value = U.value
-     and type L.value = U.value
+    with type index = Index.t
+     and type key = Hash.t
+     and type value = Val.t
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : Irmin_pack.Atomic_write.S with type key = K.t)
-    (L : Irmin_pack.Atomic_write.S
-           with type key = U.key
-            and type value = U.value) :
-  S.Atomic_write with type key = U.key and type value = U.value
+    (V : Irmin.Type.S)
+    (U : Irmin_pack.Atomic_write.S with type key = K.t and type value = V.t)
+    (L : Irmin_pack.Atomic_write.S with type key = K.t and type value = V.t) :
+  S.Atomic_write with type key = K.t and type value = V.t
 
 module Pack_maker
     (H : Irmin.Hash.S)

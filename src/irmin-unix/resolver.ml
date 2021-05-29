@@ -268,16 +268,15 @@ module Store = struct
 
   let create : (module Irmin.Maker) -> hash -> contents -> t =
    fun (module S) (module H) (module C) ->
-    let module S =
-      S.Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (H)
-    in
+    let module S = S.Make (Irmin.Schema.KV (C)) in
     T ((module S), None)
 
   let mem = create (module Irmin_mem)
   let irf = create (module Fs)
-  let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
+
+  let http = function
+    | T ((module S), x) -> T ((module Http.Client (S.Schema)), x)
+
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 

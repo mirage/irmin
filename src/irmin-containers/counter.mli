@@ -45,22 +45,22 @@ end
     specified by the user. *)
 module Make (Backend : Irmin.KV_maker) :
   S
-    with type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+    with type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string
 
 (** Counter instantiated using the {{!Irmin_unix.FS} FS backend} provided by
     [Irmin_unix] *)
 module FS :
   S
-    with type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+    with type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string
 
 (** Counter instantiated using the {{!Irmin_mem} in-memory backend} provided by
     [Irmin_mem] *)
 module Mem :
   S
-    with type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+    with type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string

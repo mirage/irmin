@@ -18,6 +18,7 @@ module Dict = Pack_dict
 module Index = Pack_index
 module Conf = Conf
 module Inode = Inode
+module Schema = Schema
 module Version = Version
 
 val config :
@@ -42,32 +43,22 @@ val config :
 
 exception RO_not_allowed
 
-include Irmin_pack_intf.Sigs
-(** @inline *)
-
-module Maker (_ : Version.S) : Maker
-module V1 : Maker
-module V2 : Maker
-
-module KV (_ : Version.S) (_ : Conf.S) :
-  Irmin.KV_maker with type metadata = unit
-
 module type Maker = sig
-  include S.Maker
+  include Irmin_pack_intf.Maker
   (** @inline *)
 end
+
+module Maker (_ : Version.S) (_ : Conf.S) : Maker
+module V1 (_ : Conf.S) : Maker
+module V2 (_ : Conf.S) : Maker
+module KV (_ : Version.S) (_ : Conf.S) : Irmin.KV_maker
 
 module type Specifics = sig
   include S.Specifics
   (** @inline *)
 end
 
-module Maker_ext
-    (_ : Version.S)
-    (_ : Conf.S)
-    (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : Maker with type info = CT.Info.t
-
+module Maker_ext (_ : Version.S) : Ext.Maker
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks

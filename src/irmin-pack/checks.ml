@@ -193,6 +193,12 @@ module Make (M : Maker) = struct
   module Integrity_check = struct
     let conf root = Conf.v ~readonly:false ~fresh:false root
 
+    let heads =
+      let open Cmdliner.Arg in
+      value
+      & opt (some (list ~sep:',' string)) None
+      & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
+
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
       match res with
@@ -203,17 +209,29 @@ module Make (M : Maker) = struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run_versioned_store ~root ~auto_repair (module Store : Versioned_store)
-        =
+    let run_versioned_store ~root ~auto_repair ~heads
+        (module Store : Versioned_store) =
       let conf = conf root in
-      let+ repo = Store.Repo.v conf in
-      Store.integrity_check ~ppf:Format.err_formatter ~auto_repair repo
-      |> handle_result ?name:None
+      let* repo = Store.Repo.v conf in
+      let* heads =
+        match heads with
+        | None -> Lwt.return_none
+        | Some heads ->
+            Lwt_list.filter_map_s
+              (fun x ->
+                match Repr.of_string Store.Hash.t x with
+                | Ok x -> Store.Commit.of_hash repo x
+                | _ -> Lwt.return None)
+              heads
+            >|= fun x -> Some x
+      in
+      Store.integrity_check ~ppf:Format.err_formatter ~auto_repair ?heads repo
+      >|= handle_result ?name:None
 
-    let run ~root ~auto_repair =
+    let run ~root ~auto_repair ~heads =
       match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~auto_repair (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~auto_repair (module Store_V2)
+      | `V1 -> run_versioned_store ~root ~auto_repair ~heads (module Store_V1)
+      | `V2 -> run_versioned_store ~root ~auto_repair ~heads (module Store_V2)
 
     let term_internal =
       let auto_repair =
@@ -222,73 +240,23 @@ module Make (M : Maker) = struct
         & (flag @@ info ~doc:"Automatically repair issues" [ "auto-repair" ])
       in
       Cmdliner.Term.(
-        const (fun root auto_repair () -> Lwt_main.run (run ~root ~auto_repair))
+        const (fun root auto_repair heads () ->
+            Lwt_main.run (run ~root ~auto_repair ~heads))
         $ path
-        $ auto_repair)
+        $ auto_repair
+        $ heads)
 
     let term =
       let doc = "Check integrity of an existing store." in
       Cmdliner.Term.(term_internal $ setup_log, info ~doc "integrity-check")
   end
 
-  module Integrity_check_inodes = struct
-    let conf root = Conf.v ~readonly:true ~fresh:false root
-
-    let heads =
-      let open Cmdliner.Arg in
-      value
-      & opt (some (list ~sep:',' string)) None
-      & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
-
-    let run_versioned_store ~root ~heads (module Store : Versioned_store) =
-      let conf = conf root in
-      let* repo = Store.Repo.v conf in
-      let* heads =
-        match heads with
-        | None -> Store.Repo.heads repo
-        | Some heads ->
-            Lwt_list.filter_map_s
-              (fun x ->
-                match Repr.of_string Store.Hash.t x with
-                | Ok x -> Store.Commit.of_hash repo x
-                | _ -> Lwt.return None)
-              heads
-      in
-      let* () =
-        Store.integrity_check_inodes ~heads repo >|= function
-        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
-        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg)
-      in
-      Store.Repo.close repo
-
-    let run ~root ~heads =
-      match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~heads (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~heads (module Store_V2)
-
-    let term_internal =
-      Cmdliner.Term.(
-        const (fun root heads () -> Lwt_main.run (run ~root ~heads))
-        $ path
-        $ heads)
-
-    let term =
-      let doc = "Check integrity of inodes in an existing store." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, info ~doc "integrity-check-inodes")
-  end
-
   module Cli = struct
     open Cmdliner
 
     let main
-        ?(terms =
-          [
-            Stat.term;
-            Reconstruct_index.term;
-            Integrity_check.term;
-            Integrity_check_inodes.term;
-          ]) () : empty =
+        ?(terms = [ Stat.term; Reconstruct_index.term; Integrity_check.term ])
+        () : empty =
       let default =
         let default_info =
           let doc = "Check Irmin data-stores." in
@@ -342,6 +310,7 @@ module Index (Index : Pack_index.S) = struct
           Index.filter index (fun binding ->
               match f binding with
               | Ok () -> true
+              | Error `Wrong_value -> raise Cannot_fix
               | Error `Wrong_hash -> raise Cannot_fix
               | Error `Absent_value ->
                   incr nb_absent;
@@ -353,6 +322,7 @@ module Index (Index : Pack_index.S) = struct
           (fun k v ->
             match f (k, v) with
             | Ok () -> ()
+            | Error `Wrong_value -> incr nb_corrupted
             | Error `Wrong_hash -> incr nb_corrupted
             | Error `Absent_value -> incr nb_absent)
           index;

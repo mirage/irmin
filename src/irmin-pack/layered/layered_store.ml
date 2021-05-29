@@ -16,8 +16,6 @@
 
 open! Import
 
-module type S = Irmin_pack.Content_addressable.S
-
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
   | "Node" -> Irmin_layers.Stats.copy_nodes ()
@@ -26,8 +24,10 @@ let stats = function
 
 module Copy
     (Key : Irmin.Hash.S)
-    (SRC : S with type key = Key.t)
-    (DST : S with type key = SRC.key and type value = SRC.value) =
+    (SRC : Irmin_pack.Content_addressable.S with type key = Key.t)
+    (DST : Irmin_pack.Content_addressable.S
+             with type key = SRC.key
+              and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
 
@@ -55,22 +55,27 @@ let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
 let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
-    (H : Irmin.Hash.S)
+    (Hash : Irmin.Hash.S)
+    (Val : Irmin.Type.S)
     (Index : Irmin_pack.Index.S)
-    (U : S with type index = Index.t and type key = H.t)
-    (L : S
-           with type index = U.index
-            and type key = U.key
-            and type value = U.value) =
+    (U : Irmin_pack.Content_addressable.Createable
+           with type index = Index.t
+            and type key = Hash.t
+            and type value = Val.t)
+    (L : Irmin_pack.Content_addressable.Createable
+           with type index = Index.t
+            and type key = Hash.t
+            and type value = Val.t) =
 struct
-  type index = U.index
-  type key = U.key
-  type value = U.value
+  type index = Index.t
+  type key = Hash.t
+  type value = Val.t
 
   type 'a t = {
     lower : read L.t option;
     mutable flip : bool;
     uppers : read U.t * read U.t;
+    (* FIXME: read -> 'a *)
     freeze_in_progress : unit -> bool;
     mutable newies : key list;
   }
@@ -178,7 +183,7 @@ struct
 
   let cast t = (t :> read_write t)
 
-  let batch t f =
+  let batch (t : read t) f =
     f (cast t) >|= fun r ->
     flush ~index:true t;
     r
@@ -191,7 +196,7 @@ struct
       - if the RW freezes an even number of times before an RO sync.
 
       See https://github.com/mirage/irmin/issues/1225 *)
-  let sync ?on_generation_change ?on_generation_change_next_upper t =
+  let sync_uppers ?on_generation_change ?on_generation_change_next_upper t =
     Log.debug (fun l -> l "sync %a" pp_current_upper t);
     (* a first implementation where only the current upper is synced *)
     let current = current_upper t in
@@ -206,6 +211,14 @@ struct
       match t.lower with None -> () | Some x -> L.sync ?on_generation_change x);
     t.flip
 
+  let sync ?on_generation_change t =
+    (* FIXME: is this what we want? *)
+    let (_ : bool) =
+      sync_uppers ?on_generation_change
+        ?on_generation_change_next_upper:on_generation_change t
+    in
+    ()
+
   let update_flip ~flip t = t.flip <- flip
 
   let close t =
@@ -213,25 +226,29 @@ struct
     U.close (snd t.uppers) >>= fun () ->
     match t.lower with None -> Lwt.return_unit | Some x -> L.close x
 
-  let integrity_check ~offset ~length ~layer k t =
+  let integrity_check_on_layer ~offset ~length ~layer ~check_value k t =
     match layer with
-    | `Upper1 -> U.integrity_check ~offset ~length k (fst t.uppers)
-    | `Upper0 -> U.integrity_check ~offset ~length k (snd t.uppers)
-    | `Lower -> L.integrity_check ~offset ~length k (lower t)
+    | `Upper1 -> U.integrity_check ~offset ~length ~check_value k (fst t.uppers)
+    | `Upper0 -> U.integrity_check ~offset ~length ~check_value k (snd t.uppers)
+    | `Lower -> L.integrity_check ~offset ~length ~check_value k (lower t)
 
   let layer_id t k =
     let current, upper =
       if t.flip then (fst t.uppers, `Upper1) else (snd t.uppers, `Upper0)
     in
-    U.mem current k >>= function
-    | true -> Lwt.return upper
+    match U.unsafe_mem current k with
+    | true -> upper
     | false -> (
         match t.lower with
         | None -> raise Not_found
         | Some lower -> (
-            L.mem lower k >|= function
+            match L.unsafe_mem lower k with
             | true -> `Lower
             | false -> raise Not_found))
+
+  let integrity_check ~offset ~length ~check_value k t =
+    let layer = layer_id t k in
+    integrity_check_on_layer ~offset ~length ~check_value ~layer k t
 
   let clear t =
     U.clear (fst t.uppers) >>= fun () ->
@@ -277,8 +294,8 @@ struct
     Log.debug (fun l -> l "flip_upper to %a" pp_next_upper t);
     t.flip <- not t.flip
 
-  module CopyUpper = Copy (H) (U) (U)
-  module CopyLower = Copy (H) (U) (L)
+  module CopyUpper = Copy (Hash) (U) (U)
+  module CopyLower = Copy (Hash) (U) (L)
 
   type 'a layer_type =
     | Upper : read U.t layer_type
@@ -311,7 +328,7 @@ struct
             aux v >>= fun () ->
             stats str;
             U.unsafe_add dst k v
-        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
+        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp Hash.t) k)
 end
 
 module Pack_maker
@@ -327,19 +344,18 @@ struct
   module Make (V : Irmin_pack.Content_addressable.Value with type hash := key) =
   struct
     module Upper = Irmin_pack.Content_addressable.Closeable (P.Make (V))
-    include Content_addressable (H) (Index) (Upper) (Upper)
+    include Content_addressable (H) (V) (Index) (Upper) (Upper)
   end
 end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : Irmin_pack.Atomic_write.S with type key = K.t)
-    (L : Irmin_pack.Atomic_write.S
-           with type key = U.key
-            and type value = U.value) =
+    (V : Irmin.Type.S)
+    (U : Irmin_pack.Atomic_write.S with type key = K.t and type value = V.t)
+    (L : Irmin_pack.Atomic_write.S with type key = K.t and type value = V.t) =
 struct
-  type key = U.key
-  type value = U.value
+  type key = K.t
+  type value = V.t
 
   module U = U
   module L = L

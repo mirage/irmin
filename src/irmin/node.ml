@@ -116,6 +116,55 @@ struct
   let of_entries e = v (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  (** Merges *)
+
+  (* FIXME: buggy *)
+
+  let all_contents t =
+    let kvs = list t in
+    List.fold_left
+      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
+      [] kvs
+
+  let all_succ t =
+    let kvs = list t in
+    List.fold_left
+      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
+      [] kvs
+
+  let metadata_t = M.t
+  let step_t = P.step_t
+
+  (* [Merge.alist] expects us to return an option. [C.merge] does
+     that, but we need to consider the metadata too... *)
+  let merge_metadata merge_contents =
+    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
+       S.Val.Metadata.t) option]. *)
+    let explode = function
+      | None -> (None, M.default)
+      | Some (c, m) -> (Some c, m)
+    in
+    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
+    Merge.like [%typ: (hash * metadata) option]
+      (Merge.pair merge_contents M.merge)
+      explode implode
+
+  let merge_contents merge_hash =
+    Merge.alist step_t [%typ: hash * metadata] (fun _step ->
+        merge_metadata merge_hash)
+
+  let merge_node merge_hash = Merge.alist step_t H.t (fun _step -> merge_hash)
+
+  let merge ~contents ~node =
+    let explode t = (all_contents t, all_succ t) in
+    let implode (contents, succ) =
+      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
+      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
+      v (xs @ ys)
+    in
+    let merge = Merge.pair (merge_contents contents) (merge_node node) in
+    Merge.like t merge explode implode
 end
 
 module Store
@@ -148,59 +197,12 @@ struct
     let+ () = S.close s in
     ()
 
-  let all_contents t =
-    let kvs = Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
-      [] kvs
-
-  let all_succ t =
-    let kvs = Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
-      [] kvs
-
-  let contents_t = C.Key.t
-  let metadata_t = M.t
-  let step_t = Path.step_t
-
-  (* [Merge.alist] expects us to return an option. [C.merge] does
-     that, but we need to consider the metadata too... *)
-  let merge_contents_meta c =
-    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
-       S.Val.Metadata.t) option]. *)
-    let explode = function
-      | None -> (None, M.default)
-      | Some (c, m) -> (Some c, m)
-    in
-    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
-    Merge.like [%typ: (contents * metadata) option]
-      (Merge.pair (C.merge c) M.merge)
-      explode implode
-
-  let merge_contents_meta c =
-    Merge.alist step_t [%typ: contents * metadata] (fun _step ->
-        merge_contents_meta c)
-
-  let merge_parents merge_key =
-    Merge.alist step_t Key.t (fun _step -> merge_key)
-
-  let merge_value (c, _) merge_key =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
-      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      Val.v (xs @ ys)
-    in
-    let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
-    Merge.like Val.t merge explode implode
-
   let rec merge t =
     let merge_key =
       Merge.v [%typ: Key.t option] (fun ~old x y ->
           Merge.(f (merge t)) ~old x y)
     in
-    let merge = merge_value t merge_key in
+    let merge = Val.merge ~contents:C.(merge (fst t)) ~node:merge_key in
     let read = function
       | None -> Lwt.return Val.empty
       | Some k -> ( find t k >|= function None -> Val.empty | Some v -> v)
@@ -450,4 +452,13 @@ module V1 (N : S with type step = string) = struct
 
   let t : t Type.t =
     Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+
+  let merge ~contents ~node =
+    let merge = N.merge ~contents ~node in
+    let f ~old x y =
+      let old = Merge.map_promise (fun old -> old.n) old in
+      let+ r = Merge.f merge ~old x.n y.n in
+      match r with Ok r -> Ok (import r) | Error e -> Error e
+    in
+    Merge.v t f
 end

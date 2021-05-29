@@ -120,6 +120,8 @@ module Contents = Contents
     {{!Contents.Json} JSON} contents are provided. *)
 
 module Branch = Branch
+module Node = Node
+module Commit = Commit
 
 type remote = Remote.t = ..
 (** The type for remote stores. *)
@@ -143,8 +145,6 @@ module Private : sig
   module Watch = Watch
   module Lock = Lock
   module Lru = Lru
-  module Node = Node
-  module Commit = Commit
   module Slice = Slice
   module Remote = Remote
 
@@ -186,6 +186,9 @@ module type KV = sig
 end
 
 module Json_tree : Store.Json_tree
+
+module Schema = Schema
+(** Store schemas *)
 
 (** [Maker] is the signature exposed by any backend providing {!S}
     implementations. [M] is the implementation of user-defined metadata, [C] is
@@ -445,29 +448,17 @@ module Dot (S : S) : Dot.S with type db = S.t
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  Maker with type endpoint = unit and type info = Info.default
+  Maker with type endpoint = unit
 
-module Maker_ext
-    (CA : Content_addressable.Maker)
-    (AW : Atomic_write.Maker)
-    (Node : Private.Node.Maker)
-    (Commit : Private.Commit.Maker) :
-  Maker with type endpoint = unit and type info = Commit.Info.t
+module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+  KV_maker with type endpoint = unit and type metadata = unit
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :
   S
-    with type key = P.Node.Path.t
-     and type contents = P.Contents.value
-     and type branch = P.Branch.key
-     and type hash = P.Hash.t
-     and type step = P.Node.Path.step
-     and type metadata = P.Node.Metadata.t
-     and type Key.step = P.Node.Path.step
+    with module Schema = P.Schema
      and type repo = P.Repo.t
      and type slice = P.Slice.t
-     and type info = P.Commit.Info.t
-     and module Info = P.Commit.Info
      and module Private = P
 
 module Export_for_backends = Export_for_backends

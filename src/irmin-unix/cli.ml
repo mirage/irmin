@@ -20,8 +20,8 @@ open Resolver
 
 let () = Hook.init ()
 
-let info (type a) (module S : Irmin.S with type info = a) ?(author = "irmin")
-    fmt =
+let info (type a) (module S : Irmin.S with type Schema.info = a)
+    ?(author = "irmin") fmt =
   let module Info = Info.Make (S.Info) in
   Info.v ~author fmt
 

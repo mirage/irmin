@@ -18,42 +18,11 @@ open! Import
 
 module type Value = sig
   include Irmin.Type.S
-
-  type hash
-
-  val hash : t -> hash
-  val magic : t -> char
-
-  val encode_bin :
-    dict:(string -> int option) ->
-    offset:(hash -> int63 option) ->
-    t ->
-    hash ->
-    (string -> unit) ->
-    unit
-
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int63 -> hash) -> string -> int -> t
+  include S.Encodable with type t := t
 end
 
 module type S = sig
   include Irmin.Content_addressable.S
-
-  val add : 'a t -> value -> key Lwt.t
-  (** Overwrite [add] to work with a read-only database handler. *)
-
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
-  (** Overwrite [unsafe_add] to work with a read-only database handler. *)
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    string ->
-    read t Lwt.t
 
   val unsafe_append :
     ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
@@ -62,6 +31,16 @@ module type S = sig
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
   val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
 
+  val clear_caches : 'a t -> unit
+  (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
+      are not removed. *)
+
+  include
+    S.Checkable
+      with type 'a t := 'a t
+       and type key := key
+       and type value := value
+
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   (** syncs a readonly instance with the files on disk. The same file instance
       is shared between several pack instances. Therefore only the first pack
@@ -69,18 +48,29 @@ module type S = sig
       [on_generation_change] is a callback for all pack instances to react to a
       generation change. *)
 
-  val version : 'a t -> Version.t
-  val generation : 'a t -> int63
-  val offset : 'a t -> int63
+  (** {2 Layered Store} *)
 
-  (** @inline *)
-  include S.Checkable with type 'a t := 'a t and type key := key
-
-  val clear_caches : 'a t -> unit
-  (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
-      are not removed. *)
+  (** These functions are only used for the layered store. FIXME: move these
+      somewhere else ? *)
 
   val clear_keep_generation : 'a t -> unit Lwt.t
+
+  (** FIXME: only needed for the layered store. *)
+
+  val offset : 'a t -> int63
+  val generation : 'a t -> int63
+  val version : 'a t -> Version.t
+
+  val add : 'a t -> value -> key Lwt.t
+  (** Overwrite [add] to work with a read-only database handler. *)
+
+  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+  (** Overwrite [unsafe_add] to work with a read-only database handler. *)
+end
+
+module type Createable = sig
+  include S
+  include S.Createable with type 'a t := 'a t
 end
 
 module type Maker = sig
@@ -90,12 +80,13 @@ module type Maker = sig
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
   module Make (V : Value with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+    Createable with type key = key and type value = V.t and type index = index
 end
 
 module type Sigs = sig
   module type Value = Value
   module type S = S
+  module type Createable = Createable
   module type Maker = Maker
 
   module Maker
@@ -104,6 +95,9 @@ module type Sigs = sig
       (K : Irmin.Hash.S with type t = Index.key) :
     Maker with type key = K.t and type index = Index.t
 
-  module Closeable (CA : S) :
-    S with type key = CA.key and type value = CA.value and type index = CA.index
+  module Closeable (CA : Createable) :
+    Createable
+      with type key = CA.key
+       and type value = CA.value
+       and type index = CA.index
 end

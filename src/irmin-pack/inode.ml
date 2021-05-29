@@ -15,232 +15,360 @@
  *)
 
 open! Import
-include Inode_intf
+module Pack_schema = Schema
 
-module Make_internal
-    (Conf : Conf.S)
-    (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
-struct
+(* Compressed binary representation *)
+module Compress (Schema : Irmin.Schema.S) = struct
+  open Schema
+
+  type name = Indirect of int | Direct of step
+  type address = Indirect of int63 | Direct of hash
+
+  let address_t : address Irmin.Type.t =
+    let open Irmin.Type in
+    variant "Compress.address" (fun i d -> function
+      | Indirect x -> i x | Direct x -> d x)
+    |~ case1 "Indirect" int63_t (fun x -> Indirect x)
+    |~ case1 "Direct" Hash.t (fun x -> Direct x)
+    |> sealv
+
+  type ptr = { index : int; hash : address }
+
+  let ptr_t : ptr Irmin.Type.t =
+    let open Irmin.Type in
+    record "Compress.ptr" (fun index hash -> { index; hash })
+    |+ field "index" int (fun t -> t.index)
+    |+ field "hash" address_t (fun t -> t.hash)
+    |> sealr
+
+  type tree = { depth : int; length : int; entries : ptr list }
+
+  let tree_t : tree Irmin.Type.t =
+    let open Irmin.Type in
+    record "Compress.tree" (fun depth length entries ->
+        { depth; length; entries })
+    |+ field "depth" int (fun t -> t.depth)
+    |+ field "length" int (fun t -> t.length)
+    |+ field "entries" (list ptr_t) (fun t -> t.entries)
+    |> sealr
+
+  type value = Contents of name * address * metadata | Node of name * address
+
+  let is_default = Irmin.Type.(unstage (equal Metadata.t)) Metadata.default
+
+  let value_t : value Irmin.Type.t =
+    let open Irmin.Type in
+    variant "Compress.value"
+      (fun
+        contents_ii
+        contents_x_ii
+        node_ii
+        contents_id
+        contents_x_id
+        node_id
+        contents_di
+        contents_x_di
+        node_di
+        contents_dd
+        contents_x_dd
+        node_dd
+      -> function
+      | Contents (Indirect n, Indirect h, m) ->
+          if is_default m then contents_ii (n, h) else contents_x_ii (n, h, m)
+      | Node (Indirect n, Indirect h) -> node_ii (n, h)
+      | Contents (Indirect n, Direct h, m) ->
+          if is_default m then contents_id (n, h) else contents_x_id (n, h, m)
+      | Node (Indirect n, Direct h) -> node_id (n, h)
+      | Contents (Direct n, Indirect h, m) ->
+          if is_default m then contents_di (n, h) else contents_x_di (n, h, m)
+      | Node (Direct n, Indirect h) -> node_di (n, h)
+      | Contents (Direct n, Direct h, m) ->
+          if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
+      | Node (Direct n, Direct h) -> node_dd (n, h))
+    |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
+           Contents (Indirect n, Indirect i, Metadata.default))
+    |~ case1 "contents-x-ii" (triple int int63_t Metadata.t) (fun (n, i, m) ->
+           Contents (Indirect n, Indirect i, m))
+    |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
+           Node (Indirect n, Indirect i))
+    |~ case1 "contents-id" (pair int Hash.t) (fun (n, h) ->
+           Contents (Indirect n, Direct h, Metadata.default))
+    |~ case1 "contents-x-id" (triple int Hash.t Metadata.t) (fun (n, h, m) ->
+           Contents (Indirect n, Direct h, m))
+    |~ case1 "node-id" (pair int Hash.t) (fun (n, h) ->
+           Node (Indirect n, Direct h))
+    |~ case1 "contents-di" (pair Path.step_t Int63.t) (fun (n, i) ->
+           Contents (Direct n, Indirect i, Metadata.default))
+    |~ case1 "contents-x-di" (triple Path.step_t int63_t Metadata.t)
+         (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
+    |~ case1 "node-di" (pair Path.step_t Int63.t) (fun (n, i) ->
+           Node (Direct n, Indirect i))
+    |~ case1 "contents-dd" (pair Path.step_t Hash.t) (fun (n, i) ->
+           Contents (Direct n, Direct i, Metadata.default))
+    |~ case1 "contents-x-dd" (triple Path.step_t Hash.t Metadata.t)
+         (fun (n, i, m) -> Contents (Direct n, Direct i, m))
+    |~ case1 "node-dd" (pair Path.step_t Hash.t) (fun (n, i) ->
+           Node (Direct n, Direct i))
+    |> sealv
+
+  type v = Values of value list | Tree of tree
+
+  let v_t : v Irmin.Type.t =
+    let open Irmin.Type in
+    variant "Compress.v" (fun values tree -> function
+      | Values x -> values x | Tree x -> tree x)
+    |~ case1 "Values" (list value_t) (fun x -> Values x)
+    |~ case1 "Tree" tree_t (fun x -> Tree x)
+    |> sealv
+
+  type stable = bool
+
+  let magic_node = 'N'
+  let magic_inode = 'I'
+
+  let stable_t : stable Irmin.Type.t =
+    Irmin.Type.(map char)
+      (fun n -> n = magic_node)
+      (function true -> magic_node | false -> magic_inode)
+
+  type t = { hash : Hash.t; stable : stable; v : v } [@@deriving irmin]
+
+  let v ~stable ~hash v = { hash; stable; v }
+end
+
+module Raw (Schema : Irmin.Schema.S) :
+  Pack_schema.Raw
+    with type hash = Schema.hash
+     and type step = Schema.step
+     and type metadata = Schema.metadata = struct
+  open Schema
+
+  type value = Node.value [@@deriving irmin]
+  type step = Node.step [@@deriving irmin]
+  type metadata = Node.metadata [@@deriving irmin]
+  type hash = Hash.t [@@deriving irmin]
+  type ptr = { index : int; hash : hash } [@@deriving irmin]
+
+  type tree = { depth : int; length : int; entries : ptr list }
+  [@@deriving irmin]
+
+  type v = Values of (step * value) list | Tree of tree [@@deriving irmin]
+  type t = { hash : Hash.t Lazy.t; stable : bool; v : v }
+
+  let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
+
+  let t : t Irmin.Type.t =
+    let open Irmin.Type in
+    let pre_hash = stage (fun x -> pre_hash_v x.v) in
+    record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
+    |+ field "hash" Hash.t (fun t -> Lazy.force t.hash)
+    |+ field "stable" bool (fun t -> t.stable)
+    |+ field "v" v_t (fun t -> t.v)
+    |> sealr
+    |> like ~pre_hash
+
+  module V =
+    Irmin.Hash.Typed
+      (Hash)
+      (struct
+        type t = v
+
+        let t = v_t
+      end)
+
+  let v ~stable ~hash v = { stable; hash; v }
+  let hash t = Lazy.force t.hash
+  let hash_v = V.hash
+
+  module Compress = Compress (Schema)
+
+  let magic (t : t) =
+    if t.stable then Compress.magic_node else Compress.magic_inode
+
+  let step_to_bin = Irmin.Type.(unstage (to_bin_string Path.step_t))
+  let step_of_bin = Irmin.Type.(unstage (of_bin_string Path.step_t))
+  let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
+  let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
+
+  let encode_bin ~dict ~offset (t : t) k =
+    let step s : Compress.name =
+      let str = step_to_bin s in
+      if String.length str <= 3 then Direct s
+      else match dict str with Some i -> Indirect i | None -> Direct s
+    in
+    let hash h : Compress.address =
+      match offset h with
+      | None -> Compress.Direct h
+      | Some off -> Compress.Indirect off
+    in
+    let ptr : ptr -> Compress.ptr =
+     fun n ->
+      let hash = hash n.hash in
+      { index = n.index; hash }
+    in
+    let value : step * Node.value -> Compress.value = function
+      | s, `Contents (c, m) ->
+          let s = step s in
+          let v = hash c in
+          Compress.Contents (s, v, m)
+      | s, `Node n ->
+          let s = step s in
+          let v = hash n in
+          Compress.Node (s, v)
+    in
+    (* List.map is fine here as the number of entries is small *)
+    let v : v -> Compress.v = function
+      | Values vs -> Values (List.map value vs)
+      | Tree { depth; length; entries } ->
+          let entries = List.map ptr entries in
+          Tree { Compress.depth; length; entries }
+    in
+    let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
+    encode_compress t
+
+  exception Exit of [ `Msg of string ]
+
+  let decode_bin ~dict ~hash t off : int * t =
+    let off, i = decode_compress t off in
+    let step : Compress.name -> step = function
+      | Direct n -> n
+      | Indirect s -> (
+          match dict s with
+          | None -> raise_notrace (Exit (`Msg "dict"))
+          | Some s -> (
+              match step_of_bin s with
+              | Error e -> raise_notrace (Exit e)
+              | Ok v -> v))
+    in
+    let hash : Compress.address -> hash = function
+      | Indirect off -> hash off
+      | Direct n -> n
+    in
+    let ptr : Compress.ptr -> ptr =
+     fun n ->
+      let hash = hash n.hash in
+      { index = n.index; hash }
+    in
+    let value : Compress.value -> step * Node.value = function
+      | Contents (n, h, metadata) ->
+          let name = step n in
+          let hash = hash h in
+          (name, `Contents (hash, metadata))
+      | Node (n, h) ->
+          let name = step n in
+          let hash = hash h in
+          (name, `Node hash)
+    in
+    let t : Compress.v -> v = function
+      | Values vs -> Values (List.rev_map value (List.rev vs))
+      | Tree { depth; length; entries } ->
+          let entries = List.map ptr entries in
+          Tree { depth; length; entries }
+    in
+    let t = v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
+    (off, t)
+end
+
+module Concrete (Schema : Irmin.Schema.S) = struct
+  open Schema
+
+  let step_t = Node.step_t
+  let hash_t = Hash.t
+  let metadata_t = Metadata.t
+  let pp_hash = Irmin.Type.pp Hash.t
+
+  type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
+  type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+
+  type 'a pointer = { index : int; pointer : hash; tree : 'a }
+  [@@deriving irmin]
+
+  type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
+  [@@deriving irmin]
+
+  type t = Tree of t tree | Value of entry list [@@deriving irmin]
+
+  let pp = Irmin.Type.pp_json t
+  let metadata_equal = Irmin.Type.(unstage (equal Metadata.t))
+
+  let to_entry (name, v) =
+    match v with
+    | `Contents (hash, m) ->
+        if metadata_equal m Node.default then { name; kind = Contents; hash }
+        else { name; kind = Contents_x m; hash }
+    | `Node hash -> { name; kind = Node; hash }
+
+  let of_entry e =
+    ( e.name,
+      match e.kind with
+      | Contents -> `Contents (e.hash, Node.default)
+      | Contents_x m -> `Contents (e.hash, m)
+      | Node -> `Node e.hash )
+
+  type error =
+    [ `Invalid_hash of hash * hash * t
+    | `Invalid_depth of int * int * t
+    | `Invalid_length of int * int * t
+    | `Duplicated_entries of t
+    | `Duplicated_pointers of t
+    | `Unsorted_entries of t
+    | `Unsorted_pointers of t
+    | `Empty ]
+  [@@deriving irmin]
+
+  let rec length = function
+    | Value l -> List.length l
+    | Tree t -> List.fold_left (fun acc p -> acc + length p.tree) 0 t.pointers
+
+  let pp_error ppf = function
+    | `Invalid_hash (got, expected, t) ->
+        Fmt.pf ppf "invalid hash for %a@,got: %a@,expecting: %a" pp t pp_hash
+          got pp_hash expected
+    | `Invalid_depth (got, expected, t) ->
+        Fmt.pf ppf "invalid depth for %a@,got: %d@,expecting: %d" pp t got
+          expected
+    | `Invalid_length (got, expected, t) ->
+        Fmt.pf ppf "invalid length for %a@,got: %d@,expecting: %d" pp t got
+          expected
+    | `Duplicated_entries t -> Fmt.pf ppf "duplicated entries: %a" pp t
+    | `Duplicated_pointers t -> Fmt.pf ppf "duplicated pointers: %a" pp t
+    | `Unsorted_entries t -> Fmt.pf ppf "entries should be sorted: %a" pp t
+    | `Unsorted_pointers t -> Fmt.pf ppf "pointers should be sorted: %a" pp t
+    | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
+end
+
+module Make (Conf : Conf.S) (Schema : Irmin.Schema.S) = struct
+  open Schema
+  module Raw = Raw (Schema)
+
+  type hash = Schema.Node.hash [@@deriving irmin]
+  type step = Schema.Node.step [@@deriving irmin]
+  type metadata = Schema.Node.metadata [@@deriving irmin]
+  type value = Schema.Node.value [@@deriving irmin]
+
+  let default = Node.default
+
+  module Node_hash = Irmin.Hash.Typed (Hash) (Node)
+  module Concrete = Concrete (Schema)
+
   let () =
     if Conf.entries > Conf.stable_hash then
       invalid_arg "entries should be lower or equal to stable_hash"
 
-  module Node = struct
-    include Node
-    module H = Irmin.Hash.Typed (H) (Node)
-
-    let hash = H.hash
-  end
-
-  module T = struct
-    type hash = H.t [@@deriving irmin]
-    type step = Node.step [@@deriving irmin]
-    type metadata = Node.metadata [@@deriving irmin]
-
-    let default = Node.default
-
-    type value = Node.value
-
-    let value_t = Node.value_t
-    let pp_hash = Irmin.Type.(pp hash_t)
-  end
+  let node_hash = Node_hash.hash
+  let pp_hash = Irmin.Type.pp Hash.t
 
   module StepMap = struct
     include Map.Make (struct
-      type t = T.step
+      type t = step
 
-      let compare = Irmin.Type.(unstage (compare T.step_t))
+      let compare = Irmin.Type.(unstage (compare step_t))
     end)
 
     let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
   end
 
-  (* Binary representation, useful to compute hashes *)
-  module Bin = struct
-    open T
-
-    type ptr = { index : int; hash : H.t }
-    type tree = { depth : int; length : int; entries : ptr list }
-    type v = Values of (step * value) list | Tree of tree
-
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : ptr) -> t.hash)
-      |> sealr
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.tree" (fun depth length entries -> { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
-
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Bin.v" (fun values tree -> function
-        | Values l -> values l | Tree i -> tree i)
-      |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Tree" tree_t (fun t -> Tree t)
-      |> sealv
-
-    module V =
-      Irmin.Hash.Typed
-        (H)
-        (struct
-          type t = v
-
-          let t = v_t
-        end)
-
-    type t = { hash : H.t Lazy.t; stable : bool; v : v }
-
-    let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
-
-    let t : t Irmin.Type.t =
-      let open Irmin.Type in
-      let pre_hash = stage (fun x -> pre_hash_v x.v) in
-      record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
-      |+ field "hash" H.t (fun t -> Lazy.force t.hash)
-      |+ field "stable" bool (fun t -> t.stable)
-      |+ field "v" v_t (fun t -> t.v)
-      |> sealr
-      |> like ~pre_hash
-
-    let v ~stable ~hash v = { stable; hash; v }
-    let hash t = Lazy.force t.hash
-  end
-
-  (* Compressed binary representation *)
-  module Compress = struct
-    open T
-
-    type name = Indirect of int | Direct of step
-    type address = Indirect of int63 | Direct of H.t
-
-    let address_t : address Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.address" (fun i d -> function
-        | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" int63_t (fun x -> Indirect x)
-      |~ case1 "Direct" H.t (fun x -> Direct x)
-      |> sealv
-
-    type ptr = { index : int; hash : address }
-
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Compress.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" address_t (fun t -> t.hash)
-      |> sealr
-
-    type tree = { depth : int; length : int; entries : ptr list }
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Compress.tree" (fun depth length entries ->
-          { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
-
-    type value =
-      | Contents of name * address * metadata
-      | Node of name * address
-
-    let is_default = Irmin.Type.(unstage (equal T.metadata_t)) T.default
-
-    let value_t : value Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.value"
-        (fun
-          contents_ii
-          contents_x_ii
-          node_ii
-          contents_id
-          contents_x_id
-          node_id
-          contents_di
-          contents_x_di
-          node_di
-          contents_dd
-          contents_x_dd
-          node_dd
-        -> function
-        | Contents (Indirect n, Indirect h, m) ->
-            if is_default m then contents_ii (n, h) else contents_x_ii (n, h, m)
-        | Node (Indirect n, Indirect h) -> node_ii (n, h)
-        | Contents (Indirect n, Direct h, m) ->
-            if is_default m then contents_id (n, h) else contents_x_id (n, h, m)
-        | Node (Indirect n, Direct h) -> node_id (n, h)
-        | Contents (Direct n, Indirect h, m) ->
-            if is_default m then contents_di (n, h) else contents_x_di (n, h, m)
-        | Node (Direct n, Indirect h) -> node_di (n, h)
-        | Contents (Direct n, Direct h, m) ->
-            if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
-        | Node (Direct n, Direct h) -> node_dd (n, h))
-      |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
-             Contents (Indirect n, Indirect i, T.default))
-      |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
-             Contents (Indirect n, Indirect i, m))
-      |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
-             Node (Indirect n, Indirect i))
-      |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
-             Contents (Indirect n, Direct h, T.default))
-      |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
-             Contents (Indirect n, Direct h, m))
-      |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
-             Node (Indirect n, Direct h))
-      |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
-             Contents (Direct n, Indirect i, T.default))
-      |~ case1 "contents-x-di" (triple step_t int63_t metadata_t)
-           (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
-      |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
-             Node (Direct n, Indirect i))
-      |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
-             Contents (Direct n, Direct i, T.default))
-      |~ case1 "contents-x-dd" (triple step_t H.t metadata_t) (fun (n, i, m) ->
-             Contents (Direct n, Direct i, m))
-      |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
-             Node (Direct n, Direct i))
-      |> sealv
-
-    type v = Values of value list | Tree of tree
-
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.v" (fun values tree -> function
-        | Values x -> values x | Tree x -> tree x)
-      |~ case1 "Values" (list value_t) (fun x -> Values x)
-      |~ case1 "Tree" tree_t (fun x -> Tree x)
-      |> sealv
-
-    type t = { hash : H.t; stable : bool; v : v }
-
-    let v ~stable ~hash v = { hash; stable; v }
-    let magic_node = 'N'
-    let magic_inode = 'I'
-
-    let stable_t : bool Irmin.Type.t =
-      Irmin.Type.(map char)
-        (fun n -> n = magic_node)
-        (function true -> magic_node | false -> magic_inode)
-
-    let t =
-      let open Irmin.Type in
-      record "Compress.t" (fun hash stable v -> { hash; stable; v })
-      |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable_t (fun t -> t.stable)
-      |+ field "v" v_t (fun t -> t.v)
-      |> sealr
-  end
-
-  (** [Val_impl] defines the recursive structure of inodes.
+  (** [Impl] defines the recursive structure of inodes.
 
       {3 Inode Layout}
 
@@ -305,10 +433,8 @@ struct
 
       Write-only operations are not permitted when the root is an intermediate
       inode. *)
-  module Val_impl = struct
-    open T
-
-    let equal_value = Irmin.Type.(unstage (equal value_t))
+  module Impl = struct
+    let equal_value = Irmin.Type.(unstage (equal Node.value_t))
 
     type _ layout =
       | Total : total_ptr layout
@@ -331,7 +457,7 @@ struct
 
     and 'ptr tree = { depth : int; length : int; entries : 'ptr option array }
 
-    and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
+    and 'ptr v = Values of Node.value StepMap.t | Tree of 'ptr tree
 
     and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
 
@@ -416,7 +542,7 @@ struct
 
     type acc = {
       cursor : int;
-      values : (step * value) list list;
+      values : (step * Node.value) list list;
       remaining : int;
     }
 
@@ -472,7 +598,7 @@ struct
     let to_bin_v layout = function
       | Values vs ->
           let vs = StepMap.bindings vs in
-          Bin.Values vs
+          Raw.Values vs
       | Tree t ->
           let hash_of_ptr = Ptr.hash layout in
           let _, entries =
@@ -481,80 +607,15 @@ struct
                 | None -> (i + 1, acc)
                 | Some ptr ->
                     let hash = hash_of_ptr ptr in
-                    (i + 1, { Bin.index = i; hash } :: acc))
+                    (i + 1, { Raw.index = i; hash } :: acc))
               (0, []) t.entries
           in
           let entries = List.rev entries in
-          Bin.Tree { depth = t.depth; length = t.length; entries }
+          Raw.Tree { depth = t.depth; length = t.length; entries }
 
     let to_bin layout t =
       let v = to_bin_v layout t.v in
-      Bin.v ~stable:t.stable ~hash:t.hash v
-
-    module Concrete = struct
-      type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
-      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
-
-      type 'a pointer = { index : int; pointer : hash; tree : 'a }
-      [@@deriving irmin]
-
-      type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
-      [@@deriving irmin]
-
-      type t = Tree of t tree | Value of entry list [@@deriving irmin]
-
-      let metadata_equal = Irmin.Type.(unstage (equal metadata_t))
-
-      let to_entry (name, v) =
-        match v with
-        | `Contents (hash, m) ->
-            if metadata_equal m Node.default then
-              { name; kind = Contents; hash }
-            else { name; kind = Contents_x m; hash }
-        | `Node hash -> { name; kind = Node; hash }
-
-      let of_entry e =
-        ( e.name,
-          match e.kind with
-          | Contents -> `Contents (e.hash, Node.default)
-          | Contents_x m -> `Contents (e.hash, m)
-          | Node -> `Node e.hash )
-
-      type error =
-        [ `Invalid_hash of hash * hash * t
-        | `Invalid_depth of int * int * t
-        | `Invalid_length of int * int * t
-        | `Duplicated_entries of t
-        | `Duplicated_pointers of t
-        | `Unsorted_entries of t
-        | `Unsorted_pointers of t
-        | `Empty ]
-      [@@deriving irmin]
-
-      let rec length = function
-        | Value l -> List.length l
-        | Tree t ->
-            List.fold_left (fun acc p -> acc + length p.tree) 0 t.pointers
-
-      let pp = Irmin.Type.pp_json t
-
-      let pp_error ppf = function
-        | `Invalid_hash (got, expected, t) ->
-            Fmt.pf ppf "invalid hash for %a@,got: %a@,expecting: %a" pp t
-              pp_hash got pp_hash expected
-        | `Invalid_depth (got, expected, t) ->
-            Fmt.pf ppf "invalid depth for %a@,got: %d@,expecting: %d" pp t got
-              expected
-        | `Invalid_length (got, expected, t) ->
-            Fmt.pf ppf "invalid length for %a@,got: %d@,expecting: %d" pp t got
-              expected
-        | `Duplicated_entries t -> Fmt.pf ppf "duplicated entries: %a" pp t
-        | `Duplicated_pointers t -> Fmt.pf ppf "duplicated pointers: %a" pp t
-        | `Unsorted_entries t -> Fmt.pf ppf "entries should be sorted: %a" pp t
-        | `Unsorted_pointers t ->
-            Fmt.pf ppf "pointers should be sorted: %a" pp t
-        | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
-    end
+      Raw.v ~stable:t.stable ~hash:t.hash v
 
     let to_concrete (la : 'ptr layout) (t : 'ptr t) =
       let rec aux t =
@@ -614,7 +675,7 @@ struct
         if List.length s <> List.length ps then raise (Duplicated_pointers t);
         if s <> ps then raise (Unsorted_pointers t)
       in
-      let hash v = Bin.V.hash (to_bin_v Total v) in
+      let hash v = Raw.hash_v (to_bin_v Total v) in
       let rec aux depth t =
         match t with
         | Concrete.Value l ->
@@ -644,7 +705,7 @@ struct
         if length > Conf.stable_hash then (false, hash v)
         else
           let node = Node.v (list_v Total v) in
-          (true, Node.hash node)
+          (true, node_hash node)
       in
       { hash = lazy hash; stable; v }
 
@@ -695,7 +756,7 @@ struct
           let hash =
             lazy
               (let vs = list layout t in
-               Node.hash (Node.v vs))
+               node_hash (Node.v vs))
           in
           { hash; stable = true; v = t.v }
 
@@ -707,24 +768,24 @@ struct
         enfoce that. *)
     let of_bin layout t =
       let v =
-        match t.Bin.v with
-        | Bin.Values vs ->
+        match t.Raw.v with
+        | Raw.Values vs ->
             let vs = StepMap.of_list vs in
             Values vs
         | Tree t ->
             let entries = Array.make Conf.entries None in
             let ptr_of_hash = Ptr.of_hash layout in
             List.iter
-              (fun { Bin.index; hash } ->
+              (fun { Raw.index; hash } ->
                 entries.(index) <- Some (ptr_of_hash hash))
               t.entries;
-            Tree { depth = t.Bin.depth; length = t.length; entries }
+            Tree { depth = t.Raw.depth; length = t.length; entries }
       in
-      { hash = t.Bin.hash; stable = t.Bin.stable; v }
+      { hash = t.Raw.hash; stable = t.Raw.stable; v }
 
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
-      let hash = lazy (Node.hash Node.empty) in
+      let hash = lazy (node_hash Node.empty) in
       { stable = true; hash; v = Values StepMap.empty }
 
     let values layout vs =
@@ -732,12 +793,12 @@ struct
       if length = 0 then empty layout
       else
         let v = Values vs in
-        let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
+        let hash = lazy (Raw.hash_v (to_bin_v layout v)) in
         { hash; stable = false; v }
 
     let tree layout is =
       let v = Tree is in
-      let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
+      let hash = lazy (Raw.hash_v (to_bin_v layout v)) in
       { hash; stable = false; v }
 
     let of_values layout l = values layout (StepMap.of_list l)
@@ -926,266 +987,171 @@ struct
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
   end
 
-  module Raw = struct
-    type hash = H.t
-    type t = Bin.t
+  module I = Impl
 
-    let t = Bin.t
+  type t =
+    | Total of I.total_ptr I.t
+    | Partial of I.partial_ptr I.layout * I.partial_ptr I.t
+    | Truncated of I.truncated_ptr I.t
 
-    let magic (t : t) =
-      if t.stable then Compress.magic_node else Compress.magic_inode
+  type 'b apply_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'b } [@@unboxed]
 
-    let hash t = Bin.hash t
-    let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
-    let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
-    let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
-    let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
+  let apply : t -> 'b apply_fn -> 'b =
+   fun t f ->
+    match t with
+    | Total v -> f.f I.Total v
+    | Partial (layout, v) -> f.f layout v
+    | Truncated v -> f.f I.Truncated v
 
-    let encode_bin ~dict ~offset (t : t) k =
-      let step s : Compress.name =
-        let str = step_to_bin s in
-        if String.length str <= 3 then Direct s
-        else match dict str with Some i -> Indirect i | None -> Direct s
+  type map_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'a I.t } [@@unboxed]
+
+  let map : t -> map_fn -> t =
+   fun t f ->
+    match t with
+    | Total v ->
+        let v' = f.f I.Total v in
+        if v == v' then t else Total v'
+    | Partial (layout, v) ->
+        let v' = f.f layout v in
+        if v == v' then t else Partial (layout, v')
+    | Truncated v ->
+        let v' = f.f I.Truncated v in
+        if v == v' then t else Truncated v'
+
+  let values t = apply t { f = (fun layout v -> I.pred layout v) }
+  let v l = Total (I.v l)
+
+  let list ?offset ?length t =
+    apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
+
+  let empty = v []
+  let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
+  let find t s = apply t { f = (fun layout v -> I.find layout v s) }
+
+  let add t s value =
+    let f layout v =
+      I.check_write_op_supported v;
+      I.add ~copy:true layout v s value
+    in
+    map t { f }
+
+  let remove t s =
+    let f layout v =
+      I.check_write_op_supported v;
+      I.remove layout v s
+    in
+    map t { f }
+
+  let pre_hash_binv = Irmin.Type.(unstage (pre_hash Raw.v_t))
+  let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
+
+  let t : t Irmin.Type.t =
+    let pre_hash =
+      Irmin.Type.stage @@ fun x ->
+      let stable = apply x { f = (fun _ v -> I.stable v) } in
+      if not stable then
+        let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
+        pre_hash_binv bin.v
+      else
+        let vs = list x in
+        pre_hash_node (Node.v vs)
+    in
+    Irmin.Type.map ~pre_hash Raw.t
+      (fun bin -> Truncated (I.of_bin I.Truncated bin))
+      (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
+
+  let hash t = apply t { f = (fun _ v -> I.hash v) }
+
+  let save ~add ~mem t =
+    let f layout v =
+      I.check_write_op_supported v;
+      I.save layout ~add ~mem v
+    in
+    apply t { f }
+
+  let of_raw find' v =
+    let rec find h =
+      match find' h with None -> None | Some v -> Some (I.of_bin layout v)
+    and layout = I.Partial find in
+    Partial (layout, I.of_bin layout v)
+
+  let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
+  let stable t = apply t { f = (fun _ v -> I.stable v) }
+  let length t = apply t { f = (fun _ v -> I.length v) }
+  let index = I.index
+
+  let decode_bin ~dict ~hash t off =
+    let e = Printexc.get_callstack 10 in
+    Printexc.print_raw_backtrace stderr e;
+    let off, v = Raw.decode_bin ~dict ~hash t off in
+    (* FIXME: needs to be turned into a Partial *)
+    (off, Truncated (I.of_bin Truncated v))
+
+  let encode_bin ~dict ~offset t k = Raw.encode_bin ~dict ~offset (to_raw t) k
+  let magic t = Raw.magic (to_raw t)
+
+  let integrity_check t =
+    let f layout v =
+      let check_stable () =
+        let check () = I.check_stable layout v in
+        let n = length t in
+        if n > Conf.stable_hash then (not (stable t)) && check ()
+        else stable t && check ()
       in
-      let hash h : Compress.address =
-        match offset h with
-        | None -> Compress.Direct h
-        | Some off -> Compress.Indirect off
+      let contains_empty_map_non_root () =
+        let check () = I.contains_empty_map layout v in
+        (* we are only looking for empty maps that are not at the root *)
+        if I.is_tree v then check () else false
       in
-      let ptr : Bin.ptr -> Compress.ptr =
-       fun n ->
-        let hash = hash n.hash in
-        { index = n.index; hash }
-      in
-      let value : T.step * T.value -> Compress.value = function
-        | s, `Contents (c, m) ->
-            let s = step s in
-            let v = hash c in
-            Compress.Contents (s, v, m)
-        | s, `Node n ->
-            let s = step s in
-            let v = hash n in
-            Compress.Node (s, v)
-      in
-      (* List.map is fine here as the number of entries is small *)
-      let v : Bin.v -> Compress.v = function
-        | Values vs -> Values (List.map value vs)
-        | Tree { depth; length; entries } ->
-            let entries = List.map ptr entries in
-            Tree { Compress.depth; length; entries }
-      in
-      let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
-      encode_compress t
+      check_stable () && not (contains_empty_map_non_root ())
+    in
+    apply t { f }
 
-    exception Exit of [ `Msg of string ]
+  let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
 
-    let decode_bin_with_offset ~dict ~hash t off : int * t =
-      let off, i = decode_compress t off in
-      let step : Compress.name -> T.step = function
-        | Direct n -> n
-        | Indirect s -> (
-            match dict s with
-            | None -> raise_notrace (Exit (`Msg "dict"))
-            | Some s -> (
-                match step_of_bin s with
-                | Error e -> raise_notrace (Exit e)
-                | Ok v -> v))
-      in
-      let hash : Compress.address -> H.t = function
-        | Indirect off -> hash off
-        | Direct n -> n
-      in
-      let ptr : Compress.ptr -> Bin.ptr =
-       fun n ->
-        let hash = hash n.hash in
-        { index = n.index; hash }
-      in
-      let value : Compress.value -> T.step * T.value = function
-        | Contents (n, h, metadata) ->
-            let name = step n in
-            let hash = hash h in
-            (name, `Contents (hash, metadata))
-        | Node (n, h) ->
-            let name = step n in
-            let hash = hash h in
-            (name, `Node hash)
-      in
-      let t : Compress.v -> Bin.v = function
-        | Values vs -> Values (List.rev_map value (List.rev vs))
-        | Tree { depth; length; entries } ->
-            let entries = List.map ptr entries in
-            Tree { depth; length; entries }
-      in
-      let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
-      (off, t)
+  let of_concrete t =
+    match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
 
-    let decode_bin ~dict ~hash t off =
-      decode_bin_with_offset ~dict ~hash t off |> snd
-  end
-
-  type hash = T.hash
-
-  let pp_hash = T.pp_hash
-
-  let decode_raw ~dict ~hash t off =
-    Raw.decode_bin_with_offset ~dict ~hash t off
-
-  module Val = struct
-    include T
-    module I = Val_impl
-
-    type t =
-      | Total of I.total_ptr I.t
-      | Partial of I.partial_ptr I.layout * I.partial_ptr I.t
-      | Truncated of I.truncated_ptr I.t
-
-    type 'b apply_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'b } [@@unboxed]
-
-    let apply : t -> 'b apply_fn -> 'b =
-     fun t f ->
-      match t with
-      | Total v -> f.f I.Total v
-      | Partial (layout, v) -> f.f layout v
-      | Truncated v -> f.f I.Truncated v
-
-    type map_fn = { f : 'a. 'a I.layout -> 'a I.t -> 'a I.t } [@@unboxed]
-
-    let map : t -> map_fn -> t =
-     fun t f ->
-      match t with
-      | Total v ->
-          let v' = f.f I.Total v in
-          if v == v' then t else Total v'
-      | Partial (layout, v) ->
-          let v' = f.f layout v in
-          if v == v' then t else Partial (layout, v')
-      | Truncated v ->
-          let v' = f.f I.Truncated v in
-          if v == v' then t else Truncated v'
-
-    let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let v l = Total (I.v l)
-
-    let list ?offset ?length t =
-      apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
-
-    let empty = v []
-    let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
-    let find t s = apply t { f = (fun layout v -> I.find layout v s) }
-
-    let add t s value =
-      let f layout v =
-        I.check_write_op_supported v;
-        I.add ~copy:true layout v s value
-      in
-      map t { f }
-
-    let remove t s =
-      let f layout v =
-        I.check_write_op_supported v;
-        I.remove layout v s
-      in
-      map t { f }
-
-    let pre_hash_binv = Irmin.Type.(unstage (pre_hash Bin.v_t))
-    let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
-
-    let t : t Irmin.Type.t =
-      let pre_hash =
-        Irmin.Type.stage @@ fun x ->
-        let stable = apply x { f = (fun _ v -> I.stable v) } in
-        if not stable then
-          let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
-          pre_hash_binv bin.v
-        else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
-      in
-      Irmin.Type.map ~pre_hash Bin.t
-        (fun bin -> Truncated (I.of_bin I.Truncated bin))
-        (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
-
-    let hash t = apply t { f = (fun _ v -> I.hash v) }
-
-    let save ~add ~mem t =
-      let f layout v =
-        I.check_write_op_supported v;
-        I.save layout ~add ~mem v
-      in
-      apply t { f }
-
-    let of_raw find' v =
-      let rec find h =
-        match find' h with None -> None | Some v -> Some (I.of_bin layout v)
-      and layout = I.Partial find in
-      Partial (layout, I.of_bin layout v)
-
-    let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
-    let stable t = apply t { f = (fun _ v -> I.stable v) }
-    let length t = apply t { f = (fun _ v -> I.length v) }
-    let index = I.index
-
-    let integrity_check t =
-      let f layout v =
-        let check_stable () =
-          let check () = I.check_stable layout v in
-          let n = length t in
-          if n > Conf.stable_hash then (not (stable t)) && check ()
-          else stable t && check ()
-        in
-        let contains_empty_map_non_root () =
-          let check () = I.contains_empty_map layout v in
-          (* we are only looking for empty maps that are not at the root *)
-          if I.is_tree v then check () else false
-        in
-        check_stable () && not (contains_empty_map_non_root ())
-      in
-      apply t { f }
-
-    module Concrete = I.Concrete
-
-    let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
-
-    let of_concrete t =
-      match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
-  end
+  let merge ~contents ~node : t Irmin.Merge.t =
+    let merge = Schema.Node.merge ~contents ~node in
+    let to_node t = v (Schema.Node.list t) in
+    let of_node n = Schema.Node.v (list n) in
+    Irmin.Merge.like t merge of_node to_node
 end
 
-module Make_ext
-    (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inter : Internal
-               with type hash = H.t
-                and type Val.metadata = Node.metadata
-                and type Val.step = Node.step)
-    (CA : Content_addressable.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t) =
+module Store
+    (Schema : Schema.S)
+    (C : Irmin.Contents.Store
+           with type key = Schema.hash
+            and type value = Schema.contents)
+    (S : Content_addressable.S
+           with type key = Schema.hash
+            and type value = Schema.Node.Raw.t) =
 struct
-  module Key = H
-  module Pack = CA.Make (Inter.Raw)
-  module Val = Inter.Val
+  module Val = Schema.Node
+  module Key = Irmin.Hash.Typed (Schema.Hash) (Val)
+  module Path = Schema.Path
+  module Metadata = Schema.Metadata
+  module Contents = C
+  module Raw = S
 
-  type 'a t = 'a Pack.t
+  type 'a t = 'a C.t * 'a S.t
   type key = Key.t
-  type value = Inter.Val.t
-  type index = Pack.index
+  type value = Val.t
 
-  let mem t k = Pack.mem t k
+  let mem (_, t) k = S.mem t k
 
-  let find t k =
-    Pack.find t k >|= function
+  let find (_, t) k =
+    S.find t k >|= function
     | None -> None
     | Some v ->
-        let find = Pack.unsafe_find ~check_integrity:true t in
+        let find = S.unsafe_find ~check_integrity:true t in
         let v = Val.of_raw find v in
         Some v
 
-  let save t v =
-    let add k v =
-      Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
-    in
-    Val.save ~add ~mem:(Pack.unsafe_mem t) v
+  let save (_, t) v =
+    let add k v = S.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
+    Val.save ~add ~mem:(S.unsafe_mem t) v
 
   let hash v = Val.hash v
 
@@ -1193,52 +1159,53 @@ struct
     save t v;
     Lwt.return (hash v)
 
-  let equal_hash = Irmin.Type.(unstage (equal H.t))
+  let equal_hash = Irmin.Type.(unstage (equal Key.t))
+  let pp_hash = Irmin.Type.pp Key.t
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
-        expected Inter.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" pp_hash expected
+        pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash v);
     save t v;
     Lwt.return_unit
 
-  let batch = Pack.batch
-  let v = Pack.v
-  let integrity_check = Pack.integrity_check
-  let close = Pack.close
-  let sync = Pack.sync
-  let clear = Pack.clear
-  let clear_caches = Pack.clear_caches
+  let integrity_check ~offset ~length ~check_value key (_, t) =
+    let find = S.unsafe_find t ~check_integrity:true in
+    let check_value v =
+      let v = Val.of_raw find v in
+      check_value v && Val.integrity_check v
+    in
+    S.integrity_check ~offset ~length ~check_value key t
 
-  let decode_bin ~dict ~hash buff off =
-    Inter.decode_raw ~dict ~hash buff off |> fst
+  let rec merge (t : _ t) =
+    let merge_key =
+      Irmin.Merge.v [%typ: Key.t option] (fun ~old x y ->
+          Irmin.Merge.(f (merge t)) ~old x y)
+    in
+    let merge_node : Val.t Irmin.Merge.t =
+      Val.merge ~contents:Contents.(merge (fst t)) ~node:merge_key
+    in
+    let read = function
+      | None -> Lwt.return Val.empty
+      | Some k -> ( find t k >|= function None -> Val.empty | Some v -> v)
+    in
+    let add v =
+      if Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
+    in
+    Irmin.Merge.like_lwt [%typ: Key.t option] merge_node read add
 
-  let integrity_check_inodes t k =
-    find t k >|= function
-    | None ->
-        (* we are traversing the node graph, should find all values *)
-        assert false
-    | Some v ->
-        if Inter.Val.integrity_check v then Ok ()
-        else
-          let msg =
-            Fmt.str "Problematic inode %a" (Irmin.Type.pp Inter.Val.t) v
-          in
-          Error msg
+  let batch (c, s) f = C.batch c (fun n -> S.batch s (fun s -> f (n, s)))
+  let close (_, t) = S.close t
+  let clear (_, t) = S.clear t
 end
 
-module Make
-    (Conf : Conf.S)
-    (H : Irmin.Hash.S)
-    (CA : Content_addressable.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
-struct
-  module Inter = Make_internal (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (CA)
+module Schema (Conf : Conf.S) (Sc : Irmin.Schema.S) = struct
+  include Sc
+  module Node = Make (Conf) (Sc)
+
+  type node = Node.t
 end

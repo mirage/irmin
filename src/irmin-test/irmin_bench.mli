@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (S : Irmin.KV with type contents = string) : sig
+module Make (S : Irmin.KV with type Schema.contents = string) : sig
   val run :
     config:(root:string -> Irmin.config) -> size:(root:string -> int) -> unit
 end

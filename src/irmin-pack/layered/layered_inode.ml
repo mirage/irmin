@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,14 +13,24 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open! Import
 
-module Append_only : Irmin.Append_only.Maker
-module Atomic_write : Irmin.Atomic_write.Maker
-include Irmin.Maker
-module KV : Irmin.KV_maker
+module Store
+    (Schema : Irmin_pack.Schema.S)
+    (Index : Irmin_pack.Index.S)
+    (C : Irmin.Contents.Store
+           with type key = Schema.hash
+            and type value = Schema.contents)
+    (CA : Irmin_pack.Content_addressable.Maker
+            with type key = Schema.hash
+             and type index = Index.t) =
+struct
+  module X = CA.Make (Schema.Node.Raw)
 
-(** {1 Extended Stores} *)
+  module Raw =
+    Layered_store.Content_addressable (Schema.Hash) (Schema.Node.Raw) (Index)
+      (X)
+      (X)
 
-module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
-module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
-module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
+  include Irmin_pack.Inode.Store (Schema) (C) (Raw)
+end

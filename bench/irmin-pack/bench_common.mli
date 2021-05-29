@@ -30,10 +30,8 @@ module Info (I : Irmin.Info.S) : sig
   val f : I.f
 end
 
-module Conf : sig
-  val entries : int
-  val stable_hash : int
-end
+module Conf : Irmin_pack.Conf.S
+module Schema : Irmin.Schema.S
 
 module FSHelper : sig
   val rm_dir : string -> unit
@@ -41,8 +39,7 @@ module FSHelper : sig
   val print_size_layers : string -> unit
 end
 
-module Generate_trees
-    (Store : Irmin.S with type contents = bytes and type key = string list) : sig
+module Generate_trees (Store : Irmin.KV with type Schema.contents = bytes) : sig
   val add_chain_trees : int -> int -> Store.tree -> Store.tree Lwt.t
   (** [add_chain_trees depth nb tree] adds [nb] random contents to [tree],
       depthwise. *)

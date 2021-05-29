@@ -429,9 +429,10 @@ module type HTTP_CLIENT = sig
   val ctx : unit -> ctx option
 end
 
-module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
+module Client (Client : HTTP_CLIENT) (S : Irmin.Schema.S) = struct
   module X = struct
     module Hash = S.Hash
+    module Schema = S
 
     module Contents = struct
       module X = struct
@@ -447,13 +448,13 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     end
 
     module Node = struct
-      module Val = S.Private.Node.Val
+      module Val = S.Node
       module Key = Irmin.Hash.Typed (S.Hash) (Val)
       module CA = CA (Client) (S.Hash) (Val)
       include CA
       module Contents = Contents
       module Metadata = S.Metadata
-      module Path = S.Key
+      module Path = S.Path
 
       let merge t =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =
@@ -478,12 +479,12 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Commit = struct
       module X = struct
         module Key = S.Hash
-        module Val = S.Private.Commit.Val
+        module Val = S.Commit
         module CA = CA (Client) (Key) (Val)
         include Closeable.Content_addressable (CA)
       end
 
-      include Irmin.Private.Commit.Store (S.Info) (Node) (X) (X.Key) (X.Val)
+      include Irmin.Commit.Store (S.Info) (Node) (X) (X.Key) (X.Val)
 
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end

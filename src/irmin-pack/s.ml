@@ -18,16 +18,54 @@ open! Import
 
 exception RO_not_allowed
 
+module type Encodable = sig
+  type t
+  type hash
+
+  val hash : t -> hash
+  val magic : t -> char
+
+  val encode_bin :
+    dict:(string -> int option) ->
+    offset:(hash -> int63 option) ->
+    t ->
+    hash ->
+    (string -> unit) ->
+    unit
+
+  val decode_bin :
+    dict:(int -> string option) ->
+    hash:(int63 -> hash) ->
+    string ->
+    int ->
+    int * t
+end
+
+module type Createable = sig
+  type 'a t
+  type index
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    index:index ->
+    string ->
+    read t Lwt.t
+end
+
 module type Checkable = sig
   type 'a t
   type key
+  type value
 
   val integrity_check :
     offset:int63 ->
     length:int ->
+    check_value:(value -> bool) ->
     key ->
     _ t ->
-    (unit, [ `Wrong_hash | `Absent_value ]) result
+    (unit, [ `Wrong_hash | `Wrong_value | `Absent_value ]) result
 end
 
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
@@ -37,11 +75,13 @@ module type Specifics = sig
 
   val integrity_check :
     ?ppf:Format.formatter ->
+    ?heads:commit list ->
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
+    Lwt.t
   (** Checks the integrity of the repository. if [auto_repair] is [true], will
       also try to fix the issues. [ppf] is a formatter for progressive
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
@@ -73,32 +113,5 @@ module type S = sig
   include Irmin.S
   include Specifics with type repo := repo and type commit := commit
 
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
-
   val reconstruct_index : ?output:string -> Irmin.config -> unit
-end
-
-module type Maker = sig
-  type endpoint = unit
-  type info
-
-  module Make
-      (Metadata : Irmin.Metadata.S)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S) :
-    S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Remote.endpoint = endpoint
-       and type info = info
 end

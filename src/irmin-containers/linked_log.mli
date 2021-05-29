@@ -51,24 +51,24 @@ module Make
     () :
   S
     with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+     and type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string
 
 (** Linked log instantiated using the {{!Irmin_unix.FS} FS backend} provided by
     [Irmin_unix], timestamp method {!Time.Unix} and hash {!Irmin.Hash.SHA1} *)
 module FS (C : Stores.Content_addressable) (V : Irmin.Type.S) () :
   S
     with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+     and type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string
 
 (** Linked log instantiated using the {{!Irmin_mem} in-memory backend} provided
     by [Irmin_mem], timestamp method {!Time.Unix} and hash {!Irmin.Hash.SHA1} *)
 module Mem (C : Stores.Content_addressable) (V : Irmin.Type.S) () :
   S
     with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+     and type Store.Schema.branch = string
+     and type Store.Schema.path = string list
+     and type Store.Schema.step = string

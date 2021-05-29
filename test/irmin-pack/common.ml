@@ -43,7 +43,29 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module S = struct
+module Schema = struct
+  open Irmin
+  module Metadata = Metadata.None
+  module Contents = Contents.String
+  module Path = Path.String_list
+  module Branch = Branch.String
+  module Hash = Hash.SHA1
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default
+
+  type hash = Hash.t
+  type branch = Branch.t
+  type info = Info.t
+  type commit = Commit.t
+  type metadata = Metadata.t
+  type step = Path.step
+  type path = Path.t
+  type node = Node.t
+  type contents = Contents.t
+end
+
+module Contents = struct
   include Irmin.Contents.String
 
   let magic _ = 'S'
@@ -56,21 +78,22 @@ module S = struct
   let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    let _, (_, v) = decode_pair x off in
-    v
+    let off, (_, v) = decode_pair x off in
+    (off, v)
 end
 
-module H = Irmin.Hash.SHA1
 module I = Index
-module Index = Irmin_pack.Index.Make (H)
+module Index = Irmin_pack.Index.Make (Schema.Hash)
 
 module V2 = struct
   let version = `V2
 end
 
-module P = Irmin_pack.Content_addressable.Maker (V2) (Index) (H)
-module Pack = P.Make (S)
-module Branch = Irmin_pack.Atomic_write.Make (V2) (Irmin.Branch.String) (H)
+module Maker = Irmin_pack.Content_addressable.Maker (V2) (Index) (Schema.Hash)
+module Pack = Maker.Make (Contents)
+
+module Branch =
+  Irmin_pack.Atomic_write.Make (V2) (Irmin.Branch.String) (Schema.Hash)
 
 module Make_context (Config : sig
   val root : string

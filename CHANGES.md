@@ -74,6 +74,10 @@
   - `Info` implementations are not part of store: use `S.Info.v`
     instead of `Irmin.Info.v` (#1400, @samoht)
   - Rename `Commit.V1` to `Commit.V1.Make` (#1431, @CraigFe)
+  - Introduce a `Schema` module to hold all the types that users can
+    define in an Irmin store. Use this as a parameter to every `Maker`
+    functor. This is a large change which touches all the backends.
+    (#1454, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

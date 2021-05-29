@@ -29,7 +29,10 @@ module type S = sig
   module Git : Git.S
   (** Access to the underlying Git store. *)
 
-  include Irmin.S with type metadata = Metadata.t and type hash = Git.hash
+  module Schema :
+    Irmin.Schema.S with type metadata = Metadata.t and type hash = Git.hash
+
+  include Irmin.S with module Schema := Schema
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the repository
@@ -53,37 +56,35 @@ module type Maker = sig
   module G : G
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-  type info = Irmin.Info.default
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
+  module Make
+      (Schema : Schema.S
+                  with type hash = G.hash
+                   and type node = G.Value.Tree.t
+                   and type commit = G.Value.Commit.t) :
     S
-      with type key = P.t
-       and type step = P.step
-       and type info = info
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
+      with module Git = G
        and type Private.Remote.endpoint = endpoint
-       and module Git = G
+       and module Schema := Schema
 end
 
 module type KV_maker = sig
   module G : G
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
-  type info = Irmin.Info.default
-  type metadata = Metadata.t
   type branch
 
   module Make (C : Irmin.Contents.S) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = branch
-       and type info = info
+      with module Git = G
+       and type Schema.contents = C.t
+       and type Schema.metadata = Metadata.t
+       and type Schema.info = Irmin.Info.default
+       and type Schema.step = string
+       and type Schema.path = string list
+       and type Schema.hash = G.hash
+       and type Schema.branch = branch
        and type Private.Remote.endpoint = endpoint
-       and module Git = G
 end
 
 module type Sigs = sig

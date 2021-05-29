@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Ext
 include Irmin_pack_intf
 
 let config = Conf.v
@@ -31,14 +30,31 @@ module Maker_ext = Ext.Maker
 module Version = Version
 module Index = Pack_index
 module Conf = Conf
+module Schema = Schema
 
-module type Maker = S.Maker
 module type Specifics = S.Specifics
 
 let migrate = Migrate.run
 
-module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+module KV (V : Version.S) (Config : Conf.S) = struct
+  module Maker = Maker_ext (V)
+
+  type endpoint = Maker.endpoint
+  type metadata = unit
+
+  module Make (C : Irmin.Contents.S) = struct
+    module KV = Inode.Schema (Config) (Irmin.Schema.KV (C))
+    include Maker.Make (KV)
+  end
+end
+
+module Maker (V : Version.S) (Config : Conf.S) : Maker = struct
+  module Maker = Maker_ext (V)
+
+  type endpoint = Maker.endpoint
+
+  module Make (S : Irmin.Schema.S) = Maker.Make (Inode.Schema (Config) (S))
+end
 
 module V1 = Maker (struct
   let version = `V1
@@ -47,18 +63,6 @@ end)
 module V2 = Maker (struct
   let version = `V2
 end)
-
-module KV (V : Version.S) (Config : Conf.S) = struct
-  type endpoint = unit
-
-  module Maker = Maker (V) (Config)
-
-  type metadata = Metadata.t
-  type info = Maker.info
-
-  module Make (C : Irmin.Contents.S) =
-    Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
-end
 
 module Stats = Stats
 module Layout = Layout

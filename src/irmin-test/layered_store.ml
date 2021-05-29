@@ -23,8 +23,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make_Layered (S : Layered_store) = struct
   module P = S.Private
-  module Graph = Irmin.Private.Node.Graph (P.Node)
-  module History = Irmin.Private.Commit.History (P.Commit)
+  module Graph = Irmin.Node.Graph (P.Node)
+  module History = Irmin.Commit.History (P.Commit)
 
   let info message =
     let date = Int64.of_float 0. in
@@ -263,7 +263,8 @@ module Make_Layered (S : Layered_store) = struct
     run x test
 
   let check_layer repo handler msg exp =
-    S.layer_id repo handler >|= check Irmin_layers.Layer_id.t msg exp
+    let id = S.layer_id repo handler in
+    check Irmin_layers.Layer_id.t msg exp id
 
   let check_layer_for_commits repo commit msg exp =
     check_layer repo (S.Commit_t (S.Commit.hash commit)) msg exp
@@ -283,12 +284,9 @@ module Make_Layered (S : Layered_store) = struct
       (* list sees a merged tree from lower and upper layers *)
       check_list "path" [ ("d", contents v2); ("b", b) ] ks;
       S.Private_layer.wait_for_freeze repo >>= fun () ->
-      check_layer_for_commits repo c1 "layer id of commit 1" `Lower
-      >>= fun () ->
+      check_layer_for_commits repo c1 "layer id of commit 1" `Lower;
       let* c2 = S.Head.get t in
-      let* () =
-        check_layer_for_commits repo c2 "layer id of commit 2" `Upper0
-      in
+      check_layer_for_commits repo c2 "layer id of commit 2" `Upper0;
       let parents = S.Commit.parents c2 in
       check_parents "parents of c2" [ S.Commit.hash c1 ] parents;
       let* s = S.get t [ "a"; "b"; "c" ] in
@@ -478,20 +476,18 @@ module Make_Layered (S : Layered_store) = struct
         S.freeze repo ~min_lower:heads ~max_lower:heads ~max_upper:[]
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >>= function
+        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >|= function
         | true ->
             if not (S.async_freeze repo) then
               check_layer_for_commits repo c1 "layer id commit 1" `Lower
-            else Lwt.return_unit
         | false ->
             Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash c1
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c2) >>= function
+        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c2) >|= function
         | true ->
             if not (S.async_freeze repo) then
               check_layer_for_commits repo c2 "layer id commit 2" `Lower
-            else Lwt.return_unit
         | false ->
             Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash c2
       in
@@ -517,7 +513,7 @@ module Make_Layered (S : Layered_store) = struct
         | false -> ()
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c2) >>= function
+        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c2) >|= function
         | true -> check_layer_for_commits repo c2 "layer id commit 2" `Lower
         | false ->
             Alcotest.failf "should copy commit %a to dst" S.Commit.pp_hash c2
@@ -573,11 +569,8 @@ module Make_Layered (S : Layered_store) = struct
         Log.debug (fun l -> l "test %s" y);
         let* y' = S.Tree.find tree [ "c"; "b"; a ] in
         Alcotest.(check (option string)) "commit" (Some y) y';
-        let* () =
-          if not (S.async_freeze repo) then
-            check_layer_for_commits repo c "layer id commit" `Lower
-          else Lwt.return_unit
-        in
+        if not (S.async_freeze repo) then
+          check_layer_for_commits repo c "layer id commit" `Lower;
         let+ c' = S.Branch.find repo b in
         check_val repo "branch" (Some c) c'
       in
@@ -634,15 +627,10 @@ module Make_Layered (S : Layered_store) = struct
         with_info repo "commit kt3" (History.v ~node:kt3 ~parents:[])
       in
       let test_commit1 name_commit name =
-        let* () =
-          check_layer repo (S.Commit_t kr1) "layer id of commit 1" name_commit
-        in
-        check_layer repo (S.Node_t kt1) "layer id of node kt1" name
-        >>= fun () ->
-        check_layer repo (S.Node_t kt2) "layer id of node kt2" name
-        >>= fun () ->
-        check_layer repo (S.Node_t kt3) "layer id of node kt3" name
-        >>= fun () ->
+        check_layer repo (S.Commit_t kr1) "layer id of commit 1" name_commit;
+        check_layer repo (S.Node_t kt1) "layer id of node kt1" name;
+        check_layer repo (S.Node_t kt2) "layer id of node kt2" name;
+        check_layer repo (S.Node_t kt3) "layer id of node kt3" name;
         check_layer repo (S.Content_t kv1) "layer id of content kv1" name
       in
       (* Test that commit c1 and all its objects are preserved in upper after a
@@ -651,7 +639,7 @@ module Make_Layered (S : Layered_store) = struct
       (* copy in upper too *)
       S.freeze repo ~max_lower:[ c1 ] >>= fun () ->
       S.Private_layer.wait_for_freeze repo >>= fun () ->
-      test_commit1 `Upper0 `Upper0 >>= fun () ->
+      test_commit1 `Upper0 `Upper0;
       let* kv2 = with_contents repo (fun t -> P.Contents.add t v2) in
       let* kt1' = with_node repo (fun g -> Graph.v g [ ("d", normal kv2) ]) in
       let* kt2' = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1') ]) in
@@ -659,15 +647,9 @@ module Make_Layered (S : Layered_store) = struct
         with_info repo "commit kt2" (History.v ~node:kt2' ~parents:[ kr1 ])
       in
       let test_commit2 name =
-        let* () =
-          check_layer repo (S.Commit_t kr2) "layer id of commit 2" name
-        in
-        let* () =
-          check_layer repo (S.Node_t kt1') "layer id of node kt1" name
-        in
-        let* () =
-          check_layer repo (S.Node_t kt2') "layer id of node kt2" name
-        in
+        check_layer repo (S.Commit_t kr2) "layer id of commit 2" name;
+        check_layer repo (S.Node_t kt1') "layer id of node kt1" name;
+        check_layer repo (S.Node_t kt2') "layer id of node kt2" name;
         check_layer repo (S.Content_t kv2) "layer id of node kv2" name
       in
       (* Test that commits c1 and c2 are preserved in upper during and after a
@@ -678,14 +660,15 @@ module Make_Layered (S : Layered_store) = struct
         S.freeze repo ~min_upper:[ c1 ] ~max_lower:[ c2 ]
       in
       S.Private_layer.wait_for_freeze repo >>= fun () ->
-      test_commit1 `Upper1 `Upper1 >>= fun () ->
-      test_commit2 `Upper1 >>= fun () -> S.Repo.close repo
+      test_commit1 `Upper1 `Upper1;
+      test_commit2 `Upper1;
+      S.Repo.close repo
     in
     run x test
 
   let test_copy_in_upper_set x () =
     let check_layer_id repo handler msg exp =
-      let+ s = S.layer_id repo handler in
+      let s = S.layer_id repo handler in
       if (s = `Upper1 || s = `Upper0) && exp = `Upper then ()
       else if s = `Lower && exp = `Lower then ()
       else Alcotest.fail msg
@@ -699,41 +682,28 @@ module Make_Layered (S : Layered_store) = struct
       (* copy in upper too *)
       S.freeze repo ~max_lower:[ c1 ] >>= fun () ->
       let* hv1 = fail_with_none (S.hash foo [ "a"; "b"; "c" ]) "hash of v1'" in
-      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
-      >>= fun () ->
+      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper;
       S.set_exn foo [ "a"; "d" ] v2 ~info:(infof "commit 2") >>= fun () ->
       let* c2 = S.Head.get foo in
       let hc2 = S.Commit.hash c2 in
-      let* () =
-        check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper
-      in
+      check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper;
       S.Private_layer.wait_for_freeze repo >>= fun () ->
-      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
-      >>= fun () ->
+      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper;
       (* Test that commit c2 and all its objects are preserved in upper during
          and after a freeze. *)
       (* copy in upper too *)
       S.freeze repo ~max_lower:[ c2 ] >>= fun () ->
-      let* () =
-        check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper
-      in
-      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
-      >>= fun () ->
+      check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper;
+      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper;
       let* hv2 = fail_with_none (S.hash foo [ "a"; "d" ]) "hash of v2'" in
-      check_layer_id repo (S.Content_t hv2) "layer id of v2" `Upper
-      >>= fun () ->
+      check_layer_id repo (S.Content_t hv2) "layer id of v2" `Upper;
       S.Private_layer.wait_for_freeze repo >>= fun () ->
       let hc1 = S.Commit.hash c1 in
-      let* () =
-        check_layer_id repo (S.Commit_t hc1) "layer_id commit 1" `Lower
-      in
-      let* () =
-        check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper
-      in
-      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
-      >>= fun () ->
-      check_layer_id repo (S.Content_t hv2) "layer id of v2" `Upper
-      >>= fun () -> S.Repo.close repo
+      check_layer_id repo (S.Commit_t hc1) "layer_id commit 1" `Lower;
+      check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper;
+      check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper;
+      check_layer_id repo (S.Content_t hv2) "layer id of v2" `Upper;
+      S.Repo.close repo
     in
     run x test
 
@@ -743,7 +713,7 @@ module Make_Layered (S : Layered_store) = struct
                     \- c6 "b6" *)
   let test_keep_heads x () =
     let check_layer_id repo handler msg exp =
-      let+ s = S.layer_id repo handler in
+      let s = S.layer_id repo handler in
       if (s = `Upper1 || s = `Upper0) && exp = `Upper then ()
       else if s = `Lower && exp = `Lower then ()
       else Alcotest.fail msg
@@ -836,52 +806,40 @@ module Make_Layered (S : Layered_store) = struct
       check_branch repo "b5" (Some (List.nth commits 5)) c5';
       let* c6' = S.Branch.find repo "b6" in
       check_branch repo "b6" (Some (List.nth commits 6)) c6';
-      let* () =
-        check_layer_id repo
-          (S.Commit_t (S.Commit.hash (List.nth commits 1)))
-          "layer id of c1" `Lower
-      in
-      let* () =
-        Lwt_list.iter_p
-          (fun i ->
-            check_layer_id repo
-              (S.Commit_t (S.Commit.hash (List.nth commits i)))
-              ("layer id of c" ^ string_of_int i)
-              `Upper)
-          [ 3; 5; 6 ]
-      in
+      check_layer_id repo
+        (S.Commit_t (S.Commit.hash (List.nth commits 1)))
+        "layer id of c1" `Lower;
+      List.iter
+        (fun i ->
+          check_layer_id repo
+            (S.Commit_t (S.Commit.hash (List.nth commits i)))
+            ("layer id of c" ^ string_of_int i)
+            `Upper)
+        [ 3; 5; 6 ];
       let* t = S.of_branch repo "b6" in
       let* tree = S.get_tree t [] in
       let* s = fail_with_none (S.Tree.find tree [ "a"; "b"; "c0" ]) "find x0" in
       Alcotest.(check string) "x0" s "x0";
       let* s = fail_with_none (S.Tree.find tree [ "a"; "b"; "c1" ]) "find x1" in
       Alcotest.(check string) "x1" s "x1";
-      let* () =
-        Lwt_list.iter_p
-          (fun i ->
-            check_layer_id repo
-              (S.Content_t (List.nth contents i))
-              ("layer id of x" ^ string_of_int i)
-              `Upper)
-          [ 0; 1; 3 ]
-      in
-      let* () =
-        check_raises_lwt "Should not find x2" Not_found (fun () ->
-            S.layer_id repo (S.Content_t (List.nth contents 2)))
-      in
-      let* () =
-        check_raises_lwt "Should not found x4" Not_found (fun () ->
-            S.layer_id repo (S.Content_t (List.nth contents 4)))
-      in
-      let* () =
-        Lwt_list.iter_p
-          (fun i ->
-            check_layer_id repo
-              (S.Content_t (List.nth contents i))
-              ("layer id of x" ^ string_of_int i)
-              `Upper)
-          [ 3; 5; 6 ]
-      in
+      List.iter
+        (fun i ->
+          check_layer_id repo
+            (S.Content_t (List.nth contents i))
+            ("layer id of x" ^ string_of_int i)
+            `Upper)
+        [ 0; 1; 3 ];
+      Alcotest.check_raises "Should not find x2" Not_found (fun () ->
+          S.layer_id repo (S.Content_t (List.nth contents 2)) |> ignore);
+      Alcotest.check_raises "Should not found x4" Not_found (fun () ->
+          S.layer_id repo (S.Content_t (List.nth contents 4)) |> ignore);
+      List.iter
+        (fun i ->
+          check_layer_id repo
+            (S.Content_t (List.nth contents i))
+            ("layer id of x" ^ string_of_int i)
+            `Upper)
+        [ 3; 5; 6 ];
       S.Repo.close repo
     in
     run x test

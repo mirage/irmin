@@ -35,32 +35,20 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) :
 module Mem : sig
   module G : Irmin_git.G
 
-  module Make (C : Irmin.Contents.S) (P : Irmin.Path.S) (B : Irmin.Branch.S) :
-    S
-      with type key = P.t
-       and type step = P.step
-       and module Key = P
-       and type contents = C.t
-       and type branch = B.t
-       and module Git = G
+  type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
-  module Ref (C : Irmin.Contents.S) :
+  module Make
+      (Schema : Irmin_git.Schema.S
+                  with type hash = G.hash
+                  with type node = G.Value.Tree.t
+                   and type commit = G.Value.Commit.t) :
     S
-      with type key = string list
-       and type step = string
-       and type contents = C.t
-       and type branch = Irmin_git.reference
-       and module Git = G
+      with module Git = G
+       and type Private.Remote.endpoint = endpoint
+       and module Schema := Schema
 
-  module KV (C : Irmin.Contents.S) :
-    S
-      with type key = Irmin.Path.String_list.t
-       and type step = string
-       and module Key = Irmin.Path.String_list
-       and type contents = C.t
-       and type branch = string
-       and module Git = G
-
+  module Ref : KV_maker with type branch = Irmin_git.reference
+  module KV : KV_maker with type branch = string
   module KV_RO : KV_RO with type git := G.t
   module KV_RW (C : Mirage_clock.PCLOCK) : KV_RW with type git := G.t
 end

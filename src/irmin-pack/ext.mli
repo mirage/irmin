@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker
-    (_ : Version.S)
-    (_ : Conf.S)
-    (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker) : S.Maker with type info = CT.Info.t
+include Ext_intf.Sigs
+(** @inline *)
+
+module Maker (_ : Version.S) : Maker

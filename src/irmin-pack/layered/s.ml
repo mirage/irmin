@@ -18,7 +18,7 @@ open! Import
 open Store_properties
 
 module type Store = sig
-  include Irmin_layers.S
+  include Irmin_layers.S with type Private.Remote.endpoint = unit
   include Irmin_pack.Specifics with type repo := repo and type commit := commit
 
   val integrity_check :
@@ -33,19 +33,9 @@ module type Store = sig
 end
 
 module type Maker = functor
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  ->
-  Store
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+  (Conf : Irmin_pack.Conf.S)
+  (Schema : Irmin.Schema.S)
+  -> Store with module Schema = Irmin_pack.Inode.Schema(Conf)(Schema)
 
 module type Layered_general = sig
   type 'a t
@@ -90,10 +80,21 @@ module type Atomic_write = sig
 end
 
 module type Content_addressable = sig
-  open Irmin_pack.Content_addressable
-  include S
-  module U : S with type value = value
-  module L : S
+  include Irmin_pack.Content_addressable.S
+
+  type index
+
+  module U :
+    Irmin_pack.Content_addressable.Createable
+      with type key = key
+       and type value = value
+       and type index = index
+
+  module L :
+    Irmin_pack.Content_addressable.Createable
+      with type key = key
+       and type value = value
+       and type index = index
 
   val v :
     read U.t ->
@@ -103,7 +104,7 @@ module type Content_addressable = sig
     freeze_in_progress:(unit -> bool) ->
     read t
 
-  val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t
+  val layer_id : read t -> key -> Irmin_layers.Layer_id.t
 
   type 'a layer_type =
     | Upper : read U.t layer_type
@@ -126,7 +127,7 @@ module type Content_addressable = sig
   val lower : 'a t -> read L.t
   val clear_previous_upper : ?keep_generation:unit -> 'a t -> unit Lwt.t
 
-  val sync :
+  val sync_uppers :
     ?on_generation_change:(unit -> unit) ->
     ?on_generation_change_next_upper:(unit -> unit) ->
     'a t ->
@@ -141,10 +142,11 @@ module type Content_addressable = sig
 
   val flush_next_lower : 'a t -> unit
 
-  val integrity_check :
+  val integrity_check_on_layer :
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
+    check_value:(value -> bool) ->
     key ->
     _ t ->
     (unit, Irmin_pack.Checks.integrity_error) result
@@ -165,15 +167,11 @@ module type Content_addressable_maker = sig
   type key
   type index
 
-  module Make (V : Value with type hash := key) :
-    Content_addressable
-      with type key = key
-       and type value = V.t
-       and type index = index
-       and type U.index = index
-       and type L.index = index
-       and type U.key = key
-       and type L.key = key
-       and type U.value = V.t
-       and type L.value = V.t
+  module Make (V : Value with type hash := key) : sig
+    include
+      Content_addressable
+        with type key = key
+         and type value = V.t
+         and type index = index
+  end
 end

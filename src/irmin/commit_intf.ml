@@ -25,7 +25,7 @@ module type S = sig
   type hash [@@deriving irmin]
   (** Type for keys. *)
 
-  module Info : Type.S
+  module Info : Info.S
   (** The type for commit info. *)
 
   val v : info:Info.t -> node:hash -> parents:hash list -> t
@@ -58,7 +58,7 @@ module type Store = sig
   module Key : Hash.Typed with type t = key and type value = value
 
   (** [Val] provides functions for commit values. *)
-  module Val : S with type t = value and type hash = key and module Info = Info
+  module Val : S with type t = value and type hash = key and module Info := Info
 
   module Node : Node.Store with type key = Val.hash
   (** [Node] is the underlying node store. *)
@@ -167,7 +167,7 @@ module type Sigs = sig
 
   (** V1 serialisation. *)
   module V1 : sig
-    module Info : Type.S with type t = Info.Default.t
+    module Info : Info.S with type t = Info.Default.t
     (** Serialisation format for V1 info. *)
 
     module Make (C : S with module Info := Info) : sig
@@ -187,7 +187,7 @@ module type Sigs = sig
       (N : Node.Store)
       (S : Content_addressable.S with type key = N.key)
       (K : Hash.S with type t = S.key)
-      (V : S with type hash = S.key and type t = S.value and module Info = I) :
+      (V : S with type hash = S.key and type t = S.value and module Info := I) :
     Store
       with type 'a t = 'a N.t * 'a S.t
        and type key = S.key

@@ -17,9 +17,10 @@
 (** Default Irmin GraphQL store *)
 module Store :
   Irmin.S
-    with type contents = string
-     and type step = string
-     and type metadata = unit
+    with type Schema.contents = string
+     and type Schema.step = string
+     and type Schema.path = string list
+     and type Schema.metadata = unit
 
 type server = {
   event_loop : 'a. 'a Lwt.t;

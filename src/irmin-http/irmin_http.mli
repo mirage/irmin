@@ -25,16 +25,8 @@ module type HTTP_CLIENT = sig
   val ctx : unit -> ctx option
 end
 
-module Client (C : HTTP_CLIENT) (S : Irmin.S) :
-  Irmin.S
-    with type key = S.key
-     and type contents = S.contents
-     and type branch = S.branch
-     and type hash = S.hash
-     and type step = S.step
-     and type metadata = S.metadata
-     and type info = S.info
-     and type Private.Remote.endpoint = unit
+module Client (C : HTTP_CLIENT) (S : Irmin.Schema.S) :
+  Irmin.S with module Schema = S and type Private.Remote.endpoint = unit
 
 (** HTTP server *)
 

@@ -25,34 +25,35 @@ end
 module Make
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Branch.S) =
+    (Schema : Schema.S
+                with type hash = G.hash
+                 and type node = G.Value.Tree.t
+                 and type commit = G.Value.Commit.t) =
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
-  module Info = Irmin.Info.Default
+  module Schema = Schema
 
   module Contents = struct
-    module S = Contents.Make (G) (C)
+    module S = Contents.Make (G) (Schema.Contents)
     include Irmin.Contents.Store (S) (S.Key) (S.Val)
   end
 
   module Node = struct
-    module S = Node.Make (G) (P)
+    module S = Node.Store (G) (Schema.Path)
 
     include
-      Irmin.Private.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (P)
+      Irmin.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (Schema.Path)
   end
 
   module Commit = struct
-    module S = Commit.Make (G)
-    include Irmin.Private.Commit.Store (Info) (Node) (S) (S.Key) (S.Val)
+    module S = Commit.Store (G)
+    include Irmin.Commit.Store (Schema.Info) (Node) (S) (S.Key) (S.Val)
   end
 
   module Branch = struct
-    module Key = B
+    module Key = Schema.Branch
     module Val = Hash
-    module S = Atomic_write.Make (B) (G)
+    module S = Atomic_write.Make (Schema.Branch) (G)
     include Atomic_write.Check_closed (S)
 
     let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
@@ -109,7 +110,7 @@ struct
   end
 
   module Remote = struct
-    include Remote.Make (G) (S) (B)
+    include Remote.Make (G) (S) (Schema.Branch)
 
     let v repo = Lwt.return repo.Repo.g
   end

@@ -15,6 +15,7 @@
  *)
 
 open! Import
+open Common
 
 let src = Logs.Src.create "test" ~doc:"Irmin-pack layered tests"
 
@@ -40,20 +41,9 @@ module Conf = struct
   let with_lower = true
 end
 
-module Hash = Irmin.Hash.SHA1
-
-module Store =
-  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
-
+module Store = Irmin_pack_layered.Maker (Conf) (Schema)
 module V2 = Irmin_pack.V2 (Conf)
-
-module StoreSimple =
-  V2.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
+module StoreSimple = V2.Make (Schema)
 
 let config ?(readonly = false) ?(fresh = true) ?(lower_root = Conf.lower_root)
     ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =
@@ -498,10 +488,10 @@ module Test = struct
     Store.Private_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let check_layer block msg exp =
       Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
-      >|= Irmin_test.check Irmin_layers.Layer_id.t msg exp
+      |> Irmin_test.check Irmin_layers.Layer_id.t msg exp
     in
-    check_layer block1 "check layer of block1" `Lower >>= fun () ->
-    check_layer block1a "check layer of block1a" `Upper1 >>= fun () ->
+    check_layer block1 "check layer of block1" `Lower;
+    check_layer block1a "check layer of block1a" `Upper1;
     Store.Repo.close ctxt.index.repo
 
   (* 1 - 1a - 2a - 3a

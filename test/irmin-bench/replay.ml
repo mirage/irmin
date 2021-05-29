@@ -10,14 +10,8 @@ end
 module Store = struct
   type store_config = string
 
-  open Tezos_context_hash_irmin.Encoding
-
-  module V1 = struct
-    let version = `V1
-  end
-
-  module Maker = Irmin_pack.Maker_ext (V1) (Conf) (Node) (Commit)
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+  module Maker = Irmin_pack.V1 (Conf)
+  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding.Schema)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in

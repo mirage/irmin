@@ -14,7 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker
-    (_ : Irmin_pack.Conf.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : S.Maker
+module Maker : S.Maker

@@ -67,7 +67,7 @@ module type S = sig
     | Node_t : hash -> store_handle
     | Content_t : hash -> store_handle
 
-  val layer_id : repo -> store_handle -> layer_id Lwt.t
+  val layer_id : repo -> store_handle -> layer_id
   (** [layer_id t store_handle] returns the layer where an object, identified by
       its hash, is stored. *)
 
@@ -126,20 +126,23 @@ module type S = sig
   end
 end
 
-module type Maker = functor
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+(* FIXME: duplicated code with Irmin.Maker - we want to extend the
+   body signature [S]. *)
+module type Maker = sig
+  type endpoint
+
+  module Make (Schema : Irmin.Schema.S) :
+    S (* FIXME: we just want to "forget" about node equality *)
+      with type Schema.hash = Schema.hash
+       and type Schema.branch = Schema.branch
+       and type Schema.info = Schema.info
+       and type Schema.commit = Schema.commit
+       and type Schema.metadata = Schema.metadata
+       and type Schema.step = Schema.step
+       and type Schema.path = Schema.path
+       and type Schema.contents = Schema.contents
+       and type Private.Remote.endpoint = endpoint
+end
 
 module type Sigs = sig
   module Layer_id : sig
@@ -151,12 +154,6 @@ module type Sigs = sig
 
   module type S = S
   module type Maker = Maker
-
-  module Maker_ext
-      (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker)
-      (Node : Irmin.Private.Node.Maker)
-      (Commit : Irmin.Private.Commit.Maker) : Maker
 
   module Maker
       (CA : Irmin.Content_addressable.Maker)

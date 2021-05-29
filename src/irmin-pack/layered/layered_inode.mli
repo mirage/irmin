@@ -14,26 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+module Store
+    (Schema : Irmin_pack.Schema.S)
+    (Index : Irmin_pack.Index.S)
+    (C : Irmin.Contents.Store
+           with type key = Schema.hash
+            and type value = Schema.contents)
+    (CA : Irmin_pack.Content_addressable.Maker
+            with type key = Schema.hash
+             and type index = Index.t) : sig
+  type key = Schema.hash
+  type value = Schema.node
+
+  module Raw :
+    S.Content_addressable
+      with type key = key
+       and type value = Schema.Node.Raw.t
+       and type index = Index.t
+
+  include
+    Irmin.Node.Store
+      with type 'a t = 'a C.t * 'a Raw.t
+       and type key := key
+       and type value := value
+       and module Path = Schema.Path
+       and module Metadata = Schema.Metadata
+       and module Contents = C
 end
-
-module Schema = Irmin.Schema.KV (Irmin.Contents.String)
-
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker (V) (Conf)
-  include Maker.Make (Schema)
-end
-
-module Store = Irmin_pack.Checks.Make (Maker)
-
-module Store_layered = struct
-  module S = Irmin_pack_layered.Maker (Conf) (Schema)
-  include Irmin_pack_layered.Checks.Make (Maker) (S)
-end
-
-let () =
-  match Sys.getenv_opt "PACK_LAYERED" with
-  | Some "true" -> ( match Store_layered.cli () with _ -> .)
-  | _ -> ( match Store.cli () with _ -> .)

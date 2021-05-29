@@ -34,34 +34,25 @@ module IO_layers = IO_layers.IO
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Maker
-    (Config : Conf.Pack.S)
-    (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module Index = Irmin_pack.Index.Make (H)
-  module Pack = Irmin_pack.Content_addressable.Maker (V) (Index) (H)
-
+module Maker (Config : Irmin_pack.Conf.S) (Schema : Irmin.Schema.S) = struct
   type store_handle =
-    | Commit_t : H.t -> store_handle
-    | Node_t : H.t -> store_handle
-    | Content_t : H.t -> store_handle
+    | Commit_t : Schema.Hash.t -> store_handle
+    | Node_t : Schema.Hash.t -> store_handle
+    | Content_t : Schema.Hash.t -> store_handle
 
   module X = struct
-    module Hash = H
-    module Info = Commit.Info
+    module Schema = Irmin_pack.Inode.Schema (Config) (Schema)
+    module Hash = Schema.Hash
+    module Index = Irmin_pack.Index.Make (Hash)
+    module Pack = Irmin_pack.Content_addressable.Maker (V) (Index) (Hash)
+    open Schema
 
-    type 'a value = { magic : char; hash : H.t; v : 'a }
+    type 'a value = { magic : char; hash : Hash.t; v : 'a }
 
     let value a =
       let open Irmin.Type in
       record "value" (fun hash magic v -> { magic; hash; v })
-      |+ field "hash" H.t (fun v -> v.hash)
+      |+ field "hash" Hash.t (fun v -> v.hash)
       |+ field "magic" char (fun v -> v.magic)
       |+ field "v" a (fun v -> v.v)
       |> sealr
@@ -70,12 +61,12 @@ struct
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
         module CA_Pack = Pack.Make (struct
-          include C
-          module H = Irmin.Hash.Typed (H) (C)
+          include Contents
+          module H = Irmin.Hash.Typed (Hash) (Contents)
 
           let hash = H.hash
           let magic = 'B'
-          let value = value C.t
+          let value = value Contents.t
           let encode_value = Irmin.Type.(unstage (encode_bin value))
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
@@ -83,33 +74,28 @@ struct
             encode_value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, t = decode_value s off in
-            t.v
+            let off, t = decode_value s off in
+            (off, t.v)
 
           let magic _ = magic
         end)
 
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+
+        include
+          Layered_store.Content_addressable (Hash) (Contents) (Index) (CA) (CA)
       end
 
-      include Irmin.Contents.Store (CA) (H) (C)
+      include Irmin.Contents.Store (CA) (Hash) (Contents)
     end
 
-    module Node = struct
-      module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
-      module Node = Node (H) (P) (M)
-      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
-      include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
-    end
+    module Node = Layered_inode.Store (Schema) (Index) (Contents) (Pack)
 
     module Commit = struct
-      module Commit = Commit.Make (H)
-
       module CA = struct
         module CA_Pack = Pack.Make (struct
           include Commit
-          module H = Irmin.Hash.Typed (H) (Commit)
+          module H = Irmin.Hash.Typed (Hash) (Commit)
 
           let hash = H.hash
           let value = value Commit.t
@@ -121,34 +107,38 @@ struct
             encode_value { magic; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
-            let _, v = decode_value s off in
-            v.v
+            let off, v = decode_value s off in
+            (off, v.v)
 
           let magic _ = magic
         end)
 
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+
+        include
+          Layered_store.Content_addressable (Hash) (Commit) (Index) (CA) (CA)
       end
 
-      include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
+      include Irmin.Commit.Store (Info) (Node) (CA) (Hash) (Commit)
     end
 
     module Branch = struct
-      module Key = B
-      module Val = H
+      module Key = Branch
+      module Val = Hash
       module AW = Irmin_pack.Atomic_write.Make (V) (Key) (Val)
       module Closeable_AW = Irmin_pack.Atomic_write.Closeable (AW)
-      include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
+
+      include
+        Layered_store.Atomic_write (Key) (Val) (Closeable_AW) (Closeable_AW)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Private.Remote.None (H) (B)
+    module Remote = Irmin.Private.Remote.None (Hash) (Branch.Key)
 
     module Repo = struct
       type upper_layer = {
         contents : read Contents.CA.U.t;
-        node : read Node.CA.U.t;
+        node : read Node.Raw.U.t;
         commit : read Commit.CA.U.t;
         branch : Branch.U.t;
         index : Index.t;
@@ -156,7 +146,7 @@ struct
 
       type lower_layer = {
         lcontents : read Contents.CA.L.t;
-        lnode : read Node.CA.L.t;
+        lnode : read Node.Raw.L.t;
         lcommit : read Commit.CA.L.t;
         lbranch : Branch.L.t;
         lindex : Index.t;
@@ -174,7 +164,7 @@ struct
         blocking_copy_size : int;
         with_lower : bool;
         contents : read Contents.CA.t;
-        node : read Node.CA.t;
+        node : read Node.Raw.t;
         branch : Branch.t;
         commit : read Commit.CA.t;
         lower_index : Index.t option;
@@ -199,9 +189,9 @@ struct
         end
 
         module Nodes = struct
-          include Node.CA
+          include Node.Raw
 
-          type t = read Node.CA.t
+          type t = read Node.Raw.t
         end
 
         module Commits = struct
@@ -231,7 +221,7 @@ struct
       let batch t f =
         Lwt_mutex.with_lock t.batch_lock @@ fun () ->
         Contents.CA.batch t.contents (fun contents ->
-            Node.CA.batch t.node (fun node ->
+            Node.Raw.batch t.node (fun node ->
                 Commit.CA.batch t.commit (fun commit ->
                     let contents : 'a Contents.t = contents in
                     let node : 'a Node.t = (contents, node) in
@@ -254,7 +244,7 @@ struct
         let* contents =
           Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
         in
-        let* node = Node.CA.U.v ~fresh ~readonly ~lru_size ~index root in
+        let* node = Node.Raw.U.v ~fresh ~readonly ~lru_size ~index root in
         let* commit = Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root in
         let+ branch = Branch.U.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.U.flush ~index:false contents);
@@ -275,7 +265,7 @@ struct
         let* lcontents =
           Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
         in
-        let* lnode = Node.CA.L.v ~fresh ~readonly ~lru_size ~index root in
+        let* lnode = Node.Raw.L.v ~fresh ~readonly ~lru_size ~index root in
         let* lcommit = Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root in
         let+ lbranch = Branch.L.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
@@ -330,7 +320,7 @@ struct
         in
         let lower_node = Option.map (fun x -> x.lnode) lower in
         let node =
-          Node.CA.v upper1.node upper0.node lower_node ~flip
+          Node.Raw.v upper1.node upper0.node lower_node ~flip
             ~freeze_in_progress:always_false
         in
         let lower_commit = Option.map (fun x -> x.lcommit) lower in
@@ -387,15 +377,15 @@ struct
           the other stores only need to update the flip. *)
       let sync t =
         let on_generation_change () =
-          Node.CA.clear_caches t.node;
+          Node.Raw.clear_caches t.node;
           Commit.CA.clear_caches t.commit
         in
         let on_generation_change_next_upper () =
-          Node.CA.clear_caches_next_upper t.node;
+          Node.Raw.clear_caches_next_upper t.node;
           Commit.CA.clear_caches_next_upper t.commit
         in
         let flip =
-          Contents.CA.sync ~on_generation_change
+          Contents.CA.sync_uppers ~on_generation_change
             ~on_generation_change_next_upper t.contents
         in
         t.flip <- flip;
@@ -444,7 +434,7 @@ struct
       let layer_id t store_handler =
         match store_handler with
         | Commit_t k -> Commit.CA.layer_id t.commit k
-        | Node_t k -> Node.CA.layer_id t.node k
+        | Node_t k -> Node.Raw.layer_id t.node k
         | Content_t k -> Contents.CA.layer_id t.contents k
 
       let flush t =
@@ -462,7 +452,7 @@ struct
         Log.debug (fun l -> l "clear previous upper");
         Contents.CA.clear_previous_upper ?keep_generation t.contents
         >>= fun () ->
-        Node.CA.clear_caches_next_upper t.node;
+        Node.Raw.clear_caches_next_upper t.node;
         Commit.CA.clear_caches_next_upper t.commit;
         Branch.clear_previous_upper t.branch
 
@@ -483,19 +473,27 @@ struct
     end
   end
 
+  include Irmin.Of_private (X)
+  module Schema = X.Schema
+  module Checks = Irmin_pack.Checks.Index (X.Index)
+
   let integrity_check ?ppf ~auto_repair t =
-    let module Checks = Irmin_pack.Checks.Index (Index) in
     let contents = X.Repo.contents_t t in
     let nodes = X.Repo.node_t t |> snd in
     let commits = X.Repo.commit_t t |> snd in
+    let no_check _ = true in
     let integrity_check_layer ~layer index =
       let check ~kind ~offset ~length k =
         match kind with
         | `Contents ->
-            X.Contents.CA.integrity_check ~offset ~length ~layer k contents
-        | `Node -> X.Node.CA.integrity_check ~offset ~length ~layer k nodes
+            X.Contents.CA.integrity_check_on_layer ~offset ~length ~layer
+              ~check_value:no_check k contents
+        | `Node ->
+            X.Node.Raw.integrity_check_on_layer ~offset ~length ~layer
+              ~check_value:no_check k nodes
         | `Commit ->
-            X.Commit.CA.integrity_check ~offset ~length ~layer k commits
+            X.Commit.CA.integrity_check_on_layer ~offset ~length ~layer
+              ~check_value:no_check k commits
       in
       Checks.integrity_check ?ppf ~auto_repair ~check index
     in
@@ -509,8 +507,6 @@ struct
            | Some index -> (integrity_check_layer ~layer index, layer)
            | None -> (Ok `No_error, layer))
 
-  include Irmin.Of_private (X)
-
   let sync = X.Repo.sync
   let clear = X.Repo.clear
   let migrate = X.Repo.migrate
@@ -520,8 +516,8 @@ struct
   module Copy = struct
     let mem_commit_lower t = X.Commit.CA.mem_lower t.X.Repo.commit
     let mem_commit_next t = X.Commit.CA.mem_next t.X.Repo.commit
-    let mem_node_lower t = X.Node.CA.mem_lower t.X.Repo.node
-    let mem_node_next t = X.Node.CA.mem_next t.X.Repo.node
+    let mem_node_lower t = X.Node.Raw.mem_lower t.X.Repo.node
+    let mem_node_next t = X.Node.Raw.mem_next t.X.Repo.node
     let mem_contents_lower t = X.Contents.CA.mem_lower t.X.Repo.contents
     let mem_contents_next t = X.Contents.CA.mem_next t.X.Repo.contents
 
@@ -537,13 +533,13 @@ struct
     let no_skip _ = Lwt.return false
 
     let pred_node t k =
-      let n = snd (X.Repo.node_t t) in
-      X.Node.CA.find n k >|= function
+      let n = X.Repo.node_t t in
+      X.Node.find n k >|= function
       | None -> []
       | Some v ->
           List.rev_map
             (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
-            (X.Node.CA.Val.pred v)
+            (X.Schema.Node.values v)
 
     let always_false _ = false
     let with_cancel cancel f = if cancel () then Lwt.fail Cancelled else f ()
@@ -564,7 +560,7 @@ struct
       in
       let node k =
         with_cancel cancel @@ fun () ->
-        X.Node.CA.copy nodes t.X.Repo.node k;
+        X.Node.Raw.copy nodes t.X.Repo.node "Node" k;
         Lwt.return_unit
       in
       let contents k =
@@ -586,7 +582,7 @@ struct
         let contents =
           (X.Contents.CA.Lower, X.Contents.CA.lower t.X.Repo.contents)
         in
-        let nodes = (X.Node.CA.Lower, X.Node.CA.lower t.X.Repo.node) in
+        let nodes = (X.Node.Raw.Lower, X.Node.Raw.lower t.X.Repo.node) in
         let commits = (X.Commit.CA.Lower, X.Commit.CA.lower t.X.Repo.commit) in
         f (contents, nodes, commits)
 
@@ -607,7 +603,7 @@ struct
         let contents =
           (X.Contents.CA.Upper, X.Contents.CA.next_upper t.X.Repo.contents)
         in
-        let nodes = (X.Node.CA.Upper, X.Node.CA.next_upper t.X.Repo.node) in
+        let nodes = (X.Node.Raw.Upper, X.Node.Raw.next_upper t.X.Repo.node) in
         let commits =
           (X.Commit.CA.Upper, X.Commit.CA.next_upper t.X.Repo.commit)
         in
@@ -672,7 +668,7 @@ struct
         in
         let node k =
           with_cancel cancel @@ fun () ->
-          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+          X.Node.Raw.copy_from_lower ~dst:nodes t.X.Repo.node "Node" k
         in
         let contents k =
           with_cancel cancel @@ fun () ->
@@ -692,7 +688,7 @@ struct
 
       let on_current_upper t f =
         let contents = X.Contents.CA.current_upper t.X.Repo.contents in
-        let nodes = X.Node.CA.current_upper t.X.Repo.node in
+        let nodes = X.Node.Raw.current_upper t.X.Repo.node in
         let commits = X.Commit.CA.current_upper t.X.Repo.commit in
         f (contents, nodes, commits)
 
@@ -714,9 +710,9 @@ struct
             l
               "self_contained: copy commits min:%a; max:%a from lower into \
                upper to make the upper self contained"
-              (Fmt.list (Irmin.Type.pp H.t))
+              (Fmt.list (Irmin.Type.pp Hash.t))
               min
-              (Fmt.list (Irmin.Type.pp H.t))
+              (Fmt.list (Irmin.Type.pp Hash.t))
               max);
         on_current_upper t (fun u -> iter_copy u ~min t max)
     end
@@ -867,7 +863,7 @@ struct
       incr errors;
       Lwt.return_unit
     in
-    let node k = X.Node.CA.check t.X.Repo.node ~none k in
+    let node k = X.Node.Raw.check t.X.Repo.node ~none k in
     let contents k = X.Contents.CA.check t.X.Repo.contents ~none k in
     let commit k = X.Commit.CA.check t.X.Repo.commit ~none k in
     let* heads =

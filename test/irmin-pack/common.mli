@@ -17,8 +17,16 @@
 open Irmin.Perms
 module Int63 = Optint.Int63
 module Dict : Irmin_pack.Dict.S
-module H = Irmin.Hash.SHA1
 module I = Index
+module Conf : Irmin_pack.Conf.S
+
+module Schema :
+  Irmin.Schema.S
+    with type hash = Irmin.Hash.SHA1.t
+     and type step = string
+     and type path = string list
+     and type branch = string
+     and type contents = string
 
 module Filename : sig
   include module type of Filename
@@ -40,18 +48,18 @@ module Alcotest : sig
   val check_repr : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
 end
 
-module Index : Irmin_pack.Index.S with type key = H.t
+module Index : Irmin_pack.Index.S with type key = Schema.Hash.t
 
 module Pack :
-  Irmin_pack.Content_addressable.S
-    with type key = H.t
+  Irmin_pack.Content_addressable.Createable
+    with type key = Schema.Hash.t
      and type value = string
      and type index = Index.t
 
-module P :
+module Maker :
   Irmin_pack.Content_addressable.Maker
-    with type key = H.t
-     and type index = Irmin_pack.Index.Make(H).t
+    with type key = Schema.Hash.t
+     and type index = Pack.index
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)
 module Make_context (Config : sig
@@ -80,14 +88,8 @@ end) : sig
 end
 
 val get : 'a option -> 'a
-val sha1 : string -> H.t
+val sha1 : string -> Schema.Hash.t
 val rm_dir : string -> unit
 val index_log_size : int option
-
-module Conf : sig
-  val entries : int
-  val stable_hash : int
-end
-
 val random_string : int -> string
 val random_letters : int -> string
