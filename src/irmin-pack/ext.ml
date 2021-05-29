@@ -17,29 +17,24 @@
 open! Import
 module IO = IO.Unix
 
-module Maker
-    (V : Version.S)
-    (Config : Conf.S)
-    (Node : Irmin.Node.Maker)
-    (Commit : Irmin.Commit.Maker) =
-struct
+module Maker (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
-  type info = Commit.Info.t
 
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
+  module Make (Schema : Irmin.Schema.S) = struct
+    open struct
+      module H = Schema.Hash
+      module P = Schema.Path
+      module M = Schema.Metadata
+      module C = Schema.Contents
+      module B = Schema.Branch
+    end
+
     module Index = Pack_index.Make (H)
     module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
 
     module X = struct
       module Hash = H
-      module Info = Commit.Info
 
       type 'a value = { hash : H.t; kind : Pack_value.Kind.t; v : 'a }
       [@@deriving irmin]
@@ -51,21 +46,30 @@ struct
       end
 
       module Node = struct
-        module Node = Node (H) (P) (M)
-
         module CA = struct
-          module Inter = Inode.Make_internal (Config) (H) (Node)
-          include Inode.Make_persistent (H) (Node) (Inter) (Pack)
+          module Inter = Inode.Make_internal (Config) (H) (Schema.Node)
+          include Inode.Make_persistent (H) (Schema.Node) (Inter) (Pack)
         end
 
         include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
+      module Schema = struct
+        include Schema
+        module Node = Node
+      end
+
       module Commit = struct
-        module Commit = Commit.Make (H)
-        module Pack_value = Pack_value.Of_commit (H) (Commit)
+        module Pack_value =
+          Pack_value.Of_commit
+            (H)
+            (struct
+              module Info = Schema.Info
+              include Schema.Commit
+            end)
+
         module CA = Pack.Make (Pack_value)
-        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Commit)
+        include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Schema.Commit)
       end
 
       module Branch = struct

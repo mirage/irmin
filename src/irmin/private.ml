@@ -18,20 +18,32 @@ open! Import
 open Store_properties
 
 module type S = sig
-  module Hash : Hash.S
+  module Schema : Schema.S
+
+  module Hash : Hash.S with type t = Schema.Hash.t
   (** Internal hashes. *)
 
-  module Contents : Contents.Store with type key = Hash.t
   (** Private content store. *)
+  module Contents :
+    Contents.Store with type key = Hash.t and type value = Schema.Contents.t
 
-  module Node : Node.Store with type key = Hash.t
   (** Private node store. *)
+  module Node :
+    Node.Store
+      with type key = Hash.t
+       and module Path = Schema.Path
+       and module Metadata = Schema.Metadata
 
-  module Commit : Commit.Store with type key = Hash.t
   (** Private commit store. *)
+  module Commit :
+    Commit.Store
+      with type key = Hash.t
+       and type value = Schema.Commit.t
+       and module Info = Schema.Info
 
-  module Branch : Branch.Store with type value = Hash.t
   (** Private branch store. *)
+  module Branch :
+    Branch.Store with type key = Schema.Branch.t and type value = Hash.t
 
   (** Private slices. *)
   module Slice :

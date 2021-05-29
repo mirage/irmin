@@ -136,18 +136,12 @@ end
 let config () = Irmin.Private.Conf.empty
 
 module Content_addressable = Irmin.Content_addressable.Make (Append_only)
-include Irmin.Maker (Content_addressable) (Atomic_write)
+module S = Irmin.Maker (Content_addressable) (Atomic_write)
+module KV = Irmin.KV_maker (Content_addressable) (Atomic_write)
+include S
 
-module KV = struct
-  type metadata = unit
-  type endpoint = unit
-  type info = Irmin.Info.default
-
-  module Make (C : Irmin.Contents.S) =
-    Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.BLAKE2B)
-end
+(* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
+module _ : Irmin.Maker = S
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module KV_is_a_KV_maker : Irmin.KV_maker = KV
+module _ : Irmin.KV_maker = KV

@@ -31,6 +31,7 @@ let log_size = 1000
 
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
+module H = Schema.Hash
 module Node = Irmin.Node.Make (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
@@ -50,7 +51,6 @@ module Context = struct
     let clone ~readonly =
       Inode.v ~lru_size ~fresh:false ~readonly ~index root
     in
-
     { index; store; clone }
 
   let close t =
@@ -58,14 +58,16 @@ module Context = struct
     Inode.close t.store
 end
 
-type pred = [ `Contents of H.t | `Inode of H.t | `Node of H.t ]
+open Schema
+
+type pred = [ `Contents of Hash.t | `Inode of Hash.t | `Node of Hash.t ]
 [@@deriving irmin]
 
 let pp_pred = Irmin.Type.pp pred_t
 
 module H_contents =
   Irmin.Hash.Typed
-    (H)
+    (Hash)
     (struct
       type t = string
 

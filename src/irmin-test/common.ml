@@ -37,25 +37,32 @@ open Astring
 
 module type S =
   Irmin.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
 
 module type Layered_store =
   Irmin_layers.S
-    with type step = string
-     and type key = string list
-     and type contents = string
-     and type branch = string
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
+
+module Schema (M : Irmin.Metadata.S) = struct
+  module Hash = Irmin.Hash.SHA1
+  module Commit = Irmin.Commit.Make (Hash)
+  module Path = Irmin.Path.String_list
+  module Metadata = M
+  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Branch = Irmin.Branch.String
+  module Info = Irmin.Info.Default
+  module Contents = Irmin.Contents.String
+end
 
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
-  let module S =
-    B.Make (M) (Irmin.Contents.String) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
+  let module S = B.Make (Schema (M)) in
   (module S)
 
 let layered_store :
@@ -63,11 +70,8 @@ let layered_store :
     (module Irmin.Metadata.S) ->
     (module Layered_store) =
  fun (module B) (module M) ->
-  let module Layered_store =
-    B (M) (Irmin.Contents.String) (Irmin.Path.String_list) (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
-  in
-  (module Layered_store)
+  let module S = B.Make (Schema (M)) in
+  (module S)
 
 type t = {
   name : string;

@@ -15,14 +15,11 @@
  *)
 
 include Ext_layered
-module Maker_ext = Ext_layered.Maker
 
 module type S = S.Store
 module type Maker = S.Maker
 
-module Maker (Config : Irmin_pack.Conf.S) =
-  Maker_ext (Config) (Irmin.Node.Make) (Irmin.Commit)
-
+module Maker = Ext_layered.Maker
 module Checks = Checks
 
 let config = Conf.v

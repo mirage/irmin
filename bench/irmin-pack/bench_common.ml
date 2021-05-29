@@ -91,6 +91,18 @@ module Conf = struct
   let stable_hash = 256
 end
 
+module Schema = struct
+  open Irmin
+  module Metadata = Metadata.None
+  module Contents = Contents.String
+  module Path = Path.String_list
+  module Branch = Branch.String
+  module Hash = Hash.SHA1
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default
+end
+
 module Info (I : Irmin.Info.S) = struct
   let f () = I.v ~author:"tests" ~message:"commit" 0L
 end
@@ -129,8 +141,7 @@ module FSHelper = struct
       ())
 end
 
-module Generate_trees
-    (Store : Irmin.S with type contents = bytes and type key = string list) =
+module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) =
 struct
   let key depth =
     let rec aux i acc =

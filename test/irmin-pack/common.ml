@@ -40,7 +40,19 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module S = struct
+module Schema = struct
+  open Irmin
+  module Metadata = Metadata.None
+  module Contents = Contents.String
+  module Path = Path.String_list
+  module Branch = Branch.String
+  module Hash = Hash.SHA1
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default
+end
+
+module Contents = struct
   include Irmin.Contents.String
 
   let kind _ = Irmin_pack.Pack_value.Kind.Contents
@@ -62,17 +74,19 @@ module S = struct
     | _ -> assert false
 end
 
-module H = Irmin.Hash.SHA1
 module I = Index
-module Index = Irmin_pack.Index.Make (H)
-module P = Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (H)
-module Pack = P.Make (S)
+module Index = Irmin_pack.Index.Make (Schema.Hash)
+
+module P =
+  Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
+
+module Pack = P.Make (Contents)
 
 module Branch =
   Irmin_pack.Atomic_write.Make_persistent
     (Irmin_pack.Version.V2)
     (Irmin.Branch.String)
-    (H)
+    (Schema.Hash)
 
 module Make_context (Config : sig
   val root : string

@@ -59,12 +59,7 @@ module type Sigs = sig
   module type S = S.S
   module type Specifics = S.Specifics
 
-  module Maker_ext
-      (_ : Version.S)
-      (_ : Conf.S)
-      (N : Irmin.Node.Maker)
-      (CT : Irmin.Commit.Maker) : S.Maker with type info = CT.Info.t
-
+  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks

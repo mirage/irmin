@@ -41,7 +41,7 @@ type config = {
 module type Store = sig
   type store_config = config
 
-  include Irmin.KV with type contents = bytes
+  include Irmin.KV with type Schema.Contents.t = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
@@ -70,8 +70,6 @@ module Benchmark = struct
     Format.fprintf ppf "Total time: %f@\nSize on disk: %d M" result.time
       result.size
 end
-
-module Hash = Irmin.Hash.SHA1
 
 module Bench_suite (Store : Store) = struct
   module Info = Info (Store.Info)
@@ -169,13 +167,10 @@ end) =
 struct
   type store_config = config
 
-  open Tezos_context_hash_irmin.Encoding
-
-  module Store =
-    Irmin_pack_layered.Maker_ext (Conf) (Node) (Commit) (Metadata) (Contents)
-      (Path)
-      (Branch)
-      (Hash)
+  module Store = struct
+    open Irmin_pack_layered.Maker (Conf)
+    include Make (Tezos_context_hash_irmin.Encoding)
+  end
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -203,21 +198,18 @@ struct
   include Store
 end
 
-open Tezos_context_hash_irmin.Encoding
-
-module type Impl = functor (_ : Irmin.Node.Maker) (_ : Irmin.Commit.Maker) ->
-  Irmin_pack.Maker
-
 module Make_basic
-    (Impl : Impl) (Conf : sig
+    (Maker : Irmin_pack.Maker) (Conf : sig
       val entries : int
       val stable_hash : int
     end) =
 struct
-  module Maker = Impl (Node) (Commit) (Conf)
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
-
   type store_config = config
+
+  module Store = struct
+    open Maker (Conf)
+    include Make (Tezos_context_hash_irmin.Encoding)
+  end
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -232,14 +224,7 @@ end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
 
-module Make_store_pack =
-  Make_basic
-    ((functor
-       (Node : Irmin.Node.Maker)
-       (Commit : Irmin.Commit.Maker)
-       (C : Irmin_pack.Conf.S)
-       ->
-       Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (C) (Node) (Commit)))
+module Make_store_pack = Make_basic (Irmin_pack.Maker_ext (Irmin_pack.Version.V1))
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t

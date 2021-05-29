@@ -84,14 +84,14 @@ module Default_types (S : Irmin.S) :
 module Make
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type info = Config.info) :
+    (Store : Irmin.S with type Schema.Info.t = Config.info) :
   S with type repo = Store.repo and type server = Server.t
 
 (** Create a GraphQL server with custom GraphQL types. *)
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type info = Config.info)
+    (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
                with type key := Store.key
                 and type metadata := Store.metadata
