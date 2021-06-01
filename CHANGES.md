@@ -133,6 +133,9 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+  - Replaced `stable` fields with `kind (= Node | Inode)` fields to allow having
+    more than two kinds (will become useful for #1440 where
+    `kind = Node of version | Inode of version`) (#1452, @samoht, @mattiasdrp)
 
 ## 2.6.0 (2021-04-13)
 
