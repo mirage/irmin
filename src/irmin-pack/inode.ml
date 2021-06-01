@@ -669,7 +669,7 @@ struct
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
 
     let hash t = Lazy.force t.hash
-    let is_node t = t.kind = Kind.Node
+    let is_node t = t.kind = Kind.Node [@@inline]
 
     let is_root t =
       match t.v with
