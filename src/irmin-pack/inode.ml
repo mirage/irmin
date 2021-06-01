@@ -33,6 +33,18 @@ struct
     let hash = H.hash
   end
 
+  module Kind = struct
+    type t = Node | Inode
+
+    let of_char = function
+      | 'N' -> Node
+      | 'I' -> Inode
+      | c -> Fmt.failwith "%c is not a valid kind" c
+
+    let to_char = function Node -> 'N' | Inode -> 'I'
+    let t = Irmin.Type.(map char) of_char to_char
+  end
+
   module T = struct
     type hash = H.t [@@deriving irmin]
     type step = Node.step [@@deriving irmin]
@@ -96,21 +108,21 @@ struct
           let t = v_t
         end)
 
-    type t = { hash : H.t Lazy.t; stable : bool; v : v }
+    type t = { hash : H.t Lazy.t; kind : Kind.t; v : v }
 
     let pre_hash_v = Irmin.Type.(unstage (pre_hash v_t))
 
     let t : t Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash = stage (fun x -> pre_hash_v x.v) in
-      record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
+      record "Bin.t" (fun hash kind v -> { hash = lazy hash; kind; v })
       |+ field "hash" H.t (fun t -> Lazy.force t.hash)
-      |+ field "stable" bool (fun t -> t.stable)
+      |+ field "kind" Kind.t (fun t -> t.kind)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
       |> like ~pre_hash
 
-    let v ~stable ~hash v = { stable; hash; v }
+    let v ~kind ~hash v = { kind; hash; v }
     let hash t = Lazy.force t.hash
   end
 
@@ -220,22 +232,15 @@ struct
       |~ case1 "Tree" tree_t (fun x -> Tree x)
       |> sealv
 
-    type t = { hash : H.t; stable : bool; v : v }
+    type t = { hash : H.t; kind : Kind.t; v : v }
 
-    let v ~stable ~hash v = { hash; stable; v }
-    let magic_node = 'N'
-    let magic_inode = 'I'
-
-    let stable_t : bool Irmin.Type.t =
-      Irmin.Type.(map char)
-        (fun n -> n = magic_node)
-        (function true -> magic_node | false -> magic_inode)
+    let v ~kind ~hash v = { hash; kind; v }
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash stable v -> { hash; stable; v })
+      record "Compress.t" (fun hash kind v -> { hash; kind; v })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable_t (fun t -> t.stable)
+      |+ field "kind" Kind.t (fun t -> t.kind)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
   end
@@ -333,7 +338,7 @@ struct
 
     and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
 
-    and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
+    and 'ptr t = { hash : hash Lazy.t; kind : Kind.t; v : 'ptr v }
 
     module Ptr = struct
       let hash : type ptr. ptr layout -> ptr -> _ = function
@@ -412,7 +417,7 @@ struct
       | Tree vs -> vs.length
 
     let length t = length_of_v t.v
-    let stable t = t.stable
+    let kind t = t.kind
 
     type acc = {
       cursor : int;
@@ -489,7 +494,7 @@ struct
 
     let to_bin layout t =
       let v = to_bin_v layout t.v in
-      Bin.v ~stable:t.stable ~hash:t.hash v
+      Bin.v ~kind:t.kind ~hash:t.hash v
 
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
@@ -629,7 +634,7 @@ struct
                 let hash = hash v in
                 if not (hash_equal hash pointer) then
                   raise (Invalid_hash (hash, pointer, t));
-                let t = { hash = lazy pointer; stable = false; v } in
+                let t = { hash = lazy pointer; kind = Inode; v } in
                 entries.(index) <- Some (Ptr.of_target Total t))
               tr.pointers;
             let length = Concrete.length t in
@@ -640,13 +645,17 @@ struct
       in
       let v = aux 0 t in
       let length = length_of_v v in
-      let stable, hash =
-        if length > Conf.stable_hash then (false, hash v)
-        else
+      let kind, hash =
+        let node () =
           let node = Node.v (list_v Total v) in
-          (true, Node.hash node)
+          (Kind.Node, Node.hash node)
+        in
+        match v with
+        | Values _ -> node ()
+        | Tree _ ->
+            if length > Conf.stable_hash then (Kind.Inode, hash v) else node ()
       in
-      { hash = lazy hash; stable; v }
+      { hash = lazy hash; kind; v }
 
     let of_concrete t =
       try Ok (of_concrete_exn t) with
@@ -660,44 +669,47 @@ struct
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
 
     let hash t = Lazy.force t.hash
+    let is_node t = t.kind = Kind.Node
 
     let is_root t =
       match t.v with
       | Tree { depth; _ } -> depth = 0
       | Values _ ->
-          (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
-             is implied by the following.
+          (* When [t] is of tag [Values], then [t] is root iff [t] is a [Node].
+             It is implied by the following;:
 
-             When [t] is stable, then [t] is a root, because:
-              - Only 2 functions produce stable inodes: [stabilize] and [empty].
-              - Only the roots are output of [stabilize].
-              - An empty map can only be located at the root.
+             When [t] is a [Node], then [t] is a root, because:
+               - Only 2 functions produce stable inodes: [stabilize] and [empty].
+               - Only the roots are output of [stabilize].
+               - An empty map can only be located at the root.
 
-             When [t] is a root of tag [Value], then [t] is stable, because:
-             - All the roots are output of [stabilize].
-             - When an unstable inode enters [stabilize], it becomes stable if
-               it has at most [Conf.stable_hash] leaves.
-             - A [Value] has at most [Conf.stable_hash] leaves because
-               [Conf.entries <= Conf.stable_hash] is enforced.
+             When [t] is a root of tag [Value], then [t] is a stable [Inode]
+             (hashed as a [Node]), because:
+               - All the roots are output of [stabilize].
+               - When an unstable inode enters [stabilize], it becomes a
+                 stable [Inode] if it has at most [Conf.stable_hash] leaves.
+               - A [Value] has at most [Conf.stable_hash] leaves because
+                 [Conf.entries <= Conf.stable_hash] is enforced.
           *)
-          t.stable
+          is_node t
 
     let check_write_op_supported t =
       if not @@ is_root t then
         failwith "Cannot perform operation on non-root inode value."
 
     let stabilize layout t =
-      if t.stable then t
-      else
-        let n = length t in
-        if n > Conf.stable_hash then t
-        else
-          let hash =
-            lazy
-              (let vs = list layout t in
-               Node.hash (Node.v vs))
-          in
-          { hash; stable = true; v = t.v }
+      match t.kind with
+      | Node -> t
+      | Inode ->
+          let n = length t in
+          if n > Conf.stable_hash then t
+          else
+            let hash =
+              lazy
+                (let vs = list layout t in
+                 Node.hash (Node.v vs))
+            in
+            { hash; kind = Node; v = t.v }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
@@ -720,12 +732,12 @@ struct
               t.entries;
             Tree { depth = t.Bin.depth; length = t.length; entries }
       in
-      { hash = t.Bin.hash; stable = t.Bin.stable; v }
+      { hash = t.Bin.hash; kind = t.Bin.kind; v }
 
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
       let hash = lazy (Node.hash Node.empty) in
-      { stable = true; hash; v = Values StepMap.empty }
+      { kind = Node; hash; v = Values StepMap.empty }
 
     let values layout vs =
       let length = StepMap.cardinal vs in
@@ -733,12 +745,12 @@ struct
       else
         let v = Values vs in
         let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-        { hash; stable = false; v }
+        { hash; kind = Inode; v }
 
     let tree layout is =
       let v = Tree is in
       let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-      { hash; stable = false; v }
+      { hash; kind = Inode; v }
 
     let of_values layout l = values layout (StepMap.of_list l)
 
@@ -894,8 +906,9 @@ struct
 
     let check_stable layout t =
       let target_of_ptr = Ptr.target layout in
+      (* FIXME: that function is too complicated *)
       let rec check t any_stable_ancestor =
-        let stable = t.stable || any_stable_ancestor in
+        let stable = is_node t || any_stable_ancestor in
         match t.v with
         | Values _ -> true
         | Tree tree ->
@@ -904,10 +917,21 @@ struct
                 | None -> true
                 | Some t ->
                     let t = target_of_ptr t in
-                    (if stable then not t.stable else true) && check t stable)
+                    (* FIXME: stable is true if t.kind = Node or an ancestor is stable
+                       but if stable is true we check if t.kind is Inode
+                       From
+                       if stable then match t.kind with Inode -> true | Node -> false else true
+                       To
+                       if stable then not (is_node t) else true
+                       To
+                       not stable || not (is_node t)
+                       To
+                       not (stable && is_node t)
+                    *)
+                    (not (stable && is_node t)) && check t stable)
               tree.entries
       in
-      check t t.stable
+      check t (is_node t)
 
     let contains_empty_map layout t =
       let target_of_ptr = Ptr.target layout in
@@ -931,10 +955,7 @@ struct
     type t = Bin.t
 
     let t = Bin.t
-
-    let magic (t : t) =
-      if t.stable then Compress.magic_node else Compress.magic_inode
-
+    let magic t = Kind.to_char t.Bin.kind
     let hash t = Bin.hash t
     let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
     let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
@@ -974,7 +995,7 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
+      let t = Compress.v ~kind:t.kind ~hash:k (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
@@ -1016,7 +1037,7 @@ struct
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
+      let t = Bin.v ~kind:i.kind ~hash:(lazy i.hash) (t i.v) in
       (off, t)
 
     let decode_bin ~dict ~hash t off =
@@ -1093,13 +1114,14 @@ struct
     let t : t Irmin.Type.t =
       let pre_hash =
         Irmin.Type.stage @@ fun x ->
-        let stable = apply x { f = (fun _ v -> I.stable v) } in
-        if not stable then
-          let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
-          pre_hash_binv bin.v
-        else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
+        let kind = apply x { f = (fun _ v -> I.kind v) } in
+        match kind with
+        | Inode ->
+            let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
+            pre_hash_binv bin.v
+        | Node ->
+            let vs = list x in
+            pre_hash_node (Node.v vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
@@ -1121,7 +1143,7 @@ struct
       Partial (layout, I.of_bin layout v)
 
     let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
-    let stable t = apply t { f = (fun _ v -> I.stable v) }
+    let stable t = apply t { f = (fun _ v -> I.is_node v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
     let index = I.index
 
