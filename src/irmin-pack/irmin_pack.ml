@@ -32,9 +32,6 @@ module Version = Version
 module Index = Pack_index
 module Conf = Conf
 
-module type Maker = S.Maker
-module type Specifics = S.Specifics
-
 let migrate = Migrate.run
 
 module Maker (V : Version.S) (Config : Conf.S) =
