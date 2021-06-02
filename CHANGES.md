@@ -133,6 +133,7 @@
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+  - All the types in `inode.ml` are now derived automatically (#1451, @samoht, @mattiasdrp)
 
 ## 2.6.0 (2021-04-13)
 
