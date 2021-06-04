@@ -203,18 +203,23 @@ struct
   include Store
 end
 
-module Make_store_mem (Conf : sig
-  val entries : int
-  val stable_hash : int
-end) =
+open Tezos_context_hash_irmin.Encoding
+
+module type Impl = functor
+  (_ : Irmin.Private.Node.Maker)
+  (_ : Irmin.Private.Commit.Maker)
+  -> Irmin_pack.Maker
+
+module Make_basic
+    (Impl : Impl) (Conf : sig
+      val entries : int
+      val stable_hash : int
+    end) =
 struct
-  type store_config = config
-
-  open Tezos_context_hash_irmin.Encoding
-  module Maker = Irmin_pack_mem.Maker (Node) (Commit) (Conf)
-
-  (* module Maker = Irmin_pack_mem.Maker_ext (Conf) (Node) (Commit) *)
+  module Maker = Impl (Node) (Commit) (Conf)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+
+  type store_config = config
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -227,30 +232,16 @@ struct
   include Store
 end
 
-module Make_store_pack (Conf : sig
-  val entries : int
-  val stable_hash : int
-end) =
-struct
-  type store_config = config
+module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
 
-  open Tezos_context_hash_irmin.Encoding
-
-  module Maker =
-    Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (Conf) (Node) (Commit)
-
-  module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
-
-  let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    let pp _ = () in
-    Lwt.return (repo, on_commit, on_end, pp)
-
-  include Store
-end
+module Make_store_pack =
+  Make_basic
+    ((functor
+       (Node : Irmin.Private.Node.Maker)
+       (Commit : Irmin.Private.Commit.Maker)
+       (C : Irmin_pack.Conf.S)
+       ->
+       Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (C) (Node) (Commit)))
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t
