@@ -301,4 +301,27 @@ module Maker
     let generation t = IO.generation t.pack.block
     let offset t = IO.offset t.pack.block
   end
+
+  module Make_closeable (Val : Pack_value.S with type hash := K.t) = struct
+    module Inner = Make (Val)
+    include Content_addressable.Closeable (Inner)
+
+    let v ?fresh ?readonly ?lru_size ~index path =
+      Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
+
+    type index = Inner.index
+
+    let sync ?on_generation_change t =
+      Inner.sync ?on_generation_change (get_open_exn t)
+
+    let flush ?index ?index_merge t =
+      Inner.flush ?index ?index_merge (get_open_exn t)
+
+    let version t = Inner.version (get_open_exn t)
+    let offset t = Inner.offset (get_open_exn t)
+    let clear_caches t = Inner.clear_caches (get_open_exn t)
+
+    let integrity_check ~offset ~length k t =
+      Inner.integrity_check ~offset ~length k (get_open_exn t)
+  end
 end

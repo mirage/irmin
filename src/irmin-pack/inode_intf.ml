@@ -26,15 +26,9 @@ module type S = sig
   include Irmin.Content_addressable.S
   module Key : Irmin.Hash.S with type t = key
   module Val : Value with type t = value and type hash = key
-  include S.Checkable with type 'a t := 'a t and type key := key
-
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-  val clear_caches : 'a t -> unit
 
   val decode_bin :
     dict:(int -> string option) -> hash:(int63 -> key) -> string -> int -> int
-
-  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 end
 
 module type Persistent = sig
@@ -49,6 +43,12 @@ module type Persistent = sig
     index:index ->
     string ->
     read t Lwt.t
+
+  include S.Checkable with type 'a t := 'a t and type key := key
+
+  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
+  val clear_caches : 'a t -> unit
+  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 end
 
 (** Unstable internal API agnostic about the underlying storage. Use it only to

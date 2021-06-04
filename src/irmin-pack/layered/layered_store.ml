@@ -327,16 +327,7 @@ struct
   type key = P.key
 
   module Make (V : Irmin_pack.Pack_value.S with type hash := key) = struct
-    module Upper = struct
-      module CA_pack = P.Make (V)
-      include Irmin_pack.Content_addressable.Closeable (CA_pack)
-
-      let version t = CA_pack.version (unsafe_get_inner_store t)
-
-      let v ?fresh ?readonly ?lru_size ~index path =
-        CA_pack.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
-    end
-
+    module Upper = P.Make_closeable (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end
 end

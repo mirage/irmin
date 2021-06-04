@@ -1181,11 +1181,8 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-  let integrity_check = Pack.integrity_check
   let close = Pack.close
-  let sync = Pack.sync
   let clear = Pack.clear
-  let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
     Inter.Raw.decode_bin ~dict ~hash buff off |> fst
@@ -1216,8 +1213,12 @@ module Make_ext_indexed_store
              and type index = Pack_index.Make(H).t) =
 struct
   module Persistent_pack = CA.Make (Inter.Raw)
-  module CA = Persistent_pack
-  include Make_ext (H) (Node) (Inter) (CA)
+  module Pack = Persistent_pack
+  include Make_ext (H) (Node) (Inter) (Pack)
+
+  let sync = Pack.sync
+  let integrity_check = Pack.integrity_check
+  let clear_caches = Pack.clear_caches
 
   type index = Persistent_pack.index
 

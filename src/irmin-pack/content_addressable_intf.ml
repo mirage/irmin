@@ -30,24 +30,9 @@ module type S = sig
 
   val unsafe_mem : 'a t -> key -> bool
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
-  val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
-
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-  (** syncs a readonly instance with the files on disk. The same file instance
-      is shared between several pack instances. Therefore only the first pack
-      instance that checks a generation change, can see it.
-      [on_generation_change] is a callback for all pack instances to react to a
-      generation change. *)
 
   val generation : 'a t -> int63
-  val offset : 'a t -> int63
-
-  (** @inline *)
-  include S.Checkable with type 'a t := 'a t and type key := key
-
-  val clear_caches : 'a t -> unit
-  (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
-      are not removed. *)
+  (** The number of times that {!clear} has been called on this store. *)
 
   val clear_keep_generation : 'a t -> unit Lwt.t
 end
@@ -111,6 +96,7 @@ module type Sigs = sig
     include S with type key = CA.key and type value = CA.value
 
     val make_closeable : 'a CA.t -> 'a t
+    val get_open_exn : 'a t -> 'a CA.t
 
     val unsafe_get_inner_store : 'a t -> 'a CA.t
     (** Ignores whether or not the store has been 'closed'. *)

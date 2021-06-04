@@ -83,6 +83,11 @@ module Maker (K : Irmin.Hash.S) = struct
     let v name = Lwt.return (Pool.take instances name)
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
+    let clear_keep_generation t =
+      Log.debug (fun f -> f "clear_keep_generation");
+      t.t <- KMap.empty;
+      Lwt.return_unit
+
     let clear t =
       Log.debug (fun f -> f "clear");
       t.t <- KMap.empty;
@@ -144,12 +149,6 @@ module Maker (K : Irmin.Hash.S) = struct
       let k = Val.hash v in
       unsafe_add t k v >|= fun () -> k
 
-    let flush ?index:_ ?index_merge:_ _t = ()
-
-    let sync ?on_generation_change:_ _t =
-      failwith "Readonly instances not supported"
-
-    let offset _ = Int63.zero
     let generation t = t.generation
   end
 end

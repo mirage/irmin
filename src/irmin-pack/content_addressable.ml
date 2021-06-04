@@ -365,33 +365,13 @@ module Closeable (S : S) = struct
     check_not_closed t;
     S.unsafe_find ~check_integrity t.t k
 
-  let flush ?index ?index_merge t =
-    check_not_closed t;
-    S.flush ?index ?index_merge t.t
-
-  let sync ?on_generation_change t =
-    check_not_closed t;
-    S.sync ?on_generation_change t.t
-
   let clear t =
     check_not_closed t;
     S.clear t.t
 
-  let integrity_check ~offset ~length k t =
-    check_not_closed t;
-    S.integrity_check ~offset ~length k t.t
-
-  let clear_caches t =
-    check_not_closed t;
-    S.clear_caches t.t
-
   let generation t =
     check_not_closed t;
     S.generation t.t
-
-  let offset t =
-    check_not_closed t;
-    S.offset t.t
 
   let clear_keep_generation t =
     check_not_closed t;
@@ -399,4 +379,8 @@ module Closeable (S : S) = struct
 
   let make_closeable t = { closed = ref false; t }
   let unsafe_get_inner_store t = t.t
+
+  let get_open_exn t =
+    check_not_closed t;
+    t.t
 end

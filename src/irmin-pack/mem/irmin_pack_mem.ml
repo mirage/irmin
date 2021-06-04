@@ -134,21 +134,12 @@ struct
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
 
-        (** Stores share instances in memory, one sync is enough. However each
-            store has its own lru and all have to be cleared. *)
-        let sync t =
-          let on_generation_change () =
-            Node.CA.clear_caches (snd (node_t t));
-            Commit.CA.clear_caches (snd (commit_t t))
-          in
-          Contents.CA.sync ~on_generation_change (contents_t t)
+        (* An in-memory store is always in sync. *)
+        let sync _ = ()
+        let flush _ = ()
 
-        (** Stores share instances so one clear is enough. *)
+        (* Stores share instances so one clear is enough. *)
         let clear t = Contents.CA.clear (contents_t t)
-
-        let flush t =
-          Contents.CA.flush (contents_t t);
-          Branch.flush t.branch
       end
     end
 

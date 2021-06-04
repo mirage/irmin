@@ -58,16 +58,8 @@ struct
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
-        module CA_Pack = Pack.Make (Pack_value)
-
-        module CA = struct
-          include Irmin_pack.Content_addressable.Closeable (CA_Pack)
-
-          let version t = CA_Pack.version (unsafe_get_inner_store t)
-
-          let v ?fresh ?readonly ?lru_size ~index path =
-            CA_Pack.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
-        end
+        module CA = Pack.Make (Pack_value)
+        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
       include Irmin.Contents.Store (CA) (H) (C)
