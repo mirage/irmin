@@ -67,7 +67,7 @@ module Memory = struct
   module type S = sig
     include S
 
-    val v : unit -> read t Lwt.t
+    val v : string -> read t Lwt.t
   end
 
   module type Maker = sig

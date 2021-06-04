@@ -21,10 +21,8 @@ module Maker (V : Irmin_pack.Version.S) (K : Irmin.Hash.S) = struct
 
   module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) = struct
     (* This code is duplicated from irmin-mem except that it exposes non-lwt
-       functions to be used by the inodes. It is different from the irmin-pack
-       backend:
-          - no support for readonly instances;
-          - all opened instances share the same map. *)
+       functions to be used by the inodes. It doesn't support for readonly
+       instances. *)
 
     module KMap = Map.Make (struct
       type t = K.t
@@ -36,8 +34,16 @@ module Maker (V : Irmin_pack.Version.S) (K : Irmin.Hash.S) = struct
     type value = Val.t
     type 'a t = { mutable t : value KMap.t }
 
-    let map = { t = KMap.empty }
-    let v () = Lwt.return map
+    let instance_pool : (string, read t) Hashtbl.t = Hashtbl.create 0
+
+    let v name =
+      match Hashtbl.find_opt instance_pool name with
+      | Some t -> Lwt.return t
+      | None ->
+          let t = { t = KMap.empty } in
+          Hashtbl.add instance_pool name t;
+          Lwt.return t
+
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     let clear t =

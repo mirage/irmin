@@ -55,7 +55,7 @@ struct
           module CA_Pack = Pack.Make (Irmin_pack.Pack_value.Contents (H) (C))
           include Irmin_pack.Content_addressable.Closeable (CA_Pack)
 
-          let v () = CA_Pack.v () >|= make_closeable
+          let v x = CA_Pack.v x >|= make_closeable
         end
 
         include Irmin.Contents.Store (CA) (H) (C)
@@ -82,7 +82,7 @@ struct
           module CA_Pack = Pack.Make (Irmin_pack.Pack_value.Commit (H) (Commit))
           include Irmin_pack.Content_addressable.Closeable (CA_Pack)
 
-          let v () = CA_Pack.v () >|= make_closeable
+          let v x = CA_Pack.v x >|= make_closeable
         end
 
         include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
@@ -125,9 +125,9 @@ struct
           let root = Irmin_pack.Conf.root config in
           let fresh = Irmin_pack.Conf.fresh config in
           let readonly = Irmin_pack.Conf.readonly config in
-          let* contents = Contents.CA.v () in
-          let* node = Node.CA.v () in
-          let* commit = Commit.CA.v () in
+          let* contents = Contents.CA.v root in
+          let* node = Node.CA.v root in
+          let* commit = Commit.CA.v root in
           let+ branch = Branch.v ~fresh ~readonly root in
           { contents; node; commit; branch; config }
 
