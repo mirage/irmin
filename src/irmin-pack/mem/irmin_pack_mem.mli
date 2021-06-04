@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Maker = Irmin_pack.Maker
-
 module Maker (_ : Irmin.Private.Node.Maker) (_ : Irmin.Private.Commit.Maker) :
-  Maker
+  Irmin_pack.Maker
 
 module Content_addressable = Content_addressable
