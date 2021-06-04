@@ -16,6 +16,43 @@
 
 open! Import
 
+module Pool : sig
+  type ('k, 'v) t
+  (** Reference-counted pool of values with corresponding keys. *)
+
+  val create : alloc:('k -> 'v) -> ('k, 'v) t
+  (** Get an empty pool, given a function for allocating new instances from IDs. *)
+
+  val take : ('k, 'v) t -> 'k -> 'v
+  (** Get an instance from the pool by its key, allocating it if necessary. *)
+
+  val drop : ('k, 'v) t -> 'k -> unit
+  (** Reduce the reference count of an element, discarding it if the reference
+      count drops to 0. *)
+end = struct
+  type 'v elt = { mutable refcount : int; instance : 'v }
+  type ('k, 'v) t = { instances : ('k, 'v elt) Hashtbl.t; alloc : 'k -> 'v }
+
+  let create ~alloc = { instances = Hashtbl.create 0; alloc }
+
+  let take t k =
+    match Hashtbl.find_opt t.instances k with
+    | Some elt ->
+        elt.refcount <- succ elt.refcount;
+        elt.instance
+    | None ->
+        let instance = t.alloc k in
+        Hashtbl.add t.instances k { instance; refcount = 1 };
+        instance
+
+  let drop t k =
+    match Hashtbl.find_opt t.instances k with
+    | None -> failwith "Pool.drop: double free"
+    | Some { refcount; _ } when refcount <= 0 -> assert false
+    | Some { refcount = 1; _ } -> Hashtbl.remove t.instances k
+    | Some elt -> elt.refcount <- pred elt.refcount
+end
+
 module Maker (K : Irmin.Hash.S) = struct
   type key = K.t
 
@@ -32,27 +69,29 @@ module Maker (K : Irmin.Hash.S) = struct
 
     type key = K.t
     type value = Val.t
-    type 'a t = { mutable t : value KMap.t }
 
-    let instance_pool : (string, read t) Hashtbl.t = Hashtbl.create 0
+    type 'a t = {
+      name : string;
+      mutable t : value KMap.t;
+      mutable generation : int63;
+    }
 
-    let v name =
-      match Hashtbl.find_opt instance_pool name with
-      | Some t -> Lwt.return t
-      | None ->
-          let t = { t = KMap.empty } in
-          Hashtbl.add instance_pool name t;
-          Lwt.return t
+    let instances =
+      Pool.create ~alloc:(fun name ->
+          { name; t = KMap.empty; generation = Int63.zero })
 
+    let v name = Lwt.return (Pool.take instances name)
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     let clear t =
       Log.debug (fun f -> f "clear");
       t.t <- KMap.empty;
+      t.generation <- Int63.succ t.generation;
       Lwt.return_unit
 
-    let close _ =
+    let close t =
       Log.debug (fun f -> f "close");
+      Pool.drop instances t.name;
       Lwt.return_unit
 
     let cast t = (t :> read_write t)
@@ -111,9 +150,6 @@ module Maker (K : Irmin.Hash.S) = struct
       failwith "Readonly instances not supported"
 
     let offset _ = Int63.zero
-    let generation _ = Int63.zero
-    let integrity_check ~offset:_ ~length:_ _k _t = Ok ()
-    let clear_caches t = t.t <- KMap.empty
-    let clear_keep_generation t = clear t
+    let generation t = t.generation
   end
 end
