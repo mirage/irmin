@@ -66,8 +66,11 @@ struct
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Atomic_write.Make (V) (Key) (Val)
+        module AW = Atomic_write.Make_persistent (V) (Key) (Val)
         include Atomic_write.Closeable (AW)
+
+        let v ?fresh ?readonly path =
+          AW.v ?fresh ?readonly path >|= make_closeable
       end
 
       module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)

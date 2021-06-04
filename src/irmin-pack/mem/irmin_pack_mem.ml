@@ -20,8 +20,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   module AW = Irmin_mem.Atomic_write (K) (V)
   include AW
 
-  let config = Irmin_mem.config ()
-  let v ?fresh:_ ?readonly:_ _ = AW.v config
+  let v () = AW.v (Irmin_mem.config ())
   let flush _t = ()
   let clear_keep_generation _ = Lwt.return_unit
 end
@@ -50,17 +49,8 @@ struct
       (C : Irmin.Contents.S)
       (P : Irmin.Path.S)
       (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) :
-    Irmin_pack.S
-      with type key = P.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type step = P.step
-       and type metadata = M.t
-       and type Key.step = P.step
-       and type Private.Remote.endpoint = endpoint
-       and type info = info = struct
+      (H : Irmin.Hash.S) =
+  struct
     module Pack = Content_addressable.Maker (H)
 
     module X = struct
@@ -101,6 +91,8 @@ struct
         module Val = H
         module AW = Atomic_write (Key) (Val)
         include Irmin_pack.Atomic_write.Closeable (AW)
+
+        let v () = AW.v () >|= make_closeable
       end
 
       module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
@@ -131,12 +123,10 @@ struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
-          let fresh = Irmin_pack.Conf.fresh config in
-          let readonly = Irmin_pack.Conf.readonly config in
           let* contents = Contents.CA.v root in
           let* node = Node.CA.v root in
           let* commit = Commit.CA.v root in
-          let+ branch = Branch.v ~fresh ~readonly root in
+          let+ branch = Branch.v () in
           { contents; node; commit; branch; config }
 
         let close t =
@@ -164,40 +154,8 @@ struct
 
     include Irmin.Of_private (X)
 
-    let integrity_check_inodes ?heads t =
-      Log.debug (fun l -> l "Check integrity for inodes");
-      let bar, (_, progress_nodes, progress_commits) =
-        Irmin_pack.Utils.Progress.increment ()
-      in
-      let errors = ref [] in
-      let nodes = X.Repo.node_t t |> snd in
-      let node k =
-        progress_nodes ();
-        X.Node.CA.integrity_check_inodes nodes k >|= function
-        | Ok () -> ()
-        | Error msg -> errors := msg :: !errors
-      in
-      let commit _ =
-        progress_commits ();
-        Lwt.return_unit
-      in
-      let* heads =
-        match heads with None -> Repo.heads t | Some m -> Lwt.return m
-      in
-      let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
-      let+ () =
-        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
-      in
-      Irmin_pack.Utils.Progress.finalise bar;
-      let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
-      if !errors = [] then
-        Fmt.kstrf (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
-      else
-        Fmt.kstrf
-          (fun x -> Error (`Msg x))
-          "Inconsistent inodes found for heads %a: %a" pp_commits heads
-          Fmt.(list ~sep:comma string)
-          !errors
+    let integrity_check_inodes ?heads:_ _ =
+      Lwt.return (Ok (`Msg "No inodes within an in-memory store"))
 
     let sync = X.Repo.sync
     let clear = X.Repo.clear

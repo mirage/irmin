@@ -67,7 +67,10 @@ module P =
 module Pack = P.Make (S)
 
 module Branch =
-  Irmin_pack.Atomic_write.Make (Irmin_pack.Version.V2) (Irmin.Branch.String) (H)
+  Irmin_pack.Atomic_write.Make_persistent
+    (Irmin_pack.Version.V2)
+    (Irmin.Branch.String)
+    (H)
 
 module Make_context (Config : sig
   val root : string

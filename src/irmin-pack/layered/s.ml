@@ -65,8 +65,8 @@ end
 module type Atomic_write = sig
   open Irmin_pack.Atomic_write
   include S
-  module U : S
-  module L : S
+  module U : Persistent
+  module L : Persistent
 
   val v :
     U.t ->

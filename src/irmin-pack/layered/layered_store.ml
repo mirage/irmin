@@ -343,8 +343,8 @@ end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : Irmin_pack.Atomic_write.S with type key = K.t)
-    (L : Irmin_pack.Atomic_write.S
+    (U : Irmin_pack.Atomic_write.Persistent with type key = K.t)
+    (L : Irmin_pack.Atomic_write.Persistent
            with type key = U.key
             and type value = U.value) =
 struct

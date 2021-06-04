@@ -17,17 +17,30 @@
 module type S = sig
   include Irmin.Atomic_write.S
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
   val flush : t -> unit
   val clear_keep_generation : t -> unit Lwt.t
 end
 
+module type Persistent = sig
+  include S
+
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+end
+
 module type Sigs = sig
   module type S = S
+  module type Persistent = Persistent
 
-  module Make (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
-    S with type key = K.t and type value = V.t
+  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
+    Persistent with type key = K.t and type value = V.t
 
-  module Closeable (AW : S) :
-    S with type key = AW.key and type value = AW.value and type watch = AW.watch
+  module Closeable (AW : S) : sig
+    include
+      S
+        with type key = AW.key
+         and type value = AW.value
+         and type watch = AW.watch
+
+    val make_closeable : AW.t -> t
+  end
 end

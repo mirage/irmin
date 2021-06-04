@@ -603,7 +603,9 @@ end
 
 module Branch = struct
   module Branch =
-    Irmin_pack.Atomic_write.Make (Irmin_pack.Version.V2) (Irmin.Branch.String)
+    Irmin_pack.Atomic_write.Make_persistent
+      (Irmin_pack.Version.V2)
+      (Irmin.Branch.String)
       (Irmin.Hash.SHA1)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
