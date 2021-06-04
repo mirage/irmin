@@ -12,6 +12,8 @@ module type S = sig
     index:index ->
     string ->
     read t Lwt.t
+
+  val version : _ t -> Version.t
 end
 
 module type Maker = sig

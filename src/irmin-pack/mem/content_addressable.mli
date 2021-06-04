@@ -15,7 +15,7 @@
  *)
 open! Import
 
-module Maker (V : Irmin_pack.Version.S) (K : Irmin.Hash.S) : sig
+module Maker (K : Irmin.Hash.S) : sig
   type key = K.t
 
   module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) : sig

@@ -14,7 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker
-    (_ : Irmin_pack.Version.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : Irmin_pack.Maker
+module Maker (_ : Irmin.Private.Node.Maker) (_ : Irmin.Private.Commit.Maker) :
+  Irmin_pack.Maker

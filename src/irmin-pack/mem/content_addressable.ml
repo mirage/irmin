@@ -16,7 +16,7 @@
 
 open! Import
 
-module Maker (V : Irmin_pack.Version.S) (K : Irmin.Hash.S) = struct
+module Maker (K : Irmin.Hash.S) = struct
   type key = K.t
 
   module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) = struct
@@ -110,7 +110,6 @@ module Maker (V : Irmin_pack.Version.S) (K : Irmin.Hash.S) = struct
     let sync ?on_generation_change:_ _t =
       failwith "Readonly instances not supported"
 
-    let version _ = V.version
     let offset _ = Int63.zero
     let generation _ = Int63.zero
     let integrity_check ~offset:_ ~length:_ _k _t = Ok ()

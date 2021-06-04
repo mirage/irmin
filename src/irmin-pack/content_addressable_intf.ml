@@ -39,7 +39,6 @@ module type S = sig
       [on_generation_change] is a callback for all pack instances to react to a
       generation change. *)
 
-  val version : 'a t -> Version.t
   val generation : 'a t -> int63
   val offset : 'a t -> int63
 
@@ -112,5 +111,8 @@ module type Sigs = sig
     include S with type key = CA.key and type value = CA.value
 
     val make_closeable : 'a CA.t -> 'a t
+
+    val unsafe_get_inner_store : 'a t -> 'a CA.t
+    (** Ignores whether or not the store has been 'closed'. *)
   end
 end

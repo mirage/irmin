@@ -87,8 +87,7 @@ let suite_pack =
   }
 
 module Irmin_pack_mem_maker =
-  Irmin_pack_mem.Maker (V2) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
-    (Config)
+  Irmin_pack_mem.Maker (Irmin.Private.Node.Make) (Irmin.Private.Commit) (Config)
 
 let suite_mem =
   let store =

@@ -211,12 +211,7 @@ struct
   type store_config = config
 
   open Tezos_context_hash_irmin.Encoding
-
-  module V1 = struct
-    let version = `V1
-  end
-
-  module Maker = Irmin_pack_mem.Maker (V1) (Node) (Commit) (Conf)
+  module Maker = Irmin_pack_mem.Maker (Node) (Commit) (Conf)
 
   (* module Maker = Irmin_pack_mem.Maker_ext (Conf) (Node) (Commit) *)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)

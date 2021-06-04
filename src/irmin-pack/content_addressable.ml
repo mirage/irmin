@@ -385,10 +385,6 @@ module Closeable (S : S) = struct
     check_not_closed t;
     S.clear_caches t.t
 
-  let version t =
-    check_not_closed t;
-    S.version t.t
-
   let generation t =
     check_not_closed t;
     S.generation t.t
@@ -402,4 +398,5 @@ module Closeable (S : S) = struct
     S.clear_keep_generation t.t
 
   let make_closeable t = { closed = ref false; t }
+  let unsafe_get_inner_store t = t.t
 end

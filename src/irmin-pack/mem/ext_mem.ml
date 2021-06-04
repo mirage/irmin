@@ -17,7 +17,6 @@
 open! Import
 
 module Maker
-    (V : Irmin_pack.Version.S)
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker)
     (Config : Irmin_pack.Conf.S) =
@@ -41,8 +40,7 @@ struct
        and type Key.step = P.step
        and type Private.Remote.endpoint = endpoint
        and type info = info = struct
-    module Pack = Content_addressable.Maker (V) (H)
-    module Dict = Irmin_pack.Dict.Make (V)
+    module Pack = Content_addressable.Maker (H)
 
     module X = struct
       module Hash = H
@@ -121,7 +119,7 @@ struct
                       let commit : 'a Commit.t = (node, commit) in
                       f contents node commit)))
 
-        let unsafe_v config =
+        let v config =
           let root = Irmin_pack.Conf.root config in
           let fresh = Irmin_pack.Conf.fresh config in
           let readonly = Irmin_pack.Conf.readonly config in
@@ -135,19 +133,6 @@ struct
           Contents.CA.close (contents_t t) >>= fun () ->
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
-
-        let v config =
-          Lwt.catch
-            (fun () -> unsafe_v config)
-            (function
-              | Irmin_pack.Version.Invalid { expected; found } as e
-                when expected = V.version ->
-                  Log.err (fun m ->
-                      m "[%s] Attempted to open store of unsupported version %a"
-                        (Irmin_pack.Conf.root config)
-                        Irmin_pack.Version.pp found);
-                  Lwt.fail e
-              | e -> Lwt.fail e)
 
         (** Stores share instances in memory, one sync is enough. However each
             store has its own lru and all have to be cleared. *)

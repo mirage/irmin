@@ -16,9 +16,7 @@
 
 module type Maker = Irmin_pack.Maker
 
-module Maker
-    (_ : Irmin_pack.Version.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : Maker
+module Maker (_ : Irmin.Private.Node.Maker) (_ : Irmin.Private.Commit.Maker) :
+  Maker
 
 module Content_addressable = Content_addressable
