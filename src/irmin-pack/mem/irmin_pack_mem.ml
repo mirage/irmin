@@ -71,7 +71,7 @@ struct
         module CA = struct
           module Inter = Irmin_pack.Inode.Make_internal (Config) (H) (Node)
           module CA = Pack.Make (Inter.Raw)
-          include Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (CA)
+          include Irmin_pack.Inode.Make (H) (Node) (Inter) (CA)
 
           let v = CA.v
         end
@@ -156,5 +156,3 @@ struct
     let reconstruct_index ?output:_ _ = ()
   end
 end
-
-module Content_addressable = Content_addressable

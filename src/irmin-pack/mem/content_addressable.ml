@@ -57,10 +57,6 @@ module Maker (K : Irmin.Hash.S) = struct
   type key = K.t
 
   module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) = struct
-    (* This code is duplicated from irmin-mem except that it exposes non-lwt
-       functions to be used by the inodes. It doesn't support for readonly
-       instances. *)
-
     module KMap = Map.Make (struct
       type t = K.t
 
@@ -133,9 +129,7 @@ module Maker (K : Irmin.Hash.S) = struct
       Log.debug (fun f -> f "mem %a" pp_key k);
       KMap.mem k t.t
 
-    let mem t k =
-      let b = unsafe_mem t k in
-      Lwt.return b
+    let mem t k = Lwt.return (unsafe_mem t k)
 
     let unsafe_append ~ensure_unique:_ ~overcommit:_ t k v =
       Log.debug (fun f -> f "add -> %a" pp_key k);

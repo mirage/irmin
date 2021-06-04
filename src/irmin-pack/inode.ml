@@ -1127,7 +1127,7 @@ struct
   end
 end
 
-module Make_ext
+module Make
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
     (Inter : Internal
@@ -1201,7 +1201,7 @@ struct
           Error msg
 end
 
-module Make_ext_indexed_store
+module Make_persistent
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
     (Inter : Internal
@@ -1214,25 +1214,12 @@ module Make_ext_indexed_store
 struct
   module Persistent_pack = CA.Make (Inter.Raw)
   module Pack = Persistent_pack
-  include Make_ext (H) (Node) (Inter) (Pack)
+  include Make (H) (Node) (Inter) (Pack)
 
+  type index = Pack.index
+
+  let v = Pack.v
   let sync = Pack.sync
   let integrity_check = Pack.integrity_check
   let clear_caches = Pack.clear_caches
-
-  type index = Persistent_pack.index
-
-  let v = Persistent_pack.v
-end
-
-module Make_indexed_store
-    (Conf : Conf.S)
-    (H : Irmin.Hash.S)
-    (CA : Pack_store.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
-struct
-  module Inter = Make_internal (Conf) (H) (Node)
-  include Make_ext_indexed_store (H) (Node) (Inter) (CA)
 end

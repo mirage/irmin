@@ -52,7 +52,12 @@ struct
 
       module Node = struct
         module Node = Node (H) (P) (M)
-        module CA = Inode.Make_indexed_store (Config) (H) (Pack) (Node)
+
+        module CA = struct
+          module Inter = Inode.Make_internal (Config) (H) (Node)
+          include Inode.Make_persistent (H) (Node) (Inter) (Pack)
+        end
+
         include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 

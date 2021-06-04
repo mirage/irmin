@@ -135,7 +135,7 @@ module type Sigs = sig
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
 
-  module Make_ext
+  module Make
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
       (Inter : Internal
@@ -152,7 +152,7 @@ module type Sigs = sig
        and type Val.step = Node.step
        and type value = Inter.Val.t
 
-  module Make_ext_indexed_store
+  module Make_persistent
       (H : Irmin.Hash.S)
       (Node : Irmin.Private.Node.S with type hash = H.t)
       (Inter : Internal
@@ -169,21 +169,5 @@ module type Sigs = sig
          and type Val.step = Node.step
          and type index = Pack_index.Make(H).t
          and type value = Inter.Val.t
-  end
-
-  module Make_indexed_store
-      (_ : Conf.S)
-      (H : Irmin.Hash.S)
-      (_ : Pack_store.Maker
-             with type key = H.t
-              and type index = Pack_index.Make(H).t)
-      (Node : Irmin.Private.Node.S with type hash = H.t) : sig
-    include
-      Persistent
-        with type key = H.t
-         and type Val.metadata = Node.metadata
-         and type Val.step = Node.step
-         and type index = Pack_index.Make(H).t
-         and type index = Pack_index.Make(H).t
   end
 end
