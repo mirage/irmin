@@ -13,11 +13,13 @@
 
 ### Added
 
-- **irmin-graphql**
-  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
-
 - **irmin**
    - Added `Store.Tree.length`. (#1316, @Ngoguey42)
+  - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
+  - Append-only and content-addressable backend implementations have to
+    provide `close` and `batch` functions (#1345, @samoht)
+  - Atomic-write backend implementations have to provide a `close` function
+    (#1345, @samoht)
 
 - **irmin-bench**
   - Benchmarks for tree operations now support layered stores
@@ -27,12 +29,12 @@
     #1404, #1416, #1429, #1430, #1438 @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
 
-- **irmin**
-  - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
-  - Append-only and content-addressable backend implementations have to
-    provide `close` and `batch` functions (#1345, @samoht)
-  - Atomic-write backend implementations have to provide a `close` function
-    (#1345, @samoht)
+- **irmin-pack**
+  - Added `Irmin_pack.Version.{V1,V2}` modules for convenience. (#TODO,
+    @CraigFe)
+
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
 
 - **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)

@@ -18,10 +18,7 @@ open! Import
 
 (* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
 module Layout_layered = Layout
-
-module V = struct
-  let version = `V2
-end
+module V = Irmin_pack.Version.V2
 
 let cache_size = 10_000
 

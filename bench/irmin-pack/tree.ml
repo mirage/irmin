@@ -211,11 +211,9 @@ struct
 
   open Tezos_context_hash_irmin.Encoding
 
-  module V1 = struct
-    let version = `V1
-  end
+  module Maker =
+    Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (Conf) (Node) (Commit)
 
-  module Maker = Irmin_pack.Maker_ext (V1) (Conf) (Node) (Commit)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
 
   let create_repo config =

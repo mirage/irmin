@@ -16,17 +16,13 @@
 
 let config ~root = Irmin_pack.config ~fresh:false root
 
-module V2 = struct
-  let version = `V2
-end
-
 module Config = struct
   let entries = 2
   let stable_hash = 3
 end
 
 module KV = struct
-  module Maker = Irmin_pack.KV (V2) (Config)
+  module Maker = Irmin_pack.KV (Irmin_pack.Version.V2) (Config)
   include Maker.Make (Irmin.Contents.String)
 end
 

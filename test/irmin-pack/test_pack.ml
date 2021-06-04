@@ -17,10 +17,6 @@
 open! Import
 open Common
 
-module V2 = struct
-  let version = `V2
-end
-
 module Config = struct
   let entries = 2
   let stable_hash = 3
@@ -29,7 +25,8 @@ end
 let test_dir = Filename.concat "_build" "test-db-pack"
 
 module Irmin_pack_maker =
-  Irmin_pack.Maker_ext (V2) (Config) (Irmin.Private.Node.Make)
+  Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Config)
+    (Irmin.Private.Node.Make)
     (Irmin.Private.Commit)
 
 let suite =
@@ -560,12 +557,9 @@ module Pack = struct
 end
 
 module Branch = struct
-  module V2 = struct
-    let version = `V2
-  end
-
   module Branch =
-    Irmin_pack.Atomic_write.Make (V2) (Irmin.Branch.String) (Irmin.Hash.SHA1)
+    Irmin_pack.Atomic_write.Make (Irmin_pack.Version.V2) (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 

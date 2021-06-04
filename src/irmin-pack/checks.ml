@@ -50,16 +50,8 @@ let path =
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
 module Make (M : Maker) = struct
-  module V1 = struct
-    let version = `V1
-  end
-
-  module V2 = struct
-    let version = `V2
-  end
-
-  module Store_V1 = M (V1)
-  module Store_V2 = M (V2)
+  module Store_V1 = M (Version.V1)
+  module Store_V2 = M (Version.V2)
   module Hash = Store_V1.Hash
   module Index = Pack_index.Make (Hash)
 

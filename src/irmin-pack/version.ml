@@ -25,6 +25,14 @@ module type S = sig
   val version : t
 end
 
+module V1 = struct
+  let version = `V1
+end
+
+module V2 = struct
+  let version = `V2
+end
+
 let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
 let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 let to_bin v = List.assoc v enum
