@@ -60,7 +60,8 @@ module Maker
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make (Val : Pack_value.S with type hash := K.t) = struct
+  module Make_without_close_checks (Val : Pack_value.S with type hash := K.t) =
+  struct
     module H = struct
       include K
 
@@ -302,8 +303,8 @@ module Maker
     let offset t = IO.offset t.pack.block
   end
 
-  module Make_closeable (Val : Pack_value.S with type hash := K.t) = struct
-    module Inner = Make (Val)
+  module Make (Val : Pack_value.S with type hash := K.t) = struct
+    module Inner = Make_without_close_checks (Val)
     include Content_addressable.Closeable (Inner)
 
     let v ?fresh ?readonly ?lru_size ~index path =

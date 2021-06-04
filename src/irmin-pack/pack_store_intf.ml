@@ -42,10 +42,8 @@ module type Maker = sig
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
-  module Make (V : Pack_value.S with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
 
-  module Make_closeable (V : Pack_value.S with type hash := key) :
+  module Make (V : Pack_value.S with type hash := key) :
     S with type key = key and type value = V.t and type index = index
 end
 
