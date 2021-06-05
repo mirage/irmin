@@ -961,7 +961,7 @@ struct
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin_with_offset ~dict ~hash t off : int * t =
+    let decode_bin ~dict ~hash t off : int * t =
       let off, i = decode_compress t off in
       let step : Compress.name -> T.step = function
         | Direct n -> n
@@ -1000,17 +1000,11 @@ struct
       in
       let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
       (off, t)
-
-    let decode_bin ~dict ~hash t off =
-      decode_bin_with_offset ~dict ~hash t off |> snd
   end
 
   type hash = T.hash
 
   let pp_hash = T.pp_hash
-
-  let decode_raw ~dict ~hash t off =
-    Raw.decode_bin_with_offset ~dict ~hash t off
 
   module Val = struct
     include T
@@ -1197,7 +1191,7 @@ struct
   let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
-    Inter.decode_raw ~dict ~hash buff off |> fst
+    Inter.Raw.decode_bin ~dict ~hash buff off |> fst
 
   let integrity_check_inodes t k =
     find t k >|= function

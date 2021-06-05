@@ -18,7 +18,11 @@ module type S = sig
     unit
 
   val decode_bin :
-    dict:(int -> string option) -> hash:(int63 -> hash) -> string -> int -> t
+    dict:(int -> string option) ->
+    hash:(int63 -> hash) ->
+    string ->
+    int ->
+    int * t
 end
 
 module type Sigs = sig

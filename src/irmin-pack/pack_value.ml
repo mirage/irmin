@@ -44,8 +44,8 @@ struct
   let encode_bin ~dict:_ ~offset:_ v hash = encode_value { kind; hash; v }
 
   let decode_bin ~dict:_ ~hash:_ s off =
-    let _, t = decode_value s off in
-    t.v
+    let len, t = decode_value s off in
+    (len, t.v)
 
   let kind _ = Config.selected_kind
 end

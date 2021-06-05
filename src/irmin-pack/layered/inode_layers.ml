@@ -108,7 +108,7 @@ struct
   let check = P.check
 
   let decode_bin ~dict ~hash buff off =
-    Internal.decode_raw ~dict ~hash buff off |> fst
+    Internal.Raw.decode_bin ~dict ~hash buff off |> fst
 
   let integrity_check_inodes _ _ = failwith "TODO"
 end

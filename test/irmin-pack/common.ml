@@ -53,8 +53,8 @@ module S = struct
   let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    let _, (_, v) = decode_pair x off in
-    v
+    let len, (_, v) = decode_pair x off in
+    (len, v)
 end
 
 module H = Irmin.Hash.SHA1
