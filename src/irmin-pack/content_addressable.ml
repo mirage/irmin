@@ -255,7 +255,7 @@ struct
         let off = IO.offset t.pack.block in
         Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
-        Index.add ~overcommit t.pack.index k (off, len, Val.magic v);
+        Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)

@@ -121,12 +121,11 @@ module Make (M : Maker) = struct
       let bar, (progress_contents, progress_nodes, progress_commits) =
         Utils.Progress.increment ~ppf:Format.err_formatter ()
       in
-      let f _ (_, _, m) =
-        match m with
-        | 'B' -> progress_contents ()
-        | 'N' | 'I' -> progress_nodes ()
-        | 'C' -> progress_commits ()
-        | _ -> invalid_arg "unknown content type"
+      let f _ (_, _, (kind : Pack_value.Kind.t)) =
+        match kind with
+        | Contents -> progress_contents ()
+        | Node | Inode -> progress_nodes ()
+        | Commit -> progress_commits ()
       in
       Index.iter f index;
       let nb_commits, nb_nodes, nb_contents =
@@ -315,18 +314,17 @@ module Index (Index : Pack_index.S) = struct
     let bar, (progress_contents, progress_nodes, progress_commits) =
       Utils.Progress.increment ()
     in
-    let f (k, (offset, length, m)) =
+    let f (k, (offset, length, (m : Pack_value.Kind.t))) =
       match m with
-      | 'B' ->
+      | Contents ->
           progress_contents ();
           check ~kind:`Contents ~offset ~length k
-      | 'N' | 'I' ->
+      | Node | Inode ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
-      | 'C' ->
+      | Commit ->
           progress_commits ();
           check ~kind:`Commit ~offset ~length k
-      | _ -> invalid_arg "unknown content type"
     in
     let result =
       if auto_repair then

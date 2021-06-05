@@ -53,13 +53,13 @@ struct
     module Hash = H
     module Info = Commit.Info
 
-    type 'a value = { magic : char; hash : H.t; v : 'a }
+    type 'a value = { kind : Irmin_pack.Pack_value.Kind.t; hash : H.t; v : 'a }
 
     let value a =
       let open Irmin.Type in
-      record "value" (fun hash magic v -> { magic; hash; v })
+      record "value" (fun hash kind v -> { kind; hash; v })
       |+ field "hash" H.t (fun v -> v.hash)
-      |+ field "magic" char (fun v -> v.magic)
+      |+ field "kind" Irmin_pack.Pack_value.Kind.t (fun v -> v.kind)
       |+ field "v" a (fun v -> v.v)
       |> sealr
 
@@ -71,19 +71,19 @@ struct
           module H = Irmin.Hash.Typed (H) (C)
 
           let hash = H.hash
-          let magic = 'B'
+          let kind = Irmin_pack.Pack_value.Kind.Contents
           let value = value C.t
           let encode_value = Irmin.Type.(unstage (encode_bin value))
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
+            encode_value { kind; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, t = decode_value s off in
             t.v
 
-          let magic _ = magic
+          let kind _ = kind
         end)
 
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
@@ -110,18 +110,18 @@ struct
 
           let hash = H.hash
           let value = value Commit.t
-          let magic = 'C'
+          let kind = Irmin_pack.Pack_value.Kind.Commit
           let encode_value = Irmin.Type.(unstage (encode_bin value))
           let decode_value = Irmin.Type.(unstage (decode_bin value))
 
           let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
+            encode_value { kind; hash; v }
 
           let decode_bin ~dict:_ ~hash:_ s off =
             let _, v = decode_value s off in
             v.v
 
-          let magic _ = magic
+          let kind _ = kind
         end)
 
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)

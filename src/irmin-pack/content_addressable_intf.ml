@@ -22,7 +22,7 @@ module type Value = sig
   type hash
 
   val hash : t -> hash
-  val magic : t -> char
+  val kind : t -> Pack_value.Kind.t
 
   val encode_bin :
     dict:(string -> int option) ->
@@ -88,7 +88,7 @@ module type Maker = sig
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be
-      distinguished using [V.magic], so they have to all be different. *)
+      distinguished using [V.kind], so they have to all be different. *)
   module Make (V : Value with type hash := key) :
     S with type key = key and type value = V.t and type index = index
 end
