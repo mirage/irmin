@@ -76,7 +76,7 @@ struct
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make (Val : Value with type hash := K.t) = struct
+  module Make (Val : Pack_value.S with type hash := K.t) = struct
     module H = struct
       include K
 
