@@ -45,27 +45,10 @@ struct
       [@@deriving irmin]
 
       module Contents = struct
+        module Pack_value = Pack_value.Of_contents (H) (C)
+
         module CA = struct
-          module CA_Pack = Pack.Make (struct
-            include C
-            module H = Irmin.Hash.Typed (H) (C)
-
-            let hash = H.hash
-            let kind = Pack_value.Kind.Contents
-            let value = value_t C.t
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { kind; hash; v }
-
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, t = decode_value s off in
-              t.v
-
-            let kind _ = kind
-          end)
-
+          module CA_Pack = Pack.Make (Pack_value)
           include Content_addressable.Closeable (CA_Pack)
         end
 
@@ -80,28 +63,10 @@ struct
 
       module Commit = struct
         module Commit = Commit.Make (H)
+        module Pack_value = Pack_value.Of_commit (H) (Commit)
 
         module CA = struct
-          module CA_Pack = Pack.Make (struct
-            include Commit
-            module H = Irmin.Hash.Typed (H) (Commit)
-
-            let hash = H.hash
-            let value = value_t Commit.t
-            let kind = Pack_value.Kind.Commit
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { kind; hash; v }
-
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, v = decode_value s off in
-              v.v
-
-            let kind _ = kind
-          end)
-
+          module CA_Pack = Pack.Make (Pack_value)
           include Content_addressable.Closeable (CA_Pack)
         end
 

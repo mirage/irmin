@@ -1,6 +1,2 @@
-module Kind : sig
-  type t = Commit | Contents | Inode | Node [@@deriving irmin]
-
-  val to_magic : t -> char
-  val pp : t Fmt.t
-end
+include Pack_value_intf.Sigs
+(** @inline *)
