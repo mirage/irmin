@@ -76,10 +76,7 @@ module V1 (K : S) : S with type t = K.t = struct
   let h = Type.string_of `Int64
   let to_bin_key = Type.unstage (Type.to_bin_string K.t)
   let of_bin_key = Type.unstage (Type.of_bin_string K.t)
-
-  let size_of =
-    let size_of = Type.unstage (Type.size_of h) in
-    Type.stage (fun x -> size_of (to_bin_key x))
+  let size_of = Type.Size.using to_bin_key (Type.Size.t h)
 
   let encode_bin =
     let encode_bin = Type.unstage (Type.encode_bin h) in
