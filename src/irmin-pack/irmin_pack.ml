@@ -37,13 +37,8 @@ let migrate = Migrate.run
 module Maker (V : Version.S) (Config : Conf.S) =
   Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
 
-module V1 = Maker (struct
-  let version = `V1
-end)
-
-module V2 = Maker (struct
-  let version = `V2
-end)
+module V1 = Maker (Version.V1)
+module V2 = Maker (Version.V2)
 
 module KV (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
@@ -63,10 +58,7 @@ module Checks = Checks
 module Inode = Inode
 module IO = IO
 module Utils = Utils
-
-module Vx = struct
-  let version = `V1
-end
+module Vx = Version.V1
 
 module Cx = struct
   let stable_hash = 0

@@ -36,3 +36,6 @@ exception Invalid of { expected : t; found : t }
 module type S = sig
   val version : t
 end
+
+module V1 : S
+module V2 : S
