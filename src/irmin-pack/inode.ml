@@ -203,8 +203,10 @@ struct
     type t = { hash : H.t; stable : bool; v : v }
 
     let v ~stable ~hash v = { hash; stable; v }
-    let magic_node = 'N'
-    let magic_inode = 'I'
+    let kind_node = Pack_value.Kind.Node
+    let kind_inode = Pack_value.Kind.Inode
+    let magic_node = Pack_value.Kind.to_magic kind_node
+    let magic_inode = Pack_value.Kind.to_magic kind_inode
 
     let stable_t : bool Irmin.Type.t =
       Irmin.Type.(map char)
@@ -912,8 +914,8 @@ struct
 
     let t = Bin.t
 
-    let magic (t : t) =
-      if t.stable then Compress.magic_node else Compress.magic_inode
+    let kind (t : t) =
+      if t.stable then Compress.kind_node else Compress.kind_inode
 
     let hash t = Bin.hash t
     let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))

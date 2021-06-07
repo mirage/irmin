@@ -16,26 +16,6 @@
 
 open! Import
 
-module type Value = sig
-  include Irmin.Type.S
-
-  type hash
-
-  val hash : t -> hash
-  val magic : t -> char
-
-  val encode_bin :
-    dict:(string -> int option) ->
-    offset:(hash -> int63 option) ->
-    t ->
-    hash ->
-    (string -> unit) ->
-    unit
-
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int63 -> hash) -> string -> int -> t
-end
-
 module type S = sig
   include Irmin.Content_addressable.S
 
@@ -88,13 +68,12 @@ module type Maker = sig
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be
-      distinguished using [V.magic], so they have to all be different. *)
-  module Make (V : Value with type hash := key) :
+      distinguished using [V.kind], so they have to all be different. *)
+  module Make (V : Pack_value.S with type hash := key) :
     S with type key = key and type value = V.t and type index = index
 end
 
 module type Sigs = sig
-  module type Value = Value
   module type S = S
   module type Maker = Maker
 

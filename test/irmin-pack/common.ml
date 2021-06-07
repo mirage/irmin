@@ -43,7 +43,7 @@ end
 module S = struct
   include Irmin.Contents.String
 
-  let magic _ = 'S'
+  let kind _ = Irmin_pack.Pack_value.Kind.Contents
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 

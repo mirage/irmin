@@ -53,39 +53,12 @@ struct
     module Hash = H
     module Info = Commit.Info
 
-    type 'a value = { magic : char; hash : H.t; v : 'a }
-
-    let value a =
-      let open Irmin.Type in
-      record "value" (fun hash magic v -> { magic; hash; v })
-      |+ field "hash" H.t (fun v -> v.hash)
-      |+ field "magic" char (fun v -> v.magic)
-      |+ field "v" a (fun v -> v.v)
-      |> sealr
-
     module Contents = struct
+      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
+
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
-        module CA_Pack = Pack.Make (struct
-          include C
-          module H = Irmin.Hash.Typed (H) (C)
-
-          let hash = H.hash
-          let magic = 'B'
-          let value = value C.t
-          let encode_value = Irmin.Type.(unstage (encode_bin value))
-          let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-          let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
-
-          let decode_bin ~dict:_ ~hash:_ s off =
-            let _, t = decode_value s off in
-            t.v
-
-          let magic _ = magic
-        end)
-
+        module CA_Pack = Pack.Make (Pack_value)
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
@@ -102,28 +75,10 @@ struct
 
     module Commit = struct
       module Commit = Commit.Make (H)
+      module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
 
       module CA = struct
-        module CA_Pack = Pack.Make (struct
-          include Commit
-          module H = Irmin.Hash.Typed (H) (Commit)
-
-          let hash = H.hash
-          let value = value Commit.t
-          let magic = 'C'
-          let encode_value = Irmin.Type.(unstage (encode_bin value))
-          let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-          let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
-
-          let decode_bin ~dict:_ ~hash:_ s off =
-            let _, v = decode_value s off in
-            v.v
-
-          let magic _ = magic
-        end)
-
+        module CA_Pack = Pack.Make (Pack_value)
         module CA = Irmin_pack.Content_addressable.Closeable (CA_Pack)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end

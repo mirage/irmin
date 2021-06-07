@@ -58,6 +58,7 @@ module Checks = Checks
 module Inode = Inode
 module IO = IO
 module Utils = Utils
+module Pack_value = Pack_value
 module Vx = Version.V1
 
 module Cx = struct

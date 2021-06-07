@@ -160,12 +160,10 @@ module type Content_addressable = sig
 end
 
 module type Content_addressable_maker = sig
-  open Irmin_pack.Content_addressable
-
   type key
   type index
 
-  module Make (V : Value with type hash := key) :
+  module Make (V : Irmin_pack.Pack_value.S with type hash := key) :
     Content_addressable
       with type key = key
        and type value = V.t

@@ -226,6 +226,7 @@ module Test_reconstruct = struct
           cmd n
 
   let test_reconstruct () =
+    let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf;
@@ -238,15 +239,15 @@ module Test_reconstruct = struct
         Config_store.root_v1
     in
     Index.iter
-      (fun k (offset, length, magic) ->
+      (fun k (offset, length, kind) ->
         Log.debug (fun l ->
-            l "index find k = %a (off, len, magic) = (%a, %d, %c)"
-              (Irmin.Type.pp Hash.t) k Int63.pp offset length magic);
+            l "index find k = %a (off, len, kind) = (%a, %d, %a)"
+              (Irmin.Type.pp Hash.t) k Int63.pp offset length Kind.pp kind);
         match Index.find index_new k with
-        | Some (offset', length', magic') ->
+        | Some (offset', length', kind') ->
             Alcotest.(check int63) "check offset" offset offset';
             Alcotest.(check int) "check length" length length';
-            Alcotest.(check char) "check magic" magic magic'
+            Alcotest.(check_repr Kind.t) "check kind" kind kind'
         | None ->
             Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
       index_old;

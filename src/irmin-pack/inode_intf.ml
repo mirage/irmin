@@ -55,7 +55,7 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
-  module Raw : Content_addressable.Value with type hash = hash
+  module Raw : Pack_value.S with type hash = hash
 
   val decode_raw :
     dict:(int -> string option) ->

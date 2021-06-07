@@ -41,30 +41,14 @@ struct
       module Hash = H
       module Info = Commit.Info
 
-      type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
+      type 'a value = { hash : H.t; kind : Pack_value.Kind.t; v : 'a }
+      [@@deriving irmin]
 
       module Contents = struct
+        module Pack_value = Pack_value.Of_contents (H) (C)
+
         module CA = struct
-          module CA_Pack = Pack.Make (struct
-            include C
-            module H = Irmin.Hash.Typed (H) (C)
-
-            let hash = H.hash
-            let magic = 'B'
-            let value = value_t C.t
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { magic; hash; v }
-
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, t = decode_value s off in
-              t.v
-
-            let magic _ = magic
-          end)
-
+          module CA_Pack = Pack.Make (Pack_value)
           include Content_addressable.Closeable (CA_Pack)
         end
 
@@ -79,28 +63,10 @@ struct
 
       module Commit = struct
         module Commit = Commit.Make (H)
+        module Pack_value = Pack_value.Of_commit (H) (Commit)
 
         module CA = struct
-          module CA_Pack = Pack.Make (struct
-            include Commit
-            module H = Irmin.Hash.Typed (H) (Commit)
-
-            let hash = H.hash
-            let value = value_t Commit.t
-            let magic = 'C'
-            let encode_value = Irmin.Type.(unstage (encode_bin value))
-            let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-            let encode_bin ~dict:_ ~offset:_ v hash =
-              encode_value { magic; hash; v }
-
-            let decode_bin ~dict:_ ~hash:_ s off =
-              let _, v = decode_value s off in
-              v.v
-
-            let magic _ = magic
-          end)
-
+          module CA_Pack = Pack.Make (Pack_value)
           include Content_addressable.Closeable (CA_Pack)
         end
 
@@ -212,16 +178,16 @@ struct
             Irmin.Type.(unstage (decode_bin (value_t Commit.Val.t)))
 
           let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
-          let decode_magic = Irmin.Type.(unstage (decode_bin char))
+          let decode_kind = Irmin.Type.(unstage (decode_bin Pack_value.Kind.t))
 
           let decode_buffer ~progress ~total pack dict index =
-            let decode_len buf magic =
+            let decode_len buf (kind : Pack_value.Kind.t) =
               try
                 let len =
-                  match magic with
-                  | 'B' -> decode_contents buf 0 |> fst
-                  | 'C' -> decode_commit buf 0 |> fst
-                  | 'N' | 'I' ->
+                  match kind with
+                  | Contents -> decode_contents buf 0 |> fst
+                  | Commit -> decode_commit buf 0 |> fst
+                  | Node | Inode ->
                       let hash off =
                         let buf =
                           IO.read_buffer ~chunk:Hash.hash_size ~off pack
@@ -230,7 +196,6 @@ struct
                       in
                       let dict = Dict.find dict in
                       Node.CA.decode_bin ~hash ~dict buf 0
-                  | _ -> failwith "unexpected magic char"
                 in
                 Some len
               with
@@ -242,15 +207,15 @@ struct
             let decode_entry buf off =
               let off_k, k = decode_key buf 0 in
               assert (off_k = Hash.hash_size);
-              let off_m, magic = decode_magic buf off_k in
+              let off_m, kind = decode_kind buf off_k in
               assert (off_m = Hash.hash_size + 1);
-              match decode_len buf magic with
+              match decode_len buf kind with
               | Some len ->
                   let new_off = off ++ Int63.of_int len in
                   Log.debug (fun l ->
-                      l "k = %a (off, len, magic) = (%a, %d, %c)" pp_hash k
-                        Int63.pp off len magic);
-                  Index.add index k (off, len, magic);
+                      l "k = %a (off, len, kind) = (%a, %d, %a)" pp_hash k
+                        Int63.pp off len Pack_value.Kind.pp kind);
+                  Index.add index k (off, len, kind);
                   progress (Int63.of_int len);
                   Some new_off
               | None -> None

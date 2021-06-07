@@ -17,7 +17,7 @@
 open! Import
 
 module type S = sig
-  include Index.S with type value = int63 * int * char
+  include Index.S with type value = int63 * int * Pack_value.Kind.t
 
   val v :
     ?flush_callback:(unit -> unit) ->
