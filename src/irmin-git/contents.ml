@@ -56,7 +56,7 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
           | None -> failwith "wrong object kind")
       | Error (`Msg _) -> failwith "wrong object"
 
-    let size_of = Irmin.Type.stage (fun _ -> None)
+    let size_of = Irmin.Type.Size.custom_dynamic ()
     let t = Irmin.Type.like ~bin:(encode_bin, decode_bin, size_of) t
   end
 end

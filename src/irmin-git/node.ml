@@ -166,7 +166,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
       | Ok _ -> failwith "wrong object kind"
       | Error _ -> failwith "wrong object"
 
-    let size_of = Irmin.Type.stage (fun _ -> None)
+    let size_of = Irmin.Type.Size.custom_dynamic ()
     let t = Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
   end
 end
