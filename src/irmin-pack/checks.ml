@@ -314,8 +314,8 @@ module Index (Index : Pack_index.S) = struct
     let bar, (progress_contents, progress_nodes, progress_commits) =
       Utils.Progress.increment ()
     in
-    let f (k, (offset, length, (m : Pack_value.Kind.t))) =
-      match m with
+    let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
+      match kind with
       | Contents ->
           progress_contents ();
           check ~kind:`Contents ~offset ~length k
