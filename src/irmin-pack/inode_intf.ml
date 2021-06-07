@@ -57,13 +57,6 @@ module type Internal = sig
 
   module Raw : Pack_value.S with type hash = hash
 
-  val decode_raw :
-    dict:(int -> string option) ->
-    hash:(int63 -> hash) ->
-    string ->
-    int ->
-    int * Raw.t
-
   module Val : sig
     include Value with type hash = hash
 

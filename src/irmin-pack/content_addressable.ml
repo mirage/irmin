@@ -183,7 +183,7 @@ struct
       if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+      snd (Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
