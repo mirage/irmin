@@ -81,7 +81,6 @@ module type Sigs = sig
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
-  module Pack_value = Pack_value
 
   module type Maker = functor (_ : Conf.S) -> sig
     include S.Maker

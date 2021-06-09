@@ -46,49 +46,6 @@ module type Maker = sig
     S with type key = key and type value = V.t
 end
 
-(** {!Memory} is {!S} extended with a basic [unit -> t] constructor. *)
-module Memory = struct
-  module type S = sig
-    include S
-
-    val v : string -> read t Lwt.t
-  end
-
-  module type Maker = sig
-    type key
-
-    module Make (V : Pack_value.S with type hash := key) :
-      S with type key = key and type value = V.t
-  end
-end
-
-(** {!Persistent} is {!S} extended with a constructor for *)
-module Persistent = struct
-  module type S = sig
-    include S
-
-    type index
-
-    val v :
-      ?fresh:bool ->
-      ?readonly:bool ->
-      ?lru_size:int ->
-      index:index ->
-      string ->
-      read t Lwt.t
-  end
-
-  module type Maker = sig
-    type key
-    type index
-
-    (** Save multiple kind of values in the same pack file. Values will be
-        distinguished using [V.magic], so they have to all be different. *)
-    module Make (V : Pack_value.S with type hash := key) :
-      S with type key = key and type value = V.t and type index = index
-  end
-end
-
 module type Sigs = sig
   module type S = S
 
@@ -97,8 +54,5 @@ module type Sigs = sig
 
     val make_closeable : 'a CA.t -> 'a t
     val get_open_exn : 'a t -> 'a CA.t
-
-    val unsafe_get_inner_store : 'a t -> 'a CA.t
-    (** Ignores whether or not the store has been 'closed'. *)
   end
 end

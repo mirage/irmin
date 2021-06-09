@@ -60,10 +60,7 @@ end
 module H = Irmin.Hash.SHA1
 module I = Index
 module Index = Irmin_pack.Index.Make (H)
-
-module P =
-  Irmin_pack.Content_addressable.Maker (Irmin_pack.Version.V2) (Index) (H)
-
+module P = Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (H)
 module Pack = P.Make (S)
 
 module Branch =
