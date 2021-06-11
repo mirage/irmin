@@ -146,7 +146,8 @@ struct
     include Irmin.Of_private (X)
 
     let integrity_check_inodes ?heads:_ _ =
-      Lwt.return (Ok (`Msg "No inodes within an in-memory store"))
+      Lwt.return
+        (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
 
     let sync = X.Repo.sync
     let clear = X.Repo.clear
