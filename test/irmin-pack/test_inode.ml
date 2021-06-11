@@ -34,7 +34,7 @@ module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node.Make (H) (Path) (Metadata)
 module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
-module Inode = Irmin_pack.Inode.Make_ext (H) (Node) (Inter) (P)
+module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
 module Context = struct
   type t = {

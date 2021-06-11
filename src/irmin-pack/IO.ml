@@ -48,7 +48,7 @@ module Unix : S = struct
     else
       let offset = t.offset in
       Buffer.clear t.buf;
-      Raw.unsafe_write t.raw ~off:t.flushed buf;
+      Raw.unsafe_write t.raw ~off:t.flushed buf 0 (String.length buf);
       Raw.Offset.set t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -73,9 +73,10 @@ module Unix : S = struct
   let set t ~off buf =
     if t.readonly then raise S.RO_not_allowed;
     unsafe_flush t;
-    Raw.unsafe_write t.raw ~off:(header t.version ++ off) buf;
+    let buf_len = String.length buf in
+    Raw.unsafe_write t.raw ~off:(header t.version ++ off) buf 0 buf_len;
     assert (
-      let len = Int63.of_int (String.length buf) in
+      let len = Int63.of_int buf_len in
       let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
@@ -261,7 +262,9 @@ module Unix : S = struct
           assert (read <= buf_len);
           let to_write = if read < buf_len then Bytes.sub buf 0 read else buf in
           let () =
-            Raw.unsafe_write dst ~off:dst_off (Bytes.unsafe_to_string to_write)
+            Raw.unsafe_write dst ~off:dst_off
+              (Bytes.unsafe_to_string to_write)
+              0 read
           in
           progress (Int63.of_int read);
           (inner [@tailcall]) ~src_off:(src_off + read) ~dst_off:(dst_off + read)

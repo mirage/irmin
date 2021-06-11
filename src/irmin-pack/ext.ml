@@ -34,7 +34,7 @@ struct
       (H : Irmin.Hash.S) =
   struct
     module Index = Pack_index.Make (H)
-    module Pack = Content_addressable.Maker (V) (Index) (H)
+    module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
 
     module X = struct
@@ -46,38 +46,36 @@ struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (H) (C)
-
-        module CA = struct
-          module CA_Pack = Pack.Make (Pack_value)
-          include Content_addressable.Closeable (CA_Pack)
-        end
-
+        module CA = Pack.Make (Pack_value)
         include Irmin.Contents.Store (CA) (H) (C)
       end
 
       module Node = struct
         module Node = Node (H) (P) (M)
-        module CA = Inode.Make (Config) (H) (Pack) (Node)
+
+        module CA = struct
+          module Inter = Inode.Make_internal (Config) (H) (Node)
+          include Inode.Make_persistent (H) (Node) (Inter) (Pack)
+        end
+
         include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
       module Commit = struct
         module Commit = Commit.Make (H)
         module Pack_value = Pack_value.Of_commit (H) (Commit)
-
-        module CA = struct
-          module CA_Pack = Pack.Make (Pack_value)
-          include Content_addressable.Closeable (CA_Pack)
-        end
-
+        module CA = Pack.Make (Pack_value)
         include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Atomic_write.Make (V) (Key) (Val)
+        module AW = Atomic_write.Make_persistent (V) (Key) (Val)
         include Atomic_write.Closeable (AW)
+
+        let v ?fresh ?readonly path =
+          AW.v ?fresh ?readonly path >|= make_closeable
       end
 
       module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)

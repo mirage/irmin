@@ -29,8 +29,8 @@
  (modules tree)
  (preprocess
   (pps ppx_repr))
- (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
-   unix cmdliner logs memtrace repr ppx_repr bench_common
+ (libraries irmin-pack irmin-pack.layered irmin-pack.mem irmin-test.bench
+   irmin-layers lwt unix cmdliner logs memtrace repr ppx_repr bench_common
    tezos-context-hash-irmin irmin_traces))
 
 (executable

@@ -13,34 +13,17 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open! Import
 
-module type S = sig
-  include Irmin.Atomic_write.S
+module Maker (K : Irmin.Hash.S) : sig
+  type key = K.t
 
-  val flush : t -> unit
-  val clear_keep_generation : t -> unit Lwt.t
-end
-
-module type Persistent = sig
-  include S
-
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
-end
-
-module type Sigs = sig
-  module type S = S
-  module type Persistent = Persistent
-
-  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
-    Persistent with type key = K.t and type value = V.t
-
-  module Closeable (AW : S) : sig
+  module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) : sig
     include
-      S
-        with type key = AW.key
-         and type value = AW.value
-         and type watch = AW.watch
+      Irmin_pack.Content_addressable.S
+        with type key = K.t
+         and type value = Val.t
 
-    val make_closeable : AW.t -> t
+    val v : string -> read t Lwt.t
   end
 end

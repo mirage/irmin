@@ -54,6 +54,8 @@ module type S = sig
 end
 
 module type Sigs = sig
+  type nonrec headers = headers
+
   module type S = S
 
   module Unix : S

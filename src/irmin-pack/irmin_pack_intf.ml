@@ -22,6 +22,8 @@ module type Sigs = sig
   module Index = Pack_index
   module Conf = Conf
   module Inode = Inode
+  module Pack_value = Pack_value
+  module Pack_store = Pack_store
   module Version = Version
 
   val config :
@@ -54,6 +56,7 @@ module type Sigs = sig
   module KV (_ : Version.S) (_ : Conf.S) :
     Irmin.KV_maker with type metadata = unit
 
+  module type S = S.S
   module type Specifics = S.Specifics
 
   module Maker_ext
@@ -78,7 +81,6 @@ module type Sigs = sig
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
-  module Pack_value = Pack_value
 
   module type Maker = functor (_ : Conf.S) -> sig
     include S.Maker

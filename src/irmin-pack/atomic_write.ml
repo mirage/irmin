@@ -25,7 +25,11 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module Make (Current : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
+module Make_persistent
+    (Current : Version.S)
+    (K : Irmin.Type.S)
+    (V : Irmin.Hash.S) =
+struct
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
   module IO = IO.Unix
@@ -287,9 +291,7 @@ module Closeable (AW : S) = struct
     check_not_closed t;
     AW.unwatch t.t w
 
-  let v ?fresh ?readonly root =
-    let+ t = AW.v ?fresh ?readonly root in
-    { closed = ref false; t }
+  let make_closeable t = { closed = ref false; t }
 
   let close t =
     if !(t.closed) then Lwt.return_unit

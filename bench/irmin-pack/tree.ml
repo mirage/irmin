@@ -28,7 +28,7 @@ type config = {
   store_dir : string;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered ];
+  store_type : [ `Pack | `Pack_layered | `Pack_mem ];
   freeze_commit : int;
   commit_data_file : string;
   artefacts_dir : string;
@@ -56,6 +56,7 @@ let pp_inode_config ppf (entries, stable_hash) =
 let pp_store_type ppf = function
   | `Pack -> Format.fprintf ppf "[pack store]"
   | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
+  | `Pack_mem -> Format.fprintf ppf "[pack-mem store]"
 
 module Benchmark = struct
   type result = { time : float; size : int }
@@ -202,19 +203,23 @@ struct
   include Store
 end
 
-module Make_store_pack (Conf : sig
-  val entries : int
-  val stable_hash : int
-end) =
+open Tezos_context_hash_irmin.Encoding
+
+module type Impl = functor
+  (_ : Irmin.Private.Node.Maker)
+  (_ : Irmin.Private.Commit.Maker)
+  -> Irmin_pack.Maker
+
+module Make_basic
+    (Impl : Impl) (Conf : sig
+      val entries : int
+      val stable_hash : int
+    end) =
 struct
-  type store_config = config
-
-  open Tezos_context_hash_irmin.Encoding
-
-  module Maker =
-    Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (Conf) (Node) (Commit)
-
+  module Maker = Impl (Node) (Commit) (Conf)
   module Store = Maker.Make (Metadata) (Contents) (Path) (Branch) (Hash)
+
+  type store_config = config
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -226,6 +231,17 @@ struct
 
   include Store
 end
+
+module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
+
+module Make_store_pack =
+  Make_basic
+    ((functor
+       (Node : Irmin.Private.Node.Maker)
+       (Commit : Irmin.Private.Commit.Maker)
+       (C : Irmin_pack.Conf.S)
+       ->
+       Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (C) (Node) (Commit)))
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t
@@ -242,6 +258,7 @@ let store_of_config config =
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)
   | `Pack_layered -> (module Bench_suite (Make_store_layered (Conf)) : B)
+  | `Pack_mem -> (module Bench_suite (Make_store_mem (Conf)) : B)
 
 type suite_elt = {
   mode : [ `Read_trace | `Chains | `Large ];
@@ -417,7 +434,11 @@ let inode_config =
   Arg.(value @@ opt (pair int int) (32, 256) doc)
 
 let store_type =
-  let mode = [ ("pack", `Pack); ("pack-layered", `Pack_layered) ] in
+  let mode =
+    [
+      ("pack", `Pack); ("pack-layered", `Pack_layered); ("pack-mem", `Pack_mem);
+    ]
+  in
   let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "store-type" ] in
   Arg.(value @@ opt (Arg.enum mode) `Pack doc)
 

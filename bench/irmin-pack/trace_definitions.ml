@@ -315,7 +315,7 @@ module Stat_trace = struct
 
     type config = {
       inode_config : int * int * int;
-      store_type : [ `Pack | `Pack_layered ];
+      store_type : [ `Pack | `Pack_layered | `Pack_mem ];
       setup : [ `Play of setup_play | `Replay of setup_replay ];
     }
     [@@deriving repr]

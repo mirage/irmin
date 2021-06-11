@@ -1127,25 +1127,23 @@ struct
   end
 end
 
-module Make_ext
+module Make
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
     (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (CA : Content_addressable.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t) =
+    (Pack : Content_addressable.S
+              with type key = H.t
+               and type value = Inter.Raw.t) =
 struct
   module Key = H
-  module Pack = CA.Make (Inter.Raw)
   module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t
   type value = Inter.Val.t
-  type index = Pack.index
 
   let mem t k = Pack.mem t k
 
@@ -1183,12 +1181,8 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-  let v = Pack.v
-  let integrity_check = Pack.integrity_check
   let close = Pack.close
-  let sync = Pack.sync
   let clear = Pack.clear
-  let clear_caches = Pack.clear_caches
 
   let decode_bin ~dict ~hash buff off =
     Inter.Raw.decode_bin ~dict ~hash buff off |> fst
@@ -1207,14 +1201,25 @@ struct
           Error msg
 end
 
-module Make
-    (Conf : Conf.S)
+module Make_persistent
     (H : Irmin.Hash.S)
-    (CA : Content_addressable.Maker
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inter : Internal
+               with type hash = H.t
+                and type Val.metadata = Node.metadata
+                and type Val.step = Node.step)
+    (CA : Pack_store.Maker
             with type key = H.t
-             and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+             and type index = Pack_index.Make(H).t) =
 struct
-  module Inter = Make_internal (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (CA)
+  module Persistent_pack = CA.Make (Inter.Raw)
+  module Pack = Persistent_pack
+  include Make (H) (Node) (Inter) (Pack)
+
+  type index = Pack.index
+
+  let v = Pack.v
+  let sync = Pack.sync
+  let integrity_check = Pack.integrity_check
+  let clear_caches = Pack.clear_caches
 end

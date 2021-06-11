@@ -65,8 +65,8 @@ end
 module type Atomic_write = sig
   open Irmin_pack.Atomic_write
   include S
-  module U : S
-  module L : S
+  module U : Persistent
+  module L : Persistent
 
   val v :
     U.t ->
@@ -90,10 +90,10 @@ module type Atomic_write = sig
 end
 
 module type Content_addressable = sig
-  open Irmin_pack.Content_addressable
+  open Irmin_pack.Pack_store
   include S
-  module U : S with type value = value
-  module L : S
+  module U : S with type value = value and type index := index
+  module L : S with type index := index
 
   val v :
     read U.t ->
@@ -168,8 +168,6 @@ module type Content_addressable_maker = sig
       with type key = key
        and type value = V.t
        and type index = index
-       and type U.index = index
-       and type L.index = index
        and type U.key = key
        and type L.key = key
        and type U.value = V.t

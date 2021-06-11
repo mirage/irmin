@@ -22,10 +22,10 @@ module Make
     (H : Irmin.Hash.S)
     (Maker : S.Content_addressable_maker
                with type key = H.t
-                and type index = Index.Make(H).t)
+                and type index := Index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Maker.index
+  type index = Index.Make(H).t
 
   module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
   module P = Maker.Make (Internal.Raw)

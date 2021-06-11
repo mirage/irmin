@@ -17,9 +17,9 @@
 open! Import
 
 module type S = sig
-  include Irmin_pack.Inode.S
-  module U : Irmin_pack.Content_addressable.S
-  module L : Irmin_pack.Content_addressable.S
+  include Irmin_pack.Inode.Persistent
+  module U : Irmin_pack.Pack_store.S with type index := index
+  module L : Irmin_pack.Pack_store.S with type index := index
 
   val v :
     read U.t ->
@@ -89,6 +89,4 @@ module type Sigs = sig
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
        and type index = Index.Make(H).t
-       and type U.index = Index.Make(H).t
-       and type L.index = Index.Make(H).t
 end

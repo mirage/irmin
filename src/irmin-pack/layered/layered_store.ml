@@ -16,7 +16,7 @@
 
 open! Import
 
-module type S = Irmin_pack.Content_addressable.S
+module type S = Irmin_pack.Pack_store.S
 
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
@@ -26,8 +26,10 @@ let stats = function
 
 module Copy
     (Key : Irmin.Hash.S)
-    (SRC : S with type key = Key.t)
-    (DST : S with type key = SRC.key and type value = SRC.value) =
+    (SRC : Irmin_pack.Content_addressable.S with type key := Key.t)
+    (DST : Irmin_pack.Content_addressable.S
+             with type key := Key.t
+              and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
 
@@ -57,13 +59,13 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 module Content_addressable
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Index.S)
-    (U : S with type index = Index.t and type key = H.t)
+    (U : S with type index := Index.t and type key = H.t)
     (L : S
-           with type index = U.index
+           with type index := Index.t
             and type key = U.key
             and type value = U.value) =
 struct
-  type index = U.index
+  type index = Index.t
   type key = U.key
   type value = U.value
 
@@ -317,23 +319,23 @@ end
 module Pack_maker
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Index.S)
-    (P : Irmin_pack.Content_addressable.Maker
+    (P : Irmin_pack.Pack_store.Maker
            with type key = H.t
-            and type index = Index.t) =
+            and type index := Index.t) =
 struct
-  type index = P.index
+  type index = Index.t
   type key = P.key
 
   module Make (V : Irmin_pack.Pack_value.S with type hash := key) = struct
-    module Upper = Irmin_pack.Content_addressable.Closeable (P.Make (V))
+    module Upper = P.Make (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end
 end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : Irmin_pack.Atomic_write.S with type key = K.t)
-    (L : Irmin_pack.Atomic_write.S
+    (U : Irmin_pack.Atomic_write.Persistent with type key = K.t)
+    (L : Irmin_pack.Atomic_write.Persistent
            with type key = U.key
             and type value = U.value) =
 struct

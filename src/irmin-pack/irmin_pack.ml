@@ -21,6 +21,8 @@ let config = Conf.v
 
 exception RO_not_allowed = S.RO_not_allowed
 
+module type S = S.S
+
 module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 module Dict = Pack_dict
@@ -60,6 +62,7 @@ module IO = IO
 module Utils = Utils
 module Pack_value = Pack_value
 module Vx = Version.V1
+module Pack_store = Pack_store
 
 module Cx = struct
   let stable_hash = 0

@@ -18,7 +18,7 @@ type config = {
   store_dir : string;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered ];
+  store_type : [ `Pack | `Pack_layered | `Pack_mem ];
   commit_data_file : string;
   artefacts_dir : string;
   keep_store : bool;
