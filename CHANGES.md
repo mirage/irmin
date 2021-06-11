@@ -44,7 +44,7 @@
     config file is specified (#1413, @zshipko)
 
 - **irmin-pack**
-  - Added a `irmin-pack.mem` package (#1436, @icristescu)
+  - Added a `irmin-pack.mem` package (#1436, @icristescu, @craigfe)
 
 ### Changed
 
