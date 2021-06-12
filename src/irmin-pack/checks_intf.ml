@@ -61,7 +61,13 @@ module type S = sig
   end
 
   module Reconstruct_index :
-    Subcommand with type run := root:string -> output:string option -> unit
+    Subcommand
+      with type run :=
+            root:string ->
+            output:string option ->
+            ?index_log_size:int ->
+            unit ->
+            unit
   (** Rebuilds an index for an existing pack file *)
 
   (** Checks the integrity of a store *)

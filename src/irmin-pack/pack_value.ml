@@ -47,6 +47,14 @@ struct
     let len, t = decode_value s off in
     (len, t.v)
 
+  let decode_bin_length =
+    match Irmin.Type.(Size.of_encoding value) with
+    | Unknown ->
+        Fmt.failwith "Type must have a recoverable encoded length: %a"
+          Irmin.Type.pp_ty t
+    | Static n -> fun _ _ -> n
+    | Dynamic f -> f
+
   let kind _ = Config.selected_kind
 end
 

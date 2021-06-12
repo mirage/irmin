@@ -155,7 +155,8 @@ module Make (M : Maker) = struct
   end
 
   module Reconstruct_index = struct
-    let conf root = Conf.v ~readonly:false ~fresh:false root
+    let conf ~index_log_size root =
+      Conf.v ~readonly:false ~fresh:false ?index_log_size root
 
     let dest =
       let open Cmdliner.Arg in
@@ -163,18 +164,28 @@ module Make (M : Maker) = struct
       & pos 1 (some string) None
         @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
 
-    let run_versioned_store ~root ~output (module Store : Versioned_store) =
-      let conf = conf root in
-      Store.reconstruct_index ?output conf
+    let index_log_size =
+      let open Cmdliner.Arg in
+      value
+      & opt (some int) None
+        @@ info ~doc:"Size of the index log file" [ "index-log-size" ]
 
-    let run ~root ~output =
-      match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~output (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~output (module Store_V2)
+    let run ~root ~output ?index_log_size () =
+      let (module Store : Versioned_store) =
+        match Stat.detect_version ~root with
+        | `V1 -> (module Store_V1)
+        | `V2 -> (module Store_V2)
+      in
+      let conf = conf ~index_log_size root in
+      Store.reconstruct_index ?output conf
 
     let term_internal =
       Cmdliner.Term.(
-        const (fun root output () -> run ~root ~output) $ path $ dest)
+        const (fun root output index_log_size () ->
+            run ~root ~output ?index_log_size ())
+        $ path
+        $ dest
+        $ index_log_size)
 
     let term =
       let doc = "Reconstruct index from an existing pack file." in
