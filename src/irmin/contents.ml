@@ -220,7 +220,7 @@ module V1 = struct
     include String
 
     let t = Type.(boxed (string_of `Int64))
-    let size_of = Type.size_of t
+    let size_of = Type.Size.t t
     let decode_bin = Type.decode_bin t
     let encode_bin = Type.encode_bin t
     let pre_hash = Type.pre_hash t

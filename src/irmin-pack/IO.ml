@@ -80,11 +80,12 @@ module Unix : S = struct
       let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
-  let read t ~off buf =
+  let read_buffer t ~off ~buf ~len =
     let off = header t.version ++ off in
     assert (if not t.readonly then off <= t.flushed else true);
-    Raw.unsafe_read t.raw ~off ~len:(Bytes.length buf) buf
+    Raw.unsafe_read t.raw ~off ~len buf
 
+  let read t ~off buf = read_buffer t ~off ~buf ~len:(Bytes.length buf)
   let offset t = t.offset
 
   let force_offset t =
@@ -307,12 +308,6 @@ module Unix : S = struct
         Fmt.invalid_arg "[%s] Unsupported migration path: %a → %a"
           (Filename.basename src.file)
           Version.pp src_v Version.pp dst_v
-
-  let read_buffer ~chunk ~off src =
-    let off = header src.version ++ off in
-    let tmp = Bytes.create chunk in
-    let len = Raw.unsafe_read src.raw ~off ~len:chunk tmp in
-    Bytes.sub_string tmp 0 len
 end
 
 module Cache = struct

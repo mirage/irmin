@@ -106,9 +106,6 @@ struct
     | Upper -> P.copy (Upper, dst) t "Node"
 
   let check = P.check
-
-  let decode_bin ~dict ~hash buff off =
-    Internal.Raw.decode_bin ~dict ~hash buff off |> fst
-
+  let decode_bin_length = Internal.Raw.decode_bin_length
   let integrity_check_inodes _ _ = failwith "TODO"
 end

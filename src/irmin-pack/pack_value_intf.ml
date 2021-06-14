@@ -23,6 +23,8 @@ module type S = sig
     string ->
     int ->
     int * t
+
+  val decode_bin_length : string -> int -> int
 end
 
 module type Sigs = sig

@@ -923,6 +923,11 @@ struct
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
+    let decode_compress_length =
+      match Irmin.Type.Size.of_encoding Compress.t with
+      | Unknown | Static _ -> assert false
+      | Dynamic f -> f
+
     let encode_bin ~dict ~offset (t : t) k =
       let step s : Compress.name =
         let str = step_to_bin s in
@@ -1000,6 +1005,8 @@ struct
       in
       let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
       (off, t)
+
+    let decode_bin_length = decode_compress_length
   end
 
   type hash = T.hash
@@ -1183,9 +1190,7 @@ struct
   let batch = Pack.batch
   let close = Pack.close
   let clear = Pack.clear
-
-  let decode_bin ~dict ~hash buff off =
-    Inter.Raw.decode_bin ~dict ~hash buff off |> fst
+  let decode_bin_length = Inter.Raw.decode_bin_length
 
   let integrity_check_inodes t k =
     find t k >|= function

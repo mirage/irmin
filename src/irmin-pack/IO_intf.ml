@@ -28,6 +28,7 @@ module type S = sig
   val append : t -> string -> unit
   val set : t -> off:int63 -> string -> unit
   val read : t -> off:int63 -> bytes -> int
+  val read_buffer : t -> off:int63 -> buf:bytes -> len:int -> int
   val offset : t -> int63
   val generation : t -> int63
   val force_headers : t -> headers
@@ -49,8 +50,6 @@ module type S = sig
     Version.t ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
-
-  val read_buffer : chunk:int -> off:int63 -> t -> string
 end
 
 module type Sigs = sig

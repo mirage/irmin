@@ -27,8 +27,7 @@ module type S = sig
   module Key : Irmin.Hash.S with type t = key
   module Val : Value with type t = value and type hash = key
 
-  val decode_bin :
-    dict:(int -> string option) -> hash:(int63 -> key) -> string -> int -> int
+  val decode_bin_length : string -> int -> int
 end
 
 module type Persistent = sig

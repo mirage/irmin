@@ -362,10 +362,7 @@ module V1 (N : S with type step = string) = struct
     let h = Type.string_of `Int64
     let to_bin_string = Type.(unstage (to_bin_string N.hash_t))
     let of_bin_string = Type.(unstage (of_bin_string N.hash_t))
-
-    let size_of =
-      let size_of = Type.(unstage (size_of h)) in
-      Type.stage (fun x -> size_of (to_bin_string x))
+    let size_of = Type.Size.using to_bin_string (Type.Size.t h)
 
     let encode_bin =
       let encode_bin = Type.(unstage (encode_bin h)) in
