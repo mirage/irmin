@@ -88,8 +88,10 @@ end = struct
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in
       if length > 1_000_000_000 (* 1 GB *) then
-        failwith
-          "Couldn't decode a value in %d of buffer space. Corrupted data file?"
+        Fmt.failwith
+          "Couldn't decode the value at offset %a in %d of buffer space. \
+           Corrupted data file?"
+          Int63.pp from length
       else (
         buffer := Bytes.create (2 * length);
         refill_buffer ~from)
