@@ -81,7 +81,7 @@ module type S = sig
   val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
-module _ (X : S) : Irmin.S = X
+module S_is_a_store (X : S) : Irmin.S = X
 
 module type Maker = sig
   type endpoint = unit
@@ -105,4 +105,4 @@ module type Maker = sig
        and type info = info
 end
 
-module _ (X : Maker) : Irmin.Maker with type endpoint = unit = X
+module Maker_is_a_maker (X : Maker) : Irmin.Maker with type endpoint = unit = X
