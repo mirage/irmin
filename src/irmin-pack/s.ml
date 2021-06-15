@@ -83,26 +83,19 @@ end
 
 module _ (X : S) : Irmin.S = X
 
-module type Maker = sig
-  type endpoint = unit
-  type info
-
-  module Make
-      (Metadata : Irmin.Metadata.S)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S) :
-    S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
-       and type Private.Remote.endpoint = endpoint
-       and type info = info
-end
-
-module _ (X : Maker) : Irmin.Maker with type endpoint = unit = X
+module type Maker = functor
+  (Metadata : Irmin.Metadata.S)
+  (Contents : Irmin.Contents.S)
+  (Path : Irmin.Path.S)
+  (Branch : Irmin.Branch.S)
+  (Hash : Irmin.Hash.S)
+  ->
+  S
+    with type key = Path.t
+     and type contents = Contents.t
+     and type branch = Branch.t
+     and type hash = Hash.t
+     and type step = Path.step
+     and type metadata = Metadata.t
+     and type Key.step = Path.step
+     and type Private.Sync.endpoint = unit

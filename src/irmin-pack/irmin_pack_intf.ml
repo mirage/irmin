@@ -49,21 +49,19 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module Maker (_ : Version.S) : Maker
+  module Make (_ : Version.S) : Maker
   module V1 : Maker
   module V2 : Maker
-
-  module KV (_ : Version.S) (_ : Conf.S) :
-    Irmin.KV_maker with type metadata = unit
+  module KV (_ : Version.S) (_ : Conf.S) : Irmin.KV_MAKER
 
   module type S = S.S
   module type Specifics = S.Specifics
 
-  module Maker_ext
+  module Make_ext
       (_ : Version.S)
       (_ : Conf.S)
       (N : Irmin.Private.Node.Maker)
-      (CT : Irmin.Private.Commit.Maker) : S.Maker with type info = CT.Info.t
+      (CT : Irmin.Private.Commit.Maker) : S.Maker
 
   module Stats = Stats
   module Layout = Layout
@@ -82,8 +80,5 @@ module type Sigs = sig
   module IO = IO
   module Utils = Utils
 
-  module type Maker = functor (_ : Conf.S) -> sig
-    include S.Maker
-    (** @inline *)
-  end
+  module type Maker = functor (_ : Conf.S) -> S.Maker
 end

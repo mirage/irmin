@@ -51,37 +51,40 @@ struct
 
   module X = struct
     module Hash = H
-    module Info = Commit.Info
 
     module Contents = struct
       module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
+        module Key = H
+        module Val = C
         module CA = Pack.Make (Pack_value)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Contents.Store (CA) (H) (C)
+      include Irmin.Contents.Store (CA)
     end
 
     module Node = struct
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
       module Node = Node (H) (P) (M)
       module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
-      include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+      include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
     end
 
     module Commit = struct
-      module Commit = Commit.Make (H)
+      module Commit = Commit (H)
       module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
 
       module CA = struct
+        module Key = H
+        module Val = Commit
         module CA = Pack.Make (Pack_value)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
+      include Irmin.Private.Commit.Store (Node) (CA)
     end
 
     module Branch = struct
@@ -100,7 +103,7 @@ struct
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Private.Remote.None (H) (B)
+    module Sync = Irmin.Private.Sync.None (H) (B)
 
     module Repo = struct
       type upper_layer = {

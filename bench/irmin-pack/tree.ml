@@ -329,7 +329,8 @@ module Bench_suite (Conf : sig
 end) =
 struct
   module Store =
-    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+    Irmin_pack.Make (Irmin_pack.Version.V1) (Conf) (Irmin.Metadata.None)
+      (Irmin.Contents.String)
       (Irmin.Path.String_list)
       (Irmin.Branch.String)
       (Hash)

@@ -51,7 +51,7 @@ module Store =
 module V2 = Irmin_pack.V2 (Conf)
 
 module StoreSimple =
-  V2.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Irmin.Path.String_list)
+  V2 (Irmin.Metadata.None) (Irmin.Contents.String) (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 
@@ -69,7 +69,7 @@ module Test = struct
     tree : Store.tree;
   }
 
-  let info = Store.Info.empty
+  let info = Irmin.Info.empty
 
   let commit ctxt =
     let parents = List.map Store.Commit.hash ctxt.parents in
@@ -232,7 +232,7 @@ module Test = struct
     let* tree = StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" in
     let* tree = StoreSimple.Tree.add tree [ "version" ] "0.0" in
     let+ block1 =
-      StoreSimple.Commit.v repo ~info:StoreSimple.Info.empty ~parents:[] tree
+      StoreSimple.Commit.v repo ~info:Irmin.Info.empty ~parents:[] tree
     in
     StoreSimple.Commit.hash block1
 

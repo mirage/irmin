@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 
 module type Store = sig
   include Irmin_layers.S
@@ -50,8 +49,7 @@ module type Maker = functor
 module type Layered_general = sig
   type 'a t
 
-  include Closeable with type 'a t := 'a t
-
+  val close : _ t -> unit Lwt.t
   val update_flip : flip:bool -> _ t -> unit
   val flip_upper : _ t -> unit
 end

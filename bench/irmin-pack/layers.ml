@@ -11,15 +11,15 @@ type config = {
   clear : bool;
   no_freeze : bool;
   show_stats : bool;
-  merge_throttle : Irmin_pack.Config.merge_throttle;
-  freeze_throttle : Irmin_pack.Config.freeze_throttle;
+  merge_throttle : Irmin_pack.Conf.merge_throttle;
+  freeze_throttle : Irmin_pack.Conf.freeze_throttle;
 }
 [@@deriving repr]
 
 module Hash = Irmin.Hash.SHA1
 
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -29,8 +29,7 @@ let configure_store root merge_throttle freeze_throttle =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
       ~merge_throttle root
   in
-  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000
-    ~copy_in_upper:true ()
+  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000 ()
 
 let init config =
   FSHelper.rm_dir config.root;
@@ -80,7 +79,7 @@ let write_cycle config repo init_commit =
 
 let freeze ~min_upper ~max config repo =
   if config.no_freeze then Lwt.return_unit
-  else Store.freeze ~max ~min_upper repo
+  else Store.freeze ~max_lower:max ~min_upper repo
 
 let min_uppers = Queue.create ()
 let add_min c = Queue.add c min_uppers
@@ -130,7 +129,7 @@ let run config json =
   let* _ = run_cycles config repo c json in
   close config repo >|= fun () ->
   if config.show_stats then (
-    Fmt.epr "After freeze thread finished : ";
+    Logs.app (fun l -> l "After freeze thread finished : ");
     FSHelper.print_size_layers config.root)
 
 type result = {
@@ -175,8 +174,9 @@ let main () ncommits ncycles depth clear no_freeze show_stats json
     }
   in
   if not json then
-    Format.eprintf "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
-      (Repr.pp_dump config_t) config;
+    Logs.app (fun l ->
+        l "@[<v 2>Running benchmarks in %s:@,@,%a@,@]@." __FILE__
+          (Repr.pp_dump config_t) config);
   init config;
   let d, _ = Lwt_main.run (with_timer (fun () -> run config json)) in
   let all_commits = ncommits * (ncycles + 5) in

@@ -25,135 +25,135 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let clear_keep_generation _ = Lwt.return_unit
 end
 
-module CA_mem
-    (Hash : Irmin.Hash.S)
-    (Value : Irmin_pack.Pack_value.S with type hash := Hash.t) =
-struct
-  module Pack = Content_addressable.Maker (Hash)
-  module CA_mem = Pack.Make (Value)
-  include Irmin_pack.Content_addressable.Closeable (CA_mem)
-
-  let v x = CA_mem.v x >|= make_closeable
-end
-
-module Maker
+module Make
     (Node : Irmin.Private.Node.Maker)
     (Commit : Irmin.Private.Commit.Maker)
-    (Config : Irmin_pack.Conf.S) =
+    (Config : Irmin_pack.Conf.S)
+    (M : Irmin.Metadata.S)
+    (C : Irmin.Contents.S)
+    (P : Irmin.Path.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S) =
 struct
-  type endpoint = unit
-  type info = Commit.Info.t
+  module Pack = Content_addressable.Maker (H)
 
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module Pack = Content_addressable.Maker (H)
+  module X = struct
+    module Hash = H
 
-    module X = struct
-      module Hash = H
-      module Info = Commit.Info
+    type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
 
-      type 'a value = { hash : H.t; magic : char; v : 'a } [@@deriving irmin]
+    module Contents = struct
+      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
 
-      module Contents = struct
-        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
-        module CA = CA_mem (H) (Pack_value)
-        include Irmin.Contents.Store (CA) (H) (C)
+      module CA = struct
+        module Key = H
+        module Val = C
+        module CA = Pack.Make (Pack_value)
+        include Irmin_pack.Content_addressable.Closeable (CA)
+
+        let v x = CA.v x >|= make_closeable
       end
 
-      module Node = struct
-        module Node = Node (H) (P) (M)
-
-        module CA = struct
-          module Inter = Irmin_pack.Inode.Make_internal (Config) (H) (Node)
-          module CA = Pack.Make (Inter.Raw)
-          include Irmin_pack.Inode.Make (H) (Node) (Inter) (CA)
-
-          let v = CA.v
-        end
-
-        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
-      end
-
-      module Commit = struct
-        module Commit = Commit.Make (H)
-        module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
-        module CA = CA_mem (H) (Pack_value)
-        include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
-      end
-
-      module Branch = struct
-        module Key = B
-        module Val = H
-        module AW = Atomic_write (Key) (Val)
-        include Irmin_pack.Atomic_write.Closeable (AW)
-
-        let v () = AW.v () >|= make_closeable
-      end
-
-      module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-      module Remote = Irmin.Private.Remote.None (H) (B)
-
-      module Repo = struct
-        type t = {
-          config : Irmin.Private.Conf.t;
-          contents : read Contents.CA.t;
-          node : read Node.CA.t;
-          commit : read Commit.CA.t;
-          branch : Branch.t;
-        }
-
-        let contents_t t : 'a Contents.t = t.contents
-        let node_t t : 'a Node.t = (contents_t t, t.node)
-        let commit_t t : 'a Commit.t = (node_t t, t.commit)
-        let branch_t t = t.branch
-
-        let batch t f =
-          Commit.CA.batch t.commit (fun commit ->
-              Node.CA.batch t.node (fun node ->
-                  Contents.CA.batch t.contents (fun contents ->
-                      let contents : 'a Contents.t = contents in
-                      let node : 'a Node.t = (contents, node) in
-                      let commit : 'a Commit.t = (node, commit) in
-                      f contents node commit)))
-
-        let v config =
-          let root = Irmin_pack.Conf.root config in
-          let* contents = Contents.CA.v root in
-          let* node = Node.CA.v root in
-          let* commit = Commit.CA.v root in
-          let+ branch = Branch.v () in
-          { contents; node; commit; branch; config }
-
-        let close t =
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
-
-        (* An in-memory store is always in sync. *)
-        let sync _ = ()
-        let flush _ = ()
-
-        (* Stores share instances so one clear is enough. *)
-        let clear t = Contents.CA.clear (contents_t t)
-      end
+      include Irmin.Contents.Store (CA)
     end
 
-    include Irmin.Of_private (X)
+    module Node = struct
+      module Node = Node (H) (P) (M)
 
-    let integrity_check_inodes ?heads:_ _ =
-      Lwt.return
-        (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
+      module CA = struct
+        module Inter = Irmin_pack.Inode.Make_internal (Config) (H) (Node)
+        module CA = Pack.Make (Inter.Raw)
+        include Irmin_pack.Inode.Make (H) (Node) (Inter) (CA)
 
-    let sync = X.Repo.sync
-    let clear = X.Repo.clear
-    let migrate = Irmin_pack.migrate
-    let flush = X.Repo.flush
-    let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
-    let reconstruct_index ?output:_ _ = ()
+        let v = CA.v
+      end
+
+      include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
+    end
+
+    module Commit = struct
+      module Commit = Commit (H)
+      module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
+
+      module CA = struct
+        module Key = H
+        module Val = Commit
+        module CA = Pack.Make (Pack_value)
+        include Irmin_pack.Content_addressable.Closeable (CA)
+
+        let v x = CA.v x >|= make_closeable
+      end
+
+      include Irmin.Private.Commit.Store (Node) (CA)
+    end
+
+    module Branch = struct
+      module Key = B
+      module Val = H
+      module AW = Atomic_write (Key) (Val)
+      include Irmin_pack.Atomic_write.Closeable (AW)
+
+      let v () = AW.v () >|= make_closeable
+    end
+
+    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
+    module Sync = Irmin.Private.Sync.None (H) (B)
+
+    module Repo = struct
+      type t = {
+        config : Irmin.Private.Conf.t;
+        contents : read Contents.CA.t;
+        node : read Node.CA.t;
+        commit : read Commit.CA.t;
+        branch : Branch.t;
+      }
+
+      let contents_t t : 'a Contents.t = t.contents
+      let node_t t : 'a Node.t = (contents_t t, t.node)
+      let commit_t t : 'a Commit.t = (node_t t, t.commit)
+      let branch_t t = t.branch
+
+      let batch t f =
+        Commit.CA.batch t.commit (fun commit ->
+            Node.CA.batch t.node (fun node ->
+                Contents.CA.batch t.contents (fun contents ->
+                    let contents : 'a Contents.t = contents in
+                    let node : 'a Node.t = (contents, node) in
+                    let commit : 'a Commit.t = (node, commit) in
+                    f contents node commit)))
+
+      let v config =
+        let root = Irmin_pack.Conf.root config in
+        let* contents = Contents.CA.v root in
+        let* node = Node.CA.v root in
+        let* commit = Commit.CA.v root in
+        let+ branch = Branch.v () in
+        { contents; node; commit; branch; config }
+
+      let close t =
+        Contents.CA.close (contents_t t) >>= fun () ->
+        Node.CA.close (snd (node_t t)) >>= fun () ->
+        Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+
+      (* An in-memory store is always in sync. *)
+      let sync _ = ()
+      let flush _ = ()
+
+      (* Stores share instances so one clear is enough. *)
+      let clear t = Contents.CA.clear (contents_t t)
+    end
   end
+
+  include Irmin.Of_private (X)
+
+  let integrity_check_inodes ?heads:_ _ =
+    Lwt.return
+      (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
+
+  let sync = X.Repo.sync
+  let clear = X.Repo.clear
+  let migrate = Irmin_pack.migrate
+  let flush = X.Repo.flush
+  let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
+  let reconstruct_index ?output:_ _ = ()
 end

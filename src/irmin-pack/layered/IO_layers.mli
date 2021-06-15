@@ -15,15 +15,12 @@
  *)
 
 open! Import
-open Store_properties
 
 module type S = sig
   type t
 
   val v : string -> t Lwt.t
-
-  include Closeable with type _ t := t
-
+  val close : t -> unit Lwt.t
   val read_flip : t -> bool Lwt.t
   val write_flip : bool -> t -> unit Lwt.t
 end
@@ -34,9 +31,7 @@ module Lock : sig
   type t
 
   val v : string -> t Lwt.t
-
-  include Closeable with type _ t := t
-
+  val close : t -> unit Lwt.t
   val unlink : string -> unit Lwt.t
   val test : string -> bool
 end

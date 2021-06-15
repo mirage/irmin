@@ -18,21 +18,19 @@ module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module Node = Irmin.Private.Node.Make
-module Commit = Irmin.Private.Commit
+module Commit = Irmin.Private.Commit.Make
 
 module Conf = struct
   let entries = 32
   let stable_hash = 256
 end
 
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker_ext (V) (Conf) (Node) (Commit)
-
-  include
-    Maker.Make (Irmin.Metadata.None) (Irmin.Contents.String) (Path)
-      (Irmin.Branch.String)
-      (Hash)
-end
+module Maker (V : Irmin_pack.Version.S) =
+  Irmin_pack.Make_ext (V) (Conf) (Node) (Commit) (Irmin.Metadata.None)
+    (Irmin.Contents.String)
+    (Path)
+    (Irmin.Branch.String)
+    (Hash)
 
 module Store = Irmin_pack.Checks.Make (Maker)
 

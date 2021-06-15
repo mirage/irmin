@@ -152,15 +152,15 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
-  module Maker_ext
-      (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker)
+  module Make_ext
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
       (Node : Irmin.Private.Node.Maker)
       (Commit : Irmin.Private.Commit.Maker) : Maker
 
-  module Maker
-      (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker) : Maker
+  module Make
+      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
+      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : Maker
 
   module Stats = Stats
 end

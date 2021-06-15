@@ -15,7 +15,7 @@
  *)
 
 module type S = sig
-  include Irmin.Atomic_write.S
+  include Irmin.ATOMIC_WRITE_STORE
 
   val flush : t -> unit
   val clear_keep_generation : t -> unit Lwt.t

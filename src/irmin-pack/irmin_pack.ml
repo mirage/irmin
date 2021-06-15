@@ -29,30 +29,21 @@ module Dict = Pack_dict
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Maker_ext = Ext.Maker
+module Make_ext = Ext.Maker
 module Version = Version
 module Index = Pack_index
 module Conf = Conf
 
 let migrate = Migrate.run
 
-module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+module Make (V : Version.S) (Config : Conf.S) =
+  Make_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit.Make)
 
-module V1 = Maker (Version.V1)
-module V2 = Maker (Version.V2)
+module V1 = Make (Version.V1)
+module V2 = Make (Version.V2)
 
-module KV (V : Version.S) (Config : Conf.S) = struct
-  type endpoint = unit
-
-  module Maker = Maker (V) (Config)
-
-  type metadata = Metadata.t
-  type info = Maker.info
-
-  module Make (C : Irmin.Contents.S) =
-    Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
-end
+module KV (V : Version.S) (Config : Conf.S) (C : Irmin.Contents.S) =
+  Make (V) (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 
 module Stats = Stats
 module Layout = Layout
@@ -63,14 +54,3 @@ module Utils = Utils
 module Pack_value = Pack_value
 module Vx = Version.V1
 module Pack_store = Pack_store
-
-module Cx = struct
-  let stable_hash = 0
-  let entries = 0
-end
-
-(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
-
-(* Enforce that {!KV} is a sub-type of {!Irmin.Maker}. *)
-module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)

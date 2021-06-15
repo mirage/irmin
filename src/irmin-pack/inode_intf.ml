@@ -23,11 +23,13 @@ module type Value = sig
 end
 
 module type S = sig
-  include Irmin.Content_addressable.S
+  include Irmin.CONTENT_ADDRESSABLE_STORE
   module Key : Irmin.Hash.S with type t = key
   module Val : Value with type t = value and type hash = key
 
   val decode_bin_length : string -> int -> int
+  val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  val close : _ t -> unit Lwt.t
 end
 
 module type Persistent = sig

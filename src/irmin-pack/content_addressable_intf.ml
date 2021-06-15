@@ -17,7 +17,7 @@
 open! Import
 
 module type S = sig
-  include Irmin.Content_addressable.S
+  include Irmin.CONTENT_ADDRESSABLE_STORE
 
   val add : 'a t -> value -> key Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
@@ -35,6 +35,8 @@ module type S = sig
   (** The number of times that {!clear} has been called on this store. *)
 
   val clear_keep_generation : 'a t -> unit Lwt.t
+  val close : _ t -> unit Lwt.t
+  val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
 end
 
 module type Maker = sig

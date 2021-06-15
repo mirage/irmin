@@ -18,5 +18,5 @@
     backend, intended for users that must be interoperable with the
     idiosyncrasies of the persistent implementation. *)
 
-module Maker (_ : Irmin.Private.Node.Maker) (_ : Irmin.Private.Commit.Maker) :
+module Make (_ : Irmin.Private.Node.Maker) (_ : Irmin.Private.Commit.Maker) :
   Irmin_pack.Maker

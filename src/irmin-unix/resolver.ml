@@ -281,7 +281,7 @@ module Store = struct
     let stable_hash = 256
   end
 
-  let pack = create (module Irmin_pack.Make (Inode_config))
+  let pack = create (module Irmin_pack.V1 (Inode_config))
 
   let all =
     ref

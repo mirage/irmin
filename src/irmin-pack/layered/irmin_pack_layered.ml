@@ -21,7 +21,7 @@ module type S = S.Store
 module type Maker = S.Maker
 
 module Maker (Config : Irmin_pack.Conf.S) =
-  Maker_ext (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+  Maker_ext (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit.Make)
 
 module Checks = Checks
 

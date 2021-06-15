@@ -35,19 +35,20 @@ module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
   module XNode = Irmin.Private.Node.Make
-  module XCommit = Irmin.Private.Commit
-
-  module Maker =
-    Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Conf) (XNode) (XCommit)
+  module XCommit = Irmin.Private.Commit.Make
 
   include
-    Maker.Make (M) (Irmin.Contents.String) (P) (Irmin.Branch.String) (Hash)
+    Irmin_pack.Make_ext (Irmin_pack.Version.V2) (Conf) (XNode) (XCommit) (M)
+      (Irmin.Contents.String)
+      (P)
+      (Irmin.Branch.String)
+      (Hash)
 end
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root
 
-let info () = S.Info.empty
+let info () = Irmin.Info.empty
 
 let open_ro_after_rw_closed () =
   rm_dir root;

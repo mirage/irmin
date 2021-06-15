@@ -129,7 +129,7 @@ struct
       Log.app (fun m -> m "Checking new commits can be added to the V2 store");
       let* new_commit =
         S.Tree.add S.Tree.empty [ "c" ] "x"
-        >>= S.Commit.v rw ~parents:[] ~info:S.Info.empty
+        >>= S.Commit.v rw ~parents:[] ~info:Irmin.Info.empty
       in
       check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
       let+ () = S.Repo.close rw in
@@ -171,13 +171,13 @@ end)
 module V2_maker = Irmin_pack.V2 (Conf)
 
 module V1 () =
-  V1_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+  V1_maker (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 
 module V2 () =
-  V2_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+  V2_maker (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -384,7 +384,7 @@ module Test_corrupted_stores = struct
     let module S = Make_layered in
     let add_commit repo k v =
       S.Tree.add S.Tree.empty k v
-      >>= S.Commit.v repo ~parents:[] ~info:S.Info.empty
+      >>= S.Commit.v repo ~parents:[] ~info:Irmin.Info.empty
     in
     let check_commit repo commit k v =
       commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function

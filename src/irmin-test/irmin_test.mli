@@ -28,7 +28,7 @@ val line : string -> unit
 val store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S)
 
 val layered_store :
-  (module Irmin_layers.S_MAKER) ->
+  (module Irmin_layers.Maker) ->
   (module Irmin.Metadata.S) ->
   (module LAYERED_STORE)
 

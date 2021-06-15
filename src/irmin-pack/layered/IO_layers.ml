@@ -15,7 +15,6 @@
  *)
 
 open! Import
-open Store_properties
 
 let src = Logs.Src.create "irmin.layers.io" ~doc:"IO for irmin-layers"
 
@@ -25,9 +24,7 @@ module type S = sig
   type t
 
   val v : string -> t Lwt.t
-
-  include Closeable with type _ t := t
-
+  val close : t -> unit Lwt.t
   val read_flip : t -> bool Lwt.t
   val write_flip : bool -> t -> unit Lwt.t
 end
