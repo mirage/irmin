@@ -1,3 +1,19 @@
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open! Import
 open Common
 
@@ -18,28 +34,20 @@ module Hash = Irmin.Hash.SHA1
 module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
-  module XNode = Irmin.Private.Node.Make (Hash) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (Hash)
+  module XNode = Irmin.Private.Node.Make
+  module XCommit = Irmin.Private.Commit
+
+  module Maker =
+    Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Conf) (XNode) (XCommit)
 
   include
-    Irmin_pack.Make_ext
-      (struct
-        let io_version = `V2
-      end)
-      (Conf)
-      (M)
-      (Irmin.Contents.String)
-      (P)
-      (Irmin.Branch.String)
-      (Hash)
-      (XNode)
-      (XCommit)
+    Maker.Make (M) (Irmin.Contents.String) (P) (Irmin.Branch.String) (Hash)
 end
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root
 
-let info () = Irmin.Info.empty
+let info () = S.Info.empty
 
 let open_ro_after_rw_closed () =
   rm_dir root;

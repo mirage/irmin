@@ -1,4 +1,21 @@
-let ( let* ) x f = Lwt.bind x f
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+open Lwt.Syntax
+
 let data_dir = "data/layered_pack_upper"
 
 let rm_dir () =
@@ -14,16 +31,16 @@ module Conf = struct
 end
 
 module Store =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Irmin.Hash.BLAKE2B)
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-  Irmin_pack_layered.config ~conf ~copy_in_upper:true ~with_lower:true ()
+  Irmin_pack_layered.config ~conf ~with_lower:true ()
 
-let info = Irmin.Info.v ~date:0L ~author:"" ""
+let info = Store.Info.empty
 
 let create_store () =
   rm_dir ();
@@ -31,8 +48,8 @@ let create_store () =
   let* _t = Store.master repo in
   let* tree = Store.Tree.add Store.Tree.empty [ "a"; "b"; "c" ] "x1" in
   let* c = Store.Commit.v repo ~info ~parents:[] tree in
-  let* () = Store.freeze ~max:[ c ] ~copy_in_upper:false repo in
-  let* () = Store.PrivateLayer.wait_for_freeze repo in
+  let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
+  let* () = Store.Private_layer.wait_for_freeze repo in
   let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
   let hash = Store.Commit.hash c in
   let* c3 = Store.Commit.v repo ~info ~parents:[ hash ] tree in

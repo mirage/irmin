@@ -19,18 +19,25 @@ depends: [
   "irmin-test"   {= version}
   "cmdliner"
   "logs"
-  "lwt"
+  "lwt"          {>= "5.3.0"}
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
-  "repr"         {>= "0.2.0"}
+  "repr"         {>= "0.3.0"}
   "ppx_repr"
   "re"           {>= "1.9.0"}
   "fmt"
-  "bentov"
   "uuidm"
   "progress"
-  "mtime"
+  "fpath"        {with-test}
+  "bentov"       {with-test}
+  "mtime"        {with-test}
+  "ppx_deriving" {with-test}
+  "alcotest"     {with-test}
+  "rusage"
+  "uutf"         {with-test}
+  "uucp"         {with-test}
+  "printbox"     {with-test}
 ]
 
 synopsis: "Irmin benchmarking suite"

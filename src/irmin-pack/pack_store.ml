@@ -1,28 +1,5 @@
-(*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *)
-
-include Pack_intf
-
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let ( -- ) = Int64.sub
-
 open! Import
+include Pack_store_intf
 
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
@@ -31,19 +8,17 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module File
+module Maker
+    (V : Version.S)
     (Index : Pack_index.S)
-    (K : Irmin.Hash.S with type t = Index.key)
-    (IO_version : IO.VERSION) =
-struct
+    (K : Irmin.Hash.S with type t = Index.key) :
+  Maker with type key = K.t and type index = Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
-  module Dict = Pack_dict.Make (IO_version)
+  module Dict = Pack_dict.Make (V)
 
   type index = Index.t
-
-  let current_version = IO_version.io_version
 
   type 'a t = {
     mutable block : IO.t;
@@ -53,12 +28,13 @@ struct
   }
 
   let clear ?keep_generation t =
-    Index.clear t.index;
-    match current_version with
-    | `V1 -> IO.truncate t.block
-    | `V2 ->
-        IO.clear ?keep_generation t.block;
-        Dict.clear t.dict
+    if IO.offset t.block <> Int63.zero then (
+      Index.clear t.index;
+      match V.version with
+      | `V1 -> IO.truncate t.block
+      | `V2 ->
+          IO.clear ?keep_generation t.block;
+          Dict.clear t.dict)
 
   let valid t =
     if t.open_instances <> 0 then (
@@ -69,7 +45,7 @@ struct
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~version:(Some current_version) ~fresh ~readonly file in
+    let block = IO.v ~version:(Some V.version) ~fresh ~readonly file in
     { block; index; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
@@ -84,7 +60,8 @@ struct
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make (V : ELT with type hash := K.t) = struct
+  module Make_without_close_checks (Val : Pack_value.S with type hash := K.t) =
+  struct
     module H = struct
       include K
 
@@ -97,8 +74,8 @@ struct
 
     type nonrec 'a t = {
       pack : 'a t;
-      lru : V.t Lru.t;
-      staging : V.t Tbl.t;
+      lru : Val.t Lru.t;
+      staging : Val.t Tbl.t;
       mutable open_instances : int;
       readonly : bool;
     }
@@ -107,7 +84,7 @@ struct
 
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
-    type value = V.t
+    type value = Val.t
     type index = Index.t
 
     let unsafe_clear ?keep_generation t =
@@ -178,7 +155,7 @@ struct
       Lwt.return b
 
     let check_key k v =
-      let k' = V.hash v in
+      let k' = Val.hash v in
       if equal_key k k' then Ok () else Error (k, k')
 
     exception Invalid_read
@@ -191,7 +168,7 @@ struct
       if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
-      V.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
@@ -213,7 +190,7 @@ struct
               match Index.find t.pack.index k with
               | None -> None
               | Some (off, len, _) ->
-                  let v = io_read_and_decode ~off ~len t in
+                  let v = snd (io_read_and_decode ~off ~len t) in
                   (if check_integrity then
                    check_key k v |> function
                    | Ok () -> ()
@@ -231,7 +208,7 @@ struct
 
     let integrity_check ~offset ~length k t =
       try
-        let value = io_read_and_decode ~off:offset ~len:length t in
+        let value = snd (io_read_and_decode ~off:offset ~len:length t) in
         match check_key k value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash
@@ -261,15 +238,15 @@ struct
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        V.encode_bin ~offset ~dict v k (IO.append t.pack.block);
-        let len = Int64.to_int (IO.offset t.pack.block -- off) in
-        Index.add ~overcommit t.pack.index k (off, len, V.magic v);
+        Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        let len = Int63.to_int (IO.offset t.pack.block -- off) in
+        Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)
 
     let add t v =
-      let k = V.hash v in
+      let k = Val.hash v in
       unsafe_append ~ensure_unique:true ~overcommit:false t k v;
       Lwt.return k
 
@@ -311,7 +288,7 @@ struct
         on_generation_change ();
         IO.close t.pack.block;
         let block =
-          IO.v ~fresh:false ~version:(Some current_version) ~readonly:true
+          IO.v ~fresh:false ~version:(Some V.version) ~readonly:true
             (IO.name t.pack.block)
         in
         t.pack.block <- block;
@@ -324,5 +301,28 @@ struct
     let version t = IO.version t.pack.block
     let generation t = IO.generation t.pack.block
     let offset t = IO.offset t.pack.block
+  end
+
+  module Make (Val : Pack_value.S with type hash := K.t) = struct
+    module Inner = Make_without_close_checks (Val)
+    include Content_addressable.Closeable (Inner)
+
+    let v ?fresh ?readonly ?lru_size ~index path =
+      Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
+
+    type index = Inner.index
+
+    let sync ?on_generation_change t =
+      Inner.sync ?on_generation_change (get_open_exn t)
+
+    let flush ?index ?index_merge t =
+      Inner.flush ?index ?index_merge (get_open_exn t)
+
+    let version t = Inner.version (get_open_exn t)
+    let offset t = Inner.offset (get_open_exn t)
+    let clear_caches t = Inner.clear_caches (get_open_exn t)
+
+    let integrity_check ~offset ~length k t =
+      Inner.integrity_check ~offset ~length k (get_open_exn t)
   end
 end

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,17 +15,9 @@
  *)
 
 include Dict_intf
+open! Import
 
-let src =
-  Logs.Src.create "irmin.pack.dict" ~doc:"irmin-pack backend dictionaries"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let ( -- ) = Int64.sub
-
-module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
-  let current_version = IO_version.io_version
-
+module Make (V : Version.S) (IO : IO.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
@@ -43,7 +35,7 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
     IO.append t.io buf
 
   let refill ~from t =
-    let len = Int64.to_int (IO.offset t.io -- from) in
+    let len = Int63.to_int (IO.offset t.io -- from) in
     let raw = Bytes.create len in
     let n = IO.read t.io ~off:from raw in
     assert (n = len);
@@ -67,13 +59,13 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
     if former_generation <> h.generation then (
       IO.close t.io;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+        IO.v ~fresh:false ~readonly:true ~version:(Some V.version)
           (IO.name t.io)
       in
       t.io <- io;
       Hashtbl.clear t.cache;
       Hashtbl.clear t.index;
-      refill ~from:0L t)
+      refill ~from:Int63.zero t)
     else if h.offset > former_offset then refill ~from:former_offset t
 
   let sync t =
@@ -89,7 +81,7 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
       let id = Hashtbl.length t.cache in
       if id > t.capacity then None
       else (
-        if IO.readonly t.io then raise IO.RO_Not_Allowed;
+        if IO.readonly t.io then raise S.RO_not_allowed;
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;
@@ -101,7 +93,7 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
     v
 
   let clear t =
-    match current_version with
+    match V.version with
     | `V1 -> IO.truncate t.io
     | `V2 ->
         IO.clear t.io;
@@ -109,11 +101,11 @@ module Make (IO_version : IO.VERSION) (IO : IO.S) : S = struct
         Hashtbl.clear t.index
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version:(Some current_version) ~readonly file in
+    let io = IO.v ~fresh ~version:(Some V.version) ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
-    refill ~from:0L t;
+    refill ~from:Int63.zero t;
     t
 
   let close t =

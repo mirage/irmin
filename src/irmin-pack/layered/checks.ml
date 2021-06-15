@@ -1,7 +1,22 @@
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open! Import
 open Irmin_pack.Checks
-module I = Irmin_pack.Private.IO
-module IO = Irmin_pack.Private.IO.Unix
+module IO = Irmin_pack.IO.Unix
 
 module type S = sig
   include S
@@ -32,7 +47,7 @@ module Layout = struct
     [ Layout.flip ~root; lower ~root; upper1 ~root; upper0 ~root ]
 end
 
-module Make (M : MAKER) (Store : S.STORE) = struct
+module Make (M : Maker) (Store : S.Store) = struct
   module Simple = Make (M)
   module Hash = Store.Hash
 
@@ -60,7 +75,19 @@ module Make (M : MAKER) (Store : S.STORE) = struct
     }
     [@@deriving irmin]
 
-    type t = { hash_size : Layer_stat.size; files : files_layer }
+    type objects_layer = {
+      lower : Layer_stat.objects;
+      upper1 : Layer_stat.objects;
+      upper0 : Layer_stat.objects;
+    }
+    [@@deriving irmin]
+
+    type t = {
+      hash_size : Layer_stat.size;
+      log_size : int;
+      files : files_layer;
+      objects : objects_layer;
+    }
     [@@deriving irmin]
 
     let v = Layer_stat.v ~version:`V2
@@ -72,10 +99,23 @@ module Make (M : MAKER) (Store : S.STORE) = struct
       and upper0 = v ~root:(Layout.upper0 ~root) in
       { flip; lower; upper1; upper0 }
 
+    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
+
+    let traverse_indexes ~root log_size =
+      let lower = Layer_stat.traverse_index ~root:(Layout.lower ~root) log_size
+      and upper1 =
+        Layer_stat.traverse_index ~root:(Layout.upper1 ~root) log_size
+      and upper0 =
+        Layer_stat.traverse_index ~root:(Layout.upper0 ~root) log_size
+      in
+      { lower; upper1; upper0 }
+
     let run ~root =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      let log_size = conf root |> Irmin_pack.Conf.index_log_size in
+      let objects = traverse_indexes ~root log_size in
       let+ files = v ~root in
-      { hash_size = Bytes Hash.hash_size; files }
+      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout
 
     let term_internal =
@@ -87,14 +127,14 @@ module Make (M : MAKER) (Store : S.STORE) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Irmin_pack.Config.v ~readonly:false ~fresh:false root
+    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
 
     let run ~root ~auto_repair =
       let conf = conf root in
       let lower_root = Layout.lower ~root in
       let upper_root1 = Layout.upper1 ~root in
       let upper_root0 = Layout.upper0 ~root in
-      let conf = Config.v ~conf ~lower_root ~upper_root1 ~upper_root0 () in
+      let conf = Conf.v ~conf ~lower_root ~upper_root1 ~upper_root0 () in
       let+ repo = Store.Repo.v conf in
       let res = Store.integrity_check ~auto_repair repo in
       List.iter
@@ -122,8 +162,8 @@ module Make (M : MAKER) (Store : S.STORE) = struct
 
   module Check_self_contained = struct
     let conf root =
-      let conf = Irmin_pack.Config.v ~readonly:true root in
-      Config.v ~conf ~with_lower:false ()
+      let conf = Irmin_pack.Conf.v ~readonly:true root in
+      Conf.v ~conf ~with_lower:false ()
 
     let heads =
       let open Cmdliner.Arg in
@@ -131,7 +171,7 @@ module Make (M : MAKER) (Store : S.STORE) = struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let check_store ~root ~heads (module S : S.STORE) =
+    let check_store ~root ~heads (module S : S.Store) =
       let* repo = S.Repo.v (conf root) in
       let* heads =
         match heads with

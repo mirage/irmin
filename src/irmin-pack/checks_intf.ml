@@ -1,3 +1,21 @@
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+open! Import
+
 type empty = |
 
 module type Subcommand = sig
@@ -25,8 +43,8 @@ module type S = sig
 
     type io = {
       size : size;
-      offset : int64;
-      generation : int64;
+      offset : int63;
+      generation : int63;
       version : version;
     }
     [@@deriving irmin]
@@ -34,12 +52,22 @@ module type S = sig
     type files = { pack : io option; branch : io option; dict : io option }
     [@@deriving irmin]
 
-    val v : root:string -> version:IO.version -> files
-    val detect_version : root:string -> IO.version
+    type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
+    [@@deriving irmin]
+
+    val v : root:string -> version:Version.t -> files
+    val detect_version : root:string -> Version.t
+    val traverse_index : root:string -> int -> objects
   end
 
   module Reconstruct_index :
-    Subcommand with type run := root:string -> output:string option -> unit
+    Subcommand
+      with type run :=
+            root:string ->
+            output:string option ->
+            ?index_log_size:int ->
+            unit ->
+            unit
   (** Rebuilds an index for an existing pack file *)
 
   (** Checks the integrity of a store *)
@@ -70,20 +98,15 @@ end
 
 module type Versioned_store = sig
   include Irmin.S
-  include Store.S with type repo := repo
-
-  (* TODO(craigfe): avoid redefining this extension to [Store] repeatedly *)
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
-
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+  include S.S with type repo := repo and type commit := commit
 end
 
-module type MAKER = functor (_ : IO.VERSION) -> Versioned_store
+module type Maker = functor (_ : Version.S) -> Versioned_store
 
-module type Checks = sig
+type integrity_error = [ `Wrong_hash | `Absent_value ]
+
+module type Sigs = sig
+  type integrity_error = [ `Wrong_hash | `Absent_value ]
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t
@@ -92,7 +115,23 @@ module type Checks = sig
   module type Subcommand = Subcommand
   module type S = S
   module type Versioned_store = Versioned_store
-  module type MAKER = MAKER
+  module type Maker = Maker
 
-  module Make (_ : MAKER) : S
+  module Make (_ : Maker) : S
+
+  module Index (Index : Pack_index.S) : sig
+    val integrity_check :
+      ?ppf:Format.formatter ->
+      auto_repair:bool ->
+      check:
+        (kind:[> `Commit | `Contents | `Node ] ->
+        offset:int63 ->
+        length:int ->
+        Index.key ->
+        (unit, [< `Absent_value | `Wrong_hash ]) result) ->
+      Index.t ->
+      ( [> `Fixed of int | `No_error ],
+        [> `Cannot_fix of string | `Corrupted of int ] )
+      result
+  end
 end

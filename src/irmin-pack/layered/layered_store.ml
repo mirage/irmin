@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,17 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin_pack
-
-let src = Logs.Src.create "irmin.layers" ~doc:"Irmin layered store"
-
-module Log = (val Logs.src_log src : Logs.LOG)
 open! Import
 
-module type CA = sig
-  include Pack.S
-  module Key : Irmin.Hash.TYPED with type t = key and type value = value
-end
+module type S = Irmin_pack.Pack_store.S
 
 let stats = function
   | "Contents" -> Irmin_layers.Stats.copy_contents ()
@@ -34,8 +26,10 @@ let stats = function
 
 module Copy
     (Key : Irmin.Hash.S)
-    (SRC : Pack.S with type key = Key.t)
-    (DST : Pack.S with type key = SRC.key and type value = SRC.value) =
+    (SRC : Irmin_pack.Content_addressable.S with type key := Key.t)
+    (DST : Irmin_pack.Content_addressable.S
+             with type key := Key.t
+              and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
 
@@ -64,14 +58,14 @@ let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
 module Content_addressable
     (H : Irmin.Hash.S)
-    (Index : Private.Pack_index.S)
-    (U : Pack.S with type index = Index.t and type key = H.t)
-    (L : Pack.S
-           with type index = U.index
+    (Index : Irmin_pack.Index.S)
+    (U : S with type index := Index.t and type key = H.t)
+    (L : S
+           with type index := Index.t
             and type key = U.key
             and type value = U.value) =
 struct
-  type index = U.index
+  type index = Index.t
   type key = U.key
   type value = U.value
 
@@ -322,15 +316,17 @@ struct
         | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
 end
 
-module Pack_Maker
+module Pack_maker
     (H : Irmin.Hash.S)
-    (Index : Private.Pack_index.S)
-    (P : Pack.MAKER with type key = H.t and type index = Index.t) =
+    (Index : Irmin_pack.Index.S)
+    (P : Irmin_pack.Pack_store.Maker
+           with type key = H.t
+            and type index := Index.t) =
 struct
-  type index = P.index
+  type index = Index.t
   type key = P.key
 
-  module Make (V : Pack.ELT with type hash := key) = struct
+  module Make (V : Irmin_pack.Pack_value.S with type hash := key) = struct
     module Upper = P.Make (V)
     include Content_addressable (H) (Index) (Upper) (Upper)
   end
@@ -338,8 +334,10 @@ end
 
 module Atomic_write
     (K : Irmin.Branch.S)
-    (U : S.ATOMIC_WRITE_STORE with type key = K.t)
-    (L : S.ATOMIC_WRITE_STORE with type key = U.key and type value = U.value) =
+    (U : Irmin_pack.Atomic_write.Persistent with type key = K.t)
+    (L : Irmin_pack.Atomic_write.Persistent
+           with type key = U.key
+            and type value = U.value) =
 struct
   type key = U.key
   type value = U.value

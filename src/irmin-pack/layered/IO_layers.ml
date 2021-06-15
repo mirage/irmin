@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -26,7 +26,7 @@ module type S = sig
 
   val v : string -> t Lwt.t
 
-  include CLOSEABLE with type _ t := t
+  include Closeable with type _ t := t
 
   val read_flip : t -> bool Lwt.t
   val write_flip : bool -> t -> unit Lwt.t

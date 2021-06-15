@@ -1,19 +1,22 @@
-include Store_intf
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-exception Unsupported_version of IO.version
-
-let ( ++ ) = Int64.add
-
-module Cache = IO.Cache
 open! Import
-module Pack = Pack
-module Dict = Pack_dict
-module Index = Pack_index
+include Atomic_write_intf
+module Cache = IO.Cache
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
@@ -22,15 +25,11 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-let pp_version = IO.pp_version
-
-module Atomic_write
+module Make_persistent
+    (Current : Version.S)
     (K : Irmin.Type.S)
-    (V : Irmin.Hash.S)
-    (IO_version : IO.VERSION) =
+    (V : Irmin.Hash.S) =
 struct
-  let current_version = IO_version.io_version
-
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
   module IO = IO.Unix
@@ -40,7 +39,7 @@ struct
   type watch = W.watch
 
   type t = {
-    index : int64 Tbl.t;
+    index : int63 Tbl.t;
     cache : V.t Tbl.t;
     mutable block : IO.t;
     w : W.t;
@@ -86,7 +85,7 @@ struct
       else
         let len = read_length32 ~off:offset t.block in
         let buf = Bytes.create (len + V.hash_size) in
-        let off = offset ++ 4L in
+        let off = offset ++ Int63.of_int 4 in
         let n = IO.read t.block ~off buf in
         assert (n = Bytes.length buf);
         let buf = Bytes.unsafe_to_string buf in
@@ -100,7 +99,7 @@ struct
         assert (n = String.length buf);
         if not (equal_val v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
-        (aux [@tailcall]) (off ++ Int64.(of_int @@ (len + V.hash_size)))
+        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + V.hash_size)))
     in
     aux from
 
@@ -112,13 +111,13 @@ struct
       Log.debug (fun l -> l "[branches] generation changed, refill buffers");
       IO.close t.block;
       let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some current_version)
+        IO.v ~fresh:false ~readonly:true ~version:(Some Current.version)
           (IO.name t.block)
       in
       t.block <- io;
       Tbl.clear t.cache;
       Tbl.clear t.index;
-      refill t ~to_:h.offset ~from:0L)
+      refill t ~to_:h.offset ~from:Int63.zero)
     else if h.offset > former_offset then
       refill t ~to_:h.offset ~from:former_offset
 
@@ -149,7 +148,7 @@ struct
 
   let unsafe_clear ?keep_generation t =
     Lwt.async (fun () -> W.clear t.w);
-    match current_version with
+    match Current.version with
     | `V1 -> IO.truncate t.block
     | `V2 ->
         IO.clear ?keep_generation t.block;
@@ -175,12 +174,12 @@ struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
+    let block = IO.v ~fresh ~version:(Some Current.version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
     let h = IO.force_headers block in
-    refill t ~to_:h.offset ~from:0L;
+    refill t ~to_:h.offset ~from:Int63.zero;
     t
 
   let Cache.{ v = unsafe_v } =
@@ -246,111 +245,69 @@ struct
   let flush t = IO.flush t.block
 end
 
-module IO = IO.Unix
+(* FIXME: remove code duplication with irmin/atomic_write *)
+module Closeable (AW : S) = struct
+  type t = { closed : bool ref; t : AW.t }
+  type key = AW.key
+  type value = AW.value
 
-let latest_version = `V2
+  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
-(** Migrate data from the IO [src] (with [name] in path [root_old]) into the
-    temporary dir [root_tmp], then swap in the replaced version. *)
-let migrate_io_to_v2 ~progress src =
-  IO.migrate ~progress src `V2 |> function
-  | Ok () -> IO.close src
-  | Error (`Msg s) -> invalid_arg s
+  let mem t k =
+    check_not_closed t;
+    AW.mem t.t k
 
-let migrate config =
-  if Config.readonly config then raise RO_Not_Allowed;
-  Log.debug (fun l -> l "[%s] migrate" (Config.root config));
-  Layout.stores ~root:(Config.root config)
-  |> List.map (fun store ->
-         let io = IO.v ~version:None ~fresh:false ~readonly:true store in
-         let version = IO.version io in
-         (store, io, version))
-  |> List.partition (fun (_, _, v) -> v = latest_version)
-  |> function
-  | migrated, [] ->
-      Log.info (fun l ->
-          l "Store at %s is already in current version (%a)"
-            (Config.root config) pp_version latest_version);
-      List.iter (fun (_, io, _) -> IO.close io) migrated
-  | migrated, to_migrate ->
-      List.iter (fun (_, io, _) -> IO.close io) migrated;
-      (match migrated with
-      | [] -> ()
-      | _ :: _ ->
-          let pp_ios = Fmt.(Dump.list (using (fun (n, _, _) -> n) string)) in
-          Log.warn (fun l ->
-              l
-                "Store is in an inconsistent state: files %a have already been \
-                 upgraded, but %a have not. Upgrading the remaining files now."
-                pp_ios migrated pp_ios to_migrate));
-      let total =
-        to_migrate
-        |> List.map (fun (_, io, _) -> IO.offset io)
-        |> List.fold_left Int64.add 0L
-      in
-      let bar, progress =
-        Utils.Progress.counter ~total ~sampling_interval:100
-          ~message:"Migrating store" ~pp_count:Utils.pp_bytes ()
-      in
-      List.iter (fun (_, io, _) -> migrate_io_to_v2 ~progress io) to_migrate;
-      Utils.Progress.finalise bar
+  let find t k =
+    check_not_closed t;
+    AW.find t.t k
 
-module Checks (Index : Pack_index.S) = struct
-  let null =
-    match Sys.os_type with
-    | "Unix" | "Cygwin" -> "/dev/null"
-    | "Win32" -> "NUL"
-    | _ -> invalid_arg "invalid os type"
+  let set t k v =
+    check_not_closed t;
+    AW.set t.t k v
 
-  let integrity_check ?ppf ~auto_repair ~check index =
-    let ppf =
-      match ppf with
-      | Some p -> p
-      | None -> open_out null |> Format.formatter_of_out_channel
-    in
-    Fmt.pf ppf "Running the integrity_check.\n%!";
-    let nb_absent = ref 0 in
-    let nb_corrupted = ref 0 in
-    let exception Cannot_fix in
-    let bar, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Progress.increment ()
-    in
-    let f (k, (offset, length, m)) =
-      match m with
-      | 'B' ->
-          progress_contents ();
-          check ~kind:`Contents ~offset ~length k
-      | 'N' | 'I' ->
-          progress_nodes ();
-          check ~kind:`Node ~offset ~length k
-      | 'C' ->
-          progress_commits ();
-          check ~kind:`Commit ~offset ~length k
-      | _ -> invalid_arg "unknown content type"
-    in
-    let result =
-      if auto_repair then
-        try
-          Index.filter index (fun binding ->
-              match f binding with
-              | Ok () -> true
-              | Error `Wrong_hash -> raise Cannot_fix
-              | Error `Absent_value ->
-                  incr nb_absent;
-                  false);
-          if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
-        with Cannot_fix -> Error (`Cannot_fix "Not implemented")
-      else (
-        Index.iter
-          (fun k v ->
-            match f (k, v) with
-            | Ok () -> ()
-            | Error `Wrong_hash -> incr nb_corrupted
-            | Error `Absent_value -> incr nb_absent)
-          index;
-        if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
-        else Error (`Corrupted (!nb_corrupted + !nb_absent)))
-    in
-    Utils.Progress.finalise bar;
-    result
+  let test_and_set t k ~test ~set =
+    check_not_closed t;
+    AW.test_and_set t.t k ~test ~set
+
+  let remove t k =
+    check_not_closed t;
+    AW.remove t.t k
+
+  let list t =
+    check_not_closed t;
+    AW.list t.t
+
+  type watch = AW.watch
+
+  let watch t ?init f =
+    check_not_closed t;
+    AW.watch t.t ?init f
+
+  let watch_key t k ?init f =
+    check_not_closed t;
+    AW.watch_key t.t k ?init f
+
+  let unwatch t w =
+    check_not_closed t;
+    AW.unwatch t.t w
+
+  let make_closeable t = { closed = ref false; t }
+
+  let close t =
+    if !(t.closed) then Lwt.return_unit
+    else (
+      t.closed := true;
+      AW.close t.t)
+
+  let clear t =
+    check_not_closed t;
+    AW.clear t.t
+
+  let flush t =
+    check_not_closed t;
+    AW.flush t.t
+
+  let clear_keep_generation t =
+    check_not_closed t;
+    AW.clear_keep_generation t.t
 end

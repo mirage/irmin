@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Ioana Cristescu <ioana@tarides.com>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,31 +20,31 @@ module type S = sig
   include Irmin.S
 
   val freeze :
-    ?min:commit list ->
-    ?max:commit list ->
-    ?squash:bool ->
-    ?copy_in_upper:bool ->
+    ?min_lower:commit list ->
+    ?max_lower:commit list ->
     ?min_upper:commit list ->
+    ?max_upper:commit list ->
     ?recovery:bool ->
     repo ->
     unit Lwt.t
-  (** [freeze ?min ?max ?squash ?copy_in_upper ?min_upper ?recovery t] launches
+  (** [freeze ?min_lower ?max_lower ?min_upper ?max_upper ?recovery t] launches
       an asynchronous freezing operation on the repo [t] to reduce the size of
       the upper layer and discard unnecessary branches of objects (i.e. commits,
       nodes and contents).
 
-      Let [o] be the set of objects reachable from the [max] commits and bounded
-      by the [min] commits. During the freeze, all objects in [o] are copied to
-      the lower layer, if there is one. Setting [squash] to [true] is equivalent
-      to setting [min] to [max]. [min] defaults to the empty list and [max]
-      defaults to the head commits of the repo.
+      Let [o] be the set of objects reachable from the [max_lower] commits and
+      bounded by the [min_lower] commits. During the freeze, all objects in [o]
+      are copied to the lower layer, if there is one. [max_lower] defaults to
+      the head commits of the repo and [min_lower] defaults to the empty list
+      (i.e. the copy is unbounded). When [max_lower] is the empty list, nothing
+      is copied.
 
-      Let [o'] be the set of objects reachable from the [max] commits and
-      bounded by the [min_upper] commits. When the freeze is over, if
-      [copy_in_upper] is true, then the new upper layer will only contain the
-      objects of [o'], otherwise the new upper layer will be empty. [min_upper]
-      defaults to the empty list and [copy_in_upper] defaults to the repo's
-      configuration.
+      Let [o'] be the set of objects reachable from the [max_upper] commits and
+      bounded by the [min_upper] commits. When the freeze is over, the new upper
+      layer will only contain the objects of [o']. [max_upper] defaults to
+      [max_lower] and [min_upper] defaults to [max_upper] (i.e. only the max
+      commits are copied). When [max_upper] is the empty list, nothing is
+      copied.
 
       If [recovery] is true then the function will first try to recover from a
       previously interrupted freeze. See {!needs_recovery}.
@@ -96,7 +96,7 @@ module type S = sig
 
   (** These modules should not be used. They are exposed purely for testing
       purposes. *)
-  module PrivateLayer : sig
+  module Private_layer : sig
     module Hook : sig
       type 'a t
 
@@ -106,11 +106,10 @@ module type S = sig
     val wait_for_freeze : repo -> unit Lwt.t
 
     val freeze' :
-      ?min:commit list ->
-      ?max:commit list ->
-      ?squash:bool ->
-      ?copy_in_upper:bool ->
+      ?min_lower:commit list ->
+      ?max_lower:commit list ->
       ?min_upper:commit list ->
+      ?max_upper:commit list ->
       ?recovery:bool ->
       ?hook:
         [ `After_Clear
@@ -127,7 +126,7 @@ module type S = sig
   end
 end
 
-module type S_MAKER = functor
+module type Maker = functor
   (M : Irmin.Metadata.S)
   (C : Irmin.Contents.S)
   (P : Irmin.Path.S)
@@ -142,7 +141,7 @@ module type S_MAKER = functor
      and type branch = B.t
      and type hash = H.t
 
-module type Irmin_layers = sig
+module type Sigs = sig
   module Layer_id : sig
     type t = layer_id [@@deriving irmin]
 
@@ -151,33 +150,17 @@ module type Irmin_layers = sig
   end
 
   module type S = S
-  module type S_MAKER = S_MAKER
+  module type Maker = Maker
 
-  module Make_ext
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
-      (Metadata : Irmin.Metadata.S)
-      (Contents : Irmin.Contents.S)
-      (Path : Irmin.Path.S)
-      (Branch : Irmin.Branch.S)
-      (Hash : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S
-                with type metadata = Metadata.t
-                 and type hash = Hash.t
-                 and type step = Path.step)
-      (Commit : Irmin.Private.Commit.S with type hash = Hash.t) :
-    S
-      with type key = Path.t
-       and type contents = Contents.t
-       and type branch = Branch.t
-       and type hash = Hash.t
-       and type step = Path.step
-       and type metadata = Metadata.t
-       and type Key.step = Path.step
+  module Maker_ext
+      (CA : Irmin.Content_addressable.Maker)
+      (AW : Irmin.Atomic_write.Maker)
+      (Node : Irmin.Private.Node.Maker)
+      (Commit : Irmin.Private.Commit.Maker) : Maker
 
-  module Make
-      (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
-      (AW : Irmin.ATOMIC_WRITE_STORE_MAKER) : S_MAKER
+  module Maker
+      (CA : Irmin.Content_addressable.Maker)
+      (AW : Irmin.Atomic_write.Maker) : Maker
 
   module Stats = Stats
 end

@@ -1,12 +1,25 @@
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open! Import
-module Sigs = S
-module Inode = Irmin_pack.Private.Inode
-module Pack = Irmin_pack.Pack
 
 module type S = sig
-  include Inode.S
-  module U : Pack.S
-  module L : Pack.S
+  include Irmin_pack.Inode.Persistent
+  module U : Irmin_pack.Pack_store.S with type index := index
+  module L : Irmin_pack.Pack_store.S with type index := index
 
   val v :
     read U.t ->
@@ -29,7 +42,7 @@ module type S = sig
   val current_upper : 'a t -> read U.t
   val lower : 'a t -> read L.t
 
-  include S.LAYERED_GENERAL with type 'a t := 'a t
+  include S.Layered_general with type 'a t := 'a t
 
   val clear_caches_next_upper : 'a t -> unit
 
@@ -40,12 +53,12 @@ module type S = sig
     bool
 
   val integrity_check :
-    offset:int64 ->
+    offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
     key ->
     'a t ->
-    (unit, S.integrity_error) result
+    (unit, Irmin_pack.Checks.integrity_error) result
 
   val flush : ?index:bool -> 'a t -> unit
   val copy_from_lower : dst:'a U.t -> read t -> key -> unit Lwt.t
@@ -59,23 +72,21 @@ module type S = sig
     unit Lwt.t
 end
 
-module Pack_index = Irmin_pack.Private.Pack_index
+module Index = Irmin_pack.Index
 
-module type Inode_layers = sig
+module type Sigs = sig
   module type S = S
 
   module Make
-      (Conf : Irmin_pack.Config.S)
+      (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
-      (P : Sigs.LAYERED_PACK_MAKER
+      (_ : S.Content_addressable_maker
              with type key = H.t
-              and type index = Pack_index.Make(H).t)
+              and type index = Index.Make(H).t)
       (Node : Irmin.Private.Node.S with type hash = H.t) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index = Pack_index.Make(H).t
-       and type U.index = Pack_index.Make(H).t
-       and type L.index = Pack_index.Make(H).t
+       and type index = Index.Make(H).t
 end

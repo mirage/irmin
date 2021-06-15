@@ -1,8 +1,22 @@
-open Irmin.Export_for_backends
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-module Dict = Irmin_pack.Dict.Make (struct
-  let io_version = `V2
-end)
+open Irmin.Export_for_backends
+module Int63 = Optint.Int63
+module Dict = Irmin_pack.Dict.Make (Irmin_pack.Version.V2)
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
@@ -29,7 +43,7 @@ end
 module S = struct
   include Irmin.Contents.String
 
-  let magic _ = 'S'
+  let kind _ = Irmin_pack.Pack_value.Kind.Contents
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
@@ -39,22 +53,26 @@ module S = struct
   let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
 
   let decode_bin ~dict:_ ~hash:_ x off =
-    let _, (_, v) = decode_pair x off in
-    v
+    let len, (_, v) = decode_pair x off in
+    (len, v)
+
+  let decode_bin_length =
+    match Irmin.Type.(Size.of_encoding (pair H.t t)) with
+    | Dynamic f -> f
+    | _ -> assert false
 end
 
 module H = Irmin.Hash.SHA1
 module I = Index
 module Index = Irmin_pack.Index.Make (H)
-
-module P =
-  Irmin_pack.Pack.File (Index) (H)
-    (struct
-      let io_version = `V2
-    end)
-
+module P = Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (H)
 module Pack = P.Make (S)
-module Branch = Irmin_pack.Atomic_write (Irmin.Branch.String) (H)
+
+module Branch =
+  Irmin_pack.Atomic_write.Make_persistent
+    (Irmin_pack.Version.V2)
+    (Irmin.Branch.String)
+    (H)
 
 module Make_context (Config : sig
   val root : string
@@ -111,6 +129,8 @@ end
 
 module Alcotest = struct
   include Alcotest
+
+  let int63 = testable Int63.pp Int63.equal
 
   (** TODO: upstream this to Alcotest *)
   let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =

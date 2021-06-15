@@ -1,0 +1,3 @@
+[submodule "vendors/tezos-context-hash"]
+	path = vendors/tezos-context-hash
+	url = https://github.com/tarides/tezos-context-hash

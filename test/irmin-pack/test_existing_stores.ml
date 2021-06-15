@@ -1,3 +1,19 @@
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open! Import
 open Common
 
@@ -7,8 +23,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh root
-
-let info () = Irmin.Info.empty
 
 let rec repeat = function
   | 0 -> fun _f x -> x
@@ -92,11 +106,11 @@ struct
     in
     let* () =
       Alcotest.check_raises_lwt "Opening a V1 store should fail"
-        (Irmin_pack.Unsupported_version `V1)
+        Irmin_pack.Version.(Invalid { expected = `V2; found = `V1 })
         (fun () -> S.Repo.v conf_ro)
     in
     Alcotest.check_raises "Migrating with RO config should fail"
-      Irmin_pack.RO_Not_Allowed (fun () -> ignore (S.migrate conf_ro));
+      Irmin_pack.RO_not_allowed (fun () -> ignore (S.migrate conf_ro));
     Log.app (fun m -> m "Running the migration with a RW config");
     S.migrate conf_rw;
     Log.app (fun m -> m "Checking migration is idempotent (cached instance)");
@@ -115,7 +129,7 @@ struct
       Log.app (fun m -> m "Checking new commits can be added to the V2 store");
       let* new_commit =
         S.Tree.add S.Tree.empty [ "c" ] "x"
-        >>= S.Commit.v rw ~parents:[] ~info:(info ())
+        >>= S.Commit.v rw ~parents:[] ~info:S.Info.empty
       in
       check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
       let+ () = S.Repo.close rw in
@@ -149,26 +163,39 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module Make () =
-  Irmin_pack.Make_V2 (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+module V1_maker = Irmin_pack.V1 (struct
+  let entries = 2
+  let stable_hash = 3
+end)
+
+module V2_maker = Irmin_pack.V2 (Conf)
+
+module V1 () =
+  V1_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Hash)
+
+module V2 () =
+  V2_maker.Make (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
 
 module Test_store = struct
-  module S = Make ()
+  module S = V2 ()
   include Test (S) (Config_store)
 
   let uncached_instance_check_idempotent () =
     Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
-    let module S = Make () in
+    let module S = V2 () in
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf
 
   let uncached_instance_check_commit new_commit =
     Log.app (fun m ->
         m "Checking all values can be read from an uncached instance");
-    let module S = Make () in
+    let module S = V2 () in
     let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
     let* ro = S.Repo.v conf in
     check_repo ro archive >>= fun () ->
@@ -179,7 +206,7 @@ module Test_store = struct
 end
 
 module Test_reconstruct = struct
-  module S = Make ()
+  module S = V2 ()
   include Test (S) (Config_store)
 
   let setup_test_env () =
@@ -199,6 +226,7 @@ module Test_reconstruct = struct
           cmd n
 
   let test_reconstruct () =
+    let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf;
@@ -211,15 +239,15 @@ module Test_reconstruct = struct
         Config_store.root_v1
     in
     Index.iter
-      (fun k (offset, length, magic) ->
+      (fun k (offset, length, kind) ->
         Log.debug (fun l ->
-            l "index find k = %a (off, len, magic) = (%Ld, %d, %c)"
-              (Irmin.Type.pp Hash.t) k offset length magic);
+            l "index find k = %a (off, len, kind) = (%a, %d, %a)"
+              (Irmin.Type.pp Hash.t) k Int63.pp offset length Kind.pp kind);
         match Index.find index_new k with
-        | Some (offset', length', magic') ->
-            Alcotest.(check int64) "check offset" offset offset';
+        | Some (offset', length', kind') ->
+            Alcotest.(check int63) "check offset" offset offset';
             Alcotest.(check int) "check length" length length';
-            Alcotest.(check char) "check magic" magic magic'
+            Alcotest.(check_repr Kind.t) "check kind" kind kind'
         | None ->
             Alcotest.failf "expected to find hash %a" (Irmin.Type.pp Hash.t) k)
       index_old;
@@ -261,7 +289,7 @@ module Config_layered_store = struct
 end
 
 module Make_layered =
-  Irmin_pack_layered.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
+  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)
     (Irmin.Branch.String)
     (Hash)
@@ -297,7 +325,7 @@ module Test_corrupted_stores = struct
 
   let test () =
     setup_test_env ();
-    let module S = Make () in
+    let module S = V2 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     Log.app (fun l ->
         l "integrity check on a store where 3 entries are missing from pack");
@@ -356,7 +384,7 @@ module Test_corrupted_stores = struct
     let module S = Make_layered in
     let add_commit repo k v =
       S.Tree.add S.Tree.empty k v
-      >>= S.Commit.v repo ~parents:[] ~info:(info ())
+      >>= S.Commit.v repo ~parents:[] ~info:S.Info.empty
     in
     let check_commit repo commit k v =
       commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
@@ -373,7 +401,7 @@ module Test_corrupted_stores = struct
                 (Some v)
     in
     let check_upper repo msg exp =
-      let got = S.PrivateLayer.upper_in_use repo in
+      let got = S.Private_layer.upper_in_use repo in
       let cast x = (x :> [ `Upper0 | `Upper1 | `Lower ]) in
       if not (got = exp) then
         Alcotest.failf "%s expected %a got %a" msg Irmin_layers.Layer_id.pp
@@ -389,8 +417,8 @@ module Test_corrupted_stores = struct
     check_commit ro c [ "a" ] "x" >>= fun () ->
     Log.app (fun l -> l "Freeze with recovery flag set");
     let* () =
-      S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
-      S.PrivateLayer.wait_for_freeze rw
+      S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
+      S.Private_layer.wait_for_freeze rw
     in
     Alcotest.(check bool)
       "Store doesn't need recovery" false (S.needs_recovery rw);
@@ -405,8 +433,8 @@ module Test_corrupted_stores = struct
           "If recovery flag is set, freeze proceeds with recovery even when it \
            isn't needed");
     let* () =
-      S.freeze ~recovery:true ~max:[ c ] rw >>= fun () ->
-      S.PrivateLayer.wait_for_freeze rw
+      S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
+      S.Private_layer.wait_for_freeze rw
     in
     check_upper rw "Upper after freeze" `Upper1;
     check_commit rw c [ "b" ] "y" >>= fun () ->
@@ -428,20 +456,9 @@ module Test_corrupted_inode = struct
     let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
     exec_cmd cmd
 
-  module Conf = struct
-    let entries = 2
-    let stable_hash = 3
-  end
-
-  module Make () =
-    Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Hash)
-
   let test () =
     setup_test_env ();
-    let module S = Make () in
+    let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
       match Irmin.Type.of_string Hash.t c with

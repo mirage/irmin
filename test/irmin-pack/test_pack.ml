@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,38 +24,18 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
+module Irmin_pack_maker =
+  Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Config)
+    (Irmin.Private.Node.Make)
+    (Irmin.Private.Commit)
 
-  include
-    Irmin_pack.Make_ext
-      (struct
-        let io_version = `V2
-      end)
-      (Config)
-      (M)
-      (C)
-      (P)
-      (B)
-      (H)
-      (XNode)
-      (XCommit)
-end
-
-let suite =
+let suite_pack =
   let store =
     Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
   in
   let layered_store =
     Irmin_test.layered_store
-      (module Irmin_pack_layered.Make (Config))
+      (module Irmin_pack_layered.Maker (Config))
       (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
@@ -83,7 +63,7 @@ let suite =
     let* repo = S.Repo.v config in
     clear repo >>= fun () ->
     S.Repo.close repo >>= fun () ->
-    let (module S : Irmin_test.LAYERED_STORE) = layered_store in
+    let (module S : Irmin_test.Layered_store) = layered_store in
     let module P = S.Private in
     let clear repo =
       P.Commit.clear (P.Repo.commit_t repo) >>= fun () ->
@@ -105,6 +85,51 @@ let suite =
     stats;
     layered_store = Some layered_store;
   }
+
+module Irmin_pack_mem_maker =
+  Irmin_pack_mem.Maker (Irmin.Private.Node.Make) (Irmin.Private.Commit) (Config)
+
+let suite_mem =
+  let store =
+    Irmin_test.store (module Irmin_pack_mem_maker) (module Irmin.Metadata.None)
+  in
+  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let init () =
+    if Sys.file_exists test_dir then (
+      let cmd = Printf.sprintf "rm -rf %s" test_dir in
+      Fmt.epr "exec: %s\n%!" cmd;
+      let _ = Sys.command cmd in
+      ());
+    Lwt.return_unit
+  in
+  let clean () =
+    let (module S : Irmin_test.S) = store in
+    let module P = S.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
+    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
+    S.Repo.v config >>= fun repo ->
+    clear repo >>= fun () -> S.Repo.close repo
+  in
+  let stats = None in
+  {
+    Irmin_test.name = "PACK MEM";
+    init;
+    clean;
+    config;
+    store;
+    stats;
+    layered_store = None;
+  }
+
+let suite = [ suite_pack; suite_mem ]
 
 module Context = Make_context (struct
   let root = test_dir
@@ -159,7 +184,7 @@ module Dict = struct
       try
         ignore_int (Dict.index r k);
         Alcotest.fail "RO dict should not be writable"
-      with Irmin_pack.RO_Not_Allowed -> ()
+      with Irmin_pack.RO_not_allowed -> ()
     in
     ignore_int (Dict.index dict "foo");
     ignore_int (Dict.index dict "foo");
@@ -578,10 +603,10 @@ end
 
 module Branch = struct
   module Branch =
-    Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
-      (struct
-        let io_version = `V2
-      end)
+    Irmin_pack.Atomic_write.Make_persistent
+      (Irmin_pack.Version.V2)
+      (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 

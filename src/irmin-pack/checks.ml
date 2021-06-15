@@ -1,8 +1,22 @@
-include Checks_intf
-module T = Irmin.Type
-module I = IO
-module IO = IO.Unix
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open! Import
+include Checks_intf
+module IO = IO.Unix
 
 let setup_log =
   let init style_renderer level =
@@ -35,17 +49,9 @@ let path =
   @@ pos 0 (some string) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-module Make (M : MAKER) = struct
-  module V1 = struct
-    let io_version = `V1
-  end
-
-  module V2 = struct
-    let io_version = `V2
-  end
-
-  module Store_V1 = M (V1)
-  module Store_V2 = M (V2)
+module Make (M : Maker) = struct
+  module Store_V1 = M (Version.V1)
+  module Store_V2 = M (Version.V2)
   module Hash = Store_V1.Hash
   module Index = Pack_index.Make (Hash)
 
@@ -58,8 +64,8 @@ module Make (M : MAKER) = struct
 
     type io = {
       size : size;
-      offset : int64;
-      generation : int64;
+      offset : int63;
+      generation : int63;
       version : version;
     }
     [@@deriving irmin]
@@ -67,9 +73,18 @@ module Make (M : MAKER) = struct
     type files = { pack : io option; branch : io option; dict : io option }
     [@@deriving irmin]
 
-    type t = { hash_size : size; files : files } [@@deriving irmin]
+    type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
+    [@@deriving irmin]
 
-    let with_io : type a. I.version -> string -> (IO.t -> a) -> a option =
+    type t = {
+      hash_size : size;
+      log_size : int;
+      files : files;
+      objects : objects;
+    }
+    [@@deriving irmin]
+
+    let with_io : type a. Version.t -> string -> (IO.t -> a) -> a option =
      fun version path f ->
       match IO.exists path with
       | false -> None
@@ -85,7 +100,7 @@ module Make (M : MAKER) = struct
         match with_io current_version path Fun.id with
         | None -> Fmt.failwith "cannot read pack file"
         | Some _ -> current_version
-      with I.Invalid_version { expected = _; found } -> found
+      with Version.Invalid { expected = _; found } -> found
 
     let io ~version path =
       with_io version path @@ fun io ->
@@ -101,11 +116,32 @@ module Make (M : MAKER) = struct
       let dict = Layout.dict ~root |> io ~version in
       { pack; branch; dict }
 
+    let traverse_index ~root log_size =
+      let index = Index.v ~readonly:true ~fresh:false ~log_size root in
+      let bar, (progress_contents, progress_nodes, progress_commits) =
+        Utils.Progress.increment ~ppf:Format.err_formatter ()
+      in
+      let f _ (_, _, (kind : Pack_value.Kind.t)) =
+        match kind with
+        | Contents -> progress_contents ()
+        | Node | Inode -> progress_nodes ()
+        | Commit -> progress_commits ()
+      in
+      Index.iter f index;
+      let nb_commits, nb_nodes, nb_contents =
+        Utils.Progress.finalise_with_stats bar
+      in
+      { nb_commits; nb_nodes; nb_contents }
+
+    let conf root = Conf.v ~readonly:true ~fresh:false root
+
     let run_versioned_store ~root version =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      let log_size = conf root |> Conf.index_log_size in
+      let objects = traverse_index ~root log_size in
       let files = v ~root ~version in
-      { hash_size = Bytes Hash.hash_size; files }
-      |> T.pp_json ~minify:false t Fmt.stdout;
+      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
+      |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
 
     let run ~root = detect_version ~root |> run_versioned_store ~root
@@ -119,7 +155,8 @@ module Make (M : MAKER) = struct
   end
 
   module Reconstruct_index = struct
-    let conf root = Config.v ~readonly:false ~fresh:false root
+    let conf ~index_log_size root =
+      Conf.v ~readonly:false ~fresh:false ?index_log_size root
 
     let dest =
       let open Cmdliner.Arg in
@@ -127,18 +164,28 @@ module Make (M : MAKER) = struct
       & pos 1 (some string) None
         @@ info ~doc:"Path to the new index file" ~docv:"DEST" []
 
-    let run_versioned_store ~root ~output (module Store : Versioned_store) =
-      let conf = conf root in
-      Store.reconstruct_index ?output conf
+    let index_log_size =
+      let open Cmdliner.Arg in
+      value
+      & opt (some int) None
+        @@ info ~doc:"Size of the index log file" [ "index-log-size" ]
 
-    let run ~root ~output =
-      match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~output (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~output (module Store_V2)
+    let run ~root ~output ?index_log_size () =
+      let (module Store : Versioned_store) =
+        match Stat.detect_version ~root with
+        | `V1 -> (module Store_V1)
+        | `V2 -> (module Store_V2)
+      in
+      let conf = conf ~index_log_size root in
+      Store.reconstruct_index ?output conf
 
     let term_internal =
       Cmdliner.Term.(
-        const (fun root output () -> run ~root ~output) $ path $ dest)
+        const (fun root output index_log_size () ->
+            run ~root ~output ?index_log_size ())
+        $ path
+        $ dest
+        $ index_log_size)
 
     let term =
       let doc = "Reconstruct index from an existing pack file." in
@@ -146,7 +193,7 @@ module Make (M : MAKER) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Config.v ~readonly:false ~fresh:false root
+    let conf root = Conf.v ~readonly:false ~fresh:false root
 
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
@@ -187,7 +234,7 @@ module Make (M : MAKER) = struct
   end
 
   module Integrity_check_inodes = struct
-    let conf root = Config.v ~readonly:true ~fresh:false root
+    let conf root = Conf.v ~readonly:true ~fresh:false root
 
     let heads =
       let open Cmdliner.Arg in
@@ -256,4 +303,63 @@ module Make (M : MAKER) = struct
   end
 
   let cli = Cli.main
+end
+
+module Index (Index : Pack_index.S) = struct
+  let null =
+    match Sys.os_type with
+    | "Unix" | "Cygwin" -> "/dev/null"
+    | "Win32" -> "NUL"
+    | _ -> invalid_arg "invalid os type"
+
+  let integrity_check ?ppf ~auto_repair ~check index =
+    let ppf =
+      match ppf with
+      | Some p -> p
+      | None -> open_out null |> Format.formatter_of_out_channel
+    in
+    Fmt.pf ppf "Running the integrity_check.\n%!";
+    let nb_absent = ref 0 in
+    let nb_corrupted = ref 0 in
+    let exception Cannot_fix in
+    let bar, (progress_contents, progress_nodes, progress_commits) =
+      Utils.Progress.increment ()
+    in
+    let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
+      match kind with
+      | Contents ->
+          progress_contents ();
+          check ~kind:`Contents ~offset ~length k
+      | Node | Inode ->
+          progress_nodes ();
+          check ~kind:`Node ~offset ~length k
+      | Commit ->
+          progress_commits ();
+          check ~kind:`Commit ~offset ~length k
+    in
+    let result =
+      if auto_repair then
+        try
+          Index.filter index (fun binding ->
+              match f binding with
+              | Ok () -> true
+              | Error `Wrong_hash -> raise Cannot_fix
+              | Error `Absent_value ->
+                  incr nb_absent;
+                  false);
+          if !nb_absent = 0 then Ok `No_error else Ok (`Fixed !nb_absent)
+        with Cannot_fix -> Error (`Cannot_fix "Not implemented")
+      else (
+        Index.iter
+          (fun k v ->
+            match f (k, v) with
+            | Ok () -> ()
+            | Error `Wrong_hash -> incr nb_corrupted
+            | Error `Absent_value -> incr nb_absent)
+          index;
+        if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
+        else Error (`Corrupted (!nb_corrupted + !nb_absent)))
+    in
+    Utils.Progress.finalise bar;
+    result
 end

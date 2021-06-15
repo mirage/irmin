@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,59 +16,33 @@
 
 open! Import
 
-let config = Config.v
-let src = Logs.Src.create "irmin-pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
 (* TODO(craigfe): better namespacing of modules shared with [irmin-pack] *)
-module Config_layered = Config
 module Layout_layered = Layout
-open Irmin_pack
-open Private
-
-let current_version = `V2
-
-module IO_version = struct
-  let io_version = current_version
-end
-
-let pp_version = IO.pp_version
-let ( -- ) = Int64.sub
-
-exception RO_Not_Allowed = IO.Unix.RO_Not_Allowed
-exception Unsupported_version = Store.Unsupported_version
+module V = Irmin_pack.Version.V2
 
 let cache_size = 10_000
 
 exception Cancelled
 
-module I = IO
-module IO = IO.Unix
-open! Import
-module Atomic_write = Store.Atomic_write
-module Pack_config = Config
+module IO = Irmin_pack.IO.Unix
 module Lock = IO_layers.Lock
 module IO_layers = IO_layers.IO
 
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Make
-    (Inode_config : Config.S)
+module Maker
+    (Config : Conf.Pack.S)
+    (Node : Irmin.Private.Node.Maker)
+    (Commit : Irmin.Private.Commit.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S
-              with type metadata = M.t
-               and type hash = H.t
-               and type step = P.step)
-    (Commit : Irmin.Private.Commit.S with type hash = H.t) =
+    (H : Irmin.Hash.S) =
 struct
-  module Index = Pack_index.Make (H)
-  module Pack = Pack.File (Index) (H) (IO_version)
+  module Index = Irmin_pack.Index.Make (H)
+  module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
 
   type store_handle =
     | Commit_t : H.t -> store_handle
@@ -77,97 +51,56 @@ struct
 
   module X = struct
     module Hash = H
-
-    type 'a value = { magic : char; hash : H.t; v : 'a }
-
-    let value a =
-      let open Irmin.Type in
-      record "value" (fun hash magic v -> { magic; hash; v })
-      |+ field "hash" H.t (fun v -> v.hash)
-      |+ field "magic" char (fun v -> v.magic)
-      |+ field "v" a (fun v -> v.v)
-      |> sealr
+    module Info = Commit.Info
 
     module Contents = struct
+      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
+
+      (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
-        module Key = H
-        module Val = C
-
-        module CA_Pack = Pack.Make (struct
-          include Val
-          module H = Irmin.Hash.Typed (H) (Val)
-
-          let hash = H.hash
-          let magic = 'B'
-          let value = value Val.t
-          let encode_value = Irmin.Type.(unstage (encode_bin value))
-          let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-          let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
-
-          let decode_bin ~dict:_ ~hash:_ s off =
-            let _, t = decode_value s off in
-            t.v
-
-          let magic _ = magic
-        end)
-
-        module CA = Closeable.Content_addressable (CA_Pack)
+        module CA = Pack.Make (Pack_value)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Contents.Store (CA)
+      include Irmin.Contents.Store (CA) (H) (C)
     end
 
     module Node = struct
-      module Pa = Layered_store.Pack_Maker (H) (Index) (Pack)
-      module CA = Inode_layers.Make (Inode_config) (H) (Pa) (Node)
-      include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
+      module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
+      module Node = Node (H) (P) (M)
+      module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
+      include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
     end
 
     module Commit = struct
+      module Commit = Commit.Make (H)
+      module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
+
       module CA = struct
-        module Key = H
-        module Val = Commit
-
-        module CA_Pack = Pack.Make (struct
-          include Val
-          module H = Irmin.Hash.Typed (H) (Val)
-
-          let hash = H.hash
-          let value = value Val.t
-          let magic = 'C'
-          let encode_value = Irmin.Type.(unstage (encode_bin value))
-          let decode_value = Irmin.Type.(unstage (decode_bin value))
-
-          let encode_bin ~dict:_ ~offset:_ v hash =
-            encode_value { magic; hash; v }
-
-          let decode_bin ~dict:_ ~hash:_ s off =
-            let _, v = decode_value s off in
-            v.v
-
-          let magic _ = magic
-        end)
-
-        module CA = Closeable.Content_addressable (CA_Pack)
+        module CA = Pack.Make (Pack_value)
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Private.Commit.Store (Node) (CA)
+      include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
     end
 
     module Branch = struct
       module Key = B
       module Val = H
-      module AW = Atomic_write (Key) (Val) (IO_version)
-      module Closeable_AW = Closeable.Atomic_write (AW)
-      include Layered_store.Atomic_write (Key) (Closeable_AW) (Closeable_AW)
+
+      module Atomic_write = struct
+        module AW = Irmin_pack.Atomic_write.Make_persistent (V) (Key) (Val)
+        include Irmin_pack.Atomic_write.Closeable (AW)
+
+        let v ?fresh ?readonly path =
+          AW.v ?fresh ?readonly path >|= make_closeable
+      end
+
+      include Layered_store.Atomic_write (Key) (Atomic_write) (Atomic_write)
     end
 
     module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = Irmin.Private.Sync.None (H) (B)
+    module Remote = Irmin.Private.Remote.None (H) (B)
 
     module Repo = struct
       type upper_layer = {
@@ -187,7 +120,7 @@ struct
       }
 
       type freeze_info = {
-        throttle : Config.freeze_throttle;
+        throttle : Conf.Pack.freeze_throttle;
         lock : Lwt_mutex.t;
         mutable state : [ `None | `Running | `Cancel ];
       }
@@ -197,7 +130,6 @@ struct
         readonly : bool;
         blocking_copy_size : int;
         with_lower : bool;
-        copy_in_upper : bool;
         contents : read Contents.CA.t;
         node : read Node.CA.t;
         branch : Branch.t;
@@ -236,7 +168,7 @@ struct
         end
 
         type 'a store_fn = {
-          f : 't. (module S.LAYERED with type t = 't) -> 't -> 'a;
+          f : 't. (module S.Layered with type t = 't) -> 't -> 'a;
         }
         [@@ocaml.unboxed]
 
@@ -264,11 +196,11 @@ struct
                     f contents node commit)))
 
       let unsafe_v_upper root config =
-        let fresh = Pack_config.fresh config in
-        let lru_size = Pack_config.lru_size config in
-        let readonly = Pack_config.readonly config in
-        let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.merge_throttle config in
+        let fresh = Conf.Pack.fresh config in
+        let lru_size = Conf.Pack.lru_size config in
+        let readonly = Conf.Pack.readonly config in
+        let log_size = Conf.Pack.index_log_size config in
+        let throttle = Conf.Pack.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -286,11 +218,11 @@ struct
         ({ index; contents; node; commit; branch } : upper_layer)
 
       let unsafe_v_lower root config =
-        let fresh = Pack_config.fresh config in
-        let lru_size = Pack_config.lru_size config in
-        let readonly = Pack_config.readonly config in
-        let log_size = Pack_config.index_log_size config in
-        let throttle = Pack_config.merge_throttle config in
+        let fresh = Conf.Pack.fresh config in
+        let lru_size = Conf.Pack.lru_size config in
+        let readonly = Conf.Pack.readonly config in
+        let log_size = Conf.Pack.index_log_size config in
+        let throttle = Conf.Pack.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -310,27 +242,25 @@ struct
         Lwt.catch
           (fun () -> v root config)
           (function
-            | I.Invalid_version { expected; found }
-              when expected = current_version ->
+            | Irmin_pack.Version.Invalid { expected; found } as e
+              when expected = V.version ->
                 Log.err (fun m ->
                     m "[%s] Attempted to open store of unsupported version %a"
-                      root pp_version found);
-                Lwt.fail (Unsupported_version found)
+                      root Irmin_pack.Version.pp found);
+                Lwt.fail e
             | e -> Lwt.fail e)
 
       let freeze_info throttle =
         { throttle; state = `None; lock = Lwt_mutex.create () }
 
       let v config =
-        let root = Pack_config.root config in
-        let upper1 = Filename.concat root (Config_layered.upper_root1 config) in
+        let root = Conf.Pack.root config in
+        let upper1 = Filename.concat root (Conf.upper_root1 config) in
         let* upper1 = v_layer ~v:unsafe_v_upper upper1 config in
-        let upper0 = Filename.concat root (Config_layered.upper_root0 config) in
+        let upper0 = Filename.concat root (Conf.upper_root0 config) in
         let* upper0 = v_layer ~v:unsafe_v_upper upper0 config in
-        let with_lower = Config_layered.with_lower config in
-        let lower_root =
-          Filename.concat root (Config_layered.lower_root config)
-        in
+        let with_lower = Conf.with_lower config in
+        let lower_root = Filename.concat root (Conf.lower_root config) in
         let* lower =
           if with_lower then
             v_layer ~v:unsafe_v_lower lower_root config >|= Option.some
@@ -340,8 +270,8 @@ struct
         let* flip_file = IO_layers.v file in
         let* flip = IO_layers.read_flip flip_file in
         (* A fresh store has to unlink the lock file as well. *)
-        let fresh = Pack_config.fresh config in
-        let freeze = freeze_info (Pack_config.freeze_throttle config) in
+        let fresh = Conf.Pack.fresh config in
+        let freeze = freeze_info (Conf.Pack.freeze_throttle config) in
         let lock_file = lock_path root in
         let freeze_in_progress () = freeze.state = `Running in
         let always_false () = false in
@@ -371,9 +301,8 @@ struct
             ~freeze_in_progress
         in
         let lower_index = Option.map (fun x -> x.lindex) lower in
-        let readonly = Pack_config.readonly config in
-        let copy_in_upper = Config_layered.copy_in_upper config in
-        let blocking_copy_size = Config_layered.blocking_copy_size config in
+        let readonly = Conf.Pack.readonly config in
+        let blocking_copy_size = Conf.blocking_copy_size config in
         {
           contents;
           node;
@@ -383,7 +312,6 @@ struct
           readonly;
           with_lower;
           blocking_copy_size;
-          copy_in_upper;
           lower_index;
           uppers_index = (upper1.index, upper0.index);
           flip;
@@ -402,7 +330,7 @@ struct
         let f : unit Lwt.t Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.close x);
           }
         in
@@ -431,7 +359,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.update_flip ~flip x);
           }
         in
@@ -443,22 +371,22 @@ struct
           on disk. As migration fails on an empty store, we check which layer is
           in the wrong version. *)
       let migrate config =
-        if Pack_config.readonly config then raise RO_Not_Allowed;
-        let root = Pack_config.root config in
-        Config_layered.[ upper_root1; upper_root0; lower_root ]
+        if Conf.Pack.readonly config then raise Irmin_pack.RO_not_allowed;
+        let root = Conf.Pack.root config in
+        Conf.[ upper_root1; upper_root0; lower_root ]
         |> List.map (fun name ->
                let root = Filename.concat root (name config) in
                let config =
-                 Irmin.Private.Conf.add config Pack_config.root_key (Some root)
+                 Irmin.Private.Conf.add config Conf.Pack.root_key (Some root)
                in
                try
                  let io =
-                   IO.v ~version:(Some current_version) ~fresh:false
-                     ~readonly:true (Layout.pack ~root)
+                   IO.v ~version:(Some V.version) ~fresh:false ~readonly:true
+                     (Layout.pack ~root)
                  in
                  (config, Some io)
                with
-               | I.Invalid_version _ -> (config, None)
+               | Irmin_pack.Version.Invalid _ -> (config, None)
                | e -> raise e)
         |> List.fold_left
              (fun to_migrate (config, io) ->
@@ -468,7 +396,7 @@ struct
                    IO.close io;
                    to_migrate)
              []
-        |> List.iter (fun config -> Store.migrate config)
+        |> List.iter (fun config -> Irmin_pack.migrate config)
 
       let layer_id t store_handler =
         match store_handler with
@@ -500,7 +428,7 @@ struct
         let f : unit Iterate.store_fn =
           {
             f =
-              (fun (type a) (module C : S.LAYERED with type t = a) (x : a) ->
+              (fun (type a) (module C : S.Layered with type t = a) (x : a) ->
                 C.flip_upper x);
           }
         in
@@ -513,7 +441,7 @@ struct
   end
 
   let integrity_check ?ppf ~auto_repair t =
-    let module Checks = Store.Checks (Index) in
+    let module Checks = Irmin_pack.Checks.Index (Index) in
     let contents = X.Repo.contents_t t in
     let nodes = X.Repo.node_t t |> snd in
     let commits = X.Repo.commit_t t |> snd in
@@ -647,13 +575,7 @@ struct
             f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
               pp_commits commits);
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        (* When copying to next upper, if the min is empty then we copy only the
-           max. *)
-        let min =
-          List.map (fun x -> `Commit (Commit.hash x)) min |> function
-          | [] -> max
-          | min -> min
-        in
+        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
@@ -684,7 +606,7 @@ struct
       (** Repeatedly call [copy_newies] as long as there are many newies (more
           than newies_limit bytes added). *)
       let rec copy_newies_to_next_upper ~cancel t former_offset =
-        let newies_limit = Int64.of_int t.X.Repo.blocking_copy_size in
+        let newies_limit = Int63.of_int t.X.Repo.blocking_copy_size in
         let offset = X.Repo.offset t in
         if offset -- former_offset >= newies_limit then (
           Irmin_layers.Stats.copy_newies_loop ();
@@ -757,23 +679,20 @@ struct
     end
   end
 
-  let copy ~cancel ~min ~max ~squash ~upper:(copy_in_upper, min_upper) t =
-    (* Copy commits to lower: if squash then copy only the max commits.
+  let copy ~cancel ~min_lower ~max_lower ~min_upper ~max_upper t =
+    (* Copy commits to lower.
        In case cancellation of the freeze, copies to the lower layer will not
        be reverted. Since the copying is performed in the [rev] order, the next
        freeze will resume copying where the previous freeze stopped. *)
     Irmin_layers.Stats.freeze_section "copy to lower";
     (if t.X.Repo.with_lower then
-     let min = if squash then max else min in
-     Copy.CopyToLower.copy ~cancel t ~min max
+     Copy.CopyToLower.copy ~cancel t ~min:min_lower max_lower
     else Lwt.return_unit)
     >>= fun () ->
-    (* Copy [min_upper, max] to next_upper. In case of cancellation of the
+    (* Copy [min_upper, max_upper] to next_upper. In case of cancellation of the
        freeze, the next upper will be cleared. *)
     Irmin_layers.Stats.freeze_section "copy to next upper";
-    (if copy_in_upper then Copy.CopyToUpper.copy t ~cancel ~min:min_upper max
-    else Lwt.return_unit)
-    >>= fun () ->
+    Copy.CopyToUpper.copy t ~cancel ~min:min_upper max_upper >>= fun () ->
     Irmin_layers.Stats.freeze_section "copy branches";
     (* Copy branches to both lower and next_upper *)
     Copy.copy_branches t
@@ -787,21 +706,19 @@ struct
       Fmt.list ~sep:(Fmt.unit "; ") pp ppf (List.filter (fun x -> x <> E) t)
 
     let commits k = function [] -> E | v -> F (pp_commits, k, v)
-    let bool k v = if not v then E else F (Fmt.bool, k, v)
-    let upper k = function false, _ | true, [] -> E | _, v -> commits k v
   end
 
   let pp_repo ppf t =
     Fmt.pf ppf "%a" Layered_store.pp_current_upper t.X.Repo.flip
 
-  let unsafe_freeze ~min ~max ~squash ~upper ?hook t =
+  let unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t =
     Log.info (fun l ->
         l "[%a] freeze starts { %a }" pp_repo t Field.pps
           [
-            Field.commits "min" min;
-            Field.commits "max" max;
-            Field.bool "squash" squash;
-            Field.upper "min_upper" upper;
+            Field.commits "min_lower" min_lower;
+            Field.commits "max_lower" max_lower;
+            Field.commits "min_upper" min_upper;
+            Field.commits "max_upper" max_upper;
           ]);
     let offset = X.Repo.offset t in
     let lock_file = lock_path t.root in
@@ -811,7 +728,7 @@ struct
     let cancel () = t.freeze.state = `Cancel in
     let copy () =
       may (fun f -> f `Before_Copy) hook >>= fun () ->
-      copy ~cancel ~min ~max ~squash ~upper t >>= fun () ->
+      copy ~cancel ~min_lower ~max_lower ~min_upper ~max_upper t >>= fun () ->
       Irmin_layers.Stats.freeze_section "flush lower";
       X.Repo.flush_next_lower t;
       may (fun f -> f `Before_Copy_Newies) hook >>= fun () ->
@@ -863,27 +780,28 @@ struct
   (** Main thread takes the [t.freeze.lock] at the begining of freeze and async
       thread releases it at the end. This is to ensure that no two freezes can
       run simultaneously. *)
-  let freeze' ?(min = []) ?(max = []) ?(squash = false) ?copy_in_upper
-      ?(min_upper = []) ?(recovery = false) ?hook t =
+  let freeze' ?min_lower ?max_lower ?min_upper ?max_upper ?(recovery = false)
+      ?hook t =
     let* () =
       if recovery then X.Repo.clear_previous_upper ~keep_generation:() t
       else Lwt.return_unit
     in
     let freeze () =
       let t0 = Mtime_clock.now () in
-      let upper =
-        ( (match copy_in_upper with None -> t.copy_in_upper | Some b -> b),
-          min_upper )
-      in
       Lwt_mutex.lock t.freeze.lock >>= fun () ->
       t.freeze.state <- `Running;
       Irmin_layers.Stats.freeze_start t0 "wait for freeze lock";
       Irmin_layers.Stats.freeze_section "misc";
-      let* max = match max with [] -> Repo.heads t | m -> Lwt.return m in
-      unsafe_freeze ~min ~max ~squash ~upper ?hook t
+      let min_lower = Option.value min_lower ~default:[] in
+      let* max_lower =
+        match max_lower with Some l -> Lwt.return l | None -> Repo.heads t
+      in
+      let max_upper = Option.value max_upper ~default:max_lower in
+      let min_upper = Option.value min_upper ~default:max_upper in
+      unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t
     in
     if t.X.Repo.closed then Lwt.fail_with "store is closed"
-    else if t.readonly then raise RO_Not_Allowed
+    else if t.readonly then raise Irmin_pack.RO_not_allowed
     else
       match (t.freeze.state, t.freeze.throttle) with
       | `Running, `Overcommit_memory -> Lwt.return ()
@@ -894,7 +812,7 @@ struct
 
   let layer_id = X.Repo.layer_id
   let freeze = freeze' ?hook:None
-  let async_freeze (t : Repo.t) = t.freeze.state = `Running
+  let async_freeze (t : Repo.t) = Lock.test (lock_path t.X.Repo.root)
   let upper_in_use = X.Repo.upper_in_use
   let self_contained = Copy.CopyFromLower.self_contained
   let needs_recovery t = Lock.test (lock_path t.X.Repo.root)
@@ -928,7 +846,7 @@ struct
          detected"
         pp_commits heads !errors
 
-  module PrivateLayer = struct
+  module Private_layer = struct
     module Hook = struct
       type 'a t = 'a -> unit Lwt.t
 

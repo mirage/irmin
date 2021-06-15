@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,86 +15,62 @@
  *)
 
 include Ext
-include Config
+include Irmin_pack_intf
 
-let config = Config.v
+let config = Conf.v
 
-module Pack = Pack
+exception RO_not_allowed = S.RO_not_allowed
+
+module type S = S.S
+
+module Content_addressable = Content_addressable
+module Atomic_write = Atomic_write
 module Dict = Pack_dict
-module Atomic_write = Store.Atomic_write
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Make_ext = Ext.Make
-module Store = Store
+module Maker_ext = Ext.Maker
+module Version = Version
+module Index = Pack_index
+module Conf = Conf
 
-module type VERSION = IO.VERSION
+let migrate = Migrate.run
 
-module type MAKER = functor
-  (Config : Config.S)
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  -> sig
-  include
-    Irmin.S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type Private.Sync.endpoint = unit
+module Maker (V : Version.S) (Config : Conf.S) =
+  Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
 
-  include Store.S with type repo := repo
+module V1 = Maker (Version.V1)
+module V2 = Maker (Version.V2)
 
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
+module KV (V : Version.S) (Config : Conf.S) = struct
+  type endpoint = unit
 
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+  module Maker = Maker (V) (Config)
+
+  type metadata = Metadata.t
+  type info = Maker.info
+
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 end
-
-module Make_with_version
-    (IO_version : IO.VERSION)
-    (Config : Config.S)
-    (M : Irmin.Metadata.S)
-    (C : Irmin.Contents.S)
-    (P : Irmin.Path.S)
-    (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S) =
-struct
-  module XNode = Irmin.Private.Node.Make (H) (P) (M)
-  module XCommit = Irmin.Private.Commit.Make (H)
-  include Make_ext (IO_version) (Config) (M) (C) (P) (B) (H) (XNode) (XCommit)
-end
-
-module Make = Make_with_version (struct
-  let io_version = `V1
-end)
-
-module Make_V2 = Make_with_version (struct
-  let io_version = `V2
-end)
-
-module KV (Config : Config.S) (C : Irmin.Contents.S) =
-  Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
 
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
+module Inode = Inode
+module IO = IO
+module Utils = Utils
+module Pack_value = Pack_value
+module Vx = Version.V1
+module Pack_store = Pack_store
 
-module Private = struct
-  module Closeable = Closeable
-  module Inode = Inode
-  module IO = IO
-  module Pack_index = Pack_index
-  module Sigs = S
-  module Utils = Utils
+module Cx = struct
+  let stable_hash = 0
+  let entries = 0
 end
 
-module Config = Config
-module Inode = Inode
+(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
+module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.Maker}. *)
+module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)
