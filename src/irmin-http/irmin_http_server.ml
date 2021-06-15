@@ -59,7 +59,6 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   class post_unit_endpoint ~op repo =
     object
       inherit resource
-
       method! allowed_methods rd = Wm.continue [ `POST ] rd
 
       method content_types_provided rd =
@@ -114,35 +113,30 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class items repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", fun _ -> assert false) ] rd
 
         method content_types_accepted rd = Wm.continue [] rd
-
         method! process_post rd = add rd repo
       end
 
     class unsafe_items repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", fun _ -> assert false) ] rd
 
         method content_types_accepted rd = Wm.continue [] rd
-
         method! process_post rd = with_key rd (unsafe_add rd repo)
       end
 
     class merge merge repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
@@ -175,7 +169,6 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               | None -> Wm.respond 404 rd)
 
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method! resource_exists rd =
@@ -198,9 +191,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class items db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private to_json rd =
@@ -272,9 +263,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class watches db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD; `POST ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private stream ?init () =
@@ -310,9 +299,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class watch db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD; `POST ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private stream ?init key =
