@@ -81,7 +81,7 @@ module type S = sig
   val reconstruct_index : ?output:string -> Irmin.config -> unit
 end
 
-module _ (X : S) : Irmin.S = X
+module S_is_a_store (X : S) : Irmin.S = X
 
 module type Maker = functor
   (Metadata : Irmin.Metadata.S)
