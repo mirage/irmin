@@ -27,14 +27,14 @@
     A Tezos node (may) output a [Stat_trace] file.
 
     {e trace_stats.exe summarise} takes a [Stat_trace] file and summarises it to
-    a {e boostrap_summary.json} file.
+    a {e stat_summary.json} file.
 
-    A series of python script take a {e boostrap_summary.json} file and produce
+    A series of python script take a {e stat_summary.json} file and produce
     plots (e.g. png files).
 
     {e tree.exe} takes a [Replayable_trace] file, internally produces a
     [Stat_trace] file and yields it to [Trace_stat_summary] to produce a
-    {e boostrap_summary.json} file. *)
+    {e stat_summary.json} file. *)
 
 (** [Replayable_trace], a trace of Tezos's interactions with Irmin.
 

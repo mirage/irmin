@@ -397,7 +397,7 @@ module Make (Store : Store) = struct
     in
     match summary_opt with
     | Some summary ->
-        let p = Filename.concat config.artefacts_dir "boostrap_summary.json" in
+        let p = Filename.concat config.artefacts_dir "stat_summary.json" in
         Trace_stat_summary.save_to_json summary p;
         fun ppf ->
           Format.fprintf ppf "\n%t\n%a" repo_pp
