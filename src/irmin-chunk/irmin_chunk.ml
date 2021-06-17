@@ -23,27 +23,17 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
   let min_size =
-    Irmin.Private.Conf.key ~doc:"Minimal chunk size" "min-size"
-      Irmin.Private.Conf.int 4000
+    Irmin.Private.Conf.key ~doc:"Minimal chunk size" "min-size" Irmin.Type.int
+      4000
 
   let chunk_size =
-    Irmin.Private.Conf.key ~doc:"Size of chunk" "size" Irmin.Private.Conf.int
-      4096
+    Irmin.Private.Conf.key ~doc:"Size of chunk" "size" Irmin.Type.int 4096
+
+  let chunk_type_t =
+    Irmin.Type.(enum "chunk_type" [ ("max", `Max); ("best-fit", `Best_fit) ])
 
   let chunking =
-    let pp ppf = function
-      | `Max -> Fmt.pf ppf "max"
-      | `Best_fit -> Fmt.pf ppf "best-fit"
-    in
-    let of_string = function
-      | "max" -> Ok `Max
-      | "best-fit" -> Ok `Best_fit
-      | e ->
-          Error
-            (`Msg
-              (e ^ " is not a valid chunking algorithm. Use 'max' or 'best-fit'"))
-    in
-    Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking" (of_string, pp)
+    Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking" chunk_type_t
       `Best_fit
 end
 

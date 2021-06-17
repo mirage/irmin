@@ -33,9 +33,12 @@ let flag_key k =
   if default then Arg.(value & vflag true [ (false, i) ])
   else Arg.(value & flag i)
 
-let pconv (parse, pp) =
-  let parse str =
-    match parse str with Ok x -> `Ok x | Error (`Msg e) -> `Error e
+let pconv t =
+  let pp = Irmin.Type.pp t in
+  let parse s =
+    match Irmin.Type.of_string t s with
+    | Ok x -> `Ok x
+    | Error (`Msg e) -> `Error e
   in
   (parse, pp)
 
@@ -43,7 +46,7 @@ let key k default =
   let doc = Irmin.Private.Conf.doc k in
   let docs = Irmin.Private.Conf.docs k in
   let docv = Irmin.Private.Conf.docv k in
-  let mk = pconv (Irmin.Private.Conf.conv k) in
+  let mk = pconv (Irmin.Private.Conf.ty k) in
   let name = Irmin.Private.Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
@@ -54,7 +57,7 @@ let config_path_key =
   Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
     ~doc:"Allows configuration file to be specified on the command-line."
     "config"
-    Irmin.Private.Conf.(some string)
+    Irmin.Type.(option string)
     None
 
 let ( / ) = Filename.concat

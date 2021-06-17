@@ -29,76 +29,57 @@ module Default = struct
 end
 
 let fresh_key =
-  Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh"
-    Irmin.Private.Conf.bool Default.fresh
+  Irmin.Private.Conf.key ~doc:"Start with a fresh disk." "fresh" Irmin.Type.bool
+    Default.fresh
 
 let lru_size_key =
   Irmin.Private.Conf.key ~doc:"Size of the LRU cache for pack entries."
-    "lru-size" Irmin.Private.Conf.int Default.lru_size
+    "lru-size" Irmin.Type.int Default.lru_size
 
 let index_log_size_key =
   Irmin.Private.Conf.key ~doc:"Size of index logs." "index-log-size"
-    Irmin.Private.Conf.int Default.index_log_size
+    Irmin.Type.int Default.index_log_size
 
 let readonly_key =
   Irmin.Private.Conf.key ~doc:"Start with a read-only disk." "readonly"
-    Irmin.Private.Conf.bool Default.readonly
+    Irmin.Type.bool Default.readonly
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
-
-let merge_throttle_converter : merge_throttle Irmin.Private.Conf.converter =
-  let parse = function
-    | "block-writes" -> Ok `Block_writes
-    | "overcommit-memory" -> Ok `Overcommit_memory
-    | s ->
-        Fmt.error_msg
-          "invalid %s, expected one of: `block-writes' or `overcommit-memory'" s
-  in
-  let print =
-    Fmt.of_to_string (function
-      | `Block_writes -> "block-writes"
-      | `Overcommit_memory -> "overcommit-memory")
-  in
-  (parse, print)
 
 type freeze_throttle = [ `Block_writes | `Overcommit_memory | `Cancel_existing ]
 [@@deriving irmin]
 
-let freeze_throttle_converter : freeze_throttle Irmin.Private.Conf.converter =
-  let parse = function
-    | "block-writes" -> Ok `Block_writes
-    | "overcommit-memory" -> Ok `Overcommit_memory
-    | "cancel-existing" -> Ok `Cancel_existing
-    | s ->
-        Fmt.error_msg
-          "invalid %s, expected one of: `block-writes, `overcommit-memory' or \
-           `cancel-existing'"
-          s
-  in
-  let print =
-    Fmt.of_to_string (function
-      | `Block_writes -> "block-writes"
-      | `Overcommit_memory -> "overcommit-memory"
-      | `Cancel_existing -> "cancel-existing")
-  in
-  (parse, print)
-
 let merge_throttle_key =
   Irmin.Private.Conf.key
     ~doc:"Strategy to use for large writes when index caches are full."
-    "merge-throttle" merge_throttle_converter Default.merge_throttle
+    "merge-throttle"
+    Irmin.Type.(
+      enum "merge_throttle"
+        [
+          ("block-writes", `Block_writes);
+          ("overcommit-memory", `Overcommit_memory);
+        ])
+    Default.merge_throttle
 
 let freeze_throttle_key =
   Irmin.Private.Conf.key ~doc:"Strategy to use for long-running freezes."
-    "freeze-throttle" freeze_throttle_converter Default.freeze_throttle
+    "freeze-throttle"
+    Irmin.Type.(
+      enum "merge_throttle"
+        [
+          ("block-writes", `Block_writes);
+          ("overcommit-memory", `Overcommit_memory);
+          ("cancel-existing", `Cancel_existing);
+        ])
+    Default.freeze_throttle
 
+let root_key = Irmin.Private.Conf.root
 let fresh config = Irmin.Private.Conf.get config fresh_key
 let lru_size config = Irmin.Private.Conf.get config lru_size_key
 let readonly config = Irmin.Private.Conf.get config readonly_key
 let index_log_size config = Irmin.Private.Conf.get config index_log_size_key
 let merge_throttle config = Irmin.Private.Conf.get config merge_throttle_key
 let freeze_throttle config = Irmin.Private.Conf.get config freeze_throttle_key
-let root_key = Irmin.Private.Conf.root
 
 let root config =
   match Irmin.Private.Conf.get config root_key with

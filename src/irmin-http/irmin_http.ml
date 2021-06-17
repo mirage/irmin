@@ -26,12 +26,12 @@ module T = Irmin.Type
 (* ~uri *)
 let uri =
   Irmin.Private.Conf.key ~docv:"URI" ~doc:"Location of the remote store." "uri"
-    Irmin.Private.Conf.(some uri)
+    Irmin.Type.(option Irmin.Private.Conf.uri)
     None
 
 module Conf = Irmin.Private.Conf
 
-let config ?(config = Irmin.Private.Conf.empty) x = Conf.add config uri (Some x)
+let config ?(config = Conf.empty) x = Conf.add config uri (Some x)
 
 let uri_append t path =
   match Uri.path t :: path with

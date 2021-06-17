@@ -17,36 +17,36 @@
 module Conf = struct
   let root = Irmin.Private.Conf.root
 
-  let reference =
-    let parse str = Git.Reference.of_string str in
-    let print ppf name = Fmt.string ppf (Git.Reference.to_string name) in
-    (parse, print)
+  let reference : Git.Reference.t Irmin.Type.t =
+    let of_string str = Git.Reference.of_string str |> Result.get_ok in
+    let to_string r = Git.Reference.to_string r in
+    Irmin.Type.(map string) of_string to_string
 
   let head =
     Irmin.Private.Conf.key ~doc:"The main branch of the Git repository." "head"
-      Irmin.Private.Conf.(some reference)
+      Irmin.Type.(option reference)
       None
 
   let bare =
     Irmin.Private.Conf.key ~doc:"Do not expand the filesystem on the disk."
-      "bare" Irmin.Private.Conf.bool false
+      "bare" Irmin.Type.bool false
 
   let level =
     Irmin.Private.Conf.key ~doc:"The Zlib compression level." "level"
-      Irmin.Private.Conf.(some int)
+      Irmin.Type.(option int)
       None
 
   let buffers =
     Irmin.Private.Conf.key ~doc:"The number of 4K pre-allocated buffers."
       "buffers"
-      Irmin.Private.Conf.(some int)
+      Irmin.Type.(option int)
       None
 
   let dot_git =
     Irmin.Private.Conf.key
       ~doc:"The location of the .git directory. By default set to [$root/.git]."
       "dot-git"
-      Irmin.Private.Conf.(some string)
+      Irmin.Type.(option string)
       None
 end
 

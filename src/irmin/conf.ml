@@ -15,48 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a parser = string -> ('a, [ `Msg of string ]) result
-type 'a printer = 'a Fmt.t
-type 'a converter = 'a parser * 'a printer
-
-let parser (p, _) = p
-let printer (_, p) = p
-let str = Printf.sprintf
-let quote s = str "`%s'" s
-
-module Err = struct
-  let alts = function
-    | [ a; b ] -> str "either %s or %s" a b
-    | alts -> str "one of: %s" (String.concat ", " alts)
-
-  let invalid kind s exp = str "invalid %s %s, %s" kind (quote s) exp
-  let invalid_val = invalid "value"
-end
-
-let bool =
-  ( (fun s ->
-      try Ok (bool_of_string s)
-      with Invalid_argument _ ->
-        Error (`Msg (Err.invalid_val s (Err.alts [ "true"; "false" ])))),
-    Fmt.bool )
-
-let parse_with t_of_str exp s =
-  try Ok (t_of_str s) with Failure _ -> Error (`Msg (Err.invalid_val s exp))
-
-let int = (parse_with int_of_string "expected an integer", Fmt.int)
-let string = ((fun s -> Ok s), Fmt.string)
-
-let some (parse, print) =
-  let none = "" in
-  ( (fun s -> match parse s with Ok v -> Ok (Some v) | Error _ as e -> e),
-    fun ppf v ->
-      match v with None -> Fmt.string ppf none | Some v -> print ppf v )
-
-let uri =
-  let parse s = Ok (Uri.of_string s) in
-  let print pp u = Fmt.string pp (Uri.to_string u) in
-  (parse, print)
-
 module Univ = struct
   type t = exn
 
@@ -68,25 +26,34 @@ module Univ = struct
 end
 
 type 'a key = {
-  id : int;
-  to_univ : 'a -> Univ.t;
-  of_univ : Univ.t -> 'a option;
   name : string;
   doc : string option;
   docv : string option;
   docs : string option;
-  conv : 'a converter;
+  ty : 'a Type.t;
   default : 'a;
+  to_univ : 'a -> Univ.t;
+  of_univ : Univ.t -> 'a option;
 }
+
+type k = Key : 'a key -> k
+
+module M = Map.Make (struct
+  type t = k
+
+  let compare (Key a) (Key b) = String.compare a.name b.name
+end)
+
+type t = Univ.t M.t
 
 let name t = t.name
 let doc t = t.doc
 let docv t = t.docv
 let docs t = t.docs
-let conv t = t.conv
+let ty t = t.ty
 let default t = t.default
 
-let key ?docs ?docv ?doc name conv default =
+let key ?docs ?docv ?doc name ty default =
   let () =
     String.iter
       (function
@@ -95,34 +62,30 @@ let key ?docs ?docv ?doc name conv default =
       name
   in
   let to_univ, of_univ = Univ.create () in
-  let id = Oo.id (object end) in
-  { id; to_univ; of_univ; name; docs; docv; doc; conv; default }
-
-module Id = struct
-  type t = int
-
-  let compare (x : int) (y : int) = compare x y
-end
-
-module M = Map.Make (Id)
-
-type t = Univ.t M.t
+  { name; ty; default; to_univ; of_univ; doc; docv; docs }
 
 let empty = M.empty
-let singleton k v = M.singleton k.id (k.to_univ v)
+let singleton k v = M.singleton (Key k) (k.to_univ v)
 let is_empty = M.is_empty
-let mem d k = M.mem k.id d
-let add d k v = M.add k.id (k.to_univ v) d
+let mem d k = M.mem (Key k) d
+let add d k v = M.add (Key k) (k.to_univ v) d
 let union r s = M.fold M.add r s
-let rem d k = M.remove k.id d
-let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
+let rem d k = M.remove (Key k) d
+let find d k = try k.of_univ (M.find (Key k) d) with Not_found -> None
+let uri = Type.(map string) Uri.of_string Uri.to_string
 
 let get d k =
   try
-    match k.of_univ (M.find k.id d) with Some v -> v | None -> raise Not_found
+    match k.of_univ (M.find (Key k) d) with
+    | Some v -> v
+    | None -> raise Not_found
   with Not_found -> k.default
+
+let list_keys conf = M.to_seq conf |> Seq.map (fun (k, _) -> k)
 
 (* ~root *)
 let root =
   key ~docv:"ROOT" ~doc:"The location of the Git repository root."
-    ~docs:"COMMON OPTIONS" "root" (some string) None
+    ~docs:"COMMON OPTIONS" "root"
+    Type.(option string)
+    None

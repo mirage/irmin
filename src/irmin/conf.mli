@@ -20,32 +20,19 @@
     A configuration converter transforms a string value to an OCaml value and
     vice-versa. There are a few {{!builtin_converters} built-in converters}. *)
 
-type 'a parser = string -> ('a, [ `Msg of string ]) result
-(** The type for configuration converter parsers. *)
-
-type 'a printer = 'a Fmt.t
-(** The type for configuration converter printers. *)
-
-type 'a converter = 'a parser * 'a printer
-(** The type for configuration converters. *)
-
-val parser : 'a converter -> 'a parser
-(** [parser c] is [c]'s parser. *)
-
-val printer : 'a converter -> 'a printer
-(** [converter c] is [c]'s printer. *)
-
 (** {1:keys Keys} *)
 
 type 'a key
 (** The type for configuration keys whose lookup value is ['a]. *)
+
+type k = Key : 'a key -> k
 
 val key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
   string ->
-  'a converter ->
+  'a Type.t ->
   'a ->
   'a key
 (** [key ~docs ~docv ~doc name conv default] is a configuration key named [name]
@@ -68,7 +55,7 @@ val key :
 val name : 'a key -> string
 (** The key name. *)
 
-val conv : 'a key -> 'a converter
+val ty : 'a key -> 'a Type.t
 (** [tc k] is [k]'s converter. *)
 
 val default : 'a key -> 'a
@@ -120,19 +107,9 @@ val get : t -> 'a key -> 'a
 
     {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
+val list_keys : t -> k Seq.t
+
 (** {1:builtin_converters Built-in value converters} *)
 
-val bool : bool converter
-(** [bool] converts values with [bool_of_string]. *)
-
-val int : int converter
-(** [int] converts values with [int_of_string]. *)
-
-val string : string converter
-(** [string] converts values with the identity function. *)
-
-val uri : Uri.t converter
+val uri : Uri.t Type.t
 (** [uri] converts values with {!Uri.of_string}. *)
-
-val some : 'a converter -> 'a option converter
-(** [string] converts values with the identity function. *)

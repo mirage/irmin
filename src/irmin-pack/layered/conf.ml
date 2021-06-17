@@ -27,24 +27,25 @@ module Pack = Irmin_pack.Conf
 
 let lower_root_key =
   Conf.key ~doc:"The root directory for the lower layer." "root_lower"
-    Conf.string Default.lower_root
+    Irmin.Type.string Default.lower_root
 
 let lower_root conf = Conf.get conf lower_root_key
 
 let upper_root1_key =
   Conf.key ~doc:"The root directory for the upper layer." "root_upper"
-    Conf.string Default.upper1_root
+    Irmin.Type.string Default.upper1_root
 
 let upper_root1 conf = Conf.get conf upper_root1_key
 
 let upper_root0_key =
   Conf.key ~doc:"The root directory for the secondary upper layer."
-    "root_second" Conf.string Default.upper0_root
+    "root_second" Irmin.Type.string Default.upper0_root
 
 let upper_root0 conf = Conf.get conf upper_root0_key
 
 let with_lower_key =
-  Conf.key ~doc:"Use a lower layer." "with-lower" Conf.bool Default.with_lower
+  Conf.key ~doc:"Use a lower layer." "with-lower" Irmin.Type.bool
+    Default.with_lower
 
 let with_lower conf = Conf.get conf with_lower_key
 
@@ -53,7 +54,7 @@ let blocking_copy_size_key =
     ~doc:
       "Specify the maximum size (in bytes) that can be copied in the blocking \
        portion of the freeze."
-    "blocking-copy" Conf.int Default.blocking_copy_size
+    "blocking-copy" Irmin.Type.int Default.blocking_copy_size
 
 let blocking_copy_size conf = Conf.get conf blocking_copy_size_key
 
