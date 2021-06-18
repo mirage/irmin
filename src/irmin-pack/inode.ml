@@ -389,6 +389,8 @@ struct
               v :: acc)
             l []
 
+    let merge ~find:_ ~add:_ = failwith "Not implemented"
+
     let length_of_v = function
       | Values vs -> StepMap.cardinal vs
       | Tree vs -> vs.length
@@ -1096,6 +1098,8 @@ struct
         I.save layout ~add ~mem v
       in
       apply t { f }
+
+    let merge = I.merge
 
     let of_raw find' v =
       let rec find h =

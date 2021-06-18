@@ -116,6 +116,50 @@ struct
   let of_entries e = v (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  let merge ~find:store_find ~add:store_add ~old (t1 : t) (t2 : t) =
+    let open Merge.Infix in
+    let update sm s v = sm >>=* fun sm -> Merge.ok (add sm s v) in
+    let rec merge_stepmaps s1 s2 =
+      StepMap.fold
+        (fun s v1 acc ->
+          (* Looking for possible conflicts if v1 is present in t2 too *)
+          match find s2 s with
+          | None ->
+              let _, v = of_entry v1 in
+              update acc s v
+          | Some v2 -> (
+              match (snd (of_entry v1), v2) with
+              (* If both v1 and v2 are Nodes, their content needs to be
+                 merged and the resulting merge needs to be associated to them
+                 in the new store *)
+              | `Node h1, `Node h2 -> (
+                  store_find h1 >>= function
+                  | None -> assert false
+                  | Some s1 -> (
+                      store_find h2 >>= function
+                      | None -> assert false
+                      | Some s2 ->
+                          merge_stepmaps s1 s2 >>=* fun res ->
+                          let* key = store_add res in
+                          update acc s (`Node key)))
+              (* If both v1 and v2 are contents, currently we choose the
+                 second one and pick it as the new value
+                 This mean that the remaining value will be the one from
+                 the branch in which we are merging, not the one being merged *)
+              | `Contents _, (`Contents _ as c) -> update acc s c
+              | _ -> Merge.conflict "File/Directory"))
+        s1 (Merge.ok s2)
+    in
+    old () >>=* fun old ->
+    let old = match old with None -> empty | Some o -> o in
+    merge_stepmaps old t1 >>=* fun old_m_t1 ->
+    merge_stepmaps old_m_t1 t2 >>=* fun old_m_t1_m_t2 ->
+    Merge.ok (v (list old_m_t1_m_t2))
+
+  let merge ~find ~add =
+    let merge = merge ~find ~add in
+    Merge.(v t merge)
 end
 
 module Store
@@ -148,59 +192,8 @@ struct
     let+ () = S.close s in
     ()
 
-  let all_contents t =
-    let kvs = Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
-      [] kvs
-
-  let all_succ t =
-    let kvs = Val.list t in
-    List.fold_left
-      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
-      [] kvs
-
-  let contents_t = C.Key.t
-  let metadata_t = M.t
-  let step_t = Path.step_t
-
-  (* [Merge.alist] expects us to return an option. [C.merge] does
-     that, but we need to consider the metadata too... *)
-  let merge_contents_meta c =
-    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
-       S.Val.Metadata.t) option]. *)
-    let explode = function
-      | None -> (None, M.default)
-      | Some (c, m) -> (Some c, m)
-    in
-    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
-    Merge.like [%typ: (contents * metadata) option]
-      (Merge.pair (C.merge c) M.merge)
-      explode implode
-
-  let merge_contents_meta c =
-    Merge.alist step_t [%typ: contents * metadata] (fun _step ->
-        merge_contents_meta c)
-
-  let merge_parents merge_key =
-    Merge.alist step_t Key.t (fun _step -> merge_key)
-
-  let merge_value (c, _) merge_key =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
-      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      Val.v (xs @ ys)
-    in
-    let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
-    Merge.like Val.t merge explode implode
-
-  let rec merge t =
-    let merge_key =
-      Merge.v [%typ: Key.t option] (fun ~old x y ->
-          Merge.(f (merge t)) ~old x y)
-    in
-    let merge = merge_value t merge_key in
+  let merge t =
+    let merge = V.merge ~find:(find t) ~add:(add t) in
     let read = function
       | None -> Lwt.return Val.empty
       | Some k -> ( find t k >|= function None -> Val.empty | Some v -> v)
@@ -447,4 +440,12 @@ module V1 (N : S with type step = string) = struct
 
   let t : t Type.t =
     Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+
+  let merge ~find ~add =
+    let find h = find h >|= function Some t -> Some t.n | None -> None in
+    let add n = add { n; entries = N.list n } in
+    let merge = N.merge ~find ~add in
+    let destruct t = t.n in
+    let construct n = { n; entries = N.list n } in
+    Merge.like t merge destruct construct
 end

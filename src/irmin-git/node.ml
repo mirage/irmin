@@ -168,5 +168,12 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
     let size_of = Irmin.Type.Size.custom_dynamic ()
     let t = Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+
+    let merge ~find ~add =
+      let find h =
+        find h >|= function None -> None | Some t -> Some (to_n t)
+      in
+      let add t = add (of_n t) in
+      Irmin.Merge.like t (N.merge ~find ~add) to_n of_n
   end
 end
