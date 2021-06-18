@@ -56,7 +56,7 @@ benchmarking server at `/bench/releases/`:
             └── stat_trace.repr
 ```
 
-To test a new release, setup an `c3-small-x86-01` aws instance, fetch a large
+To test a new release, setup an `c3-small-x86-01` Equinix instance, fetch a large
 enough replay trace and setup the right versions of the right libraries
 before running the benchmarks.
 
