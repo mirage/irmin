@@ -78,11 +78,18 @@ val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 
 val load_config :
   ?default:Irmin.config ->
+  ?config_path:string ->
   store:string option ->
   hash:hash option ->
   contents:string option ->
   unit ->
   Store.t * Irmin.config
+(** Load config file from disk
+
+    [config_path] can be used to specify the location of a configuration file.
+
+    The values provided for [store], [hash] and [contents] will be used by
+    default if no other value is found in the config file *)
 
 type store =
   | S :
