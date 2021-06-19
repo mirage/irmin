@@ -52,26 +52,11 @@ type freeze_throttle = [ `Block_writes | `Overcommit_memory | `Cancel_existing ]
 let merge_throttle_key =
   Irmin.Private.Conf.key
     ~doc:"Strategy to use for large writes when index caches are full."
-    "merge-throttle"
-    Irmin.Type.(
-      enum "merge_throttle"
-        [
-          ("block-writes", `Block_writes);
-          ("overcommit-memory", `Overcommit_memory);
-        ])
-    Default.merge_throttle
+    "merge-throttle" merge_throttle_t Default.merge_throttle
 
 let freeze_throttle_key =
   Irmin.Private.Conf.key ~doc:"Strategy to use for long-running freezes."
-    "freeze-throttle"
-    Irmin.Type.(
-      enum "merge_throttle"
-        [
-          ("block-writes", `Block_writes);
-          ("overcommit-memory", `Overcommit_memory);
-          ("cancel-existing", `Cancel_existing);
-        ])
-    Default.freeze_throttle
+    "freeze-throttle" freeze_throttle_t Default.freeze_throttle
 
 let root_key = Irmin.Private.Conf.root
 let fresh config = Irmin.Private.Conf.get config fresh_key
@@ -86,13 +71,26 @@ let root config =
   | None -> failwith "no root set"
   | Some r -> r
 
+let default_config =
+  Irmin.Private.Conf.(
+    v
+      [
+        k root_key;
+        k fresh_key;
+        k lru_size_key;
+        k readonly_key;
+        k index_log_size_key;
+        k merge_throttle_key;
+        k freeze_throttle_key;
+      ])
+
 let v ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(freeze_throttle = Default.freeze_throttle) root =
-  let config = Irmin.Private.Conf.empty in
-  let config = Irmin.Private.Conf.add config fresh_key fresh in
+  let config = default_config in
   let config = Irmin.Private.Conf.add config root_key (Some root) in
+  let config = Irmin.Private.Conf.add config fresh_key fresh in
   let config = Irmin.Private.Conf.add config lru_size_key lru_size in
   let config =
     Irmin.Private.Conf.add config index_log_size_key index_log_size

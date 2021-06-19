@@ -50,9 +50,21 @@ module Conf = struct
       None
 end
 
-let v ?(config = Irmin.Private.Conf.empty) ?head ?bare ?level ?dot_git ?buffers
-    root =
+let default_config =
+  Irmin.Private.Conf.(
+    v
+      [
+        k Conf.root;
+        k Conf.head;
+        k Conf.bare;
+        k Conf.level;
+        k Conf.buffers;
+        k Conf.dot_git;
+      ])
+
+let v ?head ?bare ?level ?dot_git ?buffers root =
   let module C = Irmin.Private.Conf in
+  let config = default_config in
   let config = C.add config Conf.root (Some root) in
   let config =
     match bare with

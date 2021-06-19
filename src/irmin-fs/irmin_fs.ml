@@ -54,9 +54,12 @@ module type IO = sig
 end
 
 (* ~path *)
+
 let root_key = Irmin.Private.Conf.root
+let default_config = Irmin.Private.Conf.(v [ k root_key ])
 
 let config ?(config = Irmin.Private.Conf.empty) root =
+  let config = Irmin.Private.Conf.union config default_config in
   Irmin.Private.Conf.add config root_key (Some root)
 
 module Read_only_ext

@@ -295,7 +295,7 @@ module Store = struct
         ("irf", Variable_hash irf);
         ("mem", Variable_hash mem);
         ("http", Variable_hash (fun h c -> http (mem h c)));
-        ("http.git", Fixed_hash (fun c -> http (git c)));
+        ("http-git", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
       ]
 

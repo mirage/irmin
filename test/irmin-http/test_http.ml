@@ -203,7 +203,7 @@ let suite i server =
       (fun () ->
         kill_server socket !server_pid;
         server.clean ());
-    config = Irmin_http.config uri;
+    config = Irmin_http.config uri Irmin.Private.Conf.empty;
     store = http_store id server.store;
     layered_store = None;
   }

@@ -31,7 +31,13 @@ let uri =
 
 module Conf = Irmin.Private.Conf
 
-let config ?(config = Conf.empty) x = Conf.add config uri (Some x)
+let default_config =
+  let u = uri in
+  Conf.(v [ k u ])
+
+let config x config =
+  let config = Conf.union config default_config in
+  Conf.add config uri (Some x)
 
 let uri_append t path =
   match Uri.path t :: path with

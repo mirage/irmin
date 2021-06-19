@@ -68,7 +68,10 @@ let empty = M.empty
 let singleton k v = M.singleton (Key k) (k.to_univ v)
 let is_empty = M.is_empty
 let mem d k = M.mem (Key k) d
-let add d k v = M.add (Key k) (k.to_univ v) d
+
+let add d k v =
+  if not (mem d k) then invalid_arg k.name else M.add (Key k) (k.to_univ v) d
+
 let union r s = M.fold M.add r s
 let rem d k = M.remove (Key k) d
 let find d k = try k.of_univ (M.find (Key k) d) with Not_found -> None
@@ -81,6 +84,9 @@ let get d k =
     | None -> raise Not_found
   with Not_found -> k.default
 
+let find_key d name =
+  M.find_first_opt (fun (Key k) -> String.equal name k.name) d |> Option.map fst
+
 let list_keys conf = M.to_seq conf |> Seq.map (fun (k, _) -> k)
 
 (* ~root *)
@@ -89,3 +95,11 @@ let root =
     ~docs:"COMMON OPTIONS" "root"
     Type.(option string)
     None
+
+let k x = Key x
+
+let v ?config keys =
+  let config = Option.value ~default:empty config in
+  List.fold_left
+    (fun acc (Key k) -> M.add (Key k) (k.to_univ k.default) acc)
+    config (List.rev keys)

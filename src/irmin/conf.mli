@@ -113,3 +113,7 @@ val list_keys : t -> k Seq.t
 
 val uri : Uri.t Type.t
 (** [uri] converts values with {!Uri.of_string}. *)
+
+val find_key : t -> string -> k option
+val k : 'a key -> k
+val v : ?config:t -> k list -> t

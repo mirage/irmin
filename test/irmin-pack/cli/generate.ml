@@ -39,7 +39,7 @@ end
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-  Irmin_pack_layered.config ~conf ~with_lower:true ()
+  Irmin_pack_layered.config ~with_lower:true conf
 
 let info = Store.Info.empty
 

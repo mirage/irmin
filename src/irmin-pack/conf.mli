@@ -39,6 +39,7 @@ type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
 val freeze_throttle_key : freeze_throttle Irmin.Private.Conf.key
 val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
 val root : Irmin.Private.Conf.t -> string
+val default_config : Irmin.config
 
 val v :
   ?fresh:bool ->

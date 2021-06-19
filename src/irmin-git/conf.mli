@@ -22,9 +22,9 @@ val bare : bool key
 val level : int option key
 val buffers : int option key
 val dot_git : string option key
+val default_config : Irmin.config
 
 val v :
-  ?config:Irmin.config ->
   ?head:Git.Reference.t ->
   ?bare:bool ->
   ?level:int ->

@@ -22,4 +22,5 @@ module type Maker = S.Maker
 module Maker = Ext_layered.Maker
 module Checks = Checks
 
+let default_config = Conf.default_config
 let config = Conf.v

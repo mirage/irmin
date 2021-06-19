@@ -102,7 +102,6 @@ module type Sigs = sig
   module type KV_maker = KV_maker
 
   val config :
-    ?config:Irmin.config ->
     ?head:Git.Reference.t ->
     ?bare:bool ->
     ?level:int ->
