@@ -1,7 +1,7 @@
 @charset "UTF-8";
 /* Copyright (c) 2016 The odoc contributors. All rights reserved.
    Distributed under the ISC license, see terms at the end of the file.
-   odoc 2.0.0-beta2-94-g2f639d7d66 */
+   odoc 2.0.0-beta4-1-g67caaaa8 */
 
 /* Fonts */
 @import url('https://fonts.googleapis.com/css?family=Fira+Mono:400,500');
@@ -10,6 +10,9 @@
 
 :root,
 .light:root {
+   --main-background: #FFFFFF;
+
+  --color: #333333;
   --link-color: #2C94BD;
   --anchor-hover: #555;
   --anchor-color: #d5d5d5;
@@ -21,6 +24,14 @@
   --target-shadow: rgba(187, 239, 253, 0.8);
   --pre-border-color: #eee;
   --code-background: #f6f8fa;
+
+  --li-code-background: #f6f8fa;
+  --li-code-color: #0d2b3e;
+  --toc-color: #1F2D3D;
+  --toc-before-color: #777;
+  --toc-background: #f6f8fa;
+  --toc-list-border: #ccc;
+
   --spec-summary-border-color: #5c9cf5;
   --spec-summary-background: var(--code-background);
   --spec-summary-hover-background: #ebeff2;
@@ -48,6 +59,11 @@
   --border: #333;
   --navbar-border: #333;
   --code-color: #ccc;
+
+  --li-code-background: #373737;
+  --li-code-color: #999;
+  --toc-color: #777;
+  --toc-background: #252525;
 
   --hljs-link: #999;
   --hljs-keyword: #cda869;
@@ -88,6 +104,7 @@
     --li-code-background: #373737;
     --li-code-color: #999;
     --toc-color: #777;
+    --toc-before-color: #777;
     --toc-background: #252525;
     --toc-list-border: #ccc;
     --spec-summary-hover-background: #ebeff2;
@@ -228,19 +245,15 @@ li>*:first-child {
 
 a {
   text-decoration: none;
-  color: #2C5CBD;
   color: var(--link-color);
 }
 
 a:hover {
-  box-shadow: 0 1px 0 0 #2C5CBD;
   box-shadow: 0 1px 0 0 var(--link-color);
 }
 
 /* Linked highlight */
 *:target {
-  background-color: rgba(187,239,253,0.3) !important;
-  box-shadow: 0 0px 0 1px rgba(187,239,253,0.8) !important;
   background-color: var(--target-background) !important;
   box-shadow: 0 0px 0 1px var(--target-shadow) !important;
   border-radius: 1px;
@@ -257,7 +270,6 @@ a.anchor:before {
 a.anchor:hover {
   box-shadow: none;
   text-decoration: none;
-  color: #555;
   color: var(--anchor-hover);
 }
 
@@ -272,7 +284,6 @@ a.anchor {
   padding-right: 0.4em;
   padding-left: 0.4em;
   /* To remain selectable */
-  color: #d5d5d5;
   color: var(--anchor-color);
 }
 
@@ -285,7 +296,6 @@ a.anchor {
   color: #2C94BD;
 }
 .xref-unresolved:hover {
-  box-shadow: 0 1px 0 0 #CC6666;
   box-shadow: 0 1px 0 0 var(--xref-shadow);
 }
 
@@ -311,7 +321,6 @@ h1 {
 h1 {
   font-weight: 500;
   font-size: 1.953em;
-  box-shadow: 0 1px 0 0 #ddd;
   box-shadow: 0 1px 0 0 var(--header-shadow);
 }
 
@@ -377,7 +386,6 @@ tt, code, pre {
 
 pre {
   padding: 0.1em;
-  border: 1px solid #eee;
   border: 1px solid var(--pre-border-color);
   border-radius: 5px;
   overflow-x: auto;
@@ -385,8 +393,6 @@ pre {
 
 p code,
 li code {
-  background-color: #f6f8fa;
-  color: #0d2b3e;
   background-color: var(--li-code-background);
   color: var(--li-code-color);
   border-radius: 3px;
@@ -394,7 +400,6 @@ li code {
 }
 
 p a > code {
-  color: #2C5CBD;
   color: var(--link-color);
 }
 
@@ -472,10 +477,8 @@ div.def-doc>*:first-child {
   top: 1px;
   bottom: 1px;
   width: 15px;
-  background: rgba(0, 4, 15, 0.05);
-  box-shadow: 0 0px 0 1px rgba(204, 204, 204, 0.53);
-  background: var(--spec-details-after-background);
-  box-shadow: 0 0px 0 1px var(--spec-details-after-shadow);
+  background: var(--spec-details-after-background, rgba(0, 4, 15, 0.05));
+  box-shadow: 0 0px 0 1px var(--spec-details-after-shadow, rgba(204, 204, 204, 0.53));
 }
 
 .odoc-include summary {
@@ -539,14 +542,12 @@ td.def-doc *:first-child {
   text-transform: uppercase;
   font-size: 18px;
   margin-right: 1ex;
-  color: #222;
-  color: var(--by-name-nav-link-color);
+  color: var(--by-name-nav-link-color,);
   display: inline-block;
 }
 
 .by-tag nav a {
   margin-right: 1ex;
-  color: #222;
   color: var(--by-name-nav-link-color);
   display: inline-block;
 }
@@ -601,7 +602,6 @@ td.def-doc *:first-child {
   font-size: 1em;
   margin: 1.414em 0 0.5em;
   font-weight: 500;
-  color: #777;
   color: var(--toc-before-color);
   line-height: 1.2;
 }
@@ -614,10 +614,8 @@ td.def-doc *:first-child {
   max-width: 30ex;
   min-width: 26ex;
   width: 20%;
-  background: #f6f8fa;
   background: var(--toc-background);
   overflow: auto;
-  color: #1F2D3D;
   color: var(--toc-color);
   padding-left: 2ex;
   padding-right: 2ex;
@@ -626,7 +624,6 @@ td.def-doc *:first-child {
 .odoc-toc ul li a {
   font-family: "Fira Sans", sans-serif;
   font-size: 0.95em;
-  color: #333;
   color: var(--color);
   font-weight: 400;
   line-height: 1.6em;
@@ -660,7 +657,6 @@ td.def-doc *:first-child {
 }
 
 .odoc-toc ul li li {
-  border-left: 1px solid #ccc;
   border-left: 1px solid var(--toc-list-border);
   margin-left: 5px;
   padding-left: 12px;
@@ -700,10 +696,8 @@ td.def-doc *:first-child {
 
 .hljs {
   display: block;
-  background: white;
   background: var(--code-background);
   padding: 0.5em;
-  color: #333333;
   color: var(--color);
   overflow-x: auto;
 }
