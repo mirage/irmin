@@ -143,6 +143,9 @@
     parameter for customising the interval between merges during
     reconstruction. (#1459, @CraigFe)
 
+- **irmin-unix**
+  - Allow config file to be specified when using `Irmin_unix.Resolver.load_config` (#1464, @zshipko)
+
 ## 2.6.0 (2021-04-13)
 
 ** Note: this release is based on 2.5.3, and does not contain 2.5.4. **

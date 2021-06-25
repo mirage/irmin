@@ -477,9 +477,13 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
-let load_config ?(default = Irmin.Private.Conf.empty) ~store ~hash ~contents ()
-    =
-  let cfg = Irmin.Private.Conf.get default config_path_key in
+let load_config ?(default = Irmin.Private.Conf.empty) ?config_path ~store ~hash
+    ~contents () =
+  let cfg =
+    match config_path with
+    | Some _ as p -> p
+    | None -> Irmin.Private.Conf.get default config_path_key
+  in
   load_config_file_with_defaults cfg (store, hash, contents) default
 
 let branch =
