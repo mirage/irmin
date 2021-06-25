@@ -91,6 +91,8 @@ val load_config :
     The values provided for [store], [hash] and [contents] will be used by
     default if no other value is found in the config file *)
 
+val save_config : path:string -> Irmin.config -> unit
+
 type store =
   | S :
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option

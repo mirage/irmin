@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val default_config : Irmin.config
+module Conf : Irmin.Private.Conf.S
 
 val config :
   ?lower_root:string ->

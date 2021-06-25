@@ -50,7 +50,9 @@
     property that values are addressed by their hash, instead of by the hash of
     the root chunk node as is the case for {{!AO} AO}. *)
 
-val chunk_size : int Irmin.Private.Conf.key
+module Conf : Irmin.Private.Conf.S
+
+val chunk_size : int Conf.key
 (** [chunk_size] is the configuration key to configure chunk size. By default,
     it is set to 4666, so that payload and metadata can be stored in a 4K block. *)
 

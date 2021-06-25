@@ -17,13 +17,13 @@
 type config := Irmin.Private.Conf.t
 
 module Pack : module type of Irmin_pack.Conf
+include Irmin.Private.Conf.S
 
 val lower_root : config -> string
 val upper_root0 : config -> string
 val upper_root1 : config -> string
 val with_lower : config -> bool
 val blocking_copy_size : config -> int
-val default_config : config
 
 val v :
   ?lower_root:string ->

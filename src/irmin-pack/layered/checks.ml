@@ -99,7 +99,7 @@ module Make (M : Maker) (Store : S.Store) = struct
       and upper0 = v ~root:(Layout.upper0 ~root) in
       { flip; lower; upper1; upper0 }
 
-    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
+    let conf root = Irmin_pack.config ~readonly:false ~fresh:false root
 
     let traverse_indexes ~root log_size =
       let lower = Layer_stat.traverse_index ~root:(Layout.lower ~root) log_size
@@ -127,7 +127,7 @@ module Make (M : Maker) (Store : S.Store) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Irmin_pack.Conf.v ~readonly:false ~fresh:false root
+    let conf root = Irmin_pack.config ~readonly:false ~fresh:false root
 
     let run ~root ~auto_repair =
       let conf = conf root in
@@ -162,7 +162,7 @@ module Make (M : Maker) (Store : S.Store) = struct
 
   module Check_self_contained = struct
     let conf root =
-      let conf = Irmin_pack.Conf.v ~readonly:true root in
+      let conf = Irmin_pack.config ~readonly:true root in
       Conf.v ~with_lower:false conf
 
     let heads =

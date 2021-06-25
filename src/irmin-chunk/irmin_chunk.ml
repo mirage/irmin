@@ -22,19 +22,15 @@ let src = Logs.Src.create "irmin.chunk" ~doc:"Irmin chunks"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
-  let min_size =
-    Irmin.Private.Conf.key ~doc:"Minimal chunk size" "min-size" Irmin.Type.int
-      4000
+  include Irmin.Private.Conf.Make ()
 
-  let chunk_size =
-    Irmin.Private.Conf.key ~doc:"Size of chunk" "size" Irmin.Type.int 4096
+  let min_size = key ~doc:"Minimal chunk size" "min-size" Irmin.Type.int 4000
+  let chunk_size = key ~doc:"Size of chunk" "size" Irmin.Type.int 4096
 
   let chunk_type_t =
     Irmin.Type.(enum "chunk_type" [ ("max", `Max); ("best-fit", `Best_fit) ])
 
-  let chunking =
-    Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking" chunk_type_t
-      `Best_fit
+  let chunking = key ~doc:"Chunking algorithm" "chunking" chunk_type_t `Best_fit
 end
 
 let chunk_size = Conf.chunk_size
@@ -44,18 +40,16 @@ let err_too_small ~min size =
     "Chunks of %d bytes are too small. Size should at least be %d bytes." size
     min
 
-let config ?(config = Irmin.Private.Conf.empty) ?size ?min_size
-    ?(chunking = `Best_fit) () =
-  let module C = Irmin.Private.Conf in
+let config ?(config = Conf.empty) ?size ?min_size ?(chunking = `Best_fit) () =
   let min_size =
-    match min_size with None -> C.default Conf.min_size | Some v -> v
+    match min_size with None -> Conf.default Conf.min_size | Some v -> v
   in
   let size =
     match size with
-    | None -> C.default Conf.chunk_size
+    | None -> Conf.default Conf.chunk_size
     | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
-  let add x y c = C.add c x y in
+  let add x y c = Conf.add c x y in
   config
   |> add Conf.min_size min_size
   |> add Conf.chunk_size size
@@ -182,20 +176,19 @@ struct
   end
 
   let v config =
-    let module C = Irmin.Private.Conf in
-    let chunk_size = C.get config Conf.chunk_size in
+    let chunk_size = Conf.get config Conf.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
       (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
-    let chunking = C.get config Conf.chunking in
+    let chunking = Conf.get config Conf.chunking in
     (if max_children <= 1 then
      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
      err_too_small ~min chunk_size);
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
           chunk_size K.hash_size max_data max_children);
-    let+ db = CA.v config in
+    let+ db = CA.v (config :> Irmin.config) in
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit

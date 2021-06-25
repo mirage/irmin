@@ -257,7 +257,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         { throttle; state = `None; lock = Lwt_mutex.create () }
 
       let v config =
-        let root = Conf.Pack.root config in
+        let root = Conf.Pack.get_root config in
         let upper1 = Filename.concat root (Conf.upper_root1 config) in
         let* upper1 = v_layer ~v:unsafe_v_upper upper1 config in
         let upper0 = Filename.concat root (Conf.upper_root0 config) in
@@ -375,12 +375,12 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
           in the wrong version. *)
       let migrate config =
         if Conf.Pack.readonly config then raise Irmin_pack.RO_not_allowed;
-        let root = Conf.Pack.root config in
+        let root = Conf.Pack.get_root config in
         Conf.[ upper_root1; upper_root0; lower_root ]
         |> List.map (fun name ->
                let root = Filename.concat root (name config) in
                let config =
-                 Irmin.Private.Conf.add config Conf.Pack.root_key (Some root)
+                 Conf.Pack.add config Conf.Pack.root_key (Some root)
                in
                try
                  let io =

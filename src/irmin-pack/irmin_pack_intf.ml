@@ -26,8 +26,6 @@ module type Sigs = sig
   module Pack_store = Pack_store
   module Version = Version
 
-  val default_config : Irmin.config
-
   val config :
     ?fresh:bool ->
     ?readonly:bool ->

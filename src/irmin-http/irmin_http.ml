@@ -22,22 +22,15 @@ let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 module T = Irmin.Type
+module Conf = Irmin.Private.Conf.Make ()
 
 (* ~uri *)
 let uri =
-  Irmin.Private.Conf.key ~docv:"URI" ~doc:"Location of the remote store." "uri"
-    Irmin.Type.(option Irmin.Private.Conf.uri)
+  Conf.key ~docv:"URI" ~doc:"Location of the remote store." "uri"
+    Irmin.Type.(option Conf.uri)
     None
 
-module Conf = Irmin.Private.Conf
-
-let default_config =
-  let u = uri in
-  Conf.(v [ k u ])
-
-let config x config =
-  let config = Conf.union config default_config in
-  Conf.add config uri (Some x)
+let config x config = Conf.add config uri (Some x)
 
 let uri_append t path =
   match Uri.path t :: path with

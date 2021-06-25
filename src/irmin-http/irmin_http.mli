@@ -16,7 +16,8 @@
 
 (** JSON REST/CRUD interface. *)
 
-val default_config : Irmin.config
+module Conf : Irmin.Private.Conf.S
+
 val config : Uri.t -> Irmin.config -> Irmin.config
 val uri : Uri.t option Irmin.Private.Conf.key
 

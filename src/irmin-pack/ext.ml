@@ -109,8 +109,13 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
                       let commit : 'a Commit.t = (node, commit) in
                       f contents node commit)))
 
+        let root c =
+          match Conf.get c Conf.root_key with
+          | Some s -> s
+          | None -> invalid_arg "root is not configured"
+
         let unsafe_v config =
-          let root = Conf.root config in
+          let root = root config in
           let fresh = Conf.fresh config in
           let lru_size = Conf.lru_size config in
           let readonly = Conf.readonly config in
@@ -150,7 +155,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
                 when expected = V.version ->
                   Log.err (fun m ->
                       m "[%s] Attempted to open store of unsupported version %a"
-                        (Conf.root config) Version.pp found);
+                        (root config) Version.pp found);
                   Lwt.fail e
               | e -> Lwt.fail e)
 

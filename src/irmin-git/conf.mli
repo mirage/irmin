@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Private.Conf
+include Irmin.Private.Conf.S
 
 val root : string option key
 val head : Git.Reference.t option key
@@ -22,7 +22,6 @@ val bare : bool key
 val level : int option key
 val buffers : int option key
 val dot_git : string option key
-val default_config : Irmin.config
 
 val v :
   ?head:Git.Reference.t ->

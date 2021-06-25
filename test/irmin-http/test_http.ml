@@ -94,7 +94,10 @@ let wait_for_the_server_to_start id =
   aux 1
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
-let root c = Irmin.Private.Conf.(get c root)
+
+module Conf = Irmin_http.Conf
+
+let root c = Conf.(get c (root ()))
 
 let mkdir d =
   Lwt.catch
@@ -203,7 +206,7 @@ let suite i server =
       (fun () ->
         kill_server socket !server_pid;
         server.clean ());
-    config = Irmin_http.config uri Irmin.Private.Conf.empty;
+    config = Irmin_http.config uri Conf.empty;
     store = http_store id server.store;
     layered_store = None;
   }

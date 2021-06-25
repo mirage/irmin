@@ -15,7 +15,9 @@
  *)
 
 module Conf = struct
-  let root = Irmin.Private.Conf.root
+  include Irmin.Private.Conf.Make ()
+
+  let root = root ()
 
   let reference : Git.Reference.t Irmin.Type.t =
     let of_string str = Git.Reference.of_string str |> Result.get_ok in
@@ -23,48 +25,35 @@ module Conf = struct
     Irmin.Type.(map string) of_string to_string
 
   let head =
-    Irmin.Private.Conf.key ~doc:"The main branch of the Git repository." "head"
+    key ~doc:"The main branch of the Git repository." "head"
       Irmin.Type.(option reference)
       None
 
   let bare =
-    Irmin.Private.Conf.key ~doc:"Do not expand the filesystem on the disk."
-      "bare" Irmin.Type.bool false
+    key ~doc:"Do not expand the filesystem on the disk." "bare" Irmin.Type.bool
+      false
 
   let level =
-    Irmin.Private.Conf.key ~doc:"The Zlib compression level." "level"
-      Irmin.Type.(option int)
-      None
+    key ~doc:"The Zlib compression level." "level" Irmin.Type.(option int) None
 
   let buffers =
-    Irmin.Private.Conf.key ~doc:"The number of 4K pre-allocated buffers."
-      "buffers"
+    key ~doc:"The number of 4K pre-allocated buffers." "buffers"
       Irmin.Type.(option int)
       None
 
   let dot_git =
-    Irmin.Private.Conf.key
+    key
       ~doc:"The location of the .git directory. By default set to [$root/.git]."
       "dot-git"
       Irmin.Type.(option string)
       None
 end
 
-let default_config =
-  Irmin.Private.Conf.(
-    v
-      [
-        k Conf.root;
-        k Conf.head;
-        k Conf.bare;
-        k Conf.level;
-        k Conf.buffers;
-        k Conf.dot_git;
-      ])
+include Conf
 
 let v ?head ?bare ?level ?dot_git ?buffers root =
-  let module C = Irmin.Private.Conf in
-  let config = default_config in
+  let module C = Conf in
+  let config = C.empty in
   let config = C.add config Conf.root (Some root) in
   let config =
     match bare with
@@ -76,5 +65,3 @@ let v ?head ?bare ?level ?dot_git ?buffers root =
   let config = C.add config Conf.dot_git dot_git in
   let config = C.add config Conf.buffers buffers in
   config
-
-include Conf

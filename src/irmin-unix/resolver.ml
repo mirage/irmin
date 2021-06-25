@@ -51,10 +51,12 @@ let key k default =
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
 
+module Conf = Irmin.Private.Conf.Make ()
+
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config_path_key =
-  Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
+  Conf.key ~docs:global_option_section ~docv:"PATH"
     ~doc:"Allows configuration file to be specified on the command-line."
     "config"
     Irmin.Type.(option string)
@@ -64,7 +66,7 @@ let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
-  match v with None -> config | Some _ -> Irmin.Private.Conf.add config k v
+  match v with None -> config | Some _ -> Conf.add config k v
 
 (* Contents *)
 
@@ -372,11 +374,13 @@ let rec read_config_file path =
     | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
     | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
 
+let root_key = Conf.root ()
+
 let config_term =
-  let add k v config = Irmin.Private.Conf.add config k v in
+  let add k v config = Conf.add config k v in
   let create root bare head level uri config_path =
-    Irmin.Private.Conf.empty
-    |> add_opt Irmin.Private.Conf.root root
+    Conf.empty
+    |> add_opt root_key root
     |> add Irmin_git.Conf.bare bare
     |> add_opt Irmin_git.Conf.head head
     |> add_opt Irmin_git.Conf.level level
@@ -385,7 +389,7 @@ let config_term =
   in
   Term.(
     const create
-    $ opt_key Irmin.Private.Conf.root
+    $ opt_key root_key
     $ flag_key Irmin_git.Conf.bare
     $ opt_key Irmin_git.Conf.head
     $ opt_key Irmin_git.Conf.level
@@ -440,14 +444,14 @@ let load_config_file_with_defaults path (store, hash, contents) config =
   in
   let head = assoc y "head" (fun x -> Git.Reference.v x) in
   let uri = assoc y "uri" Uri.of_string in
-  let add k v config = Irmin.Private.Conf.add config k v in
+  let add k v config = Conf.add config k v in
   ( store,
-    Irmin.Private.Conf.empty
-    |> add_opt Irmin.Private.Conf.root root
+    Conf.empty
+    |> add_opt root_key root
     |> add Irmin_git.Conf.bare bare
     |> add_opt Irmin_git.Conf.head head
     |> add_opt Irmin_http.uri uri
-    |> Irmin.Private.Conf.union config )
+    |> Conf.union config )
 
 let from_config_file_with_defaults path (store, hash, contents) config branch :
     store =
@@ -476,12 +480,26 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
-let load_config ?(default = Irmin.Private.Conf.empty) ?config_path ~store ~hash
-    ~contents () =
+let save_config ~path conf =
+  let open Conf in
+  let keys = list_keys conf in
+  let y =
+    Seq.fold_left
+      (fun acc (Irmin.Private.Conf.Key k) ->
+        let v = Conf.get conf k in
+        let name = name k in
+        (name, `String (Irmin.Type.to_string (ty k) v)) :: acc)
+      [] keys
+  in
+  let output = open_out path in
+  output_string output (Yaml.to_string_exn (`O y));
+  close_out output
+
+let load_config ?(default = Conf.empty) ?config_path ~store ~hash ~contents () =
   let cfg =
     match config_path with
     | Some _ as p -> p
-    | None -> Irmin.Private.Conf.get default config_path_key
+    | None -> Conf.get default config_path_key
   in
   load_config_file_with_defaults cfg (store, hash, contents) default
 
@@ -495,7 +513,7 @@ let branch =
 
 let store =
   let create store config branch =
-    let cfg = Irmin.Private.Conf.get config config_path_key in
+    let cfg = Conf.get config config_path_key in
     from_config_file_with_defaults cfg store config branch
   in
   Term.(const create $ Store.term $ config_term $ branch)
@@ -535,9 +553,9 @@ let infer_remote hash contents headers str =
     match r with
     | Store.T ((module R), _) ->
         let config =
-          Irmin.Private.Conf.empty
+          Conf.empty
           |> add_opt Irmin_http.uri (Some (Uri.of_string str))
-          |> add_opt Irmin.Private.Conf.root (Some str)
+          |> add_opt root_key (Some str)
         in
         let* repo = R.Repo.v config in
         let+ r = R.master repo in

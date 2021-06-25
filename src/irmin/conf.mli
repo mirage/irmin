@@ -1,6 +1,5 @@
 (*
  * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
- * Copyright (c) 2017 Daniel C. Bünzli
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +17,7 @@
 (** {1 Configuration converters}
 
     A configuration converter transforms a string value to an OCaml value and
-    vice-versa. There are a few {{!builtin_converters} built-in converters}. *)
+    vice-versa. *)
 
 (** {1:keys Keys} *)
 

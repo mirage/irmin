@@ -19,6 +19,8 @@ module type S = sig
   val stable_hash : int
 end
 
+include Irmin.Private.Conf.S
+
 val fresh_key : bool Irmin.Private.Conf.key
 val lru_size_key : int Irmin.Private.Conf.key
 val index_log_size_key : int Irmin.Private.Conf.key
@@ -38,10 +40,9 @@ type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
 
 val freeze_throttle_key : freeze_throttle Irmin.Private.Conf.key
 val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
-val root : Irmin.Private.Conf.t -> string
-val default_config : Irmin.config
+val get_root : Irmin.config -> string
 
-val v :
+val make :
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
