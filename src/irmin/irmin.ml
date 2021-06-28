@@ -147,6 +147,109 @@ functor
       S.clear t.t
   end
 
+module Maker_ext
+    (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : S.ATOMIC_WRITE_STORE_MAKER)
+    (N : Node.Maker)
+    (CT : Commit.Maker) =
+struct
+  type endpoint = unit
+
+  module Make
+      (M : S.METADATA)
+      (C : Contents.S)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) =
+  struct
+    module CA = CA_check_closed (CA)
+    module AW = AW_check_closed (AW)
+
+    module X = struct
+      module Hash = H
+
+      module Contents = struct
+        module CA = struct
+          module Key = Hash
+          module Val = C
+          include CA (Key) (Val)
+        end
+
+        include Contents.Store (CA)
+      end
+
+      module Node = struct
+        module CA = struct
+          module Key = Hash
+          module Val = N (H) (P) (M)
+          include CA (Key) (Val)
+        end
+
+        include Node.Store (Contents) (P) (M) (CA)
+      end
+
+      module Commit = struct
+        module CA = struct
+          module Key = Hash
+          module Val = CT (H)
+          include CA (Key) (Val)
+        end
+
+        include Commit.Store (Node) (CA)
+      end
+
+      module Branch = struct
+        module Key = B
+        module Val = H
+        include AW (Key) (Val)
+      end
+
+      module Slice = Slice.Make (Contents) (Node) (Commit)
+      module Sync = Sync.None (H) (B)
+
+      module Repo = struct
+        type t = {
+          config : Conf.t;
+          contents : read Contents.t;
+          nodes : read Node.t;
+          commits : read Commit.t;
+          branch : Branch.t;
+        }
+
+        let contents_t t = t.contents
+        let node_t t = t.nodes
+        let commit_t t = t.commits
+        let branch_t t = t.branch
+
+        let batch t f =
+          Contents.CA.batch t.contents @@ fun c ->
+          Node.CA.batch (snd t.nodes) @@ fun n ->
+          Commit.CA.batch (snd t.commits) @@ fun ct ->
+          let contents_t = c in
+          let node_t = (contents_t, n) in
+          let commit_t = (node_t, ct) in
+          f contents_t node_t commit_t
+
+        let v config =
+          let* contents = Contents.CA.v config in
+          let* nodes = Node.CA.v config in
+          let* commits = Commit.CA.v config in
+          let nodes = (contents, nodes) in
+          let commits = (nodes, commits) in
+          let+ branch = Branch.v config in
+          { contents; nodes; commits; branch; config }
+
+        let close t =
+          Contents.CA.close t.contents >>= fun () ->
+          Node.CA.close (snd t.nodes) >>= fun () ->
+          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+      end
+    end
+
+    include Store.Make (X)
+  end
+end
+
 module Make_ext
     (CA : S.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : S.ATOMIC_WRITE_STORE_MAKER)

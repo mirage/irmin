@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Ioana Cristescu <ioana@tarides.com>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_layers_intf.Irmin_layers
+include Irmin_layers_intf.Sigs
 (** @inline *)

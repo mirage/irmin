@@ -26,7 +26,7 @@ depends: [
   "fmt"
   "jsonm"
   "logs"
-  "lwt"
+  "lwt"        {>= "5.3.0"}
   "uri"
   "irmin-git"  {with-test & = version}
   "irmin-test" {with-test & = version}

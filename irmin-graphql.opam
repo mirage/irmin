@@ -24,7 +24,7 @@ depends: [
   "cohttp-lwt"
   "cohttp"
   "fmt"
-  "lwt"
+  "lwt"            {>= "5.3.0"}
   "alcotest-lwt"    {with-test & >= "1.1.0"}
   "yojson"          {with-test}
   "cohttp-lwt-unix" {with-test}

@@ -88,6 +88,14 @@ module type S = sig
   (** [value_t] is the value type for {!value}. *)
 end
 
+module type Maker = functor
+  (H : Hash.S)
+  (P : sig
+     type step [@@deriving irmin]
+   end)
+  (M : METADATA)
+  -> S with type metadata = M.t and type hash = H.t and type step = P.step
+
 module type STORE = sig
   include CONTENT_ADDRESSABLE_STORE
 
@@ -214,15 +222,11 @@ end
 
 module type Node = sig
   module type S = S
+  module type Maker = Maker
 
+  module Make : Maker
   (** [Make] provides a simple node implementation, parameterized by the
       contents and notes keys [K], paths [P] and metadata [M]. *)
-  module Make
-      (K : Type.S) (P : sig
-        type step [@@deriving irmin]
-      end)
-      (M : METADATA) :
-    S with type hash = K.t and type step = P.step and type metadata = M.t
 
   (** v1 serialisation *)
   module V1 (N : S with type step = string) : sig

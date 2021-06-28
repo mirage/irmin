@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,15 +15,12 @@
  *)
 
 open! Import
-open Store_properties
 
 module type S = sig
   type t
 
   val v : string -> t Lwt.t
-
-  include CLOSEABLE with type _ t := t
-
+  val close : t -> unit Lwt.t
   val read_flip : t -> bool Lwt.t
   val write_flip : bool -> t -> unit Lwt.t
 end
@@ -34,9 +31,7 @@ module Lock : sig
   type t
 
   val v : string -> t Lwt.t
-
-  include CLOSEABLE with type _ t := t
-
+  val close : t -> unit Lwt.t
   val unlink : string -> unit Lwt.t
   val test : string -> bool
 end

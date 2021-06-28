@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,4 +17,4 @@
 let () =
   Irmin_test.Store.run "irmin-pack"
     ~misc:(Test_pack.misc @ [ ("utils", Test_utils.tests) ])
-    [ (`Quick, Test_pack.suite) ]
+    (List.map (fun s -> (`Quick, s)) Test_pack.suite)

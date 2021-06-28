@@ -4,7 +4,6 @@ _build
 *.merlin
 _opam
 .envrc
-vendors/
 \#*
 .#*
 .*.swp

@@ -89,7 +89,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* commit =
         fail_with_none (S.Commit.of_hash repo kr1) "of_hash commit"
       in
-      S.freeze repo ~max:[ commit ] >>= fun () ->
+      S.freeze repo ~max_lower:[ commit ] ~max_upper:[] >>= fun () ->
       let* t1' = P.Commit.find (h repo) kr1 in
       check_val "value of kr1 before and after freeze" t1 t1';
       let* kt1' = Graph.find (n repo) kt2 [ "a" ] in
@@ -113,7 +113,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* commit =
         fail_with_none (S.Commit.of_hash repo kr2') "of_hash commit"
       in
-      S.freeze repo ~max:[ commit ] >>= fun () ->
+      S.freeze repo ~max_lower:[ commit ] ~max_upper:[] >>= fun () ->
       let* t1' = P.Commit.find (h repo) kr1 in
       check_val "value of kr1 before and after snd freeze" t1 t1';
       let* t2' = P.Commit.find (h repo) kr2 in
@@ -171,7 +171,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let test repo =
       let* c2, c3 = tree1 repo in
       let* t2 = P.Commit.find (h repo) (S.Commit.hash c2) in
-      S.freeze repo ~max:[ c2 ] >>= fun () ->
+      S.freeze repo ~max_lower:[ c2 ] ~max_upper:[] >>= fun () ->
       let* t2' = P.Commit.find (h repo) (S.Commit.hash c2) in
       check_val "c2" t2 t2';
       let tree = S.Commit.tree c2 in
@@ -194,7 +194,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* c4, c5, c7, c8 = tree2 repo in
       let* t5 = P.Commit.find (h repo) (S.Commit.hash c5) in
       let* t7 = P.Commit.find (h repo) (S.Commit.hash c7) in
-      S.freeze repo ~max:[ c7 ] >>= fun () ->
+      S.freeze repo ~max_lower:[ c7 ] ~max_upper:[] >>= fun () ->
       let* t5' = P.Commit.find (h repo) (S.Commit.hash c5) in
       check_val "c5" t5 t5';
       let* t7' = P.Commit.find (h repo) (S.Commit.hash c7) in
@@ -230,7 +230,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* kv2 = r2 ~repo in
       S.Branch.set repo b1 kv1 >>= fun () ->
       S.Branch.set repo b2 kv2 >>= fun () ->
-      S.freeze repo ~max:[ kv1 ] >>= fun () ->
+      S.freeze repo ~max_lower:[ kv1 ] ~max_upper:[] >>= fun () ->
       let* k1' = S.Branch.find repo b1 in
       check_val repo "r1 after freeze" (Some kv1) k1';
       let* k2' = S.Branch.find repo b2 in
@@ -254,13 +254,13 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* t = S.master repo in
       S.set_exn t [ "a"; "b"; "c" ] v1 ~info:(infof "commit 1") >>= fun () ->
       let* c1 = S.Head.get t in
-      S.freeze repo ~max:[ c1 ] ~copy_in_upper:false >>= fun () ->
+      S.freeze repo ~max_lower:[ c1 ] ~max_upper:[] >>= fun () ->
       S.set_exn t [ "a"; "d" ] v2 ~info:(infof "commit 2") >>= fun () ->
       let* ks = S.list t [ "a" ] in
       let* b = S.get_tree t [ "a"; "b" ] in
       (* list sees a merged tree from lower and upper layers *)
       check_list "path" [ ("d", contents v2); ("b", b) ] ks;
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       check_layer_for_commits repo c1 "layer id of commit 1" `Lower
       >>= fun () ->
       let* c2 = S.Head.get t in
@@ -289,7 +289,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* t1 = S.Tree.add S.Tree.empty [ "a"; "d" ] v1 in
       let* t1 = S.Tree.add t1 [ "a"; "b"; "c" ] v2 in
       S.set_tree_exn ~info:(infof "commit 1") ~parents:[] t [] t1 >>= fun () ->
-      S.freeze repo >>= fun () ->
+      S.freeze repo ~max_upper:[] >>= fun () ->
       let* c1 = S.Head.get t in
       let t1 = S.Commit.tree c1 in
       let* v = fail_with_none (S.Tree.find t1 [ "a"; "d" ]) "find in t1" in
@@ -321,8 +321,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.set_exn foo ~info:(infof "update foo:a") [ "a" ] v1 >>= fun () ->
       S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
       let* c = S.Head.get foo in
-      S.freeze repo ~max:[ c ] >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.freeze repo ~max_lower:[ c ] ~max_upper:[] >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let* () =
         check_raises_lwt "Branch bar should point to a deleted commit"
           (Invalid_argument "merge_with_branch: bar is not a valid branch ID")
@@ -341,8 +341,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
       S.set_exn foo ~info:(infof "update foo:a") [ "a" ] v1 >>= fun () ->
       S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
       let* c = S.Head.get bar in
-      S.freeze repo ~max:[ c ] >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.freeze repo ~max_lower:[ c ] ~max_upper:[] >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let* () =
         S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
         >>= merge_exn "merge unrelated"
@@ -381,7 +381,10 @@ module Make_Layered (S : LAYERED_STORE) = struct
         Alcotest.(check int) "zero freeze" (get_freeze_count ()) 0;
         Alcotest.(check int) "zero commit" (get_copied_commits_count ()) 0
       in
-      S.freeze repo ~squash:true >>= fun () ->
+      let* () =
+        let* heads = S.Repo.heads repo in
+        S.freeze repo ~min_lower:heads ~max_lower:heads ~max_upper:[]
+      in
       let* tree = S.tree t in
       S.set_tree_exn t ~info:(infof "update") [] tree >>= fun () ->
       let* () =
@@ -421,7 +424,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
           check_val "vy after merge" None v2'
         else Lwt.return_unit
       in
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       log_stats ();
       let () =
         let open Irmin_layers.Stats in
@@ -448,7 +451,10 @@ module Make_Layered (S : LAYERED_STORE) = struct
     in
     let test repo =
       let* c1, c2 = setup repo in
-      S.freeze repo ~squash:true >>= fun () ->
+      let* () =
+        let* heads = S.Repo.heads repo in
+        S.freeze repo ~min_lower:heads ~max_lower:heads ~max_upper:[]
+      in
       let* () =
         P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >>= function
         | true ->
@@ -478,8 +484,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let test_squash repo =
       let* c1, c2 = setup repo in
       Irmin_layers.Stats.reset_stats ();
-      S.freeze repo ~squash:true ~max:[ c2 ] >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.freeze repo ~min_lower:[ c2 ] ~max_lower:[ c2 ] ~max_upper:[]
+      >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let* () =
         P.Commit.mem (P.Repo.commit_t repo) (S.Commit.hash c1) >|= function
         | true ->
@@ -532,8 +539,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
           Log.debug (fun l -> l "commit %s" y);
           let* c = S.Commit.v repo ~info ~parents:[] tree in
           S.Branch.set repo b c >>= fun () ->
-          S.freeze repo ~max:[ c ] >>= fun () ->
-          S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+          S.freeze repo ~max_lower:[ c ] ~max_upper:[] >>= fun () ->
+          S.Private_layer.wait_for_freeze repo >>= fun () ->
           commits tree (c :: acc) (i + 1)
       in
       let tests c i =
@@ -584,10 +591,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
           "commit not found"
       in
       let tree = S.Commit.tree commit in
-      S.freeze ~copy_in_upper:true ~max:[ h ] repo >>= fun () ->
+      (* copy in upper too *)
+      S.freeze ~max_lower:[ h ] repo >>= fun () ->
       find4 tree >>= fun () ->
-      S.freeze ~copy_in_upper:true ~max:[ h ] repo >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      (* copy in upper too *)
+      S.freeze ~max_lower:[ h ] repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let tree = S.Commit.tree commit in
       find5 tree () >>= fun () -> S.Repo.close repo
     in
@@ -617,8 +626,9 @@ module Make_Layered (S : LAYERED_STORE) = struct
       (* Test that commit c1 and all its objects are preserved in upper after a
          freeze. *)
       let* c1 = fail_with_none (S.Commit.of_hash repo kr1) "of_hash commit" in
-      S.freeze repo ~max:[ c1 ] ~copy_in_upper:true >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      (* copy in upper too *)
+      S.freeze repo ~max_lower:[ c1 ] >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       test_commit1 `Upper0 `Upper0 >>= fun () ->
       let* kv2 = with_contents repo (fun t -> P.Contents.add t v2) in
       let* kt1' = with_node repo (fun g -> Graph.v g [ ("d", normal kv2) ]) in
@@ -642,9 +652,10 @@ module Make_Layered (S : LAYERED_STORE) = struct
          freeze. *)
       let* c2 = fail_with_none (S.Commit.of_hash repo kr2) "of_hash commit" in
       let* () =
-        S.freeze repo ~min_upper:[ c1 ] ~max:[ c2 ] ~copy_in_upper:true
+        (* copy in upper too *)
+        S.freeze repo ~min_upper:[ c1 ] ~max_lower:[ c2 ]
       in
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       test_commit1 `Upper1 `Upper1 >>= fun () ->
       test_commit2 `Upper1 >>= fun () -> S.Repo.close repo
     in
@@ -663,7 +674,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* c1 = S.Head.get foo in
       (* Test that contents of commit c1 is preserved in upper during and after
          a freeze. *)
-      S.freeze repo ~max:[ c1 ] ~copy_in_upper:true >>= fun () ->
+      (* copy in upper too *)
+      S.freeze repo ~max_lower:[ c1 ] >>= fun () ->
       let* hv1 = fail_with_none (S.hash foo [ "a"; "b"; "c" ]) "hash of v1'" in
       check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
       >>= fun () ->
@@ -673,12 +685,13 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* () =
         check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper
       in
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       check_layer_id repo (S.Content_t hv1) "layer id of v1" `Upper
       >>= fun () ->
       (* Test that commit c2 and all its objects are preserved in upper during
          and after a freeze. *)
-      S.freeze repo ~max:[ c2 ] ~copy_in_upper:true >>= fun () ->
+      (* copy in upper too *)
+      S.freeze repo ~max_lower:[ c2 ] >>= fun () ->
       let* () =
         check_layer_id repo (S.Commit_t hc2) "layer_id commit 2" `Upper
       in
@@ -687,7 +700,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
       let* hv2 = fail_with_none (S.hash foo [ "a"; "d" ]) "hash of v2'" in
       check_layer_id repo (S.Content_t hv2) "layer id of v2" `Upper
       >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let hc1 = S.Commit.hash c1 in
       let* () =
         check_layer_id repo (S.Commit_t hc1) "layer_id commit 1" `Lower
@@ -773,19 +786,17 @@ module Make_Layered (S : LAYERED_STORE) = struct
       in
       let* commits, contents = setup 0 tree [] [] in
       let* () =
-        S.freeze repo ~min:[ List.nth commits 1 ]
+        S.freeze repo ~min_lower:[ List.nth commits 1 ]
           ~min_upper:[ List.nth commits 3 ]
-          ~max:[ List.nth commits 5; List.nth commits 6 ]
-          ~copy_in_upper:true
+          ~max_lower:[ List.nth commits 5; List.nth commits 6 ]
       in
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let* () =
-        S.freeze repo ~min:[ List.nth commits 1 ]
+        S.freeze repo ~min_lower:[ List.nth commits 1 ]
           ~min_upper:[ List.nth commits 3 ]
-          ~max:[ List.nth commits 5; List.nth commits 6 ]
-          ~copy_in_upper:true
+          ~max_lower:[ List.nth commits 5; List.nth commits 6 ]
       in
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       let* () =
         Lwt_list.iter_p
           (fun i ->
@@ -853,7 +864,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     in
     run x test
 
-  module Hook = S.PrivateLayer.Hook
+  module Hook = S.Private_layer.Hook
 
   let before_copy f =
     let p, r = Lwt.wait () in
@@ -945,9 +956,10 @@ module Make_Layered (S : LAYERED_STORE) = struct
         let* c = S.Commit.v repo ~info ~parents:[] tree in
         let hook, p = hook (find_commit c v) in
         let* () =
-          S.PrivateLayer.freeze' ~hook ~max:[ c ] ~copy_in_upper:true repo
+          (* copy in upper too *)
+          S.Private_layer.freeze' ~hook ~max_lower:[ c ] repo
         in
-        p >>= fun () -> S.PrivateLayer.wait_for_freeze repo
+        p >>= fun () -> S.Private_layer.wait_for_freeze repo
       in
       add_and_find_commit ~hook:before_copy v1 >>= fun () ->
       add_and_find_commit ~hook:before_copy_newies v2 >>= fun () ->
@@ -977,10 +989,11 @@ module Make_Layered (S : LAYERED_STORE) = struct
       in
       let add_and_find_commit ~hook t v =
         let hook, p = hook (add_commit t v) in
-        S.PrivateLayer.freeze' ~hook ~copy_in_upper:true repo >>= fun () ->
+        (* copy in upper too *)
+        S.Private_layer.freeze' ~hook repo >>= fun () ->
         p >>= fun () ->
         find_commit t v () >>= fun () ->
-        S.PrivateLayer.wait_for_freeze repo >>= fun () -> find_commit t v ()
+        S.Private_layer.wait_for_freeze repo >>= fun () -> find_commit t v ()
       in
       let* t = S.master repo in
       add_and_find_commit ~hook:before_copy t v1 >>= fun () ->
@@ -1006,10 +1019,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
       in
       let hook, p = before_copy add_commit in
       let* () =
-        S.PrivateLayer.freeze' repo ~hook ~copy_in_upper:true ~squash:true
+        (* copy in upper too *)
+        let* heads = S.Repo.heads repo in
+        S.Private_layer.freeze' repo ~hook ~min_lower:heads ~max_lower:heads
       in
       p >>= fun () ->
-      S.PrivateLayer.wait_for_freeze repo >>= fun () ->
+      S.Private_layer.wait_for_freeze repo >>= fun () ->
       S.Repo.close repo >>= fun () ->
       let* repo = S.Repo.v x.config in
       let* t = S.master repo in

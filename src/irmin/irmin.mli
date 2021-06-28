@@ -579,6 +579,14 @@ module Of_private (P : Private.S) :
      and type slice = P.Slice.t
      and module Private = P
 
+(** Exported for compatibility with a future version of Irmin. *)
+module Maker_ext
+    (CA : CONTENT_ADDRESSABLE_STORE_MAKER)
+    (AW : ATOMIC_WRITE_STORE_MAKER)
+    (Node : Private.Node.Maker)
+    (Commit : Private.Commit.Maker) :
+  Store.Maker_future with type endpoint = unit
+
 module Export_for_backends = Export_for_backends
 (** Helper module containing useful top-level types for defining Irmin backends.
     This module is relatively unstable. *)

@@ -914,6 +914,25 @@ module type MAKER = functor
      and type hash = H.t
      and type Private.Sync.endpoint = unit
 
+module type Maker_future = sig
+  type endpoint
+
+  module Make
+      (M : S.METADATA)
+      (C : Contents.S)
+      (P : Path.S)
+      (B : Branch.S)
+      (H : Hash.S) :
+    S
+      with type key = P.t
+       and type step = P.step
+       and type metadata = M.t
+       and type contents = C.t
+       and type branch = B.t
+       and type hash = H.t
+       and type Private.Sync.endpoint = endpoint
+end
+
 module type JSON_TREE = functor
   (Store : S with type contents = Contents.json)
   -> sig
@@ -974,4 +993,7 @@ module type Store = sig
     include OF_CONFIG with type 'a t := 'a t
     include CLOSEABLE with type 'a t := 'a t
   end
+
+  module type Maker_future = Maker_future
+  (** Exported for compatibility with a future version of Irmin. *)
 end

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,29 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Inode_layers_intf
 open! Import
-
-let src =
-  Logs.Src.create "irmin.pack.i.layers"
-    ~doc:"layered inodes for the irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-module I = Inode
+include Inode_layers_intf
 
 module Make
-    (Conf : Irmin_pack.Config.S)
+    (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
-    (Pack_maker : S.LAYERED_PACK_MAKER
-                    with type key = H.t
-                     and type index = Pack_index.Make(H).t)
+    (Maker : S.Content_addressable_maker
+               with type key = H.t
+                and type index := Index.Make(H).t)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
-  type index = Pack_maker.index
+  type index = Index.Make(H).t
 
-  module Inter = Inode.Make_intermediate (Conf) (H) (Node)
-  module P = Pack_maker.Make (Inter.Elt)
-  module Val = Inter.Val
+  module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
+  module P = Maker.Make (Internal.Raw)
+  module Val = Internal.Val
   module Key = H
 
   type 'a t = 'a P.t
@@ -51,17 +44,17 @@ struct
     | None -> None
     | Some v ->
         let find = unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let v = Val.of_raw find v in
         Some v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Val.hash v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
     if equal_hash expected got then ()
     else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
-        expected Inter.pp_hash got
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Internal.pp_hash
+        expected Internal.pp_hash got
 
   let batch = P.batch
   let v = P.v
@@ -73,7 +66,7 @@ struct
 
   let save t v =
     let add k v = P.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
-    Inter.Val.save ~add ~mem:(P.unsafe_mem t) v
+    Val.save ~add ~mem:(P.unsafe_mem t) v
 
   let add t v =
     save t v;
@@ -113,9 +106,6 @@ struct
     | Upper -> P.copy (Upper, dst) t "Node"
 
   let check = P.check
-
-  let decode_bin ~dict ~hash buff off =
-    Inter.decode_bin ~dict ~hash buff off |> fst
-
+  let decode_bin_length = Internal.Raw.decode_bin_length
   let integrity_check_inodes _ _ = failwith "TODO"
 end

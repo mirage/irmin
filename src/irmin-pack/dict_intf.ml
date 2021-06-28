@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,8 +30,8 @@ module type S = sig
   val valid : t -> bool
 end
 
-module type Dict = sig
+module type Sigs = sig
   module type S = S
 
-  module Make (_ : IO.VERSION) (_ : IO.S) : S
+  module Make (_ : Version.S) (_ : IO.S) : S
 end

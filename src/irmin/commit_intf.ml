@@ -47,6 +47,8 @@ module type S = sig
   (** [hash_t] is the value type for {!hash}. *)
 end
 
+module type Maker = functor (H : Type.S) -> S with type hash = H.t
+
 module type STORE = sig
   (** {1 Commit Store} *)
 
@@ -159,10 +161,11 @@ end
 
 module type Commit = sig
   module type S = S
+  module type Maker = Maker
 
+  module Make : Maker
   (** [Make] provides a simple implementation of commit values, parameterized by
       the commit and node keys [K]. *)
-  module Make (K : Type.S) : S with type hash = K.t
 
   (** V1 serialisation. *)
   module V1 (C : S) : sig

@@ -1,15 +1,20 @@
-(* Permission to use, copy, modify, and/or distribute this software for any
-   purpose with or without fee is hereby granted, provided that the above
-   copyright notice and this permission notice appear in all copies.
+(*
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-   WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-   MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-   ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. *)
-
+open! Import
 include Pack_index_intf
 
 module Make (K : Irmin.Hash.S) = struct
@@ -29,13 +34,16 @@ module Make (K : Irmin.Hash.S) = struct
   end
 
   module Val = struct
-    type t = int64 * int * char [@@deriving irmin]
+    type t = int63 * int * Pack_value.Kind.t [@@deriving irmin]
 
     let to_bin_string =
-      Irmin.Type.(unstage (to_bin_string (triple int64 int32 char)))
+      Irmin.Type.(
+        unstage (to_bin_string (triple int63_t int32 Pack_value.Kind.t)))
 
     let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
-    let decode_bin = Irmin.Type.(unstage (decode_bin (triple int64 int32 char)))
+
+    let decode_bin =
+      Irmin.Type.(unstage (decode_bin (triple int63_t int32 Pack_value.Kind.t)))
 
     let decode s off =
       let off, len, kind = snd (decode_bin s off) in

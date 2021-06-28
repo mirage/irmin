@@ -1,3 +1,65 @@
+## 2.7.0 (2021-06-22)
+
+### Fixed
+
+- **irmin**
+  - Added `Store.Tree.length`. (#1316, @Ngoguey42)
+  - Fixed fold for non-persisted, cleared trees (#1442, @samoht, @Ngoguey42)
+
+- **irmin-layers**
+  - Do not fail on double-close errors for private nodes (#1421, @samoht)
+
+- **irmin-pack**
+  - Do not clear and bump the generation for empty files (#1420, @samoht)
+
+### Added
+
+- **irmin-pack**
+  - Added `Irmin_pack.Version.{V1,V2}` modules for convenience. (#1457,
+    @CraigFe)
+  - Added a `irmin-pack.mem` package (#1436, @icristescu, @craigfe)
+
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
+
+### Changed
+
+- **irmin-layers**
+  - Remove `copy_in_upper` from the repo configuration. The default is now to
+    copy. (#1322, @Ngoguey42)
+  - Simplify the API of `freeze`. It is now possible to specify two distinct
+    commit closures for the copy to lower and the copy to next upper.
+    (#1322, @Ngoguey42)
+  - Renamed `Irmin_layered_pack.Make` and Irmin_layers.Make` into
+    `Irmin_layered_pack.Maker` and `Irmin_layers.Maker` (#1369, @samoht)
+  - Renamed `Irmin_layered_pack.Make_ext` and and Irmin_layers.Make_ext` into
+    into `Irmin_layered_pack.Maker_ext` and `Irmin_layers.Maker_ext`
+    (#1369, @samoht)
+  - Renamed `Irmin_layered_pack.Config` into `Irmin_layered_pack.Conf`
+    (#1370, @samoht)
+  - Readonly instances can check for an ongoing freeze (#1382, @icristescu,
+    @Ngoguey42)
+
+- **irmin-pack**
+  - It is no longer possible to modify an `inode` that doesn't point to the root
+    of a directory. (#1292, @Ngoguey42)
+  - When configuring a store, is it no longer possible to set `entries` to a
+    value larger than `stable_hash`. (#1292, @Ngoguey42)
+  - Added number of objects to the output of `stat-pack` command in
+    `irmin-fsck`. (#1311, @icristescu)
+  - Renamed the `Version` module type into `Version.S` and `io_version` into
+    `version`. The `Pack.File` and `Atomic_write` functors now take
+    `Version` as their first parameter (#1352, @samoht)
+  - Renamed `Irmin_pack.Make` into `Irmin_pack.V1` (#1369, @samoht)
+  - Renamed `Irmin_pack.Config` into `Irmin_pack.Conf` (#1370, @samoht)
+  - Renamed `Irmin_pack.Pack` into `Irmin_pack.Content_addressable` and
+    `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
+    (#1377, @samoht)
+  - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
+  - `Checks.Reconstruct_index.run` now takes an optional `index_log_size`
+    parameter for customising the interval between merges during
+    reconstruction. (#1459, @CraigFe)
+
 ## 2.6.1 (2021-04-29)
 
 This release contains 2.6.0 plus the changes described in 2.5.4.

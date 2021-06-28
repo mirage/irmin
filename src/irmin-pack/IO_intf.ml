@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,31 +14,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type version = [ `V1 | `V2 ]
+open! Import
 
-module type VERSION = sig
-  val io_version : version
-end
-
-type headers = { offset : int64; generation : int64 }
+type headers = { offset : int63; generation : int63 }
 
 module type S = sig
   type t
   type path := string
 
-  exception RO_Not_Allowed
-
-  val v : version:version option -> fresh:bool -> readonly:bool -> path -> t
+  val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
   val name : t -> string
   val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
-  val set : t -> off:int64 -> string -> unit
-  val read : t -> off:int64 -> bytes -> int
-  val offset : t -> int64
-  val generation : t -> int64
+  val set : t -> off:int63 -> string -> unit
+  val read : t -> off:int63 -> bytes -> int
+  val read_buffer : t -> off:int63 -> buf:bytes -> len:int -> int
+  val offset : t -> int63
+  val generation : t -> int63
   val force_headers : t -> headers
   val readonly : t -> bool
-  val version : t -> version
+  val version : t -> Version.t
   val flush : t -> unit
   val close : t -> unit
   val exists : string -> bool
@@ -50,24 +45,17 @@ module type S = sig
       {!clear} instead. *)
 
   val migrate :
-    progress:(int64 -> unit) ->
+    progress:(int63 -> unit) ->
     t ->
-    version ->
+    Version.t ->
     (unit, [> `Msg of string ]) result
   (** @raise Invalid_arg if the migration path is not supported. *)
-
-  val read_buffer : chunk:int -> off:int64 -> t -> string
 end
 
-module type IO = sig
-  module type VERSION = VERSION
+module type Sigs = sig
+  type nonrec headers = headers
+
   module type S = S
-
-  type nonrec version = version
-
-  val pp_version : version Fmt.t
-
-  exception Invalid_version of { expected : version; found : version }
 
   module Unix : S
 

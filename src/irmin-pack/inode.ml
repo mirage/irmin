@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,30 +17,15 @@
 open! Import
 include Inode_intf
 
-let src =
-  Logs.Src.create "irmin.pack.i" ~doc:"inodes for the irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
-
-module Make_intermediate
-    (Conf : Config.S)
+module Make_internal
+    (Conf : Conf.S)
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t) =
 struct
+  let () =
+    if Conf.entries > Conf.stable_hash then
+      invalid_arg "entries should be lower or equal to stable_hash"
+
   module Node = struct
     include Node
     module H = Irmin.Hash.Typed (H) (Node)
@@ -75,32 +60,12 @@ struct
   module Bin = struct
     open T
 
-    type ptr = { index : int; hash : H.t }
+    type ptr = { index : int; hash : H.t } [@@deriving irmin]
+
     type tree = { depth : int; length : int; entries : ptr list }
-    type v = Values of (step * value) list | Tree of tree
+    [@@deriving irmin]
 
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" H.t (fun (t : ptr) -> t.hash)
-      |> sealr
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Bin.tree" (fun depth length entries -> { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
-
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Bin.v" (fun values tree -> function
-        | Values l -> values l | Tree i -> tree i)
-      |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
-      |~ case1 "Tree" tree_t (fun t -> Tree t)
-      |> sealv
+    type v = Values of (step * value) list | Tree of tree [@@deriving irmin]
 
     module V =
       Irmin.Hash.Typed
@@ -134,13 +99,13 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-    type address = Indirect of int64 | Direct of H.t
+    type address = Indirect of int63 | Direct of H.t
 
     let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" int64 (fun x -> Indirect x)
+      |~ case1 "Indirect" int63_t (fun x -> Indirect x)
       |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
@@ -199,11 +164,11 @@ struct
         | Contents (Direct n, Direct h, m) ->
             if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
         | Node (Direct n, Direct h) -> node_dd (n, h))
-      |~ case1 "contents-ii" (pair int int64) (fun (n, i) ->
+      |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
              Contents (Indirect n, Indirect i, T.default))
-      |~ case1 "contents-x-ii" (triple int int64 metadata_t) (fun (n, i, m) ->
+      |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
              Contents (Indirect n, Indirect i, m))
-      |~ case1 "node-ii" (pair int int64) (fun (n, i) ->
+      |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
       |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
              Contents (Indirect n, Direct h, T.default))
@@ -211,11 +176,11 @@ struct
              Contents (Indirect n, Direct h, m))
       |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
              Node (Indirect n, Direct h))
-      |~ case1 "contents-di" (pair step_t int64) (fun (n, i) ->
+      |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
              Contents (Direct n, Indirect i, T.default))
-      |~ case1 "contents-x-di" (triple step_t int64 metadata_t)
+      |~ case1 "contents-x-di" (triple step_t int63_t metadata_t)
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
-      |~ case1 "node-di" (pair step_t int64) (fun (n, i) ->
+      |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))
       |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
              Contents (Direct n, Direct i, T.default))
@@ -238,8 +203,10 @@ struct
     type t = { hash : H.t; stable : bool; v : v }
 
     let v ~stable ~hash v = { hash; stable; v }
-    let magic_node = 'N'
-    let magic_inode = 'I'
+    let kind_node = Pack_value.Kind.Node
+    let kind_inode = Pack_value.Kind.Inode
+    let magic_node = Pack_value.Kind.to_magic kind_node
+    let magic_inode = Pack_value.Kind.to_magic kind_inode
 
     let stable_t : bool Irmin.Type.t =
       Irmin.Type.(map char)
@@ -302,7 +269,24 @@ struct
       in [irmin/slice.ml] and [irmin/sync_ext.ml], and maybe some other places.
 
       At some point we might want to forbid such deserialisations and instead
-      use something in the flavour of [Val.of_bin] to create [Partial] inodes. *)
+      use something in the flavour of [Val.of_bin] to create [Partial] inodes.
+
+      {3 Topmost Inode Ancestor}
+
+      [Val_impl.t] is a recursive type, it is labelled with a [depth] integer
+      that indicates the recursion depth. An inode with [depth = 0] corresponds
+      to the root of a directory, its hash is the hash of the directory.
+
+      A [Val.t] points to the topmost [Val_impl.t] of an inode tree. In most
+      scenarios, that topmost inode has [depth = 0], but it is also legal for
+      the topmost inode to be an intermediate inode, i.e. with [depth > 0].
+
+      The only way for an inode tree to have an intermediate inode as root is to
+      fetch it from the backend by calling [Make_ext.find], using the hash of
+      that inode.
+
+      Write-only operations are not permitted when the root is an intermediate
+      inode. *)
   module Val_impl = struct
     open T
 
@@ -443,7 +427,7 @@ struct
                 if acc.cursor > offset then 0 else offset - acc.cursor
               in
               let vs =
-                StepMap.to_seq vs |> drop to_drop |> take acc.remaining
+                StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
               in
               let n = List.length vs in
               {
@@ -659,6 +643,31 @@ struct
 
     let hash t = Lazy.force t.hash
 
+    let is_root t =
+      match t.v with
+      | Tree { depth; _ } -> depth = 0
+      | Values _ ->
+          (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
+             is implied by the following.
+
+             When [t] is stable, then [t] is a root, because:
+              - Only 2 functions produce stable inodes: [stabilize] and [empty].
+              - Only the roots are output of [stabilize].
+              - An empty map can only be located at the root.
+
+             When [t] is a root of tag [Value], then [t] is stable, because:
+             - All the roots are output of [stabilize].
+             - When an unstable inode enters [stabilize], it becomes stable if
+               it has at most [Conf.stable_hash] leaves.
+             - A [Value] has at most [Conf.stable_hash] leaves because
+               [Conf.entries <= Conf.stable_hash] is enforced.
+          *)
+          t.stable
+
+    let check_write_op_supported t =
+      if not @@ is_root t then
+        failwith "Cannot perform operation on non-root inode value."
+
     let stabilize layout t =
       if t.stable then t
       else
@@ -777,9 +786,11 @@ struct
       match find_value ~depth:0 layout t s with
       | Some v' when equal_value v v' -> stabilize layout t
       | Some _ ->
-          add ~depth:0 layout ~copy ~replace:true t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:true t s v Fun.id
+          |> stabilize layout
       | None ->
-          add ~depth:0 layout ~copy ~replace:false t s v (stabilize layout)
+          add ~depth:0 layout ~copy ~replace:false t s v Fun.id
+          |> stabilize layout
 
     let rec remove layout ~depth t s k =
       match t.v with
@@ -818,7 +829,7 @@ struct
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value layout ~depth:0 t s with
       | None -> stabilize layout t
-      | Some _ -> remove layout ~depth:0 t s (stabilize layout)
+      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
     let v l =
       let len = List.length l in
@@ -897,19 +908,25 @@ struct
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
   end
 
-  module Elt = struct
+  module Raw = struct
+    type hash = H.t
     type t = Bin.t
 
     let t = Bin.t
 
-    let magic (t : t) =
-      if t.stable then Compress.magic_node else Compress.magic_inode
+    let kind (t : t) =
+      if t.stable then Compress.kind_node else Compress.kind_inode
 
     let hash t = Bin.hash t
     let step_to_bin = Irmin.Type.(unstage (to_bin_string T.step_t))
     let step_of_bin = Irmin.Type.(unstage (of_bin_string T.step_t))
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
+
+    let decode_compress_length =
+      match Irmin.Type.Size.of_encoding Compress.t with
+      | Unknown | Static _ -> assert false
+      | Dynamic f -> f
 
     let encode_bin ~dict ~offset (t : t) k =
       let step s : Compress.name =
@@ -949,7 +966,7 @@ struct
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin_with_offset ~dict ~hash t off : int * t =
+    let decode_bin ~dict ~hash t off : int * t =
       let off, i = decode_compress t off in
       let step : Compress.name -> T.step = function
         | Direct n -> n
@@ -989,16 +1006,12 @@ struct
       let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
       (off, t)
 
-    let decode_bin ~dict ~hash t off =
-      decode_bin_with_offset ~dict ~hash t off |> snd
+    let decode_bin_length = decode_compress_length
   end
 
   type hash = T.hash
 
   let pp_hash = T.pp_hash
-
-  let decode_bin ~dict ~hash t off =
-    Elt.decode_bin_with_offset ~dict ~hash t off
 
   module Val = struct
     include T
@@ -1044,9 +1057,19 @@ struct
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
     let add t s value =
-      map t { f = (fun layout v -> I.add ~copy:true layout v s value) }
+      let f layout v =
+        I.check_write_op_supported v;
+        I.add ~copy:true layout v s value
+      in
+      map t { f }
 
-    let remove t s = map t { f = (fun layout v -> I.remove layout v s) }
+    let remove t s =
+      let f layout v =
+        I.check_write_op_supported v;
+        I.remove layout v s
+      in
+      map t { f }
+
     let pre_hash_binv = Irmin.Type.(unstage (pre_hash Bin.v_t))
     let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
 
@@ -1068,15 +1091,19 @@ struct
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
     let save ~add ~mem t =
-      apply t { f = (fun layout v -> I.save layout ~add ~mem v) }
+      let f layout v =
+        I.check_write_op_supported v;
+        I.save layout ~add ~mem v
+      in
+      apply t { f }
 
-    let of_bin find' v =
+    let of_raw find' v =
       let rec find h =
         match find' h with None -> None | Some v -> Some (I.of_bin layout v)
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
 
-    let to_bin t = apply t { f = (fun layout v -> I.to_bin layout v) }
+    let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
     let stable t = apply t { f = (fun _ v -> I.stable v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
     let index = I.index
@@ -1107,22 +1134,23 @@ struct
   end
 end
 
-module Make_ext
+module Make
     (H : Irmin.Hash.S)
     (Node : Irmin.Private.Node.S with type hash = H.t)
-    (Inter : INTER
+    (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t) =
+    (Pack : Content_addressable.S
+              with type key = H.t
+               and type value = Inter.Raw.t) =
 struct
   module Key = H
-  module Pack = P.Make (Inter.Elt)
+  module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t
   type value = Inter.Val.t
-  type index = Pack.index
 
   let mem t k = Pack.mem t k
 
@@ -1131,16 +1159,16 @@ struct
     | None -> None
     | Some v ->
         let find = Pack.unsafe_find ~check_integrity:true t in
-        let v = Inter.Val.of_bin find v in
+        let v = Val.of_raw find v in
         Some v
 
   let save t v =
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Inter.Val.save ~add ~mem:(Pack.unsafe_mem t) v
+    Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Inter.Val.hash v
+  let hash v = Val.hash v
 
   let add t v =
     save t v;
@@ -1160,17 +1188,9 @@ struct
     Lwt.return_unit
 
   let batch = Pack.batch
-  let v = Pack.v
-  let integrity_check = Pack.integrity_check
   let close = Pack.close
-  let sync = Pack.sync
   let clear = Pack.clear
-  let clear_caches = Pack.clear_caches
-
-  let decode_bin ~dict ~hash buff off =
-    Inter.decode_bin ~dict ~hash buff off |> fst
-
-  module Val = Inter.Val
+  let decode_bin_length = Inter.Raw.decode_bin_length
 
   let integrity_check_inodes t k =
     find t k >|= function
@@ -1186,12 +1206,25 @@ struct
           Error msg
 end
 
-module Make
-    (Conf : Config.S)
+module Make_persistent
     (H : Irmin.Hash.S)
-    (P : Pack.MAKER with type key = H.t and type index = Pack_index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Inter : Internal
+               with type hash = H.t
+                and type Val.metadata = Node.metadata
+                and type Val.step = Node.step)
+    (CA : Pack_store.Maker
+            with type key = H.t
+             and type index = Pack_index.Make(H).t) =
 struct
-  module Inter = Make_intermediate (Conf) (H) (Node)
-  include Make_ext (H) (Node) (Inter) (P)
+  module Persistent_pack = CA.Make (Inter.Raw)
+  module Pack = Persistent_pack
+  include Make (H) (Node) (Inter) (Pack)
+
+  type index = Pack.index
+
+  let v = Pack.v
+  let sync = Pack.sync
+  let integrity_check = Pack.integrity_check
+  let clear_caches = Pack.clear_caches
 end

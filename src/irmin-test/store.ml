@@ -1059,6 +1059,7 @@ module Make (S : S) = struct
     run x test
 
   let pp_depth = Irmin.Type.pp S.Tree.depth_t
+  let pp_key = Irmin.Type.pp S.Key.t
 
   let test_trees x () =
     let test repo =
@@ -1066,10 +1067,16 @@ module Make (S : S) = struct
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
-      (* Testing [Tree.remove] *)
       S.Tree.empty |> fun v1 ->
       let* v1 = S.Tree.add v1 [ "foo"; "toto" ] foo1 in
       let* v1 = S.Tree.add v1 [ "foo"; "bar"; "toto" ] foo2 in
+      S.Tree.clear v1;
+      let* () =
+        let dont_skip k =
+          Alcotest.failf "should not have skipped %a" pp_key k
+        in
+        S.Tree.fold ~depth:(`Eq 1) ~force:(`False dont_skip) v1 ()
+      in
       let* () =
         S.Tree.fold ~depth:(`Eq 1) ~force:`True S.Tree.empty ()
           ~contents:(fun k _ ->
@@ -2057,7 +2064,7 @@ let layered_suite (speed, x) =
         let (module S) = layered_store in
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
-        let hook repo max = S.freeze repo ~max in
+        let hook repo max = S.freeze repo ~max_lower:max in
         [
           ("Basic operations on branches", speed, T.test_branches ~hook x);
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);

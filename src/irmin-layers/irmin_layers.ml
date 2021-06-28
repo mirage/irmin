@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2020 Ioana Cristescu <ioana@tarides.com>
+ * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,109 +31,19 @@ end
 module Make_ext
     (CA : Irmin.CONTENT_ADDRESSABLE_STORE_MAKER)
     (AW : Irmin.ATOMIC_WRITE_STORE_MAKER)
+    (N : Irmin.Private.Node.Maker)
+    (CT : Irmin.Private.Commit.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S)
-    (H : Irmin.Hash.S)
-    (N : Irmin.Private.Node.S
-           with type metadata = M.t
-            and type hash = H.t
-            and type step = P.step)
-    (CT : Irmin.Private.Commit.S with type hash = H.t) =
+    (H : Irmin.Hash.S) =
 struct
-  (* TODO: add check_closed *)
+  module XNode = N (H) (P) (M)
+  module XCommit = CT (H)
+  include Irmin.Make_ext (CA) (AW) (M) (C) (P) (B) (H) (XNode) (XCommit)
 
-  module X = struct
-    module Hash = H
-
-    module Contents = struct
-      module CA = struct
-        module Key = Hash
-        module Val = C
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
-      end
-
-      include Irmin.Contents.Store (CA)
-    end
-
-    module Node = struct
-      module CA = struct
-        module Key = Hash
-        module Val = N
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
-      end
-
-      include Irmin.Private.Node.Store (Contents) (P) (M) (CA)
-    end
-
-    module Commit = struct
-      module CA = struct
-        module Key = Hash
-        module Val = CT
-        module CA = CA (Key) (Val)
-        module Layered_CA = Layered_store.Content_addressable (Key) (Val) (CA)
-        include Layered_CA
-      end
-
-      include Irmin.Private.Commit.Store (Node) (CA)
-    end
-
-    module Branch = struct
-      module Key = B
-      module Val = H
-      include AW (Key) (Val)
-    end
-
-    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Sync = Irmin.Private.Sync.None (H) (B)
-
-    module Repo = struct
-      type t = {
-        config : Irmin.Private.Conf.t;
-        contents : read Contents.t;
-        nodes : read Node.t;
-        commits : read Commit.t;
-        branch : Branch.t;
-      }
-
-      let contents_t t = t.contents
-      let node_t t = t.nodes
-      let commit_t t = t.commits
-      let branch_t t = t.branch
-
-      let batch t f =
-        Contents.CA.batch t.contents @@ fun c ->
-        Node.CA.batch (snd t.nodes) @@ fun n ->
-        Commit.CA.batch (snd t.commits) @@ fun ct ->
-        let contents_t = c in
-        let node_t = (contents_t, n) in
-        let commit_t = (node_t, ct) in
-        f contents_t node_t commit_t
-
-      let v config =
-        let* contents = Contents.CA.v config in
-        let* nodes = Node.CA.v config in
-        let* commits = Commit.CA.v config in
-        let nodes = (contents, nodes) in
-        let commits = (nodes, commits) in
-        let+ branch = Branch.v config in
-        { contents; nodes; commits; branch; config }
-
-      let close t =
-        Contents.CA.close t.contents >>= fun () ->
-        Node.CA.close (snd t.nodes) >>= fun () ->
-        Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
-    end
-  end
-
-  include Irmin.Of_private (X)
-
-  let freeze ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?min_upper:_ ?recovery:_
+  let freeze ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
       _repo =
     Lwt.fail_with "not implemented"
 
@@ -149,7 +59,7 @@ struct
   let check_self_contained ?heads:_ _ = failwith "not implemented"
   let needs_recovery _ = failwith "not implemented"
 
-  module PrivateLayer = struct
+  module Private_layer = struct
     module Hook = struct
       type 'a t = unit
 
@@ -158,8 +68,8 @@ struct
 
     let wait_for_freeze _ = Lwt.fail_with "not implemented"
 
-    let freeze' ?min:_ ?max:_ ?squash:_ ?copy_in_upper:_ ?min_upper:_
-        ?recovery:_ ?hook:_ _repo =
+    let freeze' ?min_lower:_ ?max_lower:_ ?min_upper:_ ?max_upper:_ ?recovery:_
+        ?hook:_ _repo =
       Lwt.fail_with "not implemented"
 
     let upper_in_use = upper_in_use
@@ -175,9 +85,12 @@ module Make
     (B : Irmin.Branch.S)
     (H : Irmin.Hash.S) =
 struct
-  module N = Irmin.Private.Node.Make (H) (P) (M)
-  module CT = Irmin.Private.Commit.Make (H)
-  include Make_ext (CA) (AW) (M) (C) (P) (B) (H) (N) (CT)
+  include
+    Make_ext (CA) (AW) (Irmin.Private.Node.Make) (Irmin.Private.Commit.Make) (M)
+      (C)
+      (P)
+      (B)
+      (H)
 end
 
 module Stats = Stats

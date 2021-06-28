@@ -103,6 +103,9 @@ module type S = sig
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
+  val length : node -> int Lwt.t
+  (** [find n] is the number of entries in [n]. *)
+
   val find : t -> key -> contents option Lwt.t
   (** [find] is similar to {!find_all} but it discards metadata. *)
 
