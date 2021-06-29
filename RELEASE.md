@@ -25,32 +25,75 @@ described in the instructions below.
 ## Manual benchmarking
 
 Before releasing, it is important to make sure that the new version doesn't
-induce performance regressions.
+induce performance regressions. The trace replay benchmarks should be used
+for that purpose.
 
-The performances of individual releases of irmin (+index, +repr) are saved in
-`/bench/releases`, inside the benchmarking server.
+The performances of individual releases of irmin are saved inside the
+benchmarking server at `/bench/releases/`:
+```
+.
+└── ncommits_200k
+    ├── irmin2.7.0_index1.4.0_repr0.4.0
+    │   ├── packet_b
+    │   │   ├── stat_summary.json
+    │   │   └── stat_trace.repr
+    │   └── packet_a
+    │       ├── stat_summary.json
+    │       └── stat_trace.repr
+    ├── irmin2.5.4_index1.3.1_repr0.3.0
+    │   ├── packet_b
+    │   │   ├── stat_summary.json
+    │   │   └── stat_trace.repr
+    │   └── packet_a
+    │       ├── stat_summary.json
+    │       └── stat_trace.repr
+    └── irmin2.2.0_index1.2.1
+        ├── packet_b
+        │   ├── stat_summary.json
+        │   └── stat_trace.repr
+        └── packet_a
+            ├── stat_summary.json
+            └── stat_trace.repr
+```
 
-From the benchmarking server, setup the right versions of the right libraries
-and then run Irmin's trace replay:
+To test a new release, setup an `c3-small-x86-01` Equinix instance, fetch a large
+enough replay trace and setup the right versions of the right libraries
+before running the benchmarks.
+
+The benchmark should be run at least twice (to give insights about the noise), 
+the two resulting `stat_trace.repr` files should be copied to 
+`/bench/releases/` using the same naming convention as above. Also set the file
+permissions to read-only using `chmod 444 stat_trace.repr`.
+
+A run of the benchmark is expected to last \~35min.
+
+See [this script](https://github.com/tarides/irmin-tezos/blob/master/bench.sh) for an example of a setup and a bench run.
+
+### Visualising the results
+
+A `stat_summary.json` can be computed from a `stat_trace.repr`. 
+
+If missing or out of date (resulting in a parsing error), the JSON can be
+(re)generated using the following commands:
+```
+dune exec -- bench/irmin-pack/trace_stats.exe summarise stat_trace.repr >stat_summary.json
+```
+
+A conversion is expected to last \~4 min.
+
+One or more summaries can be pretty printed together. The following command 
+will pretty print both runs of 2 releases side by side:
 ```sh
-; export ROOT='/bench/releases/irminX.Y.Z-indexX.Y.Z-reprX.Y.Z'
-; dune exec -- bench/irmin-pack/tree.exe --mode trace --ncommits-trace 100000 /bench/replay-traces/tezos-replayable-v0.repr --verbosity info --path-conversion v0+v1 --artefacts $ROOT --keep-stat-trace
+; export ROOT='/bench/releases/ncommits_200k/irmin2.7.0_index1.4.0_repr0.4.0/'
+; export ROOT_OLD='/bench/releases/ncommits_200k/irmin2.2.0_index1.2.1/'
+; dune exec -- bench/irmin-pack/trace_stats.exe pp \
+  -f old,$ROOT_OLD/packet_a/stat_summary.json \
+  -f old,$ROOT_OLD/packet_b/stat_summary.json \
+  -f old,$ROOT/packet_a/stat_summary.json \
+  -f old,$ROOT/packet_b/stat_summary.json
 ```
 
-The following command will pretty print 2 releases side by side for manual
-comparison:
-```sh
-; export ROOT_OLD='/bench/releases/irminX.Y.Z-indexX.Y.Z-reprX.Y.Z'
-; dune exec -- bench/irmin-pack/trace_stats.exe pp -f old,$ROOT_OLD/boostrap_summary.json -f new,$ROOT/boostrap_summary.json
-```
-
-If one of the old `boostrap_summary.json` file is out of date (resulting in
-JSON parsing a error), it may be re-generated with the following commands:
-```
-; rm $ROOT_OLD/boostrap_summary.json
-; dune exec -- bench/irmin-pack/trace_stats.exe summarise $ROOT_OLD/stat_trace.repr >$ROOT_OLD/boostrap_summary.json
-; chmod 444 $ROOT_OLD/boostrap_summary.json
-```
+See [this script](https://github.com/tarides/irmin-tezos/blob/master/summarise.sh) for an example of a batch conversion to JSON.
 
 ## Releasing to opam-repository and GitHub
 
