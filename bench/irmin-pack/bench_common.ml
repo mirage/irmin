@@ -80,19 +80,16 @@ let with_progress_bar ~message ~n ~unit =
   in
   let bar =
     Line.(
-      const message
-      ++ const " "
-      ++ count_to n
-      ++ const " "
-      ++ const unit
-      ++ const " "
-      ++ elapsed ()
-      ++ const " (ETA: "
-      ++ eta n
-      ++ const ") "
-      ++ bar n
-      ++ const " "
-      ++ percentage_of n)
+      list
+        [
+          const message;
+          count_to n;
+          const unit;
+          elapsed ();
+          parens (const "ETA: " ++ eta n);
+          bar n;
+          percentage_of n;
+        ])
   in
   with_reporter ~config bar
 
