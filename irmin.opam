@@ -32,6 +32,11 @@ depends: [
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}
 ]
+
+conflicts: [
+  "result" {< "1.5"} # Requires `Result = Stdlib.Result`
+]
+
 synopsis: """
 Irmin, a distributed database that follows the same design principles as Git
 """
