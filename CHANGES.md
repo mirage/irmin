@@ -1,20 +1,8 @@
 ## Unreleased
 
-### Fixed
-
-- **irmin**
-  - Fixed fold for non-persisted, cleared trees (#1442, @samoht, @Ngoguey42)
-
-- **irmin-layers**
-  - Do not fail on double-close errors for private nodes (#1421, @samoht)
-
-- **irmin-pack**
-  - Do not clear and bump the generation for empty files (#1420, @samoht)
-
 ### Added
 
 - **irmin**
-   - Added `Store.Tree.length`. (#1316, @Ngoguey42)
   - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
   - Append-only and content-addressable backend implementations have to
     provide `close` and `batch` functions (#1345, @samoht)
@@ -29,22 +17,12 @@
     #1404, #1416, #1429, #1430, #1438, #1441 @Ngoguey42)
   - Check hash of commit in benchmarks for trees (#1328, @icristescu)
 
-- **irmin-pack**
-  - Added `Irmin_pack.Version.{V1,V2}` modules for convenience. (#TODO,
-    @CraigFe)
-
-- **irmin-graphql**
-  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
-
 - **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
 
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
     config file is specified (#1413, @zshipko)
-
-- **irmin-pack**
-  - Added a `irmin-pack.mem` package (#1436, @icristescu, @craigfe)
 
 ### Changed
 
@@ -105,6 +83,36 @@
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
     (#1369, @samoht)
 
+- **irmin-unix**
+  - Allow config file to be specified when using
+    `Irmin_unix.Resolver.load_config` (#1464, @zshipko)
+
+## 2.7.0 (2021-06-22)
+
+### Fixed
+
+- **irmin**
+  - Added `Store.Tree.length`. (#1316, @Ngoguey42)
+  - Fixed fold for non-persisted, cleared trees (#1442, @samoht, @Ngoguey42)
+
+- **irmin-layers**
+  - Do not fail on double-close errors for private nodes (#1421, @samoht)
+
+- **irmin-pack**
+  - Do not clear and bump the generation for empty files (#1420, @samoht)
+
+### Added
+
+- **irmin-pack**
+  - Added `Irmin_pack.Version.{V1,V2}` modules for convenience. (#1457,
+    @CraigFe)
+  - Added a `irmin-pack.mem` package (#1436, @icristescu, @craigfe)
+
+- **irmin-graphql**
+  - Added `last_modified` field to GraphQL interface (#1393, @kluvin)
+
+### Changed
+
 - **irmin-layers**
   - Remove `copy_in_upper` from the repo configuration. The default is now to
     copy. (#1322, @Ngoguey42)
@@ -132,23 +140,23 @@
     `version`. The `Pack.File` and `Atomic_write` functors now take
     `Version` as their first parameter (#1352, @samoht)
   - Renamed `Irmin_pack.Make` into `Irmin_pack.V1` (#1369, @samoht)
-  - Renamed `Irmin_pack.Make_ext` into `Irmin_pack.Maker_ext` (#1369, @samoht)
   - Renamed `Irmin_pack.Config` into `Irmin_pack.Conf` (#1370, @samoht)
   - Renamed `Irmin_pack.Pack` into `Irmin_pack.Content_addressable` and
     `Irmin_pack.Pack.File` into `Irmin_pack.Content_addressable.Maker`
     (#1377, @samoht)
   - Moved `Irmin_pack.Store.Atomic_write` into its own module (#1378, @samoht)
-  - All the types in `inode.ml` are now derived automatically (#1451, @samoht, @mattiasdrp)
   - `Checks.Reconstruct_index.run` now takes an optional `index_log_size`
     parameter for customising the interval between merges during
     reconstruction. (#1459, @CraigFe)
 
-- **irmin-unix**
-  - Allow config file to be specified when using `Irmin_unix.Resolver.load_config` (#1464, @zshipko)
+## 2.6.1 (2021-04-29)
+
+This release contains 2.6.0 plus the changes described in 2.5.4.
 
 ## 2.6.0 (2021-04-13)
 
-** Note: this release is based on 2.5.3, and does not contain 2.5.4. **
+** Note: this release is based on 2.5.3, and does not contain 2.5.4. Use 2.6.1
+for access to those changes. **
 
 ### Fixed
 
