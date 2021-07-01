@@ -1,0 +1,331 @@
+* Git conflicts
+- Directory/File (and File/Directory)
+  - a directory and a file have the same name in two branches we try to merge
+
+#+begin_src bash :eval never
+  # In main branch
+  git branch wip
+  # add directory a and file b
+  git add a/b
+  git commit -am "added a/b"
+  # In wip branch
+  git checkout wip
+  # add file a
+  git add a
+  git commit -am "added a"
+  # master contains a/b and other files
+  # wip contains a and same other files
+  git merge main
+  # Adding a/b
+  # CONFLICT (file/directory): There is a directory with name a in main. Adding a as a~HEAD
+  # Automatic merge failed; fix conflicts and then commit the result.
+#+end_src
+
+- Modify/Delete
+  - a file has been deleted in a branch and modified in another branch and we're trying to merge them
+
+#+begin_src bash :eval never
+  # main branch contains a file a
+  # In main branch
+  git branch wip
+  # add directory a and file b
+  git rm a
+  git commit -am "deleted a"
+  # In wip branch
+  git checkout wip
+  # add file a
+  echo "b" >> a
+  git commit -am "modified a"
+  # master contains a/b and other files
+  # wip contains a and same other files
+  git merge main
+  # CONFLICT (modify/delete): a deleted in main and modified in HEAD. Version HEAD of a left in tree.
+  # Automatic merge failed; fix conflicts and then commit the result.
+#+end_src
+
+* Irmin conflicts
+
+Example file:
+
+#+begin_src ocaml
+  open Lwt.Syntax
+
+  (* Irmin store with string contents *)
+  module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+
+  (* Database configuration *)
+  let config = Irmin_git.config ~bare:false "/tmp/irmin/test"
+
+  (* Commit author *)
+  let author = "Tarides <tarides@tarides.com>"
+
+  (* Commit information *)
+  let info fmt = Irmin_unix.info ~author fmt
+
+  let main =
+    (* Clean and (re)open the repo *)
+    let _ = Sys.command "rm -rf /tmp/irmin/*" in
+    let* repo = Store.Repo.v config in
+    (* Load the master branch *)
+    let* master = Store.master repo in
+    (* Create the "wip" branch *)
+    let* wip1 = Store.clone ~src:master ~dst:"wip" in
+
+    (* Set the key "a" to "a" in master *)
+    let* () = Store.set_exn master ~info:(info "Setting a") [ "a" ] "a" in
+
+    (* Set the key "a/b" to "a/b" in wip *)
+    let* () =
+      Store.set_exn wip ~info:(info "Setting a/b") [ "a"; "b" ] "a/b"
+    in
+    let* res =
+      Store.merge_into ~info:(info "Merging master into wip") master ~into:wip
+    in
+    (match res with Ok () -> () | Error (`Conflict c) -> failwith c);
+    (* Get key la and print it to stdout *)
+    let* _ = Store.get wip [ "a" ] in
+    let* _ = Store.get wip [ "a"; "b" ] in
+    Lwt.return ()
+
+  let () = Lwt_main.run main
+#+end_src
+
+** Directory in master, file in wip
+
+#+begin_example bash
+master
+  /
+
+wip clone
+  /
+
+master set a/b
+  /
+    a
+      a/b => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+wip merge
+  /
+    a
+      a/b => =yQ<MQk8!
+
+run: internal error, uncaught exception:
+     (Invalid_argument "Irmin.Tree.get: /a/b not found")
+# rest of exception trace
+#+end_example
+
+** File in master, directory in wip
+
+#+begin_example bash
+master
+  /
+
+wip clone
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip set a/b
+  /
+    a
+      a/b => {FQ
+
+wip merge
+  /
+    a
+      a/b => {FQ
+
+a => '=yQ<MQk8!'
+run: internal error, uncaught exception:
+     (Invalid_argument "Irmin.Tree.get: /a/b not found")
+# rest of exception trace
+#+end_example
+
+** Merge delete into modify
+
+#+begin_example bash
+master
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip clone
+  /
+    a => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+master remove a
+  /
+
+Merging master into wip
+run: internal error, uncaught exception:
+     (Failure "Recursive merging of common ancestors: default")
+# rest of exception trace
+#+end_example
+
+** Merge modify into delete
+
+#+begin_example bash
+master
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip clone
+  /
+    a => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+master remove a
+  /
+
+Merging wip into master
+run: internal error, uncaught exception:
+     (Failure "Recursive merging of common ancestors: default")
+# rest of exception trace
+#+end_example
+
+** Summary
+
+- When trying to merge a directory and a file with the same name, the shortest path (the file) is merged (no conflict raised) but the tree contains the directory.
+- When trying to merge a modify and a delete, a conflict is raised for both (expected behaviour)
+
+
+* PR​#1463
+
+** Directory in master, file in wip
+
+#+begin_example bash
+master
+  /
+
+wip clone
+  /
+
+master set a/b
+  /
+    a
+      a/b => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+Merging master into wip
+run: internal error, uncaught exception:
+     (Failure "Recursive merging of common ancestors: File/Directory")
+# rest of exception trace
+#+end_example
+
+** File in master, directory in wip
+
+#+begin_example bash
+master
+  /
+
+wip clone
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip set a/b
+  /
+    a
+      a/b => {FQ
+
+Merging master into wip
+run: internal error, uncaught exception:
+     (Failure "Recursive merging of common ancestors: File/Directory")
+# rest of exception trace
+#+end_example
+
+** Merge delete into modify
+
+#+begin_example bash
+master
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip clone
+  /
+    a => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+master remove a
+  /
+
+Merging master into wip
+master
+  /
+
+wip
+  /
+    a => {FQ
+# rest of exception trace
+#+end_example
+
+** Merge modify into delete
+
+#+begin_example bash
+master
+  /
+
+master set a
+  /
+    a => =yQ<MQk8!
+
+wip clone
+  /
+    a => =yQ<MQk8!
+
+wip set a
+  /
+    a => {FQ
+
+master remove a
+  /
+
+Merging wip into master
+master
+  /
+    a => {FQ
+
+wip
+  /
+    a => {FQ
+# rest of exception trace
+#+end_example
+
+** Summary
+
+- When trying to merge a directory and a file with the same name, a file/directory conflict is raised.
+- When trying to merge a modify and a delete, the modify is prioritised and the merge is computed without raising any conflict
+
+
+* Conclusion
+
+My PR was supposed to fix the file/directory conflict not happening and keep the behaviour of modify/delete to mirror Git behaviour.

@@ -145,7 +145,7 @@ struct
                           update acc s (`Node key)))
               (* If both v1 and v2 are contents, currently we choose the
                  second one and pick it as the new value
-                 This mean that the remaining value will be the one from
+                 This means that the remaining value will be the one from
                  the branch in which we are merging, not the one being merged *)
               | `Contents _, (`Contents _ as c) -> update acc s c
               | _ -> Merge.conflict "File/Directory"))
