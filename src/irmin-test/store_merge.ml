@@ -35,10 +35,7 @@ module Make (S : S) = struct
       l
       (Format.asprintf "%a" pp_list l)
 
-  let conflict_t =
-    Alcotest.testable
-      (Irmin.Type.pp_dump Irmin.Merge.conflict_t)
-      Irmin.Type.(unstage (equal Irmin.Merge.conflict_t))
+  let conflict_t = Common.testable Irmin.Merge.conflict_t
 
   let dirfile mode repo =
     let la = [ "a" ] in
