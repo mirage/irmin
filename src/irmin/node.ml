@@ -34,6 +34,7 @@ struct
   type kind = [ `Node | `Contents of M.t ]
 
   let equal_metadata = Type.(unstage (equal M.t))
+  let _equal_hash = Type.(unstage (equal hash_t))
 
   let kind_t =
     let open Type in
@@ -147,7 +148,10 @@ struct
                  second one and pick it as the new value
                  This means that the remaining value will be the one from
                  the branch in which we are merging, not the one being merged *)
-              | `Contents _, (`Contents _ as c) -> update acc s c
+              | `Contents (_h1, _), (`Contents (_h2, _) as c) ->
+                  (* if equal_hash h1 h2 then *)
+                  update acc s c
+                  (* else Merge.conflict "Modify/Modify" *)
               | _ -> Merge.conflict "File/Directory"))
         s1 (Merge.ok s2)
     in
