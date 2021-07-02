@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Fix termination condition of reconstruct index (#, @Ngoguey42)
+
 ## 2.7.0 (2021-06-22)
 
 ### Fixed
