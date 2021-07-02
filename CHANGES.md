@@ -3,7 +3,7 @@
 ### Fixed
 
 - **irmin-pack**
-  - Fix termination condition of reconstruct index (#, @Ngoguey42)
+  - Fix termination condition of reconstruct index (#1468, @Ngoguey42)
 
 ## 2.7.0 (2021-06-22)
 
