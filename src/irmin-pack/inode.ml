@@ -389,8 +389,6 @@ struct
               v :: acc)
             l []
 
-    let merge ~find:_ ~add:_ = failwith "Not implemented"
-
     let length_of_v = function
       | Values vs -> StepMap.cardinal vs
       | Tree vs -> vs.length
@@ -1090,6 +1088,15 @@ struct
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
+    let merge ~find ~add =
+      let to_n t = Node.v (list t) in
+      let of_n n = v (Node.list n) in
+      let find h =
+        find h >|= function None -> None | Some t -> Some (to_n t)
+      in
+      let add t = add (of_n t) in
+      Irmin.Merge.like t (Node.merge ~find ~add) to_n of_n
+
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
     let save ~add ~mem t =
@@ -1098,8 +1105,6 @@ struct
         I.save layout ~add ~mem v
       in
       apply t { f }
-
-    let merge = I.merge
 
     let of_raw find' v =
       let rec find h =
