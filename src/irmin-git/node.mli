@@ -26,7 +26,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) : sig
   module Key : Irmin.Hash.S with type t = key
 
   module Val :
-    Irmin.Private.Node.S
+    Irmin.Node.S
       with type t = value
        and type hash = key
        and type step = P.step

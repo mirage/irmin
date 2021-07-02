@@ -147,7 +147,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
         [] (G.Value.Tree.to_list t)
       |> List.rev
 
-    module N = Irmin.Private.Node.Make (Key) (P) (Metadata)
+    module N = Irmin.Node.Make (Key) (P) (Metadata)
 
     let to_n t = N.v (alist t)
     let of_n n = v (N.list n)

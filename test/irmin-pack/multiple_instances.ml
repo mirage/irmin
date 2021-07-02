@@ -34,8 +34,8 @@ module Hash = Irmin.Hash.SHA1
 module S = struct
   module P = Irmin.Path.String_list
   module M = Irmin.Metadata.None
-  module XNode = Irmin.Private.Node.Make
-  module XCommit = Irmin.Private.Commit
+  module XNode = Irmin.Node.Make
+  module XCommit = Irmin.Commit
 
   module Maker =
     Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Conf) (XNode) (XCommit)

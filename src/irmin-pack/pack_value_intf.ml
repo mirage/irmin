@@ -46,6 +46,6 @@ module type Sigs = sig
   module Of_contents (Hash : Irmin.Hash.S) (Contents : Irmin.Contents.S) :
     S with type t = Contents.t and type hash = Hash.t
 
-  module Of_commit (Hash : Irmin.Hash.S) (Commit : Irmin.Private.Commit.S) :
+  module Of_commit (Hash : Irmin.Hash.S) (Commit : Irmin.Commit.S) :
     S with type t = Commit.t and type hash = Hash.t
 end

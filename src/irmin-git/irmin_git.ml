@@ -240,15 +240,13 @@ struct
         module CA = CA (Hash) (V)
 
         include
-          Irmin.Private.Node.Store (Contents) (CA) (Hash) (V)
-            (Dummy.Node.Metadata)
-            (P)
+          Irmin.Node.Store (Contents) (CA) (Hash) (V) (Dummy.Node.Metadata) (P)
       end
 
       module Commit = struct
         module V = Dummy.Commit.Val
         module CA = CA (Hash) (V)
-        include Irmin.Private.Commit.Store (Info) (Node) (CA) (Hash) (V)
+        include Irmin.Commit.Store (Info) (Node) (CA) (Hash) (V)
       end
 
       module Branch = struct

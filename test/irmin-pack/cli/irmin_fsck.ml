@@ -17,8 +17,8 @@
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Node = Irmin.Private.Node.Make
-module Commit = Irmin.Private.Commit
+module Node = Irmin.Node.Make
+module Commit = Irmin.Commit
 
 module Conf = struct
   let entries = 32

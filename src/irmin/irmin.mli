@@ -120,6 +120,8 @@ module Contents = Contents
     {{!Contents.Json} JSON} contents are provided. *)
 
 module Branch = Branch
+module Node = Node
+module Commit = Commit
 
 type remote = Remote.t = ..
 (** The type for remote stores. *)
@@ -143,8 +145,6 @@ module Private : sig
   module Watch = Watch
   module Lock = Lock
   module Lru = Lru
-  module Node = Node
-  module Commit = Commit
   module Slice = Slice
   module Remote = Remote
 
@@ -450,8 +450,8 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
 module Maker_ext
     (CA : Content_addressable.Maker)
     (AW : Atomic_write.Maker)
-    (Node : Private.Node.Maker)
-    (Commit : Private.Commit.Maker) :
+    (Node : Node.Maker)
+    (Commit : Commit.Maker) :
   Maker with type endpoint = unit and type info = Commit.Info.t
 
 (** Advanced store creator. *)

@@ -27,7 +27,7 @@ module Make (G : Git.S) : sig
   module Key : Irmin.Hash.S with type t = key
 
   module Val :
-    Irmin.Private.Commit.S
+    Irmin.Commit.S
       with type t = value
        and type hash = key
        and module Info = Info

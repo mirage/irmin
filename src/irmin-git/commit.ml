@@ -91,7 +91,7 @@ module Make (G : Git.S) = struct
       let message = Option.value ~default:"" (G.Value.Commit.message g) in
       info_of_git author message
 
-    module C = Irmin.Private.Commit.Make (Key)
+    module C = Irmin.Commit.Make (Key)
 
     let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 

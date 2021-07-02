@@ -85,7 +85,7 @@ end
 
 module Make_helpers (S : S) = struct
   module P = S.Private
-  module Graph = Irmin.Private.Node.Graph (P.Node)
+  module Graph = Irmin.Node.Graph (P.Node)
 
   let info message =
     let date = Int64.of_float 0. in

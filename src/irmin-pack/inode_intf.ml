@@ -17,7 +17,7 @@
 open! Import
 
 module type Value = sig
-  include Irmin.Private.Node.S
+  include Irmin.Node.S
 
   val pred : t -> [ `Node of hash | `Inode of hash | `Contents of hash ] list
 end
@@ -128,7 +128,7 @@ module type Sigs = sig
   module Make_internal
       (Conf : Conf.S)
       (H : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S with type hash = H.t) :
+      (Node : Irmin.Node.S with type hash = H.t) :
     Internal
       with type hash = H.t
        and type Val.metadata = Node.metadata
@@ -136,7 +136,7 @@ module type Sigs = sig
 
   module Make
       (H : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S with type hash = H.t)
+      (Node : Irmin.Node.S with type hash = H.t)
       (Inter : Internal
                  with type hash = H.t
                   and type Val.metadata = Node.metadata
@@ -153,7 +153,7 @@ module type Sigs = sig
 
   module Make_persistent
       (H : Irmin.Hash.S)
-      (Node : Irmin.Private.Node.S with type hash = H.t)
+      (Node : Irmin.Node.S with type hash = H.t)
       (Inter : Internal
                  with type hash = H.t
                   and type Val.metadata = Node.metadata

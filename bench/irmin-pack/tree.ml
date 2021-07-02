@@ -205,10 +205,8 @@ end
 
 open Tezos_context_hash_irmin.Encoding
 
-module type Impl = functor
-  (_ : Irmin.Private.Node.Maker)
-  (_ : Irmin.Private.Commit.Maker)
-  -> Irmin_pack.Maker
+module type Impl = functor (_ : Irmin.Node.Maker) (_ : Irmin.Commit.Maker) ->
+  Irmin_pack.Maker
 
 module Make_basic
     (Impl : Impl) (Conf : sig
@@ -237,8 +235,8 @@ module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
 module Make_store_pack =
   Make_basic
     ((functor
-       (Node : Irmin.Private.Node.Maker)
-       (Commit : Irmin.Private.Commit.Maker)
+       (Node : Irmin.Node.Maker)
+       (Commit : Irmin.Commit.Maker)
        (C : Irmin_pack.Conf.S)
        ->
        Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (C) (Node) (Commit)))

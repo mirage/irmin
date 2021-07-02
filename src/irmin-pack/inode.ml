@@ -20,7 +20,7 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Node.S with type hash = H.t) =
 struct
   let () =
     if Conf.entries > Conf.stable_hash then
@@ -1136,7 +1136,7 @@ end
 
 module Make
     (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Node : Irmin.Node.S with type hash = H.t)
     (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata
@@ -1208,7 +1208,7 @@ end
 
 module Make_persistent
     (H : Irmin.Hash.S)
-    (Node : Irmin.Private.Node.S with type hash = H.t)
+    (Node : Irmin.Node.S with type hash = H.t)
     (Inter : Internal
                with type hash = H.t
                 and type Val.metadata = Node.metadata

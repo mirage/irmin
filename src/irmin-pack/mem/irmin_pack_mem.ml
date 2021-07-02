@@ -37,8 +37,8 @@ struct
 end
 
 module Maker
-    (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker)
+    (Node : Irmin.Node.Maker)
+    (Commit : Irmin.Commit.Maker)
     (Config : Irmin_pack.Conf.S) =
 struct
   type endpoint = unit
@@ -76,14 +76,14 @@ struct
           let v = CA.v
         end
 
-        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+        include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
       module Commit = struct
         module Commit = Commit.Make (H)
         module Pack_value = Irmin_pack.Pack_value.Of_commit (H) (Commit)
         module CA = CA_mem (H) (Pack_value)
-        include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
+        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct

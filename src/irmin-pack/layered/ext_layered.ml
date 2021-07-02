@@ -33,8 +33,8 @@ let lock_path root = Filename.concat root "lock"
 
 module Maker
     (Config : Conf.Pack.S)
-    (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker)
+    (Node : Irmin.Node.Maker)
+    (Commit : Irmin.Commit.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -69,7 +69,7 @@ struct
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
       module Node = Node (H) (P) (M)
       module CA = Inode_layers.Make (Config) (H) (Pa) (Node)
-      include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+      include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
     end
 
     module Commit = struct
@@ -81,7 +81,7 @@ struct
         include Layered_store.Content_addressable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
+      include Irmin.Commit.Store (Info) (Node) (CA) (H) (Commit)
     end
 
     module Branch = struct

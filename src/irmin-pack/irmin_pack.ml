@@ -37,7 +37,7 @@ module Conf = Conf
 let migrate = Migrate.run
 
 module Maker (V : Version.S) (Config : Conf.S) =
-  Maker_ext (V) (Config) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+  Maker_ext (V) (Config) (Irmin.Node.Make) (Irmin.Commit)
 
 module V1 = Maker (Version.V1)
 module V2 = Maker (Version.V2)
