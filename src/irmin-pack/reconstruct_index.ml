@@ -83,7 +83,14 @@ end = struct
     let buffer = ref (Bytes.create 1024) in
     let refill_buffer ~from =
       let read = IO.read pack ~off:from !buffer in
-      assert (read = Bytes.length !buffer)
+      let filled = read = Bytes.length !buffer in
+      let eof = Int63.equal total (Int63.add from (Int63.of_int read)) in
+      if (not filled) && not eof then
+        Fmt.failwith
+          "When refilling from offset %#Ld (total %#Ld), read %#d but expected \
+           %#d"
+          (Int63.to_int64 from) (Int63.to_int64 total) read
+          (Bytes.length !buffer)
     in
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in

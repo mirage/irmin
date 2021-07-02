@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin-pack**
+  - Fix termination condition of reconstruct index (#, @Ngoguey42)
+
 ### Added
 
 - **irmin**
