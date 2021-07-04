@@ -19,10 +19,9 @@ include Atomic_write_intf
 module Cache = IO.Cache
 
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
-  type t = K.t
+  type t = K.t [@@deriving irmin ~short_hash ~equal]
 
-  let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
-  let equal = Irmin.Type.(unstage (equal K.t))
+  let hash = short_hash ?seed:None
 end)
 
 module Make_persistent
@@ -34,8 +33,8 @@ struct
   module W = Irmin.Private.Watch.Make (K) (V)
   module IO = IO.Unix
 
-  type key = K.t
-  type value = V.t
+  type key = K.t [@@deriving irmin ~pp ~to_bin_string ~of_bin_string]
+  type value = V.t [@@deriving irmin ~equal ~decode_bin ~of_bin_string]
   type watch = W.watch
 
   type t = {
@@ -57,11 +56,7 @@ struct
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
-  let key_to_bin_string = Irmin.Type.(unstage (to_bin_string K.t))
-  let key_of_bin_string = Irmin.Type.(unstage (of_bin_string K.t))
   let entry_to_bin_string = Irmin.Type.(unstage (to_bin_string entry))
-  let value_of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
-  let value_decode_bin = Irmin.Type.(unstage (decode_bin V.t))
 
   let set_entry t ?off k v =
     let k = key_to_bin_string k in
@@ -70,14 +65,10 @@ struct
     | None -> IO.append t.block buf
     | Some off -> IO.set t.block buf ~off
 
-  let pp_branch = Irmin.Type.pp K.t
-
   let zero =
     match value_of_bin_string (String.make V.hash_size '\000') with
     | Ok x -> x
     | Error _ -> assert false
-
-  let equal_val = Irmin.Type.(unstage (equal V.t))
 
   let refill t ~to_ ~from =
     let rec aux offset =
@@ -95,9 +86,9 @@ struct
           | Ok k -> k
           | Error (`Msg e) -> failwith e
         in
-        let n, v = value_decode_bin buf len in
+        let n, v = decode_bin_value buf len in
         assert (n = String.length buf);
-        if not (equal_val v zero) then Tbl.add t.cache h v;
+        if not (equal_value v zero) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
         (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + V.hash_size)))
     in
@@ -122,14 +113,14 @@ struct
       refill t ~to_:h.offset ~from:former_offset
 
   let unsafe_find t k =
-    Log.debug (fun l -> l "[branches] find %a" pp_branch k);
+    Log.debug (fun l -> l "[branches] find %a" pp_key k);
     if IO.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
   let find t k = Lwt.return (unsafe_find t k)
 
   let unsafe_mem t k =
-    Log.debug (fun l -> l "[branches] mem %a" pp_branch k);
+    Log.debug (fun l -> l "[branches] mem %a" pp_key k);
     try Tbl.mem t.cache k with Not_found -> false
 
   let mem t v = Lwt.return (unsafe_mem t v)
@@ -142,7 +133,7 @@ struct
     with Not_found -> ()
 
   let remove t k =
-    Log.debug (fun l -> l "[branches] remove %a" pp_branch k);
+    Log.debug (fun l -> l "[branches] remove %a" pp_key k);
     unsafe_remove t k;
     W.notify t.w k None
 
@@ -201,7 +192,7 @@ struct
       Tbl.add t.index k offset
 
   let set t k v =
-    Log.debug (fun l -> l "[branches %s] set %a" (IO.name t.block) pp_branch k);
+    Log.debug (fun l -> l "[branches %s] set %a" (IO.name t.block) pp_key k);
     unsafe_set t k v;
     W.notify t.w k (Some v)
 
@@ -217,7 +208,7 @@ struct
       | Some v -> unsafe_set t k v |> return
 
   let test_and_set t k ~test ~set =
-    Log.debug (fun l -> l "[branches] test-and-set %a" pp_branch k);
+    Log.debug (fun l -> l "[branches] test-and-set %a" pp_key k);
     unsafe_test_and_set t k ~test ~set >>= function
     | true -> W.notify t.w k set >|= fun () -> true
     | false -> Lwt.return_false

@@ -26,12 +26,11 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     mutable open_instances : int;
   }
 
-  let int32_to_bin = Irmin.Type.(unstage (to_bin_string int32))
-  let decode_int32 = Irmin.Type.(unstage (decode_bin int32))
+  type nonrec int32 = int32 [@@deriving irmin ~to_bin_string ~decode_bin]
 
   let append_string t v =
     let len = Int32.of_int (String.length v) in
-    let buf = int32_to_bin len ^ v in
+    let buf = int32_to_bin_string len ^ v in
     IO.append t.io buf
 
   let refill ~from t =
@@ -43,7 +42,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     let rec aux n offset =
       if offset >= len then ()
       else
-        let _, v = decode_int32 raw offset in
+        let _, v = decode_bin_int32 raw offset in
         let len = Int32.to_int v in
         let v = String.sub raw (offset + 4) len in
         Hashtbl.add t.cache v n;

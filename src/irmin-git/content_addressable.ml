@@ -30,10 +30,8 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
     | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
 
   type 'a t = G.t
-  type key = H.t
+  type key = H.t [@@deriving irmin ~pp ~equal]
   type value = V.t
-
-  let pp_key = Irmin.Type.pp H.t
 
   let mem t key =
     Log.debug (fun l -> l "mem %a" pp_key key);
@@ -58,11 +56,9 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
     Log.debug (fun l -> l "add %a" pp_key k);
     Lwt.return k
 
-  let equal_hash = Irmin.Type.(unstage (equal H.t))
-
   let unsafe_add t k v =
     let+ k' = add t v in
-    if equal_hash k k' then ()
+    if equal_key k k' then ()
     else
       Fmt.failwith
         "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"

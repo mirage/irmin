@@ -28,7 +28,7 @@ module Maker (Info : Info.S) = struct
   module Make (H : Type.S) = struct
     module Info = Info
 
-    type hash = H.t [@@deriving irmin]
+    type hash = H.t [@@deriving irmin ~compare]
 
     type t = { node : hash; parents : hash list; info : Info.t }
     [@@deriving irmin]
@@ -36,7 +36,6 @@ module Maker (Info : Info.S) = struct
     let parents t = t.parents
     let node t = t.node
     let info t = t.info
-    let compare_hash = Type.(unstage (compare H.t))
 
     let v ~info ~node ~parents =
       let parents = List.fast_sort compare_hash parents in

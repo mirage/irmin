@@ -19,14 +19,13 @@ include Pack_index_intf
 
 module Make (K : Irmin.Hash.S) = struct
   module Key = struct
-    type t = K.t [@@deriving irmin]
+    type t = K.t
+    [@@deriving irmin ~short_hash ~equal ~to_bin_string ~decode_bin]
 
-    let hash = Irmin.Type.(unstage (short_hash K.t)) ?seed:None
+    let hash = short_hash ?seed:None
     let hash_size = 30
-    let equal = Irmin.Type.(unstage (equal K.t))
-    let encode = Irmin.Type.(unstage (to_bin_string K.t))
+    let encode = to_bin_string
     let encoded_size = K.hash_size
-    let decode_bin = Irmin.Type.(unstage (decode_bin K.t))
 
     let decode s off =
       let _, v = decode_bin s off in
@@ -36,17 +35,13 @@ module Make (K : Irmin.Hash.S) = struct
   module Val = struct
     type t = int63 * int * Pack_value.Kind.t [@@deriving irmin]
 
-    let to_bin_string =
-      Irmin.Type.(
-        unstage (to_bin_string (triple int63_t int32 Pack_value.Kind.t)))
+    type fmt = int63 * int32 * Pack_value.Kind.t
+    [@@deriving irmin ~to_bin_string ~decode_bin]
 
-    let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
-
-    let decode_bin =
-      Irmin.Type.(unstage (decode_bin (triple int63_t int32 Pack_value.Kind.t)))
+    let encode (off, len, kind) = fmt_to_bin_string (off, Int32.of_int len, kind)
 
     let decode s off =
-      let off, len, kind = snd (decode_bin s off) in
+      let off, len, kind = snd (decode_bin_fmt s off) in
       (off, Int32.to_int len, kind)
 
     let encoded_size = (64 / 8) + (32 / 8) + 1
