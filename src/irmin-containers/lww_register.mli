@@ -24,7 +24,7 @@
 
 (** Signature of [Lww_register] *)
 module type S = sig
-  module Store : Irmin.S
+  module Store : Irmin.KV
   (** Content store of the register. All store related operations like
       branching, cloning, merging, etc are done through this module. *)
 
@@ -42,26 +42,12 @@ end
 (** [Make] returns a mergeable last-write-wins register using the backend and
     other parameters as specified by the user. *)
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
+  S with type value = V.t
 
 (** LWW register instantiated using the {{!Irmin_unix.FS} FS backend} provided
     by [Irmin_unix] and the timestamp method {!Time.Unix} *)
-module FS (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
+module FS (V : Irmin.Type.S) : S with type value = V.t
 
 (** LWW register instantiated using the {{!Irmin_mem} in-memory backend}
     provided by [Irmin_mem] and the timestamp method {!Time.Unix} *)
-module Mem (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
+module Mem (V : Irmin.Type.S) : S with type value = V.t

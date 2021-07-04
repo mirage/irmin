@@ -36,7 +36,7 @@ module LWW (T : Time.S) (V : Irmin.Type.S) :
 end
 
 module type S = sig
-  module Store : Irmin.S
+  module Store : Irmin.KV
 
   type value
 
