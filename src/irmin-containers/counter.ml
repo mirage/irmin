@@ -25,7 +25,7 @@ module Counter : Irmin.Contents.S with type t = int64 = struct
 end
 
 module type S = sig
-  module Store : Irmin.S
+  module Store : Irmin.KV
 
   val inc :
     ?by:int64 -> ?info:Store.Info.f -> path:Store.key -> Store.t -> unit Lwt.t

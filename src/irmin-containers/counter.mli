@@ -23,7 +23,7 @@
 
 (** Counter signature *)
 module type S = sig
-  module Store : Irmin.S
+  module Store : Irmin.KV
   (** Content store of counter. All store related operations like branching,
       cloning, merging, etc are done through this module. *)
 
@@ -43,24 +43,12 @@ end
 
 (** [Make] returns a mergeable counter using the backend and other parameters as
     specified by the user. *)
-module Make (Backend : Irmin.KV_maker) :
-  S
-    with type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
+module Make (Backend : Irmin.KV_maker) : S
 
+module FS : S
 (** Counter instantiated using the {{!Irmin_unix.FS} FS backend} provided by
     [Irmin_unix] *)
-module FS :
-  S
-    with type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
 
+module Mem : S
 (** Counter instantiated using the {{!Irmin_mem} in-memory backend} provided by
     [Irmin_mem] *)
-module Mem :
-  S
-    with type Store.Schema.Branch.t = string
-     and type Store.Schema.Path.t = string list
-     and type Store.Schema.Path.step = string
