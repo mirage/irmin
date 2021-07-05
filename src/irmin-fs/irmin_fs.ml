@@ -420,7 +420,7 @@ module IO_mem = struct
 end
 
 (* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
-module _ : Irmin.Maker = Maker (IO_mem)
+module Maker_is_a_maker : Irmin.Maker = Maker (IO_mem)
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module _ : Irmin.KV_maker = KV (IO_mem)
+module KV_is_a_KV : Irmin.KV_maker = KV (IO_mem)

@@ -76,5 +76,5 @@ end
 module Stats = Stats
 
 (* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
-module _ : Irmin.Maker =
+module Maker_is_a_maker : Irmin.Maker =
   Maker (Irmin_mem.Content_addressable) (Irmin_mem.Atomic_write)

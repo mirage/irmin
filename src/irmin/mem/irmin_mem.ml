@@ -141,7 +141,7 @@ module KV = Irmin.KV_maker (Content_addressable) (Atomic_write)
 include S
 
 (* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
-module _ : Irmin.Maker = S
+module Maker_is_a_maker : Irmin.Maker = S
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module _ : Irmin.KV_maker = KV
+module KV_is_a_KV : Irmin.KV_maker = KV
