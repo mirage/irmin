@@ -29,6 +29,8 @@ module Dot = Dot.Make
 module Hash = Hash
 module Path = Path
 module Perms = Perms
+module Node = Node
+module Commit = Commit
 
 exception Closed = Store_properties.Closed
 
@@ -141,8 +143,6 @@ module type KV_maker = Store.KV_maker
 
 module Private = struct
   module Conf = Conf
-  module Node = Node
-  module Commit = Commit
   module Slice = Slice
   module Remote = Remote
 

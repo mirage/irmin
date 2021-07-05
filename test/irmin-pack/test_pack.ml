@@ -25,9 +25,8 @@ end
 let test_dir = Filename.concat "_build" "test-db-pack"
 
 module Irmin_pack_maker =
-  Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Config)
-    (Irmin.Private.Node.Make)
-    (Irmin.Private.Commit)
+  Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Config) (Irmin.Node.Make)
+    (Irmin.Commit)
 
 let suite_pack =
   let store =
@@ -87,7 +86,7 @@ let suite_pack =
   }
 
 module Irmin_pack_mem_maker =
-  Irmin_pack_mem.Maker (Irmin.Private.Node.Make) (Irmin.Private.Commit) (Config)
+  Irmin_pack_mem.Maker (Irmin.Node.Make) (Irmin.Commit) (Config)
 
 let suite_mem =
   let store =

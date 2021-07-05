@@ -31,8 +31,8 @@ end
 module Maker_ext
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker)
-    (N : Irmin.Private.Node.Maker)
-    (CT : Irmin.Private.Commit.Maker)
+    (N : Irmin.Node.Maker)
+    (CT : Irmin.Commit.Maker)
     (M : Irmin.Metadata.S)
     (C : Irmin.Contents.S)
     (P : Irmin.Path.S)
@@ -78,6 +78,6 @@ end
 module Maker
     (CA : Irmin.Content_addressable.Maker)
     (AW : Irmin.Atomic_write.Maker) =
-  Maker_ext (CA) (AW) (Irmin.Private.Node.Make) (Irmin.Private.Commit)
+  Maker_ext (CA) (AW) (Irmin.Node.Make) (Irmin.Commit)
 
 module Stats = Stats

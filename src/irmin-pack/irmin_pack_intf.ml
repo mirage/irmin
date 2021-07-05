@@ -62,8 +62,8 @@ module type Sigs = sig
   module Maker_ext
       (_ : Version.S)
       (_ : Conf.S)
-      (N : Irmin.Private.Node.Maker)
-      (CT : Irmin.Private.Commit.Maker) : S.Maker with type info = CT.Info.t
+      (N : Irmin.Node.Maker)
+      (CT : Irmin.Commit.Maker) : S.Maker with type info = CT.Info.t
 
   module Stats = Stats
   module Layout = Layout

@@ -83,7 +83,7 @@ module type Sigs = sig
       (_ : S.Content_addressable_maker
              with type key = H.t
               and type index = Index.Make(H).t)
-      (Node : Irmin.Private.Node.S with type hash = H.t) :
+      (Node : Irmin.Node.S with type hash = H.t) :
     S
       with type key = H.t
        and type Val.metadata = Node.metadata

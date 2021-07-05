@@ -39,14 +39,12 @@ struct
 
   module Node = struct
     module S = Node.Make (G) (P)
-
-    include
-      Irmin.Private.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (P)
+    include Irmin.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (P)
   end
 
   module Commit = struct
     module S = Commit.Make (G)
-    include Irmin.Private.Commit.Store (Info) (Node) (S) (S.Key) (S.Val)
+    include Irmin.Commit.Store (Info) (Node) (S) (S.Key) (S.Val)
   end
 
   module Branch = struct

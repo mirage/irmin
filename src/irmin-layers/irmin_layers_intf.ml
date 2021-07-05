@@ -155,8 +155,8 @@ module type Sigs = sig
   module Maker_ext
       (CA : Irmin.Content_addressable.Maker)
       (AW : Irmin.Atomic_write.Maker)
-      (Node : Irmin.Private.Node.Maker)
-      (Commit : Irmin.Private.Commit.Maker) : Maker
+      (Node : Irmin.Node.Maker)
+      (Commit : Irmin.Commit.Maker) : Maker
 
   module Maker
       (CA : Irmin.Content_addressable.Maker)

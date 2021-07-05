@@ -46,7 +46,7 @@ module Maker (_ : Irmin_pack.Conf.S) : Maker
 
 module Maker_ext
     (_ : Irmin_pack.Conf.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : Maker
+    (_ : Irmin.Node.Maker)
+    (_ : Irmin.Commit.Maker) : Maker
 
 module Checks = Checks

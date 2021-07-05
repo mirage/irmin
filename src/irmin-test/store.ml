@@ -23,7 +23,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (S : S) = struct
   include Common.Make_helpers (S)
-  module History = Irmin.Private.Commit.History (P.Commit)
+  module History = Irmin.Commit.History (P.Commit)
 
   let with_binding k v t = S.Tree.add t k v
   let random_value value = random_string value

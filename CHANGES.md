@@ -35,6 +35,8 @@
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
   - `Store.Private.Sync` is now `Store.Private.Remote` (#1338, @samoht)
+  - `Irmin.Private.{Commit,Node}` are now `Irmin.{Node,Commit}`. (#1471,
+    @CraigFe)
   - All module types are now using snake-case and are not capitalized anymore.
     (#1341, @samoht)
   - Move signatures for backend stores into their own modules. All the

@@ -23,8 +23,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make_Layered (S : Layered_store) = struct
   module P = S.Private
-  module Graph = Irmin.Private.Node.Graph (P.Node)
-  module History = Irmin.Private.Commit.History (P.Commit)
+  module Graph = Irmin.Node.Graph (P.Node)
+  module History = Irmin.Commit.History (P.Commit)
 
   let info message =
     let date = Int64.of_float 0. in

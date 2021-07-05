@@ -16,5 +16,5 @@
 
 module Maker
     (_ : Irmin_pack.Conf.S)
-    (_ : Irmin.Private.Node.Maker)
-    (_ : Irmin.Private.Commit.Maker) : S.Maker
+    (_ : Irmin.Node.Maker)
+    (_ : Irmin.Commit.Maker) : S.Maker

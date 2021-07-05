@@ -23,7 +23,7 @@ module Make
     (Maker : S.Content_addressable_maker
                with type key = H.t
                 and type index := Index.Make(H).t)
-    (Node : Irmin.Private.Node.S with type hash = H.t) =
+    (Node : Irmin.Node.S with type hash = H.t) =
 struct
   type index = Index.Make(H).t
 

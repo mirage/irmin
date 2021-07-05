@@ -20,8 +20,8 @@ module IO = IO.Unix
 module Maker
     (V : Version.S)
     (Config : Conf.S)
-    (Node : Irmin.Private.Node.Maker)
-    (Commit : Irmin.Private.Commit.Maker) =
+    (Node : Irmin.Node.Maker)
+    (Commit : Irmin.Commit.Maker) =
 struct
   type endpoint = unit
   type info = Commit.Info.t
@@ -58,14 +58,14 @@ struct
           include Inode.Make_persistent (H) (Node) (Inter) (Pack)
         end
 
-        include Irmin.Private.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+        include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
       end
 
       module Commit = struct
         module Commit = Commit.Make (H)
         module Pack_value = Pack_value.Of_commit (H) (Commit)
         module CA = Pack.Make (Pack_value)
-        include Irmin.Private.Commit.Store (Info) (Node) (CA) (H) (Commit)
+        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Commit)
       end
 
       module Branch = struct
