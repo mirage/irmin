@@ -2013,6 +2013,7 @@ let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
+  let module T_merge = Store_merge.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
   suite'
     ([
@@ -2043,6 +2044,7 @@ let suite (speed, x) =
        ("Clear", speed, T.test_clear x);
      ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
+    @ List.map (fun (n, test) -> ("Merge." ^ n, speed, test x)) T_merge.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
     (speed, x)
 

@@ -1081,6 +1081,15 @@ struct
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
+    let merge ~find ~add =
+      let to_n t = Node.v (list t) in
+      let of_n n = v (Node.list n) in
+      let find h =
+        find h >|= function None -> None | Some t -> Some (to_n t)
+      in
+      let add t = add (of_n t) in
+      Irmin.Merge.like t (Node.merge ~find ~add) to_n of_n
+
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
     let save ~add ~mem t =

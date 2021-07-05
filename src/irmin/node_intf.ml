@@ -67,6 +67,19 @@ module type S = sig
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
+  val merge :
+    find:(hash -> t option Lwt.t) -> add:(t -> hash Lwt.t) -> t Merge.t
+  (** The merge representative for nodes.
+
+      Will automatically explore contents of [`Node] to handle possible
+      conflicts
+
+      [find] is used to look for the content of a [`Node] in the store doing the
+      merging
+
+      [add] is used to add the content of a [`Node] in the store doing the
+      merging and obtain the corresponding hash in return *)
+
   (** {1 Default values} *)
 
   val default : metadata
