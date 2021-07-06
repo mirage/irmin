@@ -16,7 +16,13 @@
 
 (** Private module: turn a Git store into an Irmin backend for Git commits. *)
 
-module Make (G : Git.S) : sig
+module Make (G : Git.S) :
+  Irmin.Commit.S
+    with type t = G.Value.Commit.t
+     and type hash = G.hash
+     and module Info = Irmin.Info.Default
+
+module Store (G : Git.S) : sig
   include
     Irmin.Content_addressable.S
       with type _ t = bool ref * G.t

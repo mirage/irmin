@@ -26,7 +26,7 @@
 
 (** Signature of [Blob_log] *)
 module type S = sig
-  module Store : Irmin.S
+  module Store : Irmin.KV
   (** Store for the log. All store related operations like branching, cloning,
       merging, etc are done through this module. *)
 
@@ -43,26 +43,12 @@ end
 (** [Make] returns a mergeable blob log using the backend and other parameters
     as specified by the user. *)
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+  S with type value = V.t
 
 (** Blob log instantiated using the {{!Irmin_unix.FS} FS backend} provided by
     [Irmin_unix] and the timestamp method {!Time.Unix} *)
-module FS (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+module FS (V : Irmin.Type.S) : S with type value = V.t
 
 (** Blob log instantiated using the {{!Irmin_mem} in-memory backend} provided by
     [Irmin_mem] and the timestamp method {!Time.Unix} *)
-module Mem (V : Irmin.Type.S) :
-  S
-    with type value = V.t
-     and type Store.branch = string
-     and type Store.key = string list
-     and type Store.step = string
+module Mem (V : Irmin.Type.S) : S with type value = V.t

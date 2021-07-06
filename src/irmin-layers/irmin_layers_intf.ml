@@ -126,20 +126,17 @@ module type S = sig
   end
 end
 
-module type Maker = functor
-  (M : Irmin.Metadata.S)
-  (C : Irmin.Contents.S)
-  (P : Irmin.Path.S)
-  (B : Irmin.Branch.S)
-  (H : Irmin.Hash.S)
-  ->
-  S
-    with type key = P.t
-     and type step = P.step
-     and type metadata = M.t
-     and type contents = C.t
-     and type branch = B.t
-     and type hash = H.t
+module S_is_an_S (X : S) : Irmin.S = X
+
+(* Duplicated from [Irmin.Maker] in order to extend the body signature [S]. *)
+module type Maker = sig
+  type endpoint
+
+  module Make (Schema : Irmin.Schema.S) :
+    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
+end
+
+module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
 
 module type Sigs = sig
   module Layer_id : sig
@@ -151,12 +148,6 @@ module type Sigs = sig
 
   module type S = S
   module type Maker = Maker
-
-  module Maker_ext
-      (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker)
-      (Node : Irmin.Node.Maker)
-      (Commit : Irmin.Commit.Maker) : Maker
 
   module Maker
       (CA : Irmin.Content_addressable.Maker)

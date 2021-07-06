@@ -265,22 +265,10 @@ struct
 end
 
 module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct
-  type endpoint = unit
-  type info = Irmin.Info.default
-
-  module Make
-      (M : Irmin.Metadata.S)
-      (C : Irmin.Contents.S)
-      (P : Irmin.Path.S)
-      (B : Irmin.Branch.S)
-      (H : Irmin.Hash.S) =
-  struct
-    module AO = Append_only_ext (IO) (Obj)
-    module AW = Atomic_write_ext (IO) (Ref)
-    module CA = Irmin.Content_addressable.Make (AO)
-    module Maker = Irmin.Maker (CA) (AW)
-    include Maker.Make (M) (C) (P) (B) (H)
-  end
+  module AO = Append_only_ext (IO) (Obj)
+  module AW = Atomic_write_ext (IO) (Ref)
+  module CA = Irmin.Content_addressable.Make (AO)
+  include Irmin.Maker (CA) (AW)
 end
 
 let string_chop_prefix ~prefix str =
@@ -326,16 +314,10 @@ module Atomic_write (IO : IO) = Atomic_write_ext (IO) (Ref)
 module Maker (IO : IO) = Maker_ext (IO) (Obj) (Ref)
 
 module KV (IO : IO) = struct
-  type metadata = unit
-  type endpoint = unit
-  type info = Irmin.Info.default
-
-  module Maker = Maker (IO)
-
-  module Make (C : Irmin.Contents.S) =
-    Maker.Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.BLAKE2B)
+  module AO = Append_only (IO)
+  module AW = Atomic_write (IO)
+  module CA = Irmin.Content_addressable.Make (AO)
+  include Irmin.KV_maker (CA) (AW)
 end
 
 module IO_mem = struct
@@ -436,3 +418,9 @@ module IO_mem = struct
     Hashtbl.clear t.watches;
     Lwt.return_unit
 end
+
+(* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
+module Maker_is_a_maker : Irmin.Maker = Maker (IO_mem)
+
+(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
+module KV_is_a_KV : Irmin.KV_maker = KV (IO_mem)

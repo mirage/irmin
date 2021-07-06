@@ -15,15 +15,7 @@
  *)
 
 module Client (S : Irmin.S) :
-  Irmin.S
-    with type key = S.key
-     and type contents = S.contents
-     and type branch = S.branch
-     and type hash = S.hash
-     and type step = S.step
-     and type info = S.info
-     and type metadata = S.metadata
-     and type Key.step = S.Key.step
+  Irmin.S with module Schema = S.Schema and type Private.Remote.endpoint = unit
 
 module Server (S : Irmin.S) :
   Irmin_http.SERVER

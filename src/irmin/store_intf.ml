@@ -33,22 +33,24 @@ module type S = sig
       version control systems, that the informed user can see as an implicit
       purely functional data-structure. *)
 
+  module Schema : Schema.S
+
   type repo
   (** The type for Irmin repositories. *)
 
   type t
   (** The type for Irmin stores. *)
 
-  type step [@@deriving irmin]
+  type step = Schema.Path.step [@@deriving irmin]
   (** The type for {!key} steps. *)
 
-  type key [@@deriving irmin]
+  type key = Schema.Path.t [@@deriving irmin]
   (** The type for store keys. A key is a sequence of {!step}s. *)
 
-  type metadata [@@deriving irmin]
+  type metadata = Schema.Metadata.t [@@deriving irmin]
   (** The type for store metadata. *)
 
-  type contents [@@deriving irmin]
+  type contents = Schema.Contents.t [@@deriving irmin]
   (** The type for store contents. *)
 
   type node [@@deriving irmin]
@@ -57,7 +59,7 @@ module type S = sig
   type tree [@@deriving irmin]
   (** The type for store trees. *)
 
-  type hash [@@deriving irmin]
+  type hash = Schema.Hash.t [@@deriving irmin]
   (** The type for object hashes. *)
 
   type commit
@@ -66,14 +68,14 @@ module type S = sig
   val commit_t : repo -> commit Type.t
   (** [commit_t r] is the value type for {!commit}. *)
 
-  type branch [@@deriving irmin]
+  type branch = Schema.Branch.t [@@deriving irmin]
   (** Type for persistent branch names. Branches usually share a common global
       namespace and it's the user's responsibility to avoid name clashes. *)
 
   type slice [@@deriving irmin]
   (** Type for store slices. *)
 
-  type info [@@deriving irmin]
+  type info = Schema.Info.t [@@deriving irmin]
   (** The type for commit info. *)
 
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
@@ -828,14 +830,9 @@ module type S = sig
   module Private : sig
     include
       Private.S
-        with type Contents.value = contents
-         and module Hash = Hash
-         and module Node.Path = Key
-         and type Node.Metadata.t = metadata
-         and type Branch.key = branch
+        with module Schema = Schema
          and type Slice.t = slice
          and type Repo.t = repo
-         and module Commit.Info = Info
   end
 
   type Remote.t +=
@@ -871,27 +868,13 @@ end
 
 module type Maker = sig
   type endpoint
-  type info
 
-  module Make
-      (M : Metadata.S)
-      (C : Contents.S)
-      (P : Path.S)
-      (B : Branch.S)
-      (H : Hash.S) :
-    S
-      with type key = P.t
-       and type step = P.step
-       and type metadata = M.t
-       and type contents = C.t
-       and type branch = B.t
-       and type hash = H.t
-       and type Private.Remote.endpoint = endpoint
-       and type info = info
+  module Make (Schema : Schema.S) :
+    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
 end
 
 module type Json_tree = functor
-  (Store : S with type contents = Contents.json)
+  (Store : S with type Schema.Contents.t = Contents.json)
   -> sig
   include Contents.S with type t = Contents.json
 
@@ -912,19 +895,20 @@ module type Json_tree = functor
 end
 
 module type KV =
-  S with type key = string list and type step = string and type branch = string
+  S
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Branch.t = string
 
 module type KV_maker = sig
-  type metadata
   type endpoint
-  type info
+  type metadata
 
   module Make (C : Contents.S) :
     KV
-      with type contents = C.t
-       and type metadata = metadata
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = metadata
        and type Private.Remote.endpoint = endpoint
-       and type info = info
 end
 
 module type Sigs = sig
@@ -938,17 +922,9 @@ module type Sigs = sig
 
   module Make (P : Private.S) :
     S
-      with type key = P.Node.Path.t
-       and type contents = P.Contents.value
-       and type branch = P.Branch.key
-       and type hash = P.Hash.t
+      with module Schema = P.Schema
        and type slice = P.Slice.t
-       and type step = P.Node.Path.step
-       and type metadata = P.Node.Metadata.t
-       and module Key = P.Node.Path
        and type repo = P.Repo.t
-       and type info = P.Commit.Info.t
-       and module Info = P.Commit.Info
        and module Private = P
 
   module Json_tree : Json_tree

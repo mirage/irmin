@@ -16,7 +16,14 @@
 
 (** Private module: turn a Git store into an Irmin backend for Git trees. *)
 
-module Make (G : Git.S) (P : Irmin.Path.S) : sig
+module Make (G : Git.S) (P : Irmin.Path.S) :
+  Irmin.Node.S
+    with type t = G.Value.Tree.t
+     and type hash = G.hash
+     and type step = P.step
+     and type metadata = Metadata.t
+
+module Store (G : Git.S) (P : Irmin.Path.S) : sig
   include
     Irmin.Content_addressable.S
       with type _ t = bool ref * G.t

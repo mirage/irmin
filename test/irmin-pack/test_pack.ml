@@ -24,9 +24,8 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker =
-  Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Config) (Irmin.Node.Make)
-    (Irmin.Commit)
+module Irmin_pack_maker = Irmin_pack.V2 (Config)
+module Irmin_pack_layered = Irmin_pack_layered.Maker (Config)
 
 let suite_pack =
   let store =
@@ -34,7 +33,7 @@ let suite_pack =
   in
   let layered_store =
     Irmin_test.layered_store
-      (module Irmin_pack_layered.Maker (Config))
+      (module Irmin_pack_layered)
       (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
@@ -85,8 +84,7 @@ let suite_pack =
     layered_store = Some layered_store;
   }
 
-module Irmin_pack_mem_maker =
-  Irmin_pack_mem.Maker (Irmin.Node.Make) (Irmin.Commit) (Config)
+module Irmin_pack_mem_maker = Irmin_pack_mem.Maker (Config)
 
 let suite_mem =
   let store =

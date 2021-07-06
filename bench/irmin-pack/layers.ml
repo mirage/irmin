@@ -32,8 +32,6 @@ type config = {
 }
 [@@deriving repr]
 
-module Hash = Irmin.Hash.SHA1
-
 module Contents = struct
   type t = bytes
 
@@ -44,11 +42,21 @@ module Contents = struct
   let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
 end
 
-module Store =
-  Irmin_pack_layered.Maker (Conf) (Irmin.Metadata.None) (Contents)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Hash)
+module Schema = struct
+  module Metadata = Irmin.Metadata.None
+  module Contents = Contents
+  module Path = Irmin.Path.String_list
+  module Branch = Irmin.Branch.String
+  module Hash = Irmin.Hash.SHA1
+  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Commit = Irmin.Commit.Make (Hash)
+  module Info = Irmin.Info.Default
+end
+
+module Store = struct
+  open Irmin_pack_layered.Maker (Conf)
+  include Make (Schema)
+end
 
 module Info = Info (Store.Info)
 

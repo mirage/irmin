@@ -133,7 +133,7 @@ end
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type info = Config.info)
+    (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
                with type key := Store.key
                 and type metadata := Store.metadata
@@ -803,7 +803,7 @@ end
 module Make
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type info = Config.info) =
+    (Store : Irmin.S with type Schema.Info.t = Config.info) =
 struct
   module Types = Default_types (Store)
   include Make_ext (Server) (Config) (Store) (Types)

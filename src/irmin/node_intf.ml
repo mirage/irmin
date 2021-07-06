@@ -67,6 +67,10 @@ module type S = sig
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
+  val merge :
+    contents:hash option Merge.t -> node:hash option Merge.t -> t Merge.t
+  (** [merge] is the merge function for nodes. *)
+
   (** {1 Default values} *)
 
   val default : metadata

@@ -29,19 +29,9 @@ module Conf = struct
   let stable_hash = 256
 end
 
-module Hash = Irmin.Hash.SHA1
-
 module S = struct
-  module P = Irmin.Path.String_list
-  module M = Irmin.Metadata.None
-  module XNode = Irmin.Node.Make
-  module XCommit = Irmin.Commit
-
-  module Maker =
-    Irmin_pack.Maker_ext (Irmin_pack.Version.V2) (Conf) (XNode) (XCommit)
-
-  include
-    Maker.Make (M) (Irmin.Contents.String) (P) (Irmin.Branch.String) (Hash)
+  module Maker = Irmin_pack.Maker (Irmin_pack.Version.V2) (Conf)
+  include Maker.Make (Schema)
 end
 
 let config ?(readonly = false) ?(fresh = true) root =
