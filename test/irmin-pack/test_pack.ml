@@ -17,15 +17,34 @@
 open! Import
 open Common
 
-module Config = struct
-  let entries = 2
-  let stable_hash = 3
+module Schema = struct
+  include Schema
+
+  module Config = struct
+    let entries = 2
+    let stable_hash = 3
+  end
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker = Irmin_pack.V2 (Config)
-module Irmin_pack_layered = Irmin_pack_layered.Maker (Config)
+module Irmin_pack_maker = struct
+  type endpoint = unit
+
+  module Make (S : Irmin.Schema.S) = Irmin_pack.V2 (struct
+    include S
+    module Config = Schema.Config
+  end)
+end
+
+module Irmin_pack_layered = struct
+  type endpoint = unit
+
+  module Make (S : Irmin.Schema.S) = Irmin_pack_layered.Make (struct
+    include S
+    module Config = Schema.Config
+  end)
+end
 
 let suite_pack =
   let store =
@@ -84,7 +103,14 @@ let suite_pack =
     layered_store = Some layered_store;
   }
 
-module Irmin_pack_mem_maker = Irmin_pack_mem.Maker (Config)
+module Irmin_pack_mem_maker = struct
+  type endpoint = unit
+
+  module Make (S : Irmin.Schema.S) = Irmin_pack_mem.Make (struct
+    include S
+    module Config = Schema.Config
+  end)
+end
 
 let suite_mem =
   let store =

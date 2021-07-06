@@ -31,7 +31,7 @@ module IO_layers = IO_layers.IO
 let may f = function None -> Lwt.return_unit | Some bf -> f bf
 let lock_path root = Filename.concat root "lock"
 
-module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
+module Make (Schema : Irmin_pack.Schema.Unversioned) = struct
   open struct
     module C = Schema.Contents
     module M = Schema.Metadata
@@ -40,6 +40,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
   end
 
   module H = Schema.Hash
+  module Config = Schema.Config
   module Index = Irmin_pack.Index.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
 
@@ -469,7 +470,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
            | Some index -> (integrity_check_layer ~layer index, layer)
            | None -> (Ok `No_error, layer))
 
+  module Schema' = Schema
   include Irmin.Of_private (X)
+  module Schema = Schema'
 
   let sync = X.Repo.sync
   let clear = X.Repo.clear
@@ -862,10 +865,4 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
     let freeze' = freeze'
     let upper_in_use = upper_in_use
   end
-end
-
-module Maker (C : Conf.Pack.S) = struct
-  type endpoint = unit
-
-  module Make (S : Irmin.Schema.S) = Maker' (C) (S)
 end

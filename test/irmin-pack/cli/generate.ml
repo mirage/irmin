@@ -25,17 +25,17 @@ let rm_dir () =
     let _ = Sys.command cmd in
     ())
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+module Schema = struct
+  include Irmin.Schema.KV (Irmin.Contents.String)
+  module Version = Irmin_pack.Version.V2
+
+  module Config = struct
+    let entries = 32
+    let stable_hash = 256
+  end
 end
 
-module Schema = Irmin.Schema.KV (Irmin.Contents.String)
-
-module Store = struct
-  open Irmin_pack_layered.Maker (Conf)
-  include Make (Schema)
-end
+module Store = Irmin_pack_layered.Make (Schema)
 
 let config root =
   let conf = Irmin_pack.config ~readonly:false ~fresh:true root in

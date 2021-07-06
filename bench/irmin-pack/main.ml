@@ -21,10 +21,8 @@ module Config = struct
   let stable_hash = 3
 end
 
-module KV = struct
-  module Maker = Irmin_pack.KV (Irmin_pack.Version.V2) (Config)
-  include Maker.Make (Irmin.Contents.String)
-end
+module KV =
+  Irmin_pack.KV (Irmin_pack.Version.V2) (Config) (Irmin.Contents.String)
 
 module Bench = Irmin_bench.Make (KV)
 

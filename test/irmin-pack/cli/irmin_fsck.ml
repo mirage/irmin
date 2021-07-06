@@ -14,28 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+module Schema = struct
+  include Irmin.Schema.KV (Irmin.Contents.String)
+
+  module Config = struct
+    let entries = 32
+    let stable_hash = 256
+  end
 end
 
-module Schema = Irmin.Schema.KV (Irmin.Contents.String)
-
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker (V) (Conf)
-  include Maker.Make (Schema)
-end
+module Maker (V : Irmin_pack.Version.S) = Irmin_pack.Make (struct
+  include Schema
+  module Version = V
+end)
 
 module Store = Irmin_pack.Checks.Make (Maker)
 
-module Store_layered = struct
-  module S = struct
-    open Irmin_pack_layered.Maker (Conf)
-    include Make (Schema)
-  end
-
-  include Irmin_pack_layered.Checks.Make (Maker) (S)
-end
+module Store_layered =
+  Irmin_pack_layered.Checks.Make (Maker) (Irmin_pack_layered.Make (Schema))
 
 let () =
   match Sys.getenv_opt "PACK_LAYERED" with

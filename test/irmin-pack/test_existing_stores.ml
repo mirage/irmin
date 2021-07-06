@@ -161,15 +161,16 @@ module Config_store = struct
           cmd n
 end
 
-module Small_conf = struct
-  let entries = 2
-  let stable_hash = 3
-end
+module V1 () = Irmin_pack.V1 (struct
+  include (Schema : Irmin_pack.Schema.Unversioned)
 
-module V1_maker = Irmin_pack.V1 (Small_conf)
-module V2_maker = Irmin_pack.V2 (Conf)
-module V1 () = V1_maker.Make (Schema)
-module V2 () = V2_maker.Make (Schema)
+  module Config = struct
+    let entries = 2
+    let stable_hash = 3
+  end
+end)
+
+module V2 () = Irmin_pack.V2 ((Schema : Irmin_pack.Schema.Unversioned))
 
 module Test_store = struct
   module S = V2 ()
@@ -277,11 +278,7 @@ module Config_layered_store = struct
     exec_cmd cmd
 end
 
-module Make_layered = struct
-  open Irmin_pack_layered.Maker (Conf)
-  include Make (Schema)
-end
-
+module Make_layered = Irmin_pack_layered.Make (Schema)
 module Test_layered_store = Test (Make_layered) (Config_layered_store)
 
 module Test_corrupted_stores = struct

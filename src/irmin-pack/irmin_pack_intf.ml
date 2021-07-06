@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Maker = functor (_ : Conf.S) -> S.Maker
+module type S = S.S
+module type Maker = S.Maker
+module type Maker_unversioned = S.Maker_unversioned
 module type Specifics = S.Specifics
 
 module type Sigs = sig
@@ -49,17 +51,21 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module Maker (_ : Version.S) : Maker
-  module V1 : Maker
-  module V2 : Maker
+  module type Maker = Maker
+  module type Maker_unversioned = Maker_unversioned
 
-  module KV (_ : Version.S) (_ : Conf.S) :
-    Irmin.KV_maker with type metadata = unit
+  module Make : Maker
+  module V1 : Maker_unversioned
+  module V2 : Maker_unversioned
 
-  module type S = S.S
+  module KV (_ : Version.S) (_ : Conf.S) (C : Irmin.Contents.S) :
+    Irmin.KV
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = unit
+       and type Private.Remote.endpoint = unit
+
   module type Specifics = S.Specifics
 
-  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
@@ -76,9 +82,5 @@ module type Sigs = sig
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
-
-  module type Maker = functor (_ : Conf.S) -> sig
-    include S.Maker
-    (** @inline *)
-  end
+  module Schema = Schema
 end

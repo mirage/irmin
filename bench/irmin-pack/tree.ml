@@ -167,10 +167,10 @@ end) =
 struct
   type store_config = config
 
-  module Store = struct
-    open Irmin_pack_layered.Maker (Conf)
-    include Make (Tezos_context_hash_irmin.Encoding)
-  end
+  module Store = Irmin_pack_layered.Make (struct
+    include Tezos_context_hash_irmin.Encoding
+    module Config = Conf
+  end)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -199,17 +199,17 @@ struct
 end
 
 module Make_basic
-    (Maker : Irmin_pack.Maker) (Conf : sig
+    (Maker : Irmin_pack.Maker_unversioned) (Conf : sig
       val entries : int
       val stable_hash : int
     end) =
 struct
   type store_config = config
 
-  module Store = struct
-    open Maker (Conf)
-    include Make (Tezos_context_hash_irmin.Encoding)
-  end
+  module Store = Maker (struct
+    include Tezos_context_hash_irmin.Encoding
+    module Config = Conf
+  end)
 
   let create_repo config =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
@@ -222,9 +222,8 @@ struct
   include Store
 end
 
-module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
-
-module Make_store_pack = Make_basic (Irmin_pack.Maker_ext (Irmin_pack.Version.V1))
+module Make_store_mem = Make_basic (Irmin_pack_mem.Make)
+module Make_store_pack = Make_basic (Irmin_pack.V1)
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t

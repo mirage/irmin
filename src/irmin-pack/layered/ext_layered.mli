@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker (_ : Irmin_pack.Conf.S) : S.Maker
+module Make : S.Maker

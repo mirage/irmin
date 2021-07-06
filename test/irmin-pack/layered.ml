@@ -41,13 +41,13 @@ module Conf = struct
   let with_lower = true
 end
 
-module Store = struct
-  open Irmin_pack_layered.Maker (Conf)
-  include Make (Schema)
+module Schema = struct
+  include Schema
+  module Config = Conf
 end
 
-module V2 = Irmin_pack.V2 (Conf)
-module StoreSimple = V2.Make (Schema)
+module Store = Irmin_pack_layered.Make (Schema)
+module StoreSimple = Irmin_pack.V2 (Schema)
 
 let config ?(readonly = false) ?(fresh = true) ?(lower_root = Conf.lower_root)
     ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =

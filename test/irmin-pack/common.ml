@@ -50,6 +50,12 @@ module Schema = struct
   module Node = Node.Make (Hash) (Path) (Metadata)
   module Commit = Commit.Make (Hash)
   module Info = Info.Default
+  module Version = Irmin_pack.Version.V2
+
+  module Config = struct
+    let entries = 32
+    let stable_hash = 256
+  end
 end
 
 module Contents = struct

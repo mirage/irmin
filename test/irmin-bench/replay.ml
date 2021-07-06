@@ -2,16 +2,10 @@ open! Import
 
 let test_dir = Filename.concat "_build" "test-pack-trace-replay"
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
 module Store = struct
   type store_config = string
 
-  module Maker = Irmin_pack.V1 (Conf)
-  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
+  module Store = Irmin_pack.V1 (Tezos_context_hash_irmin.Encoding)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
@@ -65,7 +59,8 @@ let replay_1_commit () =
       ncommits_trace = 1;
       store_dir;
       path_conversion = `None;
-      inode_config = (Conf.entries, Conf.stable_hash);
+      inode_config =
+        Tezos_context_hash_irmin.Encoding.Config.(entries, stable_hash);
       store_type = `Pack;
       commit_data_file = trace_path;
       artefacts_dir = test_dir;
@@ -82,8 +77,7 @@ let replay_1_commit () =
 module Store_mem = struct
   type store_config = string
 
-  module Maker = Irmin_pack_mem.Maker (Conf)
-  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
+  module Store = Irmin_pack_mem.Make (Tezos_context_hash_irmin.Encoding)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
@@ -118,7 +112,8 @@ let replay_1_commit_mem () =
       ncommits_trace = 1;
       store_dir;
       path_conversion = `None;
-      inode_config = (Conf.entries, Conf.stable_hash);
+      inode_config =
+        Tezos_context_hash_irmin.Encoding.Config.(entries, stable_hash);
       store_type = `Pack;
       commit_data_file = trace_path;
       artefacts_dir = test_dir;

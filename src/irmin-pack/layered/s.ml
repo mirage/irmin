@@ -32,16 +32,8 @@ module type Store = sig
     list
 end
 
-module type Maker = sig
-  type endpoint = unit
-
-  module Make (Schema : Irmin.Schema.S) :
-    Store
-      with module Schema = Schema
-       and type Private.Remote.endpoint = endpoint
-end
-
-module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
+module type Maker = functor (Schema : Irmin_pack.Schema.Unversioned) ->
+  Store with module Schema = Schema and type Private.Remote.endpoint = unit
 
 module type Layered_general = sig
   type 'a t

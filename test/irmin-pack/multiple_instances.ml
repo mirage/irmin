@@ -21,18 +21,9 @@ let root = Filename.concat "_build" "test-instances"
 let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
+module S = Irmin_pack.Make (Schema)
 
 let index_log_size = Some 1_000
-
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
-module S = struct
-  module Maker = Irmin_pack.Maker (Irmin_pack.Version.V2) (Conf)
-  include Maker.Make (Schema)
-end
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root

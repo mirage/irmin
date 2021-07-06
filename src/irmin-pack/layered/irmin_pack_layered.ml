@@ -19,7 +19,7 @@ include Ext_layered
 module type S = S.Store
 module type Maker = S.Maker
 
-module Maker = Ext_layered.Maker
+module Make = Ext_layered.Make
 module Checks = Checks
 
 let config = Conf.v

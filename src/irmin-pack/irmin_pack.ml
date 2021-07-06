@@ -21,34 +21,37 @@ let config = Conf.v
 
 exception RO_not_allowed = S.RO_not_allowed
 
-module type S = S.S
-
 module Content_addressable = Content_addressable
 module Atomic_write = Atomic_write
 module Dict = Pack_dict
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Maker_ext = Ext.Maker
 module Version = Version
 module Index = Pack_index
 module Conf = Conf
+module Schema = Schema
 
 let migrate = Migrate.run
 
-module Maker = Maker_ext
-module V1 = Maker (Version.V1)
-module V2 = Maker (Version.V2)
+module Make = Ext.Make
 
-module KV (V : Version.S) (Config : Conf.S) = struct
-  type endpoint = unit
+module V1 (S : Schema.Unversioned) = Make (struct
+  include S
+  module Version = Version.V1
+end)
 
-  module Maker = Maker (V) (Config)
+module V2 (S : Schema.Unversioned) = Make (struct
+  include S
+  module Version = Version.V2
+end)
 
-  type metadata = Metadata.t
-
-  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
-end
+module KV (Version : Version.S) (Config : Conf.S) (C : Irmin.Contents.S) =
+Make (struct
+  include Irmin.Schema.KV (C)
+  module Version = Version
+  module Config = Config
+end)
 
 module Stats = Stats
 module Layout = Layout
@@ -58,15 +61,3 @@ module IO = IO
 module Utils = Utils
 module Pack_value = Pack_value
 module Pack_store = Pack_store
-module Vx = Version.V1
-
-module Cx = struct
-  let stable_hash = 0
-  let entries = 0
-end
-
-(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
-
-(* Enforce that {!Maker} is a sub-type of {!Irmin.Maker}. *)
-module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)

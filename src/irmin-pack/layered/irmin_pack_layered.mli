@@ -42,5 +42,5 @@ end
 
 module type Maker = S.Maker
 
-module Maker (_ : Irmin_pack.Conf.S) : Maker
+module Make : Maker
 module Checks = Checks

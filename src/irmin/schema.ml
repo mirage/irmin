@@ -22,14 +22,13 @@ module type S = sig
   module Commit : Commit.S with type hash = Hash.t and module Info := Info
   module Metadata : Metadata.S
   module Path : Path.S
+  module Contents : Contents.S
 
   module Node :
     Node.S
       with type metadata = Metadata.t
        and type hash = Hash.t
        and type step = Path.step
-
-  module Contents : Contents.S
 end
 
 module type KV =

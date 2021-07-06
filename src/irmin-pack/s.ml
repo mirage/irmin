@@ -83,11 +83,8 @@ end
 
 module S_is_a_store (X : S) : Irmin.S = X
 
-module type Maker = sig
-  type endpoint = unit
+module type Maker_unversioned = functor (Schema : Schema.Unversioned) ->
+  S with module Schema = Schema and type Private.Remote.endpoint = unit
 
-  module Make (Schema : Irmin.Schema.S) :
-    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
-end
-
-module Maker_is_a_maker (X : Maker) : Irmin.Maker with type endpoint = unit = X
+module type Maker = functor (Schema : Schema.S) ->
+  S with module Schema = Schema and type Private.Remote.endpoint = unit

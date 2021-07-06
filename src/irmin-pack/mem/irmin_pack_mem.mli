@@ -18,4 +18,4 @@
     backend, intended for users that must be interoperable with the
     idiosyncrasies of the persistent implementation. *)
 
-module Maker : Irmin_pack.Maker
+module Make : Irmin_pack.Maker_unversioned

@@ -51,13 +51,10 @@ module Schema = struct
   module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
   module Commit = Irmin.Commit.Make (Hash)
   module Info = Irmin.Info.Default
+  module Config = Conf
 end
 
-module Store = struct
-  open Irmin_pack_layered.Maker (Conf)
-  include Make (Schema)
-end
-
+module Store = Irmin_pack_layered.Make (Schema)
 module Info = Info (Store.Info)
 
 let configure_store root merge_throttle freeze_throttle =
