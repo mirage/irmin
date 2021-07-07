@@ -28,16 +28,21 @@ end
 
 module Store = Irmin_pack.Checks.Make (Maker)
 
-module Store_layered = struct
-  module S = struct
-    open Irmin_pack_layered.Maker (Conf)
-    include Make (Schema)
-  end
+module TzMaker (V : Irmin_pack.Version.S) = struct
+  module Maker = Irmin_pack.V1 (Conf)
+  include Maker.Make (Tezos_context_hash_irmin.Encoding)
+end
 
+module TzStore = Irmin_pack.Checks.Make (TzMaker)
+
+module Store_layered = struct
+  open Irmin_pack_layered.Maker (Conf)
+  module S = Make (Schema)
   include Irmin_pack_layered.Checks.Make (Maker) (S)
 end
 
 let () =
-  match Sys.getenv_opt "PACK_LAYERED" with
-  | Some "true" -> ( match Store_layered.cli () with _ -> .)
+  match Sys.getenv_opt "PACK" with
+  | Some "layered" -> ( match Store_layered.cli () with _ -> .)
+  | Some "tezos" -> ( match TzStore.cli () with _ -> .)
   | _ -> ( match Store.cli () with _ -> .)
