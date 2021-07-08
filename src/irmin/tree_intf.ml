@@ -313,8 +313,8 @@ module type S = sig
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c].
 
-      @raise Invalid_argument if [c] contains duplicate bindings for a given
-      path. *)
+      @raise Invalid_argument
+        if [c] contains duplicate bindings for a given path. *)
 
   val to_concrete : t -> concrete Lwt.t
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)

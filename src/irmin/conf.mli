@@ -58,11 +58,12 @@ val key :
     with a dot. [docv] is a meta-variable for representing the values of the key
     (e.g. ["BOOL"] for a boolean).
 
-    @raise Invalid_argument if the key name is not made of a sequence of ASCII
-    lowercase letter, digit, dash or underscore.
+    @raise Invalid_argument
+      if the key name is not made of a sequence of ASCII lowercase letter,
+      digit, dash or underscore.
 
-    {b Warning.} No two keys should share the same [name] as this may lead to
-    difficulties in the UI. *)
+      {b Warning.} No two keys should share the same [name] as this may lead to
+      difficulties in the UI. *)
 
 val name : 'a key -> string
 (** The key name. *)

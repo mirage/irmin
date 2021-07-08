@@ -41,11 +41,11 @@ module type Sigs = sig
       @param read_only whether read-only mode is enabled for this store.
       @param lru_size the maximum number of bindings in the lru cache.
       @param index_log_size the maximum number of bindings in the index cache.
-      @param index_throttle the strategy to use when the index cache is full and
-      an async [Index.merge] in already in progress. [Block_writes] (the
-      default) blocks any new writes until the merge is completed.
-      [Overcommit_memory] does not block but indefinitely expands the in-memory
-      cache. *)
+      @param index_throttle
+        the strategy to use when the index cache is full and an async
+        [Index.merge] in already in progress. [Block_writes] (the default)
+        blocks any new writes until the merge is completed. [Overcommit_memory]
+        does not block but indefinitely expands the in-memory cache. *)
 
   exception RO_not_allowed
 
