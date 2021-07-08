@@ -27,13 +27,14 @@ val config :
 
     @param conf is an irmin-pack configuration.
     @param lower_root is the root of the lower store, "lower" is the default.
-    @param upper_root1 is the root of one of the upper stores, "upper1" is the
-    default.
-    @param upper_root0 is the root of one of the upper stores, "upper0" is the
-    default.
+    @param upper_root1
+      is the root of one of the upper stores, "upper1" is the default.
+    @param upper_root0
+      is the root of one of the upper stores, "upper0" is the default.
     @param with_lower if true (the default) use a lower layer during freezes.
-    @param blocking_copy_size specifies the maximum size (in bytes) that can be
-    copied in the blocking portion of the freeze. *)
+    @param blocking_copy_size
+      specifies the maximum size (in bytes) that can be copied in the blocking
+      portion of the freeze. *)
 
 module type S = sig
   include S.Store
