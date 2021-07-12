@@ -140,11 +140,20 @@ module Make (P : Private.S) = struct
   let dummy_marks = Hashes.create 0
   let empty_marks () = Hashes.create 39
 
+  exception Dangling_hash of { context : string; hash : hash }
+
+  let () =
+    Printexc.register_printer (function
+      | Dangling_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin.Tree.%s: encountered dangling hash %a" context
+               pp_hash hash)
+      | _ -> None)
+
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
     | Ok x -> x
-    | Error (`Dangling_hash hash) ->
-        Fmt.failwith "%s: Encountered dangling hash %a" context pp_hash hash
+    | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
@@ -671,7 +680,7 @@ module Make (P : Private.S) = struct
       | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
       | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
-    let findv t step =
+    let findv ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
         match P.Node.Val.find v step with
@@ -699,10 +708,9 @@ module Make (P : Private.S) = struct
         | Hash (repo, h) -> (
             match cached_value t with
             | Some v -> Lwt.return (of_value repo v)
-            | None -> (
-                value_of_hash t repo h >|= function
-                | Error (`Dangling_hash _) -> None
-                | Ok v -> of_value repo v))
+            | None ->
+                let+ v = value_of_hash t repo h >|= get_ok ctx in
+                of_value repo v)
       in
       match cached_map t with
       | Some m -> Lwt.return (of_map m)
@@ -784,13 +792,10 @@ module Make (P : Private.S) = struct
         let apply acc = node path t acc in
         let next acc =
           match force with
-          | `True | `And_clear -> (
-              to_map t >>= function
-              | Ok m ->
-                  if force = `And_clear then clear ~depth:0 t;
-                  (map [@tailcall]) ~path acc d (Some m) k
-              | Error (`Dangling_hash _) -> (map [@tailcall]) ~path acc d None k
-              )
+          | `True | `And_clear ->
+              let* m = to_map t >|= get_ok "fold" in
+              if force = `And_clear then clear ~depth:0 t;
+              (map [@tailcall]) ~path acc d (Some m) k
           | `False skip -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
@@ -873,11 +878,7 @@ module Make (P : Private.S) = struct
           | Some v, _ -> Lwt.return (of_value repo v StepMap.empty)
           | _, Some m -> Lwt.return (of_map m)
           | None, None ->
-              let+ v =
-                value_of_hash t repo h >|= function
-                | Ok v -> v
-                | Error (`Dangling_hash _) -> P.Node.Val.empty
-              in
+              let+ v = value_of_hash t repo h >|= get_ok "update" in
               of_value repo v StepMap.empty)
 
     let remove t step = update t step Remove
@@ -999,12 +1000,12 @@ module Make (P : Private.S) = struct
     | `Node n -> Node.clear ?depth n
     | `Contents _ -> ()
 
-  let sub t path =
+  let sub ctx t path =
     let rec aux node path =
       match Path.decons path with
       | None -> Lwt.return_some node
       | Some (h, p) -> (
-          Node.findv node h >>= function
+          Node.findv ctx node h >>= function
           | None | Some (`Contents _) -> Lwt.return_none
           | Some (`Node n) -> (aux [@tailcall]) n p)
     in
@@ -1017,9 +1018,9 @@ module Make (P : Private.S) = struct
     match (t, Path.rdecons path) with
     | v, None -> Lwt.return_some v
     | _, Some (path, file) -> (
-        sub t path >>= function
+        sub "find_tree.sub" t path >>= function
         | None -> Lwt.return_none
-        | Some n -> Node.findv n file)
+        | Some n -> Node.findv "find_tree.findv" n file)
 
   let id _ _ acc = Lwt.return acc
 
@@ -1087,10 +1088,10 @@ module Make (P : Private.S) = struct
     | `Contents _, None -> Lwt.return_some `Contents
     | `Node _, None -> Lwt.return_some `Node
     | _, Some (dir, file) -> (
-        sub t dir >>= function
+        sub "kind.sub" t dir >>= function
         | None -> Lwt.return_none
         | Some m -> (
-            Node.findv m file >>= function
+            Node.findv "kind.findv" m file >>= function
             | None -> Lwt.return_none
             | Some (`Contents _) -> Lwt.return_some `Contents
             | Some (`Node _) -> Lwt.return_some `Node))
@@ -1099,7 +1100,7 @@ module Make (P : Private.S) = struct
 
   let list t ?offset ?length path : (step * t) list Lwt.t =
     Log.debug (fun l -> l "Tree.list %a" pp_key path);
-    sub t path >>= function
+    sub "list.sub" t path >>= function
     | None -> Lwt.return []
     | Some n -> (
         Node.list ?offset ?length n >|= function Error _ -> [] | Ok l -> l)
@@ -1151,7 +1152,9 @@ module Make (P : Private.S) = struct
           match Path.decons path with
           | None -> (
               let with_new_child t = Node.add parent_node file t >>= changed in
-              let* old_binding = Node.findv parent_node file in
+              let* old_binding =
+                Node.findv "update_tree.findv" parent_node file
+              in
               let* new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
@@ -1174,7 +1177,9 @@ module Make (P : Private.S) = struct
                   | false -> with_new_child t)
               | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) -> (
-              let* old_binding = Node.findv parent_node step in
+              let* old_binding =
+                Node.findv "update_tree.findv" parent_node step
+              in
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
@@ -1313,10 +1318,9 @@ module Make (P : Private.S) = struct
       (* 1. convert partial values to total values *)
       let* () =
         match n.Node.v with
-        | Value (_, _, Some _) -> (
-            Node.to_value n >|= function
-            | Error (`Dangling_hash _) -> ()
-            | Ok v -> n.v <- Value (repo, v, None))
+        | Value (_, _, Some _) ->
+            let+ v = Node.to_value n >|= get_ok "export" in
+            n.v <- Value (repo, v, None)
         | _ -> Lwt.return_unit
       in
       (* 2. push the current node job on the stack. *)
