@@ -74,6 +74,10 @@
     functor. This is a large change which touches all the backends.
     (#1470, @samoht, @CraigFe)
 
+- **irmin-pack**
+   - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
+     reconstruction and index checking  (#1478, @Ngoguey42)
+
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
     `Irmin.Content_addressable.S` (#1369, @samoht)
