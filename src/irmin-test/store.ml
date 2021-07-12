@@ -1029,32 +1029,7 @@ module Make (S : S) = struct
       Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:3" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
-
-      (* Test caching (makesure that no tree is lying in scope) *)
-      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "foo-x")) in
-      S.Tree.reset_counters ();
-      let foo = "foo-x" in
-      let* v0 = S.Tree.add v0 [ "foo" ] foo in
-      (* 2 calls to Node.find because v0 is a shallow tree *)
-      Alcotest.(check int) "1 Node.find" 2 (S.Tree.counters ()).node_find;
-
-      (* cache is filled whenever we hash something *)
-      let _ = S.Tree.hash v0 in
-      let* _v0 = S.Tree.add v0 [ "foo" ] foo in
-      let _k = S.Tree.hash v0 in
-      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "bar-x")) in
-      let xxx = "xxx" in
-      let yyy = "yyy" in
-      let zzz = "zzz" in
-      let* v0 = S.Tree.add v0 [ "a" ] xxx in
-      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
-      let* v0 = S.get_tree t1 [] in
-      let* v0 = S.Tree.add v0 [ "b" ] xxx in
-      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
-      let* v0 = S.Tree.add v0 [ "c"; "d" ] yyy in
-      let* v0 = S.Tree.add v0 [ "c"; "e"; "f" ] zzz in
-      Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
-      S.set_tree_exn ~info t1 [] v0 >>= fun () -> P.Repo.close repo
+      P.Repo.close repo
     in
     run x test
 

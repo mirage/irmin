@@ -75,6 +75,10 @@ module type S = sig
   (** Operations on lazy nodes can fail if the underlying store does not contain
       the expected hash. *)
 
+  exception Dangling_hash of { context : string; hash : hash }
+  (** The exception raised by functions that can force lazy tree nodes but do
+      not return an explicit {!or_error}. *)
+
   (** Operations on lazy tree contents. *)
   module Contents : sig
     type t
