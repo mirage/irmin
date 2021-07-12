@@ -11,7 +11,7 @@ bench-layers:
 
 bench-pack-with-trace-replay:
 	@dune exec -- ./bench/irmin-pack/tree.exe --mode trace /home/opam/bench-dir/current-bench-data/mirage/irmin/tezos_actions_1commit.repr --ncommits-trace 12000 --artefacts ./cb_artefacts 1>&2
-	@dune exec -- ./bench/irmin-pack/trace_stats.exe cb ./cb_artefacts/boostrap_summary.json
+	@dune exec -- ./bench/irmin-pack/trace_stats.exe cb ./cb_artefacts/stat_summary.json
 	@rm -rf ./cb_artefacts
 
 bench: bench-pack-with-trace-replay
