@@ -1,5 +1,12 @@
 ## Unreleased
 
+### Fixed
+
+- **irmin**
+  - `Tree` operations now raise a `Dangling_hash` exception when called with a
+    path that contains dangling hashes in the underlying store, rather than
+    interpreting such paths as ending with empty nodes (#1477, @CraigFe)
+
 ### Added
 
 - **irmin**

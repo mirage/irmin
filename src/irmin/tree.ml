@@ -125,12 +125,6 @@ module Make (P : Private.S) = struct
   let compare_hash = Type.(unstage (compare P.Hash.t))
 
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
-
-  let get_ok : type a. a or_error -> a = function
-    | Ok x -> x
-    | Error (`Dangling_hash hash) ->
-        Fmt.failwith "Encountered dangling hash %a" (Type.pp P.Hash.t) hash
-
   type step = Path.step
   type contents = P.Contents.value
   type repo = P.Repo.t
@@ -163,6 +157,21 @@ module Make (P : Private.S) = struct
   let equal_metadata = Type.(unstage (equal Metadata.t))
   let equal_hash = Type.(unstage (equal P.Hash.t))
   let equal_node = Type.(unstage (equal P.Node.Val.t))
+
+  exception Dangling_hash of { context : string; hash : hash }
+
+  let () =
+    Printexc.register_printer (function
+      | Dangling_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin.Tree.%s: encountered dangling hash %a" context
+               pp_hash hash)
+      | _ -> None)
+
+  let get_ok : type a. string -> a or_error -> a =
+   fun context -> function
+    | Ok x -> x
+    | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
   module Contents = struct
     type v = Hash of repo * hash | Value of contents
@@ -295,7 +304,7 @@ module Make (P : Private.S) = struct
       match force with
       | `True ->
           let* c = to_value ~cache t in
-          f_value path (get_ok c) acc >>= f_tree path
+          f_value path (get_ok "fold" c) acc >>= f_tree path
       | `False skip -> (
           match cached_value t with
           | None -> skip path acc
@@ -663,7 +672,7 @@ module Make (P : Private.S) = struct
       | Some m -> StepMap.cardinal m |> Lwt.return
       | None ->
           let+ v = to_value ~cache t in
-          get_ok v |> P.Node.Val.length
+          get_ok "length" v |> P.Node.Val.length
 
     let is_empty ~cache t =
       match cached_map t with
@@ -684,7 +693,7 @@ module Make (P : Private.S) = struct
       | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
       | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
-    let findv ~cache t step =
+    let findv ~cache ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
         match P.Node.Val.find ~cache v step with
@@ -713,7 +722,7 @@ module Make (P : Private.S) = struct
             match cached_value t with
             | Some v -> Lwt.return (of_value repo v)
             | None ->
-                let+ v = value_of_hash ~cache t repo h >|= get_ok in
+                let+ v = value_of_hash ~cache t repo h >|= get_ok ctx in
                 of_value repo v)
       in
       match cached_map t with
@@ -819,10 +828,10 @@ module Make (P : Private.S) = struct
               match t.v with
               | Map m -> (map [@tailcall]) ~path acc d (Some m) k
               | Value (repo, _, _) | Hash (repo, _) ->
-                  let* v = to_value ~cache t >|= get_ok in
+                  let* v = to_value ~cache t >|= get_ok "fold" in
                   (value [@tailcall]) ~path acc d (repo, v) k)
           | `True, true ->
-              let* m = to_map ~cache t >|= get_ok in
+              let* m = to_map ~cache t >|= get_ok "fold" in
               (map [@tailcall]) ~path acc d (Some m) k
           | `False skip, (true | false) -> (
               match cached_map t with
@@ -920,7 +929,7 @@ module Make (P : Private.S) = struct
           | Some v, _ -> Lwt.return (of_value repo v StepMap.empty)
           | _, Some m -> Lwt.return (of_map m)
           | None, None ->
-              let+ v = value_of_hash ~cache:true t repo h >|= get_ok in
+              let+ v = value_of_hash ~cache:true t repo h >|= get_ok "update" in
               of_value repo v StepMap.empty)
 
     let remove t step = update t step Remove
@@ -1050,12 +1059,12 @@ module Make (P : Private.S) = struct
     | `Node n -> Node.clear ~max_depth:depth 0 n
     | `Contents _ -> ()
 
-  let sub ~cache t path =
+  let sub ~cache ctx t path =
     let rec aux node path =
       match Path.decons path with
       | None -> Lwt.return_some node
       | Some (h, p) -> (
-          Node.findv ~cache node h >>= function
+          Node.findv ~cache ctx node h >>= function
           | None | Some (`Contents _) -> Lwt.return_none
           | Some (`Node n) -> (aux [@tailcall]) n p)
     in
@@ -1069,9 +1078,9 @@ module Make (P : Private.S) = struct
     match (t, Path.rdecons path) with
     | v, None -> Lwt.return_some v
     | _, Some (path, file) -> (
-        sub ~cache t path >>= function
+        sub ~cache "find_tree.sub" t path >>= function
         | None -> Lwt.return_none
-        | Some n -> Node.findv ~cache n file)
+        | Some n -> Node.findv ~cache "find_tree" n file)
 
   let id _ _ acc = Lwt.return acc
 
@@ -1121,7 +1130,7 @@ module Make (P : Private.S) = struct
     | None | Some (`Node _) -> Lwt.return_none
     | Some (`Contents (c, m)) ->
         let+ c = Contents.to_value ~cache:true c in
-        Some (get_ok c, m)
+        Some (get_ok "find_all" c, m)
 
   let find t k =
     find_all t k >|= function None -> None | Some (c, _) -> Some c
@@ -1142,10 +1151,10 @@ module Make (P : Private.S) = struct
     | `Contents _, None -> Lwt.return_some `Contents
     | `Node _, None -> Lwt.return_some `Node
     | _, Some (dir, file) -> (
-        sub ~cache t dir >>= function
+        sub "kind.sub" ~cache t dir >>= function
         | None -> Lwt.return_none
         | Some m -> (
-            Node.findv ~cache m file >>= function
+            Node.findv "kind.findv" ~cache m file >>= function
             | None -> Lwt.return_none
             | Some (`Contents _) -> Lwt.return_some `Contents
             | Some (`Node _) -> Lwt.return_some `Node))
@@ -1154,7 +1163,7 @@ module Make (P : Private.S) = struct
 
   let seq t ?offset ?length ~cache path : (step * t) Seq.t Lwt.t =
     Log.debug (fun l -> l "Tree.seq %a" pp_path path);
-    sub ~cache t path >>= function
+    sub ~cache "seq" t path >>= function
     | None -> Lwt.return Seq.empty
     | Some n -> (
         Node.seq ?offset ?length ~cache n >|= function
@@ -1212,7 +1221,9 @@ module Make (P : Private.S) = struct
           match Path.decons path with
           | None -> (
               let with_new_child t = Node.add parent_node file t >>= changed in
-              let* old_binding = Node.findv ~cache parent_node file in
+              let* old_binding =
+                Node.findv ~cache "update_tree.findv" parent_node file
+              in
               let* new_binding = f old_binding in
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
@@ -1235,7 +1246,9 @@ module Make (P : Private.S) = struct
                   | false -> with_new_child t)
               | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) ->
-              let* old_binding = Node.findv ~cache parent_node step in
+              let* old_binding =
+                Node.findv ~cache "update_tree.findv" parent_node step
+              in
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
@@ -1271,7 +1284,7 @@ module Make (P : Private.S) = struct
           | Some (`Node _) | None -> Lwt.return_none
           | Some (`Contents (c, _)) ->
               let+ c = Contents.to_value ~cache c in
-              Some (get_ok c)
+              Some (get_ok "update" c)
         in
         match f old_contents with
         | None -> None
@@ -1359,7 +1372,7 @@ module Make (P : Private.S) = struct
               in
               on_node_seq new_children_seq @@ fun () ->
               let* v = Node.to_value ~cache n in
-              let v = get_ok v in
+              let v = get_ok "export" v in
               let key = Node.hash ~cache n in
               cnt.node_add <- cnt.node_add + 1;
               let* key' = P.Node.add node_t v in
@@ -1373,7 +1386,7 @@ module Make (P : Private.S) = struct
           k ()
       | Contents.Value _ ->
           let* v = Contents.to_value ~cache c in
-          let v = get_ok v in
+          let v = get_ok "export" v in
           let key = Contents.hash ~cache c in
           cnt.contents_add <- cnt.contents_add + 1;
           let* key' = P.Contents.add contents_t v in
@@ -1405,7 +1418,7 @@ module Make (P : Private.S) = struct
     let rec aux acc = function
       | [] -> Lwt.return acc
       | (path, h) :: todo ->
-          let* childs = Node.bindings ~cache:true h >|= get_ok in
+          let* childs = Node.bindings ~cache:true h >|= get_ok "entries" in
           let acc, todo =
             List.fold_left
               (fun (acc, todo) (k, v) ->
@@ -1447,11 +1460,11 @@ module Make (P : Private.S) = struct
       | Error _ as e -> e
     in
     let removed acc (k, (c, m)) =
-      let+ c = Contents.to_value ~cache:true c >|= get_ok in
+      let+ c = Contents.to_value ~cache:true c >|= get_ok "diff_node" in
       (k, `Removed (c, m)) :: acc
     in
     let added acc (k, (c, m)) =
-      let+ c = Contents.to_value ~cache:true c >|= get_ok in
+      let+ c = Contents.to_value ~cache:true c >|= get_ok "diff_node" in
       (k, `Added (c, m)) :: acc
     in
     let rec diff_bindings acc todo path x y =
@@ -1518,17 +1531,17 @@ module Make (P : Private.S) = struct
     | `Contents ((c1, m1) as x), `Contents ((c2, m2) as y) ->
         if contents_equal x y then Lwt.return_nil
         else
-          let* c1 = Contents.to_value ~cache:true c1 >|= get_ok in
-          let* c2 = Contents.to_value ~cache:true c2 >|= get_ok in
+          let* c1 = Contents.to_value ~cache:true c1 >|= get_ok "diff" in
+          let* c2 = Contents.to_value ~cache:true c2 >|= get_ok "diff" in
           Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents (x, m), `Node y ->
         let* diff = diff_node Node.empty y in
-        let+ x = Contents.to_value ~cache:true x >|= get_ok in
+        let+ x = Contents.to_value ~cache:true x >|= get_ok "diff" in
         (Path.empty, `Removed (x, m)) :: diff
     | `Node x, `Contents (y, m) ->
         let* diff = diff_node x Node.empty in
-        let+ y = Contents.to_value ~cache:true y >|= get_ok in
+        let+ y = Contents.to_value ~cache:true y >|= get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
 
   type concrete =
@@ -1582,13 +1595,13 @@ module Make (P : Private.S) = struct
       | `Contents c -> contents c k
       | `Node n ->
           let* m = Node.to_map ~cache:true n in
-          let bindings = m |> get_ok |> StepMap.bindings in
+          let bindings = m |> get_ok "to_concrete" |> StepMap.bindings in
           (node [@tailcall]) [] bindings (fun n ->
               let n = List.sort (fun (s, _) (s', _) -> compare_step s s') n in
               k (`Tree n))
     and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
      fun (c, m) k ->
-      let* c = Contents.to_value ~cache:true c >|= get_ok in
+      let* c = Contents.to_value ~cache:true c >|= get_ok "to_concrete" in
       k (`Contents (c, m))
     and node :
         type r.

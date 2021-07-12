@@ -31,8 +31,10 @@ module Alcotest = struct
 
   let check_tree_lwt =
     let concrete_tree = gtestable Tree.concrete_t in
-    fun msg ~expected b_lwt ->
-      b_lwt >>= Tree.to_concrete >|= Alcotest.check concrete_tree msg expected
+    fun ?__POS__:pos msg ~expected b_lwt ->
+      b_lwt
+      >>= Tree.to_concrete
+      >|= Alcotest.check ?pos concrete_tree msg expected
 end
 
 let ( >> ) f g x = g (f x)
@@ -534,7 +536,75 @@ let test_shallow _ () =
        non-shallow contents"
       hash hash_shallow
   in
+  Lwt.return_unit
 
+let test_dangling_hash _ () =
+  let check_exn pos f =
+    Lwt.catch
+      (fun () ->
+        let* _ = f () in
+        Alcotest.failf ~pos
+          "Expected a `Dangling_hash` exception, but no exception was raised.")
+      (function Tree.Dangling_hash _ -> Lwt.return_unit | exn -> Lwt.fail exn)
+  in
+  let* shallow_leaf, shallow_node =
+    let+ repo = Store.Repo.v (Irmin_mem.config ()) in
+    (* Get hashes of valid nodes / contents, assumed absent from [repo]. *)
+    let rand = Irmin.Type.(unstage (random (string_of (`Fixed 32)))) () in
+    let c_hash = Tree.(hash @@ of_concrete (c rand)) in
+    let n_hash = Tree.(hash @@ of_concrete (`Tree [ ("k", c rand) ])) in
+    ( Tree.shallow repo (`Contents (c_hash, Metadata.default)),
+      Tree.shallow repo (`Node n_hash) )
+  in
+  let run_tests path =
+    Logs.app (fun f ->
+        f "Testing operations on a tree with a shallowed position at %a" pp_key
+          path);
+    let* shallow_leaf = Tree.(add_tree empty) path shallow_leaf in
+    let* shallow_node = Tree.(add_tree empty) path shallow_node in
+    let beneath = path @ [ "a"; "b"; "c" ] in
+    let blob = "v" in
+    let* singleton_at_path = Tree.(add empty path blob >>= to_concrete) in
+    let* singleton_beneath = Tree.(add empty beneath blob >>= to_concrete) in
+
+    (* [add] on shallow nodes/contents replaces the shallowed position. *)
+    let* () =
+      Tree.add shallow_leaf path blob
+      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+    in
+    let* () =
+      Tree.add shallow_node path blob
+      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+    in
+
+    (* [add] _beneath_ a shallow contents value also works fine, but on shallow
+       nodes an exception is raised. (We can't know what the node's contents are,
+       so there's no valid return tree.) *)
+    let* () =
+      Tree.add shallow_leaf beneath blob
+      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_beneath
+    in
+    let* () =
+      check_exn __POS__ (fun () -> Tree.add shallow_node beneath blob)
+    in
+
+    (* [find] on shallow contents raises an exception (can't recover contents),
+       but _beneath_ shallow contents it returns [None] (mismatched type). (The
+       behaviour is reversed for shallow nodes.) *)
+    let* () = check_exn __POS__ (fun () -> Tree.find shallow_leaf path) in
+    let* () = check_exn __POS__ (fun () -> Tree.find shallow_node beneath) in
+    let* () =
+      Tree.find shallow_leaf beneath
+      >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
+    in
+    let* () =
+      Store.Tree.find shallow_node path
+      >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
+    in
+    Lwt.return_unit
+  in
+  let* () = run_tests [] in
+  let* () = run_tests [ "k" ] in
   Lwt.return_unit
 
 let test_kind_empty_path _ () =
@@ -621,6 +691,7 @@ let suite =
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "shallow" `Quick test_shallow;
+    Alcotest_lwt.test_case "dangling hash" `Quick test_dangling_hash;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
     Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
     Alcotest_lwt.test_case "is_empty" `Quick test_is_empty;
