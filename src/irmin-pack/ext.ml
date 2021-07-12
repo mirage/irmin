@@ -227,7 +227,7 @@ struct
   let migrate = Migrate.run
   let flush = X.Repo.flush
 
-  module Reconstruct_index = Reconstruct_index.Make (struct
+  module Traverse_pack_file = Traverse_pack_file.Make (struct
     module Version = V
     module Hash = H
     module Index = Index
@@ -237,5 +237,5 @@ struct
     module Commit = X.Commit.Pack_value
   end)
 
-  let reconstruct_index = Reconstruct_index.run
+  let traverse_pack_file = Traverse_pack_file.run
 end

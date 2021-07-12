@@ -177,7 +177,9 @@ module Make (M : Maker) = struct
         | `V2 -> (module Store_V2)
       in
       let conf = conf ~index_log_size root in
-      Store.reconstruct_index ?output conf
+      match output with
+      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
+      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
 
     let term_internal =
       Cmdliner.Term.(

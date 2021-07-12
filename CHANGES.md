@@ -1,3 +1,11 @@
+## Unreleased
+
+### Changed
+
+- **irmin-pack**
+   - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
+     reconstruction and index checking  (#1478, @Ngoguey42)
+
 ## 2.7.1 (2021-07-02)
 
 ### Fixed

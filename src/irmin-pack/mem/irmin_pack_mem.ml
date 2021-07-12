@@ -155,5 +155,5 @@ struct
   let migrate = Irmin_pack.migrate
   let flush = X.Repo.flush
   let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
-  let reconstruct_index ?output:_ _ = ()
+  let traverse_pack_file _ _ = ()
 end

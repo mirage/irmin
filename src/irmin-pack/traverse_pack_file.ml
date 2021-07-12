@@ -43,7 +43,10 @@ module type Args = sig
 end
 
 module Make (Args : Args) : sig
-  val run : ?output:string -> Irmin.config -> unit
+  val run :
+    [ `Reconstruct_index of [ `In_place | `Output of string ] | `Check_index ] ->
+    Irmin.config ->
+    unit
 end = struct
   open Args
 
@@ -56,7 +59,68 @@ end = struct
      as requests for more data. *)
   exception Not_enough_buffer
 
-  type index_binding = { key : Hash.t; data : Index.value }
+  type index_value = int63 * int * Pack_value.Kind.t
+  [@@deriving irmin ~equal ~pp]
+
+  type index_binding = { key : Hash.t; data : index_value }
+
+  module Index_reconstructor = struct
+    let create ~dest config =
+      let dest =
+        match dest with
+        | `Output path ->
+            if IO.exists path then
+              Fmt.invalid_arg "Can't reconstruct index. File already exits.";
+            path
+        | `In_place ->
+            if Conf.readonly config then raise S.RO_not_allowed;
+            Conf.root config
+      in
+      let log_size = Conf.index_log_size config in
+      Log.app (fun f ->
+          f "Beginning index reconstruction with parameters: { log_size = %d }"
+            log_size);
+      let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
+      index
+
+    let iter_pack_entry index key data = Index.add index key data
+
+    let finalise index () =
+      (* Ensure that the log file is empty, so that subsequent opens with a
+         smaller [log_size] don't immediately trigger a merge operation. *)
+      Log.app (fun f ->
+          f "Completed indexing of pack entries. Running a final merge ...");
+      Index.try_merge index;
+      Index.close index
+  end
+
+  module Index_checker = struct
+    let create config =
+      let log_size = Conf.index_log_size config in
+      Log.app (fun f ->
+          f "Beginning index checking with parameters: { log_size = %d }"
+            log_size);
+      let index =
+        Index.v ~fresh:false ~readonly:true ~log_size (Conf.root config)
+      in
+      (index, ref 0)
+
+    let iter_pack_entry (index, idx_ref) key data =
+      match Index.find index key with
+      | None ->
+          Fmt.failwith
+            "Pack entry with idx=%#d containing %a is not bound in index"
+            !idx_ref pp_index_value data
+      | Some data' when not @@ equal_index_value data data' ->
+          Fmt.failwith
+            "Pack entry with idx=%#d containing %a is bound to %a in index"
+            !idx_ref pp_index_value data pp_index_value data'
+      | Some _ -> incr idx_ref
+
+    let finalise (index, _) () =
+      Log.app (fun f -> f "Completed checking of pack entries.");
+      Index.close index
+  end
 
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
@@ -79,7 +143,7 @@ end = struct
     | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
         raise Not_enough_buffer
 
-  let ingest_data_file ~progress ~total pack index =
+  let ingest_data_file ~progress ~total pack iter_pack_entry =
     let buffer = ref (Bytes.create 1024) in
     let refill_buffer ~from =
       let read = IO.read pack ~off:from !buffer in
@@ -121,7 +185,7 @@ end = struct
                   l "k = %a (off, len, kind) = (%a, %d, %a)" pp_key key Int63.pp
                     off entry_len Pack_value.Kind.pp kind);
               Stats.add stats kind;
-              Index.add index key data;
+              iter_pack_entry key data;
               progress entry_lenL;
               (buffer_off + entry_len, off ++ entry_lenL)
           | exception Not_enough_buffer ->
@@ -140,16 +204,20 @@ end = struct
     refill_buffer ~from:Int63.zero;
     loop_entries ~buffer_off:0 Int63.zero
 
-  let run ?output config =
-    if Conf.readonly config then raise S.RO_not_allowed;
+  let run mode config =
+    let iter_pack_entry, finalise =
+      match mode with
+      | `Reconstruct_index dest ->
+          let open Index_reconstructor in
+          let v = create ~dest config in
+          (iter_pack_entry v, finalise v)
+      | `Check_index ->
+          let open Index_checker in
+          let v = create config in
+          (iter_pack_entry v, finalise v)
+    in
     let run_duration = Mtime_clock.counter () in
     let root = Conf.root config in
-    let dest = match output with Some path -> path | None -> root in
-    let log_size = Conf.index_log_size config in
-    Log.app (fun f ->
-        f "Beginning index reconstruction with parameters: { log_size = %d }"
-          log_size);
-    let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
     let pack_file = Filename.concat root "store.pack" in
     let pack =
       IO.v ~fresh:false ~readonly:true ~version:(Some Version.version) pack_file
@@ -159,14 +227,9 @@ end = struct
       Utils.Progress.counter ~total ~sampling_interval:100
         ~message:"Reconstructing index" ~pp_count:Utils.pp_bytes ()
     in
-    let stats = ingest_data_file ~progress ~total pack index in
+    let stats = ingest_data_file ~progress ~total pack iter_pack_entry in
     Utils.Progress.finalise bar;
-    (* Ensure that the log file is empty, so that subsequent opens with a
-       smaller [log_size] don't immediately trigger a merge operation. *)
-    Log.app (fun f ->
-        f "Completed indexing of pack entries. Running a final merge ...");
-    Index.try_merge index;
-    Index.close index;
+    finalise ();
     IO.close pack;
     let run_duration = Mtime_clock.count run_duration in
     Log.app (fun f ->
