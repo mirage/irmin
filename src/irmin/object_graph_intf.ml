@@ -74,6 +74,17 @@ module type S = sig
       seen. If [None] (by default) every traversed nodes is stored (and thus no
       entries are never removed from the LRU). *)
 
+  val breadth_first_traversal :
+    ?cache_size:int ->
+    pred:(vertex -> vertex list Lwt.t) ->
+    max:vertex list ->
+    node:(vertex -> unit Lwt.t) ->
+    unit ->
+    unit Lwt.t
+  (** [breadth_first_traversal ?cache_size pred max node ()] traverses the
+      closure graph in breadth-first order starting with the [max] nodes. It
+      applies [node] on the nodes of the graph while traversing it. *)
+
   val output :
     Format.formatter ->
     (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->

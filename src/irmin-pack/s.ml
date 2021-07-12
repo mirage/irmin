@@ -79,6 +79,7 @@ module type S = sig
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 
   val reconstruct_index : ?output:string -> Irmin.config -> unit
+  val stats : all_paths:string option -> commit:commit -> repo -> unit Lwt.t
 end
 
 module S_is_a_store (X : S) : Irmin.S = X

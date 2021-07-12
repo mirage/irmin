@@ -159,6 +159,8 @@
   - `Checks.Reconstruct_index.run` now takes an optional `index_log_size`
     parameter for customising the interval between merges during
     reconstruction. (#1459, @CraigFe)
+  - Added a `stat-store` command to `irmin-fsck` to output stats on the tree
+    under a specified commit (#1391, @icristescu, @Ngoguey42, @CraigFe).
 
 ## 2.6.1 (2021-04-29)
 

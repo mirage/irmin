@@ -368,6 +368,25 @@ module Make (P : Private.S) = struct
         | `Branch x -> pred_branch t x
       in
       Graph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
+
+    let breadth_first_traversal ?cache_size ~max ?(branch = ignore_lwt)
+        ?(commit = ignore_lwt) ?(node = ignore_lwt) ?(contents = ignore_lwt)
+        ?(pred_branch = default_pred_branch)
+        ?(pred_commit = default_pred_commit) ?(pred_node = default_pred_node)
+        ?(pred_contents = default_pred_contents) t =
+      let node = function
+        | `Commit x -> commit x
+        | `Node x -> node x
+        | `Contents x -> contents x
+        | `Branch x -> branch x
+      in
+      let pred = function
+        | `Commit x -> pred_commit t x
+        | `Node x -> pred_node t x
+        | `Contents x -> pred_contents t x
+        | `Branch x -> pred_branch t x
+      in
+      Graph.breadth_first_traversal ?cache_size ~pred ~max ~node ()
   end
 
   type t = {

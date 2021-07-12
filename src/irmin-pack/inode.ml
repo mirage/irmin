@@ -373,15 +373,15 @@ struct
           Array.fold_left
             (fun acc -> function
               | None -> acc
-              | Some ptr -> `Inode (hash_of_ptr ptr) :: acc)
+              | Some ptr -> (None, `Inode (hash_of_ptr ptr)) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
-            (fun _ v acc ->
+            (fun s v acc ->
               let v =
                 match v with
-                | `Node _ as k -> k
-                | `Contents (k, _) -> `Contents k
+                | `Node _ as k -> (Some s, k)
+                | `Contents (k, _) -> (Some s, `Contents k)
               in
               v :: acc)
             l []
@@ -391,6 +391,15 @@ struct
       | Tree vs -> vs.length
 
     let length t = length_of_v t.v
+
+    let nb_children t =
+      match t.v with
+      | Tree i ->
+          Array.fold_left
+            (fun i -> function None -> i | Some _ -> i + 1)
+            0 i.entries
+      | Values vs -> StepMap.cardinal vs
+
     let stable t = t.stable
 
     type acc = {
@@ -1099,6 +1108,7 @@ struct
     let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
     let stable t = apply t { f = (fun _ v -> I.stable v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
+    let nb_children t = apply t { f = (fun _ v -> I.nb_children v) }
     let index = I.index
 
     let integrity_check t =

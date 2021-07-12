@@ -169,6 +169,36 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     in
     pop ()
 
+  let breadth_first_traversal ?cache_size ~pred ~max ~node () =
+    let marks = Table.create cache_size in
+    let mark key level = Table.add marks key level in
+    let todo = Queue.create () in
+    let has_mark key = Table.mem marks key in
+    List.iter (fun k -> Queue.push (Visit (k, 0)) todo) max;
+    let treat key =
+      Log.debug (fun f -> f "TREAT %a" Type.(pp X.t) key);
+      node key
+    in
+    let visit_predecessors key level =
+      let+ keys = pred key in
+      List.iter (fun k -> Queue.push (Visit (k, level + 1)) todo) keys
+    in
+    let visit key level =
+      if has_mark key then Lwt.return_unit
+      else (
+        Log.debug (fun f -> f "VISIT %a" Type.(pp X.t) key);
+        mark key level;
+        treat key >>= fun () -> visit_predecessors key level)
+    in
+    let rec pop () =
+      match Queue.pop todo with
+      | exception Queue.Empty -> Lwt.return_unit
+      | Treat _ ->
+          Fmt.failwith "in bfs always treat the node as soon as its visited"
+      | Visit (key, level) -> visit key level >>= pop
+    in
+    pop ()
+
   let closure ?(depth = max_int) ~pred ~min ~max () =
     let g = G.create ~size:1024 () in
     List.iter (G.add_vertex g) max;
