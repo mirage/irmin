@@ -23,4 +23,4 @@ module Maker = Ext_layered.Maker
 module Checks = Checks
 module Conf = Conf
 
-let config = Conf.v
+let config = Conf.init

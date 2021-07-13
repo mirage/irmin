@@ -134,7 +134,7 @@ module Make (M : Maker) (Store : S.Store) = struct
       let lower_root = Layout.lower ~root in
       let upper_root1 = Layout.upper1 ~root in
       let upper_root0 = Layout.upper0 ~root in
-      let conf = Conf.v ~lower_root ~upper_root1 ~upper_root0 conf in
+      let conf = Conf.init ~lower_root ~upper_root1 ~upper_root0 conf in
       let+ repo = Store.Repo.v conf in
       let res = Store.integrity_check ~auto_repair repo in
       List.iter
@@ -163,7 +163,7 @@ module Make (M : Maker) (Store : S.Store) = struct
   module Check_self_contained = struct
     let conf root =
       let conf = Irmin_pack.config ~readonly:true root in
-      Conf.v ~with_lower:false conf
+      Conf.init ~with_lower:false conf
 
     let heads =
       let open Cmdliner.Arg in

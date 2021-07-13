@@ -121,7 +121,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
                       f contents node commit)))
 
         let v config =
-          let root = Irmin_pack.Conf.(get config root_key) in
+          let root = Irmin_pack.Conf.(get config Key.root) in
           let* contents = Contents.CA.v root in
           let* node = Node.CA.v root in
           let* commit = Commit.CA.v root in
