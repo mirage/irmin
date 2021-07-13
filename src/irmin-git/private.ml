@@ -84,7 +84,7 @@ struct
     }
 
     let config c =
-      let root = match Conf.get c Conf.root with None -> "." | Some d -> d in
+      let root = Conf.get c Conf.root in
       let dot_git = Conf.get c Conf.dot_git in
       let level = Conf.get c Conf.level in
       let head = Conf.get c Conf.head in

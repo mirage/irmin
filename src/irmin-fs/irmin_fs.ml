@@ -58,7 +58,7 @@ end
 module Conf = Irmin.Private.Conf.Make ()
 
 let root_key = Conf.root ()
-let config root = Conf.add Conf.empty root_key (Some root)
+let config root = Conf.add Conf.empty root_key root
 
 module Read_only_ext
     (IO : IO)
@@ -70,10 +70,7 @@ struct
   type value = V.t
   type 'a t = { path : string }
 
-  let get_path config =
-    match Conf.get config root_key with
-    | Some r -> r
-    | None -> invalid_arg "The `root` config key is missing"
+  let get_path config = Conf.get config root_key
 
   let v config =
     let path = get_path config in

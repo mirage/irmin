@@ -16,7 +16,7 @@
 
 include Irmin.Private.Conf.S
 
-val root : string option key
+val root : string key
 val head : Git.Reference.t option key
 val bare : bool key
 val level : int option key

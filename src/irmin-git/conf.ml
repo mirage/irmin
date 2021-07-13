@@ -54,7 +54,7 @@ include Conf
 let v ?head ?bare ?level ?dot_git ?buffers root =
   let module C = Conf in
   let config = C.empty in
-  let config = C.add config Conf.root (Some root) in
+  let config = C.add config Conf.root root in
   let config =
     match bare with
     | None -> C.add config Conf.bare (C.default Conf.bare)

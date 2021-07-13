@@ -97,20 +97,16 @@ module Make () = struct
       | None -> raise Not_found
     with Not_found -> k.default
 
-  let find_key d name =
-    M.find_first_opt (fun (Key k) -> String.equal name k.name) d
-    |> Option.map fst
-
-  let list_keys conf = M.to_seq conf |> Seq.map (fun (k, _) -> k)
+  let find_key name = Hashtbl.find_opt all name
+  let keys conf = M.to_seq conf |> Seq.map (fun (k, _) -> k)
+  let all_keys () = Hashtbl.to_seq_values all
 
   (* ~root *)
   let root () =
-    key ~docv:"ROOT" ~doc:"The location of the Git repository root."
+    key ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
       ~docs:"COMMON OPTIONS" "root"
-      Type.(option string)
-      None
-
-  let k x = Key x
+      Type.(string)
+      "."
 end
 
 module type S = S with type t = t and type 'a key = 'a key and type k = k
@@ -118,5 +114,7 @@ module type S = S with type t = t and type 'a key = 'a key and type k = k
 module Extend (S : S) = struct
   include Make ()
 
-  let () = Hashtbl.iter (fun k (Key v) -> Hashtbl.replace all k (Key v)) S.all
+  let () =
+    let keys = S.all_keys () in
+    Seq.iter (fun (Key k) -> Hashtbl.replace all (name k) (Key k)) keys
 end

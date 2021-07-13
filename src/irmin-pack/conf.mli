@@ -25,7 +25,7 @@ val fresh_key : bool Irmin.Private.Conf.key
 val lru_size_key : int Irmin.Private.Conf.key
 val index_log_size_key : int Irmin.Private.Conf.key
 val readonly_key : bool Irmin.Private.Conf.key
-val root_key : string option Irmin.Private.Conf.key
+val root_key : string Irmin.Private.Conf.key
 val fresh : Irmin.Private.Conf.t -> bool
 val lru_size : Irmin.Private.Conf.t -> int
 val index_log_size : Irmin.Private.Conf.t -> int
@@ -40,7 +40,6 @@ type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
 
 val freeze_throttle_key : freeze_throttle Irmin.Private.Conf.key
 val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
-val get_root : Irmin.config -> string
 
 val make :
   ?fresh:bool ->

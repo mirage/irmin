@@ -136,9 +136,7 @@ let serve servers n id =
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
   let _, (server : Irmin_test.t) = List.nth servers n in
   Logs.debug (fun l ->
-      l "Got server: %s, root=%a" server.name
-        Fmt.(option string)
-        (root server.config));
+      l "Got server: %s, root=%s" server.name (root server.config));
   let (module Server : Irmin_test.S) = server.store in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let test = { name = server.name; id } in

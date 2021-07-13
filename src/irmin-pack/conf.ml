@@ -66,15 +66,12 @@ let index_log_size config = get config index_log_size_key
 let merge_throttle config = get config merge_throttle_key
 let freeze_throttle config = get config freeze_throttle_key
 
-let get_root config =
-  match get config root_key with None -> failwith "no root set" | Some r -> r
-
 let make ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(freeze_throttle = Default.freeze_throttle) root =
   let config = empty in
-  let config = add config root_key (Some root) in
+  let config = add config root_key root in
   let config = add config fresh_key fresh in
   let config = add config lru_size_key lru_size in
   let config = add config index_log_size_key index_log_size in

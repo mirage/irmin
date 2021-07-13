@@ -26,10 +26,7 @@ let migrate_io_to_v2 ~progress src =
   | Ok () -> IO.close src
   | Error (`Msg s) -> invalid_arg s
 
-let root c =
-  match Conf.get c Conf.root_key with
-  | Some s -> s
-  | None -> invalid_arg "root is not configured"
+let root c = Conf.get c Conf.root_key
 
 let run config =
   if Conf.readonly config then raise S.RO_not_allowed;

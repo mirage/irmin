@@ -51,7 +51,7 @@ let key k default =
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
 
-module Conf = Irmin.Private.Conf.Make ()
+module Conf = Irmin.Private.Conf.Extend (Irmin_pack.Conf)
 
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
@@ -67,6 +67,8 @@ let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
   match v with None -> config | Some _ -> Conf.add config k v
+
+let add k v config = Conf.add config k v
 
 (* Contents *)
 
@@ -377,10 +379,9 @@ let rec read_config_file path =
 let root_key = Conf.root ()
 
 let config_term =
-  let add k v config = Conf.add config k v in
   let create root bare head level uri config_path =
     Conf.empty
-    |> add_opt root_key root
+    |> add root_key root
     |> add Irmin_git.Conf.bare bare
     |> add_opt Irmin_git.Conf.head head
     |> add_opt Irmin_git.Conf.level level
@@ -406,52 +407,65 @@ let string_value = function `String s -> s | _ -> raise Not_found
 let assoc y name fn =
   try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
 
+let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
+  | `O x -> `Assoc (List.map (fun (k, v) -> (k, json_of_yaml v)) x)
+  | `A x -> `List (List.map json_of_yaml x)
+  | (`Null | `Bool _ | `Float _ | `String _) as x -> x
+
 let load_config_file_with_defaults path (store, hash, contents) config =
-  let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
   let store =
-    let store =
-      match store with
-      | Some s -> Store.find s
-      | None -> assoc y "store" Store.find >>? fun () -> snd !Store.default
-    in
-    let contents =
-      match contents with
-      | Some c -> Contents.find c
-      | None ->
-          assoc y "contents" Contents.find >>? fun () -> snd !Contents.default
-    in
-    match store with
-    | Variable_hash s ->
-        let hash : hash =
-          hash >>? fun () ->
-          assoc y "hash" Hash.find >>? fun () -> snd !Hash.default
-        in
-        s hash contents
+    ref (match store with Some s -> Store.find s | None -> snd !Store.default)
+  in
+  let contents =
+    ref
+      (match contents with
+      | Some s -> Contents.find s
+      | None -> snd !Contents.default)
+  in
+  let hash : hash option ref = ref hash in
+  let config =
+    List.fold_left
+      (fun config (k, v) ->
+        match Conf.find_key k with
+        | Some (Irmin.Private.Conf.Key k) ->
+            let v = json_of_yaml v |> Yojson.Basic.to_string in
+            let v =
+              match Irmin.Type.of_json_string (Conf.ty k) v with
+              | Error _ ->
+                  let v = Format.sprintf "{\"some\": %s}" v in
+                  Irmin.Type.of_json_string (Conf.ty k) v |> Result.get_ok
+              | Ok v -> v
+            in
+            Conf.add config k v
+        | None -> (
+            match (k, v) with
+            | "store", `String s ->
+                store := Store.find s;
+                config
+            | "contents", `String s ->
+                contents := Contents.find s;
+                config
+            | "hash", `String s ->
+                hash := Some (Hash.find s);
+                config
+            | _ -> invalid_arg ("unknown config key: " ^ k)))
+      config y
+  in
+  let store =
+    match !store with
+    | Store.Variable_hash s ->
+        let hash : hash = Option.value ~default:(snd !Hash.default) !hash in
+        s hash !contents
     | Fixed_hash s -> (
         (* error if a hash function has been passed *)
-        match (hash, assoc y "hash" Hash.find) with
-        | None, None -> s contents
+        match !hash with
+        | None -> s !contents
         | _ ->
             Fmt.failwith
               "Cannot customize the hash function for the given store")
   in
-  let root = assoc y "root" (fun x -> x) in
-  let bare =
-    match assoc y "bare" bool_of_string with
-    | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
-    | Some b -> b
-  in
-  let head = assoc y "head" (fun x -> Git.Reference.v x) in
-  let uri = assoc y "uri" Uri.of_string in
-  let add k v config = Conf.add config k v in
-  ( store,
-    Conf.empty
-    |> add_opt root_key root
-    |> add Irmin_git.Conf.bare bare
-    |> add_opt Irmin_git.Conf.head head
-    |> add_opt Irmin_http.uri uri
-    |> Conf.union config )
+  (store, config)
 
 let from_config_file_with_defaults path (store, hash, contents) config branch :
     store =
@@ -480,22 +494,31 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
+let rec yaml_of_json : Yojson.Basic.t -> Yaml.value = function
+  | `Assoc [ ("some", x) ] -> yaml_of_json x
+  | `Assoc x -> `O (List.map (fun (k, v) -> (k, yaml_of_json v)) x)
+  | `List l -> `A (List.map yaml_of_json l)
+  | `Int i -> `Float (float_of_int i)
+  | (`Null | `Bool _ | `Float _ | `String _) as x -> x
+
 let save_config ~path conf =
   let open Conf in
-  let keys = list_keys conf in
+  let keys = keys conf in
   let y =
     Seq.fold_left
       (fun acc (Irmin.Private.Conf.Key k) ->
         let v = Conf.get conf k in
         let name = name k in
-        (name, `String (Irmin.Type.to_string (ty k) v)) :: acc)
+        let j = Irmin.Type.to_json_string (ty k) v in
+        let j = Yojson.Basic.from_string j |> yaml_of_json in
+        (name, j) :: acc)
       [] keys
   in
   let output = open_out path in
   output_string output (Yaml.to_string_exn (`O y));
   close_out output
 
-let load_config ?(default = Conf.empty) ?config_path ~store ~hash ~contents () =
+let load_config ?(default = Conf.empty) ?config_path ?store ?hash ?contents () =
   let cfg =
     match config_path with
     | Some _ as p -> p
@@ -555,7 +578,7 @@ let infer_remote hash contents headers str =
         let config =
           Conf.empty
           |> add_opt Irmin_http.uri (Some (Uri.of_string str))
-          |> add_opt root_key (Some str)
+          |> add root_key str
         in
         let* repo = R.Repo.v config in
         let+ r = R.master repo in

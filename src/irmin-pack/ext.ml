@@ -109,10 +109,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
                       let commit : 'a Commit.t = (node, commit) in
                       f contents node commit)))
 
-        let root c =
-          match Conf.get c Conf.root_key with
-          | Some s -> s
-          | None -> invalid_arg "root is not configured"
+        let root c = Conf.get c Conf.root_key
 
         let unsafe_v config =
           let root = root config in
