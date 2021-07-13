@@ -55,10 +55,15 @@ end
 
 (* ~path *)
 
-module Conf = Irmin.Private.Conf.Make ()
+module Conf = struct
+  include Irmin.Private.Conf.Make ()
 
-let root_key = Conf.root ()
-let config root = Conf.add Conf.empty root_key root
+  module Key = struct
+    let root = root ()
+  end
+end
+
+let config root = Conf.(add empty Key.root) root
 
 module Read_only_ext
     (IO : IO)
@@ -70,7 +75,7 @@ struct
   type value = V.t
   type 'a t = { path : string }
 
-  let get_path config = Conf.get config root_key
+  let get_path config = Conf.(get config Key.root)
 
   let v config =
     let path = get_path config in

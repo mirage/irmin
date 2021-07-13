@@ -16,6 +16,14 @@
 
 (** Disk persistence. *)
 
+module Conf : sig
+  include Irmin.Private.Conf.S
+
+  module Key : sig
+    val root : string key
+  end
+end
+
 val config : string -> Irmin.config
 (** [config root] is the a configuration with the key {!Irmin.Config.root} set
     to [root]. **)
