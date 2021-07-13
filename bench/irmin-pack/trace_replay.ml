@@ -314,7 +314,7 @@ module Make (Store : Store) = struct
 
   let add_commits repo max_ncommits commit_seq on_commit on_end stats check_hash
       empty_blobs =
-    with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commits"
+    with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commit"
     @@ fun prog ->
     let t =
       {
@@ -338,7 +338,7 @@ module Make (Store : Store) = struct
             Logs.app (fun l ->
                 l "\nAfter commit %6d we have %d/%d history sizes" i len0 len1);
           let* () = on_commit i (Option.get t.latest_commit) in
-          prog Int64.one;
+          prog 1;
           aux commit_seq (i + 1)
     in
     aux commit_seq 0

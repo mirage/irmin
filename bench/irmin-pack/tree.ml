@@ -89,14 +89,14 @@ module Bench_suite (Store : Store) = struct
         Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree
 
   let add_commits ~message repo ncommits on_commit on_end f () =
-    with_progress_bar ~message ~n:ncommits ~unit:"commits" @@ fun prog ->
+    with_progress_bar ~message ~n:ncommits ~unit:"commit" @@ fun prog ->
     let* c = init_commit repo in
     let rec aux c i =
       if i >= ncommits then on_end ()
       else
         let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
         let* () = on_commit i (Store.Commit.hash c') in
-        prog Int64.one;
+        prog 1;
         aux c' (i + 1)
     in
     aux c 0
