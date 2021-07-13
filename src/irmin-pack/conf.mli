@@ -21,27 +21,27 @@ end
 
 include Irmin.Private.Conf.S
 
-val fresh_key : bool Irmin.Private.Conf.key
-val lru_size_key : int Irmin.Private.Conf.key
-val index_log_size_key : int Irmin.Private.Conf.key
-val readonly_key : bool Irmin.Private.Conf.key
-val root_key : string Irmin.Private.Conf.key
+type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
+type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
+
+module Key : sig
+  val fresh : bool Irmin.Private.Conf.key
+  val lru_size : int Irmin.Private.Conf.key
+  val index_log_size : int Irmin.Private.Conf.key
+  val readonly : bool Irmin.Private.Conf.key
+  val root : string Irmin.Private.Conf.key
+  val merge_throttle : merge_throttle Irmin.Private.Conf.key
+  val freeze_throttle : freeze_throttle Irmin.Private.Conf.key
+end
+
 val fresh : Irmin.Private.Conf.t -> bool
 val lru_size : Irmin.Private.Conf.t -> int
 val index_log_size : Irmin.Private.Conf.t -> int
 val readonly : Irmin.Private.Conf.t -> bool
-
-type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
-
-val merge_throttle_key : merge_throttle Irmin.Private.Conf.key
 val merge_throttle : Irmin.Private.Conf.t -> merge_throttle
-
-type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
-
-val freeze_throttle_key : freeze_throttle Irmin.Private.Conf.key
 val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
 
-val make :
+val init :
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->

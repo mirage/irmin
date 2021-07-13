@@ -51,7 +51,7 @@ let key k default =
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
 
-module Conf = Irmin.Private.Conf.Extend (Irmin_pack.Conf)
+module Conf = Irmin.Private.Conf.Join (Irmin_git.Conf) (Irmin_pack.Conf)
 
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
@@ -382,19 +382,19 @@ let config_term =
   let create root bare head level uri config_path =
     Conf.empty
     |> add root_key root
-    |> add Irmin_git.Conf.bare bare
-    |> add_opt Irmin_git.Conf.head head
-    |> add_opt Irmin_git.Conf.level level
-    |> add_opt Irmin_http.uri uri
+    |> add Irmin_git.Conf.Key.bare bare
+    |> add_opt Irmin_git.Conf.Key.head head
+    |> add_opt Irmin_git.Conf.Key.level level
+    |> add_opt Irmin_http.Conf.Key.uri uri
     |> add config_path_key config_path
   in
   Term.(
     const create
     $ opt_key root_key
-    $ flag_key Irmin_git.Conf.bare
-    $ opt_key Irmin_git.Conf.head
-    $ opt_key Irmin_git.Conf.level
-    $ opt_key Irmin_http.uri
+    $ flag_key Irmin_git.Conf.Key.bare
+    $ opt_key Irmin_git.Conf.Key.head
+    $ opt_key Irmin_git.Conf.Key.level
+    $ opt_key Irmin_http.Conf.Key.uri
     $ opt_key config_path_key)
 
 type store =
@@ -577,7 +577,7 @@ let infer_remote hash contents headers str =
     | Store.T ((module R), _) ->
         let config =
           Conf.empty
-          |> add_opt Irmin_http.uri (Some (Uri.of_string str))
+          |> add_opt Irmin_http.Conf.Key.uri (Some (Uri.of_string str))
           |> add root_key str
         in
         let* repo = R.Repo.v config in

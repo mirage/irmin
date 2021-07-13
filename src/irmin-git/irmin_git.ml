@@ -22,7 +22,7 @@ module Branch = Branch
 module Reference = Reference
 module Schema = Schema
 
-let config = Conf.v
+let config = Conf.init
 
 type reference = Reference.t [@@deriving irmin]
 

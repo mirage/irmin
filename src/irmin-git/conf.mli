@@ -16,14 +16,16 @@
 
 include Irmin.Private.Conf.S
 
-val root : string key
-val head : Git.Reference.t option key
-val bare : bool key
-val level : int option key
-val buffers : int option key
-val dot_git : string option key
+module Key : sig
+  val root : string key
+  val head : Git.Reference.t option key
+  val bare : bool key
+  val level : int option key
+  val buffers : int option key
+  val dot_git : string option key
+end
 
-val v :
+val init :
   ?head:Git.Reference.t ->
   ?bare:bool ->
   ?level:int ->

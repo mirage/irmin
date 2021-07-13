@@ -118,3 +118,14 @@ module Extend (S : S) = struct
     let keys = S.all_keys () in
     Seq.iter (fun (Key k) -> Hashtbl.replace all (name k) (Key k)) keys
 end
+
+module Join (A : S) (B : S) = struct
+  include Make ()
+
+  let () =
+    let a = A.all_keys () in
+    let b = B.all_keys () in
+    Seq.iter
+      (fun (Key k) -> Hashtbl.replace all (name k) (Key k))
+      (Seq.append a b)
+end

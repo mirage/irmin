@@ -133,7 +133,7 @@ module Make (M : Maker) = struct
       in
       { nb_commits; nb_nodes; nb_contents }
 
-    let conf root = Conf.make ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false root
 
     let run_versioned_store ~root version =
       Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
@@ -156,7 +156,7 @@ module Make (M : Maker) = struct
 
   module Reconstruct_index = struct
     let conf ~index_log_size root =
-      Conf.make ~readonly:false ~fresh:false ?index_log_size root
+      Conf.init ~readonly:false ~fresh:false ?index_log_size root
 
     let dest =
       let open Cmdliner.Arg in
@@ -225,7 +225,7 @@ module Make (M : Maker) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Conf.make ~readonly:false ~fresh:false root
+    let conf root = Conf.init ~readonly:false ~fresh:false root
 
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
@@ -266,7 +266,7 @@ module Make (M : Maker) = struct
   end
 
   module Integrity_check_inodes = struct
-    let conf root = Conf.make ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false root
 
     let heads =
       let open Cmdliner.Arg in

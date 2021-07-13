@@ -17,7 +17,7 @@
 include Ext
 include Irmin_pack_intf
 
-let config = Conf.make
+let config = Conf.init
 
 exception RO_not_allowed = S.RO_not_allowed
 

@@ -16,10 +16,15 @@
 
 (** JSON REST/CRUD interface. *)
 
-module Conf : Irmin.Private.Conf.S
-
 val config : Uri.t -> Irmin.config -> Irmin.config
-val uri : Uri.t option Irmin.Private.Conf.key
+
+module Conf : sig
+  include Irmin.Private.Conf.S
+
+  module Key : sig
+    val uri : Uri.t option key
+  end
+end
 
 module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client

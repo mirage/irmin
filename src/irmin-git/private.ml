@@ -84,12 +84,12 @@ struct
     }
 
     let config c =
-      let root = Conf.get c Conf.root in
-      let dot_git = Conf.get c Conf.dot_git in
-      let level = Conf.get c Conf.level in
-      let head = Conf.get c Conf.head in
-      let bare = Conf.get c Conf.bare in
-      let buffers = Conf.get c Conf.buffers in
+      let root = Conf.get c Conf.Key.root in
+      let dot_git = Conf.get c Conf.Key.dot_git in
+      let level = Conf.get c Conf.Key.level in
+      let head = Conf.get c Conf.Key.head in
+      let bare = Conf.get c Conf.Key.bare in
+      let buffers = Conf.get c Conf.Key.buffers in
       { root; dot_git; level; head; buffers; bare }
 
     let fopt f = function None -> None | Some x -> Some (f x)

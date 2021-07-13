@@ -147,4 +147,5 @@ module type Sigs = sig
 
   module Make () : S
   module Extend (S : S) : S with type k = S.k
+  module Join (A: S) (B: S with type k = A.k) : S with type k = A.k
 end
