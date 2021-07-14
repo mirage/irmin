@@ -19,6 +19,8 @@
 val global_option_section : string
 val branch : string option Cmdliner.Term.t
 
+module Conf : Irmin.Private.Conf.S
+
 (** {1 Hash} *)
 module Hash : sig
   type t = (module Irmin.Hash.S)

@@ -20,13 +20,18 @@ open Astring
 
 let global_option_section = "COMMON OPTIONS"
 
+module Conf =
+  Irmin.Private.Conf.Join
+    (Irmin_http.Conf)
+    (Irmin.Private.Conf.Join (Irmin_git.Conf) (Irmin_pack.Conf))
+
 let flag_key k =
-  let doc = Irmin.Private.Conf.doc k in
-  let docs = Irmin.Private.Conf.docs k in
-  let docv = Irmin.Private.Conf.docv k in
-  let default = Irmin.Private.Conf.default k in
+  let doc = Conf.doc k in
+  let docs = Conf.docs k in
+  let docv = Conf.docv k in
+  let default = Conf.default k in
   let name =
-    let x = Irmin.Private.Conf.name k in
+    let x = Conf.name k in
     if default then "no-" ^ x else x
   in
   let i = Arg.info ?docv ?doc ?docs [ name ] in
@@ -43,17 +48,15 @@ let pconv t =
   (parse, pp)
 
 let key k default =
-  let doc = Irmin.Private.Conf.doc k in
-  let docs = Irmin.Private.Conf.docs k in
-  let docv = Irmin.Private.Conf.docv k in
-  let mk = pconv (Irmin.Private.Conf.ty k) in
-  let name = Irmin.Private.Conf.name k in
+  let doc = Conf.doc k in
+  let docs = Conf.docs k in
+  let docv = Conf.docv k in
+  let mk = pconv (Conf.ty k) in
+  let name = Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
 
-module Conf = Irmin.Private.Conf.Join (Irmin_git.Conf) (Irmin_pack.Conf)
-
-let opt_key k = key k (Irmin.Private.Conf.default k)
+let opt_key k = key k (Conf.default k)
 
 let config_path_key =
   Conf.key ~docs:global_option_section ~docv:"PATH"
@@ -379,13 +382,14 @@ let rec read_config_file path =
 let root_key = Conf.root ()
 
 let config_term =
-  let create root bare head level uri config_path =
+  let create root bare head level uri index_log_size config_path =
     Conf.empty
     |> add root_key root
     |> add Irmin_git.Conf.Key.bare bare
     |> add_opt Irmin_git.Conf.Key.head head
     |> add_opt Irmin_git.Conf.Key.level level
     |> add_opt Irmin_http.Conf.Key.uri uri
+    |> add Irmin_pack.Conf.Key.index_log_size index_log_size
     |> add config_path_key config_path
   in
   Term.(
@@ -395,6 +399,7 @@ let config_term =
     $ opt_key Irmin_git.Conf.Key.head
     $ opt_key Irmin_git.Conf.Key.level
     $ opt_key Irmin_http.Conf.Key.uri
+    $ opt_key Irmin_pack.Conf.Key.index_log_size
     $ opt_key config_path_key)
 
 type store =
