@@ -296,10 +296,9 @@ module Table1 = struct
     in
 
     Pb.text row_name
-    ::
-    (List.mapi pp_cell scalars
-    |> List.map Pb.text
-    |> List.map (Pb.align ~h:`Right ~v:`Top))
+    :: (List.mapi pp_cell scalars
+       |> List.map Pb.text
+       |> List.map (Pb.align ~h:`Right ~v:`Top))
 
   let cells_of_section_row col_count (`Section name : section_row) =
     Pb.text name
@@ -326,7 +325,7 @@ module Table2 = struct
   let create_header_rows summaries =
     let only_one_summary = List.length summaries = 1 in
     [
-      "" :: (if only_one_summary then [] else [ "" ])
+      ("" :: (if only_one_summary then [] else [ "" ]))
       @ [ "min per block"; "max per block"; "avg per block"; "avg per sec" ];
     ]
     |> Pb.matrix_to_text
@@ -459,7 +458,7 @@ module Table2 = struct
               box_of_scalar scalar_format_b row_idx avg_ps0 avg_ps;
             ]
           in
-          a :: b @ c)
+          (a :: b) @ c)
         names_and_variables
     in
     rows
@@ -483,7 +482,8 @@ module Table3 = struct
   let create_header_rows summaries =
     let only_one_summary = List.length summaries = 1 in
     [
-      "" :: (if only_one_summary then [] else [ "" ]) @ [ "min"; "max"; "avg" ];
+      ("" :: (if only_one_summary then [] else [ "" ]))
+      @ [ "min"; "max"; "avg" ];
     ]
     |> Pb.matrix_to_text
     |> Pb.align_matrix `Center
@@ -590,7 +590,7 @@ module Table3 = struct
               box_of_scalar scalar_format_b row_idx avg0 avg;
             ]
           in
-          a :: b @ c)
+          (a :: b) @ c)
         names_and_variables
     in
     rows
@@ -982,7 +982,7 @@ module Table4 = struct
           let c =
             List.mapi (box_of_scalar row_idx) (List.combine curve0 curve)
           in
-          a :: b @ c)
+          (a :: b) @ c)
         names_and_curves
     in
     rows

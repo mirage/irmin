@@ -111,7 +111,7 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     let* min =
       Lwt_list.fold_left_s
         (fun acc -> function
-          | `Branch _ as x -> pred x >|= fun c -> x :: c @ acc
+          | `Branch _ as x -> pred x >|= fun c -> (x :: c) @ acc
           | x -> Lwt.return (x :: acc))
         [] min
     in
