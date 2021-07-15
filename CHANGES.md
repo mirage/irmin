@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+
+- **irmin-pack**
+   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, @icristescu,
+     @samoht)
+
 ### Changed
 
 - **irmin-pack**
