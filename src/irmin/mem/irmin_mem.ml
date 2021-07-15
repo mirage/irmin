@@ -27,10 +27,12 @@ module Append_only (Schema : Irmin.Append_only.Schema) = struct
     type t = Hash.t [@@deriving irmin ~compare]
   end)
 
+  module Key = Irmin.Key.Of_hash (Schema.Hash)
+
   type key = Key.t [@@deriving irmin ~pp]
   type value = Value.t
   type hash = Hash.t [@@deriving irmin ~pp]
-  type 'a t = { mutable t : (key * value) Hashes.t }
+  type 'a t = { mutable t : value Hashes.t }
 
   let map = { t = Hashes.empty }
   let v _config = Lwt.return map
@@ -63,14 +65,14 @@ module Append_only (Schema : Irmin.Append_only.Schema) = struct
    *         Key.set key v;
    *         Some v) *)
 
-  let index { t; _ } h =
+  let index _ h =
     Log.debug (fun f -> f "index %a" pp_hash h);
-    Hashes.find_opt h t |> Option.map fst |> Lwt.return
+    Lwt.return (Some (Key.v h))
 
   let find t key =
     Log.debug (fun f -> f "find %a" pp_key key);
     let v = find_aux t key in
-    Lwt.return (Option.map snd v)
+    Lwt.return v
 
   let mem t key =
     Log.debug (fun f -> f "mem %a" pp_key key);
@@ -81,7 +83,7 @@ module Append_only (Schema : Irmin.Append_only.Schema) = struct
   let add t hash value =
     Log.debug (fun f -> f "add -> %a" pp_hash hash);
     t.t <- Hashes.add hash value t.t;
-    Lwt.return_unit
+    Lwt.return (Key.v hash)
 
   (* match Hashes.find_opt hash t.t with
    * | Some (k, _) -> Lwt.return k

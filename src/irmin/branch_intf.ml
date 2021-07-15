@@ -27,16 +27,18 @@ module type S = sig
   (** Check if the branch is valid. *)
 end
 
+module Irmin_key = Key
+
 module type Store = sig
   (** {1 Branch Store} *)
 
-  include Atomic_write.S
-
-  module Val : Key.S with type t = value
+  module Val : Irmin_key.S
   (** Base functions on values. *)
 
-  module Key : S with type t = key
+  module Key : S
   (** Base functions on keys. *)
+
+  include Atomic_write.Simple with type value := Val.t and type key := Key.t
 end
 
 module type Sigs = sig

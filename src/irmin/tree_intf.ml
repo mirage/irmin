@@ -328,7 +328,7 @@ module type Sigs = sig
       [> write ] P.Contents.t ->
       [> read_write ] P.Node.t ->
       node ->
-      P.Node.key Lwt.t
+      P.Node.Key.t Lwt.t
 
     val dump : t Fmt.t
     val equal : t -> t -> bool

@@ -531,7 +531,7 @@ module Make (P : Private.S) = struct
                   | None ->
                       hash n (fun h ->
                           (* XXX: sort this out *)
-                          let key = (assert false : hash -> P.Node.key) h in
+                          let key = (assert false : hash -> P.Node.Key.t) h in
                           return key)))
         in
         aux [] alist
@@ -551,7 +551,7 @@ module Make (P : Private.S) = struct
       | `Node n ->
           hash n (fun h ->
               (* FIXME: metadata *)
-              let key = (assert false : hash -> P.Node.key) h in
+              let key = (assert false : hash -> P.Node.Key.t) h in
               k (`Node key))
 
     and value_of_updates : type r. t -> value -> _ -> (value, r) cont =

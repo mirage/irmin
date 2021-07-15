@@ -36,56 +36,64 @@ module Key = Key
 
 exception Closed = Store_properties.Closed
 
-module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
+module Maker (CA : Content_addressable.Maker') (AW : Atomic_write.Maker) =
+struct
   type endpoint = unit
 
   module Make (S : Schema.S) = struct
-    module CA = Content_addressable.Check_closed (CA)
+    module CA : Content_addressable.Maker' =
+      Content_addressable.Check_closed' (CA)
+
     module AW = Atomic_write.Check_closed (AW)
 
     module X = struct
       module Schema = S
       module Hash = S.Hash
+      module XKey = Key.Of_hash (S.Hash)
+      module Commit_key = XKey
+      module Node_key = XKey
 
       module Contents = struct
-        module CA = CA (struct
-          module Hash = S.Hash
+        module CA :
+          Content_addressable.S'
+            with type value = S.Contents.t
+             and type hash = S.Hash.t
+             and type Key.t = XKey.t =
+          CA (S.Hash) (* XXX: Try putting this back to [Hash] *) (S.Contents)
 
-          (* module Key = S.Contents_key *)
-          module Value = S.Contents
-        end)
-
-        include Contents.Store (CA) (S.Hash) (CA.Key) (S.Contents)
+        include (
+          Contents.Store (CA) (S.Hash) (S.Contents) :
+              Contents.Store
+                with type 'a t = 'a CA.t
+                 and type Key.t = CA.Key.t
+                 and type value = CA.value
+                 and type hash = Hash.t)
       end
 
       module Node = struct
-        module CA = CA (struct
-          module Hash = S.Hash
+        module Value = S.Node (Contents.Key) (Node_key)
 
-          (* module Key = S.Node_key *)
-          module Value = S.Node
-        end)
+        module CA :
+          Content_addressable.S'
+            with type value = Value.t
+             and type hash = S.Hash.t
+             and type Key.t = Key.Of_hash(S.Hash).t =
+          CA (S.Hash) (Value)
 
         include
-          Node.Store (Contents) (CA) (S.Hash) (S.Node_key) (S.Node) (S.Metadata)
-            (S.Path)
+          Node.Store (Contents) (CA) (S.Hash) (Value) (S.Metadata) (S.Path)
       end
 
       module Commit = struct
-        module CA = CA (struct
-          module Hash = S.Hash
-          module Key = S.Commit_key
-          module Value = S.Commit
-        end)
-
-        include
-          Commit.Store (S.Info) (Node) (CA) (S.Hash) (S.Commit_key) (S.Commit)
+        module Value = S.Commit (Node_key) (Commit_key)
+        module CA = CA (S.Hash) (Value)
+        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (Value)
       end
 
       module Branch = struct
-        module Key = S.Branch
         module Val = Commit.Key
-        include AW (Key) (Val)
+        include AW (S.Branch) (Val)
+        module Key = S.Branch
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)
@@ -134,7 +142,7 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
   end
 end
 
-module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
+module KV_maker (CA : Content_addressable.Maker') (AW : Atomic_write.Maker) =
 struct
   type endpoint = unit
   type metadata = unit

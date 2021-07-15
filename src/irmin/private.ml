@@ -24,40 +24,42 @@ module type S = sig
   (** Internal hashes. *)
 
   (** Private content store. *)
+
   module Contents :
-    Contents.Store
-      with type key = Schema.Contents_key.t
-       and type hash = Hash.t
-       and type value = Schema.Contents.t
+    Contents.Store with type hash = Hash.t and type value = Schema.Contents.t
 
   (** Private node store. *)
+
+  module Node_key : Key.S with type hash = Hash.t
+
   module Node :
     Node.Store
-      with type key = Schema.Node_key.t
-       and type hash = Hash.t
-       and type Val.contents_key = Contents.key
+      with type hash = Hash.t
+       and type Val.contents_key = Contents.Key.t
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
 
   (** Private commit store. *)
+
+  module Commit_key : Key.S with type hash = Hash.t
+
   module Commit :
     Commit.Store
-      with type key = Schema.Commit_key.t
-       and type hash = Hash.t
-       and type Val.node_key = Node.key
-       and type value = Schema.Commit.t
+      with type hash = Hash.t
+       and type Val.node_key = Node.Key.t
+       and type value = Schema.Commit(Node_key)(Commit_key).t
        and module Info = Schema.Info
 
   (** Private branch store. *)
   module Branch :
-    Branch.Store with type key = Schema.Branch.t and type value = Commit.key
+    Branch.Store with type Key.t = Schema.Branch.t and type Val.t = Commit.Key.t
 
   (** Private slices. *)
   module Slice :
     Slice.S
-      with type contents = Contents.key * Contents.value
-       and type node = Node.key * Node.value
-       and type commit = Commit.key * Commit.value
+      with type contents = Contents.Key.t * Contents.value
+       and type node = Node.Key.t * Node.value
+       and type commit = Commit.Key.t * Commit.value
 
   (** Private repositories. *)
   module Repo : sig
@@ -85,7 +87,8 @@ module type S = sig
 
   (** URI-based low-level remote synchronisation. *)
   module Remote : sig
-    include Remote.S with type commit = Commit.hash and type branch = Branch.key
+    include
+      Remote.S with type commit = Commit.hash and type branch = Branch.Key.t
 
     val v : Repo.t -> t Lwt.t
   end

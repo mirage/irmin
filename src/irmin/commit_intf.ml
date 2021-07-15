@@ -64,14 +64,14 @@ module type Store = sig
 
   (** [Val] provides functions for commit values. *)
   module Val :
-    S with type t = value and type commit_key = key and module Info := Info
+    S with type t = value and type commit_key = Key.t and module Info := Info
 
   module Hash : Hash.Typed with type t = hash and type value = value
 
-  module Node : Node.Store with type key = Val.node_key
+  module Node : Node.Store with type Key.t = Val.node_key
   (** [Node] is the underlying node store. *)
 
-  val merge : [> read_write ] t -> info:Info.f -> key option Merge.t
+  val merge : [> read_write ] t -> info:Info.f -> Key.t option Merge.t
   (** [merge] is the 3-way merge function for commit keys. *)
 end
 
@@ -202,15 +202,14 @@ module type Sigs = sig
       (N : Node.Store)
       (S : Content_addressable.S)
       (H : Hash.S with type t = S.hash)
-      (K : Key.S with type t = S.key and type hash = H.t)
       (V : S
-             with type node_key = N.key
-              and type commit_key = S.key
+             with type node_key = N.Key.t
+              and type commit_key = S.Key.t
               and type t = S.value
               and module Info := I) :
     Store
       with type 'a t = 'a N.t * 'a S.t
-       and type key = S.key
+       and type Key.t = S.Key.t
        and type value = S.value
        and module Info = I
        and type hash = S.hash
@@ -229,8 +228,8 @@ module type Sigs = sig
     History
       with type 'a t = 'a C.t
        and type v = C.Val.t
-       and type node_key = C.Node.key
-       and type commit_key = C.key
+       and type node_key = C.Node.Key.t
+       and type commit_key = C.Key.t
        and type info = C.Info.t
 
   include Maker with module Info = Info.Default

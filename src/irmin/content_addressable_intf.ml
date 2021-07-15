@@ -60,9 +60,8 @@ module type S = sig
   type -'a t
   type value
   type hash
-  type key
 
-  module Key : Key.S with type t = key and type hash = hash
+  module Key : Key.S with type hash = hash
 
   val mem : [> read ] t -> Key.t -> bool Lwt.t
   val find : [> read ] t -> Key.t -> value option Lwt.t
@@ -75,6 +74,8 @@ module type S = sig
   include Closeable with type 'a t := 'a t
 end
 
+module Irmin_key = Key
+
 module type Maker = functor (Schema : Append_only.Schema) -> sig
   include S with type value = Schema.Value.t and type hash = Schema.Hash.t
 
@@ -82,9 +83,41 @@ module type Maker = functor (Schema : Append_only.Schema) -> sig
   (** @inline *)
 end
 
+(* XXX: this one is actually content addressable *)
+module type S' = sig
+  type -'a t
+  type value
+  type hash
+
+  module Key : Key.Hash_like with type hash = hash
+
+  val mem : [> read ] t -> Key.t -> bool Lwt.t
+  val find : [> read ] t -> Key.t -> value option Lwt.t
+  val add : [> write ] t -> value -> Key.t Lwt.t
+  val unsafe_add : [> write ] t -> hash -> value -> Key.t Lwt.t
+  val index : [> read ] t -> hash -> Key.t option Lwt.t
+
+  include Clearable with type 'a t := 'a t
+  include Batch with type 'a t := 'a t
+  include Closeable with type 'a t := 'a t
+
+  include Of_config with type 'a t := 'a t
+  (** @inline *)
+end
+
+(* XXX: derive from S *)
+module type Maker' = functor (Hash : Hash.S) (Value : Type.S) ->
+  S'
+    with type value = Value.t
+     and type hash = Hash.t
+    with module Key = Key.Of_hash(Hash)
+
 module type Sigs = sig
   module type S = S
+  module type S' = S' (* XXX: remove ? *)
+
   module type Maker = Maker
+  module type Maker' = Maker'
 
   module Make
       (Append_only_maker : Append_only.Maker)
@@ -92,8 +125,8 @@ module type Sigs = sig
     include
       S
         with type 'a t = 'a Append_only_maker(Schema).t
-         and type key = Append_only_maker(Schema).Key.t
          and type Key.t = Append_only_maker(Schema).Key.t
+        (* XXX: why need both? *)
          and type value = Schema.Value.t
          and type hash = Schema.Hash.t
 
@@ -102,4 +135,5 @@ module type Sigs = sig
   end
 
   module Check_closed (M : Maker) : Maker
+  module Check_closed' (M : Maker') : Maker'
 end

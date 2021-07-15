@@ -73,21 +73,19 @@ module Store
     (N : Node.Store)
     (S : Content_addressable.S)
     (H : Hash.S with type t = S.hash)
-    (K : Key.S with type t = S.key and type hash = H.t)
     (V : S
-           with type node_key = N.key
-            and type commit_key = S.key
+           with type node_key = N.Key.t
+            and type commit_key = S.Key.t
             and type t = S.value
             and module Info := I) =
 struct
   module Node = N
   module Val = V
-  module Key = K
+  module Key = S.Key
   module Hash = Hash.Typed (H) (V)
   module Info = I
 
   type 'a t = 'a N.t * 'a S.t
-  type key = S.key
   type value = S.value
   type hash = S.hash
 
@@ -316,9 +314,9 @@ module History (S : Store) = struct
     (* parents of commits already explored *)
     layers : (int, KSet.t) Hashtbl.t;
     (* layers of commit, sorted by depth *)
-    c1 : S.key;
+    c1 : S.Key.t;
     (* initial state 1 *)
-    c2 : S.key;
+    c2 : S.Key.t;
     (* initial state 2 *)
     mutable depth : int;
     (* the current exploration depth *)

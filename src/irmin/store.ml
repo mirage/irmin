@@ -24,6 +24,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (P : Private.S) = struct
   module Schema = P.Schema
+  module Contents_key = P.Contents.Key
+  module Commit_key = P.Commit.Key
   module Metadata = P.Node.Metadata
   module Typed = Hash.Typed (P.Hash)
   module Hash = P.Hash
@@ -51,9 +53,9 @@ module Make (P : Private.S) = struct
   end
 
   type branch = Branch_store.Key.t [@@deriving irmin ~equal ~pp]
-  type contents_key = P.Contents.Key.t [@@deriving irmin ~pp]
-  type node_key = P.Node.Key.t [@@deriving irmin ~pp]
-  type commit_key = P.Commit.Key.t [@@deriving irmin ~pp]
+  type contents_key = P.Contents.Key.t [@@deriving irmin ~pp ~equal]
+  type node_key = P.Node.Key.t [@@deriving irmin ~pp ~equal]
+  type commit_key = P.Commit.Key.t [@@deriving irmin ~pp ~equal]
   type repo = P.Repo.t
   type commit = { r : repo; key : commit_key; v : P.Commit.value }
   type hash = Hash.t [@@deriving irmin ~pp ~compare]
@@ -107,12 +109,8 @@ module Make (P : Private.S) = struct
         `Node k
 
   module Contents_keys = Set.Make (struct
-    type t = Schema.Contents_key.t [@@deriving irmin ~compare]
+    type t = Contents_key.t [@@deriving irmin ~compare]
   end)
-
-  let equal_contents_key = Type.(unstage (equal P.Contents.Key.t))
-  let equal_node_key = Type.(unstage (equal P.Node.Key.t))
-  let equal_commit_key = Type.(unstage (equal P.Commit.Key.t))
 
   module Commit = struct
     type t = commit
@@ -150,14 +148,13 @@ module Make (P : Private.S) = struct
       | None -> None
       | Some v -> Some { r; key; v }
 
-    let to_private_commit t = t.v
-
     module H = Typed (P.Commit.Val)
 
-    let of_private_commit r v =
-      (* XXX: sort this out *)
-      let key = (assert false : P.Commit.value -> commit_key) v in
-      { r; key; v }
+    let of_private_commit _r _v = assert false
+
+    (* XXX: sort this out *)
+    (* let key = (assert false : P.Commit.value -> commit_key) v in
+     * { r; key; v } *)
 
     let equal_opt x y =
       match (x, y) with
@@ -167,8 +164,9 @@ module Make (P : Private.S) = struct
   end
 
   let to_private_node = Tree.to_private_node
-  let of_private_node = Tree.of_private_node
-  let to_private_commit = Commit.to_private_commit
+  let of_private_node _ = assert false (* Tree.of_private_node *)
+
+  let to_private_commit _ = assert false
   let of_private_commit = Commit.of_private_commit
 
   type head_ref = [ `Branch of branch | `Head of commit option ref ]
@@ -1121,7 +1119,7 @@ module Make (P : Private.S) = struct
     let pp ppf = function
       | `Empty -> Fmt.string ppf "empty"
       | `Branch b -> pp_branch ppf b
-      | `Commit c -> pp_hash ppf (Schema.Commit_key.hash c.key)
+      | `Commit c -> pp_hash ppf (Commit_key.hash c.key)
   end
 
   let commit_t = Commit.t

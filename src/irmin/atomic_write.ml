@@ -20,9 +20,9 @@ include Atomic_write_intf
 module Check_closed (Make_atomic_write : Maker) (K : Type.S) (V : Type.S) =
 struct
   module S = Make_atomic_write (K) (V)
+  module Key = S.Key
 
   type t = { closed : bool ref; t : S.t }
-  type key = S.key
   type value = S.value
 
   let check_not_closed t = if !(t.closed) then raise Store_properties.Closed

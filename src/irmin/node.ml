@@ -197,25 +197,23 @@ end
 
 module Store
     (C : Contents.Store)
-    (S : Content_addressable.S)
+    (S : Content_addressable.S')
     (H : Hash.S with type t = S.hash)
-    (K : Key.Hash_like with type t = S.key and type hash = S.hash)
     (V : S
            with type t = S.value
-            and type contents_key = C.key
-            and type node_key = S.key)
+            and type contents_key = C.Key.t
+            and type node_key = S.Key.t)
     (M : Metadata.S with type t = V.metadata)
     (P : Path.S with type step = V.step) =
 struct
   module Contents = C
   module Val = V
-  module Key = K
+  module Key = S.Key
   module Hash = Hash.Typed (H) (Val)
   module Path = P
   module Metadata = M
 
   type 'a t = 'a C.t * 'a S.t
-  type key = S.key
   type value = S.value
   type hash = Hash.t
 

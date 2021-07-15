@@ -117,7 +117,7 @@ module type Store = sig
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
-  val merge : [> read_write ] t -> key option Merge.t
+  val merge : [> read_write ] t -> Key.t option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
 
   module Metadata : Metadata.S
@@ -127,13 +127,13 @@ module type Store = sig
   module Val :
     S
       with type t = value
-       and type node_key = key
+       and type node_key = Key.t
        and type metadata = Metadata.t
        and type step = Path.step
 
   module Hash : Hash.Typed with type t = hash and type value = value
 
-  module Contents : Contents.Store with type key = Val.contents_key
+  module Contents : Contents.Store with type Key.t = Val.contents_key
   (** [Contents] is the underlying contents store. *)
 end
 
@@ -244,18 +244,17 @@ module type Sigs = sig
   (** [Store] creates node stores. *)
   module Store
       (C : Contents.Store)
-      (S : Content_addressable.S)
+      (S : Content_addressable.S')
       (H : Hash.S with type t = S.hash)
-      (K : Key.Hash_like with type t = S.key and type hash = S.hash)
       (V : S
              with type t = S.value
-              and type contents_key = C.key
-              and type node_key = K.t)
+              and type contents_key = C.Key.t
+              and type node_key = S.Key.t)
       (M : Metadata.S with type t = V.metadata)
       (P : Path.S with type step = V.step) :
     Store
       with type 'a t = 'a C.t * 'a S.t
-       and type key = S.key
+       and type Key.t = S.Key.t
        and type value = S.value
        and type hash = S.hash
        and module Path = P
@@ -269,8 +268,8 @@ module type Sigs = sig
   module Graph (N : Store) :
     Graph
       with type 'a t = 'a N.t
-       and type contents_key = N.Contents.key
-       and type node_key = N.key
+       and type contents_key = N.Contents.Key.t
+       and type node_key = N.Key.t
        and type metadata = N.Metadata.t
        and type step = N.Path.step
        and type path = N.Path.t

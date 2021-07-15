@@ -90,9 +90,9 @@ module type S = sig
     (** @inline *)
   end
 
-  type contents_key = Schema.Contents_key.t [@@deriving irmin]
-  type node_key = Schema.Node_key.t [@@deriving irmin]
-  type commit_key = Schema.Commit_key.t [@@deriving irmin]
+  type contents_key [@@deriving irmin]
+  type node_key [@@deriving irmin]
+  type commit_key [@@deriving irmin]
 
   (** Repositories. *)
   module Repo : sig
@@ -945,6 +945,9 @@ module type Sigs = sig
       with module Schema = P.Schema
        and type slice = P.Slice.t
        and type repo = P.Repo.t
+       and type contents_key = P.Contents.Key.t
+       and type node_key = P.Node.Key.t
+       and type commit_key = P.Commit.Key.t
        and module Private = P
 
   module Json_tree : Json_tree

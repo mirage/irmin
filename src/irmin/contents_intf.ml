@@ -89,7 +89,7 @@ module type Sigs = sig
       (C : S with type t = S.value) :
     Store
       with type 'a t = 'a S.t
-       and type key = S.key
+       and type Key.t = S.Key.t
        and type value = S.value
        and type hash = S.hash
 end

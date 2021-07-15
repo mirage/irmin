@@ -17,28 +17,28 @@
 
 module type S = sig
   module Hash : Hash.S
-  module Contents_key : Key.S with type hash = Hash.t
-  module Node_key : Key.Hash_like with type hash = Hash.t
-  module Commit_key : Key.Hash_like with type hash = Hash.t
   module Branch : Branch.S
   module Info : Info.S
-
-  module Commit :
-    Commit.S
-      with module Info := Info
-       and type node_key = Node_key.t
-       and type commit_key = Commit_key.t
-
   module Metadata : Metadata.S
   module Path : Path.S
   module Contents : Contents.S
 
-  module Node :
+  module Node
+      (Contents_key : Key.S with type hash = Hash.t)
+      (Node_key : Key.S with type hash = Hash.t) :
     Node.S
       with type metadata = Metadata.t
        and type step = Path.step
-       and type node_key = Node_key.t
        and type contents_key = Contents_key.t
+       and type node_key = Node_key.t
+
+  module Commit
+      (Node_key : Key.S with type hash = Hash.t)
+      (Commit_key : Key.S with type hash = Hash.t) :
+    Commit.S
+      with module Info := Info
+       and type node_key = Node_key.t
+       and type commit_key = Commit_key.t
 end
 
 module type KV =
@@ -51,24 +51,23 @@ module type KV =
      and type Path.t = string list
 
 module KV (C : Contents.S) : KV with module Contents = C = struct
+  module Contents = C
   module Hash = Hash.BLAKE2B
   module Info = Info.Default
   module Branch = Branch.String
-  module Key = Key.Of_hash (Hash)
-  module Node_key = Key
-  module Contents_key = Key
-  module Commit_key = Key
-  module Commit = Commit.Make (Hash) (Node_key) (Commit_key)
   module Path = Path.String_list
   module Metadata = Metadata.None
 
-  module Node = Node.Make (struct
+  module Node
+      (Contents_key : Key.S with type hash = Hash.t)
+      (Node_key : Key.S with type hash = Hash.t) =
+  Node.Make (struct
     module Hash = Hash
     module Path = Path
-    module Node_key = Node_key
     module Contents_key = Contents_key
+    module Node_key = Node_key
     module Metadata = Metadata
   end)
 
-  module Contents = C
+  module Commit = Commit.Make (Hash)
 end
